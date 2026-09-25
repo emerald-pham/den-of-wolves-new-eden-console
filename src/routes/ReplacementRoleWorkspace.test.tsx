@@ -41,9 +41,17 @@ function renderWorkspace(roleId: string) {
   );
 }
 
-it.each(replacements)('loads the reassigned %s shell without fictional controls', (roleId, name, vessel) => {
+it.each(replacements)('loads the reassigned %s shell with only its printed controls', async (roleId, name, vessel) => {
   const me = useSessionStore.getState().me!;
   useSessionStore.getState().setMe({ ...me, replacementRoleId: roleId, activeConsoleRoleId: null });
+  if (roleId === 'comms-officer') {
+    const session = useSessionStore.getState().session!;
+    useSessionStore.getState().setSession({
+      ...session,
+      activeRoleIds: ['wing-commander', 'quellon-explorer', 'shepherd-scientist'],
+      activeVesselIds: ['aegis', 'quellon', 'shepherd'],
+    });
+  }
 
   renderWorkspace(roleId);
 
@@ -51,8 +59,12 @@ it.each(replacements)('loads the reassigned %s shell without fictional controls'
   expect(within(workspace).getByRole('heading', { name })).toBeVisible();
   expect(workspace).toHaveTextContent(vessel);
   expect(workspace).toHaveTextContent('Facilitator reassignment confirmed');
-  expect(workspace).toHaveTextContent('does not invent an action, resource, target, or outcome');
-  expect(within(workspace).queryByRole('button')).not.toBeInTheDocument();
+  if (roleId === 'comms-officer') {
+    expect(await within(workspace).findByRole('region', { name: 'Comms Officer scouting request' })).toBeVisible();
+  } else {
+    expect(within(workspace).queryByRole('region', { name: /scouting request/i })).not.toBeInTheDocument();
+    expect(within(workspace).queryByRole('button')).not.toBeInTheDocument();
+  }
 });
 
 it('rejects a deep link for a replacement role that was not assigned', () => {

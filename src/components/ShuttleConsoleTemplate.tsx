@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import type { ComponentType } from 'react';
+import { lazy, Suspense, type ComponentType } from 'react';
 import PressConfetti from './PressConfetti';
 import PressDispatch from './PressDispatch';
 import RoleAssignment from './RoleAssignment';
@@ -12,6 +12,7 @@ import ChacauRepairPanel from './ChacauRepairPanel';
 import AllyRepairPanel from './AllyRepairPanel';
 import HighwallMining from './HighwallMining';
 import EndeavourResearchPanel from './EndeavourResearchPanel';
+import type { ScoutEntitlementId } from '@/lib/scoutRequestAuthority';
 import MaliadesPanel from './MaliadesPanel';
 import { SHIPS } from '@/data/ships';
 import type { Shuttlecraft, ShuttleCapability, ShuttleOperationPhase } from '@/data/vessels/templates';
@@ -23,11 +24,19 @@ const SHUTTLE_CAPABILITIES: Record<ShuttleCapability, { component: ComponentType
   'newspaper-confetti': { component: PressConfetti, placement: 'instruments' },
   'press-dispatches': { component: PressDispatch, placement: 'workspace' },
 };
+const ScoutRequestControls = lazy(() => import('./ScoutRequestControls'));
 
 function operationPhaseLabel(phase: ShuttleOperationPhase): string {
   if (phase === 'Team') return 'Airspace closed';
   if (phase === 'Coordination') return 'Airspace open';
   return phase;
+}
+
+function scoutEntitlementForShuttle(shuttleId: string): ScoutEntitlementId | undefined {
+  if (shuttleId === 'starlight' || shuttleId === 'hummingbird' || shuttleId === 'endeavour') {
+    return shuttleId;
+  }
+  return undefined;
 }
 
 interface Props {
@@ -59,6 +68,7 @@ export default function ShuttleConsoleTemplate({
   const location = docking ? `Docked // ${host?.name ?? docking.shipId}` : 'In transit';
   const workspaceCapabilities = shuttle.capabilities.filter(capability => SHUTTLE_CAPABILITIES[capability].placement === 'workspace');
   const instrumentCapabilities = shuttle.capabilities.filter(capability => SHUTTLE_CAPABILITIES[capability].placement === 'instruments');
+  const scoutEntitlementId = scoutEntitlementForShuttle(shuttle.id);
   const renderCapability = (capability: ShuttleCapability) => {
     const Capability = SHUTTLE_CAPABILITIES[capability].component;
     return <Capability key={capability} shuttle={shuttle} />;
@@ -115,6 +125,9 @@ export default function ShuttleConsoleTemplate({
             </div>
           </section>}
           {workspaceCapabilities.map(renderCapability)}
+          {scoutEntitlementId && <Suspense fallback={<p className="console-workspace__status">Loading scouting request controls…</p>}>
+            <ScoutRequestControls key={scoutEntitlementId} entitlementId={scoutEntitlementId} />
+          </Suspense>}
           {shuttle.id === 'endeavour' && control?.shuttleId === 'endeavour' &&
             <EndeavourResearchPanel control={control} />}
           {control && <ShuttleControl control={control} />}

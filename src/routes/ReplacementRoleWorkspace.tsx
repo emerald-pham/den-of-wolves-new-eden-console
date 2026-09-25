@@ -1,8 +1,11 @@
+import { lazy, Suspense } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import RoleAssignment from '@/components/RoleAssignment';
 import RoleConsoleTemplate from '@/components/RoleConsoleTemplate';
 import { replacementRoleFor } from '@/data/replacementRoles';
 import { useSessionStore } from '@/store/useSessionStore';
+
+const ScoutRequestControls = lazy(() => import('@/components/ScoutRequestControls'));
 
 export default function ReplacementRoleWorkspace() {
   const { roleId } = useParams();
@@ -41,12 +44,14 @@ export default function ReplacementRoleWorkspace() {
             <p>Facilitator reassignment confirmed // private role identity active</p>
             <p>Operational controls appear only when an authoritative procedure is available.</p>
           </div>
+          {role.id === 'comms-officer' && (
+            <Suspense fallback={<p className="console-workspace__status">Loading scouting request controls…</p>}>
+              <ScoutRequestControls key={role.id} entitlementId="comms-officer" />
+            </Suspense>
+          )}
           <section className="console-workspace__section" aria-labelledby="replacement-workspace-boundary">
             <h3 id="replacement-workspace-boundary">Station boundary</h3>
-            <p>
-              This workspace carries the assigned role and station identity. It does not invent an
-              action, resource, target, or outcome.
-            </p>
+            <p>This workspace shows the role and station recorded for your current assignment.</p>
           </section>
         </RoleConsoleTemplate>
       </section>

@@ -8,10 +8,16 @@ import { findConsoleRole } from '@/data/roles';
 import { consoleRoleRoute } from '@/lib/consoleRole';
 import { recommendedRoleIds } from '@/data/rolePresets';
 import type * as FirestoreModule from '@/lib/firestore';
+import type * as ScoutRequestServiceModule from '@/lib/scoutRequestService';
 import type * as ShuttleEvacuationServiceModule from '@/lib/shuttleEvacuationService';
 import ShuttleConsole from './ShuttleConsole';
 
 const endeavourResearchMocks = vi.hoisted(() => ({ read: vi.fn(), advance: vi.fn() }));
+const scoutRequestMock = vi.hoisted(() => ({ request: vi.fn() }));
+vi.mock('@/lib/scoutRequestService', async (importOriginal) => ({
+  ...(await importOriginal<typeof ScoutRequestServiceModule>()),
+  requestScout: scoutRequestMock.request,
+}));
 vi.mock('@/lib/endeavourResearchService', () => ({
   readEndeavourResearchWorkspace: endeavourResearchMocks.read,
   advanceEndeavourResearchTrack: endeavourResearchMocks.advance,
@@ -80,6 +86,7 @@ const { rechargeHostConsoleFromShuttle } = await import('@/lib/serviceShuttleRec
 const { repairConsolesFromBlacksmith } = await import('@/lib/blacksmithRepairService');
 const { runHighwallMining } = await import('@/lib/highwallMiningService');
 const { evacuateShuttleSurvivors } = await import('@/lib/shuttleEvacuationService');
+const { requestScout } = await import('@/lib/scoutRequestService');
 
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
@@ -115,6 +122,8 @@ beforeEach(() => {
     fieldUpgradeState: { upgradeRevision: 0, targetsUsedThisCycle: 0 },
   });
   endeavourResearchMocks.advance.mockResolvedValue(undefined);
+  vi.mocked(requestScout).mockReset();
+  vi.mocked(requestScout).mockResolvedValue(undefined as never);
   vi.mocked(selectConsoleRole).mockReset();
   vi.mocked(selectConsoleRole).mockResolvedValue(undefined);
   vi.mocked(releaseConsoleRole).mockReset();
@@ -1043,6 +1052,44 @@ it('opens Starlight on its Wing Commander route with its routed operation envelo
   expect(screen.getByText(/within 2 jumps.*fuelled.*second system/i)).toBeInTheDocument();
   expect(screen.getByText(/\+3.*exploration.*\+1.*salvage/i)).toBeInTheDocument();
   expect(screen.queryByText(/cargo transfer/i)).not.toBeInTheDocument();
+});
+
+it.each([
+  ['starlight', 'wing-commander', 'aegis'],
+  ['hummingbird', 'quellon-explorer', 'quellon'],
+  ['endeavour', 'shepherd-scientist', 'shepherd'],
+] as const)('lets the current %s owner record a scouting request from the shuttle route', async (
+  shuttleId, roleId, anchorShipId,
+) => {
+  const user = userEvent.setup();
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!, phase: 'active', currentTurn: 2,
+    activeRoleIds: [roleId], activeVesselIds: [anchorShipId],
+    turnPhase: {
+      turn: 2, teamPhaseEndsAt: '2099-01-01T00:00:00.000Z',
+      openAirspaceEndsAt: '2099-01-01T00:10:00.000Z',
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+    },
+  });
+  state.setMe({ ...state.me!, role: 'player', assignedRoleId: roleId, seatId: roleId,
+    replacementRoleId: null, activeConsoleRoleId: roleId });
+  state.setConnection('live');
+  state.setSessionSnapshotFreshness('server');
+
+  render(<MemoryRouter initialEntries={[`/shuttles/${shuttleId}`]}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+
+  const identity = shuttleId[0]!.toUpperCase() + shuttleId.slice(1);
+  const controls = await screen.findByRole('region', { name: `${identity} scouting request` });
+  await user.type(within(controls).getByLabelText('Printed system coordinate'), '5143');
+  await user.click(within(controls).getByRole('button', { name: 'Record request' }));
+
+  await waitFor(() => expect(requestScout).toHaveBeenCalledWith(expect.objectContaining({
+    entitlementId: shuttleId, targetCoordinate: '5143', requestId: expect.any(String),
+  })));
+  expect(await within(controls).findByRole('status')).toHaveTextContent(/request recorded/i);
 });
 
 it('opens Philia on its Dione Engineer route with its repair and cargo envelope', async () => {
