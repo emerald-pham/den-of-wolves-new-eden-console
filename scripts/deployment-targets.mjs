@@ -75,6 +75,8 @@ const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
   'functions/src/baseCapybaraCargoTransfer.ts': ['transferBaseCapybaraCargo'],
   'functions/src/baseCapybaraCargoTransferCallable.ts': ['transferBaseCapybaraCargo'],
   'functions/src/boaRecyclingCallable.ts': ['recycleWithBoa'],
+  'functions/src/macawRepair.ts': ['repairConsolesFromMacaw'],
+  'functions/src/macawRepairCallable.ts': ['repairConsolesFromMacaw'],
   'functions/src/gorgoneionRepairDrones.ts': ['repairGorgoneionWithDrones'],
   'functions/src/gorgoneionRepairDronesCallable.ts': ['repairGorgoneionWithDrones'],
   'functions/src/warriorRepairDrones.ts': ['repairWarriorWithDrones'],

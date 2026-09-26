@@ -103,15 +103,85 @@ it('canonicalizes selection order and rejects a request with an unknown field', 
     .rejects.toMatchObject({ code: 'invalid-argument' });
 });
 
-it.each([
-  ['foreign holder', 'other', command],
-  ['stale control', 'holder', { ...command, requestId: 'stale-control', expectedControlRevision: 1 }],
-  ['stale cycle', 'holder', { ...command, requestId: 'stale-cycle', expectedCycle: 2 }],
-])('rejects %s before mutation', async (_label, uid, data) => {
-  await expect(repairConsolesFromMacaw.run(request(data, uid))).rejects.toMatchObject({
+it('rejects a foreign holder before mutation', async () => {
+  await expect(repairConsolesFromMacaw.run(request(command, 'other'))).rejects.toMatchObject({
     code: expect.stringMatching(/permission-denied|failed-precondition/),
   });
   expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['control revision', 'stale-control', { ...command, requestId: 'stale-control' }, (session: Fields) => {
+    ((session.shuttleControl as Fields).macaw as Fields).revision = 3;
+  }, 3, 0, 3],
+  ['repair ledger revision', 'stale-ledger', {
+    ...command, requestId: 'stale-ledger', systemIds: ['storage'],
+  }, (session: Fields) => {
+    session.macawRepairs = { cycle: 3, revision: 1, hosts: [{ shipId: 'capybara', systemIds: ['reactor'] }] };
+  }, 2, 1, 3],
+  ['cycle', 'stale-cycle', { ...command, requestId: 'stale-cycle' }, (session: Fields) => {
+    session.currentTurn = 4;
+    (session.turnPhase as Fields).turn = 4;
+  }, 2, 0, 4],
+])('returns a minimal request-bound stale %s result without a write, event, or receipt', async (
+  _label, requestId, staleCommand, updateSession, currentControlRevision, currentRepairRevision, currentCycle,
+) => {
+  const session = mock.documents.get('sessions/s1')!;
+  updateSession(session);
+  const result = await repairConsolesFromMacaw.run(request(staleCommand)) as Fields;
+  expect(result).toEqual({
+    status: 'stale', sessionId: 's1', requestId, shuttleId: 'macaw',
+    expectedHostShipId: 'capybara', systemIds: staleCommand.systemIds,
+    expectedControlRevision: staleCommand.expectedControlRevision,
+    currentControlRevision,
+    expectedRepairRevision: staleCommand.expectedRepairRevision,
+    currentRepairRevision,
+    expectedCycle: staleCommand.expectedCycle,
+    currentCycle,
+  });
+  expect(result).not.toHaveProperty('holderUid');
+  expect(result).not.toHaveProperty('memberUids');
+  expect(result).not.toHaveProperty('shipResources');
+  expect(result).not.toHaveProperty('scrapRemaining');
+  expect(mock.documents.has(`sessions/s1/commandReceipts/${requestId}`)).toBe(false);
+  expect(mock.documents.has(`sessions/s1/events/macaw-repair-${requestId}`)).toBe(false);
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['Captain role is lost', () => { mock.documents.get('sessions/s1/players/holder')!.assignedRoleId = 'capybara-recycler'; }],
+  ['Macaw holder changes', (session: Fields) => { ((session.shuttleControl as Fields).macaw as Fields).holderUid = 'other'; }],
+  ['fleet-group membership is lost', () => { mock.documents.get('sessions/s1/fleetGroups/fleet-1')!.memberUids = []; }],
+  ['host leaves the fleet group', () => { mock.documents.get('sessions/s1/fleetGroups/fleet-1')!.vesselIds = ['aegis']; }],
+  ['docked host changes', (session: Fields) => { (session.shuttleDockings as Fields[])[0]!.shipId = 'aegis'; }],
+  ['Macaw has ambiguous docking', (session: Fields) => { (session.shuttleDockings as Fields[]).push({ shuttleId: 'macaw', shipId: 'aegis', dockedAt: 'later' }); }],
+  ['Coordination closes', (session: Fields) => { ((session.turnPhase as Fields).airspace as Fields).state = 'restricted'; }],
+])('does not return stale recovery when %s', async (_label, changeAuthority) => {
+  const session = mock.documents.get('sessions/s1')!;
+  session.macawRepairs = { cycle: 3, revision: 1, hosts: [{ shipId: 'capybara', systemIds: ['reactor'] }] };
+  changeAuthority(session);
+  await expect(repairConsolesFromMacaw.run(request({ ...command, systemIds: ['storage'] })))
+    .rejects.toMatchObject({ code: expect.stringMatching(/failed-precondition|permission-denied/) });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['current Scrap is insufficient', (session: Fields) => {
+    ((session.shuttleControl as Fields).macaw as Fields).revision = 3;
+    ((session.shipResources as Fields).capybara as Fields).scrap = 1;
+  }, { ...command, requestId: 'stale-insufficient-scrap' }],
+  ['the host console quota is exhausted', (session: Fields) => {
+    session.macawRepairs = { cycle: 3, revision: 1, hosts: [{ shipId: 'capybara', systemIds: ['reactor', 'storage'] }] };
+  }, { ...command, requestId: 'stale-host-quota', systemIds: ['jump-drive'] }],
+])('does not return stale state when %s', async (_label, change, staleCommand) => {
+  const session = mock.documents.get('sessions/s1')!;
+  change(session);
+  await expect(repairConsolesFromMacaw.run(request(staleCommand)))
+    .rejects.toMatchObject({ code: expect.stringMatching(/failed-precondition|permission-denied/) });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
 });
 
 it('requires a fuelled second ship and rejects malformed server state', async () => {

@@ -37,6 +37,22 @@ export interface MacawRepairCallableReply {
   readonly repairRevision: number;
 }
 
+/** Nonsecret, target-bound CAS state returned only to a still-authorized Captain. */
+export interface MacawRepairCallableStaleReply {
+  readonly status: 'stale';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly shuttleId: 'macaw';
+  readonly expectedHostShipId: string;
+  readonly systemIds: readonly string[];
+  readonly expectedControlRevision: number;
+  readonly currentControlRevision: number;
+  readonly expectedRepairRevision: number;
+  readonly currentRepairRevision: number;
+  readonly expectedCycle: number;
+  readonly currentCycle: number;
+}
+
 function record(value: unknown): Record<string, unknown> | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -115,4 +131,35 @@ export function isMacawRepairCallableReply(
     isSafeCounter(raw.scrapRemaining) && raw.cycle === fingerprint.payload.expectedCycle &&
     Number.isSafeInteger(raw.repairRevision) &&
     raw.repairRevision === fingerprint.expectedRevision + 1);
+}
+
+/** Accepts only a minimal stale envelope for this exact request and selection. */
+export function isMacawRepairCallableStaleReply(
+  value: unknown,
+  command: MacawRepairCallableCommand,
+): value is MacawRepairCallableStaleReply {
+  const raw = record(value);
+  const fields = [
+    'status', 'sessionId', 'requestId', 'shuttleId', 'expectedHostShipId', 'systemIds',
+    'expectedControlRevision', 'currentControlRevision', 'expectedRepairRevision',
+    'currentRepairRevision', 'expectedCycle', 'currentCycle',
+  ];
+  const expectedSystemIds = [...command.systemIds].sort();
+  return Boolean(raw && Object.keys(raw).length === fields.length &&
+    fields.every((key) => Object.hasOwn(raw, key)) && raw.status === 'stale' &&
+    raw.sessionId === command.sessionId && raw.requestId === command.requestId &&
+    raw.shuttleId === 'macaw' && raw.expectedHostShipId === command.expectedHostShipId &&
+    Array.isArray(raw.systemIds) && raw.systemIds.length === expectedSystemIds.length &&
+    raw.systemIds.every((id, index) => id === expectedSystemIds[index]) &&
+    raw.expectedControlRevision === command.expectedControlRevision &&
+    isSafeCounter(raw.currentControlRevision) &&
+    raw.currentControlRevision >= command.expectedControlRevision &&
+    raw.expectedRepairRevision === command.expectedRepairRevision &&
+    isSafeCounter(raw.currentRepairRevision) &&
+    raw.currentRepairRevision >= command.expectedRepairRevision &&
+    raw.expectedCycle === command.expectedCycle &&
+    Number.isSafeInteger(raw.currentCycle) && (raw.currentCycle as number) >= command.expectedCycle &&
+    (raw.currentControlRevision > command.expectedControlRevision ||
+      raw.currentRepairRevision > command.expectedRepairRevision ||
+      (raw.currentCycle as number) > command.expectedCycle));
 }

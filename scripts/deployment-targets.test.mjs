@@ -23,6 +23,7 @@ const ENDEAVOUR_RESEARCH_CALLABLES = [
 const GORGONEION_REPAIR_CALLABLES = ['repairGorgoneionWithDrones'];
 const WARRIOR_REPAIR_CALLABLES = ['repairWarriorWithDrones'];
 const BOA_RECYCLING_CALLABLES = ['recycleWithBoa'];
+const MACAW_REPAIR_CALLABLES = ['repairConsolesFromMacaw'];
 const MALIADE_EVENT_REDACTION_ADDITIONS = [
   {
     eventField: "  'maliades-launched': ['craftId', 'status'],\n",
@@ -397,6 +398,13 @@ test('maps base Capybara cargo resolver and transaction to its deployed transfer
 test('maps Boa recycling callable contract changes to only recycleWithBoa', () => {
   const selected = selectorFor(['functions/src/boaRecyclingCallable.ts']);
   assert.deepEqual(selectedFunctions(selected), functionTargets(BOA_RECYCLING_CALLABLES));
+});
+
+test('maps Macaw repair resolver and callable changes to only repairConsolesFromMacaw', () => {
+  for (const file of ['functions/src/macawRepair.ts', 'functions/src/macawRepairCallable.ts']) {
+    const selected = selectorFor([file]);
+    assert.deepEqual(selectedFunctions(selected), functionTargets(MACAW_REPAIR_CALLABLES));
+  }
 });
 
 test('maps strict extra-ship admission to its assignment, projection, and repair consumers', () => {

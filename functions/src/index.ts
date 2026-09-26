@@ -7111,9 +7111,9 @@ export const repairConsolesFromMacaw = onCall<{
     requireActionPhase(session, 'transfer', 'player');
     const currentCycle = session.get('currentTurn');
     const phase = turnPhaseState(session.get('turnPhase'));
-    if (!Number.isSafeInteger(currentCycle) || currentCycle !== data.expectedCycle ||
+    if (!Number.isSafeInteger(currentCycle) || (currentCycle as number) < 1 ||
         !phase || phase.turn !== currentCycle) {
-      throw commandError('failed-precondition', 'The Coordination cycle changed. Refresh before repairing.', 'stale-revision');
+      throw commandError('failed-precondition', 'The current Coordination cycle is unavailable.', 'conflict');
     }
     const openAirspaceEndsAt = Date.parse(phase.openAirspaceEndsAt);
     if (phase.airspace.state !== 'lifted' || phase.timerPause !== undefined ||
@@ -7140,13 +7140,18 @@ export const repairConsolesFromMacaw = onCall<{
         activeVesselIds.some((shipId) => typeof shipId !== 'string' || !isResourceShipId(shipId)) ||
         !Array.isArray(rawDockings) || !shuttleDockingsAreParked(rawDockings, activeVesselIds) ||
         !shuttleDockingsMatchActiveRoleOwnedSubset(configuredRoleIds(session), rawDockings) ||
-        !control || !isRecord(fuelled) || !ledger) {
+        !control || !control.macaw || !isRecord(fuelled) || !ledger ||
+        !configuredRoleIds(session).includes('capybara-captain')) {
       throw commandError('failed-precondition', 'The authoritative Macaw repair state is unavailable.', 'conflict');
     }
     let result: ReturnType<typeof resolveMacawRepair>;
     try {
-      const hostShipId = rawDockings.find((docking) =>
-        isRecord(docking) && docking.shuttleId === 'macaw')?.shipId;
+      const macawDockings = rawDockings.filter((docking) =>
+        isRecord(docking) && docking.shuttleId === 'macaw');
+      if (macawDockings.length !== 1) {
+        throw new Error('Macaw repairs require exactly one authoritative docked host.');
+      }
+      const hostShipId = macawDockings[0]?.shipId;
       if (hostShipId !== data.expectedHostShipId || !group.vesselIds.includes(hostShipId)) {
         throw new Error('The docked host is outside the holder’s current fleet group.');
       }
@@ -7173,6 +7178,19 @@ export const repairConsolesFromMacaw = onCall<{
         cause instanceof Error ? cause.message : 'Macaw repair was rejected.',
         'conflict',
       );
+    }
+    if (result.status === 'stale') {
+      return {
+        status: 'stale' as const, sessionId: data.sessionId, requestId: data.requestId,
+        shuttleId: 'macaw' as const, expectedHostShipId: data.expectedHostShipId,
+        systemIds: [...data.systemIds],
+        expectedControlRevision: data.expectedControlRevision,
+        currentControlRevision: result.currentControlRevision,
+        expectedRepairRevision: data.expectedRepairRevision,
+        currentRepairRevision: result.currentRepairRevision,
+        expectedCycle: data.expectedCycle,
+        currentCycle: result.currentCycle,
+      };
     }
     const reply: MacawRepairCallableReply = {
       status: 'committed', sessionId: data.sessionId, requestId: data.requestId,

@@ -26,6 +26,19 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 458, partial: 44, active: 0, missing: 249,
     },
     changes: [
+      'Macaw repairs keep your selected consoles when repair state changes, so the current Captain can review live costs and explicitly retry with the current revisions.',
+      '458 of 751 planned items are complete (60.99%).',
+    ],
+    implementationPrompts: [620],
+  },
+
+  {
+    version: '0.5.38',
+    implementationProgress: {
+      completed: 458, total: 751, percentage: '60.99%',
+      done: 458, partial: 44, active: 0, missing: 249,
+    },
+    changes: [
       'Boa recycling keeps the selected recipe when its state changes and lets the current Recycler explicitly retry from the live host inventory and current revision.',
       '458 of 751 planned items are complete (60.99%).',
     ],

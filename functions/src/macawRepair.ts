@@ -18,6 +18,22 @@ export interface MacawRepairLedger {
   readonly hosts: readonly MacawRepairHostEntry[];
 }
 
+export interface MacawRepairStaleState {
+  readonly status: 'stale';
+  readonly currentControlRevision: number;
+  readonly currentRepairRevision: number;
+  readonly currentCycle: number;
+}
+
+export interface MacawRepairReadyResult {
+  readonly status: 'ready';
+  readonly hostShipId: string;
+  readonly damage: ShipDamageState;
+  readonly scrap: number;
+  readonly ledger: MacawRepairLedger;
+  readonly repairedSystemIds: readonly string[];
+}
+
 function record(value: unknown): Record<string, unknown> | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -68,31 +84,28 @@ export function resolveMacawRepair(input: Readonly<{
   scrap: number;
   knownSystemIds: readonly string[];
   ledger: MacawRepairLedger;
-}>): Readonly<{
-  hostShipId: string;
-  damage: ShipDamageState;
-  scrap: number;
-  ledger: MacawRepairLedger;
-  repairedSystemIds: readonly string[];
-}> {
+}>): MacawRepairStaleState | MacawRepairReadyResult {
   if (input.control.shuttleId !== 'macaw' ||
       input.control.ownerRoleId !== 'capybara-captain' ||
       input.control.holderUid !== input.actorUid ||
       input.actorRoleId !== 'capybara-captain') {
     throw new Error('Only the current Capybara Captain holding Macaw may repair consoles.');
   }
-  if (input.control.revision !== input.expectedControlRevision) {
-    throw new Error('Macaw control changed; refresh before repairing.');
+  if (!Number.isSafeInteger(input.expectedControlRevision) || input.expectedControlRevision < 0 ||
+      !Number.isSafeInteger(input.control.revision) || input.control.revision < input.expectedControlRevision) {
+    throw new Error('Macaw control is older than the submitted repair request.');
   }
-  if (!Number.isSafeInteger(input.currentCycle) || input.currentCycle < 1) {
+  if (!Number.isSafeInteger(input.expectedCycle) || input.expectedCycle < 1 ||
+      !Number.isSafeInteger(input.currentCycle) || input.currentCycle < 1) {
     throw new Error('A numbered cycle is required for Macaw repairs.');
   }
-  if (input.expectedCycle !== input.currentCycle) {
-    throw new Error('The Coordination cycle changed; refresh before repairing.');
+  if (input.currentCycle < input.expectedCycle) {
+    throw new Error('The live Coordination cycle is older than the submitted repair request.');
   }
   if (!Number.isSafeInteger(input.expectedRepairRevision) || input.expectedRepairRevision < 0 ||
-      input.ledger.revision !== input.expectedRepairRevision) {
-    throw new Error('Macaw repair history changed; refresh before repairing.');
+      !Number.isSafeInteger(input.ledger.cycle) || input.ledger.cycle < 0 ||
+      !Number.isSafeInteger(input.ledger.revision) || input.ledger.revision < input.expectedRepairRevision) {
+    throw new Error('Macaw repair history is older than the submitted repair request.');
   }
   if (input.ledger.revision >= Number.MAX_SAFE_INTEGER || input.ledger.cycle > input.currentCycle) {
     throw new Error('Macaw repair history is outside the safe cycle range.');
@@ -140,8 +153,20 @@ export function resolveMacawRepair(input: Readonly<{
     throw new Error(`The docked host needs ${cost} Scrap for this repair.`);
   }
 
+  if (input.control.revision > input.expectedControlRevision ||
+      input.ledger.revision > input.expectedRepairRevision ||
+      input.currentCycle > input.expectedCycle) {
+    return {
+      status: 'stale',
+      currentControlRevision: input.control.revision,
+      currentRepairRevision: input.ledger.revision,
+      currentCycle: input.currentCycle,
+    };
+  }
+
   const nextHost = { shipId: hostShipId, systemIds: [...repairedOnHost, ...input.systemIds] };
   return {
+    status: 'ready',
     hostShipId,
     damage: {
       ...input.damage,
