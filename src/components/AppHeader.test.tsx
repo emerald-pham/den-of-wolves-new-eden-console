@@ -620,9 +620,18 @@ it('renders the current and previous changelog copy with progress and keyboard s
   expect(region).toHaveAttribute('tabindex', '0');
   expect(renderedChanges.every((change) => !/\bprompts?\b/i.test(change))).toBe(true);
   expect(within(newestEntry).getByText(
-    'Repair Drones now keep the selected consoles when repair state changes and let you explicitly retry using the current revision.',
+    'The P.D.F. Colonel can launch the Escort Wing during Wolf Attack when the Refinery 124 Fighter Bay is charged and operational.',
+  )).toBeVisible();
+  expect(within(newestEntry).getByText(
+    'Medium and Short resolution, fighter losses, and Away Mission bonus result integration remain pending.',
   )).toBeVisible();
   expect(within(newestEntry).getByText('458 of 751 planned items are complete (60.99%).')).toBeVisible();
+  const previousMaintenanceEntry = within(region).getByRole('heading', { name: 'Build 0.5.35' }).closest('article');
+  if (!previousMaintenanceEntry) throw new Error('Expected the preserved 0.5.35 Repair Drones release entry.');
+  expect(within(previousMaintenanceEntry).getByText(
+    'Repair Drones now keep the selected consoles when repair state changes and let you explicitly retry using the current revision.',
+  )).toBeVisible();
+  expect(within(previousMaintenanceEntry).getByText('458 of 751 planned items are complete (60.99%).')).toBeVisible();
   const previousScoutingEntry = within(region).getByRole('heading', { name: 'Build 0.5.34' }).closest('article');
   if (!previousScoutingEntry) throw new Error('Expected the preserved P321 scouting release entry.');
   expect(within(previousScoutingEntry).getByText(

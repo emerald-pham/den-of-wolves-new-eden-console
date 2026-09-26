@@ -201,6 +201,7 @@ it('hydrates only the exact member-safe PDF Escort Wing view', () => {
   const view = {
     type: 'pdf-escort-fighter-wing-view',
     revision: 2,
+    cycle: 2,
     capacity: 4,
     fighters: 3,
     launched: true,
