@@ -16,6 +16,7 @@ import {
 import { httpsCallable } from 'firebase/functions';
 import { app, functions } from './firebase';
 import { emulatorPorts, useEmulators } from './firebaseConfig';
+import { parsePdfEscortWingMemberView } from './pdfEscortWingProjection';
 import type {
   CommissarPurgeAuthority,
   CandidateReveal,
@@ -2616,6 +2617,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
   const currentChacauRepairs = chacauRepairs(data.chacauRepairs);
   const currentAllyRepairs = allyRepairs(data.allyRepairs);
   const currentMaliadesState = maliadesState(data.maliadesState);
+  const pdfEscortWing = parsePdfEscortWingMemberView(data.pdfEscortWing);
   const shuttleManifest = normalizeShuttleManifest(
     visibleDockings,
     visibleVisits,
@@ -2709,6 +2711,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     shipResources: currentShipResources,
     shipDamage: shipDamage(data.shipDamage),
     fighterWingCounts: fighterWingCounts(data.fighterWingCounts),
+    ...(pdfEscortWing === undefined ? {} : { pdfEscortWing }),
     shipUnrest: shipUnrest(data.shipUnrest),
     shipSurvivors: shipSurvivors(data.shipSurvivors),
     populationAlerts: alertMap<PopulationAlert>(data.populationAlerts, true),

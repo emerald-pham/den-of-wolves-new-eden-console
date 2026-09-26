@@ -197,6 +197,32 @@ it('projects only a valid base Capybara cargo ledger for an admitted docked vess
   }).baseCapybaraCargo).toBeUndefined();
 });
 
+it('hydrates only the exact member-safe PDF Escort Wing view', () => {
+  const view = {
+    type: 'pdf-escort-fighter-wing-view',
+    revision: 2,
+    capacity: 4,
+    fighters: 3,
+    launched: true,
+    mediumResolved: true,
+    mediumActionCount: 2,
+    shortResolved: false,
+    shortRollCount: 0,
+    losses: 1,
+  };
+  expect(sessionFrom('pdf-wing', { ...sessionData(8), pdfEscortWing: view }).pdfEscortWing)
+    .toEqual(view);
+  expect(sessionFrom('malformed-pdf-wing', {
+    ...sessionData(8),
+    pdfEscortWing: { ...view, mediumActionFighterIndexes: [1, 2] },
+  }).pdfEscortWing).toBeUndefined();
+  expect(sessionFrom('legacy-pdf-wing', sessionData(8)).pdfEscortWing).toMatchObject({
+    fighters: 4,
+    capacity: 4,
+    launched: false,
+  });
+});
+
 it('hydrates only internally consistent Highwall mining results', () => {
   const valid = sessionFrom('highwall', {
     ...sessionData(8),

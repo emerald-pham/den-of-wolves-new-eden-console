@@ -138,7 +138,9 @@ export default function FleetSystemsWorkspace({
         : <p>Initial ration schedule. At a starred population threshold, use the facilitator’s replacement schedule.</p>}
       </>} />
       : <div className="aegis-system-grid">{systems.map(renderSystem)}</div>}
-      {ship.id === 'refinery-124' && role.id === PDF_ROLE_CONSOLE.roleId && <PdfEscortWingReference />}
+      {ship.id === 'refinery-124' && role.id === PDF_ROLE_CONSOLE.roleId && <PdfEscortWingReference
+        state={shipState?.pdfEscortWing ?? session?.pdfEscortWing}
+      />}
       {role.id === 'dione-president' && <PresidentWorkspace
         writable={writable && (me?.role === 'gm' || (
           me?.role === 'player' && me.activeConsoleRoleId === 'dione-president' &&

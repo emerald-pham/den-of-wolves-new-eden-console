@@ -3,6 +3,32 @@ import type { GameSession } from '@/types/game';
 import { projectShipState } from './shipStateProjection';
 
 describe('projectShipState', () => {
+  it('projects the member-safe PDF wing view only to Refinery 124', () => {
+    const session = {
+      id: 'session:s1',
+      name: 'Test table',
+      joinCode: '4821',
+      phase: 'active',
+      createdAt: '2026-09-12T00:00:00.000Z',
+      updatedAt: '2026-09-12T00:00:00.000Z',
+      pdfEscortWing: {
+        type: 'pdf-escort-fighter-wing-view',
+        revision: 2,
+        capacity: 4,
+        fighters: 4,
+        launched: true,
+        mediumResolved: true,
+        mediumActionCount: 3,
+        shortResolved: false,
+        shortRollCount: 0,
+        losses: 0,
+      },
+    } as unknown as GameSession;
+
+    expect(projectShipState(session, 'refinery-124').pdfEscortWing).toEqual(session.pdfEscortWing);
+    expect(projectShipState(session, 'aegis')).not.toHaveProperty('pdfEscortWing');
+  });
+
   it('selects one ship and allowlists operational fields', () => {
     const session = {
       id: 'session:s1',

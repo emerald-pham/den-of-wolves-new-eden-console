@@ -33,6 +33,7 @@ export interface ShipConsoleProjection {
   readonly maintenanceCycle?: MaintenanceCycle;
   readonly upgrades: readonly string[];
   readonly fighterWingCounts?: GameSession['fighterWingCounts'];
+  readonly pdfEscortWing?: GameSession['pdfEscortWing'];
   readonly jumpState?: ShipJumpState;
   readonly jumpTransition?: ShipJumpTransition;
   readonly consoleLocked: boolean;
@@ -204,6 +205,9 @@ export function projectShipState(session: GameSession, shipId: string): ShipCons
     ...(maintenance === undefined ? {} : { maintenanceCycle: maintenance }),
     upgrades: upgradesForShip(session, shipId),
     ...(shipId === 'aegis' ? { fighterWingCounts: session.fighterWingCounts ?? {} } : {}),
+    ...(shipId === 'refinery-124' && session.pdfEscortWing
+      ? { pdfEscortWing: session.pdfEscortWing }
+      : {}),
     ...(jumps === undefined ? {} : { jumpState: jumps }),
     ...(transition === undefined ? {} : { jumpTransition: transition }),
     consoleLocked: session.shipConsoleLocks?.[shipId] === true,

@@ -918,6 +918,20 @@ export interface SurvivorOutcome {
   readonly lostOrDestroyedShipIds: readonly VesselId[];
 }
 
+/** Server-authored member view of the PDF Escort Wing's current state. */
+export interface PdfEscortWingMemberView {
+  readonly type: 'pdf-escort-fighter-wing-view';
+  readonly revision: number;
+  readonly capacity: 4;
+  readonly fighters: number;
+  readonly launched: boolean;
+  readonly mediumResolved: boolean;
+  readonly mediumActionCount: number;
+  readonly shortResolved: boolean;
+  readonly shortRollCount: number;
+  readonly losses: number;
+}
+
 export interface GameSession {
   /** Shared game turn advanced by an active GM; new sessions begin at Turn 0. */
   readonly currentTurn?: number;
@@ -1052,6 +1066,8 @@ export interface GameSession {
   readonly shipDamage?: ShipDamage;
   /** Server-owned live fighter totals; absent legacy entries remain unavailable. */
   readonly fighterWingCounts?: FighterWingCounts;
+  /** Member-safe PDF Escort Wing status; action details remain server-owned. */
+  readonly pdfEscortWing?: PdfEscortWingMemberView;
   /** Per-ship unrest ranges from 0–10; the physical-style dial fails above 7. */
   readonly shipUnrest?: Readonly<Record<string, number>>;
   /** Threshold alerts awaiting acknowledgement by the GM instances active when triggered. */
