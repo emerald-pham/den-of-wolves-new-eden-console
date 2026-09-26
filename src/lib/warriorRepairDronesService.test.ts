@@ -18,6 +18,16 @@ const reply = (status: 'committed' | 'replayed' = 'committed') => ({
     materialsRemaining: 3, cycle: 3, repairRevision: 1,
   },
 });
+const staleReply = (overrides: Record<string, unknown> = {}) => ({
+  data: {
+    status: 'stale', sessionId: 's1', requestId: command.requestId,
+    actorUid: 'captain', actorRoleId: 'warrior-captain', smallShipId: 'warrior',
+    hostShipId: 'icebreaker', systemIds: ['storage', 'reactor'],
+    expectedCycle: 3, cycle: 3, expectedRepairRevision: 0, repairRevision: 1,
+    expectedDockingRevision: 2, dockingRevision: 2, repairCycle: 2,
+    ...overrides,
+  },
+});
 
 beforeEach(() => {
   mocks.call.mockReset(); mocks.callable.mockReset(); mocks.callable.mockReturnValue(mocks.call);
@@ -49,6 +59,35 @@ it('accepts exact replays and rejects a response bound to another repair', async
   await expect(repairWithWarriorDrones(command)).resolves.toMatchObject({ status: 'replayed' });
   mocks.call.mockResolvedValue({ data: { ...reply().data, systemIds: ['reactor', 'storage'] } });
   await expect(repairWithWarriorDrones(command)).rejects.toThrow(/malformed/i);
+});
+
+it('accepts only a stale reply bound to this actor, role, targets, host, cycle, and both revisions', async () => {
+  mocks.call.mockResolvedValue(staleReply());
+  await expect(repairWithWarriorDrones(command)).resolves.toEqual({
+    status: 'stale', hostShipId: 'icebreaker', systemIds: ['storage', 'reactor'],
+    cycle: 3, repairCycle: 2, repairRevision: 1,
+  });
+
+  for (const mismatch of [
+    { requestId: 'another-request' },
+    { actorUid: 'another-actor' },
+    { actorRoleId: 'gorgoneion-captain' },
+    { smallShipId: 'gorgoneion' },
+    { hostShipId: 'aegis' },
+    { systemIds: ['reactor', 'storage'] },
+    { expectedCycle: 2 },
+    { cycle: 2 },
+    { expectedRepairRevision: 1 },
+    { repairRevision: 0 },
+    { expectedDockingRevision: 1 },
+    { dockingRevision: 1 },
+    { repairCycle: 4 },
+    { repairCycle: 0 },
+    { extraAuthority: 'mixed' },
+  ]) {
+    mocks.call.mockResolvedValue(staleReply(mismatch));
+    await expect(repairWithWarriorDrones(command)).rejects.toThrow(/malformed/i);
+  }
 });
 
 it('rejects malformed commands and cache-backed session authority before calling the backend', async () => {

@@ -9,6 +9,19 @@ vi.mock('@/lib/warriorRepairDronesService', () => ({ repairWithWarriorDrones: mo
 
 import WarriorRepairDronesPanel from './WarriorRepairDronesPanel';
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((complete) => { resolve = complete; });
+  return { promise, resolve };
+}
+
+function staleResult(repairCycle = 1, repairRevision = 1): WarriorRepairDronesResult {
+  return {
+    status: 'stale', hostShipId: 'icebreaker', systemIds: ['storage', 'reactor'],
+    cycle: 3, repairCycle, repairRevision,
+  };
+}
+
 function installSession(overrides: Partial<GameSession> = {}): void {
   useSessionStore.getState().reset();
   useSessionStore.getState().setIdentity({
@@ -145,4 +158,104 @@ it('blocks uncharged, spent, historical-role, and non-canonical-roster authority
   expect(within(panel).getByText(/current Warrior Captain replacement role/i)).toBeInTheDocument();
   expect(within(panel).getByRole('button', { name: 'Repair selected consoles' })).toBeDisabled();
   expect(mocks.repair).not.toHaveBeenCalled();
+});
+
+it('uses a newer snapshot CAS that arrives before the stale result and preserves both consoles', async () => {
+  vi.stubGlobal('crypto', { randomUUID: vi.fn().mockReturnValueOnce('initial-warrior-id').mockReturnValueOnce('fresh-warrior-id') });
+  const pending = deferred<WarriorRepairDronesResult>();
+  mocks.repair.mockReturnValue(pending.promise);
+  render(<WarriorRepairDronesPanel />);
+  const panel = screen.getByRole('region', { name: 'Warrior Repair Drones' });
+  const choices = within(panel).getAllByRole('checkbox');
+  fireEvent.click(choices[0]!);
+  fireEvent.click(choices[1]!);
+  fireEvent.click(within(panel).getByRole('button', { name: 'Repair selected consoles' }));
+
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    warriorRepairDrones: { cycle: 2, revision: 2, hostShipId: 'icebreaker', systemIds: ['storage'] },
+  } as GameSession));
+  await act(async () => pending.resolve(staleResult(1, 1)));
+
+  expect(choices[0]).toBeChecked();
+  expect(choices[1]).toBeChecked();
+  expect(await within(panel).findByRole('button', { name: 'Retry repair with current revision' }))
+    .toBeEnabled();
+  mocks.repair.mockResolvedValue({
+    status: 'committed', hostShipId: 'icebreaker', systemIds: ['storage', 'reactor'],
+    materialsSpent: 6, materialsRemaining: 3, cycle: 3, repairRevision: 3,
+  });
+  fireEvent.click(within(panel).getByRole('button', { name: 'Retry repair with current revision' }));
+  await waitFor(() => expect(mocks.repair).toHaveBeenLastCalledWith({
+    requestId: 'fresh-warrior-id', expectedCycle: 3, expectedRepairRevision: 2,
+    expectedDockingRevision: 2, expectedHostShipId: 'icebreaker', systemIds: ['storage', 'reactor'],
+  }));
+});
+
+it('advances a prepared stale retry when a newer snapshot arrives later', async () => {
+  vi.stubGlobal('crypto', {
+    randomUUID: vi.fn().mockReturnValueOnce('initial-warrior-id')
+      .mockReturnValueOnce('stale-retry-id').mockReturnValueOnce('newer-retry-id'),
+  });
+  mocks.repair.mockResolvedValueOnce(staleResult(1, 1));
+  render(<WarriorRepairDronesPanel />);
+  const panel = screen.getByRole('region', { name: 'Warrior Repair Drones' });
+  const choices = within(panel).getAllByRole('checkbox');
+  fireEvent.click(choices[0]!);
+  fireEvent.click(choices[1]!);
+  fireEvent.click(within(panel).getByRole('button', { name: 'Repair selected consoles' }));
+
+  const retry = await within(panel).findByRole('button', { name: 'Retry repair with current revision' });
+  expect(retry).toBeEnabled();
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    warriorRepairDrones: { cycle: 2, revision: 2, hostShipId: 'icebreaker', systemIds: ['storage'] },
+  } as GameSession));
+  await waitFor(() => expect(within(panel).getByText(/fresh request id/i)).toBeInTheDocument());
+  expect(choices[0]).toBeChecked();
+  expect(choices[1]).toBeChecked();
+
+  mocks.repair.mockResolvedValue({
+    status: 'committed', hostShipId: 'icebreaker', systemIds: ['storage', 'reactor'],
+    materialsSpent: 6, materialsRemaining: 3, cycle: 3, repairRevision: 3,
+  });
+  fireEvent.click(within(panel).getByRole('button', { name: 'Retry repair with current revision' }));
+  await waitFor(() => expect(mocks.repair).toHaveBeenLastCalledWith({
+    requestId: 'newer-retry-id', expectedCycle: 3, expectedRepairRevision: 2,
+    expectedDockingRevision: 2, expectedHostShipId: 'icebreaker', systemIds: ['storage', 'reactor'],
+  }));
+  expect(mocks.repair).toHaveBeenCalledTimes(2);
+});
+
+it('ignores a stale result after the Captain authority changes while it is pending', async () => {
+  const pending = deferred<WarriorRepairDronesResult>();
+  mocks.repair.mockReturnValue(pending.promise);
+  render(<WarriorRepairDronesPanel />);
+  const panel = screen.getByRole('region', { name: 'Warrior Repair Drones' });
+  const choices = within(panel).getAllByRole('checkbox');
+  fireEvent.click(choices[0]!);
+  fireEvent.click(within(panel).getByRole('button', { name: 'Repair selected consoles' }));
+  act(() => useSessionStore.getState().setIdentity(useSessionStore.getState().session!, {
+    ...useSessionStore.getState().me!, replacementRoleId: null,
+  }));
+  await act(async () => pending.resolve(staleResult(1, 1)));
+
+  expect(within(panel).queryByRole('button', { name: 'Retry repair with current revision' })).toBeNull();
+  expect(within(panel).queryByText(/repair state changed/i)).toBeNull();
+  expect(mocks.repair).toHaveBeenCalledTimes(1);
+});
+
+it('preserves the selections but blocks retry when the stale repair already used this cycle', async () => {
+  mocks.repair.mockResolvedValueOnce(staleResult(3, 1));
+  render(<WarriorRepairDronesPanel />);
+  const panel = screen.getByRole('region', { name: 'Warrior Repair Drones' });
+  const choices = within(panel).getAllByRole('checkbox');
+  fireEvent.click(choices[0]!);
+  fireEvent.click(choices[1]!);
+  fireEvent.click(within(panel).getByRole('button', { name: 'Repair selected consoles' }));
+
+  await waitFor(() => expect(panel.textContent).toMatch(/review the current console damage/i));
+  expect(choices[0]).toBeChecked();
+  expect(choices[1]).toBeChecked();
+  expect(within(panel).queryByRole('button', { name: 'Retry repair with current revision' })).toBeNull();
 });

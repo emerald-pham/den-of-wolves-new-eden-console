@@ -12,7 +12,7 @@ export interface WarriorRepairDronesCommand {
   readonly systemIds: readonly string[];
 }
 
-export interface WarriorRepairDronesResult {
+export interface WarriorRepairDronesCommittedResult {
   readonly status: 'committed' | 'replayed';
   readonly hostShipId: string;
   readonly systemIds: readonly string[];
@@ -22,10 +22,31 @@ export interface WarriorRepairDronesResult {
   readonly repairRevision: number;
 }
 
+export interface WarriorRepairDronesStaleResult {
+  readonly status: 'stale';
+  readonly hostShipId: string;
+  readonly systemIds: readonly string[];
+  readonly cycle: number;
+  readonly repairCycle: number;
+  readonly repairRevision: number;
+}
+
+export type WarriorRepairDronesResult =
+  | WarriorRepairDronesCommittedResult
+  | WarriorRepairDronesStaleResult;
+
+function record(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  return Object.keys(value).length === keys.length && Object.keys(value).every((key) => keys.includes(key));
+}
+
 export async function repairWithWarriorDrones(
   command: WarriorRepairDronesCommand,
 ): Promise<WarriorRepairDronesResult> {
-  const { session } = useSessionStore.getState();
+  const { session, me } = useSessionStore.getState();
   if (!session) throw new Error('Reconnect before using Warrior Repair Drones.');
   requireFreshSessionAuthority();
   if (!/^[\w-]{1,128}$/.test(command.requestId) ||
@@ -44,10 +65,43 @@ export async function repairWithWarriorDrones(
     functions(), 'repairWarriorWithDrones',
   )(payload);
   const result = response.data;
-  if (typeof result !== 'object' || result === null || Array.isArray(result)) {
+  if (!record(result)) {
     throw new Error('The Repair Drones response was malformed.');
   }
-  const value = result as Record<string, unknown>;
+  const value = result;
+  if (value.status === 'stale') {
+    const keys = [
+      'status', 'sessionId', 'requestId', 'actorUid', 'actorRoleId', 'smallShipId',
+      'hostShipId', 'systemIds', 'expectedCycle', 'cycle', 'expectedRepairRevision',
+      'repairRevision', 'expectedDockingRevision', 'dockingRevision', 'repairCycle',
+    ];
+    if (!hasExactKeys(value, keys) || me?.role !== 'player' ||
+        me.replacementRoleId !== 'warrior-captain' || me.activeConsoleRoleId !== null || me.seatId !== null ||
+        value.sessionId !== session.id || value.requestId !== command.requestId ||
+        value.actorUid !== me.uid || value.actorRoleId !== me.replacementRoleId ||
+        value.smallShipId !== 'warrior' || value.hostShipId !== command.expectedHostShipId ||
+        !Array.isArray(value.systemIds) || value.systemIds.length !== command.systemIds.length ||
+        value.systemIds.some((id, index) => id !== command.systemIds[index]) ||
+        value.expectedCycle !== command.expectedCycle || value.cycle !== command.expectedCycle ||
+        value.expectedRepairRevision !== command.expectedRepairRevision ||
+        !Number.isSafeInteger(value.repairRevision) || (value.repairRevision as number) <= command.expectedRepairRevision ||
+        value.expectedDockingRevision !== command.expectedDockingRevision ||
+        value.dockingRevision !== command.expectedDockingRevision ||
+        !Number.isSafeInteger(value.repairCycle) || (value.repairCycle as number) < 0 ||
+        (value.repairCycle as number) > command.expectedCycle ||
+        (value.repairRevision as number) > (value.repairCycle as number) ||
+        (value.repairRevision as number) > command.expectedCycle) {
+      throw new Error('The Repair Drones response was malformed.');
+    }
+    return {
+      status: 'stale',
+      hostShipId: value.hostShipId as string,
+      systemIds: [...value.systemIds] as string[],
+      cycle: value.cycle as number,
+      repairCycle: value.repairCycle as number,
+      repairRevision: value.repairRevision as number,
+    };
+  }
   if ((value.status !== 'committed' && value.status !== 'replayed') ||
       value.sessionId !== session.id || value.requestId !== command.requestId ||
       value.smallShipId !== 'warrior' || value.hostShipId !== command.expectedHostShipId ||

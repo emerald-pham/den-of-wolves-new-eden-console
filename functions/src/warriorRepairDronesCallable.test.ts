@@ -157,6 +157,37 @@ it('authorizes the current replacement-role holder outside the real core roster 
   expect(event).not.toHaveProperty('materialsRemaining');
 });
 
+it('returns an actor-, target-, host-, cycle-, docking-, and CAS-bound stale reply without writes', async () => {
+  mock.documents.get('sessions/s1')!.warriorRepairDrones = {
+    cycle: 2, revision: 1, hostShipId: 'icebreaker', systemIds: ['storage'],
+  };
+
+  await expect(repairWarriorWithDrones.run(request(command))).resolves.toEqual({
+    status: 'stale', sessionId: 's1', requestId: command.requestId,
+    actorUid: 'warrior-captain', actorRoleId: 'warrior-captain', smallShipId: 'warrior',
+    hostShipId: 'icebreaker', systemIds: ['storage', 'reactor'],
+    expectedCycle: 3, cycle: 3, expectedRepairRevision: 0, repairRevision: 1,
+    expectedDockingRevision: 2, dockingRevision: 2, repairCycle: 2,
+  });
+
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.documents.has('sessions/s1/commandReceipts/warrior-repair-1')).toBe(false);
+  expect(mock.documents.has('sessions/s1/events/warrior-repair-drones-warrior-repair-1')).toBe(false);
+});
+
+it('does not return stale repair state after the current Warrior Captain role is lost', async () => {
+  mock.documents.get('sessions/s1')!.warriorRepairDrones = {
+    cycle: 2, revision: 1, hostShipId: 'icebreaker', systemIds: ['storage'],
+  };
+  mock.documents.get('sessions/s1/players/warrior-captain')!.replacementRoleId = 'doctor';
+
+  await expect(repairWarriorWithDrones.run(request(command)))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('authorizes the current Warrior replacement role after GM assignment clears its seat pointers', async () => {
   Object.assign(mock.documents.get('sessions/s1/players/warrior-captain')!, {
     assignedRoleId: 'doctor', replacementRoleId: 'warrior-captain',
@@ -412,14 +443,15 @@ it.each([
   expect(mock.update).not.toHaveBeenCalled();
 });
 
-it('rejects stale repair revisions and orphaned legacy event records before mutation', async () => {
+it('returns the current stale repair revision without writes and still rejects orphaned event records', async () => {
   mock.documents.get('sessions/s1')!.warriorRepairDrones = {
-    cycle: 2, revision: 1, hostShipId: 'aegis', systemIds: ['storage'],
+    cycle: 2, revision: 1, hostShipId: 'icebreaker', systemIds: ['storage'],
   };
-  await expect(repairWarriorWithDrones.run(request(command))).rejects.toMatchObject({
-    code: 'failed-precondition',
+  await expect(repairWarriorWithDrones.run(request(command))).resolves.toMatchObject({
+    status: 'stale', repairCycle: 2, repairRevision: 1,
   });
   expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
   mock.documents.get('sessions/s1')!.warriorRepairDrones = undefined;
   put('sessions/s1/events/warrior-repair-drones-warrior-repair-1', { old: true });
   await expect(repairWarriorWithDrones.run(request(command))).rejects.toMatchObject({

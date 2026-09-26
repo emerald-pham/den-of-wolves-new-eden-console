@@ -130,6 +130,37 @@ it('atomically spends exactly three current docked-host materials, repairs one c
     .not.toHaveProperty('actorUid');
 });
 
+it('returns an actor-, target-, host-, cycle-, docking-, and CAS-bound stale reply without writes', async () => {
+  mock.documents.get('sessions/s1')!.gorgoneionRepairDrones = {
+    cycle: 2, revision: 1, hostShipId: 'aegis', systemId: 'storage',
+  };
+
+  await expect(repairGorgoneionWithDrones.run(request(command))).resolves.toEqual({
+    status: 'stale', sessionId: 's1', requestId: command.requestId,
+    actorUid: 'captain', actorRoleId: 'gorgoneion-captain', smallShipId: 'gorgoneion',
+    hostShipId: 'aegis', systemId: 'reactor',
+    expectedCycle: 3, cycle: 3, expectedRepairRevision: 0, repairRevision: 1,
+    expectedDockingRevision: 2, dockingRevision: 2, repairCycle: 2,
+  });
+
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.documents.has('sessions/s1/commandReceipts/repair-drones-1')).toBe(false);
+  expect(mock.documents.has('sessions/s1/events/gorgoneion-repair-drones-repair-drones-1')).toBe(false);
+});
+
+it('fails closed instead of returning stale state when current Captain authority is gone', async () => {
+  mock.documents.get('sessions/s1')!.gorgoneionRepairDrones = {
+    cycle: 2, revision: 1, hostShipId: 'aegis', systemId: 'storage',
+  };
+  mock.documents.get('sessions/s1/players/captain')!.replacementRoleId = null;
+
+  await expect(repairGorgoneionWithDrones.run(request(command)))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('commits after the real Gorgoneion Team cycle ends before current Coordination', async () => {
   const session = mock.documents.get('sessions/s1')!;
   let state = { ...emptySmallShipState('gorgoneion', 'aegis'), dockingRevision: 2 };

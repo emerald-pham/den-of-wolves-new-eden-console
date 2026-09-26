@@ -7,6 +7,7 @@ import { buildPrivacySafeEventRecord } from './eventRedaction';
 import { CALLABLE_RUNTIME_OPTIONS } from './runtimeOptions';
 import { isPresenceStale } from './sessionLifecycle';
 import {
+  parseGorgoneionRepairDronesState,
   resolveGorgoneionRepairDrones,
   type GorgoneionRepairDronesState,
 } from './gorgoneionRepairDrones';
@@ -272,6 +273,32 @@ export const repairGorgoneionWithDrones = onCall<{
         state: session.get('gorgoneionRepairDrones'),
       });
     } catch (cause) {
+      if (cause instanceof Error && cause.message === 'Repair Drones changed; refresh before repairing.') {
+        const currentRepair = parseGorgoneionRepairDronesState(session.get('gorgoneionRepairDrones'));
+        if (currentRepair && currentRepair.revision > command.expectedRepairRevision &&
+            currentRepair.cycle <= (currentCycle as number)) {
+          const dockingRevision = smallShipState.dockingRevision;
+          if (typeof dockingRevision === 'number' && Number.isSafeInteger(dockingRevision)) {
+            return {
+              status: 'stale' as const,
+              sessionId: command.sessionId,
+              requestId: command.requestId,
+              actorUid: uid,
+              actorRoleId: ROLE_ID,
+              smallShipId: SMALL_SHIP_ID,
+              hostShipId,
+              systemId: command.systemId,
+              expectedCycle: command.expectedCycle,
+              cycle: currentCycle as number,
+              expectedRepairRevision: command.expectedRepairRevision,
+              repairRevision: currentRepair.revision,
+              expectedDockingRevision: command.expectedDockingRevision,
+              dockingRevision,
+              repairCycle: currentRepair.cycle,
+            };
+          }
+        }
+      }
       throw new HttpsError('failed-precondition', cause instanceof Error
         ? cause.message : 'Gorgoneion Repair Drones were rejected.');
     }

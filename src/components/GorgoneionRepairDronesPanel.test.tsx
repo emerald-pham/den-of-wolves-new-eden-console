@@ -9,6 +9,19 @@ vi.mock('@/lib/gorgoneionRepairDronesService', () => ({ repairWithGorgoneionDron
 
 import GorgoneionRepairDronesPanel from './GorgoneionRepairDronesPanel';
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((complete) => { resolve = complete; });
+  return { promise, resolve };
+}
+
+function staleResult(repairCycle = 1, repairRevision = 1): GorgoneionRepairDronesResult {
+  return {
+    status: 'stale', hostShipId: 'aegis', systemId: 'reactor',
+    cycle: 3, repairCycle, repairRevision,
+  };
+}
+
 function installSession(overrides: Partial<GameSession> = {}): void {
   useSessionStore.getState().reset();
   useSessionStore.getState().setIdentity({
@@ -145,4 +158,99 @@ it('does not let a historical Captain role replace the current replacement entit
   const panel = screen.getByRole('region', { name: 'Gorgoneion Repair Drones' });
   expect(within(panel).getByText(/current Gorgoneion Captain replacement role/i)).toBeInTheDocument();
   expect(within(panel).getByRole('button', { name: 'Repair one console' })).toBeDisabled();
+});
+
+it('uses a newer snapshot CAS that arrives before the stale result and preserves the selected console', async () => {
+  vi.stubGlobal('crypto', { randomUUID: vi.fn().mockReturnValueOnce('initial-gorg-id').mockReturnValueOnce('fresh-gorg-id') });
+  const pending = deferred<GorgoneionRepairDronesResult>();
+  mocks.repair.mockReturnValue(pending.promise);
+  render(<GorgoneionRepairDronesPanel />);
+  const panel = screen.getByRole('region', { name: 'Gorgoneion Repair Drones' });
+  const selector = within(panel).getByRole('combobox', { name: 'Gorgoneion repair console' });
+  fireEvent.change(selector, { target: { value: 'reactor' } });
+  fireEvent.click(within(panel).getByRole('button', { name: 'Repair one console' }));
+
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    gorgoneionRepairDrones: { cycle: 2, revision: 2, hostShipId: 'aegis', systemId: 'storage' },
+  } as GameSession));
+  await act(async () => pending.resolve(staleResult(1, 1)));
+
+  expect(selector).toHaveValue('reactor');
+  expect(await within(panel).findByRole('button', { name: 'Retry repair with current revision' }))
+    .toBeEnabled();
+  mocks.repair.mockResolvedValue({
+    status: 'committed', hostShipId: 'aegis', systemId: 'reactor',
+    materialsSpent: 3, materialsRemaining: 0, cycle: 3, repairRevision: 3,
+  });
+  fireEvent.click(within(panel).getByRole('button', { name: 'Retry repair with current revision' }));
+  await waitFor(() => expect(mocks.repair).toHaveBeenLastCalledWith({
+    requestId: 'fresh-gorg-id', expectedCycle: 3, expectedRepairRevision: 2,
+    expectedDockingRevision: 2, expectedHostShipId: 'aegis', systemId: 'reactor',
+  }));
+});
+
+it('advances a prepared stale retry when a newer snapshot arrives later', async () => {
+  vi.stubGlobal('crypto', {
+    randomUUID: vi.fn().mockReturnValueOnce('initial-gorg-id')
+      .mockReturnValueOnce('stale-retry-id').mockReturnValueOnce('newer-retry-id'),
+  });
+  mocks.repair.mockResolvedValueOnce(staleResult(1, 1));
+  render(<GorgoneionRepairDronesPanel />);
+  const panel = screen.getByRole('region', { name: 'Gorgoneion Repair Drones' });
+  const selector = within(panel).getByRole('combobox', { name: 'Gorgoneion repair console' });
+  fireEvent.change(selector, { target: { value: 'reactor' } });
+  fireEvent.click(within(panel).getByRole('button', { name: 'Repair one console' }));
+
+  const retry = await within(panel).findByRole('button', { name: 'Retry repair with current revision' });
+  expect(retry).toBeEnabled();
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    gorgoneionRepairDrones: { cycle: 2, revision: 2, hostShipId: 'aegis', systemId: 'storage' },
+  } as GameSession));
+  await waitFor(() => expect(within(panel).getByText(/fresh request id/i)).toBeInTheDocument());
+  expect(selector).toHaveValue('reactor');
+
+  mocks.repair.mockResolvedValue({
+    status: 'committed', hostShipId: 'aegis', systemId: 'reactor',
+    materialsSpent: 3, materialsRemaining: 0, cycle: 3, repairRevision: 3,
+  });
+  fireEvent.click(within(panel).getByRole('button', { name: 'Retry repair with current revision' }));
+  await waitFor(() => expect(mocks.repair).toHaveBeenLastCalledWith({
+    requestId: 'newer-retry-id', expectedCycle: 3, expectedRepairRevision: 2,
+    expectedDockingRevision: 2, expectedHostShipId: 'aegis', systemId: 'reactor',
+  }));
+  expect(mocks.repair).toHaveBeenCalledTimes(2);
+});
+
+it('ignores a stale result after the Captain authority changes while it is pending', async () => {
+  const pending = deferred<GorgoneionRepairDronesResult>();
+  mocks.repair.mockReturnValue(pending.promise);
+  render(<GorgoneionRepairDronesPanel />);
+  const panel = screen.getByRole('region', { name: 'Gorgoneion Repair Drones' });
+  fireEvent.change(within(panel).getByRole('combobox', { name: 'Gorgoneion repair console' }), {
+    target: { value: 'reactor' },
+  });
+  fireEvent.click(within(panel).getByRole('button', { name: 'Repair one console' }));
+  act(() => useSessionStore.getState().setIdentity(useSessionStore.getState().session!, {
+    ...useSessionStore.getState().me!, replacementRoleId: null,
+  }));
+  await act(async () => pending.resolve(staleResult(1, 1)));
+
+  expect(within(panel).queryByRole('button', { name: 'Retry repair with current revision' })).toBeNull();
+  expect(within(panel).queryByText(/repair state changed/i)).toBeNull();
+  expect(mocks.repair).toHaveBeenCalledTimes(1);
+});
+
+it('preserves the selection but blocks retry when the stale repair already used this cycle', async () => {
+  mocks.repair.mockResolvedValueOnce(staleResult(3, 1));
+  render(<GorgoneionRepairDronesPanel />);
+  const panel = screen.getByRole('region', { name: 'Gorgoneion Repair Drones' });
+  const selector = within(panel).getByRole('combobox', { name: 'Gorgoneion repair console' });
+  fireEvent.change(selector, { target: { value: 'reactor' } });
+  fireEvent.click(within(panel).getByRole('button', { name: 'Repair one console' }));
+
+  await waitFor(() => expect(panel.textContent).toMatch(/review the current console damage/i));
+  expect(selector).toHaveValue('reactor');
+  expect(within(panel).queryByRole('button', { name: 'Retry repair with current revision' })).toBeNull();
 });
