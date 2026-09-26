@@ -346,7 +346,7 @@ it.each([
   ['capybara-small-captain', 'Capybara', 'Bulk Haulage', 'Mission Support'],
   ['warrior-captain', 'Warrior', 'Reclamator', 'Force Field Projector'],
   ['vulcan-captain', 'Vulcan', 'Laser Cannon', 'Salvage Drones'],
-] as const)('isolates the %s workspace to its selected vessel', (roleId, vesselName, ownAction, foreignAction) => {
+] as const)('isolates the %s workspace to its selected vessel', async (roleId, vesselName, ownAction, foreignAction) => {
   useSessionStore.getState().setMe({
     ...useSessionStore.getState().me!, assignedRoleId: null, replacementRoleId: roleId,
   });
@@ -371,9 +371,14 @@ it.each([
     expect(within(workspace).getByRole('button', { name: 'Transfer cargo' })).toBeDisabled();
   }
   if (roleId === 'gorgoneion-captain') {
-    const repair = within(workspace).getByRole('region', { name: 'Gorgoneion Repair Drones' });
+    const repair = await within(workspace).findByRole('region', { name: 'Gorgoneion Repair Drones' });
     expect(within(repair).getByRole('combobox', { name: 'Gorgoneion repair console' })).toBeVisible();
     expect(within(repair).getByRole('button', { name: 'Repair one console' })).toBeDisabled();
+  }
+  if (roleId === 'warrior-captain') {
+    const repair = await within(workspace).findByRole('region', { name: 'Warrior Repair Drones' });
+    expect(within(repair).getByRole('group', { name: 'Choose one or two damaged host consoles' })).toBeVisible();
+    expect(within(repair).getByRole('button', { name: 'Repair selected consoles' })).toBeDisabled();
   }
 });
 
