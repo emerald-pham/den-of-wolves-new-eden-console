@@ -620,9 +620,15 @@ it('renders the current and previous changelog copy with progress and keyboard s
   expect(region).toHaveAttribute('tabindex', '0');
   expect(renderedChanges.every((change) => !/\bprompts?\b/i.test(change))).toBe(true);
   expect(within(newestEntry).getByText(
-    'The assigned Starlight, Hummingbird, Endeavour, and Comms Officer consoles now include a printed-coordinate scouting request form during Coordination. Ask your facilitator for follow-up.',
+    'Repair Drones now keep the selected consoles when repair state changes and let you explicitly retry using the current revision.',
   )).toBeVisible();
   expect(within(newestEntry).getByText('458 of 751 planned items are complete (60.99%).')).toBeVisible();
+  const previousScoutingEntry = within(region).getByRole('heading', { name: 'Build 0.5.34' }).closest('article');
+  if (!previousScoutingEntry) throw new Error('Expected the preserved P321 scouting release entry.');
+  expect(within(previousScoutingEntry).getByText(
+    'The assigned Starlight, Hummingbird, Endeavour, and Comms Officer consoles now include a printed-coordinate scouting request form during Coordination. Ask your facilitator for follow-up.',
+  )).toBeVisible();
+  expect(within(previousScoutingEntry).getByText('458 of 751 planned items are complete (60.99%).')).toBeVisible();
   const previousReconnectEntry = within(region).getByRole('heading', { name: 'Build 0.5.33' }).closest('article');
   if (!previousReconnectEntry) throw new Error('Expected the preserved P618 reconnect release entry.');
   expect(within(previousReconnectEntry).getByText(
