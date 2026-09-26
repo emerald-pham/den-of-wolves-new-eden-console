@@ -678,6 +678,13 @@ service cloud.firestore {
         allow list: if false;
       }
 
+      // Standardized action audits contain actor and outcome metadata only.
+      // Facilitators may query them; all writes remain server-owned.
+      match /actionAudits/{requestId} {
+        allow get, list: if isGm(sessionId);
+        allow write: if false;
+      }
+
       // Hummingbird's server dice and pending allocation are private to the
       // currently active Quellon Explorer. The public session may expose only
       // the completed food/water cargo projection.

@@ -709,6 +709,32 @@ describe('facilitator rule-call boundary', () => {
   });
 });
 
+describe('standardized action audit boundary', () => {
+  it('lets facilitators query metadata records while denying players and client writes', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `${SESSION}/actionAudits/mine-1`), {
+        schemaVersion: 1, sessionId: 's1', actorUid: 'captain', actorRoleId: 'icebreaker-miner',
+        action: 'highwall-mining', phase: 'active', requestId: 'mine-1', revision: 1,
+        outcome: 'committed', resolutionSource: 'server-random',
+        redactionPolicy: 'action-audit-metadata-only-v1', createdAt: 'server-time',
+      });
+    });
+
+    await assertSucceeds(getDocs(collection(as('gm1'), `${SESSION}/actionAudits`)));
+    await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/actionAudits/mine-1`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/actionAudits/mine-1`)));
+    await assertFails(getDocs(collection(as('alice'), `${SESSION}/actionAudits`)));
+    await assertFails(getDoc(doc(as('press'), `${SESSION}/actionAudits/mine-1`)));
+    await assertFails(getDoc(doc(as('observer'), `${SESSION}/actionAudits/mine-1`)));
+    await assertFails(setDoc(doc(as('gm1'), `${SESSION}/actionAudits/forged`), {
+      schemaVersion: 1, sessionId: 's1', action: 'forged', outcome: 'committed',
+    }));
+    await assertFails(setDoc(doc(as('alice'), `${SESSION}/actionAudits/forged`), {
+      schemaVersion: 1, sessionId: 's1', action: 'forged', outcome: 'committed',
+    }));
+  });
+});
+
 describe('crisis state boundary', () => {
   it('allows members to read only the public current report and forbids direct publication', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {

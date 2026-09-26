@@ -4706,6 +4706,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "635",
+      "id": "E-635-ACTION-AUDIT-MIGRATION",
+      "language": "A server-owned sessions/{sessionId}/actionAudits/{requestId} collection now stores the common metadata-only schema for two production action paths: Highwall mining records server-random resolution, and facilitator rule calls record facilitator resolution. Both write the audit record in the same transaction as the action and preserve exact replay without duplicate records. GM-authorized clients can query the collection; players cannot read it and no client can write it. The record exposes actor, session, action, phase, request, revision, committed outcome, resolution source, and redaction policy, without storing rolls, cargo, facilitator decisions, or other action payloads. This is a bounded migration; other action families remain on their existing audit paths, so Prompt 635 remains partial.",
+      "source": "functions/src/actionAudit.ts; functions/src/actionAudit.test.ts; functions/src/index.ts; functions/src/highwallMiningCallable.test.ts; functions/src/facilitatorRuleCallCallable.test.ts; firestore.rules; tests/rules/firestore.rules.test.ts; focused Functions tests; Firestore rules tests; Functions TypeScript build",
+      "type": "evidence / production-path / security / privacy"
+    },
+    {
       "direction": "636 -> 167",
       "id": "E-AUDIT-636",
       "language": "Health measurement consumes standardized action envelopes.",
@@ -22893,8 +22900,8 @@
         "acceptance": "actor, session, action, phase, request, revision, outcome, random/facilitator source, and redaction policy are queryable.",
         "title": "Standardize action audit records."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-635",
+      "description": "A server-owned queryable action-audit collection now records standardized metadata for Highwall mining (server-random) and facilitator rule calls (facilitator), transactionally with the action. GM-authorized clients can query the metadata-only records; players cannot read them and clients cannot write them. Other production action families have not migrated, so this prompt remains partial.",
+      "evidenceIds": "E-AUDIT-635;E-635-ACTION-AUDIT-MIGRATION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "007;019;167",
@@ -22905,7 +22912,7 @@
       "releases": [],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "EXTEND"
     },
     {

@@ -91,6 +91,15 @@ it('commits one material roll and exact retry without another random draw or wri
     highwallMining: { cycle: 2, revision: 1, operations: [{ requestId: 'mine-1', amount: 4 }] },
     shuttleCargo: { highwall: { ore: 3, materials: 6 } },
   });
+  expect(mock.documents.get('sessions/s1/actionAudits/mine-1')).toMatchObject({
+    schemaVersion: 1, sessionId: 's1', actorUid: 'holder', actorRoleId: 'icebreaker-miner',
+    action: 'highwall-mining', phase: 'active', requestId: 'mine-1', revision: 1,
+    outcome: 'committed', resolutionSource: 'server-random',
+    redactionPolicy: 'action-audit-metadata-only-v1',
+    createdAt: 'server-time',
+  });
+  expect(mock.documents.get('sessions/s1/actionAudits/mine-1')).not.toHaveProperty('rolls');
+  expect(mock.documents.get('sessions/s1/actionAudits/mine-1')).not.toHaveProperty('cargo');
   const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
   cryptoMock.randomInt.mockClear();
   mock.documents.get('sessions/s1')!.phase = 'debrief';
@@ -193,6 +202,7 @@ it.each([
 it.each([
   ['own event', 'sessions/s1/events/highwall-mining-mine-1'],
   ['foreign legacy request', 'sessions/s1/events/mine-1'],
+  ['orphaned action audit', 'sessions/s1/actionAudits/mine-1'],
 ] as const)('rejects an unbound %s collision before rolling or writing', async (_label, path) => {
   put(path, { type: 'legacy' });
   cryptoMock.randomInt.mockClear();

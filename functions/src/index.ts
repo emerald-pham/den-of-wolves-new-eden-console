@@ -461,6 +461,7 @@ import {
   buildAuthoritativeEventEnvelope,
 } from './eventEnvelope';
 import { buildPrivacySafeEventRecord } from './eventRedaction';
+import { buildActionAuditRecord } from './actionAudit';
 import {
   createAirspaceClosureParkingTask,
   createAirspaceClosureTaskScheduler,
@@ -11912,6 +11913,7 @@ export const authorFacilitatorRuleCall = onCall<{
   const currentRef = db.doc(`sessions/${call.sessionId}/facilitatorRuleCalls/gm-current`);
   const historyRef = db.doc(`sessions/${call.sessionId}/facilitatorRuleCalls/history-${call.requestId}`);
   const auditRef = db.doc(`sessions/${call.sessionId}/facilitatorRuleCalls/audit-${call.requestId}`);
+  const actionAuditRef = db.doc(`sessions/${call.sessionId}/actionAudits/${call.requestId}`);
   const receiptRef = commandReceiptRef(call.sessionId, call.requestId);
   const supersededRef = call.supersedesCallId
     ? db.doc(`sessions/${call.sessionId}/facilitatorRuleCalls/history-${call.supersedesCallId}`)
@@ -11938,12 +11940,13 @@ export const authorFacilitatorRuleCall = onCall<{
   const committedAt = new Date().toISOString();
 
   return db.runTransaction(async tx => {
-    const [authority, current, receipt, superseded, audit] = await Promise.all([
+    const [authority, current, receipt, superseded, audit, actionAudit] = await Promise.all([
       requireFacilitatorInstance(tx, call.sessionId, uid, call.instanceId),
       tx.get(currentRef),
       tx.get(receiptRef),
       supersededRef ? tx.get(supersededRef) : Promise.resolve(null),
       tx.get(auditRef),
+      tx.get(actionAuditRef),
     ]);
     await rejectForeignLegacyM1Command(tx, call.sessionId, call.requestId, 'facilitator rule call', []);
     if (current.exists && !isStoredFacilitatorRuleCall(current.data(), call.sessionId)) {
@@ -11957,6 +11960,7 @@ export const authorFacilitatorRuleCall = onCall<{
     );
     if (replay) return replay;
     if (audit.exists) rejectLegacyEventReplay('facilitator rule call');
+    if (actionAudit.exists) rejectLegacyEventReplay('facilitator rule-call action audit');
     requireActiveGameplayPhase(authority.session);
     const currentRevision = current.exists ? current.get('revision') as number : 0;
     if (currentRevision !== call.expectedRevision) {
@@ -12045,6 +12049,20 @@ export const authorFacilitatorRuleCall = onCall<{
       createdAt: FieldValue.serverTimestamp(),
       ...(call.supersedesCallId ? { supersedesCallId: call.supersedesCallId } : {}),
     });
+    tx.set(actionAuditRef, buildActionAuditRecord({
+      sessionId: call.sessionId,
+      actorUid: uid,
+      actorRoleId: typeof authority.player.get('activeConsoleRoleId') === 'string'
+        ? authority.player.get('activeConsoleRoleId')
+        : null,
+      action: 'facilitator-rule-call',
+      phase: authority.session.get('phase'),
+      requestId: call.requestId,
+      revision,
+      outcome: 'committed',
+      resolutionSource: 'facilitator',
+      createdAt: FieldValue.serverTimestamp(),
+    }));
     if (supersededRef) tx.update(supersededRef, { supersededByCallId: call.requestId });
     if (recipientRef && recipientCall) tx.set(recipientRef, recipientCall);
     if (call.supersedesCallId && superseded?.get('audience') === 'selected-player' &&
@@ -22661,6 +22679,7 @@ export const runHighwallMining = onCall<{
   };
   const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
   const eventRef = db.doc(`sessions/${data.sessionId}/events/highwall-mining-${data.requestId}`);
+  const actionAuditRef = db.doc(`sessions/${data.sessionId}/actionAudits/${data.requestId}`);
   const preflight = await db.runTransaction(async tx => {
     const authority = await requireHighwallMiningAuthority(
       tx, data.sessionId, uid, data.expectedControlRevision,
@@ -22673,11 +22692,14 @@ export const runHighwallMining = onCall<{
       hostShipId: authority.hostShipId,
       cycle: data.expectedCycle,
     };
-    const [prior, event] = await Promise.all([tx.get(receiptRef), tx.get(eventRef)]);
+    const [prior, event, actionAudit] = await Promise.all([
+      tx.get(receiptRef), tx.get(eventRef), tx.get(actionAuditRef),
+    ]);
     await rejectForeignLegacyM1Command(tx, data.sessionId, data.requestId, 'Highwall mining', []);
     const replay = highwallMiningReplay(prior, fingerprint);
     if (replay) return { replay, fingerprint, authority };
     if (event.exists) rejectLegacyEventReplay('Highwall mining');
+    if (actionAudit.exists) rejectLegacyEventReplay('Highwall mining audit');
     const cycle = requireLiveHighwallMiningWindow(authority.session, data.expectedCycle);
     try {
       resolveHighwallMining({
@@ -22709,11 +22731,14 @@ export const runHighwallMining = onCall<{
       hostShipId: authority.hostShipId,
       cycle: data.expectedCycle,
     };
-    const [prior, event] = await Promise.all([tx.get(receiptRef), tx.get(eventRef)]);
+    const [prior, event, actionAudit] = await Promise.all([
+      tx.get(receiptRef), tx.get(eventRef), tx.get(actionAuditRef),
+    ]);
     await rejectForeignLegacyM1Command(tx, data.sessionId, data.requestId, 'Highwall mining', []);
     const replay = highwallMiningReplay(prior, fingerprint);
     if (replay) return replay;
     if (event.exists) rejectLegacyEventReplay('Highwall mining');
+    if (actionAudit.exists) rejectLegacyEventReplay('Highwall mining audit');
     const cycle = requireLiveHighwallMiningWindow(authority.session, data.expectedCycle);
     let result: ReturnType<typeof resolveHighwallMining>;
     try {
@@ -22756,6 +22781,20 @@ export const runHighwallMining = onCall<{
         },
         createdAt: FieldValue.serverTimestamp(),
       }));
+    tx.set(actionAuditRef, buildActionAuditRecord({
+      sessionId: data.sessionId,
+      actorUid: uid,
+      actorRoleId: typeof authority.player.get('activeConsoleRoleId') === 'string'
+        ? authority.player.get('activeConsoleRoleId')
+        : null,
+      action: 'highwall-mining',
+      phase: authority.session.get('phase'),
+      requestId: data.requestId,
+      revision: result.state.revision,
+      outcome: 'committed',
+      resolutionSource: 'server-random',
+      createdAt: FieldValue.serverTimestamp(),
+    }));
     tx.set(receiptRef, {
       fingerprint, result: reply, serverRolls: rolls, createdAt: FieldValue.serverTimestamp(),
     });

@@ -100,6 +100,15 @@ it('records a GM-only ruling in durable history and audit without a public event
   expect(mock.documents.get('sessions/s1/facilitatorRuleCalls/audit-call-1')).toMatchObject({
     type: 'facilitator-rule-call-audit', actorUid: 'u1',
   });
+  expect(mock.documents.get('sessions/s1/actionAudits/call-1')).toMatchObject({
+    schemaVersion: 1, sessionId: 's1', actorUid: 'u1', actorRoleId: null,
+    action: 'facilitator-rule-call', phase: 'active', requestId: 'call-1', revision: 1,
+    outcome: 'committed', resolutionSource: 'facilitator',
+    redactionPolicy: 'action-audit-metadata-only-v1',
+    createdAt: 'server-time',
+  });
+  expect(mock.documents.get('sessions/s1/actionAudits/call-1')).not.toHaveProperty('decision');
+  expect(mock.documents.get('sessions/s1/actionAudits/call-1')).not.toHaveProperty('ambiguity');
   expect([...mock.documents.keys()].some((path) => path.includes('/events/'))).toBe(false);
 });
 
@@ -113,6 +122,20 @@ it('writes only the selected player projection for a private audience', async ()
   });
   expect(mock.documents.get('sessions/s1/facilitatorRuleCalls/recipient-u2')).not.toHaveProperty('actorUid');
   expect(mock.documents.has('sessions/s1/facilitatorRuleCalls/recipient-u1')).toBe(false);
+});
+
+it('rejects an orphaned standardized audit record before mutating facilitator state', async () => {
+  put('sessions/s1/actionAudits/call-1', {
+    schemaVersion: 1, sessionId: 's1', actorUid: 'u1', action: 'forged',
+  });
+  const before = new Map(mock.documents);
+
+  await expect(authorFacilitatorRuleCall.run(request())).rejects.toMatchObject({
+    code: 'failed-precondition',
+  });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.documents).toEqual(before);
 });
 
 it('replays exactly, links supersession, and rejects wrong actor or stale revision', async () => {
