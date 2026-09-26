@@ -66,6 +66,12 @@ const MALIADE_SOURCE_MODULE_CALLABLES = Object.freeze({
   ],
   'functions/src/wolfAttackDeclaration.ts': ['declareWolfAttack'],
 });
+const PDF_ESCORT_WING_SOURCE_MODULE_CALLABLES = Object.freeze({
+  'functions/src/pdfEscortWingState.ts': [
+    'declareWolfAttack', 'getPdfEscortWingLaunch', 'launchPdfEscortWing',
+  ],
+  'functions/src/pdfEscortWingProjection.ts': ['declareWolfAttack', 'launchPdfEscortWing'],
+});
 const WOLF_ATTACK_DECLARATION_ADDITIONS = [
   '  /** Stable identity for this declared attack; range actions bind to it. */\n  readonly attackId: string;\n',
   '  /** Hidden Maliades effects committed against this exact attack. */\n  readonly maliadesRangeEffects: unknown;\n',
@@ -579,6 +585,19 @@ test('maps Maliades source modules to the exact callables that consume them', ()
   assert.match(indexSource, /beginMaliadesAttack,[\s\S]*launchMaliades,[\s\S]*parseMaliadesState,[\s\S]*from '\.\/maliadesState';/);
   assert.match(callableSource, /repairMaliades as repairMaliadesState,[\s\S]*type MaliadesMediumChoice,[\s\S]*from '\.\/maliadesState';/);
   assert.match(indexSource, /export\s*\{\s*repairMaliades,\s*resolveMaliadesMedium,\s*resolveMaliadesShort,\s*\}\s*from '\.\/maliadesCallable';/s);
+});
+
+test('maps PDF Escort Wing server modules to their exact deployed callable consumers', () => {
+  for (const [file, callables] of Object.entries(PDF_ESCORT_WING_SOURCE_MODULE_CALLABLES)) {
+    const selected = selectorFor([file]);
+    assert.deepEqual(selectedFunctions(selected), functionTargets(callables), file);
+  }
+
+  const indexSource = readFileSync(new URL('../functions/src/index.ts', import.meta.url), 'utf8');
+  assert.match(indexSource, /export const declareWolfAttack\s*=\s*onCall/);
+  assert.match(indexSource, /export const getPdfEscortWingLaunch\s*=\s*onCall/);
+  assert.match(indexSource, /export const launchPdfEscortWing\s*=\s*onCall/);
+  assert.match(indexSource, /projectPdfEscortWingMemberView/);
 });
 
 test('fails closed when WolfAttackDeclaration changes beyond the exact type-only attack-state fields', () => {

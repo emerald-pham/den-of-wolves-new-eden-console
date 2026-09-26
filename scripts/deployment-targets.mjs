@@ -84,6 +84,10 @@ const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
   'functions/src/maliadesState.ts': [
     'declareWolfAttack', 'getDioneMaliadesLaunch', 'launchDioneMaliades', 'repairMaliades',
   ],
+  'functions/src/pdfEscortWingProjection.ts': ['declareWolfAttack', 'launchPdfEscortWing'],
+  'functions/src/pdfEscortWingState.ts': [
+    'declareWolfAttack', 'getPdfEscortWingLaunch', 'launchPdfEscortWing',
+  ],
   // advanceSmallShipMaintenance is used by these three deployed transactions;
   // type-only and test imports do not add callable consumers.
   'functions/src/smallShip.ts': [
