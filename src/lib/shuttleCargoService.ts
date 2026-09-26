@@ -23,6 +23,7 @@ interface CargoAttemptAuthority {
   readonly activeConsoleRoleId: string | null | undefined;
   readonly replacementRoleId: string | null | undefined;
   readonly seatId: string | null | undefined;
+  readonly fleetGroupId: string;
   readonly shuttleId: string;
   readonly ownerRoleId: string;
   readonly ownerUid: string;
@@ -50,6 +51,7 @@ function currentAuthorityMatches(attempt: CargoAttemptAuthority): boolean {
     me.role === attempt.role && me.assignedRoleId === attempt.assignedRoleId &&
     me.activeConsoleRoleId === attempt.activeConsoleRoleId &&
     me.replacementRoleId === attempt.replacementRoleId && me.seatId === attempt.seatId &&
+    me.fleetGroupId === attempt.fleetGroupId &&
     control?.shuttleId === attempt.shuttleId && control.ownerRoleId === attempt.ownerRoleId &&
     control.ownerUid === attempt.ownerUid && control.holderUid === attempt.uid &&
     Number.isSafeInteger(control.revision) && control.revision >= attempt.expectedControlRevision &&
@@ -61,7 +63,8 @@ function captureAttemptAuthority(
   expectedControlRevision: number,
 ): CargoAttemptAuthority {
   const { session, me } = useSessionStore.getState();
-  if (!session || !me || me.role !== 'player' || me.sessionId !== session.id || !me.uid) {
+  if (!session || !me || me.role !== 'player' || me.sessionId !== session.id || !me.uid ||
+      typeof me.fleetGroupId !== 'string' || !me.fleetGroupId.trim()) {
     throw new Error('Only the current shuttle holder may transfer cargo.');
   }
   const control = session.shuttleControl?.[shuttleId];
@@ -80,6 +83,7 @@ function captureAttemptAuthority(
     activeConsoleRoleId: me.activeConsoleRoleId,
     replacementRoleId: me.replacementRoleId,
     seatId: me.seatId,
+    fleetGroupId: me.fleetGroupId,
     shuttleId,
     ownerRoleId: control.ownerRoleId,
     ownerUid: control.ownerUid,

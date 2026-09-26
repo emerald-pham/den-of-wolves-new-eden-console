@@ -756,6 +756,53 @@ it('drops stale cargo recovery when the acting role changes while the request is
   expect(within(cargo).queryByText(/Loaded 2 Food/i)).not.toBeInTheDocument();
 });
 
+it('drops stale cargo recovery when the fleet group changes while the request is pending', async () => {
+  const user = userEvent.setup();
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!, phase: 'active', activeRoleIds: ['quellon-explorer'], activeVesselIds: ['quellon'],
+    shipResources: { quellon: { ore: 0, fuel: 3, food: 10, water: 8, materials: 0, securityTeams: 2 } },
+    shuttleCargo: { hummingbird: { food: 1, water: 2 } },
+    shuttleDockings: [{ shuttleId: 'hummingbird', shipId: 'quellon', dockedAt: 'SESSION START' }],
+    shuttleControl: { hummingbird: {
+      shuttleId: 'hummingbird', ownerRoleId: 'quellon-explorer', ownerUid: 'u1',
+      holderUid: 'u1', revision: 3,
+    } },
+  });
+  state.setMe({ ...state.me!, activeConsoleRoleId: 'quellon-explorer', fleetGroupId: 'fleet-1' });
+  state.setConnection('live');
+  state.setSessionSnapshotFreshness('server');
+  const pending = deferred<unknown>();
+  vi.mocked(transferShuttleCargo).mockReturnValueOnce(pending.promise as never);
+  render(<MemoryRouter initialEntries={['/shuttles/hummingbird']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+
+  const cargo = screen.getByRole('region', { name: 'Shuttle cargo transfer' });
+  await user.selectOptions(within(cargo).getByLabelText('Resource'), 'food');
+  await user.clear(within(cargo).getByLabelText('Amount'));
+  await user.type(within(cargo).getByLabelText('Amount'), '2');
+  await user.click(within(cargo).getByRole('button', { name: 'Load shuttle' }));
+  act(() => {
+    useSessionStore.getState().setMe({
+      ...useSessionStore.getState().me!, fleetGroupId: 'fleet-2',
+    });
+    useSessionStore.getState().setSession({
+      ...useSessionStore.getState().session!,
+      shuttleControl: { hummingbird: {
+        shuttleId: 'hummingbird', ownerRoleId: 'quellon-explorer', ownerUid: 'u1',
+        holderUid: 'u1', revision: 4,
+      } },
+    });
+  });
+  await act(async () => pending.resolve({
+    status: 'stale', hostShipId: 'quellon', currentControlRevision: 4,
+  }));
+
+  expect(within(cargo).queryByRole('button', { name: /retry cargo transfer/i })).not.toBeInTheDocument();
+  expect(within(cargo).queryByText(/Loaded 2 Food/i)).not.toBeInTheDocument();
+});
+
 it('offers only printed-track survivor transfers within the shuttle cycle allowance', async () => {
   const user = userEvent.setup();
   const state = useSessionStore.getState();
@@ -1128,7 +1175,7 @@ it('opens Chacau on its Refinery 124 Engineer route with its repair and cargo en
     } },
     shuttleCargo: { chacau: { ore: 1 } },
   });
-  state.setMe({ ...state.me!, activeConsoleRoleId: 'refinery-124-engineer' });
+  state.setMe({ ...state.me!, activeConsoleRoleId: 'refinery-124-engineer', fleetGroupId: 'fleet-1' });
   state.setConnection('live');
   state.setSessionSnapshotFreshness('server');
 

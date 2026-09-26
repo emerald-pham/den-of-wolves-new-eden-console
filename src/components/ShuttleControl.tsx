@@ -51,6 +51,7 @@ interface CargoAttemptAuthority {
   readonly activeConsoleRoleId: string | null | undefined;
   readonly replacementRoleId: string | null | undefined;
   readonly seatId: string | null | undefined;
+  readonly fleetGroupId: string;
   readonly shuttleId: string;
   readonly ownerRoleId: string;
   readonly ownerUid: string;
@@ -83,7 +84,8 @@ function captureCargoAttemptAuthority(
   const authority = session?.shuttleControl?.[shuttleId];
   const docking = session ? dockingForShuttle(session, shuttleId) : undefined;
   if (!hasFreshSessionAuthority() || !session || !me || me.role !== 'player' ||
-      me.sessionId !== session.id || !me.uid || !authority || authority.shuttleId !== shuttleId ||
+      me.sessionId !== session.id || !me.uid || typeof me.fleetGroupId !== 'string' ||
+      !me.fleetGroupId.trim() || !authority || authority.shuttleId !== shuttleId ||
       authority.holderUid !== me.uid || authority.revision !== expectedControlRevision || !docking?.shipId) {
     return undefined;
   }
@@ -95,6 +97,7 @@ function captureCargoAttemptAuthority(
     activeConsoleRoleId: me.activeConsoleRoleId,
     replacementRoleId: me.replacementRoleId,
     seatId: me.seatId,
+    fleetGroupId: me.fleetGroupId,
     shuttleId,
     ownerRoleId: authority.ownerRoleId,
     ownerUid: authority.ownerUid,
@@ -116,6 +119,7 @@ function cargoAttemptAuthorityIsCurrent(
     me?.sessionId === attempt.sessionId && me.uid === attempt.uid && me.role === attempt.role &&
     me.assignedRoleId === attempt.assignedRoleId && me.activeConsoleRoleId === attempt.activeConsoleRoleId &&
     me.replacementRoleId === attempt.replacementRoleId && me.seatId === attempt.seatId &&
+    me.fleetGroupId === attempt.fleetGroupId &&
     authority?.shuttleId === attempt.shuttleId && authority.ownerRoleId === attempt.ownerRoleId &&
     authority.ownerUid === attempt.ownerUid && authority.holderUid === attempt.uid &&
     Number.isSafeInteger(authority.revision) && authority.revision >= minimumControlRevision &&
@@ -562,7 +566,8 @@ export default function ShuttleControl({ control }: Props) {
     const authority = captureCargoAttemptAuthority(cargoRetry.authority.shuttleId, currentRevision as number);
     if (!authority || authority.sessionId !== cargoRetry.authority.sessionId ||
         authority.uid !== cargoRetry.authority.uid || authority.ownerRoleId !== cargoRetry.authority.ownerRoleId ||
-        authority.ownerUid !== cargoRetry.authority.ownerUid || authority.hostShipId !== cargoRetry.authority.hostShipId) return;
+        authority.ownerUid !== cargoRetry.authority.ownerUid || authority.fleetGroupId !== cargoRetry.authority.fleetGroupId ||
+        authority.hostShipId !== cargoRetry.authority.hostShipId) return;
     const attempt: CargoTransferAttempt = {
       authority,
       resourceId: cargoRetry.resourceId,

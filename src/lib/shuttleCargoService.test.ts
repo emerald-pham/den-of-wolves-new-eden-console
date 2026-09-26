@@ -27,7 +27,8 @@ beforeEach(() => {
     id: 's1', name: 'Fleet', joinCode: '1234', phase: 'active', ownerUid: 'owner', createdAt: '', updatedAt: '',
   }, {
     uid: 'holder', sessionId: 's1', displayName: 'Holder', role: 'player', seatId: null,
-    assignedRoleId: 'quellon-explorer', activeConsoleRoleId: 'quellon-explorer', joinedAt: '',
+    assignedRoleId: 'quellon-explorer', activeConsoleRoleId: 'quellon-explorer',
+    fleetGroupId: 'fleet-1', joinedAt: '',
   });
   useSessionStore.getState().setConnection('live');
   useSessionStore.getState().setSessionSnapshotFreshness('server');
@@ -141,6 +142,17 @@ it('rejects stale recovery when the actor loses holder or role authority while p
   });
   resolveActor({ data: staleReply() });
   await expect(actorPending).rejects.toThrow(/authority changed while the request was pending/i);
+});
+
+it('rejects stale recovery when the actor changes fleet group while pending', async () => {
+  let resolve!: (value: { data: Record<string, unknown> }) => void;
+  mocks.call.mockReturnValue(new Promise((finish) => { resolve = finish; }));
+  const pending = transferShuttleCargo('hummingbird', 'food', 'load', 2, 3);
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, fleetGroupId: 'fleet-2',
+  });
+  resolve({ data: staleReply() });
+  await expect(pending).rejects.toThrow(/authority changed while the request was pending/i);
 });
 
 it('waits for live control authority before dispatch and rejects malformed replies', async () => {
