@@ -27,6 +27,20 @@ function setOwner(entitlementId: string): void {
   });
 }
 
+function deferredRequest(): {
+  readonly promise: Promise<void>;
+  readonly resolve: () => void;
+  readonly reject: (reason?: unknown) => void;
+} {
+  let resolvePromise!: (value: void | PromiseLike<void>) => void;
+  let rejectPromise!: (reason?: unknown) => void;
+  const promise = new Promise<void>((resolve, reject) => {
+    resolvePromise = resolve;
+    rejectPromise = reject;
+  });
+  return { promise, resolve: () => resolvePromise(), reject: rejectPromise };
+}
+
 beforeEach(() => {
   request.mockReset();
   request.mockResolvedValue({
@@ -172,6 +186,65 @@ it.each(['session', 'uid', 'cycle'] as const)(
 
     await waitFor(() => expect(request).toHaveBeenCalledTimes(2));
     expect(request.mock.calls[1]?.[0].requestId).not.toBe(firstRequestId);
+  },
+);
+
+it.each(['resolve', 'reject'] as const)(
+  'ignores a late %s from before the scouting role was lost and reacquired', async (settlement) => {
+    const user = userEvent.setup();
+    const firstRequest = deferredRequest();
+    const secondRequest = deferredRequest();
+    request.mockImplementationOnce(() => firstRequest.promise)
+      .mockImplementationOnce(() => secondRequest.promise);
+    setOwner('hummingbird');
+    render(<ScoutRequestControls entitlementId="hummingbird" />);
+
+    const controls = screen.getByRole('region', { name: 'Hummingbird scouting request' });
+    const coordinate = within(controls).getByLabelText('Printed system coordinate');
+    await user.type(coordinate, '5143');
+    await user.click(within(controls).getByRole('button', { name: 'Record request' }));
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(1));
+    const oldRequestId = request.mock.calls[0]?.[0].requestId;
+
+    await act(async () => {
+      const current = useSessionStore.getState();
+      current.setMe({
+        ...current.me!, assignedRoleId: 'wing-commander', seatId: 'wing-commander',
+        activeConsoleRoleId: 'wing-commander',
+      });
+      await Promise.resolve();
+    });
+    expect(screen.queryByRole('region', { name: 'Hummingbird scouting request' }))
+      .not.toBeInTheDocument();
+
+    await act(async () => {
+      setOwner('hummingbird');
+      await Promise.resolve();
+    });
+    const renewedControls = screen.getByRole('region', { name: 'Hummingbird scouting request' });
+    expect(renewedControls).toBeVisible();
+    await user.click(within(renewedControls).getByRole('button', { name: 'Record request' }));
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(2));
+    expect(request.mock.calls[1]?.[0].requestId).not.toBe(oldRequestId);
+    expect(within(renewedControls).getByRole('button', { name: 'Recording request…' })).toBeDisabled();
+
+    await act(async () => {
+      if (settlement === 'resolve') firstRequest.resolve();
+      else firstRequest.reject(Object.assign(new Error('The connection closed before confirmation.'), {
+        code: 'functions/unavailable',
+      }));
+      await Promise.resolve();
+    });
+
+    expect(within(renewedControls).queryByRole('status')).not.toBeInTheDocument();
+    expect(within(renewedControls).queryByRole('alert')).not.toBeInTheDocument();
+    expect(within(renewedControls).getByRole('button', { name: 'Recording request…' })).toBeDisabled();
+
+    await act(async () => {
+      secondRequest.resolve();
+      await Promise.resolve();
+    });
+    expect(await within(renewedControls).findByRole('status')).toHaveTextContent(/request recorded/i);
   },
 );
 

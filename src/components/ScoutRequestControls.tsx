@@ -1,4 +1,4 @@
-import { useEffect, useId, useState, type FormEvent } from 'react';
+import { useId, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import {
   isScoutEntitlementHolder,
   isScoutingRequestPhaseAvailable,
@@ -77,13 +77,18 @@ export default function ScoutRequestControls({ entitlementId }: Props) {
   const phaseAvailable = isScoutingRequestPhaseAvailable(session);
   const hasLiveSnapshot = connection === 'live' && freshness === 'server';
   const authorityKey = scoutAuthorityKey(entitlementId, session, me);
+  const authorityEpoch = useRef(0);
+  const previousAuthorityKey = useRef(authorityKey);
   const retry = retryAttempt?.authorityKey === authorityKey ? retryAttempt : null;
   const busy = busyAttempt?.authorityKey === authorityKey;
   const coordinateIsValid = /^\d{4}$/.test(targetCoordinate);
 
-  useEffect(() => {
-    setRetryAttempt((current) => current?.authorityKey === authorityKey ? current : null);
-    setBusyAttempt((current) => current?.authorityKey === authorityKey ? current : null);
+  useLayoutEffect(() => {
+    if (previousAuthorityKey.current === authorityKey) return;
+    previousAuthorityKey.current = authorityKey;
+    authorityEpoch.current += 1;
+    setRetryAttempt(null);
+    setBusyAttempt(null);
     setError('');
     setConfirmation('');
   }, [authorityKey]);
@@ -101,6 +106,7 @@ export default function ScoutRequestControls({ entitlementId }: Props) {
     };
     if (!/^\d{4}$/.test(attempt.targetCoordinate)) return;
 
+    const attemptEpoch = authorityEpoch.current;
     setRetryAttempt(attempt);
     setBusyAttempt(attempt);
     setError('');
@@ -112,12 +118,14 @@ export default function ScoutRequestControls({ entitlementId }: Props) {
         targetCoordinate: attempt.targetCoordinate,
         requestId: attempt.requestId,
       });
-      if (currentScoutAuthorityKey(entitlementId) !== attempt.authorityKey) return;
+      if (authorityEpoch.current !== attemptEpoch ||
+          currentScoutAuthorityKey(entitlementId) !== attempt.authorityKey) return;
       setRetryAttempt((current) => current?.requestId === attempt.requestId &&
         current.authorityKey === attempt.authorityKey ? null : current);
       setConfirmation('Request recorded. Check with the facilitator for follow-up.');
     } catch (caught) {
-      if (currentScoutAuthorityKey(entitlementId) !== attempt.authorityKey) return;
+      if (authorityEpoch.current !== attemptEpoch ||
+          currentScoutAuthorityKey(entitlementId) !== attempt.authorityKey) return;
       if (isDefinitiveInvalidArgument(caught)) {
         setRetryAttempt((current) => current?.requestId === attempt.requestId &&
           current.authorityKey === attempt.authorityKey ? null : current);
@@ -126,8 +134,10 @@ export default function ScoutRequestControls({ entitlementId }: Props) {
         setError('The request was not confirmed. Retry the same request to preserve its identity.');
       }
     } finally {
-      setBusyAttempt((current) => current?.requestId === attempt.requestId &&
-        current.authorityKey === attempt.authorityKey ? null : current);
+      if (authorityEpoch.current === attemptEpoch) {
+        setBusyAttempt((current) => current?.requestId === attempt.requestId &&
+          current.authorityKey === attempt.authorityKey ? null : current);
+      }
     }
   }
 
