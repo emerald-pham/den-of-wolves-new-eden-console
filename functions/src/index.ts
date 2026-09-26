@@ -7244,9 +7244,9 @@ export const recycleWithBoa = onCall<{
     requireActionPhase(session, 'transfer', 'player');
     const currentCycle = session.get('currentTurn');
     const phase = turnPhaseState(session.get('turnPhase'));
-    if (!Number.isSafeInteger(currentCycle) || currentCycle !== data.expectedCycle ||
+    if (!Number.isSafeInteger(currentCycle) || (currentCycle as number) < 1 ||
         !phase || phase.turn !== currentCycle) {
-      throw commandError('failed-precondition', 'The Coordination cycle changed. Refresh before recycling.', 'stale-revision');
+      throw commandError('failed-precondition', 'The authoritative Coordination cycle is unavailable.', 'conflict');
     }
     const openAirspaceEndsAt = Date.parse(phase.openAirspaceEndsAt);
     if (phase.airspace.state !== 'lifted' || phase.timerPause !== undefined ||
@@ -7292,6 +7292,42 @@ export const recycleWithBoa = onCall<{
         ? serviceRechargeResourceState(session.get('shipResources'), hostShipId) : null;
       if (!resources || !isRecord(cargoRoot) && cargoRoot !== undefined) {
         throw new Error('The authoritative docked host or Boa cargo inventory is malformed.');
+      }
+      const stale = data.expectedControlRevision !== control.boa.revision ||
+        data.expectedRecyclingRevision !== ledger.revision || data.expectedCycle !== currentCycle;
+      if (stale && data.expectedControlRevision <= control.boa.revision &&
+          data.expectedRecyclingRevision <= ledger.revision && data.expectedCycle <= currentCycle) {
+        // Only disclose CAS progress after validating the current actor, host,
+        // phase, quota, recipe and balances against the live transaction state.
+        resolveBoaRecycling({
+          actorUid: uid,
+          actorRoleId,
+          currentCycle: currentCycle as number,
+          expectedCycle: currentCycle as number,
+          expectedControlRevision: control.boa.revision,
+          expectedLedgerRevision: ledger.revision,
+          expectedHostShipId: data.expectedHostShipId,
+          fleetGroupVesselIds: group.vesselIds,
+          control: control.boa,
+          dockings: rawDockings as AuthoritativeShuttleDocking[],
+          phase: 'coordination',
+          fuelled: fuelled.boa === true,
+          recipeId: data.recipeId,
+          resources,
+          boaCargo,
+          ledger,
+        });
+        return {
+          status: 'stale', sessionId: data.sessionId, requestId: data.requestId,
+          shuttleId: 'boa', recipeId: data.recipeId,
+          expectedHostShipId: data.expectedHostShipId,
+          expectedControlRevision: data.expectedControlRevision,
+          currentControlRevision: control.boa.revision,
+          expectedRecyclingRevision: data.expectedRecyclingRevision,
+          currentRecyclingRevision: ledger.revision,
+          expectedCycle: data.expectedCycle,
+          currentCycle: currentCycle as number,
+        };
       }
       result = resolveBoaRecycling({
         actorUid: uid,

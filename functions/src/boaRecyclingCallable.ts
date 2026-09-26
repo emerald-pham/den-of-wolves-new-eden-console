@@ -42,6 +42,22 @@ export interface BoaRecyclingCallableReply {
   readonly exchangesThisCycle: number;
 }
 
+/** A private, request-bound CAS receipt that lets the current Recycler retry explicitly. */
+export interface BoaRecyclingCallableStaleReply {
+  readonly status: 'stale';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly shuttleId: 'boa';
+  readonly recipeId: BoaRecyclingRecipeId;
+  readonly expectedHostShipId: string;
+  readonly expectedControlRevision: number;
+  readonly currentControlRevision: number;
+  readonly expectedRecyclingRevision: number;
+  readonly currentRecyclingRevision: number;
+  readonly expectedCycle: number;
+  readonly currentCycle: number;
+}
+
 const RECIPE_IDS: readonly BoaRecyclingRecipeId[] = ['food', 'water', 'ore', 'materials', 'fuel'];
 const RECIPE_COSTS: Readonly<Record<BoaRecyclingRecipeId, Readonly<{ resourceId: string; cost: 3 | 6 }>>> = {
   food: { resourceId: 'food', cost: 6 },
@@ -132,4 +148,33 @@ export function isBoaRecyclingCallableReply(
     Number.isSafeInteger(raw.exchangesThisCycle) &&
     (raw.exchangesThisCycle as number) >= 1 &&
     (raw.exchangesThisCycle as number) <= BOA_RECYCLING_LIMIT_PER_CYCLE);
+}
+
+/** Accepts only the minimal stale envelope for this exact submitted request. */
+export function isBoaRecyclingCallableStaleReply(
+  value: unknown,
+  command: BoaRecyclingCallableCommand,
+): value is BoaRecyclingCallableStaleReply {
+  const raw = record(value);
+  const fields = [
+    'status', 'sessionId', 'requestId', 'shuttleId', 'recipeId', 'expectedHostShipId',
+    'expectedControlRevision', 'currentControlRevision', 'expectedRecyclingRevision',
+    'currentRecyclingRevision', 'expectedCycle', 'currentCycle',
+  ];
+  return Boolean(raw && Object.keys(raw).length === fields.length &&
+    fields.every((key) => Object.hasOwn(raw, key)) &&
+    raw.status === 'stale' && raw.sessionId === command.sessionId &&
+    raw.requestId === command.requestId && raw.shuttleId === 'boa' &&
+    raw.recipeId === command.recipeId && raw.expectedHostShipId === command.expectedHostShipId &&
+    raw.expectedControlRevision === command.expectedControlRevision &&
+    raw.expectedRecyclingRevision === command.expectedRecyclingRevision &&
+    raw.expectedCycle === command.expectedCycle &&
+    isSafeCounter(raw.currentControlRevision) &&
+    raw.currentControlRevision >= command.expectedControlRevision &&
+    isSafeCounter(raw.currentRecyclingRevision) &&
+    raw.currentRecyclingRevision >= command.expectedRecyclingRevision &&
+    Number.isSafeInteger(raw.currentCycle) && (raw.currentCycle as number) >= command.expectedCycle &&
+    (raw.currentControlRevision > command.expectedControlRevision ||
+      raw.currentRecyclingRevision > command.expectedRecyclingRevision ||
+      (raw.currentCycle as number) > command.expectedCycle));
 }

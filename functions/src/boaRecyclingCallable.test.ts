@@ -165,15 +165,65 @@ it.each([
   expect(mock.update).not.toHaveBeenCalled();
 });
 
-it('rejects a stale host, control revision, or cycle without moving either inventory', async () => {
-  const staleCommands = [
-    { ...command, requestId: 'stale-host', expectedHostShipId: 'capybara' },
-    { ...command, requestId: 'stale-control', expectedControlRevision: 1 },
-    { ...command, requestId: 'stale-cycle', expectedCycle: 2 },
-  ];
-  for (const stale of staleCommands) {
-    await expect(recycleWithBoa.run(request(stale))).rejects.toMatchObject({ code: 'failed-precondition' });
+it.each([
+  ['control revision', 'stale-control', { expectedControlRevision: 1 }, undefined],
+  ['recycling ledger revision', 'stale-ledger', { expectedRecyclingRevision: 0 }, {
+    boaRecycling: { cycle: 3, revision: 1, exchangesThisCycle: 1 },
+  }],
+  ['cycle', 'stale-cycle', { expectedCycle: 2 }, { currentTurn: 4 }],
+])('returns minimal request-bound stale state for a changed %s without writing a receipt, event, or inventory', async (
+  _label,
+  requestId,
+  commandPatch,
+  sessionPatch,
+) => {
+  seedState();
+  if (sessionPatch) Object.assign(mock.documents.get('sessions/s1')!, sessionPatch);
+  if (requestId === 'stale-cycle') {
+    (mock.documents.get('sessions/s1')!.turnPhase as Fields).turn = 4;
   }
+  const staleCommand = { ...command, requestId, ...commandPatch };
+  const raw = mock.documents.get('sessions/s1')!;
+  const ledger = raw.boaRecycling as Fields | undefined;
+  const currentCycle = raw.currentTurn as number;
+  const result = await recycleWithBoa.run(request(staleCommand)) as Fields;
+
+  expect(result).toEqual({
+    status: 'stale', sessionId: 's1', requestId, shuttleId: 'boa',
+    recipeId: 'food', expectedHostShipId: 'aegis',
+    expectedControlRevision: staleCommand.expectedControlRevision,
+    currentControlRevision: 2,
+    expectedRecyclingRevision: staleCommand.expectedRecyclingRevision,
+    currentRecyclingRevision: ledger?.revision ?? 0,
+    expectedCycle: staleCommand.expectedCycle,
+    currentCycle,
+  });
+  expect(Object.keys(result).sort()).toEqual([
+    'currentControlRevision', 'currentCycle', 'currentRecyclingRevision',
+    'expectedControlRevision', 'expectedCycle', 'expectedHostShipId',
+    'expectedRecyclingRevision', 'recipeId', 'requestId', 'sessionId', 'shuttleId', 'status',
+  ].sort());
+  expect(result).not.toHaveProperty('holderUid');
+  expect(result).not.toHaveProperty('fleetGroupId');
+  expect(result).not.toHaveProperty('resources');
+  expect(result).not.toHaveProperty('scrapRemaining');
+  expect(result).not.toHaveProperty('hostResourceRemaining');
+  expect(mock.documents.has(`sessions/s1/commandReceipts/${requestId}`)).toBe(false);
+  expect(mock.documents.has(`sessions/s1/events/boa-recycling-${requestId}`)).toBe(false);
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['Recycler role is lost', () => { mock.documents.get('sessions/s1/players/holder')!.assignedRoleId = 'capybara-captain'; }],
+  ['Boa holder changes', () => { ((mock.documents.get('sessions/s1')!.shuttleControl as Fields).boa as Fields).holderUid = 'other'; }],
+  ['fleet-group membership is lost', () => { mock.documents.get('sessions/s1/fleetGroups/fleet-1')!.memberUids = []; }],
+  ['the docked host changes', () => { (mock.documents.get('sessions/s1')!.shuttleDockings as Fields[])[1]!.shipId = 'capybara'; }],
+])('does not return stale retry state after %s', async (_label, changeAuthority) => {
+  changeAuthority();
+  await expect(recycleWithBoa.run(request({ ...command, expectedControlRevision: 1 })))
+    .rejects.toMatchObject({ code: expect.stringMatching(/permission-denied|failed-precondition/) });
+  expect(mock.documents.has(`sessions/s1/commandReceipts/${command.requestId}`)).toBe(false);
   expect(mock.set).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();
 });

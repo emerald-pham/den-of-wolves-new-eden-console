@@ -22,6 +22,7 @@ const ENDEAVOUR_RESEARCH_CALLABLES = [
 ];
 const GORGONEION_REPAIR_CALLABLES = ['repairGorgoneionWithDrones'];
 const WARRIOR_REPAIR_CALLABLES = ['repairWarriorWithDrones'];
+const BOA_RECYCLING_CALLABLES = ['recycleWithBoa'];
 const MALIADE_EVENT_REDACTION_ADDITIONS = [
   {
     eventField: "  'maliades-launched': ['craftId', 'status'],\n",
@@ -257,7 +258,8 @@ NAVIGATION_PROJECTION_BEFORE = NAVIGATION_PROJECTION_BEFORE
   .replace(P541_NAVIGATION_WRITER_AFTER, P541_NAVIGATION_WRITER_BEFORE);
 const INDEX_SOURCE = [
   ...P436_EXPORTS, ...GORGONEION_REPAIR_CALLABLES, ...WARRIOR_REPAIR_CALLABLES,
-  ...BASE_CAPYBARA_CARGO_CALLABLES, ...SMALL_SHIP_MAINTENANCE_CALLABLES,
+  ...BASE_CAPYBARA_CARGO_CALLABLES, ...BOA_RECYCLING_CALLABLES,
+  ...SMALL_SHIP_MAINTENANCE_CALLABLES,
   'calculateArrestPosse', 'declareWolfAttack', 'getDioneMaliadesLaunch',
   ...MALIADE_EVENT_REDACTION_ADDITIONS.map(({ callable }) => callable),
 ].map((name) => `export const ${name} = onCall(async () => {});`).join('\n');
@@ -390,6 +392,11 @@ test('maps base Capybara cargo resolver and transaction to its deployed transfer
     const selected = selectorFor([file]);
     assert.deepEqual(selectedFunctions(selected), functionTargets(BASE_CAPYBARA_CARGO_CALLABLES));
   }
+});
+
+test('maps Boa recycling callable contract changes to only recycleWithBoa', () => {
+  const selected = selectorFor(['functions/src/boaRecyclingCallable.ts']);
+  assert.deepEqual(selectedFunctions(selected), functionTargets(BOA_RECYCLING_CALLABLES));
 });
 
 test('maps strict extra-ship admission to its assignment, projection, and repair consumers', () => {
