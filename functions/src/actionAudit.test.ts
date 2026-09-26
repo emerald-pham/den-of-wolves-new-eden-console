@@ -100,6 +100,7 @@ describe('buildActionAuditRecord', () => {
     'ship-population-adjustment',
     'ship-counter-batch',
     'fighter-wing-count',
+    'repair-damage',
   ])('registers %s as facilitator sourced without accepting action payloads', (action) => {
     const record = buildActionAuditRecord({
       sessionId: 'session-1', actorUid: 'gm-1', actorRoleId: 'facilitator',

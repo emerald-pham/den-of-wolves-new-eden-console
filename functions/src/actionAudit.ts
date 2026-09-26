@@ -10,6 +10,7 @@ export const ACTION_AUDIT_RESOLUTION_SOURCE_BY_ACTION = {
   'ship-population-adjustment': 'facilitator',
   'ship-counter-batch': 'facilitator',
   'fighter-wing-count': 'facilitator',
+  'repair-damage': 'facilitator',
 } as const satisfies Readonly<Record<string, ActionAuditResolutionSource>>;
 
 export type ActionAuditAction = keyof typeof ACTION_AUDIT_RESOLUTION_SOURCE_BY_ACTION;

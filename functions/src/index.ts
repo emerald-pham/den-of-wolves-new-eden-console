@@ -3636,6 +3636,42 @@ function ensureVesselActionAuditForReplay(
   txSetIfSupported(tx, auditRef, record);
 }
 
+function ensureRepairAllShipDamageActionAuditForReplay(
+  tx: Transaction,
+  auditSnapshot: DocumentSnapshot,
+  auditRef: DocumentReference,
+  sessionId: string,
+  actorUid: string,
+  shipId: string,
+  requestId: string,
+  expectedRevision: number | undefined,
+  result: Record<string, unknown>,
+): void {
+  const mismatch = () => commandError(
+    'failed-precondition',
+    'This ship repair receipt does not match its standardized audit request.',
+    'conflict',
+  );
+  if (result.vesselId !== shipId || result.auditId !== `repair-damage-${requestId}`) {
+    throw mismatch();
+  }
+  if (result.status === 'stale') {
+    if (result.shipId !== shipId || result.currentRevision !== result.revision ||
+        expectedRevision === undefined || result.revision === expectedRevision) {
+      throw mismatch();
+    }
+  } else if (result.status !== undefined || result.repaired !== true ||
+      !Number.isSafeInteger(result.revision) || (result.revision as number) < 1 ||
+      (expectedRevision !== undefined && result.revision !== expectedRevision + 1)) {
+    throw mismatch();
+  }
+
+  ensureVesselActionAuditForReplay(
+    tx, auditSnapshot, auditRef, sessionId, actorUid,
+    'repair-damage', requestId, result,
+  );
+}
+
 function ensureFighterWingCountActionAuditForReplay(
   tx: Transaction,
   auditSnapshot: DocumentSnapshot,
@@ -26017,6 +26053,7 @@ export const repairAllShipDamage = onCall<{
   const eventId = `repair-${identity.requestId}`;
   const ref = db.doc(`sessions/${change.sessionId}`);
   const receiptRef = commandReceiptRef(change.sessionId, identity.requestId);
+  const actionAuditRef = vesselActionAuditRef(change.sessionId, identity.requestId);
   const fingerprint = vesselActionFingerprint(
     'repair-damage', change.sessionId, identity.requestId, uid, change.instanceId,
     identity.expectedRevision ?? null, { shipId: change.shipId },
@@ -26025,12 +26062,28 @@ export const repairAllShipDamage = onCall<{
     await requireShipCounterAuthority(
       tx, change.sessionId, uid, change.shipId, change.instanceId, true, true,
     );
-    const session = await tx.get(ref);
+    const [session, player, prior, actionAudit] = await Promise.all([
+      tx.get(ref),
+      tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`)),
+      tx.get(receiptRef),
+      tx.get(actionAuditRef),
+    ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    const player = await tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`));
-    const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'ship repair');
-    if (replay) return replay;
+    if (replay) {
+      ensureRepairAllShipDamageActionAuditForReplay(
+        tx, actionAudit, actionAuditRef, change.sessionId, uid,
+        change.shipId, identity.requestId, identity.expectedRevision, replay,
+      );
+      return replay;
+    }
+    if (actionAudit.exists) {
+      throw commandError(
+        'failed-precondition',
+        'This ship repair request has a standardized audit without its bound receipt.',
+        'conflict',
+      );
+    }
     requireActiveGameplayPhase(session);
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
@@ -26056,6 +26109,10 @@ export const repairAllShipDamage = onCall<{
       ...vesselActionEnvelope(session, player, uid, change.shipId, revision,
         identity.requestId, 'repair-damage'),
     };
+    writeVesselActionAudit(
+      tx, actionAuditRef, change.sessionId, uid, vesselActorRoleId(player),
+      'repair-damage', vesselActionPhase(session), identity.requestId, revision,
+    );
     txSetIfSupported(tx, receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
   });

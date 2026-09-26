@@ -6,6 +6,7 @@ const mock = vi.hoisted(() => ({
   grantShip: 'aegis',
   phase: 'active',
   activeVesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'] as string[],
+  vesselActionRevisions: {} as Record<string, number>,
   currentTurn: 1,
   damage: {} as Record<string, unknown>, survivors: {} as Record<string, number>, retry: false,
   shuttleDockings: [] as Array<{ shuttleId: string; shipId: string; dockedAt: string }>,
@@ -45,6 +46,7 @@ beforeEach(() => {
   mock.grantShip = 'aegis';
   mock.phase = 'active';
   mock.activeVesselIds = ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'];
+  mock.vesselActionRevisions = {};
   mock.currentTurn = 1;
   mock.connected = true;
   mock.damage = {};
@@ -62,6 +64,7 @@ beforeEach(() => {
   mock.set.mockReset();
   mock.delete.mockReset();
   mock.get.mockImplementation(async (path: string) => {
+    if (path.includes('/actionAudits/')) return { exists: false, get: () => undefined };
     if (path.includes('/commandReceipts/')) return { exists: false, get: () => undefined };
     if (path === 'sessions/s1/players') return {
       exists: true,
@@ -85,6 +88,7 @@ beforeEach(() => {
           activeVesselIds: mock.activeVesselIds,
           currentTurn: mock.currentTurn,
           phase: mock.phase,
+          vesselActionRevisions: mock.vesselActionRevisions,
           shipDamage: mock.damage,
           shipSurvivors: mock.survivors,
           shuttleDockings: mock.shuttleDockings,
@@ -96,6 +100,10 @@ beforeEach(() => {
 });
 
 const data = { sessionId: 's1', shipId: 'aegis', instanceId: 'bridge' };
+
+function snapshot(fields: Record<string, unknown> = {}, exists = true) {
+  return { exists, get: (key: string) => fields[key], data: () => fields };
+}
 
 it('draws the printed Capybara Scrap Refinery card through the GM transaction', async () => {
   mock.grantShip = 'capybara';
@@ -484,6 +492,161 @@ it.each(['aegis', 'capybara'])('repairs all %s damage and restores its deck with
     [`vesselActionRevisions.${shipId}`]: 1,
   }));
   expect(mock.set).toHaveBeenCalledWith('sessions/s1/events/repair-test-damage', expect.objectContaining({ type: 'ship-repaired', shipId, actorUid: 'u1' }));
+});
+it('writes a metadata-only facilitator audit with repair, event, and receipt in the transaction', async () => {
+  const { repairAllShipDamage } = await import('./index');
+  const requestId = 'repair-audit-1';
+
+  await expect(repairAllShipDamage.run(request({ ...data, requestId }))).resolves.toMatchObject({
+    repaired: true, revision: 1, idempotencyKey: requestId,
+  });
+
+  expect(mock.set).toHaveBeenCalledWith(`sessions/s1/actionAudits/${requestId}`, {
+    schemaVersion: 1,
+    sessionId: 's1',
+    actorUid: 'u1',
+    actorRoleId: null,
+    action: 'repair-damage',
+    phase: 'active',
+    requestId,
+    revision: 1,
+    outcome: 'committed',
+    resolutionSource: 'facilitator',
+    redactionPolicy: 'action-audit-metadata-only-v1',
+    createdAt: 'server-time',
+  });
+  expect(mock.set).toHaveBeenCalledWith(`sessions/s1/events/repair-${requestId}`, expect.objectContaining({
+    type: 'ship-repaired', shipId: 'aegis', actorUid: 'u1',
+  }));
+  expect(mock.set).toHaveBeenCalledWith(`sessions/s1/commandReceipts/${requestId}`, expect.objectContaining({
+    fingerprint: expect.objectContaining({ action: 'repair-damage', requestId, actorUid: 'u1' }),
+  }));
+  const audit = mock.set.mock.calls.find(([path]) => path === `sessions/s1/actionAudits/${requestId}`)?.[1] as Record<string, unknown>;
+  expect(Object.keys(audit).sort()).toEqual([
+    'action', 'actorRoleId', 'actorUid', 'createdAt', 'outcome', 'phase', 'redactionPolicy',
+    'requestId', 'resolutionSource', 'revision', 'schemaVersion', 'sessionId',
+  ].sort());
+  expect(audit).not.toHaveProperty('shipId');
+  expect(audit).not.toHaveProperty('damagedSystemIds');
+});
+it('does not audit a stale repair receipt', async () => {
+  const { repairAllShipDamage } = await import('./index');
+  mock.vesselActionRevisions = { aegis: 4 };
+
+  await expect(repairAllShipDamage.run(request({ ...data, requestId: 'repair-stale', expectedRevision: 3 })))
+    .resolves.toMatchObject({ status: 'stale', currentRevision: 4 });
+
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/commandReceipts/repair-stale', expect.objectContaining({
+    result: expect.objectContaining({ status: 'stale', revision: 4 }),
+  }));
+  expect(mock.set.mock.calls.some(([path]) => String(path).includes('/actionAudits/'))).toBe(false);
+  expect(mock.set.mock.calls.some(([path]) => String(path).includes('/events/repair-'))).toBe(false);
+});
+it('replays a receipt after a phase change and backfills its original facilitator audit metadata', async () => {
+  const { repairAllShipDamage } = await import('./index');
+  const requestId = 'repair-replay';
+  const result = {
+    repaired: true,
+    actorUid: 'u1', actorRoleId: null, vesselId: 'aegis', turn: 1,
+    phase: 'active', revision: 2, idempotencyKey: requestId,
+    auditId: `repair-damage-${requestId}`,
+  };
+  const fingerprint = {
+    action: 'repair-damage', sessionId: 's1', requestId, actorUid: 'u1',
+    instanceId: 'bridge', expectedRevision: null, payload: { shipId: 'aegis' },
+  };
+  const previous = mock.get.getMockImplementation()!;
+  mock.phase = 'closed';
+  mock.get.mockImplementation(async (path: string) => {
+    if (path === `sessions/s1/commandReceipts/${requestId}`) return snapshot({ fingerprint, result });
+    if (path === `sessions/s1/actionAudits/${requestId}`) return snapshot({}, false);
+    return previous(path);
+  });
+
+  await expect(repairAllShipDamage.run(request({ ...data, requestId }))).resolves.toEqual(result);
+
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).toHaveBeenCalledWith(`sessions/s1/actionAudits/${requestId}`, {
+    schemaVersion: 1, sessionId: 's1', actorUid: 'u1', actorRoleId: null,
+    action: 'repair-damage', phase: 'active', requestId, revision: 2,
+    outcome: 'committed', resolutionSource: 'facilitator',
+    redactionPolicy: 'action-audit-metadata-only-v1', createdAt: 'server-time',
+  });
+});
+it('fails closed when a repair audit is orphaned from its bound receipt', async () => {
+  const { repairAllShipDamage } = await import('./index');
+  const requestId = 'repair-orphan';
+  const previous = mock.get.getMockImplementation()!;
+  mock.get.mockImplementation(async (path: string) =>
+    path === `sessions/s1/actionAudits/${requestId}` ? snapshot({ action: 'repair-damage' }) : previous(path));
+
+  await expect(repairAllShipDamage.run(request({ ...data, requestId })))
+    .rejects.toMatchObject({ code: 'failed-precondition', details: { commandError: 'conflict' } });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+it('fails closed when a committed repair receipt has a mismatched audit', async () => {
+  const { repairAllShipDamage } = await import('./index');
+  const requestId = 'repair-audit-mismatch';
+  const fingerprint = {
+    action: 'repair-damage', sessionId: 's1', requestId, actorUid: 'u1',
+    instanceId: 'bridge', expectedRevision: null, payload: { shipId: 'aegis' },
+  };
+  const result = {
+    repaired: true, actorUid: 'u1', actorRoleId: null, vesselId: 'aegis', turn: 1,
+    phase: 'active', revision: 2, idempotencyKey: requestId,
+    auditId: `repair-damage-${requestId}`,
+  };
+  const previous = mock.get.getMockImplementation()!;
+  mock.get.mockImplementation(async (path: string) => {
+    if (path === `sessions/s1/commandReceipts/${requestId}`) return snapshot({ fingerprint, result });
+    if (path === `sessions/s1/actionAudits/${requestId}`) return snapshot({
+      schemaVersion: 1, sessionId: 's1', actorUid: 'u1', actorRoleId: null,
+      action: 'repair-damage', phase: 'active', requestId, revision: 1,
+      outcome: 'committed', resolutionSource: 'facilitator',
+      redactionPolicy: 'action-audit-metadata-only-v1', createdAt: 'server-time',
+    });
+    return previous(path);
+  });
+
+  await expect(repairAllShipDamage.run(request({ ...data, requestId })))
+    .rejects.toMatchObject({ code: 'failed-precondition', details: { commandError: 'conflict' } });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+it('fails closed when a repair receipt envelope names a different audit action', async () => {
+  const { repairAllShipDamage } = await import('./index');
+  const requestId = 'repair-wrong-audit-id';
+  const fingerprint = {
+    action: 'repair-damage', sessionId: 's1', requestId, actorUid: 'u1',
+    instanceId: 'bridge', expectedRevision: null, payload: { shipId: 'aegis' },
+  };
+  const result = {
+    repaired: true, actorUid: 'u1', actorRoleId: null, vesselId: 'aegis', turn: 1,
+    phase: 'active', revision: 2, idempotencyKey: requestId,
+    auditId: 'some-other-action-request',
+  };
+  const previous = mock.get.getMockImplementation()!;
+  mock.get.mockImplementation(async (path: string) => {
+    if (path === `sessions/s1/commandReceipts/${requestId}`) return snapshot({ fingerprint, result });
+    return previous(path);
+  });
+  mock.phase = 'closed';
+
+  await expect(repairAllShipDamage.run(request({ ...data, requestId })))
+    .rejects.toMatchObject({ code: 'failed-precondition', details: { commandError: 'conflict' } });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+it('denies a repair when the scoped GM grant names a different ship', async () => {
+  const { repairAllShipDamage } = await import('./index');
+  mock.grantShip = 'dione';
+
+  await expect(repairAllShipDamage.run(request({ ...data, requestId: 'repair-wrong-grant' })))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 it.each(['player', 'observer'])('denies repair by %s with forged GM identity', async role => {
   const { repairAllShipDamage } = await import('./index');
