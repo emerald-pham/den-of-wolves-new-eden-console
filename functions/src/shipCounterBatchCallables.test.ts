@@ -130,6 +130,41 @@ it('applies rapid resource steps in their click order inside one transaction', a
   expect(mock.set).toHaveBeenCalledTimes(writesAfterAuditRepair);
 });
 
+it.each(['lobby', 'casting', 'briefing'] as const)(
+  'replays a committed facilitator batch in the %s phase', async (phase) => {
+    mock.phase = phase;
+    const batch = request({
+      sessionId: 's1', instanceId: 'gm1', shipId: 'dione', counter: 'resource',
+      resourceId: 'fuel', steps: [1], expectedRevision: 0, requestId: `committed-${phase}`,
+    });
+    const committed = await applyShipCounterSteps.run(batch);
+
+    expect(committed.phase).toBe(phase);
+    await expect(applyShipCounterSteps.run(batch)).resolves.toEqual(committed);
+    expect(mock.update).toHaveBeenCalledTimes(1);
+    expect(mock.audits[`sessions/s1/actionAudits/committed-${phase}`]).toMatchObject({
+      action: 'ship-counter-batch', phase, requestId: `committed-${phase}`, revision: 1,
+    });
+  },
+);
+
+it.each(['lobby', 'casting', 'briefing'] as const)(
+  'replays a stale facilitator batch in the %s phase without creating an audit', async (phase) => {
+    mock.phase = phase;
+    mock.revision = 3;
+    const batch = request({
+      sessionId: 's1', instanceId: 'gm1', shipId: 'dione', counter: 'resource',
+      resourceId: 'fuel', steps: [1], expectedRevision: 1, requestId: `stale-${phase}`,
+    });
+    const stale = await applyShipCounterSteps.run(batch);
+
+    expect(stale).toMatchObject({ status: 'stale', phase });
+    await expect(applyShipCounterSteps.run(batch)).resolves.toEqual(stale);
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.audits[`sessions/s1/actionAudits/stale-${phase}`]).toBeUndefined();
+  },
+);
+
 it('re-evaluates one resource command against the latest count after a transaction retry', async () => {
   mock.retry = true;
   mock.retryFuel = 7;

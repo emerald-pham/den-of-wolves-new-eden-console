@@ -3539,6 +3539,103 @@ function isSessionCreationReply(value: unknown, uid: string): boolean {
     player.uid === uid && player.sessionId === session.id;
 }
 
+function vesselActionAuditRef(sessionId: string, requestId: string): DocumentReference {
+  return db.doc(`sessions/${sessionId}/actionAudits/${requestId}`);
+}
+
+function writeVesselActionAudit(
+  tx: Transaction,
+  auditRef: DocumentReference,
+  sessionId: string,
+  actorUid: string,
+  actorRoleId: string | null,
+  action: ActionAuditAction,
+  phase: LifecyclePhase,
+  requestId: string,
+  revision: number,
+): void {
+  txSetIfSupported(tx, auditRef, buildActionAuditRecord({
+    sessionId, actorUid, actorRoleId, action, phase, requestId, revision,
+    outcome: 'committed', resolutionSource: 'facilitator',
+    createdAt: FieldValue.serverTimestamp(),
+  }));
+}
+
+function ensureVesselActionAuditForReplay(
+  tx: Transaction,
+  auditSnapshot: DocumentSnapshot,
+  auditRef: DocumentReference,
+  sessionId: string,
+  actorUid: string,
+  action: ActionAuditAction,
+  requestId: string,
+  result: Record<string, unknown>,
+): void {
+  if (result.actorUid !== actorUid || result.idempotencyKey !== requestId ||
+      typeof result.phase !== 'string' ||
+      !LIFECYCLE_PHASES.includes(result.phase as LifecyclePhase) ||
+      (result.status !== undefined && result.status !== 'committed' && result.status !== 'stale')) {
+    throw commandError(
+      'failed-precondition',
+      'This vessel action receipt does not match its standardized audit request.',
+      'conflict',
+    );
+  }
+
+  if (result.status === 'stale') {
+    if (auditSnapshot.exists) {
+      throw commandError(
+        'failed-precondition',
+        'This stale vessel action receipt conflicts with an existing standardized audit.',
+        'conflict',
+      );
+    }
+    return;
+  }
+  if (!Number.isSafeInteger(result.revision) || (result.revision as number) < 1) {
+    throw commandError(
+      'failed-precondition',
+      'This committed vessel action receipt has no valid committed revision for its audit.',
+      'conflict',
+    );
+  }
+
+  const record = buildActionAuditRecord({
+    sessionId,
+    actorUid,
+    actorRoleId: result.actorRoleId,
+    action,
+    phase: result.phase,
+    requestId,
+    revision: result.revision,
+    outcome: 'committed',
+    resolutionSource: 'facilitator',
+    createdAt: FieldValue.serverTimestamp(),
+  });
+  if (auditSnapshot.exists) {
+    const stored = auditSnapshot.data();
+    const keys = Object.keys(record).sort();
+    const storedKeys = isRecord(stored) ? Object.keys(stored).sort() : [];
+    const matches = isRecord(stored) && storedKeys.length === keys.length &&
+      storedKeys.every((key, index) => key === keys[index]) &&
+      keys.every((key) => key === 'createdAt' ||
+        stored[key] === (record as Record<string, unknown>)[key]) &&
+      stored.createdAt !== undefined && stored.createdAt !== null;
+    if (!matches) {
+      throw commandError(
+        'failed-precondition',
+        'This vessel action receipt has a mismatched standardized audit record.',
+        'conflict',
+      );
+    }
+    return;
+  }
+
+  // Older receipts predate standardized action audits. Replays may safely add
+  // their original metadata once, using the bound receipt envelope only.
+  txSetIfSupported(tx, auditRef, record);
+}
+
 export const createSession = onCall<{
   name?: string;
   displayName?: string;
@@ -3975,101 +4072,6 @@ function vesselActionEnvelope(
     idempotencyKey: requestId,
     auditId: `${action}-${requestId}`,
   });
-}
-
-function vesselActionAuditRef(sessionId: string, requestId: string): DocumentReference {
-  return db.doc(`sessions/${sessionId}/actionAudits/${requestId}`);
-}
-
-function writeVesselActionAudit(
-  tx: Transaction,
-  auditRef: DocumentReference,
-  sessionId: string,
-  actorUid: string,
-  actorRoleId: string | null,
-  action: ActionAuditAction,
-  phase: LifecyclePhase,
-  requestId: string,
-  revision: number,
-): void {
-  txSetIfSupported(tx, auditRef, buildActionAuditRecord({
-    sessionId, actorUid, actorRoleId, action, phase, requestId, revision,
-    outcome: 'committed', resolutionSource: 'facilitator',
-    createdAt: FieldValue.serverTimestamp(),
-  }));
-}
-
-function ensureVesselActionAuditForReplay(
-  tx: Transaction,
-  auditSnapshot: DocumentSnapshot,
-  auditRef: DocumentReference,
-  sessionId: string,
-  actorUid: string,
-  action: ActionAuditAction,
-  requestId: string,
-  result: Record<string, unknown>,
-): void {
-  if (result.actorUid !== actorUid || result.idempotencyKey !== requestId || result.phase !== 'active' ||
-      (result.status !== undefined && result.status !== 'committed' && result.status !== 'stale')) {
-    throw commandError(
-      'failed-precondition',
-      'This vessel action receipt does not match its standardized audit request.',
-      'conflict',
-    );
-  }
-
-  if (result.status === 'stale') {
-    if (auditSnapshot.exists) {
-      throw commandError(
-        'failed-precondition',
-        'This stale vessel action receipt conflicts with an existing standardized audit.',
-        'conflict',
-      );
-    }
-    return;
-  }
-  if (!Number.isSafeInteger(result.revision) || (result.revision as number) < 1) {
-    throw commandError(
-      'failed-precondition',
-      'This committed vessel action receipt has no valid committed revision for its audit.',
-      'conflict',
-    );
-  }
-
-  const record = buildActionAuditRecord({
-    sessionId,
-    actorUid,
-    actorRoleId: result.actorRoleId,
-    action,
-    phase: result.phase,
-    requestId,
-    revision: result.revision,
-    outcome: 'committed',
-    resolutionSource: 'facilitator',
-    createdAt: FieldValue.serverTimestamp(),
-  });
-  if (auditSnapshot.exists) {
-    const stored = auditSnapshot.data();
-    const keys = Object.keys(record).sort();
-    const storedKeys = isRecord(stored) ? Object.keys(stored).sort() : [];
-    const matches = isRecord(stored) && storedKeys.length === keys.length &&
-      storedKeys.every((key, index) => key === keys[index]) &&
-      keys.every((key) => key === 'createdAt' ||
-        stored[key] === (record as Record<string, unknown>)[key]) &&
-      stored.createdAt !== undefined && stored.createdAt !== null;
-    if (!matches) {
-      throw commandError(
-        'failed-precondition',
-        'This vessel action receipt has a mismatched standardized audit record.',
-        'conflict',
-      );
-    }
-    return;
-  }
-
-  // Older receipts predate standardized action audits. Replays may safely add
-  // their original metadata once, using the bound receipt envelope only.
-  txSetIfSupported(tx, auditRef, record);
 }
 
 function isVesselActionResult(value: unknown): value is Record<string, unknown> {
