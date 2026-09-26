@@ -4451,9 +4451,10 @@ export async function launchDioneMaliades(
 }
 
 /** Read the active P.D.F. Colonel's server-filtered Wolf launch eligibility. */
-export async function getPdfEscortWingLaunch(): Promise<PdfEscortWingLaunchView> {
+export async function getPdfEscortWingLaunch(): Promise<PdfEscortWingLaunchView | null> {
   const store = useSessionStore.getState();
-  if (!store.session || !store.me || store.me.activeConsoleRoleId !== 'refinery-124-pdf-colonel') {
+  if (!store.session || !store.me || store.me.sessionId !== store.session.id ||
+      store.me.activeConsoleRoleId !== 'refinery-124-pdf-colonel') {
     throw new Error('Only the active P.D.F. Colonel may read Escort Wing launch authority.');
   }
   requireFreshSessionAuthority('Reconnect before reading Escort Wing launch authority.');
@@ -4462,13 +4463,23 @@ export async function getPdfEscortWingLaunch(): Promise<PdfEscortWingLaunchView>
   await ensureSignedIn();
   const call = httpsCallable<{ sessionId: string }, unknown>(functions(), 'getPdfEscortWingLaunch');
   try {
-    const reply = pdfEscortWingLaunchViewReply((await call({ sessionId })).data);
+    const rawReply = (await call({ sessionId })).data;
+    const current = useSessionStore.getState();
+    if (!authorityCheckpointIsCurrent(checkpoint) || current.session?.id !== sessionId ||
+        current.me?.sessionId !== sessionId || current.me?.activeConsoleRoleId !== 'refinery-124-pdf-colonel') {
+      return null;
+    }
+    const reply = pdfEscortWingLaunchViewReply(rawReply);
     if (!reply || reply.sessionId !== sessionId) {
       throw new Error('The server returned an invalid Escort Wing launch view.');
     }
-    if (!authorityCheckpointIsCurrent(checkpoint)) return reply;
     return reply;
   } catch (cause) {
+    const current = useSessionStore.getState();
+    if (!authorityCheckpointIsCurrent(checkpoint) || current.session?.id !== sessionId ||
+        current.me?.sessionId !== sessionId || current.me?.activeConsoleRoleId !== 'refinery-124-pdf-colonel') {
+      return null;
+    }
     useSessionStore.getState().setCommunicationError(interception(cause));
     throw cause;
   }

@@ -2233,6 +2233,40 @@ describe('GM instance commands', () => {
     expect(result.requestId).toBe(sentRequestId);
   });
 
+  it('discards a deferred PDF launch view after active-console authority changes', async () => {
+    useSessionStore.getState().setIdentity(
+      { ...session, phase: 'active', currentTurn: 2 },
+      {
+        ...player, assignedRoleId: 'refinery-124-pdf-colonel',
+        seatId: 'refinery-124-pdf-colonel', activeConsoleRoleId: 'refinery-124-pdf-colonel',
+      },
+    );
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    let resolveRead!: (value: { data: unknown }) => void;
+    const read = Object.assign(
+      vi.fn(() => new Promise<{ data: unknown }>((resolve) => { resolveRead = resolve; })),
+      { stream: vi.fn() },
+    );
+    vi.mocked(httpsCallable).mockReturnValue(read as never);
+    const request = getPdfEscortWingLaunch();
+    await vi.waitFor(() => expect(read).toHaveBeenCalled());
+
+    useSessionStore.getState().setIdentity(
+      { ...session, phase: 'active', currentTurn: 2 },
+      {
+        ...player, assignedRoleId: 'refinery-124-pdf-colonel',
+        seatId: 'refinery-124-pdf-colonel', activeConsoleRoleId: null,
+      },
+    );
+    resolveRead({ data: {
+      type: 'pdf-escort-wing-launch-view', sessionId: 's1', turn: 2,
+      revision: 5, wingRevision: 3, launched: false, eligible: true,
+    } });
+
+    await expect(request).resolves.toBeNull();
+  });
+
   it('does not queue an emergency timer command while offline', async () => {
     useSessionStore.getState().setConnection('offline');
     useSessionStore.getState().setGmInstance({

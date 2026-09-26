@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { PDF_FIGHTER_WING_SYSTEM, PDF_ROLE_CONSOLE } from '@/data/pdfConsoles';
 import { getPdfEscortWingLaunch, launchPdfEscortWing } from '@/lib/sessionService';
 import type { PdfEscortWingLaunchView, PdfEscortWingMemberView } from '@/types/game';
@@ -6,8 +6,8 @@ import { initialPdfEscortWingMemberView } from '@/lib/pdfEscortWingProjection';
 import { useSessionStore } from '@/store/useSessionStore';
 import refinery124 from '@/data/vessels/refinery-124';
 
-function launchStatus(view: PdfEscortWingLaunchView | null, writable: boolean): string {
-  if (!view) return writable ? 'Checking current Wolf attack launch authority…' :
+function launchStatus(view: PdfEscortWingLaunchView | null, canRead: boolean): string {
+  if (!view) return canRead ? 'Checking current Wolf attack launch authority…' :
     'Launch authority is available to the active P.D.F. Colonel in a live session.';
   if (view.launched) return `Launched // Cycle ${view.turn}`;
   if (view.eligible) return 'Wolf Attack targeting // Refinery 8♦ Fighter Bay charged and operational';
@@ -32,38 +32,49 @@ export default function PdfEscortWingReference({ state, writable = false }: {
   const [launchView, setLaunchView] = useState<PdfEscortWingLaunchView | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const launchReadGeneration = useRef(0);
+  const canReadLaunchAuthority = writable && connection === 'live' && Boolean(session) &&
+    me?.activeConsoleRoleId === PDF_ROLE_CONSOLE.roleId;
 
   const refreshLaunchView = useCallback(async () => {
+    const generation = ++launchReadGeneration.current;
+    setLaunchView(null);
+    setPending(false);
+    setError(null);
     if (!writable || connection !== 'live' || !session ||
-        me?.activeConsoleRoleId !== PDF_ROLE_CONSOLE.roleId) {
-      setLaunchView(null);
-      return;
-    }
+        me?.activeConsoleRoleId !== PDF_ROLE_CONSOLE.roleId) return;
     try {
-      setLaunchView(await getPdfEscortWingLaunch());
-      setError(null);
+      const view = await getPdfEscortWingLaunch();
+      if (launchReadGeneration.current !== generation) return;
+      setLaunchView(view);
     } catch (cause) {
+      if (launchReadGeneration.current !== generation) return;
+      setLaunchView(null);
       setError(cause instanceof Error ? cause.message : 'Escort Wing launch authority is unavailable.');
     }
   }, [connection, me?.activeConsoleRoleId, session, writable]);
 
   useEffect(() => {
     void refreshLaunchView();
+    return () => { launchReadGeneration.current += 1; };
   }, [refreshLaunchView, session?.currentTurn, session?.turnPhase?.airspace.state]);
 
   async function launch(): Promise<void> {
-    if (!launchView?.eligible) return;
+    if (!canReadLaunchAuthority || !launchView?.eligible) return;
+    const generation = launchReadGeneration.current;
     setPending(true);
     setError(null);
     try {
-      setLaunchView(await launchPdfEscortWing(
+      const result = await launchPdfEscortWing(
         launchView.turn, launchView.revision, launchView.wingRevision,
-      ));
+      );
+      if (launchReadGeneration.current === generation) setLaunchView(result);
     } catch (cause) {
+      if (launchReadGeneration.current !== generation) return;
       setError(cause instanceof Error ? cause.message : 'Escort Wing launch failed.');
       await refreshLaunchView();
     } finally {
-      setPending(false);
+      if (launchReadGeneration.current === generation) setPending(false);
     }
   }
 
@@ -97,12 +108,12 @@ export default function PdfEscortWingReference({ state, writable = false }: {
           <p className="aegis-system__damaged-rule">{fighterBay?.effect.match(/Damaged:.*$/i)?.[0] ?? 'Damaged: launch unavailable.'}</p>
           <div className="cic-frame" aria-label="PDF Escort Wing launch control">
             <p className="ship-resources__eyebrow">Wolf Attack // Refinery Fighter Bay 8♦</p>
-            <p aria-live="polite">{launchStatus(launchView, writable)}</p>
+            <p aria-live="polite">{launchStatus(launchView, canReadLaunchAuthority)}</p>
             {error && <p role="alert">{error}</p>}
             <button
               className="cic-action-button"
               type="button"
-              disabled={!writable || pending || !launchView?.eligible}
+              disabled={!canReadLaunchAuthority || pending || !launchView?.eligible}
               onClick={() => void launch()}
             >
               {pending ? 'Launching PDF Escort Wing…' : launchView?.launched
