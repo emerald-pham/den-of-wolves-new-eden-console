@@ -671,6 +671,15 @@ test('maps the exact additive Command and Control console metadata delta to its 
   assert.deepEqual(selectedFunctions(selected), functionTargets(CONSOLE_METADATA_CALLABLES));
 });
 
+test('maps standardized action audit helper changes to every production consumer', () => {
+  const selected = selectorFor(['functions/src/actionAudit.ts']);
+  assert.deepEqual(selected.split(','), [
+    'hosting',
+    'functions:runHighwallMining',
+    'functions:authorFacilitatorRuleCall',
+  ]);
+});
+
 test('matches the resolver ID addition in the real console metadata source', () => {
   assert.equal(CONSOLE_METADATA_AFTER.split(P436_RESOLVER_ID_ADDITION).length - 1, 1);
 });
