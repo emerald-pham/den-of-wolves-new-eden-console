@@ -81,7 +81,9 @@ it('records only a coordinate request and leaves follow-up with a facilitator', 
 it('keeps the exact command identity and coordinate when the caller retries', async () => {
   const user = userEvent.setup();
   setOwner('hummingbird');
-  request.mockRejectedValueOnce(new Error('The connection closed before confirmation.'));
+  request.mockRejectedValueOnce(Object.assign(new Error('The connection closed before confirmation.'), {
+    code: 'functions/unavailable',
+  }));
   request.mockResolvedValueOnce({
     status: 'replayed', resolution: 'pending', requestId: 'same-scout-id', sessionId: 's1', cycle: 2,
     entitlementId: 'hummingbird', source: 'craft', ownerRoleId: 'quellon-explorer',
@@ -101,6 +103,77 @@ it('keeps the exact command identity and coordinate when the caller retries', as
   expect(request.mock.calls[1]?.[0]).toEqual(request.mock.calls[0]?.[0]);
   expect(await within(controls).findByRole('status')).toHaveTextContent(/request recorded/i);
 });
+
+it('allows correction after a definitive server rejection and starts a new request', async () => {
+  const user = userEvent.setup();
+  setOwner('starlight');
+  request.mockRejectedValueOnce(Object.assign(new Error('Coordinate is not printed.'), {
+    code: 'functions/invalid-argument',
+  }));
+  render(<ScoutRequestControls entitlementId="starlight" />);
+
+  const controls = screen.getByRole('region', { name: 'Starlight scouting request' });
+  const coordinate = within(controls).getByLabelText('Printed system coordinate');
+  await user.type(coordinate, '9999');
+  await user.click(within(controls).getByRole('button', { name: 'Record request' }));
+
+  expect(await within(controls).findByRole('alert')).toHaveTextContent(/server rejected.*printed coordinate/i);
+  expect(coordinate).toBeEnabled();
+  expect(within(controls).getByRole('button', { name: 'Record request' })).toBeEnabled();
+  const rejectedRequestId = request.mock.calls[0]?.[0].requestId;
+
+  await user.clear(coordinate);
+  await user.type(coordinate, '5143');
+  await user.click(within(controls).getByRole('button', { name: 'Record request' }));
+
+  await waitFor(() => expect(request).toHaveBeenCalledTimes(2));
+  expect(request.mock.calls[1]?.[0]).toEqual(expect.objectContaining({
+    targetCoordinate: '5143', requestId: expect.any(String),
+  }));
+  expect(request.mock.calls[1]?.[0].requestId).not.toBe(rejectedRequestId);
+  expect(await within(controls).findByRole('status')).toHaveTextContent(/request recorded/i);
+});
+
+it.each(['session', 'uid', 'cycle'] as const)(
+  'does not reuse a retained retry after the %s authority changes', async (changedAuthority) => {
+    const user = userEvent.setup();
+    setOwner('hummingbird');
+    request.mockRejectedValueOnce(new Error('The connection closed before confirmation.'));
+    render(<ScoutRequestControls entitlementId="hummingbird" />);
+
+    const controls = screen.getByRole('region', { name: 'Hummingbird scouting request' });
+    const coordinate = within(controls).getByLabelText('Printed system coordinate');
+    await user.type(coordinate, '5143');
+    await user.click(within(controls).getByRole('button', { name: 'Record request' }));
+    expect(await within(controls).findByRole('button', { name: 'Retry same request' })).toBeVisible();
+    const firstRequestId = request.mock.calls[0]?.[0].requestId;
+
+    act(() => {
+      const current = useSessionStore.getState();
+      if (changedAuthority === 'session') {
+        current.setSession({ ...current.session!, id: 's2' });
+        current.setMe({ ...current.me!, sessionId: 's2' });
+      } else if (changedAuthority === 'uid') {
+        current.setMe({ ...current.me!, uid: 'u2' });
+      } else {
+        const session = current.session!;
+        current.setSession({
+          ...session,
+          currentTurn: 3,
+          turnPhase: { ...session.turnPhase!, turn: 3 },
+        });
+      }
+    });
+
+    expect(coordinate).toBeEnabled();
+    const newRequestButton = within(controls).getByRole('button', { name: 'Record request' });
+    expect(newRequestButton).toBeEnabled();
+    await user.click(newRequestButton);
+
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(2));
+    expect(request.mock.calls[1]?.[0].requestId).not.toBe(firstRequestId);
+  },
+);
 
 it('shows the form only for the exact replacement assignment and gates Team phase', async () => {
   setOwner('comms-officer');
