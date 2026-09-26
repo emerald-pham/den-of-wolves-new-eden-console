@@ -23,6 +23,18 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: APP_VERSION,
     implementationProgress: {
       completed: 458, total: 751, percentage: '60.99%',
+      done: 458, partial: 43, active: 0, missing: 250,
+    },
+    changes: [
+      "Repair Drones now keep the selected consoles when repair state changes and let you explicitly retry using the current revision.",
+      "458 of 751 planned items are complete (60.99%).",
+    ],
+  },
+
+  {
+    version: '0.5.34',
+    implementationProgress: {
+      completed: 458, total: 751, percentage: '60.99%',
       done: 458, partial: 42, active: 0, missing: 251,
     },
     changes: [
