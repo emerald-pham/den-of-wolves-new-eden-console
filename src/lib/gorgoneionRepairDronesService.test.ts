@@ -90,6 +90,26 @@ it('accepts only a stale reply bound to this actor, role, target, host, cycle, a
   }
 });
 
+it('rejects a stale reply after the Gorgoneion Captain role is lost while pending', async () => {
+  let resolve!: (value: ReturnType<typeof staleReply>) => void;
+  mocks.call.mockReturnValue(new Promise((complete) => { resolve = complete; }));
+  const pending = repairWithGorgoneionDrones(command);
+  const current = useSessionStore.getState();
+  useSessionStore.getState().setIdentity(current.session!, { ...current.me!, replacementRoleId: null });
+  resolve(staleReply());
+  await expect(pending).rejects.toThrow(/authority changed while the request was pending/i);
+});
+
+it('rejects a stale reply after the Gorgoneion player identity changes while pending', async () => {
+  let resolve!: (value: ReturnType<typeof staleReply>) => void;
+  mocks.call.mockReturnValue(new Promise((complete) => { resolve = complete; }));
+  const pending = repairWithGorgoneionDrones(command);
+  const current = useSessionStore.getState();
+  useSessionStore.getState().setIdentity(current.session!, { ...current.me!, uid: 'another-captain' });
+  resolve(staleReply());
+  await expect(pending).rejects.toThrow(/authority changed while the request was pending/i);
+});
+
 it('rejects malformed commands and cache-backed session authority before calling the backend', async () => {
   await expect(repairWithGorgoneionDrones({ ...command, expectedDockingRevision: -1 }))
     .rejects.toThrow(/invalid/i);

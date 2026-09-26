@@ -43,6 +43,14 @@ function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): 
   return Object.keys(value).length === keys.length && Object.keys(value).every((key) => keys.includes(key));
 }
 
+function currentCaptainAuthorityMatches(sessionId: string, uid: string | undefined): boolean {
+  const current = useSessionStore.getState();
+  return window.navigator.onLine && current.connection === 'live' && current.sessionSnapshotFreshness === 'server' &&
+    current.session?.id === sessionId && current.me?.sessionId === sessionId && current.me.uid === uid &&
+    current.me.role === 'player' && current.me.replacementRoleId === 'gorgoneion-captain' &&
+    current.me.activeConsoleRoleId === null && current.me.seatId === null;
+}
+
 export async function repairWithGorgoneionDrones(
   command: GorgoneionRepairDronesCommand,
 ): Promise<GorgoneionRepairDronesResult> {
@@ -68,6 +76,9 @@ export async function repairWithGorgoneionDrones(
   }
   const value = result;
   if (value.status === 'stale') {
+    if (!currentCaptainAuthorityMatches(session.id, me?.uid)) {
+      throw new Error('The Repair Drones authority changed while the request was pending.');
+    }
     const keys = [
       'status', 'sessionId', 'requestId', 'actorUid', 'actorRoleId', 'smallShipId',
       'hostShipId', 'systemId', 'expectedCycle', 'cycle', 'expectedRepairRevision',

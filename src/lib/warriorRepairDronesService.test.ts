@@ -90,6 +90,26 @@ it('accepts only a stale reply bound to this actor, role, targets, host, cycle, 
   }
 });
 
+it('rejects a stale reply after the Warrior Captain role is lost while pending', async () => {
+  let resolve!: (value: ReturnType<typeof staleReply>) => void;
+  mocks.call.mockReturnValue(new Promise((complete) => { resolve = complete; }));
+  const pending = repairWithWarriorDrones(command);
+  const current = useSessionStore.getState();
+  useSessionStore.getState().setIdentity(current.session!, { ...current.me!, replacementRoleId: null });
+  resolve(staleReply());
+  await expect(pending).rejects.toThrow(/authority changed while the request was pending/i);
+});
+
+it('rejects a stale reply after the Warrior player identity changes while pending', async () => {
+  let resolve!: (value: ReturnType<typeof staleReply>) => void;
+  mocks.call.mockReturnValue(new Promise((complete) => { resolve = complete; }));
+  const pending = repairWithWarriorDrones(command);
+  const current = useSessionStore.getState();
+  useSessionStore.getState().setIdentity(current.session!, { ...current.me!, uid: 'another-captain' });
+  resolve(staleReply());
+  await expect(pending).rejects.toThrow(/authority changed while the request was pending/i);
+});
+
 it('rejects malformed commands and cache-backed session authority before calling the backend', async () => {
   await expect(repairWithWarriorDrones({ ...command, systemIds: ['reactor', 'reactor'] }))
     .rejects.toThrow(/invalid/i);
