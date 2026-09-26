@@ -7093,7 +7093,8 @@ export const repairConsolesFromMacaw = onCall<{
       tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(eventRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
+    if (!isActivePlayer(actor) || actor.get('role') !== 'player' ||
+        actor.get('activeConsoleRoleId') !== 'capybara-captain') {
       throw new HttpsError('permission-denied', 'Only a connected Macaw holder may repair consoles.');
     }
     requirePlayerShipActionAuthority(actor);
@@ -7140,6 +7141,7 @@ export const repairConsolesFromMacaw = onCall<{
         activeVesselIds.some((shipId) => typeof shipId !== 'string' || !isResourceShipId(shipId)) ||
         !Array.isArray(rawDockings) || !shuttleDockingsAreParked(rawDockings, activeVesselIds) ||
         !shuttleDockingsMatchActiveRoleOwnedSubset(configuredRoleIds(session), rawDockings) ||
+        session.get('capybaraEnabled') === false ||
         !control || !control.macaw || !isRecord(fuelled) || !ledger ||
         !configuredRoleIds(session).includes('capybara-captain')) {
       throw commandError('failed-precondition', 'The authoritative Macaw repair state is unavailable.', 'conflict');

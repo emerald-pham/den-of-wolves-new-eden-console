@@ -50,14 +50,22 @@ function installSession(overrides: Partial<GameSession> = {}): void {
   useSessionStore.getState().setSessionSnapshotFreshness('server');
 }
 
-function macawTree(currentControl = control, currentDocking: ShuttleDocking | undefined = docking) {
+function macawTree(
+  currentControl = control,
+  currentDocking: ShuttleDocking | undefined = docking,
+  fuelled = true,
+) {
   return <MemoryRouter><ShuttleConsoleTemplate shuttle={macaw}
     captainName="Capybara Captain" canLeave={false} control={currentControl}
-    docking={currentDocking} fuelled /></MemoryRouter>;
+    docking={currentDocking} fuelled={fuelled} /></MemoryRouter>;
 }
 
-function renderMacaw(currentControl = control, currentDocking: ShuttleDocking | undefined = docking) {
-  return render(macawTree(currentControl, currentDocking));
+function renderMacaw(
+  currentControl = control,
+  currentDocking: ShuttleDocking | undefined = docking,
+  fuelled = true,
+) {
+  return render(macawTree(currentControl, currentDocking, fuelled));
 }
 
 function updateSession(patch: Partial<GameSession>): void {
@@ -126,6 +134,17 @@ it('fails closed when the current repair ledger is malformed', () => {
   installSession({ macawRepairs: { cycle: 3, revision: 1, hosts: 'unknown' } as unknown as NonNullable<GameSession['macawRepairs']> });
   renderMacaw();
   const repair = screen.getByRole('region', { name: 'Macaw console repair' });
+  expect(within(repair).getByText(/repair history is unavailable/i)).toBeInTheDocument();
+  expect(within(repair).getByRole('button', { name: 'Repair selected consoles' })).toBeDisabled();
+});
+
+it('fails closed when the repair ledger is from a future cycle', () => {
+  installSession({ macawRepairs: {
+    cycle: 4, revision: 1, hosts: [{ shipId: 'capybara', systemIds: ['reactor'] }],
+  } });
+  renderMacaw();
+  const repair = screen.getByRole('region', { name: 'Macaw console repair' });
+  fireEvent.click(within(repair).getByRole('checkbox', { name: 'Reactor' }));
   expect(within(repair).getByText(/repair history is unavailable/i)).toBeInTheDocument();
   expect(within(repair).getByRole('button', { name: 'Repair selected consoles' })).toBeDisabled();
 });
@@ -224,6 +243,37 @@ it.each(['reply arrives before snapshot', 'snapshot arrives before reply'])(
     });
   },
 );
+
+it('allows explicit stale retry on the first host when Macaw is unfuelled', async () => {
+  vi.stubGlobal('crypto', { randomUUID: vi.fn().mockReturnValueOnce('macaw-repair-request-1')
+    .mockReturnValueOnce('macaw-repair-request-2') });
+  mocks.repair.mockResolvedValueOnce(staleReply({
+    systemIds: ['reactor'], currentControlRevision: 3, currentRepairRevision: 0,
+  }));
+  mocks.repair.mockResolvedValueOnce({
+    status: 'committed', hostShipId: 'capybara', systemIds: ['reactor'],
+    scrapRemaining: 2, cycle: 3, repairRevision: 1,
+  } satisfies MacawRepairResult);
+  installSession({ shuttleFuelled: { macaw: false } });
+  const view = renderMacaw(control, docking, false);
+  const repair = screen.getByRole('region', { name: 'Macaw console repair' });
+  fireEvent.click(within(repair).getByRole('checkbox', { name: 'Reactor' }));
+  fireEvent.click(within(repair).getByRole('button', { name: 'Repair selected consoles' }));
+  await within(repair).findByRole('status');
+
+  updateSession({
+    shuttleControl: { macaw: { ...control, revision: 3 } },
+  });
+  view.rerender(macawTree({ ...control, revision: 3 }, docking, false));
+  const retry = await within(repair).findByRole('button', { name: /using current state/i });
+  expect(retry).toBeEnabled();
+  fireEvent.click(retry);
+  await waitFor(() => expect(mocks.repair).toHaveBeenCalledTimes(2));
+  expect(mocks.repair).toHaveBeenLastCalledWith({
+    requestId: 'macaw-repair-request-2', systemIds: ['reactor'],
+    expectedControlRevision: 3, expectedRepairRevision: 0, expectedCycle: 3, expectedHostShipId: 'capybara',
+  });
+});
 
 it('checkbox edits discard an obsolete uncertain request and use a fresh request for the edited selection', async () => {
   vi.stubGlobal('crypto', { randomUUID: vi.fn().mockReturnValueOnce('macaw-uncertain-id')

@@ -70,7 +70,8 @@ beforeEach(() => {
     shipResources: { capybara: { ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2, scrap: 3 } },
   });
   put('sessions/s1/players/holder', {
-    role: 'player', connected: true, assignedRoleId: 'capybara-captain', fleetGroupId: 'fleet-1',
+    role: 'player', connected: true, assignedRoleId: 'capybara-captain',
+    activeConsoleRoleId: 'capybara-captain', fleetGroupId: 'fleet-1',
   });
   put('sessions/s1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: ['capybara'], memberUids: ['holder'] });
 });
@@ -145,6 +146,26 @@ it.each([
   expect(result).not.toHaveProperty('scrapRemaining');
   expect(mock.documents.has(`sessions/s1/commandReceipts/${requestId}`)).toBe(false);
   expect(mock.documents.has(`sessions/s1/events/macaw-repair-${requestId}`)).toBe(false);
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['active Captain console is released', () => {
+    mock.documents.get('sessions/s1/players/holder')!.activeConsoleRoleId = null;
+  }],
+  ['Capybara is disabled', () => {
+    mock.documents.get('sessions/s1')!.capybaraEnabled = false;
+  }],
+])('fails closed without stale data when %s', async (_label, changeAuthority) => {
+  const session = mock.documents.get('sessions/s1')!;
+  session.macawRepairs = { cycle: 3, revision: 1, hosts: [{ shipId: 'capybara', systemIds: ['reactor'] }] };
+  ((session.shuttleControl as Fields).macaw as Fields).revision = 3;
+  changeAuthority();
+  await expect(repairConsolesFromMacaw.run(request({ ...command, systemIds: ['storage'] })))
+    .rejects.toMatchObject({ code: expect.stringMatching(/failed-precondition|permission-denied/) });
+  expect(mock.documents.has('sessions/s1/commandReceipts/macaw-repair-1')).toBe(false);
+  expect(mock.documents.has('sessions/s1/events/macaw-repair-macaw-repair-1')).toBe(false);
   expect(mock.set).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();
 });

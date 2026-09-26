@@ -164,9 +164,9 @@ export default function MacawRepairPanel({ control, docking, fuelled, hostName, 
     };
   }
   const ledger = parseMacawRepairLedger(session.macawRepairs);
-  const repairHistoryValid = ledger !== null;
-  const repairRevision = ledger?.revision ?? 0;
   const currentCycle = isSafeCounter(session.currentTurn) ? session.currentTurn : 0;
+  const repairHistoryValid = ledger !== null && ledger.cycle <= currentCycle;
+  const repairRevision = ledger?.revision ?? 0;
   const hostsThisCycle = ledger && ledger.cycle === currentCycle ? ledger.hosts : [];
   const repairedOnHost = docking
     ? hostsThisCycle.find((host) => host.shipId === docking.shipId)?.systemIds ?? [] : [];
@@ -233,8 +233,7 @@ export default function MacawRepairPanel({ control, docking, fuelled, hostName, 
     (currentControl.revision ?? -1) >= staleRecovery.reply.currentControlRevision &&
     repairRevision >= staleRecovery.reply.currentRepairRevision &&
     docking?.shipId === staleRecovery.reply.expectedHostShipId;
-  const canRetryStale = Boolean(staleSnapshotCurrent && canSubmit && fuelled &&
-    session.shuttleFuelled?.macaw === true);
+  const canRetryStale = Boolean(staleSnapshotCurrent && canSubmit);
 
   async function submitRepair(): Promise<void> {
     const current = useSessionStore.getState();
