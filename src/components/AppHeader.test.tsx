@@ -620,9 +620,14 @@ it('renders the current and previous changelog copy with progress and keyboard s
   expect(region).toHaveAttribute('tabindex', '0');
   expect(renderedChanges.every((change) => !/\bprompts?\b/i.test(change))).toBe(true);
   expect(within(newestEntry).getByText(
-    'Boa recycling keeps the selected recipe when its state changes and lets the current Recycler explicitly retry from the live host inventory and current revision.',
+    'Macaw repairs keep your selected consoles when repair state changes, so the current Captain can review live costs and explicitly retry with the current revisions.',
   )).toBeVisible();
   expect(within(newestEntry).getByText('458 of 751 planned items are complete (60.99%).')).toBeVisible();
+  const previousBoaEntry = within(region).getByRole('heading', { name: 'Build 0.5.38' }).closest('article');
+  if (!previousBoaEntry) throw new Error('Expected the preserved 0.5.38 Boa recycling release entry.');
+  expect(within(previousBoaEntry).getByText(
+    'Boa recycling keeps the selected recipe when its state changes and lets the current Recycler explicitly retry from the live host inventory and current revision.',
+  )).toBeVisible();
   const previousCargoEntry = within(region).getByRole('heading', { name: 'Build 0.5.37' }).closest('article');
   if (!previousCargoEntry) throw new Error('Expected the preserved 0.5.37 shuttle-cargo release entry.');
   expect(within(previousCargoEntry).getByText(
