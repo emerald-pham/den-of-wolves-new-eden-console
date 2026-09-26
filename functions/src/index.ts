@@ -3636,6 +3636,51 @@ function ensureVesselActionAuditForReplay(
   txSetIfSupported(tx, auditRef, record);
 }
 
+function ensureFighterWingCountActionAuditForReplay(
+  tx: Transaction,
+  auditSnapshot: DocumentSnapshot,
+  auditRef: DocumentReference,
+  sessionId: string,
+  actorUid: string,
+  requestId: string,
+  result: Record<string, unknown>,
+): void {
+  if (result.sessionId !== sessionId || result.requestId !== requestId ||
+      result.actorUid !== actorUid || result.idempotencyKey !== requestId ||
+      result.vesselId !== 'aegis' || result.auditId !== `fighter-count-${requestId}` ||
+      typeof result.phase !== 'string' ||
+      !LIFECYCLE_PHASES.includes(result.phase as LifecyclePhase) ||
+      !Number.isSafeInteger(result.revision) || (result.revision as number) < 0) {
+    throw commandError(
+      'failed-precondition',
+      'This fighter-wing count receipt does not match its standardized audit request.',
+      'conflict',
+    );
+  }
+
+  if (result.status === 'replayed') {
+    if (auditSnapshot.exists) {
+      throw commandError(
+        'failed-precondition',
+        'This no-mutation fighter-wing receipt conflicts with an existing standardized audit.',
+        'conflict',
+      );
+    }
+    return;
+  }
+  if (result.status !== 'committed' && result.status !== 'stale') {
+    throw commandError(
+      'failed-precondition',
+      'This fighter-wing count receipt has an unsupported audit outcome.',
+      'conflict',
+    );
+  }
+
+  ensureVesselActionAuditForReplay(
+    tx, auditSnapshot, auditRef, sessionId, actorUid, 'fighter-wing-count', requestId, result,
+  );
+}
+
 export const createSession = onCall<{
   name?: string;
   displayName?: string;
@@ -22376,6 +22421,13 @@ function fighterWingCountReceiptReply(
       'conflict',
     );
   }
+  if (result.status !== 'committed' && result.status !== 'stale' && result.status !== 'replayed') {
+    throw commandError(
+      'failed-precondition',
+      'This fighter-wing request has an unsupported replay outcome.',
+      'conflict',
+    );
+  }
   return result.status === 'stale' ? result : { ...result, status: 'replayed' };
 }
 
@@ -22399,6 +22451,7 @@ export const setFighterWingCount = onCall<{
   const requestRef = db.doc(
     `sessions/${change.sessionId}/fighterWingCountRequests/${change.requestId}`,
   );
+  const actionAuditRef = vesselActionAuditRef(change.sessionId, change.requestId);
   const fingerprint: FighterWingCountFingerprint = {
     sessionId: change.sessionId,
     instanceId: change.instanceId,
@@ -22412,14 +22465,28 @@ export const setFighterWingCount = onCall<{
     await requireShipCounterAuthority(
       tx, change.sessionId, uid, 'aegis', change.instanceId, true,
     );
-    const [session, prior] = await Promise.all([
+    const [session, prior, actionAudit] = await Promise.all([
       tx.get(sessionRef),
       tx.get(requestRef),
+      tx.get(actionAuditRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     const player = await tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`));
     const replay = fighterWingCountReceiptReply(prior, fingerprint);
-    if (replay) return replay;
+    if (replay) {
+      const receiptReply = prior.get('reply') as Record<string, unknown>;
+      ensureFighterWingCountActionAuditForReplay(
+        tx,
+        actionAudit,
+        actionAuditRef,
+        change.sessionId,
+        uid,
+        change.requestId,
+        receiptReply,
+      );
+      return replay;
+    }
+    if (actionAudit.exists) rejectLegacyEventReplay('fighter-wing count action audit');
     requireActiveGameplayPhase(session);
 
     const current = fighterWingCounts(session.get('fighterWingCounts'))[change.wingId];
@@ -22486,6 +22553,17 @@ export const setFighterWingCount = onCall<{
       [`fighterWingCounts.${change.wingId}`]: { count: change.count, revision },
       updatedAt: FieldValue.serverTimestamp(),
     });
+    writeVesselActionAudit(
+      tx,
+      actionAuditRef,
+      change.sessionId,
+      uid,
+      reply.actorRoleId,
+      'fighter-wing-count',
+      reply.phase,
+      change.requestId,
+      revision,
+    );
     tx.set(requestRef, {
       ...fingerprint,
       fingerprint,

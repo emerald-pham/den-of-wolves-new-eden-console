@@ -42,7 +42,7 @@ const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
   'functions/src/actionAudit.ts': [
     'scavengeDestroyedShipStores', 'adjustShipResource', 'adjustShipUnrest',
     'adjustShipPopulation', 'applyShipCounterSteps',
-    'runHighwallMining', 'authorFacilitatorRuleCall',
+    'runHighwallMining', 'authorFacilitatorRuleCall', 'setFighterWingCount',
   ],
   'functions/src/candidateRevealProjection.ts': CANDIDATE_REVEAL_CALLABLES,
   'functions/src/callableRateLimitFirestore.ts': [
