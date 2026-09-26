@@ -6405,6 +6405,44 @@ export const transferShuttleCargoCommand = onCall<{
         !shuttleDockingsMatchActiveRoleOwnedSubset(activeRoleIds, rawDockings) || !control) {
       throw commandError('failed-precondition', 'The authoritative shuttle cargo state is unavailable.', 'conflict');
     }
+    const currentControl = control[data.shuttleId];
+    if (!currentControl || currentControl.holderUid !== uid) {
+      throw commandError(
+        'failed-precondition',
+        'Only the current shuttle holder may transfer its cargo.',
+        'conflict',
+      );
+    }
+    if (currentControl.revision !== data.expectedControlRevision) {
+      if (currentControl.revision < data.expectedControlRevision) {
+        throw commandError(
+          'failed-precondition',
+          'The authoritative shuttle control revision is unavailable.',
+          'conflict',
+        );
+      }
+      const currentDockings = rawDockings.filter((docking) => docking.shuttleId === data.shuttleId);
+      const currentHostShipId = currentDockings.length === 1 ? currentDockings[0]!.shipId : null;
+      if (!currentHostShipId || !group.vesselIds.includes(currentHostShipId)) {
+        throw commandError(
+          'failed-precondition',
+          'The authoritative shuttle cargo state is unavailable.',
+          'conflict',
+        );
+      }
+      return {
+        status: 'stale' as const,
+        sessionId: data.sessionId,
+        requestId: data.requestId,
+        shuttleId: data.shuttleId,
+        hostShipId: currentHostShipId,
+        resourceId: data.resourceId,
+        direction: data.direction,
+        amount: data.amount,
+        expectedControlRevision: data.expectedControlRevision,
+        currentControlRevision: currentControl.revision,
+      };
+    }
     let result: ReturnType<typeof transferShuttleCargo>;
     try {
       result = transferShuttleCargo({

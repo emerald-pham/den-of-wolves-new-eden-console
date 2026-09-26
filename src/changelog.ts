@@ -26,6 +26,19 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 458, partial: 44, active: 0, missing: 249,
     },
     changes: [
+      'Shuttle cargo transfers keep the selected resource and amount when control changes, so the current holder can review and explicitly retry with the current revision.',
+      '458 of 751 planned items are complete (60.99%).',
+    ],
+    implementationPrompts: [620],
+  },
+
+  {
+    version: '0.5.36',
+    implementationProgress: {
+      completed: 458, total: 751, percentage: '60.99%',
+      done: 458, partial: 44, active: 0, missing: 249,
+    },
+    changes: [
       'The P.D.F. Colonel can launch the Escort Wing during Wolf Attack when the Refinery 124 Fighter Bay is charged and operational.',
       'Medium and Short resolution, fighter losses, and Away Mission bonus result integration remain pending.',
       "458 of 751 planned items are complete (60.99%).",

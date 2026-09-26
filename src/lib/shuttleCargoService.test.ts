@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { useSessionStore } from '@/store/useSessionStore';
 
 const mocks = vi.hoisted(() => ({ call: vi.fn(), callable: vi.fn() }));
@@ -6,6 +6,19 @@ vi.mock('firebase/functions', () => ({ httpsCallable: mocks.callable }));
 vi.mock('./firebase', () => ({ functions: () => 'functions' }));
 
 import { transferShuttleCargo } from './shuttleCargoService';
+
+const committedReply = {
+  status: 'committed', sessionId: 's1', requestId: 'cargo-request-1', shuttleId: 'hummingbird',
+  hostShipId: 'quellon', resourceId: 'food', direction: 'load', amount: 2,
+  shipAmount: 8, shuttleAmount: 3,
+};
+
+const staleReply = (overrides: Record<string, unknown> = {}) => ({
+  status: 'stale', sessionId: 's1', requestId: 'cargo-request-1', shuttleId: 'hummingbird',
+  hostShipId: 'quellon', resourceId: 'food', direction: 'load', amount: 2,
+  expectedControlRevision: 3, currentControlRevision: 4,
+  ...overrides,
+});
 
 beforeEach(() => {
   mocks.call.mockReset(); mocks.callable.mockReset(); mocks.callable.mockReturnValue(mocks.call);
@@ -18,15 +31,140 @@ beforeEach(() => {
   });
   useSessionStore.getState().setConnection('live');
   useSessionStore.getState().setSessionSnapshotFreshness('server');
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    activeRoleIds: ['quellon-explorer'], activeVesselIds: ['quellon'],
+    shuttleDockings: [{ shuttleId: 'hummingbird', shipId: 'quellon', dockedAt: 'SESSION START' }],
+    shuttleControl: { hummingbird: {
+      shuttleId: 'hummingbird', ownerRoleId: 'quellon-explorer', ownerUid: 'holder',
+      holderUid: 'holder', revision: 3,
+    } },
+  } as never);
+  vi.stubGlobal('crypto', { randomUUID: vi.fn(() => 'cargo-request-1') });
 });
 
+afterEach(() => vi.unstubAllGlobals());
+
 it('sends the exact cargo direction, amount, and custody revision', async () => {
+  mocks.call.mockResolvedValue({ data: committedReply });
   await transferShuttleCargo('hummingbird', 'food', 'load', 2, 3);
   expect(mocks.callable).toHaveBeenCalledWith('functions', 'transferShuttleCargoCommand');
   expect(mocks.call).toHaveBeenCalledWith({
     sessionId: 's1', requestId: expect.any(String), shuttleId: 'hummingbird', resourceId: 'food',
     direction: 'load', amount: 2, expectedControlRevision: 3,
   });
+});
+
+it('accepts only a target and request bound stale revision for the current holder', async () => {
+  mocks.call.mockResolvedValue({ data: staleReply() });
+  await expect(transferShuttleCargo('hummingbird', 'food', 'load', 2, 3)).resolves.toEqual({
+    status: 'stale', hostShipId: 'quellon', currentControlRevision: 4,
+  });
+
+  for (const mismatch of [
+    { sessionId: 's2' }, { requestId: 'other-request' }, { shuttleId: 'macaw' },
+    { hostShipId: 'capybara' }, { resourceId: 'water' }, { direction: 'unload' },
+    { amount: 1 }, { expectedControlRevision: 2 }, { currentControlRevision: 3 },
+    { actorUid: 'holder' }, { holderUid: 'holder' }, { groupRoster: ['holder'] },
+  ]) {
+    mocks.call.mockResolvedValue({ data: staleReply(mismatch) });
+    await expect(transferShuttleCargo('hummingbird', 'food', 'load', 2, 3))
+      .rejects.toThrow(/malformed/i);
+  }
+});
+
+it('uses a fresh request id and the newest observed control revision for an explicit retry', async () => {
+  vi.stubGlobal('crypto', {
+    randomUUID: vi.fn().mockReturnValueOnce('cargo-request-1').mockReturnValueOnce('cargo-request-2'),
+  });
+  mocks.call.mockResolvedValueOnce({ data: staleReply() });
+  mocks.call.mockResolvedValueOnce({
+    data: { ...committedReply, requestId: 'cargo-request-2' },
+  });
+
+  await expect(transferShuttleCargo('hummingbird', 'food', 'load', 2, 3))
+    .resolves.toMatchObject({ status: 'stale', currentControlRevision: 4 });
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    shuttleControl: { hummingbird: {
+      shuttleId: 'hummingbird', ownerRoleId: 'quellon-explorer', ownerUid: 'holder',
+      holderUid: 'holder', revision: 4,
+    } },
+  } as never);
+  await expect(transferShuttleCargo('hummingbird', 'food', 'load', 2, 4))
+    .resolves.toEqual({ status: 'committed' });
+  expect(mocks.call.mock.calls.map(([payload]) => payload)).toEqual([
+    expect.objectContaining({ requestId: 'cargo-request-1', expectedControlRevision: 3 }),
+    expect.objectContaining({ requestId: 'cargo-request-2', expectedControlRevision: 4 }),
+  ]);
+});
+
+it('rejects stale recovery when the actor loses holder or role authority while pending', async () => {
+  let resolve!: (value: { data: Record<string, unknown> }) => void;
+  mocks.call.mockReturnValue(new Promise((finish) => { resolve = finish; }));
+  const pending = transferShuttleCargo('hummingbird', 'food', 'load', 2, 3);
+  const store = useSessionStore.getState();
+  store.setSession({
+    ...store.session!,
+    shuttleControl: { hummingbird: {
+      shuttleId: 'hummingbird', ownerRoleId: 'quellon-explorer', ownerUid: 'holder',
+      holderUid: 'someone-else', revision: 4,
+    } },
+  } as never);
+  resolve({ data: staleReply() });
+  await expect(pending).rejects.toThrow(/authority changed while the request was pending/i);
+
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    shuttleControl: { hummingbird: {
+      shuttleId: 'hummingbird', ownerRoleId: 'quellon-explorer', ownerUid: 'holder',
+      holderUid: 'holder', revision: 3,
+    } },
+  } as never);
+  let resolveRole!: (value: { data: Record<string, unknown> }) => void;
+  mocks.call.mockReturnValue(new Promise((finish) => { resolveRole = finish; }));
+  const rolePending = transferShuttleCargo('hummingbird', 'food', 'load', 2, 3);
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, activeConsoleRoleId: 'another-role',
+  });
+  resolveRole({ data: staleReply() });
+  await expect(rolePending).rejects.toThrow(/authority changed while the request was pending/i);
+
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, activeConsoleRoleId: 'quellon-explorer',
+  });
+  let resolveActor!: (value: { data: Record<string, unknown> }) => void;
+  mocks.call.mockReturnValue(new Promise((finish) => { resolveActor = finish; }));
+  const actorPending = transferShuttleCargo('hummingbird', 'food', 'load', 2, 3);
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, uid: 'another-holder',
+  });
+  resolveActor({ data: staleReply() });
+  await expect(actorPending).rejects.toThrow(/authority changed while the request was pending/i);
+});
+
+it('waits for live control authority before dispatch and rejects malformed replies', async () => {
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    shuttleControl: { hummingbird: {
+      shuttleId: 'hummingbird', ownerRoleId: 'quellon-explorer', ownerUid: 'holder',
+      holderUid: 'someone-else', revision: 3,
+    } },
+  } as never);
+  await expect(transferShuttleCargo('hummingbird', 'food', 'load', 2, 3))
+    .rejects.toThrow(/current shuttle holder/i);
+  expect(mocks.callable).not.toHaveBeenCalled();
+
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    shuttleControl: { hummingbird: {
+      shuttleId: 'hummingbird', ownerRoleId: 'quellon-explorer', ownerUid: 'holder',
+      holderUid: 'holder', revision: 3,
+    } },
+  } as never);
+  mocks.call.mockResolvedValue({ data: undefined });
+  await expect(transferShuttleCargo('hummingbird', 'food', 'load', 2, 3))
+    .rejects.toThrow(/malformed/i);
 });
 
 it('rejects cache-backed authority before contacting the callable', async () => {

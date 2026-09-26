@@ -117,12 +117,43 @@ it.each([
   ['foreign holder', 'owner', command],
   ['forbidden type', 'holder', { ...command, requestId: 'ore', resourceId: 'ore' }],
   ['negative amount', 'holder', { ...command, requestId: 'negative', amount: -1 }],
-  ['stale custody', 'holder', { ...command, requestId: 'stale', expectedControlRevision: 2 }],
 ] as const)('rejects %s without mutation', async (_label, uid, data) => {
   await expect(transferShuttleCargoCommand.run(request(data, uid))).rejects.toMatchObject({
     code: expect.stringMatching(/invalid-argument|permission-denied|failed-precondition/),
   });
   expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('returns only target-bound current control revision for the still-authorized holder without a receipt or ledger write', async () => {
+  const stale = {
+    ...command, requestId: 'stale-control', expectedControlRevision: 0,
+  };
+  mock.documents.get('sessions/s1')!.shuttleControl = { hummingbird: {
+    shuttleId: 'hummingbird', ownerRoleId: 'quellon-explorer', ownerUid: 'owner',
+    holderUid: 'holder', revision: 1,
+  } };
+
+  await expect(transferShuttleCargoCommand.run(request(stale))).resolves.toEqual({
+    status: 'stale', sessionId: 's1', requestId: 'stale-control', shuttleId: 'hummingbird',
+    hostShipId: 'quellon', resourceId: 'food', direction: 'load', amount: 2,
+    expectedControlRevision: 0, currentControlRevision: 1,
+  });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect([...mock.documents.keys()].some((path) => path.includes('commandReceipts'))).toBe(false);
+});
+
+it('does not disclose a stale revision after the actor loses current shuttle-holder authority', async () => {
+  mock.documents.get('sessions/s1')!.shuttleControl = { hummingbird: {
+    shuttleId: 'hummingbird', ownerRoleId: 'quellon-explorer', ownerUid: 'owner',
+    holderUid: 'owner', revision: 1,
+  } };
+
+  await expect(transferShuttleCargoCommand.run(request({
+    ...command, requestId: 'lost-holder',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
 });
 
 it('rejects cargo movement outside the live Coordination phase without mutation', async () => {

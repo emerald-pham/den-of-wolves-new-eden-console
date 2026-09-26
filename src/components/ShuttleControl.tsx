@@ -25,6 +25,7 @@ import './ShuttleControl.css';
 import {
   captureSessionAuthority,
   isCurrentSessionAuthority,
+  hasFreshSessionAuthority,
   type SessionAuthorityCheckpoint,
 } from '@/lib/sessionMutationAuthority';
 
@@ -40,6 +41,85 @@ interface ArrivalAttempt {
 interface RetargetAttempt {
   readonly key: string;
   readonly checkpoint: SessionAuthorityCheckpoint;
+}
+
+interface CargoAttemptAuthority {
+  readonly sessionId: string;
+  readonly uid: string;
+  readonly role: string;
+  readonly assignedRoleId: string | null | undefined;
+  readonly activeConsoleRoleId: string | null | undefined;
+  readonly replacementRoleId: string | null | undefined;
+  readonly seatId: string | null | undefined;
+  readonly shuttleId: string;
+  readonly ownerRoleId: string;
+  readonly ownerUid: string;
+  readonly hostShipId: string;
+  readonly expectedControlRevision: number;
+}
+
+interface CargoRetry {
+  readonly authority: CargoAttemptAuthority;
+  readonly resourceId: ResourceId;
+  readonly direction: 'load' | 'unload';
+  readonly amount: number;
+  readonly currentControlRevision: number;
+}
+
+interface CargoTransferAttempt {
+  readonly authority: CargoAttemptAuthority;
+  readonly resourceId: ResourceId;
+  readonly direction: 'load' | 'unload';
+  readonly amount: number;
+}
+
+function captureCargoAttemptAuthority(
+  shuttleId: string,
+  expectedControlRevision: number,
+): CargoAttemptAuthority | undefined {
+  const current = useSessionStore.getState();
+  const session = current.session;
+  const me = current.me;
+  const authority = session?.shuttleControl?.[shuttleId];
+  const docking = session ? dockingForShuttle(session, shuttleId) : undefined;
+  if (!hasFreshSessionAuthority() || !session || !me || me.role !== 'player' ||
+      me.sessionId !== session.id || !me.uid || !authority || authority.shuttleId !== shuttleId ||
+      authority.holderUid !== me.uid || authority.revision !== expectedControlRevision || !docking?.shipId) {
+    return undefined;
+  }
+  return {
+    sessionId: session.id,
+    uid: me.uid,
+    role: me.role,
+    assignedRoleId: me.assignedRoleId,
+    activeConsoleRoleId: me.activeConsoleRoleId,
+    replacementRoleId: me.replacementRoleId,
+    seatId: me.seatId,
+    shuttleId,
+    ownerRoleId: authority.ownerRoleId,
+    ownerUid: authority.ownerUid,
+    hostShipId: docking.shipId,
+    expectedControlRevision,
+  };
+}
+
+function cargoAttemptAuthorityIsCurrent(
+  attempt: CargoAttemptAuthority,
+  minimumControlRevision = attempt.expectedControlRevision,
+): boolean {
+  const current = useSessionStore.getState();
+  const session = current.session;
+  const me = current.me;
+  const authority = session?.shuttleControl?.[attempt.shuttleId];
+  const docking = session ? dockingForShuttle(session, attempt.shuttleId) : undefined;
+  return hasFreshSessionAuthority() && session?.id === attempt.sessionId &&
+    me?.sessionId === attempt.sessionId && me.uid === attempt.uid && me.role === attempt.role &&
+    me.assignedRoleId === attempt.assignedRoleId && me.activeConsoleRoleId === attempt.activeConsoleRoleId &&
+    me.replacementRoleId === attempt.replacementRoleId && me.seatId === attempt.seatId &&
+    authority?.shuttleId === attempt.shuttleId && authority.ownerRoleId === attempt.ownerRoleId &&
+    authority.ownerUid === attempt.ownerUid && authority.holderUid === attempt.uid &&
+    Number.isSafeInteger(authority.revision) && authority.revision >= minimumControlRevision &&
+    docking?.shipId === attempt.hostShipId;
 }
 
 function arrivalContextKey(
@@ -81,6 +161,7 @@ export default function ShuttleControl({ control }: Props) {
   const retargetPendingRef = useRef<SessionAuthorityCheckpoint | null>(null);
   const [cargoResourceId, setCargoResourceId] = useState<ResourceId | ''>('');
   const [cargoAmount, setCargoAmount] = useState(1);
+  const [cargoRetry, setCargoRetry] = useState<CargoRetry | null>(null);
   const [rechargeConsoleId, setRechargeConsoleId] = useState('');
   const [rechargeProductionScrap, setRechargeProductionScrap] = useState(false);
   const [rechargeProductionOreAmount, setRechargeProductionOreAmount] = useState(1);
@@ -122,6 +203,12 @@ export default function ShuttleControl({ control }: Props) {
   const cargoTypes = SHUTTLECRAFT.find((shuttle) => shuttle.id === control.shuttleId)
     ?.cargoTransferTypes ?? [];
   const cargoAmountIsValid = Number.isSafeInteger(cargoAmount) && cargoAmount >= 1;
+  const cargoRetryMatchesDraft = Boolean(cargoRetry &&
+    cargoRetry.resourceId === cargoResourceId && cargoRetry.amount === cargoAmount);
+  const cargoRetryReady = Boolean(cargoRetryMatchesDraft && cargoRetry &&
+    cargoAttemptAuthorityIsCurrent(cargoRetry.authority, cargoRetry.currentControlRevision));
+  const cargoRetryWaiting = Boolean(cargoRetryMatchesDraft && cargoRetry &&
+    cargoAttemptAuthorityIsCurrent(cargoRetry.authority) && !cargoRetryReady);
   const serviceShuttle = SERVICE_SHUTTLE_IDS.includes(
     control.shuttleId as typeof SERVICE_SHUTTLE_IDS[number],
   );
@@ -419,24 +506,71 @@ export default function ShuttleControl({ control }: Props) {
     startArrivalAttempt(checkpoint, key, false);
   }
 
-  async function submitCargo(direction: 'load' | 'unload'): Promise<void> {
-    if (busy || !docking || !cargoResourceId || !Number.isSafeInteger(cargoAmount) || cargoAmount < 1) return;
+  async function performCargoTransfer(attempt: CargoTransferAttempt): Promise<void> {
     setPending(true);
     setStatus('');
     try {
-      await transferShuttleCargo(
-        control.shuttleId,
-        cargoResourceId,
-        direction,
-        cargoAmount,
-        control.revision,
+      const result = await transferShuttleCargo(
+        attempt.authority.shuttleId,
+        attempt.resourceId,
+        attempt.direction,
+        attempt.amount,
+        attempt.authority.expectedControlRevision,
       );
-      setStatus(`${direction === 'load' ? 'Loaded' : 'Unloaded'} ${cargoAmount} ${RESOURCE_DEFINITIONS.find((resource) => resource.id === cargoResourceId)?.label ?? cargoResourceId}.`);
+      if (!cargoAttemptAuthorityIsCurrent(attempt.authority)) return;
+      if (result?.status === 'stale') {
+        if (result.hostShipId !== attempt.authority.hostShipId ||
+            !Number.isSafeInteger(result.currentControlRevision) ||
+            result.currentControlRevision <= attempt.authority.expectedControlRevision) {
+          setStatus('Shuttle cargo state could not be confirmed. Refresh the live session before retrying.');
+          return;
+        }
+        setCargoRetry({ ...attempt, currentControlRevision: result.currentControlRevision });
+        return;
+      }
+      setCargoRetry(null);
+      setStatus(`${attempt.direction === 'load' ? 'Loaded' : 'Unloaded'} ${attempt.amount} ${RESOURCE_DEFINITIONS.find((resource) => resource.id === attempt.resourceId)?.label ?? attempt.resourceId}.`);
     } catch (cause) {
-      setStatus(cause instanceof Error ? cause.message : 'Shuttle cargo transfer failed.');
+      if (cargoAttemptAuthorityIsCurrent(attempt.authority)) {
+        setStatus(cause instanceof Error ? cause.message : 'Shuttle cargo transfer failed.');
+      }
     } finally {
       setPending(false);
     }
+  }
+
+  async function submitCargo(direction: 'load' | 'unload'): Promise<void> {
+    if (busy || cargoRetry || !docking || !cargoResourceId ||
+        !Number.isSafeInteger(cargoAmount) || cargoAmount < 1) return;
+    const authority = captureCargoAttemptAuthority(control.shuttleId, control.revision);
+    if (!authority) {
+      setStatus('Refresh the live shuttle control and docking state before transferring cargo.');
+      return;
+    }
+    await performCargoTransfer({
+      authority, resourceId: cargoResourceId, direction, amount: cargoAmount,
+    });
+  }
+
+  async function retryCargoTransfer(): Promise<void> {
+    if (busy || !cargoRetry || !cargoRetryReady ||
+        !cargoAttemptAuthorityIsCurrent(cargoRetry.authority, cargoRetry.currentControlRevision)) return;
+    const currentSession = useSessionStore.getState().session;
+    const currentRevision = currentSession?.shuttleControl?.[cargoRetry.authority.shuttleId]?.revision;
+    if (!Number.isSafeInteger(currentRevision) ||
+        (currentRevision as number) < cargoRetry.currentControlRevision) return;
+    const authority = captureCargoAttemptAuthority(cargoRetry.authority.shuttleId, currentRevision as number);
+    if (!authority || authority.sessionId !== cargoRetry.authority.sessionId ||
+        authority.uid !== cargoRetry.authority.uid || authority.ownerRoleId !== cargoRetry.authority.ownerRoleId ||
+        authority.ownerUid !== cargoRetry.authority.ownerUid || authority.hostShipId !== cargoRetry.authority.hostShipId) return;
+    const attempt: CargoTransferAttempt = {
+      authority,
+      resourceId: cargoRetry.resourceId,
+      direction: cargoRetry.direction,
+      amount: cargoRetry.amount,
+    };
+    setCargoRetry(null);
+    await performCargoTransfer(attempt);
   }
 
   async function submitEvacuation(): Promise<void> {
@@ -586,7 +720,11 @@ export default function ShuttleControl({ control }: Props) {
       <p>Docked at {findShip(docking.shipId)?.name ?? docking.shipId}.</p>
       <label htmlFor={`shuttle-cargo-resource-${control.shuttleId}`}>Resource</label>
       <select className="shuttle-control__touch-target" id={`shuttle-cargo-resource-${control.shuttleId}`} value={cargoResourceId}
-        disabled={busy} onChange={(event) => setCargoResourceId(event.target.value as ResourceId)}>
+        disabled={busy} onChange={(event) => {
+          setCargoResourceId(event.target.value as ResourceId);
+          setCargoRetry(null);
+          setStatus('');
+        }}>
         <option value="">Choose permitted cargo</option>
         {cargoTypes.map((resourceId) => <option value={resourceId} key={resourceId}>
           {RESOURCE_DEFINITIONS.find((resource) => resource.id === resourceId)?.label ?? resourceId}
@@ -595,17 +733,32 @@ export default function ShuttleControl({ control }: Props) {
       <label htmlFor={`shuttle-cargo-amount-${control.shuttleId}`}>Amount</label>
       <input className="shuttle-control__touch-target" id={`shuttle-cargo-amount-${control.shuttleId}`} type="number" min="1" step="1"
         value={cargoAmount} disabled={busy}
-        onChange={(event) => setCargoAmount(Number(event.target.value))} />
+        onChange={(event) => {
+          setCargoAmount(Number(event.target.value));
+          setCargoRetry(null);
+          setStatus('');
+        }} />
       {cargoResourceId && <p>
         Host // {session.shipResources?.[docking.shipId]?.[cargoResourceId] ?? 0}
         {' // '}Shuttle // {session.shuttleCargo?.[control.shuttleId]?.[cargoResourceId] ?? 0}
       </p>}
       <div className="console-workspace__actions">
-        <button className="cic-action-button shuttle-control__touch-target" type="button" disabled={busy || !cargoResourceId || !cargoAmountIsValid}
+        <button className="cic-action-button shuttle-control__touch-target" type="button"
+          disabled={busy || cargoRetryMatchesDraft || !cargoResourceId || !cargoAmountIsValid}
           onClick={() => void submitCargo('load')}>Load shuttle</button>
-        <button className="cic-action-button shuttle-control__touch-target" type="button" disabled={busy || !cargoResourceId || !cargoAmountIsValid}
+        <button className="cic-action-button shuttle-control__touch-target" type="button"
+          disabled={busy || cargoRetryMatchesDraft || !cargoResourceId || !cargoAmountIsValid}
           onClick={() => void submitCargo('unload')}>Unload shuttle</button>
+        {cargoRetryMatchesDraft && cargoRetryReady && <button
+          className="cic-action-button shuttle-control__touch-target" type="button" disabled={busy}
+          onClick={() => void retryCargoTransfer()}>Retry cargo transfer with current revision</button>}
       </div>
+      {cargoRetryMatchesDraft && cargoRetryWaiting && <p role="status">
+        Shuttle control changed. Waiting for the live shuttle control revision before retrying.
+      </p>}
+      {cargoRetryMatchesDraft && cargoRetryReady && <p role="status">
+        Cargo state changed. Review the selected transfer, then explicitly retry with a fresh request ID.
+      </p>}
     </section>}
     {canRequestDeparture && docking && serviceShuttle && <section aria-label="Service shuttle recharge">
       <p className="console-workspace__eyebrow">Service power // docked host</p>
