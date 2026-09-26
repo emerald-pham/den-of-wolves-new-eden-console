@@ -285,6 +285,27 @@ it('fails closed when a bound receipt has an envelope for a different vessel', a
   expect(mock.set).not.toHaveBeenCalled();
 });
 
+it.each([
+  ['wing', { wingId: 'fighter-wing-bravo' }],
+  ['count', { count: 2 }],
+  ['committed revision', { revision: 7 }],
+] as const)('fails closed when a receipt reply has a mismatched %s before audit backfill', async (_label, change) => {
+  await setFighterWingCount.run(request(base));
+  const auditPath = 'sessions/s1/actionAudits/wing-1';
+  delete mock.audits[auditPath];
+  const receipt = mock.receipts['sessions/s1/fighterWingCountRequests/wing-1'];
+  receipt.reply = { ...(receipt.reply as Record<string, unknown>), ...change };
+  mock.update.mockReset();
+  mock.set.mockClear();
+
+  await expect(setFighterWingCount.run(request(base))).rejects.toMatchObject({
+    code: 'failed-precondition',
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.audits).toEqual({});
+});
+
 it('enforces effective capacity from the authoritative Construction Bay upgrade', async () => {
   await expect(setFighterWingCount.run(request({ ...base, count: 5 })))
     .rejects.toMatchObject({ code: 'failed-precondition' });

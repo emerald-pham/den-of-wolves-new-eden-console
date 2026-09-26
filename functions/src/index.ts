@@ -3643,11 +3643,13 @@ function ensureFighterWingCountActionAuditForReplay(
   sessionId: string,
   actorUid: string,
   requestId: string,
+  fingerprint: FighterWingCountFingerprint,
   result: Record<string, unknown>,
 ): void {
   if (result.sessionId !== sessionId || result.requestId !== requestId ||
       result.actorUid !== actorUid || result.idempotencyKey !== requestId ||
       result.vesselId !== 'aegis' || result.auditId !== `fighter-count-${requestId}` ||
+      result.wingId !== fingerprint.wingId ||
       typeof result.phase !== 'string' ||
       !LIFECYCLE_PHASES.includes(result.phase as LifecyclePhase) ||
       !Number.isSafeInteger(result.revision) || (result.revision as number) < 0) {
@@ -3659,6 +3661,13 @@ function ensureFighterWingCountActionAuditForReplay(
   }
 
   if (result.status === 'replayed') {
+    if (result.count !== fingerprint.count || result.revision === fingerprint.expectedRevision) {
+      throw commandError(
+        'failed-precondition',
+        'This no-mutation fighter-wing receipt does not match its bound correction.',
+        'conflict',
+      );
+    }
     if (auditSnapshot.exists) {
       throw commandError(
         'failed-precondition',
@@ -3672,6 +3681,26 @@ function ensureFighterWingCountActionAuditForReplay(
     throw commandError(
       'failed-precondition',
       'This fighter-wing count receipt has an unsupported audit outcome.',
+      'conflict',
+    );
+  }
+  if (result.status === 'committed') {
+    if (result.count !== fingerprint.count || result.revision !== fingerprint.expectedRevision + 1) {
+      throw commandError(
+        'failed-precondition',
+        'This committed fighter-wing receipt does not match its bound correction revision.',
+        'conflict',
+      );
+    }
+  } else if (
+    result.currentRevision !== result.revision ||
+    result.revision === fingerprint.expectedRevision ||
+    (result.count !== undefined &&
+      (!Number.isSafeInteger(result.count) || result.count === fingerprint.count))
+  ) {
+    throw commandError(
+      'failed-precondition',
+      'This stale fighter-wing receipt does not match its observed revision.',
       'conflict',
     );
   }
@@ -22482,6 +22511,7 @@ export const setFighterWingCount = onCall<{
         change.sessionId,
         uid,
         change.requestId,
+        fingerprint,
         receiptReply,
       );
       return replay;
