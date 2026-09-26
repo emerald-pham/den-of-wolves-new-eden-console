@@ -684,6 +684,7 @@ test('maps standardized action audit helper changes to every production consumer
     'functions:authorFacilitatorRuleCall',
     'functions:setFighterWingCount',
     'functions:repairAllShipDamage',
+    'functions:addShipDamage',
   ]);
 });
 

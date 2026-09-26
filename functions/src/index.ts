@@ -3561,6 +3561,23 @@ function writeVesselActionAudit(
   }));
 }
 
+function writeShipDamageActionAudit(
+  tx: Transaction,
+  auditRef: DocumentReference,
+  sessionId: string,
+  actorUid: string,
+  actorRoleId: string | null,
+  phase: LifecyclePhase,
+  requestId: string,
+  revision: number,
+): void {
+  txSetIfSupported(tx, auditRef, buildActionAuditRecord({
+    sessionId, actorUid, actorRoleId, action: 'ship-damage', phase, requestId, revision,
+    outcome: 'committed', resolutionSource: 'server-random',
+    createdAt: FieldValue.serverTimestamp(),
+  }));
+}
+
 function ensureVesselActionAuditForReplay(
   tx: Transaction,
   auditSnapshot: DocumentSnapshot,
@@ -3633,6 +3650,95 @@ function ensureVesselActionAuditForReplay(
 
   // Older receipts predate standardized action audits. Replays may safely add
   // their original metadata once, using the bound receipt envelope only.
+  txSetIfSupported(tx, auditRef, record);
+}
+
+function ensureShipDamageActionAuditForReplay(
+  tx: Transaction,
+  auditSnapshot: DocumentSnapshot,
+  auditRef: DocumentReference,
+  sessionId: string,
+  actorUid: string,
+  shipId: string,
+  requestId: string,
+  expectedRevision: number | undefined,
+  result: Record<string, unknown>,
+): void {
+  const mismatch = () => commandError(
+    'failed-precondition',
+    'This ship damage receipt does not match its standardized audit request.',
+    'conflict',
+  );
+  if (result.actorUid !== actorUid || result.vesselId !== shipId ||
+      result.idempotencyKey !== requestId || result.auditId !== `add-damage-${requestId}` ||
+      typeof result.phase !== 'string' || !LIFECYCLE_PHASES.includes(result.phase as LifecyclePhase) ||
+      !Number.isSafeInteger(result.revision) || (result.revision as number) < 0 ||
+      (result.status !== undefined && result.status !== 'stale')) {
+    throw mismatch();
+  }
+
+  if (result.status === 'stale') {
+    if (auditSnapshot.exists || result.shipId !== shipId ||
+        result.currentRevision !== result.revision || expectedRevision === undefined ||
+        result.revision === expectedRevision) {
+      throw mismatch();
+    }
+    return;
+  }
+
+  let committedRevision: number;
+  if (result.destroyed === false && isRecord(result.card) &&
+      typeof result.card.card === 'string' && typeof result.card.systemId === 'string' &&
+      typeof result.card.systemName === 'string' && typeof result.recycled === 'boolean') {
+    if (expectedRevision !== undefined && result.revision !== expectedRevision) throw mismatch();
+    committedRevision = (result.revision as number) + 1;
+  } else if (result.destroyed === true && result.card === undefined) {
+    if (auditSnapshot.exists) {
+      if (expectedRevision !== undefined && result.revision !== expectedRevision &&
+          result.revision !== expectedRevision + 1) throw mismatch();
+      committedRevision = result.revision as number;
+    } else if (expectedRevision !== undefined && result.revision === expectedRevision + 1) {
+      // A newly destroyed ship advances the exact expected revision. This is
+      // the only legacy destroyed receipt that can be distinguished from a
+      // terminal no-op and safely backfilled without an existing audit.
+      committedRevision = result.revision as number;
+    } else if (expectedRevision === undefined || result.revision === expectedRevision) {
+      // Legacy terminal receipts can mean a no-op or a committed destruction
+      // when the optional CAS revision was omitted; preserve the exact reply
+      // and leave that ambiguous history unaudited.
+      return;
+    } else {
+      throw mismatch();
+    }
+  } else {
+    throw mismatch();
+  }
+
+  const record = buildActionAuditRecord({
+    sessionId,
+    actorUid,
+    actorRoleId: result.actorRoleId,
+    action: 'ship-damage',
+    phase: result.phase,
+    requestId,
+    revision: committedRevision,
+    outcome: 'committed',
+    resolutionSource: 'server-random',
+    createdAt: FieldValue.serverTimestamp(),
+  });
+  if (auditSnapshot.exists) {
+    const stored = auditSnapshot.data();
+    const keys = Object.keys(record).sort();
+    const storedKeys = isRecord(stored) ? Object.keys(stored).sort() : [];
+    const matches = isRecord(stored) && storedKeys.length === keys.length &&
+      storedKeys.every((key, index) => key === keys[index]) &&
+      keys.every((key) => key === 'createdAt' ||
+        stored[key] === (record as Record<string, unknown>)[key]) &&
+      stored.createdAt !== undefined && stored.createdAt !== null;
+    if (!matches) throw mismatch();
+    return;
+  }
+
   txSetIfSupported(tx, auditRef, record);
 }
 
@@ -21889,6 +21995,7 @@ export const addShipDamage = onCall<{
   }
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
   const receiptRef = commandReceiptRef(change.sessionId, identity.requestId);
+  const actionAuditRef = vesselActionAuditRef(change.sessionId, identity.requestId);
   const fingerprint = vesselActionFingerprint(
     'add-damage', change.sessionId, identity.requestId, uid, change.instanceId,
     identity.expectedRevision ?? null, { shipId: change.shipId },
@@ -21907,8 +22014,22 @@ export const addShipDamage = onCall<{
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     const player = await tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`));
     const prior = await tx.get(receiptRef);
+    const actionAudit = await tx.get(actionAuditRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'ship damage');
-    if (replay) return replay;
+    if (replay) {
+      ensureShipDamageActionAuditForReplay(
+        tx, actionAudit, actionAuditRef, change.sessionId, uid, change.shipId,
+        identity.requestId, identity.expectedRevision, replay,
+      );
+      return replay;
+    }
+    if (actionAudit.exists) {
+      throw commandError(
+        'failed-precondition',
+        'This ship damage request has a standardized audit without its bound receipt.',
+        'conflict',
+      );
+    }
     requireActiveGameplayPhase(session);
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
@@ -22029,6 +22150,12 @@ export const addShipDamage = onCall<{
         podCapacity: destruction.capacity.podCapacity,
         createdAt: FieldValue.serverTimestamp(),
       });
+      if (destruction.createEvent) {
+        writeShipDamageActionAudit(
+          tx, actionAuditRef, change.sessionId, uid, vesselActorRoleId(player),
+          vesselActionPhase(session), identity.requestId, revision,
+        );
+      }
       const reply = { destroyed: true,
         ...vesselActionEnvelope(session, player, uid, change.shipId, revision,
           identity.requestId, 'add-damage') };
@@ -22049,6 +22176,10 @@ export const addShipDamage = onCall<{
       ...vesselActionEnvelope(session, player, uid, change.shipId, revision,
         identity.requestId, 'add-damage'),
     };
+    writeShipDamageActionAudit(
+      tx, actionAuditRef, change.sessionId, uid, vesselActorRoleId(player),
+      vesselActionPhase(session), identity.requestId, currentRevision + 1,
+    );
     txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });

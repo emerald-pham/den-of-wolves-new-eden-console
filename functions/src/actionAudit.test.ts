@@ -132,4 +132,27 @@ describe('buildActionAuditRecord', () => {
       createdAt: 'server-time',
     })).toThrow(/must be facilitator/);
   });
+
+  it('registers server-random ship damage without accepting damage payloads', () => {
+    const record = buildActionAuditRecord({
+      sessionId: 'session-1', actorUid: 'gm-1', actorRoleId: 'admiral',
+      action: 'ship-damage', phase: 'active', requestId: 'damage-1', revision: 4,
+      outcome: 'committed', resolutionSource: 'server-random', createdAt: 'server-time',
+    });
+
+    expect(record).toMatchObject({
+      schemaVersion: 1, sessionId: 'session-1', actorUid: 'gm-1',
+      actorRoleId: 'admiral', action: 'ship-damage', phase: 'active', requestId: 'damage-1',
+      revision: 4, outcome: 'committed', resolutionSource: 'server-random',
+      redactionPolicy: 'action-audit-metadata-only-v1',
+    });
+    expect(Object.keys(record).sort()).toEqual([
+      'action', 'actorRoleId', 'actorUid', 'createdAt', 'outcome', 'phase',
+      'redactionPolicy', 'requestId', 'resolutionSource', 'revision',
+      'schemaVersion', 'sessionId',
+    ].sort());
+    expect(record).not.toHaveProperty('shipId');
+    expect(record).not.toHaveProperty('card');
+    expect(record).not.toHaveProperty('systemId');
+  });
 });

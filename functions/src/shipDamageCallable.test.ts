@@ -80,8 +80,9 @@ beforeEach(() => {
       } as Record<string, unknown>;
       return { exists: true, get: (key: string) => fields[key] };
     }
+    const configuredPlayer = mock.players.find(({ id }) => id === path.split('/').at(-1));
     const fields: Record<string, unknown> = path.includes('/players/')
-      ? { role: mock.role, connected: mock.connected }
+      ? { role: mock.role, connected: mock.connected, ...configuredPlayer?.fields }
       : path.includes('/gmInstances/')
         ? { uid: mock.owner, connected: true, lastSeenAt: new Date(), shipConsoleWriteGrant: { shipId: mock.grantShip, grantedAt: new Date().toISOString() } }
         : {
@@ -210,7 +211,7 @@ it('does not reroll or fork the audit when a recycled hull transaction retries',
   });
   expect(mock.randomInt).toHaveBeenCalledTimes(1);
   expect(mock.randomUUID).not.toHaveBeenCalled();
-  expect(mock.set).toHaveBeenCalledTimes(4);
+  expect(mock.set).toHaveBeenCalledTimes(6);
   const eventCalls = mock.set.mock.calls.filter(([path]) => String(path).includes('/damageDraws/'));
   expect(eventCalls).toHaveLength(2);
   expect(eventCalls[0]).toEqual(['sessions/s1/damageDraws/damage-test-damage',
@@ -237,6 +238,164 @@ it('draws and persists one AEGIS damage card atomically in the shared draw log',
   }));
 });
 
+it('writes a metadata-only server-random audit with a committed damage draw', async () => {
+  const requestId = 'damage-audit-1';
+  mock.players = [{ id: 'u1', fields: { role: 'gm', connected: true, activeConsoleRoleId: 'admiral' } }];
+
+  await addShipDamage.run(request({ ...data, requestId, expectedRevision: 0 }));
+
+  expect(mock.set).toHaveBeenCalledWith(`sessions/s1/actionAudits/${requestId}`, {
+    schemaVersion: 1,
+    sessionId: 's1',
+    actorUid: 'u1',
+    actorRoleId: 'admiral',
+    action: 'ship-damage',
+    phase: 'active',
+    requestId,
+    revision: 1,
+    outcome: 'committed',
+    resolutionSource: 'server-random',
+    redactionPolicy: 'action-audit-metadata-only-v1',
+    createdAt: 'server-time',
+  });
+  expect(mock.set).toHaveBeenCalledWith(`sessions/s1/damageDraws/damage-${requestId}`, expect.objectContaining({
+    type: 'ship-damage', shipId: 'aegis', card: '10♥', systemId: 'reactor',
+  }));
+  expect(mock.set).toHaveBeenCalledWith(`sessions/s1/commandReceipts/${requestId}`, expect.objectContaining({
+    result: expect.objectContaining({ idempotencyKey: requestId, revision: 0 }),
+  }));
+  const audit = mock.set.mock.calls.find(([path]) => path === `sessions/s1/actionAudits/${requestId}`)?.[1] as Record<string, unknown>;
+  expect(audit).not.toHaveProperty('shipId');
+  expect(audit).not.toHaveProperty('card');
+  expect(audit).not.toHaveProperty('systemId');
+  expect(audit).not.toHaveProperty('result');
+});
+
+it('backfills a committed card receipt without rerolling or reapplying damage', async () => {
+  const requestId = 'damage-replay-backfill';
+  const fingerprint = {
+    action: 'add-damage', sessionId: 's1', requestId, actorUid: 'u1',
+    instanceId: 'bridge', expectedRevision: 0, payload: { shipId: 'aegis' },
+  };
+  const result = {
+    card: { card: '10♥', systemId: 'reactor', systemName: 'Reactor' }, recycled: false,
+    destroyed: false, actorUid: 'u1', actorRoleId: null, vesselId: 'aegis', turn: 1,
+    phase: 'active', revision: 0, idempotencyKey: requestId, auditId: `add-damage-${requestId}`,
+  };
+  const previous = mock.get.getMockImplementation()!;
+  mock.phase = 'closed';
+  mock.get.mockImplementation(async (path: string) => {
+    if (path === `sessions/s1/commandReceipts/${requestId}`) return snapshot({ fingerprint, result });
+    if (path === `sessions/s1/actionAudits/${requestId}`) return snapshot({}, false);
+    return previous(path);
+  });
+
+  await expect(addShipDamage.run(request({ ...data, requestId, expectedRevision: 0 }))).resolves.toEqual(result);
+
+  expect(mock.randomInt).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).toHaveBeenCalledTimes(1);
+  expect(mock.set).toHaveBeenCalledWith(`sessions/s1/actionAudits/${requestId}`, expect.objectContaining({
+    sessionId: 's1', actorUid: 'u1', action: 'ship-damage', phase: 'active',
+    requestId, revision: 1, outcome: 'committed', resolutionSource: 'server-random',
+    redactionPolicy: 'action-audit-metadata-only-v1',
+  }));
+});
+
+it('replays an exact committed audit and original damage reply after a phase change', async () => {
+  const requestId = 'damage-replay-exact';
+  const fingerprint = {
+    action: 'add-damage', sessionId: 's1', requestId, actorUid: 'u1',
+    instanceId: 'bridge', expectedRevision: 0, payload: { shipId: 'aegis' },
+  };
+  const result = {
+    card: { card: '10♥', systemId: 'reactor', systemName: 'Reactor' }, recycled: false,
+    destroyed: false, actorUid: 'u1', actorRoleId: null, vesselId: 'aegis', turn: 1,
+    phase: 'active', revision: 0, idempotencyKey: requestId, auditId: `add-damage-${requestId}`,
+  };
+  const audit = {
+    schemaVersion: 1, sessionId: 's1', actorUid: 'u1', actorRoleId: null,
+    action: 'ship-damage', phase: 'active', requestId, revision: 1,
+    outcome: 'committed', resolutionSource: 'server-random',
+    redactionPolicy: 'action-audit-metadata-only-v1', createdAt: 'original-server-time',
+  };
+  const previous = mock.get.getMockImplementation()!;
+  mock.phase = 'closed';
+  mock.get.mockImplementation(async (path: string) => {
+    if (path === `sessions/s1/commandReceipts/${requestId}`) return snapshot({ fingerprint, result });
+    if (path === `sessions/s1/actionAudits/${requestId}`) return snapshot(audit);
+    return previous(path);
+  });
+
+  await expect(addShipDamage.run(request({ ...data, requestId, expectedRevision: 0 }))).resolves.toEqual(result);
+
+  expect(mock.randomInt).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.delete).not.toHaveBeenCalled();
+});
+
+it('fails closed when the bound damage receipt has a mismatched standardized audit', async () => {
+  const requestId = 'damage-replay-mismatch';
+  const fingerprint = {
+    action: 'add-damage', sessionId: 's1', requestId, actorUid: 'u1',
+    instanceId: 'bridge', expectedRevision: 0, payload: { shipId: 'aegis' },
+  };
+  const result = {
+    card: { card: '10♥', systemId: 'reactor', systemName: 'Reactor' }, recycled: false,
+    destroyed: false, actorUid: 'u1', actorRoleId: null, vesselId: 'aegis', turn: 1,
+    phase: 'active', revision: 0, idempotencyKey: requestId, auditId: `add-damage-${requestId}`,
+  };
+  const previous = mock.get.getMockImplementation()!;
+  mock.phase = 'closed';
+  mock.get.mockImplementation(async (path: string) => {
+    if (path === `sessions/s1/commandReceipts/${requestId}`) return snapshot({ fingerprint, result });
+    if (path === `sessions/s1/actionAudits/${requestId}`) return snapshot({
+      schemaVersion: 1, sessionId: 's1', actorUid: 'u1', actorRoleId: null,
+      action: 'repair-damage', phase: 'active', requestId, revision: 1,
+      outcome: 'committed', resolutionSource: 'facilitator',
+      redactionPolicy: 'action-audit-metadata-only-v1', createdAt: 'server-time',
+    });
+    return previous(path);
+  });
+
+  await expect(addShipDamage.run(request({ ...data, requestId, expectedRevision: 0 })))
+    .rejects.toMatchObject({ code: 'failed-precondition', details: { commandError: 'conflict' } });
+  expect(mock.randomInt).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('fails closed on an orphaned ship damage audit before randomness or mutation', async () => {
+  const requestId = 'damage-orphan-audit';
+  const previous = mock.get.getMockImplementation()!;
+  mock.get.mockImplementation(async (path: string) => {
+    if (path === `sessions/s1/actionAudits/${requestId}`) return snapshot({ action: 'ship-damage' });
+    return previous(path);
+  });
+
+  await expect(addShipDamage.run(request({ ...data, requestId })))
+    .rejects.toMatchObject({ code: 'failed-precondition', details: { commandError: 'conflict' } });
+
+  expect(mock.randomInt).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('does not write an audit for a stale ship damage receipt', async () => {
+  mock.vesselActionRevisions = { aegis: 4 };
+
+  await expect(addShipDamage.run(request({ ...data, requestId: 'damage-stale', expectedRevision: 3 })))
+    .resolves.toMatchObject({ status: 'stale', currentRevision: 4 });
+
+  expect(mock.randomInt).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/commandReceipts/damage-stale', expect.objectContaining({
+    result: expect.objectContaining({ status: 'stale', revision: 4 }),
+  }));
+  expect(mock.set.mock.calls.some(([path]) => String(path).includes('/actionAudits/'))).toBe(false);
+});
+
 it('does not reroll the card or event identity when Firestore retries the transaction', async () => {
   mock.retry = true;
   mock.randomInt.mockReturnValueOnce(3_100_000_000).mockReturnValue(0);
@@ -245,7 +404,7 @@ it('does not reroll the card or event identity when Firestore retries the transa
 
   expect(mock.randomInt).toHaveBeenCalledTimes(1);
   expect(mock.randomUUID).not.toHaveBeenCalled();
-  expect(mock.set).toHaveBeenCalledTimes(4);
+  expect(mock.set).toHaveBeenCalledTimes(6);
   const eventCalls = mock.set.mock.calls.filter(([path]) => String(path).includes('/damageDraws/'));
   expect(eventCalls).toHaveLength(2);
   expect(eventCalls[0]).toEqual(['sessions/s1/damageDraws/damage-test-damage',
@@ -299,6 +458,10 @@ it.each([
   }));
   expect(mock.set).toHaveBeenCalledWith(`sessions/s1/damageDraws/damage-destroyed-${shipId}`, expect.objectContaining({
     type: 'ship-destroyed', shipId, podCapacity,
+  }));
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/actionAudits/test-damage', expect.objectContaining({
+    action: 'ship-damage', phase: 'active', revision: 1,
+    resolutionSource: 'server-random', redactionPolicy: 'action-audit-metadata-only-v1',
   }));
   for (const [, update] of mock.update.mock.calls) {
     expect(Object.keys(update).some(key => /shipResources|shuttleCargo|shuttleFuelled/i.test(key)))
@@ -410,6 +573,7 @@ it('does not advance or emit another catastrophe when a destroyed ship is drawn 
     },
   };
   mock.get.mockImplementation(async (path: string) => {
+    if (path.includes('/actionAudits/')) return { exists: false, get: () => undefined };
     if (path.includes('/commandReceipts/')) return { exists: false, get: () => undefined };
     if (path.includes('/damageDraws/')) return { exists: true, get: () => undefined };
     if (path.includes('/private/shipConsoleWriteGrant')) {
@@ -437,6 +601,55 @@ it('does not advance or emit another catastrophe when a destroyed ship is drawn 
   expect(mock.set).toHaveBeenCalledWith('sessions/s1/commandReceipts/test-damage', expect.objectContaining({
     result: expect.objectContaining({ destroyed: true, revision: 0 }),
   }));
+  expect(mock.set.mock.calls.some(([path]) => String(path).includes('/actionAudits/'))).toBe(false);
+});
+
+it('records a missing catastrophe event without advancing an already-destroyed ship revision', async () => {
+  mock.damage = {
+    aegis: { damagedSystemIds: SHIP_DAMAGE_DECKS.aegis.map(({ systemId }) => systemId), destroyed: true },
+  };
+  mock.vesselActionRevisions = { aegis: 4 };
+  const previous = mock.get.getMockImplementation()!;
+  mock.get.mockImplementation(async (path: string) => {
+    if (path === 'sessions/s1/damageDraws/damage-destroyed-aegis') return snapshot({}, false);
+    return previous(path);
+  });
+
+  await expect(addShipDamage.run(request({ ...data, requestId: 'repair-missing-catastrophe', expectedRevision: 4 })))
+    .resolves.toMatchObject({ destroyed: true, revision: 4 });
+
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/damageDraws/damage-destroyed-aegis', expect.objectContaining({
+    type: 'ship-destroyed', shipId: 'aegis',
+  }));
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/actionAudits/repair-missing-catastrophe', expect.objectContaining({
+    action: 'ship-damage', phase: 'active', revision: 4, resolutionSource: 'server-random',
+  }));
+});
+
+it('does not backfill an audit for an ambiguous terminal no-op receipt', async () => {
+  const requestId = 'damage-terminal-replay';
+  const fingerprint = {
+    action: 'add-damage', sessionId: 's1', requestId, actorUid: 'u1',
+    instanceId: 'bridge', expectedRevision: 4, payload: { shipId: 'aegis' },
+  };
+  const result = {
+    destroyed: true, actorUid: 'u1', actorRoleId: null, vesselId: 'aegis', turn: 1,
+    phase: 'active', revision: 4, idempotencyKey: requestId, auditId: `add-damage-${requestId}`,
+  };
+  const previous = mock.get.getMockImplementation()!;
+  mock.phase = 'closed';
+  mock.get.mockImplementation(async (path: string) => {
+    if (path === `sessions/s1/commandReceipts/${requestId}`) return snapshot({ fingerprint, result });
+    if (path === `sessions/s1/actionAudits/${requestId}`) return snapshot({}, false);
+    return previous(path);
+  });
+
+  await expect(addShipDamage.run(request({ ...data, requestId, expectedRevision: 4 }))).resolves.toEqual(result);
+
+  expect(mock.randomInt).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it('commits total fleet loss atomically when the final active full ship is destroyed', async () => {

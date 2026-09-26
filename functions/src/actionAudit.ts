@@ -3,6 +3,7 @@ import type { LifecyclePhase } from './lifecycle';
 export type ActionAuditResolutionSource = 'server-random' | 'facilitator';
 export const ACTION_AUDIT_RESOLUTION_SOURCE_BY_ACTION = {
   'highwall-mining': 'server-random',
+  'ship-damage': 'server-random',
   'facilitator-rule-call': 'facilitator',
   'ship-store-scavenge': 'facilitator',
   'ship-resource-adjustment': 'facilitator',
