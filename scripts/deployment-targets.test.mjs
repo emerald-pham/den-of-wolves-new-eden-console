@@ -675,6 +675,11 @@ test('maps standardized action audit helper changes to every production consumer
   const selected = selectorFor(['functions/src/actionAudit.ts']);
   assert.deepEqual(selected.split(','), [
     'hosting',
+    'functions:scavengeDestroyedShipStores',
+    'functions:adjustShipResource',
+    'functions:adjustShipUnrest',
+    'functions:adjustShipPopulation',
+    'functions:applyShipCounterSteps',
     'functions:runHighwallMining',
     'functions:authorFacilitatorRuleCall',
   ]);

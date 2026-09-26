@@ -4,6 +4,11 @@ export type ActionAuditResolutionSource = 'server-random' | 'facilitator';
 export const ACTION_AUDIT_RESOLUTION_SOURCE_BY_ACTION = {
   'highwall-mining': 'server-random',
   'facilitator-rule-call': 'facilitator',
+  'ship-store-scavenge': 'facilitator',
+  'ship-resource-adjustment': 'facilitator',
+  'ship-unrest-adjustment': 'facilitator',
+  'ship-population-adjustment': 'facilitator',
+  'ship-counter-batch': 'facilitator',
 } as const satisfies Readonly<Record<string, ActionAuditResolutionSource>>;
 
 export type ActionAuditAction = keyof typeof ACTION_AUDIT_RESOLUTION_SOURCE_BY_ACTION;

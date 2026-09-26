@@ -75,7 +75,7 @@ beforeEach(() => {
       dione: { ore: 0, fuel: 1, food: 2, water: 3, materials: 0, securityTeams: 2 },
     },
   };
-  mock.player = { role: 'gm', connected: true, activeConsoleRoleId: null };
+  mock.player = { role: 'gm', connected: true, activeConsoleRoleId: 'facilitator' };
   mock.instance = { uid: 'u1', connected: true, lastSeenAt: new Date() };
   mock.groups = [{ id: 'fleet-1', vesselIds: ['aegis', 'dione'], memberUids: ['u1'] }];
   mock.stored.clear();
@@ -107,6 +107,21 @@ it('atomically zeros the destroyed ledger, credits legal recipients, and writes 
   });
   expect(mock.stored.get('sessions/s1/shipStoreScavenges/aegis/audit/scavenge-1'))
     .toMatchObject({ requestId: 'scavenge-1' });
+  const actionAudit = mock.stored.get('sessions/s1/actionAudits/scavenge-1');
+  expect(actionAudit).toMatchObject({
+    schemaVersion: 1, sessionId: 's1', actorUid: 'u1', actorRoleId: 'facilitator',
+    action: 'ship-store-scavenge', phase: 'active', requestId: 'scavenge-1',
+    revision: 5, outcome: 'committed', resolutionSource: 'facilitator',
+    redactionPolicy: 'action-audit-metadata-only-v1', createdAt: 'server-time',
+  });
+  expect(Object.keys(actionAudit ?? {}).sort()).toEqual([
+    'action', 'actorRoleId', 'actorUid', 'createdAt', 'outcome', 'phase',
+    'redactionPolicy', 'requestId', 'resolutionSource', 'revision',
+    'schemaVersion', 'sessionId',
+  ].sort());
+  expect(actionAudit).not.toHaveProperty('allocations');
+  expect(actionAudit).not.toHaveProperty('transfers');
+  expect(actionAudit).not.toHaveProperty('inventories');
 });
 
 it('replays the same request without a second ledger mutation and rejects a later allocation', async () => {
@@ -114,6 +129,9 @@ it('replays the same request without a second ledger mutation and rejects a late
   const updateCount = mock.updates.length;
   await expect(scavengeDestroyedShipStores.run(request())).resolves.toEqual(first);
   expect(mock.updates).toHaveLength(updateCount);
+  expect(mock.stored.get('sessions/s1/actionAudits/scavenge-1')).toMatchObject({
+    action: 'ship-store-scavenge', requestId: 'scavenge-1', revision: 5,
+  });
   await expect(scavengeDestroyedShipStores.run(request({
     allocations: {
       dione: { ore: 2, fuel: 3, food: 4, water: 1, materials: 1, securityTeams: 1 },
@@ -125,10 +143,26 @@ it('replays the same request without a second ledger mutation and rejects a late
   expect(mock.updates).toHaveLength(updateCount);
 });
 
+it('fails closed when the standardized audit path belongs to another producer', async () => {
+  mock.stored.set('sessions/s1/actionAudits/audit-collision', {
+    schemaVersion: 1, sessionId: 's1', actorUid: 'u1', actorRoleId: null,
+    action: 'ship-counter-batch', phase: 'active', requestId: 'audit-collision',
+    revision: 1, outcome: 'committed', resolutionSource: 'facilitator',
+    redactionPolicy: 'action-audit-metadata-only-v1', createdAt: 'server-time',
+  });
+
+  await expect(scavengeDestroyedShipStores.run(request({ requestId: 'audit-collision' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.updates).toHaveLength(0);
+  expect(mock.stored.get('sessions/s1/actionAudits/audit-collision')?.action)
+    .toBe('ship-counter-batch');
+});
+
 it('returns a replayable stale result before changing any balance', async () => {
   const payload = { expectedRevision: 3, requestId: 'stale-scavenge' };
   const first = await scavengeDestroyedShipStores.run(request(payload));
   expect(first).toMatchObject({ status: 'stale', currentRevision: 4 });
+  expect(mock.stored.has('sessions/s1/actionAudits/stale-scavenge')).toBe(false);
   await expect(scavengeDestroyedShipStores.run(request(payload))).resolves.toEqual(first);
   expect(mock.updates).toHaveLength(0);
 });

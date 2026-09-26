@@ -4,11 +4,29 @@ const mock = vi.hoisted(() => ({
   get: vi.fn(), update: vi.fn(), role: 'gm', owner: 'u1', connected: true,
   phase: 'active', shipId: 'capybara', population: 16000, unrest: 0,
   alerts: {} as Record<string, unknown>, unrestAlerts: {} as Record<string, unknown>,
+  receipts: {} as Record<string, Record<string, unknown>>,
+  audits: {} as Record<string, Record<string, unknown>>,
+  set: vi.fn(),
 }));
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => ({ doc: (path: string) => path, collection: (path: string) => path,
-    runTransaction: (callback: (tx: unknown) => unknown) => callback({ get: mock.get, update: mock.update }) }),
+    runTransaction: async (callback: (tx: unknown) => unknown) => {
+      const writes: Record<string, Record<string, unknown>> = {};
+      const result = await callback({
+        get: mock.get,
+        update: mock.update,
+        set: (path: string, value: Record<string, unknown>) => {
+          mock.set(path, value);
+          writes[path] = value;
+        },
+      });
+      for (const [path, value] of Object.entries(writes)) {
+        if (path.includes('/commandReceipts/')) mock.receipts[path] = value;
+        if (path.includes('/actionAudits/')) mock.audits[path] = value;
+      }
+      return result;
+    } }),
   FieldValue: { serverTimestamp: () => 'server-time' }, Timestamp: { now: () => ({ toMillis: () => Date.now() }) },
 }));
 import { adjustShipPopulation, dismissPopulationAlert } from './index';
@@ -19,9 +37,17 @@ beforeEach(() => {
   mock.role = 'gm'; mock.owner = 'u1'; mock.connected = true; mock.phase = 'active';
   mock.shipId = 'capybara'; mock.population = 16000; mock.unrest = 0;
   mock.alerts = {}; mock.unrestAlerts = {};
+  mock.receipts = {}; mock.audits = {}; mock.set.mockReset();
   mock.update.mockReset();
   mock.get.mockImplementation(async (path: string) => {
-    if (path.includes('/commandReceipts/')) return { exists: false, get: () => undefined };
+    if (path.includes('/commandReceipts/')) {
+      const receipt = mock.receipts[path];
+      return { exists: receipt !== undefined, get: (key: string) => receipt?.[key] };
+    }
+    if (path.includes('/actionAudits/')) {
+      const audit = mock.audits[path];
+      return { exists: audit !== undefined, get: (key: string) => audit?.[key], data: () => audit };
+    }
     if (path.endsWith('/gmInstances')) return { docs: [{ id: 'gm1' }, { id: 'gm2' }] };
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, connected: mock.connected }
@@ -37,15 +63,34 @@ beforeEach(() => {
 });
 const data = { sessionId: 's1', shipId: 'capybara', delta: -1, instanceId: 'gm1' };
 it('writes a step and the targeted alert in the same transaction', async () => {
-  await expect(adjustShipPopulation.run(request(data))).resolves.toMatchObject({
+  const committedRequest = { ...data, requestId: 'population-change' };
+  const first = await adjustShipPopulation.run(request(committedRequest));
+  expect(first).toMatchObject({
     amount: 15000, alertRaised: true, actorUid: 'u1', vesselId: 'capybara',
-    turn: 1, phase: 'active', revision: 1, idempotencyKey: 'test-population',
-    auditId: 'adjust-population-test-population',
+    turn: 1, phase: 'active', revision: 1, idempotencyKey: 'population-change',
+    auditId: 'adjust-population-population-change',
   });
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     'shipSurvivors.capybara': 15000,
     populationAlerts: { capybara: expect.objectContaining({ population: 15000, targetGmInstanceIds: ['gm1', 'gm2'] }) },
   }));
+  const audit = mock.audits['sessions/s1/actionAudits/population-change'];
+  expect(audit).toMatchObject({
+    schemaVersion: 1, sessionId: 's1', actorUid: 'u1', action: 'ship-population-adjustment',
+    phase: 'active', requestId: 'population-change', revision: 1, outcome: 'committed',
+    resolutionSource: 'facilitator', redactionPolicy: 'action-audit-metadata-only-v1',
+  });
+  expect(Object.keys(audit ?? {}).sort()).toEqual([
+    'action', 'actorRoleId', 'actorUid', 'createdAt', 'outcome', 'phase',
+    'redactionPolicy', 'requestId', 'resolutionSource', 'revision',
+    'schemaVersion', 'sessionId',
+  ].sort());
+  expect(audit).not.toHaveProperty('amount');
+  expect(audit).not.toHaveProperty('delta');
+  expect(audit).not.toHaveProperty('shipId');
+  const writesAfterCommit = mock.set.mock.calls.length;
+  await expect(adjustShipPopulation.run(request(committedRequest))).resolves.toEqual(first);
+  expect(mock.set).toHaveBeenCalledTimes(writesAfterCommit);
 });
 it.each(['player', 'observer'])('denies %s even with a forged GM instance', async (role) => {
   mock.role = role;
@@ -66,6 +111,7 @@ it('moves AEGIS through its own printed track', async () => {
   mock.population = 2500;
   mock.get.mockImplementation(async (path: string) => {
     if (path.includes('/commandReceipts/')) return { exists: false, get: () => undefined };
+    if (path.includes('/actionAudits/')) return { exists: false, get: () => undefined, data: () => undefined };
     if (path.endsWith('/gmInstances')) return { docs: [{ id: 'gm1' }] };
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, connected: mock.connected }

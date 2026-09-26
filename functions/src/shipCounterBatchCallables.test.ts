@@ -7,6 +7,7 @@ const mock = vi.hoisted(() => ({
   phase: 'active',
   revision: 0,
   receipts: {} as Record<string, Record<string, unknown>>,
+  audits: {} as Record<string, Record<string, unknown>>,
   set: vi.fn(),
   retry: false, retryFuel: undefined as number | undefined,
   unrestAlerts: {} as Record<string, unknown>, populationAlerts: {} as Record<string, unknown>,
@@ -32,7 +33,10 @@ vi.mock('firebase-admin/firestore', () => ({
         if (mock.retryFuel !== undefined) mock.fuel = mock.retryFuel;
       }
       const result = await callback(transaction);
-      Object.assign(mock.receipts, writes);
+      for (const [path, value] of Object.entries(writes)) {
+        if (path.includes('/commandReceipts/')) mock.receipts[path] = value;
+        if (path.includes('/actionAudits/')) mock.audits[path] = value;
+      }
       return result;
     },
   }),
@@ -40,7 +44,7 @@ vi.mock('firebase-admin/firestore', () => ({
   Timestamp: { now: () => ({ toMillis: () => Date.now() }) },
 }));
 
-import { adjustShipResource, applyShipCounterSteps } from './index';
+import { adjustShipResource, adjustShipUnrest, applyShipCounterSteps } from './index';
 
 function request(data: Record<string, unknown>, uid = 'u1') {
   const withRevision = data.counter === undefined || data.expectedRevision !== undefined
@@ -59,8 +63,13 @@ beforeEach(() => {
   mock.unrestAlerts = {}; mock.populationAlerts = {};
   mock.update.mockReset();
   mock.receipts = {};
+  mock.audits = {};
   mock.set.mockReset();
   mock.get.mockImplementation(async (path: string) => {
+    if (path.includes('/actionAudits/')) {
+      const audit = mock.audits[path];
+      return { exists: audit !== undefined, get: (key: string) => audit?.[key], data: () => audit };
+    }
     if (path.includes('/commandReceipts/')) {
       const receipt = mock.receipts[path];
       return { exists: receipt !== undefined, get: (key: string) => receipt?.[key] };
@@ -84,14 +93,41 @@ beforeEach(() => {
 });
 
 it('applies rapid resource steps in their click order inside one transaction', async () => {
-  await expect(applyShipCounterSteps.run(request({
+  const committedRequest = request({
     sessionId: 's1', instanceId: 'gm1', shipId: 'dione', counter: 'resource',
     resourceId: 'fuel', steps: [1, 1, -1],
-  }))).resolves.toMatchObject({ amount: 7, appliedSteps: [1, 1, -1], alertRaised: false,
+  });
+  const committed = await applyShipCounterSteps.run(committedRequest);
+  expect(committed).toMatchObject({ amount: 7, appliedSteps: [1, 1, -1], alertRaised: false,
     actorUid: 'u1', vesselId: 'dione', idempotencyKey: 'test-counter', auditId: 'counter-batch-test-counter' });
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     'shipResources.dione.fuel': 7,
   }));
+  expect(mock.audits['sessions/s1/actionAudits/test-counter']).toMatchObject({
+    schemaVersion: 1, sessionId: 's1', actorUid: 'u1', actorRoleId: null,
+    action: 'ship-counter-batch', phase: 'active', requestId: 'test-counter',
+    revision: 1, outcome: 'committed', resolutionSource: 'facilitator',
+    redactionPolicy: 'action-audit-metadata-only-v1', createdAt: 'server-time',
+  });
+  expect(mock.audits['sessions/s1/actionAudits/test-counter']).not.toHaveProperty('steps');
+  expect(mock.audits['sessions/s1/actionAudits/test-counter']).not.toHaveProperty('amount');
+  expect(mock.audits['sessions/s1/actionAudits/test-counter']).not.toHaveProperty('counter');
+  expect(mock.audits['sessions/s1/actionAudits/test-counter']).not.toHaveProperty('resourceId');
+  const writesAfterCommit = mock.set.mock.calls.length;
+  delete mock.audits['sessions/s1/actionAudits/test-counter'];
+  await expect(applyShipCounterSteps.run(committedRequest)).resolves.toEqual(committed);
+  expect(mock.set).toHaveBeenCalledTimes(writesAfterCommit + 1);
+  expect(mock.audits['sessions/s1/actionAudits/test-counter']).toMatchObject({
+    action: 'ship-counter-batch', requestId: 'test-counter', revision: 1,
+  });
+  const writesAfterAuditRepair = mock.set.mock.calls.length;
+  await expect(applyShipCounterSteps.run(committedRequest)).resolves.toEqual(committed);
+  expect(mock.set).toHaveBeenCalledTimes(writesAfterAuditRepair);
+  mock.audits['sessions/s1/actionAudits/test-counter']!.action = 'ship-store-scavenge';
+  await expect(applyShipCounterSteps.run(committedRequest))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).toHaveBeenCalledTimes(1);
+  expect(mock.set).toHaveBeenCalledTimes(writesAfterAuditRepair);
 });
 
 it('re-evaluates one resource command against the latest count after a transaction retry', async () => {
@@ -140,6 +176,7 @@ it.each([
     `sessions/s1/commandReceipts/stale-${counter}`,
     expect.objectContaining({ fingerprint: expect.any(Object), result }),
   );
+  expect(mock.audits[`sessions/s1/actionAudits/stale-${counter}`]).toBeUndefined();
   await expect(applyShipCounterSteps.run(request({
     sessionId: 's1', instanceId: 'gm1', shipId: 'dione', counter,
     ...(resourceId === undefined ? {} : { resourceId }),
@@ -213,6 +250,46 @@ it('keeps single and ordered resource commands at the safe upper boundary', asyn
   expect(mock.update).toHaveBeenLastCalledWith('sessions/s1', expect.objectContaining({
     'shipResources.dione.fuel': Number.MAX_SAFE_INTEGER,
   }));
+  expect(mock.audits['sessions/s1/actionAudits/test-counter']).toMatchObject({
+    action: 'ship-resource-adjustment', requestId: 'test-counter', revision: 1,
+    resolutionSource: 'facilitator', redactionPolicy: 'action-audit-metadata-only-v1',
+  });
+  expect(mock.audits['sessions/s1/actionAudits/boundary-batch']).toMatchObject({
+    action: 'ship-counter-batch', requestId: 'boundary-batch', revision: 1,
+  });
+  expect(mock.audits['sessions/s1/actionAudits/test-counter']).not.toHaveProperty('resourceId');
+  expect(mock.audits['sessions/s1/actionAudits/test-counter']).not.toHaveProperty('delta');
+});
+
+it('records a metadata-only facilitator audit for a single unrest correction', async () => {
+  await expect(adjustShipUnrest.run(request({
+    sessionId: 's1', instanceId: 'gm1', shipId: 'dione', delta: -1,
+    requestId: 'unrest-change',
+  }))).resolves.toMatchObject({ amount: 6, actorUid: 'u1', revision: 1 });
+  expect(mock.audits['sessions/s1/actionAudits/unrest-change']).toMatchObject({
+    schemaVersion: 1, sessionId: 's1', actorUid: 'u1', action: 'ship-unrest-adjustment',
+    phase: 'active', requestId: 'unrest-change', revision: 1, outcome: 'committed',
+    resolutionSource: 'facilitator', redactionPolicy: 'action-audit-metadata-only-v1',
+  });
+  expect(mock.audits['sessions/s1/actionAudits/unrest-change']).not.toHaveProperty('amount');
+  expect(mock.audits['sessions/s1/actionAudits/unrest-change']).not.toHaveProperty('delta');
+  expect(mock.audits['sessions/s1/actionAudits/unrest-change']).not.toHaveProperty('shipId');
+});
+
+it('fails closed when an audit record exists without its bound command receipt', async () => {
+  mock.audits['sessions/s1/actionAudits/audit-collision'] = {
+    schemaVersion: 1, sessionId: 's1', actorUid: 'u1', actorRoleId: null,
+    action: 'ship-store-scavenge', phase: 'active', requestId: 'audit-collision',
+    revision: 1, outcome: 'committed', resolutionSource: 'facilitator',
+    redactionPolicy: 'action-audit-metadata-only-v1', createdAt: 'server-time',
+  };
+  await expect(applyShipCounterSteps.run(request({
+    sessionId: 's1', instanceId: 'gm1', shipId: 'dione', counter: 'resource',
+    resourceId: 'fuel', steps: [1], requestId: 'audit-collision',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.audits['sessions/s1/actionAudits/audit-collision']?.action)
+    .toBe('ship-store-scavenge');
 });
 
 it('preserves an unrest threshold crossing rather than netting it away', async () => {
@@ -224,6 +301,10 @@ it('preserves an unrest threshold crossing rather than netting it away', async (
     'shipUnrest.dione': 8,
     unrestAlerts: { dione: expect.objectContaining({ targetGmInstanceIds: ['gm1', 'gm2'] }) },
   }));
+  expect(mock.audits['sessions/s1/actionAudits/test-counter']).toMatchObject({
+    action: 'ship-counter-batch', requestId: 'test-counter', revision: 1,
+    resolutionSource: 'facilitator', redactionPolicy: 'action-audit-metadata-only-v1',
+  });
 });
 
 it('preserves the first population threshold and targets every active GM', async () => {
@@ -235,6 +316,10 @@ it('preserves the first population threshold and targets every active GM', async
     'shipSurvivors.capybara': 15_000,
     populationAlerts: { capybara: expect.objectContaining({ population: 15_000, targetGmInstanceIds: ['gm1', 'gm2'] }) },
   }));
+  expect(mock.audits['sessions/s1/actionAudits/test-counter']).toMatchObject({
+    action: 'ship-counter-batch', requestId: 'test-counter', revision: 1,
+    resolutionSource: 'facilitator', redactionPolicy: 'action-audit-metadata-only-v1',
+  });
 });
 
 it('adds two unrest once when an ordered Capybara population input reaches zero', async () => {

@@ -461,7 +461,7 @@ import {
   buildAuthoritativeEventEnvelope,
 } from './eventEnvelope';
 import { buildPrivacySafeEventRecord } from './eventRedaction';
-import { buildActionAuditRecord } from './actionAudit';
+import { buildActionAuditRecord, type ActionAuditAction } from './actionAudit';
 import {
   createAirspaceClosureParkingTask,
   createAirspaceClosureTaskScheduler,
@@ -3975,6 +3975,101 @@ function vesselActionEnvelope(
     idempotencyKey: requestId,
     auditId: `${action}-${requestId}`,
   });
+}
+
+function vesselActionAuditRef(sessionId: string, requestId: string): DocumentReference {
+  return db.doc(`sessions/${sessionId}/actionAudits/${requestId}`);
+}
+
+function writeVesselActionAudit(
+  tx: Transaction,
+  auditRef: DocumentReference,
+  sessionId: string,
+  actorUid: string,
+  actorRoleId: string | null,
+  action: ActionAuditAction,
+  phase: LifecyclePhase,
+  requestId: string,
+  revision: number,
+): void {
+  txSetIfSupported(tx, auditRef, buildActionAuditRecord({
+    sessionId, actorUid, actorRoleId, action, phase, requestId, revision,
+    outcome: 'committed', resolutionSource: 'facilitator',
+    createdAt: FieldValue.serverTimestamp(),
+  }));
+}
+
+function ensureVesselActionAuditForReplay(
+  tx: Transaction,
+  auditSnapshot: DocumentSnapshot,
+  auditRef: DocumentReference,
+  sessionId: string,
+  actorUid: string,
+  action: ActionAuditAction,
+  requestId: string,
+  result: Record<string, unknown>,
+): void {
+  if (result.actorUid !== actorUid || result.idempotencyKey !== requestId || result.phase !== 'active' ||
+      (result.status !== undefined && result.status !== 'committed' && result.status !== 'stale')) {
+    throw commandError(
+      'failed-precondition',
+      'This vessel action receipt does not match its standardized audit request.',
+      'conflict',
+    );
+  }
+
+  if (result.status === 'stale') {
+    if (auditSnapshot.exists) {
+      throw commandError(
+        'failed-precondition',
+        'This stale vessel action receipt conflicts with an existing standardized audit.',
+        'conflict',
+      );
+    }
+    return;
+  }
+  if (!Number.isSafeInteger(result.revision) || (result.revision as number) < 1) {
+    throw commandError(
+      'failed-precondition',
+      'This committed vessel action receipt has no valid committed revision for its audit.',
+      'conflict',
+    );
+  }
+
+  const record = buildActionAuditRecord({
+    sessionId,
+    actorUid,
+    actorRoleId: result.actorRoleId,
+    action,
+    phase: result.phase,
+    requestId,
+    revision: result.revision,
+    outcome: 'committed',
+    resolutionSource: 'facilitator',
+    createdAt: FieldValue.serverTimestamp(),
+  });
+  if (auditSnapshot.exists) {
+    const stored = auditSnapshot.data();
+    const keys = Object.keys(record).sort();
+    const storedKeys = isRecord(stored) ? Object.keys(stored).sort() : [];
+    const matches = isRecord(stored) && storedKeys.length === keys.length &&
+      storedKeys.every((key, index) => key === keys[index]) &&
+      keys.every((key) => key === 'createdAt' ||
+        stored[key] === (record as Record<string, unknown>)[key]) &&
+      stored.createdAt !== undefined && stored.createdAt !== null;
+    if (!matches) {
+      throw commandError(
+        'failed-precondition',
+        'This vessel action receipt has a mismatched standardized audit record.',
+        'conflict',
+      );
+    }
+    return;
+  }
+
+  // Older receipts predate standardized action audits. Replays may safely add
+  // their original metadata once, using the bound receipt envelope only.
+  txSetIfSupported(tx, auditRef, record);
 }
 
 function isVesselActionResult(value: unknown): value is Record<string, unknown> {
@@ -20998,6 +21093,7 @@ export const scavengeDestroyedShipStores = onCall<{
   const auditRef = db.doc(
     `sessions/${change.sessionId}/shipStoreScavenges/${change.sourceShipId}/audit/${change.requestId}`,
   );
+  const actionAuditRef = vesselActionAuditRef(change.sessionId, change.requestId);
   const receiptRef = commandReceiptRef(change.sessionId, change.requestId);
   const allocationFingerprint = JSON.stringify(Object.fromEntries(
     Object.entries(change.allocations).sort(([left], [right]) => left.localeCompare(right)).map(
@@ -21017,13 +21113,14 @@ export const scavengeDestroyedShipStores = onCall<{
   );
 
   return db.runTransaction(async (tx) => {
-    const [session, player, instance, prior, priorState, groups] = await Promise.all([
+    const [session, player, instance, prior, priorState, groups, actionAudit] = await Promise.all([
       tx.get(sessionRef),
       tx.get(playerRef),
       tx.get(instanceRef),
       tx.get(receiptRef),
       tx.get(stateRef),
       tx.get(db.collection(`sessions/${change.sessionId}/fleetGroups`)),
+      tx.get(actionAuditRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(player) || player.get('role') !== 'gm' ||
@@ -21032,7 +21129,20 @@ export const scavengeDestroyedShipStores = onCall<{
     }
     requirePlayerShipActionAuthority(player);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'destroyed-ship store scavenge');
-    if (replay) return replay;
+    if (replay) {
+      ensureVesselActionAuditForReplay(
+        tx, actionAudit, actionAuditRef, change.sessionId, uid,
+        'ship-store-scavenge', change.requestId, replay,
+      );
+      return replay;
+    }
+    if (actionAudit.exists) {
+      throw commandError(
+        'failed-precondition',
+        'This destroyed-ship store request has a standardized audit without its bound receipt.',
+        'conflict',
+      );
+    }
     requireActiveGameplayPhase(session);
     if (priorState.exists) {
       throw commandError(
@@ -21172,6 +21282,11 @@ export const scavengeDestroyedShipStores = onCall<{
     };
     tx.set(stateRef, authorityRecord);
     tx.set(auditRef, authorityRecord);
+    writeVesselActionAudit(
+      tx, actionAuditRef, change.sessionId, uid, vesselActorRoleId(player),
+      'ship-store-scavenge', vesselActionPhase(session), change.requestId,
+      revisions[change.sourceShipId]!,
+    );
     txSetIfSupported(tx, receiptRef, {
       fingerprint, result, createdAt: FieldValue.serverTimestamp(),
     });
@@ -21188,6 +21303,7 @@ export const adjustShipResource = onCall<{
   const identity = requireVesselActionRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
   const receiptRef = commandReceiptRef(change.sessionId, identity.requestId);
+  const actionAuditRef = vesselActionAuditRef(change.sessionId, identity.requestId);
   const fingerprint = vesselActionFingerprint(
     'adjust-resource', change.sessionId, identity.requestId, uid, change.instanceId ?? null,
     identity.expectedRevision ?? null, { shipId: change.shipId, resourceId: change.resourceId, delta: change.delta },
@@ -21196,12 +21312,25 @@ export const adjustShipResource = onCall<{
     await requireShipCounterAuthority(
       tx, change.sessionId, uid, change.shipId, change.instanceId, true,
     );
-    const session = await tx.get(sessionRef);
+    const [session, player, prior, actionAudit] = await Promise.all([
+      tx.get(sessionRef),
+      tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`)),
+      tx.get(receiptRef),
+      tx.get(actionAuditRef),
+    ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    const player = await tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`));
-    const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'resource adjustment');
-    if (replay) return replay;
+    if (replay) {
+      ensureVesselActionAuditForReplay(
+        tx, actionAudit, actionAuditRef, change.sessionId, uid,
+        'ship-resource-adjustment', identity.requestId, replay,
+      );
+      return replay;
+    }
+    if (actionAudit.exists) {
+      throw commandError('failed-precondition',
+        'This resource adjustment has a standardized audit without its bound receipt.', 'conflict');
+    }
     requireActiveGameplayPhase(session);
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
@@ -21228,6 +21357,11 @@ export const adjustShipResource = onCall<{
       ...vesselActionEnvelope(session, player, uid, change.shipId, currentRevision + 1,
         identity.requestId, 'adjust-resource'),
     };
+    writeVesselActionAudit(
+      tx, actionAuditRef, change.sessionId, uid, vesselActorRoleId(player),
+      'ship-resource-adjustment', vesselActionPhase(session), identity.requestId,
+      currentRevision + 1,
+    );
     txSetIfSupported(tx, receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
   });
@@ -21242,6 +21376,7 @@ export const adjustShipUnrest = onCall<{
   const identity = requireVesselActionRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
   const receiptRef = commandReceiptRef(change.sessionId, identity.requestId);
+  const actionAuditRef = vesselActionAuditRef(change.sessionId, identity.requestId);
   const fingerprint = vesselActionFingerprint(
     'adjust-unrest', change.sessionId, identity.requestId, uid, change.instanceId ?? null,
     identity.expectedRevision ?? null, { shipId: change.shipId, delta: change.delta },
@@ -21250,12 +21385,25 @@ export const adjustShipUnrest = onCall<{
     await requireShipCounterAuthority(
       tx, change.sessionId, uid, change.shipId, change.instanceId, true,
     );
-    const session = await tx.get(sessionRef);
+    const [session, player, prior, actionAudit] = await Promise.all([
+      tx.get(sessionRef),
+      tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`)),
+      tx.get(receiptRef),
+      tx.get(actionAuditRef),
+    ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    const player = await tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`));
-    const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'unrest adjustment');
-    if (replay) return replay;
+    if (replay) {
+      ensureVesselActionAuditForReplay(
+        tx, actionAudit, actionAuditRef, change.sessionId, uid,
+        'ship-unrest-adjustment', identity.requestId, replay,
+      );
+      return replay;
+    }
+    if (actionAudit.exists) {
+      throw commandError('failed-precondition',
+        'This unrest adjustment has a standardized audit without its bound receipt.', 'conflict');
+    }
     requireActiveGameplayPhase(session);
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
@@ -21296,6 +21444,11 @@ export const adjustShipUnrest = onCall<{
       ...vesselActionEnvelope(session, player, uid, change.shipId, currentRevision + 1,
         identity.requestId, 'adjust-unrest'),
     };
+    writeVesselActionAudit(
+      tx, actionAuditRef, change.sessionId, uid, vesselActorRoleId(player),
+      'ship-unrest-adjustment', vesselActionPhase(session), identity.requestId,
+      currentRevision + 1,
+    );
     txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
@@ -21844,18 +21997,32 @@ export const adjustShipPopulation = onCall<{
   }
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
   const receiptRef = commandReceiptRef(change.sessionId, identity.requestId);
+  const actionAuditRef = vesselActionAuditRef(change.sessionId, identity.requestId);
   const fingerprint = vesselActionFingerprint(
     'adjust-population', change.sessionId, identity.requestId, uid, change.instanceId ?? null,
     identity.expectedRevision ?? null, { shipId: change.shipId, delta: change.delta },
   );
   return db.runTransaction(async (tx) => {
     await requireShipCounterAuthority(tx, change.sessionId, uid, change.shipId, change.instanceId, true);
-    const session = await tx.get(sessionRef);
+    const [session, player, prior, actionAudit] = await Promise.all([
+      tx.get(sessionRef),
+      tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`)),
+      tx.get(receiptRef),
+      tx.get(actionAuditRef),
+    ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    const player = await tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`));
-    const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'population adjustment');
-    if (replay) return replay;
+    if (replay) {
+      ensureVesselActionAuditForReplay(
+        tx, actionAudit, actionAuditRef, change.sessionId, uid,
+        'ship-population-adjustment', identity.requestId, replay,
+      );
+      return replay;
+    }
+    if (actionAudit.exists) {
+      throw commandError('failed-precondition',
+        'This population adjustment has a standardized audit without its bound receipt.', 'conflict');
+    }
     requireActiveGameplayPhase(session);
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
@@ -21912,6 +22079,11 @@ export const adjustShipPopulation = onCall<{
       ...vesselActionEnvelope(session, player, uid, change.shipId, currentRevision + 1,
         identity.requestId, 'adjust-population'),
     };
+    writeVesselActionAudit(
+      tx, actionAuditRef, change.sessionId, uid, vesselActorRoleId(player),
+      'ship-population-adjustment', vesselActionPhase(session), identity.requestId,
+      currentRevision + 1,
+    );
     txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
@@ -21951,6 +22123,7 @@ export const applyShipCounterSteps = onCall<{
   };
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
   const receiptRef = commandReceiptRef(change.sessionId, identity.requestId);
+  const actionAuditRef = vesselActionAuditRef(change.sessionId, identity.requestId);
   const fingerprint = vesselActionFingerprint(
     'counter-batch', change.sessionId, identity.requestId, uid, change.instanceId,
     identity.expectedRevision ?? null,
@@ -21960,12 +22133,25 @@ export const applyShipCounterSteps = onCall<{
     await requireShipCounterAuthority(
       tx, change.sessionId, uid, change.shipId, change.instanceId, true,
     );
-    const session = await tx.get(sessionRef);
+    const [session, player, prior, actionAudit] = await Promise.all([
+      tx.get(sessionRef),
+      tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`)),
+      tx.get(receiptRef),
+      tx.get(actionAuditRef),
+    ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    const player = await tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`));
-    const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'counter batch');
-    if (replay) return replay;
+    if (replay) {
+      ensureVesselActionAuditForReplay(
+        tx, actionAudit, actionAuditRef, change.sessionId, uid,
+        'ship-counter-batch', identity.requestId, replay,
+      );
+      return replay;
+    }
+    if (actionAudit.exists) {
+      throw commandError('failed-precondition',
+        'This counter batch has a standardized audit without its bound receipt.', 'conflict');
+    }
     requireActiveGameplayPhase(session);
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
@@ -22024,6 +22210,10 @@ export const applyShipCounterSteps = onCall<{
       });
       const reply = { ...result, ...batchContext, ...vesselActionEnvelope(session, player, uid, change.shipId,
         revision, identity.requestId, 'counter-batch') };
+      writeVesselActionAudit(
+        tx, actionAuditRef, change.sessionId, uid, vesselActorRoleId(player),
+        'ship-counter-batch', vesselActionPhase(session), identity.requestId, revision,
+      );
       txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
       return reply;
     }
@@ -22063,6 +22253,10 @@ export const applyShipCounterSteps = onCall<{
       });
       const reply = { ...result, ...batchContext, ...vesselActionEnvelope(session, player, uid, change.shipId,
         revision, identity.requestId, 'counter-batch') };
+      writeVesselActionAudit(
+        tx, actionAuditRef, change.sessionId, uid, vesselActorRoleId(player),
+        'ship-counter-batch', vesselActionPhase(session), identity.requestId, revision,
+      );
       txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
       return reply;
     }
@@ -22117,6 +22311,10 @@ export const applyShipCounterSteps = onCall<{
     });
     const reply = { ...result, ...batchContext, ...vesselActionEnvelope(session, player, uid, change.shipId,
       revision, identity.requestId, 'counter-batch') };
+    writeVesselActionAudit(
+      tx, actionAuditRef, change.sessionId, uid, vesselActorRoleId(player),
+      'ship-counter-batch', vesselActionPhase(session), identity.requestId, revision,
+    );
     txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
