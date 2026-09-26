@@ -18,6 +18,7 @@ vi.mock('firebase-admin/firestore', () => ({
     collection: (path: string) => path,
     runTransaction: (callback: (tx: unknown) => unknown) => callback({
       get: async (ref: string) => {
+        if (ref.includes('/actionAudits/')) return snapshot({}, ref, false);
         if (ref.includes('/commandReceipts/')) {
           const fields = mock.receipts.get(ref);
           return snapshot(fields ?? {}, ref, fields !== undefined);
