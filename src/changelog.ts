@@ -26,6 +26,19 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 458, partial: 42, active: 0, missing: 251,
     },
     changes: [
+      'The assigned Starlight, Hummingbird, Endeavour, and Comms Officer consoles now include a printed-coordinate scouting request form during Coordination. Ask your facilitator for follow-up.',
+      '458 of 751 planned items are complete (60.99%).',
+    ],
+    implementationPrompts: [321],
+  },
+
+  {
+    version: '0.5.33',
+    implementationProgress: {
+      completed: 458, total: 751, percentage: '60.99%',
+      done: 458, partial: 42, active: 0, missing: 251,
+    },
+    changes: [
       'After reconnecting, your console waits for current session information before showing game state again.',
       '458 of 751 planned items are complete (60.99%).',
     ],

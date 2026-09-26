@@ -14693,7 +14693,7 @@
         "acceptance": "only Starlight, Hummingbird, Endeavour, or the assigned Comms Officer can create their printed request.",
         "title": "Define scout entitlements."
       },
-      "description": "The server authority layer defines exactly four scout request identities: Starlight for the active Wing Commander, Hummingbird for the active Quellon Explorer, Endeavour for the active Shepherd Scientist, and the Comms Officer replacement role on AEGIS. The primary v1.1 A4 single-sided sheet, page 21, confirms the Comms role and AEGIS association; its range and cadence remain owned by Prompt 326. A production `requestScout` callable rechecks a connected player, active gameplay and current Coordination cycle, a valid printed role configuration and matching vessel roster, canonical assignment-and-seat binding for core craft, exact replacement-role authority for Comms, and the canonical craft/replacement catalogs. It creates a private pending request only for one of the 22 printed coordinates and binds retries in the shared command-receipt namespace. Stale or mismatched core authority, cross-entitlement requests, inactive anchors, unknown identities or targets, malformed rosters, replay collisions, and invalid phases fail closed. The callable does not resolve range or cadence, spend fuel, reveal chart content, consume a scan attempt, or promise a result; resolution, private result delivery, and UI remain downstream. No player-facing scouting control or live authorized-session acceptance has been verified, so P321 remains partial.",
+      "description": "The server authority layer defines exactly four scout request identities: Starlight for the active Wing Commander, Hummingbird for the active Quellon Explorer, Endeavour for the active Shepherd Scientist, and the Comms Officer replacement role on AEGIS. The primary v1.1 A4 single-sided sheet, page 21, confirms the Comms role and AEGIS association; its range and cadence remain owned by Prompt 326. A production `requestScout` callable rechecks a connected player, active gameplay and current Coordination cycle, a valid printed role configuration and matching vessel roster, canonical assignment-and-seat binding for core craft, exact replacement-role authority for Comms, and the canonical craft/replacement catalogs. It creates a private pending request only for one of the 22 printed coordinates and binds retries in the shared command-receipt namespace. Stale or mismatched core authority, cross-entitlement requests, inactive anchors, unknown identities or targets, malformed rosters, replay collisions, and invalid phases fail closed. The callable does not resolve range or cadence, spend fuel, reveal chart content, consume a scan attempt, or promise a result; resolution and private result delivery remain downstream. The player-facing form is included in the 0.5.34 candidate on the four entitled shuttle and replacement-role consoles. Local rendered review passed at 320×740, 844×390, and 1440×900 in normal and reduced motion, with no horizontal overflow and keyboard-accessible return navigation. This fixture-backed review is not live production acceptance: no authorized production-session request has been observed, so P321 remains partial.",
       "evidenceIds": "E-AUDIT-321;E-321-SCOUT-ENTITLEMENTS",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -14702,7 +14702,9 @@
       "milestoneHints": "M4;M5;M8",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.34"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
       "status": "partial",

@@ -620,9 +620,15 @@ it('renders the current and previous changelog copy with progress and keyboard s
   expect(region).toHaveAttribute('tabindex', '0');
   expect(renderedChanges.every((change) => !/\bprompts?\b/i.test(change))).toBe(true);
   expect(within(newestEntry).getByText(
-    'After reconnecting, your console waits for current session information before showing game state again.',
+    'The assigned Starlight, Hummingbird, Endeavour, and Comms Officer consoles now include a printed-coordinate scouting request form during Coordination. Ask your facilitator for follow-up.',
   )).toBeVisible();
   expect(within(newestEntry).getByText('458 of 751 planned items are complete (60.99%).')).toBeVisible();
+  const previousReconnectEntry = within(region).getByRole('heading', { name: 'Build 0.5.33' }).closest('article');
+  if (!previousReconnectEntry) throw new Error('Expected the preserved P618 reconnect release entry.');
+  expect(within(previousReconnectEntry).getByText(
+    'After reconnecting, your console waits for current session information before showing game state again.',
+  )).toBeVisible();
+  expect(within(previousReconnectEntry).getByText('458 of 751 planned items are complete (60.99%).')).toBeVisible();
   const previousWolfEntry = within(region).getByRole('heading', { name: 'Build 0.5.32' }).closest('article');
   if (!previousWolfEntry) throw new Error('Expected the preserved P428 Wolf targeting release entry.');
   expect(within(previousWolfEntry).getByText(
