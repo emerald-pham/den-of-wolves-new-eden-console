@@ -3,6 +3,7 @@ import type { PdfEscortWingMemberView } from '@/types/game';
 const INITIAL_PDF_ESCORT_WING_VIEW: PdfEscortWingMemberView = Object.freeze({
   type: 'pdf-escort-fighter-wing-view',
   revision: 0,
+  cycle: null,
   capacity: 4,
   fighters: 4,
   launched: false,
@@ -34,7 +35,7 @@ export function parsePdfEscortWingMemberView(
   if (value === undefined) return INITIAL_PDF_ESCORT_WING_VIEW;
   const raw = record(value);
   if (!raw || !exactKeys(raw, [
-    'type', 'revision', 'capacity', 'fighters', 'launched', 'mediumResolved',
+    'type', 'revision', 'cycle', 'capacity', 'fighters', 'launched', 'mediumResolved',
     'mediumActionCount', 'shortResolved', 'shortRollCount', 'losses',
   ]) || raw.type !== 'pdf-escort-fighter-wing-view' || raw.capacity !== 4 ||
       !nonNegativeInteger(raw.revision) || !nonNegativeInteger(raw.fighters) ||
@@ -46,13 +47,17 @@ export function parsePdfEscortWingMemberView(
       !nonNegativeInteger(raw.shortRollCount) || raw.shortRollCount > 4 ||
       raw.mediumResolved !== (raw.mediumActionCount > 0) ||
       raw.shortResolved !== (raw.shortRollCount > 0) ||
-      (raw.launched && raw.revision < 1) ||
-      (!raw.launched && (raw.revision !== 0 || raw.fighters !== 4 || raw.losses !== 0 ||
-        raw.mediumResolved || raw.shortResolved))) return undefined;
+      (raw.cycle !== null && (!nonNegativeInteger(raw.cycle) || raw.cycle < 1)) ||
+      (raw.cycle === null && (raw.revision !== 0 || raw.fighters !== 4 || raw.losses !== 0 ||
+        raw.launched || raw.mediumResolved || raw.shortResolved)) ||
+      (!raw.launched && (raw.mediumResolved || raw.shortResolved)) ||
+      (raw.cycle !== null && raw.revision === 0 && (raw.fighters !== 4 || raw.losses !== 0)) ||
+      (raw.launched && (raw.revision < 1 || raw.cycle === null))) return undefined;
 
   return Object.freeze({
     type: 'pdf-escort-fighter-wing-view',
     revision: raw.revision as number,
+    cycle: raw.cycle as number | null,
     capacity: 4,
     fighters: raw.fighters as number,
     launched: raw.launched,

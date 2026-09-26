@@ -54,6 +54,8 @@ const {
   advanceWolfAttackToLongRange,
   getDioneMaliadesLaunch,
   launchDioneMaliades,
+  getPdfEscortWingLaunch,
+  launchPdfEscortWing,
   setActiveRoleEnabled,
   setActiveRoleConfiguration,
   selectConsoleRole,
@@ -2192,6 +2194,43 @@ describe('GM instance commands', () => {
     vi.mocked(httpsCallable).mockImplementation((_functions, name) =>
       name === 'getDioneMaliadesLaunch' ? destroyedRead : launch);
     await expect(getDioneMaliadesLaunch()).resolves.toEqual(destroyedView);
+  });
+
+  it('reads and commits the P.D.F. Colonel launch against attack and wing revisions', async () => {
+    useSessionStore.getState().setIdentity(
+      { ...session, phase: 'active', currentTurn: 2 },
+      {
+        ...player, assignedRoleId: 'refinery-124-pdf-colonel',
+        seatId: 'refinery-124-pdf-colonel', activeConsoleRoleId: 'refinery-124-pdf-colonel',
+      },
+    );
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    const view = {
+      type: 'pdf-escort-wing-launch-view', sessionId: 's1', turn: 2,
+      revision: 5, wingRevision: 3, launched: false, eligible: true,
+    } as const;
+    const committed = {
+      ...view, status: 'committed', requestId: 'launch-pdf-1', revision: 6,
+      wingRevision: 4, launched: true, eligible: false, reason: 'already-launched',
+    } as const;
+    const read = callableReturning({ data: view });
+    let sentRequestId: unknown;
+    const launch = Object.assign(vi.fn(async (payload: unknown) => ({
+      data: { ...committed, requestId: sentRequestId = (payload as Record<string, unknown>).requestId },
+    })), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockImplementation((_functions, name) =>
+      name === 'getPdfEscortWingLaunch' ? read : launch);
+
+    await expect(getPdfEscortWingLaunch()).resolves.toEqual(view);
+    const result = await launchPdfEscortWing(2, 5, 3);
+    expect(result).toMatchObject({ ...committed, requestId: expect.any(String) });
+    expect(read).toHaveBeenCalledWith({ sessionId: 's1' });
+    expect(launch).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 's1', expectedTurn: 2, expectedRevision: 5, expectedWingRevision: 3,
+      requestId: expect.any(String),
+    }));
+    expect(result.requestId).toBe(sentRequestId);
   });
 
   it('does not queue an emergency timer command while offline', async () => {

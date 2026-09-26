@@ -18,6 +18,8 @@ import type {
   WolfAttackDeclarationResult,
   DioneMaliadesLaunchResult,
   DioneMaliadesLaunchView,
+  PdfEscortWingLaunchResult,
+  PdfEscortWingLaunchView,
   WolfCommanderTargetingView,
   AegisCommandAndControlResult,
   AegisCommandAndControlView,
@@ -3881,6 +3883,40 @@ function dioneMaliadesLaunchResultReply(value: unknown): DioneMaliadesLaunchResu
     : null;
 }
 
+function pdfEscortWingLaunchViewReply(value: unknown): PdfEscortWingLaunchView | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const reply = value as Record<string, unknown>;
+  const validReason = reply.reason === undefined || reply.reason === 'waiting' ||
+    reply.reason === 'uncharged' || reply.reason === 'damaged' ||
+    reply.reason === 'destroyed' || reply.reason === 'no-fighters' ||
+    reply.reason === 'already-launched';
+  if (reply.type !== 'pdf-escort-wing-launch-view' || typeof reply.sessionId !== 'string' ||
+      !reply.sessionId || !Number.isSafeInteger(reply.turn) || (reply.turn as number) < 1 ||
+      !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 0 ||
+      !Number.isSafeInteger(reply.wingRevision) || (reply.wingRevision as number) < 0 ||
+      typeof reply.launched !== 'boolean' || typeof reply.eligible !== 'boolean' || !validReason ||
+      (reply.eligible && (reply.launched || reply.reason !== undefined)) ||
+      (reply.launched && reply.reason !== 'already-launched') ||
+      (!reply.eligible && !reply.reason)) return null;
+  const reason = reply.reason as PdfEscortWingLaunchView['reason'];
+  return {
+    type: 'pdf-escort-wing-launch-view', sessionId: reply.sessionId,
+    turn: reply.turn as number, revision: reply.revision as number,
+    wingRevision: reply.wingRevision as number, launched: reply.launched,
+    eligible: reply.eligible, ...(reason === undefined ? {} : { reason }),
+  };
+}
+
+function pdfEscortWingLaunchResultReply(value: unknown): PdfEscortWingLaunchResult | null {
+  const view = pdfEscortWingLaunchViewReply(value);
+  if (!view || typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const reply = value as Record<string, unknown>;
+  return (reply.status === 'committed' || reply.status === 'replayed') &&
+    typeof reply.requestId === 'string' && reply.requestId.length > 0
+    ? { ...view, status: reply.status, requestId: reply.requestId }
+    : null;
+}
+
 export type WolfCommanderTargetingReadResult =
   | WolfCommanderTargetingView
   | Readonly<{
@@ -4406,6 +4442,61 @@ export async function launchDioneMaliades(
   try {
     const reply = dioneMaliadesLaunchResultReply((await call(payload)).data);
     if (!reply) throw new Error('The server returned an invalid Maliades launch result.');
+    if (!authorityCheckpointIsCurrent(checkpoint)) return reply;
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Read the active P.D.F. Colonel's server-filtered Wolf launch eligibility. */
+export async function getPdfEscortWingLaunch(): Promise<PdfEscortWingLaunchView> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.activeConsoleRoleId !== 'refinery-124-pdf-colonel') {
+    throw new Error('Only the active P.D.F. Colonel may read Escort Wing launch authority.');
+  }
+  requireFreshSessionAuthority('Reconnect before reading Escort Wing launch authority.');
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const call = httpsCallable<{ sessionId: string }, unknown>(functions(), 'getPdfEscortWingLaunch');
+  try {
+    const reply = pdfEscortWingLaunchViewReply((await call({ sessionId })).data);
+    if (!reply || reply.sessionId !== sessionId) {
+      throw new Error('The server returned an invalid Escort Wing launch view.');
+    }
+    if (!authorityCheckpointIsCurrent(checkpoint)) return reply;
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Commit the P.D.F. Colonel launch against both displayed server revisions. */
+export async function launchPdfEscortWing(
+  expectedTurn: number,
+  expectedRevision: number,
+  expectedWingRevision: number,
+): Promise<PdfEscortWingLaunchResult> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.activeConsoleRoleId !== 'refinery-124-pdf-colonel') {
+    throw new Error('Only the active P.D.F. Colonel may launch the Escort Wing.');
+  }
+  requireFreshSessionAuthority('Reconnect before launching the Escort Wing.');
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const payload = { sessionId, requestId: commandId(), expectedTurn, expectedRevision, expectedWingRevision };
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'launchPdfEscortWing');
+  try {
+    const reply = pdfEscortWingLaunchResultReply((await call(payload)).data);
+    if (!reply || reply.sessionId !== sessionId || reply.requestId !== payload.requestId ||
+        reply.turn !== expectedTurn || reply.revision !== expectedRevision + 1 ||
+        reply.wingRevision !== expectedWingRevision + 1 || !reply.launched) {
+      throw new Error('The server returned an invalid Escort Wing launch receipt.');
+    }
     if (!authorityCheckpointIsCurrent(checkpoint)) return reply;
     return reply;
   } catch (cause) {

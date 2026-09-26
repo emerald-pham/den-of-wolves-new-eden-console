@@ -50,7 +50,7 @@ export const PDF_ESCORT_FIGHTER_WING = {
     requiresUndamagedBay: true,
   },
   combat: {
-    mediumRange: 'Each fighter may shift one Wolf Ship target number by ±1, with range wraparound, or roll one die for 1 damage on 5+.',
+    mediumRange: 'Each fighter may shift one Wolf Ship target number by ±1; 0 hits Refinery 124 and 7 hits the AEGIS, or roll one die for 1 damage on 5+.',
     shortRange: 'Roll up to one die per fighter. Deal 1 damage on 3+.',
     lossRule: 'One fighter is destroyed for each roll of 1 or 2.',
   },

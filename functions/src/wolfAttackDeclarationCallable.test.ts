@@ -78,7 +78,9 @@ import {
   extendAirspaceWindow,
   finishWolfCommanderTargetingRerolls,
   getDioneMaliadesLaunch,
+  getPdfEscortWingLaunch,
   launchDioneMaliades,
+  launchPdfEscortWing,
   setEmergencyTimerPaused,
 } from './index';
 import { parseMaliadesState, resolveMaliadesMedium as resolveMaliadesStateMedium,
@@ -555,6 +557,150 @@ async function declareThenSeatDioneEngineer(fields: Fields = {}): Promise<void> 
     activeConsoleRoleId: 'dione-engineer',
   });
 }
+
+async function declareThenSeatPdfColonel(options: Readonly<{
+  charges?: readonly string[];
+  damage?: Readonly<{ damagedSystemIds: readonly string[]; destroyed: boolean }>;
+}> = {}): Promise<void> {
+  const pdfRole = 'refinery-124-pdf-colonel';
+  session({ activeRoleIds: [...activeRoleIds, pdfRole] });
+  await declareWolfAttack.run(request());
+  const currentSession = mock.documents.get('sessions/s1')!;
+  put('sessions/s1', {
+    ...currentSession,
+    maintenanceCycles: {
+      'refinery-124': {
+        turn: 1, step: 0, revision: 9,
+        results: { '5': 'Reactor powered up. Charged 1/4 consoles.', '7': 'Maintenance cycle complete.' },
+        charges: options.charges ?? ['fighter-bay'], refuelled: [],
+        completedAt: '2026-09-22T12:00:00.000Z',
+      },
+    },
+    shipDamage: {
+      'refinery-124': options.damage ?? { damagedSystemIds: [], destroyed: false },
+    },
+  });
+  put('sessions/s1/players/u1', {
+    uid: 'u1', role: 'player', connected: true,
+    assignedRoleId: pdfRole, seatId: pdfRole, activeConsoleRoleId: pdfRole,
+  });
+}
+
+it('launches the PDF Escort Wing through the current Wolf attack and charged Refinery bay transaction', async () => {
+  const pdfRole = 'refinery-124-pdf-colonel';
+  await declareThenSeatPdfColonel();
+
+  const attack = mock.documents.get('sessions/s1/wolfAttackState/current');
+  expect(attack?.battleTableCraftActions).toContainEqual({
+    craftId: 'pdf-escort-fighter-wing', kind: 'fighter-wing', ownerRoleId: pdfRole,
+  });
+  expect(mock.documents.get('sessions/s1/serverState/pdfEscortWing')).toMatchObject({
+    type: 'pdf-escort-fighter-wing-state',
+    attackId: 'wolf-attack-wolf-declare-1', attackCycle: 1,
+    capacity: 4, fighters: 4, revision: 0, launched: false,
+  });
+
+  await expect(getPdfEscortWingLaunch.run(request({ sessionId: 's1' }))).resolves.toMatchObject({
+    type: 'pdf-escort-wing-launch-view', turn: 1, revision: 1,
+    wingRevision: 0, launched: false, eligible: true,
+  });
+  const launchRequest = {
+    sessionId: 's1', requestId: 'launch-pdf-1', expectedTurn: 1,
+    expectedRevision: 1, expectedWingRevision: 0,
+  };
+  await expect(launchPdfEscortWing.run(request(launchRequest))).resolves.toMatchObject({
+    status: 'committed', type: 'pdf-escort-wing-launch-view', turn: 1,
+    revision: 2, wingRevision: 1, launched: true, eligible: false,
+    reason: 'already-launched',
+  });
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
+    revision: 2, launchedCraftIds: ['pdf-escort-fighter-wing'],
+  });
+  expect(mock.documents.get('sessions/s1/serverState/pdfEscortWing')).toMatchObject({
+    attackId: 'wolf-attack-wolf-declare-1', attackCycle: 1,
+    revision: 1, launched: true, fighters: 4,
+  });
+  expect(mock.documents.get('sessions/s1')).toMatchObject({
+    pdfEscortWing: {
+      type: 'pdf-escort-fighter-wing-view', cycle: 1, revision: 1,
+      capacity: 4, fighters: 4, launched: true, losses: 0,
+    },
+  });
+  expect(mock.documents.get('sessions/s1')).not.toHaveProperty('pdfEscortWing.attackId');
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current/audit/launch-pdf-1'))
+    .toMatchObject({ craftId: 'pdf-escort-fighter-wing', actorRoleId: pdfRole, revision: 2 });
+
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(launchPdfEscortWing.run(request(launchRequest))).resolves.toMatchObject({
+    status: 'replayed', revision: 2, wingRevision: 1, launched: true,
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('rejects a non-Colonel and a stale P.D.F. launch view without writes', async () => {
+  await declareThenSeatPdfColonel();
+  const view = await getPdfEscortWingLaunch.run(request({ sessionId: 's1' }));
+  const launchRequest = {
+    sessionId: 's1', requestId: 'launch-pdf-wrong-actor', expectedTurn: 1,
+    expectedRevision: view.revision, expectedWingRevision: view.wingRevision,
+  };
+  mock.documents.set('sessions/s1/players/u1', {
+    ...mock.documents.get('sessions/s1/players/u1'), activeConsoleRoleId: 'refinery-124-engineer',
+  });
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(launchPdfEscortWing.run(request(launchRequest)))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+
+  mock.documents.set('sessions/s1/players/u1', {
+    ...mock.documents.get('sessions/s1/players/u1'), activeConsoleRoleId: 'refinery-124-pdf-colonel',
+  });
+  await expect(launchPdfEscortWing.run(request({
+    ...launchRequest, requestId: 'launch-pdf-stale', expectedRevision: view.revision + 1,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.documents.has('sessions/s1/commandReceipts/launch-pdf-stale')).toBe(false);
+});
+
+it.each([
+  ['uncharged', { charges: [] }, 'uncharged'],
+  ['damaged bay', { damage: { damagedSystemIds: ['fighter-bay'], destroyed: false } }, 'damaged'],
+] as const)('denies a P.D.F. launch when the Refinery Fighter Bay is %s', async (_label, options, reason) => {
+  await declareThenSeatPdfColonel(options);
+  const view = await getPdfEscortWingLaunch.run(request({ sessionId: 's1' }));
+  expect(view).toMatchObject({ eligible: false, reason });
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(launchPdfEscortWing.run(request({
+    sessionId: 's1', requestId: `launch-pdf-${reason}`, expectedTurn: 1,
+    expectedRevision: view.revision, expectedWingRevision: view.wingRevision,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('fails closed when no PDF Escort Wing fighters remain to launch', async () => {
+  await declareThenSeatPdfColonel();
+  const hiddenPath = 'sessions/s1/serverState/pdfEscortWing';
+  const state = mock.documents.get(hiddenPath)!;
+  mock.documents.set(hiddenPath, { ...state, revision: 1, fighters: 0, losses: 4 });
+
+  const view = await getPdfEscortWingLaunch.run(request({ sessionId: 's1' }));
+  expect(view).toMatchObject({ eligible: false, launched: false, reason: 'no-fighters' });
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(launchPdfEscortWing.run(request({
+    sessionId: 's1', requestId: 'launch-pdf-empty', expectedTurn: 1,
+    expectedRevision: view.revision, expectedWingRevision: view.wingRevision,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
 
 it('lets only the active Dione Engineer launch Maliades from a charged operational 10♦ bay', async () => {
   await declareThenSeatDioneEngineer();

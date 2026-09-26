@@ -4,6 +4,7 @@ import { parsePdfEscortWingMemberView } from './pdfEscortWingProjection';
 const initialView = {
   type: 'pdf-escort-fighter-wing-view',
   revision: 0,
+  cycle: null,
   capacity: 4,
   fighters: 4,
   launched: false,
@@ -23,6 +24,7 @@ describe('client PDF Escort Wing projection parser', () => {
     expect(parsePdfEscortWingMemberView({
       ...initialView,
       revision: 3,
+      cycle: 2,
       fighters: 2,
       launched: true,
       mediumResolved: true,
@@ -33,6 +35,7 @@ describe('client PDF Escort Wing projection parser', () => {
     })).toEqual({
       ...initialView,
       revision: 3,
+      cycle: 2,
       fighters: 2,
       launched: true,
       mediumResolved: true,

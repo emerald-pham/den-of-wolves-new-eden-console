@@ -43,7 +43,7 @@ describe('PDF Escort Fighter Wing registration', () => {
     expect(PDF_FIGHTER_WING_SYSTEM).toMatchObject({
       name: 'Fighter Bay',
     });
-    expect(PDF_ESCORT_FIGHTER_WING.combat.mediumRange).toMatch(/target number.*±1.*wraparound.*damage on 5\+/i);
+    expect(PDF_ESCORT_FIGHTER_WING.combat.mediumRange).toMatch(/target number.*±1.*0 hits refinery 124.*7 hits the aegis.*damage on 5\+/i);
     expect(PDF_ESCORT_FIGHTER_WING.combat.shortRange).toMatch(/one die per fighter.*damage on 3\+/i);
     expect(PDF_ESCORT_FIGHTER_WING.combat.lossRule).toMatch(/destroyed.*1 or 2/i);
   });

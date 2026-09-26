@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  beginPdfEscortWingAttack,
   initialPdfEscortWingState,
   launchPdfEscortWing,
   resolvePdfEscortWingMedium,
@@ -12,7 +13,9 @@ function dice(value: number) {
 
 describe('PDF Escort Wing member projection', () => {
   it('projects only member-safe state and omits fighter action indexes and mission internals', () => {
-    const launched = launchPdfEscortWing(initialPdfEscortWingState(), {
+    const launched = launchPdfEscortWing(beginPdfEscortWingAttack(initialPdfEscortWingState(), {
+      expectedRevision: 0, attackId: 'wolf-attack-1', attackCycle: 1,
+    }), {
       expectedRevision: 0,
       launchAllowed: true,
       bayCharged: true,
@@ -29,6 +32,7 @@ describe('PDF Escort Wing member projection', () => {
     expect(projection).toEqual({
       type: 'pdf-escort-fighter-wing-view',
       revision: 2,
+      cycle: 1,
       capacity: 4,
       fighters: 4,
       launched: true,
@@ -46,6 +50,7 @@ describe('PDF Escort Wing member projection', () => {
     expect(projectPdfEscortWingMemberView(undefined)).toEqual({
       type: 'pdf-escort-fighter-wing-view',
       revision: 0,
+      cycle: null,
       capacity: 4,
       fighters: 4,
       launched: false,
@@ -61,6 +66,8 @@ describe('PDF Escort Wing member projection', () => {
     expect(projectPdfEscortWingMemberView({
       type: 'pdf-escort-fighter-wing-state',
       wingId: 'pdf-escort-fighter-wing',
+      attackId: 'wolf-attack-1',
+      attackCycle: 1,
       capacity: 4,
       fighters: 4,
       revision: 1,

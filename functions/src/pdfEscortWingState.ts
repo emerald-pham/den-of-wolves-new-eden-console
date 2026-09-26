@@ -36,6 +36,8 @@ export interface PdfEscortWingMissionContract {
 export interface PdfEscortWingState {
   readonly type: 'pdf-escort-fighter-wing-state';
   readonly revision: number;
+  readonly attackId: string | null;
+  readonly attackCycle: number | null;
   readonly wingId: 'pdf-escort-fighter-wing';
   readonly capacity: 4;
   readonly fighters: number;
@@ -200,7 +202,7 @@ export function parsePdfEscortWingState(value: unknown): PdfEscortWingState | nu
   if (value === undefined) return initialPdfEscortWingState();
   const raw = record(value);
   if (!raw || !exactKeys(raw, [
-    'capacity', 'fighters', 'launched', 'losses', 'mediumActionFighterIndexes',
+    'attackCycle', 'attackId', 'capacity', 'fighters', 'launched', 'losses', 'mediumActionFighterIndexes',
     'mediumResolved', 'mission', 'revision', 'shortResolved',
     'shortRollFighterIndexes', 'type', 'wingId',
   ]) || raw.type !== 'pdf-escort-fighter-wing-state' ||
@@ -210,6 +212,12 @@ export function parsePdfEscortWingState(value: unknown): PdfEscortWingState | nu
       typeof raw.mediumResolved !== 'boolean' || typeof raw.shortResolved !== 'boolean' ||
       !Array.isArray(raw.mediumActionFighterIndexes) ||
       !Array.isArray(raw.shortRollFighterIndexes)) return null;
+
+  const attackId = raw.attackId;
+  const attackCycle = raw.attackCycle;
+  if ((attackId === null) !== (attackCycle === null) ||
+      (attackId !== null && (typeof attackId !== 'string' || attackId.trim().length === 0)) ||
+      (attackCycle !== null && (!Number.isSafeInteger(attackCycle) || (attackCycle as number) < 1))) return null;
 
   const revision = raw.revision as number;
   const fighters = raw.fighters as number;
@@ -229,9 +237,10 @@ export function parsePdfEscortWingState(value: unknown): PdfEscortWingState | nu
       shortIndexes.some((index) => index < 0 || index >= CAPACITY) ||
       mediumResolved !== (mediumIndexes.length > 0) ||
       shortResolved !== (shortIndexes.length > 0) ||
-      (launched && revision < 1) ||
-      (!launched && revision !== 0) ||
-      (!launched && (fighters !== CAPACITY || losses !== 0 || mediumResolved || shortResolved))) {
+      (attackId === null && (revision !== 0 || launched || fighters !== CAPACITY || losses !== 0 || mediumResolved || shortResolved)) ||
+      (!launched && (mediumResolved || shortResolved)) ||
+      (attackId !== null && revision === 0 && (fighters !== CAPACITY || losses !== 0)) ||
+      (launched && (attackId === null || revision < 1))) {
     return null;
   }
   const mission = parseMission(raw.mission);
@@ -239,6 +248,8 @@ export function parsePdfEscortWingState(value: unknown): PdfEscortWingState | nu
   return freezeState({
     type: 'pdf-escort-fighter-wing-state',
     revision,
+    attackId,
+    attackCycle: attackCycle as number | null,
     wingId: 'pdf-escort-fighter-wing',
     capacity: CAPACITY,
     fighters,
@@ -257,6 +268,8 @@ export function initialPdfEscortWingState(): PdfEscortWingState {
   return freezeState({
     type: 'pdf-escort-fighter-wing-state',
     revision: 0,
+    attackId: null,
+    attackCycle: null,
     wingId: 'pdf-escort-fighter-wing',
     capacity: CAPACITY,
     fighters: CAPACITY,
@@ -267,6 +280,34 @@ export function initialPdfEscortWingState(): PdfEscortWingState {
     shortRollFighterIndexes: [],
     losses: 0,
     mission: missionContract(),
+  });
+}
+
+/** Bind per-attack actions to a declared attack while carrying forward losses. */
+export function beginPdfEscortWingAttack(
+  state: PdfEscortWingState,
+  input: Readonly<{ expectedRevision: unknown; attackId: unknown; attackCycle: unknown }>,
+): PdfEscortWingState {
+  requireExpectedRevision(state, input.expectedRevision);
+  if (typeof input.attackId !== 'string' || input.attackId.trim().length === 0 ||
+      input.attackId.length > 128 || !Number.isSafeInteger(input.attackCycle) ||
+      (input.attackCycle as number) < 1) {
+    throw new Error('The PDF Escort Wing attack identity is malformed.');
+  }
+  if (state.attackId === input.attackId && state.attackCycle === input.attackCycle) return state;
+  if (state.attackCycle !== null && (input.attackCycle as number) <= state.attackCycle) {
+    throw new Error('The PDF Escort Wing attack cycle must advance.');
+  }
+  return freezeState({
+    ...state,
+    revision: state.attackId === null ? state.revision : state.revision + 1,
+    attackId: input.attackId,
+    attackCycle: input.attackCycle as number,
+    launched: false,
+    mediumResolved: false,
+    mediumActionFighterIndexes: [],
+    shortResolved: false,
+    shortRollFighterIndexes: [],
   });
 }
 
@@ -297,6 +338,9 @@ export function launchPdfEscortWing(
   }>,
 ): PdfEscortWingState {
   requireExpectedRevision(state, input.expectedRevision);
+  if (state.attackId === null || state.attackCycle === null) {
+    throw new Error('Declare a Wolf attack before launching the PDF Escort Wing.');
+  }
   if (state.launched) throw new Error('The PDF Escort Wing is already launched.');
   if (state.fighters < 1) throw new Error('A PDF Escort Wing without fighters cannot launch.');
   if (input.launchAllowed !== true) throw new Error('The authoritative PDF Escort Wing launch check failed.');
@@ -305,15 +349,13 @@ export function launchPdfEscortWing(
   return freezeState({ ...state, revision: state.revision + 1, launched: true });
 }
 
-/** Apply the printed ±1 target shift with the 1↔6 range wraparound. */
+/** Apply the printed ±1 shift; 0 reaches Refinery 124 and 7 reaches the AEGIS. */
 export function shiftPdfEscortTargetNumber(targetNumber: number, shift: -1 | 1): number {
   requireSafeInteger(targetNumber, 'The PDF Escort Wing target number');
   if (targetNumber < 1 || targetNumber > 6) {
     throw new Error('The PDF Escort Wing target number must be from 1 through 6.');
   }
   if (shift !== -1 && shift !== 1) throw new Error('The PDF Escort Wing target shift must be -1 or 1.');
-  if (targetNumber === 1 && shift === -1) return 6;
-  if (targetNumber === 6 && shift === 1) return 1;
   return targetNumber + shift;
 }
 

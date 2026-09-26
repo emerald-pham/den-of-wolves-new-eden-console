@@ -959,6 +959,31 @@ describe('session header', () => {
     }
   });
 
+  it('keeps PDF Escort Wing attack state server-only while allowing the member-safe session projection', async () => {
+    const memberView = {
+      type: 'pdf-escort-fighter-wing-view', revision: 1, cycle: 1,
+      capacity: 4, fighters: 4, launched: true,
+      mediumResolved: false, mediumActionCount: 0,
+      shortResolved: false, shortRollCount: 0, losses: 0,
+    };
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), SESSION), { pdfEscortWing: memberView });
+      await setDoc(doc(ctx.firestore(), `${SESSION}/serverState/pdfEscortWing`), {
+        type: 'pdf-escort-fighter-wing-state', attackId: 'wolf-attack-private',
+        attackCycle: 1, fighters: 4, mission: { eligible: true, bonuses: { salvage: 1 } },
+      });
+    });
+
+    const sessionView = await assertSucceeds(getDoc(doc(as('alice'), SESSION)));
+    expect(sessionView.data()?.pdfEscortWing).toEqual(memberView);
+    for (const uid of ['alice', 'gm1']) {
+      const hidden = doc(as(uid), `${SESSION}/serverState/pdfEscortWing`);
+      await assertFails(getDoc(hidden));
+      await assertFails(setDoc(hidden, { launched: true }));
+      await assertFails(updateDoc(hidden, { launched: true }));
+    }
+  });
+
   it('isolates player discovery projection reads and reserves organiser lookup for GMs', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       await setDoc(doc(ctx.firestore(), `${SESSION}/playerDiscoveries/alice`), {

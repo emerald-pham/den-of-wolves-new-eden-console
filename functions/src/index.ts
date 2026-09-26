@@ -385,7 +385,7 @@ import {
   isPresenceStale,
   PRESENCE_RECONCILIATION_INTERVAL_MS,
 } from './sessionLifecycle';
-import { CapybaraDamageDeckExhaustedError, SHIP_DAMAGE_DECKS, drawShipDamage, shipDamage } from './shipDamage';
+import { CapybaraDamageDeckExhaustedError, SHIP_DAMAGE_DECKS, drawShipDamage, shipDamage, type ShipDamageState } from './shipDamage';
 import { destructionTransition, escapePodCapacityForShip } from './shipDestruction';
 import { totalFleetLossOutcome } from './totalFleetLoss';
 import { aggregateSurvivorOutcome, type SurvivorOutcome } from './survivorOutcome';
@@ -547,6 +547,17 @@ import {
   resolveWolfConsoleSabotage as resolveWolfConsoleSabotageTarget,
 } from './wolfConsoleSabotage';
 import { resolveWolfSuspicionClue } from './wolfSuspicionClue';
+import {
+  authorizeRefineryFighterBayLaunch,
+  type RefineryFighterBayAttackAuthority,
+} from './refineryFighterBay';
+import {
+  beginPdfEscortWingAttack,
+  launchPdfEscortWing as launchPdfEscortWingState,
+  parsePdfEscortWingState,
+  type PdfEscortWingState,
+} from './pdfEscortWingState';
+import { projectPdfEscortWingMemberView } from './pdfEscortWingProjection';
 import {
   HOMING_BEACON_SUSPICION_INCREMENT,
   resolveWolfHomingBeaconTarget,
@@ -2651,10 +2662,14 @@ function requireWolfAttackParking(
   }
 
   const fighterWings = ownedCraft.filter((craft) => craft.kind === 'fighter-wing');
+  // The PDF Escort Wing owns independent durability in serverState/pdfEscortWing;
+  // the legacy AEGIS wing-count projection does not represent that craft.
+  const countTrackedFighterWings = fighterWings.filter((craft) =>
+    craft.id !== 'pdf-escort-fighter-wing');
   const rawWingCounts = session.get('fighterWingCounts');
-  if (fighterWings.length > 0) {
+  if (countTrackedFighterWings.length > 0) {
     const parsedWingCounts = fighterWingCounts(rawWingCounts);
-    if (rawWingCounts === undefined || fighterWings.some((craft) => {
+    if (rawWingCounts === undefined || countTrackedFighterWings.some((craft) => {
       const wing = parsedWingCounts[craft.id as FighterWingId] as FighterWingCountState | undefined;
       return wing === undefined;
     })) {
@@ -15914,6 +15929,7 @@ export const declareWolfAttack = onCall<{
   const departuresRef = db.collection(`sessions/${declaration.sessionId}/shuttleDepartures`);
   const transitChainsRef = db.collection(`sessions/${declaration.sessionId}/shuttleTransitChains`);
   const stateRef = db.doc(`sessions/${declaration.sessionId}/wolfAttackState/current`);
+  const pdfEscortWingRef = db.doc(`sessions/${declaration.sessionId}/serverState/pdfEscortWing`);
   const auditRef = db.doc(`sessions/${declaration.sessionId}/wolfAttackState/current/audit/${declaration.requestId}`);
   const receiptRef = commandReceiptRef(declaration.sessionId, declaration.requestId);
   const eventRef = db.doc(`sessions/${declaration.sessionId}/events/wolf-attack-${declaration.requestId}`);
@@ -15996,9 +16012,9 @@ export const declareWolfAttack = onCall<{
 
   return db.runTransaction(async tx => {
     const [session, player, instance, preparation, window, navigation,
-      state, receipt, audit, event, fleetGroups, players, departures, transitChains] = await Promise.all([
+      state, pdfEscortWingState, receipt, audit, event, fleetGroups, players, departures, transitChains] = await Promise.all([
       tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef), tx.get(preparationRef),
-      tx.get(windowRef), tx.get(navigationRef), tx.get(stateRef), tx.get(receiptRef),
+      tx.get(windowRef), tx.get(navigationRef), tx.get(stateRef), tx.get(pdfEscortWingRef), tx.get(receiptRef),
       tx.get(auditRef), tx.get(eventRef), tx.get(fleetGroupsRef), tx.get(playersRef),
       tx.get(departuresRef), tx.get(transitChainsRef),
     ]);
@@ -16059,6 +16075,35 @@ export const declareWolfAttack = onCall<{
         'conflict',
       );
     }
+    const pdfEscortWingRegistered = inputs.battleTableCraftActions.some((action) =>
+      action.craftId === 'pdf-escort-fighter-wing' && action.kind === 'fighter-wing' &&
+      action.ownerRoleId === 'refinery-124-pdf-colonel');
+    let nextPdfEscortWingState: PdfEscortWingState | undefined;
+    if (pdfEscortWingRegistered) {
+      const currentPdfEscortWingState = parsePdfEscortWingState(
+        pdfEscortWingState.exists ? pdfEscortWingState.data() : undefined,
+      );
+      if (!currentPdfEscortWingState) {
+        throw commandError(
+          'failed-precondition',
+          'The authoritative PDF Escort Wing state is malformed; the Wolf attack cannot begin.',
+          'conflict',
+        );
+      }
+      try {
+        nextPdfEscortWingState = beginPdfEscortWingAttack(currentPdfEscortWingState, {
+          expectedRevision: currentPdfEscortWingState.revision,
+          attackId: announcementId,
+          attackCycle: inputs.phase.turn,
+        });
+      } catch (error) {
+        throw commandError(
+          'failed-precondition',
+          error instanceof Error ? error.message : 'The PDF Escort Wing attack identity could not be advanced.',
+          'conflict',
+        );
+      }
+    }
     const fleetTicker = publishSessionFleetTicker(declaration.sessionId, session, {
       source: 'automatic',
       priority: FLEET_TICKER_PRIORITIES.airspace,
@@ -16112,6 +16157,9 @@ export const declareWolfAttack = onCall<{
       shuttleDockings: inputs.parkedShuttleDockings.map((docking) => ({ ...docking })),
       shuttleVisitLog: inputs.shuttleVisitLog.map((visit) => ({ ...visit })),
       maliadesState: nextMaliadesState,
+      ...(nextPdfEscortWingState
+        ? { pdfEscortWing: projectPdfEscortWingMemberView(nextPdfEscortWingState) }
+        : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
     for (const shuttleId of inputs.clearedTransitIds) {
@@ -16119,6 +16167,9 @@ export const declareWolfAttack = onCall<{
       tx.delete(db.doc(`sessions/${declaration.sessionId}/shuttleTransitChains/${shuttleId}`));
     }
     tx.set(stateRef, { ...stageState, updatedAt: FieldValue.serverTimestamp() });
+    if (nextPdfEscortWingState) {
+      tx.set(pdfEscortWingRef, nextPdfEscortWingState);
+    }
     tx.set(auditRef, {
       type: 'wolf-attack-declaration',
       action: 'declared',
@@ -17581,6 +17632,261 @@ export const launchDioneMaliades = onCall<{
       payload: { craftId: 'maliades', status: 'launched' },
       createdAt: FieldValue.serverTimestamp(),
     }));
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+type PdfEscortWingLaunchReason = 'waiting' | 'uncharged' | 'damaged' | 'destroyed' | 'no-fighters' | 'already-launched';
+
+type PdfEscortWingLaunchView = Readonly<{
+  type: 'pdf-escort-wing-launch-view';
+  sessionId: string;
+  turn: number;
+  revision: number;
+  wingRevision: number;
+  launched: boolean;
+  eligible: boolean;
+  reason?: PdfEscortWingLaunchReason;
+}>;
+
+type PdfEscortWingLaunchResult = PdfEscortWingLaunchView & Readonly<{
+  status: 'committed' | 'replayed';
+  requestId: string;
+}>;
+
+function requirePdfColonel(player: DocumentSnapshot): void {
+  if (!player.exists || !isActivePlayer(player) || player.get('role') !== 'player' ||
+      player.get('activeConsoleRoleId') !== 'refinery-124-pdf-colonel' ||
+      boundCoreConsoleRole(player.get('assignedRoleId'), player.get('seatId')) !==
+        'refinery-124-pdf-colonel') {
+    throw new HttpsError('permission-denied', 'The active P.D.F. Colonel console is required.');
+  }
+  requirePlayerShipActionAuthority(player);
+}
+
+function isPdfEscortWingLaunchResult(value: unknown): value is PdfEscortWingLaunchResult {
+  if (!isRecord(value) || (value.status !== 'committed' && value.status !== 'replayed') ||
+      value.type !== 'pdf-escort-wing-launch-view' || typeof value.sessionId !== 'string' ||
+      typeof value.requestId !== 'string' || value.requestId.length === 0 ||
+      !Number.isSafeInteger(value.turn) || (value.turn as number) < 1 ||
+      !Number.isSafeInteger(value.revision) || (value.revision as number) < 1 ||
+      !Number.isSafeInteger(value.wingRevision) || (value.wingRevision as number) < 1 ||
+      value.launched !== true || value.eligible !== false || value.reason !== 'already-launched') {
+    return false;
+  }
+  return true;
+}
+
+function pdfEscortWingLaunchView(
+  sessionId: string,
+  session: DocumentSnapshot,
+  attack: DocumentSnapshot,
+  wing: DocumentSnapshot,
+): PdfEscortWingLaunchView {
+  const turn = sessionTurn(session.get('currentTurn'));
+  if (session.get('phase') !== 'active' || turn < 1) {
+    throw commandError(
+      'failed-precondition',
+      'The P.D.F. Escort Wing can launch only during active gameplay after Cycle 0.',
+      'invalid-phase',
+    );
+  }
+  const state = parsePdfEscortWingState(wing.exists ? wing.data() : undefined);
+  if (!state) {
+    throw commandError('failed-precondition', 'The authoritative PDF Escort Wing state is malformed.', 'conflict');
+  }
+  const phase = turnPhaseState(session.get('turnPhase'));
+  const waitingView: PdfEscortWingLaunchView = {
+    type: 'pdf-escort-wing-launch-view', sessionId, turn, revision: 0,
+    wingRevision: state.revision, launched: false, eligible: false, reason: 'waiting',
+  };
+  if (!attack.exists || !phase || phase.turn !== turn || phase.airspace.state !== 'restricted' ||
+      attack.get('type') !== 'wolf-attack-state' || attack.get('status') !== 'declared' ||
+      attack.get('currentStep') !== 'targeting') return waitingView;
+
+  const attackTurn = attack.get('turn');
+  const revision = attack.get('revision');
+  const attackId = attack.get('attackId');
+  if (!Number.isSafeInteger(attackTurn) || attackTurn !== turn ||
+      !Number.isSafeInteger(revision) || (revision as number) < 1 ||
+      typeof attackId !== 'string' || attackId.length === 0 ||
+      state.attackCycle !== turn || state.attackId !== attackId) {
+    throw commandError('failed-precondition', 'The current Wolf attack and PDF Escort Wing state do not match.', 'conflict');
+  }
+
+  const view: PdfEscortWingLaunchView = {
+    type: 'pdf-escort-wing-launch-view', sessionId, turn,
+    revision: revision as number, wingRevision: state.revision,
+    launched: false, eligible: false, reason: 'waiting',
+  };
+  if (state.fighters === 0) {
+    return { ...view, reason: 'no-fighters' };
+  }
+  const rawLaunched = attack.get('launchedCraftIds');
+  const launchedCraftIds = rawLaunched === undefined ? [] : rawLaunched;
+  const attackAuthority = {
+    status: attack.get('status'),
+    currentStep: attack.get('currentStep'),
+    turn: attackTurn,
+    revision,
+    battleTableCraftActions: attack.get('battleTableCraftActions'),
+    launchedCraftIds,
+  } as unknown as RefineryFighterBayAttackAuthority;
+  const cycles = session.get('maintenanceCycles');
+  const maintenanceCycle = isRecord(cycles) ? cycles['refinery-124'] : undefined;
+  const damageRoot = session.get('shipDamage');
+  const damage = isRecord(damageRoot) ? damageRoot['refinery-124'] : undefined;
+  try {
+    authorizeRefineryFighterBayLaunch({
+      actorRoleId: 'refinery-124-pdf-colonel',
+      activeRoleIds: sessionActiveRoleIds(session),
+      activeVesselIds: wolfAttackActiveVesselIds(session),
+      maintenanceCycle,
+      damage: damage as ShipDamageState,
+      attack: attackAuthority,
+      requestedCraftId: 'pdf-escort-fighter-wing',
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    if (/already launched/i.test(message)) {
+      if (!state.launched || !Array.isArray(launchedCraftIds) ||
+          !launchedCraftIds.includes('pdf-escort-fighter-wing')) {
+        throw commandError('failed-precondition', 'PDF Escort Wing launch records are inconsistent.', 'conflict');
+      }
+      return { ...view, launched: true, reason: 'already-launched' };
+    }
+    if (/Charge the Refinery 8♦ Fighter Bay/i.test(message)) return { ...view, reason: 'uncharged' };
+    if (/damaged Refinery 8♦ Fighter Bay/i.test(message)) return { ...view, reason: 'damaged' };
+    if (/destroyed Refinery 124/i.test(message)) return { ...view, reason: 'destroyed' };
+    throw commandError('failed-precondition', 'The authoritative Refinery Fighter Bay launch check is unavailable.', 'conflict');
+  }
+  if (state.launched) {
+    throw commandError('failed-precondition', 'PDF Escort Wing launch records are inconsistent.', 'conflict');
+  }
+  return { ...view, eligible: true, reason: undefined };
+}
+
+/** Return the current P.D.F. Colonel's server-filtered Fighter Bay launch status. */
+export const getPdfEscortWingLaunch = onCall<{ sessionId?: unknown }>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  if (!isRecord(raw) || Object.keys(raw).some((key) => key !== 'sessionId')) {
+    throw new HttpsError('invalid-argument', 'A valid sessionId is required.');
+  }
+  const sessionId = requireSessionRequest(raw).sessionId;
+  const [session, player, attack, wing] = await Promise.all([
+    db.doc(`sessions/${sessionId}`).get(),
+    db.doc(`sessions/${sessionId}/players/${uid}`).get(),
+    db.doc(`sessions/${sessionId}/wolfAttackState/current`).get(),
+    db.doc(`sessions/${sessionId}/serverState/pdfEscortWing`).get(),
+  ]);
+  if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+  requirePdfColonel(player);
+  requireActiveGameplayPhase(session);
+  return pdfEscortWingLaunchView(sessionId, session, attack, wing);
+});
+
+/** Atomically launch the P.D.F. Escort Wing under Prompt 231's bay and attack gate. */
+export const launchPdfEscortWing = onCall<{
+  sessionId?: unknown;
+  requestId?: unknown;
+  expectedTurn?: unknown;
+  expectedRevision?: unknown;
+  expectedWingRevision?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = new Set(['sessionId', 'requestId', 'expectedTurn', 'expectedRevision', 'expectedWingRevision']);
+  if (!isRecord(raw) || Object.keys(raw).length !== allowed.size ||
+      Object.keys(raw).some((key) => !allowed.has(key)) ||
+      !isCanonicalRequestId(raw.sessionId) || !isCanonicalRequestId(raw.requestId) ||
+      !Number.isSafeInteger(raw.expectedTurn) || (raw.expectedTurn as number) < 1 ||
+      !Number.isSafeInteger(raw.expectedRevision) || (raw.expectedRevision as number) < 1 ||
+      !Number.isSafeInteger(raw.expectedWingRevision) || (raw.expectedWingRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'Invalid P.D.F. Escort Wing launch request.');
+  }
+  const sessionId = raw.sessionId;
+  const requestId = raw.requestId;
+  const expectedTurn = raw.expectedTurn as number;
+  const expectedRevision = raw.expectedRevision as number;
+  const expectedWingRevision = raw.expectedWingRevision as number;
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+  const attackRef = db.doc(`sessions/${sessionId}/wolfAttackState/current`);
+  const wingRef = db.doc(`sessions/${sessionId}/serverState/pdfEscortWing`);
+  const auditRef = db.doc(`sessions/${sessionId}/wolfAttackState/current/audit/${requestId}`);
+  const receiptRef = commandReceiptRef(sessionId, requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'launch-pdf-escort-wing', sessionId, requestId, actorUid: uid,
+    instanceId: null, expectedRevision,
+    payload: { expectedTurn, expectedWingRevision },
+  };
+
+  return db.runTransaction(async (tx: Transaction): Promise<PdfEscortWingLaunchResult> => {
+    const [session, player, attack, wing, receipt, audit] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(attackRef), tx.get(wingRef),
+      tx.get(receiptRef), tx.get(auditRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requirePdfColonel(player);
+    await rejectForeignLegacyM1Command(tx, sessionId, requestId, 'P.D.F. Escort Wing launch', []);
+    const replay = replayBoundCommand(receipt, fingerprint, isPdfEscortWingLaunchResult, 'P.D.F. Escort Wing launch');
+    if (replay) return { ...replay, status: 'replayed' };
+    if (audit.exists) rejectLegacyEventReplay('P.D.F. Escort Wing launch');
+    requireActiveGameplayPhase(session);
+    const view = pdfEscortWingLaunchView(sessionId, session, attack, wing);
+    if (view.turn !== expectedTurn || view.revision !== expectedRevision ||
+        view.wingRevision !== expectedWingRevision) {
+      throw commandError('failed-precondition', 'The P.D.F. Escort Wing launch view is stale. Refresh the current Wolf attack.', 'stale-revision');
+    }
+    if (!view.eligible) {
+      const message = view.reason === 'already-launched'
+        ? 'The P.D.F. Escort Wing is already launched for this Wolf attack.'
+        : view.reason === 'no-fighters'
+          ? 'No P.D.F. Escort Wing fighters remain to launch.'
+        : view.reason === 'uncharged'
+          ? 'Charge the Refinery 8♦ Fighter Bay before launching the P.D.F. Escort Wing.'
+          : view.reason === 'damaged'
+            ? 'The damaged Refinery 8♦ Fighter Bay cannot launch the P.D.F. Escort Wing.'
+            : view.reason === 'destroyed'
+              ? 'A destroyed Refinery 124 cannot launch the P.D.F. Escort Wing.'
+              : 'No current Wolf attack is accepting the P.D.F. Escort Wing launch.';
+      throw commandError('failed-precondition', message, 'invalid-phase');
+    }
+    const state = parsePdfEscortWingState(wing.exists ? wing.data() : undefined);
+    if (!state || state.attackCycle !== view.turn || !attack.exists ||
+        state.attackId !== attack.get('attackId')) {
+      throw commandError('failed-precondition', 'The authoritative PDF Escort Wing state is unavailable.', 'conflict');
+    }
+    const nextState = launchPdfEscortWingState(state, {
+      expectedRevision: expectedWingRevision, launchAllowed: true,
+      bayCharged: true, bayDamaged: false,
+    });
+    const nextRevision = view.revision + 1;
+    const rawLaunched = attack.get('launchedCraftIds');
+    const launchedCraftIds = rawLaunched === undefined ? [] : rawLaunched as readonly string[];
+    const result: PdfEscortWingLaunchResult = {
+      status: 'committed', type: 'pdf-escort-wing-launch-view', sessionId, requestId,
+      turn: view.turn, revision: nextRevision, wingRevision: nextState.revision,
+      launched: true, eligible: false, reason: 'already-launched',
+    };
+    tx.update(attackRef, {
+      revision: nextRevision,
+      launchedCraftIds: [...launchedCraftIds, 'pdf-escort-fighter-wing'],
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(wingRef, nextState);
+    tx.update(sessionRef, {
+      pdfEscortWing: projectPdfEscortWingMemberView(nextState),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(auditRef, {
+      type: 'pdf-escort-wing-launch', turn: view.turn, revision: nextRevision,
+      wingRevision: nextState.revision, craftId: 'pdf-escort-fighter-wing',
+      actorUid: uid, actorRoleId: 'refinery-124-pdf-colonel', requestId,
+      createdAt: FieldValue.serverTimestamp(),
+    });
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
   });

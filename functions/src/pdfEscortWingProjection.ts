@@ -7,6 +7,7 @@ import {
 export interface PdfEscortWingMemberView {
   readonly type: 'pdf-escort-fighter-wing-view';
   readonly revision: number;
+  readonly cycle: number | null;
   readonly capacity: 4;
   readonly fighters: number;
   readonly launched: boolean;
@@ -21,6 +22,7 @@ function viewFromState(state: PdfEscortWingState): PdfEscortWingMemberView {
   return Object.freeze({
     type: 'pdf-escort-fighter-wing-view',
     revision: state.revision,
+    cycle: state.attackCycle,
     capacity: state.capacity,
     fighters: state.fighters,
     launched: state.launched,

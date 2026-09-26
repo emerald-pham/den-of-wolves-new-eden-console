@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   authorizePdfEscortWingMission,
+  beginPdfEscortWingAttack,
   initialPdfEscortWingState,
   launchPdfEscortWing,
   parsePdfEscortWingState,
@@ -20,7 +21,9 @@ function dice(...values: number[]): (upperBound: number) => number {
 }
 
 function launched() {
-  return launchPdfEscortWing(initialPdfEscortWingState(), {
+  return launchPdfEscortWing(beginPdfEscortWingAttack(initialPdfEscortWingState(), {
+    expectedRevision: 0, attackId: 'wolf-attack-1', attackCycle: 1,
+  }), {
     expectedRevision: 0,
     launchAllowed: true,
     bayCharged: true,
@@ -46,7 +49,9 @@ describe('authoritative PDF Escort Wing state', () => {
   });
 
   it('enforces the launch requirement and rejects stale or replayed launch transitions', () => {
-    const initial = initialPdfEscortWingState();
+    const initial = beginPdfEscortWingAttack(initialPdfEscortWingState(), {
+      expectedRevision: 0, attackId: 'wolf-attack-1', attackCycle: 1,
+    });
     expect(() => launchPdfEscortWing(initial, {
       expectedRevision: 0, launchAllowed: false, bayCharged: true, bayDamaged: false,
     })).toThrow(/launch check/i);
@@ -65,6 +70,30 @@ describe('authoritative PDF Escort Wing state', () => {
     })).toThrow(/already launched/i);
   });
 
+  it('resets per-attack launch actions while preserving surviving fighters and cumulative losses', () => {
+    const initial = beginPdfEscortWingAttack(initialPdfEscortWingState(), {
+      expectedRevision: 0, attackId: 'wolf-attack-1', attackCycle: 1,
+    });
+    const firstAttack = resolvePdfEscortWingShort(launchPdfEscortWing(initial, {
+      expectedRevision: 0, launchAllowed: true, bayCharged: true, bayDamaged: false,
+    }), {
+      expectedRevision: 1, fighterIndexes: [0, 1, 2, 3], random: dice(1, 2, 3, 4),
+    }).state;
+    const nextAttack = beginPdfEscortWingAttack(firstAttack, {
+      expectedRevision: firstAttack.revision, attackId: 'wolf-attack-2', attackCycle: 2,
+    });
+
+    expect(nextAttack).toMatchObject({
+      attackId: 'wolf-attack-2', attackCycle: 2, revision: firstAttack.revision + 1,
+      fighters: 2, losses: 2, launched: false,
+      mediumResolved: false, mediumActionFighterIndexes: [],
+      shortResolved: false, shortRollFighterIndexes: [],
+    });
+    expect(() => beginPdfEscortWingAttack(nextAttack, {
+      expectedRevision: nextAttack.revision, attackId: 'wolf-attack-3', attackCycle: 2,
+    })).toThrow(/cycle must advance/i);
+  });
+
   it('resolves independent Medium target shifts and attacks at the printed threshold', () => {
     const result = resolvePdfEscortWingMedium(launched(), {
       expectedRevision: 1,
@@ -76,7 +105,7 @@ describe('authoritative PDF Escort Wing state', () => {
       random: dice(5, 4),
     });
     expect(result.targetShifts).toEqual([{
-      fighterIndex: 0, targetId: 'wolf-1', targetNumber: 1, shift: -1, shiftedTargetNumber: 6,
+      fighterIndex: 0, targetId: 'wolf-1', targetNumber: 1, shift: -1, shiftedTargetNumber: 0,
     }]);
     expect(result.attacks).toEqual([
       { fighterIndex: 1, targetId: 'wolf-2', die: 5, hit: true },
@@ -104,9 +133,10 @@ describe('authoritative PDF Escort Wing state', () => {
       })),
       random: dice(5, 5, 5, 5, 5),
     })).toThrow(/exceeds/i);
-    expect(() => shiftPdfEscortTargetNumber(0, 1)).toThrow(/1 through 6/i);
-    expect(shiftPdfEscortTargetNumber(6, 1)).toBe(1);
-    expect(shiftPdfEscortTargetNumber(1, -1)).toBe(6);
+    expect(shiftPdfEscortTargetNumber(6, 1)).toBe(7);
+    expect(shiftPdfEscortTargetNumber(1, -1)).toBe(0);
+    expect(() => shiftPdfEscortTargetNumber(0, -1)).toThrow(/1 through 6/i);
+    expect(() => shiftPdfEscortTargetNumber(7, 1)).toThrow(/1 through 6/i);
   });
 
   it('resolves Short attacks at 3+ and records one loss for each 1 or 2', () => {

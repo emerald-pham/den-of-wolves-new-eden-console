@@ -106,6 +106,10 @@ export default function FleetSystemsWorkspace({
     </article>;
   };
   const procedures = proceduresForRole(role.id);
+  const pdfColonelWritable = writable && me?.role === 'player' &&
+    me.activeConsoleRoleId === PDF_ROLE_CONSOLE.roleId &&
+    (me.assignedRoleId === PDF_ROLE_CONSOLE.roleId || me.seatId === PDF_ROLE_CONSOLE.roleId) &&
+    (!me.assignedRoleId || !me.seatId || me.assignedRoleId === me.seatId);
   return <FleetRoleConsoleTemplate shipName={ship.name} roleName={role.name}
     title={page === 'systems' ? 'Ship systems' : 'Navigation'}
     galacticCoordinate={galacticCoordinate} fuel={fuel}
@@ -140,6 +144,7 @@ export default function FleetSystemsWorkspace({
       : <div className="aegis-system-grid">{systems.map(renderSystem)}</div>}
       {ship.id === 'refinery-124' && role.id === PDF_ROLE_CONSOLE.roleId && <PdfEscortWingReference
         state={shipState?.pdfEscortWing ?? session?.pdfEscortWing}
+        writable={pdfColonelWritable}
       />}
       {role.id === 'dione-president' && <PresidentWorkspace
         writable={writable && (me?.role === 'gm' || (

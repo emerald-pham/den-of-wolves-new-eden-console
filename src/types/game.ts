@@ -504,6 +504,30 @@ export interface DioneMaliadesLaunchResult extends DioneMaliadesLaunchView {
   readonly requestId: string;
 }
 
+export type PdfEscortWingLaunchReason =
+  | 'waiting'
+  | 'uncharged'
+  | 'damaged'
+  | 'destroyed'
+  | 'no-fighters'
+  | 'already-launched';
+
+export interface PdfEscortWingLaunchView {
+  readonly type: 'pdf-escort-wing-launch-view';
+  readonly sessionId: string;
+  readonly turn: number;
+  readonly revision: number;
+  readonly wingRevision: number;
+  readonly launched: boolean;
+  readonly eligible: boolean;
+  readonly reason?: PdfEscortWingLaunchReason;
+}
+
+export interface PdfEscortWingLaunchResult extends PdfEscortWingLaunchView {
+  readonly status: 'committed' | 'replayed';
+  readonly requestId: string;
+}
+
 /** Public callable receipt for the GM declaration control. */
 export interface WolfAttackDeclarationResult {
   readonly status: 'committed' | 'replayed';
@@ -922,6 +946,7 @@ export interface SurvivorOutcome {
 export interface PdfEscortWingMemberView {
   readonly type: 'pdf-escort-fighter-wing-view';
   readonly revision: number;
+  readonly cycle: number | null;
   readonly capacity: 4;
   readonly fighters: number;
   readonly launched: boolean;
