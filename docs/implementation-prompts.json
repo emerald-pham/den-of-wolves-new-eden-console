@@ -2396,17 +2396,17 @@
       "type": "hard_prompt"
     },
     {
-      "direction": "334 -> 315;313",
+      "direction": "334 -> 315;313;412",
       "id": "E-AUDIT-334",
-      "language": "Exploration rewards consume arrival eligibility and history.",
-      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
+      "language": "Exploration rewards consume arrival eligibility and history, then the server-selected mission success branch; the current production path deals and discards cards but does not resolve outcomes or apply rewards.",
+      "source": "IMPLEMENTATION_PLAN.md; functions/src/index.ts and mission reward production-path audit 2026-09-26",
       "type": "hard_prompt"
     },
     {
-      "direction": "335 -> 315;313",
+      "direction": "335 -> 315;313;334;412",
       "id": "E-AUDIT-335",
-      "language": "Exploration rewards consume arrival eligibility and history.",
-      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
+      "language": "Athena's chart-bound L/M restriction must be enforced when the server applies the two-system reward after a resolved mission success; the catalog alone does not resolve missions.",
+      "source": "IMPLEMENTATION_PLAN.md; functions/src/missionCards.ts and mission reward production-path audit 2026-09-26",
       "type": "hard_prompt"
     },
     {
@@ -4370,10 +4370,10 @@
       "type": "hard_prompt"
     },
     {
-      "direction": "581 -> 573;577",
+      "direction": "581 -> 573;577;480",
       "id": "E-AUDIT-581",
-      "language": "Scrap pickups consume damage and cargo state.",
-      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
+      "language": "A collectible Capybara Scrap pickup consumes the per-ship, per-attack damage opportunity from Prompt 480 as well as the Capybara deck and legal shuttle cargo paths; generic damage draws do not record attack totals.",
+      "source": "IMPLEMENTATION_PLAN.md; functions/src/wolfCombatMath.ts, functions/src/index.ts, and Capybara primary print audit 2026-09-26",
       "type": "hard_prompt"
     },
     {
@@ -14998,7 +14998,7 @@
       "evidenceIds": "E-AUDIT-334",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "315;313",
+      "hardPromptPrerequisites": "315;313;412",
       "id": "334",
       "milestoneHints": "M4;M5;M8",
       "relatedConsumes": "none",
@@ -15021,7 +15021,7 @@
       "evidenceIds": "E-AUDIT-335",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "315;313",
+      "hardPromptPrerequisites": "315;313;334;412",
       "id": "335",
       "milestoneHints": "M4;M5;M8",
       "relatedConsumes": "none",
@@ -21430,7 +21430,7 @@
       "evidenceIds": "E-AUDIT-581",
       "hardContract": "none",
       "hardMilestone": "none",
-      "hardPromptPrerequisites": "573;577",
+      "hardPromptPrerequisites": "573;577;480",
       "id": "581",
       "milestoneHints": "M3;M11",
       "relatedConsumes": "none",
