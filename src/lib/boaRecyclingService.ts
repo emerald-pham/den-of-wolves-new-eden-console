@@ -93,6 +93,7 @@ export async function recycleWithBoa(command: BoaRecyclingCommand): Promise<BoaR
         typeof fleetGroupId !== 'string' || !fleetGroupId || currentSession.phase !== 'active' ||
         !currentSession.activeRoleIds?.includes('capybara-captain') ||
         !currentSession.activeRoleIds.includes('capybara-recycler') ||
+        currentSession.capybaraEnabled === false || !currentSession.activeVesselIds?.includes('capybara') ||
         control?.shuttleId !== 'boa' || control.ownerRoleId !== 'capybara-recycler' ||
         control.holderUid !== uid || !isSafeCounter(control.revision) ||
         !Number.isSafeInteger(currentCycle) || (currentCycle as number) < 1 ||

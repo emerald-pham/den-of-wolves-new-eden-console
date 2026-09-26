@@ -33,29 +33,40 @@ interface Props {
   readonly hostName?: string | undefined;
 }
 
-interface BoaStaleRecovery {
-  readonly reply: BoaRecyclingCallableStaleReply;
+interface BoaAuthorityBinding {
   readonly sessionId: string;
   readonly uid: string;
   readonly fleetGroupId: string;
+  readonly expectedHostShipId: string;
 }
 
-function hasCurrentBoaHolderAuthority(recovery: BoaStaleRecovery): boolean {
+interface BoaStaleRecovery {
+  readonly reply: BoaRecyclingCallableStaleReply;
+  readonly binding: BoaAuthorityBinding;
+}
+
+interface BoaExactRetry {
+  readonly command: BoaRecyclingCommand;
+  readonly binding: BoaAuthorityBinding;
+}
+
+function hasCurrentBoaHolderAuthority(binding: BoaAuthorityBinding): boolean {
   const current = useSessionStore.getState();
   const session = current.session;
   const me = current.me;
   const control = session?.shuttleControl?.boa;
   const boaDockings = session?.shuttleDockings?.filter((entry) => entry.shuttleId === 'boa') ?? [];
-  return hasFreshSessionAuthority() && session?.id === recovery.sessionId &&
-    me?.sessionId === recovery.sessionId && me.uid === recovery.uid && me.role === 'player' &&
-    me.assignedRoleId === 'capybara-recycler' && typeof recovery.fleetGroupId === 'string' &&
-    recovery.fleetGroupId.length > 0 && me.fleetGroupId === recovery.fleetGroupId &&
+  return hasFreshSessionAuthority() && session?.id === binding.sessionId &&
+    me?.sessionId === binding.sessionId && me.uid === binding.uid && me.role === 'player' &&
+    me.assignedRoleId === 'capybara-recycler' && typeof binding.fleetGroupId === 'string' &&
+    binding.fleetGroupId.length > 0 && me.fleetGroupId === binding.fleetGroupId &&
     session.phase === 'active' && session.activeRoleIds?.includes('capybara-captain') === true &&
-    session.activeRoleIds.includes('capybara-recycler') && control?.shuttleId === 'boa' &&
-    control.ownerRoleId === 'capybara-recycler' && control.holderUid === recovery.uid &&
+    session.activeRoleIds.includes('capybara-recycler') && session.capybaraEnabled !== false &&
+    session.activeVesselIds?.includes('capybara') === true && control?.shuttleId === 'boa' &&
+    control.ownerRoleId === 'capybara-recycler' && control.holderUid === binding.uid &&
     Number.isSafeInteger(control.revision) && control.revision >= 0 &&
-    boaDockings.length === 1 && boaDockings[0]?.shipId === recovery.reply.expectedHostShipId &&
-    session.activeVesselIds?.includes(recovery.reply.expectedHostShipId) === true;
+    boaDockings.length === 1 && boaDockings[0]?.shipId === binding.expectedHostShipId &&
+    session.activeVesselIds?.includes(binding.expectedHostShipId) === true;
 }
 
 export default function BoaRecyclingPanel({ control, docking, fuelled, hostName }: Props) {
@@ -65,7 +76,7 @@ export default function BoaRecyclingPanel({ control, docking, fuelled, hostName 
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [retry, setRetry] = useState<BoaRecyclingCommand | null>(null);
+  const [retry, setRetry] = useState<BoaExactRetry | null>(null);
   const [staleRecovery, setStaleRecovery] = useState<BoaStaleRecovery | null>(null);
   const pendingRef = useRef<SessionAuthorityCheckpoint | null>(null);
   const identity = `${session.id}:${me.uid}`;
@@ -91,8 +102,15 @@ export default function BoaRecyclingPanel({ control, docking, fuelled, hostName 
     turnPhase.timerPause === undefined && Number.isFinite(deadline) && Date.now() < deadline;
   const isHolder = control.shuttleId === 'boa' && control.ownerRoleId === 'capybara-recycler' &&
     me.role === 'player' && me.uid === control.holderUid && me.assignedRoleId === 'capybara-recycler';
+  const currentAuthorityBinding = {
+    sessionId: session.id,
+    uid: me.uid,
+    fleetGroupId: me.fleetGroupId ?? '',
+    expectedHostShipId: docking?.shipId ?? '',
+  } satisfies BoaAuthorityBinding;
+  const hasCurrentAuthority = hasCurrentBoaHolderAuthority(currentAuthorityBinding);
   const quotaRemaining = Math.max(0, 2 - exchangesThisCycle);
-  const canSubmit = historyValid && isHolder && Boolean(docking && hostResources) &&
+  const canSubmit = historyValid && isHolder && hasCurrentAuthority && Boolean(docking && hostResources) &&
     fuelled && coordinationWindowOpen && quotaRemaining > 0 &&
     Number.isSafeInteger(hostBalance) && (hostBalance ?? 0) >= selectedRecipe.cost;
 
@@ -104,7 +122,7 @@ export default function BoaRecyclingPanel({ control, docking, fuelled, hostName 
     setError('');
   }, [identity]);
 
-  const staleSnapshotCurrent = staleRecovery !== null && hasCurrentBoaHolderAuthority(staleRecovery) &&
+  const staleSnapshotCurrent = staleRecovery !== null && hasCurrentBoaHolderAuthority(staleRecovery.binding) &&
     historyValid && session.currentTurn !== undefined && session.currentTurn >= staleRecovery.reply.currentCycle &&
     (session.shuttleControl?.boa?.revision ?? -1) >= staleRecovery.reply.currentControlRevision &&
     ledgerRevision >= staleRecovery.reply.currentRecyclingRevision;
@@ -117,9 +135,10 @@ export default function BoaRecyclingPanel({ control, docking, fuelled, hostName 
     const checkpoint = captureSessionAuthority(current.session?.id ?? '', current.me?.uid);
     if (!checkpoint || !isCurrentSessionAuthority(checkpoint)) return;
     if (pendingRef.current && isCurrentSessionAuthority(pendingRef.current)) return;
+    if (retry && !hasCurrentBoaHolderAuthority(retry.binding)) return;
     const freshStaleRetry = staleRecovery !== null;
     if (freshStaleRetry && !canRetryStale) return;
-    const command = retry ?? (freshStaleRetry ? {
+    const command = retry?.command ?? (freshStaleRetry ? {
       requestId: window.crypto.randomUUID(), recipeId,
       expectedControlRevision: session.shuttleControl?.boa?.revision ?? control.revision,
       expectedRecyclingRevision: ledgerRevision,
@@ -133,8 +152,15 @@ export default function BoaRecyclingPanel({ control, docking, fuelled, hostName 
       expectedHostShipId: docking?.shipId ?? '',
     });
     if (!retry && !canSubmit) return;
+    const binding = retry?.binding ?? staleRecovery?.binding ?? {
+      sessionId: checkpoint.sessionId,
+      uid: checkpoint.uid,
+      fleetGroupId: current.me?.fleetGroupId ?? '',
+      expectedHostShipId: command.expectedHostShipId,
+    };
+    if (!hasCurrentBoaHolderAuthority(binding)) return;
     pendingRef.current = checkpoint;
-    setPending(true); setError(''); setMessage(''); setRetry(command); setStaleRecovery(null);
+    setPending(true); setError(''); setMessage(''); setRetry({ command, binding }); setStaleRecovery(null);
     try {
       const result = await recycleWithBoa(command);
       if (result.status === 'stale') {
@@ -147,13 +173,8 @@ export default function BoaRecyclingPanel({ control, docking, fuelled, hostName 
           setError('Boa recycling returned an invalid stale request binding. Refresh before retrying.');
           return;
         }
-        const recovery = {
-          reply: result,
-          sessionId: checkpoint.sessionId,
-          uid: checkpoint.uid,
-          fleetGroupId: current.me?.fleetGroupId ?? '',
-        } satisfies BoaStaleRecovery;
-        if (!hasCurrentBoaHolderAuthority(recovery)) {
+        const recovery = { reply: result, binding } satisfies BoaStaleRecovery;
+        if (!hasCurrentBoaHolderAuthority(binding)) {
           setRetry(null);
           setError('Boa recycling authority changed while the request was pending. Refresh before retrying.');
           return;
@@ -206,7 +227,7 @@ export default function BoaRecyclingPanel({ control, docking, fuelled, hostName 
     </label>
     <div className="console-workspace__actions">
       <button className="cic-action-button" type="button"
-        disabled={pending || (retry ? false : staleRecovery ? !canRetryStale : !canSubmit)} onClick={() => void submitExchange()}>
+        disabled={pending || (retry ? !hasCurrentBoaHolderAuthority(retry.binding) : staleRecovery ? !canRetryStale : !canSubmit)} onClick={() => void submitExchange()}>
         {pending ? 'Recycling resources…' : retry ? 'Retry exact recycling request' : staleRecovery
           ? `Retry ${selectedRecipe.label} using current state`
           : `Recycle ${selectedRecipe.label} for 1 Scrap`}

@@ -176,6 +176,43 @@ it('retries the exact command id after an uncertain response', async () => {
   expect(await within(panel).findByRole('status')).toHaveTextContent('already recorded');
 });
 
+it.each([
+  ['role loss', () => useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, assignedRoleId: 'capybara-captain', activeConsoleRoleId: 'capybara-captain',
+  })],
+  ['Boa holder change', () => {
+    const current = useSessionStore.getState().session!;
+    useSessionStore.getState().setSession({ ...current, shuttleControl: { boa: { ...control, holderUid: 'other' } } });
+  }],
+  ['fleet group change', () => useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, fleetGroupId: 'fleet-2',
+  })],
+  ['docking loss', () => {
+    const current = useSessionStore.getState().session!;
+    useSessionStore.getState().setSession({ ...current, shuttleDockings: [] });
+  }],
+  ['Capybara disabled', () => {
+    const current = useSessionStore.getState().session!;
+    useSessionStore.getState().setSession({ ...current, capybaraEnabled: false });
+  }],
+  ['Capybara removed from the active vessels', () => {
+    const current = useSessionStore.getState().session!;
+    useSessionStore.getState().setSession({ ...current, activeVesselIds: ['aegis'] });
+  }],
+])('disables the exact uncertain retry after %s', async (_label, loseAuthority) => {
+  mocks.recycle.mockRejectedValueOnce(new Error('temporary timeout'));
+  renderBoaPanel();
+  const panel = screen.getByRole('region', { name: 'Boa recycling' });
+  fireEvent.click(within(panel).getByRole('button', { name: 'Recycle 6 Food for 1 Scrap' }));
+  await within(panel).findByRole('alert');
+
+  act(loseAuthority);
+  const retryButton = within(panel).getByRole('button', { name: 'Retry exact recycling request' });
+  expect(retryButton).toBeDisabled();
+  fireEvent.click(retryButton);
+  expect(mocks.recycle).toHaveBeenCalledTimes(1);
+});
+
 it('keeps the selected recipe and requires an explicit fresh-CAS retry after a stale reply', async () => {
   vi.stubGlobal('crypto', { randomUUID: vi.fn()
     .mockReturnValueOnce('boa-stale-first')

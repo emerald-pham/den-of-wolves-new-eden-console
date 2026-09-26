@@ -125,6 +125,8 @@ it.each([
   })],
   ['host change', () => updateSession({ shuttleDockings: [{ shuttleId: 'boa', shipId: 'capybara', dockedAt: 'later' }] })],
   ['docking loss', () => updateSession({ shuttleDockings: [] })],
+  ['Capybara disabled', () => updateSession({ capybaraEnabled: false })],
+  ['Capybara removed from the active vessels', () => updateSession({ activeVesselIds: ['aegis'] })],
 ])('rejects a delayed stale response after %s', async (_label, changeAuthority) => {
   let resolve!: (value: ReturnType<typeof staleResponse>) => void;
   mocks.call.mockReturnValueOnce(new Promise((done) => { resolve = done; }));
