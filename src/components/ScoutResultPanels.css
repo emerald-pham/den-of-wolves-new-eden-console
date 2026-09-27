@@ -1,0 +1,68 @@
+.scout-result-panel,
+.scout-reveal-panel {
+  min-width: 0;
+}
+
+.scout-result-panel__heading,
+.scout-reveal-panel__list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.scout-result-panel__heading h3,
+.scout-reveal-panel h2 {
+  margin: 0;
+}
+
+.scout-result-panel__fact {
+  border-top: 1px solid currentColor;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+}
+
+.scout-result-panel__code {
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.scout-result-panel__title {
+  font-size: clamp(1rem, 2vw, 1.3rem);
+  font-weight: 700;
+}
+
+.scout-result-panel__hint {
+  border-inline-start: 3px solid currentColor;
+  padding-inline-start: 0.7rem;
+}
+
+.scout-reveal-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.scout-reveal-panel__list li {
+  border-top: 1px solid currentColor;
+  padding-block: 0.8rem;
+}
+
+.scout-reveal-panel__list li div {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.scout-reveal-panel__list .cic-action-button {
+  min-height: 44px;
+  white-space: normal;
+}
+
+@media (max-width: 42rem) {
+  .scout-reveal-panel__list .cic-action-button {
+    width: 100%;
+  }
+}
