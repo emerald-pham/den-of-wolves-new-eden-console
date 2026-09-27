@@ -608,6 +608,7 @@ import {
   type ScoutEntitlement,
 } from './scoutEntitlements';
 import { STAR_CHART_COORDINATES } from './starChartGraph';
+import { authorizeCurrentScoutScan, parseScoutCadence, type AuthorizedScoutScan } from './scoutRequestCadence';
 import {
   parseHighwallMiningState,
   resolveHighwallMining,
@@ -24023,6 +24024,10 @@ function scoutRequestRef(sessionId: string, requestId: string): DocumentReferenc
   return db.doc(`sessions/${sessionId}/scoutRequests/${requestId}`);
 }
 
+function scoutCadenceRef(sessionId: string, cycle: number, entitlementId: ScoutEntitlement['id']): DocumentReference {
+  return db.doc(`sessions/${sessionId}/scoutCadence/${cycle}-${entitlementId}`);
+}
+
 function strictScoutRosters(session: DocumentSnapshot): {
   readonly activeRoleIds: readonly string[];
   readonly activeVesselIds: readonly string[];
@@ -24061,13 +24066,14 @@ function isCurrentScoutRequestRecord(
   snapshot: DocumentSnapshot,
   expected: ScoutRequestReply,
   actorUid: string,
+  scan: AuthorizedScoutScan,
 ): boolean {
   if (!snapshot.exists) return false;
   const value = snapshot.data();
   if (!isRecord(value)) return false;
   const allowedKeys = new Set([
     'type', 'status', 'resolution', 'requestId', 'sessionId', 'actorUid', 'cycle',
-    'entitlementId', 'source', 'ownerRoleId', 'anchorShipId', 'targetCoordinate', 'createdAt',
+    'entitlementId', 'source', 'ownerRoleId', 'anchorShipId', 'targetCoordinate', 'scan', 'createdAt',
   ]);
   return Object.keys(value).every((key) => allowedKeys.has(key)) &&
     value.type === 'scout-request' && value.status === 'requested' && value.resolution === 'pending' &&
@@ -24075,10 +24081,11 @@ function isCurrentScoutRequestRecord(
     value.actorUid === actorUid && value.cycle === expected.cycle &&
     value.entitlementId === expected.entitlementId && value.source === expected.source &&
     value.ownerRoleId === expected.ownerRoleId && value.anchorShipId === expected.anchorShipId &&
-    value.targetCoordinate === expected.targetCoordinate && Object.hasOwn(value, 'createdAt');
+    value.targetCoordinate === expected.targetCoordinate && isDeepStrictEqual(value.scan, scan) &&
+    Object.hasOwn(value, 'createdAt');
 }
 
-/** Record an entitled scouting intent without resolving range, cadence, fuel, or chart content. */
+/** Record one legal scouting request from current server role, position, fuel, and cadence. */
 export const requestScout = onCall<{
   sessionId?: unknown;
   requestId?: unknown;
@@ -24107,10 +24114,11 @@ export const requestScout = onCall<{
   const sessionRef = db.doc(`sessions/${sessionId}`);
   const requestRef = scoutRequestRef(sessionId, requestId);
   const markerRef = commandReceiptRef(sessionId, requestId);
+  const navigationRef = navigationStateRef(sessionId);
 
   return db.runTransaction(async tx => {
-    const [session, actor, marker, priorRequest] = await Promise.all([
-      tx.get(sessionRef), tx.get(actorRef), tx.get(markerRef), tx.get(requestRef),
+    const [session, actor, marker, priorRequest, navigation] = await Promise.all([
+      tx.get(sessionRef), tx.get(actorRef), tx.get(markerRef), tx.get(requestRef), tx.get(navigationRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
@@ -24128,6 +24136,17 @@ export const requestScout = onCall<{
       throw commandError('failed-precondition', 'The current scouting cycle is unavailable.', 'invalid-phase');
     }
     const { activeRoleIds, activeVesselIds } = strictScoutRosters(session);
+    const cadenceRef = scoutCadenceRef(sessionId, cycle as number, entitlementId);
+    const cadenceSnapshot = await tx.get(cadenceRef);
+    let cadence;
+    try {
+      cadence = parseScoutCadence(
+        cadenceSnapshot.exists ? cadenceSnapshot.data() : undefined,
+        sessionId, entitlementId, cycle as number,
+      );
+    } catch {
+      throw commandError('failed-precondition', 'The current scout cadence is unavailable or malformed.', 'malformed-input');
+    }
     let entitlement: ScoutEntitlement;
     try {
       entitlement = requireScoutEntitlement({
@@ -24157,13 +24176,35 @@ export const requestScout = onCall<{
           replay.cycle !== cycle || replay.entitlementId !== entitlement.id ||
           replay.source !== entitlement.source || replay.ownerRoleId !== entitlement.ownerRoleId ||
           replay.anchorShipId !== entitlement.anchorShipId || replay.targetCoordinate !== targetCoordinate ||
-          !isCurrentScoutRequestRecord(priorRequest, replay, uid)) {
+          !cadence.scans.some(({ requestId: id, actorUid, scan }) =>
+            id === requestId && actorUid === uid && isCurrentScoutRequestRecord(priorRequest, replay, uid, scan))) {
         throw commandError('failed-precondition', 'The stored scout request is incomplete or stale.', 'conflict');
       }
       return { ...replay, status: 'replayed' as const };
     }
     if (priorRequest.exists) {
       throw commandError('failed-precondition', 'The scout request has no matching command receipt.', 'conflict');
+    }
+    const rawCoordinates = navigation.exists ? navigation.get('shipGalacticCoordinates') : undefined;
+    if (!isRecord(rawCoordinates) || Object.keys(rawCoordinates).length !== activeVesselIds.length ||
+        activeVesselIds.some((shipId) =>
+          typeof rawCoordinates[shipId] !== 'string' || !STAR_CHART_COORDINATES.includes(rawCoordinates[shipId] as string)) ||
+        Object.keys(rawCoordinates).some((shipId) => !activeVesselIds.includes(shipId))) {
+      throw commandError('failed-precondition', 'Current ship positions are unavailable for scouting.', 'malformed-input');
+    }
+    let scan: AuthorizedScoutScan;
+    try {
+      scan = authorizeCurrentScoutScan({
+        entitlementId, cycle: cycle as number, targetCoordinate,
+        playerRole: actor.get('role'), connected: actor.get('connected'),
+        assignedRoleId: actor.get('assignedRoleId'), seatId: actor.get('seatId'),
+        replacementRoleId: actor.get('replacementRoleId'), activeRoleIds, activeVesselIds,
+        shipGalacticCoordinates: rawCoordinates, cadence,
+        maintenanceCycles: session.get('maintenanceCycles'),
+        shuttleFuelled: session.get('shuttleFuelled'),
+      });
+    } catch {
+      throw commandError('failed-precondition', 'The selected scout is out of range or has no current-cycle capacity.', 'conflict');
     }
     const reply: ScoutRequestReply = {
       status: 'requested', resolution: 'pending', requestId, sessionId,
@@ -24172,9 +24213,15 @@ export const requestScout = onCall<{
       targetCoordinate,
     };
     tx.create(requestRef, {
-      type: 'scout-request', ...reply, actorUid: uid,
+      type: 'scout-request', ...reply, actorUid: uid, scan,
       createdAt: FieldValue.serverTimestamp(),
     });
+    const nextCadence = {
+      ...cadence,
+      scans: [...cadence.scans, { requestId, actorUid: uid, scan }],
+    };
+    if (cadenceSnapshot.exists) tx.set(cadenceRef, nextCadence);
+    else tx.create(cadenceRef, nextCadence);
     tx.create(markerRef, {
       fingerprint, result: reply, createdAt: FieldValue.serverTimestamp(),
     });

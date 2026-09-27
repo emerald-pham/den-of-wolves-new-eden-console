@@ -946,6 +946,12 @@ service cloud.firestore {
         allow read, write: if false;
       }
 
+      // Printed range, fuel, and per-cycle capacity are committed beside the
+      // request. Clients cannot reset or enumerate this server-owned ledger.
+      match /scoutCadence/{cadenceId} {
+        allow read, write: if false;
+      }
+
       // Shuttle arrival retries use a separate server-only receipt namespace;
       // their transit ids are visible to fleet peers and must not be claimable
       // through another caller-selected command id.
