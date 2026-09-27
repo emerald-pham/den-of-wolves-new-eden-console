@@ -42,10 +42,10 @@ After catalog edits, regenerate its Markdown views with
 `node scripts/generate-prompt-views.mjs`; `--check` verifies them without
 writing.
 
-`NEXT` is a ready-work hint. A hard prerequisite or owner decision still blocks
-work, while independent ready prompts may proceed concurrently. Freeze accepted
-scope; queue unrelated additions and make only directly blocking defect fixes
-inside the accepted task.
+`NEXT` is a ready-work hint. A hard prerequisite or decision reserved to the
+product owner blocks only the affected work; record the gap and continue
+independent ready work. Freeze accepted scope; queue unrelated additions and
+make only directly blocking defect fixes inside the accepted task.
 
 ## Optional coordination
 

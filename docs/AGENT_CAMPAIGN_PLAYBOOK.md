@@ -29,6 +29,11 @@ risk review, repairs findings, reconciles, validates, merges, pushes, verifies
 deployment, and closes the task. A separate sidecar or reviewer is optional;
 there is no minimum-agent count.
 
+For a shaped checkpoint, assign independent work on the release's critical
+path to available subagents when parallel execution is likely to shorten the
+release. Give each a bounded task, isolated checkout, shared-file boundary,
+and integration handoff; one owner reconciles the release.
+
 ## Model and review choices
 
 Only `gpt-6-luna` and `gpt-6-sol` may be delegated as subagents. Use
@@ -55,6 +60,11 @@ Independent ready prompts may run concurrently when they do not overlap a
 shared hotspot. Use `coordination:status` to inspect the current owner,
 worktree, process, and emulator reservations. Coordination is optional and
 should cover actual shared resources—not every file in a leaf directory.
+
+During a shaped build, resolve routine choices from source evidence and record
+assumptions. Continue independent work around an unavailable source or decision;
+ask the product owner only when higher authority requires it or no useful work
+remains.
 
 Never stop or take over another task because its timestamp looks old, its
 process is temporarily quiet, or its live reservation is empty. A parked task

@@ -160,6 +160,14 @@ extra owner playtest steps.
 **State:** shaped and ready for building. PC02–PC10 remain provisional
 candidates; the owner reviews PC01 only after a complete playable handoff.
 
+**Execution note (2026-09-27).** The earlier optional-sidecar wording left
+independent PC01 work easy to run serially. Assign bounded, separate owners
+for science research and the Scientist UI, ECM behavior, and scouting/map
+privacy where file ownership permits parallel work. Record each checkout,
+shared-file boundary, and integration handoff; one owner reconciles the
+checkpoint release. Resolve routine choices through sources and the assumptions
+log while independent lanes continue, without asking the owner to manage them.
+
 **Problem.** The Scientist's Endeavour station has research, field-upgrade,
 scouting, and science-device pieces, but their player paths remain partial or
 missing. The owner needs one understandable science workspace: find each
