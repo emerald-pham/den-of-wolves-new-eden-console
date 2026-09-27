@@ -5,7 +5,6 @@ import { captureSessionAuthority, hasFreshSessionAuthority, isCurrentSessionAuth
 import { parseMaliadesState } from './maliadesLedger';
 import { turnPhaseState } from './turnPhase';
 import type { GameSession, MaliadesStateRecord } from '@/types/game';
-import type { MaliadesRepairCallableStaleReply } from '../../functions/src/maliadesCallable';
 
 export type MaliadesMediumChoice =
   | Readonly<{ kind: 'target-shift'; targetId: string; shift: -1 | 1; wolfRosterIndex?: number }>
@@ -35,7 +34,23 @@ export interface MaliadesRepairCommittedReply {
   readonly state: MaliadesStateRecord;
 }
 
-export type MaliadesRepairReply = MaliadesRepairCommittedReply | MaliadesRepairCallableStaleReply;
+/** Client wire shape for a no-write stale CAS response from repairMaliades. */
+export interface MaliadesRepairStaleReply {
+  readonly status: 'stale';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly craftId: 'maliades';
+  readonly expectedHostShipId: string;
+  readonly damageToRepair: number;
+  readonly expectedControlRevision: number;
+  readonly currentControlRevision: number;
+  readonly expectedRevision: number;
+  readonly currentRevision: number;
+  readonly expectedCycle: number;
+  readonly currentCycle: number;
+}
+
+export type MaliadesRepairReply = MaliadesRepairCommittedReply | MaliadesRepairStaleReply;
 
 function commandId(): string {
   return window.crypto.randomUUID();
@@ -122,7 +137,7 @@ function parseStaleReply(
     expectedHostShipId: string;
     damageToRepair: number;
   }>,
-): MaliadesRepairCallableStaleReply | undefined {
+): MaliadesRepairStaleReply | undefined {
   const raw = record(value);
   const fields = [
     'status', 'sessionId', 'requestId', 'craftId', 'expectedHostShipId', 'damageToRepair',
@@ -140,7 +155,7 @@ function parseStaleReply(
       !Number.isSafeInteger(raw.currentCycle) || (raw.currentCycle as number) < expected.expectedCycle ||
       (raw.currentControlRevision === expected.expectedControlRevision &&
         raw.currentRevision === expected.expectedRevision && raw.currentCycle === expected.expectedCycle)) return undefined;
-  return raw as unknown as MaliadesRepairCallableStaleReply;
+  return raw as unknown as MaliadesRepairStaleReply;
 }
 
 function parseBaseReply(value: unknown, sessionId: string, requestId: string, expectedCycle: number, expectedRevision: number): Record<string, unknown> {

@@ -3,10 +3,9 @@ import { findShip } from '@/data/ships';
 import { phaseForSession } from '@/lib/turnPhase';
 import { hasFreshSessionAuthority } from '@/lib/sessionMutationAuthority';
 import { parseMaliadesState } from '@/lib/maliadesLedger';
-import { repairMaliades } from '@/lib/maliadesService';
+import { repairMaliades, type MaliadesRepairStaleReply } from '@/lib/maliadesService';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { GameSession, ShuttleControlEntry, ShuttleDocking } from '@/types/game';
-import type { MaliadesRepairCallableStaleReply } from '../../functions/src/maliadesCallable';
 
 interface Props {
   readonly control: ShuttleControlEntry;
@@ -27,7 +26,7 @@ interface MaliadesAttemptAuthority {
 }
 
 interface MaliadesStaleRecovery {
-  readonly reply: MaliadesRepairCallableStaleReply;
+  readonly reply: MaliadesRepairStaleReply;
   readonly binding: MaliadesAttemptAuthority;
 }
 
