@@ -3,11 +3,121 @@
 import assert from 'node:assert/strict';
 import { gzipSync } from 'node:zlib';
 import { readFile, readdir, stat, mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, extname, join, relative, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { init, parse } from 'es-module-lexer';
 import { build as viteBuild, preview } from 'vite';
 import react from '@vitejs/plugin-react';
 import { chromium } from 'playwright';
 
+function tagAttribute(tag, name) {
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = tag.match(new RegExp(`(?:^|\\s)${escapedName}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i'));
+  return match?.[1] ?? match?.[2] ?? match?.[3] ?? null;
+}
+
+function moduleAssetSpecifiers(html) {
+  const specifiers = [];
+  for (const [tag] of html.matchAll(/<(script|link)\b[^>]*>/gi)) {
+    if (/^<script\b/i.test(tag) && tagAttribute(tag, 'type')?.toLowerCase() === 'module') {
+      const source = tagAttribute(tag, 'src');
+      if (source) specifiers.push(source);
+    } else if (/^<link\b/i.test(tag) &&
+      tagAttribute(tag, 'rel')?.toLowerCase().split(/\s+/).includes('modulepreload')) {
+      const href = tagAttribute(tag, 'href');
+      if (href) specifiers.push(href);
+    }
+  }
+  return specifiers;
+}
+
+function localJavaScriptPath(distDirectory, importerPath, specifier) {
+  if (/^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(specifier)) return null;
+  const pathname = decodeURIComponent(specifier.split(/[?#]/, 1)[0]);
+  if (!pathname) return null;
+  const distRoot = resolve(distDirectory);
+  const candidate = resolve(pathname.startsWith('/')
+    ? join(distRoot, pathname.slice(1))
+    : join(dirname(importerPath), pathname));
+  const pathFromDist = relative(distRoot, candidate);
+  if (pathFromDist === '..' || pathFromDist.startsWith(`..${sep}`) || pathFromDist.startsWith(sep)) return null;
+  if (!['.js', '.mjs'].includes(extname(candidate).toLowerCase())) return null;
+  return candidate;
+}
+
+export async function collectJavaScriptModuleGraph(distDirectory, htmlFile = 'index.html') {
+  const distRoot = resolve(distDirectory);
+  const htmlPath = resolve(distRoot, htmlFile);
+  const html = await readFile(htmlPath, 'utf8');
+  const pending = moduleAssetSpecifiers(html)
+    .map((specifier) => localJavaScriptPath(distRoot, htmlPath, specifier))
+    .filter(Boolean);
+  const assets = new Set();
+  await init;
+
+  while (pending.length > 0) {
+    const assetPath = pending.pop();
+    if (assets.has(assetPath)) continue;
+    const source = await readFile(assetPath, 'utf8');
+    assets.add(assetPath);
+    const [imports] = parse(source);
+    for (const entry of imports) {
+      if (entry.d !== -1) continue;
+      const specifier = source.slice(entry.s, entry.e);
+      const dependency = localJavaScriptPath(distRoot, assetPath, specifier);
+      if (dependency && !assets.has(dependency)) pending.push(dependency);
+    }
+  }
+
+  return [...assets].sort();
+}
+
+async function allJavaScriptAssets(assetDirectory) {
+  const entries = await readdir(assetDirectory, { withFileTypes: true });
+  const nested = await Promise.all(entries.map(async (entry) => {
+    const path = join(assetDirectory, entry.name);
+    if (entry.isDirectory()) return allJavaScriptAssets(path);
+    return entry.isFile() && ['.js', '.mjs'].includes(extname(entry.name).toLowerCase()) ? [path] : [];
+  }));
+  return nested.flat().sort();
+}
+
+async function summarizeJavaScriptAssets(distDirectory, files) {
+  const buffers = await Promise.all(files.map((file) => readFile(file)));
+  const sizes = buffers.map((buffer) => buffer.byteLength);
+  return {
+    rawBytes: sizes.reduce((total, size) => total + size, 0),
+    gzipBytes: buffers.reduce((total, buffer) => total + gzipSync(buffer).byteLength, 0),
+    largestChunkBytes: sizes.length > 0 ? Math.max(...sizes) : 0,
+    chunks: files.length,
+    files: files.map((file) => relative(distDirectory, file)),
+  };
+}
+
+export async function measureBundleSizes(distDirectory) {
+  const distRoot = resolve(distDirectory);
+  const wholeBuildFiles = await allJavaScriptAssets(join(distRoot, 'assets'));
+  const landingFiles = await collectJavaScriptModuleGraph(distRoot);
+  let review = null;
+  let hasReviewPage = false;
+  try {
+    await stat(join(distRoot, 'pc01-review.html'));
+    hasReviewPage = true;
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+  }
+  if (hasReviewPage) {
+    const reviewFiles = await collectJavaScriptModuleGraph(distRoot, 'pc01-review.html');
+    review = await summarizeJavaScriptAssets(distRoot, reviewFiles);
+  }
+  return {
+    landing: await summarizeJavaScriptAssets(distRoot, landingFiles),
+    wholeBuild: await summarizeJavaScriptAssets(distRoot, wholeBuildFiles),
+    review,
+  };
+}
+
+async function main() {
 const root = process.cwd();
 const baseline = JSON.parse(await readFile(join(root, 'config/render-performance-baseline.json'), 'utf8'));
 const { budgets, measurement } = baseline;
@@ -44,17 +154,7 @@ const sessionSeed = () => {
   localStorage.setItem('dow-new-eden-session', JSON.stringify({ state, version: 1 }));
 };
 
-const assetDirectory = join(root, 'dist/assets');
-const assetFiles = await readdir(assetDirectory);
-const jsFiles = assetFiles.filter((file) => file.endsWith('.js'));
-const jsBuffers = await Promise.all(jsFiles.map((file) => readFile(join(assetDirectory, file))));
-const jsSizes = await Promise.all(jsFiles.map((file) => stat(join(assetDirectory, file)).then((entry) => entry.size)));
-const bundle = {
-  rawBytes: jsSizes.reduce((total, size) => total + size, 0),
-  gzipBytes: jsBuffers.reduce((total, buffer) => total + gzipSync(buffer).byteLength, 0),
-  largestChunkBytes: Math.max(...jsSizes),
-  chunks: jsFiles.length,
-};
+const bundle = await measureBundleSizes(join(root, 'dist'));
 const harnessOutput = join(artifactDirectory, 'harness-dist');
 let production;
 let harnessServer;
@@ -146,9 +246,9 @@ try {
   // Preserve measurements before enforcing budgets so a regression produces
   // the machine-readable CI artifact needed to diagnose the breached surface.
   await writeFile(join(artifactDirectory, 'results.json'), `${JSON.stringify(results, null, 2)}\n`);
-  assert.ok(bundle.rawBytes <= budgets.landingBundleRawBytes, `Landing JavaScript is ${bundle.rawBytes} bytes; budget ${budgets.landingBundleRawBytes}.`);
-  assert.ok(bundle.gzipBytes <= budgets.landingBundleGzipBytes, `Landing gzip JavaScript is ${bundle.gzipBytes} bytes; budget ${budgets.landingBundleGzipBytes}.`);
-  assert.ok(bundle.largestChunkBytes <= budgets.largestJavaScriptChunkBytes, `Largest JavaScript chunk is ${bundle.largestChunkBytes} bytes; budget ${budgets.largestJavaScriptChunkBytes}.`);
+  assert.ok(bundle.landing.rawBytes <= budgets.landingBundleRawBytes, `Landing JavaScript is ${bundle.landing.rawBytes} bytes; budget ${budgets.landingBundleRawBytes}.`);
+  assert.ok(bundle.landing.gzipBytes <= budgets.landingBundleGzipBytes, `Landing gzip JavaScript is ${bundle.landing.gzipBytes} bytes; budget ${budgets.landingBundleGzipBytes}.`);
+  assert.ok(bundle.wholeBuild.largestChunkBytes <= budgets.largestJavaScriptChunkBytes, `Largest JavaScript chunk is ${bundle.wholeBuild.largestChunkBytes} bytes; budget ${budgets.largestJavaScriptChunkBytes}.`);
   assert.ok(results.landingStartup.p95Ms <= budgets.landingStartupP95Ms, `Landing startup p95 ${results.landingStartup.p95Ms}ms exceeds ${budgets.landingStartupP95Ms}ms.`);
   assert.ok(results.routeStartup.p95Ms <= budgets.routeStartupP95Ms, `Route startup p95 ${results.routeStartup.p95Ms}ms exceeds ${budgets.routeStartupP95Ms}ms.`);
   assert.ok(results.dradisUpdate.p95Ms <= budgets.dradisUpdateP95Ms, `DRADIS update p95 ${results.dradisUpdate.p95Ms}ms exceeds ${budgets.dradisUpdateP95Ms}ms.`);
@@ -161,4 +261,9 @@ try {
   await browser?.close().catch(() => undefined);
   if (harnessServer) await new Promise((resolve) => harnessServer.httpServer.close(resolve));
   if (production) await new Promise((resolve) => production.httpServer.close(resolve));
+}
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  await main();
 }
