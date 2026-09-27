@@ -8,7 +8,9 @@ it('lets the owner try the synthetic Team research and Coordination purchase wit
   render(<PC01ReviewScene />);
 
   expect(screen.getByRole('heading', { name: /PC01.*Shepherd science station/i })).toBeVisible();
-  expect(screen.getByText(/SAMPLE ONLY.*no live session is connected/i)).toBeVisible();
+  const sampleNotice = screen.getByRole('complementary', { name: 'Synthetic sample notice' });
+  expect(within(sampleNotice).getByText('SAMPLE ONLY')).toBeVisible();
+  expect(within(sampleNotice).getByText(/No live session is connected/)).toBeVisible();
   expect(screen.getByRole('link', { name: 'Return to console landing' })).toHaveAttribute('href', '/');
 
   await user.selectOptions(screen.getByRole('combobox', { name: 'Research track' }), 'jump-drive');
@@ -17,7 +19,8 @@ it('lets the owner try the synthetic Team research and Coordination purchase wit
   expect(screen.getByRole('list', { name: 'Research progress' })).toHaveTextContent('Jump Drive: 1 of 5 boxes crossed');
 
   await user.click(screen.getByRole('button', { name: 'Coordination upgrades' }));
-  await user.click(screen.getByRole('checkbox', { name: 'AEGIS // Reactor // 8 materials' }));
+  expect(screen.getByRole('checkbox', { name: 'DIONE // Jump Drive // 13 materials' })).toBeVisible();
+  await user.click(screen.getByRole('checkbox', { name: 'DIONE // Jump Drive // 13 materials' }));
   await user.click(screen.getByRole('button', { name: 'Purchase sample upgrades' }));
   expect(await screen.findByRole('status')).toHaveTextContent('Sample purchase successful.');
 
@@ -53,7 +56,7 @@ it('walks from the pending request through the GM reveal to the private note and
   const chart = screen.getByRole('region', { name: 'GM scout chart' });
   expect(within(chart).getByRole('button', { name: 'System 8378 // O // Deep Nebula' })).toBeVisible();
   await user.click(screen.getByRole('button', { name: 'Reveal Endeavour scout at 8378' }));
-  expect(await screen.findByRole('status')).toHaveTextContent('Sample report revealed.');
+  expect(await screen.findByText(/Sample report revealed/)).toBeVisible();
 
   await user.selectOptions(screen.getByRole('combobox', { name: 'Review perspective' }), 'scientist');
   const report = screen.getByRole('region', { name: 'Endeavour scout report' });
