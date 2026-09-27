@@ -237,7 +237,7 @@ describe('private scout result callables', () => {
       fleetGroupId: 'fleet-2',
     });
     await expect(readMyScoutDiscoveryNote.run(callableRequest(noteRequest, 'scientist-1')))
-      .resolves.toMatchObject({ id: noteId, shipId: 'shepherd' });
+      .resolves.toMatchObject({ id: noteId, systemFact: { code: 'O' } });
     put('sessions/session-1/players/scientist-1', {
       role: 'player', connected: true, lastSeenAt: now - 1_000,
       assignedRoleId: 'shepherd-scientist', seatId: 'shepherd-scientist',
