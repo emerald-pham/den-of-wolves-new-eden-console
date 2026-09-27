@@ -168,6 +168,53 @@ it('requires server-recorded Ally fuel for a second Union ship', async () => {
 });
 
 it.each([
+  ['stale control revision', { ...command, expectedControlRevision: 1 }, undefined],
+  ['stale repair revision', command, {
+    cycle: 3, revision: 1, hosts: [{ shipId: 'icebreaker', systemIds: ['jump-drive'] }],
+  }],
+] as const)('returns a minimal no-write stale envelope for a still-authorized %s retry', async (_label, staleCommand, ledger) => {
+  if (ledger) (mock.documents.get('sessions/s1') as Fields).allyRepairs = ledger;
+  const beforeSession = structuredClone(mock.documents.get('sessions/s1'));
+  const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
+  await expect(repairConsolesFromAlly.run(request(staleCommand))).resolves.toEqual({
+    status: 'stale', sessionId: 's1', requestId: 'ally-repair-1', shuttleId: 'ally',
+    expectedHostShipId: 'shepherd', systemIds: ['reactor', 'storage'],
+    expectedControlRevision: staleCommand.expectedControlRevision, currentControlRevision: 2,
+    expectedRepairRevision: staleCommand.expectedRepairRevision,
+    currentRepairRevision: ledger ? 1 : 0,
+    expectedCycle: 3, currentCycle: 3,
+  });
+  expect(mock.documents.get('sessions/s1')).toEqual(beforeSession);
+  expect(mock.documents.has('sessions/s1/commandReceipts/ally-repair-1')).toBe(false);
+  expect(mock.documents.has('sessions/s1/events/ally-repair-ally-repair-1')).toBe(false);
+  expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
+});
+
+type AuthorityDocuments = { session: Fields; player: Fields; group: Fields };
+type AuthorityChange = (documents: AuthorityDocuments) => void;
+const authorityChanges: readonly [string, AuthorityChange, string][] = [
+  ['holder changed', ({ session }) => {
+    (session.shuttleControl as Fields).ally = {
+      shuttleId: 'ally', ownerRoleId: 'joint-engineering-shepherd-icebreaker',
+      ownerUid: 'union-owner', holderUid: 'someone-else', revision: 3,
+    };
+  }, 'permission-denied'],
+  ['fleet-group membership changed', ({ group }) => {
+    group.memberUids = ['someone-else'];
+  }, 'permission-denied'],
+];
+it.each(authorityChanges)('does not return stale revisions after %s', async (_label, changeAuthority, code) => {
+  const session = mock.documents.get('sessions/s1')!;
+  const player = mock.documents.get('sessions/s1/players/holder')!;
+  const group = mock.documents.get('sessions/s1/fleetGroups/fleet-1')!;
+  changeAuthority({ session, player, group });
+  const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
+  await expect(repairConsolesFromAlly.run(request({ ...command, expectedControlRevision: 1 })))
+    .rejects.toMatchObject({ code });
+  expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
+});
+
+it.each([
   ['copied craft field', { request: { shuttleId: 'philia' }, code: 'invalid-argument' }],
   ['wrong active role', { player: { assignedRoleId: 'dione-engineer' }, code: 'permission-denied' }],
   ['removed Union role', { session: { activeRoleIds: ['dione-engineer'] }, code: 'permission-denied' }],
@@ -181,8 +228,8 @@ it.each([
   ['host outside Union pairing', { session: { shuttleDockings: [{ shuttleId: 'ally', shipId: 'dione', dockedAt: 'bad' }] } }],
   ['host outside fleet group', { group: { vesselIds: ['icebreaker'] }, code: 'permission-denied' }],
   ['stale host expectation', { request: { expectedHostShipId: 'icebreaker' } }],
-  ['stale control revision', { request: { expectedControlRevision: 1 } }],
-  ['stale repair revision', { request: { expectedRepairRevision: 1 } }],
+  ['future control revision', { request: { expectedControlRevision: 3 } }],
+  ['future repair revision', { request: { expectedRepairRevision: 1 } }],
   ['missing live coordination window', { session: { turnPhase: { state: 'restricted' } } }],
   ['malformed server fuel', { session: { shuttleFuelled: { ally: 'yes' } } }],
   ['malformed server repair history', { session: { allyRepairs: { cycle: 3, revision: -1, hosts: [] } } }],

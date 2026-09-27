@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { findShip } from '@/data/ships';
 import { parseAllyRepairLedger } from '@/lib/allyRepairLedger';
-import { repairConsolesFromAlly, type AllyRepairCommand } from '@/lib/allyRepairService';
+import {
+  hasCurrentAllyHolderAuthority,
+  repairConsolesFromAlly,
+  type AllyRepairAuthorityBinding,
+  type AllyRepairCommand,
+  type AllyRepairServiceResult,
+  type AllyRepairStaleResult,
+} from '@/lib/allyRepairService';
 import {
   captureSessionAuthority,
   isCurrentSessionAuthority,
@@ -16,39 +23,54 @@ interface Props {
   readonly fuelled: boolean;
 }
 
+interface AllyStaleRecovery {
+  readonly reply: AllyRepairStaleResult;
+  readonly binding: AllyRepairAuthorityBinding;
+}
+
+interface AllyExactRetry {
+  readonly command: AllyRepairCommand;
+  readonly binding: AllyRepairAuthorityBinding;
+}
+
+function sameSystemIds(left: readonly string[], right: readonly string[]): boolean {
+  const sortedRight = [...right].sort();
+  return left.length === sortedRight.length && left.every((id, index) => id === sortedRight[index]);
+}
+
+function staleReplyMatchesCommand(
+  result: AllyRepairStaleResult,
+  sessionId: string,
+  command: AllyRepairCommand,
+): boolean {
+  return result.sessionId === sessionId && result.requestId === command.requestId &&
+    result.shuttleId === 'ally' && result.expectedHostShipId === command.expectedHostShipId &&
+    sameSystemIds(result.systemIds, command.systemIds) &&
+    result.expectedControlRevision === command.expectedControlRevision &&
+    result.expectedRepairRevision === command.expectedRepairRevision &&
+    result.expectedCycle === command.expectedCycle;
+}
+
 export default function AllyRepairPanel({ control, docking, fuelled }: Props) {
   const session = useSessionStore((state) => state.session)! as GameSession;
   const me = useSessionStore((state) => state.me)!;
   const [systemIds, setSystemIds] = useState<string[]>([]);
   const [pending, setPending] = useState(false);
-  const [status, setStatus] = useState<{
-    readonly checkpoint: SessionAuthorityCheckpoint;
-    readonly message: string;
-  } | null>(null);
-  const [error, setError] = useState<{
-    readonly checkpoint: SessionAuthorityCheckpoint;
-    readonly message: string;
-  } | null>(null);
-  const [retry, setRetry] = useState<{
-    readonly command: AllyRepairCommand;
-    readonly checkpoint: SessionAuthorityCheckpoint;
-  } | null>(null);
+  const [status, setStatus] = useState('');
+  const [error, setError] = useState('');
+  const [retry, setRetry] = useState<AllyExactRetry | null>(null);
+  const [staleRecovery, setStaleRecovery] = useState<AllyStaleRecovery | null>(null);
   const pendingRef = useRef<SessionAuthorityCheckpoint | null>(null);
   const identity = JSON.stringify([session.id, me.uid]);
-  const retryCommand = retry && isCurrentSessionAuthority(retry.checkpoint)
-    ? retry.command : null;
-  const pendingForCurrentAuthority = pending && pendingRef.current !== null &&
-    isCurrentSessionAuthority(pendingRef.current);
-  const statusMessage = status?.checkpoint.sessionId === session.id &&
-    status.checkpoint.uid === me.uid ? status.message : '';
-  const errorMessage = error?.checkpoint.sessionId === session.id &&
-    error.checkpoint.uid === me.uid ? error.message : '';
+  const sessionControl = session.shuttleControl?.ally;
+  const currentControl = sessionControl ?? control;
 
   const parsedLedger = parseAllyRepairLedger(session.allyRepairs);
   const repairHistoryValid = parsedLedger !== null && parsedLedger.cycle <= (session.currentTurn ?? 0);
   const ledger = repairHistoryValid ? parsedLedger! : undefined;
   const repairRevision = ledger?.revision ?? 0;
-  const hostsThisCycle = ledger && ledger.cycle === session.currentTurn ? ledger.hosts : [];
+  const currentCycle = session.currentTurn ?? 0;
+  const hostsThisCycle = ledger && ledger.cycle === currentCycle ? ledger.hosts : [];
   const repairedOnHost = docking
     ? hostsThisCycle.find((host) => host.shipId === docking.shipId)?.systemIds ?? [] : [];
   const hostAlreadyUsed = Boolean(docking && hostsThisCycle.some((host) => host.shipId === docking.shipId));
@@ -58,37 +80,82 @@ export default function AllyRepairPanel({ control, docking, fuelled }: Props) {
   const damage = docking ? session.shipDamage?.[docking.shipId] : undefined;
   const repairOptions = docking
     ? (damage?.damagedSystemIds ?? []).filter((id) => !repairedOnHost.includes(id)) : [];
+  const staleSelectedIds = systemIds.filter((id) => !repairOptions.includes(id));
+  const visibleSystemIds = [...repairOptions, ...staleSelectedIds];
+  const selectionIsCurrent = systemIds.length >= 1 && systemIds.every((id) => repairOptions.includes(id));
   const materials = docking ? session.shipResources?.[docking.shipId]?.materials ?? 0 : 0;
   const repairDeadline = session.turnPhase?.openAirspaceEndsAt
     ? Date.parse(session.turnPhase.openAirspaceEndsAt) : Number.NaN;
   const turnPhase = session.turnPhase;
-  const repairWindowOpen = session.phase === 'active' &&
-    (session.currentTurn ?? 0) >= 1 && turnPhase !== undefined && turnPhase.turn === session.currentTurn &&
+  const repairWindowOpen = session.phase === 'active' && currentCycle >= 1 &&
+    turnPhase !== undefined && turnPhase.turn === currentCycle &&
     turnPhase.airspace.state === 'lifted' && turnPhase.timerPause === undefined &&
     Number.isFinite(repairDeadline) && Date.now() < repairDeadline;
-  const isHolder = control.shuttleId === 'ally' &&
-    control.ownerRoleId === 'joint-engineering-shepherd-icebreaker' && me.role === 'player' &&
-    me.uid === control.holderUid && me.assignedRoleId === 'joint-engineering-shepherd-icebreaker';
+  const authorityBinding: AllyRepairAuthorityBinding = {
+    sessionId: session.id,
+    uid: me.uid,
+    role: me.role,
+    assignedRoleId: me.assignedRoleId,
+    activeConsoleRoleId: me.activeConsoleRoleId,
+    fleetGroupId: me.fleetGroupId ?? '',
+    ownerUid: currentControl.ownerUid ?? '',
+    expectedHostShipId: docking?.shipId ?? '',
+    expectedControlRevision: currentControl.revision,
+    expectedRepairRevision: repairRevision,
+    expectedCycle: currentCycle,
+  };
+  const hasCurrentAuthority = hasCurrentAllyHolderAuthority(authorityBinding, true);
+  const propsMatchProjection = sessionControl?.revision === control.revision &&
+    sessionControl?.ownerUid === control.ownerUid && sessionControl?.holderUid === control.holderUid &&
+    Boolean(docking && session.shuttleDockings?.filter((entry) => entry.shuttleId === 'ally').length === 1 &&
+      session.shuttleDockings?.find((entry) => entry.shuttleId === 'ally')?.shipId === docking.shipId);
   const selectedMaterials = systemIds.length * 4;
-  const canSubmit = repairHistoryValid && isHolder && Boolean(docking) && repairWindowOpen &&
-    repairShipAvailable && repairSlotsRemaining > 0 && systemIds.length >= 1 &&
+  const canSubmit = repairHistoryValid && hasCurrentAuthority && propsMatchProjection && Boolean(docking) &&
+    repairWindowOpen && repairShipAvailable && repairSlotsRemaining > 0 && selectionIsCurrent &&
     systemIds.length <= Math.min(2, repairSlotsRemaining) && materials >= selectedMaterials &&
     damage?.destroyed !== true;
-
-  useEffect(() => setSystemIds([]), [repairRevision, control.revision, docking?.shipId, session.currentTurn, identity]);
+  const retryCommand = retry && hasCurrentAllyHolderAuthority(retry.binding, true) ? retry : null;
+  const pendingForCurrentActor = pending && pendingRef.current?.sessionId === session.id &&
+    pendingRef.current.uid === me.uid;
+  const staleSnapshotCurrent = staleRecovery !== null &&
+    hasCurrentAllyHolderAuthority(staleRecovery.binding, true) && repairHistoryValid &&
+    currentCycle >= staleRecovery.reply.currentCycle &&
+    (sessionControl?.revision ?? -1) >= staleRecovery.reply.currentControlRevision &&
+    repairRevision >= staleRecovery.reply.currentRepairRevision &&
+    docking?.shipId === staleRecovery.reply.expectedHostShipId && propsMatchProjection;
+  const canRetryStale = Boolean(staleSnapshotCurrent && canSubmit);
+  const authoritySignal = JSON.stringify([
+    identity, me.role, me.assignedRoleId, me.activeConsoleRoleId, me.fleetGroupId,
+    session.phase, session.currentTurn, sessionControl?.ownerUid, sessionControl?.holderUid,
+    sessionControl?.revision, docking?.shipId,
+  ]);
 
   useEffect(() => {
     pendingRef.current = null;
     setPending(false);
-    setStatus(null);
-    setError(null);
+    setSystemIds([]);
+    setStatus('');
+    setError('');
     setRetry(null);
-  }, [identity]);
+    setStaleRecovery(null);
+  }, [identity, docking?.shipId]);
+
+  useEffect(() => {
+    if (retry && !hasCurrentAllyHolderAuthority(retry.binding, true)) {
+      setRetry(null);
+      setError('Ally repair authority changed while the request was pending.');
+    }
+    if (staleRecovery && !hasCurrentAllyHolderAuthority(staleRecovery.binding, true)) {
+      setRetry(null);
+      setStaleRecovery(null);
+      setError('Ally repair authority changed while the request was pending.');
+    }
+  }, [authoritySignal, retry, staleRecovery]);
 
   function chooseConsole(systemId: string, checked: boolean): void {
     setRetry(null);
-    setError(null);
-    setStatus(null);
+    setError('');
+    setStatus('');
     setSystemIds((current) => checked
       ? current.includes(systemId) ? current : [...current, systemId]
       : current.filter((id) => id !== systemId));
@@ -97,49 +164,100 @@ export default function AllyRepairPanel({ control, docking, fuelled }: Props) {
   async function submitRepair(): Promise<void> {
     const current = useSessionStore.getState();
     const checkpoint = captureSessionAuthority(current.session?.id ?? '', current.me?.uid);
-    if (!checkpoint || !isCurrentSessionAuthority(checkpoint)) return;
-    const pendingCheckpoint = pendingRef.current;
-    if (pendingCheckpoint && isCurrentSessionAuthority(pendingCheckpoint)) return;
-    const activeRetry = retry && isCurrentSessionAuthority(retry.checkpoint) ? retry : null;
-    const command: AllyRepairCommand = activeRetry?.command ?? {
+    if (!checkpoint || !current.me || !isCurrentSessionAuthority(checkpoint)) return;
+    const existingPending = pendingRef.current;
+    if (existingPending?.sessionId === checkpoint.sessionId && existingPending.uid === checkpoint.uid) return;
+
+    const exactRetry = retry && hasCurrentAllyHolderAuthority(retry.binding, true) ? retry : null;
+    if (retry && !exactRetry) return;
+    const freshStaleRetry = staleRecovery !== null;
+    if (freshStaleRetry && !canRetryStale) return;
+    if (!exactRetry && !freshStaleRetry && !canSubmit) return;
+
+    const liveSession = current.session as GameSession;
+    const liveControl = liveSession.shuttleControl?.ally;
+    if (!liveControl) return;
+    const command: AllyRepairCommand = exactRetry?.command ?? {
       requestId: window.crypto.randomUUID(),
       systemIds: [...systemIds],
-      expectedControlRevision: control.revision,
+      expectedControlRevision: liveControl.revision,
       expectedRepairRevision: repairRevision,
-      expectedCycle: session.currentTurn ?? 0,
+      expectedCycle: liveSession.currentTurn ?? 0,
       expectedHostShipId: docking?.shipId ?? '',
     };
-    if (!activeRetry && !canSubmit) return;
+    const binding: AllyRepairAuthorityBinding = exactRetry?.binding ?? {
+      sessionId: liveSession.id,
+      uid: current.me.uid,
+      role: current.me.role,
+      assignedRoleId: current.me.assignedRoleId,
+      activeConsoleRoleId: current.me.activeConsoleRoleId,
+      fleetGroupId: current.me.fleetGroupId ?? '',
+      ownerUid: liveControl.ownerUid,
+      expectedHostShipId: command.expectedHostShipId,
+      expectedControlRevision: command.expectedControlRevision,
+      expectedRepairRevision: command.expectedRepairRevision,
+      expectedCycle: command.expectedCycle,
+    };
+    if (!hasCurrentAllyHolderAuthority(binding, true)) return;
 
     pendingRef.current = checkpoint;
     setPending(true);
-    setStatus(null);
-    setError(null);
-    setRetry({ command, checkpoint });
+    setStatus('');
+    setError('');
+    setRetry({ command, binding });
+    setStaleRecovery(null);
     try {
-      const result = await repairConsolesFromAlly(command);
-      if (!isCurrentSessionAuthority(checkpoint)) return;
-      setStatus({
-        checkpoint,
-        message: result.status === 'replayed'
-          ? `This repair was already recorded // ${result.materialsRemaining} materials remain.`
-          : `Repaired ${result.systemIds.length} console${result.systemIds.length === 1 ? '' : 's'} // ${result.materialsRemaining} materials remain.`,
-      });
+      const result: AllyRepairServiceResult = await repairConsolesFromAlly(command);
+      if (result.status === 'stale') {
+        if (!staleReplyMatchesCommand(result, binding.sessionId, command)) {
+          setRetry(null);
+          setError('Ally repair returned an invalid stale request binding. Refresh before retrying.');
+          return;
+        }
+        if (!hasCurrentAllyHolderAuthority(binding, true)) {
+          setRetry(null);
+          setStaleRecovery(null);
+          setError('Ally repair authority or Coordination changed while the request was pending.');
+          return;
+        }
+        setRetry(null);
+        setStaleRecovery({ reply: result, binding });
+        setStatus('Ally repair state changed. Review the current live state before retrying.');
+        return;
+      }
+      if (!hasCurrentAllyHolderAuthority(binding, false)) {
+        setRetry(null);
+        setStaleRecovery(null);
+        setError('Ally repair authority changed while the request was pending.');
+        return;
+      }
+      setStatus(result.status === 'replayed'
+        ? `This repair was already recorded // ${result.materialsRemaining} materials remain.`
+        : `Repaired ${result.systemIds.length} console${result.systemIds.length === 1 ? '' : 's'} // ${result.materialsRemaining} materials remain.`);
       setRetry(null);
+      setStaleRecovery(null);
       setSystemIds([]);
     } catch (cause) {
-      if (!isCurrentSessionAuthority(checkpoint)) return;
-      setError({
-        checkpoint,
-        message: cause instanceof Error ? cause.message : 'Ally repair failed.',
-      });
+      if (hasCurrentAllyHolderAuthority(binding, true)) {
+        setError(cause instanceof Error ? cause.message : 'Ally repair failed.');
+      } else {
+        setRetry(null);
+        setStaleRecovery(null);
+        setError('Ally repair authority or Coordination changed while the request was pending.');
+      }
     } finally {
-      if (isCurrentSessionAuthority(checkpoint) && pendingRef.current === checkpoint) {
+      if (pendingRef.current === checkpoint) {
         pendingRef.current = null;
         setPending(false);
       }
     }
   }
+
+  const hasStaleRetry = staleRecovery !== null;
+  const isHolder = control.shuttleId === 'ally' &&
+    control.ownerRoleId === 'joint-engineering-shepherd-icebreaker' &&
+    me.role === 'player' && me.uid === control.holderUid &&
+    me.assignedRoleId === 'joint-engineering-shepherd-icebreaker';
 
   return <section className="console-workspace__section shuttle-control" aria-label="Ally console repair">
     <p className="console-workspace__eyebrow">Repair rig // docked host</p>
@@ -156,13 +274,14 @@ export default function AllyRepairPanel({ control, docking, fuelled }: Props) {
       <p>Ally may repair at most two ships this cycle.</p>}
     {damage?.destroyed && <p>A destroyed ship cannot receive Ally repairs.</p>}
     {repairOptions.length === 0 && <p>No damaged consoles are eligible on this ship.</p>}
+    {staleSelectedIds.length > 0 && <p>One or more selected consoles are no longer eligible in the current repair state.</p>}
     {systemIds.length > 0 && materials < selectedMaterials &&
       <p>This repair needs {selectedMaterials} materials; the host has {materials}.</p>}
     {!repairHistoryValid && <p>Ally repair history is unavailable. Refresh the live session before repairing.</p>}
-    <fieldset disabled={!repairHistoryValid || pendingForCurrentAuthority || !isHolder || !docking || !repairWindowOpen ||
-      !repairShipAvailable || repairSlotsRemaining === 0 || damage?.destroyed === true}>
+    <fieldset disabled={!repairHistoryValid || pendingForCurrentActor || !isHolder || !docking || !repairWindowOpen ||
+      !repairShipAvailable || repairSlotsRemaining === 0}>
       <legend>Damaged consoles</legend>
-      {repairOptions.map((systemId) => {
+      {visibleSystemIds.map((systemId) => {
         const checked = systemIds.includes(systemId);
         const atCapacity = systemIds.length >= Math.min(2, repairSlotsRemaining);
         const name = findShip(docking?.shipId)?.systems?.find((system) => system.id === systemId)?.name ??
@@ -174,13 +293,19 @@ export default function AllyRepairPanel({ control, docking, fuelled }: Props) {
       })}
     </fieldset>
     <div className="console-workspace__actions">
-      <button className="cic-action-button" type="button" disabled={pendingForCurrentAuthority || (!retryCommand && !canSubmit)}
+      <button className="cic-action-button" type="button"
+        disabled={pendingForCurrentActor || (retry ? !retryCommand : hasStaleRetry ? !canRetryStale : !canSubmit)}
         onClick={() => void submitRepair()}>
-        {pendingForCurrentAuthority ? 'Repairing consoles…' : retryCommand ? 'Retry exact repair request' : 'Repair selected consoles'}
+        {pendingForCurrentActor ? 'Repairing consoles…' : retryCommand ? 'Retry exact repair request' :
+          hasStaleRetry ? 'Retry repair with current revision' : 'Repair selected consoles'}
       </button>
     </div>
-    {errorMessage && <p role="alert">{errorMessage}</p>}
-    {retryCommand && !pendingForCurrentAuthority && <p>The last request needs confirmation. Retry it safely with the same request id.</p>}
-    {statusMessage && <p role="status">{statusMessage}</p>}
+    {error && <p role="alert">{error}</p>}
+    {retryCommand && !pendingForCurrentActor && <p>The last request needs confirmation. Retry it safely with the same request id.</p>}
+    {staleRecovery && !staleSnapshotCurrent && !pendingForCurrentActor &&
+      <p>The current live Ally state is still updating. Wait for it before retrying.</p>}
+    {staleRecovery && staleSnapshotCurrent && staleSelectedIds.length > 0 && !pendingForCurrentActor &&
+      <p>Review the selected consoles; no longer eligible consoles cannot be retried.</p>}
+    {status && <p role="status">{status}</p>}
   </section>;
 }

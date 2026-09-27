@@ -34,6 +34,22 @@ type AllyRepairReply = Readonly<{
   repairRevision: number;
 }>;
 
+/** Request-bound CAS state returned only while the same actor can still retry this repair. */
+export interface AllyRepairCallableStaleReply {
+  readonly status: 'stale';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly shuttleId: 'ally';
+  readonly expectedHostShipId: typeof ALLY_HOST_SHIP_IDS[number];
+  readonly systemIds: readonly string[];
+  readonly expectedControlRevision: number;
+  readonly currentControlRevision: number;
+  readonly expectedRepairRevision: number;
+  readonly currentRepairRevision: number;
+  readonly expectedCycle: number;
+  readonly currentCycle: number;
+}
+
 const LEGACY_M1_PATHS = [
   (sessionId: string, requestId: string) => `sessions/${sessionId}/setupMutationRequests/${requestId}`,
   (sessionId: string, requestId: string) => `sessions/${sessionId}/gmResponsibilityRequests/${requestId}`,
@@ -277,13 +293,23 @@ export const repairConsolesFromAlly = onCall<{
     if (!damage || !resources || !deck) {
       throw new HttpsError('failed-precondition', 'The docked host repair state is unavailable.');
     }
+    const currentControlRevision = controls.ally.revision;
+    const currentRepairRevision = ledger.revision;
+    if (!Number.isSafeInteger(currentControlRevision) || currentControlRevision < 0 ||
+        !Number.isSafeInteger(currentRepairRevision) || currentRepairRevision < 0 ||
+        currentControlRevision < command.expectedControlRevision ||
+        currentRepairRevision < command.expectedRepairRevision) {
+      throw new HttpsError('failed-precondition', 'Ally repair revisions are ahead of the current server state.');
+    }
+    const stale = currentControlRevision > command.expectedControlRevision ||
+      currentRepairRevision > command.expectedRepairRevision;
     let result: ReturnType<typeof resolveAllyRepair>;
     try {
       result = resolveAllyRepair({
         actorUid: uid,
         currentCycle: currentCycle as number,
-        expectedControlRevision: command.expectedControlRevision,
-        expectedRepairRevision: command.expectedRepairRevision,
+        expectedControlRevision: currentControlRevision,
+        expectedRepairRevision: currentRepairRevision,
         systemIds: command.systemIds,
         control: controls.ally,
         dockings: dockings as { shuttleId: string; shipId: string; dockedAt: string }[],
@@ -295,6 +321,17 @@ export const repairConsolesFromAlly = onCall<{
       });
     } catch (cause) {
       throw new HttpsError('failed-precondition', cause instanceof Error ? cause.message : 'Ally repair was rejected.');
+    }
+    if (stale) {
+      const reply: AllyRepairCallableStaleReply = {
+        status: 'stale', sessionId: command.sessionId, requestId: command.requestId,
+        shuttleId: 'ally', expectedHostShipId: command.expectedHostShipId,
+        systemIds: command.systemIds,
+        expectedControlRevision: command.expectedControlRevision, currentControlRevision,
+        expectedRepairRevision: command.expectedRepairRevision, currentRepairRevision,
+        expectedCycle: command.expectedCycle, currentCycle: currentCycle as number,
+      };
+      return reply;
     }
     const reply: AllyRepairReply = {
       status: 'committed', sessionId: command.sessionId, requestId: command.requestId,
