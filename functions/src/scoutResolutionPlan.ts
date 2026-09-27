@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import { resolveScoutChartResult } from './scoutChartResult';
 import { SCOUT_ENTITLEMENTS, type ScoutEntitlementId } from './scoutEntitlements';
 import type { PrivateScoutResult, ScoutResultViewerAuthority } from './scoutResultProjection';
@@ -63,7 +64,7 @@ function iso(value: unknown): value is string {
 }
 
 function equalJson(a: unknown, b: unknown): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
+  return isDeepStrictEqual(a, b);
 }
 
 export function scoutDiscoveryNoteId(sessionId: string, requesterUid: string, requestId: string): string {

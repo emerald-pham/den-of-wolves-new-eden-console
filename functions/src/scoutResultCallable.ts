@@ -1,4 +1,5 @@
 import { getFirestore, type DocumentSnapshot, type Transaction } from 'firebase-admin/firestore';
+import { isDeepStrictEqual } from 'node:util';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { isLiveSetupGm } from './gameSetup';
 import { shipForRole } from './crewAccess';
@@ -112,7 +113,7 @@ function groupForShip(
   return matches[0]!.id;
 }
 
-function equal(a: unknown, b: unknown): boolean { return JSON.stringify(a) === JSON.stringify(b); }
+function equal(a: unknown, b: unknown): boolean { return isDeepStrictEqual(a, b); }
 
 /** GM reveals one selected-chart fact from a committed, immutable legal request. */
 export const resolvePendingScoutRequest = onCall(CALLABLE_RUNTIME_OPTIONS, async (request) => {
