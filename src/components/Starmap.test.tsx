@@ -101,7 +101,7 @@ it('renders opaque topology while exposing only the coordinates in the player pr
       mode="ship"
       selectedCoordinate="0000"
       knownCoordinates={['0000']}
-      knownSystems={{ 'system-01': '0000' }}
+      knownSystems={{ 'system-01': '0000', 'system-02': '5143' }}
       fleetMarkers={[{ id: 'aegis', label: 'AEGIS', coordinate: '0000', color: 'cyan' }]}
     />,
   );
@@ -112,4 +112,8 @@ it('renders opaque topology while exposing only the coordinates in the player pr
   expect(map.querySelectorAll('[data-system-id]')).toHaveLength(22);
   expect(map.querySelectorAll('[data-system-coordinate]')).toHaveLength(1);
   expect(map.querySelectorAll('[data-system-id="system-02"]')).toHaveLength(1);
+  expect(map.querySelector('[data-system-id="system-02"]')).not.toHaveAttribute('data-system-coordinate');
+  expect(map.querySelector('[data-system-id="system-02"]')).toHaveAttribute(
+    'aria-label', 'Unknown system // coordinates unavailable',
+  );
 });

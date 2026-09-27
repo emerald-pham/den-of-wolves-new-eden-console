@@ -9,6 +9,7 @@ import {
   navigationStateDocumentPath,
   playerDiscoveryProjection,
   pursuitGroups,
+  recordScoutedCoordinateForShip,
   splitPursuitGroup,
   writePlayerDiscoveryProjection,
 } from './navigationProjection';
@@ -123,6 +124,31 @@ describe('server discovery projections', () => {
     expect(shepherd.navigationLogs).toHaveLength(1);
     expect(shepherd.navigationLogs[0]?.shipId).toBe('shepherd');
     expect(shepherd.knownCoordinates).not.toContain('5143');
+  });
+
+  it('records scanned coordinates for one ship and never serializes them to another ship', () => {
+    const scanned = recordScoutedCoordinateForShip(navigation, 'dione', '6798');
+    const repeated = recordScoutedCoordinateForShip(scanned, 'dione', '6798');
+    const dione = playerDiscoveryProjection(
+      player({ fleetGroupId: 'fleet-1', assignedRoleId: 'dione-captain' }), repeated, 5,
+    );
+    const shepherd = playerDiscoveryProjection(
+      player({ fleetGroupId: 'fleet-2', assignedRoleId: 'shepherd-captain' }), repeated, 5,
+    );
+
+    expect(repeated.scoutedCoordinatesByShip).toEqual({ dione: ['6798'] });
+    expect(dione.knownCoordinates).toContain('6798');
+    expect(Object.values(dione.knownSystems)).toContain('6798');
+    expect(shepherd.knownCoordinates).not.toContain('6798');
+    expect(Object.values(shepherd.knownSystems)).not.toContain('6798');
+    expect(JSON.stringify(shepherd)).not.toContain('6798');
+  });
+
+  it('rejects a scout coordinate for an inactive ship or unprinted system', () => {
+    expect(() => recordScoutedCoordinateForShip(navigation, 'capybara', '6798'))
+      .toThrow(/active ship/i);
+    expect(() => recordScoutedCoordinateForShip(navigation, 'dione', '9999'))
+      .toThrow(/printed star system/i);
   });
 
   it('gives an unassigned member only the stable origin fix', () => {

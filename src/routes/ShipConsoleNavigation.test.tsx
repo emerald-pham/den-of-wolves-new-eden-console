@@ -67,6 +67,46 @@ it('lets a ship hide resource stores and census independently in its local view'
   expect(screen.queryByText('2 / 7')).not.toBeInTheDocument();
 });
 
+it('hides location contents without removing the ship coordinate knowledge', async () => {
+  const current = useSessionStore.getState().session;
+  if (!current) throw new Error('Expected session.');
+  useSessionStore.getState().setSession({
+    ...current,
+    shipGalacticCoordinates: { aegis: '5143' },
+    playerDiscovery: {
+      groupId: 'fleet-1', shipId: 'aegis', currentCoordinate: '5143',
+      knownCoordinates: ['0000', '5143', '6798'],
+      knownSystems: { 'system-01': '0000', 'system-02': '5143', 'system-03': '6798' },
+      pursuitDistance: 1, navigationLogs: [], revision: 4,
+    },
+    currentGroupCandidateReveals: {
+      groupId: 'fleet-1', revision: 4,
+      candidateReveals: [{ code: 'O', title: 'Deep Nebula' }],
+    },
+  });
+  const currentPlayer = useSessionStore.getState().me;
+  if (!currentPlayer) throw new Error('Expected player identity.');
+  const updatedSession = useSessionStore.getState().session;
+  if (!updatedSession) throw new Error('Expected session after update.');
+  useSessionStore.getState().setIdentity(updatedSession, { ...currentPlayer, fleetGroupId: 'fleet-1' });
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  const user = userEvent.setup();
+  renderShip();
+
+  expect(screen.getByRole('region', { name: 'Candidate discoveries' }))
+    .toHaveTextContent('Deep Nebula');
+  await user.click(screen.getByRole('button', { name: 'Hide location contents' }));
+  expect(screen.queryByRole('region', { name: 'Candidate discoveries' })).not.toBeInTheDocument();
+  expect(useSessionStore.getState().session?.playerDiscovery?.knownCoordinates).toContain('6798');
+  expect(useSessionStore.getState().session?.currentGroupCandidateReveals?.candidateReveals)
+    .toEqual([{ code: 'O', title: 'Deep Nebula' }]);
+
+  await user.click(screen.getByRole('button', { name: 'Navigation' }));
+  const map = await screen.findByRole('region', { name: 'Ship navigation map' });
+  expect(map).toHaveTextContent('Current ship // 5143');
+  expect(map).toHaveTextContent('6798');
+});
+
 it('shows the ICN travel lock and disables console actions while it is engaged', async () => {
   const user = userEvent.setup();
   const session = useSessionStore.getState().session;
