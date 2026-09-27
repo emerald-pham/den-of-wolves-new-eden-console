@@ -106,6 +106,9 @@ function seedSession(): void {
   put('sessions/s1/playerDiscoveries/captain', {
     groupId: 'fleet-2', pursuitValue: 9, revision: 11, knownSystems: { keep: 'captain-only' },
   });
+  put('sessions/s1/playerDiscoveries/removed-member', {
+    groupId: 'fleet-1', pursuitValue: 8, revision: 11,
+  });
 }
 
 beforeEach(() => {
@@ -163,6 +166,8 @@ describe('Endeavour ECM Device writer', () => {
       .toMatchObject({ pursuitValue: 5, revision: 12, knownSystems: { keep: 'private-to-player' } });
     expect(mock.documents.get('sessions/s1/playerDiscoveries/captain'))
       .toMatchObject({ pursuitValue: 9, revision: 12, knownSystems: { keep: 'captain-only' } });
+    expect(mock.documents.get('sessions/s1/playerDiscoveries/removed-member'))
+      .toMatchObject({ pursuitValue: 8, revision: 11 });
     expect(mock.documents.get('sessions/s1/serverState/endeavourEcmDevice')).toEqual({
       status: 'used', revision: 1, ownerGroupId: 'fleet-1', pursuitBefore: 8, pursuitAfter: 5,
     });
