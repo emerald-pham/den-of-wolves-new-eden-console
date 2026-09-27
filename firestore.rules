@@ -926,6 +926,20 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // ECM outcomes reveal only the pursuit change for the affected fleet
+      // group. Membership is resolved from the server-owned group roster; the
+      // private device state and replay receipt remain under serverState and
+      // commandReceipts above.
+      match /fleetGroupEvents/{groupId}/events/{eventId} {
+        allow get, list: if isMember(sessionId) &&
+          exists(/databases/$(database)/documents/sessions/$(sessionId)/fleetGroups/$(groupId)) &&
+          get(/databases/$(database)/documents/sessions/$(sessionId)/fleetGroups/$(groupId)).data.memberUids is list &&
+          uid() in get(/databases/$(database)/documents/sessions/$(sessionId)/fleetGroups/$(groupId)).data.memberUids &&
+          resource.data.sessionId == sessionId && resource.data.groupId == groupId &&
+          resource.data.type == 'endeavour-ecm-device-used';
+        allow write: if false;
+      }
+
       // Loyalty assignment receipts bind retries to a server-side actor and
       // payload fingerprint. They are never part of the public event stream.
       match /loyaltyAssignmentRequests/{requestId} {

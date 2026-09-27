@@ -375,6 +375,7 @@ export {
   listMyScoutReports, readMyScoutDiscoveryNote,
 } from './scoutResultCallable';
 export { advanceEndeavourResearchTrack, readEndeavourResearchWorkspace } from './endeavourResearchWriter';
+export { activateEndeavourEcmDevice, readEndeavourEcmDeviceWorkspace } from './endeavourEcmDeviceWriter';
 import {
   ENDEAVOUR_FUELLED_UPGRADE_LIMIT,
   resolveEndeavourFieldUpgrades,

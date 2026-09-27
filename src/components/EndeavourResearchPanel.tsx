@@ -13,6 +13,7 @@ import {
 import type { ShuttleControlEntry } from '@/types/game';
 import EndeavourResearchChoices from './EndeavourResearchChoices';
 import './EndeavourResearchPanel.css';
+import EndeavourEcmDevicePanel from './EndeavourEcmDevicePanel';
 
 const EndeavourFieldUpgradePanel = lazy(() => import('./EndeavourFieldUpgradePanel'));
 
@@ -357,6 +358,7 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
         </div>}
       </>}
     />
+    {workspace && <EndeavourEcmDevicePanel control={control} />}
     {workspace && <Suspense fallback={<p className="console-workspace__status" role="status">
       Loading Endeavour field-upgrade controls…
     </p>}>
