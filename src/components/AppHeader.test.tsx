@@ -671,9 +671,15 @@ it('renders current and retained repair history with progress and keyboard stop 
   expect(region).toHaveAttribute('tabindex', '0');
   expect(renderedChanges.every((change) => !/\bprompts?\b/i.test(change))).toBe(true);
   expect(within(newestEntry).getByText(
-    'Philia repairs keep eligible console selections while server state catches up, then let the current Dione Engineer explicitly retry with current revisions.',
+    'When Capybara cargo changes during a transfer, the current Captain can keep the draft, wait for live cargo to catch up, and explicitly retry at the current revision.',
   )).toBeVisible();
   expect(within(newestEntry).getByText('458 of 751 planned items are complete (60.99%).')).toBeVisible();
+  const previousPhiliaEntry = within(region).getByRole('heading', { name: 'Build 0.5.43' }).closest('article');
+  if (!previousPhiliaEntry) throw new Error('Expected the preserved 0.5.43 Philia release entry.');
+  expect(within(previousPhiliaEntry).getByText(
+    'Philia repairs keep eligible console selections while server state catches up, then let the current Dione Engineer explicitly retry with current revisions.',
+  )).toBeVisible();
+  expect(within(previousPhiliaEntry).getByText('458 of 751 planned items are complete (60.99%).')).toBeVisible();
   const previousChacauEntry = within(region).getByRole('heading', { name: 'Build 0.5.42' }).closest('article');
   if (!previousChacauEntry) throw new Error('Expected the preserved 0.5.42 Chacau release entry.');
   expect(within(previousChacauEntry).getByText(
