@@ -2,6 +2,8 @@ const DEFAULT_MIN_SPEED = -64;
 const DEFAULT_MAX_SPEED = -32;
 const DEFAULT_MINIMUM_VELOCITY_SAMPLES = 8;
 const EDGE_TOLERANCE_PX = 2;
+const START_SAMPLE_TOLERANCE_PX = 6;
+const INITIAL_EDGE_STEP_TOLERANCE_PX = 1.5;
 
 function finite(value) {
   return typeof value === 'number' && Number.isFinite(value);
@@ -30,6 +32,7 @@ function overlapsFrame(position) {
 
 export function assessTickerGeometry({
   initialPosition,
+  initialPositions,
   samples = [],
   minimumVelocitySamples = DEFAULT_MINIMUM_VELOCITY_SAMPLES,
   minimumSpeed = DEFAULT_MIN_SPEED,
@@ -53,7 +56,11 @@ export function assessTickerGeometry({
   if (!initialEdgeValid) failures.push('initial group did not start at the expected offscreen edge');
 
   const normalizedSamples = Array.isArray(samples) ? samples : [];
-  const anchorPositions = [initial].filter(Boolean);
+  const starts = Array.isArray(initialPositions) && initialPositions.length > 0
+    ? initialPositions
+    : (initialPosition ? [initialPosition] : []);
+  const startsById = new Map(starts.filter((start) => typeof start?.id === 'string' && start.id)
+    .map((start) => [start.id, normalizePosition(start, -1)]));
   const tracks = new Map();
   for (const [sampleIndex, sample] of normalizedSamples.entries()) {
     if (!finite(sample?.elapsed) || !Array.isArray(sample.groups)) continue;
@@ -67,14 +74,27 @@ export function assessTickerGeometry({
       const positions = tracks.get(group.id) ?? [];
       positions.push(position);
       tracks.set(group.id, positions);
-      if (group.id === initial?.id) anchorPositions.push(position);
     }
   }
-  anchorPositions.sort((left, right) => left.elapsed - right.elapsed);
+  const anchorPositions = [...(tracks.get(initial?.id) ?? [])]
+    .sort((left, right) => left.elapsed - right.elapsed);
 
-  const movedTowardViewport = Boolean(initial && anchorPositions.some((position) => (
-    position.sampleIndex >= 0 && position.elapsed > initial.elapsed &&
-    position.left < initial.left - 0.25
+  const firstAnchorPosition = anchorPositions[0];
+  const initialSampleEdgeValid = Boolean(initial && firstAnchorPosition &&
+    Math.abs(firstAnchorPosition.left - initial.left) <= START_SAMPLE_TOLERANCE_PX);
+  if (!initialSampleEdgeValid) {
+    failures.push('first actual rAF sample did not match the configured offscreen start');
+  }
+  for (const [id, start] of startsById) {
+    const firstPosition = [...(tracks.get(id) ?? [])]
+      .sort((left, right) => left.elapsed - right.elapsed)[0];
+    if (!firstPosition || Math.abs(firstPosition.left - start.left) > START_SAMPLE_TOLERANCE_PX) {
+      failures.push(`track ${id} first actual rAF sample did not match its configured start`);
+    }
+  }
+  const movedTowardViewport = Boolean(firstAnchorPosition && anchorPositions.some((position) => (
+    position.sampleIndex > firstAnchorPosition.sampleIndex &&
+    position.left < firstAnchorPosition.left - 0.25
   )));
   if (!movedTowardViewport) failures.push('initial group did not move toward the viewport');
 
@@ -89,17 +109,39 @@ export function assessTickerGeometry({
   }
   if (!entryTransitionObserved) failures.push('initial group entry transition was not sampled');
 
-  if (initial?.id && tracks.has(initial.id)) {
-    tracks.set(initial.id, anchorPositions);
-  }
+  const firstReflowCorrectionSampleIndex = (() => {
+    for (let index = 1; index < normalizedSamples.length; index += 1) {
+      const beforeWidth = normalizedSamples[index - 1]?.frame?.width;
+      const afterWidth = normalizedSamples[index]?.frame?.width;
+      if (finite(beforeWidth) && finite(afterWidth) && Math.abs(beforeWidth - afterWidth) > 0.5) {
+        return index + 1;
+      }
+    }
+    return null;
+  })();
+  const isEffectivelyOffscreen = (position) => finite(position.left) &&
+    finite(position.frameRight) && position.left >= position.frameRight - EDGE_TOLERANCE_PX;
 
   const velocitiesByTrack = new Map();
-  let ignoredStartupSample = false;
+  const ignoredMountDelayTracks = [];
+  const ignoredInitialEdgeStepTracks = [];
+  let ignoredStartupSampleIndex = null;
+  const checkedVelocitySamples = [];
   for (const [id, rawPositions] of tracks) {
     const positions = [...rawPositions].sort((left, right) => left.elapsed - right.elapsed);
     const velocities = [];
-    for (let index = 1; index < positions.length; index += 1) {
-      const previous = positions[index - 1];
+    const firstInterval = positions.length >= 2 ? positions.slice(0, 2) : null;
+    const firstIntervalSpeed = firstInterval && firstInterval[1].elapsed > firstInterval[0].elapsed
+      ? (firstInterval[1].left - firstInterval[0].left) /
+        (firstInterval[1].elapsed - firstInterval[0].elapsed) * 1_000
+      : NaN;
+    const firstIntervalIsMountDelay = firstInterval && finite(firstIntervalSpeed) &&
+      Math.abs(firstIntervalSpeed) <= 0.5 && firstInterval.every(isEffectivelyOffscreen);
+    if (firstIntervalIsMountDelay) ignoredMountDelayTracks.push(id);
+    let ignoredInitialEdgeStep = false;
+
+    for (let index = 2; index < positions.length; index += 1) {
+      const previous = positions[index - 2];
       const current = positions[index];
       const elapsed = current.elapsed - previous.elapsed;
       if (!finite(elapsed) || elapsed <= 0) {
@@ -107,42 +149,57 @@ export function assessTickerGeometry({
         continue;
       }
       const speed = (current.left - previous.left) / elapsed * 1_000;
-      velocities.push({
+      const velocity = {
         speed,
         previous,
         current,
+        firstWindow: index === 2,
         sampleIndex: current.sampleIndex,
-      });
+      };
+      velocities.push(velocity);
+
+      if (speed >= minimumSpeed && speed <= maximumSpeed) {
+        checkedVelocitySamples.push({ id, ...velocity });
+        continue;
+      }
+
+      const windowOffscreen = isEffectivelyOffscreen(previous) && isEffectivelyOffscreen(current);
+      if (velocity.firstWindow && firstIntervalIsMountDelay) continue;
+
+      const firstIntervalCompositor = velocity.firstWindow && firstInterval &&
+        firstInterval[0].sampleIndex === 0 && firstInterval[1].sampleIndex === 1 &&
+        finite(firstIntervalSpeed) && (firstIntervalSpeed < minimumSpeed || firstIntervalSpeed > maximumSpeed) &&
+        firstInterval.every(isEffectivelyOffscreen);
+      if (firstIntervalCompositor && (ignoredStartupSampleIndex === null ||
+          ignoredStartupSampleIndex === firstInterval[1].sampleIndex)) {
+        ignoredStartupSampleIndex = firstInterval[1].sampleIndex;
+        continue;
+      }
+
+      const noEarlierMotion = positions.slice(0, index - 1).every((position) => (
+        Math.abs(position.left - positions[0].left) <= 0.25
+      ));
+      const initialEdgeStep = !ignoredInitialEdgeStep && index <= 4 && noEarlierMotion &&
+        Math.abs(current.left - previous.left) > 0.25 &&
+        Math.abs(current.left - previous.left) <= INITIAL_EDGE_STEP_TOLERANCE_PX &&
+        isEffectivelyOffscreen(previous) && isEffectivelyOffscreen(current);
+      if (initialEdgeStep) {
+        ignoredInitialEdgeStep = true;
+        ignoredInitialEdgeStepTracks.push(id);
+        continue;
+      }
+
+      const spansInitialFrameReflow = firstReflowCorrectionSampleIndex !== null &&
+        previous.sampleIndex < firstReflowCorrectionSampleIndex &&
+        current.sampleIndex >= firstReflowCorrectionSampleIndex && windowOffscreen;
+      if (spansInitialFrameReflow) continue;
+
+      failures.push(
+        `track ${id} constant-speed sample ${speed.toFixed(2)}px/s ` +
+        `outside ${minimumSpeed}..${maximumSpeed}px/s`,
+      );
     }
     velocitiesByTrack.set(id, velocities);
-  }
-
-  const allVelocitySamples = [...velocitiesByTrack.entries()].flatMap(([id, velocities]) => (
-    velocities.map((velocity) => ({ id, ...velocity }))
-  )).sort((left, right) => left.current.elapsed - right.current.elapsed);
-
-  const checkedVelocitySamples = [];
-  for (const velocity of allVelocitySamples) {
-    const withinRange = velocity.speed >= minimumSpeed && velocity.speed <= maximumSpeed;
-    if (withinRange) {
-      checkedVelocitySamples.push(velocity);
-      continue;
-    }
-
-    const isFirstObservedInterval = velocity.current.sampleIndex === 0 ||
-      (velocity.previous.sampleIndex === 0 && velocity.current.sampleIndex === 1);
-    const isOffscreenFirstFrame = isFirstObservedInterval &&
-      isBeyondRightEdge(velocity.previous) && isBeyondRightEdge(velocity.current);
-    if (!ignoredStartupSample && isOffscreenFirstFrame) {
-      ignoredStartupSample = true;
-      continue;
-    }
-
-    failures.push(
-      `track ${velocity.id} constant-speed sample ${velocity.speed.toFixed(2)}px/s ` +
-      `outside ${minimumSpeed}..${maximumSpeed}px/s`,
-    );
-    checkedVelocitySamples.push(velocity);
   }
 
   const anchorVelocityCount = velocitiesByTrack.get(initial?.id)?.length ?? 0;
@@ -150,15 +207,31 @@ export function assessTickerGeometry({
     failures.push(`initial track has only ${anchorVelocityCount} velocity samples`);
   }
 
-  const speedStable = failures.every((failure) => !failure.includes('constant-speed')) &&
-    anchorVelocityCount >= minimumVelocitySamples;
+  const visibleTrackIds = [...tracks.entries()].flatMap(([id, positions]) => (
+    positions.some(overlapsFrame) ? [id] : []
+  ));
+  const insufficientVisibleTracks = visibleTrackIds.filter((id) => (
+    (velocitiesByTrack.get(id) ?? []).filter((velocity) => (
+      overlapsFrame(velocity.previous) || overlapsFrame(velocity.current)
+    )).length < minimumVelocitySamples
+  ));
+  for (const id of insufficientVisibleTracks) {
+    failures.push(`visible track ${id} has fewer than ${minimumVelocitySamples} constant-speed samples`);
+  }
+
+  const speedStable = failures.every((failure) => (
+    !failure.includes('constant-speed') && !failure.includes('non-increasing')
+  )) && anchorVelocityCount >= minimumVelocitySamples && insufficientVisibleTracks.length === 0;
 
   return {
     initialEdgeValid,
+    initialSampleEdgeValid,
     movedTowardViewport,
     entryTransitionObserved,
     checkedVelocitySampleCount: checkedVelocitySamples.length,
-    ignoredOffscreenFirstFrameSamples: Number(ignoredStartupSample),
+    ignoredOffscreenFirstFrameSamples: Number(ignoredStartupSampleIndex !== null),
+    ignoredMountDelayTracks,
+    ignoredInitialEdgeStepTracks,
     speedStable,
     failures,
   };

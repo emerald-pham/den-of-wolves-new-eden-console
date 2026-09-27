@@ -341,76 +341,18 @@ async function assertTicker(page, label, fontMode, reducedMotion, expectedText) 
 }
 
 async function assertTickerGeometry(page, label, reducedMotion) {
-  await page.waitForFunction((reduced) => {
-    const frame = document.querySelector('.fleet-ticker__window');
-    return Boolean(frame && (reduced
-      ? frame.querySelector('.fleet-ticker__message')
-      : frame.querySelector('.fleet-ticker__group')));
-  }, reducedMotion, { timeout: 15_000 });
+  if (reducedMotion) {
+    await page.waitForFunction(() => Boolean(
+      document.querySelector('.fleet-ticker__window .fleet-ticker__message'),
+    ), undefined, { timeout: 15_000 });
+  } else {
+    await page.waitForFunction(() => window.__tickerSmokeGeometryComplete === true,
+      undefined, { timeout: 85_000 });
+  }
 
   const snapshot = await page.evaluate(async ({ reduced }) => {
     const frame = document.querySelector('.fleet-ticker__window');
-    const waitFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
     if (!frame) return { reduced, error: 'ticker frame missing' };
-    const initialPositions = Array.isArray(window.__tickerSmokeGeometryStarts)
-      ? window.__tickerSmokeGeometryStarts
-      : [];
-    const anchor = [...initialPositions].sort((left, right) => left.startX - right.startX)[0] ?? null;
-
-    let previousFrame = null;
-    let stableFrameCount = 0;
-    let frameTime = 0;
-    for (let index = 0; index < 90 && stableFrameCount < 3; index += 1) {
-      frameTime = await waitFrame();
-      const bounds = frame.getBoundingClientRect();
-      const nextFrame = { left: bounds.left, right: bounds.right, width: bounds.width,
-        top: bounds.top, bottom: bounds.bottom };
-      if (previousFrame && Object.keys(nextFrame).every((key) => (
-        Math.abs(nextFrame[key] - previousFrame[key]) <= 0.25
-      ))) {
-        stableFrameCount += 1;
-      } else {
-        stableFrameCount = 0;
-      }
-      previousFrame = nextFrame;
-    }
-    if (stableFrameCount < 3) return { reduced, error: 'ticker frame geometry did not settle' };
-
-    const samples = [];
-    let visibleAnchorFrames = 0;
-    for (let index = 0; index < 600; index += 1) {
-      frameTime = await waitFrame();
-      const frameBounds = frame.getBoundingClientRect();
-      const groups = [...frame.querySelectorAll('.fleet-ticker__group')].map((group) => {
-        const bounds = group.getBoundingClientRect();
-        return {
-          id: group.getAttribute('data-instance-id') ?? '',
-          messageId: group.getAttribute('data-message-id') ?? '',
-          left: bounds.left - frameBounds.left,
-          right: bounds.right - frameBounds.left,
-          width: bounds.width,
-          top: bounds.top,
-          bottom: bounds.bottom,
-          elapsed: frameTime,
-          copyIds: [...group.querySelectorAll('.fleet-ticker__copy')]
-            .map((copy) => copy.getAttribute('data-copy-instance-id')),
-        };
-      }).filter((group) => group.width > 0 && group.bottom > frameBounds.top && group.top < frameBounds.bottom);
-      samples.push({
-        frame: { left: 0, right: frameBounds.width, width: frameBounds.width },
-        elapsed: frameTime,
-        groups,
-      });
-      if (reduced) {
-        if (samples.length >= 18) break;
-        continue;
-      }
-      const anchorGroup = groups.find((group) => group.id === anchor?.id);
-      if (anchorGroup && anchorGroup.left < frameBounds.width && anchorGroup.right > 0) {
-        visibleAnchorFrames += 1;
-      }
-      if (visibleAnchorFrames >= 18) break;
-    }
 
     if (reduced) {
       const message = frame.querySelector('.fleet-ticker__message');
@@ -418,16 +360,23 @@ async function assertTickerGeometry(page, label, reducedMotion) {
       return {
         reduced,
         stationary: Boolean(message && bounds && bounds.width > 0 && bounds.height > 0),
-        samples,
       };
     }
 
+    const initialPositions = Array.isArray(window.__tickerSmokeGeometryStarts)
+      ? window.__tickerSmokeGeometryStarts
+      : [];
+    const samples = Array.isArray(window.__tickerSmokeGeometrySamples)
+      ? window.__tickerSmokeGeometrySamples
+      : [];
     const overlap = [];
     const stablePhysicalInstances = samples.every((sample) => sample.groups.every((group) => (
       group.id.length > 0 && group.copyIds.every((copyId) => typeof copyId === 'string' && copyId.length > 0)
     )));
     for (const sample of samples) {
-      const ordered = [...sample.groups].sort((left, right) => left.left - right.left);
+      const ordered = sample.groups.filter((group) => (
+        group.left < sample.frame.right && group.right > sample.frame.left
+      )).sort((left, right) => left.left - right.left);
       for (let index = 1; index < ordered.length; index += 1) {
         const previous = ordered[index - 1];
         const current = ordered[index];
@@ -452,6 +401,7 @@ async function assertTickerGeometry(page, label, reducedMotion) {
       .sort((left, right) => left.startX - right.startX)[0] ?? null;
     snapshot.motionAssessment = assessTickerGeometry({
       initialPosition,
+      initialPositions: snapshot.initialPositions,
       samples: snapshot.samples,
     });
   }
@@ -1043,6 +993,8 @@ async function runCase(fontMode, reducedMotion, viewport, scenario = 'press') {
   });
   await context.addInitScript(({ fixture, transitionFixture, sourceFixtures, fontMode: mode, reduced }) => {
     window.__tickerSmokeGeometryStarts = [];
+    window.__tickerSmokeGeometrySamples = [];
+    window.__tickerSmokeGeometryComplete = false;
     const recordInitialGroup = (group) => {
       if (!(group instanceof HTMLElement) || !group.matches('.fleet-ticker__group')) return;
       const id = group.getAttribute('data-instance-id') ?? '';
@@ -1078,6 +1030,82 @@ async function runCase(fontMode, reducedMotion, viewport, scenario = 'press') {
       }
     });
     initialGroupObserver.observe(document, { childList: true, subtree: true });
+
+    if (!reduced) {
+      let frameCount = 0;
+      let anchorId = null;
+      let targetIds = null;
+      let previousStartCount = 0;
+      let stableStartFrames = 0;
+      const visibleTargetSamples = new Map();
+      const stopAfterFrames = 4_200;
+      const sampleGeometry = (timestamp) => {
+        frameCount += 1;
+        const frame = document.querySelector('.fleet-ticker__window');
+        const starts = window.__tickerSmokeGeometryStarts;
+        if (!anchorId && starts.length > 0) {
+          anchorId = [...starts].sort((left, right) => left.startX - right.startX)[0]?.id ?? null;
+        }
+        if (!targetIds && starts.length > 0) {
+          if (starts.length === previousStartCount) {
+            stableStartFrames += 1;
+          } else {
+            previousStartCount = starts.length;
+            stableStartFrames = 0;
+          }
+          if (stableStartFrames >= 2) {
+            targetIds = starts.map((start) => start.id);
+          }
+        }
+        if (frame && anchorId) {
+          const frameBounds = frame.getBoundingClientRect();
+          if (frameBounds.width > 0 && frameBounds.height > 0) {
+            const groups = [...frame.querySelectorAll('.fleet-ticker__group')].map((group) => {
+              const bounds = group.getBoundingClientRect();
+              return {
+                id: group.getAttribute('data-instance-id') ?? '',
+                messageId: group.getAttribute('data-message-id') ?? '',
+                left: bounds.left - frameBounds.left,
+                right: bounds.right - frameBounds.left,
+                width: bounds.width,
+                top: bounds.top,
+                bottom: bounds.bottom,
+                copyIds: [...group.querySelectorAll('.fleet-ticker__copy')]
+                  .map((copy) => copy.getAttribute('data-copy-instance-id')),
+              };
+            }).filter((group) => group.width > 0 && group.bottom > frameBounds.top &&
+              group.top < frameBounds.bottom);
+            const frameGeometry = {
+              left: 0,
+              right: frameBounds.width,
+              width: frameBounds.width,
+            };
+            window.__tickerSmokeGeometrySamples.push({
+              elapsed: timestamp,
+              frame: frameGeometry,
+              groups,
+            });
+
+            for (const id of targetIds ?? []) {
+              const target = groups.find((group) => group.id === id);
+              if (target && target.left < frameGeometry.right && target.right > frameGeometry.left) {
+                visibleTargetSamples.set(id, (visibleTargetSamples.get(id) ?? 0) + 1);
+              }
+            }
+          }
+        }
+
+        const allInitialGroupsEntered = Boolean(targetIds?.length) && targetIds.every((id) => (
+          (visibleTargetSamples.get(id) ?? 0) >= 18
+        ));
+        if (allInitialGroupsEntered || frameCount >= stopAfterFrames) {
+          window.__tickerSmokeGeometryComplete = true;
+          return;
+        }
+        requestAnimationFrame(sampleGeometry);
+      };
+      requestAnimationFrame(sampleGeometry);
+    }
 
     const transition = sessionStorage.getItem('ticker-smoke-transition');
     const activeFixture = transitionFixture && transition === 'turn-one'

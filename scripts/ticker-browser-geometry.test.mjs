@@ -13,18 +13,29 @@ const initialPosition = {
   elapsed: 0,
 };
 
-function createSamples({ visibleJumpAt = -1, offscreenJumpAt = -1 } = {}) {
-  return Array.from({ length: 18 }, (_, sampleIndex) => {
+function createSamples({
+  visibleJumpAt = -1,
+  startupCompositorDisplacement = 0,
+  teleportAtStart = 0,
+  reflowAt = -1,
+  reflowJumpAt = -1,
+} = {}) {
+  return Array.from({ length: 36 }, (_, sampleIndex) => {
     const frameIndex = sampleIndex + 1;
     const elapsed = frameIndex * (1_000 / 60);
-    const edgeLeft = initialPosition.left - (48 * elapsed / 1_000) -
-      (frameIndex === visibleJumpAt ? 8 : 0);
-    const startupLeft = 250 - (48 * Math.max(0, elapsed - (1_000 / 60)) / 1_000) -
-      (frameIndex >= 2 ? 4.8 : 0) -
-      (frameIndex === offscreenJumpAt ? 8 : 0);
+    const edgeLeft = initialPosition.left + 0.8 - (48 * elapsed / 1_000) -
+      (frameIndex === visibleJumpAt ? 8 : 0) -
+      (frameIndex === 1 ? teleportAtStart : 0) +
+      (frameIndex === 1 ? startupCompositorDisplacement : 0) +
+      (frameIndex >= 2 && startupCompositorDisplacement > 0 ? 0.8 : 0) -
+      (reflowJumpAt >= 0 && sampleIndex >= reflowJumpAt ? 1.6 : 0);
+    const startupLeft = 250 - (48 * Math.max(0, elapsed - (2 * 1_000 / 60)) / 1_000);
+    const sampleFrame = reflowAt >= 0 && sampleIndex >= reflowAt
+      ? { left: frame.left, right: frame.right - 10, width: frame.width - 10 }
+      : frame;
     return {
       elapsed,
-      frame,
+      frame: sampleFrame,
       groups: [
         { id: 'edge-group', left: edgeLeft, right: edgeLeft + 100, width: 100 },
         { id: 'offscreen-group', left: startupLeft, right: startupLeft + 100, width: 100 },
@@ -33,13 +44,31 @@ function createSamples({ visibleJumpAt = -1, offscreenJumpAt = -1 } = {}) {
   });
 }
 
+function createInitialEdgeStartSamples(firstStep = 0.8) {
+  return Array.from({ length: 24 }, (_, sampleIndex) => {
+    const elapsed = (sampleIndex + 1) * (1_000 / 60);
+    const movedSteps = Math.max(0, sampleIndex - 2);
+    const left = initialPosition.left - (firstStep * movedSteps);
+    return {
+      elapsed,
+      frame,
+      groups: [{ id: initialPosition.id, left, right: left + initialPosition.width, width: initialPosition.width }],
+    };
+  });
+}
+
 test('allows one offscreen first-frame compositor sample and checks entry motion', () => {
-  const result = assessTickerGeometry({ initialPosition, samples: createSamples() });
+  const result = assessTickerGeometry({
+    initialPosition,
+    samples: createSamples({ startupCompositorDisplacement: 4.8 }),
+  });
 
   assert.equal(result.initialEdgeValid, true);
+  assert.equal(result.initialSampleEdgeValid, true);
   assert.equal(result.movedTowardViewport, true);
   assert.equal(result.entryTransitionObserved, true);
   assert.equal(result.ignoredOffscreenFirstFrameSamples, 1);
+  assert.ok(result.ignoredMountDelayTracks.includes('offscreen-group'));
   assert.equal(result.speedStable, true);
 });
 
@@ -54,15 +83,93 @@ test('rejects a speed jump during or after visible entry', () => {
   assert.ok(result.failures.some((failure) => failure.includes('constant-speed')));
 });
 
-test('rejects an additional offscreen jump after the first sampled frame', () => {
+test('checks a non-anchor group speed after it enters the frame', () => {
+  const secondStart = {
+    id: 'second-group',
+    left: 208,
+    right: 308,
+    width: 100,
+    frame,
+    startX: 208,
+  };
+  const samples = Array.from({ length: 24 }, (_, sampleIndex) => {
+    const frameIndex = sampleIndex + 1;
+    const elapsed = frameIndex * (1_000 / 60);
+    const anchorLeft = initialPosition.left + 0.8 - (48 * elapsed / 1_000);
+    const secondLeft = secondStart.left - (48 * elapsed / 1_000) - (frameIndex >= 14 ? 8 : 0);
+    return {
+      elapsed,
+      frame,
+      groups: [
+        { id: 'edge-group', left: anchorLeft, right: anchorLeft + 100, width: 100 },
+        { id: 'second-group', left: secondLeft, right: secondLeft + 100, width: 100 },
+      ],
+    };
+  });
   const result = assessTickerGeometry({
     initialPosition,
-    samples: createSamples({ offscreenJumpAt: 5 }),
+    initialPositions: [initialPosition, secondStart],
+    samples,
   });
 
-  assert.equal(result.ignoredOffscreenFirstFrameSamples, 1);
+  assert.equal(result.entryTransitionObserved, true);
+  assert.equal(result.speedStable, false);
+  assert.ok(result.failures.some((failure) => failure.includes('second-group constant-speed')));
+});
+
+test('allows one sub-1.5px first motion sample at the offscreen edge after mount delay', () => {
+  const result = assessTickerGeometry({
+    initialPosition,
+    samples: createInitialEdgeStartSamples(),
+  });
+
+  assert.equal(result.entryTransitionObserved, true);
+  assert.deepEqual(result.ignoredInitialEdgeStepTracks, [initialPosition.id]);
+  assert.equal(result.speedStable, true);
+});
+
+test('rejects a larger first motion jump at the offscreen edge after mount delay', () => {
+  const result = assessTickerGeometry({
+    initialPosition,
+    samples: createInitialEdgeStartSamples(8),
+  });
+
+  assert.equal(result.entryTransitionObserved, true);
+  assert.deepEqual(result.ignoredInitialEdgeStepTracks, []);
   assert.equal(result.speedStable, false);
   assert.ok(result.failures.some((failure) => failure.includes('constant-speed')));
+});
+
+test('allows one offscreen correction frame after the initial container reflow', () => {
+  const result = assessTickerGeometry({
+    initialPosition,
+    samples: createSamples({ reflowAt: 3, reflowJumpAt: 4 }),
+  });
+
+  assert.equal(result.speedStable, true);
+  assert.equal(result.entryTransitionObserved, true);
+});
+
+test('rejects another offscreen jump after the container reflow settles', () => {
+  const result = assessTickerGeometry({
+    initialPosition,
+    samples: createSamples({ reflowAt: 3, reflowJumpAt: 7 }),
+  });
+
+  assert.equal(result.speedStable, false);
+  assert.ok(result.failures.some((failure) => failure.includes('constant-speed')));
+});
+
+test('rejects a first actual rAF sample that teleported away from the expected offscreen edge', () => {
+  const result = assessTickerGeometry({
+    initialPosition,
+    samples: createSamples({ teleportAtStart: 48 }),
+  });
+
+  assert.equal(result.initialEdgeValid, true);
+  assert.equal(result.initialSampleEdgeValid, false);
+  assert.equal(result.speedStable, false);
+  assert.ok(result.failures.some((failure) => failure.includes('first actual rAF sample')));
 });
 
 test('fails closed when the physical track did not start at the offscreen edge', () => {
@@ -73,4 +180,21 @@ test('fails closed when the physical track did not start at the offscreen edge',
 
   assert.equal(result.initialEdgeValid, false);
   assert.ok(result.failures.some((failure) => failure.includes('offscreen edge')));
+});
+
+test('requires actual rAF samples to show the offscreen-to-visible entry', () => {
+  const teleportedSamples = Array.from({ length: 12 }, (_, sampleIndex) => {
+    const elapsed = 1_000 + sampleIndex * (1_000 / 60);
+    const left = 152 - sampleIndex * 0.8;
+    return {
+      elapsed,
+      frame,
+      groups: [{ id: 'edge-group', left, right: left + 100, width: 100 }],
+    };
+  });
+  const result = assessTickerGeometry({ initialPosition, samples: teleportedSamples });
+
+  assert.equal(result.initialEdgeValid, true);
+  assert.equal(result.entryTransitionObserved, false);
+  assert.ok(result.failures.some((failure) => failure.includes('entry transition')));
 });
