@@ -181,8 +181,12 @@ export function assessTickerGeometry({
       const invalidAnimationClockEndpoint = [previous.animationTimeMs, current.animationTimeMs].some((time) => (
         time !== null && time !== undefined && (!finite(time) || time < 0)
       ));
+      const noObservedClockStart = positions.slice(0, index + 1).every((position) => {
+        const time = position.animationTimeMs;
+        return time == null || (finite(time) && time >= 0 && time <= 1);
+      });
       const idleOffscreenBeforeStart = index <= MAX_OFFSCREEN_STARTUP_CATCHUP_INTERVALS &&
-        noEarlierMotion && Math.abs(displacement) <= 0.25 && windowOffscreen;
+        noEarlierMotion && noObservedClockStart && Math.abs(displacement) <= 0.25 && windowOffscreen;
       if (requireAnimationClock && invalidAnimationClockEndpoint) {
         failures.push(`track ${id} has missing, negative, or reset animation currentTime`);
         continue;

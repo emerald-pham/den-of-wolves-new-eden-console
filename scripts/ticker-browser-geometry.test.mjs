@@ -206,6 +206,29 @@ function createMissingClockIdleStartSamples() {
   });
 }
 
+function createMissingAfterClockStartsSamples() {
+  return Array.from({ length: 24 }, (_, sampleIndex) => {
+    const left = sampleIndex <= 3
+      ? initialPosition.left
+      : initialPosition.left - 0.8 - ((sampleIndex - 4) * 0.8);
+    const animationTimeMs = sampleIndex === 2
+      ? null
+      : (sampleIndex + 1) * (1_000 / 60);
+    const elapsed = 10 + (sampleIndex * (1_000 / 60));
+    return {
+      elapsed,
+      frame,
+      groups: [{
+        id: initialPosition.id,
+        left,
+        right: left + initialPosition.width,
+        width: initialPosition.width,
+        animationTimeMs,
+      }],
+    };
+  });
+}
+
 test('measures the offscreen-to-visible interval against the CSS animation clock', () => {
   const result = assessTickerGeometry({
     initialPosition,
@@ -291,6 +314,17 @@ test('allows a missing CSS clock only while stationary and offscreen before star
   assert.equal(result.movedTowardViewport, true);
   assert.equal(result.entryTransitionObserved, true);
   assert.equal(result.speedStable, true);
+});
+
+test('rejects a missing CSS clock after it has advanced while still offscreen', () => {
+  const result = assessTickerGeometry({
+    initialPosition,
+    samples: createMissingAfterClockStartsSamples(),
+    requireAnimationClock: true,
+  });
+
+  assert.equal(result.speedStable, false);
+  assert.ok(result.failures.some((failure) => failure.includes('animation currentTime')));
 });
 
 test('rejects a visible movement jump during the long offscreen startup gap', () => {
