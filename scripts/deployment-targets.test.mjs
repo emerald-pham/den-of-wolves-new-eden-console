@@ -4,6 +4,12 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { classifyChangedFiles, deploymentSelector } from './deployment-targets.mjs';
 
+test('classifies the isolated PC01 review entry as Hosting', () => {
+  const result = classifyChangedFiles(['pc01-review.html']);
+  assert.deepEqual(result.targets, ['hosting']);
+  assert.deepEqual(result.unknownFiles, []);
+});
+
 test('PC01 selects its new callables and existing ship-map writers for deployment', () => {
   const before = '9fc824f5';
   const after = '33fb746d';
