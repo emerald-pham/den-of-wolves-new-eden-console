@@ -27,6 +27,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     },
     changes: [
       'When Endeavour upgrade state changes, the active Scientist can keep eligible console selections, wait for live research and purchase state, and explicitly retry with current revisions.',
+      'Fleet broadcasts keep moving smoothly through font and screen-size changes and when one copy leaves the ticker.',
       '458 of 751 planned items are complete (60.99%).',
     ],
     implementationPrompts: [620],

@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
+import { StrictMode } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import FleetTicker from './FleetTicker';
@@ -19,6 +20,18 @@ class TestResizeObserver {
   observe() {}
   disconnect() {}
 }
+function attachMockAnimation(
+  element: HTMLElement,
+  currentTime: number | null = 0,
+  playState: AnimationPlayState = 'running',
+): Animation {
+  const animation = { currentTime, playState } as Animation;
+  Object.defineProperty(element, 'getAnimations', {
+    configurable: true,
+    value: () => [animation],
+  });
+  return animation;
+}
 it('allows intersecting copy boxes when their painted text ranges stay separated', () => {
   const previous = { left: 0, right: 100, textLeft: 0, textRight: 80 };
   const current = { left: 99, right: 160, textLeft: 100, textRight: 150 };
@@ -36,6 +49,7 @@ beforeEach(() => { sessionStorage.clear(); notifyResize = undefined; setMotionOv
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   act(() => setMotionOverride('system'));
 });
 it('lets the old broadcast leave naturally while its replacement follows on the same lane', () => {
@@ -274,7 +288,7 @@ it('extends a repeating tail across a widened frame without restarting existing 
   expect(groups[0]).toHaveStyle('--fleet-ticker-start-x: 320px');
   expect(groups[2]).toHaveStyle('--fleet-ticker-start-x: 1248px');
 });
-it('rebases changed painted width with a negative delay that preserves the current tail position', () => {
+it('rebases changed painted width through the CSS animation current time', () => {
   vi.stubGlobal('ResizeObserver', TestResizeObserver);
   const { container } = render(<FleetTicker message={{
     id: 'font-remeasure', text: 'SNN // FONT READY', tone: 'normal',
@@ -284,7 +298,10 @@ it('rebases changed painted width with a negative delay that preserves the curre
     left: 0, right: 1000, top: 0, bottom: 28, width: 1000, height: 28,
     x: 0, y: 0, toJSON: () => undefined,
   });
-  [...container.querySelectorAll<HTMLElement>('.fleet-ticker__group')]
+  const groups = [...container.querySelectorAll<HTMLElement>('.fleet-ticker__group')];
+  const first = groups[0]!;
+  const animation = attachMockAnimation(first);
+  groups
     .forEach((group, index) => {
       const left = index === 0 ? 100 : 350;
       group.getBoundingClientRect = () => ({
@@ -295,9 +312,75 @@ it('rebases changed painted width with a negative delay that preserves the curre
 
   act(() => notifyResize?.());
 
-  const first = container.querySelector<HTMLElement>('.fleet-ticker__group')!;
   expect(first).toHaveStyle('--fleet-ticker-group-width: 250px');
-  expect(Number.parseFloat(first.style.getPropertyValue('--fleet-ticker-delay'))).toBeLessThan(0);
+  expect(Number.parseFloat(first.style.getPropertyValue('--fleet-ticker-delay'))).toBe(0);
+  const startX = Number.parseFloat(first.style.getPropertyValue('--fleet-ticker-start-x'));
+  const durationSeconds = (startX + 250) / 48;
+  const progress = (startX - 100) / (startX + 250);
+  expect(animation.currentTime).toBeCloseTo(progress * durationSeconds * 1_000, 0);
+});
+it('preserves a keyed track phase when an earlier group finishes after a long-running reflow', () => {
+  vi.stubGlobal('ResizeObserver', TestResizeObserver);
+  const { container } = render(<StrictMode><FleetTicker message={{
+    id: 'phase-continuity', text: 'SNN // SAME TRACK THROUGH GROUP HANDOFF', tone: 'normal',
+  }} /></StrictMode>);
+  const frame = container.querySelector<HTMLElement>('.fleet-ticker__window')!;
+  frame.getBoundingClientRect = () => ({
+    left: 0, right: 1440, top: 0, bottom: 28, width: 1440, height: 28,
+    x: 0, y: 0, toJSON: () => undefined,
+  });
+
+  const groups = [...container.querySelectorAll<HTMLElement>('.fleet-ticker__group')];
+  expect(groups.length).toBeGreaterThanOrEqual(2);
+  const [first, second] = groups;
+  const animation = attachMockAnimation(second!, 1_234);
+  const startX = Number.parseFloat(second!.style.getPropertyValue('--fleet-ticker-start-x'));
+  const width = Number.parseFloat(second!.style.getPropertyValue('--fleet-ticker-group-width'));
+  const durationSeconds = (startX + width) / 48;
+  const progress = 0.35;
+  const secondLeft = startX - (durationSeconds * progress * 48);
+  first!.getBoundingClientRect = () => ({
+    left: -Number.parseFloat(first!.style.getPropertyValue('--fleet-ticker-group-width')),
+    right: 0, top: 0, bottom: 28,
+    width: Number.parseFloat(first!.style.getPropertyValue('--fleet-ticker-group-width')),
+    height: 28, x: 0, y: 0, toJSON: () => undefined,
+  });
+  second!.getBoundingClientRect = () => ({
+    left: secondLeft, right: secondLeft + width, top: 0, bottom: 28,
+    width, height: 28, x: secondLeft, y: 0, toJSON: () => undefined,
+  });
+
+  act(() => fireEvent.animationEnd(first!));
+  expect(container.querySelector(
+    '.fleet-ticker__group[data-instance-id="phase-continuity:1"]',
+  )).toBe(second);
+  act(() => notifyResize?.());
+  const expectedCurrentTime = progress * durationSeconds * 1_000;
+  expect(animation.currentTime).toBeCloseTo(expectedCurrentTime, 0);
+  act(() => notifyResize?.());
+  expect(animation.currentTime).toBeCloseTo(expectedCurrentTime, 0);
+});
+it('leaves idle or unresolved animation timelines untouched during reflow', () => {
+  vi.stubGlobal('ResizeObserver', TestResizeObserver);
+  const { container } = render(<FleetTicker message={{
+    id: 'unresolved-animation', text: 'SNN // WAIT FOR THE BROWSER TIMELINE', tone: 'normal',
+  }} />);
+  const frame = container.querySelector<HTMLElement>('.fleet-ticker__window')!;
+  frame.getBoundingClientRect = () => ({
+    left: 0, right: 1000, top: 0, bottom: 28, width: 1000, height: 28,
+    x: 0, y: 0, toJSON: () => undefined,
+  });
+  const first = container.querySelector<HTMLElement>('.fleet-ticker__group')!;
+  const animation = attachMockAnimation(first, null, 'idle');
+  first.getBoundingClientRect = () => ({
+    left: 100, right: 350, top: 0, bottom: 28, width: 250, height: 28,
+    x: 100, y: 0, toJSON: () => undefined,
+  });
+
+  act(() => notifyResize?.());
+
+  expect(animation.playState).toBe('idle');
+  expect(animation.currentTime).toBeNull();
 });
 it('plays a finite replacement for exactly its configured passes', () => {
   const view = render(<FleetTicker message={cancelled} />);

@@ -144,6 +144,17 @@ function writeCompletedPasses(message: FleetMessage, completed: number): void {
   }
 }
 
+function synchronizeAnimationCurrentTime(element: HTMLElement, targetTimeMs: number): void {
+  // Rebase the retained physical group on its measured position using the CSS
+  // animation timeline itself; a wall-clock estimate can drift from compositor
+  // sampling across font and ResizeObserver updates.
+  const animation = element.getAnimations?.()[0];
+  if (!animation || animation.playState === 'idle' || animation.playState === 'finished') return;
+  const currentTime = animation.currentTime;
+  if (typeof currentTime !== 'number' || !Number.isFinite(currentTime)) return;
+  if (Math.abs(currentTime - targetTimeMs) > 1) animation.currentTime = targetTimeMs;
+}
+
 function MessageCopy({ message, copyRef, copyInstanceId }: {
   readonly message: FleetMessage;
   readonly copyRef?: Ref<HTMLSpanElement>;
@@ -271,6 +282,7 @@ function MovingMessage({ message, fallback, queue = [], onMessageComplete }: {
   const fallbackProbeRef = useRef<HTMLSpanElement>(null);
   const queueProbeRefs = useRef(new Map<string, HTMLSpanElement>());
   const groupElements = useRef(new Map<number, HTMLSpanElement>());
+  const pendingAnimationTimes = useRef(new Map<number, number>());
   const completedMessageIds = useRef(new Set<string>());
   const groupsRef = useRef<readonly MovingGroup[]>([]);
   const activeMessage = useRef<FleetMessage | undefined>(undefined);
@@ -527,29 +539,30 @@ function MovingMessage({ message, fallback, queue = [], onMessageComplete }: {
         : group.startX;
       // A font or writing-mode change can grow an earlier painted group before
       // this callback runs. Keep the next group after that new painted bound;
-      // the delay rebases its linear pass at the adjusted position.
+      // after React applies the geometry, synchronize its retained animation
+      // timeline to this measured position.
       const currentX = index === 0
         ? measuredCurrentX
         : Math.max(measuredCurrentX, previousPaintedEnd ?? measuredCurrentX);
       const distance = Math.max(1, startX + measuredWidth);
       const progress = Math.min(1, Math.max(0, (startX - currentX) / distance));
-      const animationDelay = progress > 0.0001
-        ? -(progress * distance) / TICKER_SPEED_PX_PER_SECOND
-        : 0;
+      const currentTimeMs = (progress * distance / TICKER_SPEED_PX_PER_SECOND) * 1_000;
       previousEnd = startX + measuredWidth;
       previousPaintedEnd = currentX + measuredWidth;
 
       if (Math.abs(measuredWidth - group.width) > 0.5
         || Math.abs(startX - group.startX) > 0.5
-        || Math.abs(animationDelay - (group.animationDelay ?? 0)) > 0.01) {
+        || Math.abs(group.animationDelay ?? 0) > 0.01) {
         changed = true;
+        pendingAnimationTimes.current.set(group.key, currentTimeMs);
         return {
           ...group,
           width: measuredWidth,
           startX,
-          animationDelay,
+          animationDelay: 0,
         };
       }
+      if (element) synchronizeAnimationCurrentTime(element, currentTimeMs);
       return group;
     });
 
@@ -643,6 +656,14 @@ function MovingMessage({ message, fallback, queue = [], onMessageComplete }: {
     setGroups(nextGroups);
     setProcessedKey(inputKey);
   }, [appendGroups, committedGroupsForHandoff, expiredId, fontReady, geometryFor, inputKey, isOnScreen, pressPool, probeFor, setGroups]);
+
+  useLayoutEffect(() => {
+    for (const [key, currentTimeMs] of pendingAnimationTimes.current) {
+      const element = groupElements.current.get(key);
+      if (element) synchronizeAnimationCurrentTime(element, currentTimeMs);
+    }
+    pendingAnimationTimes.current.clear();
+  }, [groups]);
 
   useEffect(() => {
     const frame = windowRef.current;

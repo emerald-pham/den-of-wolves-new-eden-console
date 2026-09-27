@@ -673,6 +673,9 @@ it('renders current and retained repair history with progress and keyboard stop 
   expect(within(newestEntry).getByText(
     'When Endeavour upgrade state changes, the active Scientist can keep eligible console selections, wait for live research and purchase state, and explicitly retry with current revisions.',
   )).toBeVisible();
+  expect(within(newestEntry).getByText(
+    'Fleet broadcasts keep moving smoothly through font and screen-size changes and when one copy leaves the ticker.',
+  )).toBeVisible();
   expect(within(newestEntry).getByText('458 of 751 planned items are complete (60.99%).')).toBeVisible();
   const previousBlacksmithEntry = within(region).getByRole('heading', { name: 'Build 0.5.45' }).closest('article');
   if (!previousBlacksmithEntry) throw new Error('Expected the preserved 0.5.45 Blacksmith release entry.');

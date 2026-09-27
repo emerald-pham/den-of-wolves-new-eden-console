@@ -56,6 +56,9 @@ it('preserves Blacksmith history when adding Endeavour upgrade recovery to the c
   expect(endeavourUpgradeEntry?.changes).toContain(
     'When Endeavour upgrade state changes, the active Scientist can keep eligible console selections, wait for live research and purchase state, and explicitly retry with current revisions.',
   );
+  expect(endeavourUpgradeEntry?.changes).toContain(
+    'Fleet broadcasts keep moving smoothly through font and screen-size changes and when one copy leaves the ticker.',
+  );
 });
 
 it('retains the reconnection grace in player-facing release notes', () => {
