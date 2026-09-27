@@ -24,6 +24,7 @@ export interface ScoutRequestReply {
   readonly source: ScoutRequestSource;
   readonly ownerRoleId: string;
   readonly anchorShipId: string;
+  readonly receivingShipId: string;
   readonly targetCoordinate: string;
 }
 
@@ -50,7 +51,7 @@ function parseScoutRequestReply(
 ): ScoutRequestReply | null {
   const fields = [
     'status', 'resolution', 'requestId', 'sessionId', 'cycle', 'entitlementId', 'source',
-    'ownerRoleId', 'anchorShipId', 'targetCoordinate',
+    'ownerRoleId', 'anchorShipId', 'receivingShipId', 'targetCoordinate',
   ];
   if (!isRecord(value) || !hasExactKeys(value, fields) ||
       (value.status !== 'requested' && value.status !== 'replayed') || value.resolution !== 'pending' ||
@@ -60,7 +61,9 @@ function parseScoutRequestReply(
 
   const entitlement = scoutEntitlementDefinition(expected.entitlementId);
   if (!entitlement || value.source !== entitlement.source ||
-      value.ownerRoleId !== entitlement.ownerRoleId || value.anchorShipId !== entitlement.anchorShipId) {
+      value.ownerRoleId !== entitlement.ownerRoleId || value.anchorShipId !== entitlement.anchorShipId ||
+      typeof value.receivingShipId !== 'string' || value.receivingShipId.length === 0 ||
+      !useSessionStore.getState().session?.activeVesselIds?.includes(value.receivingShipId)) {
     return null;
   }
   return {
@@ -73,6 +76,7 @@ function parseScoutRequestReply(
     source: entitlement.source,
     ownerRoleId: entitlement.ownerRoleId,
     anchorShipId: entitlement.anchorShipId,
+    receivingShipId: value.receivingShipId,
     targetCoordinate: expected.targetCoordinate,
   };
 }

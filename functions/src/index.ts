@@ -24017,6 +24017,7 @@ type ScoutRequestReply = Readonly<{
   source: ScoutEntitlement['source'];
   ownerRoleId: string;
   anchorShipId: string;
+  receivingShipId: string;
   targetCoordinate: string;
 }>;
 
@@ -24052,6 +24053,28 @@ function strictScoutRosters(session: DocumentSnapshot): {
   return { activeRoleIds, activeVesselIds };
 }
 
+function scoutReceivingShipId(
+  session: DocumentSnapshot,
+  entitlementId: ScoutEntitlement['id'],
+  activeRoleIds: readonly string[],
+  activeVesselIds: readonly string[],
+): string {
+  if (entitlementId === 'comms-officer') {
+    if (activeVesselIds.includes('aegis')) return 'aegis';
+    throw commandError('failed-precondition', 'The Comms Officer ship is not active.', 'malformed-input');
+  }
+  const stored = session.get('shuttleDockings');
+  if (!Array.isArray(stored) || !shuttleDockingsAreKnownAndUnique(stored)) {
+    throw commandError('failed-precondition', 'The current shuttle docking state is malformed.', 'malformed-input');
+  }
+  const matching = stored.filter((entry) => entry.shuttleId === entitlementId);
+  if (matching.length !== 1 || !shuttleDockingsAreParked(matching, activeVesselIds) ||
+      !shuttleDockingsMatchActiveRoleOwnedSubset(activeRoleIds, matching)) {
+    throw commandError('failed-precondition', 'The scouting shuttle has no active parked host.', 'invalid-phase');
+  }
+  return matching[0].shipId as string;
+}
+
 function isScoutRequestReply(value: unknown): value is ScoutRequestReply {
   if (!isRecord(value)) return false;
   return value.status === 'requested' && value.resolution === 'pending' &&
@@ -24059,6 +24082,7 @@ function isScoutRequestReply(value: unknown): value is ScoutRequestReply {
     Number.isSafeInteger(value.cycle) && (value.cycle as number) >= 1 &&
     typeof value.entitlementId === 'string' && typeof value.source === 'string' &&
     typeof value.ownerRoleId === 'string' && typeof value.anchorShipId === 'string' &&
+    typeof value.receivingShipId === 'string' && value.receivingShipId.length > 0 &&
     typeof value.targetCoordinate === 'string';
 }
 
@@ -24073,7 +24097,8 @@ function isCurrentScoutRequestRecord(
   if (!isRecord(value)) return false;
   const allowedKeys = new Set([
     'type', 'status', 'resolution', 'requestId', 'sessionId', 'actorUid', 'cycle',
-    'entitlementId', 'source', 'ownerRoleId', 'anchorShipId', 'targetCoordinate', 'scan', 'createdAt',
+    'entitlementId', 'source', 'ownerRoleId', 'anchorShipId', 'receivingShipId',
+    'targetCoordinate', 'scan', 'createdAt',
   ]);
   return Object.keys(value).every((key) => allowedKeys.has(key)) &&
     value.type === 'scout-request' && value.status === 'requested' && value.resolution === 'pending' &&
@@ -24081,6 +24106,7 @@ function isCurrentScoutRequestRecord(
     value.actorUid === actorUid && value.cycle === expected.cycle &&
     value.entitlementId === expected.entitlementId && value.source === expected.source &&
     value.ownerRoleId === expected.ownerRoleId && value.anchorShipId === expected.anchorShipId &&
+    value.receivingShipId === expected.receivingShipId &&
     value.targetCoordinate === expected.targetCoordinate && isDeepStrictEqual(value.scan, scan) &&
     Object.hasOwn(value, 'createdAt');
 }
@@ -24192,6 +24218,7 @@ export const requestScout = onCall<{
         Object.keys(rawCoordinates).some((shipId) => !activeVesselIds.includes(shipId))) {
       throw commandError('failed-precondition', 'Current ship positions are unavailable for scouting.', 'malformed-input');
     }
+    const receivingShipId = scoutReceivingShipId(session, entitlementId, activeRoleIds, activeVesselIds);
     let scan: AuthorizedScoutScan;
     try {
       scan = authorizeCurrentScoutScan({
@@ -24210,6 +24237,7 @@ export const requestScout = onCall<{
       status: 'requested', resolution: 'pending', requestId, sessionId,
       cycle: cycle as number, entitlementId: entitlement.id, source: entitlement.source,
       ownerRoleId: entitlement.ownerRoleId, anchorShipId: entitlement.anchorShipId,
+      receivingShipId,
       targetCoordinate,
     };
     tx.create(requestRef, {
