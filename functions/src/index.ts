@@ -23670,10 +23670,6 @@ async function requireHighwallMiningAuthority(
   if (!isActivePlayer(player) || player.get('role') !== 'player') {
     throw new HttpsError('permission-denied', 'Only the connected Highwall holder may mine.');
   }
-  if (player.get('assignedRoleId') !== 'icebreaker-miner' ||
-      player.get('activeConsoleRoleId') !== 'icebreaker-miner') {
-    throw new HttpsError('permission-denied', 'Only the current Icebreaker Miner may mine with Highwall.');
-  }
   requirePlayerShipActionAuthority(player);
   if (!configuredRoleIds(session).includes('icebreaker-miner') ||
       !activeVesselIdsForSession(session).includes('icebreaker')) {

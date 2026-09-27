@@ -26,15 +26,16 @@ it('retains connected-player roster privacy in its release history', () => {
   );
 });
 
-it('preserves Endeavour upgrade history when adding research recovery to the current release', () => {
+it('preserves Endeavour history when adding the Highwall recovery release', () => {
   const allyEntry = CHANGELOG.find((entry) => entry.version === '0.5.40');
   const maliadesEntry = CHANGELOG.find((entry) => entry.version === '0.5.41');
   const chacauEntry = CHANGELOG.find((entry) => entry.version === '0.5.42');
   const philiaEntry = CHANGELOG.find((entry) => entry.version === '0.5.43');
   const capybaraEntry = CHANGELOG.find((entry) => entry.version === '0.5.44');
   const blacksmithEntry = CHANGELOG.find((entry) => entry.version === '0.5.45');
-  const endeavourResearchEntry = CHANGELOG.find((entry) => entry.version === APP_VERSION);
+  const endeavourResearchEntry = CHANGELOG.find((entry) => entry.version === '0.5.47');
   const endeavourUpgradeEntry = CHANGELOG.find((entry) => entry.version === '0.5.46');
+  const highwallMiningEntry = CHANGELOG.find((entry) => entry.version === APP_VERSION);
 
   expect(allyEntry?.changes).toContain(
     'Ally repairs keep selected consoles while server state catches up and let the current Joint Engineering Union holder explicitly retry with a fresh request and current revisions.',
@@ -62,6 +63,9 @@ it('preserves Endeavour upgrade history when adding research recovery to the cur
   );
   expect(endeavourUpgradeEntry?.changes).toContain(
     'When Endeavour upgrade state changes, the active Scientist can keep eligible console selections, wait for live research and purchase state, and explicitly retry with current revisions.',
+  );
+  expect(highwallMiningEntry?.changes).toContain(
+    'When Highwall mining state changes, its current holder can wait for current revisions and explicitly retry with a fresh request.',
   );
   expect(endeavourUpgradeEntry?.changes).toContain(
     'Fleet broadcasts keep moving smoothly through font and screen-size changes and when one copy leaves the ticker.',

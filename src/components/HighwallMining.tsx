@@ -56,7 +56,6 @@ export default function HighwallMining({ control, docking, fuelled }: Props) {
     session.playerDiscovery.fleetGroupVesselIds?.includes(currentDocking?.shipId ?? '') === true;
   const liveSnapshot = connection === 'live' && snapshotFreshness === 'server' && hasFreshSessionAuthority();
   const holderAuthority = liveSnapshot && session.phase === 'active' && me.role === 'player' &&
-    me.assignedRoleId === 'icebreaker-miner' && me.activeConsoleRoleId === 'icebreaker-miner' &&
     isHolder && currentControl?.ownerRoleId === 'icebreaker-miner' && validRevision(currentControl.revision) &&
     activeRole && activeVessel && currentDocking?.shuttleId === 'highwall' && localGroupAuthority;
   const canExactRetry = exactRetry !== undefined && canRetryHighwallMiningExactly(exactRetry);

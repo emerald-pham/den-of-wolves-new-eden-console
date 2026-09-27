@@ -106,7 +106,6 @@ function captureAuthority(
   const activeVesselIds = session.activeVesselIds;
   const discovery = session.playerDiscovery;
   if (!me || me.sessionId !== session.id || me.role !== 'player' || !me.uid ||
-      me.assignedRoleId !== 'icebreaker-miner' || me.activeConsoleRoleId !== 'icebreaker-miner' ||
       typeof groupId !== 'string' || !groupId.trim() ||
       !Array.isArray(activeRoleIds) || !activeRoleIds.includes('icebreaker-miner') ||
       !Array.isArray(activeVesselIds) || !activeVesselIds.includes('icebreaker') ||
@@ -144,9 +143,8 @@ function currentAuthorityMatches(binding: HighwallMiningAuthorityBinding): boole
   return hasFreshSessionAuthority() && session?.id === binding.sessionId &&
     me?.sessionId === binding.sessionId && me.uid === binding.uid && me.role === binding.role &&
     me.role === 'player' && me.assignedRoleId === binding.assignedRoleId &&
-    me.assignedRoleId === 'icebreaker-miner' &&
     me.activeConsoleRoleId === binding.activeConsoleRoleId &&
-    me.activeConsoleRoleId === 'icebreaker-miner' && me.fleetGroupId === binding.fleetGroupId &&
+    me.fleetGroupId === binding.fleetGroupId &&
     session.phase === 'active' && Array.isArray(activeRoleIds) &&
     activeRoleIds.includes('icebreaker-miner') && Array.isArray(activeVesselIds) &&
     activeVesselIds.includes('icebreaker') && control?.shuttleId === 'highwall' &&

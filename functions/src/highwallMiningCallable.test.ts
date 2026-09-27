@@ -110,6 +110,78 @@ it('commits one material roll and exact retry without another random draw or wri
   expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
 });
 
+it('allows a same-group Icebreaker Engineer who received Highwall control to mine', async () => {
+  mock.documents.get('sessions/s1')!.activeRoleIds = ['icebreaker-miner', 'icebreaker-engineer'];
+  Object.assign(mock.documents.get('sessions/s1/players/holder')!, {
+    assignedRoleId: 'icebreaker-engineer', activeConsoleRoleId: 'icebreaker-engineer',
+  });
+
+  await expect(runHighwallMining.run(request(command))).resolves.toMatchObject({
+    status: 'committed',
+    operation: { requestId: command.requestId, resource: 'materials', rolls: [4], amount: 4 },
+  });
+  expect(cryptoMock.randomInt).toHaveBeenCalledTimes(1);
+  expect(mock.documents.get('sessions/s1')).toMatchObject({
+    shuttleControl: { highwall: { ownerRoleId: 'icebreaker-miner', holderUid: 'holder' } },
+    highwallMining: { cycle: 2, revision: 1 },
+  });
+});
+
+it('returns the minimal stale envelope to a same-group handed-off Highwall holder', async () => {
+  mock.documents.get('sessions/s1')!.activeRoleIds = ['icebreaker-miner', 'icebreaker-engineer'];
+  Object.assign(mock.documents.get('sessions/s1/players/holder')!, {
+    assignedRoleId: 'icebreaker-engineer', activeConsoleRoleId: 'icebreaker-engineer',
+  });
+  mock.documents.get('sessions/s1')!.highwallMining = {
+    cycle: 2, revision: 1,
+    operations: [{ requestId: 'mine-previous', resource: 'materials', rolls: [3], amount: 3 }],
+  };
+  cryptoMock.randomInt.mockClear();
+  mock.set.mockClear(); mock.update.mockClear();
+
+  await expect(runHighwallMining.run(request(command))).resolves.toEqual({
+    status: 'stale', sessionId: 's1', requestId: 'mine-1', resource: 'materials',
+    expectedRevision: 0, currentRevision: 1,
+    expectedControlRevision: 2, currentControlRevision: 2,
+    expectedCycle: 2, currentCycle: 2, hostShipId: 'icebreaker',
+  });
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('denies a handed-off Highwall holder whose fleet group does not contain the dock', async () => {
+  mock.documents.get('sessions/s1')!.activeRoleIds = ['icebreaker-miner', 'icebreaker-engineer'];
+  Object.assign(mock.documents.get('sessions/s1/players/holder')!, {
+    assignedRoleId: 'icebreaker-engineer', activeConsoleRoleId: 'icebreaker-engineer',
+    fleetGroupId: 'fleet-2',
+  });
+  put('sessions/s1/fleetGroups/fleet-2', {
+    id: 'fleet-2', vesselIds: ['quellon'], memberUids: ['holder'],
+  });
+  cryptoMock.randomInt.mockClear();
+
+  await expect(runHighwallMining.run(request(command))).rejects.toMatchObject({
+    code: 'failed-precondition',
+  });
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('denies a handed-off Highwall holder after current control moves to another player', async () => {
+  mock.documents.get('sessions/s1')!.activeRoleIds = ['icebreaker-miner', 'icebreaker-engineer'];
+  Object.assign(mock.documents.get('sessions/s1/players/holder')!, {
+    assignedRoleId: 'icebreaker-engineer', activeConsoleRoleId: 'icebreaker-engineer',
+  });
+  mock.documents.get('sessions/s1')!.shuttleControl.highwall.holderUid = 'owner';
+  cryptoMock.randomInt.mockClear();
+
+  await expect(runHighwallMining.run(request(command))).rejects.toMatchObject({
+    code: 'permission-denied', message: expect.stringMatching(/current Highwall holder/i),
+  });
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+});
+
 it('rejects a structurally valid replay result that does not match its exact request', async () => {
   await runHighwallMining.run(request(command));
   const receipt = mock.documents.get('sessions/s1/commandReceipts/mine-1')!;
@@ -212,8 +284,7 @@ it.each([
     };
   }, 'permission-denied'],
   ['actor role', () => {
-    mock.documents.get('sessions/s1/players/holder')!.assignedRoleId = 'icebreaker-captain';
-    mock.documents.get('sessions/s1/players/holder')!.activeConsoleRoleId = 'icebreaker-captain';
+    mock.documents.get('sessions/s1/players/holder')!.role = 'gm';
   }, 'permission-denied'],
   ['control role', (session: Fields) => {
     (session.shuttleControl as Fields).highwall = {

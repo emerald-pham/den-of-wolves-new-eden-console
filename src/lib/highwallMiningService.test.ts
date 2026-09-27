@@ -36,6 +36,27 @@ beforeEach(() => {
   useSessionStore.getState().setSessionSnapshotFreshness('server');
 });
 
+function setHandedOffEngineer(options: { readonly groupId?: string; readonly vesselIds?: readonly string[];
+  readonly holderUid?: string } = {}): void {
+  const current = useSessionStore.getState();
+  current.setIdentity({
+    ...current.session!,
+    activeRoleIds: [...(current.session!.activeRoleIds ?? []), 'icebreaker-engineer'],
+    ...(options.holderUid ? {
+      shuttleControl: { highwall: { ...current.session!.shuttleControl!.highwall!, holderUid: options.holderUid } },
+    } : {}),
+    ...(options.groupId ? {
+      playerDiscovery: {
+        ...current.session!.playerDiscovery!, groupId: options.groupId,
+        fleetGroupVesselIds: options.vesselIds ?? ['icebreaker'],
+      },
+    } : {}),
+  }, {
+    ...current.me!, assignedRoleId: 'icebreaker-engineer', activeConsoleRoleId: 'icebreaker-engineer',
+    ...(options.groupId ? { fleetGroupId: options.groupId } : {}),
+  });
+}
+
 it('sends the selected operation with observed state, custody, and cycle revisions', async () => {
   mocks.call.mockImplementation((payload: Record<string, unknown>) => Promise.resolve({ data: {
     status: 'committed', sessionId: payload.sessionId, requestId: payload.requestId,
@@ -51,6 +72,31 @@ it('sends the selected operation with observed state, custody, and cycle revisio
     sessionId: 's1', requestId: expect.any(String), resource: 'ore',
     expectedRevision: 2, expectedControlRevision: 4, expectedCycle: 2,
   });
+});
+
+it('allows a same-group legal-dock Engineer holding Highwall to mine', async () => {
+  setHandedOffEngineer();
+  mocks.call.mockImplementation((payload: Record<string, unknown>) => Promise.resolve({ data: {
+    status: 'committed', sessionId: payload.sessionId, requestId: payload.requestId,
+    cycle: 2, revision: 3,
+    operation: { requestId: payload.requestId, resource: 'ore', rolls: [2, 5, 3], amount: 10 },
+    cargo: { ore: 13, materials: 2 },
+  } }));
+
+  await expect(runHighwallMining('ore', 2, 4, 2)).resolves.toMatchObject({ status: 'committed' });
+  expect(mocks.callable).toHaveBeenCalledWith('functions', 'runHighwallMining');
+});
+
+it('keeps a handed-off Engineer from mining across a fleet-group boundary', async () => {
+  setHandedOffEngineer({ groupId: 'fleet-2', vesselIds: ['quellon'] });
+  await expect(runHighwallMining('ore', 2, 4, 2)).rejects.toThrow(/fleet group/i);
+  expect(mocks.callable).not.toHaveBeenCalled();
+});
+
+it('keeps a handed-off Engineer from mining after Highwall control moves', async () => {
+  setHandedOffEngineer({ holderUid: 'other' });
+  await expect(runHighwallMining('ore', 2, 4, 2)).rejects.toThrow(/current Highwall holder/i);
+  expect(mocks.callable).not.toHaveBeenCalled();
 });
 
 it('rejects a malformed callable result', async () => {

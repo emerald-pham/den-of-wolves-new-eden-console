@@ -38,6 +38,16 @@ function updateSession(patch: Record<string, unknown>): void {
   act(() => current.setIdentity({ ...current.session!, ...patch } as never, current.me!));
 }
 
+function handHighwallToEngineer(): void {
+  const current = useSessionStore.getState();
+  act(() => current.setIdentity({
+    ...current.session!,
+    activeRoleIds: [...(current.session!.activeRoleIds ?? []), 'icebreaker-engineer'],
+  }, {
+    ...current.me!, assignedRoleId: 'icebreaker-engineer', activeConsoleRoleId: 'icebreaker-engineer',
+  }));
+}
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((complete) => { resolve = complete; });
@@ -97,6 +107,28 @@ it('waits for the current server state and requires an explicit fresh-CAS retry'
   await waitFor(() => expect(mocks.run).toHaveBeenCalledTimes(2));
   expect(mocks.run).toHaveBeenLastCalledWith('ore', 3, 5, 2);
   expect(screen.getByRole('status')).toHaveTextContent(/operation committed/i);
+});
+
+it('lets a same-group legal-dock Engineer holder explicitly retry stale mining', async () => {
+  const user = userEvent.setup();
+  handHighwallToEngineer();
+  mocks.run.mockResolvedValueOnce(staleReply).mockResolvedValueOnce({
+    status: 'committed',
+    operation: { requestId: 'fresh-mine-request', resource: 'ore', rolls: [2, 5, 3], amount: 10 },
+  });
+  render(<HighwallMining control={control} docking={docking} fuelled={false} />);
+  await user.click(screen.getByRole('button', { name: /roll 3d6 strytium ore/i }));
+  const retry = await screen.findByRole('button', { name: /retry selected highwall operation/i });
+  expect(retry).toBeDisabled();
+
+  updateSession({
+    shuttleControl: { highwall: { ...control, revision: 5 } },
+    highwallMining: { cycle: 2, revision: 3, operations: [operation] },
+  });
+  await waitFor(() => expect(retry).toBeEnabled());
+  await user.click(retry);
+  await waitFor(() => expect(mocks.run).toHaveBeenCalledTimes(2));
+  expect(mocks.run).toHaveBeenLastCalledWith('ore', 3, 5, 2);
 });
 
 it('withholds fresh retry when the current Highwall holder changes', async () => {

@@ -26,6 +26,20 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 458, partial: 44, active: 0, missing: 249,
     },
     changes: [
+      'When Highwall mining state changes, its current holder can wait for current revisions and explicitly retry with a fresh request.',
+      'If a connection leaves a mining result uncertain, the current holder can retry the exact request to confirm its outcome.',
+      '458 of 751 planned items are complete (60.99%).',
+    ],
+    implementationPrompts: [620],
+  },
+
+  {
+    version: '0.5.47',
+    implementationProgress: {
+      completed: 458, total: 751, percentage: '60.99%',
+      done: 458, partial: 44, active: 0, missing: 249,
+    },
+    changes: [
       'If Endeavour research changes while a choice is being checked, the Scientist can wait for the current private workspace and explicitly retry that choice.',
       'If a connection leaves the outcome uncertain, retrying the same choice confirms the original request.',
       '458 of 751 planned items are complete (60.99%).',
