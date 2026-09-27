@@ -118,6 +118,25 @@ describe('Endeavour ECM Device writer', () => {
     });
   });
 
+  it('does not disclose private device status to a non-Scientist or a member outside the Shepherd group', async () => {
+    await expect(readEndeavourEcmDeviceWorkspace.run(request({ sessionId: 's1' }, 'intruder')))
+      .rejects.toBeInstanceOf(Error);
+
+    put('sessions/s1/players/scientist', {
+      ...mock.documents.get('sessions/s1/players/scientist'),
+      assignedRoleId: 'admiral',
+    });
+    await expect(readEndeavourEcmDeviceWorkspace.run(request({ sessionId: 's1' })))
+      .rejects.toBeInstanceOf(Error);
+
+    put('sessions/s1/players/scientist', {
+      ...mock.documents.get('sessions/s1/players/scientist'),
+      assignedRoleId: 'shepherd-scientist', fleetGroupId: 'fleet-2',
+    });
+    await expect(readEndeavourEcmDeviceWorkspace.run(request({ sessionId: 's1' })))
+      .rejects.toBeInstanceOf(Error);
+  });
+
   it('commits one durable group event, a replay receipt, and only the owning-group pursuit change', async () => {
     await expect(activateEndeavourEcmDevice.run(request(command))).resolves.toEqual({
       status: 'committed', sessionId: 's1', requestId: 'ecm-use-1', cycle: 3,

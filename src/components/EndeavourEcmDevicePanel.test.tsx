@@ -101,6 +101,14 @@ it('renders every synthetic presentation state without calling a live service', 
   expect(mocks.activate).not.toHaveBeenCalled();
 });
 
+it('does not request private device state when the client is not the current Scientist', () => {
+  const current = useSessionStore.getState().me!;
+  useSessionStore.getState().setMe({ ...current, activeConsoleRoleId: 'admiral' });
+  const { container } = render(<EndeavourEcmDevicePanel control={control} />);
+  expect(container).toBeEmptyDOMElement();
+  expect(mocks.read).not.toHaveBeenCalled();
+});
+
 it('shows the ready state, working feedback, success receipt, and persisted spent state', async () => {
   const user = userEvent.setup();
   mocks.read.mockResolvedValueOnce(readyWorkspace).mockResolvedValueOnce(usedWorkspace);
