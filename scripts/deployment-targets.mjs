@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import {
   classifyRiskGates,
   formatRiskGateOutputs,
@@ -30,6 +31,13 @@ const TOOLING_ONLY_FILES = new Set([
 const CANDIDATE_REVEAL_CALLABLES = Object.freeze([
   'advanceTurn', 'assignReplacementRole', 'confirmSetup', 'joinSession', 'jumpShip',
   'moveShipToLocation', 'resumeSession', 'runMaintenance',
+]);
+// PC01 changes the common navigation parser and member projection. Ship-map
+// writers must all adopt the new field before a scout result can be released.
+const SCOUT_NAVIGATION_CALLABLES = Object.freeze([
+  'advanceTurn', 'assignReplacementRole', 'confirmSetup', 'createSession',
+  'joinSession', 'jumpShip', 'moveShipToLocation', 'resumeSession',
+  'runMaintenance', 'setCandidatePlanCheckpoint', 'resolvePendingScoutRequest',
 ]);
 const WOLF_ATTACK_DECLARATION_TYPE_ADDITIONS = Object.freeze([
   '  /** Stable identity for this declared attack; range actions bind to it. */\n  readonly attackId: string;\n',
@@ -105,6 +113,15 @@ const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
   ],
   'functions/src/endeavourResearchWriter.ts': [
     'advanceEndeavourResearchTrack', 'readEndeavourResearchWorkspace',
+  ],
+  'functions/src/endeavourEcmDeviceWriter.ts': [
+    'activateEndeavourEcmDevice', 'readEndeavourEcmDeviceWorkspace',
+  ],
+  'functions/src/scoutRequestCadence.ts': ['requestScout'],
+  'functions/src/scoutResolutionPlan.ts': ['resolvePendingScoutRequest'],
+  'functions/src/scoutResultCallable.ts': [
+    'resolvePendingScoutRequest', 'readPrivateScoutResult', 'listPendingScoutRequests',
+    'listMyScoutReports', 'readMyScoutDiscoveryNote',
   ],
   'functions/src/highwallMining.ts': ['runHighwallMining'],
   'functions/src/hummingbirdHarvestStaleReply.ts': [
@@ -680,6 +697,13 @@ function candidateRevealNavigationProjectionImpacts(before, after, cwd, sourceAt
   };
   const previous = readAt(before);
   const current = readAt(after);
+  const digest = (source) => createHash('sha256').update(source).digest('hex');
+  // Exact reviewed PC01 file transition. An additional navigation change must
+  // receive its own audited consumer mapping before Functions deployment.
+  if (digest(previous) === 'a4e97d779601b9e6bd2b5c853a5bc5c2704372e6ccab23341f026b098a5dcb81' &&
+      digest(current) === '6ecd631f00265d834784077b9467999b637ba65dcc6fb0536dda6273a117fc6d') {
+    return [...SCOUT_NAVIGATION_CALLABLES];
+  }
   const countLine = (source, line) => source.split('\n').filter((entry) => entry === line).length;
   const countBlock = (source, block) => source.split(block).length - 1;
   for (const [addition, expectedCount] of P541_CANDIDATE_REVEAL_NAVIGATION_ADDITIONS) {
