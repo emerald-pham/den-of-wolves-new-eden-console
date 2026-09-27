@@ -14,7 +14,7 @@ const request = {
   type: 'scout-request', status: 'requested', resolution: 'pending',
   sessionId: 'session-1', requestId: 'scan-1', actorUid: 'scientist-1',
   entitlementId: 'endeavour', source: 'craft', ownerRoleId: 'shepherd-scientist',
-  anchorShipId: 'shepherd', cycle: 4, targetCoordinate: '0408', scan,
+  anchorShipId: 'shepherd', receivingShipId: 'aegis', cycle: 4, targetCoordinate: '0408', scan,
   createdAt: 'server-time',
 } as const;
 const cadence = {
@@ -40,7 +40,7 @@ describe('scout resolution write plan', () => {
     });
     expect(plan.note).toMatchObject({
       type: 'player-discovery-note', sessionId: 'session-1', requestId: 'scan-1',
-      requesterUid: 'scientist-1', shipId: 'shepherd', fleetGroupId: 'fleet-1',
+      requesterUid: 'scientist-1', shipId: 'aegis', fleetGroupId: 'fleet-1',
       systemFact: plan.result.systemFact,
     });
     expect(plan.audit).toMatchObject({
@@ -51,7 +51,7 @@ describe('scout resolution write plan', () => {
     });
     expect(plan.deepNebulaScan).toEqual({
       type: 'deep-nebula-scan', sessionId: 'session-1', requestId: 'scan-1',
-      cycle: 4, shipId: 'shepherd', targetCoordinate: '0408',
+      cycle: 4, shipId: 'aegis', targetCoordinate: '0408',
     });
     expect(JSON.stringify(plan)).not.toMatch(/accruedBonus|modifier|organiserChart|chartId/);
   });
@@ -71,6 +71,7 @@ describe('scout resolution write plan', () => {
     ['different cadence actor', { cadence: { ...cadence, scans: [{ ...cadence.scans[0], actorUid: 'other' }] } }],
     ['forged request fact', { request: { ...request, organiserChart: { '0408': 'O' } } }],
     ['wrong source identity', { request: { ...request, anchorShipId: 'aegis' } }],
+    ['missing receiving ship', { request: { ...request, receivingShipId: undefined } }],
     ['old cycle', { session: { ...session, currentCycle: 5 } }],
     ['unlocked chart', { session: { ...session, chartSelectionLocked: false } }],
     ['stale GM lease', { facilitator: { ...facilitator, facilitatorInstance: { ...facilitator.facilitatorInstance, lastSeenAt: 0 } } }],

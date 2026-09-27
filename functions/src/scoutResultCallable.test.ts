@@ -43,7 +43,7 @@ const pendingRequest = {
   type: 'scout-request', status: 'requested', resolution: 'pending',
   sessionId: 'session-1', requestId: 'scan-1', actorUid: 'scientist-1',
   entitlementId: 'endeavour', source: 'craft', ownerRoleId: 'shepherd-scientist',
-  anchorShipId: 'shepherd', cycle: 4, targetCoordinate: '0408', scan,
+  anchorShipId: 'shepherd', receivingShipId: 'aegis', cycle: 4, targetCoordinate: '0408', scan,
   createdAt: 'server-time',
 };
 const callableRequest = (data: Fields, uid: string) =>
@@ -98,7 +98,7 @@ describe('private scout result callables', () => {
       requesterUid: 'scientist-1', facilitatorUid: 'gm-1', targetCoordinate: '0408',
     });
     expect(mock.documents.get('sessions/session-1/deepNebulaScans/scan-1')).toMatchObject({
-      type: 'deep-nebula-scan', shipId: 'shepherd',
+      type: 'deep-nebula-scan', shipId: 'aegis',
     });
     expect([...mock.documents.keys()].filter((path) => path.includes('/playerDiscoveryNotes/')))
       .toHaveLength(1);
