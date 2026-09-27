@@ -580,6 +580,26 @@ test('fails closed for Endeavour callable changes mixed with another export or a
     /Cannot safely map an Endeavour field-upgrade index change mixed with another callable or untracked source edit/i);
 });
 
+test('fails closed when a new Endeavour callable is added alongside an untracked helper', () => {
+  const after = readFileSync(new URL('../functions/src/index.ts', import.meta.url), 'utf8');
+  const marker = 'export const upgradeEndeavourFieldTargets = onCall<';
+  const start = after.indexOf(marker);
+  assert.notEqual(start, -1);
+  const close = after.indexOf('\n});', start);
+  assert.notEqual(close, -1);
+  const before = after.slice(0, start) + after.slice(close + '\n});'.length);
+  const helperMixed = `${after}\nfunction untrackedEndeavourHelper() { return 'changed'; }\n`;
+  assert.throws(() => deploymentSelector({
+    before: 'base', after: 'candidate', files: ['functions/src/index.ts'],
+    targets: ['hosting', 'functions'],
+    isAncestor: (ancestor, descendant) => ancestor === 'base' && descendant === 'candidate',
+    sourceAtRevision: (revision, file) => {
+      assert.equal(file, 'functions/src/index.ts');
+      return revision === 'base' ? before : helperMixed;
+    },
+  }), /Cannot safely map an Endeavour field-upgrade index change mixed with another callable or untracked source edit/i);
+});
+
 test('fails closed when Blacksmith and another callable export change together', () => {
   const before = INDEX_SOURCE;
   const after = before

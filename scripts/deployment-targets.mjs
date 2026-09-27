@@ -393,10 +393,9 @@ function changedIndexCallables(before, after, cwd, sourceAtRevision = null) {
     }
   }
   if (changed.includes('upgradeEndeavourFieldTargets')) {
-    if (changed.length !== 1 || !previous.has('upgradeEndeavourFieldTargets') ||
-        !current.has('upgradeEndeavourFieldTargets') ||
-        indexSourceOutsideCallableBlocks(previousSource, previous) !==
-          indexSourceOutsideCallableBlocks(currentSource, current)) {
+    if (changed.length !== 1 || !current.has('upgradeEndeavourFieldTargets') ||
+        indexSourceOutsideCallableBlocks(previousSource, previous, 'upgradeEndeavourFieldTargets') !==
+          indexSourceOutsideCallableBlocks(currentSource, current, 'upgradeEndeavourFieldTargets')) {
       throw new Error(
         'Cannot safely map an Endeavour field-upgrade index change mixed with another callable or untracked source edit.',
       );
@@ -405,14 +404,16 @@ function changedIndexCallables(before, after, cwd, sourceAtRevision = null) {
   return changed;
 }
 
-function indexSourceOutsideCallableBlocks(source, callables) {
+function indexSourceOutsideCallableBlocks(source, callables, omittedCallable = null) {
   let remainder = source;
   for (const [name, block] of callables) {
     const count = remainder.split(block).length - 1;
     if (count !== 1) {
       throw new Error(`Cannot safely isolate the ${name} export from the Functions entrypoint.`);
     }
-    remainder = remainder.replace(block, `__FUNCTION_EXPORT_${name}__`);
+    remainder = name === omittedCallable
+      ? remainder.replace(`${block}\n`, '')
+      : remainder.replace(block, `__FUNCTION_EXPORT_${name}__`);
   }
   return remainder;
 }
