@@ -111,7 +111,9 @@ function requirePendingRequest(input: ScoutResolutionInput): RecordValue {
   if (!record(session) || !exact(session, [
     'sessionId', 'phase', 'chartId', 'chartSelectionLocked', 'currentCycle',
   ]) || session.sessionId !== request.sessionId || session.phase !== 'active' ||
-      session.chartSelectionLocked !== true || session.currentCycle !== request.cycle) {
+      session.chartSelectionLocked !== true ||
+      !Number.isSafeInteger(session.currentCycle) ||
+      (session.currentCycle as number) < (request.cycle as number)) {
     throw new Error('The current chart or cycle does not match the scout request.');
   }
   return request;

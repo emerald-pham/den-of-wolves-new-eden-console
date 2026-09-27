@@ -258,7 +258,10 @@ export const listPendingScoutRequests = onCall(CALLABLE_RUNTIME_OPTIONS, async (
     gmViewer(sessionId, actorUid, player, instance, nowMs);
     const pending = requests.docs.filter((doc) => doc.get('sessionId') === sessionId &&
       doc.get('type') === 'scout-request' && doc.get('status') === 'requested' &&
-      doc.get('resolution') === 'pending' && doc.get('cycle') === session.get('currentTurn') &&
+      doc.get('resolution') === 'pending' &&
+      Number.isSafeInteger(doc.get('cycle')) && doc.get('cycle') >= 1 &&
+      Number.isSafeInteger(session.get('currentTurn')) &&
+      doc.get('cycle') <= session.get('currentTurn') &&
       id(doc.id) && doc.get('requestId') === doc.id && id(doc.get('entitlementId')) &&
       id(doc.get('anchorShipId')) && typeof doc.get('targetCoordinate') === 'string');
     const results = await Promise.all(pending.map((doc) =>
