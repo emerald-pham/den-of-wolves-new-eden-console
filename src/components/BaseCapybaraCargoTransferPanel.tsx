@@ -4,6 +4,7 @@ import { BASE_CAPYBARA_CARGO_TYPES, parseBaseCapybaraCargoState } from '@/lib/ba
 import {
   transferBaseCapybaraCargo,
   type BaseCapybaraCargoTransferCommand,
+  type BaseCapybaraCargoTransferStaleResult,
 } from '@/lib/baseCapybaraCargoService';
 import {
   captureSessionAuthority,
@@ -44,6 +45,41 @@ function isCurrentCaptainAuthority(
     isBaseCapybaraCaptain(current.me);
 }
 
+function staleReplyMatchesCommand(
+  reply: BaseCapybaraCargoTransferStaleResult,
+  command: BaseCapybaraCargoTransferCommand,
+  sessionId: string,
+): boolean {
+  return reply.status === 'stale' && reply.sessionId === sessionId &&
+    reply.requestId === command.requestId &&
+    reply.expectedCycle === command.expectedCycle && reply.currentCycle === command.expectedCycle &&
+    reply.expectedHostShipId === command.expectedHostShipId &&
+    reply.currentHostShipId === command.expectedHostShipId &&
+    reply.expectedDockingRevision === command.expectedDockingRevision &&
+    reply.currentDockingRevision === command.expectedDockingRevision &&
+    reply.resourceId === command.resourceId && reply.direction === command.direction &&
+    reply.amount === command.amount && reply.expectedRevision === command.expectedRevision &&
+    Number.isSafeInteger(reply.currentCargoRevision) && reply.currentCargoRevision > command.expectedRevision;
+}
+
+function currentStaleTargetMatches(
+  session: GameSession | null | undefined,
+  reply: BaseCapybaraCargoTransferStaleResult,
+): boolean {
+  if (!session || session.id !== reply.sessionId || session.phase !== 'active' ||
+      session.expansion !== 'base' || session.capybaraEnabled !== true ||
+      session.currentTurn !== reply.currentCycle || !session.activeVesselIds?.includes(reply.currentHostShipId)) {
+    return false;
+  }
+  const smallShip = session.smallShipStates?.['capybara-small'];
+  const damage = session.shipDamage?.[reply.currentHostShipId];
+  const phase = phaseForSession(session);
+  return smallShip?.hostShipId === reply.currentHostShipId &&
+    smallShip.dockingRevision === reply.currentDockingRevision && damage?.destroyed === false &&
+    phase?.turn === reply.currentCycle && phase.airspace.state === 'lifted' &&
+    phase.timerPause === undefined && Date.now() < Date.parse(phase.openAirspaceEndsAt);
+}
+
 export default function BaseCapybaraCargoTransferPanel() {
   const session = useSessionStore((state) => state.session) as GameSession | null;
   const me = useSessionStore((state) => state.me);
@@ -55,6 +91,12 @@ export default function BaseCapybaraCargoTransferPanel() {
   const [error, setError] = useState<{ checkpoint: SessionAuthorityCheckpoint; message: string } | null>(null);
   const [retry, setRetry] = useState<{
     command: BaseCapybaraCargoTransferCommand;
+    checkpoint: SessionAuthorityCheckpoint;
+    authorityIdentity: string;
+  } | null>(null);
+  const [staleRecovery, setStaleRecovery] = useState<{
+    command: BaseCapybaraCargoTransferCommand;
+    reply: BaseCapybaraCargoTransferStaleResult;
     checkpoint: SessionAuthorityCheckpoint;
     authorityIdentity: string;
   } | null>(null);
@@ -97,6 +139,22 @@ export default function BaseCapybaraCargoTransferPanel() {
     ? error.message : '';
   const retryCommand = retry && isCurrentCaptainAuthority(retry.checkpoint, retry.authorityIdentity)
     ? retry.command : null;
+  const currentStaleRecovery = staleRecovery &&
+    isCurrentCaptainAuthority(staleRecovery.checkpoint, staleRecovery.authorityIdentity) &&
+    currentStaleTargetMatches(session, staleRecovery.reply) &&
+    staleReplyMatchesCommand(staleRecovery.reply, staleRecovery.command, session?.id ?? '') &&
+    staleRecovery.command.resourceId === resourceId &&
+    staleRecovery.command.direction === direction &&
+    staleRecovery.command.amount === amount
+    ? staleRecovery : null;
+  const staleProjectionReady = currentStaleRecovery !== null && cargo !== null &&
+    cargo.revision >= currentStaleRecovery.reply.currentCargoRevision;
+  const staleRetryReady = staleProjectionReady && canSubmit;
+  const staleRecoveryMessage = currentStaleRecovery
+    ? staleProjectionReady
+      ? `Cargo changed. Live revision ${cargo?.revision} is current; review the transfer before retrying.`
+      : `Cargo changed. Waiting for live revision ${currentStaleRecovery.reply.currentCargoRevision} before retrying.`
+    : '';
   const pendingForCurrentAuthority = pending && pendingRef.current !== null &&
     isCurrentCaptainAuthority(pendingRef.current.checkpoint, pendingRef.current.authorityIdentity);
 
@@ -105,6 +163,7 @@ export default function BaseCapybaraCargoTransferPanel() {
     setDirection('load');
     setAmountText('1');
     setRetry(null);
+    setStaleRecovery(null);
     setError(null);
     setStatus(null);
   }, [hostShipId, currentCycle, ship?.dockingRevision, identity]);
@@ -113,12 +172,14 @@ export default function BaseCapybaraCargoTransferPanel() {
     pendingRef.current = null;
     setPending(false);
     setRetry(null);
+    setStaleRecovery(null);
     setError(null);
     setStatus(null);
   }, [identity]);
 
   function clearAttempt(): void {
     setRetry(null);
+    setStaleRecovery(null);
     setError(null);
     setStatus(null);
   }
@@ -132,26 +193,65 @@ export default function BaseCapybaraCargoTransferPanel() {
         isCurrentCaptainAuthority(pendingRef.current.checkpoint, pendingRef.current.authorityIdentity)) return;
     const activeRetry = retry &&
       isCurrentCaptainAuthority(retry.checkpoint, retry.authorityIdentity) ? retry : null;
-    const command: BaseCapybaraCargoTransferCommand = activeRetry?.command ?? {
-      requestId: window.crypto.randomUUID(),
-      expectedCycle: currentCycle,
-      expectedRevision: cargo?.revision ?? -1,
-      expectedDockingRevision: ship?.dockingRevision ?? -1,
-      expectedHostShipId: hostShipId ?? '',
-      resourceId,
-      direction,
-      amount,
-    };
-    if (!activeRetry && !canSubmit) return;
+    const activeStaleRecovery = staleRecovery &&
+      isCurrentCaptainAuthority(staleRecovery.checkpoint, staleRecovery.authorityIdentity) &&
+      currentStaleTargetMatches(current.session as GameSession | null, staleRecovery.reply) &&
+      staleReplyMatchesCommand(staleRecovery.reply, staleRecovery.command, current.session?.id ?? '') &&
+      staleRecovery.command.resourceId === resourceId &&
+      staleRecovery.command.direction === direction && staleRecovery.command.amount === amount
+      ? staleRecovery : null;
+    let command: BaseCapybaraCargoTransferCommand;
+    if (activeStaleRecovery) {
+      const latestSession = current.session as GameSession | null;
+      const latestCargo = latestSession?.baseCapybaraCargo === undefined
+        ? null : parseBaseCapybaraCargoState(latestSession.baseCapybaraCargo);
+      const latestShip = latestSession?.smallShipStates?.['capybara-small'];
+      if (!staleRetryReady || !latestSession || !latestCargo ||
+          latestCargo.revision < activeStaleRecovery.reply.currentCargoRevision ||
+          !latestShip?.hostShipId || !Number.isSafeInteger(latestShip.dockingRevision)) return;
+      command = {
+        ...activeStaleRecovery.command,
+        requestId: window.crypto.randomUUID(),
+        expectedCycle: latestSession.currentTurn ?? 0,
+        expectedRevision: latestCargo.revision,
+        expectedDockingRevision: latestShip.dockingRevision,
+        expectedHostShipId: latestShip.hostShipId,
+      };
+    } else if (activeRetry) {
+      command = activeRetry.command;
+    } else {
+      command = {
+        requestId: window.crypto.randomUUID(),
+        expectedCycle: currentCycle,
+        expectedRevision: cargo?.revision ?? -1,
+        expectedDockingRevision: ship?.dockingRevision ?? -1,
+        expectedHostShipId: hostShipId ?? '',
+        resourceId,
+        direction,
+        amount,
+      };
+      if (!canSubmit) return;
+    }
 
     pendingRef.current = { checkpoint, authorityIdentity: currentIdentity };
     setPending(true);
     setRetry({ command, checkpoint, authorityIdentity: currentIdentity });
+    setStaleRecovery(null);
     setError(null);
     setStatus(null);
     try {
       const result = await transferBaseCapybaraCargo(command);
       if (!isCurrentCaptainAuthority(checkpoint, currentIdentity)) return;
+      if (result.status === 'stale') {
+        const latest = useSessionStore.getState().session as GameSession | null;
+        if (!staleReplyMatchesCommand(result, command, latest?.id ?? '') ||
+            !currentStaleTargetMatches(latest, result)) return;
+        setRetry(null);
+        setStaleRecovery({ command, reply: result, checkpoint, authorityIdentity: currentIdentity });
+        setStatus(null);
+        setError(null);
+        return;
+      }
       const resourceName = LABELS[result.resourceId];
       setStatus({
         checkpoint,
@@ -162,6 +262,7 @@ export default function BaseCapybaraCargoTransferPanel() {
             : `${result.amount} ${resourceName} unloaded from Capybara to ${hostName ?? result.hostShipId}.`,
       });
       setRetry(null);
+      setStaleRecovery(null);
       setAmountText('1');
     } catch (cause) {
       if (!isCurrentCaptainAuthority(checkpoint, currentIdentity)) return;
@@ -236,14 +337,18 @@ export default function BaseCapybaraCargoTransferPanel() {
       </fieldset>
       <div className="maintenance-controls__confirmation">
         <button className="cic-action-button" type="button"
-          disabled={pendingForCurrentAuthority || (!retryCommand && !canSubmit)}
+          disabled={pendingForCurrentAuthority || (retryCommand
+            ? false : currentStaleRecovery ? !staleRetryReady : !canSubmit)}
           onClick={() => void submit()}>
-          {pendingForCurrentAuthority ? 'Transferring cargo…' : retryCommand ? 'Retry exact cargo request' : 'Transfer cargo'}
+          {pendingForCurrentAuthority ? 'Transferring cargo…'
+            : retryCommand ? 'Retry exact cargo request'
+              : currentStaleRecovery ? 'Retry with current revision' : 'Transfer cargo'}
         </button>
       </div>
       {errorMessage && <p role="alert">{errorMessage}</p>}
       {retryCommand && !pendingForCurrentAuthority &&
         <p role="status">Retry the last request with its original request id.</p>}
+      {staleRecoveryMessage && <p role="status">{staleRecoveryMessage}</p>}
       {statusMessage && <p role="status">{statusMessage}</p>}
     </section>
   );

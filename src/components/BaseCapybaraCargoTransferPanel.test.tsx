@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { useSessionStore } from '@/store/useSessionStore';
-import type { BaseCapybaraCargoTransferResult } from '@/lib/baseCapybaraCargoService';
+import type {
+  BaseCapybaraCargoTransferResult,
+  BaseCapybaraCargoTransferStaleResult,
+  BaseCapybaraCargoTransferServiceResult,
+} from '@/lib/baseCapybaraCargoService';
 import type { GameSession } from '@/types/game';
 
 const mocks = vi.hoisted(() => ({ transfer: vi.fn() }));
@@ -147,6 +151,63 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
+function staleResult(patch: Partial<BaseCapybaraCargoTransferStaleResult> = {}): BaseCapybaraCargoTransferStaleResult {
+  return {
+    status: 'stale', sessionId: 's1', requestId: 'capybara-cargo-stable-id',
+    expectedCycle: 3, currentCycle: 3,
+    expectedHostShipId: 'aegis', currentHostShipId: 'aegis',
+    expectedDockingRevision: 2, currentDockingRevision: 2,
+    resourceId: 'food', direction: 'load', amount: 1,
+    expectedRevision: 4, currentCargoRevision: 5,
+    ...patch,
+  };
+}
+
+it('preserves a stale transfer draft until the live revision arrives, then retries with a fresh id and CAS', async () => {
+  vi.stubGlobal('crypto', {
+    randomUUID: vi.fn().mockReturnValueOnce('stale-request-id').mockReturnValueOnce('fresh-request-id'),
+  });
+  mocks.transfer
+    .mockResolvedValueOnce(staleResult({
+      requestId: 'stale-request-id', resourceId: 'ore', direction: 'unload', amount: 2,
+    }))
+    .mockResolvedValueOnce({
+      status: 'committed', hostShipId: 'aegis', resourceId: 'ore', direction: 'unload',
+      amount: 2, cycle: 3, cargoRevision: 6,
+    } satisfies BaseCapybaraCargoTransferResult);
+  render(<BaseCapybaraCargoTransferPanel />);
+  const panel = screen.getByRole('region', { name: 'Cargo Transfer' });
+  fireEvent.change(within(panel).getByLabelText('Resource'), { target: { value: 'ore' } });
+  fireEvent.change(within(panel).getByLabelText('Direction'), { target: { value: 'unload' } });
+  fireEvent.change(within(panel).getByLabelText('Positive whole amount'), { target: { value: '2' } });
+  fireEvent.click(within(panel).getByRole('button', { name: 'Transfer cargo' }));
+
+  await waitFor(() => expect(mocks.transfer).toHaveBeenCalledTimes(1));
+  expect(await within(panel).findByText(/cargo changed/i)).toBeInTheDocument();
+  expect(within(panel).getByLabelText('Resource')).toHaveValue('ore');
+  expect(within(panel).getByLabelText('Direction')).toHaveValue('unload');
+  expect(within(panel).getByLabelText('Positive whole amount')).toHaveValue(2);
+  const retry = within(panel).getByRole('button', { name: 'Retry with current revision' });
+  expect(retry).toBeDisabled();
+
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    baseCapybaraCargo: {
+      revision: 5,
+      inventory: { securityTeams: 1, ore: 2, fuel: 3, food: 4, water: 5, materials: 6 },
+    },
+  } as GameSession));
+  expect(within(panel).getByRole('button', { name: 'Retry with current revision' })).toBeEnabled();
+  fireEvent.click(within(panel).getByRole('button', { name: 'Retry with current revision' }));
+
+  await waitFor(() => expect(mocks.transfer).toHaveBeenCalledTimes(2));
+  expect(mocks.transfer.mock.calls[1]?.[0]).toEqual({
+    requestId: 'fresh-request-id', expectedCycle: 3, expectedRevision: 5,
+    expectedDockingRevision: 2, expectedHostShipId: 'aegis',
+    resourceId: 'ore', direction: 'unload', amount: 2,
+  });
+});
+
 it.each([
   ['replacement role', { replacementRoleId: null }],
   ['seat', { seatId: 'admiral' }],
@@ -175,6 +236,36 @@ it.each([
   expect(within(panel).queryByText(/loaded onto Capybara/i)).not.toBeInTheDocument();
   expect(within(panel).queryByRole('alert')).not.toBeInTheDocument();
   expect(within(panel).queryByRole('button', { name: 'Retry exact cargo request' })).not.toBeInTheDocument();
+});
+
+it('ignores a delayed stale envelope after the current dock authority changes', async () => {
+  const response = deferred<BaseCapybaraCargoTransferServiceResult>();
+  mocks.transfer.mockReturnValueOnce(response.promise);
+  render(<BaseCapybaraCargoTransferPanel />);
+  const panel = screen.getByRole('region', { name: 'Cargo Transfer' });
+  fireEvent.click(within(panel).getByRole('button', { name: 'Transfer cargo' }));
+  await waitFor(() => expect(mocks.transfer).toHaveBeenCalledTimes(1));
+
+  act(() => {
+    const session = useSessionStore.getState().session!;
+    const smallShipStates = session.smallShipStates ?? {};
+    useSessionStore.getState().setSession({
+      ...session,
+      smallShipStates: {
+        ...smallShipStates,
+        'capybara-small': { ...smallShipStates['capybara-small'], dockingRevision: 3 },
+      },
+    } as GameSession);
+  });
+
+  await act(async () => {
+    response.resolve(staleResult());
+    await response.promise;
+  });
+
+  expect(within(panel).queryByRole('button', { name: 'Retry with current revision' })).not.toBeInTheDocument();
+  expect(within(panel).queryByText(/cargo changed/i)).not.toBeInTheDocument();
+  expect(within(panel).queryByRole('alert')).not.toBeInTheDocument();
 });
 
 it('keeps the transfer control disabled outside explicit base vessel mode', () => {

@@ -19,6 +19,17 @@ const reply = (status: 'committed' | 'replayed' = 'committed') => ({
     cargoRevision: 1,
   },
 });
+const staleReply = (patch: Record<string, unknown> = {}) => ({
+  data: {
+    status: 'stale', sessionId: 's1', requestId: command.requestId,
+    expectedCycle: 3, currentCycle: 3,
+    expectedHostShipId: 'aegis', currentHostShipId: 'aegis',
+    expectedDockingRevision: 2, currentDockingRevision: 2,
+    resourceId: 'materials', direction: 'load', amount: 2,
+    expectedRevision: 0, currentCargoRevision: 1,
+    ...patch,
+  },
+});
 
 beforeEach(() => {
   mocks.call.mockReset();
@@ -54,6 +65,22 @@ it('accepts the identical replay and rejects a mismatched result or cached autho
   await expect(transferBaseCapybaraCargo(command)).rejects.toThrow(/malformed/i);
   useSessionStore.getState().setSessionSnapshotFreshness('cache');
   await expect(transferBaseCapybaraCargo(command)).rejects.toThrow(/live session state/i);
+});
+
+it('accepts only a strictly request-bound stale envelope with a newer cargo revision', async () => {
+  mocks.call.mockResolvedValue(staleReply());
+  await expect(transferBaseCapybaraCargo(command)).resolves.toEqual(staleReply().data);
+
+  for (const malformed of [
+    staleReply({ amount: 3 }),
+    staleReply({ sessionId: 'other' }),
+    staleReply({ currentCargoRevision: command.expectedRevision }),
+    staleReply({ currentHostShipId: 'dione' }),
+    staleReply({ inventory: { materials: 3 } }),
+  ]) {
+    mocks.call.mockResolvedValue(malformed);
+    await expect(transferBaseCapybaraCargo(command)).rejects.toThrow(/malformed|mismatched/i);
+  }
 });
 
 it('rejects nonpositive, fractional, or unsupported resources before calling the server', async () => {

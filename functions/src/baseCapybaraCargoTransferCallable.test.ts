@@ -267,8 +267,74 @@ it.each([
   expect(mock.set).not.toHaveBeenCalled();
 });
 
-it('rejects stale revisions and overdraw without persisting a partial ledger', async () => {
-  await expect(transferBaseCapybaraCargo.run(request({ ...command, requestId: 'stale', expectedRevision: 1 })))
+it('returns a minimal request-bound stale revision without mutation or a receipt', async () => {
+  const currentSession = mock.documents.get('sessions/s1')!;
+  currentSession.baseCapybaraCargo = {
+    revision: 1,
+    inventory: { securityTeams: 0, ore: 0, fuel: 0, food: 0, water: 0, materials: 1 },
+  };
+  const before = structuredClone(currentSession);
+  const staleCommand = { ...command, requestId: 'stale', expectedRevision: 0 };
+
+  await expect(transferBaseCapybaraCargo.run(request(staleCommand))).resolves.toEqual({
+    status: 'stale', sessionId: 's1', requestId: 'stale',
+    expectedCycle: 4, currentCycle: 4,
+    expectedHostShipId: 'aegis', currentHostShipId: 'aegis',
+    expectedDockingRevision: 2, currentDockingRevision: 2,
+    resourceId: 'materials', direction: 'load', amount: 1,
+    expectedRevision: 0, currentCargoRevision: 1,
+  });
+  expect(mock.documents.get('sessions/s1')).toEqual(before);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['ended session phase', (stored: Fields) => { stored.phase = 'debrief'; }, () => {}],
+  ['changed cycle', (stored: Fields) => {
+    stored.currentTurn = 5;
+    (stored.turnPhase as Fields).turn = 5;
+  }, () => {}],
+  ['closed Coordination', (stored: Fields) => {
+    (stored.turnPhase as Fields).airspace = { state: 'restricted' };
+  }, () => {}],
+  ['changed host', (stored: Fields) => {
+    ((stored.smallShipStates as Fields)['capybara-small'] as Fields).hostShipId = 'dione';
+  }, () => {}],
+  ['changed docking revision', (stored: Fields) => {
+    ((stored.smallShipStates as Fields)['capybara-small'] as Fields).dockingRevision = 3;
+  }, () => {}],
+  ['changed vessel mode', (stored: Fields) => { stored.expansion = 'capybara'; }, () => {}],
+  ['unadmitted base Capybara', (stored: Fields) => { stored.activeVesselIds = []; }, () => {}],
+  ['unavailable source amount', (stored: Fields) => {
+    ((stored.shipResources as Fields).aegis as Fields).materials = 0;
+  }, () => {}],
+  ['unavailable destination capacity', (stored: Fields) => {
+    ((stored.baseCapybaraCargo as Fields).inventory as Fields).materials = Number.MAX_SAFE_INTEGER;
+  }, () => {}],
+  ['destroyed host', (stored: Fields) => {
+    ((stored.shipDamage as Fields).aegis as Fields).destroyed = true;
+  }, () => {}],
+  ['changed Captain role', () => {}, (actor: Fields) => { actor.replacementRoleId = 'gorgoneion-captain'; }],
+] as const)('fails closed for a stale request when %s', async (_label, changeSession, changeActor) => {
+  const currentSession = mock.documents.get('sessions/s1')!;
+  currentSession.baseCapybaraCargo = {
+    revision: 1,
+    inventory: { securityTeams: 0, ore: 0, fuel: 0, food: 0, water: 0, materials: 1 },
+  };
+  changeSession(currentSession);
+  changeActor(mock.documents.get('sessions/s1/players/captain')!);
+  const before = structuredClone(currentSession);
+
+  await expect(transferBaseCapybaraCargo.run(request({ ...command, requestId: 'stale', expectedRevision: 0 })))
+    .rejects.toMatchObject({ code: expect.stringMatching(/failed-precondition|permission-denied/) });
+  expect(mock.documents.get('sessions/s1')).toEqual(before);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('rejects future revisions and overdraw without persisting a partial ledger', async () => {
+  await expect(transferBaseCapybaraCargo.run(request({ ...command, requestId: 'future', expectedRevision: 1 })))
     .rejects.toMatchObject({ code: 'failed-precondition' });
   await expect(transferBaseCapybaraCargo.run(request({ ...command, requestId: 'overdraw', amount: 4 })))
     .rejects.toMatchObject({ code: 'failed-precondition' });

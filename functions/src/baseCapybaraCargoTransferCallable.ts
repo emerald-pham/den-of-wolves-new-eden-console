@@ -5,6 +5,7 @@ import { CALLABLE_RUNTIME_OPTIONS } from './runtimeOptions';
 import { isPresenceStale } from './sessionLifecycle';
 import {
   BASE_CAPYBARA_CARGO_TYPES,
+  parseBaseCapybaraCargoState,
   resolveBaseCapybaraCargoTransfer,
   type BaseCapybaraCargoType,
 } from './baseCapybaraCargoTransfer';
@@ -37,6 +38,23 @@ type BaseCapybaraCargoTransferReply = Readonly<{
   direction: 'load' | 'unload';
   amount: number;
   cargoRevision: number;
+}>;
+
+type BaseCapybaraCargoTransferStaleReply = Readonly<{
+  status: 'stale';
+  sessionId: string;
+  requestId: string;
+  expectedCycle: number;
+  currentCycle: number;
+  expectedHostShipId: string;
+  currentHostShipId: string;
+  expectedDockingRevision: number;
+  currentDockingRevision: number;
+  resourceId: BaseCapybaraCargoType;
+  direction: 'load' | 'unload';
+  amount: number;
+  expectedRevision: number;
+  currentCargoRevision: number;
 }>;
 
 const ROLE_ID = 'capybara-small-captain' as const;
@@ -262,7 +280,7 @@ export const transferBaseCapybaraCargo = onCall<{
     if (!storedDamage || !Object.prototype.hasOwnProperty.call(storedDamage, command.expectedHostShipId)) {
       failClosed('The current docked-host damage authority is unavailable.');
     }
-    const result = (() => {
+    const resolveTransfer = (expectedRevision: number) => {
       try {
         return resolveBaseCapybaraCargoTransfer({
           actorUid: uid,
@@ -279,7 +297,7 @@ export const transferBaseCapybaraCargo = onCall<{
           resourceId: command.resourceId,
           direction: command.direction,
           amount: command.amount,
-          expectedRevision: command.expectedRevision,
+          expectedRevision,
           cargoState: session.get('baseCapybaraCargo'),
           hostResources,
           hostDamage,
@@ -290,7 +308,36 @@ export const transferBaseCapybaraCargo = onCall<{
           cause instanceof Error ? cause.message : 'Base Capybara Cargo Transfer was rejected.',
         );
       }
-    })();
+    };
+
+    const currentCargo = parseBaseCapybaraCargoState(session.get('baseCapybaraCargo'));
+    if (currentCargo && currentCargo.revision > command.expectedRevision) {
+      // Resolve against the authoritative revision to prove this exact transfer is
+      // still eligible, but return before any session or receipt write.
+      const eligible = resolveTransfer(currentCargo.revision);
+      if (eligible.hostShipId !== command.expectedHostShipId) {
+        failClosed('The Capybara dock changed. Refresh before transferring.');
+      }
+      const staleReply: BaseCapybaraCargoTransferStaleReply = {
+        status: 'stale',
+        sessionId: command.sessionId,
+        requestId: command.requestId,
+        expectedCycle: command.expectedCycle,
+        currentCycle: currentCycle as number,
+        expectedHostShipId: command.expectedHostShipId,
+        currentHostShipId: smallShipRecord.hostShipId,
+        expectedDockingRevision: command.expectedDockingRevision,
+        currentDockingRevision: smallShipRecord.dockingRevision as number,
+        resourceId: command.resourceId,
+        direction: command.direction,
+        amount: command.amount,
+        expectedRevision: command.expectedRevision,
+        currentCargoRevision: currentCargo.revision,
+      };
+      return staleReply;
+    }
+
+    const result = resolveTransfer(command.expectedRevision);
 
     if (result.hostShipId !== command.expectedHostShipId) {
       failClosed('The Capybara dock changed. Refresh before transferring.');
