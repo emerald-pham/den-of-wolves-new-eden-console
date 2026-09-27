@@ -26,7 +26,7 @@ it('retains connected-player roster privacy in its release history', () => {
   );
 });
 
-it('preserves prior stale-recovery history when adding the Hummingbird release', () => {
+it('preserves prior stale-recovery history when adding the 0.5.50 release', () => {
   const allyEntry = CHANGELOG.find((entry) => entry.version === '0.5.40');
   const maliadesEntry = CHANGELOG.find((entry) => entry.version === '0.5.41');
   const chacauEntry = CHANGELOG.find((entry) => entry.version === '0.5.42');
@@ -36,7 +36,7 @@ it('preserves prior stale-recovery history when adding the Hummingbird release',
   const endeavourResearchEntry = CHANGELOG.find((entry) => entry.version === '0.5.47');
   const endeavourUpgradeEntry = CHANGELOG.find((entry) => entry.version === '0.5.46');
   const highwallMiningEntry = CHANGELOG.find((entry) => entry.version === '0.5.48');
-  const hummingbirdHarvestEntry = CHANGELOG.find((entry) => entry.version === APP_VERSION);
+  const hummingbirdHarvestEntry = CHANGELOG.find((entry) => entry.version === '0.5.49');
 
   expect(allyEntry?.changes).toContain(
     'Ally repairs keep selected consoles while server state catches up and let the current Joint Engineering Union holder explicitly retry with a fresh request and current revisions.',
