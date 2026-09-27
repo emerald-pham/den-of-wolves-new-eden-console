@@ -671,9 +671,14 @@ it('renders the current and previous changelog copy with progress and keyboard s
   expect(region).toHaveAttribute('tabindex', '0');
   expect(renderedChanges.every((change) => !/\bprompts?\b/i.test(change))).toBe(true);
   expect(within(newestEntry).getByText(
-    'Ally repairs keep selected consoles while server state catches up and let the current Joint Engineering Union holder explicitly retry with a fresh request and current revisions.',
+    'Maliades repair conflicts wait for live state to catch up, then let the current Engineer explicitly retry one damage with current costs and revisions.',
   )).toBeVisible();
   expect(within(newestEntry).getByText('458 of 751 planned items are complete (60.99%).')).toBeVisible();
+  const previousAllyEntry = within(region).getByRole('heading', { name: 'Build 0.5.40' }).closest('article');
+  if (!previousAllyEntry) throw new Error('Expected the preserved 0.5.40 Ally repair release entry.');
+  expect(within(previousAllyEntry).getByText(
+    'Ally repairs keep selected consoles while server state catches up and let the current Joint Engineering Union holder explicitly retry with a fresh request and current revisions.',
+  )).toBeVisible();
   const previousBoaEntry = within(region).getByRole('heading', { name: 'Build 0.5.38' }).closest('article');
   if (!previousBoaEntry) throw new Error('Expected the preserved 0.5.38 Boa recycling release entry.');
   expect(within(previousBoaEntry).getByText(
