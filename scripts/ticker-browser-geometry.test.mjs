@@ -20,6 +20,9 @@ function createSamples({
   reflowAt = -1,
   reflowJumpAt = -1,
   reflowJumpPx = 0,
+  reflowJumpTrack = 'offscreen-group',
+  reflowSecondJumpAt = -1,
+  reflowSecondJumpPx = reflowJumpPx,
 } = {}) {
   return Array.from({ length: 36 }, (_, sampleIndex) => {
     const frameIndex = sampleIndex + 1;
@@ -30,7 +33,26 @@ function createSamples({
       (frameIndex === 1 ? startupCompositorDisplacement : 0) +
       (frameIndex >= 2 && startupCompositorDisplacement > 0 ? 0.8 : 0);
     const startupLeft = 250 - (48 * Math.max(0, elapsed - (2 * 1_000 / 60)) / 1_000) +
-      (reflowJumpAt >= 0 && sampleIndex >= reflowJumpAt ? reflowJumpPx : 0);
+      (reflowJumpTrack === 'offscreen-group' && reflowJumpAt >= 0 && sampleIndex >= reflowJumpAt
+        ? reflowJumpPx
+        : 0) +
+      (reflowJumpTrack === 'offscreen-group' && reflowSecondJumpAt >= 0 && sampleIndex >= reflowSecondJumpAt
+        ? reflowSecondJumpPx
+        : 0);
+    const edgeLeftWithReflow = edgeLeft +
+      (reflowJumpTrack === 'edge-group' && reflowJumpAt >= 0 && sampleIndex >= reflowJumpAt
+        ? reflowJumpPx
+        : 0) +
+      (reflowJumpTrack === 'edge-group' && reflowSecondJumpAt >= 0 && sampleIndex >= reflowSecondJumpAt
+        ? reflowSecondJumpPx
+        : 0);
+    const visibleLeft = 150 - (48 * elapsed / 1_000) +
+      (reflowJumpTrack === 'visible-group' && reflowJumpAt >= 0 && sampleIndex >= reflowJumpAt
+        ? reflowJumpPx
+        : 0) +
+      (reflowJumpTrack === 'visible-group' && reflowSecondJumpAt >= 0 && sampleIndex >= reflowSecondJumpAt
+        ? reflowSecondJumpPx
+        : 0);
     const sampleFrame = reflowAt >= 0 && sampleIndex >= reflowAt
       ? { left: frame.left, right: frame.right - 10, width: frame.width - 10 }
       : frame;
@@ -38,8 +60,11 @@ function createSamples({
       elapsed,
       frame: sampleFrame,
       groups: [
-        { id: 'edge-group', left: edgeLeft, right: edgeLeft + 100, width: 100 },
+        { id: 'edge-group', left: edgeLeftWithReflow, right: edgeLeftWithReflow + 100, width: 100 },
         { id: 'offscreen-group', left: startupLeft, right: startupLeft + 100, width: 100 },
+        ...(reflowJumpTrack === 'visible-group'
+          ? [{ id: 'visible-group', left: visibleLeft, right: visibleLeft + 100, width: 100 }]
+          : []),
       ],
     };
   });
@@ -166,6 +191,85 @@ test('allows one bounded offscreen currentTime rebase during measured frame refl
   });
 
   assert.equal(result.speedStable, true);
+});
+
+test('allows one bounded offscreen correction in the changed-width interval', () => {
+  const samples = createSamples({ reflowAt: 3, reflowJumpAt: 3, reflowJumpPx: -7.2 })
+    .map((sample, sampleIndex) => ({
+      ...sample,
+      groups: sample.groups.map((group) => ({
+        ...group,
+        animationTimeMs: sample.elapsed + (
+          group.id === 'offscreen-group' && sampleIndex >= 3 ? 150 : 0
+        ),
+      })),
+    }));
+  const result = assessTickerGeometry({
+    initialPosition,
+    samples,
+    requireAnimationClock: true,
+  });
+
+  assert.equal(result.speedStable, true);
+});
+
+test('does not spend two offscreen correction waivers across both reflow intervals', () => {
+  const samples = createSamples({
+    reflowAt: 3,
+    reflowJumpAt: 3,
+    reflowJumpPx: -7.2,
+    reflowSecondJumpAt: 4,
+    reflowSecondJumpPx: -1.6,
+  }).map((sample, sampleIndex) => ({
+    ...sample,
+    groups: sample.groups.map((group) => ({
+      ...group,
+      animationTimeMs: sample.elapsed + (
+        group.id === 'offscreen-group' && sampleIndex === 3 ? 150 : 0
+      ),
+    })),
+  }));
+  const result = assessTickerGeometry({ initialPosition, samples, requireAnimationClock: true });
+
+  assert.equal(result.speedStable, false);
+  assert.equal(result.checkedVelocitySampleCount, 68, 'the first reflow interval should retain its valid animation-clock sample');
+  assert.ok(result.failures.some((failure) => failure.includes('offscreen-group has missing, negative, or reset animation currentTime')));
+});
+
+test('does not waive a reflow correction while the physical group is visible', () => {
+  const visibleStart = {
+    id: 'visible-group',
+    left: 150 - (48 * (1_000 / 60) / 1_000),
+    right: 250 - (48 * (1_000 / 60) / 1_000),
+    width: 100,
+    frame,
+    startX: 50,
+  };
+  const result = assessTickerGeometry({
+    initialPosition,
+    samples: createSamples({
+      reflowAt: 3,
+      reflowJumpAt: 3,
+      reflowJumpPx: -1.6,
+      reflowJumpTrack: 'visible-group',
+    }),
+    initialPositions: [initialPosition, visibleStart],
+  });
+
+  assert.equal(result.speedStable, false);
+  assert.ok(result.failures.some((failure) => failure.includes('visible-group constant-speed')));
+});
+
+test('rejects a correction beyond the measured frame-width change in either reflow interval', () => {
+  for (const reflowJumpAt of [3, 4]) {
+    const result = assessTickerGeometry({
+      initialPosition,
+      samples: createSamples({ reflowAt: 3, reflowJumpAt, reflowJumpPx: -12 }),
+    });
+
+    assert.equal(result.speedStable, false);
+    assert.ok(result.failures.some((failure) => failure.includes('offscreen-group constant-speed')));
+  }
 });
 
 test('checks a non-anchor group speed after it enters the frame', () => {
