@@ -368,7 +368,10 @@ export { repairConsolesFromAlly } from './allyRepairCallable';
 export { repairGorgoneionWithDrones } from './gorgoneionRepairDronesCallable';
 export { repairWarriorWithDrones } from './warriorRepairDronesCallable';
 export { transferBaseCapybaraCargo } from './baseCapybaraCargoTransferCallable';
-export { resolvePendingScoutRequest, readPrivateScoutResult, listPendingScoutRequests } from './scoutResultCallable';
+export {
+  resolvePendingScoutRequest, readPrivateScoutResult, listPendingScoutRequests,
+  listMyScoutReports, readMyScoutDiscoveryNote,
+} from './scoutResultCallable';
 export { advanceEndeavourResearchTrack, readEndeavourResearchWorkspace } from './endeavourResearchWriter';
 import {
   ENDEAVOUR_FUELLED_UPGRADE_LIMIT,

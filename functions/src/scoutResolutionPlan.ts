@@ -16,6 +16,8 @@ export interface ScoutResolutionInput {
 }
 
 export interface ScoutResolutionPlan {
+  /** Request-time server-derived docking host for the ship map projection. */
+  readonly receivingShipId: string;
   readonly result: PrivateScoutResult;
   readonly note: Readonly<{
     type: 'player-discovery-note'; id: string; sessionId: string; requestId: string;
@@ -26,7 +28,8 @@ export interface ScoutResolutionPlan {
   readonly audit: Readonly<{
     type: 'scout-resolution-audit'; sessionId: string; requestId: string;
     requesterUid: string; facilitatorUid: string; sourceId: ScoutEntitlementId;
-    originShipId: string; originCoordinate: string | null; targetCoordinate: string;
+    originShipId: string; receivingShipId: string;
+    originCoordinate: string | null; targetCoordinate: string;
     cycle: number; result: PrivateScoutResult['systemFact']; recordedAt: string;
   }>;
   readonly deepNebulaScan: Readonly<{
@@ -61,6 +64,14 @@ function iso(value: unknown): value is string {
 
 function equalJson(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
+}
+
+export function scoutDiscoveryNoteId(sessionId: string, requesterUid: string, requestId: string): string {
+  if (!id(sessionId) || !id(requesterUid) || !id(requestId)) {
+    throw new Error('Scout discovery note identity is malformed.');
+  }
+  return createHash('sha256').update(sessionId).update('\0')
+    .update(requesterUid).update('\0').update(requestId).digest('hex');
 }
 
 function requirePendingRequest(input: ScoutResolutionInput): RecordValue {
@@ -125,15 +136,15 @@ export function buildScoutResolutionPlan(input: ScoutResolutionInput): ScoutReso
     chartSelectionLocked: (input.session as RecordValue).chartSelectionLocked,
   }, input.facilitator);
   const recordedAt = input.recordedAt as string;
-  const noteId = createHash('sha256').update(result.sessionId).update('\0')
-    .update(result.requesterUid).update('\0').update(result.requestId).digest('hex');
+  const noteId = scoutDiscoveryNoteId(result.sessionId, result.requesterUid, result.requestId);
   const scan = request.scan as RecordValue;
   const plan: ScoutResolutionPlan = {
+    receivingShipId: request.receivingShipId as string,
     result,
     note: Object.freeze({
       type: 'player-discovery-note', id: noteId, sessionId: result.sessionId,
       requestId: result.requestId, requesterUid: result.requesterUid,
-      sourceId: result.sourceId, shipId: request.receivingShipId as string,
+      sourceId: result.sourceId, shipId: request.anchorShipId as string,
       fleetGroupId: input.fleetGroupId, cycle: result.cycle,
       targetCoordinate: result.targetCoordinate, systemFact: result.systemFact,
       recordedAt,
@@ -142,13 +153,14 @@ export function buildScoutResolutionPlan(input: ScoutResolutionInput): ScoutReso
       type: 'scout-resolution-audit', sessionId: result.sessionId, requestId: result.requestId,
       requesterUid: result.requesterUid, facilitatorUid: input.facilitator.uid as string,
       sourceId: result.sourceId, originShipId: request.anchorShipId as string,
+      receivingShipId: request.receivingShipId as string,
       originCoordinate: typeof scan.originCoordinate === 'string' ? scan.originCoordinate : null,
       targetCoordinate: result.targetCoordinate, cycle: result.cycle,
       result: result.systemFact, recordedAt,
     }),
     deepNebulaScan: result.systemFact.code === 'O' ? Object.freeze({
       type: 'deep-nebula-scan', sessionId: result.sessionId, requestId: result.requestId,
-      cycle: result.cycle, shipId: request.receivingShipId as string,
+      cycle: result.cycle, shipId: request.anchorShipId as string,
       targetCoordinate: result.targetCoordinate,
     }) : null,
   };

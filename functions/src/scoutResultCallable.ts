@@ -1,8 +1,10 @@
 import { getFirestore, type DocumentSnapshot, type Transaction } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { isLiveSetupGm } from './gameSetup';
+import { shipForRole } from './crewAccess';
+import { replacementRoleFor } from './replacementRoles';
 import { CALLABLE_RUNTIME_OPTIONS } from './runtimeOptions';
-import { buildScoutResolutionPlan } from './scoutResolutionPlan';
+import { buildScoutResolutionPlan, scoutDiscoveryNoteId } from './scoutResolutionPlan';
 import { parsePrivateScoutResult, projectPrivateScoutResult,
   type ScoutResultViewerAuthority } from './scoutResultProjection';
 import { PRESENCE_LEASE_MS } from './sessionLifecycle';
@@ -94,8 +96,13 @@ function playerViewer(
   };
 }
 
-function groupForShip(groups: readonly DocumentSnapshot[], shipId: unknown): string {
-  if (!id(shipId)) throw new HttpsError('failed-precondition', 'The scouting ship is invalid.');
+function groupForShip(
+  groups: readonly DocumentSnapshot[], shipId: unknown, activeVesselIds: unknown,
+): string {
+  if (!id(shipId) || !Array.isArray(activeVesselIds) ||
+      !activeVesselIds.includes(shipId)) {
+    throw new HttpsError('failed-precondition', 'The scouting ship is not active.');
+  }
   const matches = groups.filter((group) => group.exists &&
     Array.isArray(group.get('vesselIds')) && group.get('vesselIds').includes(shipId) &&
     /^fleet-[1-9][0-9]*$/.test(group.id));
@@ -144,6 +151,8 @@ export const resolvePendingScoutRequest = onCall(CALLABLE_RUNTIME_OPTIONS, async
     const cadence = await tx.get(cadenceRef);
     let plan;
     try {
+      const activeVesselIds = session.get('activeVesselIds');
+      groupForShip(groups.docs, pendingData.receivingShipId, activeVesselIds);
       plan = buildScoutResolutionPlan({
         request: pendingData, cadence: cadence.data(),
         session: {
@@ -151,7 +160,7 @@ export const resolvePendingScoutRequest = onCall(CALLABLE_RUNTIME_OPTIONS, async
           chartSelectionLocked: session.get('chartSelectionLocked'),
           currentCycle: session.get('currentTurn'),
         }, facilitator,
-        fleetGroupId: groupForShip(groups.docs, pendingData.receivingShipId),
+        fleetGroupId: groupForShip(groups.docs, pendingData.anchorShipId, activeVesselIds),
         recordedAt: serverTime,
       });
     } catch {
@@ -178,7 +187,9 @@ export const resolvePendingScoutRequest = onCall(CALLABLE_RUNTIME_OPTIONS, async
           sessionId, phase: session.get('phase'), chartId: session.get('chartId'),
           chartSelectionLocked: session.get('chartSelectionLocked'),
           currentCycle: session.get('currentTurn'),
-        }, facilitator, fleetGroupId: groupForShip(groups.docs, pendingData.receivingShipId),
+        }, facilitator, fleetGroupId: groupForShip(
+          groups.docs, pendingData.anchorShipId, session.get('activeVesselIds'),
+        ),
         recordedAt: note.recordedAt,
       });
       if (!id(audit.facilitatorUid) || !equal(note, replayPlan.note) ||
@@ -258,5 +269,103 @@ export const listPendingScoutRequests = onCall(CALLABLE_RUNTIME_OPTIONS, async (
       anchorShipId: doc.get('anchorShipId') as string,
       targetCoordinate: doc.get('targetCoordinate') as string,
     }));
+  });
+});
+
+/** Reconnect index: own request identities and states, never chart facts. */
+export const listMyScoutReports = onCall(CALLABLE_RUNTIME_OPTIONS, async (request) => {
+  const db = getFirestore();
+  const actorUid = uid(request.auth);
+  const raw = command(request.data, ['sessionId']);
+  const sessionId = raw.sessionId as string;
+  const nowMs = Date.now();
+  return db.runTransaction(async (tx: Transaction) => {
+    const [session, player, requests] = await Promise.all([
+      tx.get(db.doc(`sessions/${sessionId}`)),
+      tx.get(db.doc(`sessions/${sessionId}/players/${actorUid}`)),
+      tx.get(db.collection(`sessions/${sessionId}/scoutRequests`)),
+    ]);
+    if (!session.exists || session.get('phase') !== 'active' ||
+        !activeMember(player, nowMs) || player.get('role') !== 'player') {
+      throw new HttpsError('permission-denied', 'A connected requester is required.');
+    }
+    const own = requests.docs.filter((doc) => doc.get('type') === 'scout-request' &&
+      doc.get('sessionId') === sessionId && doc.get('requestId') === doc.id &&
+      doc.get('actorUid') === actorUid && doc.get('status') === 'requested' &&
+      doc.get('resolution') === 'pending' && id(doc.id) &&
+      Number.isSafeInteger(doc.get('cycle')) && id(doc.get('entitlementId')) &&
+      typeof doc.get('targetCoordinate') === 'string');
+    const results = await Promise.all(own.map((doc) =>
+      tx.get(db.doc(`sessions/${sessionId}/scoutResults/${doc.id}`))));
+    return own.map((doc, index) => {
+      const result = parsePrivateScoutResult(results[index]!.data());
+      const resolved = result?.requesterUid === actorUid &&
+        result.sessionId === sessionId && result.requestId === doc.id;
+      return {
+        requestId: doc.id, cycle: doc.get('cycle') as number,
+        entitlementId: doc.get('entitlementId') as string,
+        targetCoordinate: doc.get('targetCoordinate') as string,
+        status: resolved ? 'resolved' as const : 'pending' as const,
+        noteId: resolved ? scoutDiscoveryNoteId(sessionId, actorUid, doc.id) : null,
+      };
+    }).sort((a, b) => b.cycle - a.cycle || a.requestId.localeCompare(b.requestId));
+  });
+});
+
+function currentRoleShip(player: DocumentSnapshot): string | undefined {
+  const replacementRoleId = player.get('replacementRoleId');
+  if (typeof replacementRoleId === 'string' && replacementRoleId.length > 0) {
+    return replacementRoleFor(replacementRoleId)?.vesselId;
+  }
+  return shipForRole(player.get('assignedRoleId'));
+}
+
+/** One durable note remains bound to the same requester, source ship and live fleet group. */
+export const readMyScoutDiscoveryNote = onCall(CALLABLE_RUNTIME_OPTIONS, async (request) => {
+  const db = getFirestore();
+  const actorUid = uid(request.auth);
+  const raw = command(request.data, ['sessionId', 'noteId']);
+  if (typeof raw.noteId !== 'string' || !/^[a-f0-9]{64}$/.test(raw.noteId)) {
+    throw new HttpsError('invalid-argument', 'Invalid discovery note identity.');
+  }
+  const sessionId = raw.sessionId as string;
+  const nowMs = Date.now();
+  return db.runTransaction(async (tx: Transaction) => {
+    const [session, player, noteSnapshot] = await Promise.all([
+      tx.get(db.doc(`sessions/${sessionId}`)),
+      tx.get(db.doc(`sessions/${sessionId}/players/${actorUid}`)),
+      tx.get(db.doc(`sessions/${sessionId}/playerDiscoveryNotes/${actorUid}/notes/${raw.noteId}`)),
+    ]);
+    const note = noteSnapshot.data();
+    if (!session.exists || session.get('phase') !== 'active' ||
+        !activeMember(player, nowMs) || player.get('role') !== 'player' ||
+        !record(note) || !exact(note, [
+          'type', 'id', 'sessionId', 'requestId', 'requesterUid', 'sourceId', 'shipId',
+          'fleetGroupId', 'cycle', 'targetCoordinate', 'systemFact', 'recordedAt',
+        ]) || note.type !== 'player-discovery-note' || note.id !== raw.noteId ||
+        note.sessionId !== sessionId || note.requesterUid !== actorUid ||
+        !id(note.requestId) || note.id !== scoutDiscoveryNoteId(sessionId, actorUid, note.requestId) ||
+        !id(note.shipId) || !id(note.fleetGroupId) ||
+        currentRoleShip(player) !== note.shipId ||
+        !Array.isArray(session.get('activeVesselIds')) ||
+        !session.get('activeVesselIds').includes(note.shipId)) {
+      throw new HttpsError('permission-denied', 'This discovery note is unavailable.');
+    }
+    const group = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${note.fleetGroupId}`));
+    if (!group.exists || !Array.isArray(group.get('vesselIds')) ||
+        !group.get('vesselIds').includes(note.shipId)) {
+      throw new HttpsError('permission-denied', 'This discovery note is unavailable.');
+    }
+    const parsed = parsePrivateScoutResult({
+      type: 'private-scout-result', sessionId, requestId: note.requestId,
+      requesterUid: actorUid, sourceId: note.sourceId, cycle: note.cycle,
+      targetCoordinate: note.targetCoordinate, systemFact: note.systemFact,
+    });
+    if (!parsed) throw new HttpsError('permission-denied', 'This discovery note is unavailable.');
+    return {
+      type: 'player-discovery-note' as const, id: note.id as string,
+      cycle: parsed.cycle, targetCoordinate: parsed.targetCoordinate,
+      systemFact: parsed.systemFact, recordedAt: note.recordedAt as string,
+    };
   });
 });

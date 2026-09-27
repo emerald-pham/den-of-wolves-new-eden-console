@@ -946,9 +946,22 @@ service cloud.firestore {
         allow read, write: if false;
       }
 
-      // Printed range, fuel, and per-cycle capacity are committed beside the
-      // request. Clients cannot reset or enumerate this server-owned ledger.
+      // Server callables own printed range and cycle capacity, chart facts,
+      // requester notes, audit records, and hidden Nebula scan marks. Clients
+      // receive only authorized facts through callable responses.
       match /scoutCadence/{cadenceId} {
+        allow read, write: if false;
+      }
+      match /scoutResults/{requestId} {
+        allow read, write: if false;
+      }
+      match /scoutResolutionAudits/{requestId} {
+        allow read, write: if false;
+      }
+      match /deepNebulaScans/{requestId} {
+        allow read, write: if false;
+      }
+      match /playerDiscoveryNotes/{uid}/notes/{noteId} {
         allow read, write: if false;
       }
 
