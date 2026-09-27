@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import test from 'node:test';
-import { measureBundleSizes } from './prompt-637-render-performance.mjs';
+import { collectJavaScriptModuleGraph, measureBundleSizes } from './prompt-637-render-performance.mjs';
 
 test('measures landing HTML modulepreloads and static imports, excluding lazy and isolated review assets', async (t) => {
   const distDirectory = await mkdtemp(join(tmpdir(), 'p637-render-performance-'));
@@ -42,4 +42,23 @@ test('measures landing HTML modulepreloads and static imports, excluding lazy an
   assert.deepEqual(measured.review.files.map((file) => basename(file)).sort(), ['review.js', 'static-leaf.js']);
   assert.equal(measured.wholeBuild.files.length, Object.keys(assets).length);
   assert.equal(measured.wholeBuild.largestChunkBytes, Buffer.byteLength(assets['orphan.js']));
+});
+
+test('rejects missing or unsupported landing roots and static imports', async (t) => {
+  const distDirectory = await mkdtemp(join(tmpdir(), 'p637-invalid-entry-'));
+  const assetDirectory = join(distDirectory, 'assets');
+  await mkdir(assetDirectory, { recursive: true });
+  t.after(() => rm(distDirectory, { recursive: true, force: true }));
+
+  await writeFile(join(distDirectory, 'index.html'), '<html><body>No module entry</body></html>');
+  await assert.rejects(() => collectJavaScriptModuleGraph(distDirectory), /module script/i);
+
+  await writeFile(join(distDirectory, 'index.html'),
+    '<script type="module" src="https://example.invalid/external.js"></script>');
+  await assert.rejects(() => collectJavaScriptModuleGraph(distDirectory), /module script/i);
+
+  await writeFile(join(assetDirectory, 'index.js'), 'import "https://example.invalid/dependency.js";');
+  await writeFile(join(distDirectory, 'index.html'),
+    '<script type="module" src="/assets/index.js"></script>');
+  await assert.rejects(() => collectJavaScriptModuleGraph(distDirectory), /static import/i);
 });
