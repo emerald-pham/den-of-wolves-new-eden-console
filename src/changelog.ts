@@ -26,6 +26,19 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 458, partial: 44, active: 0, missing: 249,
     },
     changes: [
+      'When Endeavour upgrade state changes, the active Scientist can keep eligible console selections, wait for live research and purchase state, and explicitly retry with current revisions.',
+      '458 of 751 planned items are complete (60.99%).',
+    ],
+    implementationPrompts: [620],
+  },
+
+  {
+    version: '0.5.45',
+    implementationProgress: {
+      completed: 458, total: 751, percentage: '60.99%',
+      done: 458, partial: 44, active: 0, missing: 249,
+    },
+    changes: [
       'When a Blacksmith repair meets changed state, the current holder can keep eligible selections, wait for live state to catch up, and explicitly retry with a fresh request and current revisions.',
       '458 of 751 planned items are complete (60.99%).',
     ],

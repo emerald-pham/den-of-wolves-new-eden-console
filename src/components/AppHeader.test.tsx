@@ -671,9 +671,14 @@ it('renders current and retained repair history with progress and keyboard stop 
   expect(region).toHaveAttribute('tabindex', '0');
   expect(renderedChanges.every((change) => !/\bprompts?\b/i.test(change))).toBe(true);
   expect(within(newestEntry).getByText(
-    'When a Blacksmith repair meets changed state, the current holder can keep eligible selections, wait for live state to catch up, and explicitly retry with a fresh request and current revisions.',
+    'When Endeavour upgrade state changes, the active Scientist can keep eligible console selections, wait for live research and purchase state, and explicitly retry with current revisions.',
   )).toBeVisible();
   expect(within(newestEntry).getByText('458 of 751 planned items are complete (60.99%).')).toBeVisible();
+  const previousBlacksmithEntry = within(region).getByRole('heading', { name: 'Build 0.5.45' }).closest('article');
+  if (!previousBlacksmithEntry) throw new Error('Expected the preserved 0.5.45 Blacksmith release entry.');
+  expect(within(previousBlacksmithEntry).getByText(
+    'When a Blacksmith repair meets changed state, the current holder can keep eligible selections, wait for live state to catch up, and explicitly retry with a fresh request and current revisions.',
+  )).toBeVisible();
   const previousCargoTransferEntry = within(region).getByRole('heading', { name: 'Build 0.5.44' }).closest('article');
   if (!previousCargoTransferEntry) throw new Error('Expected the preserved 0.5.44 Capybara cargo release entry.');
   expect(within(previousCargoTransferEntry).getByText(
