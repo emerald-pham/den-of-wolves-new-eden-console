@@ -330,8 +330,10 @@ function MovingMessage({ message, fallback, queue = [], onMessageComplete }: {
 
   const windowWidth = useCallback(() => {
     const element = windowRef.current;
-    return element?.clientWidth
-      || element?.getBoundingClientRect().width
+    // clientWidth rounds fractional CSS pixels down. Start at the same exact
+    // edge as the overflow clip so a subpixel sliver cannot enter on mount.
+    return element?.getBoundingClientRect().width
+      || element?.clientWidth
       || FALLBACK_WINDOW_WIDTH;
   }, []);
 

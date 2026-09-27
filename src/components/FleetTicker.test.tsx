@@ -45,6 +45,30 @@ it('rejects any actual painted-text range intersection with zero tolerance', () 
 
   expect(paintedTextRangesOverlap(previous, current)).toBe(true);
 });
+it('starts beyond a fractional ticker frame edge instead of rounded client width', () => {
+  const originalClientWidth = Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth')?.get;
+  const originalBounds = HTMLElement.prototype.getBoundingClientRect;
+  if (!originalClientWidth) throw new Error('Element.clientWidth getter is unavailable');
+  vi.spyOn(Element.prototype, 'clientWidth', 'get').mockImplementation(function () {
+    return this instanceof HTMLElement && this.classList.contains('fleet-ticker__window')
+      ? 350
+      : originalClientWidth.call(this);
+  });
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function () {
+    if (this.classList.contains('fleet-ticker__window')) {
+      return {
+        left: 0, right: 350.21875, top: 0, bottom: 28,
+        width: 350.21875, height: 28, x: 0, y: 0, toJSON: () => undefined,
+      };
+    }
+    return originalBounds.call(this);
+  });
+
+  const { container } = render(<FleetTicker message={alert} />);
+  const group = container.querySelector<HTMLElement>('.fleet-ticker__group');
+
+  expect(group).toHaveStyle('--fleet-ticker-start-x: 350.21875px');
+});
 beforeEach(() => { sessionStorage.clear(); notifyResize = undefined; setMotionOverride('full'); });
 afterEach(() => {
   vi.useRealTimers();
