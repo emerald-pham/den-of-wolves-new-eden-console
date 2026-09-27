@@ -26,6 +26,20 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 458, partial: 44, active: 0, missing: 249,
     },
     changes: [
+      'When a service-shuttle recharge meets newer revisions, the current holder keeps the selected console and production choice while live state catches up, then explicitly retries with a fresh request.',
+      'A stale recharge does not spend resources or add a charge.',
+      '458 of 751 planned items are complete (60.99%).',
+    ],
+    implementationPrompts: [620],
+  },
+
+  {
+    version: '0.5.49',
+    implementationProgress: {
+      completed: 458, total: 751, percentage: '60.99%',
+      done: 458, partial: 44, active: 0, missing: 249,
+    },
+    changes: [
       'When a Hummingbird harvest changes, the current Quellon Explorer can review the latest private result without repeating a roll or adding cargo from the stale attempt.',
       'The panel keeps a selected food die while a newer pending roll arrives; retry an uncertain request unchanged to check its outcome.',
       '458 of 751 planned items are complete (60.99%).',

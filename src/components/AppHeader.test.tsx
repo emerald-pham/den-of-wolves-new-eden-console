@@ -671,12 +671,21 @@ it('renders current and retained repair history with progress and keyboard stop 
   expect(region).toHaveAttribute('tabindex', '0');
   expect(renderedChanges.every((change) => !/\bprompts?\b/i.test(change))).toBe(true);
   expect(within(newestEntry).getByText(
-    'When a Hummingbird harvest changes, the current Quellon Explorer can review the latest private result without repeating a roll or adding cargo from the stale attempt.',
+    'When a service-shuttle recharge meets newer revisions, the current holder keeps the selected console and production choice while live state catches up, then explicitly retries with a fresh request.',
   )).toBeVisible();
   expect(within(newestEntry).getByText(
-    'The panel keeps a selected food die while a newer pending roll arrives; retry an uncertain request unchanged to check its outcome.',
+    'A stale recharge does not spend resources or add a charge.',
   )).toBeVisible();
   expect(within(newestEntry).getByText('458 of 751 planned items are complete (60.99%).')).toBeVisible();
+  const previousHummingbirdEntry = within(region).getByRole('heading', { name: 'Build 0.5.49' }).closest('article');
+  if (!previousHummingbirdEntry) throw new Error('Expected the preserved 0.5.49 Hummingbird release entry.');
+  expect(within(previousHummingbirdEntry).getByText(
+    'When a Hummingbird harvest changes, the current Quellon Explorer can review the latest private result without repeating a roll or adding cargo from the stale attempt.',
+  )).toBeVisible();
+  expect(within(previousHummingbirdEntry).getByText(
+    'The panel keeps a selected food die while a newer pending roll arrives; retry an uncertain request unchanged to check its outcome.',
+  )).toBeVisible();
+  expect(within(previousHummingbirdEntry).getByText('458 of 751 planned items are complete (60.99%).')).toBeVisible();
   const previousHighwallEntry = within(region).getByRole('heading', { name: 'Build 0.5.48' }).closest('article');
   if (!previousHighwallEntry) throw new Error('Expected the preserved 0.5.48 Highwall release entry.');
   expect(within(previousHighwallEntry).getByText(
