@@ -84,6 +84,10 @@ function seedSession(): void {
     role: 'player', connected: true, assignedRoleId: 'shepherd-scientist',
     fleetGroupId: 'fleet-1',
   });
+  put('sessions/s1/players/captain', {
+    role: 'player', connected: true, assignedRoleId: 'icebreaker-captain',
+    fleetGroupId: 'fleet-2',
+  });
   put('sessions/s1/fleetGroups/fleet-1', {
     id: 'fleet-1', vesselIds: ['shepherd', 'aegis'], memberUids: ['scientist'],
   });
@@ -190,6 +194,27 @@ describe('Endeavour ECM Device writer', () => {
 
     expect(mock.documents.get('sessions/s1/serverState/navigation')?.shipNavigationLogs)
       .toEqual(malformedLegacyLogs);
+  });
+
+  it('rejects stale group rosters that disagree with the current player pointer', async () => {
+    put('sessions/s1/fleetGroups/fleet-1', {
+      id: 'fleet-1', vesselIds: ['shepherd', 'aegis'], memberUids: ['scientist', 'captain'],
+    });
+    put('sessions/s1/fleetGroups/fleet-2', {
+      id: 'fleet-2', vesselIds: ['dione'], memberUids: [],
+    });
+    put('sessions/s1/playerDiscoveries/captain', {
+      groupId: 'fleet-1', pursuitValue: 8, revision: 11,
+    });
+
+    await expect(activateEndeavourEcmDevice.run(request(command))).rejects.toBeInstanceOf(Error);
+
+    expect(mock.documents.get('sessions/s1/serverState/navigation')?.pursuitGroups)
+      .toEqual({ 'fleet-1': 8, 'fleet-2': 9 });
+    expect(mock.documents.has('sessions/s1/serverState/endeavourEcmDevice')).toBe(false);
+    expect(mock.documents.has('sessions/s1/commandReceipts/ecm-use-1')).toBe(false);
+    expect(mock.documents.get('sessions/s1/playerDiscoveries/captain'))
+      .toMatchObject({ groupId: 'fleet-1', pursuitValue: 8, revision: 11 });
   });
 
   it('replays the same actor and command without reducing pursuit or writing another event', async () => {

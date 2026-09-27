@@ -1605,6 +1605,11 @@ describe('fleet-group ECM events', () => {
 
     await assertSucceeds(getDoc(doc(as('alice'),
       `${SESSION}/fleetGroupEvents/fleet-1/events/endeavour-ecm-request-1`)));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/alice`), { fleetGroupId: 'fleet-2' });
+    });
+    await assertFails(getDoc(doc(as('alice'),
+      `${SESSION}/fleetGroupEvents/fleet-1/events/endeavour-ecm-request-1`)));
     await assertFails(getDoc(doc(as('captain'),
       `${SESSION}/fleetGroupEvents/fleet-1/events/endeavour-ecm-request-1`)));
     await assertSucceeds(getDoc(doc(as('captain'),
