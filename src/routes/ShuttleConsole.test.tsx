@@ -1215,6 +1215,36 @@ it('keeps an eligible Blacksmith selection and waits for the newer live projecti
     .toHaveAttribute('role', 'status');
 });
 
+it('does not offer Blacksmith retry from a future-cycle repair ledger', async () => {
+  const user = userEvent.setup();
+  const state = prepareBlacksmithRepairState();
+  const response = deferred<Awaited<ReturnType<typeof repairConsolesFromBlacksmith>>>();
+  vi.mocked(repairConsolesFromBlacksmith).mockReturnValueOnce(response.promise);
+  render(<MemoryRouter initialEntries={['/shuttles/blacksmith']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+
+  const repair = screen.getByRole('region', { name: 'Blacksmith console repair' });
+  await user.click(within(repair).getByRole('checkbox', { name: 'Reactor' }));
+  await user.click(within(repair).getByRole('button', { name: 'Repair selected consoles' }));
+  await waitFor(() => expect(repairConsolesFromBlacksmith).toHaveBeenCalledTimes(1));
+  const original = vi.mocked(repairConsolesFromBlacksmith).mock.calls[0]![0];
+  const current = state.session!;
+  act(() => state.setSession({
+    ...current,
+    shuttleControl: { blacksmith: { ...current.shuttleControl!.blacksmith!, revision: 3 } },
+    blacksmithRepairs: {
+      cycle: 4, revision: 3, hosts: [{ shipId: 'aegis', systemIds: ['reactor'] }],
+    },
+  }));
+  await act(async () => response.resolve(staleBlacksmithReply(original.requestId)));
+
+  expect(await screen.findByText(/Blacksmith repair authority changed/i)).toBeInTheDocument();
+  expect(within(repair).queryByRole('button', { name: 'Retry repair with current revisions' }))
+    .not.toBeInTheDocument();
+  expect(repairConsolesFromBlacksmith).toHaveBeenCalledTimes(1);
+});
+
 it('allows a connected fleet-group player holding handed-off Blacksmith to repair under their role', async () => {
   const user = userEvent.setup();
   const state = prepareBlacksmithRepairState();

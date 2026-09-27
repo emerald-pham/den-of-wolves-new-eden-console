@@ -143,6 +143,11 @@ it.each([
     session.turnPhase = { ...(session.turnPhase as Record<string, unknown>),
       airspace: { state: 'restricted', tickerActive: true, pressAccess: false } };
   }],
+  ['future-cycle repair ledger', (session: Record<string, unknown>) => {
+    session.blacksmithRepairs = {
+      cycle: 5, revision: 3, hosts: [{ shipId: 'aegis', systemIds: ['reactor'] }],
+    };
+  }],
 ])('rejects stale replies after %s authority changes while pending', async (_label, change) => {
   let resolve!: (value: ReturnType<typeof staleResponse>) => void;
   mocks.call.mockReturnValueOnce(new Promise((complete) => { resolve = complete; }));

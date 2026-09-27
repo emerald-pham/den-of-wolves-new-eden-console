@@ -66,7 +66,7 @@ function isSafeCounter(value: unknown): value is number {
   return Number.isSafeInteger(value) && (value as number) >= 0;
 }
 
-function repairLedgerRevision(value: unknown): number | null {
+function repairLedgerRevision(value: unknown, currentCycle: number | undefined): number | null {
   if (value === undefined) return 0;
   if (!isRecord(value) || Object.keys(value).some((key) => !['cycle', 'revision', 'hosts'].includes(key)) ||
       !Number.isSafeInteger(value.cycle) || (value.cycle as number) < 1 ||
@@ -81,6 +81,7 @@ function repairLedgerRevision(value: unknown): number | null {
         new Set(host.systemIds).size !== host.systemIds.length) return null;
     seenShips.add(host.shipId);
   }
+  if (!Number.isSafeInteger(currentCycle) || (value.cycle as number) > (currentCycle as number)) return null;
   return value.revision as number;
 }
 
@@ -120,8 +121,8 @@ export function hasCurrentBlacksmithRepairAuthority(
   const activeRoles = session.activeRoleIds;
   const activeVessels = session.activeVesselIds;
   const projection = session.playerDiscovery;
-  const ledgerRevision = repairLedgerRevision(session.blacksmithRepairs);
   const currentCycle = session.currentTurn;
+  const ledgerRevision = repairLedgerRevision(session.blacksmithRepairs, currentCycle);
   const groupVessels = projection?.fleetGroupVesselIds;
   return session.id === binding.sessionId && me.sessionId === binding.sessionId &&
     me.uid === binding.uid && me.role === binding.role && me.role === 'player' &&
