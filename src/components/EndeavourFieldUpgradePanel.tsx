@@ -133,6 +133,7 @@ export default function EndeavourFieldUpgradePanel({
   const [selection, setSelection] = useState<Readonly<{ scope: string; keys: readonly string[] }> | null>(null);
   const [recoveryState, setRecoveryState] = useState<RecoveryState | null>(null);
   const [uncertainState, setUncertainState] = useState<UncertainState | null>(null);
+  const [retryRefreshRequired, setRetryRefreshRequired] = useState(false);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<Readonly<{
     identityKey: string;
@@ -191,6 +192,7 @@ export default function EndeavourFieldUpgradePanel({
       setSelection(null);
       setRecoveryState(null);
       setUncertainState(null);
+      setRetryRefreshRequired(false);
       setFeedback(null);
       return;
     }
@@ -246,6 +248,7 @@ export default function EndeavourFieldUpgradePanel({
     setSelection(null);
     setRecoveryState(null);
     setUncertainState(null);
+    setRetryRefreshRequired(false);
     setFeedback({
       identityKey: currentIdentityKey,
       notice: `Installed ${result.appliedTargets.length} console${result.appliedTargets.length === 1 ? '' : 's'} for this cycle.`,
@@ -255,25 +258,38 @@ export default function EndeavourFieldUpgradePanel({
   }
 
   async function submit(mode: 'purchase' | 'stale-retry' | 'uncertain-retry' = 'purchase'): Promise<void> {
-    if (!activePurchaseState || !aligned || !liveCoordinationWindow ||
-        selectedTargets.length === 0 || selectedTargets.length > remaining || busy ||
-        (uncertain && mode !== 'uncertain-retry') ||
-        (recovery && !recoveryReady) ||
-        (mode === 'stale-retry' && !canRetryStaleSelection) ||
-        (mode === 'uncertain-retry' && !uncertain)) return;
+    if (busy) return;
+    if (mode === 'uncertain-retry') {
+      if (!uncertain) return;
+    } else if (!activePurchaseState || !aligned || !liveCoordinationWindow ||
+        selectedTargets.length === 0 || selectedTargets.length > remaining || uncertain ||
+        retryRefreshRequired || (recovery && !recoveryReady) ||
+        (mode === 'stale-retry' && !canRetryStaleSelection)) return;
     setBusy(true);
     setFeedback({ identityKey: currentIdentityKey, notice: '', error: '' });
     try {
       const result = mode === 'uncertain-retry'
         ? await retryUncertainEndeavourFieldUpgrade(uncertain!.retryToken)
         : await purchaseEndeavourFieldTargets({
-          workspace, purchaseState: activePurchaseState, targets: selectedTargets,
+          workspace, purchaseState: activePurchaseState!, targets: selectedTargets,
         });
       if (!isCurrentScientistAuthority(authorityScope!)) return;
       if (result.status === 'stale') {
         setRecoveryState({ scope: authorityScope!, stale: result, retryInvalidated: false });
         setUncertainState(null);
+        setRetryRefreshRequired(false);
         setFeedback({ identityKey: currentIdentityKey, notice: '', error: '' });
+        void Promise.resolve(onRefresh?.()).catch(() => undefined);
+      } else if (mode === 'uncertain-retry' || result.status === 'replayed') {
+        setSelection(null);
+        setRecoveryState(null);
+        setUncertainState(null);
+        setRetryRefreshRequired(false);
+        setFeedback({
+          identityKey: currentIdentityKey,
+          notice: 'The earlier upgrade request was confirmed. Refresh the Scientist workspace for current purchase state.',
+          error: '',
+        });
         void Promise.resolve(onRefresh?.()).catch(() => undefined);
       } else {
         applyCommittedResult(result);
@@ -289,6 +305,15 @@ export default function EndeavourFieldUpgradePanel({
           void Promise.resolve(onRefresh?.()).catch(() => undefined);
           return;
         }
+        if (mode === 'uncertain-retry') {
+          setUncertainState(null);
+          setRetryRefreshRequired(true);
+          setFeedback({
+            identityKey: currentIdentityKey, notice: '',
+            error: `The exact request was rejected. ${errorMessage(cause)} Refresh the Scientist workspace before starting a new purchase.`,
+          });
+          return;
+        }
         setFeedback({ identityKey: currentIdentityKey, notice: '', error: errorMessage(cause) });
         void Promise.resolve(onRefresh?.()).catch(() => undefined);
       }
@@ -299,6 +324,7 @@ export default function EndeavourFieldUpgradePanel({
 
   const purchaseDisabled = !aligned || !liveCoordinationWindow || remaining === 0 ||
     selectedTargets.length === 0 || selectedTargets.length > remaining || busy || Boolean(uncertain) ||
+    retryRefreshRequired ||
     Boolean(recovery && !recoveryReady);
   const purchaseLabel = recovery && recoveryReady
     ? 'Purchase selected upgrades with current state'
@@ -320,13 +346,31 @@ export default function EndeavourFieldUpgradePanel({
         {recovery && !recoveryReady &&
           <p role="status">Waiting for the live purchase projection before retrying these upgrades.</p>}
         {uncertain && <p role="status">An earlier request may have completed. Confirm it by retrying the exact request.</p>}
+        {retryRefreshRequired && <p role="status">Refresh current Scientist purchase state before starting another request.</p>}
       </div>
+      {retryRefreshRequired && <button type="button" className="cic-text-button"
+        disabled={busy || !onRefresh} onClick={() => {
+          if (!onRefresh || busy) return;
+          setBusy(true);
+          void Promise.resolve(onRefresh()).then(() => {
+            setRetryRefreshRequired(false);
+            setFeedback({
+              identityKey: currentIdentityKey,
+              notice: 'Scientist purchase state refreshed. Review the current targets before purchasing.',
+              error: '',
+            });
+          }).catch((cause: unknown) => {
+            setFeedback({ identityKey: currentIdentityKey, notice: '', error: errorMessage(cause) });
+          }).finally(() => setBusy(false));
+        }}>
+        Refresh Scientist workspace
+      </button>}
       {!aligned && purchaseState && <button type="button" className="cic-text-button"
         disabled={busy} onClick={() => void onRefresh?.()}>
         Refresh private research and purchase state
       </button>}
       {aligned && options.length === 0 && <p>Current fleet-group upgrade targets are not available.</p>}
-      {aligned && options.length > 0 && <fieldset disabled={!liveCoordinationWindow || busy || remaining === 0 || Boolean(uncertain)}>
+      {aligned && options.length > 0 && <fieldset disabled={!liveCoordinationWindow || busy || remaining === 0 || Boolean(uncertain) || retryRefreshRequired}>
         <legend>Choose target consoles</legend>
         <ul aria-label="Available Endeavour field upgrades">
           {options.map((option) => {

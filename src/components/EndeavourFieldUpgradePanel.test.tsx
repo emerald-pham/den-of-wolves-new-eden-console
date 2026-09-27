@@ -234,7 +234,65 @@ it('holds an uncertain request and exposes only an exact-ID retry until it resol
   expect(screen.getByRole('button', { name: 'Purchase selected upgrades' })).toBeDisabled();
   await user.click(screen.getByRole('button', { name: 'Retry exact request' }));
   await waitFor(() => expect(mocks.retry).toHaveBeenCalledWith('request-1'));
-  expect(await screen.findByRole('status')).toHaveTextContent('Installed 1 console for this cycle.');
+  expect(await screen.findByRole('status')).toHaveTextContent('The earlier upgrade request was confirmed.');
+});
+
+it('retries the retained exact request after projection removes its target and Coordination closes', async () => {
+  const user = userEvent.setup();
+  mocks.purchase.mockRejectedValueOnce(new EndeavourFieldUpgradeUncertainError('request-1'));
+  mocks.retry.mockResolvedValueOnce({
+    status: 'replayed', sessionId: 's1', requestId: 'request-1', shuttleId: 'endeavour',
+    cycle: 3, upgradeRevision: 7, appliedTargets: [{ shipId: 'shepherd', systemId: 'reactor' }],
+  });
+  const view = renderPanel();
+  await user.click(await screen.findByLabelText('Shepherd // Reactor // 7 materials'));
+  await user.click(screen.getByRole('button', { name: 'Purchase selected upgrades' }));
+  await screen.findByText(/earlier request may have completed/i);
+
+  const advancedSession = makeSession({
+    currentTurn: 4,
+    shuttleControl: { endeavour: { ...control, revision: 5 } },
+    turnPhase: {
+      turn: 4, teamPhaseEndsAt: '2099-09-24T13:00:00.000Z',
+      openAirspaceEndsAt: '2099-09-24T13:15:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+    shipUpgrades: { shepherd: ['reactor'], aegis: [], quellon: [] },
+  });
+  const advancedWorkspace = { ...workspace, cycle: 4 };
+  const advancedPurchaseState = { ...purchaseState, cycle: 4, upgradeRevision: 7 };
+  act(() => setScientist(advancedSession));
+  view.rerender(<EndeavourFieldUpgradePanel control={advancedSession.shuttleControl!.endeavour!}
+    workspace={advancedWorkspace} purchaseState={advancedPurchaseState} onRefresh={mocks.refresh} />);
+
+  expect(screen.queryByLabelText('Shepherd // Reactor // 7 materials')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Purchase selected upgrades' })).toBeDisabled();
+  const exactRetry = screen.getByRole('button', { name: 'Retry exact request' });
+  expect(exactRetry).toBeEnabled();
+  await user.click(exactRetry);
+  await waitFor(() => expect(mocks.retry).toHaveBeenCalledWith('request-1'));
+  expect(await screen.findByRole('status')).toHaveTextContent('The earlier upgrade request was confirmed.');
+  expect(screen.getByText('Cycle purchases: 0 of 2 consoles used. Choose up to 2 more.')).toBeVisible();
+});
+
+it('clears a terminal exact-retry rejection and requires a workspace refresh before a new purchase', async () => {
+  const user = userEvent.setup();
+  mocks.purchase.mockRejectedValueOnce(new EndeavourFieldUpgradeUncertainError('request-1'));
+  mocks.retry.mockRejectedValueOnce(new Error('The original request is no longer eligible.'));
+  renderPanel();
+  await user.click(await screen.findByLabelText('Shepherd // Reactor // 7 materials'));
+  await user.click(screen.getByRole('button', { name: 'Purchase selected upgrades' }));
+  await screen.findByText(/earlier request may have completed/i);
+
+  await user.click(screen.getByRole('button', { name: 'Retry exact request' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('The exact request was rejected.');
+  expect(screen.queryByRole('button', { name: 'Retry exact request' })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Purchase selected upgrades' })).toBeDisabled();
+  const refresh = screen.getByRole('button', { name: 'Refresh Scientist workspace' });
+  expect(refresh).toBeEnabled();
+  await user.click(refresh);
+  await waitFor(() => expect(mocks.refresh).toHaveBeenCalled());
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Purchase selected upgrades' })).toBeEnabled());
 });
 
 it('discards a delayed stale result after the current Scientist authority changes', async () => {
