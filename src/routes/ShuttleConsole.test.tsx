@@ -15,6 +15,7 @@ import type * as ServiceShuttleRechargeServiceModule from '@/lib/serviceShuttleR
 import ShuttleConsole from './ShuttleConsole';
 
 const endeavourResearchMocks = vi.hoisted(() => ({ read: vi.fn(), advance: vi.fn() }));
+const endeavourEcmMocks = vi.hoisted(() => ({ read: vi.fn(), activate: vi.fn() }));
 const scoutRequestMock = vi.hoisted(() => ({ request: vi.fn() }));
 vi.mock('@/lib/scoutRequestService', async (importOriginal) => ({
   ...(await importOriginal<typeof ScoutRequestServiceModule>()),
@@ -23,6 +24,12 @@ vi.mock('@/lib/scoutRequestService', async (importOriginal) => ({
 vi.mock('@/lib/endeavourResearchService', () => ({
   readEndeavourResearchWorkspace: endeavourResearchMocks.read,
   advanceEndeavourResearchTrack: endeavourResearchMocks.advance,
+}));
+vi.mock('@/lib/endeavourEcmDeviceService', () => ({
+  readEndeavourEcmDeviceWorkspace: endeavourEcmMocks.read,
+  createEndeavourEcmDeviceAttempt: vi.fn(),
+  activateEndeavourEcmDevice: endeavourEcmMocks.activate,
+  retryEndeavourEcmDeviceAttempt: endeavourEcmMocks.activate,
 }));
 vi.mock('@/lib/sessionService', () => ({
   popShipConfetti: vi.fn(),
@@ -168,6 +175,8 @@ function staleBlacksmithReply(requestId: string) {
 beforeEach(() => {
   endeavourResearchMocks.read.mockReset();
   endeavourResearchMocks.advance.mockReset();
+  endeavourEcmMocks.read.mockReset();
+  endeavourEcmMocks.activate.mockReset();
   endeavourResearchMocks.read.mockResolvedValue({
     status: 'ready', sessionId: 's1', cycle: 3, researchRevision: 0,
     cadence: { cycle: 3, revision: 0, choices: [] }, progress: {},
@@ -176,6 +185,12 @@ beforeEach(() => {
     fieldUpgradeState: { upgradeRevision: 0, targetsUsedThisCycle: 0 },
   });
   endeavourResearchMocks.advance.mockResolvedValue(undefined);
+  endeavourEcmMocks.read.mockResolvedValue({
+    status: 'ready', sessionId: 's1', cycle: 3, controlRevision: 4,
+    researchComplete: false, device: { status: 'ready', revision: 0 },
+    pursuit: { groupId: 'fleet-1', current: 8 },
+  });
+  endeavourEcmMocks.activate.mockResolvedValue(undefined);
   vi.mocked(requestScout).mockReset();
   vi.mocked(requestScout).mockResolvedValue(undefined as never);
   vi.mocked(selectConsoleRole).mockReset();
@@ -989,6 +1004,8 @@ it('opens Endeavour for the Shepherd Scientist with every printed registration f
   expect(screen.queryByText(/cargo transfer/i)).not.toBeInTheDocument();
   expect(await screen.findByRole('region', { name: 'Endeavour research controls' })).toBeVisible();
   expect(await screen.findByRole('region', { name: 'Endeavour field-upgrade purchase controls' })).toBeVisible();
+  expect(await screen.findByRole('region', { name: 'Endeavour ECM Device controls' })).toBeVisible();
+  expect(await screen.findByText('Complete ECM Device research before use.')).toBeVisible();
   expect(screen.getByRole('button', { name: 'Advance standard research' })).toBeEnabled();
   expect(screen.getByRole('list', { name: 'Research progress' })).toHaveTextContent(
     'Reactor: 0 of 5 boxes crossed; next field-upgrade cost is 8 materials.',

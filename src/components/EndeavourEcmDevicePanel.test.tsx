@@ -1,0 +1,121 @@
+import { act, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, expect, it, vi } from 'vitest';
+import { useSessionStore } from '@/store/useSessionStore';
+
+const mocks = vi.hoisted(() => ({
+  read: vi.fn(), createAttempt: vi.fn(), activate: vi.fn(), retry: vi.fn(),
+}));
+vi.mock('@/lib/endeavourEcmDeviceService', () => ({
+  readEndeavourEcmDeviceWorkspace: mocks.read,
+  createEndeavourEcmDeviceAttempt: mocks.createAttempt,
+  activateEndeavourEcmDevice: mocks.activate,
+  retryEndeavourEcmDeviceAttempt: mocks.retry,
+}));
+
+import EndeavourEcmDevicePanel from './EndeavourEcmDevicePanel';
+
+const control = {
+  shuttleId: 'endeavour', ownerRoleId: 'shepherd-scientist', ownerUid: 'scientist',
+  holderUid: 'scientist', revision: 4,
+} as const;
+
+const readyWorkspace = {
+  status: 'ready' as const, sessionId: 's1', cycle: 3, controlRevision: 4,
+  researchComplete: true,
+  device: { status: 'ready' as const, revision: 0 },
+  pursuit: { groupId: 'fleet-1', current: 8 },
+};
+
+const usedWorkspace = {
+  ...readyWorkspace,
+  device: {
+    status: 'used' as const, revision: 1 as const, ownerGroupId: 'fleet-1',
+    pursuitBefore: 8, pursuitAfter: 5,
+  },
+  pursuit: { groupId: 'fleet-1', current: 5 },
+};
+
+const committed = {
+  status: 'committed' as const, sessionId: 's1', requestId: 'ecm-use-1', cycle: 3,
+  deviceRevision: 1, ownerGroupId: 'fleet-1', pursuitBefore: 8, pursuitAfter: 5,
+};
+
+function seedScientist(): void {
+  const store = useSessionStore.getState();
+  store.reset();
+  store.setIdentity({
+    id: 's1', name: 'Fleet', joinCode: '1234', phase: 'active', ownerUid: 'owner',
+    currentTurn: 3, activeRoleIds: ['shepherd-scientist'], activeVesselIds: ['shepherd'],
+    shuttleDockings: [{ shuttleId: 'endeavour', shipId: 'shepherd', dockedAt: 'now' }],
+    turnPhase: {
+      turn: 3, teamPhaseEndsAt: '2099-09-23T12:00:00.000Z',
+      openAirspaceEndsAt: '2099-09-23T12:15:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+    shuttleControl: { endeavour: control }, playerDiscovery: {
+      groupId: 'fleet-1', fleetGroupVesselIds: ['shepherd'], knownCoordinates: [],
+      knownSystems: {}, pursuitDistance: 0, navigationLogs: [], revision: 1,
+    }, shipUpgrades: { shepherd: [] }, createdAt: '', updatedAt: '',
+  }, {
+    uid: 'scientist', sessionId: 's1', displayName: 'Scientist', role: 'player', seatId: null,
+    assignedRoleId: 'shepherd-scientist', activeConsoleRoleId: 'shepherd-scientist',
+    fleetGroupId: 'fleet-1', joinedAt: '',
+  });
+  store.setConnection('live');
+  store.setSessionSnapshotFreshness('server');
+}
+
+beforeEach(() => {
+  mocks.read.mockReset();
+  mocks.createAttempt.mockReset();
+  mocks.activate.mockReset();
+  mocks.retry.mockReset();
+  mocks.read.mockResolvedValue(readyWorkspace);
+  mocks.createAttempt.mockReturnValue({
+    sessionId: 's1', requestId: 'ecm-use-1', expectedControlRevision: 4,
+    expectedDeviceRevision: 0, expectedCycle: 3,
+  });
+  mocks.activate.mockResolvedValue(committed);
+  mocks.retry.mockResolvedValue({ ...committed, status: 'replayed' });
+  seedScientist();
+});
+
+it('shows the ready state, working feedback, success receipt, and persisted spent state', async () => {
+  const user = userEvent.setup();
+  mocks.read.mockResolvedValueOnce(readyWorkspace).mockResolvedValueOnce(usedWorkspace);
+  let finish!: (value: typeof committed) => void;
+  mocks.activate.mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+
+  render(<EndeavourEcmDevicePanel control={control} />);
+  expect(await screen.findByRole('region', { name: 'Endeavour ECM Device controls' })).toBeVisible();
+  expect(screen.getByText('Status: Ready')).toBeVisible();
+
+  await user.click(screen.getByRole('button', { name: 'Use ECM Device' }));
+  expect(screen.getByRole('status')).toHaveTextContent('Working');
+  expect(screen.getByRole('button', { name: 'Using ECM Device…' })).toBeDisabled();
+  expect(mocks.activate).toHaveBeenCalledWith({
+    sessionId: 's1', requestId: 'ecm-use-1', expectedControlRevision: 4,
+    expectedDeviceRevision: 0, expectedCycle: 3,
+  });
+
+  await act(async () => { finish(committed); });
+  expect(await screen.findByText('Successful: Shepherd group pursuit reduced from 8 to 5.')).toBeVisible();
+  await waitFor(() => expect(screen.getByText('Status: Spent')).toBeVisible());
+  expect(screen.getByText('ECM Device spent; Shepherd group pursuit changed from 8 to 5.')).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Use ECM Device' })).toBeDisabled();
+});
+
+it('keeps an unfinished device unavailable and shows the persisted spent result after reopening', async () => {
+  mocks.read.mockResolvedValueOnce({ ...readyWorkspace, researchComplete: false });
+  const { unmount } = render(<EndeavourEcmDevicePanel control={control} />);
+  expect(await screen.findByText('Status: Unavailable')).toBeVisible();
+  expect(screen.getByText('Complete ECM Device research before use.')).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Use ECM Device' })).toBeDisabled();
+
+  unmount();
+  mocks.read.mockResolvedValueOnce(usedWorkspace);
+  render(<EndeavourEcmDevicePanel control={control} />);
+  expect(await screen.findByText('Status: Spent')).toBeVisible();
+  expect(screen.getByText('ECM Device spent; Shepherd group pursuit changed from 8 to 5.')).toBeVisible();
+});

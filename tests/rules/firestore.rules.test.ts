@@ -1580,6 +1580,46 @@ describe('events', () => {
   });
 });
 
+describe('fleet-group ECM events', () => {
+  it('allows only members of the affected fleet group to read a server-written ECM result', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, `${SESSION}/fleetGroups/fleet-1`), {
+        id: 'fleet-1', vesselIds: ['shepherd', 'aegis'], memberUids: ['alice', 'gm1'],
+      });
+      await setDoc(doc(db, `${SESSION}/fleetGroups/fleet-2`), {
+        id: 'fleet-2', vesselIds: ['dione'], memberUids: ['captain'],
+      });
+      await setDoc(doc(db, `${SESSION}/fleetGroupEvents/fleet-1/events/endeavour-ecm-request-1`), {
+        type: 'endeavour-ecm-device-used', groupId: 'fleet-1', pursuitBefore: 8, pursuitAfter: 5,
+      });
+      await setDoc(doc(db, `${SESSION}/fleetGroupEvents/fleet-2/events/endeavour-ecm-request-2`), {
+        type: 'endeavour-ecm-device-used', groupId: 'fleet-2', pursuitBefore: 6, pursuitAfter: 3,
+      });
+      await setDoc(doc(db, `${SESSION}/serverState/endeavourEcmDevice`), {
+        status: 'used', revision: 1, ownerGroupId: 'fleet-1', pursuitBefore: 8, pursuitAfter: 5,
+      });
+    });
+
+    await assertSucceeds(getDoc(doc(as('alice'),
+      `${SESSION}/fleetGroupEvents/fleet-1/events/endeavour-ecm-request-1`)));
+    await assertFails(getDoc(doc(as('captain'),
+      `${SESSION}/fleetGroupEvents/fleet-1/events/endeavour-ecm-request-1`)));
+    await assertSucceeds(getDoc(doc(as('captain'),
+      `${SESSION}/fleetGroupEvents/fleet-2/events/endeavour-ecm-request-2`)));
+    await assertFails(getDoc(doc(as('alice'),
+      `${SESSION}/fleetGroupEvents/fleet-2/events/endeavour-ecm-request-2`)));
+    await assertFails(setDoc(doc(as('alice'),
+      `${SESSION}/fleetGroupEvents/fleet-1/events/forged`), {
+        type: 'endeavour-ecm-device-used', groupId: 'fleet-1', pursuitBefore: 8, pursuitAfter: 0,
+      }));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/serverState/endeavourEcmDevice`)));
+    await assertFails(setDoc(doc(as('alice'), `${SESSION}/serverState/endeavourEcmDevice`), {
+      status: 'ready', revision: 0,
+    }));
+  });
+});
+
 describe('ship confetti signals', () => {
   it('can be read by members but not forged or reset by clients', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
