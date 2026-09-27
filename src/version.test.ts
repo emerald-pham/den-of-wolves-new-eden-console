@@ -26,7 +26,7 @@ it('retains connected-player roster privacy in its release history', () => {
   );
 });
 
-it('preserves Endeavour history when adding the Highwall recovery release', () => {
+it('preserves prior stale-recovery history when adding the Hummingbird release', () => {
   const allyEntry = CHANGELOG.find((entry) => entry.version === '0.5.40');
   const maliadesEntry = CHANGELOG.find((entry) => entry.version === '0.5.41');
   const chacauEntry = CHANGELOG.find((entry) => entry.version === '0.5.42');
@@ -35,7 +35,8 @@ it('preserves Endeavour history when adding the Highwall recovery release', () =
   const blacksmithEntry = CHANGELOG.find((entry) => entry.version === '0.5.45');
   const endeavourResearchEntry = CHANGELOG.find((entry) => entry.version === '0.5.47');
   const endeavourUpgradeEntry = CHANGELOG.find((entry) => entry.version === '0.5.46');
-  const highwallMiningEntry = CHANGELOG.find((entry) => entry.version === APP_VERSION);
+  const highwallMiningEntry = CHANGELOG.find((entry) => entry.version === '0.5.48');
+  const hummingbirdHarvestEntry = CHANGELOG.find((entry) => entry.version === APP_VERSION);
 
   expect(allyEntry?.changes).toContain(
     'Ally repairs keep selected consoles while server state catches up and let the current Joint Engineering Union holder explicitly retry with a fresh request and current revisions.',
@@ -66,6 +67,12 @@ it('preserves Endeavour history when adding the Highwall recovery release', () =
   );
   expect(highwallMiningEntry?.changes).toContain(
     'When Highwall mining state changes, its current holder can wait for current revisions and explicitly retry with a fresh request.',
+  );
+  expect(hummingbirdHarvestEntry?.changes).toContain(
+    'When a Hummingbird harvest changes, the current Quellon Explorer can review the latest private result without repeating a roll or adding cargo from the stale attempt.',
+  );
+  expect(hummingbirdHarvestEntry?.changes).toContain(
+    'The panel keeps a selected food die while a newer pending roll arrives; retry an uncertain request unchanged to check its outcome.',
   );
   expect(endeavourUpgradeEntry?.changes).toContain(
     'Fleet broadcasts keep moving smoothly through font and screen-size changes and when one copy leaves the ticker.',
