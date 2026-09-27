@@ -1584,6 +1584,7 @@ describe('fleet-group ECM events', () => {
   it('allows only members of the affected fleet group to read a server-written ECM result', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       const db = ctx.firestore();
+      await updateDoc(doc(db, `${SESSION}/players/captain`), { fleetGroupId: 'fleet-2' });
       await setDoc(doc(db, `${SESSION}/fleetGroups/fleet-1`), {
         id: 'fleet-1', vesselIds: ['shepherd', 'aegis'], memberUids: ['alice', 'gm1'],
       });
