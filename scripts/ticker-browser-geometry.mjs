@@ -5,6 +5,7 @@ const EDGE_TOLERANCE_PX = 2;
 const START_SAMPLE_TOLERANCE_PX = 6;
 const INITIAL_EDGE_STEP_TOLERANCE_PX = 1.5;
 const MAX_OFFSCREEN_MOUNT_DELAY_INTERVALS = 3;
+const INITIAL_FRAME_CORRECTION_TOLERANCE_PX = 1.5;
 
 function finite(value) {
   return typeof value === 'number' && Number.isFinite(value);
@@ -110,18 +111,21 @@ export function assessTickerGeometry({
   }
   if (!entryTransitionObserved) failures.push('initial group entry transition was not sampled');
 
-  const firstReflowCorrectionSampleIndex = (() => {
+  const firstReflowCorrection = (() => {
     for (let index = 1; index < normalizedSamples.length; index += 1) {
       const beforeWidth = normalizedSamples[index - 1]?.frame?.width;
       const afterWidth = normalizedSamples[index]?.frame?.width;
       if (finite(beforeWidth) && finite(afterWidth) && Math.abs(beforeWidth - afterWidth) > 0.5) {
-        return index + 1;
+        return {
+          sampleIndex: index + 1,
+          widthChangePx: Math.abs(afterWidth - beforeWidth),
+        };
       }
     }
     return null;
   })();
-  const isEffectivelyOffscreen = (position) => finite(position.left) &&
-    finite(position.frameRight) && position.left >= position.frameRight - EDGE_TOLERANCE_PX;
+  const isFullyOffscreen = (position) => finite(position.left) &&
+    finite(position.frameRight) && position.left >= position.frameRight;
 
   const velocitiesByTrack = new Map();
   const ignoredMountDelayTracks = [];
@@ -137,7 +141,7 @@ export function assessTickerGeometry({
         (firstInterval[1].elapsed - firstInterval[0].elapsed) * 1_000
       : NaN;
     const firstIntervalIsMountDelay = firstInterval && finite(firstIntervalSpeed) &&
-      Math.abs(firstIntervalSpeed) <= 0.5 && firstInterval.every(isEffectivelyOffscreen);
+      Math.abs(firstIntervalSpeed) <= 0.5 && firstInterval.every(isFullyOffscreen);
     if (firstIntervalIsMountDelay) ignoredMountDelayTracks.push(id);
     let ignoredInitialEdgeStep = false;
     let initialMotionStarted = false;
@@ -159,7 +163,7 @@ export function assessTickerGeometry({
         sampleIndex: current.sampleIndex,
       };
       velocities.push(velocity);
-      const windowOffscreen = isEffectivelyOffscreen(previous) && isEffectivelyOffscreen(current);
+      const windowOffscreen = isFullyOffscreen(previous) && isFullyOffscreen(current);
       const displacement = current.left - previous.left;
 
       if (speed >= minimumSpeed && speed <= maximumSpeed) {
@@ -179,7 +183,7 @@ export function assessTickerGeometry({
         firstInterval[0].sampleIndex === 0 && firstInterval[1].sampleIndex === 1 &&
         finite(firstIntervalSpeed) && (firstIntervalSpeed < minimumSpeed || firstIntervalSpeed > maximumSpeed) &&
         Math.abs(firstInterval[1].left - firstInterval[0].left) <= START_SAMPLE_TOLERANCE_PX &&
-        firstActualSampleMatchesStart && firstInterval.every(isEffectivelyOffscreen);
+        firstActualSampleMatchesStart && firstInterval.every(isFullyOffscreen);
       if (firstIntervalCompositor && (ignoredStartupSampleIndex === null ||
           ignoredStartupSampleIndex === firstInterval[1].sampleIndex)) {
         ignoredStartupSampleIndex = firstInterval[1].sampleIndex;
@@ -193,7 +197,7 @@ export function assessTickerGeometry({
       const initialEdgeStep = !ignoredInitialEdgeStep && index <= 4 && noEarlierMotion &&
         !initialMotionStarted && Math.abs(displacement) > 0.25 &&
         Math.abs(displacement) <= INITIAL_EDGE_STEP_TOLERANCE_PX &&
-        isEffectivelyOffscreen(previous) && isEffectivelyOffscreen(current);
+        isFullyOffscreen(previous) && isFullyOffscreen(current);
       if (initialEdgeStep) {
         ignoredInitialEdgeStep = true;
         ignoredInitialEdgeStepTracks.push(id);
@@ -201,10 +205,12 @@ export function assessTickerGeometry({
         continue;
       }
 
-      const spansInitialFrameReflow = firstReflowCorrectionSampleIndex !== null &&
-        previous.sampleIndex < firstReflowCorrectionSampleIndex &&
-        current.sampleIndex >= firstReflowCorrectionSampleIndex && windowOffscreen;
-      if (spansInitialFrameReflow) continue;
+      const spansInitialFrameReflow = firstReflowCorrection !== null &&
+        previous.sampleIndex < firstReflowCorrection.sampleIndex &&
+        current.sampleIndex >= firstReflowCorrection.sampleIndex && windowOffscreen;
+      const withinFrameCorrectionBound = firstReflowCorrection !== null &&
+        Math.abs(displacement) <= firstReflowCorrection.widthChangePx + INITIAL_FRAME_CORRECTION_TOLERANCE_PX;
+      if (spansInitialFrameReflow && withinFrameCorrectionBound) continue;
 
       failures.push(
         `track ${id} constant-speed sample ${speed.toFixed(2)}px/s ` +
