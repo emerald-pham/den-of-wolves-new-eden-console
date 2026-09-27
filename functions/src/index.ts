@@ -24221,6 +24221,21 @@ async function requireHummingbirdAuthority(
   return { player, session, hostShipId: docking.shipId };
 }
 
+/** Current harvesting and stale replies must belong to the live gameplay clock. */
+function requireCurrentHummingbirdGameplayCycle(session: DocumentSnapshot): void {
+  if (session.get('phase') !== 'active') {
+    throw commandError(
+      'failed-precondition',
+      'Hummingbird harvesting is available only during active gameplay.',
+      'invalid-phase',
+    );
+  }
+  const phaseClock = session.get('turnPhase');
+  if (!isRecord(phaseClock) || phaseClock.turn !== sessionTurn(session.get('currentTurn'))) {
+    throw commandError('failed-precondition', 'No current server phase is available for this cycle.', 'invalid-phase');
+  }
+}
+
 function hummingbirdHarvestReply(
   state: HummingbirdHarvestState,
   session: DocumentSnapshot,
@@ -24286,6 +24301,7 @@ export const rollHummingbirdHarvest = onCall<{
     };
     const replay = hummingbirdHarvestReceiptReply(prior, fingerprint, uid);
     if (replay) return { replay, authority, fingerprint, reusePending: false };
+    requireCurrentHummingbirdGameplayCycle(authority.session);
     requireActionPhase(authority.session, 'scouting', 'player');
     const stored = await tx.get(harvestRef);
     const current = storedHummingbirdHarvest(stored, data.sessionId, uid);
@@ -24319,7 +24335,7 @@ export const rollHummingbirdHarvest = onCall<{
     : [randomInt(1, 7), randomInt(1, 7)];
   const createdAt = new Date().toISOString();
   return db.runTransaction(async tx => {
-    const authority = await requireHummingbirdAuthority(tx, data.sessionId, uid, true);
+    const authority = await requireHummingbirdAuthority(tx, data.sessionId, uid, false);
     const prior = await tx.get(requestRef);
     const fingerprint: HummingbirdHarvestFingerprint = {
       kind: 'roll', sessionId: data.sessionId, actorUid: uid,
@@ -24328,6 +24344,8 @@ export const rollHummingbirdHarvest = onCall<{
     };
     const replay = hummingbirdHarvestReceiptReply(prior, fingerprint, uid);
     if (replay) return replay;
+    requireCurrentHummingbirdGameplayCycle(authority.session);
+    requireActionPhase(authority.session, 'scouting', 'player');
     const stored = await tx.get(harvestRef);
     const current = storedHummingbirdHarvest(stored, data.sessionId, uid);
     const turn = sessionTurn(authority.session.get('currentTurn'));
@@ -24412,6 +24430,7 @@ export const allocateHummingbirdHarvest = onCall<{
     };
     const replay = hummingbirdHarvestReceiptReply(prior, fingerprint, uid);
     if (replay) return replay;
+    requireCurrentHummingbirdGameplayCycle(authority.session);
     requireActionPhase(authority.session, 'scouting', 'player');
     const stored = await tx.get(harvestRef);
     const current = storedHummingbirdHarvest(stored, data.sessionId, uid);

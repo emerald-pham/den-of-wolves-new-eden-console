@@ -107,6 +107,11 @@ it('rolls private server dice once and replays the exact roll without new random
   });
   expect(cryptoMock.randomInt).toHaveBeenCalledTimes(2);
   cryptoMock.randomInt.mockClear();
+  mock.documents.get('sessions/s1')!.turnPhase = {
+    turn: 1, teamPhaseEndsAt: new Date(Date.now() - 2_000).toISOString(),
+    openAirspaceEndsAt: new Date(Date.now() - 1_000).toISOString(),
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  };
 
   const replay = await rollHummingbirdHarvest.run(request(rollRequest));
   expect(replay).toMatchObject({ status: 'replayed', harvest: { rolls: [2, 5], revision: 1 } });
@@ -184,6 +189,68 @@ it('checks the action phase before sampling or writing a new roll', async () => 
   expect(cryptoMock.randomInt).not.toHaveBeenCalled();
   expect(mock.documents.get('sessions/s1/hummingbirdHarvests/u1')).toBeUndefined();
   expect(mock.documents.get('sessions/s1/hummingbirdHarvestRequests/outside-phase')).toBeUndefined();
+});
+
+const invalidHummingbirdCycles = [
+  ['a phase clock from an earlier cycle', () => {
+    mock.documents.get('sessions/s1')!.currentTurn = 2;
+  }],
+  ['a non-active lifecycle', () => {
+    mock.documents.get('sessions/s1')!.phase = 'briefing';
+  }],
+] as const;
+
+it.each(invalidHummingbirdCycles)('blocks a fresh roll with %s before sampling or writing', async (_label, invalidate) => {
+  invalidate();
+  cryptoMock.randomInt.mockClear(); mock.set.mockClear(); mock.update.mockClear();
+
+  await expect(rollHummingbirdHarvest.run(request({
+    ...rollRequest, requestId: `invalid-cycle-${String(_label).replaceAll(' ', '-')}`,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.documents.get(`sessions/s1/hummingbirdHarvestRequests/invalid-cycle-${String(_label).replaceAll(' ', '-')}`))
+    .toBeUndefined();
+});
+
+it.each(invalidHummingbirdCycles)('does not reveal a private stale roll with %s', async (_label, invalidate) => {
+  invalidate();
+  const currentTurn = mock.documents.get('sessions/s1')!.currentTurn as number;
+  put('sessions/s1/hummingbirdHarvests/u1', {
+    sessionId: 's1', ownerUid: 'u1', turn: currentTurn, hostShipId: 'quellon', revision: 1,
+    status: 'pending', rolls: [2, 5], requestId: 'private-roll', createdAt: '2026-09-27T12:00:00.000Z',
+  });
+  const requestId = `invalid-cycle-stale-roll-${String(_label).replaceAll(' ', '-')}`;
+  mock.set.mockClear(); mock.update.mockClear(); cryptoMock.randomInt.mockClear(); mock.get.mockClear();
+
+  await expect(rollHummingbirdHarvest.run(request({ ...rollRequest, requestId })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.get.mock.calls.some(([target]) => target.path.includes('/hummingbirdHarvests/'))).toBe(false);
+  expect(mock.documents.get(`sessions/s1/hummingbirdHarvestRequests/${requestId}`)).toBeUndefined();
+});
+
+it.each(invalidHummingbirdCycles)('does not reveal a private stale allocation with %s', async (_label, invalidate) => {
+  invalidate();
+  const currentTurn = mock.documents.get('sessions/s1')!.currentTurn as number;
+  put('sessions/s1/hummingbirdHarvests/u1', {
+    sessionId: 's1', ownerUid: 'u1', turn: currentTurn, hostShipId: 'quellon', revision: 2,
+    status: 'resolved', rolls: [2, 5], foodDieIndex: 0, food: 2, water: 5,
+    requestId: 'private-allocation', createdAt: '2026-09-27T12:00:00.000Z',
+    resolvedAt: '2026-09-27T12:01:00.000Z',
+  });
+  const requestId = `invalid-cycle-stale-allocation-${String(_label).replaceAll(' ', '-')}`;
+  const cargoBefore = structuredClone(mock.documents.get('sessions/s1')!.shuttleCargo);
+  mock.set.mockClear(); mock.update.mockClear(); mock.get.mockClear();
+
+  await expect(allocateHummingbirdHarvest.run(request({
+    sessionId: 's1', requestId, expectedRevision: 1, foodDieIndex: 1,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.get.mock.calls.some(([target]) => target.path.includes('/hummingbirdHarvests/'))).toBe(false);
+  expect(mock.documents.get('sessions/s1')!.shuttleCargo).toEqual(cargoBefore);
+  expect(mock.documents.get(`sessions/s1/hummingbirdHarvestRequests/${requestId}`)).toBeUndefined();
 });
 
 it('rejects a new scouting roll when the authoritative phase clock is absent without sampling or writing', async () => {
