@@ -3,16 +3,21 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { useSessionStore } from '@/store/useSessionStore';
 
-const mocks = vi.hoisted(() => ({ purchase: vi.fn(), refresh: vi.fn() }));
+const mocks = vi.hoisted(() => ({ purchase: vi.fn(), retry: vi.fn(), refresh: vi.fn() }));
 vi.mock('@/lib/endeavourFieldUpgradeService', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
-  return { ...actual, purchaseEndeavourFieldTargets: mocks.purchase };
+  return {
+    ...actual,
+    purchaseEndeavourFieldTargets: mocks.purchase,
+    retryUncertainEndeavourFieldUpgrade: mocks.retry,
+  };
 });
 
 import EndeavourFieldUpgradePanel from './EndeavourFieldUpgradePanel';
 import type {
   EndeavourFieldUpgradePurchaseState,
 } from '@/lib/endeavourFieldUpgradeService';
+import { EndeavourFieldUpgradeUncertainError } from '@/lib/endeavourFieldUpgradeService';
 import type { EndeavourResearchWorkspace } from '@/lib/endeavourResearchService';
 import type { GameSession, ShuttleControlEntry } from '@/types/game';
 
@@ -45,6 +50,7 @@ function makeSession(overrides: Partial<GameSession> = {}): GameSession {
     id: 's1', name: 'Fleet', joinCode: '1234', phase: 'active', ownerUid: 'owner',
     currentTurn: 3, activeRoleIds: ['shepherd-scientist', 'admiral'],
     activeVesselIds: ['shepherd', 'aegis', 'quellon'],
+    shuttleDockings: [{ shuttleId: 'endeavour', shipId: 'shepherd', dockedAt: 'now' }],
     shuttleControl: { endeavour: control }, shuttleFuelled: { endeavour: false },
     turnPhase: {
       turn: 3, teamPhaseEndsAt: '2099-09-24T12:00:00.000Z',
@@ -72,10 +78,21 @@ function setScientist(session = makeSession()): void {
   useSessionStore.getState().setSessionSnapshotFreshness('server');
 }
 
-function renderPanel(state = purchaseState, session = makeSession()) {
+function renderPanel(state = purchaseState, session = makeSession(), currentWorkspace = workspace) {
   setScientist(session);
-  return render(<EndeavourFieldUpgradePanel control={control} workspace={workspace}
+  return render(<EndeavourFieldUpgradePanel control={session.shuttleControl?.endeavour ?? control} workspace={currentWorkspace}
     purchaseState={state} onRefresh={mocks.refresh} />);
+}
+
+function staleReply(patch: Record<string, unknown> = {}) {
+  return {
+    status: 'stale', sessionId: 's1', requestId: 'request-1', shuttleId: 'endeavour',
+    targets: [{ shipId: 'shepherd', systemId: 'reactor' }],
+    expectedControlRevision: 4, currentControlRevision: 5,
+    expectedUpgradeRevision: 6, currentUpgradeRevision: 7,
+    expectedCycle: 3, currentCycle: 3,
+    ...patch,
+  };
 }
 
 beforeEach(() => {
@@ -83,6 +100,10 @@ beforeEach(() => {
   mocks.purchase.mockImplementation(async ({ targets }: { targets: readonly { shipId: string; systemId: string }[] }) => ({
     status: 'committed', sessionId: 's1', requestId: 'request-1', shuttleId: 'endeavour',
     cycle: 3, upgradeRevision: 7, appliedTargets: targets,
+  }));
+  mocks.retry.mockImplementation(async () => ({
+    status: 'committed', sessionId: 's1', requestId: 'request-1', shuttleId: 'endeavour',
+    cycle: 3, upgradeRevision: 7, appliedTargets: [{ shipId: 'shepherd', systemId: 'reactor' }],
   }));
   mocks.refresh.mockReset();
   setScientist();
@@ -123,6 +144,132 @@ it('limits an unfuelled cycle to two selected consoles and submits only the chec
     ],
   }));
   expect(await screen.findByRole('status')).toHaveTextContent('Installed 2 consoles for this cycle.');
+});
+
+it('preserves eligible selected target IDs until the current private projection arrives, then offers an explicit fresh-CAS retry', async () => {
+  const user = userEvent.setup();
+  mocks.purchase.mockResolvedValueOnce(staleReply());
+  const view = renderPanel();
+  const reactor = await screen.findByLabelText('Shepherd // Reactor // 7 materials');
+  await user.click(reactor);
+  await user.click(screen.getByRole('button', { name: 'Purchase selected upgrades' }));
+
+  expect(await screen.findByText(/Waiting for the live purchase projection before retrying/i)).toBeVisible();
+  expect(reactor).toBeChecked();
+  expect(mocks.refresh).toHaveBeenCalled();
+  expect(screen.getByRole('button', { name: /Retry selected upgrades with current state/i })).toBeDisabled();
+
+  const newerSession = makeSession({ shuttleControl: { endeavour: { ...control, revision: 5 } } });
+  const currentPurchaseState = { ...purchaseState, upgradeRevision: 7 };
+  act(() => setScientist(newerSession));
+  view.rerender(<EndeavourFieldUpgradePanel control={newerSession.shuttleControl!.endeavour!}
+    workspace={workspace} purchaseState={currentPurchaseState} onRefresh={mocks.refresh} />);
+  expect(await screen.findByLabelText('Shepherd // Reactor // 7 materials')).toBeChecked();
+  const retry = screen.getByRole('button', { name: /Retry selected upgrades with current state/i });
+  expect(retry).toBeEnabled();
+  await user.click(retry);
+  await waitFor(() => expect(mocks.purchase).toHaveBeenCalledTimes(2));
+  expect(mocks.purchase).toHaveBeenLastCalledWith({
+    workspace, purchaseState: currentPurchaseState,
+    targets: [{ shipId: 'shepherd', systemId: 'reactor' }],
+  });
+});
+
+it('accepts the stale response after a newer snapshot arrived first without rolling its CAS back', async () => {
+  const user = userEvent.setup();
+  let finish!: (value: ReturnType<typeof staleReply>) => void;
+  mocks.purchase.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  const view = renderPanel();
+  await user.click(await screen.findByLabelText('Shepherd // Reactor // 7 materials'));
+  await user.click(screen.getByRole('button', { name: 'Purchase selected upgrades' }));
+
+  const newerSession = makeSession({ shuttleControl: { endeavour: { ...control, revision: 5 } } });
+  const currentPurchaseState = { ...purchaseState, upgradeRevision: 7 };
+  act(() => setScientist(newerSession));
+  view.rerender(<EndeavourFieldUpgradePanel control={newerSession.shuttleControl!.endeavour!}
+    workspace={workspace} purchaseState={currentPurchaseState} onRefresh={mocks.refresh} />);
+  finish(staleReply());
+
+  expect(await screen.findByRole('button', { name: /Retry selected upgrades with current state/i })).toBeEnabled();
+  expect(screen.getByLabelText('Shepherd // Reactor // 7 materials')).toBeChecked();
+  expect(useSessionStore.getState().session?.shuttleControl?.endeavour?.revision).toBe(5);
+});
+
+it('invalidates the stale selection retry when a checkbox edit changes the draft', async () => {
+  const user = userEvent.setup();
+  mocks.purchase.mockResolvedValueOnce(staleReply());
+  const view = renderPanel();
+  await user.click(await screen.findByLabelText('Shepherd // Reactor // 7 materials'));
+  await user.click(screen.getByRole('button', { name: 'Purchase selected upgrades' }));
+  await screen.findByText(/Waiting for the live purchase projection/i);
+
+  const currentPurchaseState = { ...purchaseState, upgradeRevision: 7 };
+  const newerSession = makeSession({ shuttleControl: { endeavour: { ...control, revision: 5 } } });
+  act(() => setScientist(newerSession));
+  view.rerender(<EndeavourFieldUpgradePanel control={newerSession.shuttleControl!.endeavour!}
+    workspace={workspace} purchaseState={currentPurchaseState} onRefresh={mocks.refresh} />);
+  expect(await screen.findByRole('button', { name: /Retry selected upgrades with current state/i })).toBeEnabled();
+
+  await user.click(screen.getByLabelText('Shepherd // Reactor // 7 materials'));
+  await user.click(screen.getByLabelText('Shepherd // Water Reclamation // 8 materials'));
+  expect(screen.queryByRole('button', { name: /Retry selected upgrades with current state/i })).not.toBeInTheDocument();
+  const freshPurchase = screen.getByRole('button', { name: /Purchase selected upgrades with current state/i });
+  expect(freshPurchase).toBeEnabled();
+  await user.click(freshPurchase);
+  await waitFor(() => expect(mocks.purchase).toHaveBeenLastCalledWith({
+    workspace, purchaseState: currentPurchaseState,
+    targets: [{ shipId: 'shepherd', systemId: 'water-reclamation' }],
+  }));
+});
+
+it('holds an uncertain request and exposes only an exact-ID retry until it resolves', async () => {
+  const user = userEvent.setup();
+  mocks.purchase.mockRejectedValueOnce(new EndeavourFieldUpgradeUncertainError('request-1'));
+  renderPanel();
+  await user.click(await screen.findByLabelText('Shepherd // Reactor // 7 materials'));
+  await user.click(screen.getByRole('button', { name: 'Purchase selected upgrades' }));
+
+  expect(await screen.findByText(/earlier request may have completed/i)).toBeVisible();
+  expect(screen.getByLabelText('Shepherd // Reactor // 7 materials')).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Purchase selected upgrades' })).toBeDisabled();
+  await user.click(screen.getByRole('button', { name: 'Retry exact request' }));
+  await waitFor(() => expect(mocks.retry).toHaveBeenCalledWith('request-1'));
+  expect(await screen.findByRole('status')).toHaveTextContent('Installed 1 console for this cycle.');
+});
+
+it('discards a delayed stale result after the current Scientist authority changes', async () => {
+  const user = userEvent.setup();
+  let finish!: (value: ReturnType<typeof staleReply>) => void;
+  mocks.purchase.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  const view = renderPanel();
+  await user.click(await screen.findByLabelText('Shepherd // Reactor // 7 materials'));
+  await user.click(screen.getByRole('button', { name: 'Purchase selected upgrades' }));
+
+  act(() => useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, replacementRoleId: 'warrior-captain',
+  }));
+  finish(staleReply());
+  await waitFor(() => expect(view.container).toBeEmptyDOMElement());
+  expect(screen.queryByRole('button', { name: /Retry selected upgrades/i })).not.toBeInTheDocument();
+});
+
+it('does not preserve or retry a selected target that became ineligible in the newer projection', async () => {
+  const user = userEvent.setup();
+  mocks.purchase.mockResolvedValueOnce(staleReply());
+  const view = renderPanel();
+  await user.click(await screen.findByLabelText('Shepherd // Reactor // 7 materials'));
+  await user.click(screen.getByRole('button', { name: 'Purchase selected upgrades' }));
+  await screen.findByText(/Waiting for the live purchase projection/i);
+
+  const newerSession = makeSession({
+    shuttleControl: { endeavour: { ...control, revision: 5 } },
+    shipUpgrades: { shepherd: ['reactor'], aegis: ['storage'], quellon: [] },
+  });
+  act(() => setScientist(newerSession));
+  view.rerender(<EndeavourFieldUpgradePanel control={newerSession.shuttleControl!.endeavour!}
+    workspace={workspace} purchaseState={{ ...purchaseState, upgradeRevision: 7 }} onRefresh={mocks.refresh} />);
+  expect(screen.queryByLabelText('Shepherd // Reactor // 7 materials')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /Retry selected upgrades with current state/i })).not.toBeInTheDocument();
 });
 
 it('allows up to four console targets while fuelled and respects targets already used this cycle', async () => {

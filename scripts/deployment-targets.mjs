@@ -392,6 +392,16 @@ function changedIndexCallables(before, after, cwd, sourceAtRevision = null) {
       );
     }
   }
+  if (changed.includes('upgradeEndeavourFieldTargets')) {
+    if (changed.length !== 1 || !previous.has('upgradeEndeavourFieldTargets') ||
+        !current.has('upgradeEndeavourFieldTargets') ||
+        indexSourceOutsideCallableBlocks(previousSource, previous) !==
+          indexSourceOutsideCallableBlocks(currentSource, current)) {
+      throw new Error(
+        'Cannot safely map an Endeavour field-upgrade index change mixed with another callable or untracked source edit.',
+      );
+    }
+  }
   return changed;
 }
 

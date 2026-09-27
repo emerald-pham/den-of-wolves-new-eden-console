@@ -7,7 +7,9 @@ vi.mock('./firebase', () => ({ functions: () => ({ name: 'functions' }) }));
 
 import {
   availableEndeavourFieldUpgradeOptions,
+  EndeavourFieldUpgradeUncertainError,
   purchaseEndeavourFieldTargets,
+  retryUncertainEndeavourFieldUpgrade,
 } from './endeavourFieldUpgradeService';
 import type { EndeavourResearchWorkspace } from './endeavourResearchService';
 import type { GameSession, ShuttleControlEntry } from '@/types/game';
@@ -36,17 +38,29 @@ const purchaseState = {
   upgradeRevision: 6, targetsUsedThisCycle: 0,
 } as const;
 
+let requestSequence = 0;
+
 const reply = {
   status: 'committed', sessionId: 's1', requestId: 'request-1', shuttleId: 'endeavour',
   cycle: 3, upgradeRevision: 7,
   appliedTargets: [{ shipId: 'shepherd', systemId: 'reactor' }],
 };
 
+const staleReply = (patch: Record<string, unknown> = {}) => ({ data: {
+  status: 'stale', sessionId: 's1', requestId: 'request-1', shuttleId: 'endeavour',
+  targets: [{ shipId: 'shepherd', systemId: 'reactor' }],
+  expectedControlRevision: 4, currentControlRevision: 5,
+  expectedUpgradeRevision: 6, currentUpgradeRevision: 7,
+  expectedCycle: 3, currentCycle: 3,
+  ...patch,
+} });
+
 function makeSession(overrides: Partial<GameSession> = {}): GameSession {
   return {
     id: 's1', name: 'Fleet', joinCode: '1234', phase: 'active', ownerUid: 'owner',
     currentTurn: 3, activeRoleIds: ['shepherd-scientist', 'admiral'],
     activeVesselIds: ['shepherd', 'aegis', 'quellon'],
+    shuttleDockings: [{ shuttleId: 'endeavour', shipId: 'shepherd', dockedAt: 'now' }],
     shuttleControl: { endeavour: control }, shuttleFuelled: { endeavour: false },
     turnPhase: {
       turn: 3, teamPhaseEndsAt: '2099-09-24T12:00:00.000Z',
@@ -77,7 +91,8 @@ function setScientist(session = makeSession()): void {
 beforeEach(() => {
   callable.mockReset();
   callable.mockReturnValue(vi.fn().mockResolvedValue({ data: reply }));
-  vi.stubGlobal('crypto', { randomUUID: () => 'request-1' });
+  requestSequence = 0;
+  vi.stubGlobal('crypto', { randomUUID: () => `request-${++requestSequence}` });
   setScientist();
 });
 
@@ -116,9 +131,43 @@ it('submits the current Scientist, cycle, control revision, server purchase revi
   expect(callable).toHaveBeenCalledWith({ name: 'functions' }, 'upgradeEndeavourFieldTargets');
   const invoke = callable.mock.results[0]?.value as ReturnType<typeof vi.fn>;
   expect(invoke).toHaveBeenCalledWith(expect.objectContaining({
-    sessionId: 's1', expectedControlRevision: 4, expectedUpgradeRevision: 6,
+    sessionId: 's1', expectedHostShipId: 'shepherd',
+    expectedControlRevision: 4, expectedUpgradeRevision: 6,
     expectedCycle: 3, targets,
   }));
+});
+
+it('accepts only an exact request-bound stale CAS envelope without private purchase data', async () => {
+  callable.mockReturnValueOnce(vi.fn().mockResolvedValue(staleReply()));
+  await expect(purchaseEndeavourFieldTargets({
+    workspace, purchaseState, targets: [{ shipId: 'shepherd', systemId: 'reactor' }],
+  })).resolves.toEqual(staleReply().data);
+
+  const badReplies = [
+    staleReply({ requestId: 'another-request' }),
+    staleReply({ sessionId: 'another-session' }),
+    staleReply({ targets: [{ shipId: 'aegis', systemId: 'reactor' }] }),
+    staleReply({ expectedControlRevision: 3 }),
+    staleReply({ expectedUpgradeRevision: 5 }),
+    staleReply({ expectedCycle: 2 }),
+    staleReply({ currentControlRevision: 3 }),
+    staleReply({ currentUpgradeRevision: 5 }),
+    staleReply({ currentCycle: 2 }),
+    staleReply({ currentControlRevision: 4, currentUpgradeRevision: 6 }),
+    staleReply({ materialsByShip: { shepherd: 0 } }),
+    staleReply({ holderUid: 'private-holder' }),
+    staleReply({ fleetGroupVesselIds: ['shepherd', 'aegis'] }),
+    staleReply({ hostShipId: 'shepherd' }),
+    staleReply({ privateResearch: { reactor: 2 } }),
+    staleReply({ researchProgress: { reactor: 2 } }),
+    staleReply({ ledger: { revision: 7 } }),
+  ];
+  for (const response of badReplies) {
+    callable.mockReturnValueOnce(vi.fn().mockResolvedValue(response));
+    await expect(purchaseEndeavourFieldTargets({
+      workspace, purchaseState, targets: [{ shipId: 'shepherd', systemId: 'reactor' }],
+    })).rejects.toBeInstanceOf(EndeavourFieldUpgradeUncertainError);
+  }
 });
 
 it('rejects mismatched research snapshots, foreign targets, duplicate targets, and quota overflow before calling', async () => {
@@ -164,6 +213,122 @@ it('rejects stale session authority before dispatch and after a delayed callable
   await expect(result).rejects.toThrow(/authority changed/i);
 });
 
+it('accepts a stale reply that arrives after the newer server snapshot without rolling the snapshot back', async () => {
+  let finish!: (value: ReturnType<typeof staleReply>) => void;
+  callable.mockReturnValueOnce(vi.fn(() => new Promise((resolve) => { finish = resolve; })));
+  const pending = purchaseEndeavourFieldTargets({
+    workspace, purchaseState, targets: [{ shipId: 'shepherd', systemId: 'reactor' }],
+  });
+  setScientist(makeSession({
+    currentTurn: 4,
+    shuttleControl: { endeavour: { ...control, revision: 5 } },
+    turnPhase: {
+      turn: 4, teamPhaseEndsAt: '2099-09-24T12:30:00.000Z',
+      openAirspaceEndsAt: '2099-09-24T12:45:00.000Z',
+      airspace: { state: 'lifted', tickerActive: false, pressAccess: false },
+    },
+  }));
+  finish(staleReply({ currentControlRevision: 5, currentCycle: 4 }));
+  await expect(pending).resolves.toMatchObject({ currentControlRevision: 5, currentCycle: 4 });
+  expect(useSessionStore.getState().session).toMatchObject({
+    currentTurn: 4, shuttleControl: { endeavour: { revision: 5 } },
+  });
+});
+
+it('uses a fresh request ID and current control and upgrade CAS after an authorized stale reply', async () => {
+  callable.mockReturnValueOnce(vi.fn().mockResolvedValue(staleReply()));
+  await expect(purchaseEndeavourFieldTargets({
+    workspace, purchaseState, targets: [{ shipId: 'shepherd', systemId: 'reactor' }],
+  })).resolves.toMatchObject({ status: 'stale', requestId: 'request-1' });
+
+  const newerWorkspace = {
+    ...workspace, fieldUpgradeState: { upgradeRevision: 7, targetsUsedThisCycle: 0 },
+  };
+  const newerPurchaseState = { ...purchaseState, upgradeRevision: 7 };
+  setScientist(makeSession({
+    shuttleControl: { endeavour: { ...control, revision: 5 } },
+  }));
+  const retryInvoke = vi.fn().mockResolvedValue({ data: {
+    ...reply, requestId: 'request-2', upgradeRevision: 8,
+  } });
+  callable.mockReturnValueOnce(retryInvoke);
+  await expect(purchaseEndeavourFieldTargets({
+    workspace: newerWorkspace, purchaseState: newerPurchaseState,
+    targets: [{ shipId: 'shepherd', systemId: 'reactor' }],
+  })).resolves.toMatchObject({ status: 'committed', requestId: 'request-2', upgradeRevision: 8 });
+  expect(retryInvoke).toHaveBeenCalledWith({
+    sessionId: 's1', requestId: 'request-2', expectedHostShipId: 'shepherd',
+    expectedControlRevision: 5, expectedUpgradeRevision: 7, expectedCycle: 3,
+    targets: [{ shipId: 'shepherd', systemId: 'reactor' }],
+  });
+});
+
+it('keeps an uncertain request ID and payload for an explicit exact retry after a newer snapshot', async () => {
+  const firstInvoke = vi.fn().mockRejectedValue({ code: 'functions/deadline-exceeded' });
+  callable.mockReturnValueOnce(firstInvoke);
+  let uncertain: EndeavourFieldUpgradeUncertainError | undefined;
+  await purchaseEndeavourFieldTargets({
+    workspace, purchaseState, targets: [{ shipId: 'shepherd', systemId: 'reactor' }],
+  }).catch((cause: unknown) => { uncertain = cause as EndeavourFieldUpgradeUncertainError; });
+  expect(uncertain).toBeInstanceOf(EndeavourFieldUpgradeUncertainError);
+  expect(firstInvoke).toHaveBeenCalledTimes(1);
+
+  setScientist(makeSession({
+    currentTurn: 4,
+    shuttleControl: { endeavour: { ...control, revision: 5 } },
+    turnPhase: {
+      turn: 4, teamPhaseEndsAt: '2099-09-24T12:30:00.000Z',
+      openAirspaceEndsAt: '2099-09-24T12:45:00.000Z',
+      airspace: { state: 'lifted', tickerActive: false, pressAccess: false },
+    },
+  }));
+  const retryInvoke = vi.fn().mockResolvedValue(staleReply({ currentControlRevision: 5, currentCycle: 4 }));
+  callable.mockReturnValueOnce(retryInvoke);
+  await expect(retryUncertainEndeavourFieldUpgrade(uncertain!.retryToken))
+    .resolves.toMatchObject({ status: 'stale', currentCycle: 4 });
+  expect(retryInvoke).toHaveBeenCalledTimes(1);
+  expect(retryInvoke).toHaveBeenCalledWith({
+    sessionId: 's1', requestId: 'request-1', expectedHostShipId: 'shepherd',
+    expectedControlRevision: 4, expectedUpgradeRevision: 6, expectedCycle: 3,
+    targets: [{ shipId: 'shepherd', systemId: 'reactor' }],
+  });
+});
+
+it.each([
+  ['Scientist role', () => useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, activeConsoleRoleId: 'shepherd-engineer',
+  })],
+  ['fleet group', () => useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, fleetGroupId: 'fleet-2',
+  })],
+  ['replacement identity', () => useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, replacementRoleId: 'warrior-captain',
+  })],
+  ['conflicting core seat', () => useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, seatId: 'shepherd-engineer',
+  })],
+  ['holder', () => setScientist(makeSession({
+    shuttleControl: { endeavour: { ...control, holderUid: 'other' } },
+  }))],
+  ['host', () => setScientist(makeSession({
+    shuttleDockings: [{ shuttleId: 'endeavour', shipId: 'aegis', dockedAt: 'now' }],
+  }))],
+  ['Coordination phase', () => setScientist(makeSession({ turnPhase: {
+    turn: 3, teamPhaseEndsAt: '2099-09-24T12:00:00.000Z',
+    openAirspaceEndsAt: '2099-09-24T12:15:00.000Z',
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  } }))],
+])('rejects a delayed stale reply after %s authority changes', async (_label, changeAuthority) => {
+  let finish!: (value: ReturnType<typeof staleReply>) => void;
+  callable.mockReturnValueOnce(vi.fn(() => new Promise((resolve) => { finish = resolve; })));
+  const pending = purchaseEndeavourFieldTargets({
+    workspace, purchaseState, targets: [{ shipId: 'shepherd', systemId: 'reactor' }],
+  });
+  changeAuthority();
+  finish(staleReply());
+  await expect(pending).rejects.toThrow(/authority changed/i);
+});
+
 it('does not dispatch outside the live Coordination window or to a non-holder', async () => {
   setScientist(makeSession({ turnPhase: {
     turn: 3, teamPhaseEndsAt: '2099-09-24T12:00:00.000Z',
@@ -194,5 +359,5 @@ it('fails closed on malformed private purchase state and malformed callable repl
   callable.mockReturnValueOnce(vi.fn().mockResolvedValue({ data: { ...reply, materialCost: 7 } }));
   await expect(purchaseEndeavourFieldTargets({
     workspace, purchaseState, targets: [{ shipId: 'shepherd', systemId: 'reactor' }],
-  })).rejects.toThrow(/invalid Endeavour field-upgrade data/i);
+  })).rejects.toBeInstanceOf(EndeavourFieldUpgradeUncertainError);
 });

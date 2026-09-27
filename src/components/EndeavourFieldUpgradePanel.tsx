@@ -2,10 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import type { EndeavourResearchWorkspace } from '@/lib/endeavourResearchService';
 import {
   availableEndeavourFieldUpgradeOptions,
+  currentEndeavourHostShipId,
+  EndeavourFieldUpgradeUncertainError,
   purchaseEndeavourFieldTargets,
+  retryUncertainEndeavourFieldUpgrade,
   type EndeavourFieldUpgradePurchaseState,
+  type EndeavourFieldUpgradeStaleReply,
   type EndeavourFieldUpgradeTarget,
 } from '@/lib/endeavourFieldUpgradeService';
+import { hasFreshSessionAuthority } from '@/lib/sessionMutationAuthority';
 import type { ShuttleControlEntry } from '@/types/game';
 import { useSessionStore } from '@/store/useSessionStore';
 import './EndeavourFieldUpgradePanel.css';
@@ -17,15 +22,41 @@ interface Props {
   readonly onRefresh?: (() => void | Promise<void>) | undefined;
 }
 
-function isCurrentScientistHolder(expectedSessionId: string, expectedUid: string): boolean {
+function isBoundScientist(
+  me: NonNullable<ReturnType<typeof useSessionStore.getState>['me']>,
+): boolean {
+  if (me.replacementRoleId != null) return false;
+  const assignedPress = me.assignedRoleId === 'press-officer';
+  const seatPress = me.seatId === 'press-officer';
+  const assigned = typeof me.assignedRoleId === 'string' && me.assignedRoleId.length > 0 && !assignedPress
+    ? me.assignedRoleId : undefined;
+  const seat = typeof me.seatId === 'string' && me.seatId.length > 0 && !seatPress ? me.seatId : undefined;
+  if ((assignedPress && seat) || (seatPress && assigned) || (assigned && seat && assigned !== seat)) return false;
+  return (assigned ?? seat) === 'shepherd-scientist';
+}
+
+function authorityScopeFor(
+  session: ReturnType<typeof useSessionStore.getState>['session'],
+  me: ReturnType<typeof useSessionStore.getState>['me'],
+): string | null {
+  if (!session || !me) return null;
+  const control = session.shuttleControl?.endeavour;
+  const hostShipId = currentEndeavourHostShipId(session, me.fleetGroupId ?? '');
+  return JSON.stringify([
+    session.id, me.uid, me.role, me.assignedRoleId, me.seatId, me.replacementRoleId, me.activeConsoleRoleId,
+    me.fleetGroupId, control?.ownerRoleId, control?.holderUid, hostShipId,
+  ]);
+}
+
+function isCurrentScientistAuthority(expectedScope: string): boolean {
   const { session, me } = useSessionStore.getState();
   const control = session?.shuttleControl?.endeavour;
-  return session?.id === expectedSessionId && session.phase === 'active' &&
-    me?.sessionId === expectedSessionId && me.uid === expectedUid && me.role === 'player' &&
-    me.activeConsoleRoleId === 'shepherd-scientist' &&
+  return hasFreshSessionAuthority() && authorityScopeFor(session, me) === expectedScope &&
+    session?.phase === 'active' && me?.role === 'player' &&
+    isBoundScientist(me) && me.activeConsoleRoleId === 'shepherd-scientist' &&
     session.activeRoleIds?.includes('shepherd-scientist') === true &&
     control?.shuttleId === 'endeavour' && control.ownerRoleId === 'shepherd-scientist' &&
-    control.holderUid === expectedUid;
+    control.holderUid === me.uid;
 }
 
 function hasLiveCoordinationWindow(
@@ -36,7 +67,7 @@ function hasLiveCoordinationWindow(
   const phase = session.turnPhase;
   const endsAt = Date.parse(phase?.openAirspaceEndsAt ?? '');
   return Boolean(
-    phase && phase.turn === cycle && phase.airspace.state === 'lifted' &&
+    phase && phase.turn === cycle && phase.airspace?.state === 'lifted' &&
     phase.timerPause === undefined && Number.isFinite(endsAt) && Date.now() < endsAt,
   );
 }
@@ -51,9 +82,24 @@ function targetKey(target: EndeavourFieldUpgradeTarget): string {
   return `${target.shipId}:${target.systemId}`;
 }
 
+function isCounter(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
+
 interface LocalPurchaseState {
   readonly scope: string;
   readonly value: EndeavourFieldUpgradePurchaseState;
+}
+
+interface RecoveryState {
+  readonly scope: string;
+  readonly stale: EndeavourFieldUpgradeStaleReply;
+  readonly retryInvalidated: boolean;
+}
+
+interface UncertainState {
+  readonly scope: string;
+  readonly retryToken: string;
 }
 
 export default function EndeavourFieldUpgradePanel({
@@ -66,20 +112,27 @@ export default function EndeavourFieldUpgradePanel({
   const me = useSessionStore((state) => state.me);
   const sessionId = session?.id;
   const uid = me?.uid;
+  const currentControl = session?.shuttleControl?.endeavour;
   const identityKey = sessionId && uid ? JSON.stringify([sessionId, uid]) : null;
+  const authorityScope = authorityScopeFor(session, me);
+  const currentHostShipId = session && me
+    ? currentEndeavourHostShipId(session, me.fleetGroupId ?? '') : null;
   const entitled = Boolean(
     session?.phase === 'active' && me?.sessionId === session.id && me.role === 'player' &&
+    isBoundScientist(me) &&
     me.activeConsoleRoleId === 'shepherd-scientist' &&
     session.activeRoleIds?.includes('shepherd-scientist') &&
     control.shuttleId === 'endeavour' && control.ownerRoleId === 'shepherd-scientist' &&
-    control.holderUid === me.uid && session.shuttleControl?.endeavour?.holderUid === me.uid,
+    control.holderUid === me.uid && currentControl?.holderUid === me.uid && currentHostShipId,
   );
   const purchaseScope = JSON.stringify([
-    identityKey, me?.fleetGroupId, control.revision,
+    identityKey, authorityScope, currentControl?.revision,
     workspace.sessionId, workspace.cycle, workspace.researchRevision,
   ]);
   const [localPurchaseState, setLocalPurchaseState] = useState<LocalPurchaseState | null>(null);
   const [selection, setSelection] = useState<Readonly<{ scope: string; keys: readonly string[] }> | null>(null);
+  const [recoveryState, setRecoveryState] = useState<RecoveryState | null>(null);
+  const [uncertainState, setUncertainState] = useState<UncertainState | null>(null);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<Readonly<{
     identityKey: string;
@@ -105,31 +158,70 @@ export default function EndeavourFieldUpgradePanel({
   const used = aligned ? activePurchaseState?.targetsUsedThisCycle ?? 0 : 0;
   const remaining = Math.max(0, limit - used);
   const liveCoordinationWindow = Boolean(session && hasLiveCoordinationWindow(session, workspace.cycle));
-  const selectionScope = JSON.stringify([
-    purchaseScope, activePurchaseState?.upgradeRevision, activePurchaseState?.targetsUsedThisCycle,
-  ]);
+  const selectionScope = authorityScope ?? '';
   const selectedKeys = selection?.scope === selectionScope ? selection.keys : [];
   const selectedTargets = selectedKeys.flatMap((key) => {
     const option = options.find((candidate) => targetKey(candidate) === key);
     return option ? [{ shipId: option.shipId, systemId: option.systemId }] : [];
   });
+  const recovery = recoveryState?.scope === authorityScope ? recoveryState : null;
+  const uncertain = uncertainState?.scope === authorityScope ? uncertainState : null;
+  const recoveryProjectionReady = Boolean(
+    recovery && aligned && hasFreshSessionAuthority() && session && currentControl &&
+    isCounter(currentControl.revision) && currentControl.revision >= recovery.stale.currentControlRevision &&
+    activePurchaseState && activePurchaseState.upgradeRevision >= recovery.stale.currentUpgradeRevision &&
+    isCounter(session.currentTurn) && session.currentTurn >= recovery.stale.currentCycle &&
+    workspace.cycle === session.currentTurn && liveCoordinationWindow,
+  );
+  const recoveryTargetsMatch = Boolean(recovery && selectedTargets.length === recovery.stale.targets.length &&
+    JSON.stringify(selectedTargets.map(targetKey).sort()) ===
+      JSON.stringify(recovery.stale.targets.map(targetKey).sort()));
+  const recoveryTargetsEligible = Boolean(recovery &&
+    recovery.stale.targets.every((target) => options.some((option) => targetKey(option) === targetKey(target))));
+  const recoveryReady = recoveryProjectionReady && recoveryTargetsEligible;
+  const canRetryStaleSelection = recoveryReady && recoveryTargetsMatch && !recovery?.retryInvalidated;
+  const staleSelectionPending = Boolean(recovery && recoveryTargetsMatch && !recovery.retryInvalidated);
   const currentPanel = Boolean(
-    entitled && identityKey && workspace.sessionId === sessionId &&
-    control.holderUid === uid,
+    entitled && identityKey && authorityScope && currentHostShipId &&
+    workspace.sessionId === sessionId && control.holderUid === uid,
   );
 
   useEffect(() => {
     if (!currentPanel) {
       setSelection(null);
+      setRecoveryState(null);
+      setUncertainState(null);
       setFeedback(null);
       return;
     }
+    if (recoveryState && recoveryState.scope !== authorityScope) setRecoveryState(null);
+    if (uncertainState && uncertainState.scope !== authorityScope) setUncertainState(null);
     setFeedback((current) => current?.identityKey === identityKey ? current : null);
-  }, [currentPanel, identityKey]);
+  }, [authorityScope, currentPanel, identityKey, recoveryState, uncertainState]);
+
+  useEffect(() => {
+    if (!aligned || !hasFreshSessionAuthority() || !selection || selection.scope !== selectionScope) return;
+    const eligibleKeys = new Set(options.map(targetKey));
+    const keys = selection.keys.filter((key) => eligibleKeys.has(key));
+    if (keys.length !== selection.keys.length) {
+      setSelection({ scope: selectionScope, keys });
+    }
+  }, [aligned, options, selection, selectionScope]);
+
+  useEffect(() => {
+    if (!recovery || !recoveryProjectionReady || recoveryTargetsEligible) return;
+    const eligibleKeys = new Set(options.map(targetKey));
+    setSelection((current) => current?.scope === selectionScope
+      ? { scope: selectionScope, keys: current.keys.filter((key) => eligibleKeys.has(key)) }
+      : current);
+    setRecoveryState(null);
+    setFeedback({
+      identityKey: identityKey ?? '', notice: '',
+      error: 'One or more selected consoles are no longer available. Choose current eligible targets again.',
+    });
+  }, [authorityScope, identityKey, options, recovery, recoveryProjectionReady, recoveryTargetsEligible, selectionScope]);
 
   if (!currentPanel || !sessionId || !uid || !identityKey) return null;
-  const currentSessionId = sessionId;
-  const currentUid = uid;
   const currentIdentityKey = identityKey;
 
   function changeSelection(option: EndeavourFieldUpgradeTarget, checked: boolean): void {
@@ -139,34 +231,64 @@ export default function EndeavourFieldUpgradePanel({
       const next = checked ? [...existing, key] : existing.filter((candidate) => candidate !== key);
       return { scope: selectionScope, keys: next };
     });
+    setRecoveryState((current) => current?.scope === authorityScope
+      ? { ...current, retryInvalidated: true } : current);
     setFeedback({ identityKey: currentIdentityKey, notice: '', error: '' });
   }
 
-  async function submit(): Promise<void> {
+  function applyCommittedResult(result: Extract<Awaited<ReturnType<typeof purchaseEndeavourFieldTargets>>, { status: 'committed' | 'replayed' }>): void {
+    const nextPurchaseState: EndeavourFieldUpgradePurchaseState = {
+      ...activePurchaseState!,
+      upgradeRevision: result.upgradeRevision,
+      targetsUsedThisCycle: activePurchaseState!.targetsUsedThisCycle + result.appliedTargets.length,
+    };
+    setLocalPurchaseState({ scope: purchaseScope, value: nextPurchaseState });
+    setSelection(null);
+    setRecoveryState(null);
+    setUncertainState(null);
+    setFeedback({
+      identityKey: currentIdentityKey,
+      notice: `Installed ${result.appliedTargets.length} console${result.appliedTargets.length === 1 ? '' : 's'} for this cycle.`,
+      error: '',
+    });
+    void Promise.resolve(onRefresh?.()).catch(() => undefined);
+  }
+
+  async function submit(mode: 'purchase' | 'stale-retry' | 'uncertain-retry' = 'purchase'): Promise<void> {
     if (!activePurchaseState || !aligned || !liveCoordinationWindow ||
-        selectedTargets.length === 0 || selectedTargets.length > remaining || busy) return;
+        selectedTargets.length === 0 || selectedTargets.length > remaining || busy ||
+        (uncertain && mode !== 'uncertain-retry') ||
+        (recovery && !recoveryReady) ||
+        (mode === 'stale-retry' && !canRetryStaleSelection) ||
+        (mode === 'uncertain-retry' && !uncertain)) return;
     setBusy(true);
     setFeedback({ identityKey: currentIdentityKey, notice: '', error: '' });
     try {
-      const result = await purchaseEndeavourFieldTargets({
-        workspace, purchaseState: activePurchaseState, targets: selectedTargets,
-      });
-      if (!isCurrentScientistHolder(currentSessionId, currentUid)) return;
-      const nextPurchaseState: EndeavourFieldUpgradePurchaseState = {
-        ...activePurchaseState,
-        upgradeRevision: result.upgradeRevision,
-        targetsUsedThisCycle: activePurchaseState.targetsUsedThisCycle + result.appliedTargets.length,
-      };
-      setLocalPurchaseState({ scope: purchaseScope, value: nextPurchaseState });
-      setSelection(null);
-      setFeedback({
-        identityKey: currentIdentityKey,
-        notice: `Installed ${result.appliedTargets.length} console${result.appliedTargets.length === 1 ? '' : 's'} for this cycle.`,
-        error: '',
-      });
-      void Promise.resolve(onRefresh?.()).catch(() => undefined);
+      const result = mode === 'uncertain-retry'
+        ? await retryUncertainEndeavourFieldUpgrade(uncertain!.retryToken)
+        : await purchaseEndeavourFieldTargets({
+          workspace, purchaseState: activePurchaseState, targets: selectedTargets,
+        });
+      if (!isCurrentScientistAuthority(authorityScope!)) return;
+      if (result.status === 'stale') {
+        setRecoveryState({ scope: authorityScope!, stale: result, retryInvalidated: false });
+        setUncertainState(null);
+        setFeedback({ identityKey: currentIdentityKey, notice: '', error: '' });
+        void Promise.resolve(onRefresh?.()).catch(() => undefined);
+      } else {
+        applyCommittedResult(result);
+      }
     } catch (cause) {
-      if (isCurrentScientistHolder(currentSessionId, currentUid)) {
+      if (isCurrentScientistAuthority(authorityScope!)) {
+        if (cause instanceof EndeavourFieldUpgradeUncertainError) {
+          setUncertainState({ scope: authorityScope!, retryToken: cause.retryToken });
+          setFeedback({
+            identityKey: currentIdentityKey, notice: '',
+            error: 'The request could not be confirmed. Retry that exact request before starting another purchase.',
+          });
+          void Promise.resolve(onRefresh?.()).catch(() => undefined);
+          return;
+        }
         setFeedback({ identityKey: currentIdentityKey, notice: '', error: errorMessage(cause) });
         void Promise.resolve(onRefresh?.()).catch(() => undefined);
       }
@@ -176,7 +298,11 @@ export default function EndeavourFieldUpgradePanel({
   }
 
   const purchaseDisabled = !aligned || !liveCoordinationWindow || remaining === 0 ||
-    selectedTargets.length === 0 || selectedTargets.length > remaining || busy;
+    selectedTargets.length === 0 || selectedTargets.length > remaining || busy || Boolean(uncertain) ||
+    Boolean(recovery && !recoveryReady);
+  const purchaseLabel = recovery && recoveryReady
+    ? 'Purchase selected upgrades with current state'
+    : 'Purchase selected upgrades';
 
   return (
     <section className="console-workspace__section endeavour-field-upgrade-panel"
@@ -191,13 +317,16 @@ export default function EndeavourFieldUpgradePanel({
         {remaining === 0 && aligned && <p>No Endeavour target-console purchases remain this cycle.</p>}
         {notice && <p role="status">{notice}</p>}
         {error && <p role="alert">{error}</p>}
+        {recovery && !recoveryReady &&
+          <p role="status">Waiting for the live purchase projection before retrying these upgrades.</p>}
+        {uncertain && <p role="status">An earlier request may have completed. Confirm it by retrying the exact request.</p>}
       </div>
       {!aligned && purchaseState && <button type="button" className="cic-text-button"
         disabled={busy} onClick={() => void onRefresh?.()}>
         Refresh private research and purchase state
       </button>}
       {aligned && options.length === 0 && <p>Current fleet-group upgrade targets are not available.</p>}
-      {aligned && options.length > 0 && <fieldset disabled={!liveCoordinationWindow || busy || remaining === 0}>
+      {aligned && options.length > 0 && <fieldset disabled={!liveCoordinationWindow || busy || remaining === 0 || Boolean(uncertain)}>
         <legend>Choose target consoles</legend>
         <ul aria-label="Available Endeavour field upgrades">
           {options.map((option) => {
@@ -220,10 +349,17 @@ export default function EndeavourFieldUpgradePanel({
         </ul>
       </fieldset>}
       <div className="console-workspace__actions">
-        <button type="button" className="cic-action-button" disabled={purchaseDisabled}
+        {staleSelectionPending ? <button type="button" className="cic-action-button"
+          disabled={purchaseDisabled} onClick={() => void submit('stale-retry')}>
+          {busy ? 'Installing upgrades…' : 'Retry selected upgrades with current state'}
+        </button> : <button type="button" className="cic-action-button" disabled={purchaseDisabled}
           onClick={() => void submit()}>
-          {busy ? 'Installing upgrades…' : 'Purchase selected upgrades'}
-        </button>
+          {busy ? 'Installing upgrades…' : purchaseLabel}
+        </button>}
+        {uncertain && <button type="button" className="cic-text-button" disabled={busy}
+          onClick={() => void submit('uncertain-retry')}>
+          {busy ? 'Confirming request…' : 'Retry exact request'}
+        </button>}
         <button type="button" className="cic-text-button" disabled={busy || !onRefresh}
           onClick={() => void onRefresh?.()}>
           Refresh private research and purchase state

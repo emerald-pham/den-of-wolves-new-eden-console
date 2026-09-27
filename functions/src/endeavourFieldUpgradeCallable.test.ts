@@ -75,6 +75,7 @@ const targets = (...pairs: readonly [string, string][]) =>
 const command = {
   sessionId: 's1',
   requestId: 'upgrade-1',
+  expectedHostShipId: 'shepherd',
   expectedControlRevision: 3,
   expectedUpgradeRevision: 0,
   expectedCycle: 3,
@@ -190,6 +191,131 @@ it('charges each target ship at shared research cost and installs the upgrades f
     .not.toHaveProperty('actorRoleId');
   expect(mock.documents.get('sessions/s1/events/endeavour-field-upgrade-upgrade-1'))
     .not.toHaveProperty('materialsSpentByShip');
+});
+
+it('returns only a bound stale CAS envelope when current server state still allows the selected targets', async () => {
+  const commandForStale = {
+    ...command,
+    requestId: 'stale-upgrade-cas',
+    targets: targets(['aegis', 'reactor']),
+  };
+  put('sessions/s1/serverState/endeavourFieldUpgrades', {
+    cycle: 3, revision: 1,
+    targets: [{ shipId: 'shepherd', systemId: 'reactor', trackId: 'reactor', materialCost: 7, crossedBox: 1 }],
+  });
+
+  await expect(upgradeEndeavourFieldTargets.run(request(commandForStale))).resolves.toEqual({
+    status: 'stale', sessionId: 's1', requestId: 'stale-upgrade-cas', shuttleId: 'endeavour',
+    targets: [{ shipId: 'aegis', systemId: 'reactor' }],
+    expectedControlRevision: 3, currentControlRevision: 3,
+    expectedUpgradeRevision: 0, currentUpgradeRevision: 1,
+    expectedCycle: 3, currentCycle: 3,
+  });
+
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.documents.has('sessions/s1/events/endeavour-field-upgrade-stale-upgrade-cas')).toBe(false);
+  expect(mock.documents.has('sessions/s1/commandReceipts/stale-upgrade-cas')).toBe(false);
+  expect(mock.documents.get('sessions/s1')).toMatchObject({
+    shipResources: { aegis: { materials: 8 } }, shipUpgrades: { aegis: ['storage'] },
+  });
+});
+
+it.each([
+  ['conflicting Scientist seat', (actor: Record<string, unknown>) => { actor.seatId = 'shepherd-engineer'; }],
+  ['replacement identity', (actor: Record<string, unknown>) => { actor.replacementRoleId = 'warrior-captain'; }],
+])('does not disclose stale CAS state to an actor with %s', async (_label, mutate) => {
+  const actor = mock.documents.get('sessions/s1/players/holder')!;
+  mutate(actor);
+  await expect(upgradeEndeavourFieldTargets.run(request({
+    ...command, requestId: `stale-${_label.replaceAll(' ', '-')}`, expectedControlRevision: 2,
+  }))).rejects.toMatchObject({ code: expect.any(String) });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('returns current control and cycle CAS only after live authority checks, and rejects future or lost authority', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  const control = (session.shuttleControl as Fields).endeavour as Fields;
+  control.revision = 4;
+  const currentCycleReply = {
+    status: 'stale', sessionId: 's1', requestId: command.requestId, shuttleId: 'endeavour',
+    targets: [
+      { shipId: 'aegis', systemId: 'reactor' },
+      { shipId: 'shepherd', systemId: 'reactor' },
+    ],
+    expectedControlRevision: 3, currentControlRevision: 4,
+    expectedUpgradeRevision: 0, currentUpgradeRevision: 0,
+    expectedCycle: 3, currentCycle: 3,
+  };
+  await expect(upgradeEndeavourFieldTargets.run(request(command))).resolves.toEqual(currentCycleReply);
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+
+  await expect(upgradeEndeavourFieldTargets.run(request({ ...command, requestId: 'future-cycle', expectedCycle: 4 })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  await expect(upgradeEndeavourFieldTargets.run(request({ ...command, requestId: 'lost-holder' }, 'intruder')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('returns a newer live cycle for a still-eligible target and rejects a changed holder host binding', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  session.currentTurn = 4;
+  session.turnPhase = {
+    turn: 4, teamPhaseEndsAt: '2099-09-21T12:30:00.000Z',
+    openAirspaceEndsAt: '2099-09-21T12:45:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+  };
+  await expect(upgradeEndeavourFieldTargets.run(request({
+    ...command, requestId: 'stale-cycle-live', targets: targets(['aegis', 'reactor']),
+  }))).resolves.toMatchObject({
+    status: 'stale', expectedCycle: 3, currentCycle: 4,
+    expectedControlRevision: 3, currentControlRevision: 3,
+    expectedUpgradeRevision: 0, currentUpgradeRevision: 0,
+  });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+
+  session.currentTurn = 3;
+  session.turnPhase = {
+    turn: 3, teamPhaseEndsAt: '2099-09-21T12:00:00.000Z',
+    openAirspaceEndsAt: '2099-09-21T12:15:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+  };
+  session.shuttleDockings = [{ shuttleId: 'endeavour', shipId: 'aegis', dockedAt: 'now' }];
+  await expect(upgradeEndeavourFieldTargets.run(request({
+    ...command, requestId: 'changed-host', targets: targets(['aegis', 'reactor']),
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('fails closed instead of offering stale retry when the selected console or current authority is no longer eligible', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  session.currentTurn = 4;
+  session.turnPhase = {
+    turn: 4, teamPhaseEndsAt: '2099-09-21T12:30:00.000Z',
+    openAirspaceEndsAt: '2099-09-21T12:45:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+  };
+  const currentCycleCommand = {
+    ...command, requestId: 'stale-cycle-ineligible', expectedCycle: 3,
+    targets: targets(['quellon', 'reactor']),
+  };
+  session.shipUpgrades = { shepherd: [], aegis: ['storage'], quellon: ['reactor'] };
+  await expect(upgradeEndeavourFieldTargets.run(request(currentCycleCommand)))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+
+  session.shipUpgrades = { shepherd: [], aegis: ['storage'], quellon: [] };
+  (session.turnPhase as Fields).airspace = { state: 'restricted', tickerActive: true, pressAccess: false };
+  await expect(upgradeEndeavourFieldTargets.run(request({ ...currentCycleCommand, requestId: 'stale-cycle-team-phase' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
 });
 
 it('does not reveal the private research cost when a target ship lacks materials', async () => {

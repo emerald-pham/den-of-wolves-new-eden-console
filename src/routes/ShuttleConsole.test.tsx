@@ -938,6 +938,10 @@ it('opens Endeavour for the Shepherd Scientist with every printed registration f
     phase: 'active', currentTurn: 3,
     activeRoleIds: ['shepherd-scientist'],
     activeVesselIds: ['shepherd', 'aegis'],
+    playerDiscovery: {
+      groupId: 'fleet-1', fleetGroupVesselIds: ['shepherd', 'aegis'],
+      knownCoordinates: [], knownSystems: {}, pursuitDistance: 0, navigationLogs: [], revision: 1,
+    },
     turnPhase: {
       turn: 3,
       teamPhaseEndsAt: '2099-09-23T12:00:00.000Z',
@@ -950,7 +954,8 @@ it('opens Endeavour for the Shepherd Scientist with every printed registration f
       holderUid: 'u1', revision: 4,
     } },
   });
-  state.setMe({ ...state.me!, activeConsoleRoleId: 'shepherd-scientist' });
+  state.setMe({ ...state.me!, assignedRoleId: 'shepherd-scientist',
+    activeConsoleRoleId: 'shepherd-scientist', fleetGroupId: 'fleet-1' });
 
   render(
     <MemoryRouter initialEntries={['/shuttles/endeavour']}>

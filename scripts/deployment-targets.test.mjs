@@ -523,6 +523,63 @@ test('maps an isolated Blacksmith index export diff only to repairConsolesFromBl
   assert.deepEqual(selectedFunctions(selected), functionTargets(BLACKSMITH_REPAIR_CALLABLES));
 });
 
+test('maps an isolated Endeavour field-upgrade callable diff to Hosting and only its Function', () => {
+  const after = readFileSync(new URL('../functions/src/index.ts', import.meta.url), 'utf8');
+  const marker = 'export const upgradeEndeavourFieldTargets = onCall<';
+  const start = after.indexOf(marker);
+  assert.notEqual(start, -1);
+  const lineEnd = after.indexOf('\n', start);
+  const before = `${after.slice(0, lineEnd + 1)}    // baseline marker\n${after.slice(lineEnd + 1)}`;
+  const selected = deploymentSelector({
+    before: 'base', after: 'candidate', files: ['functions/src/index.ts'],
+    targets: ['hosting', 'functions'],
+    isAncestor: (ancestor, descendant) => ancestor === 'base' && descendant === 'candidate',
+    sourceAtRevision: (revision, file) => {
+      assert.equal(file, 'functions/src/index.ts');
+      return revision === 'base' ? before : after;
+    },
+  });
+  assert.deepEqual(selected.split(','), ['hosting', 'functions:upgradeEndeavourFieldTargets']);
+});
+
+test('fails closed for Endeavour callable changes mixed with another export or an untracked helper', () => {
+  const after = readFileSync(new URL('../functions/src/index.ts', import.meta.url), 'utf8');
+  const marker = 'export const upgradeEndeavourFieldTargets = onCall<';
+  const start = after.indexOf(marker);
+  assert.notEqual(start, -1);
+  const lineEnd = after.indexOf('\n', start);
+  const before = `${after.slice(0, lineEnd + 1)}    // baseline marker\n${after.slice(lineEnd + 1)}`;
+  const otherCallableMarker = 'export const createSession = onCall<';
+  const otherStart = after.indexOf(otherCallableMarker);
+  assert.notEqual(otherStart, -1);
+  const otherLineEnd = after.indexOf('\n', otherStart);
+  const mixedCallable = after.slice(0, otherLineEnd + 1) +
+    '  // independent callable change\n' + after.slice(otherLineEnd + 1);
+  const revisions = (candidate) => ({
+    before: 'base', after: 'candidate',
+    files: [
+      'functions/src/index.ts', 'src/components/EndeavourFieldUpgradePanel.tsx',
+      'src/version.test.ts', 'src/changelog.ts', 'package.json', 'package-lock.json',
+      'docs/implementation-prompts.json',
+    ],
+    targets: ['hosting', 'functions'],
+    isAncestor: (ancestor, descendant) => ancestor === 'base' && descendant === 'candidate',
+    sourceAtRevision: (revision, file) => {
+      assert.equal(file, 'functions/src/index.ts');
+      return revision === 'base' ? before : candidate;
+    },
+  });
+  assert.throws(() => deploymentSelector(revisions(mixedCallable)),
+    /Cannot safely map an Endeavour field-upgrade index change mixed with another callable or untracked source edit/i);
+  assert.throws(() => deploymentSelector({
+    ...revisions(after), files: [...revisions(after).files, 'functions/src/unmappedEndeavourHelper.ts'],
+  }), /No audited callable consumer map exists/i);
+
+  const helperMixed = `${after}\nfunction untrackedEndeavourHelper() { return 'changed'; }\n`;
+  assert.throws(() => deploymentSelector(revisions(helperMixed)),
+    /Cannot safely map an Endeavour field-upgrade index change mixed with another callable or untracked source edit/i);
+});
+
 test('fails closed when Blacksmith and another callable export change together', () => {
   const before = INDEX_SOURCE;
   const after = before

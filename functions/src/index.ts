@@ -7721,6 +7721,7 @@ function isEndeavourFieldUpgradeReply(
 export const upgradeEndeavourFieldTargets = onCall<{
   sessionId?: unknown;
   requestId?: unknown;
+  expectedHostShipId?: unknown;
   expectedControlRevision?: unknown;
   expectedUpgradeRevision?: unknown;
   expectedCycle?: unknown;
@@ -7729,12 +7730,13 @@ export const upgradeEndeavourFieldTargets = onCall<{
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowedKeys = new Set([
-    'sessionId', 'requestId', 'expectedControlRevision', 'expectedUpgradeRevision',
+    'sessionId', 'requestId', 'expectedHostShipId', 'expectedControlRevision', 'expectedUpgradeRevision',
     'expectedCycle', 'targets',
   ]);
   if (!isRecord(raw) || Object.keys(raw).some((key) => !allowedKeys.has(key)) ||
       typeof raw.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(raw.sessionId) ||
       typeof raw.requestId !== 'string' || !/^[\w-]{1,128}$/.test(raw.requestId) ||
+      typeof raw.expectedHostShipId !== 'string' || !isResourceShipId(raw.expectedHostShipId) ||
       !Number.isSafeInteger(raw.expectedControlRevision) || (raw.expectedControlRevision as number) < 0 ||
       !Number.isSafeInteger(raw.expectedUpgradeRevision) || (raw.expectedUpgradeRevision as number) < 0 ||
       !Number.isSafeInteger(raw.expectedCycle) || (raw.expectedCycle as number) < 1 ||
@@ -7749,6 +7751,7 @@ export const upgradeEndeavourFieldTargets = onCall<{
   const data = raw as {
     sessionId: string;
     requestId: string;
+    expectedHostShipId: string;
     expectedControlRevision: number;
     expectedUpgradeRevision: number;
     expectedCycle: number;
@@ -7770,6 +7773,7 @@ export const upgradeEndeavourFieldTargets = onCall<{
     instanceId: null,
     expectedRevision: data.expectedUpgradeRevision,
     payload: {
+      expectedHostShipId: data.expectedHostShipId,
       expectedControlRevision: data.expectedControlRevision,
       expectedCycle: data.expectedCycle,
       targets: canonicalTargets.map(({ shipId, systemId }) => `${shipId}:${systemId}`),
@@ -7806,9 +7810,9 @@ export const upgradeEndeavourFieldTargets = onCall<{
     requireActionPhase(session, 'transfer', 'player');
     const currentCycle = session.get('currentTurn');
     const phase = turnPhaseState(session.get('turnPhase'));
-    if (!Number.isSafeInteger(currentCycle) || currentCycle !== data.expectedCycle ||
+    if (!Number.isSafeInteger(currentCycle) || (currentCycle as number) < 1 ||
         !phase || phase.turn !== currentCycle) {
-      throw commandError('failed-precondition', 'The Coordination cycle changed. Refresh before upgrading.', 'stale-revision');
+      throw commandError('failed-precondition', 'The authoritative Endeavour cycle is unavailable.', 'conflict');
     }
     const openAirspaceEndsAt = Date.parse(phase.openAirspaceEndsAt);
     if (phase.airspace.state !== 'lifted' || phase.timerPause !== undefined ||
@@ -7831,6 +7835,8 @@ export const upgradeEndeavourFieldTargets = onCall<{
     const control = parseShuttleControl(session.get('shuttleControl'));
     const fuelled = session.get('shuttleFuelled');
     if (!group || group.id !== groupId || !group.memberUids.includes(uid) ||
+        actor.get('replacementRoleId') != null ||
+        boundCoreConsoleRole(actor.get('assignedRoleId'), actor.get('seatId')) !== 'shepherd-scientist' ||
         !activeRoleIds.includes('shepherd-scientist') ||
         !Array.isArray(activeVesselIds) ||
         activeVesselIds.some((shipId) => typeof shipId !== 'string' || !isResourceShipId(shipId)) ||
@@ -7844,13 +7850,13 @@ export const upgradeEndeavourFieldTargets = onCall<{
     if (control.endeavour.holderUid !== uid) {
       throw new HttpsError('permission-denied', 'Only the current Endeavour holder may upgrade consoles.');
     }
-    if (control.endeavour.revision !== data.expectedControlRevision) {
-      throw commandError('failed-precondition', 'Endeavour control changed; refresh before upgrading.', 'stale-revision');
-    }
-    const docking = rawDockings.find((entry) =>
+    const dockingRows = rawDockings.filter((entry) =>
       isRecord(entry) && entry.shuttleId === 'endeavour');
-    if (!isRecord(docking) || typeof docking.shipId !== 'string' ||
-        !group.vesselIds.includes(docking.shipId)) {
+    const docking = dockingRows[0];
+    if (dockingRows.length !== 1 || !isRecord(docking) ||
+        docking.shipId !== data.expectedHostShipId ||
+        !activeVesselIds.includes(data.expectedHostShipId) ||
+        !group.vesselIds.includes(data.expectedHostShipId)) {
       throw commandError('failed-precondition', 'Endeavour must be docked within the holder’s current fleet group.', 'conflict');
     }
     if (canonicalTargets.some(({ shipId }) =>
@@ -7879,13 +7885,39 @@ export const upgradeEndeavourFieldTargets = onCall<{
       }
       const result = resolveEndeavourFieldUpgrades({
         currentCycle: currentCycle as number,
-        expectedRevision: data.expectedUpgradeRevision,
+        expectedRevision: upgradeState.exists
+          ? (isRecord(upgradeState.data()) && Number.isSafeInteger(upgradeState.data()?.revision) &&
+            (upgradeState.data()?.revision as number) >= 0
+              ? upgradeState.data()?.revision as number
+              : Number.NaN)
+          : 0,
         fuelled: fuelled.endeavour === true,
         targets: canonicalTargets,
         materialsByShip,
         researchProgress: research.exists ? research.data() : {},
         state: upgradeState.exists ? upgradeState.data() ?? null : undefined,
       });
+      const currentUpgradeRevision = result.state.revision - 1;
+      if (data.expectedCycle > (currentCycle as number) ||
+          data.expectedControlRevision > control.endeavour.revision ||
+          data.expectedUpgradeRevision > currentUpgradeRevision) {
+        throw commandError('failed-precondition', 'The requested Endeavour revision is ahead of current authority.', 'conflict');
+      }
+      if (data.expectedCycle !== currentCycle ||
+          data.expectedControlRevision !== control.endeavour.revision ||
+          data.expectedUpgradeRevision !== currentUpgradeRevision) {
+        return {
+          status: 'stale', sessionId: data.sessionId, requestId: data.requestId,
+          shuttleId: 'endeavour',
+          targets: canonicalTargets.map(({ shipId, systemId }) => ({ shipId, systemId })),
+          expectedControlRevision: data.expectedControlRevision,
+          currentControlRevision: control.endeavour.revision,
+          expectedUpgradeRevision: data.expectedUpgradeRevision,
+          currentUpgradeRevision,
+          expectedCycle: data.expectedCycle,
+          currentCycle: currentCycle as number,
+        };
+      }
       const reply: EndeavourFieldUpgradeReply = {
         status: 'committed', sessionId: data.sessionId, requestId: data.requestId,
         shuttleId: 'endeavour', cycle: currentCycle as number,
