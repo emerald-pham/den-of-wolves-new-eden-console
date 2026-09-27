@@ -3,13 +3,22 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { useSessionStore } from '@/store/useSessionStore';
 
-const mocks = vi.hoisted(() => ({ read: vi.fn(), advance: vi.fn() }));
+const mocks = vi.hoisted(() => ({ read: vi.fn(), advance: vi.fn(), purchaseUpgrade: vi.fn(), retryUpgrade: vi.fn() }));
 vi.mock('@/lib/endeavourResearchService', () => ({
   readEndeavourResearchWorkspace: mocks.read,
   advanceEndeavourResearchTrack: mocks.advance,
 }));
+vi.mock('@/lib/endeavourFieldUpgradeService', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    purchaseEndeavourFieldTargets: mocks.purchaseUpgrade,
+    retryUncertainEndeavourFieldUpgrade: mocks.retryUpgrade,
+  };
+});
 
 import EndeavourResearchPanel from './EndeavourResearchPanel';
+import { EndeavourFieldUpgradeUncertainError } from '@/lib/endeavourFieldUpgradeService';
 
 const control = {
   shuttleId: 'endeavour', ownerRoleId: 'shepherd-scientist', ownerUid: 'scientist',
@@ -31,12 +40,16 @@ const workspace = {
 beforeEach(() => {
   mocks.read.mockReset();
   mocks.advance.mockReset();
+  mocks.purchaseUpgrade.mockReset();
+  mocks.retryUpgrade.mockReset();
   mocks.read.mockResolvedValue(workspace);
   mocks.advance.mockResolvedValue(undefined);
   useSessionStore.getState().reset();
   useSessionStore.getState().setIdentity({
     id: 's1', name: 'Fleet', joinCode: '1234', phase: 'active', ownerUid: 'owner',
     currentTurn: 3, activeRoleIds: ['shepherd-scientist'],
+    activeVesselIds: ['shepherd'],
+    shuttleDockings: [{ shuttleId: 'endeavour', shipId: 'shepherd', dockedAt: 'now' }],
     turnPhase: {
       turn: 3,
       teamPhaseEndsAt: '2099-09-23T12:00:00.000Z',
@@ -44,10 +57,16 @@ beforeEach(() => {
       airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
     },
     shuttleControl: { endeavour: control },
+    playerDiscovery: {
+      groupId: 'fleet-1', fleetGroupVesselIds: ['shepherd'],
+      knownCoordinates: [], knownSystems: {}, pursuitDistance: 0, navigationLogs: [], revision: 1,
+    },
+    shipUpgrades: { shepherd: [] },
     createdAt: '', updatedAt: '',
   }, {
     uid: 'scientist', sessionId: 's1', displayName: 'Scientist', role: 'player', seatId: null,
-    assignedRoleId: 'shepherd-scientist', activeConsoleRoleId: 'shepherd-scientist', joinedAt: '',
+    assignedRoleId: 'shepherd-scientist', activeConsoleRoleId: 'shepherd-scientist',
+    fleetGroupId: 'fleet-1', joinedAt: '',
   });
   useSessionStore.getState().setConnection('live');
   useSessionStore.getState().setSessionSnapshotFreshness('server');
@@ -66,6 +85,40 @@ it('shows private left-most progress and field-upgrade cost to the current Scien
   expect(await screen.findByRole('region', { name: 'Endeavour field-upgrade purchase controls' })).toBeVisible();
   expect(screen.getByText('Purchases are available during the live Coordination window.')).toBeVisible();
   expect(screen.getByRole('button', { name: 'Purchase selected upgrades' })).toBeDisabled();
+});
+
+it('requires the post-rejection parent refresh result before accepting a delayed private projection', async () => {
+  const user = userEvent.setup();
+  const earlierProjection = { ...workspace, researchRevision: 1, cadence: { ...workspace.cadence, revision: 1 } };
+  const freshProjection = { ...workspace, researchRevision: 2, cadence: { ...workspace.cadence, revision: 2 } };
+  let resolveEarlierRead!: (value: typeof workspace) => void;
+  const earlierRead = new Promise<typeof workspace>((resolve) => { resolveEarlierRead = resolve; });
+  mocks.read.mockResolvedValueOnce(workspace).mockImplementationOnce(() => earlierRead)
+    .mockResolvedValueOnce(freshProjection);
+  mocks.purchaseUpgrade.mockRejectedValueOnce(new EndeavourFieldUpgradeUncertainError('request-1'));
+  mocks.retryUpgrade.mockRejectedValueOnce(new Error('The original request is no longer eligible.'));
+  const session = useSessionStore.getState().session!;
+  useSessionStore.setState({ session: {
+    ...session,
+    turnPhase: { ...session.turnPhase!, airspace: { state: 'lifted', tickerActive: false, pressAccess: false } },
+  } });
+
+  render(<EndeavourResearchPanel control={control} />);
+  const target = await screen.findByLabelText('Shepherd // Reactor // 7 materials');
+  await user.click(target);
+  await user.click(screen.getByRole('button', { name: 'Purchase selected upgrades' }));
+  await screen.findByText(/earlier request may have completed/i);
+  await user.click(screen.getByRole('button', { name: 'Retry exact request' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('The exact request was rejected.');
+
+  await act(async () => { resolveEarlierRead(earlierProjection); await earlierRead; });
+  expect(screen.getByRole('button', { name: 'Purchase selected upgrades' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Refresh Scientist workspace' })).toBeEnabled();
+
+  await user.click(screen.getByRole('button', { name: 'Refresh Scientist workspace' }));
+  await waitFor(() => expect(mocks.read).toHaveBeenCalledTimes(3));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Purchase selected upgrades' })).toBeEnabled());
+  expect(screen.getByText('Cycle purchases: 0 of 2 consoles used. Choose up to 2 more.')).toBeVisible();
 });
 
 it('submits the selected standard choice and refreshes from the server without an optimistic advance', async () => {

@@ -19,7 +19,8 @@ interface Props {
   readonly control: ShuttleControlEntry;
   readonly workspace: EndeavourResearchWorkspace;
   readonly purchaseState: EndeavourFieldUpgradePurchaseState | null;
-  readonly onRefresh?: (() => void | Promise<void>) | undefined;
+  readonly onRefresh?: (() => void | EndeavourResearchWorkspace | null |
+    Promise<void | EndeavourResearchWorkspace | null>) | undefined;
 }
 
 function isBoundScientist(
@@ -105,6 +106,7 @@ interface UncertainState {
 interface RetryRefreshRequirement {
   readonly scope: string;
   readonly workspace: EndeavourResearchWorkspace;
+  readonly freshWorkspace: EndeavourResearchWorkspace | null;
 }
 
 export default function EndeavourFieldUpgradePanel({
@@ -173,7 +175,8 @@ export default function EndeavourFieldUpgradePanel({
   const recovery = recoveryState?.scope === authorityScope ? recoveryState : null;
   const uncertain = uncertainState?.scope === authorityScope ? uncertainState : null;
   const retryRefreshRequired = Boolean(retryRefreshRequirement &&
-    retryRefreshRequirement.scope === authorityScope && retryRefreshRequirement.workspace === workspace);
+    retryRefreshRequirement.scope === authorityScope &&
+    retryRefreshRequirement.freshWorkspace !== workspace);
   const recoveryProjectionReady = Boolean(
     recovery && aligned && hasFreshSessionAuthority() && session && currentControl &&
     isCounter(currentControl.revision) && currentControl.revision >= recovery.stale.currentControlRevision &&
@@ -214,7 +217,7 @@ export default function EndeavourFieldUpgradePanel({
       setRetryRefreshRequirement(null);
       return;
     }
-    if (retryRefreshRequirement.workspace !== workspace) {
+    if (retryRefreshRequirement.freshWorkspace && retryRefreshRequirement.freshWorkspace === workspace) {
       setRetryRefreshRequirement(null);
       setFeedback({
         identityKey: identityKey ?? '',
@@ -330,7 +333,7 @@ export default function EndeavourFieldUpgradePanel({
         }
         if (mode === 'uncertain-retry') {
           setUncertainState(null);
-          setRetryRefreshRequirement({ scope: authorityScope!, workspace });
+          setRetryRefreshRequirement({ scope: authorityScope!, workspace, freshWorkspace: null });
           setFeedback({
             identityKey: currentIdentityKey, notice: '',
             error: `The exact request was rejected. ${errorMessage(cause)} Refresh the Scientist workspace before starting a new purchase.`,
@@ -374,8 +377,16 @@ export default function EndeavourFieldUpgradePanel({
       {retryRefreshRequired && <button type="button" className="cic-text-button"
         disabled={busy || !onRefresh} onClick={() => {
           if (!onRefresh || busy) return;
+          const requirement = retryRefreshRequirement;
           setBusy(true);
-          void Promise.resolve(onRefresh()).catch((cause: unknown) => {
+          void Promise.resolve(onRefresh()).then((freshWorkspace) => {
+            if (freshWorkspace && requirement && isCurrentScientistAuthority(authorityScope!)) {
+              setRetryRefreshRequirement((current) => current?.scope === requirement.scope &&
+                current.workspace === requirement.workspace
+                ? { ...current, freshWorkspace }
+                : current);
+            }
+          }).catch((cause: unknown) => {
             if (isCurrentScientistAuthority(authorityScope!)) {
               setFeedback({ identityKey: currentIdentityKey, notice: '', error: errorMessage(cause) });
             }

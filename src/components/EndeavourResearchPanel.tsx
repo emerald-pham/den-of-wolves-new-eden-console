@@ -70,8 +70,8 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
     control.holderUid === me.uid,
   );
 
-  const reload = useCallback(async () => {
-    if (!entitled || !sessionId || !uid || !identityKey || !isCurrentScientistHolder(sessionId, uid)) return;
+  const reload = useCallback(async (): Promise<EndeavourResearchWorkspace | null> => {
+    if (!entitled || !sessionId || !uid || !identityKey || !isCurrentScientistHolder(sessionId, uid)) return null;
     const generation = ++requestGeneration.current;
     setLoading(true);
     setFeedback((current) => ({
@@ -81,7 +81,7 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
     }));
     try {
       const next = await readEndeavourResearchWorkspace();
-      if (generation !== requestGeneration.current || !isCurrentScientistHolder(sessionId, uid)) return;
+      if (generation !== requestGeneration.current || !isCurrentScientistHolder(sessionId, uid)) return null;
       setLoadedWorkspace({ identityKey, value: next });
       setSelectedTrackId((current) => {
         const choices = new Set(next.cadence.choices.map((choice) => choice.trackId));
@@ -89,9 +89,11 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
           ? current
           : next.tracks.find((track) => !track.complete && !choices.has(track.trackId))?.trackId ?? '';
       });
+      return next;
     } catch (cause) {
-      if (generation !== requestGeneration.current || !isCurrentScientistHolder(sessionId, uid)) return;
+      if (generation !== requestGeneration.current || !isCurrentScientistHolder(sessionId, uid)) return null;
       setFeedback({ identityKey, notice: '', error: errorMessage(cause) });
+      return null;
     } finally {
       if (generation === requestGeneration.current && isCurrentScientistHolder(sessionId, uid)) setLoading(false);
     }

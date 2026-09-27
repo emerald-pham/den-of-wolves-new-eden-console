@@ -279,6 +279,8 @@ it('keeps new purchases blocked until a fresh workspace projection follows termi
   const user = userEvent.setup();
   mocks.purchase.mockRejectedValueOnce(new EndeavourFieldUpgradeUncertainError('request-1'));
   mocks.retry.mockRejectedValueOnce(new Error('The original request is no longer eligible.'));
+  const refreshedWorkspace = { ...workspace };
+  mocks.refresh.mockResolvedValueOnce(undefined).mockResolvedValueOnce(refreshedWorkspace);
   const view = renderPanel();
   await user.click(await screen.findByLabelText('Shepherd // Reactor // 7 materials'));
   await user.click(screen.getByRole('button', { name: 'Purchase selected upgrades' }));
@@ -294,11 +296,41 @@ it('keeps new purchases blocked until a fresh workspace projection follows termi
   await waitFor(() => expect(mocks.refresh).toHaveBeenCalled());
   expect(screen.getByRole('button', { name: 'Purchase selected upgrades' })).toBeDisabled();
 
-  const refreshedWorkspace = { ...workspace };
   view.rerender(<EndeavourFieldUpgradePanel control={control} workspace={refreshedWorkspace}
     purchaseState={{ ...purchaseState }} onRefresh={mocks.refresh} />);
   await waitFor(() => expect(screen.getByRole('button', { name: 'Purchase selected upgrades' })).toBeEnabled());
   expect(await screen.findByRole('status')).toHaveTextContent('Scientist purchase state refreshed.');
+});
+
+it('does not treat a refresh started before terminal retry rejection as a fresh recovery', async () => {
+  const user = userEvent.setup();
+  let resolveEarlierRefresh!: (value: EndeavourResearchWorkspace) => void;
+  const earlierRefresh = new Promise<EndeavourResearchWorkspace>((resolve) => { resolveEarlierRefresh = resolve; });
+  const postRejectionWorkspace = { ...workspace };
+  mocks.purchase.mockRejectedValueOnce(new EndeavourFieldUpgradeUncertainError('request-1'));
+  mocks.retry.mockRejectedValueOnce(new Error('The original request is no longer eligible.'));
+  mocks.refresh.mockImplementationOnce(() => earlierRefresh)
+    .mockResolvedValueOnce(postRejectionWorkspace);
+  const view = renderPanel();
+  await user.click(await screen.findByLabelText('Shepherd // Reactor // 7 materials'));
+  await user.click(screen.getByRole('button', { name: 'Purchase selected upgrades' }));
+  await screen.findByText(/earlier request may have completed/i);
+  expect(mocks.refresh).toHaveBeenCalledTimes(1);
+
+  await user.click(screen.getByRole('button', { name: 'Retry exact request' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('The exact request was rejected.');
+  const earlierProjection = { ...workspace };
+  await act(async () => { resolveEarlierRefresh(earlierProjection); await earlierRefresh; });
+  view.rerender(<EndeavourFieldUpgradePanel control={control} workspace={earlierProjection}
+    purchaseState={{ ...purchaseState }} onRefresh={mocks.refresh} />);
+  expect(screen.getByRole('button', { name: 'Purchase selected upgrades' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Refresh Scientist workspace' })).toBeEnabled();
+
+  await user.click(screen.getByRole('button', { name: 'Refresh Scientist workspace' }));
+  await waitFor(() => expect(mocks.refresh).toHaveBeenCalledTimes(2));
+  view.rerender(<EndeavourFieldUpgradePanel control={control} workspace={postRejectionWorkspace}
+    purchaseState={{ ...purchaseState }} onRefresh={mocks.refresh} />);
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Purchase selected upgrades' })).toBeEnabled());
 });
 
 it('discards a delayed stale result after the current Scientist authority changes', async () => {
