@@ -25,6 +25,7 @@ const WARRIOR_REPAIR_CALLABLES = ['repairWarriorWithDrones'];
 const BOA_RECYCLING_CALLABLES = ['recycleWithBoa'];
 const MACAW_REPAIR_CALLABLES = ['repairConsolesFromMacaw'];
 const ALLY_REPAIR_CALLABLES = ['repairConsolesFromAlly'];
+const PHILIA_REPAIR_CALLABLES = ['repairConsolesFromPhilia'];
 const MALIADE_EVENT_REDACTION_ADDITIONS = [
   {
     eventField: "  'maliades-launched': ['craftId', 'status'],\n",
@@ -307,6 +308,7 @@ NAVIGATION_PROJECTION_BEFORE = NAVIGATION_PROJECTION_BEFORE
 const INDEX_SOURCE = [
   ...P436_EXPORTS, ...GORGONEION_REPAIR_CALLABLES, ...WARRIOR_REPAIR_CALLABLES,
   ...BASE_CAPYBARA_CARGO_CALLABLES, ...BOA_RECYCLING_CALLABLES,
+  ...ALLY_REPAIR_CALLABLES, ...PHILIA_REPAIR_CALLABLES,
   ...SMALL_SHIP_MAINTENANCE_CALLABLES,
   'calculateArrestPosse', 'declareWolfAttack', 'getDioneMaliadesLaunch',
   ...MALIADE_EVENT_REDACTION_ADDITIONS.map(({ callable }) => callable),
@@ -462,6 +464,86 @@ test('maps Macaw repair resolver and callable changes to only repairConsolesFrom
 test('maps Ally repair callable changes to only repairConsolesFromAlly', () => {
   const selected = selectorFor(['functions/src/allyRepairCallable.ts']);
   assert.deepEqual(selectedFunctions(selected), functionTargets(ALLY_REPAIR_CALLABLES));
+});
+
+test('maps an isolated Philia index export diff only to repairConsolesFromPhilia', () => {
+  const before = INDEX_SOURCE;
+  const after = before.replace(
+    'export const repairConsolesFromPhilia = onCall(async () => {});',
+    'export const repairConsolesFromPhilia = onCall(async () => { return { status: \'stale\' }; });',
+  );
+  assert.notEqual(after, before);
+  const selected = deploymentSelector({
+    before: 'base', after: 'candidate', files: ['functions/src/index.ts'],
+    targets: ['hosting', 'functions'],
+    isAncestor: (ancestor, descendant) => ancestor === 'base' && descendant === 'candidate',
+    sourceAtRevision: (revision, file) => {
+      assert.equal(file, 'functions/src/index.ts');
+      return revision === 'base' ? before : after;
+    },
+  });
+  assert.deepEqual(selectedFunctions(selected), functionTargets(PHILIA_REPAIR_CALLABLES));
+});
+
+test('fails closed when the Philia and Ally index exports change together', () => {
+  const before = INDEX_SOURCE;
+  const after = before
+    .replace('repairConsolesFromPhilia = onCall(async () => {});',
+      'repairConsolesFromPhilia = onCall(async () => { return { status: \'stale\' }; });')
+    .replace('repairConsolesFromAlly = onCall(async () => {});',
+      'repairConsolesFromAlly = onCall(async () => { return { status: \'changed\' }; });');
+  assert.throws(() => deploymentSelector({
+    before: 'base', after: 'candidate', files: ['functions/src/index.ts'],
+    targets: ['hosting', 'functions'],
+    isAncestor: (ancestor, descendant) => ancestor === 'base' && descendant === 'candidate',
+    sourceAtRevision: (revision, file) => {
+      assert.equal(file, 'functions/src/index.ts');
+      return revision === 'base' ? before : after;
+    },
+  }), /cannot safely map a Philia repair index change mixed with another callable/i);
+});
+
+test('fails closed when an index diff has no changed named callable', () => {
+  const before = [
+    'export const repairConsolesFromPhilia = onCall(async () => {',
+    "  return 'same';",
+    '});',
+    '',
+  ].join('\n');
+  const after = `${before}function untrackedRepairHelper() { return 'changed'; }\n`;
+  assert.throws(() => deploymentSelector({
+    before: 'base', after: 'candidate', files: ['functions/src/index.ts'],
+    targets: ['hosting', 'functions'],
+    isAncestor: (ancestor, descendant) => ancestor === 'base' && descendant === 'candidate',
+    sourceAtRevision: (revision, file) => {
+      assert.equal(file, 'functions/src/index.ts');
+      return revision === 'base' ? before : after;
+    },
+  }), /no named callable deployment could be proven/i);
+});
+
+test('fails closed when a Philia export change is mixed with an untracked index helper edit', () => {
+  const before = [
+    'export const repairConsolesFromPhilia = onCall(async () => {',
+    "  return 'before';",
+    '});',
+    '',
+    'export const repairConsolesFromAlly = onCall(async () => {',
+    "  return 'same';",
+    '});',
+    '',
+  ].join('\n');
+  const after = before.replace("return 'before';", "return 'after';") +
+    "function untrackedRepairHelper() { return 'changed'; }\n";
+  assert.throws(() => deploymentSelector({
+    before: 'base', after: 'candidate', files: ['functions/src/index.ts'],
+    targets: ['hosting', 'functions'],
+    isAncestor: (ancestor, descendant) => ancestor === 'base' && descendant === 'candidate',
+    sourceAtRevision: (revision, file) => {
+      assert.equal(file, 'functions/src/index.ts');
+      return revision === 'base' ? before : after;
+    },
+  }), /cannot safely map a Philia repair index change mixed with another callable or untracked source edit/i);
 });
 
 test('maps strict extra-ship admission to its assignment, projection, and repair consumers', () => {

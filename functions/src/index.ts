@@ -6962,10 +6962,7 @@ export const repairConsolesFromPhilia = onCall<{
       tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(eventRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
-      throw new HttpsError('permission-denied', 'Only a connected Philia holder may repair consoles.');
-    }
-    requirePlayerShipActionAuthority(actor);
+    requireDioneEngineer(actor);
     await rejectForeignLegacyM1Command(
       tx, data.sessionId, data.requestId, 'Philia repair', [],
     );
@@ -6982,9 +6979,9 @@ export const repairConsolesFromPhilia = onCall<{
     requireActionPhase(session, 'transfer', 'player');
     const currentCycle = session.get('currentTurn');
     const phase = turnPhaseState(session.get('turnPhase'));
-    if (!Number.isSafeInteger(currentCycle) || currentCycle !== data.expectedCycle ||
+    if (typeof currentCycle !== 'number' || !Number.isSafeInteger(currentCycle) || currentCycle < 1 ||
         !phase || phase.turn !== currentCycle) {
-      throw commandError('failed-precondition', 'The Coordination cycle changed. Refresh before repairing.', 'stale-revision');
+      throw commandError('failed-precondition', 'The authoritative Philia Coordination cycle is unavailable.', 'conflict');
     }
     const openAirspaceEndsAt = Date.parse(phase.openAirspaceEndsAt);
     if (phase.airspace.state !== 'lifted' || phase.timerPause !== undefined ||
@@ -7002,29 +6999,76 @@ export const repairConsolesFromPhilia = onCall<{
     const groupSnapshot = await tx.get(db.doc(`sessions/${data.sessionId}/fleetGroups/${groupId}`));
     const group = groupSnapshot.exists ? fleetGroupRecord(groupSnapshot.data()) : undefined;
     const activeVesselIds = session.get('activeVesselIds');
+    const activeRoleIds = session.get('activeRoleIds');
     const rawDockings = session.get('shuttleDockings');
     const control = parseShuttleControl(session.get('shuttleControl'));
     const fuelled = session.get('shuttleFuelled');
     const ledger = parsePhiliaRepairLedger(session.get('philiaRepairs'));
     if (!group || group.id !== groupId || !group.memberUids.includes(uid) ||
+        !Array.isArray(activeRoleIds) || activeRoleIds.some((roleId) =>
+          typeof roleId !== 'string' || !(ROLE_IDS as readonly string[]).includes(roleId)) ||
+        !activeRoleIds.includes('dione-engineer') ||
         !Array.isArray(activeVesselIds) ||
         activeVesselIds.some((shipId) => typeof shipId !== 'string' || !isResourceShipId(shipId)) ||
+        new Set(activeVesselIds).size !== activeVesselIds.length ||
+        !activeVesselIds.includes('dione') ||
         !Array.isArray(rawDockings) || !shuttleDockingsAreParked(rawDockings, activeVesselIds) ||
         !shuttleDockingsMatchActiveRoleOwnedSubset(configuredRoleIds(session), rawDockings) ||
-        !control || !isRecord(fuelled) || !ledger) {
+        !control || !control.philia || control.philia.ownerRoleId !== 'dione-engineer' ||
+        !isRecord(fuelled) || typeof fuelled.philia !== 'boolean' || !ledger) {
       throw commandError('failed-precondition', 'The authoritative Philia repair state is unavailable.', 'conflict');
     }
     let result: ReturnType<typeof resolvePhiliaRepair>;
     try {
-      const hostShipId = rawDockings.find((docking) =>
-        isRecord(docking) && docking.shuttleId === 'philia')?.shipId;
-      if (hostShipId !== data.expectedHostShipId || !group.vesselIds.includes(hostShipId)) {
+      const philiaDockings = rawDockings.filter((docking) =>
+        isRecord(docking) && docking.shuttleId === 'philia');
+      if (philiaDockings.length !== 1) {
+        throw new Error('Philia repairs require one authoritative docked host.');
+      }
+      const hostShipId = (philiaDockings[0] as Record<string, unknown>).shipId;
+      if (hostShipId !== data.expectedHostShipId || typeof hostShipId !== 'string' ||
+          !group.vesselIds.includes(hostShipId)) {
         throw new Error('The docked host is outside the holder’s current fleet group.');
       }
       const damage = serviceRechargeDamageState(session.get('shipDamage'), hostShipId);
       const resources = serviceRechargeResourceState(session.get('shipResources'), hostShipId);
       const deck = SHIP_DAMAGE_DECKS[hostShipId];
       if (!damage || !resources || !deck) throw new Error('The docked host repair state is unavailable.');
+      const currentControlRevision = control.philia.revision;
+      const stale = currentControlRevision !== data.expectedControlRevision ||
+        ledger.revision !== data.expectedRepairRevision || currentCycle !== data.expectedCycle;
+      if (stale) {
+        if (currentControlRevision < data.expectedControlRevision ||
+            ledger.revision < data.expectedRepairRevision || currentCycle < data.expectedCycle) {
+          throw new Error('The authoritative Philia revision is behind the submitted request.');
+        }
+        // Run the unchanged resolver against current state before disclosing a retry CAS.
+        // This confirms the same selected consoles remain eligible and affordable.
+        resolvePhiliaRepair({
+          actorUid: uid, currentCycle,
+          expectedControlRevision: currentControlRevision,
+          expectedRepairRevision: ledger.revision,
+          systemIds: canonicalSystemIds,
+          control: control.philia, dockings: rawDockings as AuthoritativeShuttleDocking[],
+          fuelled: fuelled.philia,
+          damage, materials: resources.materials,
+          knownSystemIds: deck.map(({ systemId }) => systemId), ledger,
+        });
+        return {
+          status: 'stale' as const,
+          sessionId: data.sessionId,
+          requestId: data.requestId,
+          shuttleId: 'philia' as const,
+          expectedHostShipId: data.expectedHostShipId,
+          systemIds: canonicalSystemIds,
+          expectedControlRevision: data.expectedControlRevision,
+          currentControlRevision,
+          expectedRepairRevision: data.expectedRepairRevision,
+          currentRepairRevision: ledger.revision,
+          expectedCycle: data.expectedCycle,
+          currentCycle,
+        };
+      }
       result = resolvePhiliaRepair({
         actorUid: uid, currentCycle: currentCycle as number,
         expectedControlRevision: data.expectedControlRevision,

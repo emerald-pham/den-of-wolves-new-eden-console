@@ -76,7 +76,8 @@ beforeEach(() => {
     } },
   });
   put('sessions/s1/players/holder', {
-    role: 'player', connected: true, assignedRoleId: 'dione-engineer', fleetGroupId: 'fleet-1',
+    role: 'player', connected: true, assignedRoleId: 'dione-engineer',
+    activeConsoleRoleId: 'dione-engineer', fleetGroupId: 'fleet-1',
   });
   put('sessions/s1/fleetGroups/fleet-1', {
     id: 'fleet-1', vesselIds: ['dione'], memberUids: ['holder'],
@@ -226,14 +227,109 @@ it('rejects unknown client fields and holders outside the authoritative fleet gr
 });
 
 it.each([
-  ['foreign holder', 'other', command],
-  ['stale control', 'holder', { ...command, requestId: 'stale-control', expectedControlRevision: 1 }],
-  ['stale repair revision', 'holder', { ...command, requestId: 'stale-repair', expectedRepairRevision: 1 }],
-  ['wrong cycle', 'holder', { ...command, requestId: 'stale-cycle', expectedCycle: 2 }],
-])('rejects %s without mutation', async (_label, uid, data) => {
-  await expect(repairConsolesFromPhilia.run(request(data, uid)))
-    .rejects.toMatchObject({ code: expect.stringMatching(/permission-denied|failed-precondition/) });
-  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+  ['control', (session: Fields) => {
+    session.shuttleControl = { philia: {
+      shuttleId: 'philia', ownerRoleId: 'dione-engineer', ownerUid: 'owner',
+      holderUid: 'holder', revision: 3,
+    } };
+    return { ...command, requestId: 'stale-control', expectedControlRevision: 2 };
+  }],
+  ['repair ledger', (session: Fields) => {
+    session.philiaRepairs = { cycle: 3, revision: 1, hosts: [{ shipId: 'dione', systemIds: ['jump-drive'] }] };
+    return { ...command, requestId: 'stale-repair', expectedRepairRevision: 0, systemIds: ['reactor'] };
+  }],
+  ['Coordination cycle', (session: Fields) => {
+    session.currentTurn = 4;
+    session.turnPhase = { ...(session.turnPhase as Fields), turn: 4 };
+    return { ...command, requestId: 'stale-cycle', expectedCycle: 3, systemIds: ['reactor'] };
+  }],
+])('returns a minimal no-write stale envelope for an entitled holder with a stale %s', async (_label, prepare) => {
+  const session = mock.documents.get('sessions/s1')!;
+  const data = prepare(session);
+  const result = await repairConsolesFromPhilia.run(request(data));
+  expect(result).toEqual({
+    status: 'stale', sessionId: 's1', requestId: data.requestId, shuttleId: 'philia',
+    expectedHostShipId: 'dione', systemIds: [...data.systemIds].sort(),
+    expectedControlRevision: data.expectedControlRevision,
+    currentControlRevision: session.shuttleControl instanceof Object
+      ? ((session.shuttleControl as Fields).philia as Fields).revision
+      : 2,
+    expectedRepairRevision: data.expectedRepairRevision,
+    currentRepairRevision: (session.philiaRepairs as Fields | undefined)?.revision ?? 0,
+    expectedCycle: data.expectedCycle, currentCycle: session.currentTurn,
+  });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.documents.has(`sessions/s1/commandReceipts/${data.requestId}`)).toBe(false);
+  expect(mock.documents.has(`sessions/s1/events/philia-repair-${data.requestId}`)).toBe(false);
+  expect(JSON.stringify(result)).not.toContain('holder');
+  expect(JSON.stringify(result)).not.toContain('fleet-1');
+  expect(JSON.stringify(result)).not.toContain('materials');
+});
+
+it.each([
+  ['unknown active role', (session: Fields) => {
+    session.activeRoleIds = ['dione-engineer', 'unknown-role'];
+    return session;
+  }],
+  ['inactive role', (session: Fields, actor: Fields, group: Fields) => {
+    actor.assignedRoleId = 'dione-captain';
+    actor.activeConsoleRoleId = 'dione-captain';
+    return session;
+  }],
+  ['lost holder authority', (session: Fields) => {
+    session.shuttleControl = { philia: {
+      shuttleId: 'philia', ownerRoleId: 'dione-engineer', ownerUid: 'owner', holderUid: 'other', revision: 3,
+    } };
+    return session;
+  }],
+  ['lost fleet group membership', (session: Fields, actor: Fields, group: Fields) => {
+    group.memberUids = ['someone-else'];
+    return session;
+  }],
+  ['moved dock', (session: Fields) => {
+    session.shuttleDockings = [{ shuttleId: 'philia', shipId: 'aegis', dockedAt: 'now' }];
+    return session;
+  }],
+  ['ambiguous dock', (session: Fields) => {
+    session.shuttleDockings = [
+      { shuttleId: 'philia', shipId: 'dione', dockedAt: 'now' },
+      { shuttleId: 'philia', shipId: 'dione', dockedAt: 'again' },
+    ];
+    return session;
+  }],
+  ['closed Coordination', (session: Fields) => {
+    (session.turnPhase as Fields).airspace = { state: 'restricted', tickerActive: true, pressAccess: false };
+    return session;
+  }],
+])('fails closed without a stale reply after %s', async (_label, prepare) => {
+  const session = mock.documents.get('sessions/s1')!;
+  const actor = mock.documents.get('sessions/s1/players/holder')!;
+  const group = mock.documents.get('sessions/s1/fleetGroups/fleet-1')!;
+  prepare(session, actor, group);
+  session.shuttleControl = { philia: {
+    shuttleId: 'philia', ownerRoleId: 'dione-engineer', ownerUid: 'owner',
+    holderUid: (session.shuttleControl as Fields | undefined)?.philia
+      ? ((session.shuttleControl as Fields).philia as Fields).holderUid : 'holder',
+    revision: 3,
+  } };
+  await expect(repairConsolesFromPhilia.run(request({
+    ...command, requestId: `authority-${_label.replaceAll(' ', '-')}`,
+  }))).rejects.toMatchObject({ code: expect.stringMatching(/permission-denied|failed-precondition/) });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('rejects a foreign actor before disclosing stale repair state', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  session.shuttleControl = { philia: {
+    shuttleId: 'philia', ownerRoleId: 'dione-engineer', ownerUid: 'owner', holderUid: 'holder', revision: 3,
+  } };
+  await expect(repairConsolesFromPhilia.run(request({
+    ...command, requestId: 'foreign-holder-stale',
+  }, 'other'))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
 });
 
 it('rejects Team Phase, insufficient materials, and malformed repair history without mutation', async () => {

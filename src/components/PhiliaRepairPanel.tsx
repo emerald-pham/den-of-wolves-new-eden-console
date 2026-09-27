@@ -1,13 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { findShip } from '@/data/ships';
-import { repairConsolesFromPhilia, type PhiliaRepairCommand } from '@/lib/philiaRepairService';
+import {
+  capturePhiliaRepairAuthority,
+  hasCurrentPhiliaRepairAuthority,
+  repairConsolesFromPhilia,
+  type PhiliaRepairAuthorityBinding,
+  type PhiliaRepairCommand,
+  type PhiliaRepairStaleResult,
+} from '@/lib/philiaRepairService';
 import {
   captureSessionAuthority,
   isCurrentSessionAuthority,
   type SessionAuthorityCheckpoint,
 } from '@/lib/sessionMutationAuthority';
 import { useSessionStore } from '@/store/useSessionStore';
-import type { PhiliaRepairLedger, ShuttleControlEntry, ShuttleDocking } from '@/types/game';
+import type { GameSession, PhiliaRepairLedger, Player, ShuttleControlEntry, ShuttleDocking } from '@/types/game';
 
 interface Props {
   readonly control: ShuttleControlEntry;
@@ -15,27 +22,40 @@ interface Props {
   readonly fuelled: boolean;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 function isRepairLedger(value: unknown): value is PhiliaRepairLedger | undefined {
   if (value === undefined) return true;
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
-  const ledger = value as Record<string, unknown>;
-  if (Object.keys(ledger).some((key) => !['cycle', 'revision', 'hosts'].includes(key)) ||
-      !Number.isSafeInteger(ledger.cycle) || (ledger.cycle as number) < 1 ||
-      !Number.isSafeInteger(ledger.revision) || (ledger.revision as number) < 1 ||
-      !Array.isArray(ledger.hosts) || ledger.hosts.length < 1 || ledger.hosts.length > 2) return false;
+  if (!isRecord(value) || Object.keys(value).some((key) => !['cycle', 'revision', 'hosts'].includes(key)) ||
+      !Number.isSafeInteger(value.cycle) || (value.cycle as number) < 1 ||
+      !Number.isSafeInteger(value.revision) || (value.revision as number) < 1 ||
+      !Array.isArray(value.hosts) || value.hosts.length < 1 || value.hosts.length > 2) return false;
   const seenShips = new Set<string>();
-  return ledger.hosts.every((host) => {
-    if (typeof host !== 'object' || host === null || Array.isArray(host)) return false;
-    const entry = host as Record<string, unknown>;
-    if (Object.keys(entry).some((key) => !['shipId', 'systemIds'].includes(key)) ||
-        typeof entry.shipId !== 'string' || entry.shipId.length === 0 ||
-        seenShips.has(entry.shipId) || !Array.isArray(entry.systemIds) ||
-        entry.systemIds.length < 1 || entry.systemIds.length > 2 ||
-        entry.systemIds.some((id) => typeof id !== 'string' || id.length === 0) ||
-        new Set(entry.systemIds).size !== entry.systemIds.length) return false;
-    seenShips.add(entry.shipId);
+  return value.hosts.every((host) => {
+    if (!isRecord(host) || Object.keys(host).some((key) => !['shipId', 'systemIds'].includes(key)) ||
+        typeof host.shipId !== 'string' || host.shipId.length === 0 || seenShips.has(host.shipId) ||
+        !Array.isArray(host.systemIds) || host.systemIds.length < 1 || host.systemIds.length > 2 ||
+        host.systemIds.some((id) => typeof id !== 'string' || id.length === 0) ||
+        new Set(host.systemIds).size !== host.systemIds.length) return false;
+    seenShips.add(host.shipId);
     return true;
   });
+}
+
+function currentPhiliaHost(session: GameSession): string | null {
+  const raw = (session as unknown as Record<string, unknown>).shuttleDockings;
+  if (!Array.isArray(raw) || raw.some((entry) => {
+    if (!isRecord(entry)) return true;
+    return typeof entry.shuttleId !== 'string' || !entry.shuttleId.trim() ||
+      typeof entry.shipId !== 'string' || !entry.shipId.trim() ||
+      typeof entry.dockedAt !== 'string' || !entry.dockedAt.trim() ||
+      entry.inTransit === true || entry.transit === true || entry.status === 'in-transit' ||
+      entry.state === 'in-transit' || entry.dockingState === 'in-transit';
+  })) return null;
+  const dockings = raw.filter((entry) => isRecord(entry) && entry.shuttleId === 'philia');
+  return dockings.length === 1 ? (dockings[0] as Record<string, unknown>).shipId as string : null;
 }
 
 export default function PhiliaRepairPanel({ control, docking, fuelled }: Props) {
@@ -54,17 +74,14 @@ export default function PhiliaRepairPanel({ control, docking, fuelled }: Props) 
   const [retry, setRetry] = useState<{
     readonly command: PhiliaRepairCommand;
     readonly checkpoint: SessionAuthorityCheckpoint;
+    readonly authority: PhiliaRepairAuthorityBinding;
+  } | null>(null);
+  const [staleRecovery, setStaleRecovery] = useState<{
+    readonly reply: PhiliaRepairStaleResult;
+    readonly authority: PhiliaRepairAuthorityBinding;
   } | null>(null);
   const pendingRef = useRef<SessionAuthorityCheckpoint | null>(null);
   const identity = JSON.stringify([session.id, me.uid]);
-  const retryCommand = retry && isCurrentSessionAuthority(retry.checkpoint)
-    ? retry.command : null;
-  const pendingForCurrentAuthority = pending && pendingRef.current !== null &&
-    isCurrentSessionAuthority(pendingRef.current);
-  const statusMessage = status?.checkpoint.sessionId === session.id &&
-    status.checkpoint.uid === me.uid ? status.message : '';
-  const errorMessage = error?.checkpoint.sessionId === session.id &&
-    error.checkpoint.uid === me.uid ? error.message : '';
 
   const repairHistoryValid = isRepairLedger(session.philiaRepairs);
   const ledger = repairHistoryValid ? session.philiaRepairs : undefined;
@@ -88,14 +105,63 @@ export default function PhiliaRepairPanel({ control, docking, fuelled }: Props) 
     (session.currentTurn ?? 0) >= 1 && turnPhase !== undefined && turnPhase.turn === session.currentTurn &&
     turnPhase.airspace.state === 'lifted' && turnPhase.timerPause === undefined &&
     Number.isFinite(repairDeadline) && Date.now() < repairDeadline;
-  const isHolder = me.role === 'player' && me.uid === control.holderUid;
+  const currentControl = session.shuttleControl?.philia;
+  const currentDockedHost = currentPhiliaHost(session as GameSession);
+  const hostMatchesProjection = Boolean(docking && currentDockedHost === docking.shipId);
+  const controlMatchesProps = currentControl?.shuttleId === 'philia' &&
+    currentControl.holderUid === control.holderUid && currentControl.revision === control.revision &&
+    currentControl.ownerRoleId === 'dione-engineer';
+  let displayAuthority: PhiliaRepairAuthorityBinding | null = null;
+  if (docking && Number.isSafeInteger(session.currentTurn) && repairHistoryValid) {
+    try {
+      displayAuthority = capturePhiliaRepairAuthority(session as GameSession, me as Player, {
+        requestId: 'philia-panel-authority-check', systemIds: ['reactor'],
+        expectedControlRevision: control.revision, expectedRepairRevision: repairRevision,
+        expectedCycle: session.currentTurn as number, expectedHostShipId: docking.shipId,
+      });
+    } catch {
+      displayAuthority = null;
+    }
+  }
+  const isHolder = displayAuthority !== null && controlMatchesProps && hostMatchesProjection;
   const selectedMaterials = systemIds.length * 4;
   const canSubmit = repairHistoryValid && isHolder && Boolean(docking) && repairWindowOpen && repairShipAvailable &&
     repairSlotsRemaining > 0 && systemIds.length >= 1 &&
     systemIds.length <= Math.min(2, repairSlotsRemaining) && materials >= selectedMaterials &&
     damage?.destroyed !== true;
 
-  useEffect(() => setSystemIds([]), [repairRevision, control.revision, docking?.shipId, session.currentTurn, identity]);
+  const retryCommand = retry && hasCurrentPhiliaRepairAuthority(retry.authority)
+    ? retry.command : null;
+  const staleStillAuthorized = staleRecovery !== null &&
+    hasCurrentPhiliaRepairAuthority(staleRecovery.authority);
+  const staleSelectionMatches = staleRecovery !== null &&
+    [...systemIds].sort().join('|') === [...staleRecovery.reply.systemIds].sort().join('|');
+  const staleProjectionReady = staleRecovery !== null && currentControl !== undefined &&
+    Number.isSafeInteger(currentControl.revision) &&
+    currentControl.revision >= staleRecovery.reply.currentControlRevision &&
+    repairRevision >= staleRecovery.reply.currentRepairRevision &&
+    Number.isSafeInteger(session.currentTurn) &&
+    (session.currentTurn as number) >= staleRecovery.reply.currentCycle;
+  const staleRetryReady = staleStillAuthorized && staleSelectionMatches && staleProjectionReady && canSubmit;
+  const pendingCheckpoint = pendingRef.current;
+  const pendingForCurrentAuthority = pending && pendingCheckpoint !== null &&
+    isCurrentSessionAuthority(pendingCheckpoint);
+  const statusMessage = status?.checkpoint.sessionId === session.id &&
+    status.checkpoint.uid === me.uid ? status.message : '';
+  const errorMessage = error?.checkpoint.sessionId === session.id &&
+    error.checkpoint.uid === me.uid ? error.message : '';
+
+  useEffect(() => {
+    setSystemIds([]);
+  }, [docking?.shipId, identity]);
+
+  useEffect(() => {
+    const eligible = new Set(repairOptions);
+    setSystemIds((current) => {
+      const next = current.filter((id) => eligible.has(id));
+      return next.length === current.length ? current : next;
+    });
+  }, [repairOptions.join('|')]);
 
   useEffect(() => {
     pendingRef.current = null;
@@ -103,10 +169,16 @@ export default function PhiliaRepairPanel({ control, docking, fuelled }: Props) 
     setStatus(null);
     setError(null);
     setRetry(null);
+    setStaleRecovery(null);
   }, [identity]);
+
+  useEffect(() => {
+    if (staleRecovery && !staleSelectionMatches) setStaleRecovery(null);
+  }, [staleRecovery, staleSelectionMatches]);
 
   function chooseConsole(systemId: string, checked: boolean): void {
     setRetry(null);
+    setStaleRecovery(null);
     setError(null);
     setStatus(null);
     setSystemIds((current) => checked
@@ -118,27 +190,42 @@ export default function PhiliaRepairPanel({ control, docking, fuelled }: Props) 
     const current = useSessionStore.getState();
     const checkpoint = captureSessionAuthority(current.session?.id ?? '', current.me?.uid);
     if (!checkpoint || !isCurrentSessionAuthority(checkpoint)) return;
-    const pendingCheckpoint = pendingRef.current;
-    if (pendingCheckpoint && isCurrentSessionAuthority(pendingCheckpoint)) return;
-    const activeRetry = retry && isCurrentSessionAuthority(retry.checkpoint) ? retry : null;
+    const pendingCheckpointCurrent = pendingRef.current;
+    if (pendingCheckpointCurrent && isCurrentSessionAuthority(pendingCheckpointCurrent)) return;
+    const activeRetry = retry && hasCurrentPhiliaRepairAuthority(retry.authority) ? retry : null;
+    const activeStaleRetry = staleRecovery && staleRetryReady ? staleRecovery : null;
+    const latest = current.session as GameSession | undefined;
+    const latestControl = latest?.shuttleControl?.philia;
     const command: PhiliaRepairCommand = activeRetry?.command ?? {
       requestId: window.crypto.randomUUID(),
       systemIds: [...systemIds],
-      expectedControlRevision: control.revision,
+      expectedControlRevision: latestControl?.revision ?? control.revision,
       expectedRepairRevision: repairRevision,
-      expectedCycle: session.currentTurn ?? 0,
+      expectedCycle: latest?.currentTurn ?? session.currentTurn ?? 0,
       expectedHostShipId: docking?.shipId ?? '',
     };
-    if (!activeRetry && !canSubmit) return;
+    if (!activeRetry && !activeStaleRetry && !canSubmit) return;
+    if (activeStaleRetry && !canSubmit) return;
 
     pendingRef.current = checkpoint;
     setPending(true);
     setStatus(null);
     setError(null);
-    setRetry({ command, checkpoint });
+    setRetry(null);
+    if (activeStaleRetry) setStaleRecovery(null);
+    let authority: PhiliaRepairAuthorityBinding | null = null;
     try {
+      authority = capturePhiliaRepairAuthority(
+        current.session as GameSession, current.me as Player, command,
+      );
+      setRetry({ command, checkpoint, authority });
       const result = await repairConsolesFromPhilia(command);
-      if (!isCurrentSessionAuthority(checkpoint)) return;
+      if (!hasCurrentPhiliaRepairAuthority(authority)) return;
+      if (result.status === 'stale') {
+        setRetry(null);
+        setStaleRecovery({ reply: result, authority });
+        return;
+      }
       setStatus({
         checkpoint,
         message: result.status === 'replayed'
@@ -146,9 +233,10 @@ export default function PhiliaRepairPanel({ control, docking, fuelled }: Props) 
           : `Repaired ${result.systemIds.length} console${result.systemIds.length === 1 ? '' : 's'} // ${result.materialsRemaining} materials remain.`,
       });
       setRetry(null);
+      setStaleRecovery(null);
       setSystemIds([]);
     } catch (cause) {
-      if (!isCurrentSessionAuthority(checkpoint)) return;
+      if (authority && !hasCurrentPhiliaRepairAuthority(authority)) return;
       setError({
         checkpoint,
         message: cause instanceof Error ? cause.message : 'Philia repair failed.',
@@ -161,6 +249,14 @@ export default function PhiliaRepairPanel({ control, docking, fuelled }: Props) 
     }
   }
 
+  const retryLabel = pendingForCurrentAuthority ? 'Repairing consoles…'
+    : retryCommand ? 'Retry exact repair request'
+      : staleRecovery && staleStillAuthorized
+        ? staleRetryReady ? 'Retry selected consoles with current state' : 'Waiting for live repair state…'
+        : 'Repair selected consoles';
+  const repairDisabled = pendingForCurrentAuthority ||
+    (retryCommand ? false : staleRecovery ? !staleRetryReady : !canSubmit);
+
   return <section className="console-workspace__section shuttle-control" aria-label="Philia console repair">
     <p className="console-workspace__eyebrow">Repair rig // docked host</p>
     <h3>Repair damaged consoles</h3>
@@ -168,7 +264,7 @@ export default function PhiliaRepairPanel({ control, docking, fuelled }: Props) 
     {docking
       ? <p>Docked host // {findShip(docking.shipId)?.name ?? docking.shipId} // materials // {materials} // repair slots remaining // {repairSlotsRemaining}</p>
       : <p>Dock Philia before repairing consoles.</p>}
-    {!isHolder && <p>The current Philia holder controls repairs.</p>}
+    {!isHolder && <p>The current Dione Engineer holding Philia at its in-group dock controls repairs.</p>}
     {!repairWindowOpen && <p>Philia repairs open during Coordination Phase.</p>}
     {hostsThisCycle.length === 1 && !hostAlreadyUsed && !fuelled &&
       <p>Fuel Philia before repairing a second ship this cycle.</p>}
@@ -194,13 +290,14 @@ export default function PhiliaRepairPanel({ control, docking, fuelled }: Props) 
       })}
     </fieldset>
     <div className="console-workspace__actions">
-      <button className="cic-action-button" type="button" disabled={pendingForCurrentAuthority || (!retryCommand && !canSubmit)}
-        onClick={() => void submitRepair()}>
-        {pendingForCurrentAuthority ? 'Repairing consoles…' : retryCommand ? 'Retry exact repair request' : 'Repair selected consoles'}
-      </button>
+      <button className="cic-action-button" type="button" disabled={repairDisabled}
+        onClick={() => void submitRepair()}>{retryLabel}</button>
     </div>
     {errorMessage && <p role="alert">{errorMessage}</p>}
     {retryCommand && !pendingForCurrentAuthority && <p>The last request needs confirmation. Retry it safely with the same request id.</p>}
+    {staleRecovery && staleStillAuthorized && <p role="status">{staleRetryReady
+      ? 'Repair state changed. The live projection is current; explicitly retry to submit a fresh request.'
+      : 'Repair state changed. Waiting for the live repair projection before retrying.'}</p>}
     {statusMessage && <p role="status">{statusMessage}</p>}
   </section>;
 }

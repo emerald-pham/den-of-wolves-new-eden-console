@@ -655,7 +655,7 @@ it('lets the player retry the changelog after a temporary asset failure', async 
   expect(fetchMock).toHaveBeenCalledTimes(2);
 });
 
-it('renders the current and previous changelog copy with progress and keyboard stop intact', async () => {
+it('renders current and retained repair history with progress and keyboard stop intact', async () => {
   const user = userEvent.setup();
   render(<MemoryRouter><AppHeader /></MemoryRouter>);
 
@@ -671,9 +671,14 @@ it('renders the current and previous changelog copy with progress and keyboard s
   expect(region).toHaveAttribute('tabindex', '0');
   expect(renderedChanges.every((change) => !/\bprompts?\b/i.test(change))).toBe(true);
   expect(within(newestEntry).getByText(
-    'Chacau repairs keep your selected consoles while server state catches up, then let the current Refinery 124 Engineer explicitly retry with current revisions.',
+    'Philia repairs keep eligible console selections while server state catches up, then let the current Dione Engineer explicitly retry with current revisions.',
   )).toBeVisible();
   expect(within(newestEntry).getByText('458 of 751 planned items are complete (60.99%).')).toBeVisible();
+  const previousChacauEntry = within(region).getByRole('heading', { name: 'Build 0.5.42' }).closest('article');
+  if (!previousChacauEntry) throw new Error('Expected the preserved 0.5.42 Chacau release entry.');
+  expect(within(previousChacauEntry).getByText(
+    'Chacau repairs keep your selected consoles while server state catches up, then let the current Refinery 124 Engineer explicitly retry with current revisions.',
+  )).toBeVisible();
   const previousMaliadesEntry = within(region).getByRole('heading', { name: 'Build 0.5.41' }).closest('article');
   if (!previousMaliadesEntry) throw new Error('Expected the preserved 0.5.41 Maliades release entry.');
   expect(within(previousMaliadesEntry).getByText(

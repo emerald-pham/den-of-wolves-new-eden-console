@@ -366,10 +366,35 @@ function changedIndexCallables(before, after, cwd, sourceAtRevision = null) {
       throw new Error(`Cannot safely determine callable changes at ${revision}:functions/src/index.ts.`);
     }
   };
-  const previous = functionExports(readAt(before));
-  const current = functionExports(readAt(after));
+  const previousSource = readAt(before);
+  const currentSource = readAt(after);
+  const previous = functionExports(previousSource);
+  const current = functionExports(currentSource);
   const names = new Set([...previous.keys(), ...current.keys()]);
-  return [...names].filter((name) => previous.get(name) !== current.get(name));
+  const changed = [...names].filter((name) => previous.get(name) !== current.get(name));
+  if (changed.includes('repairConsolesFromPhilia')) {
+    if (changed.length !== 1 || !previous.has('repairConsolesFromPhilia') ||
+        !current.has('repairConsolesFromPhilia') ||
+        indexSourceOutsideCallableBlocks(previousSource, previous) !==
+          indexSourceOutsideCallableBlocks(currentSource, current)) {
+      throw new Error(
+        'Cannot safely map a Philia repair index change mixed with another callable or untracked source edit.',
+      );
+    }
+  }
+  return changed;
+}
+
+function indexSourceOutsideCallableBlocks(source, callables) {
+  let remainder = source;
+  for (const [name, block] of callables) {
+    const count = remainder.split(block).length - 1;
+    if (count !== 1) {
+      throw new Error(`Cannot safely isolate the ${name} export from the Functions entrypoint.`);
+    }
+    remainder = remainder.replace(block, `__FUNCTION_EXPORT_${name}__`);
+  }
+  return remainder;
 }
 
 function wolfAttackDeclarationTypeImpacts(before, after, cwd, sourceAtRevision = null) {
