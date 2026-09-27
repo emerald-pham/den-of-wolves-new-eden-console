@@ -77,6 +77,18 @@ describe('scout resolution write plan', () => {
     expect(plan.deepNebulaScan?.requestId).toBe('scan-1');
   });
 
+  it('matches the cadence scan by values even if stored map key order differs', () => {
+    const reorderedScan = {
+      targetCoordinate: '0408', range: 'unlimited', attempt: 1, sourceId: 'endeavour',
+    };
+    expect(buildScoutResolutionPlan({
+      request, cadence: { ...cadence, scans: [{
+        requestId: 'scan-1', actorUid: 'scientist-1', scan: reorderedScan,
+      }] }, session, facilitator, fleetGroupId: 'fleet-1',
+      recordedAt: '2026-09-27T21:40:00.000Z',
+    }).result.requestId).toBe('scan-1');
+  });
+
   it.each([
     ['different cadence scan', { cadence: { ...cadence, scans: [{ ...cadence.scans[0], scan: { ...scan, targetCoordinate: '5143' } }] } }],
     ['different cadence actor', { cadence: { ...cadence, scans: [{ ...cadence.scans[0], actorUid: 'other' }] } }],
