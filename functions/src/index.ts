@@ -7535,6 +7535,31 @@ export const repairConsolesFromChacau = onCall(async request => {
       if (!countersAreMonotonic || !stateAdvanced) {
         throw commandError('failed-precondition', 'Chacau repair state does not match the current authoritative revision.', 'conflict');
       }
+    }
+    let result: ReturnType<typeof resolveChacauRepair>;
+    try {
+      const damage = serviceRechargeDamageState(session.get('shipDamage'), hostShipId);
+      const resources = serviceRechargeResourceState(session.get('shipResources'), hostShipId);
+      const deck = SHIP_DAMAGE_DECKS[hostShipId];
+      if (!damage || !resources || !deck) throw new Error('The docked host repair state is unavailable.');
+      result = resolveChacauRepair({
+        actorUid: uid, actorRoleId: actor.get('assignedRoleId') as string,
+        currentCycle: currentCycle as number,
+        // A stale request can receive a fresh CAS only if its requested action
+        // would still be eligible against the state read in this transaction.
+        expectedCycle: stale ? currentCycle as number : data.expectedCycle,
+        expectedControlRevision: stale ? currentControlRevision : data.expectedControlRevision,
+        expectedRepairRevision: stale ? currentRepairRevision : data.expectedRepairRevision,
+        expectedHostShipId: data.expectedHostShipId,
+        fleetGroupVesselIds: group.vesselIds,
+        systemIds: data.systemIds, control: control.chacau!, dockings: rawDockings,
+        fuelled: fuelled.chacau === true, damage, materials: resources.materials ?? 0,
+        knownSystemIds: deck.map(({ systemId }) => systemId), ledger,
+      });
+    } catch (cause) {
+      throw commandError('failed-precondition', cause instanceof Error ? cause.message : 'Chacau repair was rejected.', 'conflict');
+    }
+    if (stale) {
       return {
         status: 'stale', sessionId: data.sessionId, requestId: data.requestId,
         shuttleId: 'chacau', expectedHostShipId: data.expectedHostShipId,
@@ -7546,26 +7571,6 @@ export const repairConsolesFromChacau = onCall(async request => {
         expectedCycle: data.expectedCycle,
         currentCycle: currentCycle as number,
       } satisfies ChacauRepairStaleReply;
-    }
-    let result: ReturnType<typeof resolveChacauRepair>;
-    try {
-      const damage = serviceRechargeDamageState(session.get('shipDamage'), hostShipId);
-      const resources = serviceRechargeResourceState(session.get('shipResources'), hostShipId);
-      const deck = SHIP_DAMAGE_DECKS[hostShipId];
-      if (!damage || !resources || !deck) throw new Error('The docked host repair state is unavailable.');
-      result = resolveChacauRepair({
-        actorUid: uid, actorRoleId: actor.get('assignedRoleId') as string,
-        currentCycle: currentCycle as number, expectedCycle: data.expectedCycle,
-        expectedControlRevision: data.expectedControlRevision,
-        expectedRepairRevision: data.expectedRepairRevision,
-        expectedHostShipId: data.expectedHostShipId,
-        fleetGroupVesselIds: group.vesselIds,
-        systemIds: data.systemIds, control: control.chacau!, dockings: rawDockings,
-        fuelled: fuelled.chacau === true, damage, materials: resources.materials ?? 0,
-        knownSystemIds: deck.map(({ systemId }) => systemId), ledger,
-      });
-    } catch (cause) {
-      throw commandError('failed-precondition', cause instanceof Error ? cause.message : 'Chacau repair was rejected.', 'conflict');
     }
     const reply: ChacauRepairReply = {
       status: 'committed', sessionId: data.sessionId, requestId: data.requestId,

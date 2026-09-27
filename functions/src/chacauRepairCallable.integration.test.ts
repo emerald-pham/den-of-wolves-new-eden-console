@@ -139,8 +139,9 @@ it.each([
   }, 3, 0, 3],
   ['repair ledger', () => {
     mock.documents.get('sessions/s1')!.chacauRepairs = {
-      cycle: 3, revision: 1, hosts: [{ shipId: 'refinery-124', systemIds: ['jump-drive'] }],
+      cycle: 3, revision: 1, hosts: [{ shipId: 'dione', systemIds: ['reactor'] }],
     };
+    (mock.documents.get('sessions/s1')!.shuttleFuelled as Fields).chacau = true;
   }, 2, 1, 3],
 ] as const)(
   'returns only a request-bound stale CAS for an advanced %s and performs no writes',
@@ -200,6 +201,54 @@ it.each(['holder', 'assigned role', 'active console role', 'group membership', '
       .rejects.toMatchObject({ code: 'failed-precondition' });
     expect(mock.set).not.toHaveBeenCalled();
     expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.documents.has('sessions/s1/commandReceipts/chacau-1')).toBe(false);
+    expect(mock.documents.has('sessions/s1/events/chacau-repair-chacau-1')).toBe(false);
+  },
+);
+
+it.each([
+  ['a selected console is no longer damaged', () => {
+    (mock.documents.get('sessions/s1')!.shipDamage as Fields)['refinery-124'] = {
+      damagedSystemIds: ['jump-drive'], destroyed: false,
+    };
+  }],
+  ['the docked host is destroyed', () => {
+    (mock.documents.get('sessions/s1')!.shipDamage as Fields)['refinery-124'] = {
+      damagedSystemIds: ['reactor', 'storage', 'jump-drive'], destroyed: true,
+    };
+  }],
+  ['the host lacks repair materials', () => {
+    ((mock.documents.get('sessions/s1')!.shipResources as Fields)['refinery-124'] as Fields).materials = 7;
+  }],
+  ['the host repair quota is exhausted', () => {
+    mock.documents.get('sessions/s1')!.chacauRepairs = {
+      cycle: 3, revision: 1, hosts: [{ shipId: 'refinery-124', systemIds: ['jump-drive'] }],
+    };
+  }],
+  ['a second ship requires Chacau fuel', () => {
+    mock.documents.get('sessions/s1')!.chacauRepairs = {
+      cycle: 3, revision: 1, hosts: [{ shipId: 'dione', systemIds: ['reactor'] }],
+    };
+  }],
+  ['the repair ledger is from a future cycle', () => {
+    mock.documents.get('sessions/s1')!.chacauRepairs = {
+      cycle: 4, revision: 1, hosts: [{ shipId: 'refinery-124', systemIds: ['jump-drive'] }],
+    };
+  }],
+] as const)(
+  'does not return a stale CAS for an ineligible repair when %s',
+  async (_label, makeIneligible) => {
+    (mock.documents.get('sessions/s1')!.shuttleControl as Fields).chacau = {
+      ...(mock.documents.get('sessions/s1')!.shuttleControl as Fields).chacau as Fields,
+      revision: 3,
+    };
+    makeIneligible();
+
+    await expect(repairConsolesFromChacau.run(request(command)))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.documents.has('sessions/s1/commandReceipts/chacau-1')).toBe(false);
     expect(mock.documents.has('sessions/s1/events/chacau-repair-chacau-1')).toBe(false);
   },
 );
