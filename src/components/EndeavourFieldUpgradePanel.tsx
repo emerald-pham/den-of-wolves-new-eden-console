@@ -10,6 +10,7 @@ import {
   type EndeavourFieldUpgradeStaleReply,
   type EndeavourFieldUpgradeTarget,
 } from '@/lib/endeavourFieldUpgradeService';
+import EndeavourFieldUpgradeChoices from './EndeavourFieldUpgradeChoices';
 import { hasFreshSessionAuthority } from '@/lib/sessionMutationAuthority';
 import type { ShuttleControlEntry } from '@/types/game';
 import { useSessionStore } from '@/store/useSessionStore';
@@ -399,45 +400,24 @@ export default function EndeavourFieldUpgradePanel({
         Refresh private research and purchase state
       </button>}
       {aligned && options.length === 0 && <p>Current fleet-group upgrade targets are not available.</p>}
-      {aligned && options.length > 0 && <fieldset disabled={!liveCoordinationWindow || busy || remaining === 0 || Boolean(uncertain) || retryRefreshRequired}>
-        <legend>Choose target consoles</legend>
-        <ul aria-label="Available Endeavour field upgrades">
-          {options.map((option) => {
-            const key = targetKey(option);
-            const checked = selectedKeys.includes(key);
-            const full = !checked && selectedKeys.length >= remaining;
-            const label = `${option.shipName} // ${option.systemName} // ${option.materialCost} materials`;
-            return <li key={key}>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  disabled={full}
-                  onChange={(event) => changeSelection(option, event.currentTarget.checked)}
-                />
-                <span>{label}</span>
-              </label>
-            </li>;
-          })}
-        </ul>
-      </fieldset>}
-      <div className="console-workspace__actions">
-        {staleSelectionPending ? <button type="button" className="cic-action-button"
-          disabled={purchaseDisabled} onClick={() => void submit('stale-retry')}>
-          {busy ? 'Installing upgrades…' : 'Retry selected upgrades with current state'}
-        </button> : <button type="button" className="cic-action-button" disabled={purchaseDisabled}
-          onClick={() => void submit()}>
-          {busy ? 'Installing upgrades…' : purchaseLabel}
-        </button>}
-        {uncertain && <button type="button" className="cic-text-button" disabled={busy}
-          onClick={() => void submit('uncertain-retry')}>
-          {busy ? 'Confirming request…' : 'Retry exact request'}
-        </button>}
-        <button type="button" className="cic-text-button" disabled={busy || !onRefresh}
-          onClick={() => void onRefresh?.()}>
-          Refresh private research and purchase state
-        </button>
-      </div>
+      <EndeavourFieldUpgradeChoices
+        options={options}
+        selectedKeys={selectedKeys}
+        remaining={remaining}
+        showTargets={aligned}
+        selectionDisabled={!liveCoordinationWindow || busy || remaining === 0 || Boolean(uncertain) || retryRefreshRequired}
+        purchaseDisabled={purchaseDisabled}
+        busy={busy}
+        staleSelectionPending={staleSelectionPending}
+        uncertain={Boolean(uncertain)}
+        purchaseLabel={purchaseLabel}
+        refreshDisabled={!onRefresh}
+        onTargetChange={changeSelection}
+        onPurchase={() => void submit()}
+        onRetryStale={() => void submit('stale-retry')}
+        onRetryExact={() => void submit('uncertain-retry')}
+        onRefresh={() => void onRefresh?.()}
+      />
     </section>
   );
 }
