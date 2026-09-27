@@ -5,7 +5,7 @@ import { isLiveSetupGm } from './gameSetup';
 import { shipForRole } from './crewAccess';
 import { replacementRoleFor } from './replacementRoles';
 import { CALLABLE_RUNTIME_OPTIONS } from './runtimeOptions';
-import { buildScoutResolutionPlan, scoutDiscoveryNoteId } from './scoutResolutionPlan';
+import { buildScoutResolutionPlan, scoutDiscoveryNoteId, type ScoutResolutionPlan } from './scoutResolutionPlan';
 import { parsePrivateScoutResult, projectPrivateScoutResult,
   type ScoutResultViewerAuthority } from './scoutResultProjection';
 import { PRESENCE_LEASE_MS } from './sessionLifecycle';
@@ -115,8 +115,17 @@ function groupForShip(
 
 function equal(a: unknown, b: unknown): boolean { return isDeepStrictEqual(a, b); }
 
+export type ScoutMapCommit = (input: Readonly<{
+  tx: Transaction;
+  sessionId: string;
+  session: DocumentSnapshot;
+  groups: readonly DocumentSnapshot[];
+  plan: ScoutResolutionPlan;
+}>) => Promise<void>;
+
 /** GM reveals one selected-chart fact from a committed, immutable legal request. */
-export const resolvePendingScoutRequest = onCall(CALLABLE_RUNTIME_OPTIONS, async (request) => {
+export function createResolvePendingScoutRequest(commitMapKnowledge: ScoutMapCommit) {
+  return onCall(CALLABLE_RUNTIME_OPTIONS, async (request) => {
   const db = getFirestore();
   const actorUid = uid(request.auth);
   const raw = command(request.data, ['sessionId', 'requestId', 'instanceId']);
@@ -204,13 +213,15 @@ export const resolvePendingScoutRequest = onCall(CALLABLE_RUNTIME_OPTIONS, async
     if (priorNote.exists || priorAudit.exists || priorDeep.exists) {
       throw new HttpsError('failed-precondition', 'The scout result has conflicting records.');
     }
+    await commitMapKnowledge({ tx, sessionId, session, groups: groups.docs, plan });
     tx.create(resultRef, plan.result);
     tx.create(noteRef, plan.note);
     tx.create(auditRef, plan.audit);
     if (plan.deepNebulaScan) tx.create(deepRef, plan.deepNebulaScan);
     return { status: 'resolved' as const, result: plan.result };
   });
-});
+  });
+}
 
 /** Return one fact; no endpoint accepts a chart selector or exports a chart. */
 export const readPrivateScoutResult = onCall(CALLABLE_RUNTIME_OPTIONS, async (request) => {

@@ -192,6 +192,7 @@ import {
   navigationState,
   navigationStateDocumentPath,
   pursuitGroups,
+  recordScoutedCoordinateForShip,
   writePlayerDiscoveryProjection,
   type NavigationState,
 } from './navigationProjection';
@@ -368,8 +369,9 @@ export { repairConsolesFromAlly } from './allyRepairCallable';
 export { repairGorgoneionWithDrones } from './gorgoneionRepairDronesCallable';
 export { repairWarriorWithDrones } from './warriorRepairDronesCallable';
 export { transferBaseCapybaraCargo } from './baseCapybaraCargoTransferCallable';
+import { createResolvePendingScoutRequest } from './scoutResultCallable';
 export {
-  resolvePendingScoutRequest, readPrivateScoutResult, listPendingScoutRequests,
+  readPrivateScoutResult, listPendingScoutRequests,
   listMyScoutReports, readMyScoutDiscoveryNote,
 } from './scoutResultCallable';
 export { advanceEndeavourResearchTrack, readEndeavourResearchWorkspace } from './endeavourResearchWriter';
@@ -1410,6 +1412,8 @@ function navigationProjectionFields(navigation: NavigationState): Record<string,
   return {
     shipGalacticCoordinates: navigation.shipGalacticCoordinates,
     shipNavigationLogs: navigation.shipNavigationLogs,
+    ...(navigation.scoutedCoordinatesByShip
+      ? { scoutedCoordinatesByShip: navigation.scoutedCoordinatesByShip } : {}),
     pursuitGroups: navigation.pursuitGroups,
     ...(navigation.systemHistory ? { systemHistory: navigation.systemHistory } : {}),
     ...(navigation.candidatePlanCheckpoint
@@ -2201,6 +2205,65 @@ function publishDiscoveryProjections(
     );
   }
 }
+
+export const resolvePendingScoutRequest = createResolvePendingScoutRequest(async ({
+  tx, sessionId, session, groups: groupSnapshots, plan,
+}) => {
+  const { activeVesselIds } = strictScoutRosters(session);
+  const navigationRef = navigationStateRef(sessionId);
+  const [storedNavigation, players] = await Promise.all([
+    tx.get(navigationRef),
+    tx.get(db.collection(`sessions/${sessionId}/players`)),
+  ]);
+  const playerDocs = Array.isArray(players?.docs) ? players.docs : [];
+  const rawCoordinates = storedNavigation.exists ? storedNavigation.get('shipGalacticCoordinates') : undefined;
+  const revision = storedNavigation.get('revision');
+  if (!isRecord(rawCoordinates) || Object.keys(rawCoordinates).length !== activeVesselIds.length ||
+      activeVesselIds.some((shipId) =>
+        typeof rawCoordinates[shipId] !== 'string' ||
+        !STAR_CHART_COORDINATES.includes(rawCoordinates[shipId] as string)) ||
+      Object.keys(rawCoordinates).some((shipId) => !activeVesselIds.includes(shipId)) ||
+      !Number.isSafeInteger(revision) || (revision as number) < 0 ||
+      (revision as number) >= Number.MAX_SAFE_INTEGER) {
+    throw commandError('failed-precondition', 'Current ship-map authority is unavailable for scouting.', 'malformed-input');
+  }
+  const fleetGroups = groupSnapshots.map((snapshot) => {
+    const group = snapshot.exists ? fleetGroupRecord(snapshot.data()) : undefined;
+    if (!group || group.id !== snapshot.id) {
+      throw commandError('failed-precondition', 'Current fleet-group authority is malformed for scouting.', 'malformed-input');
+    }
+    return group;
+  });
+  const vesselMembership = fleetGroups.flatMap((group) => group.vesselIds);
+  if (vesselMembership.length !== activeVesselIds.length ||
+      new Set(vesselMembership).size !== vesselMembership.length ||
+      vesselMembership.some((shipId) => !activeVesselIds.includes(shipId))) {
+    throw commandError('failed-precondition', 'Current fleet-group authority is incomplete for scouting.', 'malformed-input');
+  }
+  const navigation = navigationStateForSession(storedNavigation, session, activeVesselIds);
+  const nextNavigation = recordScoutedCoordinateForShip(
+    navigation, plan.receivingShipId, plan.result.targetCoordinate,
+  );
+  if (nextNavigation === navigation) return;
+  const nextRevision = (revision as number) + 1;
+  const chartId = session.get('chartId');
+  if (chartId !== 'A' && chartId !== 'B' && chartId !== 'C') {
+    throw commandError('failed-precondition', 'The locked scout chart is unavailable.', 'malformed-input');
+  }
+  tx.set(navigationRef, {
+    ...navigationProjectionFields(nextNavigation),
+    revision: nextRevision,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  publishDiscoveryProjections(
+    tx, sessionId, playerDocs, nextNavigation, nextRevision, chartId, fleetGroups,
+    false, {
+      sessionSnapshot: session,
+      navigationSnapshot: storedNavigation,
+      fleetGroupSnapshots: groupSnapshots,
+    },
+  );
+});
 
 function activeShipSurvivors(value: unknown, activeVesselIds: readonly string[]): Record<string, number> {
   const stored: Record<string, number> = {};
