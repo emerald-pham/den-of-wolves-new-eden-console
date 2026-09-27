@@ -11,6 +11,7 @@ import {
   type EndeavourResearchWorkspace,
 } from '@/lib/endeavourResearchService';
 import type { ShuttleControlEntry } from '@/types/game';
+import EndeavourResearchChoices from './EndeavourResearchChoices';
 import './EndeavourResearchPanel.css';
 
 const EndeavourFieldUpgradePanel = lazy(() => import('./EndeavourFieldUpgradePanel'));
@@ -314,24 +315,26 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
     }
   }
 
-  const standardDisabled = !liveTeamPhase || !selectedTrack || standardUsed >= 3 || loading || busyFunding !== null ||
-    activePendingAttempt !== null || staleBlocksNewChoice;
-  const oreDisabled = !liveTeamPhase || !selectedTrack || oreUsed >= 2 ||
-    (workspace?.shepherdOre ?? 0) < 5 || loading || busyFunding !== null ||
-    activePendingAttempt !== null || staleBlocksNewChoice;
-
   return <>
-    <section className="console-workspace__section endeavour-research-panel"
-      aria-label="Endeavour research controls" aria-busy={loading || busyFunding !== null}>
-      <div className="console-workspace__status">
-        <p>Private Scientist workspace // Endeavour Team research</p>
-        <p>Cycle choices: {standardUsed} of 3 standard; {oreUsed} of 2 additional.</p>
-        {workspace && <p>Shepherd // {workspace.shepherdOre} ore available</p>}
-        {!liveTeamPhase && workspace && <p>Research choices are available during the live Team Phase.</p>}
-        {notice && <p role="status">{notice}</p>}
-        {error && <p role="alert">{error}</p>}
-      </div>
-      {activeStaleRecovery && <div className="console-workspace__status" aria-label="Stale research recovery">
+    <EndeavourResearchChoices
+      workspace={workspace}
+      selectedTrackId={selectedTrackId}
+      liveTeamPhase={liveTeamPhase}
+      loading={loading}
+      busyFunding={busyFunding}
+      pendingAttempt={activePendingAttempt !== null}
+      staleBlocksNewChoice={staleBlocksNewChoice}
+      notice={notice}
+      error={error}
+      onSelectTrack={(trackId) => {
+        setSelectedTrackId(trackId);
+        setStaleRecovery(null);
+        setFeedback({ identityKey: identityKey!, notice: '', error: '' });
+      }}
+      onAdvance={(funding) => void resolveChoice(funding)}
+      onRefresh={() => void reload()}
+      alerts={<>
+        {activeStaleRecovery && <div className="console-workspace__status" aria-label="Stale research recovery">
         <p role="status">Research changed while this choice was being checked.</p>
         {!staleRevisionObserved && <p>Waiting for the live Scientist workspace to reach the current research revision.</p>}
         {staleRevisionObserved && !staleTrackAvailable &&
@@ -344,74 +347,16 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
           onClick={() => void retryWithCurrentRevision()}>
           Retry choice with current revisions
         </button>
-      </div>}
-      {activePendingAttempt && <div className="console-workspace__status" aria-label="Unconfirmed research request">
+        </div>}
+        {activePendingAttempt && <div className="console-workspace__status" aria-label="Unconfirmed research request">
         <p role="status">The research response was uncertain. Retry the same request to confirm its outcome.</p>
         <button type="button" className="cic-action-button" disabled={busyFunding !== null || loading}
           onClick={() => void retrySameRequest()}>
           Retry same research request
         </button>
-      </div>}
-      {loading && <p role="status">Loading private research state…</p>}
-      {!loading && !workspace && !error && <p>Research state is not available.</p>}
-      {workspace && <>
-        <ul aria-label="Research progress">
-          {workspace.tracks.map((track) => {
-            const used = chosenTracks.has(track.trackId);
-            const status = track.complete ? 'Research complete.'
-              : used ? 'Chosen this cycle.'
-                : 'Available for a research choice.';
-            return <li key={track.trackId}>
-              {track.name}: {track.crossedBoxes} of {track.totalBoxes} boxes crossed;{' '}
-              {track.complete ? 'no further field-upgrade cost. ' : `next field-upgrade cost is ${track.currentMaterialCost} materials. `}
-              {status}
-            </li>;
-          })}
-        </ul>
-        <label className="cic-field">
-          <span>Research track</span>
-          <select
-            value={selectedTrackId}
-            onChange={(event) => {
-              setSelectedTrackId(event.currentTarget.value);
-              setStaleRecovery(null);
-              setFeedback({ identityKey: identityKey!, notice: '', error: '' });
-            }}
-            disabled={loading || busyFunding !== null || activePendingAttempt !== null || workspace.tracks.every((track) =>
-              track.complete || chosenTracks.has(track.trackId))}
-          >
-            {workspace.tracks.map((track) => {
-              const used = chosenTracks.has(track.trackId);
-              return <option
-                key={track.trackId}
-                value={track.trackId}
-                disabled={track.complete || used}
-              >
-                {track.name}
-              </option>;
-            })}
-          </select>
-        </label>
-        {selectedTrack && <p>
-          Cross the left-most research box for {selectedTrack.name}. Its next field-upgrade cost is
-          {' '}{selectedTrack.currentMaterialCost} materials.
-        </p>}
-        <div className="console-workspace__actions">
-          <button type="button" className="cic-action-button" disabled={standardDisabled}
-            onClick={() => void resolveChoice('standard')}>
-            {busyFunding === 'standard' ? 'Advancing research…' : 'Advance standard research'}
-          </button>
-          <button type="button" className="cic-action-button" disabled={oreDisabled}
-            onClick={() => void resolveChoice('shepherd-ore')}>
-            {busyFunding === 'shepherd-ore' ? 'Advancing research…' : 'Advance with 5 Shepherd ore'}
-          </button>
-          <button type="button" className="cic-text-button" disabled={loading}
-            onClick={() => void reload()}>
-            Refresh private research
-          </button>
-        </div>
+        </div>}
       </>}
-    </section>
+    />
     {workspace && <Suspense fallback={<p className="console-workspace__status" role="status">
       Loading Endeavour field-upgrade controls…
     </p>}>
