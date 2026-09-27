@@ -201,6 +201,28 @@ function canonicalFleetGroups(value: { docs: readonly DocumentSnapshot[] }): rea
   return groups as FleetGroupRecord[];
 }
 
+function currentFleetMemberGroups(
+  groups: readonly FleetGroupRecord[],
+  players: { docs: readonly DocumentSnapshot[] },
+): ReadonlyMap<string, string> {
+  const groupByMemberUid = new Map<string, string>();
+  for (const group of groups) {
+    for (const memberUid of group.memberUids) {
+      if (groupByMemberUid.has(memberUid)) {
+        throw new HttpsError('failed-precondition', 'A player belongs to multiple authoritative fleet groups.');
+      }
+      groupByMemberUid.set(memberUid, group.id);
+    }
+  }
+  const currentPlayers = players.docs.filter((player) =>
+    player.exists && player.get('kickedAt') == null);
+  if (groupByMemberUid.size !== currentPlayers.length || currentPlayers.some((player) =>
+    !player.id || groupByMemberUid.get(player.id) !== player.get('fleetGroupId'))) {
+    throw new HttpsError('failed-precondition', 'Fleet-group membership does not match current player authority.');
+  }
+  return groupByMemberUid;
+}
+
 function currentNavigation(
   rawNavigation: DocumentSnapshot,
   session: DocumentSnapshot,
@@ -394,6 +416,7 @@ export const activateEndeavourEcmDevice = onCall<{
     const navigationRef = db.doc(navigationStateDocumentPath(command.sessionId));
     const gmProjectionRef = db.doc(`sessions/${command.sessionId}/gmDiscovery/current`);
     const playerProjectionsRef = db.collection(`sessions/${command.sessionId}/playerDiscoveries`);
+    const playersRef = db.collection(`sessions/${command.sessionId}/players`);
     const groupsRef = db.collection(`sessions/${command.sessionId}/fleetGroups`);
     const legacyRefs = legacyMutationRefs(command.sessionId, command.requestId);
 
@@ -419,9 +442,9 @@ export const activateEndeavourEcmDevice = onCall<{
         throw new HttpsError('failed-precondition', 'Endeavour control changed; refresh before use.');
       }
 
-      const [research, device, navigationDoc, groupDocs, gmProjection, playerProjections] = await Promise.all([
+      const [research, device, navigationDoc, groupDocs, gmProjection, playerProjections, players] = await Promise.all([
         tx.get(researchRef), tx.get(deviceRef), tx.get(navigationRef), tx.get(groupsRef),
-        tx.get(gmProjectionRef), tx.get(playerProjectionsRef),
+        tx.get(gmProjectionRef), tx.get(playerProjectionsRef), tx.get(playersRef),
       ]);
       const state = deviceState(device);
       if (state.revision !== command.expectedDeviceRevision) {
@@ -440,16 +463,7 @@ export const activateEndeavourEcmDevice = onCall<{
       if (!gmProjection.exists) {
         throw new HttpsError('failed-precondition', 'The current navigation projection is unavailable.');
       }
-      const groupByMemberUid = new Map<string, string>();
-      for (const group of groups) {
-        for (const memberUid of group.memberUids) {
-          const existingGroupId = groupByMemberUid.get(memberUid);
-          if (existingGroupId !== undefined && existingGroupId !== group.id) {
-            throw new HttpsError('failed-precondition', 'A player belongs to multiple authoritative fleet groups.');
-          }
-          groupByMemberUid.set(memberUid, group.id);
-        }
-      }
+      const groupByMemberUid = currentFleetMemberGroups(groups, players);
       const scientistProjection = playerProjections.docs.find((projection) => projection.id === uid);
       if (!scientistProjection || groupByMemberUid.get(uid) !== authority.groupId ||
           scientistProjection.get('groupId') !== authority.groupId) {

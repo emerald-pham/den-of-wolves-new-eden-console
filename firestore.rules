@@ -927,14 +927,15 @@ service cloud.firestore {
       }
 
       // ECM outcomes reveal only the pursuit change for the affected fleet
-      // group. Membership is resolved from the server-owned group roster; the
-      // private device state and replay receipt remain under serverState and
-      // commandReceipts above.
+      // group. Membership must match both the server-owned group roster and
+      // the caller's current player pointer. The private device state and
+      // replay receipt remain under serverState and commandReceipts above.
       match /fleetGroupEvents/{groupId}/events/{eventId} {
         allow get, list: if isMember(sessionId) &&
           exists(/databases/$(database)/documents/sessions/$(sessionId)/fleetGroups/$(groupId)) &&
           get(/databases/$(database)/documents/sessions/$(sessionId)/fleetGroups/$(groupId)).data.memberUids is list &&
           uid() in get(/databases/$(database)/documents/sessions/$(sessionId)/fleetGroups/$(groupId)).data.memberUids &&
+          get(/databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())).data.fleetGroupId == groupId &&
           resource.data.sessionId == sessionId && resource.data.groupId == groupId &&
           resource.data.type == 'endeavour-ecm-device-used';
         allow write: if false;
