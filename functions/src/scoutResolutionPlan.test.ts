@@ -67,13 +67,23 @@ describe('scout resolution write plan', () => {
     expect(plan.deepNebulaScan).toBeNull();
   });
 
+  it('resolves a legal earlier-cycle request after the active cycle advances', () => {
+    const plan = buildScoutResolutionPlan({
+      request, cadence, session: { ...session, currentCycle: 5 },
+      facilitator, fleetGroupId: 'fleet-1',
+      recordedAt: '2026-09-27T21:40:00.000Z',
+    });
+    expect(plan.result.cycle).toBe(4);
+    expect(plan.deepNebulaScan?.requestId).toBe('scan-1');
+  });
+
   it.each([
     ['different cadence scan', { cadence: { ...cadence, scans: [{ ...cadence.scans[0], scan: { ...scan, targetCoordinate: '5143' } }] } }],
     ['different cadence actor', { cadence: { ...cadence, scans: [{ ...cadence.scans[0], actorUid: 'other' }] } }],
     ['forged request fact', { request: { ...request, organiserChart: { '0408': 'O' } } }],
     ['wrong source identity', { request: { ...request, anchorShipId: 'aegis' } }],
     ['missing receiving ship', { request: { ...request, receivingShipId: undefined } }],
-    ['old cycle', { session: { ...session, currentCycle: 5 } }],
+    ['future cycle', { session: { ...session, currentCycle: 3 } }],
     ['unlocked chart', { session: { ...session, chartSelectionLocked: false } }],
     ['stale GM lease', { facilitator: { ...facilitator, facilitatorInstance: { ...facilitator.facilitatorInstance, lastSeenAt: 0 } } }],
   ])('fails closed on %s', (_label, change) => {

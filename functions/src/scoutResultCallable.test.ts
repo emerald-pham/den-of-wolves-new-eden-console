@@ -152,6 +152,18 @@ describe('private scout result callables', () => {
     }, 'gm-1'))).resolves.toEqual([]);
   });
 
+  it('keeps an earlier-cycle pending request visible and revealable after cycle advance', async () => {
+    put('sessions/session-1', {
+      ...mock.documents.get('sessions/session-1'), currentTurn: 5,
+    });
+    await expect(listPendingScoutRequests.run(callableRequest({
+      sessionId: 'session-1', instanceId: 'gm-browser',
+    }, 'gm-1'))).resolves.toMatchObject([{ requestId: 'scan-1', cycle: 4 }]);
+    await expect(resolvePendingScoutRequest.run(callableRequest({
+      sessionId: 'session-1', requestId: 'scan-1', instanceId: 'gm-browser',
+    }, 'gm-1'))).resolves.toMatchObject({ status: 'resolved', result: { cycle: 4 } });
+  });
+
   it('replays requester-owned pending and resolved IDs without a chart export and reads one durable note', async () => {
     const pending = await listMyScoutReports.run(callableRequest({ sessionId: 'session-1' }, 'scientist-1'));
     expect(pending).toEqual([{ requestId: 'scan-1', cycle: 4,
