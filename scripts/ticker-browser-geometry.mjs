@@ -230,7 +230,22 @@ export function assessTickerGeometry({
       };
       velocities.push(velocity);
       const windowOffscreen = isFullyOffscreen(previous) && isFullyOffscreen(current);
-      if (startupClockCatchup) acceptedStartupClockCatchup = true;
+      if (startupClockCatchup) {
+        acceptedStartupClockCatchup = true;
+        if (speed < minimumSpeed || speed > maximumSpeed) {
+          failures.push(
+            `track ${id} constant-speed sample ${speed.toFixed(2)}px/s ` +
+            `outside ${minimumSpeed}..${maximumSpeed}px/s`,
+          );
+          if (Math.abs(displacement) > 0.25) initialMotionStarted = true;
+          // This interval is exempt only from the wall-clock discontinuity
+          // check. Its CSS-clock speed must pass before any startup waiver.
+          continue;
+        }
+        checkedVelocitySamples.push({ id, ...velocity });
+        if (Math.abs(displacement) > 0.25) initialMotionStarted = true;
+        continue;
+      }
 
       if (speed >= minimumSpeed && speed <= maximumSpeed) {
         checkedVelocitySamples.push({ id, ...velocity });

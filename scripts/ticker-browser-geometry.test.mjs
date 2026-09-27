@@ -133,6 +133,29 @@ function createAnimationClockEntrySamples(visibleJumpPx = 0, { startupWallGapMs 
   });
 }
 
+function createOffscreenStartupGapSamples(firstLeft, secondLeft) {
+  return Array.from({ length: 24 }, (_, sampleIndex) => {
+    const animationTimeMs = sampleIndex * (1_000 / 60);
+    const elapsed = sampleIndex === 0
+      ? 10
+      : 143.3 + ((sampleIndex - 1) * (1_000 / 60));
+    const left = sampleIndex === 0
+      ? firstLeft
+      : secondLeft - ((sampleIndex - 1) * 0.8);
+    return {
+      elapsed,
+      frame,
+      groups: [{
+        id: initialPosition.id,
+        left,
+        right: left + initialPosition.width,
+        width: initialPosition.width,
+        animationTimeMs,
+      }],
+    };
+  });
+}
+
 test('measures the offscreen-to-visible interval against the CSS animation clock', () => {
   const result = assessTickerGeometry({
     initialPosition,
@@ -154,6 +177,30 @@ test('allows a long offscreen startup gap when position matches CSS animation ti
   assert.equal(result.initialSampleEdgeValid, true);
   assert.equal(result.entryTransitionObserved, true);
   assert.equal(result.speedStable, true);
+});
+
+test('rejects an out-of-range offscreen startup step despite a matching long rAF gap', () => {
+  const result = assessTickerGeometry({
+    initialPosition,
+    samples: createOffscreenStartupGapSamples(204, 202),
+    requireAnimationClock: true,
+  });
+
+  assert.equal(result.initialSampleEdgeValid, true);
+  assert.equal(result.speedStable, false);
+  assert.ok(result.failures.some((failure) => failure.includes('constant-speed')));
+});
+
+test('rejects an offscreen edge step outside CSS-clock speed during startup catch-up', () => {
+  const result = assessTickerGeometry({
+    initialPosition,
+    samples: createOffscreenStartupGapSamples(201.5, 200),
+    requireAnimationClock: true,
+  });
+
+  assert.equal(result.initialSampleEdgeValid, true);
+  assert.equal(result.speedStable, false);
+  assert.ok(result.failures.some((failure) => failure.includes('constant-speed')));
 });
 
 test('rejects a visible movement jump during the long offscreen startup gap', () => {
