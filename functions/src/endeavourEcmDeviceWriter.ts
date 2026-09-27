@@ -464,18 +464,19 @@ export const activateEndeavourEcmDevice = onCall<{
         throw new HttpsError('failed-precondition', 'The current navigation projection is unavailable.');
       }
       const groupByMemberUid = currentFleetMemberGroups(groups, players);
-      const scientistProjection = playerProjections.docs.find((projection) => projection.id === uid);
-      if (!scientistProjection || groupByMemberUid.get(uid) !== authority.groupId ||
-          scientistProjection.get('groupId') !== authority.groupId) {
+      if (groupByMemberUid.get(uid) !== authority.groupId) {
         throw new HttpsError('failed-precondition', 'The Scientist navigation projection is unavailable.');
       }
-      const currentMemberProjections = playerProjections.docs.flatMap((projection) => {
-        const groupId = groupByMemberUid.get(projection.id);
-        if (groupId === undefined) return [];
+      const projectionByUid = new Map(playerProjections.docs.map((projection) => [projection.id, projection]));
+      const currentMemberProjections = [...groupByMemberUid].map(([memberUid, groupId]) => {
+        const projection = projectionByUid.get(memberUid);
+        if (!projection) {
+          throw new HttpsError('failed-precondition', 'A current player navigation projection is missing.');
+        }
         if (projection.get('groupId') !== groupId) {
           throw new HttpsError('failed-precondition', 'A current player navigation projection is stale.');
         }
-        return [{ projection, groupId }];
+        return { projection, groupId };
       });
       const revision = nextNavigationRevision(navigationDoc);
       let result: ReturnType<typeof resolveEndeavourEcmDevice>;
