@@ -1438,6 +1438,10 @@ describe('session header', () => {
         type: 'scout-request', status: 'requested', resolution: 'pending',
         actorUid: 'alice', targetCoordinate: '5143',
       });
+      await setDoc(doc(ctx.firestore(), `${SESSION}/scoutCadence/2-endeavour`), {
+        sessionId: 's1', entitlementId: 'endeavour', cycle: 2,
+        scans: [{ requestId: 'request-1', actorUid: 'alice' }],
+      });
     });
 
     for (const uid of ['alice', 'gm1']) {
@@ -1449,6 +1453,14 @@ describe('session header', () => {
       }));
       await assertFails(updateDoc(request, { targetCoordinate: '0000' }));
       await assertFails(deleteDoc(request));
+      const cadence = doc(as(uid), `${SESSION}/scoutCadence/2-endeavour`);
+      await assertFails(getDoc(cadence));
+      await assertFails(getDocs(collection(as(uid), `${SESSION}/scoutCadence`)));
+      await assertFails(setDoc(doc(as(uid), `${SESSION}/scoutCadence/2-starlight`), {
+        sessionId: 's1', entitlementId: 'starlight', cycle: 2, scans: [],
+      }));
+      await assertFails(updateDoc(cadence, { scans: [] }));
+      await assertFails(deleteDoc(cadence));
     }
   });
 
