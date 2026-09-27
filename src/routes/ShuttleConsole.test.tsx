@@ -2034,6 +2034,13 @@ it.each([
     }),
     /old recharge request cannot carry into this cycle/i,
   ],
+  [
+    'a mixed transport code with a deterministic server rejection',
+    Object.assign(new Error('The Coordination cycle changed.'), {
+      code: 'functions/unavailable', details: { commandError: 'stale-revision' },
+    }),
+    /old recharge request cannot carry into this cycle/i,
+  ],
   ['an unclassified error', new Error('The recharge outcome could not be classified.'), /fleet service is temporarily unavailable/i],
 ])('does not offer exact replay after %s', async (_label, failure, expectedStatus) => {
   const user = userEvent.setup();

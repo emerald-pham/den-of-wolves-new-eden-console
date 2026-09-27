@@ -118,7 +118,21 @@ const AMBIGUOUS_RECHARGE_OUTCOME_CODES = new Set([
 
 function hasAmbiguousServiceShuttleRechargeOutcome(cause: unknown): boolean {
   const failure = normalizeCommandError(cause);
-  return AMBIGUOUS_RECHARGE_OUTCOME_CODES.has(failure.code);
+  if (!AMBIGUOUS_RECHARGE_OUTCOME_CODES.has(failure.code) || failure.kind !== 'unavailable-service') {
+    return false;
+  }
+  if (typeof cause !== 'object' || cause === null) return false;
+
+  // A server response with details is a classified outcome, even when its
+  // transport wrapper uses an ambiguous code. Keep exact replay only for a
+  // bare transport failure with no server-declared result.
+  if ('kind' in cause && cause.kind !== undefined) return false;
+  if ('details' in cause && cause.details !== undefined) return false;
+  if (!('customData' in cause) || typeof cause.customData !== 'object' || cause.customData === null) {
+    return true;
+  }
+  const customData = cause.customData as Record<string, unknown>;
+  return customData.serverResponse === undefined;
 }
 
 function captureCargoAttemptAuthority(
