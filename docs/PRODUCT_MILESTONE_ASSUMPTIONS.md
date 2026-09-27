@@ -36,3 +36,14 @@ the original assumption; append the resolution so the decision is traceable.
 | Chosen reading | Record the shuttle's valid parked host at request time as the receiving ship for map-coordinate knowledge. Keep the private result and note with the requesting player and role's group. Later docking movement cannot redirect a pending scan. |
 | Product effect | Scout receipts and resolved coordinate knowledge bind to the request-time host; a different ship cannot read that coordinate merely because the craft later moves. This affects Prompts 321, 328–330, and 677, with request, replay, result, and two-ship projection tests. |
 | Review state | New; awaiting owner feedback on the completed PC01 UI playtest. |
+
+### PC01-A2 — Hidden Deep Nebula scouting progress
+
+| Field | Record |
+|---|---|
+| ID and milestone | PC01-A2; Shepherd science station. |
+| Source passage | Away Mission booklet v1.1, O — Deep Nebula, with Facilitator's Guide pp. 13–15, 19 context: each scouting mission there affects eventual ship jump rolls, while the accumulated bonus is withheld from players in advance. |
+| Ambiguity and alternatives | The printed instruction does not specify what a digital scout receipt should say about accumulating progress. Showing the count, showing no feedback, and giving a nonnumeric hint are plausible UI readings. |
+| Chosen reading | Persist one server-only marker per committed Deep Nebula scout result and show the requester a qualitative progress hint. Do not include a numeric total in the result, note, map, or hint. The later jump resolver may count the markers when its separate checkpoint implements that action. |
+| Product effect | Prompt 332 records exact-once hidden scans; Prompt 333 gives the Scientist useful feedback without exposing the accrued modifier. Replay, wrong-recipient, and no-total checks cover the boundary. |
+| Review state | New; awaiting owner feedback on the completed PC01 UI playtest. |
