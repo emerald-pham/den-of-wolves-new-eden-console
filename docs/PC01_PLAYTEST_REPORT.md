@@ -55,8 +55,8 @@ verify gameplay, permissions, and privacy separately.
 | Firestore rules and privacy | Firestore emulator suite: 4 files and 138 tests passed. Scout and ECM projections also have focused transaction and audience regressions. |
 | Rendered phone, desktop, short landscape, and reduced motion | Integrated review page checked at 320×800 Scientist and second ship, 1280×900 GM, and 844×390 GM; no horizontal overflow. A separate 320×800 run confirmed the reduced-motion media rule applies, computed scrolling is automatic, and the page makes no Firebase requests. |
 | Browser and render performance | Ticker smoke passed its normal and reduced-motion viewport matrix and lifecycle captures. The P637 render gate passed: landing entry graph 1,843,582 raw / 481,347 gzip bytes within unchanged limits; largest whole-build chunk 497,103 bytes; landing startup p95 101.46 ms and no long mobile frames. The separate review entry graph is 242,358 raw / 77,743 gzip bytes. Integrated local run: `/tmp/pc01-render-final-validated/results.json` (2026-09-27 23:10 UTC). |
-| Independent callable and privacy review | Sol xhigh reviewed the integrated GM roster and move/jump repairs at commit `029abdf8` and found no remaining actionable findings. Release-gate measurement is being checked separately. |
-| Production deployment | Pending release workflow and hosted build check. |
+| Independent callable and privacy review | Sol xhigh reviewed the exact release commit `80d33209` after GM roster, move/jump, and render-gate repairs and found no remaining actionable findings. |
+| Production deployment | [Release workflow 36357919346](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/36357919346) passed exact-commit verification and deployed Hosting, Firestore, and selected Functions from `80d33209`. Its deployed-surface check passed. The hosted `build-version.json` reports `0.5.51`; the hosted review page returned HTTP 200 and loaded at 390×844 with no horizontal overflow, page errors, or Firebase requests. |
 | Ordinary authorized facilitator and Scientist gameplay | Pending an authorized live session. Synthetic review and local tests do not establish this boundary. |
 
 ## Test changes
@@ -96,7 +96,7 @@ results appear above.
 
 ## Known issues and later candidates
 
-The ordinary authorized live path requires a facilitator and Scientist session
-after deployment. PC02–PC10 remain provisional; Starlight, Hummingbird, and
+The ordinary authorized live path still requires a facilitator and Scientist
+session. PC02–PC10 remain provisional; Starlight, Hummingbird, and
 Comms result workspaces, selective sharing, away missions, split-fleet
 communication, and unrelated stations remain outside the PC01 shape.

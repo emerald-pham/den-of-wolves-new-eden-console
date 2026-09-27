@@ -157,9 +157,10 @@ extra owner playtest steps.
 
 ## PC01 shape — Shepherd science station
 
-**State:** release candidate built; integrated validation and deployment remain.
-PC02–PC10 remain provisional candidates; the owner reviews PC01 only after a
-complete playable handoff.
+**State:** build 0.5.51 released; solo owner UI review and ordinary authorized
+facilitator/Scientist gameplay proof remain. PC02–PC10 remain provisional
+candidates. The deployed synthetic review scene supports the owner's UI tour;
+it does not establish the live gameplay proof.
 
 **Execution note (2026-09-27).** The earlier optional-sidecar wording left
 independent PC01 work easy to run serially. Assign bounded, separate owners
