@@ -75,6 +75,11 @@ function resetFixture(): void {
     phase: 'active', currentTurn: 2,
     activeRoleIds: [...roleIds], activeVesselIds: [...vesselIds],
     turnPhase: { turn: 2, airspace: { state: 'lifted' } },
+    shuttleDockings: [
+      { shuttleId: 'starlight', shipId: 'aegis', dockedAt: 'now' },
+      { shuttleId: 'hummingbird', shipId: 'quellon', dockedAt: 'now' },
+      { shuttleId: 'endeavour', shipId: 'shepherd', dockedAt: 'now' },
+    ],
   });
   put('sessions/s1/players/wing', {
     role: 'player', connected: true, assignedRoleId: 'wing-commander',
@@ -111,11 +116,11 @@ it.each([
 
   expect(result).toMatchObject({
     status: 'requested', requestId: `request-${uid}`, sessionId: 's1', cycle: 2,
-    entitlementId, ownerRoleId, anchorShipId, targetCoordinate: '5143',
+    entitlementId, ownerRoleId, anchorShipId, receivingShipId: anchorShipId, targetCoordinate: '5143',
   });
   const stored = mock.documents.get(`sessions/s1/scoutRequests/request-${uid}`);
   expect(stored).toMatchObject({
-    status: 'requested', actorUid: uid, entitlementId, ownerRoleId, anchorShipId,
+    status: 'requested', actorUid: uid, entitlementId, ownerRoleId, anchorShipId, receivingShipId: anchorShipId,
     targetCoordinate: '5143', cycle: 2, createdAt: 'server-time',
   });
   expect(stored).not.toHaveProperty('result');
@@ -128,6 +133,42 @@ it.each([
     sessionId: 's1', entitlementId, cycle: 2,
     scans: [{ requestId: `request-${uid}`, actorUid: uid }],
   });
+});
+
+it('binds a shuttle scan to its current docked receiving ship through later docking changes', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  const dockings = session.shuttleDockings as { shuttleId: string; shipId: string; dockedAt: string }[];
+  session.shuttleDockings = dockings.map((entry) => entry.shuttleId === 'endeavour'
+    ? { ...entry, shipId: 'aegis' }
+    : entry);
+  const command = {
+    sessionId: 's1', requestId: 'docked-receiver', entitlementId: 'endeavour', targetCoordinate: '5143',
+  };
+  await expect(requestScout.run(request(command, 'scientist'))).resolves.toMatchObject({
+    anchorShipId: 'shepherd', receivingShipId: 'aegis',
+  });
+  expect(mock.documents.get('sessions/s1/scoutRequests/docked-receiver')).toMatchObject({
+    anchorShipId: 'shepherd', receivingShipId: 'aegis',
+  });
+  session.shuttleDockings = dockings;
+  await expect(requestScout.run(request(command, 'scientist'))).resolves.toMatchObject({
+    status: 'replayed', receivingShipId: 'aegis',
+  });
+});
+
+it('rejects a shuttle request without one valid parked receiving ship', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  const dockings = session.shuttleDockings as { shuttleId: string; shipId: string; dockedAt: string }[];
+  session.shuttleDockings = dockings.filter((entry) => entry.shuttleId !== 'endeavour');
+  await expect(requestScout.run(request({
+    sessionId: 's1', requestId: 'undocked-scanner', entitlementId: 'endeavour', targetCoordinate: '5143',
+  }, 'scientist'))).rejects.toMatchObject({ code: 'failed-precondition' });
+  session.shuttleDockings = [...dockings, { shuttleId: 'endeavour', shipId: 'aegis', dockedAt: 'duplicate' }];
+  await expect(requestScout.run(request({
+    sessionId: 's1', requestId: 'ambiguous-scanner', entitlementId: 'endeavour', targetCoordinate: '5143',
+  }, 'scientist'))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.has('sessions/s1/scoutRequests/undocked-scanner')).toBe(false);
+  expect(mock.documents.has('sessions/s1/scoutRequests/ambiguous-scanner')).toBe(false);
 });
 
 it('rejects an out-of-range Comms target before recording a pending request', async () => {

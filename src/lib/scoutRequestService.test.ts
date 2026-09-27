@@ -72,14 +72,14 @@ it.each(entitlements)('sends only the printed %s request identity and coordinate
   setEntitlement(entitlementId);
   const call = vi.fn().mockResolvedValue({ data: {
     status: 'requested', resolution: 'pending', requestId: 'scout-1', sessionId: 's1', cycle: 2,
-    entitlementId, source, ownerRoleId, anchorShipId, targetCoordinate: '5143',
+    entitlementId, source, ownerRoleId, anchorShipId, receivingShipId: anchorShipId, targetCoordinate: '5143',
   } });
   vi.mocked(httpsCallable).mockReturnValue(call as never);
 
   await expect(requestScout({ entitlementId, targetCoordinate: '5143', requestId: 'scout-1' }))
     .resolves.toEqual({
       status: 'requested', resolution: 'pending', requestId: 'scout-1', sessionId: 's1', cycle: 2,
-      entitlementId, source, ownerRoleId, anchorShipId, targetCoordinate: '5143',
+      entitlementId, source, ownerRoleId, anchorShipId, receivingShipId: anchorShipId, targetCoordinate: '5143',
     });
   expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'requestScout');
   expect(call).toHaveBeenCalledWith({
@@ -137,7 +137,7 @@ it('rejects replies that include chart or organiser data', async () => {
   const call = vi.fn().mockResolvedValue({ data: {
     status: 'requested', resolution: 'pending', requestId: 'scout-1', sessionId: 's1', cycle: 2,
     entitlementId: 'starlight', source: 'craft', ownerRoleId: 'wing-commander', anchorShipId: 'aegis',
-    targetCoordinate: '5143', chartFact: 'GM-only',
+    targetCoordinate: '5143', receivingShipId: 'aegis', chartFact: 'GM-only',
   } });
   vi.mocked(httpsCallable).mockReturnValue(call as never);
 
@@ -150,7 +150,7 @@ it('rejects replies bound to a different target or session', async () => {
   const call = vi.fn().mockResolvedValue({ data: {
     status: 'requested', resolution: 'pending', requestId: 'scout-1', sessionId: 's2', cycle: 2,
     entitlementId: 'starlight', source: 'craft', ownerRoleId: 'wing-commander', anchorShipId: 'aegis',
-    targetCoordinate: '8378',
+    targetCoordinate: '8378', receivingShipId: 'aegis',
   } });
   vi.mocked(httpsCallable).mockReturnValue(call as never);
 
