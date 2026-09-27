@@ -2251,11 +2251,14 @@ export const resolvePendingScoutRequest = createResolvePendingScoutRequest(async
   if (chartId !== 'A' && chartId !== 'B' && chartId !== 'C') {
     throw commandError('failed-precondition', 'The locked scout chart is unavailable.', 'malformed-input');
   }
+  if (!nextNavigation.scoutedCoordinatesByShip) {
+    throw commandError('failed-precondition', 'Scouted ship-map knowledge is unavailable.', 'malformed-input');
+  }
   tx.set(navigationRef, {
-    ...navigationProjectionFields(nextNavigation),
+    scoutedCoordinatesByShip: nextNavigation.scoutedCoordinatesByShip,
     revision: nextRevision,
     updatedAt: FieldValue.serverTimestamp(),
-  });
+  }, { merge: true });
   publishDiscoveryProjections(
     tx, sessionId, playerDocs, nextNavigation, nextRevision, chartId, fleetGroups,
     false, {
