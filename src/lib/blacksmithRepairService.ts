@@ -125,9 +125,9 @@ export function hasCurrentBlacksmithRepairAuthority(
   const groupVessels = projection?.fleetGroupVesselIds;
   return session.id === binding.sessionId && me.sessionId === binding.sessionId &&
     me.uid === binding.uid && me.role === binding.role && me.role === 'player' &&
-    me.assignedRoleId === binding.assignedRoleId && me.assignedRoleId === BLACKSMITH_ROLE_ID &&
+    me.assignedRoleId === binding.assignedRoleId &&
     me.activeConsoleRoleId === binding.activeConsoleRoleId &&
-    me.activeConsoleRoleId === BLACKSMITH_ROLE_ID && me.escapeState == null &&
+    me.escapeState == null &&
     me.fleetGroupId === binding.fleetGroupId && typeof binding.fleetGroupId === 'string' &&
     binding.fleetGroupId.trim().length > 0 && session.phase === 'active' &&
     Array.isArray(activeRoles) && activeRoles.every((roleId) =>
@@ -170,7 +170,7 @@ export function captureBlacksmithRepairAuthority(
     expectedCycle: command.expectedCycle,
   };
   if (!hasCurrentBlacksmithRepairAuthority(binding)) {
-    throw new Error('Only the current Icebreaker Engineer holding Blacksmith at its in-group dock may repair during Coordination.');
+    throw new Error('Only the current Blacksmith holder with live fleet-group and dock authority may repair during Coordination.');
   }
   return binding;
 }

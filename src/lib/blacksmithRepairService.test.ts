@@ -78,6 +78,14 @@ it('accepts exact replay and rejects a response bound to another request', async
   await expect(repairConsolesFromBlacksmith(command)).rejects.toThrow(/malformed/i);
 });
 
+it('allows a current fleet-group handoff holder and preserves their assigned role binding', async () => {
+  const state = useSessionStore.getState();
+  state.setMe({ ...state.me!, assignedRoleId: 'icebreaker-captain', activeConsoleRoleId: 'icebreaker-captain' });
+  mocks.call.mockResolvedValue(staleResponse());
+  await expect(repairConsolesFromBlacksmith(command)).resolves.toMatchObject({ status: 'stale' });
+  expect(mocks.call).toHaveBeenCalledTimes(1);
+});
+
 it('accepts a minimal stale envelope bound to the exact request, host, selection, and CAS', async () => {
   mocks.call.mockResolvedValue(staleResponse());
   await expect(repairConsolesFromBlacksmith(command)).resolves.toEqual(staleResponse().data);

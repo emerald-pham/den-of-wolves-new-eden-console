@@ -1215,6 +1215,35 @@ it('keeps an eligible Blacksmith selection and waits for the newer live projecti
     .toHaveAttribute('role', 'status');
 });
 
+it('allows a connected fleet-group player holding handed-off Blacksmith to repair under their role', async () => {
+  const user = userEvent.setup();
+  const state = prepareBlacksmithRepairState();
+  const current = state.session!;
+  act(() => state.setSession({
+    ...current,
+    shuttleControl: { blacksmith: { ...current.shuttleControl!.blacksmith!, ownerUid: 'engineer-owner' } },
+  }));
+  state.setMe({ ...state.me!, assignedRoleId: 'icebreaker-captain', activeConsoleRoleId: 'icebreaker-captain' });
+  vi.mocked(repairConsolesFromBlacksmith).mockResolvedValueOnce({
+    status: 'committed', hostShipId: 'icebreaker', systemIds: ['reactor'],
+    materialsRemaining: 8, cycle: 3, repairRevision: 1,
+  });
+  render(<MemoryRouter initialEntries={['/shuttles/blacksmith']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+
+  const repair = screen.getByRole('region', { name: 'Blacksmith console repair' });
+  await user.click(within(repair).getByRole('checkbox', { name: 'Reactor' }));
+  await user.click(within(repair).getByRole('button', { name: 'Repair selected consoles' }));
+  await waitFor(() => expect(repairConsolesFromBlacksmith).toHaveBeenCalledWith(
+    expect.objectContaining({
+      requestId: expect.any(String), systemIds: ['reactor'], expectedControlRevision: 2,
+      expectedRepairRevision: 0, expectedCycle: 3, expectedHostShipId: 'icebreaker',
+    }),
+  ));
+  expect(await screen.findByText(/repaired 1 console.*8 materials remain/i)).toHaveAttribute('role', 'status');
+});
+
 it('uses a live Blacksmith projection that arrived before its stale response', async () => {
   const user = userEvent.setup();
   const state = prepareBlacksmithRepairState();
