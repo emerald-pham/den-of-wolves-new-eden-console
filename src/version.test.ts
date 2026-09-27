@@ -26,11 +26,12 @@ it('retains connected-player roster privacy in its release history', () => {
   );
 });
 
-it('preserves prior repair history when adding Philia to the current release', () => {
+it('preserves prior repair history when adding Capybara to the current release', () => {
   const allyEntry = CHANGELOG.find((entry) => entry.version === '0.5.40');
   const maliadesEntry = CHANGELOG.find((entry) => entry.version === '0.5.41');
   const chacauEntry = CHANGELOG.find((entry) => entry.version === '0.5.42');
-  const philiaEntry = CHANGELOG.find((entry) => entry.version === APP_VERSION);
+  const philiaEntry = CHANGELOG.find((entry) => entry.version === '0.5.43');
+  const capybaraEntry = CHANGELOG.find((entry) => entry.version === APP_VERSION);
 
   expect(allyEntry?.changes).toContain(
     'Ally repairs keep selected consoles while server state catches up and let the current Joint Engineering Union holder explicitly retry with a fresh request and current revisions.',
@@ -43,6 +44,9 @@ it('preserves prior repair history when adding Philia to the current release', (
   );
   expect(philiaEntry?.changes).toContain(
     'Philia repairs keep eligible console selections while server state catches up, then let the current Dione Engineer explicitly retry with current revisions.',
+  );
+  expect(capybaraEntry?.changes).toContain(
+    'When Capybara cargo changes during a transfer, the current Captain can keep the draft, wait for live cargo to catch up, and explicitly retry at the current revision.',
   );
 });
 

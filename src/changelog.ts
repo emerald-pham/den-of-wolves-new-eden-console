@@ -26,6 +26,19 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 458, partial: 44, active: 0, missing: 249,
     },
     changes: [
+      'When Capybara cargo changes during a transfer, the current Captain can keep the draft, wait for live cargo to catch up, and explicitly retry at the current revision.',
+      '458 of 751 planned items are complete (60.99%).',
+    ],
+    implementationPrompts: [620],
+  },
+
+  {
+    version: '0.5.43',
+    implementationProgress: {
+      completed: 458, total: 751, percentage: '60.99%',
+      done: 458, partial: 44, active: 0, missing: 249,
+    },
+    changes: [
       'Philia repairs keep eligible console selections while server state catches up, then let the current Dione Engineer explicitly retry with current revisions.',
       '458 of 751 planned items are complete (60.99%).',
     ],
