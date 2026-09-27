@@ -2241,6 +2241,21 @@ export const resolvePendingScoutRequest = createResolvePendingScoutRequest(async
       vesselMembership.some((shipId) => !activeVesselIds.includes(shipId))) {
     throw commandError('failed-precondition', 'Current fleet-group authority is incomplete for scouting.', 'malformed-input');
   }
+  const activePlayers = playerDocs.filter((player) =>
+    player.exists && player.get('role') === 'player' && !isKickedPlayer(player));
+  const groupByMember = new Map<string, string>();
+  for (const group of fleetGroups) {
+    for (const memberUid of group.memberUids) {
+      if (groupByMember.has(memberUid)) {
+        throw commandError('failed-precondition', 'Current fleet-group members are duplicated for scouting.', 'malformed-input');
+      }
+      groupByMember.set(memberUid, group.id);
+    }
+  }
+  if (groupByMember.size !== activePlayers.length ||
+      activePlayers.some((player) => groupByMember.get(player.id) !== player.get('fleetGroupId'))) {
+    throw commandError('failed-precondition', 'Current fleet-group members are mismatched for scouting.', 'malformed-input');
+  }
   const navigation = navigationStateForSession(storedNavigation, session, activeVesselIds);
   const nextNavigation = recordScoutedCoordinateForShip(
     navigation, plan.receivingShipId, plan.result.targetCoordinate,
