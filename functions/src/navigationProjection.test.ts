@@ -144,6 +144,19 @@ describe('server discovery projections', () => {
     expect(JSON.stringify(shepherd)).not.toContain('6798');
   });
 
+  it('loads only valid scouted coordinates for active ships and drops duplicates', () => {
+    expect(navigationState({
+      scoutedCoordinatesByShip: {
+        dione: ['6798', '9999', '6798'],
+        shepherd: ['1413'],
+        capybara: ['8378'],
+      },
+    }, ['dione', 'shepherd']).scoutedCoordinatesByShip).toEqual({
+      dione: ['6798'],
+      shepherd: ['1413'],
+    });
+  });
+
   it('rejects a scout coordinate for an inactive ship or unprinted system', () => {
     expect(() => recordScoutedCoordinateForShip(navigation, 'capybara', '6798'))
       .toThrow(/active ship/i);
