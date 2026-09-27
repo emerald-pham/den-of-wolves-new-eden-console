@@ -124,6 +124,9 @@ export default function BaseCapybaraCargoTransferPanel() {
   const resourceAvailable = direction === 'load'
     ? hostInventory?.[resourceId]
     : cargo?.inventory[resourceId];
+  const destinationAvailable = direction === 'load'
+    ? cargo?.inventory[resourceId]
+    : hostInventory?.[resourceId];
   const amount = amountText.trim() === '' ? Number.NaN : Number(amountText);
   const phase = phaseForSession(session);
   const coordinationOpen = session?.phase === 'active' && currentCycle >= 1 &&
@@ -149,10 +152,16 @@ export default function BaseCapybaraCargoTransferPanel() {
     ? staleRecovery : null;
   const staleProjectionReady = currentStaleRecovery !== null && cargo !== null &&
     cargo.revision >= currentStaleRecovery.reply.currentCargoRevision;
-  const staleRetryReady = staleProjectionReady && canSubmit;
+  const staleRetryReady = staleProjectionReady && canSubmit &&
+    Number.isSafeInteger(destinationAvailable) &&
+    (destinationAvailable as number) >= 0 &&
+    (destinationAvailable as number) <= Number.MAX_SAFE_INTEGER - amount &&
+    cargo !== null && cargo.revision < Number.MAX_SAFE_INTEGER;
   const staleRecoveryMessage = currentStaleRecovery
     ? staleProjectionReady
-      ? `Cargo changed. Live revision ${cargo?.revision} is current; review the transfer before retrying.`
+      ? staleRetryReady
+        ? `Cargo changed. Live revision ${cargo.revision} is current; review the transfer before retrying.`
+        : `Cargo changed. Live revision ${cargo.revision} is current, but the transfer is no longer eligible. Review the amount and direction before trying again.`
       : `Cargo changed. Waiting for live revision ${currentStaleRecovery.reply.currentCargoRevision} before retrying.`
     : '';
   const pendingForCurrentAuthority = pending && pendingRef.current !== null &&

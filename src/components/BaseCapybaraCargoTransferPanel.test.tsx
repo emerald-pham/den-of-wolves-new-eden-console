@@ -209,6 +209,43 @@ it('preserves a stale transfer draft until the live revision arrives, then retri
 });
 
 it.each([
+  ['a full Capybara destination', 'load', 5, Number.MAX_SAFE_INTEGER, 9],
+  ['a full host destination', 'unload', 5, 4, Number.MAX_SAFE_INTEGER],
+  ['an exhausted cargo revision', 'load', Number.MAX_SAFE_INTEGER, 4, 9],
+] as const)('keeps stale retry disabled when live state shows %s', async (
+  _label, direction, liveRevision, cargoFood, hostFood,
+) => {
+  vi.stubGlobal('crypto', { randomUUID: vi.fn(() => 'stale-request-id') });
+  mocks.transfer.mockResolvedValueOnce(staleResult({
+    requestId: 'stale-request-id', direction,
+  }));
+  render(<BaseCapybaraCargoTransferPanel />);
+  const panel = screen.getByRole('region', { name: 'Cargo Transfer' });
+  if (direction === 'unload') {
+    fireEvent.change(within(panel).getByLabelText('Direction'), { target: { value: direction } });
+  }
+  fireEvent.click(within(panel).getByRole('button', { name: 'Transfer cargo' }));
+  expect(await within(panel).findByText(/cargo changed/i)).toBeInTheDocument();
+
+  act(() => {
+    const session = useSessionStore.getState().session!;
+    useSessionStore.getState().setSession({
+      ...session,
+      baseCapybaraCargo: {
+        ...session.baseCapybaraCargo!, revision: liveRevision,
+        inventory: { ...session.baseCapybaraCargo!.inventory, food: cargoFood },
+      },
+      shipResources: {
+        ...session.shipResources,
+        aegis: { ...session.shipResources?.aegis, food: hostFood },
+      },
+    } as GameSession);
+  });
+
+  expect(within(panel).getByRole('button', { name: 'Retry with current revision' })).toBeDisabled();
+});
+
+it.each([
   ['replacement role', { replacementRoleId: null }],
   ['seat', { seatId: 'admiral' }],
 ] as const)('ignores a delayed result after the Captain %s authority changes', async (_label, patch) => {
