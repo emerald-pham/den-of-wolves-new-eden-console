@@ -13,7 +13,7 @@ vi.mock('@/lib/endeavourEcmDeviceService', () => ({
   retryEndeavourEcmDeviceAttempt: mocks.retry,
 }));
 
-import EndeavourEcmDevicePanel from './EndeavourEcmDevicePanel';
+import EndeavourEcmDevicePanel, { EndeavourEcmDeviceView } from './EndeavourEcmDevicePanel';
 
 const control = {
   shuttleId: 'endeavour', ownerRoleId: 'shepherd-scientist', ownerUid: 'scientist',
@@ -79,6 +79,26 @@ beforeEach(() => {
   mocks.activate.mockResolvedValue(committed);
   mocks.retry.mockResolvedValue({ ...committed, status: 'replayed' });
   seedScientist();
+});
+
+it('renders every synthetic presentation state without calling a live service', () => {
+  const { rerender } = render(<EndeavourEcmDeviceView state={{ status: 'unavailable' }} />);
+  expect(screen.getByText('Status: Unavailable')).toBeVisible();
+  rerender(<EndeavourEcmDeviceView state={{ status: 'ready', groupId: 'fleet-1', pursuit: 8 }} />);
+  expect(screen.getByText('Status: Ready')).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Use ECM Device' })).toBeDisabled();
+  rerender(<EndeavourEcmDeviceView state={{ status: 'working', groupId: 'fleet-1', pursuit: 8 }} />);
+  expect(screen.getByText('Status: Working')).toBeVisible();
+  rerender(<EndeavourEcmDeviceView state={{
+    status: 'successful', groupId: 'fleet-1', pursuitBefore: 8, pursuitAfter: 5,
+  }} />);
+  expect(screen.getByText('Successful: Shepherd group pursuit reduced from 8 to 5.')).toBeVisible();
+  rerender(<EndeavourEcmDeviceView state={{
+    status: 'spent', groupId: 'fleet-1', pursuitBefore: 8, pursuitAfter: 5,
+  }} />);
+  expect(screen.getByText('ECM Device spent; Shepherd group pursuit changed from 8 to 5.')).toBeVisible();
+  expect(mocks.read).not.toHaveBeenCalled();
+  expect(mocks.activate).not.toHaveBeenCalled();
 });
 
 it('shows the ready state, working feedback, success receipt, and persisted spent state', async () => {
