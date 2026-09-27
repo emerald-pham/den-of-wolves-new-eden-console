@@ -42,6 +42,18 @@ function currentResult(value: EndeavourEcmDeviceWorkspace): EndeavourEcmDevicePr
   return { status: 'ready', groupId: value.pursuit.groupId, pursuit: value.pursuit.current };
 }
 
+function isDefinitiveRejection(cause: unknown): boolean {
+  if (typeof cause !== 'object' || cause === null || !('code' in cause)) return false;
+  const code = cause.code;
+  return typeof code === 'string' && [
+    'functions/unauthenticated',
+    'functions/permission-denied',
+    'functions/invalid-argument',
+    'functions/not-found',
+    'functions/failed-precondition',
+  ].includes(code);
+}
+
 export default function EndeavourEcmDevicePanel({ control }: { readonly control: ShuttleControlEntry }) {
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
@@ -107,10 +119,13 @@ export default function EndeavourEcmDevicePanel({ control }: { readonly control:
   }, [reload, connection, snapshotFreshness, session?.currentTurn, control.revision]);
 
   const submit = useCallback(async (retry = false): Promise<void> => {
-    if (!canActivate || !workspace || !identityKey || !sessionId || !uid) return;
-    let attempt = activeAttempt;
+    if (!entitled || !identityKey || !sessionId || !uid || connection !== 'live' ||
+        snapshotFreshness !== 'server' || !window.navigator.onLine) return;
+    if (retry ? !activeAttempt : (!canActivate || !workspace)) return;
+    let attempt = retry ? activeAttempt : null;
     try {
       if (!attempt) {
+        if (!workspace) return;
         attempt = createEndeavourEcmDeviceAttempt(workspace);
         setPendingAttempt({ identityKey, attempt });
       }
@@ -125,14 +140,24 @@ export default function EndeavourEcmDevicePanel({ control }: { readonly control:
       await reload();
     } catch (cause) {
       if (isCurrentScientistHolder(sessionId, uid)) {
-        setError(cause instanceof Error && cause.message
-          ? cause.message
-          : 'The ECM Device result is uncertain. Retry the same request or refresh.');
+        if (isDefinitiveRejection(cause)) {
+          setPendingAttempt(null);
+          const message = cause instanceof Error && cause.message
+            ? cause.message
+            : 'The ECM Device request was rejected.';
+          await reload();
+          if (isCurrentScientistHolder(sessionId, uid)) setError(message);
+        } else {
+          setError(cause instanceof Error && cause.message
+            ? cause.message
+            : 'The ECM Device result is uncertain. Retry the same request or refresh.');
+        }
       }
     } finally {
       if (isCurrentScientistHolder(sessionId, uid)) setBusy(false);
     }
-  }, [activeAttempt, canActivate, identityKey, reload, sessionId, uid, workspace]);
+  }, [activeAttempt, canActivate, connection, entitled, identityKey, reload, sessionId,
+    snapshotFreshness, uid, workspace]);
 
   if (!entitled) return null;
   if (loading && !workspace) {
@@ -163,9 +188,12 @@ export default function EndeavourEcmDevicePanel({ control }: { readonly control:
       {...(canActivate && !busy && !activeAttempt ? { onActivate: () => void submit(false) } : {})}
       {...(recentSuccess ? { recentSuccess } : {})}
     />
-    {activeAttempt && error && <section className="console-workspace__status" aria-label="Unconfirmed ECM Device request">
+    {activeAttempt && !busy && <section className="console-workspace__status" aria-label="Unconfirmed ECM Device request">
       <p role="alert">The ECM Device response is uncertain. Retry the exact request to confirm its outcome.</p>
-      <button type="button" className="cic-action-button" disabled={busy || loading}
+      <button type="button" className="cic-text-button" disabled={busy || loading}
+        onClick={() => void reload()}>Refresh ECM Device status</button>
+      <button type="button" className="cic-action-button"
+        disabled={busy || loading || connection !== 'live' || snapshotFreshness !== 'server' || !window.navigator.onLine}
         onClick={() => void submit(true)}>Retry same ECM Device request</button>
     </section>}
     {!activeAttempt && error && <p role="alert">{error}</p>}

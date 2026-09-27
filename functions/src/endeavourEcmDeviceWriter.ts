@@ -9,7 +9,12 @@ import {
 } from './endeavourEcmDevice';
 import { endeavourResearchTrack } from './endeavourResearch';
 import { fleetGroupRecord, type FleetGroupRecord } from './fleetGroups';
-import { navigationState, navigationStateDocumentPath, type NavigationState } from './navigationProjection';
+import {
+  isValidPursuitAuthority,
+  navigationState,
+  navigationStateDocumentPath,
+  type NavigationState,
+} from './navigationProjection';
 import { CALLABLE_RUNTIME_OPTIONS } from './runtimeOptions';
 import { parsePlayerEscapeState } from './escapeState';
 import { isPresenceStale } from './sessionLifecycle';
@@ -205,6 +210,37 @@ function currentNavigation(
   return navigationState(data, activeVesselIds, session.get('pursuitGroups'));
 }
 
+function validatePursuitAuthority(
+  rawNavigation: DocumentSnapshot,
+  session: DocumentSnapshot,
+  navigation: NavigationState,
+  groups: readonly FleetGroupRecord[],
+): void {
+  const raw = rawNavigation.exists ? rawNavigation.data() : undefined;
+  const authority = isRecord(raw) && Object.hasOwn(raw, 'pursuitGroups')
+    ? raw.pursuitGroups
+    : session.get('pursuitGroups');
+  if (!isValidPursuitAuthority(authority)) {
+    throw new HttpsError('failed-precondition', 'The authoritative fleet pursuit state is malformed.');
+  }
+  const groupIds = new Set(groups.map((group) => group.id));
+  const pursuitIds = Object.keys(navigation.pursuitGroups);
+  if (pursuitIds.length !== groupIds.size ||
+      pursuitIds.some((groupId) => !groupIds.has(groupId)) ||
+      [...groupIds].some((groupId) => !Number.isSafeInteger(navigation.pursuitGroups[groupId]))) {
+    throw new HttpsError('failed-precondition', 'The authoritative fleet pursuit state is unavailable.');
+  }
+}
+
+function nextNavigationRevision(rawNavigation: DocumentSnapshot): number {
+  const stored = rawNavigation.get('revision');
+  const current = stored === undefined ? 0 : stored;
+  if (!isCounter(current) || current === Number.MAX_SAFE_INTEGER) {
+    throw new HttpsError('failed-precondition', 'The authoritative navigation revision is unavailable.');
+  }
+  return current + 1;
+}
+
 function researchComplete(value: unknown): boolean {
   try {
     return endeavourResearchTrack(value, 'ecm-device').complete;
@@ -295,6 +331,7 @@ function buildWorkspace(
     throw new HttpsError('failed-precondition', 'Shepherd must belong to one current fleet group to use ECM.');
   }
   const navigation = currentNavigation(navigationDoc, session, authority.activeVesselIds);
+  validatePursuitAuthority(navigationDoc, session, navigation, groups);
   const value = navigation.pursuitGroups[authority.groupId];
   if (!Number.isSafeInteger(value) || (value as number) < 0 || (value as number) > 10 ||
       Object.keys(navigation.pursuitGroups).length !== groups.length ||
@@ -355,6 +392,8 @@ export const activateEndeavourEcmDevice = onCall<{
     const researchRef = db.doc(`sessions/${command.sessionId}/serverState/endeavourResearch`);
     const deviceRef = db.doc(`sessions/${command.sessionId}/serverState/endeavourEcmDevice`);
     const navigationRef = db.doc(navigationStateDocumentPath(command.sessionId));
+    const gmProjectionRef = db.doc(`sessions/${command.sessionId}/gmDiscovery/current`);
+    const playerProjectionsRef = db.collection(`sessions/${command.sessionId}/playerDiscoveries`);
     const groupsRef = db.collection(`sessions/${command.sessionId}/fleetGroups`);
     const legacyRefs = legacyMutationRefs(command.sessionId, command.requestId);
 
@@ -380,8 +419,9 @@ export const activateEndeavourEcmDevice = onCall<{
         throw new HttpsError('failed-precondition', 'Endeavour control changed; refresh before use.');
       }
 
-      const [research, device, navigationDoc, groupDocs] = await Promise.all([
+      const [research, device, navigationDoc, groupDocs, gmProjection, playerProjections] = await Promise.all([
         tx.get(researchRef), tx.get(deviceRef), tx.get(navigationRef), tx.get(groupsRef),
+        tx.get(gmProjectionRef), tx.get(playerProjectionsRef),
       ]);
       const state = deviceState(device);
       if (state.revision !== command.expectedDeviceRevision) {
@@ -396,6 +436,34 @@ export const activateEndeavourEcmDevice = onCall<{
       }
       const groups = canonicalFleetGroups(groupDocs);
       const navigation = currentNavigation(navigationDoc, session, authority.activeVesselIds);
+      validatePursuitAuthority(navigationDoc, session, navigation, groups);
+      if (!gmProjection.exists) {
+        throw new HttpsError('failed-precondition', 'The current navigation projection is unavailable.');
+      }
+      const groupByMemberUid = new Map<string, string>();
+      for (const group of groups) {
+        for (const memberUid of group.memberUids) {
+          const existingGroupId = groupByMemberUid.get(memberUid);
+          if (existingGroupId !== undefined && existingGroupId !== group.id) {
+            throw new HttpsError('failed-precondition', 'A player belongs to multiple authoritative fleet groups.');
+          }
+          groupByMemberUid.set(memberUid, group.id);
+        }
+      }
+      const scientistProjection = playerProjections.docs.find((projection) => projection.id === uid);
+      if (!scientistProjection || groupByMemberUid.get(uid) !== authority.groupId ||
+          scientistProjection.get('groupId') !== authority.groupId) {
+        throw new HttpsError('failed-precondition', 'The Scientist navigation projection is unavailable.');
+      }
+      const currentMemberProjections = playerProjections.docs.flatMap((projection) => {
+        const groupId = groupByMemberUid.get(projection.id);
+        if (groupId === undefined) return [];
+        if (projection.get('groupId') !== groupId) {
+          throw new HttpsError('failed-precondition', 'A current player navigation projection is stale.');
+        }
+        return [{ projection, groupId }];
+      });
+      const revision = nextNavigationRevision(navigationDoc);
       let result: ReturnType<typeof resolveEndeavourEcmDevice>;
       try {
         result = resolveEndeavourEcmDevice({
@@ -425,15 +493,21 @@ export const activateEndeavourEcmDevice = onCall<{
       const eventRef = db.doc(groupEventPath(command.sessionId, result.state.ownerGroupId, command.requestId));
       tx.set(deviceRef, result.state);
       tx.set(navigationRef, {
-        shipGalacticCoordinates: result.navigation.shipGalacticCoordinates,
-        shipNavigationLogs: result.navigation.shipNavigationLogs,
-        ...(result.navigation.systemHistory ? { systemHistory: result.navigation.systemHistory } : {}),
-        ...(result.navigation.candidatePlanCheckpoint
-          ? { candidatePlanCheckpoint: result.navigation.candidatePlanCheckpoint }
-          : {}),
         pursuitGroups: result.navigation.pursuitGroups,
+        revision,
         updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
+      tx.set(gmProjectionRef, {
+        pursuitGroups: result.navigation.pursuitGroups,
+        revision,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      for (const { projection, groupId } of currentMemberProjections) {
+        tx.set(projection.ref, {
+          pursuitValue: result.navigation.pursuitGroups[groupId],
+          revision,
+        }, { merge: true });
+      }
       tx.create(eventRef, {
         type: 'endeavour-ecm-device-used',
         sessionId: command.sessionId,
