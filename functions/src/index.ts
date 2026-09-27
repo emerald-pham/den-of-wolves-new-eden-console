@@ -6786,9 +6786,9 @@ export const repairConsolesFromBlacksmith = onCall<{
     requireActionPhase(session, 'transfer', 'player');
     const currentCycle = session.get('currentTurn');
     const phase = turnPhaseState(session.get('turnPhase'));
-    if (!Number.isSafeInteger(currentCycle) || currentCycle !== data.expectedCycle ||
+    if (typeof currentCycle !== 'number' || !Number.isSafeInteger(currentCycle) || currentCycle < 1 ||
         !phase || phase.turn !== currentCycle) {
-      throw commandError('failed-precondition', 'The Coordination cycle changed. Refresh before repairing.', 'stale-revision');
+      throw commandError('failed-precondition', 'The authoritative Blacksmith Coordination cycle is unavailable.', 'conflict');
     }
     const openAirspaceEndsAt = Date.parse(phase.openAirspaceEndsAt);
     if (phase.airspace.state !== 'lifted' || phase.timerPause !== undefined ||
@@ -6829,6 +6829,41 @@ export const repairConsolesFromBlacksmith = onCall<{
       const resources = serviceRechargeResourceState(session.get('shipResources'), hostShipId);
       const deck = SHIP_DAMAGE_DECKS[hostShipId];
       if (!damage || !resources || !deck) throw new Error('The docked host repair state is unavailable.');
+      const currentControlRevision = control.blacksmith!.revision;
+      const stale = currentControlRevision !== data.expectedControlRevision ||
+        ledger.revision !== data.expectedRepairRevision || currentCycle !== data.expectedCycle;
+      if (stale) {
+        if (currentControlRevision < data.expectedControlRevision ||
+            ledger.revision < data.expectedRepairRevision || currentCycle < data.expectedCycle) {
+          throw new Error('The authoritative Blacksmith revision is behind the submitted request.');
+        }
+        // Recheck every current repair condition before disclosing the retry CAS.
+        // This call is read-only and uses the unchanged domain resolver.
+        resolveBlacksmithRepair({
+          actorUid: uid, currentCycle,
+          expectedControlRevision: currentControlRevision,
+          expectedRepairRevision: ledger.revision,
+          systemIds: canonicalSystemIds,
+          control: control.blacksmith!, dockings: rawDockings,
+          fuelled: fuelled.blacksmith === true,
+          damage, materials: resources.materials ?? 0,
+          knownSystemIds: deck.map(({ systemId }) => systemId), ledger,
+        });
+        return {
+          status: 'stale' as const,
+          sessionId: data.sessionId,
+          requestId: data.requestId,
+          shuttleId: 'blacksmith' as const,
+          expectedHostShipId: data.expectedHostShipId,
+          systemIds: canonicalSystemIds,
+          expectedControlRevision: data.expectedControlRevision,
+          currentControlRevision,
+          expectedRepairRevision: data.expectedRepairRevision,
+          currentRepairRevision: ledger.revision,
+          expectedCycle: data.expectedCycle,
+          currentCycle,
+        };
+      }
       result = resolveBlacksmithRepair({
         actorUid: uid, currentCycle: currentCycle as number,
         expectedControlRevision: data.expectedControlRevision,

@@ -10,6 +10,7 @@ import { recommendedRoleIds } from '@/data/rolePresets';
 import type * as FirestoreModule from '@/lib/firestore';
 import type * as ScoutRequestServiceModule from '@/lib/scoutRequestService';
 import type * as ShuttleEvacuationServiceModule from '@/lib/shuttleEvacuationService';
+import type * as BlacksmithRepairServiceModule from '@/lib/blacksmithRepairService';
 import ShuttleConsole from './ShuttleConsole';
 
 const endeavourResearchMocks = vi.hoisted(() => ({ read: vi.fn(), advance: vi.fn() }));
@@ -58,9 +59,11 @@ vi.mock('@/lib/serviceShuttleRechargeService', () => ({
     immediate: true, message: 'Hydroponics: spent 1 water, generated 3 food.',
   }),
 }));
-vi.mock('@/lib/blacksmithRepairService', () => ({
+vi.mock('@/lib/blacksmithRepairService', async (importOriginal) => ({
+  ...(await importOriginal<typeof BlacksmithRepairServiceModule>()),
   repairConsolesFromBlacksmith: vi.fn().mockResolvedValue({
-    materialsRemaining: 4, repairRevision: 1,
+    status: 'committed', hostShipId: 'icebreaker', systemIds: ['reactor', 'storage'],
+    materialsRemaining: 4, cycle: 3, repairRevision: 1,
   }),
 }));
 vi.mock('@/lib/highwallMiningService', () => ({
@@ -108,6 +111,47 @@ function reachedTransit(holderUid: string, transitRequestId = 'transit-arrived')
     destinationPosition: { x: 0.26, y: -0.12, z: 0.28 },
     velocity: { x: 0.004, y: -0.002, z: 0.004 },
     departedAt: '2026-01-01T00:10:01.000Z', arrivesAt: '2026-01-01T00:11:01.000Z',
+  };
+}
+
+function prepareBlacksmithRepairState() {
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!, phase: 'active', currentTurn: 3,
+    turnPhase: {
+      turn: 3, teamPhaseEndsAt: '2099-09-21T12:00:00.000Z',
+      openAirspaceEndsAt: '2099-09-21T12:15:00.000Z',
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+    },
+    activeRoleIds: ['icebreaker-engineer'], activeVesselIds: ['icebreaker'],
+    playerDiscovery: {
+      groupId: 'fleet-1', fleetGroupVesselIds: ['icebreaker'], shipId: 'icebreaker',
+      currentCoordinate: '0000', knownCoordinates: ['0000'], knownSystems: { 'system-01': '0000' },
+      pursuitDistance: 0, navigationLogs: [], revision: 1,
+    },
+    shuttleDockings: [{ shuttleId: 'blacksmith', shipId: 'icebreaker', dockedAt: 'now' }],
+    shuttleFuelled: { blacksmith: true },
+    shuttleControl: { blacksmith: {
+      shuttleId: 'blacksmith', ownerRoleId: 'icebreaker-engineer', ownerUid: 'u1',
+      holderUid: 'u1', revision: 2,
+    } },
+    shipDamage: { icebreaker: { damagedSystemIds: ['reactor', 'storage'], destroyed: false } },
+    shipResources: { icebreaker: { ore: 0, fuel: 4, food: 11, water: 9, materials: 12, securityTeams: 2 } },
+  });
+  state.setMe({ ...state.me!, assignedRoleId: 'icebreaker-engineer',
+    activeConsoleRoleId: 'icebreaker-engineer', fleetGroupId: 'fleet-1' });
+  state.setConnection('live');
+  state.setSessionSnapshotFreshness('server');
+  return useSessionStore.getState();
+}
+
+function staleBlacksmithReply(requestId: string) {
+  return {
+    status: 'stale' as const, sessionId: 's1', requestId, shuttleId: 'blacksmith' as const,
+    expectedHostShipId: 'icebreaker', systemIds: ['reactor', 'storage'],
+    expectedControlRevision: 2, currentControlRevision: 3,
+    expectedRepairRevision: 0, currentRepairRevision: 0,
+    expectedCycle: 3, currentCycle: 3,
   };
 }
 
@@ -159,7 +203,8 @@ beforeEach(() => {
   });
   vi.mocked(repairConsolesFromBlacksmith).mockReset();
   vi.mocked(repairConsolesFromBlacksmith).mockResolvedValue({
-    materialsRemaining: 4, repairRevision: 1,
+    status: 'committed', hostShipId: 'icebreaker', systemIds: ['reactor', 'storage'],
+    materialsRemaining: 4, cycle: 3, repairRevision: 1,
   });
   vi.mocked(runHighwallMining).mockReset();
   vi.mocked(runHighwallMining).mockResolvedValue({
@@ -1072,6 +1117,11 @@ it('repairs selected Icebreaker consoles through the live Blacksmith control', a
       airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
     },
     activeRoleIds: ['icebreaker-engineer'], activeVesselIds: ['icebreaker'],
+    playerDiscovery: {
+      groupId: 'fleet-1', fleetGroupVesselIds: ['icebreaker'], shipId: 'icebreaker',
+      currentCoordinate: '0000', knownCoordinates: ['0000'], knownSystems: { 'system-01': '0000' },
+      pursuitDistance: 0, navigationLogs: [], revision: 1,
+    },
     shuttleDockings: [{ shuttleId: 'blacksmith', shipId: 'icebreaker', dockedAt: 'now' }],
     shuttleFuelled: { blacksmith: true },
     shuttleControl: { blacksmith: {
@@ -1081,7 +1131,10 @@ it('repairs selected Icebreaker consoles through the live Blacksmith control', a
     shipDamage: { icebreaker: { damagedSystemIds: ['reactor', 'storage'], destroyed: false } },
     shipResources: { icebreaker: { ore: 0, fuel: 4, food: 11, water: 9, materials: 12, securityTeams: 2 } },
   });
-  state.setMe({ ...state.me!, activeConsoleRoleId: 'icebreaker-engineer' });
+  state.setMe({ ...state.me!, assignedRoleId: 'icebreaker-engineer',
+    activeConsoleRoleId: 'icebreaker-engineer', fleetGroupId: 'fleet-1' });
+  state.setConnection('live');
+  state.setSessionSnapshotFreshness('server');
 
   render(<MemoryRouter initialEntries={['/shuttles/blacksmith']}>
     <Routes><Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} /></Routes>
@@ -1093,7 +1146,11 @@ it('repairs selected Icebreaker consoles through the live Blacksmith control', a
   await user.click(within(repair).getByRole('checkbox', { name: 'Storage' }));
   await user.click(within(repair).getByRole('button', { name: 'Repair selected consoles' }));
   await waitFor(() => expect(repairConsolesFromBlacksmith).toHaveBeenCalledWith(
-    ['reactor', 'storage'], 2, 0, 3, 'icebreaker',
+    expect.objectContaining({
+      requestId: expect.any(String), systemIds: ['reactor', 'storage'],
+      expectedControlRevision: 2, expectedRepairRevision: 0, expectedCycle: 3,
+      expectedHostShipId: 'icebreaker',
+    }),
   ));
   expect(await screen.findByText(/repaired 2 consoles.*4 materials remain/i)).toHaveAttribute('role', 'status');
 
@@ -1113,6 +1170,108 @@ it('repairs selected Icebreaker consoles through the live Blacksmith control', a
   await waitFor(() => expect(within(repair).getByRole('button', {
     name: 'Repair selected consoles',
   })).toBeDisabled());
+});
+
+it('keeps an eligible Blacksmith selection and waits for the newer live projection before explicit retry', async () => {
+  const user = userEvent.setup();
+  const state = prepareBlacksmithRepairState();
+  const response = deferred<Awaited<ReturnType<typeof repairConsolesFromBlacksmith>>>();
+  vi.mocked(repairConsolesFromBlacksmith).mockReturnValueOnce(response.promise);
+  render(<MemoryRouter initialEntries={['/shuttles/blacksmith']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+
+  const repair = screen.getByRole('region', { name: 'Blacksmith console repair' });
+  await user.click(within(repair).getByRole('checkbox', { name: 'Reactor' }));
+  await user.click(within(repair).getByRole('checkbox', { name: 'Storage' }));
+  await user.click(within(repair).getByRole('button', { name: 'Repair selected consoles' }));
+  await waitFor(() => expect(repairConsolesFromBlacksmith).toHaveBeenCalledTimes(1));
+  const original = vi.mocked(repairConsolesFromBlacksmith).mock.calls[0]![0];
+  await act(async () => response.resolve(staleBlacksmithReply(original.requestId)));
+
+  expect(await within(repair).findByText(/waiting for the current live projection before retrying/i))
+    .toBeInTheDocument();
+  expect(within(repair).getByRole('checkbox', { name: 'Reactor' })).toBeChecked();
+  expect(within(repair).getByRole('checkbox', { name: 'Storage' })).toBeChecked();
+  expect(within(repair).queryByRole('button', { name: 'Retry repair with current revisions' }))
+    .not.toBeInTheDocument();
+  expect(repairConsolesFromBlacksmith).toHaveBeenCalledTimes(1);
+
+  const current = state.session!;
+  act(() => state.setSession({
+    ...current,
+    shuttleControl: { blacksmith: { ...current.shuttleControl!.blacksmith!, revision: 3 } },
+  }));
+  const retry = await within(repair).findByRole('button', { name: 'Retry repair with current revisions' });
+  await user.click(retry);
+  await waitFor(() => expect(repairConsolesFromBlacksmith).toHaveBeenCalledTimes(2));
+  const retried = vi.mocked(repairConsolesFromBlacksmith).mock.calls[1]![0];
+  expect(retried).toMatchObject({
+    systemIds: ['reactor', 'storage'], expectedControlRevision: 3,
+    expectedRepairRevision: 0, expectedCycle: 3, expectedHostShipId: 'icebreaker',
+  });
+  expect(retried.requestId).not.toBe(original.requestId);
+  expect(await screen.findByText(/repaired 2 consoles.*4 materials remain/i))
+    .toHaveAttribute('role', 'status');
+});
+
+it('uses a live Blacksmith projection that arrived before its stale response', async () => {
+  const user = userEvent.setup();
+  const state = prepareBlacksmithRepairState();
+  const response = deferred<Awaited<ReturnType<typeof repairConsolesFromBlacksmith>>>();
+  vi.mocked(repairConsolesFromBlacksmith).mockReturnValueOnce(response.promise);
+  render(<MemoryRouter initialEntries={['/shuttles/blacksmith']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+
+  const repair = screen.getByRole('region', { name: 'Blacksmith console repair' });
+  await user.click(within(repair).getByRole('checkbox', { name: 'Reactor' }));
+  await user.click(within(repair).getByRole('checkbox', { name: 'Storage' }));
+  await user.click(within(repair).getByRole('button', { name: 'Repair selected consoles' }));
+  await waitFor(() => expect(repairConsolesFromBlacksmith).toHaveBeenCalledTimes(1));
+  const original = vi.mocked(repairConsolesFromBlacksmith).mock.calls[0]![0];
+  const current = state.session!;
+  act(() => state.setSession({
+    ...current,
+    shuttleControl: { blacksmith: { ...current.shuttleControl!.blacksmith!, revision: 3 } },
+  }));
+  await act(async () => response.resolve(staleBlacksmithReply(original.requestId)));
+
+  const retry = await within(repair).findByRole('button', { name: 'Retry repair with current revisions' });
+  expect(retry).toBeEnabled();
+  expect(within(repair).getByRole('checkbox', { name: 'Reactor' })).toBeChecked();
+  await user.click(retry);
+  await waitFor(() => expect(repairConsolesFromBlacksmith).toHaveBeenCalledTimes(2));
+  const retried = vi.mocked(repairConsolesFromBlacksmith).mock.calls[1]![0];
+  expect(retried.expectedControlRevision).toBe(3);
+  expect(retried.requestId).not.toBe(original.requestId);
+});
+
+it('drops Blacksmith stale recovery when holder authority changes while the request is pending', async () => {
+  const user = userEvent.setup();
+  const state = prepareBlacksmithRepairState();
+  const response = deferred<Awaited<ReturnType<typeof repairConsolesFromBlacksmith>>>();
+  vi.mocked(repairConsolesFromBlacksmith).mockReturnValueOnce(response.promise);
+  render(<MemoryRouter initialEntries={['/shuttles/blacksmith']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+
+  const repair = screen.getByRole('region', { name: 'Blacksmith console repair' });
+  await user.click(within(repair).getByRole('checkbox', { name: 'Reactor' }));
+  await user.click(within(repair).getByRole('button', { name: 'Repair selected consoles' }));
+  await waitFor(() => expect(repairConsolesFromBlacksmith).toHaveBeenCalledTimes(1));
+  const original = vi.mocked(repairConsolesFromBlacksmith).mock.calls[0]![0];
+  const current = state.session!;
+  act(() => state.setSession({
+    ...current,
+    shuttleControl: { blacksmith: { ...current.shuttleControl!.blacksmith!, holderUid: 'other', revision: 3 } },
+  }));
+  await act(async () => response.resolve(staleBlacksmithReply(original.requestId)));
+
+  await waitFor(() => expect(within(repair).queryByRole('button', {
+    name: 'Retry repair with current revisions',
+  })).not.toBeInTheDocument());
+  expect(repairConsolesFromBlacksmith).toHaveBeenCalledTimes(1);
 });
 
 it('opens Black Sheep on its Shepherd Engineer route with the owned recharge envelope', async () => {

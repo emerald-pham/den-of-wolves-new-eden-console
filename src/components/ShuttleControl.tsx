@@ -15,12 +15,20 @@ import {
   validShuttleEvacuationAmounts,
 } from '@/lib/shuttleEvacuationService';
 import { useSessionStore } from '@/store/useSessionStore';
-import type { Player, ShuttleControlEntry, ShuttleMovementState } from '@/types/game';
+import type { GameSession, Player, ShuttleControlEntry, ShuttleMovementState } from '@/types/game';
 import { findShip } from '@/data/ships';
 import { dockingForShuttle, SHUTTLECRAFT, shuttleDestinationIsAllowed } from '@/data/shuttles';
 import { RESOURCE_DEFINITIONS, type ResourceId } from '@/data/resources';
 import { SERVICE_SHUTTLE_IDS, serviceRechargeConsoleOptions } from '@/data/serviceShuttleRecharge';
-import { repairConsolesFromBlacksmith } from '@/lib/blacksmithRepairService';
+import {
+  captureBlacksmithRepairAuthority,
+  hasCurrentBlacksmithRepairAuthority,
+  repairConsolesFromBlacksmith,
+} from '@/lib/blacksmithRepairService';
+import type {
+  BlacksmithRepairAuthorityBinding,
+  BlacksmithRepairStaleResult,
+} from '@/lib/blacksmithRepairService';
 import './ShuttleControl.css';
 import {
   captureSessionAuthority,
@@ -73,6 +81,13 @@ interface CargoTransferAttempt {
   readonly direction: 'load' | 'unload';
   readonly amount: number;
 }
+
+interface BlacksmithRepairRecovery {
+  readonly stale: BlacksmithRepairStaleResult;
+  readonly authority: BlacksmithRepairAuthorityBinding;
+}
+
+const EMPTY_SYSTEM_IDS: readonly string[] = Object.freeze([]);
 
 function captureCargoAttemptAuthority(
   shuttleId: string,
@@ -172,6 +187,7 @@ export default function ShuttleControl({ control }: Props) {
   const [evacuationDestinationShipId, setEvacuationDestinationShipId] = useState('');
   const [evacuationAmount, setEvacuationAmount] = useState(0);
   const [repairSystemIds, setRepairSystemIds] = useState<string[]>([]);
+  const [repairRecovery, setRepairRecovery] = useState<BlacksmithRepairRecovery | null>(null);
   const canTransfer = me.role === 'gm' || me.uid === control.ownerUid;
   const canRequestDeparture = me.role === 'player' && me.uid === control.holderUid;
   const transit = departure?.status === 'in-transit' ? departure : null;
@@ -278,14 +294,16 @@ export default function ShuttleControl({ control }: Props) {
   const repairHostsThisCycle = blacksmithRepair && blacksmithRepair.cycle === session.currentTurn
     ? blacksmithRepair.hosts : [];
   const repairedOnHost = docking
-    ? repairHostsThisCycle.find((host) => host.shipId === docking.shipId)?.systemIds ?? [] : [];
+    ? repairHostsThisCycle.find((host) => host.shipId === docking.shipId)?.systemIds ?? EMPTY_SYSTEM_IDS
+    : EMPTY_SYSTEM_IDS;
   const repairHostAlreadyUsed = Boolean(docking &&
     repairHostsThisCycle.some((host) => host.shipId === docking.shipId));
   const repairShipAvailable = repairHostAlreadyUsed || repairHostsThisCycle.length === 0 ||
     (repairHostsThisCycle.length < 2 && session.shuttleFuelled?.blacksmith === true);
   const repairSlotsRemaining = Math.max(0, 2 - repairedOnHost.length);
-  const repairOptions = docking && control.shuttleId === 'blacksmith'
-    ? (hostDamage?.damagedSystemIds ?? []).filter((id) => !repairedOnHost.includes(id)) : [];
+  const repairOptions = useMemo(() => docking && control.shuttleId === 'blacksmith'
+    ? (hostDamage?.damagedSystemIds ?? []).filter((id) => !repairedOnHost.includes(id)) : [],
+  [control.shuttleId, docking, hostDamage?.damagedSystemIds, repairedOnHost]);
   const repairMaterials = docking ? session.shipResources?.[docking.shipId]?.materials ?? 0 : 0;
   const repairDeadline = session.turnPhase?.openAirspaceEndsAt
     ? Date.parse(session.turnPhase.openAirspaceEndsAt) : Number.NaN;
@@ -293,10 +311,45 @@ export default function ShuttleControl({ control }: Props) {
     session.turnPhase?.turn === session.currentTurn && session.turnPhase?.airspace.state === 'lifted' &&
     session.turnPhase.timerPause === undefined && Number.isFinite(repairDeadline) &&
     Date.now() < repairDeadline;
-
-  useEffect(() => setRepairSystemIds([]), [
+  const repairResetKey = JSON.stringify([
     blacksmithRepairRevision, control.revision, control.shuttleId, docking?.shipId, session.currentTurn,
   ]);
+  const repairResetKeyRef = useRef(repairResetKey);
+  const repairRecoveryAuthorityCurrent = Boolean(repairRecovery &&
+    hasCurrentBlacksmithRepairAuthority(repairRecovery.authority));
+  const repairRecoveryProjectionCurrent = Boolean(repairRecoveryAuthorityCurrent && repairRecovery &&
+    control.revision >= repairRecovery.stale.currentControlRevision &&
+    blacksmithRepairRevision >= repairRecovery.stale.currentRepairRevision &&
+    Number.isSafeInteger(session.currentTurn) &&
+    (session.currentTurn as number) >= repairRecovery.stale.currentCycle);
+  const repairSelectionEligible = repairSystemIds.length > 0 &&
+    repairSystemIds.length <= repairSlotsRemaining &&
+    repairSystemIds.every((systemId) => repairOptions.includes(systemId)) &&
+    repairWindowOpen && repairShipAvailable && repairMaterials >= repairSystemIds.length * 4 &&
+    hostDamage?.destroyed !== true;
+  const repairRetryReady = Boolean(repairRecovery && repairRecoveryAuthorityCurrent &&
+    repairRecoveryProjectionCurrent && repairSelectionEligible);
+  const repairRetryWaiting = Boolean(repairRecovery && repairRecoveryAuthorityCurrent &&
+    !repairRecoveryProjectionCurrent);
+
+  useEffect(() => {
+    const contextChanged = repairResetKeyRef.current !== repairResetKey;
+    repairResetKeyRef.current = repairResetKey;
+    if (repairRecovery) {
+      if (!repairRecoveryAuthorityCurrent) {
+        setRepairRecovery(null);
+        setRepairSystemIds([]);
+        setStatus('Blacksmith repair authority changed. Refresh the live console before retrying.');
+        return;
+      }
+      setRepairSystemIds((current) => {
+        const eligible = current.filter((systemId) => repairOptions.includes(systemId));
+        return eligible.length === current.length ? current : eligible;
+      });
+    } else if (contextChanged) {
+      setRepairSystemIds([]);
+    }
+  }, [repairOptions, repairRecovery, repairRecoveryAuthorityCurrent, repairResetKey]);
 
   useEffect(() => subscribeConnectedPlayers(session.id, setPlayers), [
     me.fleetGroupId, me.role, me.sessionId, me.uid, session.id,
@@ -620,18 +673,39 @@ export default function ShuttleControl({ control }: Props) {
     }
   }
 
-  async function submitBlacksmithRepair(): Promise<void> {
-    if (busy || !docking || control.shuttleId !== 'blacksmith' || !session.currentTurn ||
-        repairSystemIds.length < 1 || repairSystemIds.length > repairSlotsRemaining) return;
+  async function submitBlacksmithRepair(retry = false): Promise<void> {
+    if (busy || !docking || control.shuttleId !== 'blacksmith' ||
+        !Number.isSafeInteger(session.currentTurn) || !repairSelectionEligible ||
+        (retry ? !repairRetryReady : repairRecovery !== null)) return;
+    const command = {
+      requestId: window.crypto.randomUUID(),
+      systemIds: [...repairSystemIds],
+      expectedControlRevision: control.revision,
+      expectedRepairRevision: blacksmithRepairRevision,
+      expectedCycle: session.currentTurn as number,
+      expectedHostShipId: docking.shipId,
+    };
+    let authority: BlacksmithRepairAuthorityBinding;
+    try {
+      authority = captureBlacksmithRepairAuthority(session as GameSession, me as Player, command);
+    } catch (cause) {
+      setStatus(cause instanceof Error ? cause.message : 'Refresh the live Blacksmith authority before repairing.');
+      return;
+    }
+    if (retry) setRepairRecovery(null);
     setPending(true);
     setStatus('');
     try {
-      const result = await repairConsolesFromBlacksmith(
-        repairSystemIds, control.revision, blacksmithRepairRevision, session.currentTurn,
-        docking.shipId,
-      );
-      setStatus(`Repaired ${repairSystemIds.length} console${repairSystemIds.length === 1 ? '' : 's'} // ${result.materialsRemaining} materials remain.`);
-      setRepairSystemIds([]);
+      const result = await repairConsolesFromBlacksmith(command);
+      if (result.status === 'stale') {
+        setRepairRecovery({ stale: result, authority });
+        setRepairSystemIds([...command.systemIds]);
+        setStatus('');
+      } else {
+        setRepairRecovery(null);
+        setStatus(`Repaired ${result.systemIds.length} console${result.systemIds.length === 1 ? '' : 's'} // ${result.materialsRemaining} materials remain.`);
+        setRepairSystemIds([]);
+      }
     } catch (cause) {
       setStatus(cause instanceof Error ? cause.message : 'Blacksmith repair failed.');
     } finally {
@@ -839,18 +913,31 @@ export default function ShuttleControl({ control }: Props) {
             systemId.split('-').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
           return <label className="shuttle-control__check-target" key={systemId}>
             <input type="checkbox" checked={checked} disabled={!checked && atCapacity}
-              onChange={(event) => setRepairSystemIds((current) => event.target.checked
-                ? [...current, systemId] : current.filter((id) => id !== systemId))} /> {name}
+              onChange={(event) => {
+                setRepairRecovery(null);
+                setStatus('');
+                setRepairSystemIds((current) => event.target.checked
+                  ? [...current, systemId] : current.filter((id) => id !== systemId));
+              }} /> {name}
           </label>;
         })}
       </fieldset>
       <div className="console-workspace__actions">
         <button className="cic-action-button shuttle-control__touch-target" type="button"
-          disabled={busy || !repairWindowOpen || !repairShipAvailable || repairSystemIds.length < 1 ||
-            repairSystemIds.length > repairSlotsRemaining || repairMaterials < repairSystemIds.length * 4 ||
-            hostDamage?.destroyed}
+          disabled={busy || repairRecovery !== null || !repairSelectionEligible}
           onClick={() => void submitBlacksmithRepair()}>Repair selected consoles</button>
+        {repairRetryReady && <button className="cic-action-button shuttle-control__touch-target" type="button"
+          disabled={busy} onClick={() => void submitBlacksmithRepair(true)}>
+          Retry repair with current revisions
+        </button>}
       </div>
+      {repairRetryWaiting && <p role="status">
+        Blacksmith repair state changed. Waiting for the current live projection before retrying.
+      </p>}
+      {repairRecovery && repairRecoveryAuthorityCurrent && repairRecoveryProjectionCurrent &&
+        !repairSelectionEligible && <p role="status">
+        The selected consoles are no longer eligible. Review the current damaged consoles and choose again.
+      </p>}
     </section>}
     {canRequestDeparture && docking && cargoTypes.length > 0 && <section aria-label="Survivor evacuation">
       <p className="console-workspace__eyebrow">Evacuation // server authorised</p>

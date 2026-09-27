@@ -26,6 +26,7 @@ const BOA_RECYCLING_CALLABLES = ['recycleWithBoa'];
 const MACAW_REPAIR_CALLABLES = ['repairConsolesFromMacaw'];
 const ALLY_REPAIR_CALLABLES = ['repairConsolesFromAlly'];
 const PHILIA_REPAIR_CALLABLES = ['repairConsolesFromPhilia'];
+const BLACKSMITH_REPAIR_CALLABLES = ['repairConsolesFromBlacksmith'];
 const MALIADE_EVENT_REDACTION_ADDITIONS = [
   {
     eventField: "  'maliades-launched': ['craftId', 'status'],\n",
@@ -308,7 +309,7 @@ NAVIGATION_PROJECTION_BEFORE = NAVIGATION_PROJECTION_BEFORE
 const INDEX_SOURCE = [
   ...P436_EXPORTS, ...GORGONEION_REPAIR_CALLABLES, ...WARRIOR_REPAIR_CALLABLES,
   ...BASE_CAPYBARA_CARGO_CALLABLES, ...BOA_RECYCLING_CALLABLES,
-  ...ALLY_REPAIR_CALLABLES, ...PHILIA_REPAIR_CALLABLES,
+  ...ALLY_REPAIR_CALLABLES, ...PHILIA_REPAIR_CALLABLES, ...BLACKSMITH_REPAIR_CALLABLES,
   ...SMALL_SHIP_MAINTENANCE_CALLABLES,
   'calculateArrestPosse', 'declareWolfAttack', 'getDioneMaliadesLaunch',
   ...MALIADE_EVENT_REDACTION_ADDITIONS.map(({ callable }) => callable),
@@ -501,6 +502,67 @@ test('fails closed when the Philia and Ally index exports change together', () =
       return revision === 'base' ? before : after;
     },
   }), /cannot safely map a Philia repair index change mixed with another callable/i);
+});
+
+test('maps an isolated Blacksmith index export diff only to repairConsolesFromBlacksmith', () => {
+  const before = INDEX_SOURCE;
+  const after = before.replace(
+    'export const repairConsolesFromBlacksmith = onCall(async () => {});',
+    "export const repairConsolesFromBlacksmith = onCall(async () => { return { status: 'stale' }; });",
+  );
+  assert.notEqual(after, before);
+  const selected = deploymentSelector({
+    before: 'base', after: 'candidate', files: ['functions/src/index.ts'],
+    targets: ['hosting', 'functions'],
+    isAncestor: (ancestor, descendant) => ancestor === 'base' && descendant === 'candidate',
+    sourceAtRevision: (revision, file) => {
+      assert.equal(file, 'functions/src/index.ts');
+      return revision === 'base' ? before : after;
+    },
+  });
+  assert.deepEqual(selectedFunctions(selected), functionTargets(BLACKSMITH_REPAIR_CALLABLES));
+});
+
+test('fails closed when Blacksmith and another callable export change together', () => {
+  const before = INDEX_SOURCE;
+  const after = before
+    .replace('repairConsolesFromBlacksmith = onCall(async () => {});',
+      "repairConsolesFromBlacksmith = onCall(async () => { return { status: 'stale' }; });")
+    .replace('repairConsolesFromAlly = onCall(async () => {});',
+      "repairConsolesFromAlly = onCall(async () => { return { status: 'changed' }; });");
+  assert.throws(() => deploymentSelector({
+    before: 'base', after: 'candidate', files: ['functions/src/index.ts'],
+    targets: ['hosting', 'functions'],
+    isAncestor: (ancestor, descendant) => ancestor === 'base' && descendant === 'candidate',
+    sourceAtRevision: (revision, file) => {
+      assert.equal(file, 'functions/src/index.ts');
+      return revision === 'base' ? before : after;
+    },
+  }), /cannot safely map a Blacksmith repair index change mixed with another callable or untracked source edit/i);
+});
+
+test('fails closed when a Blacksmith index change is mixed with an untracked helper edit', () => {
+  const before = [
+    'export const repairConsolesFromBlacksmith = onCall(async () => {',
+    "  return 'before';",
+    '});',
+    '',
+    'export const repairConsolesFromAlly = onCall(async () => {',
+    "  return 'same';",
+    '});',
+    '',
+  ].join('\n');
+  const after = before.replace("return 'before';", "return 'after';") +
+    "function untrackedRepairHelper() { return 'changed'; }\n";
+  assert.throws(() => deploymentSelector({
+    before: 'base', after: 'candidate', files: ['functions/src/index.ts'],
+    targets: ['hosting', 'functions'],
+    isAncestor: (ancestor, descendant) => ancestor === 'base' && descendant === 'candidate',
+    sourceAtRevision: (revision, file) => {
+      assert.equal(file, 'functions/src/index.ts');
+      return revision === 'base' ? before : after;
+    },
+  }), /cannot safely map a Blacksmith repair index change mixed with another callable or untracked source edit/i);
 });
 
 test('fails closed when an index diff has no changed named callable', () => {

@@ -382,6 +382,16 @@ function changedIndexCallables(before, after, cwd, sourceAtRevision = null) {
       );
     }
   }
+  if (changed.includes('repairConsolesFromBlacksmith')) {
+    if (changed.length !== 1 || !previous.has('repairConsolesFromBlacksmith') ||
+        !current.has('repairConsolesFromBlacksmith') ||
+        indexSourceOutsideCallableBlocks(previousSource, previous) !==
+          indexSourceOutsideCallableBlocks(currentSource, current)) {
+      throw new Error(
+        'Cannot safely map a Blacksmith repair index change mixed with another callable or untracked source edit.',
+      );
+    }
+  }
   return changed;
 }
 

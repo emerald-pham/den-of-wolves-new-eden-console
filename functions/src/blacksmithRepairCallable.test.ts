@@ -172,15 +172,107 @@ it('canonicalizes a reverse-order selection so an exact retry replays without wr
   expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
 });
 
+it('returns a request-bound stale envelope for an eligible repair without writing anything', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  const control = session.shuttleControl as Fields;
+  (control.blacksmith as Fields).revision = 3;
+
+  await expect(repairConsolesFromBlacksmith.run(request(command))).resolves.toEqual({
+    status: 'stale', sessionId: 's1', requestId: 'repair-1', shuttleId: 'blacksmith',
+    expectedHostShipId: 'icebreaker', systemIds: ['reactor', 'storage'],
+    expectedControlRevision: 2, currentControlRevision: 3,
+    expectedRepairRevision: 0, currentRepairRevision: 0,
+    expectedCycle: 3, currentCycle: 3,
+  });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.documents.has('sessions/s1/commandReceipts/repair-1')).toBe(false);
+  expect(mock.documents.has('sessions/s1/events/blacksmith-repair-repair-1')).toBe(false);
+});
+
 it.each([
-  ['foreign holder', 'other', command],
-  ['stale control', 'holder', { ...command, requestId: 'stale-control', expectedControlRevision: 1 }],
-  ['stale repair revision', 'holder', { ...command, requestId: 'stale-repair', expectedRepairRevision: 1 }],
-  ['wrong cycle', 'holder', { ...command, requestId: 'stale-cycle', expectedCycle: 2 }],
-])('rejects %s without mutation', async (_label, uid, data) => {
+  ['control revision', (session: Fields) => {
+    ((session.shuttleControl as Fields).blacksmith as Fields).revision = 3;
+  }, { ...command, requestId: 'stale-control' }],
+  ['repair revision', (session: Fields) => {
+    session.blacksmithRepairs = {
+      cycle: 3, revision: 1, hosts: [{ shipId: 'aegis', systemIds: ['reactor'] }],
+    };
+  }, { ...command, requestId: 'stale-repair' }],
+  ['cycle', (session: Fields) => {
+    session.currentTurn = 4;
+    session.turnPhase = { ...(session.turnPhase as Fields), turn: 4 };
+  }, { ...command, requestId: 'stale-cycle', expectedCycle: 2 }],
+])('returns a no-write stale envelope when only the %s advanced and the repair remains eligible', async (_label, change, data) => {
+  change(mock.documents.get('sessions/s1')!);
+  await expect(repairConsolesFromBlacksmith.run(request(data))).resolves.toMatchObject({
+    status: 'stale', sessionId: 's1', requestId: data.requestId, shuttleId: 'blacksmith',
+    expectedHostShipId: 'icebreaker', systemIds: ['reactor', 'storage'],
+  });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.documents.has(`sessions/s1/commandReceipts/${data.requestId}`)).toBe(false);
+  expect(mock.documents.has(`sessions/s1/events/blacksmith-repair-${data.requestId}`)).toBe(false);
+});
+
+it.each([
+  ['foreign actor', 'other', command, () => {}],
+  ['future control revision', 'holder', { ...command, requestId: 'future-control', expectedControlRevision: 3 }, () => {}],
+  ['future repair revision', 'holder', { ...command, requestId: 'future-repair', expectedRepairRevision: 1 }, () => {}],
+  ['future cycle', 'holder', { ...command, requestId: 'future-cycle', expectedCycle: 4 }, () => {}],
+  ['former holder', 'holder', { ...command, requestId: 'former-holder' }, (session: Fields) => {
+    ((session.shuttleControl as Fields).blacksmith as Fields).holderUid = 'other';
+    ((session.shuttleControl as Fields).blacksmith as Fields).revision = 3;
+  }],
+  ['lost group membership', 'holder', { ...command, requestId: 'lost-group' }, (session: Fields, group: Fields) => {
+    void session;
+    group.memberUids = ['other'];
+  }],
+  ['changed dock', 'holder', { ...command, requestId: 'changed-dock' }, (session: Fields) => {
+    session.shuttleDockings = [{ shuttleId: 'blacksmith', shipId: 'aegis', dockedAt: 'now' }];
+    ((session.shuttleControl as Fields).blacksmith as Fields).revision = 3;
+  }],
+  ['selection no longer damaged', 'holder', { ...command, requestId: 'repaired-selection' }, (session: Fields) => {
+    (session.shipDamage as Fields).icebreaker = { damagedSystemIds: ['jump-drive'], destroyed: false };
+    ((session.shuttleControl as Fields).blacksmith as Fields).revision = 3;
+  }],
+  ['destroyed host', 'holder', { ...command, requestId: 'destroyed-host' }, (session: Fields) => {
+    (session.shipDamage as Fields).icebreaker = { damagedSystemIds: ['reactor', 'storage'], destroyed: true };
+    ((session.shuttleControl as Fields).blacksmith as Fields).revision = 3;
+  }],
+  ['insufficient materials', 'holder', { ...command, requestId: 'insufficient-materials' }, (session: Fields) => {
+    (session.shipResources as Fields).icebreaker = { ore: 0, fuel: 4, food: 11, water: 9, materials: 7 };
+    ((session.shuttleControl as Fields).blacksmith as Fields).revision = 3;
+  }],
+  ['exhausted host quota', 'holder', { ...command, requestId: 'host-quota' }, (session: Fields) => {
+    session.blacksmithRepairs = {
+      cycle: 3, revision: 1, hosts: [{ shipId: 'icebreaker', systemIds: ['jump-drive'] }],
+    };
+    ((session.shuttleControl as Fields).blacksmith as Fields).revision = 3;
+  }],
+  ['missing second-host fuel', 'holder', { ...command, requestId: 'second-host-fuel' }, (session: Fields) => {
+    session.blacksmithRepairs = {
+      cycle: 3, revision: 1, hosts: [{ shipId: 'aegis', systemIds: ['reactor'] }],
+    };
+    (session.shuttleFuelled as Fields).blacksmith = false;
+    ((session.shuttleControl as Fields).blacksmith as Fields).revision = 3;
+  }],
+  ['future repair ledger', 'holder', { ...command, requestId: 'future-ledger' }, (session: Fields) => {
+    session.blacksmithRepairs = {
+      cycle: 4, revision: 1, hosts: [{ shipId: 'icebreaker', systemIds: ['jump-drive'] }],
+    };
+    ((session.shuttleControl as Fields).blacksmith as Fields).revision = 3;
+  }],
+])('withholds stale data after %s and makes no writes', async (_label, uid, data, change) => {
+  const session = mock.documents.get('sessions/s1')!;
+  const group = mock.documents.get('sessions/s1/fleetGroups/fleet-1')!;
+  change(session, group);
   await expect(repairConsolesFromBlacksmith.run(request(data, uid)))
     .rejects.toMatchObject({ code: expect.stringMatching(/permission-denied|failed-precondition/) });
-  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.documents.has(`sessions/s1/commandReceipts/${data.requestId}`)).toBe(false);
+  expect(mock.documents.has(`sessions/s1/events/blacksmith-repair-${data.requestId}`)).toBe(false);
 });
 
 it('rejects Team Phase, insufficient materials, and malformed repair history without mutation', async () => {
