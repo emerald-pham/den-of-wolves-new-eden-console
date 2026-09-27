@@ -601,6 +601,7 @@ import {
   resolvedHarvestValues,
   type HummingbirdHarvestState,
 } from './hummingbirdHarvest';
+import { buildHummingbirdHarvestStaleReply } from './hummingbirdHarvestStaleReply';
 import {
   SCOUT_ENTITLEMENTS,
   requireScoutEntitlement,
@@ -24195,6 +24196,20 @@ async function requireHummingbirdAuthority(
   if (!activeVesselIds.includes(docking.shipId)) {
     throw commandError('failed-precondition', 'Hummingbird must be docked with an active fleet ship.', 'conflict');
   }
+  const groupId = player.get('fleetGroupId');
+  if (typeof groupId !== 'string' || groupId.length === 0) {
+    throw new HttpsError('permission-denied', 'The Quellon Explorer has no fleet-group authority.');
+  }
+  const groupSnapshot = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${groupId}`));
+  const group = groupSnapshot.exists ? fleetGroupRecord(groupSnapshot.data()) : undefined;
+  if (!group || group.id !== groupId || !group.memberUids.includes(uid) ||
+      !group.vesselIds.includes(docking.shipId)) {
+    throw commandError(
+      'failed-precondition',
+      'Hummingbird must be docked with an active ship in the Quellon Explorer\u2019s current fleet group.',
+      'conflict',
+    );
+  }
   const fuelled = session.get('shuttleFuelled');
   if (!isRecord(fuelled) || fuelled.hummingbird !== true) {
     throw commandError('failed-precondition', 'Hummingbird must be fuelled during the Team Phase first.', 'conflict');
@@ -24224,6 +24239,25 @@ function hummingbirdHarvestReply(
     ...vesselActionEnvelope(session, player, uid, 'hummingbird', state.revision,
       requestId, 'hummingbird-harvest', state.hostShipId),
   };
+}
+
+function hummingbirdHarvestStaleReply(
+  state: HummingbirdHarvestState,
+  session: DocumentSnapshot,
+  uid: string,
+  requestId: string,
+  expectedRevision: number,
+  hostShipId: string,
+): ReturnType<typeof buildHummingbirdHarvestStaleReply> {
+  return buildHummingbirdHarvestStaleReply(state, {
+    sessionId: state.sessionId,
+    actorUid: uid,
+    actorRoleId: 'quellon-explorer',
+    hostShipId,
+    turn: sessionTurn(session.get('currentTurn')),
+    requestId,
+    expectedRevision,
+  });
 }
 
 /** Roll Hummingbird's private 2d6 harvest receipt. The player allocates it in a second call. */
@@ -24257,6 +24291,12 @@ export const rollHummingbirdHarvest = onCall<{
     const current = storedHummingbirdHarvest(stored, data.sessionId, uid);
     const turn = sessionTurn(authority.session.get('currentTurn'));
     if (current && current.turn === turn) {
+      if (current.revision > data.expectedRevision) {
+        const stale = hummingbirdHarvestStaleReply(
+          current, authority.session, uid, data.requestId, data.expectedRevision, authority.hostShipId,
+        );
+        if (stale) return { replay: stale, authority, fingerprint, reusePending: false };
+      }
       if (current.status === 'pending' && current.revision === data.expectedRevision) return {
         replay: undefined, authority, fingerprint, current, reusePending: true,
       };
@@ -24294,6 +24334,12 @@ export const rollHummingbirdHarvest = onCall<{
     if (current && current.turn === turn) {
       if (current.status === 'pending') {
         if (current.revision !== data.expectedRevision) {
+          if (current.revision > data.expectedRevision) {
+            const stale = hummingbirdHarvestStaleReply(
+              current, authority.session, uid, data.requestId, data.expectedRevision, authority.hostShipId,
+            );
+            if (stale) return stale;
+          }
           throw commandError('failed-precondition', 'A Hummingbird roll is already waiting for allocation.', 'stale-revision');
         }
         const reply = hummingbirdHarvestReply(current, authority.session, authority.player, uid,
@@ -24301,6 +24347,12 @@ export const rollHummingbirdHarvest = onCall<{
         tx.set(requestRef, { ...fingerprint, fingerprint, requestId: data.requestId, actorUid: uid, reply,
           createdAt: FieldValue.serverTimestamp() });
         return reply;
+      }
+      if (current.revision > data.expectedRevision) {
+        const stale = hummingbirdHarvestStaleReply(
+          current, authority.session, uid, data.requestId, data.expectedRevision, authority.hostShipId,
+        );
+        if (stale) return stale;
       }
       throw commandError('failed-precondition', 'Hummingbird harvesting is already resolved this cycle.', 'conflict');
     }
@@ -24370,6 +24422,12 @@ export const allocateHummingbirdHarvest = onCall<{
       throw commandError('failed-precondition', 'The Hummingbird roll is stale after a cycle or docking change.', 'stale-revision');
     }
     if (current.status !== 'pending' || current.revision !== data.expectedRevision) {
+      if (current.revision > data.expectedRevision) {
+        const stale = hummingbirdHarvestStaleReply(
+          current, authority.session, uid, data.requestId, data.expectedRevision, authority.hostShipId,
+        );
+        if (stale) return stale;
+      }
       throw commandError('failed-precondition', 'The Hummingbird roll is no longer waiting for allocation.', 'stale-revision');
     }
     const priorCargo = hummingbirdCargo(authority.session);

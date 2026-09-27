@@ -1047,6 +1047,13 @@ test('maps the Highwall mining state resolver to its callable', () => {
   assert.deepEqual(selectedFunctions(selected), functionTargets(['runHighwallMining']));
 });
 
+test('maps the Hummingbird stale-reply helper only to its two harvest callables', () => {
+  const selected = selectorFor(['functions/src/hummingbirdHarvestStaleReply.ts']);
+  assert.deepEqual(selectedFunctions(selected), functionTargets([
+    'rollHummingbirdHarvest', 'allocateHummingbirdHarvest',
+  ]));
+});
+
 test('maps cadence policy changes to both private research callables', () => {
   const selected = selectorFor(['functions/src/endeavourResearchCadence.ts']);
   assert.deepEqual(selectedFunctions(selected), functionTargets(ENDEAVOUR_RESEARCH_CALLABLES));
