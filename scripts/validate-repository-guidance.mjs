@@ -72,8 +72,8 @@ export function validateAgentModelEscalation({ sources, errors }) {
     const source = sourceFor(sources, filePath, errors);
     requireText(filePath, source, /use\s+max\s+for\s+every\s+gpt-6-luna\s+subagent/i,
       'must require max effort for every GPT-6 Luna subagent', errors);
-    requireText(filePath, source, /gpt-6-sol\s+may\s+use\s+only\s+medium,\s+high,\s+or\s+xhigh/i,
-      'must limit GPT-6 Sol effort to medium, high, or xhigh', errors);
+    requireText(filePath, source, /gpt-6-sol\s+may\s+use\s+only\s+medium,\s+high,\s+xhigh,\s+or\s+max/i,
+      'must limit GPT-6 Sol effort to medium, high, xhigh, or max', errors);
   }
   for (const filePath of ['CLAUDE.md', 'docs/AGENT_CAMPAIGN_PLAYBOOK.md']) {
     const source = sourceFor(sources, filePath, errors);

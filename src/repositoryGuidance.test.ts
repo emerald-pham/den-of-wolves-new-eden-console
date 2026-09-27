@@ -126,12 +126,21 @@ describe('repository guidance', () => {
     const wrongEffort = new Map(sources);
     wrongEffort.set('CLAUDE.md', readGuidance('CLAUDE.md')
       .replace('Use `max` for every `gpt-6-luna`', 'Use `high` for every `gpt-6-luna`')
-      .replace('may use only `medium`, `high`, or `xhigh`', 'may use any effort'));
+      .replace('may use only `medium`, `high`, `xhigh`, or `max`', 'may use any effort'));
     const effortErrors: string[] = [];
     validateAgentModelEscalation({ sources: wrongEffort, errors: effortErrors });
     expect(effortErrors).toEqual(expect.arrayContaining([
       expect.stringContaining('must require max effort for every GPT-6 Luna subagent'),
-      expect.stringContaining('must limit GPT-6 Sol effort to medium, high, or xhigh'),
+      expect.stringContaining('must limit GPT-6 Sol effort to medium, high, xhigh, or max'),
+    ]));
+
+    const oldCeiling = new Map(sources);
+    oldCeiling.set('CLAUDE.md', readGuidance('CLAUDE.md')
+      .replace('may use only `medium`, `high`, `xhigh`, or `max`', 'may use only `medium`, `high`, or `xhigh`'));
+    const ceilingErrors: string[] = [];
+    validateAgentModelEscalation({ sources: oldCeiling, errors: ceilingErrors });
+    expect(ceilingErrors).toEqual(expect.arrayContaining([
+      expect.stringContaining('must limit GPT-6 Sol effort to medium, high, xhigh, or max'),
     ]));
   });
 

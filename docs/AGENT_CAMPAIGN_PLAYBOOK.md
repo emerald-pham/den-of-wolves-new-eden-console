@@ -27,8 +27,9 @@ there is no minimum-agent count.
 
 Only `gpt-6-luna` and `gpt-6-sol` may be delegated as subagents. Use
 `gpt-6-luna` as the default delegated worker model. Use `max` for every
-`gpt-6-luna` subagent. `gpt-6-sol` may use only `medium`, `high`, or `xhigh`,
-selected for the bounded review or assignment. Use `gpt-6-sol` for independent
+`gpt-6-luna` subagent. `gpt-6-sol` may use only `medium`, `high`, `xhigh`, or
+`max`, selected for the bounded review or assignment. Use `max` when the task's
+complexity warrants it. Use `gpt-6-sol` for independent
 review of risky changes
 touching shared session state, callable authorization, Firestore rules,
 deployment, or authentication infrastructure. An exact security review receipt

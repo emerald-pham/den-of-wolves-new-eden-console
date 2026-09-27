@@ -98,13 +98,14 @@ applicable. A sidecar is optional and there is no minimum-agent count. Paralleli
 independent deliverables only when the concrete benefit exceeds coordination,
 context, and integration cost, and give every extra agent a bounded deliverable.
 Delegated workers default to `gpt-6-luna`. Use `max` for every `gpt-6-luna`
-subagent. `gpt-6-sol` may use only `medium`, `high`, or `xhigh`, selected for the
-bounded task.
+subagent. `gpt-6-sol` may use only `medium`, `high`, `xhigh`, or `max`, selected
+for the bounded task. Use `max` when the task's complexity warrants it.
 
 Use `gpt-6-sol` for independent review of shared session state, callable behavior
 (including authorization and rules), Firestore rules, deployment/auth
 infrastructure, or release and capacity evidence. Use `medium` or `high` for a
-narrow, well-tested review and `xhigh` for complex authority or privacy risk. Exact threat-model receipts still require `xhigh`.
+narrow, well-tested review, `xhigh` for complex authority or privacy risk, and
+`max` when that bounded review needs more depth. Exact threat-model receipts still require `xhigh`.
 Editing comments or copy and routinely deploying an ordinary feature do not by
 themselves trigger review. Keep meaningful security and authority tests and final validation. Send all
 actionable findings together; the owner repairs them, with follow-up limited to

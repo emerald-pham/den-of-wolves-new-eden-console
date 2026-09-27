@@ -8,7 +8,8 @@ changelog policy, and truthful merge/deploy closeout.
 Only `gpt-6-luna` and `gpt-6-sol` may be delegated as subagents. Use
 `gpt-6-sol` for the independent risk reviews specified in `CLAUDE.md`.
 Use `max` for every `gpt-6-luna` subagent. `gpt-6-sol` may use only `medium`,
-`high`, or `xhigh`, selected for the bounded task.
+`high`, `xhigh`, or `max`, selected for the bounded task. Use `max` when the
+task's complexity warrants it.
 
 The roadmap facts live in the JSON catalog at
 [`docs/implementation-prompts.json`](./docs/implementation-prompts.json), with
