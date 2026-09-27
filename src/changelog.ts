@@ -26,7 +26,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 458, partial: 44, active: 0, missing: 249,
     },
     changes: [
-      'Ally repairs keep selected consoles while server state catches up and let the current Joint Engineering Union holder explicitly retry with a fresh request and current revisions.',
+      'Maliades repairs keep selected systems when state changes, so the current Engineer can review live costs and explicitly retry with current revisions.',
       '458 of 751 planned items are complete (60.99%).',
     ],
     implementationPrompts: [620],

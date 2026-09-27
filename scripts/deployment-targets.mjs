@@ -35,6 +35,28 @@ const WOLF_ATTACK_DECLARATION_TYPE_ADDITIONS = Object.freeze([
   '  /** Stable identity for this declared attack; range actions bind to it. */\n  readonly attackId: string;\n',
   '  /** Hidden Maliades effects committed against this exact attack. */\n  readonly maliadesRangeEffects: unknown;\n',
 ]);
+const MALIADE_REPAIR_STALE_REPLY_TYPE = `export interface MaliadesRepairCallableStaleReply {
+  readonly status: 'stale';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly craftId: 'maliades';
+  readonly expectedHostShipId: string;
+  readonly damageToRepair: number;
+  readonly expectedControlRevision: number;
+  readonly currentControlRevision: number;
+  readonly expectedRevision: number;
+  readonly currentRevision: number;
+  readonly expectedCycle: number;
+  readonly currentCycle: number;
+}
+`;
+const MALIADE_CALLABLE_MARKERS = Object.freeze([
+  // One file owns three exported Functions, so path-only selection is too broad.
+  // The content-aware selector below deploys one isolated export and rejects mixed diffs.
+  ['resolveMaliadesMedium', 'export const resolveMaliadesMedium = onCall(CALLABLE_RUNTIME_OPTIONS, async request =>\n'],
+  ['resolveMaliadesShort', 'export const resolveMaliadesShort = onCall(CALLABLE_RUNTIME_OPTIONS, async request =>\n'],
+  ['repairMaliades', 'export const repairMaliades = onCall(CALLABLE_RUNTIME_OPTIONS, async request => {'],
+]);
 
 // Keep this dependency map explicit. When a shared helper changes, deploy every
 // callable known to consume it; unknown production modules fail closed below.
@@ -82,9 +104,6 @@ const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
   'functions/src/gorgoneionRepairDronesCallable.ts': ['repairGorgoneionWithDrones'],
   'functions/src/warriorRepairDrones.ts': ['repairWarriorWithDrones'],
   'functions/src/warriorRepairDronesCallable.ts': ['repairWarriorWithDrones'],
-  'functions/src/maliadesCallable.ts': [
-    'repairMaliades', 'resolveMaliadesMedium', 'resolveMaliadesShort',
-  ],
   'functions/src/maliadesState.ts': [
     'declareWolfAttack', 'getDioneMaliadesLaunch', 'launchDioneMaliades', 'repairMaliades',
   ],
@@ -712,6 +731,142 @@ function callableIsExportedAtRevision(name, revision, cwd, sourceAtRevision) {
   return directExport.test(indexSource) || reExport.test(indexSource);
 }
 
+function replaceMaliadesScope(source, startMarker, endMarker, normalize, label) {
+  const start = source.indexOf(startMarker);
+  const end = source.indexOf(endMarker, start + startMarker.length);
+  if (start < 0 || end < 0 || source.indexOf(startMarker, start + startMarker.length) >= 0 ||
+      source.indexOf(endMarker, end + endMarker.length) >= 0) {
+    throw new Error(`Cannot safely map Maliades callable changes without the audited ${label} boundary.`);
+  }
+  return `${source.slice(0, start)}${normalize(source.slice(start, end))}${source.slice(end)}`;
+}
+
+function canonicalMaliadesRepairPrefix(prefix) {
+  let current = prefix;
+  const staleReplyBlock = `\n\n${MALIADE_REPAIR_STALE_REPLY_TYPE}\n`;
+  const staleReplyCount = current.split(staleReplyBlock).length - 1;
+  if (staleReplyCount > 1) throw new Error('Cannot safely map Maliades callable changes with duplicate stale reply types.');
+  if (staleReplyCount === 1) current = current.replace(staleReplyBlock, '\n\n');
+
+  const repairRequestAdditions = [
+    [' expectedControlRevision?: number;', ''],
+    [", 'expectedControlRevision'", ''],
+    [
+      `  if (!Number.isSafeInteger(raw.expectedControlRevision) || (raw.expectedControlRevision as number) < 0 ||\n      typeof raw.expectedHostShipId !== 'string' || !isResourceShipId(raw.expectedHostShipId) ||`,
+      `  if (typeof raw.expectedHostShipId !== 'string' || !isResourceShipId(raw.expectedHostShipId) ||`,
+    ],
+    ['    expectedControlRevision: raw.expectedControlRevision as number,\n', ''],
+  ];
+  current = replaceMaliadesScope(
+    current,
+    'function exactCommandRequest(',
+    'function fingerprintFor(',
+    (scope) => {
+      let normalized = scope;
+      for (const [addition, canonical] of repairRequestAdditions) {
+        const count = normalized.split(addition).length - 1;
+        if (count > 1) throw new Error('Cannot safely map Maliades callable changes with duplicate repair request fields.');
+        if (count === 1) normalized = normalized.replace(addition, canonical);
+      }
+      return normalized;
+    },
+    'repair request validator',
+  );
+  current = replaceMaliadesScope(
+    current,
+    'function fingerprintFor(',
+    'function replay<',
+    (scope) => {
+      const addition = `  const payload: Record<string, string | number | readonly string[]> = {\n    expectedCycle: request.expectedCycle,\n    ...(request.expectedControlRevision !== undefined ? { expectedControlRevision: request.expectedControlRevision } : {}),\n  };`;
+      const count = scope.split(addition).length - 1;
+      if (count > 1) throw new Error('Cannot safely map Maliades callable changes with duplicate repair fingerprint fields.');
+      return count === 1
+        ? scope.replace(addition, '  const payload: Record<string, string | number | readonly string[]> = { expectedCycle: request.expectedCycle };')
+        : scope;
+    },
+    'repair request fingerprint',
+  );
+  return current;
+}
+
+function maliadesCallableSections(source) {
+  if (typeof source !== 'string') throw new Error('Cannot safely map Maliades callable changes without source at both revisions.');
+  const positions = MALIADE_CALLABLE_MARKERS.map(([name, marker]) => {
+    const first = source.indexOf(marker);
+    if (first < 0 || source.indexOf(marker, first + marker.length) >= 0) {
+      throw new Error(`Cannot safely map Maliades callable changes without one ${name} export.`);
+    }
+    return [name, first];
+  });
+  if (positions.some(([, position], index) => index > 0 && position <= positions[index - 1][1])) {
+    throw new Error('Cannot safely map Maliades callable changes after export order changed.');
+  }
+  const exports = [...source.matchAll(/export const (\w+) = onCall\b/g)].map((match) => match[1]);
+  if (exports.join('|') !== MALIADE_CALLABLE_MARKERS.map(([name]) => name).join('|') || !/\}\);\n?$/.test(source)) {
+    throw new Error('Cannot safely map Maliades callable changes after the export surface changed.');
+  }
+  const prefix = source.slice(0, positions[0][1]);
+  const callables = new Map();
+  for (let index = 0; index < positions.length; index += 1) {
+    const [name, start] = positions[index];
+    const end = positions[index + 1]?.[1] ?? source.length;
+    callables.set(name, source.slice(start, end));
+  }
+  return { prefix, callables };
+}
+
+function maliadesCallableImpacts(before, after, cwd, sourceAtRevision = null) {
+  const file = 'functions/src/maliadesCallable.ts';
+  const readAt = (revision) => {
+    let source;
+    if (sourceAtRevision) {
+      source = sourceAtRevision(revision, file);
+    } else {
+      try {
+        source = execFileSync('git', ['show', `${revision}:${file}`], {
+          encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd, maxBuffer: 16 * 1024 * 1024,
+        });
+      } catch {
+        try {
+          execFileSync('git', ['cat-file', '-e', `${revision}^{commit}`], {
+            stdio: ['ignore', 'ignore', 'ignore'], cwd,
+          });
+        } catch {
+          throw new Error(`Cannot safely determine Maliades callable source at ${revision}:${file}.`);
+        }
+        try {
+          execFileSync('git', ['cat-file', '-e', `${revision}:${file}`], {
+            stdio: ['ignore', 'ignore', 'ignore'], cwd,
+          });
+        } catch {
+          return null;
+        }
+        throw new Error(`Cannot safely read existing Maliades callable source at ${revision}:${file}.`);
+      }
+    }
+    if (typeof source !== 'string') {
+      if (source === null) return null;
+      throw new Error(`Cannot safely determine Maliades callable source at ${revision}:${file}.`);
+    }
+    return source;
+  };
+  const previousSource = readAt(before);
+  const currentSource = readAt(after);
+  if (currentSource === null) throw new Error('Cannot safely map a removed Maliades callable module.');
+  const current = maliadesCallableSections(currentSource);
+  if (previousSource === null) return [...current.callables.keys()];
+  const previous = maliadesCallableSections(previousSource);
+  if (canonicalMaliadesRepairPrefix(previous.prefix) !== canonicalMaliadesRepairPrefix(current.prefix)) {
+    throw new Error('Cannot safely map Maliades callable changes outside the exact repair-only CAS contract.');
+  }
+  const changed = [...previous.callables.keys()].filter((name) =>
+    previous.callables.get(name) !== current.callables.get(name));
+  if (changed.length !== 1) {
+    throw new Error('Cannot safely map Maliades callable changes that are mixed, empty, or ambiguous.');
+  }
+  return changed;
+}
+
 function requestGuardCallableImpacts(before, after, cwd, sourceAtRevision = null) {
   const file = 'functions/src/requestGuards.ts';
   const readAt = (revision) => {
@@ -780,6 +935,10 @@ function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }
     }
     if (file === 'functions/src/wolfAttackDeclaration.ts') {
       for (const name of wolfAttackDeclarationTypeImpacts(before, after, cwd, sourceAtRevision)) selected.add(name);
+      continue;
+    }
+    if (file === 'functions/src/maliadesCallable.ts') {
+      for (const name of maliadesCallableImpacts(before, after, cwd, sourceAtRevision)) selected.add(name);
       continue;
     }
     const consumers = CALLABLES_BY_CHANGED_MODULE[file];

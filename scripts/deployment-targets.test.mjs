@@ -61,9 +61,6 @@ const MALIADE_EVENT_REDACTION_ADDITIONS = [
   },
 ];
 const MALIADE_SOURCE_MODULE_CALLABLES = Object.freeze({
-  'functions/src/maliadesCallable.ts': [
-    'repairMaliades', 'resolveMaliadesMedium', 'resolveMaliadesShort',
-  ],
   'functions/src/maliadesState.ts': [
     'declareWolfAttack', 'getDioneMaliadesLaunch', 'launchDioneMaliades', 'repairMaliades',
   ],
@@ -89,6 +86,55 @@ const WOLF_ATTACK_DECLARATION_BEFORE = WOLF_ATTACK_DECLARATION_ADDITIONS.reduce(
   (source, addition) => source.replace(addition, ''),
   WOLF_ATTACK_DECLARATION_AFTER,
 );
+const MALIADE_REPAIR_STALE_REPLY_TYPE = `export interface MaliadesRepairCallableStaleReply {
+  readonly status: 'stale';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly craftId: 'maliades';
+  readonly expectedHostShipId: string;
+  readonly damageToRepair: number;
+  readonly expectedControlRevision: number;
+  readonly currentControlRevision: number;
+  readonly expectedRevision: number;
+  readonly currentRevision: number;
+  readonly expectedCycle: number;
+  readonly currentCycle: number;
+}
+`;
+const MALIADE_CALLABLE_AFTER = readFileSync(
+  new URL('../functions/src/maliadesCallable.ts', import.meta.url), 'utf8',
+);
+const MALIADE_REPAIR_EXPORT_START = 'export const repairMaliades = onCall(CALLABLE_RUNTIME_OPTIONS, async request => {';
+function replaceMaliadeFixtureOnce(source, before, after, label) {
+  const count = source.split(before).length - 1;
+  assert.equal(count, 1, `Maliades selector fixture expects one ${label}`);
+  return source.replace(before, after);
+}
+function buildMaliadeCallableBefore(source) {
+  let before = replaceMaliadeFixtureOnce(
+    source, `\n\n${MALIADE_REPAIR_STALE_REPLY_TYPE}\n`, '\n\n', 'stale reply interface');
+  before = replaceMaliadeFixtureOnce(before, ' expectedControlRevision?: number;', '', 'repair revision type');
+  before = replaceMaliadeFixtureOnce(before, ", 'expectedControlRevision'", '', 'repair request key');
+  before = replaceMaliadeFixtureOnce(
+    before,
+    `  if (!Number.isSafeInteger(raw.expectedControlRevision) || (raw.expectedControlRevision as number) < 0 ||\n      typeof raw.expectedHostShipId !== 'string' || !isResourceShipId(raw.expectedHostShipId) ||`,
+    `  if (typeof raw.expectedHostShipId !== 'string' || !isResourceShipId(raw.expectedHostShipId) ||`,
+    'repair request validation',
+  );
+  before = replaceMaliadeFixtureOnce(
+    before,
+    '    expectedControlRevision: raw.expectedControlRevision as number,\n', '', 'repair revision parser output');
+  before = replaceMaliadeFixtureOnce(
+    before,
+    `  const payload: Record<string, string | number | readonly string[]> = {\n    expectedCycle: request.expectedCycle,\n    ...(request.expectedControlRevision !== undefined ? { expectedControlRevision: request.expectedControlRevision } : {}),\n  };`,
+    '  const payload: Record<string, string | number | readonly string[]> = { expectedCycle: request.expectedCycle };',
+    'repair idempotency fingerprint',
+  );
+  const repairStart = before.indexOf(MALIADE_REPAIR_EXPORT_START);
+  assert.notEqual(repairStart, -1, 'Maliades repair export fixture must remain present');
+  return `${before.slice(0, repairStart)}${MALIADE_REPAIR_EXPORT_START}\n  void request;\n  return null;\n});\n`;
+}
+const MALIADE_CALLABLE_BEFORE = buildMaliadeCallableBefore(MALIADE_CALLABLE_AFTER);
 
 test('ignores stored rendered evidence without treating it as a deployable file', () => {
   const files = [
@@ -320,6 +366,8 @@ function selectorFor(files, {
   eventRedactionAfter = EVENT_REDACTION_P397_BEFORE,
   wolfAttackDeclarationBefore = WOLF_ATTACK_DECLARATION_BEFORE,
   wolfAttackDeclarationAfter = WOLF_ATTACK_DECLARATION_AFTER,
+  maliadeCallableBefore = MALIADE_CALLABLE_BEFORE,
+  maliadeCallableAfter = MALIADE_CALLABLE_AFTER,
 } = {}) {
   return deploymentSelector({
     before: 'base',
@@ -340,6 +388,9 @@ function selectorFor(files, {
       }
       if (file === 'functions/src/wolfAttackDeclaration.ts') {
         return revision === 'base' ? wolfAttackDeclarationBefore : wolfAttackDeclarationAfter;
+      }
+      if (file === 'functions/src/maliadesCallable.ts') {
+        return revision === 'base' ? maliadeCallableBefore : maliadeCallableAfter;
       }
       return '';
     },
@@ -606,6 +657,55 @@ test('maps Maliades source modules to the exact callables that consume them', ()
   assert.match(indexSource, /beginMaliadesAttack,[\s\S]*launchMaliades,[\s\S]*parseMaliadesState,[\s\S]*from '\.\/maliadesState';/);
   assert.match(callableSource, /repairMaliades as repairMaliadesState,[\s\S]*type MaliadesMediumChoice,[\s\S]*from '\.\/maliadesState';/);
   assert.match(indexSource, /export\s*\{\s*repairMaliades,\s*resolveMaliadesMedium,\s*resolveMaliadesShort,\s*\}\s*from '\.\/maliadesCallable';/s);
+});
+
+test('maps an isolated Maliades repair callable change only to repairMaliades', () => {
+  const selected = selectorFor(['functions/src/maliadesCallable.ts']);
+  assert.deepEqual(selectedFunctions(selected), functionTargets(['repairMaliades']));
+});
+
+test('maps isolated Maliades range callable changes to their own targets', () => {
+  const mediumOnly = MALIADE_CALLABLE_BEFORE.replace(
+    "runMaliadesRangeAction(request, 'medium'));",
+    "runMaliadesRangeAction(request, 'medium')); // reviewed medium-only change",
+  );
+  const shortOnly = MALIADE_CALLABLE_BEFORE.replace(
+    "runMaliadesRangeAction(request, 'short'));",
+    "runMaliadesRangeAction(request, 'short')); // reviewed short-only change",
+  );
+  assert.deepEqual(selectedFunctions(selectorFor(['functions/src/maliadesCallable.ts'], {
+    maliadeCallableAfter: mediumOnly,
+  })), functionTargets(['resolveMaliadesMedium']));
+  assert.deepEqual(selectedFunctions(selectorFor(['functions/src/maliadesCallable.ts'], {
+    maliadeCallableAfter: shortOnly,
+  })), functionTargets(['resolveMaliadesShort']));
+});
+
+test('fails closed for mixed Maliades repair and range callable changes', () => {
+  const changedMedium = MALIADE_CALLABLE_AFTER.replace(
+    "runMaliadesRangeAction(request, 'medium'));",
+    "runMaliadesRangeAction(request, 'medium')); // unreviewed mixed change",
+  );
+  const changedShort = MALIADE_CALLABLE_AFTER.replace(
+    "runMaliadesRangeAction(request, 'short'));",
+    "runMaliadesRangeAction(request, 'short')); // unreviewed mixed change",
+  );
+  assert.throws(() => selectorFor(['functions/src/maliadesCallable.ts'], {
+    maliadeCallableAfter: changedMedium,
+  }), /Cannot safely map Maliades callable changes/);
+  assert.throws(() => selectorFor(['functions/src/maliadesCallable.ts'], {
+    maliadeCallableAfter: changedShort,
+  }), /Cannot safely map Maliades callable changes/);
+});
+
+test('fails closed when an unknown Maliades shared helper changes', () => {
+  const changedHelper = MALIADE_CALLABLE_AFTER.replace(
+    'Only the active Dione Engineer may use Maliades.',
+    'Only the active Dione Engineer may use this altered Maliades action.',
+  );
+  assert.throws(() => selectorFor(['functions/src/maliadesCallable.ts'], {
+    maliadeCallableAfter: changedHelper,
+  }), /Cannot safely map Maliades callable changes/);
 });
 
 test('maps PDF Escort Wing server modules to their exact deployed callable consumers', () => {
