@@ -70,6 +70,9 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const seats = useSessionStore((state) => state.seats);
   const ship = findShip(shipId);
   const shipState = ship && session ? projectShipState(session, ship.id) : undefined;
+  const shipDiscovery = ship && session?.playerDiscovery?.shipId === ship.id
+    ? session.playerDiscovery
+    : undefined;
   const [crew, setCrew] = useState<readonly Player[] | null>(null);
   const assignedCoreRoleId = me?.assignedRoleId && me.assignedRoleId !== 'press-officer'
     ? me.assignedRoleId : undefined;
@@ -504,8 +507,8 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
             damage={shipState?.damage}
             damageDraws={damageDraws}
             navigationLogs={shipState?.navigationLogs}
-            knownCoordinates={session.playerDiscovery?.knownCoordinates}
-            knownSystems={session.playerDiscovery?.knownSystems}
+            knownCoordinates={shipDiscovery?.knownCoordinates}
+            knownSystems={shipDiscovery?.knownSystems}
             consoleLocked={consoleLocked}
             writable={effectiveWritable}
             shipState={shipState}
