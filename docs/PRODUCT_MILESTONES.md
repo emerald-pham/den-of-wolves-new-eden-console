@@ -149,9 +149,12 @@ later candidate during shaping; a pleasant screen cannot make it complete.
 | PC10 | 563–566, 647, 648; 649, 650; 618, 620, 629–631, 634, 635, 641, 642, 651 |
 
 Ranges refer only to unfinished IDs in the dated snapshot; they do not
-reclassify completed IDs between them. Every unfinished ID is allocated once,
-and no checkpoint depends on an unfinished prompt assigned later. PC06 includes
-owner-deferred Prompt 605a as a **conditional candidate**. Full-game, rules,
+reclassify completed IDs between them. A numeric range includes unfinished
+lettered IDs with a stem inside it: `431–442` includes `432a`, `433a`, `433b`,
+and `434a`. The 2026-09-27 allocation audit found 293 unfinished IDs assigned
+once each, with no gaps or duplicates; none of 547 unfinished hard-prompt
+prerequisite edges points to a later checkpoint. PC06 includes owner-deferred
+Prompt 605a as a **conditional candidate**. Full-game, rules,
 privacy, security, accessibility, and capacity proofs are agent gates, not
 extra owner playtest steps.
 
