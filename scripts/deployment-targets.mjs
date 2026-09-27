@@ -57,6 +57,24 @@ const MALIADE_CALLABLE_MARKERS = Object.freeze([
   ['resolveMaliadesShort', 'export const resolveMaliadesShort = onCall(CALLABLE_RUNTIME_OPTIONS, async request =>\n'],
   ['repairMaliades', 'export const repairMaliades = onCall(CALLABLE_RUNTIME_OPTIONS, async request => {'],
 ]);
+const MALIADE_REPAIR_REQUEST_ADDITIONS = Object.freeze([
+  [
+    `function exactCommandRequest(raw: unknown, kind: 'medium' | 'short' | 'repair'): Readonly<{\n  sessionId: string; requestId: string; expectedCycle: number; expectedRevision: number; expectedControlRevision?: number;\n  choices?: readonly MaliadesMediumChoice[]; targetIds?: readonly string[]; expectedHostShipId?: string;\n  damageToRepair?: number;\n}> {`,
+    `function exactCommandRequest(raw: unknown, kind: 'medium' | 'short' | 'repair'): Readonly<{\n  sessionId: string; requestId: string; expectedCycle: number; expectedRevision: number;\n  choices?: readonly MaliadesMediumChoice[]; targetIds?: readonly string[]; expectedHostShipId?: string;\n  damageToRepair?: number;\n}> {`,
+  ],
+  [
+    `  const allowed = kind === 'medium'\n    ? ['sessionId', 'requestId', 'expectedCycle', 'expectedRevision', 'choices']\n    : kind === 'short'\n      ? ['sessionId', 'requestId', 'expectedCycle', 'expectedRevision', 'targetIds']\n      : ['sessionId', 'requestId', 'expectedCycle', 'expectedControlRevision', 'expectedRevision', 'expectedHostShipId', 'damageToRepair'];`,
+    `  const allowed = kind === 'medium'\n    ? ['sessionId', 'requestId', 'expectedCycle', 'expectedRevision', 'choices']\n    : kind === 'short'\n      ? ['sessionId', 'requestId', 'expectedCycle', 'expectedRevision', 'targetIds']\n      : ['sessionId', 'requestId', 'expectedCycle', 'expectedRevision', 'expectedHostShipId', 'damageToRepair'];`,
+  ],
+  [
+    `  if (!Number.isSafeInteger(raw.expectedControlRevision) || (raw.expectedControlRevision as number) < 0 ||\n      typeof raw.expectedHostShipId !== 'string' || !isResourceShipId(raw.expectedHostShipId) ||\n      !Number.isSafeInteger(raw.damageToRepair) || (raw.damageToRepair as number) < 1 ||\n      (raw.damageToRepair as number) > 3) {\n    throw new HttpsError('invalid-argument', 'Invalid Maliades repair request.');\n  }`,
+    `  if (typeof raw.expectedHostShipId !== 'string' || !isResourceShipId(raw.expectedHostShipId) ||\n      !Number.isSafeInteger(raw.damageToRepair) || (raw.damageToRepair as number) < 1 ||\n      (raw.damageToRepair as number) > 3) {\n    throw new HttpsError('invalid-argument', 'Invalid Maliades repair request.');\n  }`,
+  ],
+  [
+    `  return {\n    sessionId: raw.sessionId, requestId: raw.requestId,\n    expectedCycle: raw.expectedCycle as number, expectedRevision: raw.expectedRevision as number,\n    expectedControlRevision: raw.expectedControlRevision as number,\n    expectedHostShipId: raw.expectedHostShipId, damageToRepair: raw.damageToRepair as number,\n  };`,
+    `  return {\n    sessionId: raw.sessionId, requestId: raw.requestId,\n    expectedCycle: raw.expectedCycle as number, expectedRevision: raw.expectedRevision as number,\n    expectedHostShipId: raw.expectedHostShipId, damageToRepair: raw.damageToRepair as number,\n  };`,
+  ],
+]);
 
 // Keep this dependency map explicit. When a shared helper changes, deploy every
 // callable known to consume it; unknown production modules fail closed below.
@@ -748,24 +766,15 @@ function canonicalMaliadesRepairPrefix(prefix) {
   if (staleReplyCount > 1) throw new Error('Cannot safely map Maliades callable changes with duplicate stale reply types.');
   if (staleReplyCount === 1) current = current.replace(staleReplyBlock, '\n\n');
 
-  const repairRequestAdditions = [
-    [' expectedControlRevision?: number;', ''],
-    [", 'expectedControlRevision'", ''],
-    [
-      `  if (!Number.isSafeInteger(raw.expectedControlRevision) || (raw.expectedControlRevision as number) < 0 ||\n      typeof raw.expectedHostShipId !== 'string' || !isResourceShipId(raw.expectedHostShipId) ||`,
-      `  if (typeof raw.expectedHostShipId !== 'string' || !isResourceShipId(raw.expectedHostShipId) ||`,
-    ],
-    ['    expectedControlRevision: raw.expectedControlRevision as number,\n', ''],
-  ];
   current = replaceMaliadesScope(
     current,
     'function exactCommandRequest(',
     'function fingerprintFor(',
     (scope) => {
       let normalized = scope;
-      for (const [addition, canonical] of repairRequestAdditions) {
+      for (const [addition, canonical] of MALIADE_REPAIR_REQUEST_ADDITIONS) {
         const count = normalized.split(addition).length - 1;
-        if (count > 1) throw new Error('Cannot safely map Maliades callable changes with duplicate repair request fields.');
+        if (count > 1) throw new Error('Cannot safely map Maliades callable changes with duplicate repair parser blocks.');
         if (count === 1) normalized = normalized.replace(addition, canonical);
       }
       return normalized;

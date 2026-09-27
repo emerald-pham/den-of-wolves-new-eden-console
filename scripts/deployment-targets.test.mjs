@@ -698,6 +698,24 @@ test('fails closed for mixed Maliades repair and range callable changes', () => 
   }), /Cannot safely map Maliades callable changes/);
 });
 
+test('fails closed if repair control revision parsing moves into the Medium request allowlist', () => {
+  const withMediumControlKey = replaceMaliadeFixtureOnce(
+    MALIADE_CALLABLE_AFTER,
+    "    ? ['sessionId', 'requestId', 'expectedCycle', 'expectedRevision', 'choices']",
+    "    ? ['sessionId', 'requestId', 'expectedCycle', 'expectedControlRevision', 'expectedRevision', 'choices']",
+    'Medium allowlist',
+  );
+  const movedControlKey = replaceMaliadeFixtureOnce(
+    withMediumControlKey,
+    "      : ['sessionId', 'requestId', 'expectedCycle', 'expectedControlRevision', 'expectedRevision', 'expectedHostShipId', 'damageToRepair'];",
+    "      : ['sessionId', 'requestId', 'expectedCycle', 'expectedRevision', 'expectedHostShipId', 'damageToRepair'];",
+    'repair allowlist',
+  );
+  assert.throws(() => selectorFor(['functions/src/maliadesCallable.ts'], {
+    maliadeCallableAfter: movedControlKey,
+  }), /Cannot safely map Maliades callable changes/);
+});
+
 test('fails closed when an unknown Maliades shared helper changes', () => {
   const changedHelper = MALIADE_CALLABLE_AFTER.replace(
     'Only the active Dione Engineer may use Maliades.',

@@ -26,6 +26,18 @@ it('retains connected-player roster privacy in its release history', () => {
   );
 });
 
+it('preserves the Ally 0.5.40 history when adding Maliades to the current release', () => {
+  const allyEntry = CHANGELOG.find((entry) => entry.version === '0.5.40');
+  const maliadesEntry = CHANGELOG.find((entry) => entry.version === APP_VERSION);
+
+  expect(allyEntry?.changes).toContain(
+    'Ally repairs keep selected consoles while server state catches up and let the current Joint Engineering Union holder explicitly retry with a fresh request and current revisions.',
+  );
+  expect(maliadesEntry?.changes).toContain(
+    'Maliades repair conflicts wait for live state to catch up, then let the current Engineer explicitly retry one damage with current costs and revisions.',
+  );
+});
+
 it('retains the reconnection grace in player-facing release notes', () => {
   expect(CHANGELOG.some((entry) => entry.changes.includes(
     'Connection indicators now keep the connected state through the first 30 seconds of a disconnect and only reveal the disconnected icon after that window when the player had been continuously interacting for more than 30 seconds before the outage.',
