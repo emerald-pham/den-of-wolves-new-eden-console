@@ -89,6 +89,12 @@ not a role-count or placeholder-screen claim.
 
 At a requested checkpoint, tell the parent task the current state, changed paths,
 commands/results, and any blocker. Do not send repetitive heartbeat chatter.
+The parent waits for a completion, blocker, or requested checkpoint with one
+interruptible event wait, or yields with a clear resume path. Avoid short
+polling loops, unchanged workflow snapshots, and elapsed-time updates during
+long tests or deployments; inspect status only at a meaningful boundary or
+when an expected bound or concrete failure calls for diagnosis. User input
+interrupts the wait.
 If another task owns a genuinely overlapping file or resource, message that
 owner with the exact overlap and wait or choose a non-overlapping slice; do not
 edit through it. A CI visibility gap, ordinary test failure, external

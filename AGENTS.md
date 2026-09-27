@@ -11,6 +11,13 @@ Use `max` for every `gpt-6-luna` subagent. `gpt-6-sol` may use only `medium`,
 `high`, `xhigh`, or `max`, selected for the bounded task. Use `max` when the
 task's complexity warrants it.
 
+While an owner or CI run is active, wait for a meaningful completion, blocker,
+or requested checkpoint. Use a long interruptible wait or yield with a clear
+owner and resume path. Do not loop through short status polls or send updates
+that only say the work is still running. Check status when a wait returns, an
+expected bound is exceeded, or a concrete failure needs diagnosis; respond to
+new user input when it interrupts the wait.
+
 The roadmap facts live in the JSON catalog at
 [`docs/implementation-prompts.json`](./docs/implementation-prompts.json), with
 generated Markdown views for convenient reading. Update the catalog and

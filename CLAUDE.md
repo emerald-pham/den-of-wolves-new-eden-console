@@ -158,6 +158,13 @@ Do not end with no work running and imply progress, create a dummy worker or
 sleep heartbeat, or repeat empty polls. Waiting/yielding avoids continuous
 model generation, but worker execution, handoff, and resumed processing still
 consume usage; never promise zero tokens or unlimited overnight completion.
+Once an owner or CI gate is running, prefer one interruptible event wait sized
+for that work, or yield with its owner and next boundary recorded. Do not cycle
+through short waits, repeated status snapshots, or elapsed-time commentary
+while nothing actionable has changed. A long browser gate is not a checkpoint
+each minute. Query status only when the wait returns a meaningful boundary,
+event delivery is unavailable, an expected bound is exceeded, or a concrete
+failure needs diagnosis. New user input interrupts the wait and takes priority.
 If the goal remains unfinished and ready work is available, a completed worker
 needs a next dispatch; when no independent work is available, park only at an
 explicit boundary or genuine blocker and report it truthfully. Keep pending user
