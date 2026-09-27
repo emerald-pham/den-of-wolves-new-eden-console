@@ -123,7 +123,7 @@ it('shows the ready state, working feedback, success receipt, and persisted spen
   expect(await screen.findByText('Successful: Shepherd group pursuit reduced from 8 to 5.')).toBeVisible();
   await waitFor(() => expect(screen.getByText('Status: Spent')).toBeVisible());
   expect(screen.getByText('ECM Device spent; Shepherd group pursuit changed from 8 to 5.')).toBeVisible();
-  expect(screen.getByRole('button', { name: 'Use ECM Device' })).toBeDisabled();
+  expect(screen.queryByRole('button', { name: 'Use ECM Device' })).not.toBeInTheDocument();
 });
 
 it('keeps an unfinished device unavailable and shows the persisted spent result after reopening', async () => {
