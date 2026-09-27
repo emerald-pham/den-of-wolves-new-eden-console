@@ -84,7 +84,7 @@ beforeEach(() => {
     activeVesselIds: ['aegis', 'shepherd'],
   });
   put('sessions/s1/players/gm-1', {
-    role: 'gm', connected: true, lastSeenAt: now - 1_000,
+    role: 'gm', connected: true, lastSeenAt: now - 1_000, fleetGroupId: 'fleet-1',
   });
   put('sessions/s1/gmInstances/gm-browser', {
     uid: 'gm-1', connected: true, lastSeenAt: now - 1_000,
@@ -98,7 +98,7 @@ beforeEach(() => {
     assignedRoleId: 'wing-commander', seatId: 'wing-commander', fleetGroupId: 'fleet-1',
   });
   put('sessions/s1/fleetGroups/fleet-1', {
-    id: 'fleet-1', vesselIds: ['aegis', 'shepherd'], memberUids: ['scientist-1', 'wing-1'],
+    id: 'fleet-1', vesselIds: ['aegis', 'shepherd'], memberUids: ['gm-1', 'scientist-1', 'wing-1'],
   });
   put('sessions/s1/serverState/navigation', {
     shipGalacticCoordinates: { aegis: '0000', shepherd: '0000' },
