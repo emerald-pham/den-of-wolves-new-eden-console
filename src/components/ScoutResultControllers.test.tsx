@@ -51,6 +51,28 @@ it('loads a resolved Scientist report and one saved note after reconnect', async
   expect(api.readPrivateScoutResult).toHaveBeenCalledWith('r1');
 });
 
+it('lets the Scientist revisit an older saved report one fact at a time', async () => {
+  api.listMyScoutReports.mockResolvedValue([
+    { requestId: 'r2', cycle: 3, entitlementId: 'endeavour',
+      targetCoordinate: '5143', status: 'pending', noteId: null },
+    { requestId: 'r1', cycle: 2, entitlementId: 'endeavour',
+      targetCoordinate: '0408', status: 'resolved', noteId: 'a'.repeat(64) },
+  ]);
+  api.readPrivateScoutResult.mockResolvedValue(result);
+  api.readMyScoutDiscoveryNote.mockResolvedValue({
+    type: 'player-discovery-note', id: 'a'.repeat(64), cycle: 2,
+    targetCoordinate: '0408', systemFact: result.systemFact,
+    recordedAt: '2026-09-27T21:40:00.000Z',
+  });
+  render(<ScoutReportController refreshKey="" />);
+  await screen.findByText(/awaiting facilitator reveal/i);
+  fireEvent.change(screen.getByRole('combobox', { name: /saved scout request/i }),
+    { target: { value: 'r1' } });
+  await waitFor(() => expect(screen.getByRole('region', { name: 'Endeavour scout report' }))
+    .toHaveTextContent('Deep Nebula'));
+  expect(api.readPrivateScoutResult).toHaveBeenCalledWith('r1');
+});
+
 it('lets the live GM reveal one pending request and refreshes the queue', async () => {
   useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, uid: 'gm1', role: 'gm' });
   useSessionStore.getState().setGmInstance({
