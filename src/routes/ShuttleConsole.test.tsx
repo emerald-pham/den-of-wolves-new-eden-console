@@ -1532,7 +1532,7 @@ it.each([
   await waitFor(() => expect(requestScout).toHaveBeenCalledWith(expect.objectContaining({
     entitlementId: shuttleId, targetCoordinate: '5143', requestId: expect.any(String),
   })));
-  expect(await within(controls).findByRole('status')).toHaveTextContent(/request recorded/i);
+  expect(await within(controls).findByText(/request recorded\. check with the facilitator/i)).toBeVisible();
 });
 
 it('opens Philia on its Dione Engineer route with its repair and cargo envelope', async () => {
