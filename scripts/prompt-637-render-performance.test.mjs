@@ -1,0 +1,45 @@
+import assert from 'node:assert/strict';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { basename, join } from 'node:path';
+import { tmpdir } from 'node:os';
+import test from 'node:test';
+import { measureBundleSizes } from './prompt-637-render-performance.mjs';
+
+test('measures landing HTML modulepreloads and static imports, excluding lazy and isolated review assets', async (t) => {
+  const distDirectory = await mkdtemp(join(tmpdir(), 'p637-render-performance-'));
+  const assetDirectory = join(distDirectory, 'assets');
+  await mkdir(assetDirectory, { recursive: true });
+  t.after(() => rm(distDirectory, { recursive: true, force: true }));
+
+  const assets = {
+    'index.js': 'import { boot } from "./landing-module.js"; import("./lazy-route.js"); boot();',
+    'landing-module.js': 'import "./static-leaf.js"; export const boot = () => {};',
+    'static-leaf.js': 'export const ready = true;',
+    'preloaded.js': 'export const preloaded = true;',
+    'lazy-route.js': `export const lazyPayload = "${'L'.repeat(600)}";`,
+    'review.js': `export const reviewPayload = "${'R'.repeat(300)}";`,
+    'orphan.js': `export const orphanPayload = "${'O'.repeat(700)}";`,
+  };
+  await Promise.all(Object.entries(assets).map(([name, contents]) =>
+    writeFile(join(assetDirectory, name), contents)));
+  await writeFile(join(distDirectory, 'index.html'), [
+    '<script type="module" crossorigin src="/assets/index.js"></script>',
+    '<link rel="modulepreload" crossorigin href="/assets/preloaded.js">',
+  ].join('\n'));
+  await writeFile(join(distDirectory, 'pc01-review.html'), [
+    '<script crossorigin src="/assets/review.js" type="module"></script>',
+    '<link href="/assets/static-leaf.js" rel="modulepreload">',
+  ].join('\n'));
+
+  const measured = await measureBundleSizes(distDirectory);
+
+  assert.deepEqual(measured.landing.files.map((file) => basename(file)).sort(), [
+    'index.js', 'landing-module.js', 'preloaded.js', 'static-leaf.js',
+  ]);
+  assert.equal(measured.landing.rawBytes, [
+    'index.js', 'landing-module.js', 'preloaded.js', 'static-leaf.js',
+  ].reduce((total, name) => total + Buffer.byteLength(assets[name]), 0));
+  assert.deepEqual(measured.review.files.map((file) => basename(file)).sort(), ['review.js', 'static-leaf.js']);
+  assert.equal(measured.wholeBuild.files.length, Object.keys(assets).length);
+  assert.equal(measured.wholeBuild.largestChunkBytes, Buffer.byteLength(assets['orphan.js']));
+});
