@@ -119,15 +119,15 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
     if (!entitled || !sessionId || !uid || !identityKey || !isCurrentScientistHolder(sessionId, uid)) return null;
     const generation = ++requestGeneration.current;
     setLoading(true);
-    setFeedback((current) => ({
-      identityKey,
-      notice: current?.identityKey === identityKey ? current.notice : '',
-      error: '',
-    }));
     try {
       const next = await readEndeavourResearchWorkspace();
       if (generation !== requestGeneration.current || !isCurrentScientistHolder(sessionId, uid)) return null;
       setLoadedWorkspace({ identityKey, value: next });
+      setFeedback((current) => ({
+        identityKey,
+        notice: current?.identityKey === identityKey ? current.notice : '',
+        error: '',
+      }));
       setSelectedTrackId((current) => {
         const choices = new Set(next.cadence.choices.map((choice) => choice.trackId));
         return next.tracks.some((track) => track.trackId === current && !track.complete && !choices.has(track.trackId))
@@ -252,9 +252,6 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
         }
         setStaleRecovery({ identityKey, attempt, reply: result });
         await reload();
-        if (isCurrentScientistHolder(sessionId, uid, attempt.expectedControlRevision, attempt.expectedCycle)) {
-          setFeedback({ identityKey, notice: '', error: '' });
-        }
       } else {
         setStaleRecovery(null);
         setFeedback({

@@ -227,6 +227,34 @@ it('waits for the current workspace before an explicit fresh-ID stale retry', as
   });
 });
 
+it('keeps stale refresh errors visible until a current private workspace read succeeds', async () => {
+  const user = userEvent.setup();
+  const current = {
+    ...workspace,
+    researchRevision: 1,
+    cadence: { cycle: 3, revision: 1, choices: [{ trackId: 'jump-drive', funding: 'standard' as const, oreCost: 0 as const }] },
+    progress: { reactor: 1, 'jump-drive': 1 },
+    tracks: [workspace.tracks[0]!, { ...workspace.tracks[1]!, crossedBoxes: 1 }],
+  };
+  let resolveRefresh!: (value: typeof current) => void;
+  mocks.read.mockResolvedValueOnce(workspace).mockRejectedValueOnce(new Error('Private Scientist workspace is unavailable.'))
+    .mockImplementationOnce(() => new Promise((resolve) => { resolveRefresh = resolve; }));
+  mocks.advance.mockImplementationOnce((attempt) => Promise.resolve(staleReply(attempt)));
+  render(<EndeavourResearchPanel control={control} />);
+  await user.click(await screen.findByRole('button', { name: 'Advance standard research' }));
+
+  expect(await screen.findByRole('alert')).toHaveTextContent('Private Scientist workspace is unavailable.');
+  expect(screen.getByRole('button', { name: 'Retry choice with current revisions' })).toBeDisabled();
+  await user.click(screen.getByRole('button', { name: 'Refresh private research' }));
+  expect(screen.getByRole('alert')).toHaveTextContent('Private Scientist workspace is unavailable.');
+
+  await act(async () => { resolveRefresh(current); await Promise.resolve(); });
+  await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+  await waitFor(() => expect(screen.getByRole('button', {
+    name: 'Retry choice with current revisions',
+  })).toBeEnabled());
+});
+
 it('uses an already refreshed entitled workspace when the stale reply arrives later', async () => {
   const user = userEvent.setup();
   const current = {
