@@ -366,9 +366,18 @@ export const readMyScoutDiscoveryNote = onCall(CALLABLE_RUNTIME_OPTIONS, async (
         !session.get('activeVesselIds').includes(note.shipId)) {
       throw new HttpsError('permission-denied', 'This discovery note is unavailable.');
     }
-    const group = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${note.fleetGroupId}`));
-    if (!group.exists || !Array.isArray(group.get('vesselIds')) ||
-        !group.get('vesselIds').includes(note.shipId)) {
+    const storedGroupId = player.get('fleetGroupId');
+    const currentGroupId = storedGroupId === undefined || storedGroupId === null
+      ? note.fleetGroupId : storedGroupId;
+    if (typeof currentGroupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(currentGroupId)) {
+      throw new HttpsError('permission-denied', 'This discovery note is unavailable.');
+    }
+    const group = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${currentGroupId}`));
+    const memberUids = group.get('memberUids');
+    if (!group.exists || group.get('id') !== currentGroupId ||
+        !Array.isArray(group.get('vesselIds')) ||
+        !group.get('vesselIds').includes(note.shipId) ||
+        (memberUids !== undefined && (!Array.isArray(memberUids) || !memberUids.includes(actorUid)))) {
       throw new HttpsError('permission-denied', 'This discovery note is unavailable.');
     }
     const parsed = parsePrivateScoutResult({
