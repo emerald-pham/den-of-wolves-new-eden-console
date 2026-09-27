@@ -218,4 +218,32 @@ describe('private scout result callables', () => {
     await expect(readMyScoutDiscoveryNote.run(callableRequest(noteRequest, 'scientist-1')))
       .rejects.toMatchObject({ code: 'permission-denied' });
   });
+
+  it('keeps a personal note when its ship moves to a new fleet group, but denies an unrelated group', async () => {
+    await resolvePendingScoutRequest.run(callableRequest({
+      sessionId: 'session-1', requestId: 'scan-1', instanceId: 'gm-browser',
+    }, 'gm-1'));
+    const noteId = [...mock.documents.keys()].find((path) => path.includes('/playerDiscoveryNotes/'))!.split('/').at(-1)!;
+    const noteRequest = { sessionId: 'session-1', noteId };
+    put('sessions/session-1/fleetGroups/fleet-1', {
+      id: 'fleet-1', vesselIds: ['aegis'],
+    });
+    put('sessions/session-1/fleetGroups/fleet-2', {
+      id: 'fleet-2', vesselIds: ['shepherd'],
+    });
+    put('sessions/session-1/players/scientist-1', {
+      role: 'player', connected: true, lastSeenAt: now - 1_000,
+      assignedRoleId: 'shepherd-scientist', seatId: 'shepherd-scientist',
+      fleetGroupId: 'fleet-2',
+    });
+    await expect(readMyScoutDiscoveryNote.run(callableRequest(noteRequest, 'scientist-1')))
+      .resolves.toMatchObject({ id: noteId, shipId: 'shepherd' });
+    put('sessions/session-1/players/scientist-1', {
+      role: 'player', connected: true, lastSeenAt: now - 1_000,
+      assignedRoleId: 'shepherd-scientist', seatId: 'shepherd-scientist',
+      fleetGroupId: 'fleet-1',
+    });
+    await expect(readMyScoutDiscoveryNote.run(callableRequest(noteRequest, 'scientist-1')))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+  });
 });
