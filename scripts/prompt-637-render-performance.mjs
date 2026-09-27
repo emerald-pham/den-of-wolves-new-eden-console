@@ -21,11 +21,13 @@ function moduleAssetSpecifiers(html) {
   for (const [tag] of html.matchAll(/<(script|link)\b[^>]*>/gi)) {
     if (/^<script\b/i.test(tag) && tagAttribute(tag, 'type')?.toLowerCase() === 'module') {
       const source = tagAttribute(tag, 'src');
-      if (source) specifiers.push(source);
+      if (!source) throw new Error('Module script has no measurable local source.');
+      specifiers.push({ kind: 'module script', source });
     } else if (/^<link\b/i.test(tag) &&
       tagAttribute(tag, 'rel')?.toLowerCase().split(/\s+/).includes('modulepreload')) {
       const href = tagAttribute(tag, 'href');
-      if (href) specifiers.push(href);
+      if (!href) throw new Error('Module preload has no measurable local source.');
+      specifiers.push({ kind: 'module preload', source: href });
     }
   }
   return specifiers;
@@ -49,9 +51,15 @@ export async function collectJavaScriptModuleGraph(distDirectory, htmlFile = 'in
   const distRoot = resolve(distDirectory);
   const htmlPath = resolve(distRoot, htmlFile);
   const html = await readFile(htmlPath, 'utf8');
-  const pending = moduleAssetSpecifiers(html)
-    .map((specifier) => localJavaScriptPath(distRoot, htmlPath, specifier))
-    .filter(Boolean);
+  const roots = moduleAssetSpecifiers(html);
+  if (!roots.some(({ kind }) => kind === 'module script')) {
+    throw new Error(`${htmlFile} has no measurable local module script.`);
+  }
+  const pending = roots.map(({ kind, source }) => {
+    const path = localJavaScriptPath(distRoot, htmlPath, source);
+    if (!path) throw new Error(`Unsupported ${kind} source in ${htmlFile}: ${source}`);
+    return path;
+  });
   const assets = new Set();
   await init;
 
@@ -65,7 +73,8 @@ export async function collectJavaScriptModuleGraph(distDirectory, htmlFile = 'in
       if (entry.d !== -1) continue;
       const specifier = source.slice(entry.s, entry.e);
       const dependency = localJavaScriptPath(distRoot, assetPath, specifier);
-      if (dependency && !assets.has(dependency)) pending.push(dependency);
+      if (!dependency) throw new Error(`Unsupported static import in ${assetPath}: ${specifier}`);
+      if (!assets.has(dependency)) pending.push(dependency);
     }
   }
 
