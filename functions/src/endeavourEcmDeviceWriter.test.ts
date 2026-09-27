@@ -172,20 +172,20 @@ describe('Endeavour ECM Device writer', () => {
   });
 
   it.each([
-    ['incomplete research', (fields: Fields) => put('sessions/s1/serverState/endeavourResearch', { 'ecm-device': 4 })],
-    ['a different actor', (_fields: Fields) => undefined, 'intruder'],
-    ['a changed control revision', (_fields: Fields) => put('sessions/s1', {
+    ['incomplete research', () => { put('sessions/s1/serverState/endeavourResearch', { 'ecm-device': 4 }); }],
+    ['a different actor', () => {}, 'intruder'],
+    ['a changed control revision', () => { put('sessions/s1', {
       ...mock.documents.get('sessions/s1'),
       shuttleControl: { endeavour: { ownerRoleId: 'shepherd-scientist', holderUid: 'scientist', revision: 5 } },
-    })],
-    ['ambiguous Shepherd fleet ownership', (_fields: Fields) => put('sessions/s1/fleetGroups/fleet-2', {
+    }); }],
+    ['ambiguous Shepherd fleet ownership', () => { put('sessions/s1/fleetGroups/fleet-2', {
       id: 'fleet-2', vesselIds: ['shepherd', 'dione'], memberUids: ['captain'],
-    })],
-    ['missing pursuit authority', (_fields: Fields) => put('sessions/s1/serverState/navigation', {
+    }); }],
+    ['missing pursuit authority', () => { put('sessions/s1/serverState/navigation', {
       shipGalacticCoordinates: {}, shipNavigationLogs: {}, pursuitGroups: { 'fleet-2': 9 },
-    })],
+    }); }],
   ])('rejects %s without mutation', async (_label, mutate, actor) => {
-    mutate({});
+    mutate();
     await expect(activateEndeavourEcmDevice.run(request(command, actor))).rejects.toBeInstanceOf(Error);
     expect(mock.documents.get('sessions/s1/serverState/navigation')?.pursuitGroups)
       .not.toEqual({ 'fleet-1': 5, 'fleet-2': 9 });
