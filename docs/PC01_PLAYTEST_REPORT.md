@@ -54,6 +54,7 @@ verify gameplay, permissions, and privacy separately.
 | Focused and full local tests | Integrated candidate: focused scout and movement suite, 49 tests passed; full unit and Functions suite, 419 files and 5,628 tests passed. Typecheck, Functions build, bundle-size check, and lint passed; lint has six existing warnings and no errors. |
 | Firestore rules and privacy | Firestore emulator suite: 4 files and 138 tests passed. Scout and ECM projections also have focused transaction and audience regressions. |
 | Rendered phone, desktop, short landscape, and reduced motion | Integrated review page checked at 320×800 Scientist and second ship, 1280×900 GM, and 844×390 GM; no horizontal overflow. A separate 320×800 run confirmed the reduced-motion media rule applies, computed scrolling is automatic, and the page makes no Firebase requests. |
+| Browser and render performance | Ticker smoke passed its normal and reduced-motion viewport matrix and lifecycle captures. The P637 render gate passed: landing entry graph 1,843,582 raw / 481,347 gzip bytes within unchanged limits; largest whole-build chunk 497,103 bytes; landing startup p95 101 ms and no long mobile frames. The separate review entry graph is 242,358 raw / 77,743 gzip bytes. |
 | Independent callable and privacy review | Sol xhigh reviewed the integrated GM roster and move/jump repairs at commit `029abdf8` and found no remaining actionable findings. Release-gate measurement is being checked separately. |
 | Production deployment | Pending release workflow and hosted build check. |
 | Ordinary authorized facilitator and Scientist gameplay | Pending an authorized live session. Synthetic review and local tests do not establish this boundary. |
@@ -72,6 +73,7 @@ verify gameplay, permissions, and privacy separately.
 | `src/PC01ReviewScene.test.tsx` | The isolated owner tour advances research, purchases a sample upgrade, runs ECM, reveals a private scout result, and hides its coordinate from the second ship. |
 | `src/components/ScoutResultControllers.test.tsx` and `ScoutResultPanels.test.tsx` | Current GM and Scientist flows use private reports, notes, and the same review presentation. |
 | `src/lib/endeavourEcmDeviceService.test.ts` and `scoutResultService.test.ts` | Client request identity, retries, and private response parsing. |
+| `scripts/prompt-637-render-performance.test.mjs` | The landing byte budget includes its static module graph and shared science presentation but excludes lazy and separate review-only assets. |
 | `tests/rules/scoutPrivacy.rules.test.ts` | Direct client reads and writes cannot bypass private scout storage. |
 
 | Changed test | Reason |
