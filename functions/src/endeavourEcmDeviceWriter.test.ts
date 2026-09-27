@@ -217,6 +217,17 @@ describe('Endeavour ECM Device writer', () => {
       .toMatchObject({ groupId: 'fleet-1', pursuitValue: 8, revision: 11 });
   });
 
+  it('rejects activation when a current group member projection is missing', async () => {
+    mock.documents.delete('sessions/s1/playerDiscoveries/captain');
+
+    await expect(activateEndeavourEcmDevice.run(request(command))).rejects.toBeInstanceOf(Error);
+
+    expect(mock.documents.get('sessions/s1/serverState/navigation')?.pursuitGroups)
+      .toEqual({ 'fleet-1': 8, 'fleet-2': 9 });
+    expect(mock.documents.has('sessions/s1/serverState/endeavourEcmDevice')).toBe(false);
+    expect(mock.documents.has('sessions/s1/commandReceipts/ecm-use-1')).toBe(false);
+  });
+
   it('replays the same actor and command without reducing pursuit or writing another event', async () => {
     await activateEndeavourEcmDevice.run(request(command));
     const writesBeforeReplay = mock.set.mock.calls.length + mock.create.mock.calls.length + mock.update.mock.calls.length;
