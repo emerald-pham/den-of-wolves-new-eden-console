@@ -111,6 +111,35 @@ it('hides location contents without removing the ship coordinate knowledge', asy
   expect(map).toHaveTextContent('6798');
 });
 
+it('does not show another ship knowledge on the currently viewed ship map', async () => {
+  const current = useSessionStore.getState().session;
+  if (!current) throw new Error('Expected session.');
+  useSessionStore.getState().setSession({
+    ...current,
+    shipGalacticCoordinates: { aegis: '0000' },
+    shipNavigationLogs: { aegis: [], dione: [] },
+    playerDiscovery: {
+      groupId: 'fleet-1', shipId: 'dione', currentCoordinate: '6798',
+      knownCoordinates: ['0000', '6798'],
+      knownSystems: { 'system-01': '0000', 'system-16': '6798' },
+      pursuitDistance: 6, navigationLogs: [], revision: 5,
+    },
+  });
+  const player = useSessionStore.getState().me;
+  const session = useSessionStore.getState().session;
+  if (!player || !session) throw new Error('Expected current session and player.');
+  useSessionStore.getState().setIdentity(session, { ...player, fleetGroupId: 'fleet-1' });
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  const user = userEvent.setup();
+  renderShip();
+
+  await user.click(screen.getByRole('button', { name: 'Navigation' }));
+  const map = await screen.findByRole('region', { name: 'Ship navigation map' });
+  expect(map).toHaveTextContent('Current ship // 0000');
+  expect(map).not.toHaveTextContent('6798');
+  expect(map.querySelector('[data-system-coordinate="6798"]')).toBeNull();
+});
+
 it('shows the ICN travel lock and disables console actions while it is engaged', async () => {
   const user = userEvent.setup();
   const session = useSessionStore.getState().session;
