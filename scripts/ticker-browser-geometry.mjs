@@ -4,6 +4,7 @@ const DEFAULT_MINIMUM_VELOCITY_SAMPLES = 8;
 const EDGE_TOLERANCE_PX = 2;
 const START_SAMPLE_TOLERANCE_PX = 6;
 const INITIAL_EDGE_STEP_TOLERANCE_PX = 1.5;
+const MAX_OFFSCREEN_MOUNT_DELAY_INTERVALS = 3;
 
 function finite(value) {
   return typeof value === 'number' && Number.isFinite(value);
@@ -139,9 +140,10 @@ export function assessTickerGeometry({
       Math.abs(firstIntervalSpeed) <= 0.5 && firstInterval.every(isEffectivelyOffscreen);
     if (firstIntervalIsMountDelay) ignoredMountDelayTracks.push(id);
     let ignoredInitialEdgeStep = false;
+    let initialMotionStarted = false;
 
-    for (let index = 2; index < positions.length; index += 1) {
-      const previous = positions[index - 2];
+    for (let index = 1; index < positions.length; index += 1) {
+      const previous = positions[index - 1];
       const current = positions[index];
       const elapsed = current.elapsed - previous.elapsed;
       if (!finite(elapsed) || elapsed <= 0) {
@@ -153,39 +155,49 @@ export function assessTickerGeometry({
         speed,
         previous,
         current,
-        firstWindow: index === 2,
+        firstWindow: index === 1,
         sampleIndex: current.sampleIndex,
       };
       velocities.push(velocity);
+      const windowOffscreen = isEffectivelyOffscreen(previous) && isEffectivelyOffscreen(current);
+      const displacement = current.left - previous.left;
 
       if (speed >= minimumSpeed && speed <= maximumSpeed) {
         checkedVelocitySamples.push({ id, ...velocity });
+        if (Math.abs(displacement) > 0.25) initialMotionStarted = true;
         continue;
       }
 
-      const windowOffscreen = isEffectivelyOffscreen(previous) && isEffectivelyOffscreen(current);
-      if (velocity.firstWindow && firstIntervalIsMountDelay) continue;
+      const boundedOffscreenMountDelay = !initialMotionStarted && index <= MAX_OFFSCREEN_MOUNT_DELAY_INTERVALS &&
+        Math.abs(displacement) <= 0.5 && windowOffscreen;
+      if (boundedOffscreenMountDelay) continue;
 
+      const expectedStart = startsById.get(id);
+      const firstActualSampleMatchesStart = expectedStart && firstInterval &&
+        Math.abs(firstInterval[0].left - expectedStart.left) <= START_SAMPLE_TOLERANCE_PX;
       const firstIntervalCompositor = velocity.firstWindow && firstInterval &&
         firstInterval[0].sampleIndex === 0 && firstInterval[1].sampleIndex === 1 &&
         finite(firstIntervalSpeed) && (firstIntervalSpeed < minimumSpeed || firstIntervalSpeed > maximumSpeed) &&
-        firstInterval.every(isEffectivelyOffscreen);
+        Math.abs(firstInterval[1].left - firstInterval[0].left) <= START_SAMPLE_TOLERANCE_PX &&
+        firstActualSampleMatchesStart && firstInterval.every(isEffectivelyOffscreen);
       if (firstIntervalCompositor && (ignoredStartupSampleIndex === null ||
           ignoredStartupSampleIndex === firstInterval[1].sampleIndex)) {
         ignoredStartupSampleIndex = firstInterval[1].sampleIndex;
+        initialMotionStarted = true;
         continue;
       }
 
-      const noEarlierMotion = positions.slice(0, index - 1).every((position) => (
+      const noEarlierMotion = positions.slice(0, index).every((position) => (
         Math.abs(position.left - positions[0].left) <= 0.25
       ));
       const initialEdgeStep = !ignoredInitialEdgeStep && index <= 4 && noEarlierMotion &&
-        Math.abs(current.left - previous.left) > 0.25 &&
-        Math.abs(current.left - previous.left) <= INITIAL_EDGE_STEP_TOLERANCE_PX &&
+        !initialMotionStarted && Math.abs(displacement) > 0.25 &&
+        Math.abs(displacement) <= INITIAL_EDGE_STEP_TOLERANCE_PX &&
         isEffectivelyOffscreen(previous) && isEffectivelyOffscreen(current);
       if (initialEdgeStep) {
         ignoredInitialEdgeStep = true;
         ignoredInitialEdgeStepTracks.push(id);
+        initialMotionStarted = true;
         continue;
       }
 
@@ -198,6 +210,7 @@ export function assessTickerGeometry({
         `track ${id} constant-speed sample ${speed.toFixed(2)}px/s ` +
         `outside ${minimumSpeed}..${maximumSpeed}px/s`,
       );
+      if (Math.abs(displacement) > 0.25) initialMotionStarted = true;
     }
     velocitiesByTrack.set(id, velocities);
   }
@@ -219,9 +232,8 @@ export function assessTickerGeometry({
     failures.push(`visible track ${id} has fewer than ${minimumVelocitySamples} constant-speed samples`);
   }
 
-  const speedStable = failures.every((failure) => (
-    !failure.includes('constant-speed') && !failure.includes('non-increasing')
-  )) && anchorVelocityCount >= minimumVelocitySamples && insufficientVisibleTracks.length === 0;
+  const speedStable = failures.length === 0 && anchorVelocityCount >= minimumVelocitySamples &&
+    insufficientVisibleTracks.length === 0;
 
   return {
     initialEdgeValid,

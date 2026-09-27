@@ -425,7 +425,8 @@ async function assertTickerGeometry(page, label, reducedMotion) {
     throw new Error(`${label}: ticker did not expose stable physical group and copy identities`);
   }
   const assessment = snapshot.motionAssessment;
-  if (!assessment?.initialEdgeValid || !assessment.movedTowardViewport ||
+  if (!assessment?.initialEdgeValid || !assessment.initialSampleEdgeValid ||
+      !assessment.movedTowardViewport ||
       !assessment.entryTransitionObserved || !assessment.speedStable) {
     throw new Error(`${label}: ticker did not maintain a measurable constant linear track: ${JSON.stringify(snapshot)}`);
   }
