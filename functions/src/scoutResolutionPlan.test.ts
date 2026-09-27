@@ -40,9 +40,10 @@ describe('scout resolution write plan', () => {
     });
     expect(plan.note).toMatchObject({
       type: 'player-discovery-note', sessionId: 'session-1', requestId: 'scan-1',
-      requesterUid: 'scientist-1', shipId: 'aegis', fleetGroupId: 'fleet-1',
+      requesterUid: 'scientist-1', shipId: 'shepherd', fleetGroupId: 'fleet-1',
       systemFact: plan.result.systemFact,
     });
+    expect(plan.receivingShipId).toBe('aegis');
     expect(plan.audit).toMatchObject({
       type: 'scout-resolution-audit', sessionId: 'session-1', requestId: 'scan-1',
       requesterUid: 'scientist-1', originShipId: 'shepherd',
@@ -51,7 +52,7 @@ describe('scout resolution write plan', () => {
     });
     expect(plan.deepNebulaScan).toEqual({
       type: 'deep-nebula-scan', sessionId: 'session-1', requestId: 'scan-1',
-      cycle: 4, shipId: 'aegis', targetCoordinate: '0408',
+      cycle: 4, shipId: 'shepherd', targetCoordinate: '0408',
     });
     expect(JSON.stringify(plan)).not.toMatch(/accruedBonus|modifier|organiserChart|chartId/);
   });

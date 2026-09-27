@@ -34,7 +34,8 @@ vi.mock('firebase-functions/v2/https', () => ({
 }));
 
 import {
-  listPendingScoutRequests, readPrivateScoutResult, resolvePendingScoutRequest,
+  listMyScoutReports, listPendingScoutRequests, readMyScoutDiscoveryNote,
+  readPrivateScoutResult, resolvePendingScoutRequest,
 } from './scoutResultCallable';
 
 const now = Date.parse('2026-09-27T21:40:00.000Z');
@@ -98,7 +99,7 @@ describe('private scout result callables', () => {
       requesterUid: 'scientist-1', facilitatorUid: 'gm-1', targetCoordinate: '0408',
     });
     expect(mock.documents.get('sessions/session-1/deepNebulaScans/scan-1')).toMatchObject({
-      type: 'deep-nebula-scan', shipId: 'aegis',
+      type: 'deep-nebula-scan', shipId: 'shepherd',
     });
     expect([...mock.documents.keys()].filter((path) => path.includes('/playerDiscoveryNotes/')))
       .toHaveLength(1);
@@ -149,5 +150,50 @@ describe('private scout result callables', () => {
     await expect(listPendingScoutRequests.run(callableRequest({
       sessionId: 'session-1', instanceId: 'gm-browser',
     }, 'gm-1'))).resolves.toEqual([]);
+  });
+
+  it('replays requester-owned pending and resolved IDs without a chart export and reads one durable note', async () => {
+    const pending = await listMyScoutReports.run(callableRequest({ sessionId: 'session-1' }, 'scientist-1'));
+    expect(pending).toEqual([{ requestId: 'scan-1', cycle: 4,
+      entitlementId: 'endeavour', targetCoordinate: '0408', status: 'pending', noteId: null }]);
+    await resolvePendingScoutRequest.run(callableRequest({
+      sessionId: 'session-1', requestId: 'scan-1', instanceId: 'gm-browser',
+    }, 'gm-1'));
+    const resolved = await listMyScoutReports.run(callableRequest({ sessionId: 'session-1' }, 'scientist-1'));
+    expect(resolved).toMatchObject([{ requestId: 'scan-1', status: 'resolved' }]);
+    const noteId = (resolved as { noteId: string }[])[0]!.noteId;
+    expect(noteId).toMatch(/^[a-f0-9]{64}$/);
+    await expect(readMyScoutDiscoveryNote.run(callableRequest({
+      sessionId: 'session-1', noteId,
+    }, 'scientist-1'))).resolves.toMatchObject({
+      id: noteId, systemFact: { code: 'O', title: 'Deep Nebula' },
+    });
+    expect(JSON.stringify(resolved)).not.toMatch(/Deep Nebula|chartId|accruedBonus/);
+    await expect(readMyScoutDiscoveryNote.run(callableRequest({
+      sessionId: 'session-1', noteId,
+    }, 'other'))).rejects.toMatchObject({ code: 'permission-denied' });
+  });
+
+  it('revokes note reads after the requester changes ship or fleet group', async () => {
+    await resolvePendingScoutRequest.run(callableRequest({
+      sessionId: 'session-1', requestId: 'scan-1', instanceId: 'gm-browser',
+    }, 'gm-1'));
+    const noteId = [...mock.documents.keys()].find((path) => path.includes('/playerDiscoveryNotes/'))!.split('/').at(-1)!;
+    const noteRequest = { sessionId: 'session-1', noteId };
+    put('sessions/session-1/players/scientist-1', {
+      role: 'player', connected: true, lastSeenAt: now - 1_000,
+      assignedRoleId: 'quellon-explorer', seatId: 'quellon-explorer',
+    });
+    await expect(readMyScoutDiscoveryNote.run(callableRequest(noteRequest, 'scientist-1')))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    put('sessions/session-1/players/scientist-1', {
+      role: 'player', connected: true, lastSeenAt: now - 1_000,
+      assignedRoleId: 'admiral', seatId: 'admiral',
+    });
+    put('sessions/session-1/fleetGroups/fleet-1', {
+      id: 'fleet-1', vesselIds: ['shepherd'],
+    });
+    await expect(readMyScoutDiscoveryNote.run(callableRequest(noteRequest, 'scientist-1')))
+      .rejects.toMatchObject({ code: 'permission-denied' });
   });
 });
