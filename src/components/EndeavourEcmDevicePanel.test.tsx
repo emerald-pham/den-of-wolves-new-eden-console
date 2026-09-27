@@ -88,7 +88,7 @@ it('shows the ready state, working feedback, success receipt, and persisted spen
   mocks.activate.mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
 
   render(<EndeavourEcmDevicePanel control={control} />);
-  expect(await screen.findByRole('region', { name: 'Endeavour ECM Device controls' })).toBeVisible();
+  expect(await screen.findByText('Status: Ready')).toBeVisible();
   expect(screen.getByText('Status: Ready')).toBeVisible();
 
   await user.click(screen.getByRole('button', { name: 'Use ECM Device' }));

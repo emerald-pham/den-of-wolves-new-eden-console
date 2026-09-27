@@ -40,4 +40,19 @@ it('accepts a committed or exact replay receipt only when its one-shot pursuit d
   expect(parseEndeavourEcmDeviceReply({ ...reply, requestId: 'other' }, attempt)).toBeNull();
   expect(parseEndeavourEcmDeviceReply({ ...reply, pursuitAfter: 4 }, attempt)).toBeNull();
   expect(parseEndeavourEcmDeviceReply({ ...reply, ownerGroupId: 'group-alpha' }, attempt)).toBeNull();
+  expect(parseEndeavourEcmDeviceReply({ ...reply, deviceRevision: 2 }, {
+    ...attempt, expectedDeviceRevision: 1,
+  })).toBeNull();
+});
+
+it('retains the original owner group in a spent device after Shepherd changes groups', () => {
+  const used = {
+    ...workspace,
+    device: {
+      status: 'used', revision: 1, ownerGroupId: 'fleet-1',
+      pursuitBefore: 8, pursuitAfter: 5,
+    },
+    pursuit: { groupId: 'fleet-2', current: 7 },
+  };
+  expect(parseEndeavourEcmDeviceWorkspace(used, 's1')).toEqual(used);
 });
