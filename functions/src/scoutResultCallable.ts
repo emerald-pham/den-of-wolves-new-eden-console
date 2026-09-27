@@ -151,7 +151,7 @@ export const resolvePendingScoutRequest = onCall(CALLABLE_RUNTIME_OPTIONS, async
           chartSelectionLocked: session.get('chartSelectionLocked'),
           currentCycle: session.get('currentTurn'),
         }, facilitator,
-        fleetGroupId: groupForShip(groups.docs, pendingData.anchorShipId),
+        fleetGroupId: groupForShip(groups.docs, pendingData.receivingShipId),
         recordedAt: serverTime,
       });
     } catch {
@@ -178,7 +178,7 @@ export const resolvePendingScoutRequest = onCall(CALLABLE_RUNTIME_OPTIONS, async
           sessionId, phase: session.get('phase'), chartId: session.get('chartId'),
           chartSelectionLocked: session.get('chartSelectionLocked'),
           currentCycle: session.get('currentTurn'),
-        }, facilitator, fleetGroupId: groupForShip(groups.docs, pendingData.anchorShipId),
+        }, facilitator, fleetGroupId: groupForShip(groups.docs, pendingData.receivingShipId),
         recordedAt: note.recordedAt,
       });
       if (!id(audit.facilitatorUid) || !equal(note, replayPlan.note) ||

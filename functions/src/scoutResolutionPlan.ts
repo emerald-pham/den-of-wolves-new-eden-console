@@ -37,7 +37,7 @@ export interface ScoutResolutionPlan {
 
 const REQUEST_FIELDS = [
   'type', 'status', 'resolution', 'requestId', 'sessionId', 'actorUid', 'cycle',
-  'entitlementId', 'source', 'ownerRoleId', 'anchorShipId', 'targetCoordinate',
+  'entitlementId', 'source', 'ownerRoleId', 'anchorShipId', 'receivingShipId', 'targetCoordinate',
   'scan', 'createdAt',
 ] as const;
 
@@ -68,7 +68,8 @@ function requirePendingRequest(input: ScoutResolutionInput): RecordValue {
   if (!record(request) || !exact(request, REQUEST_FIELDS) ||
       request.type !== 'scout-request' || request.status !== 'requested' ||
       request.resolution !== 'pending' || !id(request.sessionId) || !id(request.requestId) ||
-      !id(request.actorUid) || !Number.isSafeInteger(request.cycle) || (request.cycle as number) < 1 ||
+      !id(request.actorUid) || !id(request.receivingShipId) ||
+      !Number.isSafeInteger(request.cycle) || (request.cycle as number) < 1 ||
       typeof request.entitlementId !== 'string' ||
       typeof request.targetCoordinate !== 'string' ||
       !STAR_CHART_COORDINATES.includes(request.targetCoordinate) ||
@@ -132,7 +133,7 @@ export function buildScoutResolutionPlan(input: ScoutResolutionInput): ScoutReso
     note: Object.freeze({
       type: 'player-discovery-note', id: noteId, sessionId: result.sessionId,
       requestId: result.requestId, requesterUid: result.requesterUid,
-      sourceId: result.sourceId, shipId: request.anchorShipId as string,
+      sourceId: result.sourceId, shipId: request.receivingShipId as string,
       fleetGroupId: input.fleetGroupId, cycle: result.cycle,
       targetCoordinate: result.targetCoordinate, systemFact: result.systemFact,
       recordedAt,
@@ -147,7 +148,7 @@ export function buildScoutResolutionPlan(input: ScoutResolutionInput): ScoutReso
     }),
     deepNebulaScan: result.systemFact.code === 'O' ? Object.freeze({
       type: 'deep-nebula-scan', sessionId: result.sessionId, requestId: result.requestId,
-      cycle: result.cycle, shipId: request.anchorShipId as string,
+      cycle: result.cycle, shipId: request.receivingShipId as string,
       targetCoordinate: result.targetCoordinate,
     }) : null,
   };
