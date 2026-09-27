@@ -1591,11 +1591,11 @@ describe('fleet-group ECM events', () => {
         id: 'fleet-2', vesselIds: ['dione'], memberUids: ['captain'],
       });
       await setDoc(doc(db, `${SESSION}/fleetGroupEvents/fleet-1/events/endeavour-ecm-request-1`), {
-        type: 'endeavour-ecm-device-used', sessionId: SESSION, groupId: 'fleet-1',
+        type: 'endeavour-ecm-device-used', sessionId: 's1', groupId: 'fleet-1',
         pursuitBefore: 8, pursuitAfter: 5,
       });
       await setDoc(doc(db, `${SESSION}/fleetGroupEvents/fleet-2/events/endeavour-ecm-request-2`), {
-        type: 'endeavour-ecm-device-used', sessionId: SESSION, groupId: 'fleet-2',
+        type: 'endeavour-ecm-device-used', sessionId: 's1', groupId: 'fleet-2',
         pursuitBefore: 6, pursuitAfter: 3,
       });
       await setDoc(doc(db, `${SESSION}/serverState/endeavourEcmDevice`), {
