@@ -27,6 +27,7 @@ const MACAW_REPAIR_CALLABLES = ['repairConsolesFromMacaw'];
 const ALLY_REPAIR_CALLABLES = ['repairConsolesFromAlly'];
 const PHILIA_REPAIR_CALLABLES = ['repairConsolesFromPhilia'];
 const BLACKSMITH_REPAIR_CALLABLES = ['repairConsolesFromBlacksmith'];
+const SERVICE_SHUTTLE_RECHARGE_CALLABLES = ['rechargeHostConsoleFromShuttle'];
 const MALIADE_EVENT_REDACTION_ADDITIONS = [
   {
     eventField: "  'maliades-launched': ['craftId', 'status'],\n",
@@ -521,6 +522,25 @@ test('maps an isolated Blacksmith index export diff only to repairConsolesFromBl
     },
   });
   assert.deepEqual(selectedFunctions(selected), functionTargets(BLACKSMITH_REPAIR_CALLABLES));
+});
+
+test('maps an isolated service-shuttle recharge index diff only to its callable', () => {
+  const before = INDEX_SOURCE;
+  const after = before.replace(
+    'export const rechargeHostConsoleFromShuttle = onCall(async () => {});',
+    "export const rechargeHostConsoleFromShuttle = onCall(async () => { return { status: 'stale' }; });",
+  );
+  assert.notEqual(after, before);
+  const selected = deploymentSelector({
+    before: 'base', after: 'candidate', files: ['functions/src/index.ts'],
+    targets: ['hosting', 'functions'],
+    isAncestor: (ancestor, descendant) => ancestor === 'base' && descendant === 'candidate',
+    sourceAtRevision: (revision, file) => {
+      assert.equal(file, 'functions/src/index.ts');
+      return revision === 'base' ? before : after;
+    },
+  });
+  assert.deepEqual(selectedFunctions(selected), functionTargets(SERVICE_SHUTTLE_RECHARGE_CALLABLES));
 });
 
 test('maps an isolated Endeavour field-upgrade callable diff to Hosting and only its Function', () => {

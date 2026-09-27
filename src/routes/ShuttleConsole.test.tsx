@@ -11,6 +11,7 @@ import type * as FirestoreModule from '@/lib/firestore';
 import type * as ScoutRequestServiceModule from '@/lib/scoutRequestService';
 import type * as ShuttleEvacuationServiceModule from '@/lib/shuttleEvacuationService';
 import type * as BlacksmithRepairServiceModule from '@/lib/blacksmithRepairService';
+import type * as ServiceShuttleRechargeServiceModule from '@/lib/serviceShuttleRechargeService';
 import ShuttleConsole from './ShuttleConsole';
 
 const endeavourResearchMocks = vi.hoisted(() => ({ read: vi.fn(), advance: vi.fn() }));
@@ -54,9 +55,12 @@ vi.mock('@/lib/shuttleDepartureService', () => ({
 vi.mock('@/lib/shuttleCargoService', () => ({
   transferShuttleCargo: vi.fn().mockResolvedValue(undefined),
 }));
-vi.mock('@/lib/serviceShuttleRechargeService', () => ({
+vi.mock('@/lib/serviceShuttleRechargeService', async (importOriginal) => ({
+  ...(await importOriginal<typeof ServiceShuttleRechargeServiceModule>()),
   rechargeHostConsoleFromShuttle: vi.fn().mockResolvedValue({
-    immediate: true, message: 'Hydroponics: spent 1 water, generated 3 food.',
+    status: 'committed', sessionId: 's1', requestId: 'mock-recharge', shuttleId: 'condor',
+    hostShipId: 'quellon', consoleId: 'hydroponics', cycle: 2, maintenanceRevision: 10,
+    rechargeRevision: 1, immediate: true, message: 'Hydroponics: spent 1 water, generated 3 food.',
   }),
 }));
 vi.mock('@/lib/blacksmithRepairService', async (importOriginal) => ({
@@ -199,7 +203,9 @@ beforeEach(() => {
   vi.mocked(transferShuttleCargo).mockResolvedValue(undefined as never);
   vi.mocked(rechargeHostConsoleFromShuttle).mockReset();
   vi.mocked(rechargeHostConsoleFromShuttle).mockResolvedValue({
-    immediate: true, message: 'Hydroponics: spent 1 water, generated 3 food.',
+    status: 'committed', sessionId: 's1', requestId: 'mock-recharge', shuttleId: 'condor',
+    hostShipId: 'quellon', consoleId: 'hydroponics', cycle: 2, maintenanceRevision: 10,
+    rechargeRevision: 1, immediate: true, message: 'Hydroponics: spent 1 water, generated 3 food.',
   });
   vi.mocked(repairConsolesFromBlacksmith).mockReset();
   vi.mocked(repairConsolesFromBlacksmith).mockResolvedValue({
@@ -1202,7 +1208,7 @@ it('keeps an eligible Blacksmith selection and waits for the newer live projecti
     .not.toBeInTheDocument();
   expect(repairConsolesFromBlacksmith).toHaveBeenCalledTimes(1);
 
-  const current = state.session!;
+  const current = useSessionStore.getState().session!;
   act(() => state.setSession({
     ...current,
     shuttleControl: { blacksmith: { ...current.shuttleControl!.blacksmith!, revision: 3 } },
@@ -1801,7 +1807,7 @@ it('lets a fuelled service-shuttle holder add one host charge during Coordinatio
   const state = useSessionStore.getState();
   state.setSession({
     ...state.session!, phase: 'active', currentTurn: 2,
-    activeRoleIds: ['quellon-engineer'], activeVesselIds: ['quellon'],
+    activeRoleIds: ['joint-engineering-quellon-refinery'], activeVesselIds: ['quellon', 'refinery-124'],
     turnPhase: {
       turn: 2, teamPhaseEndsAt: '2026-09-21T12:00:00.000Z',
       openAirspaceEndsAt: '2026-09-21T12:15:00.000Z',
@@ -1827,6 +1833,8 @@ it('lets a fuelled service-shuttle holder add one host charge during Coordinatio
     ...state.me!, assignedRoleId: 'quellon-engineer',
     activeConsoleRoleId: 'quellon-engineer', fleetGroupId: 'fleet-1',
   });
+  state.setConnection('live');
+  state.setSessionSnapshotFreshness('server');
 
   render(<MemoryRouter initialEntries={['/shuttles/condor']}><Routes>
     <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
@@ -1839,9 +1847,100 @@ it('lets a fuelled service-shuttle holder add one host charge during Coordinatio
   expect(within(panel).getByText(/effect resolves immediately/i)).toBeVisible();
   await user.click(within(panel).getByRole('button', { name: 'Recharge console' }));
   expect(rechargeHostConsoleFromShuttle).toHaveBeenCalledWith(
-    'condor', 'hydroponics', 4, 9, 2, undefined, undefined,
+    expect.objectContaining({
+      requestId: expect.any(String), shuttleId: 'condor', consoleId: 'hydroponics',
+      expectedControlRevision: 4, expectedMaintenanceRevision: 9, expectedCycle: 2,
+      expectedHostShipId: 'quellon',
+    }),
   );
   expect(screen.getByRole('status')).toHaveTextContent(/spent 1 water, generated 3 food/i);
+});
+
+it('preserves a service recharge selection and waits for current revisions before explicit retry', async () => {
+  const user = userEvent.setup();
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!, phase: 'active', currentTurn: 2,
+    activeRoleIds: ['joint-engineering-quellon-refinery'], activeVesselIds: ['quellon', 'refinery-124'],
+    turnPhase: {
+      turn: 2, teamPhaseEndsAt: '2026-09-21T12:00:00.000Z',
+      openAirspaceEndsAt: '2026-09-21T12:15:00.000Z',
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+    },
+    shuttleDockings: [{ shuttleId: 'wobbly', shipId: 'refinery-124', dockedAt: 'now' }],
+    shuttleFuelled: { wobbly: true },
+    shuttleControl: { wobbly: {
+      shuttleId: 'wobbly', ownerRoleId: 'joint-engineering-quellon-refinery', ownerUid: 'u1',
+      holderUid: 'u1', revision: 4,
+    } },
+    maintenanceCycles: { 'refinery-124': {
+      step: 0, revision: 9, turn: 2, results: { '7': 'Maintenance cycle complete.' },
+      charges: ['jump-drive'], refuelled: ['wobbly'], completedAt: '2026-09-21T12:00:00.000Z',
+    } },
+    shipDamage: { 'refinery-124': { damagedSystemIds: [], destroyed: false } },
+    shipResources: { 'refinery-124': {
+      ore: 8, fuel: 3, food: 10, water: 8, materials: 0, securityTeams: 2,
+    } },
+    serviceShuttleRecharges: {},
+  });
+  state.setMe({
+    ...state.me!, assignedRoleId: 'joint-engineering-quellon-refinery',
+    activeConsoleRoleId: 'joint-engineering-quellon-refinery', fleetGroupId: 'fleet-1',
+  });
+  state.setConnection('live');
+  state.setSessionSnapshotFreshness('server');
+  vi.mocked(rechargeHostConsoleFromShuttle)
+    .mockImplementationOnce(async (command) => ({
+      status: 'stale', sessionId: 's1', requestId: command.requestId, actorUid: 'u1',
+      shuttleId: 'wobbly', expectedHostShipId: 'refinery-124', hostShipId: 'refinery-124',
+      consoleId: command.consoleId,
+      expectedControlRevision: command.expectedControlRevision, currentControlRevision: 5,
+      expectedMaintenanceRevision: command.expectedMaintenanceRevision, currentMaintenanceRevision: 10,
+      expectedCycle: command.expectedCycle, currentCycle: 2,
+      productionScrap: command.productionScrap ?? null,
+      productionOreAmount: command.productionOreAmount ?? null,
+    } as never))
+    .mockImplementationOnce(async (command) => ({
+      status: 'committed', sessionId: 's1', requestId: command.requestId,
+      shuttleId: command.shuttleId, hostShipId: command.expectedHostShipId,
+      consoleId: command.consoleId, cycle: command.expectedCycle,
+      maintenanceRevision: command.expectedMaintenanceRevision + 2,
+      rechargeRevision: 1, immediate: true,
+      message: 'Fuel Refinery: spent 4 ore, generated 4 fuel.',
+    }));
+  render(<MemoryRouter initialEntries={['/shuttles/wobbly']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+
+  const panel = screen.getByRole('region', { name: 'Service shuttle recharge' });
+  await user.selectOptions(within(panel).getByLabelText('Host console'), 'fuel-refinery');
+  await user.clear(within(panel).getByLabelText('Service recharge ore to refine'));
+  await user.type(within(panel).getByLabelText('Service recharge ore to refine'), '4');
+  await user.click(within(panel).getByRole('button', { name: 'Recharge console' }));
+  await waitFor(() => expect(rechargeHostConsoleFromShuttle).toHaveBeenCalledTimes(1));
+  const original = vi.mocked(rechargeHostConsoleFromShuttle).mock.calls[0]![0];
+  expect(within(panel).getByLabelText('Host console')).toHaveValue('fuel-refinery');
+  expect(within(panel).getByLabelText('Service recharge ore to refine')).toHaveValue(4);
+  expect(within(panel).getByText(/waiting for the live service recharge state/i)).toBeInTheDocument();
+  expect(within(panel).queryByRole('button', { name: 'Retry recharge with current revisions' }))
+    .not.toBeInTheDocument();
+
+  const current = useSessionStore.getState().session!;
+  act(() => state.setSession({
+    ...current,
+    shuttleControl: { wobbly: { ...current.shuttleControl!.wobbly!, revision: 5 } },
+    maintenanceCycles: { 'refinery-124': { ...current.maintenanceCycles!['refinery-124']!, revision: 10 } },
+  }));
+  await user.click(await within(panel).findByRole('button', { name: 'Retry recharge with current revisions' }));
+  await waitFor(() => expect(rechargeHostConsoleFromShuttle).toHaveBeenCalledTimes(2));
+  const retry = vi.mocked(rechargeHostConsoleFromShuttle).mock.calls[1]![0];
+  expect(retry).toMatchObject({
+    shuttleId: 'wobbly', consoleId: 'fuel-refinery', expectedControlRevision: 5,
+    expectedMaintenanceRevision: 10, expectedCycle: 2, expectedHostShipId: 'refinery-124',
+    productionOreAmount: 4,
+  });
+  expect(retry.requestId).not.toBe(original.requestId);
+  expect(screen.getByRole('status')).toHaveTextContent(/spent 4 ore, generated 4 fuel/i);
 });
 
 it.each([

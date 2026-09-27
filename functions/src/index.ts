@@ -6499,6 +6499,25 @@ type ServiceShuttleRechargeReply = Readonly<{
   message: string;
 }>;
 
+type ServiceShuttleRechargeStaleReply = Readonly<{
+  status: 'stale';
+  sessionId: string;
+  requestId: string;
+  actorUid: string;
+  shuttleId: string;
+  expectedHostShipId: string;
+  hostShipId: string;
+  consoleId: string;
+  expectedControlRevision: number;
+  currentControlRevision: number;
+  expectedMaintenanceRevision: number;
+  currentMaintenanceRevision: number;
+  expectedCycle: number;
+  currentCycle: number;
+  productionScrap: boolean | null;
+  productionOreAmount: number | null;
+}>;
+
 function isServiceShuttleRechargeReply(
   value: unknown,
   sessionId: string,
@@ -6517,13 +6536,14 @@ function isServiceShuttleRechargeReply(
 /** Add one service-shuttle charge and resolve any immediate production effect atomically. */
 export const rechargeHostConsoleFromShuttle = onCall<{
   sessionId?: unknown; requestId?: unknown; shuttleId?: unknown; consoleId?: unknown;
+  expectedHostShipId?: unknown;
   expectedControlRevision?: unknown; expectedMaintenanceRevision?: unknown; expectedCycle?: unknown;
   productionScrap?: unknown; productionOreAmount?: unknown;
 }>(async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set([
-    'sessionId', 'requestId', 'shuttleId', 'consoleId',
+    'sessionId', 'requestId', 'shuttleId', 'consoleId', 'expectedHostShipId',
     'expectedControlRevision', 'expectedMaintenanceRevision', 'expectedCycle',
     'productionScrap', 'productionOreAmount',
   ]);
@@ -6533,6 +6553,7 @@ export const rechargeHostConsoleFromShuttle = onCall<{
       typeof raw.shuttleId !== 'string' ||
       !SERVICE_SHUTTLE_IDS.includes(raw.shuttleId as typeof SERVICE_SHUTTLE_IDS[number]) ||
       typeof raw.consoleId !== 'string' || !/^[\w-]{1,128}$/.test(raw.consoleId) ||
+      typeof raw.expectedHostShipId !== 'string' || !isResourceShipId(raw.expectedHostShipId) ||
       !Number.isSafeInteger(raw.expectedControlRevision) || (raw.expectedControlRevision as number) < 0 ||
       !Number.isSafeInteger(raw.expectedMaintenanceRevision) || (raw.expectedMaintenanceRevision as number) < 0 ||
       !Number.isSafeInteger(raw.expectedCycle) || (raw.expectedCycle as number) < 1 ||
@@ -6543,6 +6564,7 @@ export const rechargeHostConsoleFromShuttle = onCall<{
   }
   const data = raw as {
     sessionId: string; requestId: string; shuttleId: string; consoleId: string;
+    expectedHostShipId: string;
     expectedControlRevision: number; expectedMaintenanceRevision: number; expectedCycle: number;
     productionScrap?: boolean; productionOreAmount?: number;
   };
@@ -6551,6 +6573,7 @@ export const rechargeHostConsoleFromShuttle = onCall<{
     actorUid: uid, instanceId: null, expectedRevision: data.expectedMaintenanceRevision,
     payload: {
       shuttleId: data.shuttleId, consoleId: data.consoleId,
+      expectedHostShipId: data.expectedHostShipId,
       expectedControlRevision: data.expectedControlRevision, expectedCycle: data.expectedCycle,
       productionScrap: data.productionScrap ?? null,
       productionOreAmount: data.productionOreAmount ?? null,
@@ -6587,9 +6610,9 @@ export const rechargeHostConsoleFromShuttle = onCall<{
     requireActionPhase(session, 'transfer', 'player');
     const currentCycle = session.get('currentTurn');
     const phase = turnPhaseState(session.get('turnPhase'));
-    if (!Number.isSafeInteger(currentCycle) || currentCycle !== data.expectedCycle ||
+    if (!Number.isSafeInteger(currentCycle) || (currentCycle as number) < 1 ||
         !phase || phase.turn !== currentCycle) {
-      throw commandError('failed-precondition', 'The Coordination cycle changed. Refresh before recharging.', 'stale-revision');
+      throw commandError('failed-precondition', 'The authoritative Coordination cycle is unavailable.', 'conflict');
     }
     const groupId = actor.get('fleetGroupId');
     if (typeof groupId !== 'string' || groupId.length === 0) {
@@ -6611,10 +6634,19 @@ export const rechargeHostConsoleFromShuttle = onCall<{
         !control || !isRecord(fuelled) || !isRecord(cycles) || rechargeLedger === null) {
       throw commandError('failed-precondition', 'The authoritative service-shuttle state is unavailable.', 'conflict');
     }
+    const currentControl = control[data.shuttleId];
+    if (!currentControl || currentControl.holderUid !== uid) {
+      throw commandError('failed-precondition', 'Only the current service-shuttle holder may recharge a console.', 'conflict');
+    }
     let result: ReturnType<typeof resolveServiceShuttleRecharge>;
     try {
-      const hostShipId = rawDockings.find((docking) =>
-        isRecord(docking) && docking.shuttleId === data.shuttleId)?.shipId;
+      const matchingDockings = rawDockings.filter((docking) =>
+        isRecord(docking) && docking.shuttleId === data.shuttleId);
+      if (matchingDockings.length !== 1 || !isRecord(matchingDockings[0]) ||
+          matchingDockings[0].shipId !== data.expectedHostShipId) {
+        throw new Error('The service shuttle is no longer docked at the requested host.');
+      }
+      const hostShipId = matchingDockings[0].shipId;
       if (typeof hostShipId !== 'string' || !group.vesselIds.includes(hostShipId)) {
         throw new Error('The docked host is outside the holder’s current fleet group.');
       }
@@ -6624,14 +6656,16 @@ export const rechargeHostConsoleFromShuttle = onCall<{
       if (!hostResources) throw new Error('The docked host resource ledger is unavailable.');
       const hostUpgrades = serviceRechargeUpgradeState(session.get('shipUpgrades'), hostShipId);
       if (!hostUpgrades) throw new Error('The docked host upgrade state is unavailable.');
-      result = resolveServiceShuttleRecharge({
+      const maintenanceCycle = parseMaintenanceCycle(cycles[hostShipId]);
+      if (!maintenanceCycle) throw new Error('The docked host maintenance state is unavailable.');
+      const resolverInput = {
         actorUid: uid, shuttleId: data.shuttleId, targetConsoleId: data.consoleId,
         currentCycle: currentCycle as number,
-        expectedControlRevision: data.expectedControlRevision,
-        expectedMaintenanceRevision: data.expectedMaintenanceRevision,
-        control: control[data.shuttleId]!, dockings: rawDockings,
+        expectedControlRevision: currentControl.revision,
+        expectedMaintenanceRevision: maintenanceCycle.revision,
+        control: currentControl, dockings: rawDockings,
         fuelled: fuelled as Record<string, boolean>,
-        maintenanceCycle: cycles[hostShipId],
+        maintenanceCycle,
         damage: hostDamage,
         rechargeLedger,
         resources: hostResources,
@@ -6643,6 +6677,38 @@ export const rechargeHostConsoleFromShuttle = onCall<{
         now: new Date().toISOString(),
         productionScrap: data.productionScrap,
         productionOreAmount: data.productionOreAmount,
+      } as const;
+      const stale = currentControl.revision !== data.expectedControlRevision ||
+        maintenanceCycle.revision !== data.expectedMaintenanceRevision || currentCycle !== data.expectedCycle;
+      if (stale) {
+        if (currentControl.revision < data.expectedControlRevision ||
+            maintenanceCycle.revision < data.expectedMaintenanceRevision ||
+            (currentCycle as number) < data.expectedCycle) {
+          throw new Error('The authoritative service-shuttle revision is behind the submitted request.');
+        }
+        // Re-evaluate the unchanged procedure with current CAS values. This confirms
+        // the holder, fuel, host, cycle, selected console, and production choices
+        // remain eligible before any current revision is returned to the client.
+        resolveServiceShuttleRecharge(resolverInput);
+        const staleReply: ServiceShuttleRechargeStaleReply = {
+          status: 'stale', sessionId: data.sessionId, requestId: data.requestId,
+          actorUid: uid, shuttleId: data.shuttleId,
+          expectedHostShipId: data.expectedHostShipId, hostShipId,
+          consoleId: data.consoleId,
+          expectedControlRevision: data.expectedControlRevision,
+          currentControlRevision: currentControl.revision,
+          expectedMaintenanceRevision: data.expectedMaintenanceRevision,
+          currentMaintenanceRevision: maintenanceCycle.revision,
+          expectedCycle: data.expectedCycle, currentCycle: currentCycle as number,
+          productionScrap: data.productionScrap ?? null,
+          productionOreAmount: data.productionOreAmount ?? null,
+        };
+        return staleReply;
+      }
+      result = resolveServiceShuttleRecharge({
+        ...resolverInput,
+        expectedControlRevision: data.expectedControlRevision,
+        expectedMaintenanceRevision: data.expectedMaintenanceRevision,
       });
     } catch (cause) {
       throw commandError(

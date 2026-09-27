@@ -8,7 +8,16 @@ import {
   retargetShuttleTransit,
 } from '@/lib/shuttleDepartureService';
 import { transferShuttleCargo } from '@/lib/shuttleCargoService';
-import { rechargeHostConsoleFromShuttle } from '@/lib/serviceShuttleRechargeService';
+import {
+  captureServiceShuttleRechargeAuthority,
+  hasCurrentServiceShuttleRechargeAuthority,
+  rechargeHostConsoleFromShuttle,
+} from '@/lib/serviceShuttleRechargeService';
+import type {
+  ServiceShuttleRechargeAuthorityBinding,
+  ServiceShuttleRechargeCommand,
+  ServiceShuttleRechargeStaleResult,
+} from '@/lib/serviceShuttleRechargeService';
 import {
   evacuateShuttleSurvivors,
   MAX_SHUTTLE_EVACUATION_PER_CYCLE,
@@ -85,6 +94,12 @@ interface CargoTransferAttempt {
 interface BlacksmithRepairRecovery {
   readonly stale: BlacksmithRepairStaleResult;
   readonly authority: BlacksmithRepairAuthorityBinding;
+}
+
+interface ServiceShuttleRechargeRecovery {
+  readonly stale: ServiceShuttleRechargeStaleResult;
+  readonly authority: ServiceShuttleRechargeAuthorityBinding;
+  readonly command: ServiceShuttleRechargeCommand;
 }
 
 const EMPTY_SYSTEM_IDS: readonly string[] = Object.freeze([]);
@@ -184,6 +199,7 @@ export default function ShuttleControl({ control }: Props) {
   const [rechargeConsoleId, setRechargeConsoleId] = useState('');
   const [rechargeProductionScrap, setRechargeProductionScrap] = useState(false);
   const [rechargeProductionOreAmount, setRechargeProductionOreAmount] = useState(1);
+  const [rechargeRecovery, setRechargeRecovery] = useState<ServiceShuttleRechargeRecovery | null>(null);
   const [evacuationDestinationShipId, setEvacuationDestinationShipId] = useState('');
   const [evacuationAmount, setEvacuationAmount] = useState(0);
   const [repairSystemIds, setRepairSystemIds] = useState<string[]>([]);
@@ -250,7 +266,33 @@ export default function ShuttleControl({ control }: Props) {
   const rechargedThisCycle = rechargeEntry?.cycle === session.currentTurn;
   const rechargeWindowOpen = session.phase === 'active' &&
     (session.currentTurn ?? 0) >= 1 && session.turnPhase?.turn === session.currentTurn &&
-    session.turnPhase?.airspace.state === 'lifted';
+    session.turnPhase?.airspace.state === 'lifted' && session.turnPhase.timerPause === undefined;
+  const rechargeRecoveryOption = rechargeRecovery
+    ? serviceRechargeConsoleOptions(rechargeRecovery.command.expectedHostShipId)
+      .find((option) => option.id === rechargeRecovery.command.consoleId)
+    : undefined;
+  const rechargeRecoveryMatchesDraft = Boolean(rechargeRecovery &&
+    rechargeRecovery.command.consoleId === rechargeConsoleId &&
+    rechargeRecovery.command.productionScrap ===
+      (rechargeRecoveryOption?.capybaraScrapChoice ? rechargeProductionScrap : undefined) &&
+    rechargeRecovery.command.productionOreAmount ===
+      (rechargeRecoveryOption?.fuelRefinery ? rechargeProductionOreAmount : undefined));
+  const rechargeRecoveryAuthorityCurrent = Boolean(rechargeRecovery &&
+    hasCurrentServiceShuttleRechargeAuthority(rechargeRecovery.authority));
+  const rechargeRecoveryProjectionCurrent = Boolean(rechargeRecoveryAuthorityCurrent && rechargeRecovery &&
+    Number.isSafeInteger(control.revision) && control.revision >= rechargeRecovery.stale.currentControlRevision &&
+    Number.isSafeInteger(hostCycle?.revision) &&
+    (hostCycle?.revision ?? -1) >= rechargeRecovery.stale.currentMaintenanceRevision &&
+    Number.isSafeInteger(session.currentTurn) &&
+    (session.currentTurn as number) >= rechargeRecovery.stale.currentCycle);
+  const rechargeRetryEligible = Boolean(rechargeRecoveryMatchesDraft && selectedRechargeOption &&
+    hostMaintenanceReady && rechargeWindowOpen && session.shuttleFuelled?.[control.shuttleId] === true &&
+    hostRechargeEligible && !rechargedThisCycle && !invalidRechargeOre &&
+    (!rechargeProductionScrap || (hostResources?.scrap ?? 0) >= 1));
+  const rechargeRetryReady = Boolean(rechargeRecovery && rechargeRecoveryAuthorityCurrent &&
+    rechargeRecoveryProjectionCurrent && rechargeRetryEligible);
+  const rechargeRetryWaiting = Boolean(rechargeRecoveryMatchesDraft && rechargeRecoveryAuthorityCurrent &&
+    !rechargeRecoveryProjectionCurrent);
   const destinations = (session.activeVesselIds ?? [])
     .filter((shipId) => shipId !== docking?.shipId && findShip(shipId) !== undefined &&
       shuttleDestinationIsAllowed(control.shuttleId, shipId));
@@ -651,23 +693,73 @@ export default function ShuttleControl({ control }: Props) {
     }
   }
 
-  async function submitRecharge(): Promise<void> {
-    if (busy || !docking || !rechargeConsoleId || !hostCycle || !session.currentTurn) return;
+  async function submitRecharge(retry = false): Promise<void> {
+    if (busy || !rechargeConsoleId || !selectedRechargeOption ||
+        (retry ? !rechargeRetryReady || !rechargeRecovery : rechargeRecoveryMatchesDraft)) return;
+    const current = useSessionStore.getState();
+    const liveSession = current.session;
+    const liveMe = current.me;
+    const liveDocking = liveSession ? dockingForShuttle(liveSession, control.shuttleId) : undefined;
+    const liveControl = liveSession?.shuttleControl?.[control.shuttleId];
+    const liveCycle = liveSession?.currentTurn;
+    const liveHostCycle = liveDocking
+      ? liveSession?.maintenanceCycles?.[liveDocking.shipId] : undefined;
+    if (!liveSession || !liveMe || !liveDocking || !liveControl ||
+        !Number.isSafeInteger(liveCycle) || !liveHostCycle) return;
+    let command: ServiceShuttleRechargeCommand;
+    if (retry && rechargeRecovery) {
+      if (liveDocking.shipId !== rechargeRecovery.stale.hostShipId ||
+          !Number.isSafeInteger(liveControl.revision) ||
+          liveControl.revision < rechargeRecovery.stale.currentControlRevision ||
+          !Number.isSafeInteger(liveHostCycle.revision) ||
+          liveHostCycle.revision < rechargeRecovery.stale.currentMaintenanceRevision ||
+          (liveCycle as number) < rechargeRecovery.stale.currentCycle) return;
+      command = {
+        ...rechargeRecovery.command,
+        requestId: window.crypto.randomUUID(),
+        expectedControlRevision: liveControl.revision,
+        expectedMaintenanceRevision: liveHostCycle.revision,
+        expectedCycle: liveCycle as number,
+        expectedHostShipId: liveDocking.shipId,
+      };
+    } else {
+      command = {
+        requestId: window.crypto.randomUUID(),
+        shuttleId: control.shuttleId,
+        consoleId: rechargeConsoleId,
+        expectedControlRevision: liveControl.revision,
+        expectedMaintenanceRevision: liveHostCycle.revision,
+        expectedCycle: liveCycle as number,
+        expectedHostShipId: liveDocking.shipId,
+        ...(selectedRechargeOption.capybaraScrapChoice ? { productionScrap: rechargeProductionScrap } : {}),
+        ...(selectedRechargeOption.fuelRefinery ? { productionOreAmount: rechargeProductionOreAmount } : {}),
+      };
+    }
+    let authority: ServiceShuttleRechargeAuthorityBinding;
+    try {
+      authority = captureServiceShuttleRechargeAuthority(liveSession, liveMe, command);
+    } catch (cause) {
+      setStatus(cause instanceof Error ? cause.message : 'Refresh the live service-shuttle authority before recharging.');
+      return;
+    }
+    if (retry) setRechargeRecovery(null);
     setPending(true);
     setStatus('');
     try {
-      const result = await rechargeHostConsoleFromShuttle(
-        control.shuttleId, rechargeConsoleId, control.revision,
-        hostCycle.revision, session.currentTurn,
-        selectedRechargeOption?.capybaraScrapChoice ? rechargeProductionScrap : undefined,
-        selectedRechargeOption?.fuelRefinery ? rechargeProductionOreAmount : undefined,
-      );
+      const result = await rechargeHostConsoleFromShuttle(command);
+      if (result.status === 'stale') {
+        setRechargeRecovery({ stale: result, authority, command });
+        return;
+      }
+      setRechargeRecovery(null);
       setStatus(result.message);
       setRechargeConsoleId('');
       setRechargeProductionScrap(false);
       setRechargeProductionOreAmount(1);
     } catch (cause) {
-      setStatus(cause instanceof Error ? cause.message : 'Service-shuttle recharge failed.');
+      if (hasCurrentServiceShuttleRechargeAuthority(authority)) {
+        setStatus(cause instanceof Error ? cause.message : 'Service-shuttle recharge failed.');
+      }
     } finally {
       setPending(false);
     }
@@ -855,6 +947,7 @@ export default function ShuttleControl({ control }: Props) {
         disabled={busy || !session.shuttleFuelled?.[control.shuttleId] ||
           !rechargeWindowOpen || !hostRechargeEligible || rechargedThisCycle || rechargeOptions.length === 0}
         onChange={(event) => {
+          setRechargeRecovery(null);
           setRechargeConsoleId(event.target.value);
           setRechargeProductionScrap(false);
           setRechargeProductionOreAmount(1);
@@ -869,7 +962,10 @@ export default function ShuttleControl({ control }: Props) {
         Scrap Refinery outcome
         <select className="shuttle-control__touch-target" aria-label="Service recharge Scrap Refinery outcome"
           value={rechargeProductionScrap ? 'convert' : 'generate'}
-          onChange={(event) => setRechargeProductionScrap(event.target.value === 'convert')}>
+          onChange={(event) => {
+            setRechargeRecovery(null);
+            setRechargeProductionScrap(event.target.value === 'convert');
+          }}>
           <option value="generate">Generate 1 Scrap</option>
           <option value="convert">Spend 1 Scrap for 3 materials</option>
         </select>
@@ -878,23 +974,42 @@ export default function ShuttleControl({ control }: Props) {
         <input type="checkbox" aria-label={`Spend 1 Scrap on ${selectedRechargeOption.name}`}
           checked={rechargeProductionScrap}
           disabled={rechargeProductionScrap === false && (hostResources?.scrap ?? 0) < 1}
-          onChange={(event) => setRechargeProductionScrap(event.target.checked)} />
+          onChange={(event) => {
+            setRechargeRecovery(null);
+            setRechargeProductionScrap(event.target.checked);
+          }} />
         Spend 1 Scrap for +6 output
       </label>}
       {selectedRechargeOption?.fuelRefinery && <label>
         Ore to refine
         <input className="shuttle-control__touch-target" type="number" min={1} max={refineryMax} aria-label="Service recharge ore to refine"
           value={rechargeProductionOreAmount}
-          onChange={(event) => setRechargeProductionOreAmount(Number(event.target.value))} />
+          onChange={(event) => {
+            setRechargeRecovery(null);
+            setRechargeProductionOreAmount(Number(event.target.value));
+          }} />
         {' '}of {Math.min(hostResources?.ore ?? 0, refineryMax)} available
       </label>}
       <div className="console-workspace__actions">
         <button className="cic-action-button shuttle-control__touch-target" type="button"
           disabled={busy || !rechargeConsoleId || !session.shuttleFuelled?.[control.shuttleId] ||
             !rechargeWindowOpen || !hostRechargeEligible || rechargedThisCycle || !hostCycle ||
-            invalidRechargeOre || (rechargeProductionScrap && (hostResources?.scrap ?? 0) < 1)}
+            invalidRechargeOre || (rechargeProductionScrap && (hostResources?.scrap ?? 0) < 1) ||
+            rechargeRecoveryMatchesDraft}
           onClick={() => void submitRecharge()}>Recharge console</button>
+        {rechargeRetryReady && <button className="cic-action-button shuttle-control__touch-target" type="button"
+          disabled={busy} onClick={() => void submitRecharge(true)}>Retry recharge with current revisions</button>}
       </div>
+      {rechargeRetryWaiting && <p role="status">
+        Service recharge state changed. Waiting for the live service recharge state before retrying.
+      </p>}
+      {rechargeRetryReady && <p role="status">
+        Service recharge state changed. Review the selected console and production choices, then explicitly retry with a fresh request ID.
+      </p>}
+      {rechargeRecoveryMatchesDraft && rechargeRecoveryAuthorityCurrent && rechargeRecoveryProjectionCurrent &&
+        !rechargeRetryReady && <p role="status">
+          The selected console is no longer eligible for recharge. Choose an eligible console or update its production choice.
+        </p>}
     </section>}
     {canRequestDeparture && docking && control.shuttleId === 'blacksmith' && <section aria-label="Blacksmith console repair">
       <p className="console-workspace__eyebrow">Repair rig // docked host</p>

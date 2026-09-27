@@ -42,6 +42,7 @@ import { rechargeHostConsoleFromShuttle } from './index';
 const command = {
   sessionId: 's1', requestId: 'recharge-1', shuttleId: 'condor', consoleId: 'hydroponics',
   expectedControlRevision: 2, expectedMaintenanceRevision: 7, expectedCycle: 3,
+  expectedHostShipId: 'quellon',
 };
 const request = (data: Fields, uid = 'holder') => ({ data, auth: { uid } }) as CallableRequest<Fields>;
 const put = (path: string, fields: Fields) => mock.documents.set(path, { ...fields });
@@ -142,13 +143,81 @@ it('keeps deferred consoles charged without an immediate resource mutation', asy
 
 it.each([
   ['foreign holder', 'owner', command],
-  ['stale custody', 'holder', { ...command, requestId: 'stale-control', expectedControlRevision: 1 }],
-  ['stale maintenance', 'holder', { ...command, requestId: 'stale-maintenance', expectedMaintenanceRevision: 6 }],
-  ['wrong cycle', 'holder', { ...command, requestId: 'stale-cycle', expectedCycle: 2 }],
+  ['future custody CAS', 'holder', { ...command, requestId: 'future-control', expectedControlRevision: 3 }],
+  ['future maintenance CAS', 'holder', { ...command, requestId: 'future-maintenance', expectedMaintenanceRevision: 8 }],
+  ['future cycle', 'holder', { ...command, requestId: 'future-cycle', expectedCycle: 4 }],
 ] as const)('rejects %s without mutation', async (_label, uid, data) => {
   await expect(rechargeHostConsoleFromShuttle.run(request(data, uid)))
     .rejects.toMatchObject({ code: expect.stringMatching(/permission-denied|failed-precondition/) });
   expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['control', 'control-advanced', (session: Fields) => {
+    session.shuttleControl = { ...(session.shuttleControl as Fields), condor: {
+      ...((session.shuttleControl as Fields).condor as Fields), revision: 3,
+    } };
+  }, { currentControlRevision: 3, currentMaintenanceRevision: 7, currentCycle: 3 }],
+  ['maintenance', 'maintenance-advanced', (session: Fields) => {
+    session.maintenanceCycles = { quellon: {
+      ...((session.maintenanceCycles as Fields).quellon as Fields), revision: 8,
+    } };
+  }, { currentControlRevision: 2, currentMaintenanceRevision: 8, currentCycle: 3 }],
+  ['cycle', 'cycle-advanced', (session: Fields) => {
+    session.currentTurn = 4;
+    session.turnPhase = {
+      ...(session.turnPhase as Fields), turn: 4,
+    };
+    session.maintenanceCycles = { quellon: {
+      ...((session.maintenanceCycles as Fields).quellon as Fields), turn: 4, revision: 8,
+    } };
+  }, { currentControlRevision: 2, currentMaintenanceRevision: 8, currentCycle: 4 }],
+] as const)('returns a bound read-only stale envelope for an eligible %s change', async (
+  _label, requestId, advance, current,
+) => {
+  const session = mock.documents.get('sessions/s1')!;
+  advance(session);
+  const data = { ...command, requestId };
+  await expect(rechargeHostConsoleFromShuttle.run(request(data))).resolves.toEqual({
+    status: 'stale', sessionId: 's1', requestId, actorUid: 'holder',
+    shuttleId: 'condor', expectedHostShipId: 'quellon', hostShipId: 'quellon',
+    consoleId: 'hydroponics',
+    expectedControlRevision: 2, currentControlRevision: current.currentControlRevision,
+    expectedMaintenanceRevision: 7, currentMaintenanceRevision: current.currentMaintenanceRevision,
+    expectedCycle: 3, currentCycle: current.currentCycle,
+    productionScrap: null, productionOreAmount: null,
+  });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.documents.has(`sessions/s1/events/service-recharge-${requestId}`)).toBe(false);
+});
+
+it('does not reveal a stale envelope after holder, group, dock, fuel, or target eligibility changes', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  const control = (session.shuttleControl as Fields).condor as Fields;
+  session.shuttleControl = { condor: { ...control, revision: 3, holderUid: 'owner' } };
+  await expect(rechargeHostConsoleFromShuttle.run(request({ ...command, requestId: 'holder-moved' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+
+  session.shuttleControl = { condor: { ...control, revision: 3 } };
+  mock.documents.get('sessions/s1/fleetGroups/fleet-1')!.memberUids = ['owner'];
+  await expect(rechargeHostConsoleFromShuttle.run(request({ ...command, requestId: 'group-moved' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  mock.documents.get('sessions/s1/fleetGroups/fleet-1')!.memberUids = ['holder', 'owner'];
+
+  await expect(rechargeHostConsoleFromShuttle.run(request({
+    ...command, requestId: 'host-moved', expectedHostShipId: 'shepherd',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  session.shuttleFuelled = { condor: false };
+  await expect(rechargeHostConsoleFromShuttle.run(request({ ...command, requestId: 'fuel-lost' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  session.shuttleFuelled = { condor: true };
+  session.shipDamage = { quellon: { damagedSystemIds: ['hydroponics'], destroyed: false } };
+  await expect(rechargeHostConsoleFromShuttle.run(request({ ...command, requestId: 'target-damaged' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
 });
 
 it('rejects Team Phase, missing fuel, damaged targets, transit, and foreign-group hosts', async () => {
