@@ -536,7 +536,15 @@ test('fails closed when a Philia export change is mixed with an untracked index 
   const after = before.replace("return 'before';", "return 'after';") +
     "function untrackedRepairHelper() { return 'changed'; }\n";
   assert.throws(() => deploymentSelector({
-    before: 'base', after: 'candidate', files: ['functions/src/index.ts'],
+    before: 'base', after: 'candidate', files: [
+      'functions/src/index.ts',
+      'src/components/PhiliaRepairPanel.tsx',
+      'src/version.test.ts',
+      'src/changelog.ts',
+      'package.json',
+      'package-lock.json',
+      'docs/implementation-prompts.json',
+    ],
     targets: ['hosting', 'functions'],
     isAncestor: (ancestor, descendant) => ancestor === 'base' && descendant === 'candidate',
     sourceAtRevision: (revision, file) => {
@@ -643,25 +651,51 @@ test('selects the complete P238 production callable set from the live 0.5.23 bas
   ]));
 });
 
-test('selects the Warrior consumer on the full range after its callable enters the live export surface', () => {
+test('fails closed when a historical full range mixes Philia with older index changes', () => {
   const after = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
   const files = execFileSync('git', ['diff', '--name-only', P238_DEPLOYMENT_BASELINE, after], {
     encoding: 'utf8',
   }).split('\n').filter(Boolean);
-  const selected = deploymentSelector({
+  assert.throws(() => deploymentSelector({
     before: P238_DEPLOYMENT_BASELINE,
     after,
     files,
     targets: ['hosting', 'functions'],
-  });
-  const deployed = selectedFunctions(selected);
-  for (const name of [
-    ...GORGONEION_REPAIR_CALLABLES,
-    ...WARRIOR_REPAIR_CALLABLES,
-    ...SMALL_SHIP_MAINTENANCE_CALLABLES,
-  ]) {
-    assert.ok(deployed.includes(`functions:${name}`), `${name} must be selected for the full shared-consumer range`);
-  }
+  }), /Cannot safely map a Philia repair index change mixed with another callable or untracked source edit/);
+});
+
+test('fails closed on a post-receipt Philia/helper mix even with a verified old baseline and other runtime files', () => {
+  const receipt = '2e413cfb58b56300b6003a57d031686cc776caa8';
+  const before = '8e8640fe50d16c1a2ab93cdb858f6a6c6569fdcd';
+  const receiptIndex = execFileSync('git', ['show', `${receipt}:functions/src/index.ts`], { encoding: 'utf8' });
+  const after = 'candidate';
+  const currentIndex = `${receiptIndex}\n` +
+    "export const repairConsolesFromPhilia = onCall(async () => ({ status: 'stale' }));\n" +
+    "function untrackedRepairHelper() { return 'changed'; }\n";
+  const isAncestor = (ancestor, descendant) => (
+    (ancestor === before && (descendant === receipt || descendant === after)) ||
+    (ancestor === receipt && descendant === after)
+  );
+  assert.throws(() => deploymentSelector({
+    before,
+    after,
+    files: [
+      'functions/src/index.ts',
+      'functions/src/actionAudit.ts',
+      'src/components/PhiliaRepairPanel.tsx',
+      'src/version.test.ts',
+      'package.json',
+      'package-lock.json',
+    ],
+    filesSinceBaseline: ['functions/src/index.ts', 'functions/src/actionAudit.ts'],
+    targets: ['hosting', 'functions'],
+    isAncestor,
+    sourceAtRevision: (revision, file) => {
+      assert.equal(file, 'functions/src/index.ts');
+      if (revision === after) return currentIndex;
+      return execFileSync('git', ['show', `${revision}:${file}`], { encoding: 'utf8' });
+    },
+  }), /Cannot safely map a Philia repair index change mixed with another callable or untracked source edit/);
 });
 
 test('maps the exact Gorgoneion member-event allowlist delta to its repair callable', () => {
