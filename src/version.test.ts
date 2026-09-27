@@ -26,15 +26,19 @@ it('retains connected-player roster privacy in its release history', () => {
   );
 });
 
-it('preserves the Ally 0.5.40 history when adding Maliades to the current release', () => {
+it('preserves the Ally and Maliades history when adding Chacau to the current release', () => {
   const allyEntry = CHANGELOG.find((entry) => entry.version === '0.5.40');
-  const maliadesEntry = CHANGELOG.find((entry) => entry.version === APP_VERSION);
+  const maliadesEntry = CHANGELOG.find((entry) => entry.version === '0.5.41');
+  const chacauEntry = CHANGELOG.find((entry) => entry.version === APP_VERSION);
 
   expect(allyEntry?.changes).toContain(
     'Ally repairs keep selected consoles while server state catches up and let the current Joint Engineering Union holder explicitly retry with a fresh request and current revisions.',
   );
   expect(maliadesEntry?.changes).toContain(
     'Maliades repair conflicts wait for live state to catch up, then let the current Engineer explicitly retry one damage with current costs and revisions.',
+  );
+  expect(chacauEntry?.changes).toContain(
+    'Chacau repairs keep your selected consoles while server state catches up, then let the current Refinery 124 Engineer explicitly retry with current revisions.',
   );
 });
 
