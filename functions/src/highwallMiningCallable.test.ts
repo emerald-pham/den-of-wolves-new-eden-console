@@ -125,6 +125,123 @@ it('rejects a structurally valid replay result that does not match its exact req
   expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
 });
 
+it.each([
+  ['mining revision', { highwallMining: {
+    cycle: 2, revision: 1, operations: [{ requestId: 'mine-previous', resource: 'materials', rolls: [3], amount: 3 }],
+  } }, { ...command, requestId: 'stale-mining' }, 1, 2, 2],
+  ['control revision', {
+    shuttleControl: { highwall: {
+      shuttleId: 'highwall', ownerRoleId: 'icebreaker-miner', ownerUid: 'owner',
+      holderUid: 'holder', revision: 3,
+    } },
+  }, { ...command, requestId: 'stale-control' }, 0, 3, 2],
+  ['cycle', {
+    currentTurn: 3,
+    turnPhase: {
+      turn: 3, airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+      teamPhaseEndsAt: '2099-09-21T12:00:00.000Z', openAirspaceEndsAt: '2099-09-21T12:15:00.000Z',
+    },
+    highwallMining: {
+      cycle: 2, revision: 1, operations: [{ requestId: 'mine-previous', resource: 'materials', rolls: [3], amount: 3 }],
+    },
+  }, { ...command, requestId: 'stale-cycle', expectedRevision: 1 }, 1, 2, 3],
+] as const)(
+  'returns a minimal %s stale envelope before drawing or writing',
+  async (_label, sessionPatch, data, currentRevision, currentControlRevision, currentCycle) => {
+    Object.assign(mock.documents.get('sessions/s1')!, sessionPatch);
+    cryptoMock.randomInt.mockClear();
+
+    await expect(runHighwallMining.run(request(data))).resolves.toEqual({
+      status: 'stale', sessionId: 's1', requestId: data.requestId, resource: 'materials',
+      expectedRevision: data.expectedRevision, currentRevision,
+      expectedControlRevision: data.expectedControlRevision, currentControlRevision,
+      expectedCycle: data.expectedCycle, currentCycle, hostShipId: 'icebreaker',
+    });
+
+    expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.documents.has(`sessions/s1/commandReceipts/${data.requestId}`)).toBe(false);
+    expect(mock.documents.has(`sessions/s1/events/highwall-mining-${data.requestId}`)).toBe(false);
+    expect(mock.documents.has(`sessions/s1/actionAudits/${data.requestId}`)).toBe(false);
+  },
+);
+
+it('replays an exact authorized receipt across current control and cycle rollover', async () => {
+  const committed = await runHighwallMining.run(request(command));
+  const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
+  mock.documents.get('sessions/s1')!.currentTurn = 3;
+  mock.documents.get('sessions/s1')!.turnPhase = {
+    turn: 3, airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+    teamPhaseEndsAt: '2099-09-21T12:00:00.000Z', openAirspaceEndsAt: '2099-09-21T12:15:00.000Z',
+  };
+  mock.documents.get('sessions/s1')!.shuttleControl = { highwall: {
+    shuttleId: 'highwall', ownerRoleId: 'icebreaker-miner', ownerUid: 'owner',
+    holderUid: 'holder', revision: 3,
+  } };
+  cryptoMock.randomInt.mockClear();
+
+  const replay = await runHighwallMining.run(request(command));
+  expect(replay).toEqual({ ...(committed as Fields), status: 'replayed' });
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+  expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
+});
+
+it('does not return a no-roll stale envelope if CAS changes after preflight', async () => {
+  cryptoMock.randomInt.mockImplementationOnce(() => {
+    mock.documents.get('sessions/s1')!.highwallMining = {
+      cycle: 2, revision: 1,
+      operations: [{ requestId: 'concurrent-mining', resource: 'materials', rolls: [3], amount: 3 }],
+    };
+    return 4;
+  });
+
+  await expect(runHighwallMining.run(request(command))).rejects.toMatchObject({ code: 'failed-precondition' });
+
+  expect(cryptoMock.randomInt).toHaveBeenCalledTimes(1);
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.documents.has('sessions/s1/commandReceipts/mine-1')).toBe(false);
+  expect(mock.documents.has('sessions/s1/events/highwall-mining-mine-1')).toBe(false);
+  expect(mock.documents.has('sessions/s1/actionAudits/mine-1')).toBe(false);
+});
+
+it.each([
+  ['holder', (session: Fields) => {
+    (session.shuttleControl as Fields).highwall = {
+      shuttleId: 'highwall', ownerRoleId: 'icebreaker-miner', ownerUid: 'owner',
+      holderUid: 'owner', revision: 3,
+    };
+  }, 'permission-denied'],
+  ['actor role', () => {
+    mock.documents.get('sessions/s1/players/holder')!.assignedRoleId = 'icebreaker-captain';
+    mock.documents.get('sessions/s1/players/holder')!.activeConsoleRoleId = 'icebreaker-captain';
+  }, 'permission-denied'],
+  ['control role', (session: Fields) => {
+    (session.shuttleControl as Fields).highwall = {
+      shuttleId: 'highwall', ownerRoleId: 'different-role', ownerUid: 'owner',
+      holderUid: 'holder', revision: 3,
+    };
+  }, 'permission-denied'],
+  ['fleet group', () => {
+    mock.documents.get('sessions/s1/fleetGroups/fleet-1')!.memberUids = ['owner'];
+  }, 'failed-precondition'],
+  ['dock', (session: Fields) => {
+    session.shuttleDockings = [{ shuttleId: 'highwall', shipId: 'quellon', dockedAt: 'SESSION START' }];
+  }, 'failed-precondition'],
+] as const)('checks current %s authority before returning stale', async (_label, corruptAuthority, code) => {
+  mock.documents.get('sessions/s1')!.highwallMining = {
+    cycle: 2, revision: 1,
+    operations: [{ requestId: 'mine-previous', resource: 'materials', rolls: [3], amount: 3 }],
+  };
+  corruptAuthority(mock.documents.get('sessions/s1')!);
+  cryptoMock.randomInt.mockClear();
+
+  await expect(runHighwallMining.run(request({ ...command, requestId: `unauthorized-${_label.replaceAll(' ', '-')}` })))
+    .rejects.toMatchObject({ code });
+
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+});
+
 it('rolls three server dice for ore and adds their sum only to Highwall cargo', async () => {
   cryptoMock.randomInt.mockReset()
     .mockReturnValueOnce(2).mockReturnValueOnce(5).mockReturnValueOnce(3);
@@ -151,7 +268,6 @@ it('allows two standard operations and requires fuel for the third', async () =>
 
 it.each([
   ['foreign holder', 'owner', {}, command],
-  ['stale control', 'holder', {}, { ...command, requestId: 'stale-control', expectedControlRevision: 1 }],
   ['wrong phase', 'holder', { turnPhase: { turn: 2, airspace: { state: 'restricted' } } }, { ...command, requestId: 'wrong-phase' }],
   ['malformed cargo', 'holder', { shuttleCargo: { highwall: { food: 9 } } }, { ...command, requestId: 'bad-cargo' }],
   ['malformed state', 'holder', { highwallMining: { cycle: 2, revision: 'one', operations: [] } }, { ...command, requestId: 'bad-state' }],

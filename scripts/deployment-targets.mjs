@@ -106,6 +106,7 @@ const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
   'functions/src/endeavourResearchWriter.ts': [
     'advanceEndeavourResearchTrack', 'readEndeavourResearchWorkspace',
   ],
+  'functions/src/highwallMining.ts': ['runHighwallMining'],
   'functions/src/arrestPosse.ts': ['calculateArrestPosse'],
   'functions/src/extraShipAdmission.ts': [
     'assignReplacementRole', 'joinSession', 'resumeSession',

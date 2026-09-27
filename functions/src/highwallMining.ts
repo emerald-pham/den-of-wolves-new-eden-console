@@ -92,7 +92,13 @@ export function parseHighwallMiningState(value: unknown): HighwallMiningState | 
 export function resolveHighwallMiningStaleCas(
   input: HighwallMiningStaleCasInput,
 ): HighwallMiningStaleCasResult | undefined {
-  const state = input.state === undefined ? null : parseHighwallMiningState(input.state);
+  const rawState = record(input.state);
+  const initialState = rawState && Object.keys(rawState).length === 3 &&
+    rawState.cycle === 0 && rawState.revision === 0 &&
+    Array.isArray(rawState.operations) && rawState.operations.length === 0
+    ? { cycle: 0, revision: 0, operations: [] }
+    : null;
+  const state = initialState ?? (input.state === undefined ? null : parseHighwallMiningState(input.state));
   const validRequestId = (value: unknown): value is string =>
     typeof value === 'string' && /^[\w-]{1,128}$/.test(value);
   const validCounter = (value: number) => Number.isSafeInteger(value) && value >= 0;

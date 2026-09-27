@@ -610,6 +610,7 @@ import { STAR_CHART_COORDINATES } from './starChartGraph';
 import {
   parseHighwallMiningState,
   resolveHighwallMining,
+  resolveHighwallMiningStaleCas,
   type HighwallMiningResource,
   type HighwallMiningState,
 } from './highwallMining';
@@ -23602,15 +23603,15 @@ function highwallMiningReplay(
   return { ...result, status: 'replayed' };
 }
 
-function requireLiveHighwallMiningWindow(session: DocumentSnapshot, expectedCycle: number): number {
+function requireLiveHighwallMiningWindow(session: DocumentSnapshot): number {
   const currentCycle = session.get('currentTurn');
   const phase = turnPhaseState(session.get('turnPhase'));
   if (session.get('phase') !== 'active') {
     throw commandError('failed-precondition', 'Highwall mining is available only during active gameplay.', 'invalid-phase');
   }
   if (!Number.isSafeInteger(currentCycle) || (currentCycle as number) < 1 ||
-      currentCycle !== expectedCycle || !phase || phase.turn !== currentCycle) {
-    throw commandError('failed-precondition', 'The Coordination cycle changed. Refresh before mining.', 'stale-revision');
+      !phase || phase.turn !== currentCycle) {
+    throw commandError('failed-precondition', 'The current Coordination cycle is unavailable.', 'invalid-phase');
   }
   if (phase.airspace.state !== 'lifted' || phase.timerPause ||
       Date.now() >= Date.parse(phase.openAirspaceEndsAt)) {
@@ -23637,17 +23638,29 @@ function highwallCargo(session: DocumentSnapshot): { readonly ore: number; reado
   return { ore: ore as number, materials: materials as number };
 }
 
+function highwallMiningStaleCas(input: Parameters<typeof resolveHighwallMiningStaleCas>[0]) {
+  try {
+    return resolveHighwallMiningStaleCas(input);
+  } catch (cause) {
+    throw commandError(
+      'failed-precondition',
+      cause instanceof Error ? cause.message : 'Highwall mining state changed; refresh before retrying.',
+      'conflict',
+    );
+  }
+}
+
 async function requireHighwallMiningAuthority(
   tx: Transaction,
   sessionId: string,
   uid: string,
-  expectedControlRevision: number,
 ): Promise<{
   readonly session: DocumentSnapshot;
   readonly player: DocumentSnapshot;
   readonly hostShipId: string;
   readonly fuelled: boolean;
   readonly state: HighwallMiningState;
+  readonly controlRevision: number;
 }> {
   const [session, player] = await Promise.all([
     tx.get(db.doc(`sessions/${sessionId}`)),
@@ -23657,6 +23670,10 @@ async function requireHighwallMiningAuthority(
   if (!isActivePlayer(player) || player.get('role') !== 'player') {
     throw new HttpsError('permission-denied', 'Only the connected Highwall holder may mine.');
   }
+  if (player.get('assignedRoleId') !== 'icebreaker-miner' ||
+      player.get('activeConsoleRoleId') !== 'icebreaker-miner') {
+    throw new HttpsError('permission-denied', 'Only the current Icebreaker Miner may mine with Highwall.');
+  }
   requirePlayerShipActionAuthority(player);
   if (!configuredRoleIds(session).includes('icebreaker-miner') ||
       !activeVesselIdsForSession(session).includes('icebreaker')) {
@@ -23665,9 +23682,6 @@ async function requireHighwallMiningAuthority(
   const control = parseShuttleControl(session.get('shuttleControl'))?.highwall;
   if (!control || control.ownerRoleId !== 'icebreaker-miner' || control.holderUid !== uid) {
     throw new HttpsError('permission-denied', 'Only the current Highwall holder may mine.');
-  }
-  if (control.revision !== expectedControlRevision) {
-    throw commandError('failed-precondition', 'Highwall control changed; refresh before mining.', 'stale-revision');
   }
   const activeVesselIds = activeVesselIdsForSession(session);
   const rawDockings = session.get('shuttleDockings');
@@ -23703,6 +23717,7 @@ async function requireHighwallMiningAuthority(
   return {
     session, player,
     hostShipId: dockings[0].shipId, fuelled: fuelledState.highwall === true, state,
+    controlRevision: control.revision,
   };
 }
 
@@ -23732,7 +23747,7 @@ export const runHighwallMining = onCall<{
   const actionAuditRef = db.doc(`sessions/${data.sessionId}/actionAudits/${data.requestId}`);
   const preflight = await db.runTransaction(async tx => {
     const authority = await requireHighwallMiningAuthority(
-      tx, data.sessionId, uid, data.expectedControlRevision,
+      tx, data.sessionId, uid,
     );
     const fingerprint: HighwallMiningFingerprint = {
       kind: 'highwall-mining', sessionId: data.sessionId, actorUid: uid,
@@ -23747,10 +23762,21 @@ export const runHighwallMining = onCall<{
     ]);
     await rejectForeignLegacyM1Command(tx, data.sessionId, data.requestId, 'Highwall mining', []);
     const replay = highwallMiningReplay(prior, fingerprint);
-    if (replay) return { replay, fingerprint, authority };
+    if (replay) return { replay, stale: undefined, fingerprint, authority };
     if (event.exists) rejectLegacyEventReplay('Highwall mining');
     if (actionAudit.exists) rejectLegacyEventReplay('Highwall mining audit');
-    const cycle = requireLiveHighwallMiningWindow(authority.session, data.expectedCycle);
+    const cycle = requireLiveHighwallMiningWindow(authority.session);
+    const stale = highwallMiningStaleCas({
+      sessionId: data.sessionId, requestId: data.requestId, resource: data.resource,
+      expectedRevision: data.expectedRevision,
+      expectedControlRevision: data.expectedControlRevision,
+      expectedCycle: data.expectedCycle,
+      state: authority.state,
+      currentControlRevision: authority.controlRevision,
+      currentCycle: cycle,
+      hostShipId: authority.hostShipId,
+    });
+    if (stale) return { replay: undefined, stale, fingerprint, authority };
     try {
       resolveHighwallMining({
         state: authority.state, currentCycle: cycle,
@@ -23763,15 +23789,16 @@ export const runHighwallMining = onCall<{
       throw commandError('failed-precondition',
         cause instanceof Error ? cause.message : 'Highwall mining was rejected.', 'conflict');
     }
-    return { replay: undefined, fingerprint, authority };
+    return { replay: undefined, stale: undefined, fingerprint, authority };
   });
   if (preflight.replay) return preflight.replay;
+  if (preflight.stale) return preflight.stale;
   const rolls = data.resource === 'materials'
     ? [randomInt(1, 7)]
     : [randomInt(1, 7), randomInt(1, 7), randomInt(1, 7)];
   return db.runTransaction(async tx => {
     const authority = await requireHighwallMiningAuthority(
-      tx, data.sessionId, uid, data.expectedControlRevision,
+      tx, data.sessionId, uid,
     );
     const fingerprint: HighwallMiningFingerprint = {
       kind: 'highwall-mining', sessionId: data.sessionId, actorUid: uid,
@@ -23789,7 +23816,22 @@ export const runHighwallMining = onCall<{
     if (replay) return replay;
     if (event.exists) rejectLegacyEventReplay('Highwall mining');
     if (actionAudit.exists) rejectLegacyEventReplay('Highwall mining audit');
-    const cycle = requireLiveHighwallMiningWindow(authority.session, data.expectedCycle);
+    const cycle = requireLiveHighwallMiningWindow(authority.session);
+    const stale = highwallMiningStaleCas({
+      sessionId: data.sessionId, requestId: data.requestId, resource: data.resource,
+      expectedRevision: data.expectedRevision,
+      expectedControlRevision: data.expectedControlRevision,
+      expectedCycle: data.expectedCycle,
+      state: authority.state,
+      currentControlRevision: authority.controlRevision,
+      currentCycle: cycle,
+      hostShipId: authority.hostShipId,
+    });
+    if (stale) {
+      // Dice were already drawn; only preflight may report the no-roll stale envelope.
+      throw commandError('failed-precondition',
+        'Highwall changed while mining; refresh before retrying.', 'stale-revision');
+    }
     let result: ReturnType<typeof resolveHighwallMining>;
     try {
       result = resolveHighwallMining({

@@ -1042,6 +1042,11 @@ test('maps the canonical Endeavour research resolver to its writer and P391 cons
   ]));
 });
 
+test('maps the Highwall mining state resolver to its callable', () => {
+  const selected = selectorFor(['functions/src/highwallMining.ts']);
+  assert.deepEqual(selectedFunctions(selected), functionTargets(['runHighwallMining']));
+});
+
 test('maps cadence policy changes to both private research callables', () => {
   const selected = selectorFor(['functions/src/endeavourResearchCadence.ts']);
   assert.deepEqual(selectedFunctions(selected), functionTargets(ENDEAVOUR_RESEARCH_CALLABLES));

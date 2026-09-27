@@ -52,6 +52,15 @@ describe('Highwall mining', () => {
     })).toBeUndefined();
   });
 
+  it('accepts the canonical empty state returned before the first mining cycle', () => {
+    expect(resolveHighwallMiningStaleCas({
+      sessionId: 's1', requestId: 'mine-initial', resource: 'materials',
+      expectedRevision: 0, expectedControlRevision: 4, expectedCycle: 2,
+      state: { cycle: 0, revision: 0, operations: [] },
+      currentControlRevision: 4, currentCycle: 2, hostShipId: 'icebreaker',
+    })).toBeUndefined();
+  });
+
   it.each([
     ['mining revision', { expectedRevision: 4 }],
     ['control revision', { expectedControlRevision: 5 }],
