@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { useSessionStore } from '@/store/useSessionStore';
@@ -332,7 +332,8 @@ it('confirms the exact pending request after a same-holder cycle and control rol
     sessionId: 's1', requestId: 'research-attempt-1', expectedControlRevision: 4,
     expectedResearchRevision: 0, expectedCycle: 3, trackId: 'reactor', funding: 'standard',
   });
-  expect(await screen.findByRole('status')).toHaveTextContent(/reactor research request was confirmed/i);
+  const research = screen.getByRole('region', { name: 'Endeavour research controls' });
+  expect(await within(research).findByRole('status')).toHaveTextContent(/reactor research request was confirmed/i);
 });
 
 it('removes exact retry access when the current holder changes', async () => {
