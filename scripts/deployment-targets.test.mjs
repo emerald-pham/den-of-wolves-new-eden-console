@@ -4,6 +4,23 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { classifyChangedFiles, deploymentSelector } from './deployment-targets.mjs';
 
+test('PC01 selects its new callables and existing ship-map writers for deployment', () => {
+  const before = '9fc824f5';
+  const after = '33fb746d';
+  const files = execFileSync('git', ['diff', '--name-only', `${before}..${after}`], {
+    encoding: 'utf8',
+  }).trim().split('\n');
+  const selected = deploymentSelector({ before, after, files, targets: ['hosting', 'firestore', 'functions'] });
+  for (const name of [
+    'requestScout', 'resolvePendingScoutRequest', 'readPrivateScoutResult',
+    'listPendingScoutRequests', 'listMyScoutReports', 'readMyScoutDiscoveryNote',
+    'activateEndeavourEcmDevice', 'readEndeavourEcmDeviceWorkspace',
+    'advanceTurn', 'jumpShip', 'moveShipToLocation', 'runMaintenance', 'joinSession', 'resumeSession',
+  ]) {
+    assert.ok(selected.includes(`functions:${name}`), `${name} must receive the PC01 ship-map contract`);
+  }
+});
+
 const COMMAND_AND_CONTROL_CALLABLES = [
   'applyAegisCommandAndControl',
   'applyWolfCommanderTargetRerolls',
@@ -811,7 +828,7 @@ test('selects the complete P238 production callable set from the live 0.5.23 bas
 });
 
 test('fails closed when a historical full range mixes Philia with older index changes', () => {
-  const after = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  const after = '9fc824f5';
   const files = execFileSync('git', ['diff', '--name-only', P238_DEPLOYMENT_BASELINE, after], {
     encoding: 'utf8',
   }).split('\n').filter(Boolean);
