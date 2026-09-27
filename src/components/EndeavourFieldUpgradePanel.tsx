@@ -102,6 +102,11 @@ interface UncertainState {
   readonly retryToken: string;
 }
 
+interface RetryRefreshRequirement {
+  readonly scope: string;
+  readonly workspace: EndeavourResearchWorkspace;
+}
+
 export default function EndeavourFieldUpgradePanel({
   control,
   workspace,
@@ -133,7 +138,7 @@ export default function EndeavourFieldUpgradePanel({
   const [selection, setSelection] = useState<Readonly<{ scope: string; keys: readonly string[] }> | null>(null);
   const [recoveryState, setRecoveryState] = useState<RecoveryState | null>(null);
   const [uncertainState, setUncertainState] = useState<UncertainState | null>(null);
-  const [retryRefreshRequired, setRetryRefreshRequired] = useState(false);
+  const [retryRefreshRequirement, setRetryRefreshRequirement] = useState<RetryRefreshRequirement | null>(null);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<Readonly<{
     identityKey: string;
@@ -167,6 +172,8 @@ export default function EndeavourFieldUpgradePanel({
   });
   const recovery = recoveryState?.scope === authorityScope ? recoveryState : null;
   const uncertain = uncertainState?.scope === authorityScope ? uncertainState : null;
+  const retryRefreshRequired = Boolean(retryRefreshRequirement &&
+    retryRefreshRequirement.scope === authorityScope && retryRefreshRequirement.workspace === workspace);
   const recoveryProjectionReady = Boolean(
     recovery && aligned && hasFreshSessionAuthority() && session && currentControl &&
     isCounter(currentControl.revision) && currentControl.revision >= recovery.stale.currentControlRevision &&
@@ -192,7 +199,7 @@ export default function EndeavourFieldUpgradePanel({
       setSelection(null);
       setRecoveryState(null);
       setUncertainState(null);
-      setRetryRefreshRequired(false);
+      setRetryRefreshRequirement(null);
       setFeedback(null);
       return;
     }
@@ -200,6 +207,22 @@ export default function EndeavourFieldUpgradePanel({
     if (uncertainState && uncertainState.scope !== authorityScope) setUncertainState(null);
     setFeedback((current) => current?.identityKey === identityKey ? current : null);
   }, [authorityScope, currentPanel, identityKey, recoveryState, uncertainState]);
+
+  useEffect(() => {
+    if (!retryRefreshRequirement) return;
+    if (retryRefreshRequirement.scope !== authorityScope) {
+      setRetryRefreshRequirement(null);
+      return;
+    }
+    if (retryRefreshRequirement.workspace !== workspace) {
+      setRetryRefreshRequirement(null);
+      setFeedback({
+        identityKey: identityKey ?? '',
+        notice: 'Scientist purchase state refreshed. Review the current targets before purchasing.',
+        error: '',
+      });
+    }
+  }, [authorityScope, identityKey, retryRefreshRequirement, workspace]);
 
   useEffect(() => {
     if (!aligned || !hasFreshSessionAuthority() || !selection || selection.scope !== selectionScope) return;
@@ -248,7 +271,7 @@ export default function EndeavourFieldUpgradePanel({
     setSelection(null);
     setRecoveryState(null);
     setUncertainState(null);
-    setRetryRefreshRequired(false);
+    setRetryRefreshRequirement(null);
     setFeedback({
       identityKey: currentIdentityKey,
       notice: `Installed ${result.appliedTargets.length} console${result.appliedTargets.length === 1 ? '' : 's'} for this cycle.`,
@@ -277,14 +300,14 @@ export default function EndeavourFieldUpgradePanel({
       if (result.status === 'stale') {
         setRecoveryState({ scope: authorityScope!, stale: result, retryInvalidated: false });
         setUncertainState(null);
-        setRetryRefreshRequired(false);
+        setRetryRefreshRequirement(null);
         setFeedback({ identityKey: currentIdentityKey, notice: '', error: '' });
         void Promise.resolve(onRefresh?.()).catch(() => undefined);
       } else if (mode === 'uncertain-retry' || result.status === 'replayed') {
         setSelection(null);
         setRecoveryState(null);
         setUncertainState(null);
-        setRetryRefreshRequired(false);
+        setRetryRefreshRequirement(null);
         setFeedback({
           identityKey: currentIdentityKey,
           notice: 'The earlier upgrade request was confirmed. Refresh the Scientist workspace for current purchase state.',
@@ -307,7 +330,7 @@ export default function EndeavourFieldUpgradePanel({
         }
         if (mode === 'uncertain-retry') {
           setUncertainState(null);
-          setRetryRefreshRequired(true);
+          setRetryRefreshRequirement({ scope: authorityScope!, workspace });
           setFeedback({
             identityKey: currentIdentityKey, notice: '',
             error: `The exact request was rejected. ${errorMessage(cause)} Refresh the Scientist workspace before starting a new purchase.`,
@@ -352,15 +375,10 @@ export default function EndeavourFieldUpgradePanel({
         disabled={busy || !onRefresh} onClick={() => {
           if (!onRefresh || busy) return;
           setBusy(true);
-          void Promise.resolve(onRefresh()).then(() => {
-            setRetryRefreshRequired(false);
-            setFeedback({
-              identityKey: currentIdentityKey,
-              notice: 'Scientist purchase state refreshed. Review the current targets before purchasing.',
-              error: '',
-            });
-          }).catch((cause: unknown) => {
-            setFeedback({ identityKey: currentIdentityKey, notice: '', error: errorMessage(cause) });
+          void Promise.resolve(onRefresh()).catch((cause: unknown) => {
+            if (isCurrentScientistAuthority(authorityScope!)) {
+              setFeedback({ identityKey: currentIdentityKey, notice: '', error: errorMessage(cause) });
+            }
           }).finally(() => setBusy(false));
         }}>
         Refresh Scientist workspace

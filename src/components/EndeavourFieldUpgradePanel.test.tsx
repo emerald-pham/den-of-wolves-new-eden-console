@@ -275,11 +275,11 @@ it('retries the retained exact request after projection removes its target and C
   expect(screen.getByText('Cycle purchases: 0 of 2 consoles used. Choose up to 2 more.')).toBeVisible();
 });
 
-it('clears a terminal exact-retry rejection and requires a workspace refresh before a new purchase', async () => {
+it('keeps new purchases blocked until a fresh workspace projection follows terminal retry rejection', async () => {
   const user = userEvent.setup();
   mocks.purchase.mockRejectedValueOnce(new EndeavourFieldUpgradeUncertainError('request-1'));
   mocks.retry.mockRejectedValueOnce(new Error('The original request is no longer eligible.'));
-  renderPanel();
+  const view = renderPanel();
   await user.click(await screen.findByLabelText('Shepherd // Reactor // 7 materials'));
   await user.click(screen.getByRole('button', { name: 'Purchase selected upgrades' }));
   await screen.findByText(/earlier request may have completed/i);
@@ -292,7 +292,13 @@ it('clears a terminal exact-retry rejection and requires a workspace refresh bef
   expect(refresh).toBeEnabled();
   await user.click(refresh);
   await waitFor(() => expect(mocks.refresh).toHaveBeenCalled());
+  expect(screen.getByRole('button', { name: 'Purchase selected upgrades' })).toBeDisabled();
+
+  const refreshedWorkspace = { ...workspace };
+  view.rerender(<EndeavourFieldUpgradePanel control={control} workspace={refreshedWorkspace}
+    purchaseState={{ ...purchaseState }} onRefresh={mocks.refresh} />);
   await waitFor(() => expect(screen.getByRole('button', { name: 'Purchase selected upgrades' })).toBeEnabled());
+  expect(await screen.findByRole('status')).toHaveTextContent('Scientist purchase state refreshed.');
 });
 
 it('discards a delayed stale result after the current Scientist authority changes', async () => {
