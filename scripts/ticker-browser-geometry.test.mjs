@@ -86,6 +86,88 @@ test('rejects a speed jump during or after visible entry', () => {
   assert.ok(result.failures.some((failure) => failure.includes('constant-speed')));
 });
 
+function createAnimationClockEntrySamples(visibleJumpPx = 0) {
+  return Array.from({ length: 24 }, (_, sampleIndex) => {
+    const animationTimeMs = sampleIndex * (1_000 / 60);
+    const elapsed = sampleIndex === 0 ? 10 : 40 + ((sampleIndex - 1) * (1_000 / 60));
+    const left = initialPosition.left - (48 * animationTimeMs / 1_000) -
+      (sampleIndex === 1 ? visibleJumpPx : 0);
+    return {
+      elapsed,
+      frame,
+      groups: [{
+        id: initialPosition.id,
+        left,
+        right: left + initialPosition.width,
+        width: initialPosition.width,
+        animationTimeMs,
+      }],
+    };
+  });
+}
+
+test('measures the offscreen-to-visible interval against the CSS animation clock', () => {
+  const result = assessTickerGeometry({
+    initialPosition,
+    samples: createAnimationClockEntrySamples(),
+    requireAnimationClock: true,
+  });
+
+  assert.equal(result.entryTransitionObserved, true);
+  assert.equal(result.speedStable, true);
+});
+
+test('rejects a visible entry jump that disagrees with the CSS animation clock', () => {
+  const result = assessTickerGeometry({
+    initialPosition,
+    samples: createAnimationClockEntrySamples(8),
+    requireAnimationClock: true,
+  });
+
+  assert.equal(result.entryTransitionObserved, true);
+  assert.equal(result.speedStable, false);
+  assert.ok(result.failures.some((failure) => failure.includes('constant-speed')));
+});
+
+test('fails closed on missing, negative, or discontinuous CSS animation time', () => {
+  const missing = createAnimationClockEntrySamples();
+  missing[1].groups[0].animationTimeMs = null;
+  const negative = createAnimationClockEntrySamples();
+  negative[1].groups[0].animationTimeMs = -1;
+  const discontinuous = createAnimationClockEntrySamples();
+  discontinuous[2].groups[0].animationTimeMs += 80;
+
+  for (const samples of [missing, negative, discontinuous]) {
+    const result = assessTickerGeometry({
+      initialPosition,
+      samples,
+      requireAnimationClock: true,
+    });
+    assert.equal(result.speedStable, false);
+    assert.ok(result.failures.some((failure) => failure.includes('animation currentTime')));
+  }
+});
+
+test('allows one bounded offscreen currentTime rebase during measured frame reflow', () => {
+  const samples = createSamples({ reflowAt: 3, reflowJumpAt: 4, reflowJumpPx: -1.6 })
+    .map((sample, sampleIndex) => ({
+      ...sample,
+      groups: sample.groups.map((group) => ({
+        ...group,
+        animationTimeMs: sample.elapsed - (
+          group.id === 'offscreen-group' && sampleIndex >= 4 ? 80 : 0
+        ),
+      })),
+    }));
+  const result = assessTickerGeometry({
+    initialPosition,
+    samples,
+    requireAnimationClock: true,
+  });
+
+  assert.equal(result.speedStable, true);
+});
+
 test('checks a non-anchor group speed after it enters the frame', () => {
   const secondStart = {
     id: 'second-group',

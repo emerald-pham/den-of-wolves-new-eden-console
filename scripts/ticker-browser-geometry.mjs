@@ -36,6 +36,7 @@ export function assessTickerGeometry({
   initialPosition,
   initialPositions,
   samples = [],
+  requireAnimationClock = false,
   minimumVelocitySamples = DEFAULT_MINIMUM_VELOCITY_SAMPLES,
   minimumSpeed = DEFAULT_MIN_SPEED,
   maximumSpeed = DEFAULT_MAX_SPEED,
@@ -136,25 +137,80 @@ export function assessTickerGeometry({
     const positions = [...rawPositions].sort((left, right) => left.elapsed - right.elapsed);
     const velocities = [];
     const firstInterval = positions.length >= 2 ? positions.slice(0, 2) : null;
-    const firstIntervalSpeed = firstInterval && firstInterval[1].elapsed > firstInterval[0].elapsed
-      ? (firstInterval[1].left - firstInterval[0].left) /
-        (firstInterval[1].elapsed - firstInterval[0].elapsed) * 1_000
+    const firstIntervalWallMs = firstInterval
+      ? firstInterval[1].elapsed - firstInterval[0].elapsed
+      : NaN;
+    const firstIntervalAnimationMs = firstInterval
+      ? firstInterval[1].animationTimeMs - firstInterval[0].animationTimeMs
+      : NaN;
+    const firstIntervalDurationMs = firstInterval && finite(firstIntervalAnimationMs) &&
+      firstIntervalAnimationMs > 0
+      ? firstIntervalAnimationMs
+      : firstIntervalWallMs;
+    const firstIntervalSpeed = firstInterval && firstIntervalDurationMs > 0
+      ? (firstInterval[1].left - firstInterval[0].left) / firstIntervalDurationMs * 1_000
       : NaN;
     const firstIntervalIsMountDelay = firstInterval && finite(firstIntervalSpeed) &&
       Math.abs(firstIntervalSpeed) <= 0.5 && firstInterval.every(isFullyOffscreen);
     if (firstIntervalIsMountDelay) ignoredMountDelayTracks.push(id);
     let ignoredInitialEdgeStep = false;
     let initialMotionStarted = false;
+    let acceptedStartupClockCatchup = false;
 
     for (let index = 1; index < positions.length; index += 1) {
       const previous = positions[index - 1];
       const current = positions[index];
-      const elapsed = current.elapsed - previous.elapsed;
-      if (!finite(elapsed) || elapsed <= 0) {
+      const wallElapsed = current.elapsed - previous.elapsed;
+      if (!finite(wallElapsed) || wallElapsed <= 0) {
         failures.push(`track ${id} has non-increasing rAF timestamps`);
         continue;
       }
-      const speed = (current.left - previous.left) / elapsed * 1_000;
+      const animationElapsed = current.animationTimeMs - previous.animationTimeMs;
+      const displacement = current.left - previous.left;
+      const noEarlierMotion = positions.slice(0, index).every((position) => (
+        Math.abs(position.left - positions[0].left) <= 0.25
+      ));
+      const startupClockCatchup = !acceptedStartupClockCatchup && index <= 3 &&
+        noEarlierMotion && isFullyOffscreen(previous) && displacement < -0.25 &&
+        finite(previous.animationTimeMs) && previous.animationTimeMs <= 1 &&
+        finite(animationElapsed) && animationElapsed > 0 &&
+        animationElapsed < wallElapsed && wallElapsed - animationElapsed <= 35;
+      const spansInitialFrameReflow = firstReflowCorrection !== null &&
+        previous.sampleIndex < firstReflowCorrection.sampleIndex &&
+        current.sampleIndex >= firstReflowCorrection.sampleIndex &&
+        isFullyOffscreen(previous) && isFullyOffscreen(current);
+      const withinFrameCorrectionBound = firstReflowCorrection !== null &&
+        Math.abs(displacement) <= firstReflowCorrection.widthChangePx + INITIAL_FRAME_CORRECTION_TOLERANCE_PX;
+      const hasAnimationTimes = finite(previous.animationTimeMs) && finite(current.animationTimeMs);
+      const validAnimationTimes = hasAnimationTimes && previous.animationTimeMs >= 0 &&
+        current.animationTimeMs >= 0;
+      if (requireAnimationClock && (!validAnimationTimes ||
+          (animationElapsed < 0 && !(spansInitialFrameReflow && withinFrameCorrectionBound)))) {
+        if (spansInitialFrameReflow && withinFrameCorrectionBound) {
+          // Reflow may deliberately rebase the CSS timeline for one bounded,
+          // still-offscreen correction interval.
+        } else {
+          failures.push(`track ${id} has missing, negative, or reset animation currentTime`);
+          continue;
+        }
+      }
+      const discontinuousAnimationClock = requireAnimationClock && validAnimationTimes &&
+        animationElapsed > 0 && Math.abs(animationElapsed - wallElapsed) > 3 &&
+        !startupClockCatchup && !(spansInitialFrameReflow && withinFrameCorrectionBound);
+      if (discontinuousAnimationClock) {
+        failures.push(`track ${id} has discontinuous animation currentTime`);
+        continue;
+      }
+      const animationClockStoppedWhileVisible = requireAnimationClock && validAnimationTimes &&
+        animationElapsed === 0 && (overlapsFrame(previous) || overlapsFrame(current));
+      if (animationClockStoppedWhileVisible) {
+        failures.push(`track ${id} animation currentTime stopped while visible`);
+        continue;
+      }
+      const elapsed = validAnimationTimes && animationElapsed > 0
+        ? animationElapsed
+        : wallElapsed;
+      const speed = displacement / elapsed * 1_000;
       const velocity = {
         speed,
         previous,
@@ -164,7 +220,7 @@ export function assessTickerGeometry({
       };
       velocities.push(velocity);
       const windowOffscreen = isFullyOffscreen(previous) && isFullyOffscreen(current);
-      const displacement = current.left - previous.left;
+      if (startupClockCatchup) acceptedStartupClockCatchup = true;
 
       if (speed >= minimumSpeed && speed <= maximumSpeed) {
         checkedVelocitySamples.push({ id, ...velocity });
@@ -191,9 +247,6 @@ export function assessTickerGeometry({
         continue;
       }
 
-      const noEarlierMotion = positions.slice(0, index).every((position) => (
-        Math.abs(position.left - positions[0].left) <= 0.25
-      ));
       const initialEdgeStep = !ignoredInitialEdgeStep && index <= 4 && noEarlierMotion &&
         !initialMotionStarted && Math.abs(displacement) > 0.25 &&
         Math.abs(displacement) <= INITIAL_EDGE_STEP_TOLERANCE_PX &&
@@ -205,11 +258,6 @@ export function assessTickerGeometry({
         continue;
       }
 
-      const spansInitialFrameReflow = firstReflowCorrection !== null &&
-        previous.sampleIndex < firstReflowCorrection.sampleIndex &&
-        current.sampleIndex >= firstReflowCorrection.sampleIndex && windowOffscreen;
-      const withinFrameCorrectionBound = firstReflowCorrection !== null &&
-        Math.abs(displacement) <= firstReflowCorrection.widthChangePx + INITIAL_FRAME_CORRECTION_TOLERANCE_PX;
       if (spansInitialFrameReflow && withinFrameCorrectionBound) continue;
 
       failures.push(

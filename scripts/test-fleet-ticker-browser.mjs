@@ -403,6 +403,7 @@ async function assertTickerGeometry(page, label, reducedMotion) {
       initialPosition,
       initialPositions: snapshot.initialPositions,
       samples: snapshot.samples,
+      requireAnimationClock: true,
     });
   }
 
@@ -1063,12 +1064,14 @@ async function runCase(fontMode, reducedMotion, viewport, scenario = 'press') {
           if (frameBounds.width > 0 && frameBounds.height > 0) {
             const groups = [...frame.querySelectorAll('.fleet-ticker__group')].map((group) => {
               const bounds = group.getBoundingClientRect();
+              const animationTime = group.getAnimations()[0]?.currentTime;
               return {
                 id: group.getAttribute('data-instance-id') ?? '',
                 messageId: group.getAttribute('data-message-id') ?? '',
                 left: bounds.left - frameBounds.left,
                 right: bounds.right - frameBounds.left,
                 width: bounds.width,
+                animationTimeMs: typeof animationTime === 'number' ? animationTime : null,
                 top: bounds.top,
                 bottom: bounds.bottom,
                 copyIds: [...group.querySelectorAll('.fleet-ticker__copy')]
