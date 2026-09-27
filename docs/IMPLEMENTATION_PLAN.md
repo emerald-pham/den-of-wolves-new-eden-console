@@ -8,7 +8,10 @@ server-authoritative session and console foundation to a complete,
 rules-faithful game loop. It does not authorize a broad rewrite or the
 creation of speculative controls. Numbered gameplay prompts select a bounded
 slice of this plan and implement the smallest rules-complete increment needed
-for that slice. `CLAUDE.md` governs proportional tests and workflow; ordinary
+for that slice. The owner-facing, one-sitting milestone route and trimmed
+Shape Up process are in [Product Milestones](PRODUCT_MILESTONES.md). Shape one
+milestone before building it; later slices remain provisional so owner feedback
+can change their scope. `CLAUDE.md` governs tests and workflow; ordinary
 tooling and maintenance work does not require prompt registration and follows
 the proportional testing policy in `CLAUDE.md`.
 
@@ -39,9 +42,10 @@ Default reading path for one prompt:
    [`IMPLEMENTATION_PROMPT_DEPENDENCIES.md`](./IMPLEMENTATION_PROMPT_DEPENDENCIES.md).
    Do not select a prompt until hard prerequisites, milestone/contract/owner
    gates, and coordination ownership are reconciled with current `main`.
-2. Read the selected row in the compact
-   [`IMPLEMENTATION_MILESTONES.md`](./IMPLEMENTATION_MILESTONES.md) completion
-   route, including its dependencies and exit fixture.
+2. Read the shaped owner playtest in
+   [`PRODUCT_MILESTONES.md`](./PRODUCT_MILESTONES.md), then the relevant internal
+   technical fixture in
+   [`IMPLEMENTATION_MILESTONES.md`](./IMPLEMENTATION_MILESTONES.md).
 3. Read [Product objectives](#product-objectives), the relevant part of
    [Scope and baseline](#scope-and-baseline),
    [Existing behavior is the design baseline](#existing-behavior-is-the-design-baseline),
@@ -57,19 +61,16 @@ Default reading path for one prompt:
    do not reread duplicated workflow prose here.
 
 If the branch is rebased, current `main` materially moves, or a prerequisite's
-status or ownership changes, stop and rerun the read-only packet, then
-reconcile coordination before continuing. A
-prompt cannot be marked complete or merged while a hard prerequisite remains
-unmet; closure/evidence gates are completion checks, not inferred start locks.
+status or ownership changes, refresh the read-only packet when useful and
+reconcile coordination before continuing. An unmet hard prerequisite prevents
+claiming its dependent prompt complete; it is not a Git or CI gate.
+Closure/evidence gates are completion checks, not inferred start locks.
 
-`NEXT` (the first item in `READY_QUEUE`) is the primary resume/default lane, but
-it is advisory for concurrency, not a serial execution lock. A separate
-worktree may claim a later `READY_QUEUE` item concurrently only when its hard
-prompt prerequisites are done, every hard milestone, hard contract, and
-decision-owner gate is satisfied or explicitly confirmed, and the coordination
-forecast shows conflict-free ownership with no active claim overlap. A worktree
-must not bypass an unmet dependency, active claim, or unresolved decision-owner
-gate merely because the prompt is independent.
+`NEXT` is an advisory ready-work hint, not a serial execution lock. Work on a
+later item can proceed when its real prerequisites and shared ownership allow
+it. A rulebook ambiguity is resolved by a cited best reading in the
+[assumptions log](PRODUCT_MILESTONE_ASSUMPTIONS.md), while an explicit
+product-only deferral remains held; neither requires pausing independent work.
 
 Targeted lookup example:
 
@@ -112,8 +113,10 @@ The implementation is complete only when all of these objectives are met:
 2. **Match the printed game.** Ship sheets, shuttle sheets, role briefs,
    loyalty rules, star charts, Wolf attacks, away missions, resources,
    maintenance, population tracks, and endgame requirements use the printed
-   component as the authority for specific values. Genuine ambiguities are
-   recorded as facilitator/product decisions rather than silently guessed.
+   component as the authority for specific values. Agents record a cited best
+   reading of an ambiguous passage in the assumptions log and build on it;
+   owner corrections are fixed in cooldown. A game-time facilitator choice
+   remains an explicit, attributable in-app decision.
 3. **Keep shared state authoritative.** Clients may read the state they are
    entitled to see and may write only their own permitted presence data. Every
    action that affects gameplay, randomness, secrets, roles, resources,
@@ -281,9 +284,11 @@ Apply these gates before implementation:
 2. Treat green tests as evidence, not infallible intent. When known or
    owner-reported behavior is missing while current gates remain green, classify
    it as contract drift: review provenance, revise the plan, contracts, and
-   progress ledger first, correct or replace any test that blesses the
-   regression, and add a composed regression test that would have caught the
-   real user path. Do not preserve a passing fixture that enshrines the defect.
+   progress ledger, then commit a new failing composed regression test for the
+   real user path before code. Leave a suspect existing test intact and flag
+   its conflict; do not weaken, skip, delete, or change it merely to get a
+   pass. If a later shape or cooldown establishes a correction, make it a
+   separate test-only commit with the reason recorded.
 3. Any intentional departure from working behavior must record why it is
    necessary and list every affected player, authority, data, accessibility,
    security, and operations contract. Prefer a narrow compatible extension;
@@ -381,15 +386,15 @@ handled as real roadmap items rather than represented by disabled fiction:
 
 ## Player story milestones and ATDD exit gates
 
-For ordinary planning and prompt selection, use the compact dependency map in
-[`IMPLEMENTATION_MILESTONES.md`](./IMPLEMENTATION_MILESTONES.md). The detailed
-stories below remain the canonical acceptance narrative and are read only when
-the selected slice touches that story or changes milestone scope.
+For owner-facing planning and prompt selection, use the shaped playtest in
+[`PRODUCT_MILESTONES.md`](./PRODUCT_MILESTONES.md). The compact dependency map in
+[`IMPLEMENTATION_MILESTONES.md`](./IMPLEMENTATION_MILESTONES.md) and the detailed
+stories below remain internal acceptance narratives. Read them when the
+selected slice touches that technical story.
 
-The following milestones turn the product objectives and the roadmap phases
-into player-facing acceptance stories. They are deliberately end-to-end
-vertical slices rather than component or callable checklists. A milestone is
-green only when its stated player/GM outcome works against authoritative state,
+The following internal milestones turn the product objectives and the roadmap
+phases into end-to-end technical stories. An internal gate is green only when
+its stated player/GM outcome works against authoritative state,
 has a visible result and failure path, and satisfies the cross-cutting contract
 below. Several of the original milestone ideas are intentionally split: a
 DRADIS filter is not the same thing as a playable split fleet, a Wolf attack is
@@ -1496,10 +1501,15 @@ Apply these rules to every slice:
   contracts govern its optional station behavior, while printed roster,
   loyalty, Wolf, Capybara, and facilitator math remain unchanged.
 
-### Decisions required before affected implementation
+### Shaping questions before affected implementation
 
-These are not reasons to stop planning, but they are explicit gates for the
-first code slice that depends on them:
+The list below points to rules and product choices to inspect before an
+affected slice. For an ambiguous available rulebook passage, cite and adopt the
+best reading in [Product Milestone Assumptions](PRODUCT_MILESTONE_ASSUMPTIONS.md)
+and keep building; do not wait for a ruling. A product-only choice with no
+source basis stays out of the affected shape until it can be decided, while
+independent work continues. The catalog records any explicit owner-deferred
+prompt separately.
 
 - **Game scope:** whether a session may switch between base-only, Capybara
   expansion, and other extra-ship configurations after creation. The count
@@ -1933,9 +1943,10 @@ gameplay-specific requirements:
 1. Name the exact printed source and the Given/When/Then player or facilitator
    result before writing code.
 2. For `[PRESERVE]`, close from current evidence when it already satisfies the
-   acceptance. For `[REPAIR]`, `[EXTEND]`, or `[NEW]`, observe the smallest
-   missing production-path acceptance fail before implementation. A
-   `[DEFERRED-OWNER]` prompt cannot begin until the recorded owner gate opens.
+   acceptance. For `[REPAIR]`, `[EXTEND]`, or `[NEW]`, commit the smallest
+   failing test for new behavior before its implementation. A
+   `[DEFERRED-OWNER]` prompt cannot begin until the recorded owner gate opens;
+   continue other shaped work without waiting.
 3. Exercise server authority, direct-write denial, audience projection,
    idempotent retry/reconnect, visible success/failure, and stable audit output
    wherever the selected mechanic uses those boundaries.
@@ -1949,17 +1960,19 @@ gameplay-specific requirements:
 A roadmap slice is complete only when its selected prompt acceptance and
 milestone contribution have current named evidence, no exposed control depends
 on unfinished later work to become truthful, and the `CLAUDE.md` definition of
-done is satisfied. Prompt completion is not milestone completion: the milestone
-exit fixture must also pass before claiming the player story. The full product
-is complete only at the
+done is satisfied. Prompt completion is not an owner playtest milestone: its
+plain-language checks must be playable in one sitting, and the relevant
+internal exit fixture must also pass. The full product is complete only at the
 [`1.0` completion gate](./IMPLEMENTATION_MILESTONES.md#10-completion-gate).
 
-The dependency index is part of this gate. Before marking a prompt complete or
-merging its slice, re-read its current row after final reconciliation and prove
-that every hard prompt prerequisite is `done` and every named milestone,
-contract, owner decision, and closure/evidence gate is satisfied in its proper
-scope. An unresolved prerequisite blocks completion; numeric adjacency,
-sequence context, or an unverified prose claim cannot override the index.
+The dependency index informs this gate. Before marking a prompt complete,
+re-read its current row after final reconciliation and prove that every real
+hard prompt prerequisite and relevant technical/closure contract is satisfied.
+For a rules ambiguity, a cited assumption and its tests record the chosen
+reading; explicit product-only deferrals remain held. An unresolved
+prerequisite blocks a prompt-completion claim, not commits or merges of
+independent work. Numeric adjacency or unverified prose cannot override the
+index.
 
 ## Prompt-by-prompt ATDD build sequence
 
@@ -2016,7 +2029,9 @@ visual are real, but candidate resolution and a durable outcome are not.
   browser, security, capacity, or full-story acceptance scenario. A proof
   prompt does not authorize a rewrite to make the fixture easier.
 - **`[DECISION]`** — resolve a genuine printed-rule or product ambiguity before
-  exposing the affected action. Record the source and chosen policy.
+  exposing the affected action. An available ambiguous passage gets a cited
+  best reading in the assumptions log; an explicit product-only deferral stays
+  held. Record the source and chosen policy.
 - **`[DEFERRED-OWNER]`** — the owner has explicitly postponed the surface. Keep
   it missing and out of dependent exit gates until the prerequisite contract
   is proven and the owner authorizes activation; do not implement it as an
@@ -2054,8 +2069,9 @@ regression floor throughout this queue, not disposable scaffolding.
 That floor does not make stale intent canonical. If history or an owner report
 shows that a green fixture blesses a regression, follow
 [Existing behavior is the design baseline](#existing-behavior-is-the-design-baseline):
-correct the contract and misleading test, add the missing composed regression,
-then preserve the repaired old and new acceptances together.
+flag the suspect test, add the missing composed regression in a test-first
+commit, and keep the old test unchanged until its separate correction is
+reviewed. Preserve the old and new behavior that remains valid.
 
 ### Build order
 
@@ -2072,13 +2088,11 @@ prompts remain open; none of those states may be treated as completion.
 The lowest unresolved ID is the default triage resume pointer, not a dependency
 lock. A worktree may select any dependency-ready unresolved prompt in the
 current milestone, and distinct coordination claims may proceed concurrently.
-`NEXT` (the first item in `READY_QUEUE`) is the primary resume/default lane, but
-it is advisory for concurrency, not a serial execution lock. A later queue item
-may be claimed in a separate worktree only after its hard prerequisites and any
-hard milestone, contract, and decision-owner gates are satisfied/confirmed and
-the coordination forecast shows conflict-free ownership. No worktree may
-bypass dependencies, active claims, or unresolved decision-owner gates merely
-because the prompt is independent.
+`NEXT` is an advisory ready-work hint, not a serial execution lock. Select the
+next shaped product milestone and reconcile its prompts with the current
+catalog, real prerequisites, and active claims. A source-backed rules
+assumption can resolve an ambiguity without pausing for the owner; explicit
+product-only deferrals remain held while other work proceeds.
 
 #### Implementation-plan agent policy
 

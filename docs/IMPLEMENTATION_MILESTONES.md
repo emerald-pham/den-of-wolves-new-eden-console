@@ -1,49 +1,43 @@
-# Implementation Milestones — Completion Route
+# Implementation Milestones — Internal Technical Gates
 
-This is the short, dependency-ordered route from the current tested foundation
-to a complete Den of Wolves: New Eden companion game. It is a route, not a
-standalone selection authority. The detailed acceptance catalog and its stable
-IDs remain in [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md); live
-completion evidence remains in
-[`IMPLEMENTATION_PROGRESS.md`](./IMPLEMENTATION_PROGRESS.md).
+Owner playtests use the [Product Milestones](PRODUCT_MILESTONES.md) plan.
 
-Before selecting, assigning, starting, or editing a numbered prompt, run
-`npm run coordination:dependencies -- --prompt NNN` and read the compact packet
-generated from the mandatory
-[`IMPLEMENTATION_PROMPT_DEPENDENCIES.md`](./IMPLEMENTATION_PROMPT_DEPENDENCIES.md).
-Reconcile the exact row, hard
-prerequisites, evidence, and ownership with current `main` and active
-coordination before continuing. Refresh the packet and receipt after a
-rebase or material movement of current `main`. A prompt cannot be marked
-complete or merged while a hard prerequisite remains unmet.
+The M1–M13 stories and fixtures below are internal, dependency-ordered
+engineering gates from the tested foundation to a complete game. They do not
+define what the product owner must inspect in one sitting. The detailed prompt
+acceptance catalog and stable IDs live in
+[`implementation-prompts.json`](implementation-prompts.json); live completion
+evidence remains in [`IMPLEMENTATION_PROGRESS.md`](./IMPLEMENTATION_PROGRESS.md).
 
-`NEXT` (the first item in `READY_QUEUE`) is the primary resume/default lane, but
-it is advisory for concurrency, not a serial execution lock. A separate
-worktree may claim a later `READY_QUEUE` item concurrently only when its hard
-prompt prerequisites are done, every hard milestone, hard contract, and
-decision-owner gate is satisfied or explicitly confirmed, and the coordination
-forecast shows conflict-free ownership with no active claim overlap. A worktree
-must not bypass an unmet dependency, active claim, or unresolved decision-owner
-gate merely because the prompt is independent.
+Before shaping a product milestone, check the selected catalog rows, hard
+prerequisites, evidence, and active coordination against current `main`.
+`npm run coordination:dependencies -- --prompt NNN` is an optional read-only
+packet; it creates no receipt. Refresh it after a material move of `main`.
+Hard prerequisites describe realistic implementation readiness, not a Git or
+CI gate. Source-backed rules ambiguities follow the
+[assumptions process](PRODUCT_MILESTONES.md#how-the-campaign-runs); explicit
+product-only deferrals remain held while independent work continues.
+
+`NEXT` is an advisory ready-work hint, not a serial execution lock or a
+substitute for the shaped product milestone. Independent work may proceed
+without overriding a hard prerequisite or another task's live claim.
 
 Do not infer completion from the number of source files, screens, catalogs, or
 passing low-level tests. The repository has substantial tested foundations, but
-the progress ledger is the truthful prompt-level snapshot and the milestone
-gates below are the truthful player-story measure.
+the progress ledger is the truthful prompt-level snapshot. The gates below
+prove technical composition; the product playtest questions define what the
+owner can actually do.
 
 ## How to use this file
 
-1. Complete the mandatory dependency preflight above; the compact packet from
-   the shared dispatcher controls prompt readiness and ordering.
-2. Start from the earliest dependency-ready milestone, not automatically the
-   lowest unresolved prompt ID.
-3. Select one vertical result that a player or facilitator can observe.
-4. Look up only that milestone's prompt neighborhood and exact selected prompt
-   in `IMPLEMENTATION_PLAN.md`.
-5. Read the printed references routed for that mechanic, then follow
-   `CLAUDE.md` for test-first delivery and release.
-6. Mark a milestone green only after its end-to-end exit fixture passes. A set
-   of isolated controls or catalogs is not a completed milestone.
+1. Start with the next shaped product milestone and its one-sitting checks.
+2. Reconcile the selected prompt rows and dependencies with current `main` and
+   active ownership; use the optional read-only packet when helpful.
+3. Read only the relevant internal M1–M13 fixture and printed references.
+4. Follow `CLAUDE.md` for test-first commits, authority checks, review, and
+   release; deliver the owner-facing report in the product plan.
+5. Mark an internal gate green only after its end-to-end fixture passes. A set
+   of isolated controls or catalogs does not close that gate.
 
 Prompt ranges below are navigation hints, not ownership boundaries. Some
 cross-cutting or catastrophe prompts intentionally support several milestones.
@@ -418,8 +412,9 @@ Use this review budget for a normal slice:
    relevant tests, and printed sources once. Do not reread or re-audit unchanged
    global material for every adjacent prompt.
 2. **One red/green implementation loop:** `[PRESERVE]` may close from current
-   named evidence; `[EXTEND]`/`[NEW]` begins with the smallest missing failing
-   acceptance; `[DECISION]` begins with the unresolved policy assertion.
+   named evidence; new `[EXTEND]`/`[NEW]` behavior begins with the smallest
+   missing failing acceptance committed before its code; `[DECISION]` begins
+   with a cited source-backed reading when the printed rule is ambiguous.
 3. **One risk-based review:** independent review is required for security,
    authorization, hidden information, randomness, destructive migration,
    endgame, capacity, or complex conflict resolution. It is optional for an

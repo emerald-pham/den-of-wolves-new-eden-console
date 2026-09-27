@@ -5,6 +5,12 @@ workflow and product-safety guide: use its risk-based task path, focused tests,
 server-authority rules, emulator isolation, responsive UI checks, version and
 changelog policy, and truthful merge/deploy closeout.
 
+For the remaining numbered-prompt campaign, read
+[`docs/PRODUCT_MILESTONES.md`](docs/PRODUCT_MILESTONES.md) before shaping or
+building a playtest checkpoint. Its one-sitting product checks, fixed shape,
+source-backed assumption log, test-first commits, owner feedback, and cooldown
+process govern that campaign. The older M1–M13 fixtures remain internal gates.
+
 Only `gpt-6-luna` and `gpt-6-sol` may be delegated as subagents. Use
 `gpt-6-sol` for the independent risk reviews specified in `CLAUDE.md`.
 Use `max` for every `gpt-6-luna` subagent. `gpt-6-sol` may use only `medium`,
@@ -32,7 +38,8 @@ Use a separate non-`main` branch/worktree, inspect `coordination:status` when
 shared session/callable/rules, deploy/auth, release, or emulator resources may
 overlap, and preserve other tasks' reservations. Coordination is optional and
 does not require a universal implementation-prompt registration or commit
-trailer. Keep accepted scope frozen except for directly blocking defects.
+trailer. Keep a shaped milestone's scope frozen: repair defects in its accepted
+checks, and route additional work to later candidates.
 
 Worktree cleanup is part of task ownership. Run `npm run storage:status` before
 adding checkouts or dependencies. At completion, follow

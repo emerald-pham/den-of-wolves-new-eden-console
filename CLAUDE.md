@@ -34,9 +34,10 @@ system. Keep the workflow proportionate to the risk of the change.
    A dependency check such as
    `npm run coordination:dependencies -- --prompt NNN` is read-only: it reports
    the catalog row and hard prerequisites and does not create a nonce, receipt,
-   or other local proof artifact. An unfinished hard prerequisite or unresolved
-   owner decision means the prompt is not yet ready to tackle in the plan;
-   dependency readiness does not block commits, merges, pushes, or deployment.
+   or other local proof artifact. Hard prerequisites and explicit product-only
+   deferrals hold that prompt; source-backed rules ambiguity follows
+   `docs/PRODUCT_MILESTONES.md`. Continue independent work. Readiness is not a
+   commit, merge, push, or deployment gate.
    When catalog facts change, regenerate the human-readable views with
    `node scripts/generate-prompt-views.mjs`; use `--check` to verify that views
    are current.
@@ -49,27 +50,27 @@ system. Keep the workflow proportionate to the risk of the change.
    cheap catalog checks without new enforcement machinery or release delays.
    If a queue update would disrupt an in-flight final release,
    prepare it separately and land it after that release settles.
-4. Once a prompt or task is accepted, freeze its scope. Queue unrelated ideas
-   for a later task; add work during implementation only when it directly fixes
-   a blocking defect in the accepted change. Record the reason for any such
-   amendment in the task discussion.
+4. Freeze accepted scope. Repair defects in its checks; route additional
+   behavior to `docs/PRODUCT_MILESTONE_CANDIDATES.md` rather than enlarging it.
+
+For numbered-prompt work, follow the one-sitting playtest checkpoints and
+shaping, assumptions, test-first commits, feedback, and cooldown process in
+[`docs/PRODUCT_MILESTONES.md`](docs/PRODUCT_MILESTONES.md). M1–M13 are internal
+gates. Do not pause an approved build for owner feedback or a rules ruling;
+the first shaped checkpoint awaits approval for this planning handoff.
 
 Keep unrelated agent-policy and workflow edits out of an in-flight feature
 release. Queue them for the next safe checkpoint unless the user explicitly
 requests them now or they directly unblock that release.
 
-Coordination is lightweight and optional. Use `npm run coordination:begin` and
-`npm run coordination:status` when a task needs an owner record, its branch and
-worktree, a prompt reference, or a shared resource reservation. Coordinate the
-actual hotspots (shared session state, callable/rules files, deploy/auth
-infrastructure, release metadata, or an emulator row); do not claim every leaf
-file or a whole directory by default. `coordination:status` is the current
-source for ownership and reservations. Never infer that another task is stale
-or safe to interrupt from age alone. Preserve other tasks' claims and port
-reservations. A parked task needs only a clear parked status and next action;
-there is no status/heartbeat polling loop. Optional goals may stay in the chat
-or ordinary session record; there is no immutable goal file, digest comparison,
-one-shot provenance or repair chain, or cleanup gate.
+Coordination is lightweight and optional. Use `npm run coordination:begin` and `npm run coordination:status` when a
+task needs an owner record, its branch and worktree, a prompt reference, or a shared resource reservation. Coordinate
+the actual hotspots (shared session state, callable/rules files, deploy/auth infrastructure, release metadata, or an
+emulator row); do not claim every leaf file or a whole directory by default. `coordination:status` is the current
+source for ownership and reservations. Never infer that another task is stale or safe to interrupt from age alone.
+Preserve other tasks' claims and port reservations. A parked task needs only a clear parked status and next action;
+there is no status/heartbeat polling loop. Optional goals may stay in the chat or ordinary session record; there is
+no immutable goal file, digest comparison, one-shot provenance or repair chain, or cleanup gate.
 
 Process-gate changes are frozen through 2026-09-18. An exception needs two
 observed production-impacting failures that the proposed gate would have
@@ -77,29 +78,23 @@ prevented; fixes to broken existing tools remain allowed. For the first five
 prompts, use the existing task timestamps for a lightweight check; do not add a
 new telemetry system.
 
-The top-level coordinator defaults to `gpt-6-astra` with medium reasoning. It
-owns priorities, complete bounded task briefs, architecture decisions, and difficult
-blockers, and intervenes at meaningful boundaries rather than requesting
-repeated status, duplicating investigation, or reviewing every tool result. Do
-not create expensive child coordinators or a mandatory review stage. Only
-`gpt-6-luna` and `gpt-6-sol` may be delegated as subagents.
+The top-level coordinator defaults to `gpt-6-astra` with medium reasoning. It owns priorities, complete bounded task
+briefs, architecture decisions, and difficult blockers, and intervenes at meaningful boundaries rather than
+requesting repeated status, duplicating investigation, or reviewing every tool result. Do not create expensive child
+coordinators or a mandatory review stage. Only `gpt-6-luna` and `gpt-6-sol` may be delegated as subagents.
 
-Workers own task-specific documentation reading and code investigation. Beyond
-required agent instructions, the coordinator relies on concise worker findings,
-decisions needed, and evidence pointers; it does not duplicate their document
-reading. Inspect source material only to resolve a concrete decision or blocker.
-Do not interrupt an active owner or request a rebase solely for routine guidance
-updates; let the owner encounter them at its next normal update unless they
-materially affect the current work.
+Workers own task-specific documentation reading and code investigation. Beyond required agent instructions, the
+coordinator relies on concise worker findings, decisions needed, and evidence pointers; it does not duplicate their
+document reading. Inspect source material only to resolve a concrete decision or blocker. Do not interrupt an active
+owner or request a rebase solely for routine guidance updates; let the owner encounter them at its next normal update
+unless they materially affect the current work.
 
-One task owner carries a change through implementation, repairs, appropriate
-self-review and validation, merge, push, and deployment verification when
-applicable. A sidecar is optional and there is no minimum-agent count. Parallelize
-independent deliverables only when the concrete benefit exceeds coordination,
-context, and integration cost, and give every extra agent a bounded deliverable.
-Delegated workers default to `gpt-6-luna`. Use `max` for every `gpt-6-luna`
-subagent. `gpt-6-sol` may use only `medium`, `high`, `xhigh`, or `max`, selected
-for the bounded task. Use `max` when the task's complexity warrants it.
+One task owner carries a change through implementation, repairs, appropriate self-review and validation, merge, push,
+and deployment verification when applicable. A sidecar is optional and there is no minimum-agent count. Parallelize
+independent deliverables only when the concrete benefit exceeds coordination, context, and integration cost, and give
+every extra agent a bounded deliverable. Delegated workers default to `gpt-6-luna`. Use `max` for every `gpt-6-luna`
+subagent. `gpt-6-sol` may use only `medium`, `high`, `xhigh`, or `max`, selected for the bounded task. Use `max` when
+the task's complexity warrants it.
 
 Use `gpt-6-sol` for independent review of shared session state, callable behavior
 (including authorization and rules), Firestore rules, deployment/auth
@@ -142,35 +137,25 @@ a full gate on a candidate already known to need another rebase.
 
 ### Stopping while a worker remains active
 
-When delegated work remains unfinished, a coordinator may yield or end its
-current reply while a concrete, bounded worker is actively running with
-authority for its full implementation, validation, and release scope. Give it a
-complete bounded brief, the canonical parent task destination, and expected
-checkpoint. The worker must report completion, a blocker, review-ready status,
-or a missing decision through
-collaboration or `send_message_to_thread` to that exact parent task; ordinary
-commentary is not a reliable handoff. The parent resumes on that boundary,
-retrieves a terminal result with one bounded status lookup if delivery is
-uncertain, and resolves/dispatches the next task while the goal remains
-unfinished.
+When delegated work remains unfinished, a coordinator may yield or end its current reply while a concrete, bounded
+worker is actively running with authority for its full implementation, validation, and release scope. Give it a
+complete bounded brief, the canonical parent task destination, and expected checkpoint. The worker must report
+completion, a blocker, review-ready status, or a missing decision through collaboration or `send_message_to_thread`
+to that exact parent task; ordinary commentary is not a reliable handoff. The parent resumes on that boundary,
+retrieves a terminal result with one bounded status lookup if delivery is uncertain, and resolves/dispatches the next
+task while the goal remains unfinished.
 
-Do not end with no work running and imply progress, create a dummy worker or
-sleep heartbeat, or repeat empty polls. Waiting/yielding avoids continuous
-model generation, but worker execution, handoff, and resumed processing still
-consume usage; never promise zero tokens or unlimited overnight completion.
-Once an owner or CI gate is running, prefer one interruptible event wait sized
-for that work, or yield with its owner and next boundary recorded. Do not cycle
-through short waits, repeated status snapshots, or elapsed-time commentary
-while nothing actionable has changed. A long browser gate is not a checkpoint
-each minute. Query status only when the wait returns a meaningful boundary,
-event delivery is unavailable, an expected bound is exceeded, or a concrete
-failure needs diagnosis. New user input interrupts the wait and takes priority.
-If the goal remains unfinished and ready work is available, a completed worker
-needs a next dispatch; when no independent work is available, park only at an
-explicit boundary or genuine blocker and report it truthfully. Keep pending user
-decisions pending while independent work proceeds. App resume may not survive a
-sleeping host or closed app, so completion is never guaranteed across that
-boundary.
+Do not end with no work running and imply progress, create a dummy worker or sleep heartbeat, or repeat empty polls.
+Waiting/yielding avoids continuous model generation, but worker execution, handoff, and resumed processing still
+consume usage; never promise zero tokens or unlimited overnight completion. Once an owner or CI gate is running,
+prefer one interruptible event wait sized for that work, or yield with its owner and next boundary recorded. Do not
+cycle through short waits, repeated status snapshots, or elapsed-time commentary while nothing actionable has
+changed. A long browser gate is not a checkpoint each minute. Query status only when the wait returns a meaningful
+boundary, event delivery is unavailable, an expected bound is exceeded, or a concrete failure needs diagnosis. New
+user input interrupts the wait and takes priority. If the goal remains unfinished and ready work is available, a
+completed worker needs a next dispatch; when no independent work is available, park only at an explicit boundary or
+genuine blocker and report it truthfully. Keep pending user decisions pending while independent work proceeds. App
+resume may not survive a sleeping host or closed app, so completion is never guaranteed across that boundary.
 
 ## Testing and review
 
@@ -179,10 +164,13 @@ need focused rules and callable tests: assert Firestore denies privileged
 client writes, callable authorization rejects the wrong actor, and the server
 transaction owns the mutation. New routes need a route-level test that activates
 the visible return control. Components should use accessible roles and text;
-pure logic belongs in focused unit tests. Low-impact, reversible copy or CSS
-changes do not need a red-before-green TDD ritual, but they do need a useful
-rendered or focused check. Preserve the distinction between local tests,
-rendered review, deployed behavior, and capacity evidence.
+pure logic belongs in focused unit tests. For new behavior, commit a failing
+test before code, in separate commits. Never weaken, skip, or delete an
+existing test to pass; leave a suspect test intact and flag it. Never modify
+an existing test in the code commit it covers. Record reasons for every test
+added, changed, skipped, or deleted in the nontechnical checkpoint report.
+Low-impact changes without new behavior need a focused or rendered check.
+Keep local tests, rendered QA, deployment, and live behavior distinct.
 
 Typical checks are:
 
@@ -343,9 +331,11 @@ These paths are recorded as locators for this single-machine workflow only. Do
 not add repository links to private contents, or copy, quote, reproduce, or
 commit private source files or content. Printed component sheets control their
 named ship, shuttle, fighter wing, console, card, value, or owner when they
-conflict with a generic guide. If the private library is unavailable, or a
-routed source leaves a gap, stop and record the unresolved owner decision
-rather than inventing a rule.
+conflict with a generic guide. For ambiguity, cite and paraphrase the precise
+passage in `docs/PRODUCT_MILESTONE_ASSUMPTIONS.md`, choose the best reading,
+and continue. If a routed source leaves a gap or is unavailable, report it and
+work independently; stop only when no useful progress remains. Do not commit
+private wording or files.
 The owner-only archive is outside Git at
 `/Users/emeraldpham/.codex/private-reference/den-of-wolves-new-eden-console/`;
 do not touch it in routine repository work.

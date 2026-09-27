@@ -25,8 +25,12 @@ are regenerated from it:
 | Document | Owns |
 | --- | --- |
 | [implementation-prompts.json](implementation-prompts.json) | Canonical prompt definitions, statuses, dependencies, and release facts |
+| [PRODUCT_MILESTONES.md](PRODUCT_MILESTONES.md) | Owner-facing playtest checkpoints, first shaped scope, and the trimmed Shape Up build, report, and cooldown loop |
+| [PRODUCT_MILESTONE_FEEDBACK.md](PRODUCT_MILESTONE_FEEDBACK.md) | The owner's in-app review notes and how the next shape addresses each one |
+| [PRODUCT_MILESTONE_ASSUMPTIONS.md](PRODUCT_MILESTONE_ASSUMPTIONS.md) | Source-cited rules readings made during builds and their later corrections |
+| [PRODUCT_MILESTONE_CANDIDATES.md](PRODUCT_MILESTONE_CANDIDATES.md) | Work discovered outside the active shaped scope |
 | [IMPLEMENTATION_PROMPT_DEPENDENCIES.md](IMPLEMENTATION_PROMPT_DEPENDENCIES.md) | Generated dependency/readiness view |
-| [IMPLEMENTATION_MILESTONES.md](IMPLEMENTATION_MILESTONES.md) | Compact dependency-ordered player-story route |
+| [IMPLEMENTATION_MILESTONES.md](IMPLEMENTATION_MILESTONES.md) | Internal technical stories and exit fixtures |
 | [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) | Generated prompt objectives, acceptance, and source decisions |
 | [IMPLEMENTATION_PROGRESS.md](IMPLEMENTATION_PROGRESS.md) | Generated prompt status and release evidence |
 | [IMPLEMENTATION_CONTRACTS.md](IMPLEMENTATION_CONTRACTS.md) | Generated bounded contract view for named prompts |
@@ -36,7 +40,9 @@ Do not manually edit or copy live counts, dependencies, or active-prompt status
 into generated guides. Update the catalog and regenerate its Markdown views;
 the views remain useful for human review and links. The optional
 `coordination:dependencies` check is read-only, creates no nonce or receipt,
-and `NEXT` is an advisory ready-work hint rather than a serial lock.
+and `NEXT` is an advisory ready-work hint rather than a serial lock. Shape the
+next owner playtest from the current catalog and prior feedback; later product
+checkpoint rows are provisional planning slices, not a second status ledger.
 
 ## Product and presentation contracts
 

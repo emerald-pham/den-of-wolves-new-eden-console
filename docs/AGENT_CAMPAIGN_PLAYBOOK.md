@@ -5,12 +5,18 @@ an economical coordination aid for a 20-player Firebase game, not a mandatory
 multi-agent ceremony. [`CLAUDE.md`](../CLAUDE.md) remains canonical for product,
 security, testing, emulator, release, and deployment rules.
 
+For the remaining numbered-prompt campaign, the owner-facing
+[playtest checkpoints](PRODUCT_MILESTONES.md) govern shaping, frozen scope,
+source-backed assumptions, test-first commits, nontechnical reports, owner
+feedback, and cooldown. Use this playbook to coordinate work inside a shape.
+
 ## Start with current facts
 
 Read the current JSON prompt catalog at
 [`implementation-prompts.json`](implementation-prompts.json) and its generated
-Markdown views. Use the catalog's readiness/dependency check before selecting a
-prompt; `npm run coordination:dependencies -- --prompt NNN` is a read-only
+Markdown views, then the active shaped checkpoint and prior feedback. Use the
+catalog's readiness/dependency check for selected prompts;
+`npm run coordination:dependencies -- --prompt NNN` is a read-only
 report and creates no nonce or local receipt. `NEXT` is an advisory ready-work
 hint. Do not copy old counts, SHAs, versions, or statuses into a new task.
 When catalog facts change, run `node scripts/generate-prompt-views.mjs` and use
@@ -42,8 +48,9 @@ failed attempt and reason are recorded in the task discussion.
 
 ## Scope and concurrency
 
-Freeze the accepted prompt scope. Queue unrelated improvements for later; add
-work only for a directly blocking defect and record that reason.
+Freeze the accepted playtest-checkpoint scope. Repair defects that block its
+checks. Queue unrelated additions in the
+[later-candidate list](PRODUCT_MILESTONE_CANDIDATES.md) for a future shape.
 Independent ready prompts may run concurrently when they do not overlap a
 shared hotspot. Use `coordination:status` to inspect the current owner,
 worktree, process, and emulator reservations. Coordination is optional and
@@ -58,11 +65,12 @@ completion chain, or ancestry-only merge requirement.
 
 ## Normal execution
 
-1. Select a ready prompt from the catalog and accept its bounded scope.
-2. Implement the smallest useful change with focused, meaningful checks. Use
-   red-before-green tests for new security, authority, callable, rules, and
-   complex gameplay behavior; reversible copy/CSS work can use a focused or
-   rendered check instead.
+1. Start with the shaped checkpoint, any due cooldown, and a ready prompt in
+   its scope. Continue independent shaped work around blocked prompts.
+2. For new behavior, commit its failing test before the implementation commit.
+   Never weaken, skip, or delete an existing test to pass; leave a suspect
+   existing test intact and flag it. Never change an existing test in the same
+   commit as the code it covers. Use focused and rendered checks for UI work.
 3. If the change is in the risk-review set, run one independent review and
    collect all findings. The owner performs a bounded repair and reviews the
    resulting diff.
@@ -72,6 +80,9 @@ completion chain, or ancestry-only merge requirement.
 5. Merge to `main`, push `origin/main`, and verify the actual deployment or
    workflow result after deployment. A pushed workflow, local green test, or rendered screenshot
    is not a substitute for the other kinds of evidence.
+6. Hand over a one-sitting in-app walkthrough and the nontechnical checkpoint
+   report specified in the product plan. Record owner feedback in the repo and
+   fix flagged issues in cooldown before starting a new checkpoint build.
 
 For a UI change, the owner checks narrow phone, wide desktop, and short
 landscape rendering, fonts, contrast, overflow, reduced motion, and visible
@@ -113,13 +124,15 @@ Campaign objective: deliver the accepted Den of Wolves tasks with focused
 checks, appropriate risk review, truthful deployment evidence, and one owner
 from implementation through merge.
 
-Starting state: read CLAUDE.md, this playbook, the JSON prompt catalog, current
-main, active coordination, and the current package/changelog when product work
-is in scope. Record only newly observed facts.
+Starting state: read CLAUDE.md, the shaped playtest checkpoint, prior feedback,
+assumptions, this playbook, the JSON prompt catalog, current main, active
+coordination, and the current package/changelog when product work is in scope.
+Record only newly observed facts.
 
-Execution: choose ready prompts, freeze each accepted scope, use one owner per
-task, and coordinate only actual shared session/callable/rules, deploy/auth,
-release, and emulator hotspots.
+Execution: finish due cooldown, choose ready prompts within frozen checkpoint
+scope, commit a failing test before new behavior, use one owner per task, and
+coordinate only actual shared session/callable/rules, deploy/auth, release, and
+emulator hotspots. Log source-backed assumptions and later candidates.
 
 Review: collect all risk-review findings together, repair in a bounded follow-up,
 commit the reconciled reviewed candidate, and run one appropriate final

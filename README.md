@@ -71,9 +71,11 @@ firestore.rules        read model and client-write denials
 tests/rules/           emulator-backed security assertions
 ```
 
-Use the [implementation plan](docs/IMPLEMENTATION_PLAN.md) for staged gameplay
-work. The [documentation map](docs/README.md) identifies each guide's audience
-and authority so live status, workflow policy, product contracts, and historical
+Use the [product playtest checkpoints](docs/PRODUCT_MILESTONES.md) to shape
+and review staged gameplay, and the
+[implementation plan](docs/IMPLEMENTATION_PLAN.md) for prompt contracts. The
+[documentation map](docs/README.md) identifies each guide's audience and
+authority so live status, workflow policy, product contracts, and historical
 handoffs are not mistaken for interchangeable sources. Shared vessel composition
 belongs to the
 [console architecture](docs/CONSOLE_ARCHITECTURE.md); the
