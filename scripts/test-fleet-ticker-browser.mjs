@@ -1,8 +1,19 @@
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from 'playwright';
+import { assessTickerGeometry } from './ticker-browser-geometry.mjs';
 import { createTickerSmokeRuntime } from './ticker-smoke-runtime.mjs';
+
+const geometryTests = spawnSync(
+  process.execPath,
+  ['--test', path.join(process.cwd(), 'scripts/ticker-browser-geometry.test.mjs')],
+  { stdio: 'inherit' },
+);
+if (geometryTests.error) throw geometryTests.error;
+if (geometryTests.status !== 0) {
+  throw new Error(`Ticker geometry fixture tests failed with exit code ${geometryTests.status}.`);
+}
 
 const host = '127.0.0.1';
 const runtime = await createTickerSmokeRuntime();
@@ -330,22 +341,53 @@ async function assertTicker(page, label, fontMode, reducedMotion, expectedText) 
 }
 
 async function assertTickerGeometry(page, label, reducedMotion) {
-  const snapshot = await page.evaluate(async ({ reduced, velocitySampleStride }) => {
+  await page.waitForFunction((reduced) => {
+    const frame = document.querySelector('.fleet-ticker__window');
+    return Boolean(frame && (reduced
+      ? frame.querySelector('.fleet-ticker__message')
+      : frame.querySelector('.fleet-ticker__group')));
+  }, reducedMotion, { timeout: 15_000 });
+
+  const snapshot = await page.evaluate(async ({ reduced }) => {
     const frame = document.querySelector('.fleet-ticker__window');
     const waitFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
     if (!frame) return { reduced, error: 'ticker frame missing' };
+    const initialPositions = Array.isArray(window.__tickerSmokeGeometryStarts)
+      ? window.__tickerSmokeGeometryStarts
+      : [];
+    const anchor = [...initialPositions].sort((left, right) => left.startX - right.startX)[0] ?? null;
+
+    let previousFrame = null;
+    let stableFrameCount = 0;
+    let frameTime = 0;
+    for (let index = 0; index < 90 && stableFrameCount < 3; index += 1) {
+      frameTime = await waitFrame();
+      const bounds = frame.getBoundingClientRect();
+      const nextFrame = { left: bounds.left, right: bounds.right, width: bounds.width,
+        top: bounds.top, bottom: bounds.bottom };
+      if (previousFrame && Object.keys(nextFrame).every((key) => (
+        Math.abs(nextFrame[key] - previousFrame[key]) <= 0.25
+      ))) {
+        stableFrameCount += 1;
+      } else {
+        stableFrameCount = 0;
+      }
+      previousFrame = nextFrame;
+    }
+    if (stableFrameCount < 3) return { reduced, error: 'ticker frame geometry did not settle' };
 
     const samples = [];
-    for (let index = 0; index < 18; index += 1) {
-      const frameTime = await waitFrame();
+    let visibleAnchorFrames = 0;
+    for (let index = 0; index < 600; index += 1) {
+      frameTime = await waitFrame();
       const frameBounds = frame.getBoundingClientRect();
       const groups = [...frame.querySelectorAll('.fleet-ticker__group')].map((group) => {
         const bounds = group.getBoundingClientRect();
         return {
           id: group.getAttribute('data-instance-id') ?? '',
           messageId: group.getAttribute('data-message-id') ?? '',
-          left: bounds.left,
-          right: bounds.right,
+          left: bounds.left - frameBounds.left,
+          right: bounds.right - frameBounds.left,
           width: bounds.width,
           top: bounds.top,
           bottom: bounds.bottom,
@@ -354,7 +396,20 @@ async function assertTickerGeometry(page, label, reducedMotion) {
             .map((copy) => copy.getAttribute('data-copy-instance-id')),
         };
       }).filter((group) => group.width > 0 && group.bottom > frameBounds.top && group.top < frameBounds.bottom);
-      samples.push({ frame: { left: frameBounds.left, right: frameBounds.right }, groups });
+      samples.push({
+        frame: { left: 0, right: frameBounds.width, width: frameBounds.width },
+        elapsed: frameTime,
+        groups,
+      });
+      if (reduced) {
+        if (samples.length >= 18) break;
+        continue;
+      }
+      const anchorGroup = groups.find((group) => group.id === anchor?.id);
+      if (anchorGroup && anchorGroup.left < frameBounds.width && anchorGroup.right > 0) {
+        visibleAnchorFrames += 1;
+      }
+      if (visibleAnchorFrames >= 18) break;
     }
 
     if (reduced) {
@@ -382,34 +437,24 @@ async function assertTickerGeometry(page, label, reducedMotion) {
       }
     }
 
-    const tracks = new Map();
-    for (const sample of samples) {
-      for (const group of sample.groups) {
-        const entries = tracks.get(group.id) ?? [];
-        entries.push(group);
-        tracks.set(group.id, entries);
-      }
-    }
-    const velocitySamples = [];
-    for (const positions of tracks.values()) {
-      for (let index = velocitySampleStride; index < positions.length; index += 1) {
-        const previous = positions[index - velocitySampleStride];
-        const elapsed = positions[index].elapsed - previous.elapsed;
-        if (elapsed > 0) velocitySamples.push((positions[index].left - previous.left) / elapsed * 1_000);
-      }
-    }
-    const speedStable = velocitySamples.length >= 8 && velocitySamples.every((speed) => speed >= -64 && speed <= -32);
     return {
       reduced,
       sampleCount: samples.length,
       overlap,
       stablePhysicalInstances,
-      movingTrackSamples: Math.max(0, ...[...tracks.values()].map((positions) => positions.length)),
-      velocitySamples,
-      speedStable,
+      initialPositions,
       samples,
     };
-  }, { reduced: reducedMotion, velocitySampleStride: VELOCITY_SAMPLE_STRIDE });
+  }, { reduced: reducedMotion });
+
+  if (!reducedMotion) {
+    const initialPosition = [...snapshot.initialPositions]
+      .sort((left, right) => left.startX - right.startX)[0] ?? null;
+    snapshot.motionAssessment = assessTickerGeometry({
+      initialPosition,
+      samples: snapshot.samples,
+    });
+  }
 
   await mkdir(artifactDirectory, { recursive: true });
   const artifactName = label.replaceAll('/', '-');
@@ -429,7 +474,9 @@ async function assertTickerGeometry(page, label, reducedMotion) {
   if (!snapshot.stablePhysicalInstances) {
     throw new Error(`${label}: ticker did not expose stable physical group and copy identities`);
   }
-  if (snapshot.movingTrackSamples < 8 || !snapshot.speedStable) {
+  const assessment = snapshot.motionAssessment;
+  if (!assessment?.initialEdgeValid || !assessment.movedTowardViewport ||
+      !assessment.entryTransitionObserved || !assessment.speedStable) {
     throw new Error(`${label}: ticker did not maintain a measurable constant linear track: ${JSON.stringify(snapshot)}`);
   }
 }
@@ -995,6 +1042,43 @@ async function runCase(fontMode, reducedMotion, viewport, scenario = 'press') {
     }
   });
   await context.addInitScript(({ fixture, transitionFixture, sourceFixtures, fontMode: mode, reduced }) => {
+    window.__tickerSmokeGeometryStarts = [];
+    const recordInitialGroup = (group) => {
+      if (!(group instanceof HTMLElement) || !group.matches('.fleet-ticker__group')) return;
+      const id = group.getAttribute('data-instance-id') ?? '';
+      if (!id || window.__tickerSmokeGeometryStarts.some((start) => start.id === id)) return;
+      const frame = group.closest('.fleet-ticker__window');
+      if (!frame) return;
+      const frameBounds = frame.getBoundingClientRect();
+      const startX = Number.parseFloat(group.style.getPropertyValue('--fleet-ticker-start-x'));
+      const width = Number.parseFloat(group.style.getPropertyValue('--fleet-ticker-group-width'));
+      if (!Number.isFinite(startX) || frameBounds.width <= 0) return;
+      const left = startX;
+      window.__tickerSmokeGeometryStarts.push({
+        id,
+        startX,
+        left,
+        right: left + (Number.isFinite(width) ? width : 0),
+        width: Number.isFinite(width) ? width : 0,
+        frame: {
+          left: 0,
+          right: frameBounds.width,
+          width: frameBounds.width,
+        },
+        elapsed: performance.now(),
+      });
+    };
+    const initialGroupObserver = new MutationObserver((records) => {
+      for (const record of records) {
+        for (const node of record.addedNodes) {
+          if (!(node instanceof Element)) continue;
+          if (node.matches('.fleet-ticker__group')) recordInitialGroup(node);
+          for (const group of node.querySelectorAll('.fleet-ticker__group')) recordInitialGroup(group);
+        }
+      }
+    });
+    initialGroupObserver.observe(document, { childList: true, subtree: true });
+
     const transition = sessionStorage.getItem('ticker-smoke-transition');
     const activeFixture = transitionFixture && transition === 'turn-one'
       ? transitionFixture
@@ -1034,15 +1118,13 @@ async function runCase(fontMode, reducedMotion, viewport, scenario = 'press') {
   const label = `${scenario}/${fontMode}/${reducedMotion ? 'reduced' : 'normal'}/${viewport.width}x${viewport.height}`;
   try {
     await page.goto(`${appUrl}${scenario === 'turn-zero' ? '#/roles' : '#/ships/aegis'}`, { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(100);
-    await assertTicker(page, `${label}/initial`, fontMode, reducedMotion, expectedText);
     await assertTickerGeometry(page, `${label}/initial-geometry`, reducedMotion);
+    await assertTicker(page, `${label}/initial`, fontMode, reducedMotion, expectedText);
     if (scenario === 'press') {
       await page.evaluate(() => sessionStorage.setItem('ticker-smoke-transition', 'short-press'));
       await page.reload({ waitUntil: 'domcontentloaded' });
-      await page.waitForTimeout(100);
-      await assertTicker(page, `${label}/short`, fontMode, reducedMotion, 'SNN // OK');
       await assertTickerGeometry(page, `${label}/short-geometry`, reducedMotion);
+      await assertTicker(page, `${label}/short`, fontMode, reducedMotion, 'SNN // OK');
       await page.evaluate(() => sessionStorage.removeItem('ticker-smoke-transition'));
       await page.reload({ waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(100);
