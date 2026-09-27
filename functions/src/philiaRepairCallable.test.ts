@@ -272,7 +272,7 @@ it.each([
     session.activeRoleIds = ['dione-engineer', 'unknown-role'];
     return session;
   }],
-  ['inactive role', (session: Fields, actor: Fields, group: Fields) => {
+  ['inactive role', (session: Fields, actor: Fields) => {
     actor.assignedRoleId = 'dione-captain';
     actor.activeConsoleRoleId = 'dione-captain';
     return session;
