@@ -4,11 +4,12 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { useSessionStore } from '@/store/useSessionStore';
 
 const mocks = vi.hoisted(() => ({
-  read: vi.fn(), advance: vi.fn(), createAttempt: vi.fn(), purchaseUpgrade: vi.fn(), retryUpgrade: vi.fn(),
+  read: vi.fn(), advance: vi.fn(), retry: vi.fn(), createAttempt: vi.fn(), purchaseUpgrade: vi.fn(), retryUpgrade: vi.fn(),
 }));
 vi.mock('@/lib/endeavourResearchService', () => ({
   readEndeavourResearchWorkspace: mocks.read,
   advanceEndeavourResearchTrack: mocks.advance,
+  retryEndeavourResearchAttempt: mocks.retry,
   createEndeavourResearchAttempt: mocks.createAttempt,
 }));
 vi.mock('@/lib/endeavourFieldUpgradeService', async (importOriginal) => {
@@ -65,9 +66,11 @@ beforeEach(() => {
   mocks.advance.mockReset();
   mocks.purchaseUpgrade.mockReset();
   mocks.retryUpgrade.mockReset();
+  mocks.retry.mockReset();
   mocks.createAttempt.mockReset();
   mocks.read.mockResolvedValue(workspace);
   mocks.advance.mockResolvedValue({ status: 'committed' });
+  mocks.retry.mockResolvedValue({ status: 'replayed' });
   let requestIndex = 0;
   mocks.createAttempt.mockImplementation(({ workspace: observed, trackId, funding }) => ({
     sessionId: observed.sessionId,
@@ -255,16 +258,99 @@ it('uses an already refreshed entitled workspace when the stale reply arrives la
 
 it('retries an uncertain transport with the exact same request ID and CAS values', async () => {
   const user = userEvent.setup();
-  mocks.advance.mockRejectedValueOnce(new Error('connection interrupted'))
-    .mockResolvedValueOnce({ status: 'replayed' });
+  mocks.advance.mockRejectedValueOnce(new Error('connection interrupted'));
+  mocks.retry.mockResolvedValueOnce({ status: 'replayed' });
   render(<EndeavourResearchPanel control={control} />);
   await user.click(await screen.findByRole('button', { name: 'Advance standard research' }));
   await user.click(await screen.findByRole('button', { name: 'Retry same research request' }));
-  await waitFor(() => expect(mocks.advance).toHaveBeenCalledTimes(2));
-  expect(mocks.advance.mock.calls[0]![0]).toEqual(mocks.advance.mock.calls[1]![0]);
-  expect(mocks.advance.mock.calls[0]![0]).toMatchObject({
+  await waitFor(() => expect(mocks.retry).toHaveBeenCalledTimes(1));
+  expect(mocks.advance).toHaveBeenCalledTimes(1);
+  expect(mocks.advance.mock.calls[0]![0]).toEqual(mocks.retry.mock.calls[0]![0]);
+  expect(mocks.retry.mock.calls[0]![0]).toMatchObject({
     requestId: 'research-attempt-1', expectedResearchRevision: 0, expectedControlRevision: 4,
   });
+});
+
+it('confirms the exact pending request after a same-holder cycle and control rollover', async () => {
+  const user = userEvent.setup();
+  const nextCycle = {
+    ...workspace,
+    cycle: 4,
+    cadence: { cycle: 4, revision: 0, choices: [] },
+  };
+  mocks.read.mockResolvedValueOnce(workspace).mockResolvedValueOnce(workspace);
+  mocks.advance.mockRejectedValueOnce(new Error('connection interrupted'));
+  mocks.retry.mockResolvedValueOnce({ status: 'replayed' });
+  render(<EndeavourResearchPanel control={control} />);
+  await user.click(await screen.findByRole('button', { name: 'Advance standard research' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Retry same research request' })).toBeEnabled());
+
+  const { session, me } = useSessionStore.getState();
+  act(() => useSessionStore.getState().setIdentity({
+    ...session!,
+    currentTurn: 4,
+    turnPhase: { ...session!.turnPhase!, turn: 4 },
+    shuttleControl: { endeavour: { ...session!.shuttleControl!.endeavour!, revision: 5 } },
+  }, { ...me! }));
+  mocks.read.mockResolvedValue(nextCycle);
+  await user.click(screen.getByRole('button', { name: 'Refresh private research' }));
+  await waitFor(() => expect(mocks.read).toHaveBeenCalledTimes(3));
+  expect(screen.getByRole('button', { name: 'Retry same research request' })).toBeEnabled();
+
+  await user.click(screen.getByRole('button', { name: 'Retry same research request' }));
+  await waitFor(() => expect(mocks.retry).toHaveBeenCalledTimes(1));
+  expect(mocks.advance).toHaveBeenCalledTimes(1);
+  expect(mocks.retry).toHaveBeenCalledWith({
+    sessionId: 's1', requestId: 'research-attempt-1', expectedControlRevision: 4,
+    expectedResearchRevision: 0, expectedCycle: 3, trackId: 'reactor', funding: 'standard',
+  });
+  expect(await screen.findByRole('status')).toHaveTextContent(/reactor research request was confirmed/i);
+});
+
+it('removes exact retry access when the current holder changes', async () => {
+  const user = userEvent.setup();
+  mocks.advance.mockRejectedValueOnce(new Error('connection interrupted'));
+  const { container, rerender } = render(<EndeavourResearchPanel control={control} />);
+  await user.click(await screen.findByRole('button', { name: 'Advance standard research' }));
+  await screen.findByRole('button', { name: 'Retry same research request' });
+
+  const { session, me } = useSessionStore.getState();
+  const changedControl = { ...control, holderUid: 'new-scientist', revision: 5 };
+  act(() => useSessionStore.getState().setIdentity({
+    ...session!,
+    shuttleControl: { endeavour: changedControl },
+  }, { ...me! }));
+  rerender(<EndeavourResearchPanel control={changedControl} />);
+
+  await waitFor(() => expect(container).toBeEmptyDOMElement());
+  expect(mocks.retry).not.toHaveBeenCalled();
+});
+
+it('ignores an exact replay that settles after current Scientist authority is lost', async () => {
+  const user = userEvent.setup();
+  let resolveRetry!: (result: { status: 'replayed' }) => void;
+  mocks.advance.mockRejectedValueOnce(new Error('connection interrupted'));
+  mocks.retry.mockReturnValueOnce(new Promise((done) => { resolveRetry = done; }));
+  const { container, rerender } = render(<EndeavourResearchPanel control={control} />);
+  await user.click(await screen.findByRole('button', { name: 'Advance standard research' }));
+  await user.click(await screen.findByRole('button', { name: 'Retry same research request' }));
+  await waitFor(() => expect(mocks.retry).toHaveBeenCalledTimes(1));
+
+  const { session, me } = useSessionStore.getState();
+  const changedControl = { ...control, holderUid: 'new-scientist', revision: 5 };
+  act(() => useSessionStore.getState().setIdentity({
+    ...session!,
+    shuttleControl: { endeavour: changedControl },
+  }, { ...me! }));
+  rerender(<EndeavourResearchPanel control={changedControl} />);
+  await waitFor(() => expect(container).toBeEmptyDOMElement());
+
+  await act(async () => {
+    resolveRetry({ status: 'replayed' });
+    await Promise.resolve();
+  });
+  expect(screen.queryByText(/research request was confirmed/i)).not.toBeInTheDocument();
+  expect(screen.queryByRole('list', { name: 'Research progress' })).not.toBeInTheDocument();
 });
 
 it('keeps the ore-funded choice unavailable without five current Shepherd ore', async () => {

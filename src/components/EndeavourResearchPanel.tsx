@@ -4,6 +4,7 @@ import {
   advanceEndeavourResearchTrack,
   createEndeavourResearchAttempt,
   readEndeavourResearchWorkspace,
+  retryEndeavourResearchAttempt,
   type EndeavourResearchAttempt,
   type EndeavourResearchFunding,
   type EndeavourResearchStaleReply,
@@ -184,15 +185,20 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
   const staleBlocksNewChoice = Boolean(activeStaleRecovery &&
     selectedTrackId === activeStaleRecovery.reply.trackId);
 
-  async function submitAttempt(attempt: EndeavourResearchAttempt, trackName: string): Promise<void> {
+  async function submitAttempt(
+    attempt: EndeavourResearchAttempt,
+    trackName: string,
+    exactRetry = false,
+  ): Promise<void> {
     if (!identityKey || !sessionId || !uid || busyFunding !== null) return;
     setBusyAction({ identityKey, funding: attempt.funding });
     setFeedback({ identityKey, notice: '', error: '' });
     try {
-      const result = await advanceEndeavourResearchTrack(attempt);
-      if (!isCurrentScientistHolder(
-        sessionId, uid, attempt.expectedControlRevision, attempt.expectedCycle,
-      )) return;
+      const result = await (exactRetry
+        ? retryEndeavourResearchAttempt(attempt)
+        : advanceEndeavourResearchTrack(attempt));
+      if (!isCurrentScientistHolder(sessionId, uid, exactRetry ? undefined : attempt.expectedControlRevision,
+        exactRetry ? undefined : attempt.expectedCycle)) return;
       setPendingAttempt(null);
       if (result.status === 'stale') {
         setStaleRecovery({ identityKey, attempt, reply: result });
@@ -202,20 +208,22 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
         }
       } else {
         setStaleRecovery(null);
-        setFeedback({ identityKey, notice: `${trackName} advanced one research box.`, error: '' });
+        setFeedback({
+          identityKey,
+          notice: result.status === 'replayed'
+            ? `${trackName} research request was confirmed.`
+            : `${trackName} advanced one research box.`,
+          error: '',
+        });
         await reload();
       }
     } catch (cause) {
-      if (isCurrentScientistHolder(
-        sessionId, uid, attempt.expectedControlRevision, attempt.expectedCycle,
-      )) {
+      if (isCurrentScientistHolder(sessionId, uid)) {
         if (mayRetryExactRequest(cause)) setPendingAttempt({ identityKey, attempt });
         else setPendingAttempt(null);
         setFeedback({ identityKey, notice: '', error: errorMessage(cause) });
         await reload();
-        if (mayRetryExactRequest(cause) && isCurrentScientistHolder(
-          sessionId, uid, attempt.expectedControlRevision, attempt.expectedCycle,
-        )) {
+        if (mayRetryExactRequest(cause) && isCurrentScientistHolder(sessionId, uid)) {
           setFeedback({
             identityKey, notice: '',
             error: `${errorMessage(cause)} This request may have committed; retry the same request to confirm it.`,
@@ -240,9 +248,9 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
   }
 
   async function retrySameRequest(): Promise<void> {
-    if (!activePendingAttempt || !workspace) return;
-    const trackName = workspace.tracks.find((track) => track.trackId === activePendingAttempt.attempt.trackId)?.name ?? 'Research';
-    await submitAttempt(activePendingAttempt.attempt, trackName);
+    if (!activePendingAttempt) return;
+    const trackName = workspace?.tracks.find((track) => track.trackId === activePendingAttempt.attempt.trackId)?.name ?? 'Research';
+    await submitAttempt(activePendingAttempt.attempt, trackName, true);
   }
 
   async function retryWithCurrentRevision(): Promise<void> {

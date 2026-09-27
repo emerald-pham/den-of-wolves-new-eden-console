@@ -325,6 +325,29 @@ function parseCommittedReply(value: unknown, attempt: EndeavourResearchAttempt):
   return { status: value.status };
 }
 
+function assertWellFormedAttempt(attempt: EndeavourResearchAttempt, sessionId: string): void {
+  if (!attempt || attempt.sessionId !== sessionId ||
+      typeof attempt.requestId !== 'string' || !/^[\w-]{1,128}$/.test(attempt.requestId) ||
+      !isCounter(attempt.expectedResearchRevision) || attempt.expectedResearchRevision >= Number.MAX_SAFE_INTEGER ||
+      !isCounter(attempt.expectedControlRevision) || !isCounter(attempt.expectedCycle) ||
+      typeof attempt.trackId !== 'string' || !/^[a-z][a-z0-9-]{0,127}$/.test(attempt.trackId) ||
+      (attempt.funding !== 'standard' && attempt.funding !== 'shepherd-ore')) {
+    throw new Error('Endeavour research changed. Refresh before choosing.');
+  }
+}
+
+function requestPayload(attempt: EndeavourResearchAttempt) {
+  return {
+    sessionId: attempt.sessionId,
+    requestId: attempt.requestId,
+    expectedControlRevision: attempt.expectedControlRevision,
+    expectedResearchRevision: attempt.expectedResearchRevision,
+    expectedCycle: attempt.expectedCycle,
+    trackId: attempt.trackId,
+    funding: attempt.funding,
+  };
+}
+
 export async function advanceEndeavourResearchTrack(
   input: EndeavourResearchAttempt | Readonly<{
     workspace: EndeavourResearchWorkspace;
@@ -334,28 +357,35 @@ export async function advanceEndeavourResearchTrack(
 ): Promise<EndeavourResearchMutationResult> {
   const attempt = 'workspace' in input ? createEndeavourResearchAttempt(input) : input;
   const { session, me } = currentScientistAuthority();
-  if (attempt.sessionId !== session.id || attempt.expectedCycle !== session.currentTurn ||
-      attempt.expectedControlRevision !== session.shuttleControl?.endeavour?.revision ||
-      typeof attempt.requestId !== 'string' || !/^[\w-]{1,128}$/.test(attempt.requestId) ||
-      !isCounter(attempt.expectedResearchRevision) || attempt.expectedResearchRevision >= Number.MAX_SAFE_INTEGER ||
-      !isCounter(attempt.expectedControlRevision) || !isCounter(attempt.expectedCycle) ||
-      typeof attempt.trackId !== 'string' || !/^[a-z][a-z0-9-]{0,127}$/.test(attempt.trackId) ||
-      (attempt.funding !== 'standard' && attempt.funding !== 'shepherd-ore')) {
+  assertWellFormedAttempt(attempt, session.id);
+  if (attempt.expectedCycle !== session.currentTurn ||
+      attempt.expectedControlRevision !== session.shuttleControl?.endeavour?.revision) {
     throw new Error('Endeavour research changed. Refresh before choosing.');
   }
-  const payload = {
-    sessionId: attempt.sessionId,
-    requestId: attempt.requestId,
-    expectedControlRevision: attempt.expectedControlRevision,
-    expectedResearchRevision: attempt.expectedResearchRevision,
-    expectedCycle: attempt.expectedCycle,
-    trackId: attempt.trackId,
-    funding: attempt.funding,
-  };
+  const payload = requestPayload(attempt);
   const response = await httpsCallable<typeof payload, unknown>(
     functions(), 'advanceEndeavourResearchTrack',
   )(payload);
   assertCurrentScientistAuthority(attempt.sessionId, me.uid, attempt.expectedControlRevision, attempt.expectedCycle);
+  const stale = parseStaleReply(response.data, attempt);
+  if (stale) return stale;
+  const committed = parseCommittedReply(response.data, attempt);
+  if (committed) return committed;
+  throw new Error('The server returned an invalid Endeavour research result.');
+}
+
+export async function retryEndeavourResearchAttempt(
+  attempt: EndeavourResearchAttempt,
+): Promise<EndeavourResearchMutationResult> {
+  const { session, me } = currentScientistAuthority();
+  assertWellFormedAttempt(attempt, session.id);
+  const payload = requestPayload(attempt);
+  const response = await httpsCallable<typeof payload, unknown>(
+    functions(), 'advanceEndeavourResearchTrack',
+  )(payload);
+  // Exact replay is safe across cycle/control changes because the immutable payload
+  // reaches the server's receipt check first. Still discard any reply after authority loss.
+  assertCurrentScientistAuthority(attempt.sessionId, me.uid);
   const stale = parseStaleReply(response.data, attempt);
   if (stale) return stale;
   const committed = parseCommittedReply(response.data, attempt);

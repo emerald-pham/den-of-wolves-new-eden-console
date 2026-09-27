@@ -9,6 +9,7 @@ import {
   advanceEndeavourResearchTrack,
   createEndeavourResearchAttempt,
   readEndeavourResearchWorkspace,
+  retryEndeavourResearchAttempt,
   type EndeavourResearchAttempt,
   type EndeavourResearchWorkspace,
 } from './endeavourResearchService';
@@ -132,6 +133,62 @@ it('retries uncertain transport with the identical request ID and CAS payload', 
     sessionId: 's1', requestId: attempt.requestId, expectedControlRevision: 4,
     expectedResearchRevision: 0, expectedCycle: 3, trackId: 'reactor', funding: 'standard',
   });
+});
+
+it('confirms the immutable request after cycle and control rollover without exposing its private receipt', async () => {
+  const attempt = createEndeavourResearchAttempt({ workspace, trackId: 'reactor', funding: 'standard' });
+  mocks.call.mockRejectedValueOnce(new Error('connection interrupted'));
+  await expect(advanceEndeavourResearchTrack(attempt)).rejects.toThrow(/connection interrupted/i);
+
+  const { session, me } = useSessionStore.getState();
+  useSessionStore.getState().setIdentity({
+    ...session!,
+    currentTurn: 4,
+    shuttleControl: { endeavour: { ...session!.shuttleControl!.endeavour!, revision: 5 } },
+  }, { ...me! });
+  mocks.call.mockResolvedValueOnce({ data: {
+    ...committedReply(attempt),
+    status: 'replayed',
+  } });
+
+  await expect(retryEndeavourResearchAttempt(attempt)).resolves.toEqual({ status: 'replayed' });
+  expect(mocks.call).toHaveBeenLastCalledWith({
+    sessionId: 's1', requestId: attempt.requestId, expectedControlRevision: 4,
+    expectedResearchRevision: 0, expectedCycle: 3, trackId: 'reactor', funding: 'standard',
+  });
+});
+
+it('denies exact confirmation when the current Scientist holder has changed', async () => {
+  const attempt = createEndeavourResearchAttempt({ workspace, trackId: 'reactor', funding: 'standard' });
+  const { session, me } = useSessionStore.getState();
+  useSessionStore.getState().setIdentity({
+    ...session!,
+    shuttleControl: { endeavour: {
+      ...session!.shuttleControl!.endeavour!, holderUid: 'new-scientist', revision: 5,
+    } },
+  }, { ...me! });
+
+  await expect(retryEndeavourResearchAttempt(attempt)).rejects.toThrow(/current Shepherd Scientist/i);
+  expect(mocks.callable).not.toHaveBeenCalled();
+});
+
+it('drops a delayed replay reply after the current holder changes', async () => {
+  const attempt = createEndeavourResearchAttempt({ workspace, trackId: 'reactor', funding: 'standard' });
+  let resolve!: (result: { data: ReturnType<typeof committedReply> }) => void;
+  mocks.call.mockReturnValueOnce(new Promise((done) => { resolve = done; }));
+  const pending = retryEndeavourResearchAttempt(attempt);
+  expect(mocks.callable).toHaveBeenCalledWith('functions', 'advanceEndeavourResearchTrack');
+
+  const { session, me } = useSessionStore.getState();
+  useSessionStore.getState().setIdentity({
+    ...session!,
+    shuttleControl: { endeavour: {
+      ...session!.shuttleControl!.endeavour!, holderUid: 'new-scientist', revision: 5,
+    } },
+  }, { ...me! });
+  resolve({ data: { ...committedReply(attempt), status: 'replayed' } });
+
+  await expect(pending).rejects.toThrow(/authority changed/i);
 });
 
 it('accepts a delayed stale envelope after an unrelated live session snapshot refresh', async () => {
