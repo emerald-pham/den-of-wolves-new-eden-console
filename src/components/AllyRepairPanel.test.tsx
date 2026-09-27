@@ -149,7 +149,7 @@ it('preserves an eligible selection and creates a fresh current-revision retry a
   expect(retry).toBeEnabled();
   expect(within(repair).getByRole('checkbox', { name: 'Jump Drive' })).toBeChecked();
   mocks.repair.mockResolvedValueOnce({
-    status: 'committed', hostShipId: 'shepherd', systemIds: ['reactor'],
+    status: 'committed', hostShipId: 'shepherd', systemIds: ['jump-drive'],
     materialsRemaining: 4, cycle: 3, repairRevision: 2,
   });
   fireEvent.click(retry);
