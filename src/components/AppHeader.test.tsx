@@ -671,7 +671,10 @@ it('renders current and retained repair history with progress and keyboard stop 
   expect(region).toHaveAttribute('tabindex', '0');
   expect(renderedChanges.every((change) => !/\bprompts?\b/i.test(change))).toBe(true);
   expect(within(newestEntry).getByText(
-    'When a service-shuttle recharge meets newer revisions, the current holder keeps the selected console and production choice while live state catches up, then explicitly retries with a fresh request.',
+    'When a service-shuttle recharge meets newer revisions in the same Coordination cycle, the current holder keeps the selected console and production choice while live state catches up, then explicitly retries with a fresh request.',
+  )).toBeVisible();
+  expect(within(newestEntry).getByText(
+    'If a recharge result is uncertain, the current holder can retry the exact request without adding a second charge. Older-cycle requests without a committed result fail closed.',
   )).toBeVisible();
   expect(within(newestEntry).getByText(
     'A stale recharge does not spend resources or add a charge.',

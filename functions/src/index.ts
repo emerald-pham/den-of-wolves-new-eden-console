@@ -6598,7 +6598,50 @@ export const rechargeHostConsoleFromShuttle = onCall<{
         isServiceShuttleRechargeReply(value, data.sessionId),
       'service-shuttle recharge',
     );
-    if (replay) return { ...replay, status: 'replayed' as const };
+    if (replay) {
+      if (session.get('phase') !== 'active') {
+        throw commandError('failed-precondition', 'Service-shuttle recharge replay is unavailable outside active gameplay.', 'invalid-phase');
+      }
+      const groupId = actor.get('fleetGroupId');
+      if (typeof groupId !== 'string' || groupId.length === 0) {
+        throw new HttpsError('permission-denied', 'The shuttle holder has no fleet-group authority.');
+      }
+      const groupSnapshot = await tx.get(db.doc(`sessions/${data.sessionId}/fleetGroups/${groupId}`));
+      const group = groupSnapshot.exists ? fleetGroupRecord(groupSnapshot.data()) : undefined;
+      const activeVesselIds = session.get('activeVesselIds');
+      const rawDockings = session.get('shuttleDockings');
+      const control = parseShuttleControl(session.get('shuttleControl'));
+      const replayControl = control?.[data.shuttleId];
+      const replayCycles = session.get('maintenanceCycles');
+      const replayMaintenance = isRecord(replayCycles)
+        ? parseMaintenanceCycle(replayCycles[data.expectedHostShipId]) : null;
+      const currentCycle = session.get('currentTurn');
+      const matchingDockings = Array.isArray(rawDockings)
+        ? rawDockings.filter((docking) => isRecord(docking) && docking.shuttleId === data.shuttleId)
+        : [];
+      if (replay.requestId !== data.requestId || replay.shuttleId !== data.shuttleId ||
+          replay.hostShipId !== data.expectedHostShipId || replay.consoleId !== data.consoleId ||
+          replay.cycle !== data.expectedCycle || !group || group.id !== groupId || !group.memberUids.includes(uid) ||
+          !Array.isArray(activeVesselIds) || !activeVesselIds.includes(data.expectedHostShipId) ||
+          !Array.isArray(rawDockings) || !shuttleDockingsAreParked(rawDockings, activeVesselIds) ||
+          !shuttleDockingsMatchActiveRoleOwnedSubset(configuredRoleIds(session), rawDockings) ||
+          matchingDockings.length !== 1 || !isRecord(matchingDockings[0]) ||
+          matchingDockings[0].shipId !== data.expectedHostShipId ||
+          !group.vesselIds.includes(data.expectedHostShipId) ||
+          !replayControl || replayControl.holderUid !== uid || !Number.isSafeInteger(replayControl.revision) ||
+          (replayControl.revision as number) < data.expectedControlRevision ||
+          !Number.isSafeInteger(currentCycle) || (currentCycle as number) < data.expectedCycle ||
+          !replayMaintenance || !Number.isSafeInteger(replayMaintenance.turn) ||
+          (replayMaintenance.turn as number) < data.expectedCycle ||
+          replayMaintenance.revision < data.expectedMaintenanceRevision) {
+        throw commandError(
+          'failed-precondition',
+          'Current service-shuttle holder, fleet-group, or host authority no longer matches this receipt.',
+          'conflict',
+        );
+      }
+      return { ...replay, status: 'replayed' as const };
+    }
     if (event.exists) rejectLegacyEventReplay('service-shuttle recharge');
     if (session.get('phase') !== 'active') {
       throw commandError(
@@ -6613,6 +6656,9 @@ export const rechargeHostConsoleFromShuttle = onCall<{
     if (!Number.isSafeInteger(currentCycle) || (currentCycle as number) < 1 ||
         !phase || phase.turn !== currentCycle) {
       throw commandError('failed-precondition', 'The authoritative Coordination cycle is unavailable.', 'conflict');
+    }
+    if (currentCycle !== data.expectedCycle) {
+      throw commandError('failed-precondition', 'The Coordination cycle changed. Start a new recharge request in the current cycle.', 'stale-revision');
     }
     const groupId = actor.get('fleetGroupId');
     if (typeof groupId !== 'string' || groupId.length === 0) {
@@ -6679,11 +6725,10 @@ export const rechargeHostConsoleFromShuttle = onCall<{
         productionOreAmount: data.productionOreAmount,
       } as const;
       const stale = currentControl.revision !== data.expectedControlRevision ||
-        maintenanceCycle.revision !== data.expectedMaintenanceRevision || currentCycle !== data.expectedCycle;
+        maintenanceCycle.revision !== data.expectedMaintenanceRevision;
       if (stale) {
         if (currentControl.revision < data.expectedControlRevision ||
-            maintenanceCycle.revision < data.expectedMaintenanceRevision ||
-            (currentCycle as number) < data.expectedCycle) {
+            maintenanceCycle.revision < data.expectedMaintenanceRevision) {
           throw new Error('The authoritative service-shuttle revision is behind the submitted request.');
         }
         // Re-evaluate the unchanged procedure with current CAS values. This confirms

@@ -93,11 +93,11 @@ function currentDockedHost(session: GameSession, shuttleId: string): string | un
   return docking.shipId;
 }
 
-function hasCurrentCoordination(session: GameSession, minimumCycle: number): boolean {
+function hasCurrentCoordination(session: GameSession, expectedCycle: number): boolean {
   const cycle = session.currentTurn;
   const phase = turnPhaseState(session.turnPhase);
   return session.phase === 'active' && Number.isSafeInteger(cycle) &&
-    (cycle as number) >= minimumCycle && phase !== undefined && phase.turn === cycle &&
+    cycle === expectedCycle && phase !== undefined && phase.turn === cycle &&
     phase.airspace.state === 'lifted' && phase.timerPause === undefined;
 }
 
@@ -111,16 +111,45 @@ export function hasCurrentServiceShuttleRechargeAuthority(
       !SERVICE_SHUTTLE_IDS.includes(binding.shuttleId as typeof SERVICE_SHUTTLE_IDS[number])) return false;
   const control = session.shuttleControl?.[binding.shuttleId];
   const docking = currentDockedHost(session, binding.shuttleId);
+  const maintenance = session.maintenanceCycles?.[binding.hostShipId];
   return session.id === binding.sessionId && me.sessionId === binding.sessionId &&
     me.uid === binding.uid && me.role === binding.role && me.role === 'player' &&
     me.assignedRoleId === binding.assignedRoleId && me.activeConsoleRoleId === binding.activeConsoleRoleId &&
     me.fleetGroupId === binding.fleetGroupId && me.fleetGroupId.trim().length > 0 &&
     Array.isArray(session.activeVesselIds) && session.activeVesselIds.includes(binding.hostShipId) &&
+    session.currentTurn === binding.expectedCycle &&
+    maintenance?.turn === binding.expectedCycle &&
+    isCounter(maintenance?.revision) && maintenance.revision >= binding.expectedMaintenanceRevision &&
     control?.shuttleId === binding.shuttleId && control.ownerRoleId === binding.ownerRoleId &&
     control.ownerUid === binding.ownerUid && control.holderUid === binding.uid &&
     isCounter(control.revision) && control.revision >= binding.expectedControlRevision &&
     docking === binding.hostShipId && session.shuttleFuelled?.[binding.shuttleId] === true &&
     hasCurrentCoordination(session, binding.expectedCycle);
+}
+
+export function hasCurrentServiceShuttleRechargeReplayAuthority(
+  binding: ServiceShuttleRechargeAuthorityBinding,
+): boolean {
+  const current = useSessionStore.getState();
+  const session = current.session;
+  const me = current.me;
+  if (!session || !me || !hasFreshSessionAuthority() || session.phase !== 'active' ||
+      !SERVICE_SHUTTLE_IDS.includes(binding.shuttleId as typeof SERVICE_SHUTTLE_IDS[number])) return false;
+  const control = session.shuttleControl?.[binding.shuttleId];
+  const docking = currentDockedHost(session, binding.shuttleId);
+  const maintenance = session.maintenanceCycles?.[binding.hostShipId];
+  return session.id === binding.sessionId && me.sessionId === binding.sessionId &&
+    me.uid === binding.uid && me.role === binding.role && me.role === 'player' &&
+    me.assignedRoleId === binding.assignedRoleId && me.activeConsoleRoleId === binding.activeConsoleRoleId &&
+    me.fleetGroupId === binding.fleetGroupId && me.fleetGroupId.trim().length > 0 &&
+    Array.isArray(session.activeVesselIds) && session.activeVesselIds.includes(binding.hostShipId) &&
+    Number.isSafeInteger(session.currentTurn) && (session.currentTurn as number) >= binding.expectedCycle &&
+    Number.isSafeInteger(maintenance?.turn) && (maintenance?.turn as number) >= binding.expectedCycle &&
+    isCounter(maintenance?.revision) && maintenance.revision >= binding.expectedMaintenanceRevision &&
+    control?.shuttleId === binding.shuttleId && control.ownerRoleId === binding.ownerRoleId &&
+    control.ownerUid === binding.ownerUid && control.holderUid === binding.uid &&
+    isCounter(control.revision) && control.revision >= binding.expectedControlRevision &&
+    docking === binding.hostShipId;
 }
 
 export function captureServiceShuttleRechargeAuthority(
@@ -186,7 +215,7 @@ function parseStaleReply(
       value.productionOreAmount !== (command.productionOreAmount ?? null) ||
       !isCounter(value.currentControlRevision) || value.currentControlRevision < command.expectedControlRevision ||
       !isCounter(value.currentMaintenanceRevision) || value.currentMaintenanceRevision < command.expectedMaintenanceRevision ||
-      !Number.isSafeInteger(value.currentCycle) || (value.currentCycle as number) < command.expectedCycle ||
+      value.currentCycle !== command.expectedCycle ||
       (value.currentControlRevision === command.expectedControlRevision &&
         value.currentMaintenanceRevision === command.expectedMaintenanceRevision &&
         value.currentCycle === command.expectedCycle)) return undefined;
@@ -245,8 +274,82 @@ export async function rechargeHostConsoleFromShuttle(
     }
     return stale;
   }
-  if (!hasCurrentServiceShuttleRechargeAuthority(binding)) {
+  if (!hasCurrentServiceShuttleRechargeReplayAuthority(binding)) {
     throw new Error('Service-shuttle authority changed while the request was pending.');
+  }
+  const committed = parseCommittedReply(value, session.id, command);
+  if (!committed) throw new Error('The service-shuttle recharge response was malformed.');
+  return committed;
+}
+
+function captureServiceShuttleRechargeReplayAuthority(
+  session: GameSession,
+  me: Player,
+  command: ServiceShuttleRechargeCommand,
+): ServiceShuttleRechargeAuthorityBinding {
+  const control = session.shuttleControl?.[command.shuttleId];
+  const fleetGroupId = me.fleetGroupId;
+  if (!SERVICE_SHUTTLE_IDS.includes(command.shuttleId as typeof SERVICE_SHUTTLE_IDS[number]) ||
+      !control || typeof control.ownerRoleId !== 'string' || typeof control.ownerUid !== 'string' ||
+      !control.ownerUid.trim() || typeof fleetGroupId !== 'string' || !fleetGroupId.trim()) {
+    throw new Error('The current service-shuttle holder, host, or fleet group is unavailable.');
+  }
+  const binding: ServiceShuttleRechargeAuthorityBinding = {
+    sessionId: session.id, uid: me.uid, role: me.role,
+    assignedRoleId: me.assignedRoleId, activeConsoleRoleId: me.activeConsoleRoleId,
+    fleetGroupId, shuttleId: command.shuttleId, ownerRoleId: control.ownerRoleId,
+    ownerUid: control.ownerUid, hostShipId: command.expectedHostShipId,
+    expectedControlRevision: command.expectedControlRevision,
+    expectedMaintenanceRevision: command.expectedMaintenanceRevision,
+    expectedCycle: command.expectedCycle,
+  };
+  if (!hasFreshSessionAuthority() || me.role !== 'player' || me.sessionId !== session.id ||
+      currentDockedHost(session, command.shuttleId) !== command.expectedHostShipId ||
+      !findShip(command.expectedHostShipId) || control.holderUid !== me.uid ||
+      !isCounter(control.revision) || control.revision < command.expectedControlRevision ||
+      !Array.isArray(session.activeVesselIds) || !session.activeVesselIds.includes(command.expectedHostShipId) ||
+      !hasCurrentServiceShuttleRechargeReplayAuthority(binding)) {
+    throw new Error('Refresh the live service-shuttle holder, host, and fleet-group authority before checking this receipt.');
+  }
+  return binding;
+}
+
+function validateServiceShuttleRechargeCommand(command: ServiceShuttleRechargeCommand): void {
+  if (!/^[\w-]{1,128}$/.test(command.requestId) ||
+      !SERVICE_SHUTTLE_IDS.includes(command.shuttleId as typeof SERVICE_SHUTTLE_IDS[number]) ||
+      !/^[\w-]{1,128}$/.test(command.consoleId) || !findShip(command.expectedHostShipId) ||
+      !isCounter(command.expectedControlRevision) || !isCounter(command.expectedMaintenanceRevision) ||
+      !Number.isSafeInteger(command.expectedCycle) || command.expectedCycle < 1 ||
+      (command.productionScrap !== undefined && typeof command.productionScrap !== 'boolean') ||
+      (command.productionOreAmount !== undefined &&
+        (!Number.isSafeInteger(command.productionOreAmount) || command.productionOreAmount < 1))) {
+    throw new Error('The service-shuttle recharge selection is invalid. Refresh the console and try again.');
+  }
+}
+
+export async function replayServiceShuttleRecharge(
+  command: ServiceShuttleRechargeCommand,
+): Promise<ServiceShuttleRechargeResult> {
+  const { session, me } = useSessionStore.getState();
+  if (!session || !me) throw new Error('Reconnect before checking a service-shuttle recharge receipt.');
+  requireFreshSessionAuthority();
+  validateServiceShuttleRechargeCommand(command);
+  const binding = captureServiceShuttleRechargeReplayAuthority(session as GameSession, me, command);
+  const payload = { sessionId: session.id, ...command };
+  const response = await httpsCallable<typeof payload, unknown>(
+    functions(), 'rechargeHostConsoleFromShuttle',
+  )(payload);
+  const value = response.data;
+  if (isRecord(value) && value.status === 'stale') {
+    const stale = parseStaleReply(value, session.id, me.uid, command);
+    if (!stale) throw new Error('The service-shuttle recharge stale response was malformed or mismatched.');
+    if (!hasCurrentServiceShuttleRechargeAuthority(binding)) {
+      throw new Error('Service-shuttle authority changed while the request was pending.');
+    }
+    return stale;
+  }
+  if (!hasCurrentServiceShuttleRechargeReplayAuthority(binding)) {
+    throw new Error('Service-shuttle authority changed while the receipt request was pending.');
   }
   const committed = parseCommittedReply(value, session.id, command);
   if (!committed) throw new Error('The service-shuttle recharge response was malformed.');

@@ -5,7 +5,10 @@ const mocks = vi.hoisted(() => ({ call: vi.fn(), callable: vi.fn() }));
 vi.mock('firebase/functions', () => ({ httpsCallable: mocks.callable }));
 vi.mock('./firebase', () => ({ functions: () => 'functions' }));
 
-import { rechargeHostConsoleFromShuttle } from './serviceShuttleRechargeService';
+import {
+  rechargeHostConsoleFromShuttle,
+  replayServiceShuttleRecharge,
+} from './serviceShuttleRechargeService';
 
 const command = {
   requestId: 'recharge-test-1', shuttleId: 'wobbly', consoleId: 'fuel-refinery',
@@ -90,6 +93,42 @@ it('returns only a fully command- and actor-bound stale envelope', async () => {
   });
 });
 
+it('checks the exact original receipt after Coordination and its CAS have advanced', async () => {
+  const current = useSessionStore.getState().session!;
+  useSessionStore.getState().setSession({
+    ...current, currentTurn: 4,
+    turnPhase: {
+      turn: 4, teamPhaseEndsAt: '2099-09-21T12:00:00.000Z',
+      openAirspaceEndsAt: '2099-09-21T12:15:00.000Z',
+      airspace: { state: 'restricted', tickerActive: false, pressAccess: false },
+    },
+    maintenanceCycles: { 'refinery-124': {
+      ...current.maintenanceCycles!['refinery-124']!, turn: 4, revision: 8,
+    } },
+  } as never);
+  mocks.call.mockResolvedValue({ data: {
+    status: 'replayed', sessionId: 's1', requestId: command.requestId,
+    shuttleId: command.shuttleId, hostShipId: command.expectedHostShipId,
+    consoleId: command.consoleId, cycle: command.expectedCycle, maintenanceRevision: 8,
+    rechargeRevision: 1, immediate: true, message: 'Fuel Refinery: spent 4 ore, generated 4 fuel.',
+  } });
+
+  await expect(replayServiceShuttleRecharge(command)).resolves.toMatchObject({
+    status: 'replayed', requestId: command.requestId, cycle: 3,
+  });
+  expect(mocks.call).toHaveBeenCalledWith({ sessionId: 's1', ...command });
+});
+
+it('requires the current holder and host before checking an exact receipt', async () => {
+  const current = useSessionStore.getState().session!;
+  useSessionStore.getState().setSession({
+    ...current,
+    shuttleControl: { wobbly: { ...current.shuttleControl!.wobbly!, holderUid: 'other-player' } },
+  } as never);
+  await expect(replayServiceShuttleRecharge(command)).rejects.toThrow(/holder, host, and fleet-group authority/i);
+  expect(mocks.callable).not.toHaveBeenCalled();
+});
+
 it.each([
   ['request', { requestId: 'other-request' }],
   ['actor', { actorUid: 'another-player' }],
@@ -99,6 +138,7 @@ it.each([
   ['expected control CAS', { expectedControlRevision: 1 }],
   ['expected maintenance CAS', { expectedMaintenanceRevision: 6 }],
   ['expected cycle', { expectedCycle: 2 }],
+  ['later cycle', { currentCycle: 4 }],
   ['production choice', { productionOreAmount: 5 }],
   ['non-advancing CAS', { currentControlRevision: 2, currentMaintenanceRevision: 7 }],
 ] as const)('rejects stale envelopes with a mismatched %s binding', async (_label, overrides) => {

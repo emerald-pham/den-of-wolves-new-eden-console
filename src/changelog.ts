@@ -26,7 +26,8 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 458, partial: 44, active: 0, missing: 249,
     },
     changes: [
-      'When a service-shuttle recharge meets newer revisions, the current holder keeps the selected console and production choice while live state catches up, then explicitly retries with a fresh request.',
+      'When a service-shuttle recharge meets newer revisions in the same Coordination cycle, the current holder keeps the selected console and production choice while live state catches up, then explicitly retries with a fresh request.',
+      'If a recharge result is uncertain, the current holder can retry the exact request without adding a second charge. Older-cycle requests without a committed result fail closed.',
       'A stale recharge does not spend resources or add a charge.',
       '458 of 751 planned items are complete (60.99%).',
     ],

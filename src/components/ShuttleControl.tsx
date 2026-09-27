@@ -10,8 +10,9 @@ import {
 import { transferShuttleCargo } from '@/lib/shuttleCargoService';
 import {
   captureServiceShuttleRechargeAuthority,
-  hasCurrentServiceShuttleRechargeAuthority,
+  hasCurrentServiceShuttleRechargeReplayAuthority,
   rechargeHostConsoleFromShuttle,
+  replayServiceShuttleRecharge,
 } from '@/lib/serviceShuttleRechargeService';
 import type {
   ServiceShuttleRechargeAuthorityBinding,
@@ -29,6 +30,7 @@ import { findShip } from '@/data/ships';
 import { dockingForShuttle, SHUTTLECRAFT, shuttleDestinationIsAllowed } from '@/data/shuttles';
 import { RESOURCE_DEFINITIONS, type ResourceId } from '@/data/resources';
 import { SERVICE_SHUTTLE_IDS, serviceRechargeConsoleOptions } from '@/data/serviceShuttleRecharge';
+import { normalizeCommandError } from '@/lib/commandErrors';
 import {
   captureBlacksmithRepairAuthority,
   hasCurrentBlacksmithRepairAuthority,
@@ -96,13 +98,28 @@ interface BlacksmithRepairRecovery {
   readonly authority: BlacksmithRepairAuthorityBinding;
 }
 
-interface ServiceShuttleRechargeRecovery {
-  readonly stale: ServiceShuttleRechargeStaleResult;
-  readonly authority: ServiceShuttleRechargeAuthorityBinding;
-  readonly command: ServiceShuttleRechargeCommand;
-}
+type ServiceShuttleRechargeRecovery =
+  | {
+      readonly kind: 'stale';
+      readonly stale: ServiceShuttleRechargeStaleResult;
+      readonly authority: ServiceShuttleRechargeAuthorityBinding;
+      readonly command: ServiceShuttleRechargeCommand;
+    }
+  | {
+      readonly kind: 'uncertain';
+      readonly authority: ServiceShuttleRechargeAuthorityBinding;
+      readonly command: ServiceShuttleRechargeCommand;
+    };
 
 const EMPTY_SYSTEM_IDS: readonly string[] = Object.freeze([]);
+const AMBIGUOUS_RECHARGE_OUTCOME_CODES = new Set([
+  'unavailable', 'deadline-exceeded',
+]);
+
+function hasAmbiguousServiceShuttleRechargeOutcome(cause: unknown): boolean {
+  const failure = normalizeCommandError(cause);
+  return AMBIGUOUS_RECHARGE_OUTCOME_CODES.has(failure.code);
+}
 
 function captureCargoAttemptAuthority(
   shuttleId: string,
@@ -278,21 +295,27 @@ export default function ShuttleControl({ control }: Props) {
     rechargeRecovery.command.productionOreAmount ===
       (rechargeRecoveryOption?.fuelRefinery ? rechargeProductionOreAmount : undefined));
   const rechargeRecoveryAuthorityCurrent = Boolean(rechargeRecovery &&
-    hasCurrentServiceShuttleRechargeAuthority(rechargeRecovery.authority));
-  const rechargeRecoveryProjectionCurrent = Boolean(rechargeRecoveryAuthorityCurrent && rechargeRecovery &&
-    Number.isSafeInteger(control.revision) && control.revision >= rechargeRecovery.stale.currentControlRevision &&
+    hasCurrentServiceShuttleRechargeReplayAuthority(rechargeRecovery.authority));
+  const staleRechargeRecovery = rechargeRecovery?.kind === 'stale' ? rechargeRecovery : null;
+  const uncertainRechargeRecovery = rechargeRecovery?.kind === 'uncertain' ? rechargeRecovery : null;
+  const rechargeRecoveryCycleChanged = Boolean(staleRechargeRecovery &&
+    session.currentTurn !== staleRechargeRecovery.stale.currentCycle);
+  const rechargeRecoveryProjectionCurrent = Boolean(staleRechargeRecovery && rechargeRecoveryAuthorityCurrent &&
+    Number.isSafeInteger(control.revision) && control.revision >= staleRechargeRecovery.stale.currentControlRevision &&
     Number.isSafeInteger(hostCycle?.revision) &&
-    (hostCycle?.revision ?? -1) >= rechargeRecovery.stale.currentMaintenanceRevision &&
+    (hostCycle?.revision ?? -1) >= staleRechargeRecovery.stale.currentMaintenanceRevision &&
     Number.isSafeInteger(session.currentTurn) &&
-    (session.currentTurn as number) >= rechargeRecovery.stale.currentCycle);
+    session.currentTurn === staleRechargeRecovery.stale.currentCycle);
   const rechargeRetryEligible = Boolean(rechargeRecoveryMatchesDraft && selectedRechargeOption &&
     hostMaintenanceReady && rechargeWindowOpen && session.shuttleFuelled?.[control.shuttleId] === true &&
     hostRechargeEligible && !rechargedThisCycle && !invalidRechargeOre &&
     (!rechargeProductionScrap || (hostResources?.scrap ?? 0) >= 1));
-  const rechargeRetryReady = Boolean(rechargeRecovery && rechargeRecoveryAuthorityCurrent &&
+  const rechargeRetryReady = Boolean(staleRechargeRecovery && rechargeRecoveryAuthorityCurrent &&
     rechargeRecoveryProjectionCurrent && rechargeRetryEligible);
-  const rechargeRetryWaiting = Boolean(rechargeRecoveryMatchesDraft && rechargeRecoveryAuthorityCurrent &&
-    !rechargeRecoveryProjectionCurrent);
+  const rechargeRetryWaiting = Boolean(staleRechargeRecovery && rechargeRecoveryMatchesDraft &&
+    rechargeRecoveryAuthorityCurrent && !rechargeRecoveryProjectionCurrent && !rechargeRecoveryCycleChanged);
+  const rechargeExactReplayReady = Boolean(uncertainRechargeRecovery && rechargeRecoveryMatchesDraft &&
+    rechargeRecoveryAuthorityCurrent);
   const destinations = (session.activeVesselIds ?? [])
     .filter((shipId) => shipId !== docking?.shipId && findShip(shipId) !== undefined &&
       shuttleDestinationIsAllowed(control.shuttleId, shipId));
@@ -693,62 +716,70 @@ export default function ShuttleControl({ control }: Props) {
     }
   }
 
-  async function submitRecharge(retry = false): Promise<void> {
-    if (busy || !rechargeConsoleId || !selectedRechargeOption ||
-        (retry ? !rechargeRetryReady || !rechargeRecovery : rechargeRecoveryMatchesDraft)) return;
+  async function submitRecharge(mode: 'fresh' | 'stale-retry' | 'exact-replay' = 'fresh'): Promise<void> {
+    if (busy || (mode === 'fresh' && (!rechargeConsoleId || !selectedRechargeOption ||
+        rechargeRecoveryMatchesDraft)) ||
+        (mode === 'stale-retry' && (!rechargeRetryReady || !staleRechargeRecovery)) ||
+        (mode === 'exact-replay' && (!rechargeExactReplayReady || !uncertainRechargeRecovery))) return;
     const current = useSessionStore.getState();
     const liveSession = current.session;
     const liveMe = current.me;
-    const liveDocking = liveSession ? dockingForShuttle(liveSession, control.shuttleId) : undefined;
-    const liveControl = liveSession?.shuttleControl?.[control.shuttleId];
-    const liveCycle = liveSession?.currentTurn;
-    const liveHostCycle = liveDocking
-      ? liveSession?.maintenanceCycles?.[liveDocking.shipId] : undefined;
-    if (!liveSession || !liveMe || !liveDocking || !liveControl ||
-        !Number.isSafeInteger(liveCycle) || !liveHostCycle) return;
+    if (!liveSession || !liveMe) return;
     let command: ServiceShuttleRechargeCommand;
-    if (retry && rechargeRecovery) {
-      if (liveDocking.shipId !== rechargeRecovery.stale.hostShipId ||
-          !Number.isSafeInteger(liveControl.revision) ||
-          liveControl.revision < rechargeRecovery.stale.currentControlRevision ||
-          !Number.isSafeInteger(liveHostCycle.revision) ||
-          liveHostCycle.revision < rechargeRecovery.stale.currentMaintenanceRevision ||
-          (liveCycle as number) < rechargeRecovery.stale.currentCycle) return;
-      command = {
-        ...rechargeRecovery.command,
-        requestId: window.crypto.randomUUID(),
-        expectedControlRevision: liveControl.revision,
-        expectedMaintenanceRevision: liveHostCycle.revision,
-        expectedCycle: liveCycle as number,
-        expectedHostShipId: liveDocking.shipId,
-      };
-    } else {
-      command = {
-        requestId: window.crypto.randomUUID(),
-        shuttleId: control.shuttleId,
-        consoleId: rechargeConsoleId,
-        expectedControlRevision: liveControl.revision,
-        expectedMaintenanceRevision: liveHostCycle.revision,
-        expectedCycle: liveCycle as number,
-        expectedHostShipId: liveDocking.shipId,
-        ...(selectedRechargeOption.capybaraScrapChoice ? { productionScrap: rechargeProductionScrap } : {}),
-        ...(selectedRechargeOption.fuelRefinery ? { productionOreAmount: rechargeProductionOreAmount } : {}),
-      };
-    }
     let authority: ServiceShuttleRechargeAuthorityBinding;
-    try {
-      authority = captureServiceShuttleRechargeAuthority(liveSession, liveMe, command);
-    } catch (cause) {
-      setStatus(cause instanceof Error ? cause.message : 'Refresh the live service-shuttle authority before recharging.');
-      return;
+    if (mode === 'exact-replay' && uncertainRechargeRecovery) {
+      command = uncertainRechargeRecovery.command;
+      authority = uncertainRechargeRecovery.authority;
+      if (!hasCurrentServiceShuttleRechargeReplayAuthority(authority)) return;
+    } else {
+      const liveDocking = dockingForShuttle(liveSession, control.shuttleId);
+      const liveControl = liveSession.shuttleControl?.[control.shuttleId];
+      const liveCycle = liveSession.currentTurn;
+      const liveHostCycle = liveDocking
+        ? liveSession.maintenanceCycles?.[liveDocking.shipId] : undefined;
+      if (!liveDocking || !liveControl || !Number.isSafeInteger(liveCycle) || !liveHostCycle) return;
+      if (mode === 'stale-retry' && staleRechargeRecovery &&
+          (liveDocking.shipId !== staleRechargeRecovery.stale.hostShipId ||
+           !Number.isSafeInteger(liveControl.revision) ||
+           liveControl.revision < staleRechargeRecovery.stale.currentControlRevision ||
+           !Number.isSafeInteger(liveHostCycle.revision) ||
+           liveHostCycle.revision < staleRechargeRecovery.stale.currentMaintenanceRevision ||
+           liveCycle !== staleRechargeRecovery.stale.currentCycle)) return;
+      command = mode === 'stale-retry' && staleRechargeRecovery
+        ? {
+            ...staleRechargeRecovery.command,
+            requestId: window.crypto.randomUUID(),
+            expectedControlRevision: liveControl.revision,
+            expectedMaintenanceRevision: liveHostCycle.revision,
+            expectedCycle: liveCycle as number,
+            expectedHostShipId: liveDocking.shipId,
+          }
+        : {
+            requestId: window.crypto.randomUUID(),
+            shuttleId: control.shuttleId,
+            consoleId: rechargeConsoleId,
+            expectedControlRevision: liveControl.revision,
+            expectedMaintenanceRevision: liveHostCycle.revision,
+            expectedCycle: liveCycle as number,
+            expectedHostShipId: liveDocking.shipId,
+            ...(selectedRechargeOption?.capybaraScrapChoice ? { productionScrap: rechargeProductionScrap } : {}),
+            ...(selectedRechargeOption?.fuelRefinery ? { productionOreAmount: rechargeProductionOreAmount } : {}),
+          };
+      try {
+        authority = captureServiceShuttleRechargeAuthority(liveSession, liveMe, command);
+      } catch (cause) {
+        setStatus(cause instanceof Error ? cause.message : 'Refresh the live service-shuttle authority before recharging.');
+        return;
+      }
     }
-    if (retry) setRechargeRecovery(null);
     setPending(true);
     setStatus('');
     try {
-      const result = await rechargeHostConsoleFromShuttle(command);
+      const result = mode === 'exact-replay'
+        ? await replayServiceShuttleRecharge(command)
+        : await rechargeHostConsoleFromShuttle(command);
       if (result.status === 'stale') {
-        setRechargeRecovery({ stale: result, authority, command });
+        setRechargeRecovery({ kind: 'stale', stale: result, authority, command });
         return;
       }
       setRechargeRecovery(null);
@@ -757,8 +788,17 @@ export default function ShuttleControl({ control }: Props) {
       setRechargeProductionScrap(false);
       setRechargeProductionOreAmount(1);
     } catch (cause) {
-      if (hasCurrentServiceShuttleRechargeAuthority(authority)) {
-        setStatus(cause instanceof Error ? cause.message : 'Service-shuttle recharge failed.');
+      if (!hasAmbiguousServiceShuttleRechargeOutcome(cause)) {
+        const failure = normalizeCommandError(cause);
+        setRechargeRecovery(null);
+        setStatus(failure.kind === 'stale-revision'
+          ? 'The Coordination cycle changed before this request could be accepted. The old recharge request cannot carry into this cycle; change the selection before starting a new request.'
+          : failure.message);
+      } else if (hasCurrentServiceShuttleRechargeReplayAuthority(authority)) {
+        setRechargeRecovery({ kind: 'uncertain', authority, command });
+        setStatus(cause instanceof Error ? cause.message : 'Service-shuttle recharge result could not be confirmed.');
+      } else {
+        setRechargeRecovery(null);
       }
     } finally {
       setPending(false);
@@ -998,15 +1038,23 @@ export default function ShuttleControl({ control }: Props) {
             rechargeRecoveryMatchesDraft}
           onClick={() => void submitRecharge()}>Recharge console</button>
         {rechargeRetryReady && <button className="cic-action-button shuttle-control__touch-target" type="button"
-          disabled={busy} onClick={() => void submitRecharge(true)}>Retry recharge with current revisions</button>}
+          disabled={busy} onClick={() => void submitRecharge('stale-retry')}>Retry recharge with current revisions</button>}
+        {rechargeExactReplayReady && <button className="cic-action-button shuttle-control__touch-target" type="button"
+          disabled={busy} onClick={() => void submitRecharge('exact-replay')}>Retry exact recharge request</button>}
       </div>
+      {uncertainRechargeRecovery && rechargeRecoveryAuthorityCurrent && <p role="status">
+        Recharge result could not be confirmed. Retry the exact request; its request ID prevents a second charge.
+      </p>}
       {rechargeRetryWaiting && <p role="status">
         Service recharge state changed. Waiting for the live service recharge state before retrying.
+      </p>}
+      {rechargeRecoveryCycleChanged && rechargeRecoveryMatchesDraft && rechargeRecoveryAuthorityCurrent && <p role="status">
+        The Coordination cycle changed before recovery. The old recharge request cannot carry into this cycle; change the selection before starting a new request.
       </p>}
       {rechargeRetryReady && <p role="status">
         Service recharge state changed. Review the selected console and production choices, then explicitly retry with a fresh request ID.
       </p>}
-      {rechargeRecoveryMatchesDraft && rechargeRecoveryAuthorityCurrent && rechargeRecoveryProjectionCurrent &&
+      {staleRechargeRecovery && rechargeRecoveryMatchesDraft && rechargeRecoveryAuthorityCurrent && rechargeRecoveryProjectionCurrent &&
         !rechargeRetryReady && <p role="status">
           The selected console is no longer eligible for recharge. Choose an eligible console or update its production choice.
         </p>}

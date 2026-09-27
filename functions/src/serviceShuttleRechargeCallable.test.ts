@@ -102,10 +102,40 @@ it('atomically appends one host charge, records the cycle use, and replays witho
     message: 'Hydroponics: spent 1 water, generated 3 food.',
   });
   const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
-  mock.documents.get('sessions/s1')!.phase = 'debrief';
+  const currentSession = mock.documents.get('sessions/s1')!;
+  currentSession.currentTurn = 4;
+  currentSession.turnPhase = {
+    ...(currentSession.turnPhase as Fields), turn: 4,
+    airspace: { state: 'restricted', tickerActive: false, pressAccess: false },
+  };
+  currentSession.maintenanceCycles = { quellon: {
+    ...((currentSession.maintenanceCycles as Fields).quellon as Fields), turn: 4, revision: 10,
+  } };
   await expect(rechargeHostConsoleFromShuttle.run(request(command))).resolves.toMatchObject({ status: 'replayed' });
   expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
   await expect(rechargeHostConsoleFromShuttle.run(request({ ...command, productionScrap: true })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
+});
+
+it('does not replay a committed receipt after holder, group, or host authority changes', async () => {
+  await rechargeHostConsoleFromShuttle.run(request(command));
+  const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
+  const session = mock.documents.get('sessions/s1')!;
+  session.shuttleControl = { ...(session.shuttleControl as Fields), condor: {
+    ...((session.shuttleControl as Fields).condor as Fields), holderUid: 'owner',
+  } };
+  await expect(rechargeHostConsoleFromShuttle.run(request(command)))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  session.shuttleControl = { ...(session.shuttleControl as Fields), condor: {
+    ...((session.shuttleControl as Fields).condor as Fields), holderUid: 'holder',
+  } };
+  mock.documents.get('sessions/s1/fleetGroups/fleet-1')!.memberUids = ['owner'];
+  await expect(rechargeHostConsoleFromShuttle.run(request(command)))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  mock.documents.get('sessions/s1/fleetGroups/fleet-1')!.memberUids = ['holder', 'owner'];
+  session.shuttleDockings = [{ shuttleId: 'condor', shipId: 'shepherd', dockedAt: 'now' }];
+  await expect(rechargeHostConsoleFromShuttle.run(request(command)))
     .rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
 });
@@ -163,15 +193,6 @@ it.each([
       ...((session.maintenanceCycles as Fields).quellon as Fields), revision: 8,
     } };
   }, { currentControlRevision: 2, currentMaintenanceRevision: 8, currentCycle: 3 }],
-  ['cycle', 'cycle-advanced', (session: Fields) => {
-    session.currentTurn = 4;
-    session.turnPhase = {
-      ...(session.turnPhase as Fields), turn: 4,
-    };
-    session.maintenanceCycles = { quellon: {
-      ...((session.maintenanceCycles as Fields).quellon as Fields), turn: 4, revision: 8,
-    } };
-  }, { currentControlRevision: 2, currentMaintenanceRevision: 8, currentCycle: 4 }],
 ] as const)('returns a bound read-only stale envelope for an eligible %s change', async (
   _label, requestId, advance, current,
 ) => {
@@ -190,6 +211,22 @@ it.each([
   expect(mock.set).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.documents.has(`sessions/s1/events/service-recharge-${requestId}`)).toBe(false);
+});
+
+it('fails closed when the Coordination cycle changes before stale recovery', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  session.currentTurn = 4;
+  session.turnPhase = { ...(session.turnPhase as Fields), turn: 4 };
+  session.maintenanceCycles = { quellon: {
+    ...((session.maintenanceCycles as Fields).quellon as Fields), turn: 4, revision: 8,
+  } };
+
+  await expect(rechargeHostConsoleFromShuttle.run(request({ ...command, requestId: 'cycle-advanced' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.documents.has('sessions/s1/events/service-recharge-cycle-advanced')).toBe(false);
+  expect(mock.documents.has('sessions/s1/commandReceipts/cycle-advanced')).toBe(false);
 });
 
 it('does not reveal a stale envelope after holder, group, dock, fuel, or target eligibility changes', async () => {
