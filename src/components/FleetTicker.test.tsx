@@ -49,12 +49,12 @@ it('starts beyond a fractional ticker frame edge instead of rounded client width
   const originalClientWidth = Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth')?.get;
   const originalBounds = HTMLElement.prototype.getBoundingClientRect;
   if (!originalClientWidth) throw new Error('Element.clientWidth getter is unavailable');
-  vi.spyOn(Element.prototype, 'clientWidth', 'get').mockImplementation(function () {
+  vi.spyOn(Element.prototype, 'clientWidth', 'get').mockImplementation(function (this: Element) {
     return this instanceof HTMLElement && this.classList.contains('fleet-ticker__window')
       ? 350
       : originalClientWidth.call(this);
   });
-  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function () {
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
     if (this.classList.contains('fleet-ticker__window')) {
       return {
         left: 0, right: 350.21875, top: 0, bottom: 28,
