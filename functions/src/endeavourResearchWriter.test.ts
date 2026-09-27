@@ -354,13 +354,119 @@ describe('Endeavour Team research writer', () => {
   });
 
   it.each([
-    ['stale research revision', { expectedResearchRevision: 1 }],
+    ['future research revision', { expectedResearchRevision: 1 }],
     ['stale cycle', { expectedCycle: 2 }],
   ])('rejects %s without writes', async (_label, patch) => {
     await expect(advanceEndeavourResearchTrack.run(request({ ...command, ...patch })))
       .rejects.toMatchObject({ code: 'failed-precondition' });
     expect(mock.set).not.toHaveBeenCalled();
     expect(mock.update).not.toHaveBeenCalled();
+  });
+
+  it('returns a minimal request-bound stale research envelope after current-authority eligibility preflight', async () => {
+    put('sessions/s1/serverState/endeavourResearch', { 'jump-drive': 1 });
+    put('sessions/s1/serverState/endeavourResearchCadence', {
+      cycle: 3, revision: 1,
+      choices: [{ trackId: 'jump-drive', funding: 'standard', oreCost: 0 }],
+    });
+
+    await expect(advanceEndeavourResearchTrack.run(request(command))).resolves.toEqual({
+      status: 'stale', sessionId: 's1', requestId: 'research-1', trackId: 'reactor', funding: 'standard',
+      expected: { cycle: 3, controlRevision: 2, researchRevision: 0 },
+      current: { cycle: 3, controlRevision: 2, researchRevision: 1 },
+    });
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.documents.has('sessions/s1/commandReceipts/research-1')).toBe(false);
+  });
+
+  it.each([
+    ['the track was chosen since the old workspace', 'standard', 10, { reactor: 1 }, 'reactor'],
+    ['the track is complete', 'standard', 10, { reactor: 5 }, 'jump-drive'],
+    ['Shepherd ore is no longer sufficient', 'shepherd-ore', 4, { 'jump-drive': 1 }, 'jump-drive'],
+  ] as const)('fails closed when a stale choice is no longer eligible because %s', async (_label, funding, ore, progress, chosenTrack) => {
+    put('sessions/s1', {
+      ...mock.documents.get('sessions/s1')!,
+      shipResources: { shepherd: { ore, fuel: 4, food: 10, water: 8, materials: 18, securityTeams: 2 } },
+    });
+    put('sessions/s1/serverState/endeavourResearch', progress);
+    put('sessions/s1/serverState/endeavourResearchCadence', {
+      cycle: 3, revision: 1,
+      choices: [{ trackId: chosenTrack, funding: 'standard', oreCost: 0 }],
+    });
+    await expect(advanceEndeavourResearchTrack.run(request({
+      ...command, funding,
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.documents.has('sessions/s1/commandReceipts/research-1')).toBe(false);
+  });
+
+  it.each([
+    ['control revision changed', (session: Fields) => {
+      (session.shuttleControl as Fields).endeavour = {
+        shuttleId: 'endeavour', ownerRoleId: 'shepherd-scientist', ownerUid: 'scientist',
+        holderUid: 'scientist', revision: 3,
+      };
+    }],
+    ['holder changed', (session: Fields) => {
+      (session.shuttleControl as Fields).endeavour = {
+        shuttleId: 'endeavour', ownerRoleId: 'shepherd-scientist', ownerUid: 'scientist',
+        holderUid: 'other-scientist', revision: 2,
+      };
+    }],
+    ['Team Phase ended', (session: Fields) => {
+      session.turnPhase = {
+        turn: 3, teamPhaseEndsAt: '2099-09-23T12:00:00.000Z', openAirspaceEndsAt: '2099-09-23T12:15:00.000Z',
+        airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+      };
+    }],
+  ])('does not disclose stale recovery when %s', async (_label, mutate) => {
+    put('sessions/s1/serverState/endeavourResearch', { 'jump-drive': 1 });
+    put('sessions/s1/serverState/endeavourResearchCadence', {
+      cycle: 3, revision: 1,
+      choices: [{ trackId: 'jump-drive', funding: 'standard', oreCost: 0 }],
+    });
+    mutate(mock.documents.get('sessions/s1')!);
+    await expect(advanceEndeavourResearchTrack.run(request(command)))
+      .rejects.toMatchObject({ code: expect.stringMatching(/failed-precondition|permission-denied/) });
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.documents.has('sessions/s1/commandReceipts/research-1')).toBe(false);
+  });
+
+  it('denies an unauthorized actor even when the research CAS is stale', async () => {
+    put('sessions/s1/serverState/endeavourResearch', { 'jump-drive': 1 });
+    put('sessions/s1/serverState/endeavourResearchCadence', {
+      cycle: 3, revision: 1,
+      choices: [{ trackId: 'jump-drive', funding: 'standard', oreCost: 0 }],
+    });
+    await expect(advanceEndeavourResearchTrack.run(request(command, 'intruder')))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.documents.has('sessions/s1/commandReceipts/research-1')).toBe(false);
+  });
+
+  it.each([
+    ['Scientist assignment changed', 'sessions/s1/players/scientist', (record: Fields) => {
+      record.assignedRoleId = 'shepherd-engineer';
+    }],
+    ['Scientist left the Shepherd group', 'sessions/s1/fleetGroups/fleet-1', (record: Fields) => {
+      record.memberUids = [];
+    }],
+  ])('fails closed when stale recovery no longer has %s authority', async (_label, path, mutate) => {
+    put('sessions/s1/serverState/endeavourResearch', { 'jump-drive': 1 });
+    put('sessions/s1/serverState/endeavourResearchCadence', {
+      cycle: 3, revision: 1,
+      choices: [{ trackId: 'jump-drive', funding: 'standard', oreCost: 0 }],
+    });
+    mutate(mock.documents.get(path)!);
+    await expect(advanceEndeavourResearchTrack.run(request(command)))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.documents.has('sessions/s1/commandReceipts/research-1')).toBe(false);
   });
 
   it('rejects a stale Endeavour control revision without research or ore writes', async () => {

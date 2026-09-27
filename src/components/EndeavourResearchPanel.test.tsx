@@ -3,10 +3,13 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { useSessionStore } from '@/store/useSessionStore';
 
-const mocks = vi.hoisted(() => ({ read: vi.fn(), advance: vi.fn(), purchaseUpgrade: vi.fn(), retryUpgrade: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  read: vi.fn(), advance: vi.fn(), createAttempt: vi.fn(), purchaseUpgrade: vi.fn(), retryUpgrade: vi.fn(),
+}));
 vi.mock('@/lib/endeavourResearchService', () => ({
   readEndeavourResearchWorkspace: mocks.read,
   advanceEndeavourResearchTrack: mocks.advance,
+  createEndeavourResearchAttempt: mocks.createAttempt,
 }));
 vi.mock('@/lib/endeavourFieldUpgradeService', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
@@ -37,13 +40,44 @@ const workspace = {
   fieldUpgradeState: { upgradeRevision: 6, targetsUsedThisCycle: 0 },
 };
 
+function staleReply(attempt: {
+  sessionId: string; requestId: string; expectedControlRevision: number;
+  expectedResearchRevision: number; expectedCycle: number; trackId: string; funding: string;
+}) {
+  return {
+    status: 'stale' as const, sessionId: attempt.sessionId, requestId: attempt.requestId,
+    trackId: attempt.trackId, funding: attempt.funding,
+    expected: {
+      cycle: attempt.expectedCycle,
+      controlRevision: attempt.expectedControlRevision,
+      researchRevision: attempt.expectedResearchRevision,
+    },
+    current: {
+      cycle: attempt.expectedCycle,
+      controlRevision: attempt.expectedControlRevision,
+      researchRevision: attempt.expectedResearchRevision + 1,
+    },
+  };
+}
+
 beforeEach(() => {
   mocks.read.mockReset();
   mocks.advance.mockReset();
   mocks.purchaseUpgrade.mockReset();
   mocks.retryUpgrade.mockReset();
+  mocks.createAttempt.mockReset();
   mocks.read.mockResolvedValue(workspace);
-  mocks.advance.mockResolvedValue(undefined);
+  mocks.advance.mockResolvedValue({ status: 'committed' });
+  let requestIndex = 0;
+  mocks.createAttempt.mockImplementation(({ workspace: observed, trackId, funding }) => ({
+    sessionId: observed.sessionId,
+    requestId: `research-attempt-${++requestIndex}`,
+    expectedControlRevision: control.revision,
+    expectedResearchRevision: observed.researchRevision,
+    expectedCycle: observed.cycle,
+    trackId,
+    funding,
+  }));
   useSessionStore.getState().reset();
   useSessionStore.getState().setIdentity({
     id: 's1', name: 'Fleet', joinCode: '1234', phase: 'active', ownerUid: 'owner',
@@ -138,7 +172,8 @@ it('submits the selected standard choice and refreshes from the server without a
   await screen.findByRole('region', { name: 'Endeavour research controls' });
   await user.click(screen.getByRole('button', { name: 'Advance standard research' }));
   await waitFor(() => expect(mocks.advance).toHaveBeenCalledWith({
-    workspace, trackId: 'reactor', funding: 'standard',
+    sessionId: 's1', requestId: 'research-attempt-1', expectedControlRevision: 4,
+    expectedResearchRevision: 0, expectedCycle: 3, trackId: 'reactor', funding: 'standard',
   }));
   expect(await screen.findByText(/reactor advanced one research box/i)).toHaveAttribute('role', 'status');
   expect(screen.getByRole('list', { name: 'Research progress' })).toHaveTextContent(
@@ -152,8 +187,84 @@ it('offers additional choices as explicit five-Shepherd-ore requests', async () 
   render(<EndeavourResearchPanel control={control} />);
   await user.click(await screen.findByRole('button', { name: 'Advance with 5 Shepherd ore' }));
   await waitFor(() => expect(mocks.advance).toHaveBeenCalledWith({
-    workspace, trackId: 'reactor', funding: 'shepherd-ore',
+    sessionId: 's1', requestId: 'research-attempt-1', expectedControlRevision: 4,
+    expectedResearchRevision: 0, expectedCycle: 3, trackId: 'reactor', funding: 'shepherd-ore',
   }));
+});
+
+it('waits for the current workspace before an explicit fresh-ID stale retry', async () => {
+  const user = userEvent.setup();
+  const current = {
+    ...workspace,
+    researchRevision: 1,
+    cadence: { cycle: 3, revision: 1, choices: [{ trackId: 'jump-drive', funding: 'standard' as const, oreCost: 0 as const }] },
+    progress: { reactor: 1, 'jump-drive': 1 },
+    tracks: [workspace.tracks[0]!, { ...workspace.tracks[1]!, crossedBoxes: 1 }],
+  };
+  mocks.read.mockResolvedValueOnce(workspace).mockResolvedValueOnce(workspace)
+    .mockResolvedValueOnce(current).mockResolvedValueOnce(current);
+  mocks.advance.mockImplementationOnce((attempt) => Promise.resolve(staleReply(attempt)));
+  render(<EndeavourResearchPanel control={control} />);
+  await user.click(await screen.findByRole('button', { name: 'Advance standard research' }));
+
+  const retry = await screen.findByRole('button', { name: 'Retry choice with current revisions' });
+  expect(retry).toBeDisabled();
+  await user.click(screen.getByRole('button', { name: 'Refresh private research' }));
+  await waitFor(() => expect(screen.getByRole('button', {
+    name: 'Retry choice with current revisions',
+  })).toBeEnabled());
+
+  await user.click(screen.getByRole('button', { name: 'Retry choice with current revisions' }));
+  await waitFor(() => expect(mocks.advance).toHaveBeenCalledTimes(2));
+  expect(mocks.advance.mock.calls[0]![0]).toMatchObject({
+    requestId: 'research-attempt-1', expectedResearchRevision: 0, trackId: 'reactor', funding: 'standard',
+  });
+  expect(mocks.advance.mock.calls[1]![0]).toMatchObject({
+    requestId: 'research-attempt-2', expectedResearchRevision: 1, trackId: 'reactor', funding: 'standard',
+  });
+});
+
+it('uses an already refreshed entitled workspace when the stale reply arrives later', async () => {
+  const user = userEvent.setup();
+  const current = {
+    ...workspace,
+    researchRevision: 1,
+    cadence: { cycle: 3, revision: 1, choices: [{ trackId: 'jump-drive', funding: 'standard' as const, oreCost: 0 as const }] },
+    progress: { reactor: 1, 'jump-drive': 1 },
+    tracks: [workspace.tracks[0]!, { ...workspace.tracks[1]!, crossedBoxes: 1 }],
+  };
+  mocks.read.mockResolvedValueOnce(workspace).mockResolvedValueOnce(current).mockResolvedValueOnce(current);
+  let resolve!: () => void;
+  mocks.advance.mockImplementationOnce((attempt) => new Promise((done) => {
+    resolve = () => done(staleReply(attempt));
+  }));
+  render(<EndeavourResearchPanel control={control} />);
+  await user.click(await screen.findByRole('button', { name: 'Advance standard research' }));
+
+  await user.click(screen.getByRole('button', { name: 'Refresh private research' }));
+  await screen.findByText(/Jump Drive: 1 of 5 boxes crossed/i);
+  await act(async () => {
+    resolve();
+    await Promise.resolve();
+  });
+  await waitFor(() => expect(screen.getByRole('button', {
+    name: 'Retry choice with current revisions',
+  })).toBeEnabled());
+  expect(mocks.advance).toHaveBeenCalledTimes(1);
+});
+
+it('retries an uncertain transport with the exact same request ID and CAS values', async () => {
+  const user = userEvent.setup();
+  mocks.advance.mockRejectedValueOnce(new Error('connection interrupted'))
+    .mockResolvedValueOnce({ status: 'replayed' });
+  render(<EndeavourResearchPanel control={control} />);
+  await user.click(await screen.findByRole('button', { name: 'Advance standard research' }));
+  await user.click(await screen.findByRole('button', { name: 'Retry same research request' }));
+  await waitFor(() => expect(mocks.advance).toHaveBeenCalledTimes(2));
+  expect(mocks.advance.mock.calls[0]![0]).toEqual(mocks.advance.mock.calls[1]![0]);
+  expect(mocks.advance.mock.calls[0]![0]).toMatchObject({
+    requestId: 'research-attempt-1', expectedResearchRevision: 0, expectedControlRevision: 4,
+  });
 });
 
 it('keeps the ore-funded choice unavailable without five current Shepherd ore', async () => {
@@ -236,4 +347,24 @@ it('clears a settled in-flight action after authority loss so a returning Scient
     ...useSessionStore.getState().me!, activeConsoleRoleId: 'shepherd-scientist',
   }));
   expect(await screen.findByRole('button', { name: 'Advance standard research' })).toBeEnabled();
+});
+
+it('ignores a delayed stale reply after the Scientist loses Endeavour authority', async () => {
+  const user = userEvent.setup();
+  let finish!: () => void;
+  mocks.advance.mockImplementationOnce((attempt) => new Promise((resolve) => {
+    finish = () => resolve(staleReply(attempt));
+  }));
+  const { container } = render(<EndeavourResearchPanel control={control} />);
+  await user.click(await screen.findByRole('button', { name: 'Advance standard research' }));
+  act(() => useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, activeConsoleRoleId: 'shepherd-engineer',
+  }));
+  await waitFor(() => expect(container).toBeEmptyDOMElement());
+  await act(async () => {
+    finish();
+    await Promise.resolve();
+  });
+  expect(screen.queryByRole('button', { name: 'Retry choice with current revisions' })).not.toBeInTheDocument();
+  expect(screen.queryByText(/research changed while this choice was being checked/i)).not.toBeInTheDocument();
 });

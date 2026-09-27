@@ -2,8 +2,11 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useSessionStore } from '@/store/useSessionStore';
 import {
   advanceEndeavourResearchTrack,
+  createEndeavourResearchAttempt,
   readEndeavourResearchWorkspace,
+  type EndeavourResearchAttempt,
   type EndeavourResearchFunding,
+  type EndeavourResearchStaleReply,
   type EndeavourResearchWorkspace,
 } from '@/lib/endeavourResearchService';
 import type { ShuttleControlEntry } from '@/types/game';
@@ -11,13 +14,29 @@ import './EndeavourResearchPanel.css';
 
 const EndeavourFieldUpgradePanel = lazy(() => import('./EndeavourFieldUpgradePanel'));
 
-function isCurrentScientistHolder(expectedSessionId: string, expectedUid: string): boolean {
+function isCurrentScientistHolder(
+  expectedSessionId: string,
+  expectedUid: string,
+  expectedControlRevision?: number,
+  expectedCycle?: number,
+): boolean {
   const { session, me } = useSessionStore.getState();
   const control = session?.shuttleControl?.endeavour;
   return session?.id === expectedSessionId && session.phase === 'active' &&
     me?.uid === expectedUid && me.role === 'player' && me.activeConsoleRoleId === 'shepherd-scientist' &&
     session.activeRoleIds?.includes('shepherd-scientist') === true &&
-    control?.ownerRoleId === 'shepherd-scientist' && control.holderUid === expectedUid;
+    control?.ownerRoleId === 'shepherd-scientist' && control.holderUid === expectedUid &&
+    (expectedControlRevision === undefined || control.revision === expectedControlRevision) &&
+    (expectedCycle === undefined || session.currentTurn === expectedCycle);
+}
+
+function mayRetryExactRequest(cause: unknown): boolean {
+  const code = typeof cause === 'object' && cause !== null && 'code' in cause &&
+    typeof cause.code === 'string' ? cause.code : '';
+  return !new Set([
+    'functions/unauthenticated', 'functions/permission-denied', 'functions/invalid-argument',
+    'functions/not-found', 'functions/failed-precondition', 'functions/already-exists',
+  ]).has(code);
 }
 
 function hasLiveTeamPhase(session: ReturnType<typeof useSessionStore.getState>['session'], workspace: EndeavourResearchWorkspace): boolean {
@@ -54,6 +73,15 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
     notice: string;
     error: string;
   }> | null>(null);
+  const [staleRecovery, setStaleRecovery] = useState<Readonly<{
+    identityKey: string;
+    attempt: EndeavourResearchAttempt;
+    reply: EndeavourResearchStaleReply;
+  }> | null>(null);
+  const [pendingAttempt, setPendingAttempt] = useState<Readonly<{
+    identityKey: string;
+    attempt: EndeavourResearchAttempt;
+  }> | null>(null);
   const requestGeneration = useRef(0);
   const sessionId = session?.id;
   const uid = me?.uid;
@@ -62,6 +90,8 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
   const notice = feedback?.identityKey === identityKey ? feedback.notice : '';
   const error = feedback?.identityKey === identityKey ? feedback.error : '';
   const busyFunding = busyAction?.identityKey === identityKey ? busyAction.funding : null;
+  const activeStaleRecovery = staleRecovery?.identityKey === identityKey ? staleRecovery : null;
+  const activePendingAttempt = pendingAttempt?.identityKey === identityKey ? pendingAttempt : null;
   const entitled = Boolean(
     session?.phase === 'active' && me?.role === 'player' &&
     me.activeConsoleRoleId === 'shepherd-scientist' &&
@@ -104,6 +134,9 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
       requestGeneration.current += 1;
       setLoadedWorkspace(null);
       setFeedback(null);
+      setStaleRecovery(null);
+      setPendingAttempt(null);
+      setBusyAction(null);
       return;
     }
     void reload();
@@ -119,29 +152,119 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
   const selectedTrack = workspace?.tracks.find((track) => track.trackId === selectedTrackId &&
     !track.complete && !chosenTracks.has(track.trackId));
   const liveTeamPhase = Boolean(workspace && hasLiveTeamPhase(currentSession, workspace));
+  const liveStore = useSessionStore.getState();
+  const liveControl = currentSession?.shuttleControl?.endeavour;
+  const staleTrack = activeStaleRecovery && workspace?.tracks.find((track) =>
+    track.trackId === activeStaleRecovery.reply.trackId);
+  const staleTrackAvailable = Boolean(staleTrack && !staleTrack.complete &&
+    !workspace?.cadence.choices.some((choice) => choice.trackId === staleTrack.trackId));
+  const staleFundingAvailable = activeStaleRecovery?.reply.funding === 'standard'
+    ? standardUsed < 3
+    : activeStaleRecovery?.reply.funding === 'shepherd-ore'
+      ? oreUsed < 2 && (workspace?.shepherdOre ?? 0) >= 5
+      : false;
+  const staleRevisionObserved = Boolean(activeStaleRecovery && workspace &&
+    workspace.sessionId === activeStaleRecovery.reply.sessionId &&
+    workspace.cycle === activeStaleRecovery.reply.current.cycle &&
+    workspace.researchRevision >= activeStaleRecovery.reply.current.researchRevision);
+  const staleAuthorityCurrent = Boolean(activeStaleRecovery && liveStore.connection === 'live' &&
+    liveStore.sessionSnapshotFreshness === 'server' && window.navigator.onLine &&
+    currentSession?.currentTurn === activeStaleRecovery.reply.current.cycle &&
+    liveControl?.revision === activeStaleRecovery.reply.current.controlRevision &&
+    isCurrentScientistHolder(
+      activeStaleRecovery.reply.sessionId,
+      uid ?? '',
+      activeStaleRecovery.reply.current.controlRevision,
+      activeStaleRecovery.reply.current.cycle,
+    ));
+  const canRetryStale = Boolean(activeStaleRecovery && staleRevisionObserved && staleAuthorityCurrent &&
+    liveTeamPhase && staleTrackAvailable && staleFundingAvailable &&
+    selectedTrackId === activeStaleRecovery.reply.trackId && loading === false && busyFunding === null &&
+    activePendingAttempt === null);
+  const staleBlocksNewChoice = Boolean(activeStaleRecovery &&
+    selectedTrackId === activeStaleRecovery.reply.trackId);
 
-  async function resolveChoice(funding: EndeavourResearchFunding): Promise<void> {
-    if (!workspace || !selectedTrack || !liveTeamPhase || busyFunding !== null || !identityKey || !sessionId || !uid) return;
-    setBusyAction({ identityKey, funding });
+  async function submitAttempt(attempt: EndeavourResearchAttempt, trackName: string): Promise<void> {
+    if (!identityKey || !sessionId || !uid || busyFunding !== null) return;
+    setBusyAction({ identityKey, funding: attempt.funding });
     setFeedback({ identityKey, notice: '', error: '' });
     try {
-      await advanceEndeavourResearchTrack({ workspace, trackId: selectedTrack.trackId, funding });
-      if (!isCurrentScientistHolder(sessionId, uid)) return;
-      setFeedback({ identityKey, notice: `${selectedTrack.name} advanced one research box.`, error: '' });
-      await reload();
-    } catch (cause) {
-      if (isCurrentScientistHolder(sessionId, uid)) {
-        setFeedback({ identityKey, notice: '', error: errorMessage(cause) });
+      const result = await advanceEndeavourResearchTrack(attempt);
+      if (!isCurrentScientistHolder(
+        sessionId, uid, attempt.expectedControlRevision, attempt.expectedCycle,
+      )) return;
+      setPendingAttempt(null);
+      if (result.status === 'stale') {
+        setStaleRecovery({ identityKey, attempt, reply: result });
+        await reload();
+        if (isCurrentScientistHolder(sessionId, uid, attempt.expectedControlRevision, attempt.expectedCycle)) {
+          setFeedback({ identityKey, notice: '', error: '' });
+        }
+      } else {
+        setStaleRecovery(null);
+        setFeedback({ identityKey, notice: `${trackName} advanced one research box.`, error: '' });
+        await reload();
       }
-      await reload();
+    } catch (cause) {
+      if (isCurrentScientistHolder(
+        sessionId, uid, attempt.expectedControlRevision, attempt.expectedCycle,
+      )) {
+        if (mayRetryExactRequest(cause)) setPendingAttempt({ identityKey, attempt });
+        else setPendingAttempt(null);
+        setFeedback({ identityKey, notice: '', error: errorMessage(cause) });
+        await reload();
+        if (mayRetryExactRequest(cause) && isCurrentScientistHolder(
+          sessionId, uid, attempt.expectedControlRevision, attempt.expectedCycle,
+        )) {
+          setFeedback({
+            identityKey, notice: '',
+            error: `${errorMessage(cause)} This request may have committed; retry the same request to confirm it.`,
+          });
+        }
+      }
     } finally {
       setBusyAction((current) => current?.identityKey === identityKey ? null : current);
     }
   }
 
-  const standardDisabled = !liveTeamPhase || !selectedTrack || standardUsed >= 3 || loading || busyFunding !== null;
+  async function resolveChoice(funding: EndeavourResearchFunding): Promise<void> {
+    if (!workspace || !selectedTrack || !liveTeamPhase || busyFunding !== null || activePendingAttempt ||
+        staleBlocksNewChoice || !identityKey) return;
+    try {
+      await submitAttempt(createEndeavourResearchAttempt({
+        workspace, trackId: selectedTrack.trackId, funding,
+      }), selectedTrack.name);
+    } catch (cause) {
+      setFeedback({ identityKey, notice: '', error: errorMessage(cause) });
+    }
+  }
+
+  async function retrySameRequest(): Promise<void> {
+    if (!activePendingAttempt || !workspace) return;
+    const trackName = workspace.tracks.find((track) => track.trackId === activePendingAttempt.attempt.trackId)?.name ?? 'Research';
+    await submitAttempt(activePendingAttempt.attempt, trackName);
+  }
+
+  async function retryWithCurrentRevision(): Promise<void> {
+    if (!canRetryStale || !activeStaleRecovery || !workspace || !staleTrack) return;
+    try {
+      const attempt = createEndeavourResearchAttempt({
+        workspace,
+        trackId: activeStaleRecovery.reply.trackId,
+        funding: activeStaleRecovery.reply.funding,
+      });
+      setStaleRecovery(null);
+      await submitAttempt(attempt, staleTrack.name);
+    } catch (cause) {
+      if (identityKey) setFeedback({ identityKey, notice: '', error: errorMessage(cause) });
+    }
+  }
+
+  const standardDisabled = !liveTeamPhase || !selectedTrack || standardUsed >= 3 || loading || busyFunding !== null ||
+    activePendingAttempt !== null || staleBlocksNewChoice;
   const oreDisabled = !liveTeamPhase || !selectedTrack || oreUsed >= 2 ||
-    (workspace?.shepherdOre ?? 0) < 5 || loading || busyFunding !== null;
+    (workspace?.shepherdOre ?? 0) < 5 || loading || busyFunding !== null ||
+    activePendingAttempt !== null || staleBlocksNewChoice;
 
   return <>
     <section className="console-workspace__section endeavour-research-panel"
@@ -154,6 +277,27 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
         {notice && <p role="status">{notice}</p>}
         {error && <p role="alert">{error}</p>}
       </div>
+      {activeStaleRecovery && <div className="console-workspace__status" aria-label="Stale research recovery">
+        <p role="status">Research changed while this choice was being checked.</p>
+        {!staleRevisionObserved && <p>Waiting for the live Scientist workspace to reach the current research revision.</p>}
+        {staleRevisionObserved && !staleTrackAvailable &&
+          <p>This track is no longer available. Choose another available track to make a new choice.</p>}
+        {staleRevisionObserved && staleTrackAvailable && !staleFundingAvailable &&
+          <p>The original research choice is no longer eligible.</p>}
+        {staleRevisionObserved && staleTrackAvailable && !staleAuthorityCurrent &&
+          <p>Reconnect to the current Scientist authority before retrying.</p>}
+        <button type="button" className="cic-action-button" disabled={!canRetryStale}
+          onClick={() => void retryWithCurrentRevision()}>
+          Retry choice with current revisions
+        </button>
+      </div>}
+      {activePendingAttempt && <div className="console-workspace__status" aria-label="Unconfirmed research request">
+        <p role="status">The research response was uncertain. Retry the same request to confirm its outcome.</p>
+        <button type="button" className="cic-action-button" disabled={busyFunding !== null || loading}
+          onClick={() => void retrySameRequest()}>
+          Retry same research request
+        </button>
+      </div>}
       {loading && <p role="status">Loading private research state…</p>}
       {!loading && !workspace && !error && <p>Research state is not available.</p>}
       {workspace && <>
@@ -174,8 +318,12 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
           <span>Research track</span>
           <select
             value={selectedTrackId}
-            onChange={(event) => setSelectedTrackId(event.currentTarget.value)}
-            disabled={loading || busyFunding !== null || workspace.tracks.every((track) =>
+            onChange={(event) => {
+              setSelectedTrackId(event.currentTarget.value);
+              setStaleRecovery(null);
+              setFeedback({ identityKey: identityKey!, notice: '', error: '' });
+            }}
+            disabled={loading || busyFunding !== null || activePendingAttempt !== null || workspace.tracks.every((track) =>
               track.complete || chosenTracks.has(track.trackId))}
           >
             {workspace.tracks.map((track) => {
@@ -203,7 +351,7 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
             onClick={() => void resolveChoice('shepherd-ore')}>
             {busyFunding === 'shepherd-ore' ? 'Advancing research…' : 'Advance with 5 Shepherd ore'}
           </button>
-          <button type="button" className="cic-text-button" disabled={loading || busyFunding !== null}
+          <button type="button" className="cic-text-button" disabled={loading}
             onClick={() => void reload()}>
             Refresh private research
           </button>

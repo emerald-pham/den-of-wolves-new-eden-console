@@ -53,6 +53,16 @@ export type EndeavourResearchWriterReply = Readonly<{
   cadence: EndeavourResearchCadenceState;
 }>;
 
+export type EndeavourResearchStaleReply = Readonly<{
+  status: 'stale';
+  sessionId: string;
+  requestId: string;
+  trackId: EndeavourResearchTrackId;
+  funding: EndeavourResearchFunding;
+  expected: Readonly<{ cycle: number; controlRevision: number; researchRevision: number }>;
+  current: Readonly<{ cycle: number; controlRevision: number; researchRevision: number }>;
+}>;
+
 type EndeavourResearchWriterFingerprint = CommandFingerprint & Readonly<{
   action: 'endeavour-research';
   sessionId: string;
@@ -416,26 +426,56 @@ export const advanceEndeavourResearchTrack = onCall<{
       );
       if (!cadence) throw new HttpsError('failed-precondition', 'The private Endeavour research cadence is malformed.');
       const before = researchTracks(progress).find((track) => track.trackId === command.trackId)!;
-      let result: ReturnType<typeof resolveEndeavourResearchChoice>;
-      try {
-        result = resolveEndeavourResearchChoice({
-          state: cadence,
-          progress,
-          cycle: currentCycle as number,
-          expectedRevision: command.expectedResearchRevision,
+      if (before.currentMaterialCost === null) {
+        throw new HttpsError('failed-precondition', 'The selected Endeavour research track is complete.');
+      }
+      const resolveAtRevision = (expectedRevision: number) => resolveEndeavourResearchChoice({
+        state: cadence,
+        progress,
+        cycle: currentCycle as number,
+        expectedRevision,
+        trackId: command.trackId,
+        funding: command.funding,
+        shepherdOre: authority.shepherdOre,
+        actorScope: 'player',
+        turnPhase: session.get('turnPhase'),
+      });
+
+      if (command.expectedResearchRevision < cadence.revision) {
+        try {
+          // Recheck the same choice against authoritative current research state. The
+          // preview is discarded; it establishes eligibility without creating a receipt.
+          resolveAtRevision(cadence.revision);
+        } catch {
+          throw new HttpsError('failed-precondition', 'Endeavour research changed; refresh before choosing.');
+        }
+        const staleReply: EndeavourResearchStaleReply = {
+          status: 'stale',
+          sessionId: command.sessionId,
+          requestId: command.requestId,
           trackId: command.trackId,
           funding: command.funding,
-          shepherdOre: authority.shepherdOre,
-          actorScope: 'player',
-          turnPhase: session.get('turnPhase'),
-        });
+          expected: {
+            cycle: command.expectedCycle,
+            controlRevision: command.expectedControlRevision,
+            researchRevision: command.expectedResearchRevision,
+          },
+          current: {
+            cycle: currentCycle as number,
+            controlRevision: authority.controlRevision,
+            researchRevision: cadence.revision,
+          },
+        };
+        return staleReply;
+      }
+
+      let result: ReturnType<typeof resolveEndeavourResearchChoice>;
+      try {
+        result = resolveAtRevision(command.expectedResearchRevision);
       } catch (cause) {
         throw new HttpsError('failed-precondition', cause instanceof Error ? cause.message : 'Endeavour research was rejected.');
       }
       const after = endeavourResearchTrack(result.progress, command.trackId);
-      if (before.currentMaterialCost === null) {
-        throw new HttpsError('failed-precondition', 'The selected Endeavour research track is complete.');
-      }
       const reply: EndeavourResearchWriterReply = {
         status: 'committed',
         sessionId: command.sessionId,
