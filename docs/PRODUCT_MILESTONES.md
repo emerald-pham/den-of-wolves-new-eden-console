@@ -157,8 +157,9 @@ extra owner playtest steps.
 
 ## PC01 shape — Shepherd science station
 
-**State:** shaped and ready for building. PC02–PC10 remain provisional
-candidates; the owner reviews PC01 only after a complete playable handoff.
+**State:** release candidate built; integrated validation and deployment remain.
+PC02–PC10 remain provisional candidates; the owner reviews PC01 only after a
+complete playable handoff.
 
 **Execution note (2026-09-27).** The earlier optional-sidecar wording left
 independent PC01 work easy to run serially. Assign bounded, separate owners

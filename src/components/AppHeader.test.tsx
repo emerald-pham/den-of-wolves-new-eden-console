@@ -671,12 +671,17 @@ it('renders current and retained repair history with progress and keyboard stop 
   expect(region).toHaveAttribute('tabindex', '0');
   expect(renderedChanges.every((change) => !/\bprompts?\b/i.test(change))).toBe(true);
   expect(within(newestEntry).getByText(
+    'The Shepherd Scientist can use Endeavour’s ECM Device after completing its research. The control shows when it is ready, working, or spent, and the fleet pursuit display refreshes after activation.',
+  )).toBeVisible();
+  const previousRechargeEntry = within(region).getByRole('heading', { name: 'Build 0.5.50' }).closest('article');
+  if (!previousRechargeEntry) throw new Error('Expected the preserved 0.5.50 recharge release entry.');
+  expect(within(previousRechargeEntry).getByText(
     'When a service-shuttle recharge meets newer revisions in the same Coordination cycle, the current holder keeps the selected console and production choice while live state catches up, then explicitly retries with a fresh request.',
   )).toBeVisible();
-  expect(within(newestEntry).getByText(
+  expect(within(previousRechargeEntry).getByText(
     'If a recharge result is uncertain, the current holder can retry the exact request without adding a second charge. Older-cycle requests without a committed result fail closed.',
   )).toBeVisible();
-  expect(within(newestEntry).getByText(
+  expect(within(previousRechargeEntry).getByText(
     'A stale recharge does not spend resources or add a charge.',
   )).toBeVisible();
   expect(within(newestEntry).getByText('458 of 751 planned items are complete (60.99%).')).toBeVisible();

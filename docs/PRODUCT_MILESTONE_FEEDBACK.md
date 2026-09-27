@@ -25,9 +25,9 @@ boundary. Never silently enlarge that accepted build.
 
 ## PC01 — Shepherd science station
 
-**Review state:** not yet built or reviewed. No owner feedback has been
-received for PC01. Append the owner's notes here after the playtest; do not
-pre-populate a result.
+**Review state:** release candidate built, not yet reviewed. No owner feedback
+has been received for PC01. Append the owner's notes here after the playtest;
+do not pre-populate a result.
 
 | Note ID | Owner's observation or request | Disposition | Cooldown evidence or later candidate | Next shape that addressed it |
 |---|---|---|---|---|
