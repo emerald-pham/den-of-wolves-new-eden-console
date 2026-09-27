@@ -31,6 +31,14 @@ function isCurrentScientistHolder(
     (expectedCycle === undefined || session.currentTurn === expectedCycle);
 }
 
+function staleReplyMatchesCurrentSession(reply: EndeavourResearchStaleReply): boolean {
+  const state = useSessionStore.getState();
+  return state.connection === 'live' && state.sessionSnapshotFreshness === 'server' &&
+    window.navigator.onLine && state.session?.id === reply.sessionId &&
+    state.session.currentTurn === reply.current.cycle &&
+    state.session.shuttleControl?.endeavour?.revision === reply.current.controlRevision;
+}
+
 function mayRetryExactRequest(cause: unknown): boolean {
   const code = typeof cause === 'object' && cause !== null && 'code' in cause &&
     typeof cause.code === 'string' ? cause.code : '';
@@ -59,6 +67,8 @@ function errorMessage(cause: unknown): string {
 export default function EndeavourResearchPanel({ control }: { readonly control: ShuttleControlEntry }) {
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
+  const connection = useSessionStore((state) => state.connection);
+  const snapshotFreshness = useSessionStore((state) => state.sessionSnapshotFreshness);
   const [loadedWorkspace, setLoadedWorkspace] = useState<Readonly<{
     identityKey: string;
     value: EndeavourResearchWorkspace;
@@ -91,7 +101,11 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
   const notice = feedback?.identityKey === identityKey ? feedback.notice : '';
   const error = feedback?.identityKey === identityKey ? feedback.error : '';
   const busyFunding = busyAction?.identityKey === identityKey ? busyAction.funding : null;
-  const activeStaleRecovery = staleRecovery?.identityKey === identityKey ? staleRecovery : null;
+  const activeStaleRecovery = staleRecovery?.identityKey === identityKey &&
+    session?.currentTurn === staleRecovery.reply.current.cycle &&
+    session.shuttleControl?.endeavour?.revision === staleRecovery.reply.current.controlRevision
+    ? staleRecovery
+    : null;
   const activePendingAttempt = pendingAttempt?.identityKey === identityKey ? pendingAttempt : null;
   const entitled = Boolean(
     session?.phase === 'active' && me?.role === 'player' &&
@@ -144,16 +158,30 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
     return () => { requestGeneration.current += 1; };
   }, [entitled, reload]);
 
+  useEffect(() => {
+    if (!staleRecovery || staleRecovery.identityKey !== identityKey || !sessionId ||
+        connection !== 'live' || snapshotFreshness !== 'server' || !window.navigator.onLine) return;
+    const reply = staleRecovery.reply;
+    if (session?.id === reply.sessionId && session.currentTurn === reply.current.cycle &&
+        session.shuttleControl?.endeavour?.revision === reply.current.controlRevision) return;
+    setStaleRecovery(null);
+    setFeedback({
+      identityKey,
+      notice: 'Research state changed again before this response arrived. Refresh the current Scientist workspace before choosing.',
+      error: '',
+    });
+    void reload();
+  }, [connection, identityKey, reload, session, sessionId, snapshotFreshness, staleRecovery]);
+
   if (!entitled) return null;
 
-  const currentSession = useSessionStore.getState().session;
+  const currentSession = session;
   const chosenTracks = new Set(workspace?.cadence.choices.map((choice) => choice.trackId) ?? []);
   const standardUsed = workspace?.cadence.choices.filter((choice) => choice.funding === 'standard').length ?? 0;
   const oreUsed = workspace?.cadence.choices.filter((choice) => choice.funding === 'shepherd-ore').length ?? 0;
   const selectedTrack = workspace?.tracks.find((track) => track.trackId === selectedTrackId &&
     !track.complete && !chosenTracks.has(track.trackId));
   const liveTeamPhase = Boolean(workspace && hasLiveTeamPhase(currentSession, workspace));
-  const liveStore = useSessionStore.getState();
   const liveControl = currentSession?.shuttleControl?.endeavour;
   const staleTrack = activeStaleRecovery && workspace?.tracks.find((track) =>
     track.trackId === activeStaleRecovery.reply.trackId);
@@ -168,8 +196,8 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
     workspace.sessionId === activeStaleRecovery.reply.sessionId &&
     workspace.cycle === activeStaleRecovery.reply.current.cycle &&
     workspace.researchRevision >= activeStaleRecovery.reply.current.researchRevision);
-  const staleAuthorityCurrent = Boolean(activeStaleRecovery && liveStore.connection === 'live' &&
-    liveStore.sessionSnapshotFreshness === 'server' && window.navigator.onLine &&
+  const staleAuthorityCurrent = Boolean(activeStaleRecovery && connection === 'live' &&
+    snapshotFreshness === 'server' && window.navigator.onLine &&
     currentSession?.currentTurn === activeStaleRecovery.reply.current.cycle &&
     liveControl?.revision === activeStaleRecovery.reply.current.controlRevision &&
     isCurrentScientistHolder(
@@ -201,6 +229,16 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
         exactRetry ? undefined : attempt.expectedCycle)) return;
       setPendingAttempt(null);
       if (result.status === 'stale') {
+        if (!staleReplyMatchesCurrentSession(result)) {
+          setStaleRecovery(null);
+          setFeedback({
+            identityKey,
+            notice: 'Research state changed again before this response arrived. Refresh the current Scientist workspace before choosing.',
+            error: '',
+          });
+          await reload();
+          return;
+        }
         setStaleRecovery({ identityKey, attempt, reply: result });
         await reload();
         if (isCurrentScientistHolder(sessionId, uid, attempt.expectedControlRevision, attempt.expectedCycle)) {
