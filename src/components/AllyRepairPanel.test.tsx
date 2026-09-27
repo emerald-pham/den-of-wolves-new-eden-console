@@ -184,6 +184,44 @@ it('accepts a stale reply that arrives after the matching projection and offers 
   expect(within(repair).getByRole('checkbox', { name: 'Reactor' })).toBeChecked();
 });
 
+it('ignores a superseded dock request when overlapping attempts settle in reverse order', async () => {
+  let resolveOld!: (reply: ReturnType<typeof staleReply>) => void;
+  let resolveCurrent!: (reply: ReturnType<typeof staleReply>) => void;
+  mocks.repair
+    .mockReturnValueOnce(new Promise((resolve) => { resolveOld = resolve; }))
+    .mockReturnValueOnce(new Promise((resolve) => { resolveCurrent = resolve; }));
+  vi.stubGlobal('crypto', { randomUUID: vi.fn()
+    .mockReturnValueOnce('ally-repair-shepherd-id').mockReturnValueOnce('ally-repair-icebreaker-id') });
+  const { rerender } = render(<AllyRepairPanel control={control} docking={docking} fuelled={false} />);
+  const repair = screen.getByRole('region', { name: 'Ally console repair' });
+  fireEvent.click(within(repair).getByRole('checkbox', { name: 'Reactor' }));
+  fireEvent.click(within(repair).getByRole('button', { name: 'Repair selected consoles' }));
+  await waitFor(() => expect(mocks.repair).toHaveBeenCalledTimes(1));
+
+  const icebreakerDocking = { ...docking, shipId: 'icebreaker' } as ShuttleDocking;
+  act(() => {
+    const session = useSessionStore.getState().session!;
+    useSessionStore.getState().setSession({ ...session, shuttleDockings: [icebreakerDocking] } as GameSession);
+  });
+  rerender(<AllyRepairPanel control={control} docking={icebreakerDocking} fuelled={false} />);
+  fireEvent.click(within(repair).getByRole('checkbox', { name: 'Reactor' }));
+  fireEvent.click(within(repair).getByRole('button', { name: 'Repair selected consoles' }));
+  await waitFor(() => expect(mocks.repair).toHaveBeenCalledTimes(2));
+  expect(mocks.repair.mock.calls[1]?.[0]).toMatchObject({
+    requestId: 'ally-repair-icebreaker-id', expectedHostShipId: 'icebreaker', systemIds: ['reactor'],
+  });
+
+  await act(async () => {
+    resolveCurrent({ ...staleReply('ally-repair-icebreaker-id'), expectedHostShipId: 'icebreaker' });
+  });
+  const currentRetry = within(repair).getByRole('button', { name: 'Retry repair with current revision' });
+  expect(currentRetry).toBeDisabled();
+
+  await act(async () => { resolveOld(staleReply('ally-repair-shepherd-id')); });
+  expect(within(repair).getByRole('button', { name: 'Retry repair with current revision' })).toBeDisabled();
+  expect(within(repair).queryByRole('alert')).toBeNull();
+});
+
 it.each(['holder', 'fleet group'] as const)('drops stale recovery when %s authority is lost', async (authority) => {
   let resolveStale!: (reply: ReturnType<typeof staleReply>) => void;
   mocks.repair.mockReturnValueOnce(new Promise((resolve) => { resolveStale = resolve; }));

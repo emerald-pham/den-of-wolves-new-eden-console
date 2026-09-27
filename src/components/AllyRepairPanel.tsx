@@ -206,8 +206,10 @@ export default function AllyRepairPanel({ control, docking, fuelled }: Props) {
     setError('');
     setRetry({ command, binding });
     setStaleRecovery(null);
+    const isCurrentRequestCheckpoint = () => pendingRef.current === checkpoint;
     try {
       const result: AllyRepairServiceResult = await repairConsolesFromAlly(command);
+      if (!isCurrentRequestCheckpoint()) return;
       if (result.status === 'stale') {
         if (!staleReplyMatchesCommand(result, binding.sessionId, command)) {
           setRetry(null);
@@ -238,6 +240,7 @@ export default function AllyRepairPanel({ control, docking, fuelled }: Props) {
       setStaleRecovery(null);
       setSystemIds([]);
     } catch (cause) {
+      if (!isCurrentRequestCheckpoint()) return;
       if (hasCurrentAllyHolderAuthority(binding, true)) {
         setError(cause instanceof Error ? cause.message : 'Ally repair failed.');
       } else {
