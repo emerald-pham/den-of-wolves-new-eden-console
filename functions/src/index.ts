@@ -2242,7 +2242,7 @@ export const resolvePendingScoutRequest = createResolvePendingScoutRequest(async
     throw commandError('failed-precondition', 'Current fleet-group authority is incomplete for scouting.', 'malformed-input');
   }
   const activePlayers = playerDocs.filter((player) =>
-    player.exists && player.get('role') === 'player' && !isKickedPlayer(player));
+    player.exists && !isKickedPlayer(player));
   const groupByMember = new Map<string, string>();
   for (const group of fleetGroups) {
     for (const memberUid of group.memberUids) {
