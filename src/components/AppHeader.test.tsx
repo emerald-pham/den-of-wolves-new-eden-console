@@ -671,12 +671,20 @@ it('renders current and retained repair history with progress and keyboard stop 
   expect(region).toHaveAttribute('tabindex', '0');
   expect(renderedChanges.every((change) => !/\bprompts?\b/i.test(change))).toBe(true);
   expect(within(newestEntry).getByText(
-    'When Endeavour upgrade state changes, the active Scientist can keep eligible console selections, wait for live research and purchase state, and explicitly retry with current revisions.',
+    'If Endeavour research changes while a choice is being checked, the Scientist can wait for the current private workspace and explicitly retry that choice.',
   )).toBeVisible();
   expect(within(newestEntry).getByText(
-    'Fleet broadcasts keep moving smoothly through font and screen-size changes and when one copy leaves the ticker.',
+    'If a connection leaves the outcome uncertain, retrying the same choice confirms the original request.',
   )).toBeVisible();
   expect(within(newestEntry).getByText('458 of 751 planned items are complete (60.99%).')).toBeVisible();
+  const previousEndeavourUpgradeEntry = within(region).getByRole('heading', { name: 'Build 0.5.46' }).closest('article');
+  if (!previousEndeavourUpgradeEntry) throw new Error('Expected the preserved 0.5.46 Endeavour upgrade release entry.');
+  expect(within(previousEndeavourUpgradeEntry).getByText(
+    'When Endeavour upgrade state changes, the active Scientist can keep eligible console selections, wait for live research and purchase state, and explicitly retry with current revisions.',
+  )).toBeVisible();
+  expect(within(previousEndeavourUpgradeEntry).getByText(
+    'Fleet broadcasts keep moving smoothly through font and screen-size changes and when one copy leaves the ticker.',
+  )).toBeVisible();
   const previousBlacksmithEntry = within(region).getByRole('heading', { name: 'Build 0.5.45' }).closest('article');
   if (!previousBlacksmithEntry) throw new Error('Expected the preserved 0.5.45 Blacksmith release entry.');
   expect(within(previousBlacksmithEntry).getByText(

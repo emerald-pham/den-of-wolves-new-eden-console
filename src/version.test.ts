@@ -26,14 +26,15 @@ it('retains connected-player roster privacy in its release history', () => {
   );
 });
 
-it('preserves Blacksmith history when adding Endeavour upgrade recovery to the current release', () => {
+it('preserves Endeavour upgrade history when adding research recovery to the current release', () => {
   const allyEntry = CHANGELOG.find((entry) => entry.version === '0.5.40');
   const maliadesEntry = CHANGELOG.find((entry) => entry.version === '0.5.41');
   const chacauEntry = CHANGELOG.find((entry) => entry.version === '0.5.42');
   const philiaEntry = CHANGELOG.find((entry) => entry.version === '0.5.43');
   const capybaraEntry = CHANGELOG.find((entry) => entry.version === '0.5.44');
   const blacksmithEntry = CHANGELOG.find((entry) => entry.version === '0.5.45');
-  const endeavourUpgradeEntry = CHANGELOG.find((entry) => entry.version === APP_VERSION);
+  const endeavourResearchEntry = CHANGELOG.find((entry) => entry.version === APP_VERSION);
+  const endeavourUpgradeEntry = CHANGELOG.find((entry) => entry.version === '0.5.46');
 
   expect(allyEntry?.changes).toContain(
     'Ally repairs keep selected consoles while server state catches up and let the current Joint Engineering Union holder explicitly retry with a fresh request and current revisions.',
@@ -52,6 +53,12 @@ it('preserves Blacksmith history when adding Endeavour upgrade recovery to the c
   );
   expect(blacksmithEntry?.changes).toContain(
     'When a Blacksmith repair meets changed state, the current holder can keep eligible selections, wait for live state to catch up, and explicitly retry with a fresh request and current revisions.',
+  );
+  expect(endeavourResearchEntry?.changes).toContain(
+    'If Endeavour research changes while a choice is being checked, the Scientist can wait for the current private workspace and explicitly retry that choice.',
+  );
+  expect(endeavourResearchEntry?.changes).toContain(
+    'If a connection leaves the outcome uncertain, retrying the same choice confirms the original request.',
   );
   expect(endeavourUpgradeEntry?.changes).toContain(
     'When Endeavour upgrade state changes, the active Scientist can keep eligible console selections, wait for live research and purchase state, and explicitly retry with current revisions.',

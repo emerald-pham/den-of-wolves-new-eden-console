@@ -26,6 +26,20 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 458, partial: 44, active: 0, missing: 249,
     },
     changes: [
+      'If Endeavour research changes while a choice is being checked, the Scientist can wait for the current private workspace and explicitly retry that choice.',
+      'If a connection leaves the outcome uncertain, retrying the same choice confirms the original request.',
+      '458 of 751 planned items are complete (60.99%).',
+    ],
+    implementationPrompts: [620],
+  },
+
+  {
+    version: '0.5.46',
+    implementationProgress: {
+      completed: 458, total: 751, percentage: '60.99%',
+      done: 458, partial: 44, active: 0, missing: 249,
+    },
+    changes: [
       'When Endeavour upgrade state changes, the active Scientist can keep eligible console selections, wait for live research and purchase state, and explicitly retry with current revisions.',
       'Fleet broadcasts keep moving smoothly through font and screen-size changes and when one copy leaves the ticker.',
       '458 of 751 planned items are complete (60.99%).',
