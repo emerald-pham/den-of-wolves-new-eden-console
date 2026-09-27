@@ -51,10 +51,10 @@ verify gameplay, permissions, and privacy separately.
 
 | Boundary | Evidence |
 |---|---|
-| Focused and full local tests | Integrated candidate: 5 focused files, 30 tests passed; full unit and Functions suite, 419 files and 5,626 tests passed. Typecheck, Functions build, bundle-size check, and lint passed; lint has six existing warnings and no errors. |
+| Focused and full local tests | Integrated candidate: focused scout and movement suite, 49 tests passed; full unit and Functions suite, 419 files and 5,628 tests passed. Typecheck, Functions build, bundle-size check, and lint passed; lint has six existing warnings and no errors. |
 | Firestore rules and privacy | Firestore emulator suite: 4 files and 138 tests passed. Scout and ECM projections also have focused transaction and audience regressions. |
 | Rendered phone, desktop, short landscape, and reduced motion | Integrated review page checked at 320×800 Scientist and second ship, 1280×900 GM, and 844×390 GM; no horizontal overflow. A separate 320×800 run confirmed the reduced-motion media rule applies, computed scrolling is automatic, and the page makes no Firebase requests. |
-| Independent callable and privacy review | Pending exact final candidate review. |
+| Independent callable and privacy review | Sol xhigh reviewed the integrated GM roster and move/jump repairs at commit `029abdf8` and found no remaining actionable findings. Release-gate measurement is being checked separately. |
 | Production deployment | Pending release workflow and hosted build check. |
 | Ordinary authorized facilitator and Scientist gameplay | Pending an authorized live session. Synthetic review and local tests do not establish this boundary. |
 
@@ -77,6 +77,7 @@ verify gameplay, permissions, and privacy separately.
 | Changed test | Reason |
 |---|---|
 | `functions/src/navigationProjection.test.ts` | Per-ship visited and scouted coordinates stay separate in member projections. |
+| `functions/src/jumpCallable.test.ts` | A ship keeps its revealed scout coordinate after a move or jump while a different ship's projection still hides it. |
 | `functions/src/scoutRequestCallable.test.ts` | Current ship, range, cadence, request-time docking host, and replay are checked against valid session fixtures. |
 | `scripts/deployment-targets.test.mjs` | The release selects every new PC01 callable and existing ship-map writer, and treats the separate review entry as Hosting; its historical fixture uses a fixed historical end commit. |
 | `src/components/AppHeader.test.tsx` | The current PC01 entry and retained 0.5.50 recharge history both remain visible after the version rollover. |
