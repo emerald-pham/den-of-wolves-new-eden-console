@@ -6356,6 +6356,13 @@
       "language": "Release 0.5.36 deploys the server-authoritative PDF Escort Wing launch path under the Wolf Attack gate: the active P.D.F. Colonel, current targeting cycle, remaining fighters, and charged undamaged Refinery 124 Fighter Bay are required. Session and wing revisions bind the transaction; committed launch, private receipt, and member-safe projection update atomically, while exact replay adds no duplicate writes. At main SHA 24c8891ae79d6564a83145b0f92ceb963597d989, WIF Deploy workflow 36266543050 selected Hosting and exactly declareWolfAttack, getPdfEscortWingLaunch, and launchPdfEscortWing, verified a new ready revision for each against pre-deploy captures, and verified Hosting version 0.5.36; the public build-version endpoint returned HTTP 200. Full local validation, exact-SHA GitHub gates, and Sol xhigh review passed. No real production Wolf attack was performed. Medium/Short combat resolution, fighter-loss application, and mission-result bonus integration remain unverified, so P398 stays partial.",
       "source": "DoWNE v1.1 A4 Double Sided source page 81/84, SHA-256 be57154c140155210e7a32827e4a93067326fb85414640641d413f52d437ba86; functions/src/pdfEscortWingState.ts and tests; functions/src/index.ts and wolfAttackDeclarationCallable.test.ts; functions/src/pdfEscortWingProjection.ts; src/lib/pdfEscortWingProjection.ts; src/lib/sessionService.ts and tests; src/components/PdfEscortWingReference.tsx and tests; Firestore rules tests; scripts/deployment-targets.mjs and scripts/deployment-targets.test.mjs; focused callable, client, UI, projection, Functions build, typecheck, responsive rendered and reduced-motion QA; full coordination validation and GitHub exact-SHA verification; Sol xhigh exact-HEAD review; WIF Deploy workflow 36266543050 at main SHA 24c8891ae79d6564a83145b0f92ceb963597d989, with new ready revision checks for all selected Functions and Hosting version verification; public https://dow-new-eden-console.web.app/build-version.json returned 0.5.36. No production Wolf attack was run.",
       "type": "evidence / partial / production-callable / durable-state / launch / fail-closed / member-safe-projection / firestore-rules / independent-review / responsive / reduced-motion / wif-exact-sha-deployment / ready-function-revisions / hosting-version / live-gameplay-unverified"
+    },
+    {
+      "direction": "PC01 -> 213,321,325,327-333,677",
+      "id": "E-PC01-CANDIDATE",
+      "language": "The PC01 0.5.51 local candidate connects Scientist ECM, private scouting, facilitator reveal, discovery notes, hidden Deep Nebula markers, and ship-specific map knowledge. Focused callable, rules, component, and map tests provide local proof. This evidence does not establish deployment or ordinary authorized live gameplay; each affected prompt remains partial until that proof is recorded.",
+      "source": "functions/src/endeavourEcmDeviceWriter.ts; functions/src/scoutRequestCadence.ts; functions/src/scoutResultCallable.ts; functions/src/scoutResolutionPlan.ts; functions/src/scoutMapIntegration.test.ts; functions/src/navigationProjection.ts; firestore.rules; src/components/EndeavourEcmDevicePanel.tsx; src/components/ScoutResultPanels.tsx; src/routes/ShipConsole.tsx; docs/PRODUCT_MILESTONE_ASSUMPTIONS.md",
+      "type": "evidence / local candidate / authority / privacy"
     }
   ],
   "plan": {
@@ -11794,7 +11801,8 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.5.22"
+        "0.5.22",
+        "0.5.51"
       ],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
@@ -11819,7 +11827,8 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.5.22"
+        "0.5.22",
+        "0.5.51"
       ],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
@@ -11834,8 +11843,8 @@
         "acceptance": "the completed device reduces the owning group’s pursuit by three exactly once per allowed use.",
         "title": "Build and use the ECM Device."
       },
-      "description": "The pure server-domain ECM Device transition requires the canonical five-box research track to be complete, derives ownership from the one canonical fleet group containing Shepherd, and validates the complete private pursuit authority before use. Activation subtracts the fixed printed value of three from only that group, bounded at zero, preserves every other group, and moves the device through a revision-bound one-shot state so stale or repeated use cannot apply the effect twice. This implements Prompt 213's non-feature domain contract only: no callable, session transaction or persistence, actor or phase authorization, durable replay/event, projection, UI, deployment, or playable release is claimed here. Focused domain tests cover exact reduction, low-value bounds, ownership isolation, canonical group IDs, incomplete research, stale and repeated requests, and malformed authority. Prompt 213 remains partial until its authorized session transaction, client action, and live device effect are verified.",
-      "evidenceIds": "E-AUDIT-213;E-213-ECM-DEVICE",
+      "description": "The PC01 implementation adds a server-authoritative ECM activation and private Scientist workspace. It rechecks the completed five-box track, current holder and active group, commits the one-shot pursuit effect, replay receipt and member-safe event, and exposes ready, working, success, and spent feedback. Local callable, rules, route, and replay tests cover the path. An ordinary authorized released-session activation remains unverified, so this prompt is partial.",
+      "evidenceIds": "E-AUDIT-213;E-213-ECM-DEVICE;E-PC01-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "211",
@@ -11843,7 +11852,9 @@
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.51"
+      ],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
       "status": "partial",
@@ -14728,8 +14739,8 @@
         "acceptance": "only Starlight, Hummingbird, Endeavour, or the assigned Comms Officer can create their printed request.",
         "title": "Define scout entitlements."
       },
-      "description": "The server authority layer defines exactly four scout request identities: Starlight for the active Wing Commander, Hummingbird for the active Quellon Explorer, Endeavour for the active Shepherd Scientist, and the Comms Officer replacement role on AEGIS. The primary v1.1 A4 single-sided sheet, page 21, confirms the Comms role and AEGIS association; its range and cadence remain owned by Prompt 326. A production `requestScout` callable rechecks a connected player, active gameplay and current Coordination cycle, a valid printed role configuration and matching vessel roster, canonical assignment-and-seat binding for core craft, exact replacement-role authority for Comms, and the canonical craft/replacement catalogs. It creates a private pending request only for one of the 22 printed coordinates and binds retries in the shared command-receipt namespace. Stale or mismatched core authority, cross-entitlement requests, inactive anchors, unknown identities or targets, malformed rosters, replay collisions, and invalid phases fail closed. The callable does not resolve range or cadence, spend fuel, reveal chart content, consume a scan attempt, or promise a result; resolution and private result delivery remain downstream. The player-facing form is included in the 0.5.34 candidate on the four entitled shuttle and replacement-role consoles. Local rendered review passed at 320×740, 844×390, and 1440×900 in normal and reduced motion, with no horizontal overflow and keyboard-accessible return navigation. This fixture-backed review is not live production acceptance: no authorized production-session request has been observed, so P321 remains partial.",
-      "evidenceIds": "E-AUDIT-321;E-321-SCOUT-ENTITLEMENTS",
+      "description": "The production request path now consumes the four-source entitlement catalog and server-owned range and cadence policies. It binds each pending scan and command replay to a current role, phase, printed target, cycle, active ship configuration, and request-time parked host; the existing four entitled forms remain reachable. PC01 adds the Endeavour facilitator/result flow and private map update. Local authority, replay, and route tests pass; an ordinary authorized released-session request remains unverified, so this prompt is partial.",
+      "evidenceIds": "E-AUDIT-321;E-321-SCOUT-ENTITLEMENTS;E-PC01-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "260;267;269;280",
@@ -14738,7 +14749,8 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.5.34"
+        "0.5.34",
+        "0.5.51"
       ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
@@ -14822,8 +14834,8 @@
         "acceptance": "the Scientist scouts one system at any range once per allowed turn.",
         "title": "Resolve Endeavour scouting."
       },
-      "description": "The server-side Endeavour long-range sensor policy requires the exact current Shepherd Scientist entitlement, a valid active role/vessel configuration, no prior Endeavour scan in the cycle, a positive cycle, and a target in the canonical printed system set. It returns one immutable request with an explicit unlimited-range marker and deliberately consumes no ship-position authority. Near, middle, and far printed systems are equally eligible; unknown targets, used cadence, inactive Shepherd authority, stale or mismatched role binding, replacement state, and malformed cycles fail closed. This non-feature contract does not persist or reveal a chart result; current-state transaction binding, private delivery, and UI remain downstream. No production scan transaction consumes this resolver yet.",
-      "evidenceIds": "E-AUDIT-325;E-325-ENDEAVOUR-SCAN",
+      "description": "The production requestScout transaction now consumes Endeavour unlimited range and one-per-cycle cadence, rechecking the current Scientist, active Shepherd, legal target, and private cadence receipt. The facilitator reveal and private result path use that immutable request. Local request, reveal, replay, and route tests cover the contract; ordinary authorized released-session scouting remains unverified, so this prompt is partial.",
+      "evidenceIds": "E-AUDIT-325;E-325-ENDEAVOUR-SCAN;E-PC01-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "321;267",
@@ -14831,7 +14843,9 @@
       "milestoneHints": "M4;M5;M8",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.51"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
       "status": "partial",
@@ -14868,8 +14882,8 @@
         "acceptance": "a stale owner or client origin cannot expand range after a ship jumps.",
         "title": "Measure scout range from current authority."
       },
-      "description": "Cross-policy server proof now demonstrates that every range-limited scout resolver rechecks the exact current owner or replacement assignment and derives range only from the complete authoritative post-jump fleet coordinate map. Starlight and Comms bind to current AEGIS, Hummingbird binds to current Quellon, and a client-supplied pre-jump origin or claimed former role cannot expand eligibility or alter the recorded origin. The proof covers both denial of targets that only the stale origin could reach and acceptance from the new authoritative position; persistence, transactional reads, result privacy, and UI remain downstream. No production scan path consumes these resolvers yet.",
-      "evidenceIds": "E-AUDIT-327;E-327-CURRENT-SCOUT-AUTHORITY",
+      "description": "The production requestScout transaction now reads the protected current ship coordinate for every range-limited source and applies its server-side range policy; Endeavour retains unlimited range. The pending record and replay cannot use a client-supplied former position. Local current-position and stale-authority tests cover the path; ordinary authorized released-session scanning remains unverified, so this prompt is partial.",
+      "evidenceIds": "E-AUDIT-327;E-327-CURRENT-SCOUT-AUTHORITY;E-PC01-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "321;285",
@@ -14877,7 +14891,9 @@
       "milestoneHints": "M4;M5;M8",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.51"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
       "status": "partial",
@@ -14891,8 +14907,8 @@
         "acceptance": "only the requester and permitted facilitator readers receive the requested system fact.",
         "title": "Deliver scout results privately."
       },
-      "description": "The server-side scout-result projector accepts exactly one session-bound result containing the request identity, current-cycle source, target coordinate, and one code/title fact whose coordinate must match the request. It returns that fact only to the active connected requester in the same session or to an active connected GM whose same-session facilitator instance belongs to the viewer and passes the canonical presence-lease policy at the server clock. Other players, cross-session viewers, inactive or disconnected requesters, GMs without a valid owned instance, foreign-session or stale/malformed leases, malformed identities, unknown sources or coordinates, mismatched facts, and payloads carrying extra organiser-chart fields receive no result. Returned records and nested facts are immutable. Chart lookup, facilitator reveal, persistence, audit, discovery updates, and UI remain downstream. No production result-delivery path consumes this projector yet.",
-      "evidenceIds": "E-AUDIT-328;E-328-PRIVATE-SCOUT-RESULT",
+      "description": "The PC01 result callables read one committed selected-chart fact only for the connected requester or an authorized facilitator instance. The requester can browse saved private reports and notes after reconnecting; Firestore client reads and writes to result storage are denied. Local audience, malformed-result, replay, rules, and UI tests pass; ordinary authorized released-session delivery remains unverified, so this prompt is partial.",
+      "evidenceIds": "E-AUDIT-328;E-328-PRIVATE-SCOUT-RESULT;E-PC01-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "321;327;006",
@@ -14900,7 +14916,9 @@
       "milestoneHints": "M4;M5;M8",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.51"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
       "status": "partial",
@@ -14914,8 +14932,8 @@
         "acceptance": "the facilitator resolves the selected booklet entry without publishing the organiser chart.",
         "title": "Reveal a chart result as facilitator."
       },
-      "description": "The server-side facilitator resolver accepts one exact session-bound scout-resolution request plus the same active session’s locked chart authority and an active connected GM backed by that viewer’s owned same-session facilitator instance under the canonical presence lease. It derives the A/B/C choice only from that exact active, chart-locked session context, looks up only the requested printed coordinate, and emits the P328 immutable private result containing its coordinate, chart code, and full site title. A client chart override, an unlocked or foreign-session chart context, the selected chart id, full organiser site map, summaries, candidate flags, and unrelated locations never enter the result. Unknown or extra authority fields, malformed requests, invalid cycles, unprinted or unlabelled coordinates, non-GMs, wrong instances, and stale leases fail closed. Transactional request storage, result persistence, audit, discovery updates, and UI remain downstream. No production transaction consumes this lookup resolver yet.",
-      "evidenceIds": "E-AUDIT-329;E-329-FACILITATOR-SCOUT-REVEAL",
+      "description": "The GM console now lists pending scout requests and resolves one through a chart-locked server transaction. That transaction commits the exact private fact, requester note, audit record, optional hidden Nebula marker, and receiving ship coordinate together; replay adds no second effect. Local GM, chart, transaction, rules, and UI tests pass; ordinary authorized released-session reveal remains unverified, so this prompt is partial.",
+      "evidenceIds": "E-AUDIT-329;E-329-FACILITATOR-SCOUT-REVEAL;E-PC01-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "283;328",
@@ -14923,7 +14941,9 @@
       "milestoneHints": "M4;M5;M8",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.51"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
       "status": "partial",
@@ -14937,8 +14957,8 @@
         "acceptance": "entitled facts survive while no endpoint becomes a full-chart export.",
         "title": "Persist player discovery notes safely."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-330",
+      "description": "The PC01 reveal transaction persists a deterministic requester discovery note separately from the result. Only an authorized requester can read their own note through the callable; client direct access remains denied. Local note identity, replay, audience, and reconnect browsing tests pass. An ordinary authorized released-session note read remains unverified, so this prompt is partial.",
+      "evidenceIds": "E-AUDIT-330;E-PC01-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "313;328",
@@ -14946,10 +14966,12 @@
       "milestoneHints": "M4;M5;M8",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.51"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "NEW"
     },
     {
@@ -14960,8 +14982,8 @@
         "acceptance": "requester, origin, target, turn, and permitted result are recorded with no unrelated chart data.",
         "title": "Audit scouting events."
       },
-      "description": "Planned [PROVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-331",
+      "description": "The PC01 reveal transaction writes a server-only audit with request, facilitator, source, origin and receiving ships, cycle, coordinate, selected fact, and time. Conflicting or partial replay state fails closed, and clients cannot read or write the audit. Local transaction and rules tests pass; released ordinary gameplay evidence remains pending, so this prompt is partial.",
+      "evidenceIds": "E-AUDIT-331;E-PC01-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "167;328;330",
@@ -14969,10 +14991,12 @@
       "milestoneHints": "M4;M5;M8",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.51"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "PROVE"
     },
     {
@@ -14983,8 +15007,8 @@
         "acceptance": "each qualifying system O scout adds one hidden bonus entry exactly once.",
         "title": "Accumulate Deep Nebula scans privately."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-332",
+      "description": "The PC01 reveal transaction writes one hidden server-only marker for each committed Deep Nebula result and no marker for another chart fact. The deterministic request identity and replay guard prevent an extra scan on retry. Local resolution, replay, and rules tests pass; released ordinary gameplay evidence remains pending, so this prompt is partial.",
+      "evidenceIds": "E-AUDIT-332;E-PC01-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "313;328",
@@ -14992,10 +15016,12 @@
       "milestoneHints": "M4;M5;M8",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.51"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "NEW"
     },
     {
@@ -15006,8 +15032,8 @@
         "acceptance": "players know scouting occurred but cannot read the accumulated roll modifier before resolution.",
         "title": "Hide the Deep Nebula total."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-333",
+      "description": "The PC01 Scientist result panel gives a qualitative Deep Nebula progress hint while withholding any accumulated numeric modifier from the result, note, map, and player projection. Local privacy and UI tests cover the boundary; released ordinary gameplay evidence remains pending, so this prompt is partial.",
+      "evidenceIds": "E-AUDIT-333;E-PC01-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "332",
@@ -15015,10 +15041,12 @@
       "milestoneHints": "M4;M5;M8",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.51"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "NEW"
     },
     {
@@ -16384,7 +16412,8 @@
       "releases": [
         "0.5.19",
         "0.5.22",
-        "0.5.30"
+        "0.5.30",
+        "0.5.51"
       ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
@@ -24012,8 +24041,8 @@
         "acceptance": "A player jump map reveals a system's jump coordinates only when that particular ship has previously visited the location or has authoritatively discovered those coordinates; another ship's knowledge alone must not reveal them. Enforce the entitled projection at the data boundary, including labels, tooltips, accessibility text, search, cached/reconnect state, and serialized map data, rather than merely concealing coordinates with CSS. Add a Ship View Privacy option to hide information about what is present at a location, independently of whether its coordinates are known, using the existing privacy-control scope and permissions without deleting the ship's recorded knowledge. Preserve authorized facilitator views, valid visited/discovered history, jump targeting and server legality, and accepted non-GM DRADIS behavior. Reconcile the older fleet-group discovery projection with this owner-requested per-ship distinction. Prove different knowledge on two ships, visited and scanned reveals, unknown-coordinate denial, privacy hide/reveal, stale cache/reconnect, and accessible responsive player maps.",
         "title": "Gate jump-map coordinates by ship knowledge and hide location details."
       },
-      "description": "Owner-requested per-ship jump-coordinate knowledge and a separate Ship View Privacy control for location contents; only that ship's visits or authorized discoveries reveal coordinates.",
-      "evidenceIds": "E-677;E-677-DEPENDENCIES",
+      "description": "The PC01 protected navigation state records scouted coordinates per receiving ship. Player discovery projections, ship maps, and route guards use that ship’s own visited or scouted coordinates, and Ship View Privacy separately hides location details. Local two-ship projection, map, route, and replay tests cover the boundary; released ordinary gameplay evidence remains pending, so this prompt is partial.",
+      "evidenceIds": "E-677;E-677-DEPENDENCIES;E-PC01-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "084;284;313;330",
@@ -24021,10 +24050,12 @@
       "milestoneHints": "none",
       "relatedConsumes": "328",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.51"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "NEW"
     },
     {

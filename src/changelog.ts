@@ -23,6 +23,21 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: APP_VERSION,
     implementationProgress: {
       completed: 458, total: 751, percentage: '60.99%',
+      done: 458, partial: 49, active: 0, missing: 244,
+    },
+    changes: [
+      'The Shepherd Scientist can use Endeavour’s ECM Device after completing its research. The control shows when it is ready, working, or spent, and the fleet pursuit display refreshes after activation.',
+      'Endeavour scouting requests now reach the facilitator for a chart reveal. The requester can revisit their private result and discovery note after reconnecting.',
+      'Ship maps now show coordinates each ship has visited or learned from its own scouting, with a separate Ship View Privacy control for location details.',
+      '458 of 751 planned items are complete (60.99%).',
+    ],
+    implementationPrompts: [211, 212, 213, 391, 321, 325, 327, 328, 329, 330, 331, 332, 333, 677],
+  },
+
+  {
+    version: '0.5.50',
+    implementationProgress: {
+      completed: 458, total: 751, percentage: '60.99%',
       done: 458, partial: 44, active: 0, missing: 249,
     },
     changes: [
