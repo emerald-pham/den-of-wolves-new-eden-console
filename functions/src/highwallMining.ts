@@ -15,6 +15,33 @@ export interface HighwallMiningState {
   readonly operations: readonly HighwallMiningOperation[];
 }
 
+export interface HighwallMiningStaleCasResult {
+  readonly status: 'stale';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly resource: HighwallMiningResource;
+  readonly expectedRevision: number;
+  readonly currentRevision: number;
+  readonly expectedControlRevision: number;
+  readonly currentControlRevision: number;
+  readonly expectedCycle: number;
+  readonly currentCycle: number;
+  readonly hostShipId: string;
+}
+
+export interface HighwallMiningStaleCasInput {
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly resource: HighwallMiningResource;
+  readonly expectedRevision: number;
+  readonly expectedControlRevision: number;
+  readonly expectedCycle: number;
+  readonly state: HighwallMiningState;
+  readonly currentControlRevision: number;
+  readonly currentCycle: number;
+  readonly hostShipId: string;
+}
+
 function record(value: unknown): Record<string, unknown> | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? value as Record<string, unknown> : undefined;
@@ -55,6 +82,52 @@ export function parseHighwallMiningState(value: unknown): HighwallMiningState | 
   }
   if (operations.length > 3 || (raw.revision as number) < operations.length) return null;
   return { cycle: raw.cycle as number, revision: raw.revision as number, operations };
+}
+
+/**
+ * Build a data-only stale response after the callable has authenticated current
+ * session, holder, role, group, control, and dock authority. Callers must return
+ * this result before drawing dice or writing state, events, or receipts.
+ */
+export function resolveHighwallMiningStaleCas(
+  input: HighwallMiningStaleCasInput,
+): HighwallMiningStaleCasResult | undefined {
+  const state = input.state === undefined ? null : parseHighwallMiningState(input.state);
+  const validRequestId = (value: unknown): value is string =>
+    typeof value === 'string' && /^[\w-]{1,128}$/.test(value);
+  const validCounter = (value: number) => Number.isSafeInteger(value) && value >= 0;
+  const validCycle = (value: number) => Number.isSafeInteger(value) && value >= 1;
+  if (!validRequestId(input.sessionId) || !validRequestId(input.requestId) ||
+      (input.resource !== 'materials' && input.resource !== 'ore') || !state ||
+      !validCounter(input.expectedRevision) || !validCounter(input.expectedControlRevision) ||
+      !validCycle(input.expectedCycle) || !validCounter(input.currentControlRevision) ||
+      !validCycle(input.currentCycle) || !validRequestId(input.hostShipId)) {
+    throw new Error('Highwall mining stale request or state is malformed.');
+  }
+  if (state.cycle > input.currentCycle) {
+    throw new Error('Highwall mining state is ahead of the current cycle.');
+  }
+  if (input.expectedRevision > state.revision ||
+      input.expectedControlRevision > input.currentControlRevision ||
+      input.expectedCycle > input.currentCycle) {
+    throw new Error('Highwall mining request is ahead of the current state.');
+  }
+  if (input.expectedRevision === state.revision &&
+      input.expectedControlRevision === input.currentControlRevision &&
+      input.expectedCycle === input.currentCycle) return undefined;
+  return {
+    status: 'stale',
+    sessionId: input.sessionId,
+    requestId: input.requestId,
+    resource: input.resource,
+    expectedRevision: input.expectedRevision,
+    currentRevision: state.revision,
+    expectedControlRevision: input.expectedControlRevision,
+    currentControlRevision: input.currentControlRevision,
+    expectedCycle: input.expectedCycle,
+    currentCycle: input.currentCycle,
+    hostShipId: input.hostShipId,
+  };
 }
 
 export function resolveHighwallMining(input: Readonly<{

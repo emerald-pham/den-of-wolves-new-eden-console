@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { parseHighwallMiningState, resolveHighwallMining } from './highwallMining';
+import {
+  parseHighwallMiningState,
+  resolveHighwallMining,
+  resolveHighwallMiningStaleCas,
+} from './highwallMining';
 
 const base = {
   state: { cycle: 2, revision: 0, operations: [] }, currentCycle: 2,
@@ -8,6 +12,60 @@ const base = {
 };
 
 describe('Highwall mining', () => {
+  it('returns only the request-bound stale CAS envelope after authorized current state advances', () => {
+    expect(resolveHighwallMiningStaleCas({
+      sessionId: 's1', requestId: 'mine-stale', resource: 'ore',
+      expectedRevision: 2, expectedControlRevision: 4, expectedCycle: 2,
+      state: { cycle: 2, revision: 3, operations: [] },
+      currentControlRevision: 5, currentCycle: 2, hostShipId: 'icebreaker',
+    })).toEqual({
+      status: 'stale', sessionId: 's1', requestId: 'mine-stale', resource: 'ore',
+      expectedRevision: 2, currentRevision: 3,
+      expectedControlRevision: 4, currentControlRevision: 5,
+      expectedCycle: 2, currentCycle: 2, hostShipId: 'icebreaker',
+    });
+  });
+
+  it('returns stale for control or cycle rollover even when the mining revision is unchanged', () => {
+    const input = {
+      sessionId: 's1', requestId: 'mine-stale', resource: 'materials' as const,
+      expectedRevision: 2, expectedControlRevision: 4, expectedCycle: 2,
+      state: { cycle: 2, revision: 2, operations: [] },
+      currentControlRevision: 5, currentCycle: 2, hostShipId: 'icebreaker',
+    };
+    expect(resolveHighwallMiningStaleCas(input)).toMatchObject({
+      status: 'stale', currentRevision: 2, currentControlRevision: 5, currentCycle: 2,
+    });
+    expect(resolveHighwallMiningStaleCas({
+      ...input, currentControlRevision: 4, currentCycle: 3,
+    })).toMatchObject({
+      status: 'stale', currentRevision: 2, currentControlRevision: 4, currentCycle: 3,
+    });
+  });
+
+  it('returns no stale result when all current revisions and the cycle match', () => {
+    expect(resolveHighwallMiningStaleCas({
+      sessionId: 's1', requestId: 'mine-current', resource: 'materials',
+      expectedRevision: 2, expectedControlRevision: 4, expectedCycle: 2,
+      state: { cycle: 2, revision: 2, operations: [] },
+      currentControlRevision: 4, currentCycle: 2, hostShipId: 'icebreaker',
+    })).toBeUndefined();
+  });
+
+  it.each([
+    ['mining revision', { expectedRevision: 4 }],
+    ['control revision', { expectedControlRevision: 5 }],
+    ['cycle', { expectedCycle: 3 }],
+  ])('does not treat a future expected %s as stale', (_label, patch) => {
+    expect(() => resolveHighwallMiningStaleCas({
+      sessionId: 's1', requestId: 'mine-future', resource: 'materials',
+      expectedRevision: 2, expectedControlRevision: 4, expectedCycle: 2,
+      state: { cycle: 2, revision: 2, operations: [] },
+      currentControlRevision: 4, currentCycle: 2, hostShipId: 'icebreaker',
+      ...patch,
+    })).toThrow(/ahead|future/i);
+  });
+
   it('adds one material die or three ore dice to Highwall cargo', () => {
     expect(resolveHighwallMining(base)).toMatchObject({
       cargo: { materials: 6, ore: 3 },
