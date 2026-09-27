@@ -3,6 +3,11 @@
   min-width: 0;
 }
 
+.scout-report-controller {
+  margin-top: 1rem;
+  min-width: 0;
+}
+
 .scout-result-panel__heading,
 .scout-reveal-panel__list li {
   display: flex;

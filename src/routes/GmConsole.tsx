@@ -6,6 +6,7 @@ import ArrestPosseCalculator from '@/components/ArrestPosseCalculator';
 import EmergencyTimerPauseControl from '@/components/EmergencyTimerPauseControl';
 import ShipPlot from '@/components/ShipPlot';
 import GmStarmapModule from '@/components/GmStarmapModule';
+import GmScoutRevealController from '@/components/GmScoutRevealController';
 import SmallShipOperations from '@/components/SmallShipOperations';
 import PursuitTracker from '@/components/PursuitTracker';
 import LiveChangeRegion from '@/components/LiveChangeRegion';
@@ -3374,6 +3375,7 @@ export default function GmConsole() {
           </section>
           <SmallShipOperations />
           <GmStarmapModule session={session} />
+          <GmScoutRevealController />
           <section
             className="gm-console__module gm-fleet-resources cic-frame"
             aria-label="Fleet resource controls"

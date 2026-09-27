@@ -5,6 +5,7 @@ import {
   type ScoutEntitlementId,
 } from '@/lib/scoutRequestAuthority';
 import { useSessionStore } from '@/store/useSessionStore';
+import ScoutReportController from './ScoutReportController';
 import './ScoutRequestControls.css';
 
 interface Props {
@@ -199,6 +200,7 @@ export default function ScoutRequestControls({ entitlementId }: Props) {
 
       {error && <p className="scout-request__notice scout-request__error" role="alert">{error}</p>}
       {confirmation && <p className="scout-request__notice" role="status">{confirmation}</p>}
+      {entitlementId === 'endeavour' && <ScoutReportController refreshKey={confirmation} />}
     </section>
   );
 }
