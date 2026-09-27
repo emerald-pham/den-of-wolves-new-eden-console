@@ -104,6 +104,7 @@ beforeEach(() => {
     shipGalacticCoordinates: { aegis: '0000', shepherd: '0000' },
     shipNavigationLogs: { aegis: [], shepherd: [] },
     pursuitGroups: { 'fleet-1': 0 }, revision: 5,
+    createdAt: 'original-navigation-creation',
   });
   put('sessions/s1/scoutRequests/scan-1', {
     type: 'scout-request', status: 'requested', resolution: 'pending',
@@ -125,6 +126,7 @@ it('resolves one private fact and publishes its coordinate only to the request-t
   const scientist = mock.documents.get('sessions/s1/playerDiscoveries/scientist-1')!;
   expect(navigation.scoutedCoordinatesByShip).toEqual({ aegis: ['0408'] });
   expect(navigation.revision).toBe(6);
+  expect(navigation.createdAt).toBe('original-navigation-creation');
   expect(wing.knownCoordinates).toContain('0408');
   expect(scientist.knownCoordinates).not.toContain('0408');
   expect(scientist.shipId).toBe('shepherd');
