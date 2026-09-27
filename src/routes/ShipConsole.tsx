@@ -132,6 +132,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const [activating, setActivating] = useState(false);
   const [hideResources, setHideResources] = useState(false);
   const [hideCensus, setHideCensus] = useState(false);
+  const [hideLocationContents, setHideLocationContents] = useState(false);
   const [lockPending, setLockPending] = useState(false);
   const [burst, setBurst] = useState(0);
   const [burstSource, setBurstSource] = useState<string | null>(null);
@@ -265,6 +266,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   useEffect(() => {
     setHideResources(false);
     setHideCensus(false);
+    setHideLocationContents(false);
   }, [ship?.id]);
 
   useEffect(() => {
@@ -453,12 +455,12 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
         <h1 className="ship-console__name" id="ship-name">{ship.name}</h1>
         <p className="ship-console__type">{ship.vesselType}</p>
         <p className="ship-console__description">{ship.description}</p>
-        <CandidateRevealPanel
+        {!hideLocationContents && <CandidateRevealPanel
           session={session}
           player={me}
           sessionSnapshotFreshness={sessionSnapshotFreshness}
           observer={observer}
-        />
+        />}
         {gameplayFrozen && (
           <p className="ship-console__status" role="status">
             {session?.gameOutcome?.cause === 'total-fleet-loss'
@@ -599,6 +601,10 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
           <button className="cic-action-button" type="button" aria-pressed={hideCensus}
             onClick={() => setHideCensus((current) => !current)}>
             {hideCensus ? 'Show unrest and population' : 'Hide unrest and population'}
+          </button>
+          <button className="cic-action-button" type="button" aria-pressed={hideLocationContents}
+            onClick={() => setHideLocationContents((current) => !current)}>
+            {hideLocationContents ? 'Show location contents' : 'Hide location contents'}
           </button>
         </section>
       </section>

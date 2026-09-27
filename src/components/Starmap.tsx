@@ -113,11 +113,18 @@ export default function Starmap({
   className = '',
 }: StarmapProps) {
   const shipMode = mode === 'ship';
-  const selectedSystem = systemForCoordinate(selectedCoordinate, knownSystems);
+  // The coordinate allowlist is authoritative for every rendered surface.
+  // A stale or overly broad node map must not reintroduce a hidden coordinate
+  // through labels, accessible names, or DOM metadata.
+  const projectedSystems = shipMode
+    ? Object.fromEntries(Object.entries(knownSystems).filter(([, coordinate]) =>
+      knownCoordinates.includes(coordinate)))
+    : knownSystems;
+  const selectedSystem = systemForCoordinate(selectedCoordinate, projectedSystems);
   const selectedSite = shipMode ? undefined : organiserSites?.[selectedCoordinate];
   const selectedFleet = fleetMarkers.filter((marker) => marker.coordinate === selectedCoordinate);
   const selectedNeighbors = selectedSystem?.neighbors
-    .map((nodeId) => coordinateForNode(nodeId, knownSystems))
+    .map((nodeId) => coordinateForNode(nodeId, projectedSystems))
     .filter((coordinate): coordinate is string => typeof coordinate === 'string') ?? [];
   const selectedLabel = selectedSystem
     ? `System ${selectedCoordinate}`
@@ -216,8 +223,8 @@ export default function Starmap({
 
             <div className="starmap__nodes">
               {STAR_CHART_SYSTEMS.map((system) => {
-                const coordinate = coordinateForNode(system.id, knownSystems);
-                const known = !shipMode || (coordinate !== undefined && knownCoordinates.includes(coordinate));
+                const coordinate = coordinateForNode(system.id, projectedSystems);
+                const known = !shipMode || coordinate !== undefined;
                 const site = shipMode || !coordinate ? undefined : organiserSites?.[coordinate];
                 const markers = coordinate
                   ? fleetMarkers.filter((marker) => marker.coordinate === coordinate)

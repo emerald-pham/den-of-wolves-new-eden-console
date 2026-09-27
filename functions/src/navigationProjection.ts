@@ -20,6 +20,8 @@ import type { CandidateReveal } from './candidateRevealProjection';
 export interface NavigationState {
   readonly shipGalacticCoordinates: Readonly<Record<string, string>>;
   readonly shipNavigationLogs: NavigationLogs;
+  /** Additional coordinates independently discovered by each active ship. */
+  readonly scoutedCoordinatesByShip?: Readonly<Record<string, readonly string[]>>;
   readonly systemHistory?: SystemHistory;
   readonly candidatePlanCheckpoint?: CandidatePlanCheckpoint;
   readonly pursuitGroups: Readonly<Record<string, number>>;
@@ -70,6 +72,21 @@ function logsForShip(value: unknown, shipId: string): readonly NavigationLogEntr
   return value.filter((entry): entry is NavigationLogEntry => validLog(entry, shipId));
 }
 
+function scoutedCoordinatesForShips(
+  value: unknown,
+  activeVesselIds: readonly string[],
+): Readonly<Record<string, readonly string[]>> | undefined {
+  if (!isRecord(value)) return undefined;
+  const coordinatesByShip = Object.fromEntries(activeVesselIds.flatMap((shipId) => {
+    const rawCoordinates = value[shipId];
+    if (!Array.isArray(rawCoordinates)) return [];
+    const coordinates = [...new Set(rawCoordinates.filter((coordinate): coordinate is string =>
+      typeof coordinate === 'string' && isStarSystemCoordinate(coordinate)))];
+    return coordinates.length > 0 ? [[shipId, coordinates]] : [];
+  }));
+  return Object.keys(coordinatesByShip).length > 0 ? coordinatesByShip : undefined;
+}
+
 function validPursuitValue(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && value <= 10;
 }
@@ -116,6 +133,10 @@ export function navigationState(
     shipId,
     logsForShip(logs[shipId], shipId),
   ])) as NavigationLogs;
+  const scoutedCoordinatesByShip = scoutedCoordinatesForShips(
+    raw.scoutedCoordinatesByShip,
+    activeVesselIds,
+  );
   const normalizedHistory = systemHistory(raw.systemHistory, activeVesselIds, shipNavigationLogs);
   const candidatePlanCheckpoint = parseCandidatePlanCheckpoint(raw.candidatePlanCheckpoint);
   return {
@@ -126,6 +147,7 @@ export function navigationState(
       typeof coordinates[shipId] === 'string' ? coordinates[shipId] : INITIAL_COORDINATE,
     ])),
     shipNavigationLogs,
+    ...(scoutedCoordinatesByShip ? { scoutedCoordinatesByShip } : {}),
     ...(normalizedHistory ? { systemHistory: normalizedHistory } : {}),
     ...(candidatePlanCheckpoint ? { candidatePlanCheckpoint } : {}),
     pursuitGroups: pursuitGroups(raw, legacyPursuitGroups),
@@ -254,12 +276,37 @@ export function adjustPursuitForMovement(
 export function knownCoordinates(
   currentCoordinate: string,
   entries: readonly NavigationLogEntry[],
+  scoutedCoordinates: readonly string[] = [],
 ): readonly string[] {
   return [...new Set([
     INITIAL_COORDINATE,
     ...entries.filter((entry) => entry.type === 'self-jump').flatMap((entry) => [entry.origin, entry.destination]),
+    ...scoutedCoordinates,
     currentCoordinate,
   ])];
+}
+
+/** Record one authoritative scout result without granting the coordinate to another ship. */
+export function recordScoutedCoordinateForShip(
+  navigation: NavigationState,
+  shipId: string,
+  coordinate: string,
+): NavigationState {
+  if (!Object.prototype.hasOwnProperty.call(navigation.shipGalacticCoordinates, shipId)) {
+    throw new Error(`Scouted coordinates require an active ship; ${shipId} is not active.`);
+  }
+  if (!isStarSystemCoordinate(coordinate)) {
+    throw new Error('Scouted coordinate must be a printed star system.');
+  }
+  const current = navigation.scoutedCoordinatesByShip?.[shipId] ?? [];
+  if (current.includes(coordinate)) return navigation;
+  return {
+    ...navigation,
+    scoutedCoordinatesByShip: {
+      ...navigation.scoutedCoordinatesByShip,
+      [shipId]: [...current, coordinate],
+    },
+  };
 }
 
 export function playerShipId(player: Pick<DocumentSnapshot, 'get'>): string | undefined {
@@ -298,14 +345,19 @@ export function playerDiscoveryProjection(
     ? navigation.shipGalacticCoordinates[shipId]!
     : INITIAL_COORDINATE;
   const entries = navigation.shipNavigationLogs[shipId] ?? [];
+  const shipKnownCoordinates = knownCoordinates(
+    currentCoordinate,
+    entries,
+    navigation.scoutedCoordinatesByShip?.[shipId] ?? [],
+  );
   const ownHistory = systemHistoryForShip(navigation.systemHistory, shipId);
   return {
     groupId,
     fleetGroupVesselIds: [...fleetGroupVesselIds],
     shipId,
     currentCoordinate,
-    knownCoordinates: knownCoordinates(currentCoordinate, entries),
-    knownSystems: discoverySystemsForCoordinates(knownCoordinates(currentCoordinate, entries)),
+    knownCoordinates: shipKnownCoordinates,
+    knownSystems: discoverySystemsForCoordinates(shipKnownCoordinates),
     pursuitDistance: pursuitDistanceForCoordinate(currentCoordinate),
     ...(navigation.pursuitGroups[groupId] !== undefined
       ? { pursuitValue: navigation.pursuitGroups[groupId] }
