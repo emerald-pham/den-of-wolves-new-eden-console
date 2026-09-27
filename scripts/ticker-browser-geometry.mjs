@@ -172,11 +172,30 @@ export function assessTickerGeometry({
       const noEarlierMotion = positions.slice(0, index).every((position) => (
         Math.abs(position.left - positions[0].left) <= 0.25
       ));
+      const windowOffscreen = isFullyOffscreen(previous) && isFullyOffscreen(current);
+      const animationTimesAreFinite = finite(previous.animationTimeMs) && finite(current.animationTimeMs);
+      const validAnimationTimes = animationTimesAreFinite && previous.animationTimeMs >= 0 &&
+        current.animationTimeMs >= 0;
+      const missingAnimationClockEndpoint = previous.animationTimeMs == null ||
+        current.animationTimeMs == null;
+      const invalidAnimationClockEndpoint = [previous.animationTimeMs, current.animationTimeMs].some((time) => (
+        time !== null && time !== undefined && (!finite(time) || time < 0)
+      ));
+      const idleOffscreenBeforeStart = index <= MAX_OFFSCREEN_STARTUP_CATCHUP_INTERVALS &&
+        noEarlierMotion && Math.abs(displacement) <= 0.25 && windowOffscreen;
+      if (requireAnimationClock && invalidAnimationClockEndpoint) {
+        failures.push(`track ${id} has missing, negative, or reset animation currentTime`);
+        continue;
+      }
+      if (requireAnimationClock && missingAnimationClockEndpoint && !idleOffscreenBeforeStart) {
+        failures.push(`track ${id} has missing, negative, or reset animation currentTime`);
+        continue;
+      }
       const startupClockCatchup = !acceptedStartupClockCatchup &&
         index <= MAX_OFFSCREEN_STARTUP_CATCHUP_INTERVALS &&
         noEarlierMotion && isFullyOffscreen(previous) && displacement < -0.25 &&
-        finite(previous.animationTimeMs) && previous.animationTimeMs <= 1 &&
-        finite(animationElapsed) && animationElapsed > 0 &&
+        validAnimationTimes && previous.animationTimeMs <= 1 &&
+        animationElapsed > 0 &&
         animationElapsed < wallElapsed;
       const adjacentToInitialFrameReflow = firstReflowCorrection !== null && (
         (previous.sampleIndex === firstReflowCorrection.sampleIndex - 1 &&
@@ -189,16 +208,13 @@ export function assessTickerGeometry({
       const reflowCorrectionAvailable = !usedFrameReflowCorrection &&
         adjacentToInitialFrameReflow && withinFrameCorrectionBound &&
         isFullyOffscreen(previous) && isFullyOffscreen(current);
-      const hasAnimationTimes = finite(previous.animationTimeMs) && finite(current.animationTimeMs);
-      const validAnimationTimes = hasAnimationTimes && previous.animationTimeMs >= 0 &&
-        current.animationTimeMs >= 0;
-      const invalidOrResetAnimationClock = !validAnimationTimes || animationElapsed < 0;
       const discontinuousAnimationClock = requireAnimationClock && validAnimationTimes &&
         animationElapsed > 0 && Math.abs(animationElapsed - wallElapsed) > 3 &&
         !startupClockCatchup;
       const reflowClockCorrection = requireAnimationClock && reflowCorrectionAvailable &&
-        (invalidOrResetAnimationClock || discontinuousAnimationClock);
-      if (requireAnimationClock && invalidOrResetAnimationClock && !reflowClockCorrection) {
+        validAnimationTimes && (animationElapsed < 0 || discontinuousAnimationClock);
+      const resetAnimationClock = validAnimationTimes && animationElapsed < 0;
+      if (requireAnimationClock && resetAnimationClock && !reflowClockCorrection) {
         failures.push(`track ${id} has missing, negative, or reset animation currentTime`);
         continue;
       }
@@ -211,10 +227,11 @@ export function assessTickerGeometry({
         // still-offscreen correction interval.
         usedFrameReflowCorrection = true;
       }
-      const animationClockStoppedWhileVisible = requireAnimationClock && validAnimationTimes &&
-        animationElapsed === 0 && (overlapsFrame(previous) || overlapsFrame(current));
-      if (animationClockStoppedWhileVisible) {
-        failures.push(`track ${id} animation currentTime stopped while visible`);
+      const animationClockStoppedDuringMovement = requireAnimationClock && validAnimationTimes &&
+        animationElapsed === 0 && (overlapsFrame(previous) || overlapsFrame(current) ||
+          Math.abs(displacement) > 0.25);
+      if (animationClockStoppedDuringMovement && !reflowClockCorrection) {
+        failures.push(`track ${id} animation currentTime stopped during visible or offscreen movement`);
         continue;
       }
       const elapsed = validAnimationTimes && animationElapsed > 0
@@ -229,7 +246,6 @@ export function assessTickerGeometry({
         sampleIndex: current.sampleIndex,
       };
       velocities.push(velocity);
-      const windowOffscreen = isFullyOffscreen(previous) && isFullyOffscreen(current);
       if (startupClockCatchup) {
         acceptedStartupClockCatchup = true;
         if (speed < minimumSpeed || speed > maximumSpeed) {

@@ -156,6 +156,56 @@ function createOffscreenStartupGapSamples(firstLeft, secondLeft) {
   });
 }
 
+function createReflowStartupClockSamples(firstAnimationTimeMs) {
+  return Array.from({ length: 24 }, (_, sampleIndex) => {
+    const elapsed = sampleIndex === 0
+      ? 10
+      : 143.3 + ((sampleIndex - 1) * (1_000 / 60));
+    const left = sampleIndex === 0
+      ? 205.5
+      : 199.1 - ((sampleIndex - 1) * 0.8);
+    const sampleFrame = sampleIndex === 0
+      ? frame
+      : { left: frame.left, right: frame.right - 10, width: frame.width - 10 };
+    return {
+      elapsed,
+      frame: sampleFrame,
+      groups: [{
+        id: initialPosition.id,
+        left,
+        right: left + initialPosition.width,
+        width: initialPosition.width,
+        animationTimeMs: sampleIndex === 0
+          ? firstAnimationTimeMs
+          : 16.567 + ((sampleIndex - 1) * (1_000 / 60)),
+      }],
+    };
+  });
+}
+
+function createMissingClockIdleStartSamples() {
+  return Array.from({ length: 24 }, (_, sampleIndex) => {
+    const left = sampleIndex <= 1
+      ? initialPosition.left
+      : initialPosition.left - 0.8 - ((sampleIndex - 2) * 0.8);
+    const animationTimeMs = sampleIndex === 0
+      ? null
+      : (sampleIndex - 1) * (1_000 / 60);
+    const elapsed = 10 + (sampleIndex * (1_000 / 60));
+    return {
+      elapsed,
+      frame,
+      groups: [{
+        id: initialPosition.id,
+        left,
+        right: left + initialPosition.width,
+        width: initialPosition.width,
+        animationTimeMs,
+      }],
+    };
+  });
+}
+
 test('measures the offscreen-to-visible interval against the CSS animation clock', () => {
   const result = assessTickerGeometry({
     initialPosition,
@@ -201,6 +251,46 @@ test('rejects an offscreen edge step outside CSS-clock speed during startup catc
   assert.equal(result.initialSampleEdgeValid, true);
   assert.equal(result.speedStable, false);
   assert.ok(result.failures.some((failure) => failure.includes('constant-speed')));
+});
+
+test('rejects a negative CSS clock during a bounded startup reflow', () => {
+  const result = assessTickerGeometry({
+    initialPosition,
+    samples: createReflowStartupClockSamples(-0.1),
+    requireAnimationClock: true,
+  });
+
+  assert.equal(result.speedStable, false);
+  assert.ok(result.failures.some((failure) => failure.includes('animation currentTime')));
+});
+
+test('rejects nonfinite or missing CSS clock endpoints during moving reflow', () => {
+  const nonfinite = createReflowStartupClockSamples(Number.POSITIVE_INFINITY);
+  const missing = createReflowStartupClockSamples(null);
+  const missingCurrent = createReflowStartupClockSamples(0);
+  missingCurrent[1].groups[0].animationTimeMs = null;
+  const negativeCurrent = createReflowStartupClockSamples(0);
+  negativeCurrent[1].groups[0].animationTimeMs = -0.1;
+  const nonfiniteCurrent = createReflowStartupClockSamples(0);
+  nonfiniteCurrent[1].groups[0].animationTimeMs = Number.POSITIVE_INFINITY;
+
+  for (const samples of [nonfinite, missing, missingCurrent, negativeCurrent, nonfiniteCurrent]) {
+    const result = assessTickerGeometry({ initialPosition, samples, requireAnimationClock: true });
+    assert.equal(result.speedStable, false);
+    assert.ok(result.failures.some((failure) => failure.includes('animation currentTime')));
+  }
+});
+
+test('allows a missing CSS clock only while stationary and offscreen before start', () => {
+  const result = assessTickerGeometry({
+    initialPosition,
+    samples: createMissingClockIdleStartSamples(),
+    requireAnimationClock: true,
+  });
+
+  assert.equal(result.movedTowardViewport, true);
+  assert.equal(result.entryTransitionObserved, true);
+  assert.equal(result.speedStable, true);
 });
 
 test('rejects a visible movement jump during the long offscreen startup gap', () => {
