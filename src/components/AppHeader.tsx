@@ -18,7 +18,8 @@ import {
 import { APP_VERSION } from '@/version';
 import { setMotionOverride, useMotionPreference } from '@/lib/motionPreference';
 import { findConsoleRole } from '@/data/roles';
-import { CHANGELOG } from '@/changelog';
+import { CHANGELOG_DISPLAY_URL } from '@/changelogDisplayAsset';
+import { loadChangelogDisplay, type ChangelogDisplayEntry } from '@/lib/changelogDisplay';
 import { useDialogFocus } from '@/hooks/useDialogFocus';
 import FleetBroadcast from './FleetBroadcast';
 import PrimaryStatus from './PrimaryStatus';
@@ -233,6 +234,9 @@ export default function AppHeader() {
   }, []);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [changelogOpen, setChangelogOpen] = useState(false);
+  const [changelog, setChangelog] = useState<readonly ChangelogDisplayEntry[] | null>(null);
+  const [changelogLoading, setChangelogLoading] = useState(false);
+  const [changelogFailed, setChangelogFailed] = useState(false);
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const [gmAccessPassword, setGmAccessPassword] = useState('');
   const [gmAccessBusy, setGmAccessBusy] = useState(false);
@@ -248,6 +252,28 @@ export default function AppHeader() {
   const dialog = useRef<HTMLElement>(null);
   const status = useSessionStore(selectConnectionStatus);
   const explicitlyOffline = useSessionStore((state) => state.connection === 'offline');
+
+  useEffect(() => {
+    if (!changelogOpen || changelog !== null) return undefined;
+
+    let active = true;
+    setChangelogLoading(true);
+    setChangelogFailed(false);
+    void loadChangelogDisplay(CHANGELOG_DISPLAY_URL)
+      .then((entries) => {
+        if (active) setChangelog(entries);
+      })
+      .catch(() => {
+        if (active) setChangelogFailed(true);
+      })
+      .finally(() => {
+        if (active) setChangelogLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [changelog, changelogOpen]);
   const persistedSessionSnapshot = useSessionStore((state) => state.persistedSessionSnapshot);
   const hasCacheDerivedSnapshot = useSessionStore(
     (state) => state.sessionSnapshotFreshness === 'cache' && !state.persistedSessionSnapshot,
@@ -632,7 +658,11 @@ export default function AppHeader() {
                   aria-label="Changelog entries"
                   tabIndex={0}
                 >
-                  {CHANGELOG.map((entry) => (
+                  {changelogLoading && <p role="status">Loading changelog…</p>}
+                  {changelogFailed && (
+                    <p role="alert">Changelog unavailable. Close and reopen to try again.</p>
+                  )}
+                  {changelog?.map((entry) => (
                     <article className="settings-changelog__entry" key={entry.version}>
                       <h4>Build {entry.version}</h4>
                       <ul>

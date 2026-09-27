@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
 import { APP_VERSION } from '@/version';
+import { CHANGELOG } from '@/changelog';
 import { SESSION_WAIVER_STORAGE_KEY } from '@/lib/sessionWaiver';
 import { markServiceWorkerUpdateAvailable } from '@/pwa';
 import type { Player } from '@/types/game';
@@ -56,11 +57,16 @@ beforeEach(() => {
   vi.mocked(loginGmAccess).mockResolvedValue('applied');
   vi.mocked(logoutGmAccess).mockResolvedValue('applied');
   vi.mocked(startSinglePlayerDemo).mockResolvedValue(undefined);
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => CHANGELOG.map(({ version, changes }) => ({ version, changes: [...changes] })),
+  }));
 });
 
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 it('shows the current session personnel count in the top-right header', async () => {
@@ -600,9 +606,53 @@ it('opens a readable changelog in a bounded scroll region from settings', async 
   expect(toggle).toHaveAttribute('aria-expanded', 'true');
   expect(screen.getByRole('heading', { name: 'Changelog' })).toBeVisible();
   expect(screen.getByRole('region', { name: /changelog entries/i })).toBeVisible();
-  expect(screen.getByRole('heading', { name: `Build ${APP_VERSION}` })).toBeVisible();
+  expect(await screen.findByRole('heading', { name: `Build ${APP_VERSION}` })).toBeVisible();
   expect(screen.getByText(/read what changed without leaving your session/i)).toBeVisible();
   expect(screen.queryByText(/component|refactor|typescript/i)).not.toBeInTheDocument();
+});
+
+it('loads only the display changelog when the player opens it in Settings', async () => {
+  const user = userEvent.setup();
+  const display = [
+    { version: APP_VERSION, changes: ['Current display copy.'] },
+    { version: '0.5.38', changes: ['Preserved historical display copy.'] },
+  ];
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => display });
+  vi.stubGlobal('fetch', fetchMock);
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  await user.click(screen.getByRole('button', { name: /settings/i }));
+  expect(fetchMock).not.toHaveBeenCalled();
+
+  await user.click(screen.getByRole('button', { name: /view changelog/i }));
+
+  expect(await screen.findByText('Current display copy.')).toBeVisible();
+  expect(screen.getByText('Preserved historical display copy.')).toBeVisible();
+  expect(fetchMock).toHaveBeenCalledOnce();
+  expect(fetchMock).toHaveBeenCalledWith('/__changelog-display.json');
+  expect(screen.getByRole('region', { name: /changelog entries/i })).toBeVisible();
+});
+
+it('lets the player retry the changelog after a temporary asset failure', async () => {
+  const user = userEvent.setup();
+  const display = [{ version: APP_VERSION, changes: ['Recovered display copy.'] }];
+  const fetchMock = vi.fn()
+    .mockRejectedValueOnce(new Error('offline'))
+    .mockResolvedValueOnce({ ok: true, json: async () => display });
+  vi.stubGlobal('fetch', fetchMock);
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  await user.click(screen.getByRole('button', { name: /settings/i }));
+  await user.click(screen.getByRole('button', { name: /view changelog/i }));
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Changelog unavailable. Close and reopen to try again.',
+  );
+
+  await user.click(screen.getByRole('button', { name: /hide changelog/i }));
+  await user.click(screen.getByRole('button', { name: /view changelog/i }));
+
+  expect(await screen.findByText('Recovered display copy.')).toBeVisible();
+  expect(fetchMock).toHaveBeenCalledTimes(2);
 });
 
 it('renders the current and previous changelog copy with progress and keyboard stop intact', async () => {
@@ -612,6 +662,7 @@ it('renders the current and previous changelog copy with progress and keyboard s
   await user.click(screen.getByRole('button', { name: /settings/i }));
   await user.click(screen.getByRole('button', { name: /view changelog/i }));
 
+  await screen.findByRole('heading', { name: `Build ${APP_VERSION}` });
   const region = screen.getByRole('region', { name: /changelog entries/i });
   const renderedChanges = within(region).getAllByRole('listitem').map((item) => item.textContent ?? '');
   const newestEntry = within(region).getAllByRole('article')[0];

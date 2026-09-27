@@ -5,6 +5,8 @@ import { dirname, join, resolve as resolvePath } from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath, URL } from 'node:url';
 import packageJson from './package.json';
+import { CHANGELOG } from './src/changelog';
+import { projectChangelogForDisplay } from './src/lib/changelogDisplayProjection';
 
 const projectRoot = fileURLToPath(new URL('.', import.meta.url));
 
@@ -16,6 +18,48 @@ const buildVersionMetadata: Plugin = {
       fileName: 'build-version.json',
       source: `${JSON.stringify({ version: packageJson.version })}\n`,
     });
+  },
+};
+
+function changelogDisplaySource(): string {
+  return `${JSON.stringify(projectChangelogForDisplay(CHANGELOG))}\n`;
+}
+
+const changelogDisplayDevAsset: Plugin = {
+  name: 'changelog-display-dev-asset',
+  apply: 'serve',
+  configureServer(server) {
+    const source = changelogDisplaySource();
+    server.middlewares.use('/__changelog-display.json', (request, response, next) => {
+      if (request.method !== 'GET') {
+        next();
+        return;
+      }
+      response.setHeader('Content-Type', 'application/json; charset=utf-8');
+      response.end(source);
+    });
+  },
+};
+
+let changelogDisplayAssetReference: string | undefined;
+
+const changelogDisplayBuildAsset: Plugin = {
+  name: 'changelog-display-build-asset',
+  apply: 'build',
+  buildStart() {
+    changelogDisplayAssetReference = this.emitFile({
+      type: 'asset',
+      name: 'changelog-display.json',
+      source: changelogDisplaySource(),
+    });
+  },
+  transform(_source, id) {
+    if (id.split('?')[0] !== resolvePath(projectRoot, 'src/changelogDisplayAsset.ts')) return null;
+    if (!changelogDisplayAssetReference) throw new Error('The changelog display asset was not emitted.');
+    return {
+      code: `export const CHANGELOG_DISPLAY_URL = import.meta.ROLLUP_FILE_URL_${changelogDisplayAssetReference};`,
+      map: null,
+    };
   },
 };
 
@@ -70,7 +114,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_');
 
   return {
-    plugins: [react(), buildVersionMetadata, serviceWorkerPrecache],
+    plugins: [react(), changelogDisplayDevAsset, changelogDisplayBuildAsset, buildVersionMetadata, serviceWorkerPrecache],
     ...(process.env.TICKER_SMOKE_CACHE_DIR
       ? { cacheDir: resolvePath(process.env.TICKER_SMOKE_CACHE_DIR) }
       : {}),
