@@ -16,6 +16,7 @@ const mock = vi.hoisted(() => ({
   charges: ['jump-drive'] as string[],
   jumpStates: {} as Record<string, unknown>,
   systemHistory: {} as Record<string, unknown>,
+  scoutedCoordinatesByShip: {} as Record<string, string[]>,
   pursuitGroups: { 'fleet-1': 2 } as Record<string, number>,
   fleetGroups: [{
     id: 'fleet-1',
@@ -90,6 +91,7 @@ beforeEach(() => {
   mock.charges = ['jump-drive'];
   mock.jumpStates = {};
   mock.systemHistory = {};
+  mock.scoutedCoordinatesByShip = {};
   mock.pursuitGroups = { 'fleet-1': 2 };
   mock.fleetGroups = [{
     id: 'fleet-1',
@@ -200,6 +202,7 @@ beforeEach(() => {
           shipUpgrades: mock.upgrades,
           shipJumpStates: mock.jumpStates,
           systemHistory: mock.systemHistory,
+          scoutedCoordinatesByShip: mock.scoutedCoordinatesByShip,
           pursuitGroups: mock.pursuitGroups,
           maintenanceCycles: {
             aegis: { turn: mock.currentTurn, charges: mock.charges, results: {} },
@@ -305,6 +308,46 @@ it('adjusts protected pursuit from the server chart depth through facilitator mo
     pursuitGroups: 'delete-field',
   }));
 });
+
+it.each(['move', 'jump'] as const)(
+  'preserves the receiving ship scout reveal after %s without serializing it to another ship',
+  async (transition) => {
+    // This is the persisted navigation state immediately after the server has
+    // resolved a scout request for Aegis.
+    mock.scoutedCoordinatesByShip = { aegis: ['6798'] };
+    mock.fleetGroups = [{
+      id: 'fleet-1',
+      vesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
+      memberUids: ['u1', 'u2'],
+    }];
+    mock.players = [
+      { id: 'u1', fields: { role: 'player', connected: true, fleetGroupId: 'fleet-1', assignedRoleId: 'admiral' } },
+      { id: 'u2', fields: { role: 'player', connected: true, fleetGroupId: 'fleet-1', assignedRoleId: 'dione-captain' } },
+    ];
+
+    const transitionCall = transition === 'move'
+      ? moveShipToLocation.run(request({ ...data, requestId: 'scout-then-move', destination: '5143' }))
+      : jumpShip.run(request({ ...data, requestId: 'scout-then-jump', destination: '5143' }));
+    await expect(transitionCall).resolves.toMatchObject({ destination: '5143' });
+
+    const navigationWrite = mock.set.mock.calls.find(([path]) =>
+      path === 'sessions/s1/serverState/navigation')?.[1];
+    expect(navigationWrite?.scoutedCoordinatesByShip).toEqual({ aegis: ['6798'] });
+
+    const aegisProjection = mock.set.mock.calls.find(([path]) =>
+      path === 'sessions/s1/playerDiscoveries/u1')?.[1];
+    expect(aegisProjection).toMatchObject({
+      shipId: 'aegis',
+      knownCoordinates: expect.arrayContaining(['6798']),
+    });
+
+    const dioneProjection = mock.set.mock.calls.find(([path]) =>
+      path === 'sessions/s1/playerDiscoveries/u2')?.[1];
+    expect(dioneProjection).toMatchObject({ shipId: 'dione' });
+    expect(dioneProjection?.knownCoordinates).not.toContain('6798');
+    expect(JSON.stringify(dioneProjection)).not.toContain('6798');
+  },
+);
 
 it('persists a candidate arrival while keeping it out of another ship projection', async () => {
   mock.fleetGroups = [{
