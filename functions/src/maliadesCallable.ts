@@ -22,6 +22,21 @@ import {
 
 type RecordValue = Record<string, unknown>;
 
+export interface MaliadesRepairCallableStaleReply {
+  readonly status: 'stale';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly craftId: 'maliades';
+  readonly expectedHostShipId: string;
+  readonly damageToRepair: number;
+  readonly expectedControlRevision: number;
+  readonly currentControlRevision: number;
+  readonly expectedRevision: number;
+  readonly currentRevision: number;
+  readonly expectedCycle: number;
+  readonly currentCycle: number;
+}
+
 function isRecord(value: unknown): value is RecordValue {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -49,7 +64,7 @@ function requireDioneEngineer(player: DocumentSnapshot, uid: string): void {
 }
 
 function exactCommandRequest(raw: unknown, kind: 'medium' | 'short' | 'repair'): Readonly<{
-  sessionId: string; requestId: string; expectedCycle: number; expectedRevision: number;
+  sessionId: string; requestId: string; expectedCycle: number; expectedRevision: number; expectedControlRevision?: number;
   choices?: readonly MaliadesMediumChoice[]; targetIds?: readonly string[]; expectedHostShipId?: string;
   damageToRepair?: number;
 }> {
@@ -57,7 +72,7 @@ function exactCommandRequest(raw: unknown, kind: 'medium' | 'short' | 'repair'):
     ? ['sessionId', 'requestId', 'expectedCycle', 'expectedRevision', 'choices']
     : kind === 'short'
       ? ['sessionId', 'requestId', 'expectedCycle', 'expectedRevision', 'targetIds']
-      : ['sessionId', 'requestId', 'expectedCycle', 'expectedRevision', 'expectedHostShipId', 'damageToRepair'];
+      : ['sessionId', 'requestId', 'expectedCycle', 'expectedControlRevision', 'expectedRevision', 'expectedHostShipId', 'damageToRepair'];
   if (!isRecord(raw) || Object.keys(raw).length !== allowed.length ||
       Object.keys(raw).some((key) => !allowed.includes(key)) ||
       typeof raw.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(raw.sessionId) ||
@@ -98,7 +113,8 @@ function exactCommandRequest(raw: unknown, kind: 'medium' | 'short' | 'repair'):
       targetIds: [...raw.targetIds as string[]],
     };
   }
-  if (typeof raw.expectedHostShipId !== 'string' || !isResourceShipId(raw.expectedHostShipId) ||
+  if (!Number.isSafeInteger(raw.expectedControlRevision) || (raw.expectedControlRevision as number) < 0 ||
+      typeof raw.expectedHostShipId !== 'string' || !isResourceShipId(raw.expectedHostShipId) ||
       !Number.isSafeInteger(raw.damageToRepair) || (raw.damageToRepair as number) < 1 ||
       (raw.damageToRepair as number) > 3) {
     throw new HttpsError('invalid-argument', 'Invalid Maliades repair request.');
@@ -106,6 +122,7 @@ function exactCommandRequest(raw: unknown, kind: 'medium' | 'short' | 'repair'):
   return {
     sessionId: raw.sessionId, requestId: raw.requestId,
     expectedCycle: raw.expectedCycle as number, expectedRevision: raw.expectedRevision as number,
+    expectedControlRevision: raw.expectedControlRevision as number,
     expectedHostShipId: raw.expectedHostShipId, damageToRepair: raw.damageToRepair as number,
   };
 }
@@ -113,7 +130,10 @@ function exactCommandRequest(raw: unknown, kind: 'medium' | 'short' | 'repair'):
 function fingerprintFor(
   action: string, uid: string, request: ReturnType<typeof exactCommandRequest>,
 ): CommandFingerprint {
-  const payload: Record<string, string | number | readonly string[]> = { expectedCycle: request.expectedCycle };
+  const payload: Record<string, string | number | readonly string[]> = {
+    expectedCycle: request.expectedCycle,
+    ...(request.expectedControlRevision !== undefined ? { expectedControlRevision: request.expectedControlRevision } : {}),
+  };
   if (request.choices) payload.choices = request.choices.map(choice =>
     choice.kind === 'target-shift'
       ? `target-shift:${choice.targetId}:${choice.shift}:${choice.wolfRosterIndex ?? ''}`
@@ -201,12 +221,12 @@ export const repairMaliades = onCall(CALLABLE_RUNTIME_OPTIONS, async request => 
     if (prior) return resultWithReplay(prior);
     if (event.exists) throw new HttpsError('failed-precondition', 'This Maliades repair request already has an event receipt.');
     const currentCycle = session.get('currentTurn');
-    if (session.get('phase') !== 'active' || currentCycle !== command.expectedCycle) {
-      throw commandError('failed-precondition', 'The Coordination cycle changed; refresh before repairing Maliades.', 'stale-revision');
+    if (session.get('phase') !== 'active' || !Number.isSafeInteger(currentCycle) || (currentCycle as number) < 1) {
+      throw commandError('failed-precondition', 'The authoritative Maliades repair state is unavailable.', 'conflict');
     }
     const phase = turnPhaseState(session.get('turnPhase'));
     const teamEnds = phase ? Date.parse(phase.teamPhaseEndsAt) : Number.NaN;
-    if (!phase || phase.turn !== command.expectedCycle || phase.airspace.state !== 'restricted' ||
+    if (!phase || phase.turn !== currentCycle || phase.airspace.state !== 'restricted' ||
         !Number.isFinite(teamEnds) || Date.now() >= teamEnds) {
       throw commandError('failed-precondition', 'Maliades repair is available only during the live Team Phase.', 'invalid-phase');
     }
@@ -225,7 +245,8 @@ export const repairMaliades = onCall(CALLABLE_RUNTIME_OPTIONS, async request => 
     }
     const expectedHostShipId = command.expectedHostShipId;
     const damageToRepair = command.damageToRepair;
-    if (!expectedHostShipId || damageToRepair === undefined) {
+    const expectedControlRevision = command.expectedControlRevision;
+    if (!expectedHostShipId || damageToRepair === undefined || expectedControlRevision === undefined) {
       throw commandError('invalid-argument', 'Maliades repair host and damage are required.', 'malformed-input');
     }
     const maliadesDockings = dockings.filter((docking) => isRecord(docking) && docking.shuttleId === 'maliades');
@@ -240,15 +261,29 @@ export const repairMaliades = onCall(CALLABLE_RUNTIME_OPTIONS, async request => 
     if (!state || !state.launched || !damage || !resources || !deck) {
       throw commandError('failed-precondition', 'The authoritative Maliades repair state is unavailable.', 'conflict');
     }
-    if (state.revision !== command.expectedRevision) throw commandError('failed-precondition', 'Maliades state changed; refresh before repairing.', 'stale-revision');
     let next: ReturnType<typeof repairMaliadesState>;
     try {
       next = repairMaliadesState(state, {
-        expectedRevision: command.expectedRevision, fuelled: true,
+        expectedRevision: state.revision, fuelled: true,
         damageToRepair, materialsAvailable: resources.materials,
       });
     } catch (cause) {
       throw commandError('failed-precondition', cause instanceof Error ? cause.message : 'Maliades repair was rejected.', 'conflict');
+    }
+    const currentControlRevision = control.revision;
+    const stale = currentCycle !== command.expectedCycle ||
+      currentControlRevision !== expectedControlRevision || state.revision !== command.expectedRevision;
+    if (stale) {
+      if ((currentCycle as number) < command.expectedCycle ||
+          currentControlRevision < expectedControlRevision || state.revision < command.expectedRevision) {
+        throw commandError('failed-precondition', 'The authoritative Maliades repair state is unavailable.', 'conflict');
+      }
+      return {
+        status: 'stale', sessionId: command.sessionId, requestId: command.requestId, craftId: 'maliades',
+        expectedHostShipId, damageToRepair, expectedControlRevision, currentControlRevision,
+        expectedRevision: command.expectedRevision, currentRevision: state.revision,
+        expectedCycle: command.expectedCycle, currentCycle: currentCycle as number,
+      } satisfies MaliadesRepairCallableStaleReply;
     }
     const result: RecordValue = {
       status: 'committed', sessionId: command.sessionId, requestId: command.requestId,

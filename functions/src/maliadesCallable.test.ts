@@ -92,6 +92,18 @@ beforeEach(() => {
 const medium = { sessionId: 's1', requestId: 'medium-1', expectedCycle: 2, expectedRevision: 1,
   choices: [{ kind: 'attack', targetId: 'dione' }] };
 
+const repairRequest = (overrides: Fields = {}) => ({
+  sessionId: 's1', requestId: 'repair-stale-1', expectedCycle: 2, expectedControlRevision: 2,
+  expectedRevision: 1, expectedHostShipId: 'dione', damageToRepair: 1, ...overrides,
+});
+
+function expectNoRepairWrites(requestId: string): void {
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.documents.has(`sessions/s1/commandReceipts/${requestId}`)).toBe(false);
+  expect(mock.documents.has(`sessions/s1/events/maliades-repair-${requestId}`)).toBe(false);
+}
+
 it('denies enemy and friendly Medium/Short target guesses uniformly before reading attack state', async () => {
   const attempts = [
     { kind: 'medium' as const, targetId: 'wolf-fighter-wing', requestId: 'medium-enemy' },
@@ -148,11 +160,89 @@ it('repairs one damage only with fuelled Team Phase docking', async () => {
     revision: 2, attackId: 'attack-2', attackCycle: 2, launched: true, damage: 1, destroyed: false,
     medium: null, short: null,
   };
-  await expect(repairMaliades.run(request({
-    sessionId: 's1', requestId: 'repair-1', expectedCycle: 2, expectedRevision: 2,
-    expectedHostShipId: 'dione', damageToRepair: 1,
-  }))).resolves.toMatchObject({ status: 'committed', revision: 3, materialsRemaining: 3, state: { damage: 0 } });
+  await expect(repairMaliades.run(request(repairRequest({
+    requestId: 'repair-1', expectedRevision: 2,
+  })))).resolves.toMatchObject({ status: 'committed', revision: 3, materialsRemaining: 3, state: { damage: 0 } });
   expect(mock.documents.get('sessions/s1')).toMatchObject({
     maliadesState: { revision: 3, damage: 0 }, shipResources: { dione: { materials: 3 } },
   });
+});
+
+it.each([
+  {
+    label: 'repair revision',
+    command: repairRequest(),
+    session: { maliadesState: { revision: 2, attackId: 'attack-2', attackCycle: 2, launched: true, damage: 1, destroyed: false, medium: null, short: null } },
+    expected: { expectedControlRevision: 2, currentControlRevision: 2, expectedRevision: 1, currentRevision: 2, expectedCycle: 2, currentCycle: 2 },
+  },
+  {
+    label: 'control revision',
+    command: repairRequest({ expectedControlRevision: 1, expectedRevision: 2 }),
+    session: {
+      shuttleControl: { maliades: { shuttleId: 'maliades', ownerRoleId: 'dione-engineer', ownerUid: 'owner', holderUid: 'holder', revision: 2 } },
+      maliadesState: { revision: 2, attackId: 'attack-2', attackCycle: 2, launched: true, damage: 1, destroyed: false, medium: null, short: null },
+    },
+    expected: { expectedControlRevision: 1, currentControlRevision: 2, expectedRevision: 2, currentRevision: 2, expectedCycle: 2, currentCycle: 2 },
+  },
+  {
+    label: 'Team Phase cycle',
+    command: repairRequest({ expectedRevision: 2 }),
+    session: {
+      currentTurn: 3,
+      maliadesState: { revision: 2, attackId: 'attack-2', attackCycle: 2, launched: true, damage: 1, destroyed: false, medium: null, short: null },
+      turnPhase: {
+        turn: 3, teamPhaseEndsAt: '2099-09-22T12:00:00.000Z', openAirspaceEndsAt: '2099-09-22T12:15:00.000Z',
+        airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+      },
+    },
+    expected: { expectedControlRevision: 2, currentControlRevision: 2, expectedRevision: 2, currentRevision: 2, expectedCycle: 2, currentCycle: 3 },
+  },
+])('returns only bound nonsecret stale CAS after current authorization for $label', async ({ command, session, expected }) => {
+  Object.assign(mock.documents.get('sessions/s1')!, session);
+
+  const reply = await repairMaliades.run(request(command));
+
+  expect(reply).toEqual({
+    status: 'stale', sessionId: 's1', requestId: command.requestId, craftId: 'maliades',
+    expectedHostShipId: 'dione', damageToRepair: 1, ...expected,
+  });
+  expect(Object.keys(reply as Fields).sort()).toEqual([
+    'craftId', 'currentControlRevision', 'currentCycle', 'currentRevision', 'damageToRepair',
+    'expectedControlRevision', 'expectedCycle', 'expectedHostShipId', 'expectedRevision',
+    'requestId', 'sessionId', 'status',
+  ].sort());
+  expect(JSON.stringify(reply)).not.toMatch(/holder|uid|roster|inventory|material|state/i);
+  expectNoRepairWrites(command.requestId as string);
+});
+
+it.each([
+  ['actor role changed', () => {
+    mock.documents.get('sessions/s1/players/holder')!.activeConsoleRoleId = 'other-role';
+  }, 'permission-denied'],
+  ['Maliades holder changed', () => {
+    mock.documents.get('sessions/s1')!.shuttleControl = {
+      maliades: { shuttleId: 'maliades', ownerRoleId: 'dione-engineer', ownerUid: 'owner', holderUid: 'owner', revision: 3 },
+    };
+  }, 'permission-denied'],
+  ['fleet group membership changed', () => {
+    mock.documents.get('sessions/s1/fleetGroups/fleet-1')!.memberUids = [];
+  }, 'failed-precondition'],
+  ['Maliades docking is ambiguous', () => {
+    (mock.documents.get('sessions/s1')!.shuttleDockings as unknown[]).push({ shuttleId: 'maliades', shipId: 'aegis', dockedAt: 'SESSION START' });
+  }, 'failed-precondition'],
+  ['host left the current fleet group', () => {
+    mock.documents.get('sessions/s1/fleetGroups/fleet-1')!.vesselIds = ['aegis'];
+  }, 'failed-precondition'],
+])('fails closed on stale cycle when %s', async (_label, changeAuthority, code) => {
+  Object.assign(mock.documents.get('sessions/s1')!, {
+    currentTurn: 3,
+    turnPhase: {
+      turn: 3, teamPhaseEndsAt: '2099-09-22T12:00:00.000Z', openAirspaceEndsAt: '2099-09-22T12:15:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+  });
+  changeAuthority();
+
+  await expect(repairMaliades.run(request(repairRequest()))).rejects.toMatchObject({ code });
+  expectNoRepairWrites('repair-stale-1');
 });
