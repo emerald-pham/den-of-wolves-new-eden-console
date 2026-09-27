@@ -164,3 +164,43 @@ it('retries an uncertain activation with the exact original request', async () =
   });
   expect(await screen.findByText('Status: Spent')).toBeVisible();
 });
+
+it('refreshes an uncertain request, then retries the same receipt after status shows spent', async () => {
+  const user = userEvent.setup();
+  mocks.activate.mockRejectedValueOnce(new Error('Network response was lost.'));
+  mocks.read.mockResolvedValueOnce(readyWorkspace)
+    .mockResolvedValueOnce(usedWorkspace)
+    .mockResolvedValueOnce(usedWorkspace);
+  render(<EndeavourEcmDevicePanel control={control} />);
+
+  await user.click(await screen.findByRole('button', { name: 'Use ECM Device' }));
+  expect(await screen.findByRole('button', { name: 'Retry same ECM Device request' })).toBeVisible();
+  await user.click(screen.getByRole('button', { name: 'Refresh ECM Device status' }));
+
+  expect(await screen.findByText('Status: Spent')).toBeVisible();
+  await user.click(screen.getByRole('button', { name: 'Retry same ECM Device request' }));
+  expect(mocks.retry).toHaveBeenCalledWith({
+    sessionId: 's1', requestId: 'ecm-use-1', expectedControlRevision: 4,
+    expectedDeviceRevision: 0, expectedCycle: 3,
+  });
+  expect(await screen.findByText('Successful: Shepherd group pursuit reduced from 8 to 5.')).toBeVisible();
+});
+
+it('clears a definitively rejected stale request and refreshes the spent state', async () => {
+  const user = userEvent.setup();
+  const rejection = Object.assign(new Error('The ECM Device cycle changed; refresh before use.'), {
+    code: 'functions/failed-precondition',
+  });
+  mocks.activate.mockRejectedValueOnce(rejection);
+  mocks.read.mockResolvedValueOnce(readyWorkspace).mockResolvedValueOnce(usedWorkspace);
+  render(<EndeavourEcmDevicePanel control={control} />);
+
+  await user.click(await screen.findByRole('button', { name: 'Use ECM Device' }));
+
+  expect(await screen.findByText('Status: Spent')).toBeVisible();
+  expect(await screen.findByRole('alert'))
+    .toHaveTextContent('The ECM Device cycle changed; refresh before use.');
+  expect(screen.queryByRole('button', { name: 'Retry same ECM Device request' })).not.toBeInTheDocument();
+  expect(mocks.read).toHaveBeenCalledTimes(2);
+  expect(mocks.retry).not.toHaveBeenCalled();
+});
