@@ -100,6 +100,10 @@ it('hides location contents without removing the ship coordinate knowledge', asy
   expect(useSessionStore.getState().session?.playerDiscovery?.knownCoordinates).toContain('6798');
   expect(useSessionStore.getState().session?.currentGroupCandidateReveals?.candidateReveals)
     .toEqual([{ code: 'O', title: 'Deep Nebula' }]);
+  await user.click(screen.getByRole('button', { name: 'Show location contents' }));
+  expect(screen.getByRole('region', { name: 'Candidate discoveries' }))
+    .toHaveTextContent('Deep Nebula');
+  await user.click(screen.getByRole('button', { name: 'Hide location contents' }));
 
   await user.click(screen.getByRole('button', { name: 'Navigation' }));
   const map = await screen.findByRole('region', { name: 'Ship navigation map' });
