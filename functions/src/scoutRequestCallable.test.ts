@@ -22,8 +22,11 @@ const mock = vi.hoisted(() => {
     if (documents.has(target.path)) throw new Error('already exists');
     documents.set(target.path, { ...fields });
   });
-  const runTransaction = vi.fn(async (callback: (tx: unknown) => unknown) => callback({ get, create }));
-  return { documents, get, create, runTransaction, db: { doc: ref, runTransaction } };
+  const set = vi.fn((target: { path: string }, fields: Fields) => {
+    documents.set(target.path, { ...fields });
+  });
+  const runTransaction = vi.fn(async (callback: (tx: unknown) => unknown) => callback({ get, create, set }));
+  return { documents, get, create, set, runTransaction, db: { doc: ref, runTransaction } };
 });
 
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
@@ -66,6 +69,7 @@ function resetFixture(): void {
   mock.documents.clear();
   mock.get.mockClear();
   mock.create.mockClear();
+  mock.set.mockClear();
   mock.runTransaction.mockClear();
   put('sessions/s1', {
     phase: 'active', currentTurn: 2,
@@ -87,6 +91,9 @@ function resetFixture(): void {
   put('sessions/s1/players/comms', {
     role: 'player', connected: true, assignedRoleId: 'wing-commander',
     seatId: 'wing-commander', activeConsoleRoleId: null, replacementRoleId: 'comms-officer',
+  });
+  put('sessions/s1/serverState/navigation', {
+    shipGalacticCoordinates: { aegis: '0000', quellon: '0000', shepherd: '0000' },
   });
 }
 
@@ -116,31 +123,110 @@ it.each([
   expect(stored).not.toHaveProperty('fuelSpent');
   expect(stored).not.toHaveProperty('cadenceConsumed');
   expect(mock.documents.get('sessions/s1')).toMatchObject({ currentTurn: 2 });
-  expect(mock.create).toHaveBeenCalledTimes(2);
+  expect(mock.create).toHaveBeenCalledTimes(3);
+  expect(mock.documents.get(`sessions/s1/scoutCadence/2-${entitlementId}`)).toMatchObject({
+    sessionId: 's1', entitlementId, cycle: 2,
+    scans: [{ requestId: `request-${uid}`, actorUid: uid }],
+  });
 });
 
-it('keeps a printed but range-unresolved target pending without a scan result', async () => {
-  const result = await requestScout.run(request({
+it('rejects an out-of-range Comms target before recording a pending request', async () => {
+  await expect(requestScout.run(request({
     sessionId: 's1', requestId: 'range-unresolved', entitlementId: 'comms-officer', targetCoordinate: '4888',
-  }, 'comms'));
-  expect(result).toMatchObject({ status: 'requested', resolution: 'pending', targetCoordinate: '4888' });
-  expect(result).not.toHaveProperty('originCoordinate');
-  expect(result).not.toHaveProperty('distance');
-  expect(result).not.toHaveProperty('chartFact');
-  expect(mock.documents.get('sessions/s1/scoutRequests/range-unresolved')).not.toHaveProperty('result');
+  }, 'comms'))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.has('sessions/s1/scoutRequests/range-unresolved')).toBe(false);
+  expect(mock.create).not.toHaveBeenCalled();
+});
+
+it('allows one Endeavour request at any printed range and consumes its cycle quota', async () => {
+  const first = { sessionId: 's1', requestId: 'endeavour-far', entitlementId: 'endeavour', targetCoordinate: '4888' };
+  await expect(requestScout.run(request(first, 'scientist'))).resolves.toMatchObject({
+    status: 'requested', resolution: 'pending', targetCoordinate: '4888',
+  });
+  expect(mock.documents.get('sessions/s1/scoutRequests/endeavour-far')).toMatchObject({
+    scan: { sourceId: 'endeavour', attempt: 1, range: 'unlimited', targetCoordinate: '4888' },
+  });
+  await expect(requestScout.run(request({ ...first, requestId: 'endeavour-extra', targetCoordinate: '5143' }, 'scientist')))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.has('sessions/s1/scoutRequests/endeavour-extra')).toBe(false);
+});
+
+it('binds limited scout ranges to the current private post-jump navigation authority', async () => {
+  const navigation = mock.documents.get('sessions/s1/serverState/navigation')!;
+  navigation.shipGalacticCoordinates = { aegis: '4888', quellon: '4888', shepherd: '0000' };
+  await expect(requestScout.run(request({
+    sessionId: 's1', requestId: 'comms-stale-origin', entitlementId: 'comms-officer', targetCoordinate: '5143',
+  }, 'comms'))).rejects.toMatchObject({ code: 'failed-precondition' });
+  await expect(requestScout.run(request({
+    sessionId: 's1', requestId: 'hummingbird-stale-origin', entitlementId: 'hummingbird', targetCoordinate: '6931',
+  }, 'explorer'))).rejects.toMatchObject({ code: 'failed-precondition' });
+  await expect(requestScout.run(request({
+    sessionId: 's1', requestId: 'comms-current-origin', entitlementId: 'comms-officer', targetCoordinate: '0408',
+  }, 'comms'))).resolves.toMatchObject({ status: 'requested', targetCoordinate: '0408' });
+  expect(mock.documents.get('sessions/s1/scoutRequests/comms-current-origin')).toMatchObject({
+    scan: { sourceId: 'comms-officer', originCoordinate: '4888', targetCoordinate: '0408', distance: 1 },
+  });
+  expect(mock.documents.has('sessions/s1/scoutRequests/comms-stale-origin')).toBe(false);
+  expect(mock.documents.has('sessions/s1/scoutRequests/hummingbird-stale-origin')).toBe(false);
+});
+
+it('allows Starlight a second distinct scan only with current-cycle fuel proof', async () => {
+  await requestScout.run(request({
+    sessionId: 's1', requestId: 'starlight-first', entitlementId: 'starlight', targetCoordinate: '5143',
+  }));
+  const second = {
+    sessionId: 's1', requestId: 'starlight-second', entitlementId: 'starlight', targetCoordinate: '9997',
+  };
+  await expect(requestScout.run(request(second))).rejects.toMatchObject({ code: 'failed-precondition' });
+  const session = mock.documents.get('sessions/s1')!;
+  session.shuttleFuelled = { starlight: true };
+  session.maintenanceCycles = {
+    aegis: { step: 7, revision: 8, turn: 2, results: {}, charges: [], refuelled: ['starlight'] },
+  };
+  await expect(requestScout.run(request({ ...second, targetCoordinate: '5143' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  await expect(requestScout.run(request(second))).resolves.toMatchObject({ status: 'requested' });
+  expect(mock.documents.get('sessions/s1/scoutRequests/starlight-second')).toMatchObject({
+    scan: { sourceId: 'starlight', attempt: 2, firstTargetCoordinate: '5143', targetCoordinate: '9997' },
+  });
+  await expect(requestScout.run(request({ ...second, requestId: 'starlight-third', targetCoordinate: '1413' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+});
+
+it('fails closed when current navigation or cadence evidence is missing or malformed', async () => {
+  mock.documents.delete('sessions/s1/serverState/navigation');
+  await expect(requestScout.run(request({
+    sessionId: 's1', requestId: 'no-navigation', entitlementId: 'starlight', targetCoordinate: '5143',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  put('sessions/s1/serverState/navigation', {
+    shipGalacticCoordinates: { aegis: '0000', quellon: '0000' },
+  });
+  await expect(requestScout.run(request({
+    sessionId: 's1', requestId: 'incomplete-navigation', entitlementId: 'starlight', targetCoordinate: '5143',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  put('sessions/s1/serverState/navigation', {
+    shipGalacticCoordinates: { aegis: '0000', quellon: '0000', shepherd: '0000' },
+  });
+  put('sessions/s1/scoutCadence/2-starlight', {
+    sessionId: 's1', entitlementId: 'starlight', cycle: 2, scans: [{ requestId: 'forged' }],
+  });
+  await expect(requestScout.run(request({
+    sessionId: 's1', requestId: 'bad-cadence', entitlementId: 'starlight', targetCoordinate: '5143',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.create).not.toHaveBeenCalled();
 });
 
 it('replays an identical caller-bound request without another write and rejects request-id reuse', async () => {
   const data = { sessionId: 's1', requestId: 'replay-one', entitlementId: 'starlight', targetCoordinate: '5143' };
   expect(await requestScout.run(request(data))).toMatchObject({ status: 'requested' });
   expect(await requestScout.run(request(data))).toMatchObject({ status: 'replayed' });
-  expect(mock.create).toHaveBeenCalledTimes(2);
+  expect(mock.create).toHaveBeenCalledTimes(3);
 
   await expect(requestScout.run(request({ ...data, targetCoordinate: '1413' })))
     .rejects.toMatchObject({ code: 'failed-precondition' });
   await expect(requestScout.run(request({ ...data, entitlementId: 'hummingbird' }, 'explorer')))
     .rejects.toMatchObject({ code: 'permission-denied' });
-  expect(mock.create).toHaveBeenCalledTimes(2);
+  expect(mock.create).toHaveBeenCalledTimes(3);
 });
 
 it('rechecks the active phase before replay and rejects ids already owned by another command', async () => {
@@ -148,7 +234,7 @@ it('rechecks the active phase before replay and rejects ids already owned by ano
   await requestScout.run(request(data));
   mock.documents.get('sessions/s1')!.turnPhase = { turn: 2, airspace: { state: 'restricted' } };
   await expect(requestScout.run(request(data))).rejects.toMatchObject({ code: 'failed-precondition' });
-  expect(mock.create).toHaveBeenCalledTimes(2);
+  expect(mock.create).toHaveBeenCalledTimes(3);
 
   resetFixture();
   put('sessions/s1/commandReceipts/foreign-command', {
@@ -191,7 +277,7 @@ it.each([
     sessionId: 's1', requestId: `denied-${label.replaceAll(' ', '-')}`,
     entitlementId, targetCoordinate: '5143',
   }, uid))).rejects.toMatchObject({ code: 'permission-denied' });
-  expect(mock.documents.size).toBe(5);
+  expect(mock.documents.size).toBe(6);
   expect(mock.create).not.toHaveBeenCalled();
 });
 
