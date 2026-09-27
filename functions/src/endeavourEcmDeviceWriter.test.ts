@@ -95,6 +95,16 @@ function seedSession(): void {
     shipGalacticCoordinates: { shepherd: '0000', aegis: '0000', dione: '5143' },
     shipNavigationLogs: { shepherd: [], aegis: [], dione: [] },
     pursuitGroups: { 'fleet-1': 8, 'fleet-2': 9 },
+    revision: 11,
+  });
+  put('sessions/s1/gmDiscovery/current', {
+    pursuitGroups: { 'fleet-1': 8, 'fleet-2': 9 }, revision: 11,
+  });
+  put('sessions/s1/playerDiscoveries/scientist', {
+    groupId: 'fleet-1', pursuitValue: 8, revision: 11, knownSystems: { keep: 'private-to-player' },
+  });
+  put('sessions/s1/playerDiscoveries/captain', {
+    groupId: 'fleet-2', pursuitValue: 9, revision: 11, knownSystems: { keep: 'captain-only' },
   });
 }
 
@@ -145,6 +155,14 @@ describe('Endeavour ECM Device writer', () => {
 
     expect(mock.documents.get('sessions/s1/serverState/navigation')?.pursuitGroups)
       .toEqual({ 'fleet-1': 5, 'fleet-2': 9 });
+    expect(mock.documents.get('sessions/s1/serverState/navigation'))
+      .toMatchObject({ revision: 12 });
+    expect(mock.documents.get('sessions/s1/gmDiscovery/current'))
+      .toMatchObject({ pursuitGroups: { 'fleet-1': 5, 'fleet-2': 9 }, revision: 12 });
+    expect(mock.documents.get('sessions/s1/playerDiscoveries/scientist'))
+      .toMatchObject({ pursuitValue: 5, revision: 12, knownSystems: { keep: 'private-to-player' } });
+    expect(mock.documents.get('sessions/s1/playerDiscoveries/captain'))
+      .toMatchObject({ pursuitValue: 9, revision: 12, knownSystems: { keep: 'captain-only' } });
     expect(mock.documents.get('sessions/s1/serverState/endeavourEcmDevice')).toEqual({
       status: 'used', revision: 1, ownerGroupId: 'fleet-1', pursuitBefore: 8, pursuitAfter: 5,
     });
@@ -156,6 +174,17 @@ describe('Endeavour ECM Device writer', () => {
     expect(mock.documents.get('sessions/s1/commandReceipts/ecm-use-1'))
       .toMatchObject({ fingerprint: { action: 'endeavour-ecm-device', actorUid: 'scientist' } });
     expect(mock.documents.get('sessions/s1')).not.toHaveProperty('pursuitGroups');
+  });
+
+  it('preserves raw navigation fields that ECM does not own', async () => {
+    const navigation = mock.documents.get('sessions/s1/serverState/navigation')!;
+    const malformedLegacyLogs = { shepherd: ['legacy log that the tolerant reader drops'] };
+    put('sessions/s1/serverState/navigation', { ...navigation, shipNavigationLogs: malformedLegacyLogs });
+
+    await activateEndeavourEcmDevice.run(request(command));
+
+    expect(mock.documents.get('sessions/s1/serverState/navigation')?.shipNavigationLogs)
+      .toEqual(malformedLegacyLogs);
   });
 
   it('replays the same actor and command without reducing pursuit or writing another event', async () => {
@@ -183,6 +212,11 @@ describe('Endeavour ECM Device writer', () => {
     }); }],
     ['missing pursuit authority', () => { put('sessions/s1/serverState/navigation', {
       shipGalacticCoordinates: {}, shipNavigationLogs: {}, pursuitGroups: { 'fleet-2': 9 },
+    }); }],
+    ['malformed raw pursuit authority', () => { put('sessions/s1/serverState/navigation', {
+      shipGalacticCoordinates: { shepherd: '0000', aegis: '0000', dione: '5143' },
+      shipNavigationLogs: { shepherd: [], aegis: [], dione: [] },
+      pursuitGroups: { 'fleet-1': 8, 'fleet-2': 9, malformed: 3 }, revision: 11,
     }); }],
   ])('rejects %s without mutation', async (_label, mutate, actor) => {
     mutate();
