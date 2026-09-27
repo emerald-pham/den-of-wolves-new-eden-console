@@ -56,8 +56,9 @@ system. Keep the workflow proportionate to the risk of the change.
 For numbered-prompt work, follow the one-sitting playtest checkpoints and
 shaping, assumptions, test-first commits, feedback, and cooldown process in
 [`docs/PRODUCT_MILESTONES.md`](docs/PRODUCT_MILESTONES.md). M1–M13 are internal
-gates. Do not pause an approved build for owner feedback or a rules ruling;
-the first shaped checkpoint awaits approval for this planning handoff.
+gates. The owner reviews completed UI; agents own gameplay proof. Shape and
+build without prebuild owner approval. Do not pause for owner feedback or a
+rules ruling.
 
 Keep unrelated agent-policy and workflow edits out of an in-flight feature
 release. Queue them for the next safe checkpoint unless the user explicitly

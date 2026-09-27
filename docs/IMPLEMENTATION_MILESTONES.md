@@ -1,6 +1,6 @@
 # Implementation Milestones — Internal Technical Gates
 
-Owner playtests use the [Product Milestones](PRODUCT_MILESTONES.md) plan.
+Solo owner UI reviews use the [Product Milestones](PRODUCT_MILESTONES.md) plan.
 
 The M1–M13 stories and fixtures below are internal, dependency-ordered
 engineering gates from the tested foundation to a complete game. They do not
@@ -26,7 +26,7 @@ Do not infer completion from the number of source files, screens, catalogs, or
 passing low-level tests. The repository has substantial tested foundations, but
 the progress ledger is the truthful prompt-level snapshot. The gates below
 prove technical composition; the product playtest questions define what the
-owner can actually do.
+owner can inspect alone in the UI.
 
 ## How to use this file
 

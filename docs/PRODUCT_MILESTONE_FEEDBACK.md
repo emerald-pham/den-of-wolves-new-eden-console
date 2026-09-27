@@ -1,7 +1,9 @@
 # Playtest checkpoint feedback
 
-This is the record of the product owner's in-app review, not a test or source
-code review. The next milestone shape must read every received note and state
+This is the record of the product owner's UI review by playing the app, not a
+gameplay-rules, test, or source-code review. Record notes on layout, wording,
+navigation, visible states, and any suggested change the owner raises. The
+next checkpoint shape must read every received note and state
 its disposition in [Product Milestones](PRODUCT_MILESTONES.md). Do not infer
 approval, satisfaction, or a decision from silence. If no feedback has arrived,
 record that fact in the next shape and continue; do not wait.

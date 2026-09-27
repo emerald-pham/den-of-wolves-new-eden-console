@@ -25,7 +25,7 @@ are regenerated from it:
 | Document | Owns |
 | --- | --- |
 | [implementation-prompts.json](implementation-prompts.json) | Canonical prompt definitions, statuses, dependencies, and release facts |
-| [PRODUCT_MILESTONES.md](PRODUCT_MILESTONES.md) | Owner-facing playtest checkpoints, first shaped scope, and the trimmed Shape Up build, report, and cooldown loop |
+| [PRODUCT_MILESTONES.md](PRODUCT_MILESTONES.md) | Owner-facing UI playtest checkpoints, first shaped scope, and the trimmed Shape Up build, report, and cooldown loop |
 | [PRODUCT_MILESTONE_FEEDBACK.md](PRODUCT_MILESTONE_FEEDBACK.md) | The owner's in-app review notes and how the next shape addresses each one |
 | [PRODUCT_MILESTONE_ASSUMPTIONS.md](PRODUCT_MILESTONE_ASSUMPTIONS.md) | Source-cited rules readings made during builds and their later corrections |
 | [PRODUCT_MILESTONE_CANDIDATES.md](PRODUCT_MILESTONE_CANDIDATES.md) | Work discovered outside the active shaped scope |

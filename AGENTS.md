@@ -9,7 +9,8 @@ For the remaining numbered-prompt campaign, read
 [`docs/PRODUCT_MILESTONES.md`](docs/PRODUCT_MILESTONES.md) before shaping or
 building a playtest checkpoint. Its one-sitting product checks, fixed shape,
 source-backed assumption log, test-first commits, owner feedback, and cooldown
-process govern that campaign. The older M1–M13 fixtures remain internal gates.
+process govern that campaign. The owner reviews UI; agents own gameplay and
+technical correctness. The older M1–M13 fixtures remain internal gates.
 
 Only `gpt-6-luna` and `gpt-6-sol` may be delegated as subagents. Use
 `gpt-6-sol` for the independent risk reviews specified in `CLAUDE.md`.

@@ -8,7 +8,7 @@ server-authoritative session and console foundation to a complete,
 rules-faithful game loop. It does not authorize a broad rewrite or the
 creation of speculative controls. Numbered gameplay prompts select a bounded
 slice of this plan and implement the smallest rules-complete increment needed
-for that slice. The owner-facing, one-sitting milestone route and trimmed
+for that slice. The owner-facing, one-sitting UI review route and trimmed
 Shape Up process are in [Product Milestones](PRODUCT_MILESTONES.md). Shape one
 milestone before building it; later slices remain provisional so owner feedback
 can change their scope. `CLAUDE.md` governs tests and workflow; ordinary
@@ -386,7 +386,7 @@ handled as real roadmap items rather than represented by disabled fiction:
 
 ## Player story milestones and ATDD exit gates
 
-For owner-facing planning and prompt selection, use the shaped playtest in
+For owner-facing UI planning and prompt selection, use the shaped playtest in
 [`PRODUCT_MILESTONES.md`](./PRODUCT_MILESTONES.md). The compact dependency map in
 [`IMPLEMENTATION_MILESTONES.md`](./IMPLEMENTATION_MILESTONES.md) and the detailed
 stories below remain internal acceptance narratives. Read them when the
@@ -1960,9 +1960,10 @@ gameplay-specific requirements:
 A roadmap slice is complete only when its selected prompt acceptance and
 milestone contribution have current named evidence, no exposed control depends
 on unfinished later work to become truthful, and the `CLAUDE.md` definition of
-done is satisfied. Prompt completion is not an owner playtest milestone: its
-plain-language checks must be playable in one sitting, and the relevant
-internal exit fixture must also pass. The full product is complete only at the
+done is satisfied. Prompt completion is not an owner UI checkpoint: its
+plain-language UI checks must be inspectable solo in one sitting, and the
+relevant internal gameplay fixture must also pass. The full product is
+complete only at the
 [`1.0` completion gate](./IMPLEMENTATION_MILESTONES.md#10-completion-gate).
 
 The dependency index informs this gate. Before marking a prompt complete,

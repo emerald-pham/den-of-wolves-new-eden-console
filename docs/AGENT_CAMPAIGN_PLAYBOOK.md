@@ -80,11 +80,11 @@ completion chain, or ancestry-only merge requirement.
 5. Merge to `main`, push `origin/main`, and verify the actual deployment or
    workflow result after deployment. A pushed workflow, local green test, or rendered screenshot
    is not a substitute for the other kinds of evidence.
-6. Hand over a one-sitting in-app walkthrough and the nontechnical checkpoint
+6. Hand over a one-sitting UI walkthrough and the nontechnical checkpoint
    report specified in the product plan. Record owner feedback in the repo and
    fix flagged issues in cooldown before starting a new checkpoint build.
 
-For a UI change, the owner checks narrow phone, wide desktop, and short
+For a UI change, the implementing agent checks narrow phone, wide desktop, and short
 landscape rendering, fonts, contrast, overflow, reduced motion, and visible
 return navigation. For server work, preserve client-write denials, callable
 authorization and transactions, App Check as a complement to authorization, and
