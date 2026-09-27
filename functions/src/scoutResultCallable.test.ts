@@ -35,8 +35,11 @@ vi.mock('firebase-functions/v2/https', () => ({
 
 import {
   listMyScoutReports, listPendingScoutRequests, readMyScoutDiscoveryNote,
-  readPrivateScoutResult, resolvePendingScoutRequest,
+  readPrivateScoutResult, createResolvePendingScoutRequest,
 } from './scoutResultCallable';
+
+const commitMapKnowledge = vi.fn(async () => undefined);
+const resolvePendingScoutRequest = createResolvePendingScoutRequest(commitMapKnowledge);
 
 const now = Date.parse('2026-09-27T21:40:00.000Z');
 const scan = { sourceId: 'endeavour', attempt: 1, range: 'unlimited', targetCoordinate: '0408' };
@@ -57,6 +60,7 @@ beforeEach(() => {
   mock.documents.clear();
   mock.get.mockClear();
   mock.create.mockClear();
+  commitMapKnowledge.mockClear();
   mock.db.runTransaction.mockClear();
   put('sessions/session-1', {
     phase: 'active', currentTurn: 4, chartId: 'A', chartSelectionLocked: true,
@@ -105,9 +109,15 @@ describe('private scout result callables', () => {
       .toHaveLength(1);
     expect(JSON.stringify(reply)).not.toMatch(/accruedBonus|modifier|chartId/);
     expect(mock.create).toHaveBeenCalledTimes(4);
+    expect(commitMapKnowledge).toHaveBeenCalledTimes(1);
+    expect(commitMapKnowledge).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 'session-1',
+      plan: expect.objectContaining({ receivingShipId: 'aegis' }),
+    }));
     expect(await resolvePendingScoutRequest.run(callableRequest(data, 'gm-1')))
       .toMatchObject({ status: 'replayed', result: reply.result });
     expect(mock.create).toHaveBeenCalledTimes(4);
+    expect(commitMapKnowledge).toHaveBeenCalledTimes(1);
   });
 
   it('denies wrong actor and stale GM lease before writing', async () => {
