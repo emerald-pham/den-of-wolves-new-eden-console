@@ -126,8 +126,20 @@ export default defineConfig(({ mode }) => {
       sourcemap: true,
       target: 'es2022',
       rollupOptions: {
+        input: {
+          index: resolvePath(projectRoot, 'index.html'),
+          'pc01-review': resolvePath(projectRoot, 'pc01-review.html'),
+        },
         output: {
           manualChunks: {
+            'pc01-presentations': [
+              './src/components/EndeavourEcmDeviceView.tsx',
+              './src/components/EndeavourFieldUpgradeChoices.tsx',
+              './src/components/EndeavourResearchChoices.tsx',
+              './src/components/ScoutResultPanels.tsx',
+              './src/components/ShipNavigationMap.tsx',
+              './src/components/Starmap.tsx',
+            ],
             'gm-console': ['./src/routes/GmConsole.tsx'],
             'react-vendor': ['react', 'react-dom', 'react-router-dom', 'zustand'],
             'firebase-app': ['firebase/app'],

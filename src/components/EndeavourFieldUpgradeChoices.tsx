@@ -12,6 +12,7 @@ interface Props {
   readonly staleSelectionPending?: boolean;
   readonly uncertain?: boolean;
   readonly purchaseLabel: string;
+  readonly refreshLabel?: string;
   readonly refreshDisabled?: boolean;
   readonly onTargetChange: (option: EndeavourFieldUpgradeOption, checked: boolean) => void;
   readonly onPurchase: () => void;
@@ -36,6 +37,7 @@ export default function EndeavourFieldUpgradeChoices({
   staleSelectionPending = false,
   uncertain = false,
   purchaseLabel,
+  refreshLabel = 'Refresh private research and purchase state',
   refreshDisabled = false,
   onTargetChange,
   onPurchase,
@@ -80,7 +82,7 @@ export default function EndeavourFieldUpgradeChoices({
       </button>}
       <button type="button" className="cic-text-button" disabled={busy || refreshDisabled}
         onClick={onRefresh}>
-        Refresh private research and purchase state
+        {refreshLabel}
       </button>
     </div>
   </>;
