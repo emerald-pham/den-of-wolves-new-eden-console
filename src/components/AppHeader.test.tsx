@@ -671,12 +671,20 @@ it('renders current and retained repair history with progress and keyboard stop 
   expect(region).toHaveAttribute('tabindex', '0');
   expect(renderedChanges.every((change) => !/\bprompts?\b/i.test(change))).toBe(true);
   expect(within(newestEntry).getByText(
-    'If Endeavour research changes while a choice is being checked, the Scientist can wait for the current private workspace and explicitly retry that choice.',
+    'When Highwall mining state changes, its current holder can wait for current revisions and explicitly retry with a fresh request.',
   )).toBeVisible();
   expect(within(newestEntry).getByText(
-    'If a connection leaves the outcome uncertain, retrying the same choice confirms the original request.',
+    'If a connection leaves a mining result uncertain, the current holder can retry the exact request to confirm its outcome.',
   )).toBeVisible();
   expect(within(newestEntry).getByText('458 of 751 planned items are complete (60.99%).')).toBeVisible();
+  const previousEndeavourResearchEntry = within(region).getByRole('heading', { name: 'Build 0.5.47' }).closest('article');
+  if (!previousEndeavourResearchEntry) throw new Error('Expected the preserved 0.5.47 Endeavour research release entry.');
+  expect(within(previousEndeavourResearchEntry).getByText(
+    'If Endeavour research changes while a choice is being checked, the Scientist can wait for the current private workspace and explicitly retry that choice.',
+  )).toBeVisible();
+  expect(within(previousEndeavourResearchEntry).getByText(
+    'If a connection leaves the outcome uncertain, retrying the same choice confirms the original request.',
+  )).toBeVisible();
   const previousEndeavourUpgradeEntry = within(region).getByRole('heading', { name: 'Build 0.5.46' }).closest('article');
   if (!previousEndeavourUpgradeEntry) throw new Error('Expected the preserved 0.5.46 Endeavour upgrade release entry.');
   expect(within(previousEndeavourUpgradeEntry).getByText(
