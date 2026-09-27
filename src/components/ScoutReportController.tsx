@@ -12,6 +12,8 @@ export default function ScoutReportController({ refreshKey }: { readonly refresh
   const uid = useSessionStore((state) => state.me?.uid);
   const role = useSessionStore((state) => state.me?.role);
   const [refreshCount, setRefreshCount] = useState(0);
+  const [reports, setReports] = useState<readonly ScoutReportView[]>([]);
+  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
   const [report, setReport] = useState<ScoutReportView | null>(null);
   const [result, setResult] = useState<PrivateScoutResultView | null>(null);
   const [note, setNote] = useState<ScoutDiscoveryNoteView | null>(null);
@@ -29,7 +31,10 @@ export default function ScoutReportController({ refreshKey }: { readonly refresh
       try {
         const reports = await listMyScoutReports();
         if (disposed) return;
-        const latest = reports.find((item) => item.entitlementId === 'endeavour') ?? null;
+        const ownReports = reports.filter((item) => item.entitlementId === 'endeavour');
+        setReports(ownReports);
+        const latest = ownReports.find((item) => item.requestId === selectedRequestId) ??
+          ownReports[0] ?? null;
         setReport(latest);
         if (!latest || latest.status === 'pending') return;
         const privateResult = await readPrivateScoutResult(latest.requestId);
@@ -50,7 +55,7 @@ export default function ScoutReportController({ refreshKey }: { readonly refresh
       }
     })();
     return () => { disposed = true; };
-  }, [sessionId, uid, role, refreshKey, refreshCount]);
+  }, [sessionId, uid, role, refreshKey, refreshCount, selectedRequestId]);
 
   if (!sessionId || !uid || role !== 'player') return null;
   return <section className="scout-report-controller" aria-label="Endeavour scouting reports">
@@ -59,6 +64,20 @@ export default function ScoutReportController({ refreshKey }: { readonly refresh
       <button className="cic-action-button" type="button" disabled={loading}
         onClick={() => setRefreshCount((count) => count + 1)}>Refresh reports</button>
     </div>
+    {reports.length > 1 && <label className="scout-report-controller__select">
+      Saved scout request
+      <select value={report?.requestId ?? ''} onChange={(event) => {
+        const next = reports.find((item) => item.requestId === event.target.value) ?? null;
+        setSelectedRequestId(next?.requestId ?? null);
+        setReport(next);
+        setResult(null);
+        setNote(null);
+      }}>
+        {reports.map((item) => <option key={item.requestId} value={item.requestId}>
+          Cycle {item.cycle} · System {item.targetCoordinate} · {item.status}
+        </option>)}
+      </select>
+    </label>}
     {loading && !report && <p role="status">Loading scouting reports…</p>}
     {!loading && !report && !status && <p>No Endeavour scouting requests recorded yet.</p>}
     {report && <ScoutResultPanel report={report} result={result} note={note} loading={loading} />}

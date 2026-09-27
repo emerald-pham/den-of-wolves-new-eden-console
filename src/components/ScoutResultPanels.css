@@ -8,6 +8,18 @@
   min-width: 0;
 }
 
+.scout-report-controller__select {
+  display: grid;
+  gap: 0.35rem;
+  margin-block: 0.75rem;
+}
+
+.scout-report-controller__select select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+}
+
 .scout-result-panel__heading,
 .scout-reveal-panel__list li {
   display: flex;
