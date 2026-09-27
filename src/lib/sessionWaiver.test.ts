@@ -22,8 +22,9 @@ describe('session waiver storage', () => {
     expect(isSessionWaiverAcknowledged(localStorage, acknowledgedAt + 1)).toBe(true);
   });
 
-  it('keeps the acknowledgement valid for less than twenty four hours', () => {
+  it('keeps all three regulation acknowledgements valid for 72 hours', () => {
     localStorage.setItem(SESSION_WAIVER_STORAGE_KEY, String(acknowledgedAt));
+    expect(SESSION_WAIVER_TTL_MS).toBe(72 * 60 * 60 * 1000);
 
     expect(isSessionWaiverAcknowledged(
       localStorage,
@@ -31,7 +32,7 @@ describe('session waiver storage', () => {
     )).toBe(true);
   });
 
-  it('requires the waiver again at twenty four hours and rejects invalid values', () => {
+  it('requires the waiver again at exactly 72 hours and rejects invalid values', () => {
     localStorage.setItem(SESSION_WAIVER_STORAGE_KEY, String(acknowledgedAt));
 
     expect(isSessionWaiverAcknowledged(

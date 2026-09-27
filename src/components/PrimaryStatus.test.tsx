@@ -7,7 +7,7 @@ import PrimaryStatus from './PrimaryStatus';
 
 beforeEach(() => useSessionStore.getState().reset());
 
-it('renders all six named fields on the current ship route from the session projection', () => {
+it('renders all six named fields for an authenticated active GM', () => {
   useSessionStore.getState().setIdentity({
     id: 's1',
     name: 'Table one',
@@ -24,12 +24,17 @@ it('renders all six named fields on the current ship route from the session proj
     uid: 'u1',
     sessionId: 's1',
     displayName: 'Player one',
-    role: 'player',
+    role: 'gm',
     seatId: 'admiral',
     assignedRoleId: 'admiral',
     activeConsoleRoleId: 'admiral',
     joinedAt: '2026-09-22T14:00:00.000Z',
   } as Player);
+  useSessionStore.getState().setGmInstance({
+    id: 'gm-instance', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+    deviceLabel: 'macOS / Chrome', claimedAt: '2026-09-22T14:00:00.000Z',
+  });
+  useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
   useSessionStore.getState().setSessionSnapshotFreshness('server');
   useSessionStore.getState().setConnection('live');
 
@@ -45,7 +50,31 @@ it('renders all six named fields on the current ship route from the session proj
   }
   expect(screen.getByText('CYCLE 2')).toBeInTheDocument();
   expect(screen.getByText('ACTIVE // COORDINATION PHASE // AIRSPACE OPEN')).toBeInTheDocument();
-  expect(screen.getByText('OBSERVER // FACILITATOR AUTHORITY REQUIRED')).toBeInTheDocument();
+  expect(screen.getByText('FACILITATOR OBSERVER // READ ONLY')).toBeInTheDocument();
+});
+
+it('hides the detailed status instrument from players and unauthorized GM devices', () => {
+  useSessionStore.getState().setIdentity({
+    id: 's1', name: 'Table one', joinCode: '4821', phase: 'active', currentTurn: 2,
+  } as GameSession, {
+    uid: 'u1', sessionId: 's1', displayName: 'Player one', role: 'player',
+    seatId: 'admiral', joinedAt: '2026-09-22T14:00:00.000Z',
+  } as Player);
+  const view = render(<MemoryRouter><PrimaryStatus /></MemoryRouter>);
+  expect(screen.queryByRole('region', { name: 'Primary game status' })).not.toBeInTheDocument();
+
+  useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, role: 'gm' });
+  useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
+  view.rerender(<MemoryRouter><PrimaryStatus /></MemoryRouter>);
+  expect(screen.queryByRole('region', { name: 'Primary game status' })).not.toBeInTheDocument();
+
+  useSessionStore.getState().setGmInstance({
+    id: 'gm-instance', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+    deviceLabel: 'macOS / Chrome', claimedAt: '2026-09-22T14:00:00.000Z',
+  });
+  useSessionStore.getState().setGmAccessAuthenticatedAt(null);
+  view.rerender(<MemoryRouter><PrimaryStatus /></MemoryRouter>);
+  expect(screen.queryByRole('region', { name: 'Primary game status' })).not.toBeInTheDocument();
 });
 
 it('stays absent before a session is joined', () => {

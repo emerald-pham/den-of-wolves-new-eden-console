@@ -41,19 +41,12 @@ function renderRoute() {
   );
 }
 
-it('offers an explicit confirmed session release while escape state blocks in-session routes', async () => {
-  const user = userEvent.setup();
+it('keeps session exit off the escape panel while the shared Settings exit remains available', () => {
   renderRoute();
 
-  await user.click(screen.getByRole('button', { name: 'Leave session' }));
+  expect(screen.queryByRole('button', { name: 'Leave session' })).not.toBeInTheDocument();
   expect(disconnectFromSession).not.toHaveBeenCalled();
   expect(useSessionStore.getState().me?.escapeState).toBeDefined();
-
-  const confirm = screen.getByRole('button', { name: 'ARE YOU SURE?' });
-  expect(confirm).toHaveAccessibleName('ARE YOU SURE?');
-  await user.click(confirm);
-  expect(disconnectFromSession).toHaveBeenCalledOnce();
-  expect(screen.getByText('Landing route')).toBeVisible();
 });
 
 it('gives the affected player a flee action and retains identity copy', async () => {

@@ -747,6 +747,14 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
   act(() => frame(32));
   expect(apparent()).toHaveAttribute('data-acquired', 'true');
   expect(apparent()?.parentElement).toHaveAttribute('data-scan-fresh', 'true');
+  // A second sweep can reach the same return during its first enlargement.
+  // The new ping must not cancel that first visible growth and settle.
+  normal = { x: 0, y: 0, z: 1 };
+  act(() => frame(48));
+  normal = { x: 0.996, y: 0, z: 0.087 };
+  act(() => frame(64));
+  expect(painted).toHaveLength(2);
+  expect(cancel).not.toHaveBeenCalled();
   act(() => vi.advanceTimersByTime(SCAN_FRESH_MS - 1));
   expect(apparent()?.parentElement).toHaveAttribute('data-scan-fresh', 'true');
   act(() => vi.advanceTimersByTime(1));

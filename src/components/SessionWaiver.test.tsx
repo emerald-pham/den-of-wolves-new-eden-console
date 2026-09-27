@@ -27,7 +27,7 @@ describe('SessionWaiver', () => {
     expect(screen.getAllByRole('checkbox')).toHaveLength(3);
     expect(screen.getAllByRole('checkbox').every((checkbox) => !(checkbox as HTMLInputElement).checked)).toBe(true);
     expect(screen.getByRole('button', { name: 'Acknowledge regulations and continue' })).toBeDisabled();
-    expect(screen.getByText(/saved for 24 hours on this device/i)).toBeInTheDocument();
+    expect(screen.getByText(/saved for 72 hours on this device/i)).toBeInTheDocument();
   });
 
   it('requires every checkbox and a ten-second countdown before the final confirmation', () => {

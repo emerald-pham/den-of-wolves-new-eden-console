@@ -85,7 +85,7 @@ it('shows the current session personnel count in the top-right header', async ()
   expect(screen.getByText('4 connected to CIC')).toBeVisible();
 });
 
-it('keeps the primary status instrument inside shared app chrome on joined routes', async () => {
+it('keeps the detailed status instrument out of player app chrome', async () => {
   useSessionStore.getState().setMe(connectedPlayer('u1'));
   useSessionStore.getState().setSession({
     ...useSessionStore.getState().session!,
@@ -99,9 +99,20 @@ it('keeps the primary status instrument inside shared app chrome on joined route
   await screen.findByText('2 connected to CIC');
 
   const header = screen.getByRole('banner');
-  const status = within(header).getByRole('region', { name: 'Primary game status' });
+  expect(within(header).queryByRole('region', { name: 'Primary game status' })).not.toBeInTheDocument();
+});
+
+it('shows the detailed status instrument only in authenticated GM app chrome', async () => {
+  useSessionStore.getState().setMe({ ...connectedPlayer('u1'), role: 'gm' });
+  useSessionStore.getState().setGmInstance({
+    id: 'gm-instance', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+    deviceLabel: 'macOS / Chrome', claimedAt: '2026-01-01T00:00:00.000Z',
+  });
+  useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
+  render(<MemoryRouter initialEntries={['/shuttles/starlight']}><AppHeader /></MemoryRouter>);
+  await screen.findByText('2 connected to CIC');
+  const status = within(screen.getByRole('banner')).getByRole('region', { name: 'Primary game status' });
   expect(status).toBeVisible();
-  expect(within(header).getByText('CYCLE 0')).toBeVisible();
   expect(within(status).getByText('SHUTTLE // I.C.S.S. Starlight')).toBeVisible();
 });
 

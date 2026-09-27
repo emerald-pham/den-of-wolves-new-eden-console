@@ -101,10 +101,10 @@ it('calls the full Wolf Pursuit countdown ten cycles', () => {
   );
 
   const tracker = screen.getByRole('region', { name: 'Pursuit tracker' });
-  expect(tracker).toHaveTextContent('WOLF PURSUIT TRACK // Awaiting server telemetry');
+  expect(tracker).toHaveTextContent('WOLF PURSUIT TRACK // Awaiting CIC handshake');
   expect(tracker.querySelector('[role="progressbar"]')).toHaveAttribute(
     'aria-valuetext',
-    'Awaiting authoritative pursuit value',
+    'Awaiting CIC handshake',
   );
   expect(tracker).not.toHaveTextContent('GAME OVER');
 });
