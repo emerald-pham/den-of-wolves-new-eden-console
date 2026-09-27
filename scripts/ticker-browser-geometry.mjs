@@ -5,6 +5,7 @@ const EDGE_TOLERANCE_PX = 2;
 const START_SAMPLE_TOLERANCE_PX = 6;
 const INITIAL_EDGE_STEP_TOLERANCE_PX = 1.5;
 const MAX_OFFSCREEN_MOUNT_DELAY_INTERVALS = 3;
+const MAX_OFFSCREEN_STARTUP_CATCHUP_INTERVALS = 3;
 const INITIAL_FRAME_CORRECTION_TOLERANCE_PX = 1.5;
 
 function finite(value) {
@@ -171,11 +172,12 @@ export function assessTickerGeometry({
       const noEarlierMotion = positions.slice(0, index).every((position) => (
         Math.abs(position.left - positions[0].left) <= 0.25
       ));
-      const startupClockCatchup = !acceptedStartupClockCatchup && index <= 3 &&
+      const startupClockCatchup = !acceptedStartupClockCatchup &&
+        index <= MAX_OFFSCREEN_STARTUP_CATCHUP_INTERVALS &&
         noEarlierMotion && isFullyOffscreen(previous) && displacement < -0.25 &&
         finite(previous.animationTimeMs) && previous.animationTimeMs <= 1 &&
         finite(animationElapsed) && animationElapsed > 0 &&
-        animationElapsed < wallElapsed && wallElapsed - animationElapsed <= 35;
+        animationElapsed < wallElapsed;
       const adjacentToInitialFrameReflow = firstReflowCorrection !== null && (
         (previous.sampleIndex === firstReflowCorrection.sampleIndex - 1 &&
           current.sampleIndex === firstReflowCorrection.sampleIndex) ||

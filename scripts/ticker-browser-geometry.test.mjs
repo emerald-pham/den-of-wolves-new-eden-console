@@ -111,10 +111,12 @@ test('rejects a speed jump during or after visible entry', () => {
   assert.ok(result.failures.some((failure) => failure.includes('constant-speed')));
 });
 
-function createAnimationClockEntrySamples(visibleJumpPx = 0) {
+function createAnimationClockEntrySamples(visibleJumpPx = 0, { startupWallGapMs = 30 } = {}) {
   return Array.from({ length: 24 }, (_, sampleIndex) => {
     const animationTimeMs = sampleIndex * (1_000 / 60);
-    const elapsed = sampleIndex === 0 ? 10 : 40 + ((sampleIndex - 1) * (1_000 / 60));
+    const elapsed = sampleIndex === 0
+      ? 10
+      : 10 + startupWallGapMs + ((sampleIndex - 1) * (1_000 / 60));
     const left = initialPosition.left - (48 * animationTimeMs / 1_000) -
       (sampleIndex === 1 ? visibleJumpPx : 0);
     return {
@@ -140,6 +142,42 @@ test('measures the offscreen-to-visible interval against the CSS animation clock
 
   assert.equal(result.entryTransitionObserved, true);
   assert.equal(result.speedStable, true);
+});
+
+test('allows a long offscreen startup gap when position matches CSS animation time', () => {
+  const result = assessTickerGeometry({
+    initialPosition,
+    samples: createAnimationClockEntrySamples(0, { startupWallGapMs: 133.3 }),
+    requireAnimationClock: true,
+  });
+
+  assert.equal(result.initialSampleEdgeValid, true);
+  assert.equal(result.entryTransitionObserved, true);
+  assert.equal(result.speedStable, true);
+});
+
+test('rejects a visible movement jump during the long offscreen startup gap', () => {
+  const result = assessTickerGeometry({
+    initialPosition,
+    samples: createAnimationClockEntrySamples(8, { startupWallGapMs: 133.3 }),
+    requireAnimationClock: true,
+  });
+
+  assert.equal(result.initialSampleEdgeValid, true);
+  assert.equal(result.entryTransitionObserved, true);
+  assert.equal(result.speedStable, false);
+  assert.ok(result.failures.some((failure) => failure.includes('constant-speed')));
+});
+
+test('rejects a second long rAF gap after the one offscreen startup catch-up', () => {
+  const samples = createAnimationClockEntrySamples().map((sample, sampleIndex) => ({
+    ...sample,
+    elapsed: sample.elapsed + (sampleIndex >= 5 ? 133.3 : 0),
+  }));
+  const result = assessTickerGeometry({ initialPosition, samples, requireAnimationClock: true });
+
+  assert.equal(result.speedStable, false);
+  assert.ok(result.failures.some((failure) => failure.includes('discontinuous animation currentTime')));
 });
 
 test('rejects a visible entry jump that disagrees with the CSS animation clock', () => {
