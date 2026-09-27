@@ -56,9 +56,10 @@ system. Keep the workflow proportionate to the risk of the change.
 For numbered-prompt work, follow the one-sitting playtest checkpoints and
 shaping, assumptions, test-first commits, feedback, and cooldown process in
 [`docs/PRODUCT_MILESTONES.md`](docs/PRODUCT_MILESTONES.md). M1–M13 are internal
-gates. The owner reviews completed UI; agents own gameplay proof. Shape and
-build without prebuild owner approval. Do not pause for owner feedback or a
-rules ruling.
+gates. The owner reviews completed UI; agents own gameplay proof. Build without
+prebuild approval or routine owner questions: resolve choices from evidence,
+log assumptions, and report proof gaps. Do not pause for owner feedback or a
+rules ruling; ask only when higher authority requires it or no useful work remains.
 
 Keep unrelated agent-policy and workflow edits out of an in-flight feature
 release. Queue them for the next safe checkpoint unless the user explicitly
@@ -91,9 +92,9 @@ owner or request a rebase solely for routine guidance updates; let the owner enc
 unless they materially affect the current work.
 
 One task owner carries a change through implementation, repairs, appropriate self-review and validation, merge, push,
-and deployment verification when applicable. A sidecar is optional and there is no minimum-agent count. Parallelize
-independent deliverables only when the concrete benefit exceeds coordination, context, and integration cost, and give
-every extra agent a bounded deliverable. Delegated workers default to `gpt-6-luna`. Use `max` for every `gpt-6-luna`
+and deployment verification when applicable. A sidecar is optional and there is no minimum-agent count. For shaped
+checkpoints, delegate independent critical-path work when it shortens release time; fill useful slots with bounded
+owners in isolated worktrees and reconcile at one release boundary. Delegated workers default to `gpt-6-luna`. Use `max` for every `gpt-6-luna`
 subagent. `gpt-6-sol` may use only `medium`, `high`, `xhigh`, or `max`, selected for the bounded task. Use `max` when
 the task's complexity warrants it.
 

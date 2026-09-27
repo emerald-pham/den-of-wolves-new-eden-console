@@ -18,6 +18,11 @@ Use `max` for every `gpt-6-luna` subagent. `gpt-6-sol` may use only `medium`,
 `high`, `xhigh`, or `max`, selected for the bounded task. Use `max` when the
 task's complexity warrants it.
 
+For a shaped checkpoint, assign independent critical-path work to available
+subagents when parallel execution is likely to shorten the release. Give each
+owner a bounded scope, separate checkout, shared-file boundary, and explicit
+integration handoff. Keep one owner for the reconciled release.
+
 While an owner or CI run is active, wait for a meaningful completion, blocker,
 or requested checkpoint. Use a long interruptible wait or yield with a clear
 owner and resume path. Do not loop through short status polls or send updates
