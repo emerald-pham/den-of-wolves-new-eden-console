@@ -366,9 +366,12 @@ export async function advanceEndeavourResearchTrack(
   const response = await httpsCallable<typeof payload, unknown>(
     functions(), 'advanceEndeavourResearchTrack',
   )(payload);
-  assertCurrentScientistAuthority(attempt.sessionId, me.uid, attempt.expectedControlRevision, attempt.expectedCycle);
+  assertCurrentScientistAuthority(attempt.sessionId, me.uid);
   const stale = parseStaleReply(response.data, attempt);
   if (stale) return stale;
+  // A committed result still needs its original CAS context. If authority rolled
+  // while it was in flight, the panel must confirm through the exact replay path.
+  assertCurrentScientistAuthority(attempt.sessionId, me.uid, attempt.expectedControlRevision, attempt.expectedCycle);
   const committed = parseCommittedReply(response.data, attempt);
   if (committed) return committed;
   throw new Error('The server returned an invalid Endeavour research result.');

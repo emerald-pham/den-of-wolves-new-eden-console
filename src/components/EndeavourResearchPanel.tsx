@@ -225,8 +225,19 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
       const result = await (exactRetry
         ? retryEndeavourResearchAttempt(attempt)
         : advanceEndeavourResearchTrack(attempt));
-      if (!isCurrentScientistHolder(sessionId, uid, exactRetry ? undefined : attempt.expectedControlRevision,
-        exactRetry ? undefined : attempt.expectedCycle)) return;
+      if (!isCurrentScientistHolder(sessionId, uid)) return;
+      if (!exactRetry && result.status !== 'stale' && !isCurrentScientistHolder(
+        sessionId, uid, attempt.expectedControlRevision, attempt.expectedCycle,
+      )) {
+        setPendingAttempt({ identityKey, attempt });
+        setFeedback({
+          identityKey,
+          notice: '',
+          error: 'The response arrived after research authority changed. Retry the same request to confirm its outcome.',
+        });
+        await reload();
+        return;
+      }
       setPendingAttempt(null);
       if (result.status === 'stale') {
         if (!staleReplyMatchesCurrentSession(result)) {

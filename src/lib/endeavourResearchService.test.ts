@@ -202,6 +202,23 @@ it('accepts a delayed stale envelope after an unrelated live session snapshot re
   await expect(pending).resolves.toMatchObject({ status: 'stale' });
 });
 
+it('accepts a valid original-submit stale envelope after same-holder cycle and control rollover', async () => {
+  const attempt = createEndeavourResearchAttempt({ workspace, trackId: 'reactor', funding: 'standard' });
+  let resolve!: (value: { data: ReturnType<typeof staleReply> }) => void;
+  mocks.call.mockReturnValueOnce(new Promise((done) => { resolve = done; }));
+  const pending = advanceEndeavourResearchTrack(attempt);
+
+  const { session, me } = useSessionStore.getState();
+  useSessionStore.getState().setIdentity({
+    ...session!,
+    currentTurn: 4,
+    shuttleControl: { endeavour: { ...session!.shuttleControl!.endeavour!, revision: 5 } },
+  }, { ...me! });
+  resolve({ data: staleReply(attempt) });
+
+  await expect(pending).resolves.toMatchObject({ status: 'stale', requestId: attempt.requestId });
+});
+
 it('ignores a delayed stale envelope after Scientist authority changes', async () => {
   const attempt = createEndeavourResearchAttempt({ workspace, trackId: 'reactor', funding: 'standard' });
   let resolve!: (value: { data: ReturnType<typeof staleReply> }) => void;

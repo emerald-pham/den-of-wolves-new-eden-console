@@ -394,6 +394,44 @@ it('discards an exact-retry stale envelope after the same holder rolls into a ne
   expect(mocks.read).toHaveBeenCalledTimes(4);
 });
 
+it('discards a delayed original-submit stale envelope after the same holder rolls into a new cycle', async () => {
+  const user = userEvent.setup();
+  const nextCycle = {
+    ...workspace,
+    cycle: 4,
+    cadence: { cycle: 4, revision: 0, choices: [] },
+  };
+  let resolveAdvance!: () => void;
+  mocks.read.mockResolvedValueOnce(workspace);
+  mocks.advance.mockImplementationOnce((attempt) => new Promise((done) => {
+    resolveAdvance = () => done(staleReply(attempt));
+  }));
+  render(<EndeavourResearchPanel control={control} />);
+  await user.click(await screen.findByRole('button', { name: 'Advance standard research' }));
+  await waitFor(() => expect(mocks.advance).toHaveBeenCalledTimes(1));
+
+  const { session, me } = useSessionStore.getState();
+  act(() => useSessionStore.getState().setIdentity({
+    ...session!,
+    currentTurn: 4,
+    turnPhase: { ...session!.turnPhase!, turn: 4 },
+    shuttleControl: { endeavour: { ...session!.shuttleControl!.endeavour!, revision: 5 } },
+  }, { ...me! }));
+  mocks.read.mockResolvedValue(nextCycle);
+  await act(async () => {
+    resolveAdvance();
+    await Promise.resolve();
+  });
+
+  await waitFor(() => expect(mocks.read).toHaveBeenCalledTimes(2));
+  await waitFor(() => {
+    expect(screen.queryByLabelText('Stale research recovery')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Retry same research request' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Advance standard research' })).toBeEnabled();
+  });
+  expect(mocks.retry).not.toHaveBeenCalled();
+});
+
 it('clears stale recovery and reloads when live cycle and control later change', async () => {
   const user = userEvent.setup();
   const current = {
