@@ -1,11 +1,14 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { ChacauRepairResult } from '@/lib/chacauRepairService';
+import type { ChacauRepairResult, ChacauRepairServiceResult } from '@/lib/chacauRepairService';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { GameSession, ShuttleControlEntry, ShuttleDocking } from '@/types/game';
 
 const mocks = vi.hoisted(() => ({ repair: vi.fn() }));
-vi.mock('@/lib/chacauRepairService', () => ({ repairConsolesFromChacau: mocks.repair }));
+vi.mock('@/lib/chacauRepairService', async importOriginal => ({
+  ...(await importOriginal()),
+  repairConsolesFromChacau: mocks.repair,
+}));
 
 import ChacauRepairPanel from './ChacauRepairPanel';
 
@@ -21,6 +24,8 @@ const shipResources = {
   aegis: { ore: 0, fuel: 4, food: 8, water: 6, materials: 8, securityTeams: 9 },
 };
 
+let generatedRequestId = 'chacau-repair-stable-id';
+
 function installSession(overrides: Readonly<Record<string, unknown>> = {}): void {
   useSessionStore.getState().reset();
   useSessionStore.getState().setIdentity({
@@ -28,13 +33,21 @@ function installSession(overrides: Readonly<Record<string, unknown>> = {}): void
     createdAt: '', updatedAt: '',
   }, {
     uid: 'holder', sessionId: 's1', displayName: 'Holder', role: 'player', seatId: null,
-    assignedRoleId: 'refinery-124-engineer', activeConsoleRoleId: 'refinery-124-engineer', joinedAt: '',
+    assignedRoleId: 'refinery-124-engineer', activeConsoleRoleId: 'refinery-124-engineer',
+    fleetGroupId: 'fleet-1', connected: true, joinedAt: '',
   });
   useSessionStore.getState().setSession({
     ...useSessionStore.getState().session!,
     currentTurn: 3,
     activeRoleIds: ['refinery-124-engineer'],
     activeVesselIds: ['refinery-124', 'dione', 'aegis'],
+    shuttleControl: { chacau: control },
+    shuttleDockings: [refineryDocking],
+    playerDiscovery: {
+      groupId: 'fleet-1', fleetGroupVesselIds: ['refinery-124', 'dione', 'aegis'],
+      knownCoordinates: ['0000'], knownSystems: { 'system-01': '0000' },
+      pursuitDistance: 0, navigationLogs: [], revision: 1,
+    },
     turnPhase: {
       turn: 3, teamPhaseEndsAt: '2099-09-22T11:45:00.000Z',
       openAirspaceEndsAt: '2099-09-22T12:15:00.000Z',
@@ -73,7 +86,8 @@ function deferred<T>() {
 
 beforeEach(() => {
   mocks.repair.mockReset();
-  vi.stubGlobal('crypto', { randomUUID: vi.fn(() => 'chacau-repair-stable-id') });
+  generatedRequestId = 'chacau-repair-stable-id';
+  vi.stubGlobal('crypto', { randomUUID: vi.fn(() => generatedRequestId) });
   installSession();
 });
 
@@ -146,11 +160,14 @@ it.each(['success', 'error'] as const)(
     fireEvent.click(within(repair).getByRole('button', { name: 'Repair selected consoles' }));
 
     const current = useSessionStore.getState();
+    const nextControl = { ...control, holderUid: 'holder-b', revision: 3 };
     act(() => useSessionStore.getState().setIdentity(
-      { ...current.session!, id: 's2' },
+      {
+        ...current.session!, id: 's2',
+        shuttleControl: { ...current.session!.shuttleControl, chacau: nextControl },
+      },
       { ...current.me!, uid: 'holder-b', sessionId: 's2', displayName: 'Holder B' },
     ));
-    const nextControl = { ...control, holderUid: 'holder-b', revision: 3 };
     view.rerender(<ChacauRepairPanel control={nextControl} docking={refineryDocking} fuelled={false} />);
     expect(within(repair).queryByRole('alert')).not.toBeInTheDocument();
     expect(within(repair).queryByRole('status')).not.toBeInTheDocument();
@@ -182,8 +199,11 @@ it.each(['success', 'error'] as const)(
 );
 
 it('fails closed on malformed repair history and a copied Philia owner', () => {
-  installSession({ chacauRepairs: { cycle: 3, revision: 1, hosts: 'invalid' } });
   const wrongOwner = { ...control, ownerRoleId: 'dione-engineer' } as ShuttleControlEntry;
+  installSession({
+    chacauRepairs: { cycle: 3, revision: 1, hosts: 'invalid' },
+    shuttleControl: { chacau: wrongOwner },
+  });
   renderRepair(refineryDocking, false, wrongOwner);
   const repair = screen.getByRole('region', { name: 'Chacau console repair' });
   expect(within(repair).getByText(/repair history is unavailable/i)).toBeInTheDocument();
@@ -202,4 +222,109 @@ it('fails closed when persisted repair history names a non-deck console', () => 
   const repair = screen.getByRole('region', { name: 'Chacau console repair' });
   expect(within(repair).getByText(/repair history is unavailable/i)).toBeInTheDocument();
   expect(within(repair).getByRole('checkbox', { name: 'Reactor' })).toBeDisabled();
+});
+
+
+function staleReply(requestId: string): ChacauRepairServiceResult {
+  return {
+    status: 'stale', sessionId: 's1', requestId, shuttleId: 'chacau',
+    expectedHostShipId: 'refinery-124', systemIds: ['reactor'],
+    expectedControlRevision: 2, currentControlRevision: 3,
+    expectedRepairRevision: 0, currentRepairRevision: 1,
+    expectedCycle: 3, currentCycle: 4,
+  };
+}
+
+function advanceRepairProjection(): ShuttleControlEntry {
+  const nextControl = { ...control, revision: 3 };
+  const current = useSessionStore.getState().session!;
+  act(() => useSessionStore.getState().setSession({
+    ...current, currentTurn: 4, shuttleControl: { ...current.shuttleControl, chacau: nextControl },
+    chacauRepairs: {
+      cycle: 4, revision: 1, hosts: [{ shipId: 'refinery-124', systemIds: ['jump-drive'] }],
+    },
+    turnPhase: { ...current.turnPhase!, turn: 4 },
+  } as unknown as GameSession));
+  return nextControl;
+}
+
+it('waits for a fresh live projection, keeps eligible selection, and retries with new CAS and request id', async () => {
+  const stale = deferred<ChacauRepairServiceResult>();
+  mocks.repair.mockReturnValueOnce(stale.promise).mockResolvedValueOnce({
+    status: 'committed', hostShipId: 'refinery-124', systemIds: ['reactor'],
+    materialsRemaining: 8, cycle: 4, repairRevision: 2,
+  });
+  const view = renderRepair();
+  const repair = screen.getByRole('region', { name: 'Chacau console repair' });
+  fireEvent.click(within(repair).getByRole('checkbox', { name: 'Reactor' }));
+  fireEvent.click(within(repair).getByRole('button', { name: 'Repair selected consoles' }));
+  await waitFor(() => expect(mocks.repair).toHaveBeenCalledWith({
+    requestId: 'chacau-repair-stable-id', systemIds: ['reactor'],
+    expectedControlRevision: 2, expectedRepairRevision: 0,
+    expectedCycle: 3, expectedHostShipId: 'refinery-124',
+  }));
+
+  await act(async () => stale.resolve(staleReply('chacau-repair-stable-id')));
+  expect(await within(repair).findByRole('status')).toHaveTextContent(/state changed/i);
+  expect(within(repair).getByRole('checkbox', { name: 'Reactor' })).toBeChecked();
+  expect(within(repair).getByRole('button', { name: 'Retry repair with current revision' })).toBeDisabled();
+  expect(within(repair).getByText(/state is still updating/i)).toBeInTheDocument();
+
+  const nextControl = advanceRepairProjection();
+  view.rerender(<ChacauRepairPanel control={nextControl} docking={refineryDocking} fuelled={false} />);
+  const freshRetry = within(repair).getByRole('button', { name: 'Retry repair with current revision' });
+  await waitFor(() => expect(freshRetry).toBeEnabled());
+  generatedRequestId = 'chacau-repair-fresh-id';
+  fireEvent.click(freshRetry);
+  await waitFor(() => expect(mocks.repair).toHaveBeenCalledTimes(2));
+  expect(mocks.repair).toHaveBeenLastCalledWith({
+    requestId: 'chacau-repair-fresh-id', systemIds: ['reactor'],
+    expectedControlRevision: 3, expectedRepairRevision: 1,
+    expectedCycle: 4, expectedHostShipId: 'refinery-124',
+  });
+  expect(await within(repair).findByRole('status')).toHaveTextContent(/Repaired 1 console/);
+});
+
+it('allows a fresh retry when the live projection arrived before the stale response', async () => {
+  const stale = deferred<ChacauRepairServiceResult>();
+  mocks.repair.mockReturnValueOnce(stale.promise).mockResolvedValueOnce({
+    status: 'committed', hostShipId: 'refinery-124', systemIds: ['reactor'],
+    materialsRemaining: 8, cycle: 4, repairRevision: 2,
+  });
+  const view = renderRepair();
+  const repair = screen.getByRole('region', { name: 'Chacau console repair' });
+  fireEvent.click(within(repair).getByRole('checkbox', { name: 'Reactor' }));
+  fireEvent.click(within(repair).getByRole('button', { name: 'Repair selected consoles' }));
+  advanceRepairProjection();
+  view.rerender(<ChacauRepairPanel control={{ ...control, revision: 3 }} docking={refineryDocking} fuelled={false} />);
+  await act(async () => stale.resolve(staleReply('chacau-repair-stable-id')));
+  const freshRetry = await within(repair).findByRole('button', { name: 'Retry repair with current revision' });
+  await waitFor(() => expect(freshRetry).toBeEnabled());
+  generatedRequestId = 'chacau-repair-fresh-after-snapshot';
+  fireEvent.click(freshRetry);
+  await waitFor(() => expect(mocks.repair).toHaveBeenCalledTimes(2));
+  expect(mocks.repair).toHaveBeenLastCalledWith({
+    requestId: 'chacau-repair-fresh-after-snapshot', systemIds: ['reactor'],
+    expectedControlRevision: 3, expectedRepairRevision: 1,
+    expectedCycle: 4, expectedHostShipId: 'refinery-124',
+  });
+});
+
+it('drops stale recovery when Chacau holder authority changes while the request is pending', async () => {
+  const stale = deferred<ChacauRepairServiceResult>();
+  mocks.repair.mockReturnValueOnce(stale.promise);
+  const view = renderRepair();
+  const repair = screen.getByRole('region', { name: 'Chacau console repair' });
+  fireEvent.click(within(repair).getByRole('checkbox', { name: 'Reactor' }));
+  fireEvent.click(within(repair).getByRole('button', { name: 'Repair selected consoles' }));
+  const changedControl = { ...control, holderUid: 'new-holder' };
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    shuttleControl: { ...useSessionStore.getState().session!.shuttleControl, chacau: changedControl },
+  } as unknown as GameSession));
+  view.rerender(<ChacauRepairPanel control={changedControl} docking={refineryDocking} fuelled={false} />);
+  await act(async () => stale.resolve(staleReply('chacau-repair-stable-id')));
+  expect(await within(repair).findByRole('alert')).toHaveTextContent(/authority or Coordination changed/i);
+  expect(within(repair).queryByRole('button', { name: 'Retry repair with current revision' })).not.toBeInTheDocument();
+  expect(mocks.repair).toHaveBeenCalledTimes(1);
 });

@@ -7410,6 +7410,21 @@ export const recycleWithBoa = onCall<{
   });
 });
 
+type ChacauRepairStaleReply = Readonly<{
+  status: 'stale';
+  sessionId: string;
+  requestId: string;
+  shuttleId: 'chacau';
+  expectedHostShipId: string;
+  systemIds: readonly string[];
+  expectedControlRevision: number;
+  currentControlRevision: number;
+  expectedRepairRevision: number;
+  currentRepairRevision: number;
+  expectedCycle: number;
+  currentCycle: number;
+}>;
+
 type ChacauRepairReply = Readonly<{
   status: 'committed' | 'replayed';
   sessionId: string;
@@ -7455,20 +7470,27 @@ export const repairConsolesFromChacau = onCall(async request => {
     requireActionPhase(session, 'transfer', 'player');
     const currentCycle = session.get('currentTurn');
     const phase = turnPhaseState(session.get('turnPhase'));
-    if (!Number.isSafeInteger(currentCycle) || currentCycle !== data.expectedCycle ||
-        !phase || phase.turn !== currentCycle) {
-      throw commandError('failed-precondition', 'The Coordination cycle changed. Refresh before repairing.', 'stale-revision');
+    if (!Number.isSafeInteger(currentCycle) || !phase || phase.turn !== currentCycle) {
+      throw commandError('failed-precondition', 'The current Coordination state is unavailable.', 'invalid-phase');
     }
     const openAirspaceEndsAt = Date.parse(phase.openAirspaceEndsAt);
     if (phase.airspace.state !== 'lifted' || phase.timerPause !== undefined ||
         !Number.isFinite(openAirspaceEndsAt) || Date.now() >= openAirspaceEndsAt) {
       throw commandError('failed-precondition', 'Chacau repair is available only during a live Coordination window.', 'invalid-phase');
     }
+    const assignedRoleId = actor.get('assignedRoleId');
+    const activeConsoleRoleId = actor.get('activeConsoleRoleId');
+    const activeRoleIds = session.get('activeRoleIds');
     const groupId = actor.get('fleetGroupId');
+    if (assignedRoleId !== 'refinery-124-engineer' ||
+        activeConsoleRoleId !== 'refinery-124-engineer' ||
+        !Array.isArray(activeRoleIds) || !activeRoleIds.includes('refinery-124-engineer')) {
+      throw commandError('failed-precondition', 'Only the current Refinery 124 Engineer may repair consoles with Chacau.', 'conflict');
+    }
     if (typeof groupId !== 'string' || groupId.length === 0) {
       throw new HttpsError('permission-denied', 'The Refinery 124 Engineer has no fleet-group authority.');
     }
-    const groupSnapshot = await tx.get(db.doc(`sessions/${data.sessionId}/fleetGroups/${groupId}`));
+    const groupSnapshot = await tx.get(db.doc('sessions/' + data.sessionId + '/fleetGroups/' + groupId));
     const group = groupSnapshot.exists ? fleetGroupRecord(groupSnapshot.data()) : undefined;
     const activeVesselIds = session.get('activeVesselIds');
     const rawDockings = session.get('shuttleDockings');
@@ -7478,18 +7500,55 @@ export const repairConsolesFromChacau = onCall(async request => {
     if (!group || group.id !== groupId || !group.memberUids.includes(uid) ||
         !Array.isArray(activeVesselIds) ||
         activeVesselIds.some((shipId) => typeof shipId !== 'string' || !isResourceShipId(shipId)) ||
+        !activeVesselIds.includes('refinery-124') ||
         !Array.isArray(rawDockings) || !shuttleDockingsAreParked(rawDockings, activeVesselIds) ||
         !shuttleDockingsMatchActiveRoleOwnedSubset(configuredRoleIds(session), rawDockings) ||
-        !control || !isRecord(fuelled) || !ledger) {
+        !control || !control.chacau || control.chacau.shuttleId !== 'chacau' ||
+        control.chacau.ownerRoleId !== 'refinery-124-engineer' ||
+        control.chacau.holderUid !== uid || !Number.isSafeInteger(control.chacau.revision) ||
+        !isRecord(fuelled) || !ledger) {
       throw commandError('failed-precondition', 'The authoritative Chacau repair state is unavailable.', 'conflict');
+    }
+    const chacauDockings = rawDockings.filter((docking) =>
+      isRecord(docking) && docking.shuttleId === 'chacau');
+    if (chacauDockings.length !== 1) {
+      throw commandError('failed-precondition', 'Chacau repairs require one authoritative docked host.', 'conflict');
+    }
+    const hostShipId = isRecord(chacauDockings[0]) ? chacauDockings[0].shipId : undefined;
+    if (hostShipId !== data.expectedHostShipId || typeof hostShipId !== 'string' ||
+        !group.vesselIds.includes(hostShipId) || !activeVesselIds.includes(hostShipId)) {
+      throw commandError('failed-precondition', 'The docked host is outside the holder’s current fleet group.', 'conflict');
+    }
+
+    const currentControlRevision = control.chacau.revision;
+    const currentRepairRevision = ledger.revision;
+    const stale = currentCycle !== data.expectedCycle ||
+      currentControlRevision !== data.expectedControlRevision ||
+      currentRepairRevision !== data.expectedRepairRevision;
+    if (stale) {
+      const countersAreMonotonic = currentCycle >= data.expectedCycle &&
+        currentControlRevision >= data.expectedControlRevision &&
+        currentRepairRevision >= data.expectedRepairRevision;
+      const stateAdvanced = currentCycle > data.expectedCycle ||
+        currentControlRevision > data.expectedControlRevision ||
+        currentRepairRevision > data.expectedRepairRevision;
+      if (!countersAreMonotonic || !stateAdvanced) {
+        throw commandError('failed-precondition', 'Chacau repair state does not match the current authoritative revision.', 'conflict');
+      }
+      return {
+        status: 'stale', sessionId: data.sessionId, requestId: data.requestId,
+        shuttleId: 'chacau', expectedHostShipId: data.expectedHostShipId,
+        systemIds: data.systemIds,
+        expectedControlRevision: data.expectedControlRevision,
+        currentControlRevision,
+        expectedRepairRevision: data.expectedRepairRevision,
+        currentRepairRevision,
+        expectedCycle: data.expectedCycle,
+        currentCycle: currentCycle as number,
+      } satisfies ChacauRepairStaleReply;
     }
     let result: ReturnType<typeof resolveChacauRepair>;
     try {
-      const hostShipId = rawDockings.find((docking) =>
-        isRecord(docking) && docking.shuttleId === 'chacau')?.shipId;
-      if (hostShipId !== data.expectedHostShipId || !group.vesselIds.includes(hostShipId)) {
-        throw new Error('The docked host is outside the holder’s current fleet group.');
-      }
       const damage = serviceRechargeDamageState(session.get('shipDamage'), hostShipId);
       const resources = serviceRechargeResourceState(session.get('shipResources'), hostShipId);
       const deck = SHIP_DAMAGE_DECKS[hostShipId];

@@ -84,7 +84,8 @@ beforeEach(() => {
     } },
   });
   put('sessions/s1/players/holder', {
-    role: 'player', connected: true, assignedRoleId: 'refinery-124-engineer', fleetGroupId: 'fleet-1',
+    role: 'player', connected: true, assignedRoleId: 'refinery-124-engineer',
+    activeConsoleRoleId: 'refinery-124-engineer', fleetGroupId: 'fleet-1',
   });
   put('sessions/s1/fleetGroups/fleet-1', {
     id: 'fleet-1', vesselIds: ['refinery-124'], memberUids: ['holder'],
@@ -125,3 +126,80 @@ it('rejects a copied role and a command that targets a different actor before an
   expect(mock.set).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();
 });
+
+
+it.each([
+  ['Coordination cycle', () => {
+    mock.documents.get('sessions/s1')!.currentTurn = 4;
+    (mock.documents.get('sessions/s1')!.turnPhase as Fields).turn = 4;
+  }, 2, 0, 4],
+  ['Chacau control', () => {
+    (mock.documents.get('sessions/s1')!.shuttleControl as Fields).chacau =
+      { ...(mock.documents.get('sessions/s1')!.shuttleControl as Fields).chacau as Fields, revision: 3 };
+  }, 3, 0, 3],
+  ['repair ledger', () => {
+    mock.documents.get('sessions/s1')!.chacauRepairs = {
+      cycle: 3, revision: 1, hosts: [{ shipId: 'refinery-124', systemIds: ['jump-drive'] }],
+    };
+  }, 2, 1, 3],
+] as const)(
+  'returns only a request-bound stale CAS for an advanced %s and performs no writes',
+  async (_label, advance, currentControlRevision, currentRepairRevision, currentCycle) => {
+    advance();
+    const result = await repairConsolesFromChacau.run(request(command)) as Fields;
+    expect(result).toEqual({
+      status: 'stale', sessionId: 's1', requestId: 'chacau-1', shuttleId: 'chacau',
+      expectedHostShipId: 'refinery-124', systemIds: ['reactor', 'storage'],
+      expectedControlRevision: 2, currentControlRevision,
+      expectedRepairRevision: 0, currentRepairRevision,
+      expectedCycle: 3, currentCycle,
+    });
+    expect(Object.keys(result).sort()).toEqual([
+      'status', 'sessionId', 'requestId', 'shuttleId', 'expectedHostShipId', 'systemIds',
+      'expectedControlRevision', 'currentControlRevision', 'expectedRepairRevision',
+      'currentRepairRevision', 'expectedCycle', 'currentCycle',
+    ].sort());
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.documents.has('sessions/s1/commandReceipts/chacau-1')).toBe(false);
+    expect(mock.documents.has('sessions/s1/events/chacau-repair-chacau-1')).toBe(false);
+  },
+);
+
+it.each(['holder', 'assigned role', 'active console role', 'group membership', 'dock', 'unique dock', 'Coordination'] as const)(
+  'does not reveal stale state after current %s authority is lost',
+  async lostAuthority => {
+    (mock.documents.get('sessions/s1')!.shuttleControl as Fields).chacau =
+      { ...(mock.documents.get('sessions/s1')!.shuttleControl as Fields).chacau as Fields, revision: 3 };
+    if (lostAuthority === 'holder') {
+      (mock.documents.get('sessions/s1')!.shuttleControl as Fields).chacau =
+        { ...(mock.documents.get('sessions/s1')!.shuttleControl as Fields).chacau as Fields, holderUid: 'new-holder' };
+    } else if (lostAuthority === 'assigned role') {
+      mock.documents.get('sessions/s1/players/holder')!.assignedRoleId = 'dione-engineer';
+    } else if (lostAuthority === 'active console role') {
+      mock.documents.get('sessions/s1/players/holder')!.activeConsoleRoleId = 'dione-engineer';
+    } else if (lostAuthority === 'group membership') {
+      mock.documents.get('sessions/s1/fleetGroups/fleet-1')!.memberUids = ['another-player'];
+    } else if (lostAuthority === 'dock') {
+      mock.documents.get('sessions/s1')!.shuttleDockings = [
+        { shuttleId: 'chacau', shipId: 'dione', dockedAt: 'now' },
+      ];
+      mock.documents.get('sessions/s1/fleetGroups/fleet-1')!.vesselIds = ['refinery-124', 'dione'];
+      mock.documents.get('sessions/s1')!.activeVesselIds = ['refinery-124', 'dione'];
+    } else if (lostAuthority === 'unique dock') {
+      mock.documents.get('sessions/s1')!.shuttleDockings = [
+        { shuttleId: 'chacau', shipId: 'refinery-124', dockedAt: 'now' },
+        { shuttleId: 'chacau', shipId: 'dione', dockedAt: 'later' },
+      ];
+      mock.documents.get('sessions/s1/fleetGroups/fleet-1')!.vesselIds = ['refinery-124', 'dione'];
+      mock.documents.get('sessions/s1')!.activeVesselIds = ['refinery-124', 'dione'];
+    } else {
+      (mock.documents.get('sessions/s1')!.turnPhase as Fields).openAirspaceEndsAt = '2000-01-01T00:00:00.000Z';
+    }
+    await expect(repairConsolesFromChacau.run(request(command)))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.documents.has('sessions/s1/events/chacau-repair-chacau-1')).toBe(false);
+  },
+);
