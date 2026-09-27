@@ -14904,6 +14904,7 @@ export const moveShipToLocation = onCall<{
     const movedNavigation = navigationState({
       shipGalacticCoordinates: move.coordinates,
       shipNavigationLogs: move.logs,
+      scoutedCoordinatesByShip: currentNavigation.scoutedCoordinatesByShip,
       systemHistory: currentNavigation.systemHistory,
       pursuitGroups: currentNavigation.pursuitGroups,
     }, activeVesselIds);
@@ -15161,6 +15162,7 @@ export const jumpShip = onCall<{
     const movedNavigation = navigationState({
       shipGalacticCoordinates: move.coordinates,
       shipNavigationLogs: move.logs,
+      scoutedCoordinatesByShip: currentNavigation.scoutedCoordinatesByShip,
       systemHistory: currentNavigation.systemHistory,
       pursuitGroups: currentNavigation.pursuitGroups,
     }, activeVesselIds);
