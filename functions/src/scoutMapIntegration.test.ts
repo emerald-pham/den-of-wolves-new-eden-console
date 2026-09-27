@@ -148,3 +148,12 @@ it('fails without a map or result write when protected navigation is malformed',
   expect(mock.documents.has('sessions/s1/deepNebulaScans/scan-1')).toBe(false);
   expect(mock.documents.has('sessions/s1/playerDiscoveries/wing-1')).toBe(false);
 });
+
+it('rejects a stale fleet-group pointer before publishing a scout map', async () => {
+  mock.documents.get('sessions/s1/players/wing-1')!.fleetGroupId = 'another-group';
+
+  await expect(resolvePendingScoutRequest.run(gmRequest())).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.has('sessions/s1/scoutResults/scan-1')).toBe(false);
+  expect(mock.documents.has('sessions/s1/playerDiscoveries/wing-1')).toBe(false);
+  expect(mock.documents.get('sessions/s1/serverState/navigation')?.revision).toBe(5);
+});
