@@ -1,6 +1,6 @@
 # PC03 playtest report — navigation and shuttle controls
 
-**State:** Candidate in preparation. The hosted build and review link will be recorded only after the exact commit has passed validation and deployed. The prepared scene uses production interface components with labeled synthetic states and performs no live session writes.
+**State:** Build 0.5.53 is released from reviewed runtime commit `9bd94e3611d7bbab654107b964e69fae318bad10`. [Open the hosted PC03 review scene](https://dow-new-eden-console.web.app/pc03-review). Owner UI feedback and ordinary authorized gameplay proof remain open. The prepared scene uses production interface components with labeled synthetic states and performs no live session writes.
 
 ## Rule decisions and evidence to review first
 
@@ -10,7 +10,7 @@
 
 ## One-sitting owner UI walkthrough
 
-Open the prepared PC03 review scene when its link is published. Its five numbered views use representative ship and shuttle states; the controls do not submit production mutations.
+Open the hosted PC03 review scene above. Its five numbered views use representative ship and shuttle states; the controls do not submit production mutations.
 
 1. **Find the route — yes/no:** From the assigned ship station, open Navigation. Read the current coordinate, ship-specific known map, and navigation log. Return to Systems and the fleet board. Is the path understandable without losing your place?
 2. **Read the drive — yes/no:** In prepared ready, uncharged, fuel-starved, damaged, integrity-locked, pending, committed, and stale states, enter and lock four coordinate digits by touch or keyboard. Are charge, cost, fuel, condition, and the next action clear? The sample launch remains disabled.
@@ -20,7 +20,7 @@ Open the prepared PC03 review scene when its link is published. Its five numbere
 
 ## Evidence boundaries
 
-The source-supported server paths and client recovery changes require focused authority, role, phase, concurrency, replay, and privacy tests. The scene and browser layout checks establish presentation only. CI deployment, hosted page load, and ordinary authorized gameplay will each be recorded separately at the release boundary.
+The source-supported server paths and client recovery changes have focused authority, role, phase, concurrency, replay, and privacy tests. The scene and browser layout checks establish presentation only. CI deployment and hosted page load are recorded below; ordinary authorized gameplay remains a separate gate.
 
 The production-play checks for P371, P380, P238, P244, and P241c remain open until an authorized session exercises them. P112/P385 require owner trade and dismantling decisions. P250/P251, P679, and P020a remain gated by the jump chain. No prompt is marked complete from the synthetic scene or local test results alone.
 
@@ -37,4 +37,13 @@ The production-play checks for P371, P380, P238, P244, and P241c remain open unt
 
 **Local candidate checks so far:** Before the review repairs, 5,788 unit and Functions tests passed. The first `test:all` invocation could not start Firestore rules because this new checkout had no isolated emulator configuration; after reserving slot 1, `npm run test:rules` passed all 140 rules tests. Typecheck, web and Functions builds, bundle size, font consistency, and 66 deployment-selector tests passed. Lint had zero errors and six existing warnings. The PC03 browser walkthrough passed at 320 × 844, 390 × 844, 844 × 390, and 1440 × 900 with reduced motion. The ticker browser suite passed its viewport, font-readiness, reduced-motion, and lifecycle cases. The P637 render-performance baseline passed (landing startup p95 116.25 ms, route startup p95 101 ms, mobile frame p95 33.2 ms, zero long frames). The deployment selector chose Hosting for this source range.
 
-An independent Sol review of the integrated candidate found two client recovery gaps: a cancelled or unclassified jump response could discard the request ID, and an uncertain cargo request could leave a new shuttle holder's controls disabled. Test-first repairs retain the exact jump request until the server confirms rejection and scope cargo drafts, results, and receipt retry to the original holder while requiring a fresh server snapshot for the next holder. The repaired jump tests pass 198/198 and cargo/route tests pass 97/97 on the reconciled branch. Exact-final-commit review, full final validation, deployment workflow, hosted page load, and ordinary production path remain separate gates.
+An independent Sol review of the integrated candidate found two client recovery gaps: a cancelled or unclassified jump response could discard the request ID, and an uncertain cargo request could leave a new shuttle holder's controls disabled. Test-first repairs retain the exact jump request until the server confirms rejection and scope cargo drafts, results, and receipt retry to the original holder while requiring a fresh server snapshot for the next holder. The repaired jump tests passed 198/198 and cargo/route tests passed 97/97 on the reconciled branch.
+
+## Release and hosted evidence
+
+- **Exact runtime commit and review:** `9bd94e3611d7bbab654107b964e69fae318bad10` passed coordinated final validation with an independent Sol xhigh review of that exact commit. The final focused ContactPlot suite passed 55 tests; the PC02 rendered layout checks passed 2/2; repository guidance checks passed 10/10; local typecheck, lint, build, and P637 passed.
+- **Linux gate and deployment:** [GitHub Deploy run 36417265683](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/36417265683) passed verify, exact-SHA browser gates, and deploy. Its Linux P637 artifact recorded DRADIS update p95 127.2 ms (138.4 ms maximum) and 7,397 combined contact-label geometry reads, within the 150 ms and 12,400-read budgets. Mobile frame p95 was 83.4 ms (116.7 ms maximum), with 28 long frames. No test was skipped or weakened after the earlier failed Linux runs.
+- **Hosted presentation:** The deployed `/build-version.json` reports `0.5.53`. The hosted `/pc03-review` loaded, and all five numbered views were exercised in the browser. The reconnect view restored its prepared snapshot without enabling a duplicate sample action. This is synthetic presentation evidence, not a live reconnect or gameplay result.
+- **Open acceptance:** The owner has not yet given the five yes/no UI answers. No PC03 ordinary authorized player/facilitator session has been observed, so the production-play checks named above stay open.
+
+The two failed Linux P637 repair attempts on the same Luna-owned acceptance gate led to a documented transfer of implementation ownership to Sol. Sol's test-first repair removed visual-only sweep changes from the intrinsic label-width cache key. The final Linux run above passed on the reconciled commit.
