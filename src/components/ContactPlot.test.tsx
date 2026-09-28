@@ -396,8 +396,8 @@ it('reacquires a renamed contact before revealing its new DRADIS name', () => {
 
   const contact = contactsIn(container)[0]!;
   const apparent = contact.querySelector<HTMLElement>('.contact-plot__apparent')!;
-  const blip = contact.querySelector('.contact-plot__blip');
-  const label = contact.querySelector('.contact-plot__tag');
+  const blip = contact.querySelector<HTMLElement>('.contact-plot__blip');
+  const label = contact.querySelector<HTMLElement>('.contact-plot__tag');
   expect(contact).not.toBe(previousContact);
   expect(previousContact).not.toBeInTheDocument();
   expect(apparent).not.toHaveAttribute('data-acquired', 'true');
