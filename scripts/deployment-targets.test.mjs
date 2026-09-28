@@ -764,29 +764,96 @@ test('fails closed when a Philia export change is mixed with an untracked index 
   }), /cannot safely map a Philia repair index change mixed with another callable or untracked source edit/i);
 });
 
-test('maps strict extra-ship admission to its assignment, projection, and repair consumers', () => {
+test('maps extraShipAdmission changes to its audited runtime consumers', () => {
   const selected = selectorFor(['functions/src/extraShipAdmission.ts']);
   assert.deepEqual(selectedFunctions(selected), functionTargets([
-    'assignReplacementRole', 'joinSession', 'resumeSession',
-    'repairGorgoneionWithDrones', 'repairWarriorWithDrones', ...BASE_CAPYBARA_CARGO_CALLABLES,
-  ]));
+    "repairGorgoneionWithDrones",
+    "repairWarriorWithDrones",
+    "transferBaseCapybaraCargo",
+    "assignReplacementRole",
+    "joinSession",
+    "resumeSession",
+    "resolveShipMutiny"
+]));
 });
 
-test('maps replacement-role admission changes to assignment and cargo transfer consumers', () => {
+test('maps replacementRoles changes to its audited runtime consumers', () => {
   const selected = selectorFor(['functions/src/replacementRoles.ts']);
   assert.deepEqual(selectedFunctions(selected), functionTargets([
-    'assignReplacementRole', ...BASE_CAPYBARA_CARGO_CALLABLES,
-  ]));
+    "repairGorgoneionWithDrones",
+    "repairWarriorWithDrones",
+    "transferBaseCapybaraCargo",
+    "readMyScoutDiscoveryNote",
+    "resolvePendingScoutRequest",
+    "confirmSetup",
+    "startGame",
+    "transferShuttleControlCommand",
+    "setReplacementEligibility",
+    "assignReplacementRole",
+    "submitCivilUnrestGrievance",
+    "joinSession",
+    "resumeSession",
+    "moveShipToLocation",
+    "jumpShip",
+    "setShipConsoleLock",
+    "advanceTurn",
+    "startSinglePlayerDemo",
+    "unlockPressAirspace",
+    "popShipConfetti",
+    "adjustShipResource",
+    "adjustShipUnrest",
+    "consentCommissarPurge",
+    "applyCommissarPurge",
+    "getCommissarPurgeAuthority",
+    "dismissUnrestAlert",
+    "resolveShipMutiny",
+    "addShipDamage",
+    "adjustShipPopulation",
+    "applyShipCounterSteps",
+    "setFighterWingCount",
+    "buildFighter",
+    "dismissPopulationAlert",
+    "requestScout",
+    "rollHummingbirdHarvest",
+    "allocateHummingbirdHarvest",
+    "setSmallShipDocking",
+    "runSmallShipMaintenance",
+    "runVoyage33Maintenance",
+    "runMaintenance",
+    "drawVipCard",
+    "transferVipCard",
+    "rerollVipUnrest",
+    "publishAdmiralDirectiveCommand",
+    "recordPresidentActionCommand",
+    "updatePoliticalCapital",
+    "setFleetRedAlert",
+    "repairAllShipDamage",
+    "rollbackMaintenance"
+]));
 });
 
-test('maps small-ship maintenance changes only to the callables that execute the changed resolver', () => {
+test('maps smallShip changes to its audited runtime consumers', () => {
   const selected = selectorFor(['functions/src/smallShip.ts']);
   assert.deepEqual(selectedFunctions(selected), functionTargets([
-    ...GORGONEION_REPAIR_CALLABLES,
-    ...WARRIOR_REPAIR_CALLABLES,
-    ...BASE_CAPYBARA_CARGO_CALLABLES,
-    'runSmallShipMaintenance',
-  ]));
+    "repairGorgoneionWithDrones",
+    "repairWarriorWithDrones",
+    "transferBaseCapybaraCargo",
+    "startGame",
+    "assignReplacementRole",
+    "joinSession",
+    "resumeSession",
+    "advanceTurn",
+    "startSinglePlayerDemo",
+    "setWolfAttackWindow",
+    "declareWolfAttack",
+    "resolveShipMutiny",
+    "addShipDamage",
+    "setSmallShipDocking",
+    "runSmallShipMaintenance",
+    "runVoyage33Maintenance",
+    "runVulcanAdditionalLabour",
+    "runMaintenance"
+]));
 });
 
 test('selects only the three changed P503a callables from exact export and request-guard additions', () => {
@@ -1325,4 +1392,97 @@ test('maps only the additive reconnect taxonomy change and rejects unrelated err
   });
   assert.deepEqual(selectedFunctions(select(source)), functionTargets(['joinSession', 'resumeSession', 'refreshPresence']));
   assert.throws(() => select(source + '// unrelated runtime edit\n'), /Cannot safely map command error changes/);
+});
+
+
+const PC05_ADDITIONAL_AUTHORITY_CONSUMERS = {
+  "shuttleDocking": [
+    "transferShuttleControlCommand"
+  ],
+  "wolfActionAuthorization": [
+    "startWolfConsoleVisit",
+    "resolveWolfConsoleSabotage",
+    "submitWolfSupplySabotage",
+    "submitWolfHomingBeacon",
+    "submitWolfIntelligence"
+  ],
+  "mutiny": [
+    "repairGorgoneionWithDrones",
+    "repairWarriorWithDrones",
+    "transferBaseCapybaraCargo",
+    "startGame",
+    "assignReplacementRole",
+    "joinSession",
+    "resumeSession",
+    "moveShipToLocation",
+    "jumpShip",
+    "setShipConsoleLock",
+    "advanceTurn",
+    "startSinglePlayerDemo",
+    "setWolfAttackWindow",
+    "declareWolfAttack",
+    "getAegisCommandAndControl",
+    "applyAegisCommandAndControl",
+    "getDioneMaliadesLaunch",
+    "launchDioneMaliades",
+    "getPdfEscortWingLaunch",
+    "launchPdfEscortWing",
+    "unlockPressAirspace",
+    "adjustShipResource",
+    "adjustShipUnrest",
+    "dismissUnrestAlert",
+    "resolveShipMutiny",
+    "addShipDamage",
+    "adjustShipPopulation",
+    "applyShipCounterSteps",
+    "setFighterWingCount",
+    "buildFighter",
+    "dismissPopulationAlert",
+    "runHighwallMining",
+    "requestScout",
+    "rollHummingbirdHarvest",
+    "setSmallShipDocking",
+    "runSmallShipMaintenance",
+    "runVoyage33Maintenance",
+    "runVulcanAdditionalLabour",
+    "runMaintenance",
+    "drawVipCard",
+    "transferVipCard",
+    "rerollVipUnrest",
+    "publishAdmiralDirectiveCommand",
+    "recordPresidentActionCommand",
+    "updatePoliticalCapital",
+    "setFleetRedAlert",
+    "repairAllShipDamage",
+    "rollbackMaintenance"
+  ],
+  "voyage33Maintenance": [
+    "startGame",
+    "joinSession",
+    "resumeSession",
+    "advanceTurn",
+    "startSinglePlayerDemo",
+    "resolveShipMutiny",
+    "addShipDamage",
+    "runVoyage33Maintenance",
+    "runMaintenance"
+  ]
+};
+for (const [moduleName, consumers] of Object.entries(PC05_ADDITIONAL_AUTHORITY_CONSUMERS)) {
+  test(`maps isolated PC05 ${moduleName} authority changes`, () => {
+    const selected = selectorFor([`functions/src/${moduleName}.ts`]).split(',');
+    for (const name of consumers) assert.ok(selected.includes(`functions:${name}`), name);
+  });
+}
+
+test('maps only the reviewed pending-rerole navigation exclusion to its runtime consumers', () => {
+  const source = readFileSync('functions/src/navigationProjection.ts', 'utf8');
+  const addition = "  if (player.get('replacementStatus') != null) return undefined;\n";
+  const select = (afterSource) => deploymentSelector({
+    before: 'before', after: 'after', files: ['functions/src/navigationProjection.ts'],
+    targets: ['functions'], isAncestor: () => false,
+    sourceAtRevision: (revision) => revision === 'before' ? source.replace(addition, '') : afterSource,
+  });
+  assert.deepEqual(selectedFunctions(select(source)), functionTargets(["activateEndeavourEcmDevice", "readEndeavourEcmDeviceWorkspace", "resolvePendingScoutRequest", "createSession", "confirmSetup", "startGame", "dealPrivateInitialCards", "assignReplacementRole", "setCandidatePlanCheckpoint", "joinSession", "resumeSession", "moveShipToLocation", "jumpShip", "advanceTurn", "startSinglePlayerDemo", "declareWolfAttack", "submitWolfHomingBeacon", "requestScout", "runMaintenance"]));
+  assert.throws(() => select(source + '// unrelated runtime edit\n'), /Cannot safely map navigation projection changes/);
 });
