@@ -26,6 +26,17 @@ test('keeps the PC04 mission-start workspace out of the landing module graph', a
   );
 });
 
+test('defers PC04 mission discard and fleet-group detail until their protected surfaces render', async () => {
+  const [app, navigation] = await Promise.all([
+    readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/ShipNavigationWorkspace.tsx', import.meta.url), 'utf8'),
+  ]);
+  assert.doesNotMatch(app, /^import AwayMissionDiscardPanel from/m);
+  assert.match(app, /const AwayMissionDiscardPanel = lazy\(\(\) => import\('@\/components\/AwayMissionDiscardPanel'\)\);/);
+  assert.doesNotMatch(navigation, /^import FleetGroupContext from/m);
+  assert.match(navigation, /const FleetGroupContext = lazy\(\(\) => import\('\.\/FleetGroupContext'\)\);/);
+});
+
 test('measures landing HTML modulepreloads and static imports, excluding lazy and isolated review assets', async (t) => {
   const distDirectory = await mkdtemp(join(tmpdir(), 'p637-render-performance-'));
   const assetDirectory = join(distDirectory, 'assets');
