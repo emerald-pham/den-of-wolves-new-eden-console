@@ -338,6 +338,30 @@ function clampContactLabels(plot: HTMLElement): void {
     const placed = label.getBoundingClientRect();
     if (placed.width > 0 && placed.height > 0) obstacles.push(placed);
   }
+
+  // A name shifted to a nearby row needs a visible connection to its return.
+  // Use rendered coordinates after 3D projection, so rotation cannot detach it.
+  const leaders = [...plot.querySelectorAll<SVGLineElement>('.contact-plot__leader-line')];
+  for (const [index, label] of labels.entries()) {
+    const leader = leaders[index];
+    const marker = marks[index];
+    const contact = label.closest<HTMLElement>('.contact-plot__contact');
+    const bounds = label.getBoundingClientRect();
+    if (!leader || !marker || !contact || contact.dataset.moving === 'true' ||
+      bounds.width === 0 || bounds.height === 0) {
+      if (leader) leader.dataset.visible = 'false';
+      continue;
+    }
+    const verticalGap = Math.max(0, marker.top - bounds.bottom, bounds.top - marker.bottom);
+    const rowShift = Math.abs(Number.parseFloat(label.style.getPropertyValue('--label-clamp-y')) || 0);
+    leader.dataset.visible = String(verticalGap > 14 || rowShift > 14);
+    const east = contact.dataset.labelAnchor?.endsWith('east');
+    leader.setAttribute('x1', String(round((east ? marker.left : marker.right) - plotBounds.left)));
+    leader.setAttribute('y1', String(round(marker.top + marker.height / 2 - plotBounds.top)));
+    leader.setAttribute('x2', String(round((east ? bounds.right : bounds.left) - plotBounds.left)));
+    leader.setAttribute('y2', String(round(Math.max(bounds.top, Math.min(marker.top + marker.height / 2,
+      bounds.bottom)) - plotBounds.top)));
+  }
 }
 
 function relativeVector(point: Vector, origin: Vector): Vector {
@@ -623,6 +647,13 @@ export default function ContactPlot({
           ))}
         </div>
       </div>
+      <svg className="contact-plot__leaders" aria-hidden="true">
+        {tracks.map(({ track }, index) => <line
+          key={'id' in track && track.id ? track.id : `${track.tag}-${index}`}
+          className="contact-plot__leader-line"
+          data-visible="false"
+        />)}
+      </svg>
     </div>
   );
 }

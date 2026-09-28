@@ -369,6 +369,21 @@
   top: 8px;
 }
 
+.contact-plot__leaders {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  stroke: var(--plot-ink);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+}
+
+.contact-plot__leader-line { opacity: 0; }
+.contact-plot__leader-line[data-visible='true'] { opacity: 0.65; }
+
 /* Threat state --------------------------------------------------------------
    The board turns over to the hostile palette; both scans keep their speed. */
 
