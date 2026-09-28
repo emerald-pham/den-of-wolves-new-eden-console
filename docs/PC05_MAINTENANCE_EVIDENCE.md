@@ -41,6 +41,19 @@ authorized gameplay evidence.
   prior captain may exchange roles or receive another role. The reduction
   must therefore be an explicit authorized resolution coupled to captain
   replacement, never an automatic threshold side effect.
+- PC05-A3, source-backed digital casting inference: the confirmed eight-player
+  roster can have a staffed ship and no configured captain station. The guide
+  requires a new captain, but does not prescribe how a digital sparse roster
+  represents that command. The GM may appoint a different active, canonical
+  same-ship officer as acting captain. `shipCommandCaptains` holds that UID in
+  server-private session state and `mutinyRecoveries` audits the appointment;
+  the player keeps their role, claimed seat, loyalty audience, and console
+  entitlements. The locked role count, configuration, and craft manifests do
+  not change. A later mutiny requires a different appointed UID. When an
+  occupied configured captain station exists, the actual two-seat swap is
+  still required. If no eligible same-ship officer exists, recovery remains
+  unavailable until the facilitator has a real authorized candidate; no
+  player or captain role is fabricated.
 - P191: the Dione VIP card component grants one die reroll during maintenance
   unrest step 3. Existing private hand/deck ownership is authoritative;
   consumption belongs in the same transaction as the new result and cannot

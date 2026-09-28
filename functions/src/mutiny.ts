@@ -65,7 +65,7 @@ export function resolveShipMutiny(
   record: ShipMutiny | undefined,
   unrest: number,
   reduction: number,
-  oldCaptainUid: string,
+  oldCaptainUid: string | null,
   newCaptainUid: string,
   requestId: string,
   at: string,
@@ -74,7 +74,7 @@ export function resolveShipMutiny(
   if (!Number.isSafeInteger(reduction) || reduction < 1 || reduction > 3) {
     throw new Error('Choose a printed unrest reduction from 1 to 3.');
   }
-  if (!oldCaptainUid || !newCaptainUid || oldCaptainUid === newCaptainUid) {
+  if (!newCaptainUid || oldCaptainUid === newCaptainUid) {
     throw new Error('Install a different captain.');
   }
   return {

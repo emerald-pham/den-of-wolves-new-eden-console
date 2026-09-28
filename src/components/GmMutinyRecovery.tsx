@@ -42,7 +42,7 @@ export default function GmMutinyRecovery({
 
   return <section className="gm-mutiny-recovery cic-frame" aria-label={`${shipName} mutiny recovery`}>
     <h4>{shipName} mutiny // new captain required</h4>
-    <p>This ship cannot be used until a different officer takes command. Swap the current captain with one active officer aboard this ship, then choose the printed 1–3 unrest reduction. The default is 2.</p>
+    <p>This ship cannot be used until a different officer takes command. Select an active officer aboard this ship, then choose the printed 1–3 unrest reduction. If the captain station is occupied, their roles exchange; a sparse roster appoints the officer as acting captain. The default reduction is 2.</p>
     <fieldset className="maintenance-controls" disabled={!writable || pending}>
       <legend>Install replacement captain</legend>
       <label>New captain
@@ -66,7 +66,7 @@ export default function GmMutinyRecovery({
         disabled={!writable || pending || !newCaptainUid || !candidates.some(candidate => candidate.uid === newCaptainUid)}
         onClick={() => void submit()}>{pending ? 'Installing…' : 'Install replacement captain'}</button>
     </fieldset>
-    {!candidates.length && <p role="status">No active officer aboard this ship can exchange roles with the captain.</p>}
+    {!candidates.length && <p role="status">No eligible officer aboard this ship is available to take command.</p>}
     {message && <p role="status">{message}</p>}
   </section>;
 }

@@ -126,6 +126,7 @@ it('atomically swaps captain and officer seats while preserving loyalty owners a
   await expect(resolveShipMutiny.run(request())).resolves.toMatchObject({ status: 'replayed' });
   expect(mock.set).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();
+
 });
 
 it('rejects non-GM authority, an unclaimed target seat, and stale revision without changing state', async () => {
@@ -180,4 +181,13 @@ it('installs an acting captain from the confirmed sparse roster without changing
   await expect(resolveShipMutiny.run(request(sparse))).resolves.toMatchObject({ status: 'replayed' });
   expect(mock.set).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();
+
+  const after = mock.documents.get('sessions/s1')!;
+  mock.documents.set('sessions/s1', {
+    ...after, shipUnrest: { icebreaker: 8 }, vesselActionRevisions: { icebreaker: 1 },
+    shipMutinies: { icebreaker: { status: 'active', revision: 3, triggerUnrest: 8, triggeredAt: 'again' } },
+  });
+  await expect(resolveShipMutiny.run(request({ ...sparse, requestId: 'mutiny-2', expectedRevision: 1 })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.get('sessions/s1')?.shipCommandCaptains).toEqual({ icebreaker: 'new' });
 });

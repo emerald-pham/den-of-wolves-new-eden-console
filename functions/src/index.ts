@@ -23403,20 +23403,78 @@ export const resolveShipMutiny = onCall<{
     const oldCaptain = players.docs.find((member) =>
       member.get('assignedRoleId') === captainRoleId);
     const newCaptain = players.docs.find((member) => member.id === data.newCaptainUid);
-    if (!oldCaptain || !newCaptain || oldCaptain.id === newCaptain.id ||
-        !isActivePlayer(oldCaptain) || !isActivePlayer(newCaptain) ||
-        oldCaptain.get('role') !== 'player' || newCaptain.get('role') !== 'player' ||
-        oldCaptain.get('seatId') !== captainRoleId ||
+    if (!newCaptain || !isActivePlayer(newCaptain) || newCaptain.get('role') !== 'player' ||
         typeof newCaptain.get('assignedRoleId') !== 'string' ||
         newCaptain.get('assignedRoleId') !== newCaptain.get('seatId') ||
         shipForRole(newCaptain.get('assignedRoleId')) !== data.shipId ||
-        oldCaptain.get('replacementRoleId') != null || newCaptain.get('replacementRoleId') != null ||
-        playerEscapeState(oldCaptain) || playerEscapeState(newCaptain)) {
+        newCaptain.get('replacementRoleId') != null || playerEscapeState(newCaptain)) {
       throw commandError('failed-precondition', 'Choose a different active officer on the mutinous ship.', 'conflict');
     }
     const priorRoleId = newCaptain.get('assignedRoleId') as string;
     if (priorRoleId === captainRoleId || !configuredRoleIds(session).includes(priorRoleId)) {
       throw commandError('failed-precondition', 'The replacement captain has no swappable core role.', 'conflict');
+    }
+    const rawCommandCaptains = session.get('shipCommandCaptains');
+    const commandCaptains = isRecord(rawCommandCaptains) ? rawCommandCaptains : {};
+    const priorAppointedUid = commandCaptains[data.shipId];
+    if (rawCommandCaptains !== undefined && !isRecord(rawCommandCaptains) ||
+        priorAppointedUid !== undefined && typeof priorAppointedUid !== 'string') {
+      throw commandError('failed-precondition', 'The command appointment record is malformed.', 'malformed-input');
+    }
+    if (!oldCaptain) {
+      // A confirmed sparse roster can omit every printed captain station. The
+      // facilitator appoints an existing ship officer to command without
+      // fabricating a seat or changing the locked role configuration.
+      if (priorAppointedUid === newCaptain.id) {
+        throw commandError('failed-precondition', 'Install a different acting captain.', 'conflict');
+      }
+      const officerSeat = await tx.get(db.doc(`sessions/${data.sessionId}/seats/${priorRoleId}`));
+      if (!officerSeat.exists || officerSeat.get('roleId') !== priorRoleId ||
+          officerSeat.get('status') !== 'claimed' || officerSeat.get('holderUid') !== newCaptain.id) {
+        throw commandError('failed-precondition', 'The acting captain must hold a canonical ship seat.', 'conflict');
+      }
+      const resolved = resolveShipMutinyState(
+        mutiny, unrest, data.reduction, typeof priorAppointedUid === 'string' ? priorAppointedUid : null,
+        newCaptain.id, data.requestId, serverTime,
+      );
+      const alerts = { ...(session.get('unrestAlerts') ?? {}) } as Record<string, StoredUnrestAlert>;
+      delete alerts[data.shipId];
+      const revision = currentRevision + 1;
+      tx.update(sessionRef, {
+        [`shipUnrest.${data.shipId}`]: resolved.unrest,
+        [`shipMutinies.${data.shipId}`]: resolved.mutiny,
+        [`shipCommandCaptains.${data.shipId}`]: newCaptain.id,
+        unrestAlerts: alerts,
+        ...vesselActionRevisionPatch(data.shipId, revision),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      const reply = {
+        status: 'committed' as const, shipId: data.shipId,
+        oldCaptainUid: typeof priorAppointedUid === 'string' ? priorAppointedUid : null,
+        newCaptainUid: newCaptain.id, reduction: data.reduction, unrest: resolved.unrest,
+        setupRevision: setupRevision(session),
+        ...vesselActionEnvelope(session, player, uid, data.shipId, revision,
+          data.requestId, 'resolve-ship-mutiny'),
+      };
+      tx.set(recoveryRef, {
+        sessionId: data.sessionId, shipId: data.shipId, mode: 'acting-appointment',
+        oldCaptainUid: typeof priorAppointedUid === 'string' ? priorAppointedUid : null,
+        newCaptainUid: newCaptain.id, oldRoleId: null, newRoleId: priorRoleId,
+        reduction: data.reduction, unrestBefore: unrest, unrestAfter: resolved.unrest,
+        actorUid: uid, requestId: data.requestId, revision, serverTime,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      tx.set(eventRef, buildPrivacySafeEventRecord({
+        type: 'mutiny-recovery', payload: { shipId: data.shipId, reduction: data.reduction },
+        createdAt: FieldValue.serverTimestamp(),
+      }));
+      tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
+      return reply;
+    }
+    if (oldCaptain.id === newCaptain.id || !isActivePlayer(oldCaptain) ||
+        oldCaptain.get('role') !== 'player' || oldCaptain.get('seatId') !== captainRoleId ||
+        oldCaptain.get('replacementRoleId') != null || playerEscapeState(oldCaptain)) {
+      throw commandError('failed-precondition', 'Choose a different active officer on the mutinous ship.', 'conflict');
     }
     if (players.docs.some((member) => member.id !== oldCaptain.id &&
         member.get('assignedRoleId') === captainRoleId)) {
@@ -23525,6 +23583,7 @@ export const resolveShipMutiny = onCall<{
     tx.update(sessionRef, {
       [`shipUnrest.${data.shipId}`]: result.unrest,
       [`shipMutinies.${data.shipId}`]: result.mutiny,
+      [`shipCommandCaptains.${data.shipId}`]: newCaptain.id,
       unrestAlerts: alerts, setupRevision: setupRevisionAfter,
       ...vesselActionRevisionPatch(data.shipId, revision),
       updatedAt: FieldValue.serverTimestamp(),
@@ -23537,7 +23596,7 @@ export const resolveShipMutiny = onCall<{
         data.requestId, 'resolve-ship-mutiny'),
     };
     tx.set(recoveryRef, {
-      sessionId: data.sessionId, shipId: data.shipId,
+      sessionId: data.sessionId, shipId: data.shipId, mode: 'role-swap',
       oldCaptainUid: oldCaptain.id, newCaptainUid: newCaptain.id,
       oldRoleId: captainRoleId, newRoleId: priorRoleId,
       reduction: data.reduction, unrestBefore: unrest, unrestAfter: result.unrest,
