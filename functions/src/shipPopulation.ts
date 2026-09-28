@@ -6,14 +6,39 @@ export interface ShipPopulationTrack {
 export interface RationSchedule {
   readonly food: readonly [number, number, number, number];
   readonly water: readonly [number, number, number, number];
-  readonly populationBand: '15001-20000' | '5001-15000' | '1-5000';
+  readonly populationBand: string;
 }
 
-const CAPYBARA_RATION_SCHEDULES: Readonly<Record<RationSchedule['populationBand'], RationSchedule>> = {
+const CAPYBARA_RATION_SCHEDULES: Readonly<Record<'15001-20000' | '5001-15000' | '1-5000', RationSchedule>> = {
   '15001-20000': { food: [0, 3, 7, 11], water: [0, 2, 5, 8], populationBand: '15001-20000' },
   '5001-15000': { food: [0, 3, 6, 10], water: [0, 2, 4, 7], populationBand: '5001-15000' },
   '1-5000': { food: [0, 3, 5, 8], water: [0, 2, 3, 6], populationBand: '1-5000' },
 };
+
+/** Original Deluxe A4 Paper Duplex v1.1, physical pages 41–44. The back of
+ * each duplex card mirrors its front horizontally. The printed 50,000–70,000
+ * card overlaps its adjacent 35,001–50,000 card at exactly 50,000; the
+ * starred 50,000 step selects the smaller table. */
+const BASE_RATION_SCHEDULES: readonly (RationSchedule & { readonly max: number })[] = [
+  { max: 5_000, populationBand: '1-5000', food: [0, 3, 5, 8], water: [0, 2, 3, 6] },
+  { max: 15_000, populationBand: '5001-15000', food: [0, 3, 6, 10], water: [0, 2, 4, 7] },
+  { max: 25_000, populationBand: '15001-25000', food: [0, 3, 7, 11], water: [0, 2, 5, 8] },
+  { max: 35_000, populationBand: '25001-35000', food: [0, 4, 8, 12], water: [0, 3, 6, 9] },
+  { max: 50_000, populationBand: '35001-50000', food: [0, 4, 9, 13], water: [0, 4, 7, 10] },
+  { max: 70_000, populationBand: '50001-70000', food: [0, 5, 10, 14], water: [0, 4, 9, 12] },
+  { max: 90_000, populationBand: '70001-90000', food: [0, 5, 11, 16], water: [0, 5, 10, 13] },
+  { max: 100_000, populationBand: '90001-100000', food: [0, 6, 12, 18], water: [0, 6, 11, 14] },
+];
+
+export function shipRationSchedule(shipId: string, population: number): RationSchedule {
+  if (shipId === 'capybara') return capybaraRationSchedule(population);
+  if (!populationTrackForShip(shipId)?.steps.includes(population)) {
+    throw new Error(`${shipId} population is not on its printed track.`);
+  }
+  const card = BASE_RATION_SCHEDULES.find(schedule => population <= schedule.max);
+  if (!card) throw new Error('No printed ration table covers this population.');
+  return { populationBand: card.populationBand, food: card.food, water: card.water };
+}
 
 /** Printed replacement cards cover 1-5,000 and 5,001-15,000 survivors.
  * Population zero keeps the last applicable table; its separate printed

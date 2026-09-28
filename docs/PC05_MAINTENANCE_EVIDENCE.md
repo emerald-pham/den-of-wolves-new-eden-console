@@ -17,21 +17,24 @@ authorized gameplay evidence.
   ration level spends its vessel-table amount, while each level contributes
   0/3/6/9 to the 2d6 unrest total. This resolves the stale owner hold by
   primary printed evidence under the owner's decide/log/continue instruction.
-- P118/P184: the printed starred population thresholds require a replacement
-  food/water table for the individual ship. `REFERENCE_ONLY_SHIPS.md` identifies
-  the thresholds and starting tables. No numeric replacement rows were found
-  in the six routed archive PDFs, the owner-supplied A4 Single Sided v1.1 PDF
-  (SHA-256 `4e3ce6b500716fe139440d669aeae2e7fb4ab85071c98801f28144305f60f8d3`),
-  or the Deluxe A4 Encapsulated v1.1 PDF
-  (SHA-256 `c06a4b11e8936c526ffd865c8ef6135189cdb2cd30b3d049f0305582652ed09e`).
-  The A4 Single Sided source has 43 pages; all five Deluxe A4 pages were
-  visually checked. The known Capybara replacement rows are already explicit
-  in `functions/src/shipPopulation.ts`. Other ships' numerical replacement
-  costs must come from an authorized missing component or be recorded by a
-  facilitator against an identified table; they must not be inferred by
-  scaling the starting values. Resume by routing the original replacement
-  cards into the private source index, transcribing costs into a tested server
-  table, then proving both the server charge and player-facing current table.
+- P118/P184: the owner-supplied `Deluxe Components/DoWNE - A4 Paper Duplex
+  v1.1.pdf` (SHA-256
+  `b1a5cd99516acb2d8784fdc0669937cfe4abb1f63a71750cc71abe6433561359`)
+  supplies the replacement ration cards on physical PDF pages 41–44. Fronts
+  are pages 41 and 43; their duplex backs, pages 42 and 44, reverse left/right
+  card positions. The cards yield the exact food/water schedules now encoded
+  in `functions/src/shipPopulation.ts` and mirrored in
+  `src/data/shipPopulation.ts`. The original Dione table above 90,000 comes
+  from its vessel sheet. The same printed bands match the starting tables and
+  starred steps for Icebreaker, Shepherd, Quellon, and Refinery 124; AEGIS
+  starts in the final band. Capybara uses its own expansion cards. At zero,
+  the final 1–5,000 table remains in force while the separate zero-population
+  unrest consequence applies. One printed back reads `50,000–70,000`, which
+  overlaps the adjacent `35,001–50,000` card at exactly 50,000. Because
+  50,000 is a starred change step and the latter card has lower costs, the
+  selection treats the upper band as 50,001–70,000. This is a bounded source
+  interpretation, not a fabricated value. The private source index should
+  add this original component and checksum at reconciliation.
 - P136/P137: `REFERENCE_ONLY_CORE_RULES.md`, Unrest and mutiny, says unrest 8+
   makes the ship unusable until a new captain is installed. The facilitator
   chooses a 1–3 reduction based on confidence (2 is the printed default); the
@@ -48,13 +51,13 @@ authorized gameplay evidence.
 | Prompt | Existing implementation / remaining lane work |
 | --- | --- |
 | 116, 117 | Independent food/water selection, exact starting-table debit, additive level bonuses, and server dice exist in `maintenance.ts`; P117 source decision above replaces old hold. Need ordinary UI proof. |
-| 118, 184 | Capybara population bands exist; numeric replacement rows for other full ships remain missing from supplied artifacts. Do not close either prompt on starting-table behavior. |
+| 118, 184 | Original deluxe duplex component supplies every numeric band; server debit and current player table now follow those cards. Ordinary rendered and authorized live proof remain. |
 | 119, 120 | Server 2d6 unrest and 1d6 riot/damage are in `advanceMaintenance`; focused rule, callable replay, and live UI proof remain acceptance gates. |
 | 121 | Base small ships and Voyage 33-0 use population loss and skip charge; Voyage runtime admission/docking still depends on its own unfinished production path. |
 | 134 | One authenticated live GM now clears a blocking alert; stale/duplicate acknowledgements are idempotent. Verify concurrent GM replay and ordinary live path. |
 | 135 | Full ships already only add +2 on crossing to zero; small ship and Voyage engines now do likewise. Verify no second increment on replay or later riot. |
-| 136, 137 | Mutiny lock and explicit new-captain recovery require implementation and authoritative role/ship action integration. |
-| 191 | VIP deck draw/transfer and pure consume transition exist; reroll gameplay action and UI remain to implement. |
+| 136, 137 | Full-ship mutiny lock and explicit transactional replacement-captain recovery are implemented. Check all ship-action denial seams, small-ship exception, concurrency, and ordinary live proof. |
+| 191 | VIP reroll now consumes a private card in the same transaction as the dice result; focused replay/privacy tests and player control exist. Ordinary live proof remains. |
 
 Maintenance lane commits are candidates only. Final prompt closure requires
 integration, independent authority review, deployment, and ordinary authorized

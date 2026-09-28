@@ -11,7 +11,7 @@ import type { DamageDraw } from '@/types/game';
 import { phaseForSession } from '@/lib/turnPhase';
 import { normalizeCommandError } from '@/lib/commandErrors';
 import type { ShipConsoleProjection } from '@/lib/shipStateProjection';
-import { capybaraRationSchedule, isPopulationOnPrintedTrack } from '@/data/shipPopulation';
+import { isPopulationOnPrintedTrack, shipRationSchedule } from '@/data/shipPopulation';
 
 export type SystemTiming = 1 | 5 | 6 | 7 | 'ftl' | 'combat' | 'passive';
 
@@ -81,14 +81,13 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   const ship = SHIPS.find(candidate => candidate.id === shipId);
   const printedSchedule = ship?.maintenance ?? { ...AEGIS_ROLE_CONSOLES.admiral.rations, reactor: AEGIS_ROLE_CONSOLES.admiral.reactorCapacity };
   const population = shipState?.population ?? session?.shipSurvivors?.[shipId] ?? ship?.initialSurvivors;
-  const capybaraPopulationOffTrack = shipId === 'capybara' &&
+  const populationOffTrack =
     !isPopulationOnPrintedTrack(shipId, population);
-  const activeCapybaraRations = shipId === 'capybara' &&
-    isPopulationOnPrintedTrack(shipId, population)
-    ? capybaraRationSchedule(population)
+  const activeRations = !populationOffTrack
+    ? shipRationSchedule(shipId, population)
     : undefined;
-  const schedule = activeCapybaraRations
-    ? { ...printedSchedule, food: activeCapybaraRations.food, water: activeCapybaraRations.water }
+  const schedule = activeRations
+    ? { ...printedSchedule, food: activeRations.food, water: activeRations.water }
     : printedSchedule;
   const printedStepCount = ship?.printedStatistics.maintenanceSteps.length ?? 6;
   const chargeable = [...systems, ...(shipId === 'aegis' ? EXECUTIVE_SYSTEMS : [])].filter(system =>
@@ -163,7 +162,7 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
         <dl>
           <div><dt>Sequence</dt><dd>{labels.map((label, index) => `${index + 1} ${label}`).join(' // ')}</dd></div>
           <div><dt>Rations</dt><dd>Food {schedule.food.join(' / ')} // Water {schedule.water.join(' / ')}
-            {activeCapybaraRations ? ` // ${activeCapybaraRations.populationBand} survivors` : ''}</dd></div>
+            {activeRations ? ` // ${activeRations.populationBand} survivors` : ''}</dd></div>
           <div><dt>Unrest</dt><dd>Step 3: roll 2d6 plus both ration bonuses. Under 12 adds 2; under 20 adds 1.</dd></div>
           <div><dt>Damage</dt><dd>Step 4: roll 1d6. Below current unrest draws and applies 1 damage card.</dd></div>
           <div><dt>Charging</dt><dd>Step 5: choose up to {capacity} consoles. Unused charge clears when the next cycle starts.</dd></div>
@@ -190,8 +189,8 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
             <div className="maintenance-systems__step"><span>{step}</span><strong>{label}</strong></div>
             {step === 1 && <button className="cic-action-button" disabled={disabled(1)} onClick={() => void execute('storage')}>Check storage</button>}
             {step === 2 && <><p>Select food and water rations separately. Add both bonuses to the roll in step 3.</p>{rations}
-              {capybaraPopulationOffTrack && <p role="alert">Rations locked // survivor count is off the printed track.</p>}
-              <fieldset disabled={disabled(2) || capybaraPopulationOffTrack} className="maintenance-controls"><legend>Choose rations</legend>
+              {populationOffTrack && <p role="alert">Rations locked // survivor count is off the printed track.</p>}
+              <fieldset disabled={disabled(2) || populationOffTrack} className="maintenance-controls"><legend>Choose rations</legend>
                 {(['Food', 'Water'] as const).map(resource => <label key={resource}>{resource} ration level
                   <select aria-label={`${resource} ration level`} value={resource === 'Food' ? foodLevel : waterLevel}
                     onChange={event => (resource === 'Food' ? setFoodLevel : setWaterLevel)(Number(event.target.value))}>
