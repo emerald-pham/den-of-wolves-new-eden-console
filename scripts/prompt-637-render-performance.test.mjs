@@ -3,7 +3,18 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import test from 'node:test';
-import { collectJavaScriptModuleGraph, measureBundleSizes } from './prompt-637-render-performance.mjs';
+import {
+  collectJavaScriptModuleGraph,
+  measureBundleSizes,
+  playerConsoleRouteProbe,
+} from './prompt-637-render-performance.mjs';
+
+test('measures the PC04 player station catalog instead of the GM-only Role Select route', () => {
+  assert.deepEqual(playerConsoleRouteProbe(), {
+    route: '/console',
+    readySelector: '.fleet-roster',
+  });
+});
 
 test('measures landing HTML modulepreloads and static imports, excluding lazy and isolated review assets', async (t) => {
   const distDirectory = await mkdtemp(join(tmpdir(), 'p637-render-performance-'));
