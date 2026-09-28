@@ -91,3 +91,14 @@ the original assumption; append the resolution so the decision is traceable.
 | Chosen reading | An explicitly selected full-die adjudication consumes all available fuel when the failed attempt was fuel-starved. This is a conservative product inference, not an asserted printed fuel formula. It grants no fuel, permits no negative balance and does not reset the once-per-cycle limit. A changed revision or intervening fuel transfer requires a fresh decision. |
 | Product effect | The GM exception completes the movement, spends fuel and any charge, applies common-path damage and records the outcome atomically against the exact failure. Replay cannot repeat spending, damage or movement. Ordinary denied attempts remain resource-preserving. |
 | Review state | New under standing autonomous PC05 authorization; subject to optional owner correction/cooldown. |
+
+### PC05-A3 — Mutiny recovery in a roster without a Captain seat
+
+| Field | Record |
+|---|---|
+| ID and milestone | PC05-A3; gameplay completion, Prompts 136–137. |
+| Source passage | Facilitator Guide v1.1, printed p. 17: a ship at mutiny is unusable until a new captain is appointed; the facilitator reduces unrest by one to three, normally two. The printed procedure allows replacing or swapping the former captain. |
+| Ambiguity and alternatives | A sparse digital roster may contain real officers but no canonical Captain seat. The source does not define how such a roster records command. Adding a seat would alter the confirmed roster and its station and craft entitlements. |
+| Chosen reading | Where an occupied canonical Captain seat exists, retain the actual authorized role swap. Otherwise the facilitator may appoint a real active same-ship officer as acting captain, with a durable server-private command identity exposed only in the authorized GM projection. Keep the locked roster, seat ownership, craft manifest and console entitlements unchanged. A subsequent replacement must choose someone other than the recorded acting captain; with no eligible replacement, recovery remains unavailable. This sparse-roster representation is a product inference, not an asserted printed digital rule. |
+| Product effect | Recovery applies the source-range unrest reduction atomically with the appointment and releases the mutiny lock. Public projections must not disclose the private command identity. Authority, candidate eligibility, stale requests, replay and canonical-seat consistency require focused tests. |
+| Review state | New under standing autonomous PC05 authorization; subject to optional owner correction/cooldown. Implementation and ordinary gameplay evidence remain required. |
