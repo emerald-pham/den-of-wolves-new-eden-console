@@ -67,22 +67,34 @@ with a focused lifecycle mode fails closed. Contract tests pin the shard list,
 the default full plan, the exact-SHA workflow conditions, and the separate
 render job.
 
-The expected release-time effect is that the browser stage is bounded by its
-slowest complete shard rather than the sum of every ticker scenario plus P637.
-The first workflow using this layout must supply the observed timing; no speedup
-is claimed from the configuration alone.
+The [first live sharded workflow](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/36476018440)
+passed at exact commit `1d0429945cbe9488fbec471e8f676a2bae1c7184`.
+Press finished in 8 minutes 28 seconds, Turn Zero in 4 minutes 34 seconds, and
+the two lifecycle modes in 3 minutes 20 seconds; exact-SHA unit verification
+finished in 3 minutes 19 seconds. The browser critical path therefore fell from
+15 minutes in PC04 to 8 minutes 28 seconds: 6 minutes 32 seconds, or about 44%,
+shorter in this observed ticker-only, no-target run. The PC04 job also included
+16 seconds of P637 after its ticker cases, while the measured sharded run
+correctly skipped P637 because that range did not affect its inputs, so 44% is
+not a pure sharding comparison. Aggregate browser-job elapsed time rose from 15
+minutes to 16 minutes 22 seconds, about 9%; this evidence does not report
+billable runner time. The first render-affected release must still prove the new
+parallel P637 job live.
 
 ### Risk-selected verification without deployment
 
-The first post-PC04 tooling push exposed that `main` verification was coupled
-to `has_targets`: the target classifier correctly requested unit and ticker
-gates, but the reusable verify job was skipped because no Firebase surface was
-selected. The Deploy workflow now distinguishes verification from deployment.
-A current-tip change with non-documentation risk gates runs exact-SHA
-verification even when `targets` is empty; the deploy job still requires a real
-Firebase target. Documentation-only changes retain the no-verify/no-deploy fast
-path. A workflow contract test pins all three conditions so release tooling and
-tests cannot silently bypass their own gates again.
+The [first post-PC04 tooling push](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/36473773154)
+exposed that `main` verification was coupled to `has_targets`: the target
+classifier correctly requested unit and ticker gates, but the reusable verify
+job was skipped because no Firebase surface was selected. The Deploy workflow
+now distinguishes verification from deployment. A current-tip change with
+non-documentation risk gates runs exact-SHA verification even when `targets` is
+empty; the deploy job still requires a real Firebase target. Documentation-only
+changes retain the no-verify/no-deploy fast path. The successful sharded
+workflow above proves that the no-target change ran the base verifier and all
+three ticker shards while both P637 and Firebase deployment stayed skipped. A
+workflow contract test pins all three conditions so release tooling and tests
+cannot silently bypass their own gates again.
 
 ### Typography gate integrity
 
@@ -131,13 +143,11 @@ they cannot trigger a redundant production deploy.
 
 ## Follow-up measurement
 
-For the next ticker-affected exact-SHA release, compare these values with PC04:
-
-- duration of each `press`, `turn-zero`, and `lifecycle` shard;
-- duration of the independent P637 job;
-- elapsed time from exact-SHA browser jobs starting to the last one finishing;
-- runner-minute cost, so wall-clock gain is not mistaken for free compute; and
-- deployment target count and deploy/verification duration.
+For the next render-affected exact-SHA release, confirm that P637 runs in
+parallel and remains outside the ticker critical path. For later ticker-affected
+releases, compare shard duration and aggregate job elapsed time with the first
+live measurement above, and record deployment target count plus
+deploy/verification duration when production surfaces are selected.
 
 If one shard becomes the persistent critical path, split only at a stable
 behavior boundary with an explicit coverage-partition test. Do not split by an
