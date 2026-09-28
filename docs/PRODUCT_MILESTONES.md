@@ -630,18 +630,21 @@ build/review access, a complete test-change inventory, and open questions.
 ## PC04 shape — Exploration and split-fleet map
 
 **State (2026-09-28).** PC03 build 0.5.53 is released and explicitly accepted.
-The owner supplied four post-acceptance corrections, PC03-F01 through
-PC03-F04, and authorized PC04 work to begin. They are fixed requirements of
+The owner supplied five post-acceptance corrections, PC03-F01 through
+PC03-F05, and authorized PC04 work to begin. They are fixed requirements of
 this checkpoint: an early unified station/console entry flow with GM-only Role
 Select, current player-facing “table” copy changed to “console”, the exact new
 default Red Alert message, and restoration of the end-of-PC01 rendered
-typography across DRADIS and the app. Ordinary authorized gameplay proof still
+typography across DRADIS and the app, with typography enforced as a mandatory
+CI/deployment gate. PC01 is the strongest known-good comparison, but the
+documented CIC contract controls any outlier. PC03-F05 also makes
+automation-first, one-facilitator operation an app-wide design rule. Ordinary authorized gameplay proof still
 remains distinct from this shape, local tests, a synthetic scene, and
 deployment.
 
 **Prior guidance disposition.** The ten PC01 guidance items shipped in PC02
 and retain the open production-play gaps reported there. No later PC02 note is
-available. The four new PC03 notes are all adopted into PC04 rather than
+available. The five new PC03 notes are all adopted into PC04 rather than
 routed to later candidates:
 
 | Owner note | PC04 disposition |
@@ -649,7 +652,8 @@ routed to later candidates:
 | PC03-F01 — one early station/console entry screen; Role Select only for GM join | Cooldown requirement and first owner check. Preserve first-entry server claim, occupancy, read-only viewing, Press's distinct station, deep links, and Back behavior. |
 | PC03-F02 — “console”, not “table”, in current app-wide copy | Cooldown requirement. Audit visible current UI and accessibility copy; preserve internal protocol names, historical changelog text, source citations, actual HTML/data tables, and printed proper names whose mechanics still require separate product treatment. |
 | PC03-F03 — exact default Red Alert message | Cooldown requirement. Use the supplied sentence verbatim in the authoritative default and restore path, without an appended paragraph. |
-| PC03-F04 — end-of-PC01 typography baseline | PC04 release gate. Compare the exact PC01 release with the candidate in rendered browsers; cover DRADIS and representative shared chrome, entry, GM, ship, shuttle, and exploration surfaces. |
+| PC03-F04 — end-of-PC01 typography reference and mandatory gate | PC04 release gate. Compare the exact PC01 release with the candidate in rendered browsers, resolve any PC01 outlier against the documented CIC contract, and make the corrected rendered/computed-style gate mandatory in every player-facing exact-SHA deploy path. |
+| PC03-F05 — automate deterministic facilitation for one-facilitator operation | App-wide product rule and PC04 internal gate. Automatic mission and split-fleet procedures own deterministic calculations/state changes and append complete server-owned GM-log receipts; only genuine choices, rulings, and interventions wait for a GM. |
 
 **Problem.** An away mission crosses scouting, a group-local map, eligible
 craft, secret hands, one Mission Leader, facilitator resolution, and reward
@@ -661,7 +665,7 @@ stop asking ordinary players to select a role and then select a station on a
 second screen, and the typography and terminology must return to the accepted
 console presentation.
 
-**In scope.** First complete PC03-F01 through PC03-F04 as a bounded cooldown.
+**In scope.** First complete PC03-F01 through PC03-F05 as a bounded cooldown.
 Compose the existing enabled fleet/console catalog, live station status, core
 claim/release, private assignment, Press station, and authenticated GM join
 into one early entry surface. Ordinary players enter or view stations; only
@@ -670,7 +674,9 @@ core-console entry server-authoritative and atomic. Replace current visible
 generic “table” wording with “console” across the app where it names this
 digital interface, install the owner's exact default Red Alert sentence, and
 restore the end-of-PC01 mono/display treatment using rendered comparison rather
-than a source-string-only pass.
+than a source-string-only pass. Treat PC01 as a comparison, resolve any proven
+outlier against the documented CIC contract, and make the corrected rendered
+typography gate mandatory in the exact-SHA deploy path.
 
 For the exploration cluster, provide one coherent path through the current
 ship map, group/location identity, source-supported away-mission lifecycle,
@@ -683,7 +689,11 @@ participants see their own cards. The group label, coordinate, mission state,
 and message audience remain visible at every handoff. A split creates separate
 group membership, positions, pursuit values, ordinary roster visibility, and
 communication boundaries. The printed scout-taxi exception is a separately
-authorized, range-checked path. Audit and repair the initially allocated PC04
+authorized, range-checked path. Automate every deterministic facilitator step,
+calculation, state transition, and notification in this flow; append its source,
+inputs, modifiers, outcome, delta, revision/replay, and recovery state to the
+GM log, and request GM input only for a genuine printed choice, source gap, or
+intervention. Audit and repair the initially allocated PC04
 prompts where their current prerequisites and source contracts are ready; a
 review scene or attractive panel does not close held gameplay.
 
@@ -747,7 +757,9 @@ privacy, calculations, multi-client behavior, and production proof:
    tell which group and coordinate owns the mission, who the Mission Leader
    is, which craft/players are participating, what private action is mine,
    which opportunity each visible result belongs to, and where rewards are
-   held or must be dropped off?
+   held or must be dropped off? Are deterministic facilitator steps completed
+   automatically and reported in the GM log rather than presented as manual
+   transcription or approval work?
 4. **Yes/no — Follow a split.** In prepared whole-fleet, split, taxi, and
    pending-rejoin views, can I tell each group's ships, current location,
    pursuit, map knowledge, communication state, and next permitted action
@@ -771,13 +783,15 @@ committing the smallest failing focused test before the code. Compare PC01 exact
 release `4e8e3876108709f2a620c4f71ea874183d3db4ee` with the candidate using
 computed font families, sizes, weights, line heights, tracking, bounding boxes,
 and screenshots at 320×844, 390×844, 844×390, and 1440×900; cover DRADIS plus
-representative shared and route surfaces. Run `npm run test:font-consistency`
-and the ticker browser gate because global chrome, fonts, Role Select, and Red
-Alert copy are release-critical. Exercise first-entry claim races, GM-only join,
+representative shared and route surfaces. The documented CIC contract decides
+any PC01 outlier. Make `npm run test:font-consistency` a mandatory exact-SHA
+CI/deployment gate and run the ticker browser gate because global chrome, fonts,
+Role Select, and Red Alert copy are release-critical. Exercise first-entry claim races, GM-only join,
 Press separation, deep links/Back, private mission hands, wrong participant,
 leader/facilitator authority, replay/stale requests, empty opportunity,
 contribution-linked bonuses, overrun/reconnect, group-local roster/map/message
-projection, split isolation, taxi range/capacity, and denied direct writes for
+projection, split isolation, taxi range/capacity, automatic GM-log receipts,
+and denied direct writes for
 every changed source-supported production path. Obtain one independent Sol
 review of the exact candidate for shared session state, callable behavior,
 rules, privacy, and release evidence. Reconcile one final commit, run its

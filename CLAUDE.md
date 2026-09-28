@@ -222,10 +222,10 @@ session projection fixture isolated to the smoke and save a viewport screenshot
 when a case fails; do not replace the real ticker with a mock or an offscreen
 DOM assertion.
 
-Run `npm run test:font-consistency` when rendered UI markup, CSS, application
-entry points, font assets, or web dependencies change. This focused gate keeps
-the console mono/display families and rejects system-sans regressions without
-charging server-only, rules-only, documentation, or unrelated tooling work.
+Typography is a mandatory exact-SHA CI/deployment gate for every player-facing candidate. `npm run test:font-consistency` verifies the CIC mono/display contract with rendered computed styles and representative geometry, not only source strings or an allowlist.
+Local green tests, changed-file selection, workflow choice, or urgency cannot bypass it; accepted fixtures change only with reviewed contract updates and fresh rendered evidence. PC01 is a comparison point, not authority over the documented tokens: repair any proven outlier, then ratchet the corrected result.
+
+Automate every source-deterministic facilitator procedure so one facilitator makes only genuinely required choices, rulings, and interventions. Server-owned automation logs source, inputs, modifiers, outcome, state delta, revision/replay identity, and recovery; never ask a person to calculate, transcribe, relay, approve, or confirm a deterministic result the console can safely own.
 
 Call the numbered game clock a **cycle** in all player-facing labels, help,
 announcements, accessible names, errors, and release notes. Never label it a

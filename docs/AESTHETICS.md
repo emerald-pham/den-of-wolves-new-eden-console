@@ -138,15 +138,26 @@ server authority.
 
 ### Calculation receipts and facilitator interventions
 
-The New Eden Console is automation-first and intervention-rich. A single
-facilitator can run routine deterministic play without doing arithmetic or
-copying results between screens; additional GMs remain optional collaborators.
-Every automatic result uses the established CIC instrument language: amber
+The New Eden Console is automation-first and intervention-rich. Its ultimate
+operating target is one facilitator: the console automatically performs every
+source-deterministic procedure and leaves that person only the choices,
+rulings, and interventions that genuinely require human judgement. Additional
+GMs remain optional collaborators. Never make a player or facilitator perform
+arithmetic, transcribe a deterministic result, relay it between screens, or
+confirm an automatic step merely because the printed game originally divided
+work between two facilitators. Every automatic result uses the established CIC instrument language: amber
 structure, cyan measured values, bone explanatory copy, square hairline rows,
 and explicit non-color state. Show entered inputs, cited rule/source, ordered
 modifiers, computed result, and before/after mutations in one readable receipt;
 do not hide required arithmetic behind hover, animation, another screen, or an
 uncited total.
+
+Every automatic facilitator action also appends a server-owned GM-log record
+with the source/rule identity, accepted inputs, ordered modifiers, outcome,
+before/after delta, actor or scheduler, revision/idempotency identity, and
+replay/recovery state. The log is an audit and recovery surface, not a queue of
+routine approvals. Only a genuine printed choice, unresolved ambiguity, or
+explicit intervention may pause automation for GM input.
 
 Keep the automatic happy path visually primary. `PAUSE`, `INSPECT`, `OVERRIDE`,
 and `CORRECT` are distinct GM controls with a required reason, visible scoped
