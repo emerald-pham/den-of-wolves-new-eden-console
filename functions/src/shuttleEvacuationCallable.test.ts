@@ -88,6 +88,15 @@ it('atomically moves survivors, records craft use and one privacy-safe event, th
   expect(mock.documents.get('sessions/s1/events/shuttle-evacuation-evac-1')).toMatchObject({
     type: 'shuttle-survivor-evacuation', amount: 2_000, movedThisCycle: 2_000,
   });
+  const pressEntries = [...mock.documents.entries()].filter(([path]) => path.includes('/pressLog/'));
+  expect(pressEntries).toHaveLength(1);
+  expect(pressEntries[0]?.[1]).toMatchObject({
+    type: 'survivor-transfer', sourceId: 'shuttle-evacuation:evac-1',
+    shuttleId: 'hummingbird', sourceShipId: 'quellon', destinationShipId: 'capybara',
+    cycle: 3, amount: 2_000, sourcePopulationBefore: 30_000, sourcePopulationAfter: 28_000,
+    destinationPopulationBefore: 13_000, destinationPopulationAfter: 15_000,
+  });
+  expect(pressEntries[0]?.[1]).not.toHaveProperty('actorUid');
   const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
   mock.documents.get('sessions/s1')!.phase = 'debrief';
   await expect(evacuateShuttleSurvivorsCommand.run(request(command))).resolves.toMatchObject({ status: 'replayed' });

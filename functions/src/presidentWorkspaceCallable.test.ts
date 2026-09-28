@@ -207,13 +207,24 @@ it.each(['fleet-policy', 'crisis', 'political-capital', 'address', 'visit', 'ele
   });
   expect(event).not.toHaveProperty('text');
   expect(event).not.toHaveProperty('actorUid');
+  const pressEntry = mock.set.mock.calls.find(([path]) => String(path).includes('/pressLog/'))?.[1];
+  expect(pressEntry).toMatchObject({
+    type: 'president-action', sourceId: 'president-action:president-request-1',
+    actionKind: kind, text: 'Hold formation.', cycle: 2,
+  });
+  expect(pressEntry).not.toHaveProperty('actorUid');
+  expect(pressEntry).not.toHaveProperty('uid');
 });
 
 it('replays the same request without a second publication', async () => {
   const first = await recordPresidentActionCommand.run(request());
+  const pressWrites = mock.set.mock.calls.filter(([path]) => String(path).includes('/pressLog/')).length;
   mock.update.mockClear();
+  mock.set.mockClear();
   await expect(recordPresidentActionCommand.run(request())).resolves.toEqual(first);
   expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(pressWrites).toBe(1);
 });
 
 it('denies other roles and a GM without scoped ship-console authority', async () => {

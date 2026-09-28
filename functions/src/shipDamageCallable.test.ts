@@ -693,6 +693,13 @@ it.each([['aegis', 2000], ['dione', 95000], ['icebreaker', 37000], ['shepherd', 
     mock.randomInt.mockReturnValue(0);
     await addShipDamage.run(request({ ...data, shipId }));
     expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({ [`shipSurvivors.${shipId}`]: population }));
+    const pressWrites = mock.set.mock.calls.filter(([path]) => String(path).includes('/pressLog/'));
+    expect(pressWrites).toHaveLength(1);
+    expect(pressWrites[0]?.[1]).toMatchObject({
+      type: 'survivor-change', sourceId: 'ship-damage:test-damage',
+      cause: 'ship-damage', vesselId: shipId, cycle: 1, toPopulation: population,
+    });
+    expect(pressWrites[0]?.[1]).not.toHaveProperty('actorUid');
   },
 );
 it.each(['aegis', 'capybara'])('repairs all %s damage and restores its deck without restoring casualties', async shipId => {

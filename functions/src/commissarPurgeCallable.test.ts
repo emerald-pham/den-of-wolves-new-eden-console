@@ -167,6 +167,15 @@ it('requires current captain consent, applies one printed population step and on
   expect(mock.documents.get(`sessions/${sessionId}/commissarPurgeState/current`)).toMatchObject({
     ledger: { icebreaker: { turn: 1, revision: 1 } }, consents: {},
   });
+  const pressEntries = [...mock.documents.entries()].filter(([path]) => path.includes('/pressLog/'));
+  expect(pressEntries).toHaveLength(1);
+  expect(pressEntries[0]?.[1]).toMatchObject({
+    type: 'commissar-purge', sourceId: 'commissar-purge:purge-1',
+    shipId: 'icebreaker', cycle: 1, survivorsRemoved: 3000,
+    populationBefore: 40000, populationAfter: 37000, unrestBefore: 2, unrestAfter: 1,
+  });
+  expect(pressEntries[0]?.[1]).not.toHaveProperty('actorUid');
+  expect(pressEntries[0]?.[1]).not.toHaveProperty('captainUid');
   expect([...mock.documents.keys()].some((path) => path.includes('/damageDraws/'))).toBe(false);
 });
 
@@ -177,7 +186,9 @@ it('replays an exact purge request without another mutation and rejects a second
   await expect(applyCommissarPurge.run(request(purgeRequest))).resolves.toMatchObject({
     status: 'committed', revision: 1,
   });
+  const pressWrites = mock.set.mock.calls.filter(([path]) => String(path).includes('/pressLog/')).length;
   expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
+  expect(pressWrites).toBe(1);
   await expect(applyCommissarPurge.run(request({
     ...purgeRequest, requestId: 'purge-2', expectedRevision: 1,
   }))).rejects.toMatchObject({ code: 'already-exists' });

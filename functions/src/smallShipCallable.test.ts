@@ -197,6 +197,36 @@ it('runs maintenance against only the docked host ledger and persists a replay r
   expect(receiptCall?.[1]).toEqual(expect.objectContaining({ reply: expect.objectContaining({ status: 'committed' }) }));
 });
 
+it('logs a small-ship riot population loss atomically and does not repeat it on replay', async () => {
+  const baseState = emptySmallShipState('gorgoneion', 'aegis');
+  mock.session.smallShipStates = {
+    gorgoneion: {
+      ...baseState, population: 1_000, unrest: 10,
+      cycle: { ...baseState.cycle, step: 3, revision: 3, turn: 1 },
+    },
+  };
+  const riot = { ...maintenanceBase, action: 'riot', expectedRevision: 3, requestId: 'small-riot' };
+  const result = await runSmallShipMaintenance.run(request(riot));
+  expect(result).toMatchObject({ status: 'committed', result: { state: { population: expect.any(Number) } } });
+  const pressWrites = mock.set.mock.calls.filter(([path]) => String(path).includes('/pressLog/'));
+  expect(pressWrites).toHaveLength(1);
+  expect(pressWrites[0]?.[1]).toMatchObject({
+    type: 'survivor-change', sourceId: 'small-ship-maintenance:small-riot',
+    cause: 'small-ship-maintenance', vesselId: 'gorgoneion', cycle: 1,
+    fromPopulation: 1_000,
+    toPopulation: (result as { result: { state: { population: number } } }).result.state.population,
+  });
+  expect(pressWrites[0]?.[1]).not.toHaveProperty('actorUid');
+
+  const receiptPath = 'sessions/s1/smallShipRequests/small-riot';
+  mock.receipts[receiptPath] = mock.set.mock.calls.find(([path]) => path === receiptPath)?.[1] as Record<string, unknown>;
+  mock.set.mockReset();
+  mock.update.mockReset();
+  await expect(runSmallShipMaintenance.run(request(riot))).resolves.toMatchObject({ status: 'replayed' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('rejects fresh small-ship maintenance without an authoritative phase clock before writes', async () => {
   mock.session.smallShipStates = { gorgoneion: emptySmallShipState('gorgoneion', 'aegis') };
   delete mock.session.turnPhase;

@@ -336,6 +336,7 @@ it('preserves an unrest threshold crossing rather than netting it away', async (
     'shipUnrest.dione': 8,
     unrestAlerts: { dione: expect.objectContaining({ targetGmInstanceIds: ['gm1', 'gm2'] }) },
   }));
+  expect(mock.set.mock.calls.some(([path]) => String(path).includes('/pressLog/'))).toBe(false);
   expect(mock.audits['sessions/s1/actionAudits/test-counter']).toMatchObject({
     action: 'ship-counter-batch', requestId: 'test-counter', revision: 1,
     resolutionSource: 'facilitator', redactionPolicy: 'action-audit-metadata-only-v1',
@@ -355,6 +356,19 @@ it('preserves the first population threshold and targets every active GM', async
     action: 'ship-counter-batch', requestId: 'test-counter', revision: 1,
     resolutionSource: 'facilitator', redactionPolicy: 'action-audit-metadata-only-v1',
   });
+  const pressWrites = mock.set.mock.calls.filter(([path]) => String(path).includes('/pressLog/'));
+  expect(pressWrites).toHaveLength(1);
+  expect(pressWrites[0]?.[1]).toMatchObject({
+    type: 'survivor-change', sourceId: 'population-adjustment:test-counter',
+    cause: 'population-adjustment', vesselId: 'capybara', cycle: 1,
+    fromPopulation: 16_000, toPopulation: 15_000,
+  });
+  expect(pressWrites[0]?.[1]).not.toHaveProperty('actorUid');
+  const pressWriteCount = pressWrites.length;
+  await expect(applyShipCounterSteps.run(request({
+    sessionId: 's1', instanceId: 'gm1', shipId: 'capybara', counter: 'population', steps: [-1, -1],
+  }))).resolves.toMatchObject({ amount: 15_000 });
+  expect(mock.set.mock.calls.filter(([path]) => String(path).includes('/pressLog/'))).toHaveLength(pressWriteCount);
 });
 
 it('adds two unrest once when an ordered Capybara population input reaches zero', async () => {

@@ -88,6 +88,15 @@ it('writes a step and the targeted alert in the same transaction', async () => {
   expect(audit).not.toHaveProperty('amount');
   expect(audit).not.toHaveProperty('delta');
   expect(audit).not.toHaveProperty('shipId');
+  const pressWrites = mock.set.mock.calls.filter(([path]) => String(path).includes('/pressLog/'));
+  expect(pressWrites).toHaveLength(1);
+  expect(pressWrites[0]?.[1]).toMatchObject({
+    type: 'survivor-change', sourceId: 'population-adjustment:population-change',
+    cause: 'population-adjustment', vesselId: 'capybara', cycle: 1,
+    fromPopulation: 16000, toPopulation: 15000,
+  });
+  expect(pressWrites[0]?.[1]).not.toHaveProperty('actorUid');
+  expect(pressWrites[0]?.[1]).not.toHaveProperty('uid');
   const writesAfterCommit = mock.set.mock.calls.length;
   await expect(adjustShipPopulation.run(request(committedRequest))).resolves.toEqual(first);
   expect(mock.set).toHaveBeenCalledTimes(writesAfterCommit);
@@ -156,6 +165,7 @@ it.each([
   await expect(adjustShipPopulation.run(request({ ...data, shipId, delta })))
     .rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set.mock.calls.some(([path]) => String(path).includes('/pressLog/'))).toBe(false);
 });
 
 it('adds two unrest once when Capybara reaches zero population', async () => {

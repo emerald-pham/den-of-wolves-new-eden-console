@@ -3922,6 +3922,15 @@ it('records and rolls back successive steps while restoring spent supplies', asy
   const damageAfterRiot = structuredClone(read(records['sessions/s1'], 'shipDamage.aegis'));
   const survivorsAfterRiot = read(records['sessions/s1'], 'shipSurvivors.aegis');
   const riotEvent = structuredClone(records['sessions/s1/events/maintenance-rollback-riot']);
+  const pressEntries = Object.entries(records).filter(([path]) => path.includes('/pressLog/'));
+  expect(pressEntries).toHaveLength(1);
+  expect(pressEntries[0]?.[1]).toMatchObject({
+    type: 'survivor-change', sourceId: 'maintenance:rollback-riot',
+    cause: 'ship-maintenance', vesselId: 'aegis', cycle: 1,
+    fromPopulation: 2_000, toPopulation: survivorsAfterRiot,
+  });
+  expect(pressEntries[0]?.[1]).not.toHaveProperty('actorUid');
+  const pressEntry = structuredClone(pressEntries[0]?.[1]);
   const preExistingEvent = structuredClone(records['sessions/s1/events/pre-existing']);
   expect(damageAfterRiot).toMatchObject({ damagedSystemIds: ['storage', 'fighter-bay-alpha'], destroyed: false });
   expect(riotEvent).toBeDefined();
@@ -3995,6 +4004,7 @@ it('records and rolls back successive steps while restoring spent supplies', asy
   expect(read(records['sessions/s1'], 'shipDamage.aegis')).toEqual(damageAfterRiot);
   expect(read(records['sessions/s1'], 'shipSurvivors.aegis')).toBe(survivorsAfterRiot);
   expect(records['sessions/s1/events/maintenance-rollback-riot']).toEqual(riotEvent);
+  expect(records[pressEntries[0]![0]]).toEqual(pressEntry);
   expect(records['sessions/s1/events/pre-existing']).toEqual(preExistingEvent);
   const committedEventId = String(firstRollback.eventId);
   expect(committedEventId).toMatch(/^maintenance-rollback-rollback-race-[ab]$/);

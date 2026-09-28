@@ -92,6 +92,33 @@ it('replays an exact request without spending the host a second time', async () 
   expect(mock.set).not.toHaveBeenCalled();
 });
 
+it('logs a Voyage 33-0 riot population loss atomically and does not repeat it on replay', async () => {
+  const state = emptyVoyage33MaintenanceState('aegis');
+  mock.session.voyage33Maintenance = {
+    ...state, population: 10_000, unrest: 10,
+    cycle: { ...state.cycle, step: 3, revision: 3, turn: 1 },
+  };
+  const riot = { ...base, action: 'riot', expectedRevision: 3, requestId: 'voyage-riot' };
+  const result = await runVoyage33Maintenance.run(request(riot));
+  const population = (result as { result: { state: { population: number } } }).result.state.population;
+  const pressWrites = mock.set.mock.calls.filter(([path]) => String(path).includes('/pressLog/'));
+  expect(pressWrites).toHaveLength(1);
+  expect(pressWrites[0]?.[1]).toMatchObject({
+    type: 'survivor-change', sourceId: 'voyage-33-maintenance:voyage-riot',
+    cause: 'voyage-33-maintenance', vesselId: 'voyage-33-0', cycle: 1,
+    fromPopulation: 10_000, toPopulation: population,
+  });
+  expect(pressWrites[0]?.[1]).not.toHaveProperty('actorUid');
+
+  const receiptPath = 'sessions/s1/voyage33MaintenanceRequests/voyage-riot';
+  mock.receipts[receiptPath] = mock.set.mock.calls.find(([path]) => path === receiptPath)?.[1] as Record<string, unknown>;
+  mock.set.mockReset();
+  mock.update.mockReset();
+  await expect(runVoyage33Maintenance.run(request(riot))).resolves.toMatchObject({ status: 'replayed' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('returns a stale result before reading a new host ledger when docking changed at the same cycle revision', async () => {
   mock.session.activeVesselIds = ['aegis', 'dione'];
   mock.session.voyage33Maintenance = { ...emptyVoyage33MaintenanceState('dione'), dockingRevision: 1 };
