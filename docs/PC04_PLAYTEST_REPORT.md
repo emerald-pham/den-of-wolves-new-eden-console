@@ -104,3 +104,15 @@ removed, skipped, or weakened to release PC04.
 This section intentionally remains open until one exact candidate commit has
 passed independent Sol review, coordinated validation, CI, deployment, hosted
 version verification, and the attempted ordinary authorized gameplay checks.
+
+## Authorized post-release documentation audit
+
+The owner explicitly authorized a documentation audit and potential cleanup
+after PC04 is released. At that boundary, inspect the implementation-prompt
+catalog and generated views, product milestone and playtest records, release
+and deployment claims, cross-links, superseded guidance, duplicate material,
+and completed-work artifacts. Correct stale or contradictory current guidance,
+regenerate and validate derived documentation, and remove only exact items
+verified as redundant or terminal. Preserve primary/source records, historical
+release evidence, active worktrees, unique commits, user data, and anything
+whose ownership or recovery value is uncertain.
