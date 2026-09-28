@@ -1234,6 +1234,9 @@ export default function ShuttleControl({ control }: Props) {
           onClick={() => void submitEvacuation()}>Move survivors</button>
       </div>
     </section>}
+    {busy && <p className="console-workspace__status" aria-live="polite">
+      Shuttle action pending. Waiting for the server to confirm this action.
+    </p>}
     {arrivalStatusMessage && <p role="status">{arrivalStatusMessage}</p>}
     {status && <p role="status">{status}</p>}
   </section>;
