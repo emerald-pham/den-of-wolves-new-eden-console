@@ -45,6 +45,15 @@ it('shows the Drive state matrix while keeping the production jump control inert
   expect(screen.getByRole('region', { name: 'Jump Drive sample control' })).toBeVisible();
   expect(screen.getByRole('button', { name: /Jump to 5143/i })).toBeDisabled();
 
+  const control = screen.getByRole('region', { name: 'Jump Drive sample control' });
+  const firstDigit = within(control).getByRole('button', { name: 'Increase coordinate digit 1' });
+  expect(firstDigit).toBeEnabled();
+  firstDigit.focus();
+  await user.keyboard('{Enter}');
+  await user.click(within(control).getByRole('button', { name: 'Lock destination coordinates' }));
+  expect(within(control).getByLabelText('Locked destination coordinates')).toHaveTextContent('6143');
+  expect(within(control).getByRole('button', { name: 'Jump to 6143' })).toBeDisabled();
+
   await user.click(within(states).getByRole('button', { name: 'Stale reply' }));
   expect(screen.getByRole('status', { name: 'Prepared drive outcome' }))
     .toHaveTextContent(/stale.*refresh the sample before retry/i);
