@@ -3321,6 +3321,147 @@ export interface StartGameStaleReply {
 
 export type StartGameReply = StartGameReceiptReply | StartGameStaleReply;
 
+export interface AwayMissionStartReply {
+  readonly status: 'committed' | 'replayed' | 'stale';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly opportunityId: string;
+  readonly snapshotId: string;
+  readonly missionId: string;
+  readonly groupId: string;
+  readonly coordinate: string;
+  readonly sourceCycle: number;
+  readonly participantCount: number;
+  readonly missionLeaderUid: string;
+  readonly expectedSetupRevision: number;
+  readonly expectedPhaseRevision: number;
+  readonly expectedCycle: number;
+  readonly currentSetupRevision?: number;
+  readonly currentPhaseRevision?: number;
+  readonly currentCycle?: number;
+}
+
+export interface StartAwayMissionOptions {
+  /** Reuse this id and the same inputs when the transport result is ambiguous. */
+  readonly requestId: string;
+  readonly sessionId: string;
+  readonly instanceId: string;
+  readonly expectedSetupRevision: number;
+  readonly expectedPhaseRevision: number;
+  readonly expectedCycle: number;
+  readonly opportunityId: string;
+  readonly groupId: string;
+  readonly chart: 'A' | 'B' | 'C';
+  readonly coordinate: string;
+  readonly sourceCycle: number;
+  readonly participantUids: readonly string[];
+  readonly missionLeaderUid: string;
+}
+
+function awayMissionStartReply(
+  value: unknown,
+  expected: StartAwayMissionOptions,
+): AwayMissionStartReply {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error('The server returned an invalid away-mission start result.');
+  }
+  const raw = value as Record<string, unknown>;
+  const hasCurrentSetupRevision = raw.currentSetupRevision !== undefined;
+  const hasCurrentPhaseRevision = raw.currentPhaseRevision !== undefined;
+  const hasCurrentCycle = raw.currentCycle !== undefined;
+  const hasAnyCurrentState = hasCurrentSetupRevision || hasCurrentPhaseRevision || hasCurrentCycle;
+  const currentStateIsComplete = hasCurrentSetupRevision && hasCurrentPhaseRevision && hasCurrentCycle;
+  const currentStateDiffers = (raw.currentSetupRevision !== undefined &&
+      raw.currentSetupRevision !== expected.expectedSetupRevision) ||
+    (raw.currentPhaseRevision !== undefined &&
+      raw.currentPhaseRevision !== expected.expectedPhaseRevision) ||
+    (raw.currentCycle !== undefined && raw.currentCycle !== expected.expectedCycle);
+  if ((raw.status !== 'committed' && raw.status !== 'replayed' && raw.status !== 'stale') ||
+      raw.sessionId !== expected.sessionId || raw.requestId !== expected.requestId ||
+      raw.opportunityId !== expected.opportunityId || raw.snapshotId !== expected.opportunityId ||
+      raw.missionId !== `mission-${expected.opportunityId}` || raw.groupId !== expected.groupId ||
+      raw.coordinate !== expected.coordinate || raw.sourceCycle !== expected.sourceCycle ||
+      raw.participantCount !== expected.participantUids.length ||
+      raw.missionLeaderUid !== expected.missionLeaderUid ||
+      raw.expectedSetupRevision !== expected.expectedSetupRevision ||
+      raw.expectedPhaseRevision !== expected.expectedPhaseRevision ||
+      raw.expectedCycle !== expected.expectedCycle ||
+      !Number.isSafeInteger(raw.sourceCycle) || (raw.sourceCycle as number) < 0 ||
+      !Number.isSafeInteger(raw.participantCount) || (raw.participantCount as number) < 1 ||
+      (raw.participantCount as number) > 33 ||
+      !Number.isSafeInteger(raw.expectedSetupRevision) || (raw.expectedSetupRevision as number) < 0 ||
+      !Number.isSafeInteger(raw.expectedPhaseRevision) || (raw.expectedPhaseRevision as number) < 0 ||
+      !Number.isSafeInteger(raw.expectedCycle) || (raw.expectedCycle as number) < 1 ||
+      (hasCurrentSetupRevision && (!Number.isSafeInteger(raw.currentSetupRevision) ||
+        (raw.currentSetupRevision as number) < 0)) ||
+      (hasCurrentPhaseRevision && (!Number.isSafeInteger(raw.currentPhaseRevision) ||
+        (raw.currentPhaseRevision as number) < 0)) ||
+      (hasCurrentCycle && (!Number.isSafeInteger(raw.currentCycle) || (raw.currentCycle as number) < 1)) ||
+      (raw.status === 'replayed' && hasAnyCurrentState && !currentStateIsComplete) ||
+      (raw.status === 'stale' && (!currentStateIsComplete || !currentStateDiffers))) {
+    throw new Error('The server returned an invalid away-mission start result.');
+  }
+  return {
+    status: raw.status, sessionId: raw.sessionId, requestId: raw.requestId,
+    opportunityId: raw.opportunityId, snapshotId: raw.snapshotId, missionId: raw.missionId,
+    groupId: raw.groupId, coordinate: raw.coordinate, sourceCycle: raw.sourceCycle as number,
+    participantCount: raw.participantCount as number, missionLeaderUid: raw.missionLeaderUid,
+    expectedSetupRevision: raw.expectedSetupRevision as number,
+    expectedPhaseRevision: raw.expectedPhaseRevision as number,
+    expectedCycle: raw.expectedCycle as number,
+    ...(raw.currentSetupRevision === undefined ? {} : { currentSetupRevision: raw.currentSetupRevision as number }),
+    ...(raw.currentPhaseRevision === undefined ? {} : { currentPhaseRevision: raw.currentPhaseRevision as number }),
+    ...(raw.currentCycle === undefined ? {} : { currentCycle: raw.currentCycle as number }),
+  };
+}
+
+/** Authorize the team-selected roster and start one exact server-recorded opportunity. */
+export async function startAwayMission(options: StartAwayMissionOptions): Promise<AwayMissionStartReply> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.role !== 'gm' || !store.gmInstance) {
+    throw new Error('Claim an active facilitator instance before starting an away mission.');
+  }
+  requireFreshSessionAuthority('Reconnect before starting an away mission.');
+  if (options.sessionId !== store.session.id || options.instanceId !== store.gmInstance.id) {
+    throw new Error('The mission-start request belongs to a different session or facilitator instance. Refresh before retrying.');
+  }
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(options.requestId) ||
+      !options.participantUids.length || new Set(options.participantUids).size !== options.participantUids.length ||
+      !options.participantUids.includes(options.missionLeaderUid)) {
+    throw new Error('Select eligible participants and choose one of them as Mission Leader.');
+  }
+  const phase = turnPhaseState(store.session.turnPhase);
+  const currentTurn = turnStateForPhaseContext(
+    store.session.turnState,
+    phase,
+    store.session.currentTurn,
+    turnLimitForSession(store.session),
+  );
+  if (!currentTurn || store.session.phase !== 'active') {
+    throw new Error('A current server-authorized game phase is required before mission start.');
+  }
+  if (options.expectedSetupRevision !== expectedSetupRevision(store.session) ||
+      options.expectedPhaseRevision !== currentTurn.phaseRevision ||
+      options.expectedCycle !== currentTurn.currentTurn) {
+    throw new Error('The mission-start request is stale. Refresh the facilitator console and retry.');
+  }
+  if (options.chart !== store.session.chartId) {
+    throw new Error('The mission opportunity no longer matches the locked organiser chart. Refresh and retry.');
+  }
+  const payload = { ...options, participantUids: [...options.participantUids] };
+  const checkpoint = sessionAuthorityCheckpoint(payload.sessionId, sessionAuthorityUid(store));
+  try {
+    await ensureSignedIn();
+    const call = httpsCallable<typeof payload, unknown>(functions(), 'dealPrivateInitialCards');
+    const reply = awayMissionStartReply((await call(payload)).data, payload);
+    if (authorityCheckpointIsCurrent(checkpoint)) useSessionStore.getState().setCommunicationError(null);
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
 export interface AwayMissionDiscardReply {
   readonly status: 'committed' | 'replayed' | 'stale';
   readonly sessionId: string;

@@ -75,9 +75,11 @@ import type {
   WolfCultIntelligence,
   ArbourVision,
   ArbourVisionKind,
+  AwayMissionStartSnapshot,
   AwayMissionHand,
   AwayMissionHandPhase,
   AwayMissionHandPointer,
+  MissionOpportunity,
   MaliadesStateRecord,
   ArrestPosseCalculation,
   VipCard,
@@ -539,13 +541,29 @@ function awayMissionHandPointer(
   const raw = value as Record<string, unknown>;
   const participantUid = parseEntityId('player', raw.participantUid);
   const phase = raw.phase as AwayMissionHandPhase;
+  const hasStartContext = raw.groupId !== undefined || raw.chart !== undefined ||
+    raw.coordinate !== undefined || raw.siteCode !== undefined || raw.sourceCycle !== undefined ||
+    raw.participantCount !== undefined || raw.missionLeaderUid !== undefined ||
+    raw.missionLeaderRoleId !== undefined;
+  const groupId = raw.groupId === undefined ? undefined : parseEntityId('group', raw.groupId);
+  const missionLeaderUid = raw.missionLeaderUid === undefined
+    ? undefined : parseEntityId('player', raw.missionLeaderUid);
+  const missionLeaderRoleId = raw.missionLeaderRoleId === undefined
+    ? undefined : parseEntityId('role', raw.missionLeaderRoleId);
   if (
     raw.type !== 'away-mission-hand-pointer' || raw.sessionId !== sessionId ||
     !participantUid || (uid !== undefined && participantUid !== uid) ||
     !isWireSafeEntityId(raw.missionId) || !isWireSafeEntityId(raw.handId) ||
     !AWAY_MISSION_HAND_PHASES.has(phase) ||
     !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 0 ||
-    typeof raw.discarded !== 'boolean'
+    typeof raw.discarded !== 'boolean' ||
+    (hasStartContext && (!groupId ||
+      (raw.chart !== 'A' && raw.chart !== 'B' && raw.chart !== 'C') ||
+      typeof raw.coordinate !== 'string' || !/^\d{4}$/.test(raw.coordinate) ||
+      typeof raw.siteCode !== 'string' || !/^[A-P]$/.test(raw.siteCode) ||
+      !Number.isSafeInteger(raw.sourceCycle) || (raw.sourceCycle as number) < 0 ||
+      !Number.isSafeInteger(raw.participantCount) || (raw.participantCount as number) < 1 ||
+      (raw.participantCount as number) > 33 || !missionLeaderUid || !missionLeaderRoleId))
   ) return null;
   return {
     sessionId: entityId('session', sessionId),
@@ -555,6 +573,110 @@ function awayMissionHandPointer(
     phase,
     revision: raw.revision as number,
     discarded: raw.discarded,
+    ...(hasStartContext ? {
+      groupId: groupId!,
+      chart: raw.chart as SessionChartId,
+      coordinate: raw.coordinate as NonNullable<AwayMissionHandPointer['coordinate']>,
+      siteCode: raw.siteCode as string,
+      sourceCycle: raw.sourceCycle as number,
+      participantCount: raw.participantCount as number,
+      missionLeaderUid: missionLeaderUid!,
+      missionLeaderRoleId: missionLeaderRoleId!,
+    } : {}),
+  };
+}
+
+function missionOpportunity(
+  value: unknown,
+  sessionId: string,
+  opportunityId: string,
+): MissionOpportunity | null {
+  const raw = recordValue(value);
+  const parsedSessionId = parseEntityId('session', sessionId);
+  const groupId = parseEntityId('group', raw?.groupId);
+  const sourceShipId = parseEntityId('vessel', raw?.sourceShipId);
+  if (!raw || !parsedSessionId || raw.type !== 'mission-opportunity' || raw.status !== 'available' ||
+      raw.sessionId !== sessionId || raw.id !== opportunityId || !isWireSafeEntityId(opportunityId) ||
+      !groupId || (raw.chart !== 'A' && raw.chart !== 'B' && raw.chart !== 'C') ||
+      typeof raw.coordinate !== 'string' || !/^\d{4}$/.test(raw.coordinate) ||
+      typeof raw.siteCode !== 'string' || !/^[A-P]$/.test(raw.siteCode) || !sourceShipId ||
+      typeof raw.sourceTransitionId !== 'string' ||
+      !/^(navigation|jump)-[A-Za-z0-9_-]{1,128}$/.test(raw.sourceTransitionId) ||
+      !Number.isSafeInteger(raw.sourceCycle) || (raw.sourceCycle as number) < 0) return null;
+  return {
+    type: 'mission-opportunity', status: 'available', sessionId: entityId('session', sessionId),
+    id: opportunityId, groupId, chart: raw.chart, coordinate: raw.coordinate,
+    siteCode: raw.siteCode, sourceShipId, sourceTransitionId: raw.sourceTransitionId,
+    sourceCycle: raw.sourceCycle as number,
+  };
+}
+
+function awayMissionStartSnapshot(value: unknown, sessionId: string): AwayMissionStartSnapshot | null {
+  const raw = recordValue(value);
+  const inputs = recordValue(raw?.inputs);
+  const source = recordValue(raw?.source);
+  const missionLeader = recordValue(raw?.missionLeader);
+  const missionLeaderUid = parseEntityId('player', missionLeader?.uid);
+  const missionLeaderRoleId = parseEntityId('role', missionLeader?.roleId);
+  const actorUid = parseEntityId('player', raw?.actorUid);
+  const sourceShipId = parseEntityId('vessel', raw?.sourceShipId);
+  const groupId = parseEntityId('group', raw?.groupId);
+  const createdAt = timestampString(raw?.createdAt);
+  if (!raw || raw.type !== 'away-mission-start-snapshot' || raw.sessionId !== sessionId ||
+      !isWireSafeEntityId(raw.opportunityId) || !isWireSafeEntityId(raw.missionId) ||
+      !groupId || (raw.chart !== 'A' && raw.chart !== 'B' && raw.chart !== 'C') ||
+      typeof raw.coordinate !== 'string' || !/^\d{4}$/.test(raw.coordinate) ||
+      typeof raw.siteCode !== 'string' || !/^[A-P]$/.test(raw.siteCode) || !sourceShipId ||
+      typeof raw.sourceTransitionId !== 'string' ||
+      !/^(navigation|jump)-[A-Za-z0-9_-]{1,128}$/.test(raw.sourceTransitionId) ||
+      !Number.isSafeInteger(raw.sourceCycle) || (raw.sourceCycle as number) < 0 ||
+      !missionLeaderUid || !missionLeaderRoleId || !actorUid ||
+      typeof raw.instanceId !== 'string' || !isWireSafeEntityId(raw.instanceId) ||
+      typeof raw.requestId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(raw.requestId) ||
+      !source || source.assumptionId !== 'PC04-A1' ||
+      typeof source.playerGuide !== 'string' || typeof source.facilitatorGuide !== 'string' ||
+      typeof source.a4CardPack !== 'string' ||
+      typeof source.ruleId !== 'string' || !inputs ||
+      !Number.isSafeInteger(inputs.expectedSetupRevision) ||
+      !Number.isSafeInteger(inputs.expectedPhaseRevision) || !Number.isSafeInteger(inputs.expectedCycle) ||
+      inputs.missionLeaderUid !== missionLeaderUid || !Array.isArray(inputs.participantSnapshots) ||
+      inputs.participantSnapshots.length < 1 || inputs.participantSnapshots.length > 33 ||
+      !Array.isArray(raw.modifiers) || raw.modifiers.some((modifier) => typeof modifier !== 'string') ||
+      typeof raw.outcome !== 'string' || !recordValue(raw.stateDelta) ||
+      !recordValue(raw.revisions) || !recordValue(raw.replay) || !recordValue(raw.recovery) || !createdAt) return null;
+  const participants = inputs.participantSnapshots.flatMap((entry) => {
+    const participant = recordValue(entry);
+    const uid = parseEntityId('player', participant?.uid);
+    const roleId = parseEntityId('role', participant?.roleId);
+    if (!participant || !uid || !roleId || !Array.isArray(participant.craftIds) ||
+        participant.craftIds.length === 0 || participant.craftIds.some((craftId) => typeof craftId !== 'string')) return [];
+    return [{ uid, roleId, craftIds: participant.craftIds as string[] }];
+  });
+  if (participants.length !== inputs.participantSnapshots.length ||
+      !participants.some((participant) => participant.uid === missionLeaderUid)) return null;
+  return {
+    type: 'away-mission-start-snapshot', sessionId: entityId('session', sessionId),
+    opportunityId: raw.opportunityId as string, missionId: raw.missionId as string, groupId,
+    chart: raw.chart, coordinate: raw.coordinate as AwayMissionStartSnapshot['coordinate'],
+    siteCode: raw.siteCode, sourceShipId, sourceTransitionId: raw.sourceTransitionId,
+    sourceCycle: raw.sourceCycle as number,
+    missionLeader: { uid: missionLeaderUid, roleId: missionLeaderRoleId },
+    actorUid, instanceId: raw.instanceId, requestId: raw.requestId,
+    source: {
+      assumptionId: 'PC04-A1', playerGuide: source.playerGuide,
+      facilitatorGuide: source.facilitatorGuide, a4CardPack: source.a4CardPack,
+      ruleId: source.ruleId,
+    },
+    inputs: {
+      expectedSetupRevision: inputs.expectedSetupRevision as number,
+      expectedPhaseRevision: inputs.expectedPhaseRevision as number,
+      expectedCycle: inputs.expectedCycle as number,
+      participantSnapshots: participants,
+      missionLeaderUid,
+    },
+    modifiers: raw.modifiers as string[], outcome: raw.outcome,
+    stateDelta: recordValue(raw.stateDelta)!, revisions: recordValue(raw.revisions)!,
+    replay: recordValue(raw.replay)!, recovery: recordValue(raw.recovery)!, createdAt,
   };
 }
 
@@ -3882,6 +4004,66 @@ export function subscribeGmFacilitatorRuleCall(
     subscribed = false;
     unsubscribe();
     onCall(null);
+  };
+}
+
+/** Subscribe to the exact server-authored arrival opportunities available to the facilitator. */
+export function subscribeGmMissionOpportunities(
+  sessionId: string,
+  onOpportunities: (opportunities: readonly MissionOpportunity[]) => void,
+): Unsubscribe {
+  let subscribed = true;
+  onOpportunities([]);
+  const unsubscribe = onSnapshot(
+    collection(db(), `sessions/${sessionId}/missionOpportunities`),
+    { includeMetadataChanges: true },
+    (snapshot) => {
+      if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      onOpportunities(snapshot.docs.flatMap((entry) => {
+        const parsed = missionOpportunity(entry.data(), sessionId, entry.id);
+        return parsed ? [parsed] : [];
+      }));
+    },
+    () => {
+      if (subscribed) onOpportunities([]);
+    },
+  );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+    onOpportunities([]);
+  };
+}
+
+/** Subscribe to complete mission-start GM-log receipts; clients cannot write these records. */
+export function subscribeGmMissionStartSnapshots(
+  sessionId: string,
+  onSnapshots: (snapshots: readonly AwayMissionStartSnapshot[]) => void,
+): Unsubscribe {
+  let subscribed = true;
+  onSnapshots([]);
+  const unsubscribe = onSnapshot(
+    query(
+      collection(db(), `sessions/${sessionId}/missionStartSnapshots`),
+      orderBy('createdAt', 'desc'),
+      limit(40),
+    ),
+    { includeMetadataChanges: true },
+    (snapshot) => {
+      if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      onSnapshots(snapshot.docs.flatMap((entry) => {
+        const parsed = awayMissionStartSnapshot(entry.data(), sessionId);
+        return parsed ? [parsed] : [];
+      }));
+    },
+    () => {
+      if (subscribed) onSnapshots([]);
+    },
+  );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+    onSnapshots([]);
   };
 }
 

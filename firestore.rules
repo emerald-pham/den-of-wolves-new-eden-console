@@ -831,6 +831,14 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // A mission start carries the facilitator's complete source/input/outcome
+      // receipt. It is immutable and current-GM-only; member-safe mission
+      // context travels separately on each participant's hand pointer.
+      match /missionStartSnapshots/{opportunityId} {
+        allow get, list: if isGm(sessionId);
+        allow write: if false;
+      }
+
       // Only the separately authored player report is member-readable.
       match /crisisReports/{reportId} {
         allow get: if reportId == 'current' && isMember(sessionId);

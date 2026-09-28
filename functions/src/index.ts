@@ -509,6 +509,7 @@ import {
   type VipDeckState,
 } from './vipCards';
 import { organiserSitesForChart } from './starChartLookup';
+import { missionCardForCode } from './missionCards';
 import { allDiscoverySystems } from './starChartProjection';
 import { discoverySystemsForCoordinates } from './starChartProjection';
 import { pursuitDistancesForCoordinates } from './starChartProjection';
@@ -9002,10 +9003,20 @@ type AwayMissionDealReply = Readonly<{
   status: 'committed' | 'replayed' | 'stale';
   sessionId: string;
   requestId: string;
+  opportunityId: string;
+  snapshotId: string;
   missionId: string;
+  groupId: string;
+  coordinate: string;
+  sourceCycle: number;
   participantCount: number;
+  missionLeaderUid: string;
   expectedSetupRevision: number;
+  expectedPhaseRevision: number;
+  expectedCycle: number;
   currentSetupRevision?: number;
+  currentPhaseRevision?: number;
+  currentCycle?: number;
 }>;
 
 function isAwayMissionDealReply(value: unknown, sessionId: string): value is AwayMissionDealReply {
@@ -9013,49 +9024,77 @@ function isAwayMissionDealReply(value: unknown, sessionId: string): value is Awa
   const reply = value as Record<string, unknown>;
   return reply.sessionId === sessionId &&
     (reply.status === 'committed' || reply.status === 'replayed' || reply.status === 'stale') &&
-    typeof reply.requestId === 'string' && typeof reply.missionId === 'string' &&
+    typeof reply.requestId === 'string' && typeof reply.opportunityId === 'string' &&
+    typeof reply.snapshotId === 'string' && typeof reply.missionId === 'string' &&
+    typeof reply.groupId === 'string' && typeof reply.coordinate === 'string' &&
+    typeof reply.missionLeaderUid === 'string' && Number.isSafeInteger(reply.sourceCycle) &&
     Number.isSafeInteger(reply.participantCount) && (reply.participantCount as number) > 0 &&
     Number.isSafeInteger(reply.expectedSetupRevision) && (reply.expectedSetupRevision as number) >= 0 &&
+    Number.isSafeInteger(reply.expectedPhaseRevision) && (reply.expectedPhaseRevision as number) >= 0 &&
+    Number.isSafeInteger(reply.expectedCycle) && (reply.expectedCycle as number) >= 1 &&
     (reply.currentSetupRevision === undefined ||
-      (Number.isSafeInteger(reply.currentSetupRevision) && (reply.currentSetupRevision as number) >= 0));
+      (Number.isSafeInteger(reply.currentSetupRevision) && (reply.currentSetupRevision as number) >= 0)) &&
+    (reply.currentPhaseRevision === undefined ||
+      (Number.isSafeInteger(reply.currentPhaseRevision) && (reply.currentPhaseRevision as number) >= 0)) &&
+    (reply.currentCycle === undefined ||
+      (Number.isSafeInteger(reply.currentCycle) && (reply.currentCycle as number) >= 1));
 }
 
-/** Deal one private initial card to an explicitly selected away-mission roster. */
+/** Start a source-bound mission and perform the existing private initial deal atomically. */
 export const dealPrivateInitialCards = onCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
   expectedSetupRevision?: unknown;
-  missionId?: unknown;
+  expectedPhaseRevision?: unknown;
+  expectedCycle?: unknown;
+  opportunityId?: unknown;
+  groupId?: unknown;
+  chart?: unknown;
+  coordinate?: unknown;
+  sourceCycle?: unknown;
+  missionLeaderUid?: unknown;
   participantUids?: unknown;
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const command = requireAwayMissionCardDealRequest(request.data ?? {});
   const markerRef = commandReceiptRef(command.sessionId, command.requestId);
   const eventRef = db.doc(`sessions/${command.sessionId}/events/mission-cards-dealt-${command.requestId}`);
+  const opportunityRef = db.doc(missionOpportunityDocumentPath(command.sessionId, command.opportunityId));
+  const startSnapshotRef = db.doc(`sessions/${command.sessionId}/missionStartSnapshots/${command.opportunityId}`);
   const playersRef = db.collection(`sessions/${command.sessionId}/players`);
   const fleetGroupsRef = db.collection(`sessions/${command.sessionId}/fleetGroups`);
   const craftOwnershipManifestRef = db.doc(`sessions/${command.sessionId}/craftOwnership/manifest`);
   const missionDeckRef = db.doc(`sessions/${command.sessionId}/serverState/missionDeck`);
+  const navigationRef = navigationStateRef(command.sessionId);
+  const missionId = `mission-${command.opportunityId}`;
   const missionRef = db.doc(
-    `sessions/${command.sessionId}/serverState/awayMissions/instances/${command.missionId}`,
+    `sessions/${command.sessionId}/serverState/awayMissions/instances/${missionId}`,
   );
   const markerFingerprint: CommandFingerprint = {
-    action: 'deal-private-initial-cards',
+    action: 'start-away-mission',
     sessionId: command.sessionId,
     requestId: command.requestId,
     actorUid: uid,
     instanceId: command.instanceId,
-    expectedRevision: command.expectedSetupRevision,
+    expectedRevision: command.expectedPhaseRevision,
     payload: {
-      missionId: command.missionId,
+      expectedSetupRevision: command.expectedSetupRevision,
+      expectedCycle: command.expectedCycle,
+      opportunityId: command.opportunityId,
+      groupId: command.groupId,
+      chart: command.chart,
+      coordinate: command.coordinate,
+      sourceCycle: command.sourceCycle,
       participantUids: command.participantUids,
+      missionLeaderUid: command.missionLeaderUid,
     },
   };
 
   return db.runTransaction(async (tx) => {
     const [marker, authority, players, fleetGroups, craftOwnershipManifest,
-      missionDeckSnapshot, missionSnapshot, eventSnapshot] =
+      missionDeckSnapshot, navigationSnapshot, opportunitySnapshot, startSnapshotSnapshot,
+      missionSnapshot, eventSnapshot] =
       await Promise.all([
         tx.get(markerRef),
         requireFacilitatorInstance(tx, command.sessionId, uid, command.instanceId),
@@ -9063,6 +9102,9 @@ export const dealPrivateInitialCards = onCall<{
         tx.get(fleetGroupsRef),
         tx.get(craftOwnershipManifestRef),
         tx.get(missionDeckRef),
+        tx.get(navigationRef),
+        tx.get(opportunityRef),
+        tx.get(startSnapshotRef),
         tx.get(missionRef),
         tx.get(eventRef),
       ]);
@@ -9079,19 +9121,40 @@ export const dealPrivateInitialCards = onCall<{
       if (!isAwayMissionDealReply(result, command.sessionId)) {
         throw commandError('failed-precondition', 'This away-mission deal has no replayable result.', 'conflict');
       }
+      if (result.status !== 'stale' && !startSnapshotSnapshot.exists) {
+        throw commandError('failed-precondition', 'The mission-start receipt is missing; refresh before retrying.', 'conflict');
+      }
       return { ...result, status: 'replayed' as const };
     }
 
     const currentSetupRevision = setupRevision(authority.session);
-    if (currentSetupRevision !== command.expectedSetupRevision) {
+    const activePhase = turnPhaseState(authority.session.get('turnPhase'));
+    const currentCycleRaw = authority.session.get('currentTurn');
+    const currentCycle = Number.isSafeInteger(currentCycleRaw) && (currentCycleRaw as number) >= 1
+      ? currentCycleRaw as number
+      : undefined;
+    const currentTurnState = activePhase
+      ? sessionTurnState(authority.session, activePhase)
+      : undefined;
+    if (!currentTurnState || !activePhase || currentCycle === undefined ||
+        activePhase.turn !== currentCycle || currentTurnState.currentTurn !== currentCycle) {
+      throw commandError(
+        'failed-precondition',
+        'Away-mission start requires a current server-authorized phase and cycle.',
+        'invalid-phase',
+      );
+    }
+    if (currentSetupRevision !== command.expectedSetupRevision ||
+        currentTurnState.phaseRevision !== command.expectedPhaseRevision ||
+        currentCycle !== command.expectedCycle) {
       const reply: AwayMissionDealReply = {
-        status: 'stale',
-        sessionId: command.sessionId,
-        requestId: command.requestId,
-        missionId: command.missionId,
-        participantCount: command.participantUids.length,
+        status: 'stale', sessionId: command.sessionId, requestId: command.requestId,
+        opportunityId: command.opportunityId, snapshotId: command.opportunityId, missionId,
+        groupId: command.groupId, coordinate: command.coordinate, sourceCycle: command.sourceCycle,
+        participantCount: command.participantUids.length, missionLeaderUid: command.missionLeaderUid,
         expectedSetupRevision: command.expectedSetupRevision,
-        currentSetupRevision,
+        expectedPhaseRevision: command.expectedPhaseRevision, expectedCycle: command.expectedCycle,
+        currentSetupRevision, currentPhaseRevision: currentTurnState.phaseRevision, currentCycle,
       };
       tx.set(markerRef, {
         fingerprint: markerFingerprint,
@@ -9107,8 +9170,60 @@ export const dealPrivateInitialCards = onCall<{
         'invalid-phase',
       );
     }
+    if (startSnapshotSnapshot.exists || missionSnapshot.exists) {
+      throw commandError(
+        'failed-precondition',
+        'That newly reached opportunity already has a mission start.',
+        'conflict',
+      );
+    }
     const activeRoleIds = sessionActiveRoleIds(authority.session);
     const lockedSetup = canonicalSetupForSession(authority.session, activeRoleIds);
+    if (command.chart !== lockedSetup.chartId ||
+        (authority.session.get('chartSelectionLocked') !== true &&
+          authority.session.get('configurationLocked') !== true)) {
+      throw commandError(
+        'failed-precondition',
+        'Away-mission start requires the current locked organiser chart.',
+        'conflict',
+      );
+    }
+    const expectedSiteCode = organiserSitesForChart(command.chart)[command.coordinate]?.code;
+    const missionDefinition = expectedSiteCode ? missionCardForCode(expectedSiteCode) : undefined;
+    if (!missionDefinition) {
+      throw commandError('failed-precondition', 'That coordinate is not an eligible mission location.', 'conflict');
+    }
+    const rawOpportunity = opportunitySnapshot.exists ? opportunitySnapshot.data() : undefined;
+    if (!isRecord(rawOpportunity) || rawOpportunity.siteCode !== missionDefinition.code ||
+        typeof rawOpportunity.sourceShipId !== 'string' || typeof rawOpportunity.sourceTransitionId !== 'string') {
+      throw commandError('failed-precondition', 'The source-authorized new-location opportunity is unavailable.', 'conflict');
+    }
+    let opportunity: MissionOpportunityEligibility;
+    try {
+      opportunity = parseStoredMissionOpportunity(rawOpportunity, command.sessionId, {
+        type: 'mission-opportunity', status: 'available',
+        id: command.opportunityId, groupId: command.groupId,
+        chart: command.chart, coordinate: command.coordinate,
+        siteCode: missionDefinition.code,
+        sourceShipId: rawOpportunity.sourceShipId,
+        sourceTransitionId: rawOpportunity.sourceTransitionId,
+        sourceCycle: command.sourceCycle,
+      });
+    } catch (cause) {
+      throw commandError(
+        'failed-precondition',
+        cause instanceof Error ? cause.message : 'The recorded mission opportunity does not match this request.',
+        'conflict',
+      );
+    }
+    if (opportunity.sourceCycle !== command.sourceCycle) {
+      throw commandError(
+        'failed-precondition',
+        'The mission request does not match the opportunity source cycle.',
+        'conflict',
+      );
+    }
+
     const expectedCraftManifest = roleOwnedCraftManifestForSetup(
       lockedSetup.activeRoleIds,
       vesselModeForConfiguration(lockedSetup),
@@ -9118,6 +9233,27 @@ export const dealPrivateInitialCards = onCall<{
       fleetGroups,
       players,
     );
+    if (!navigationSnapshot.exists || !isRecord(navigationSnapshot.data()) ||
+        !Number.isSafeInteger(navigationSnapshot.get('revision')) ||
+        (navigationSnapshot.get('revision') as number) < 0) {
+      throw commandError('failed-precondition', 'Current navigation authority is unavailable.', 'conflict');
+    }
+    const currentNavigationRevision = navigationSnapshot.get('revision') as number;
+    const currentNavigation = navigationStateForSession(
+      navigationSnapshot,
+      authority.session,
+      activeVesselIdsForSession(authority.session),
+    );
+    const opportunityGroup = canonicalFleetGroups.find((group) => group.id === opportunity.groupId);
+    if (!opportunityGroup ||
+        !opportunityGroup.vesselIds.some((vesselId) =>
+          currentNavigation.shipGalacticCoordinates[vesselId] === opportunity.coordinate)) {
+      throw commandError(
+        'failed-precondition',
+        'The recorded opportunity group is no longer at its source coordinate.',
+        'conflict',
+      );
+    }
     if (!craftOwnershipManifest.exists ||
         !roleOwnedCraftManifestMatches(craftOwnershipManifest.data(), expectedCraftManifest)) {
       throw commandError(
@@ -9152,11 +9288,11 @@ export const dealPrivateInitialCards = onCall<{
           .map((craft) => craft.id)
         : [];
       if (!player || !isActivePlayer(player) || player.get('role') !== 'player' ||
-          typeof roleId !== 'string' || !activeRoleIds.includes(roleId) ||
-          typeof groupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(groupId) ||
-          canonicalGroupId !== groupId ||
-          (missionGroupId !== undefined && missionGroupId !== canonicalGroupId) ||
-          sourceCraftIds.length === 0 ||
+        typeof roleId !== 'string' || !activeRoleIds.includes(roleId) ||
+        typeof groupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(groupId) ||
+        canonicalGroupId !== groupId || groupId !== opportunity.groupId ||
+        (missionGroupId !== undefined && missionGroupId !== canonicalGroupId) ||
+        sourceCraftIds.length === 0 ||
           sourceCraftIds.some((craftId) => !manifestCraftIds.includes(craftId))) {
         throw commandError(
           'failed-precondition',
@@ -9171,10 +9307,10 @@ export const dealPrivateInitialCards = onCall<{
         craftIds: [...sourceCraftIds],
       });
     }
-    if (!missionGroupId) {
+    if (!missionGroupId || !participants.some((participant) => participant.uid === command.missionLeaderUid)) {
       throw commandError(
         'failed-precondition',
-        'Away-mission deal blocked: fleet-group authority.',
+        'The selected Mission Leader must be a current participant in the opportunity group.',
         'malformed-input',
       );
     }
@@ -9218,13 +9354,61 @@ export const dealPrivateInitialCards = onCall<{
       );
     }
 
+    const missionLeader = participants.find((participant) => participant.uid === command.missionLeaderUid)!;
     const reply: AwayMissionDealReply = {
-      status: 'committed',
-      sessionId: command.sessionId,
-      requestId: command.requestId,
-      missionId: command.missionId,
-      participantCount: participants.length,
+      status: 'committed', sessionId: command.sessionId, requestId: command.requestId,
+      opportunityId: opportunity.id, snapshotId: opportunity.id, missionId,
+      groupId: opportunity.groupId, coordinate: opportunity.coordinate, sourceCycle: opportunity.sourceCycle,
+      participantCount: participants.length, missionLeaderUid: missionLeader.uid,
       expectedSetupRevision: command.expectedSetupRevision,
+      expectedPhaseRevision: command.expectedPhaseRevision, expectedCycle: command.expectedCycle,
+    };
+    const startSnapshot = {
+      type: 'away-mission-start-snapshot', schemaVersion: 1,
+      sessionId: command.sessionId, opportunityId: opportunity.id, missionId,
+      groupId: opportunity.groupId, chart: opportunity.chart, coordinate: opportunity.coordinate,
+      siteCode: opportunity.siteCode, sourceShipId: opportunity.sourceShipId,
+      sourceTransitionId: opportunity.sourceTransitionId, sourceCycle: opportunity.sourceCycle,
+      missionLeader: { uid: missionLeader.uid, roleId: missionLeader.roleId },
+      actorUid: uid, instanceId: command.instanceId, requestId: command.requestId,
+      source: {
+        assumptionId: 'PC04-A1',
+        playerGuide: 'Player’s Guide v1.1, printed pp. 14–15',
+        facilitatorGuide: 'Facilitator’s Guide v1.1, printed pp. 13–17',
+        a4CardPack: 'A4 card pack v1.1, printed shuttle and ship sheets',
+        ruleId: 'new-location-mission-with-team-selected-leader',
+      },
+      inputs: {
+        expectedSetupRevision: command.expectedSetupRevision,
+        expectedPhaseRevision: command.expectedPhaseRevision,
+        expectedCycle: command.expectedCycle,
+        participantSnapshots: participants,
+        missionLeaderUid: missionLeader.uid,
+      },
+      modifiers: [], outcome: 'started',
+      stateDelta: {
+        missionSnapshotCreated: true,
+        participantHandCount: participants.length,
+        participantPointerCount: participants.length,
+        missionDeckDealtCountBefore: dealtCount,
+        missionDeckDealtCountAfter: dealtCount + allocations.length,
+      },
+      revisions: {
+        startSnapshot: 0, mission: 0,
+        setup: currentSetupRevision,
+        phase: { cycle: currentTurnState.currentTurn, phase: currentTurnState.phase, revision: currentTurnState.phaseRevision },
+        navigation: currentNavigationRevision,
+        missionDeck: { before: dealtCount, after: dealtCount + allocations.length },
+      },
+      replay: {
+        status: 'committed', requestId: command.requestId,
+        retryRule: 'Reuse this requestId and unchanged inputs after an ambiguous transport result.',
+      },
+      recovery: {
+        next: 'Refresh the live mission panel and participant private-hand panel.',
+        duplicateStart: 'This opportunity has one immutable mission-start snapshot and cannot be started twice.',
+      },
+      createdAt: FieldValue.serverTimestamp(),
     };
     tx.set(missionRef, {
       schemaVersion: 1,
@@ -9232,24 +9416,35 @@ export const dealPrivateInitialCards = onCall<{
       revision: 0,
       discardedParticipantUids: [],
       discardedCardIds: [],
-      missionId: command.missionId,
+      missionId,
       requestId: command.requestId,
       actorUid: uid,
       groupId: missionGroupId,
+      opportunityId: opportunity.id,
+      chart: opportunity.chart,
+      coordinate: opportunity.coordinate,
+      siteCode: opportunity.siteCode,
+      sourceCycle: opportunity.sourceCycle,
+      missionLeaderUid: missionLeader.uid,
+      missionLeaderRoleId: missionLeader.roleId,
       participantSnapshots: participants,
-      handIds: participants.map((participant) => awayMissionHandId(command.missionId, participant.uid)),
+      handIds: participants.map((participant) => awayMissionHandId(missionId, participant.uid)),
       cardIds: allocations.map(({ card }) => card.id),
       dealtFrom: dealtCount,
       dealtThrough: dealtCount + allocations.length,
       createdAt: FieldValue.serverTimestamp(),
     });
+    // A source opportunity can start only once, even when two valid GM
+    // requests race after both read it as unused. create() preserves the
+    // immutable receipt boundary; all deal writes share this transaction.
+    tx.create(startSnapshotRef, startSnapshot);
     for (const allocation of allocations) {
-      const handId = awayMissionHandId(command.missionId, allocation.participant.uid);
+      const handId = awayMissionHandId(missionId, allocation.participant.uid);
       tx.set(db.doc(`sessions/${command.sessionId}/awayMissionHands/${handId}`), {
         type: 'away-mission-hand',
         sessionId: command.sessionId,
         handId,
-        missionId: command.missionId,
+        missionId,
         participantUid: allocation.participant.uid,
         cardId: allocation.card.id,
         rank: allocation.card.rank,
@@ -9261,8 +9456,16 @@ export const dealPrivateInitialCards = onCall<{
         type: 'away-mission-hand-pointer',
         sessionId: command.sessionId,
         participantUid: allocation.participant.uid,
-        missionId: command.missionId,
+        missionId,
         handId,
+        groupId: opportunity.groupId,
+        chart: opportunity.chart,
+        coordinate: opportunity.coordinate,
+        siteCode: opportunity.siteCode,
+        sourceCycle: opportunity.sourceCycle,
+        participantCount: participants.length,
+        missionLeaderUid: missionLeader.uid,
+        missionLeaderRoleId: missionLeader.roleId,
         phase: 'awaiting-card-selection',
         revision: 0,
         discarded: false,
