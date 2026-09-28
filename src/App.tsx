@@ -1,6 +1,6 @@
 import { commissarPurgeAuthorityIsCurrent } from '@/lib/commissarPurgeAuthority';
-import { useEffect, useRef } from 'react';
-import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { lazy, Suspense, useEffect, useRef } from 'react';
+import { HashRouter, Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import Landing from '@/routes/Landing';
 import RoleSelect from '@/routes/RoleSelect';
 import NotFound from '@/routes/NotFound';
@@ -41,7 +41,6 @@ import CrisisReportPanel from '@/components/CrisisReportPanel';
 import PrivateLoyaltyPanel from '@/components/PrivateLoyaltyPanel';
 import EndgameDialog from '@/components/EndgameDialog';
 import AwayMissionDiscardPanel from '@/components/AwayMissionDiscardPanel';
-import RoleBrief from '@/routes/RoleBrief';
 import EscapeState from '@/routes/EscapeState';
 import ReplacementRoleWorkspace from '@/routes/ReplacementRoleWorkspace';
 import type {
@@ -60,6 +59,7 @@ import { stripGmNavigationProjection } from '@/lib/navigationPrivacy';
 
 const GM_RECONCILE_INTERVAL_MS = 5_000;
 const PRESENCE_HEARTBEAT_INTERVAL_MS = 10_000;
+const RoleBrief = lazy(() => import('@/routes/RoleBrief'));
 const hasConsoleDradis = (path: string): boolean =>
   path === '/press' || path.startsWith('/ships/') || path.startsWith('/union/') ||
   path.startsWith('/shuttles/') || path.startsWith('/replacement/');
@@ -843,7 +843,20 @@ function AppRoutes() {
             {escapeLocked ? <EscapeState /> : <Routes location={screen}>
               <Route path="/" element={home} />
               <Route path="/roles" element={<RoleSelect />} />
-              <Route path="/brief" element={<RoleBrief />} />
+              <Route path="/brief" element={
+                <Suspense fallback={
+                  <main className="role-brief-screen">
+                    <article className="role-brief cic-frame">
+                      <Link className="session-mode__back cic-text-button" to="/roles">
+                        Back to roles
+                      </Link>
+                      <p role="status">Opening private briefing…</p>
+                    </article>
+                  </main>
+                }>
+                  <RoleBrief />
+                </Suspense>
+              } />
               <Route path="/escape" element={<EscapeState />} />
               <Route path="/gm" element={<GmConsole />} />
               <Route path="/console" element={<SessionMode mode="console" />} />
