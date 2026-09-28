@@ -118,7 +118,7 @@ tour must fit one sitting; if it does not, split the shape before building it.
 | Playtest checkpoint | Owner's UI yes/no question |
 |---|---|
 | PC01 — Shepherd science station | Can I find research, upgrades, ECM, and scouting, and understand each control's state and result? |
-| PC02 — Setup and fleet board | Can I move from setup to the fleet board and understand the current turn, rations, alerts, and available actions? |
+| PC02 — Setup, fleet board, and continuity | Can I move from setup into the fleet board, read the current cycle, rations, alerts, and actions, follow Press and DRADIS updates, and recover from a player exit or reconnect? |
 | PC03 — Navigation and shuttle controls | Can I find the map, drive, shuttle, stores, and service controls and understand their visible status and feedback? |
 | PC04 — Exploration and split-fleet map | Can I follow an away mission and tell which group, location, and information each map or message belongs to? |
 | PC05 — Turn and attack dashboard | Can I follow the turn and attack stages, deadlines, local DRADIS display, and available controls without losing my place? |
@@ -258,3 +258,201 @@ resolution. If no review has arrived, record that fact and continue without
 waiting. The nontechnical PC01 report lists new source-backed assumptions
 first, then the four UI checks, the complete test-change inventory,
 known issues, and later candidates.
+
+## PC02 shape — Setup, fleet board, and session continuity
+
+**State.** Shaped 2026-09-27. PC01's owner walkthrough has not happened, so
+there is no PC01 playtest verdict. The owner did provide separate
+cross-checkpoint guidance, PC01-F01 through PC01-F10, expressly to inform
+PC02–PC10. This shape plans all ten for PC02 because they can be reviewed as
+one opening-to-active-play flow. Every item remains **planned** until the
+released behavior and its applicable proof gates pass; a plan or review-scene
+mock state is not completion evidence.
+
+**Problem.** The path from session entry to the first active cycles needs to
+feel coherent and recoverable. Players should understand the in-universe
+status, receive the information intended for Press, and keep playing when a
+non-GM member intentionally leaves or briefly loses connection. The supplied
+Cycle 0 screenshot shows the Primary Status instrument on the player role
+selection screen; that instrument is now requested for authenticated GM use
+only.
+
+**In scope.** Walk from the existing Code of Conduct gate and confirmed setup
+through Cycle 0 into an active fleet-board state. Address the ten owner notes
+below. The setup/onboarding support is the current PC02 cluster P589 (ground
+rules), P590 (core-loop help), P599 (single-facilitator setup checklist), and
+P600 (onboarding-to-first-action scenario), executed only after their hard
+prerequisites are satisfied. Keep Press as an editorial handoff: committed
+event records enter the Press-facing log, while only an authorized Press
+Officer's existing publish action places copy in the public fleet ticker. Use only current authoritative
+population/purge outcomes and existing President records. Do not invent
+population math, new President effects, or unpublished ticker copy. Deliberate
+Leave Session and a temporary connection loss are separate states: voluntary
+leave releases the departing non-GM member's role/seat without ending the
+session; reconnect restores the same member's latest authorized non-GM role
+and private projection without making the disconnect a voluntary leave.
+
+| Note | PC02 disposition | State |
+|---|---|---|
+| PC01-F01 — Survivor population changes and purges go to the Press log. | Add one Press-facing intake record for each committed, source-authorized population change or purge; deduplicate retries and keep private records out of Press/public projections. | Planned |
+| PC01-F02 — Presidential events are handed to Press. | Send eligible records from the existing President workspace to the Press-facing log. This is a handoff for Press review, not automatic public publication or a new President action. | Planned |
+| PC01-F03 — Replace “Awaiting server telemetry” with in-universe language. | Use the exact player-facing pending copy “Awaiting CIC handshake.” Preserve the truthful pending state while authoritative pursuit data is unavailable. | Planned |
+| PC01-F04 — Do not cut off the initial enlarged DRADIS contact. | Keep its large-contact size effect for its full original lifetime. Repeat sweeps continue to produce ordinary pings without shortening or restarting that lifetime; normal size resumes when that original lifetime expires. | Planned |
+| PC01-F05 — A player may drop out midgame in every non-GM role. | Prove deliberate departure for each non-GM role/seat class, including Press, while the session and remaining players continue. Do not transfer the departing member's private state or authority. | Planned |
+| PC01-F06 — Keep the three Code of Conduct checks for 72 hours. | Keep the completed three-check acknowledgement valid for 72 hours on the same device, then require all three again. | Planned |
+| PC01-F07 — The screenshot's Primary Status panel is GM-only. | Show the Cycle/Phase/Location/Authority/Next action/Failure state instrument only to an authenticated GM; non-GM rendered and accessible UI must not expose that panel. | Planned |
+| PC01-F08 — Keep Leave Session out of the top of the screen. | Put the Leave Session control in Settings. Preserve a visible, keyboard-accessible route back to each screen's logical parent. | Planned |
+| PC01-F09 — DRADIS contact names must not overlap plot content. | Keep every rendered contact name readable, including at crowded plot positions and narrow viewports, without obscuring other contacts or plot content. | Planned |
+| PC01-F10 — Reconnects should be graceful. | A transient reconnect restores the same member's non-GM role and latest authorized private state. It must remain distinct from PC01-F05 voluntary leave, which vacates the role/seat. | Planned |
+
+**Out of scope.** Do not resolve the owner decisions for ordinary Wolf
+designation or the zero-eligible-Wolf start outcome; do not broaden existing
+President action families or implement the later President mechanics; do not
+invent new ration, maintenance, riot, mutiny, population, or role-substitution
+rules. A Press intake entry does not bypass Press Officer authority or the
+existing ticker source and playback contract. The twenty-player full-table
+completion proof remains an agent gate for final game completion, not an owner
+playtest step.
+
+**Source-backed assumptions and gaps.**
+
+- The owner's wording “sent to Press” means an editorial intake that the Press
+  Officer may review and publish using existing authority. The current Press
+  desk owns publish/dismiss controls, and the ticker contract says Press
+  contributes published eligible news; this shape does not auto-publish an
+  event. Sources: [PressDispatch.tsx](../src/components/PressDispatch.tsx),
+  [Ticker Behavior](TICKER_BEHAVIOR.md).
+- The President handoff uses existing President workspace records only. That
+  workspace records decisions without applying the later prompts' political,
+  visit, election, crisis, resource, or facilitator effects. Source:
+  implementation prompt 193b in
+  [the prompt catalog](implementation-prompts.json). Prompts 524b–524d remain
+  missing and are not closed by a Press handoff.
+- Two current catalog descriptions conflict with this direct owner guidance:
+  Prompt 589b records a 24-hour same-device waiver lifetime, while the owner
+  requests 72 hours; Prompt 601 records universal Primary Status visibility,
+  while the owner requests GM-only visibility. PC02 follows the newer owner
+  instructions for these two visible behaviors. Sources: prompts 589b and 601
+  in [the prompt catalog](implementation-prompts.json),
+  [sessionWaiver.ts](../src/lib/sessionWaiver.ts), and
+  [PrimaryStatus.tsx](../src/components/PrimaryStatus.tsx).
+- No role replacement or transfer policy is inferred from a departing member.
+  The session remains live, but role claiming/recovery must continue through
+  the existing authorized flow. A transient reconnect uses the same member
+  identity and current server projection. Confirm the applicable role/seat
+  rules during implementation; if a printed rule prevents the requested
+  continuation, document the exact source gap instead of inventing a rule.
+- The DRADIS duration and contact-label requirements are direct owner
+  presentation requirements. They do not alter contact identity, detection,
+  position, scan cadence, or gameplay authority.
+
+**Known rabbit holes.** Press intake and public ticker publication are
+different stages. President event records may be copy-free; only safe,
+source-backed fields should be included in a Press item. Reconnect recovery
+must not restore a role after an explicit leave, revive stale authority, or
+leak another role's private projection. The three waiver checks remain a
+single completed acknowledgement with the existing review/focus behavior; the
+72-hour window changes retention, not the checkboxes' meaning. The large
+contact's original expiry must be measured from its first acquisition, even
+while repeat pings continue. Label placement must be judged with real rendered
+contact names and plot geometry, not only DOM text. Moving Leave Session into
+Settings does not remove route-level return navigation.
+
+**Owner-playable UI yes/no checks.** Deliver one solo guided sitting using
+production components and clearly labeled synthetic states. A view selector
+can show GM, President, Press, and representative non-GM player views without
+account switching. The review scene must not write to a live session. The
+owner judges the presentation and workflow; agents prove authority and
+multi-client behavior separately:
+
+1. **Yes/no — Setup checklist and ground rules.** In the prepared GM view, can
+   one facilitator follow a single checklist that identifies both printed
+   duties and the room, components, chart, casting, loyalty, and setup-math
+   steps, then tell when setup is ready? Are the ground rules and core-loop
+   help clear without the handbook?
+2. **Yes/no — Waiver and first action.** Can I complete the three Code of Conduct
+   checks and continue, understand that the completed acknowledgement lasts
+   72 hours on this device, see the same accepted state in a prepared
+   pre-expiry view, and see the checks required again at the 72-hour boundary?
+   In the labeled solo scene, can a new player follow the help into the right
+   route, understand a sample first action, and find the return path?
+3. **Yes/no — Fleet board and status.** Can I read the current cycle, ration
+   state, alerts, and available actions on the fleet board? In a prepared
+   active-cycle view with pursuit data still pending, does the readout say
+   “Awaiting CIC handshake”? In the prepared Cycle 0 lobby, is the Primary
+   Status panel absent for a player or Press Officer and readable with all six
+   fields in the authenticated GM view?
+4. **Yes/no — Press handoff.** In the Press view, can I distinguish prepared
+   survivor-change, purge, and President-event records and understand which
+   items are available for Press review? Does publication remain a separate,
+   understandable Press action?
+5. **Yes/no — DRADIS.** Can I follow the first enlarged contact through its
+   full prepared lifetime while ordinary repeat pings continue, see it return
+   to normal size only after that original lifetime, and read every contact
+   name without overlap at the crowded and narrow-screen examples?
+6. **Yes/no — Leave and reconnect.** Can I find Leave Session in Settings
+   rather than the top of the screen? From each prepared non-GM role/seat
+   class, can I understand the difference between a temporary reconnect that
+   restores my role/private state and an explicit leave that vacates my role
+   while the rest of the game continues?
+
+**Prepared scene requirements.** Use a hosted, browser-accessible solo scene
+with the actual lobby, settings, status, Press, and DRADIS components. Include
+the GM setup checklist, ground-rules/core-loop help, and a clearly labeled
+sample first-action-and-return path; waiver states at “just acknowledged,”
+“before 72 hours,” and “expired at 72 hours”; a GM/Press/President/player
+view selector; synthetic committed population, purge, and President event
+records; a Press item before and after
+authorized publication; an initial DRADIS acquisition with repeat pings before
+its original expiry and a normal-size state after expiry; crowded contact
+names; and separate temporary-disconnect/reconnect and voluntary-leave
+states. The time and event controls are review-scene fixtures, not live
+gameplay. Provide a numbered in-app path and the review link in the report.
+
+**Internal exit gates.** Re-read the live prompt catalog, dependencies,
+source passages, current deployment, and active ownership before building.
+P589 is currently ready after P586; P590 and P599 depend on P589, and P600
+depends on P590 and P599. P654 and P662 are still missing and require distinct
+owner decisions (zero eligible Wolves and ordinary Wolf designation), so do
+not claim either complete or choose those policies. P100 is partial and blocked
+on P113/P321/P212. The allocated ration/population chain P116–P121,
+P134–P137, P184, and P191 is blocked transitively by P117's explicit owner
+decision; leave those mechanics unresolved and do not treat Press intake as
+their completion proof. These current states came from the 2026-09-27 catalog
+and read-only dependency checks; recheck before implementation.
+
+Close P589–P600 only after the exact approved ground-rule copy, complete
+facilitator checklist, core-loop help, and composed production
+join/assignment/first-action/return path are in place. The solo review scene
+proves only how those screens read.
+
+For PC02 behavior, use test-first commits and preserve current authority,
+privacy, replay, stale-request, and reconnect boundaries. Prove each existing
+eligible population change and purge reaches the Press intake exactly once;
+unauthorized actors and private data cannot enter it; President records are
+handed off once without creating new gameplay effects; only the Press role can
+publish or dismiss; and current published Press messages still obey
+[Ticker Behavior](TICKER_BEHAVIOR.md). Prove the pursuit pending state stays
+truthful, the DRADIS large-contact lifetime survives repeat pings, and contact
+labels do not overlap at phone, desktop, short-landscape, and reduced-motion
+sizes. Test the 72-hour acknowledgement at its exact boundary. Exercise
+temporary reconnect and explicit leave independently for every supported
+non-GM role/seat class; remaining authorized players must keep the same live
+session and continue, while the departed member cannot use stale authority.
+Prove Primary Status is role-gated in the rendered and accessible UI, and
+Settings-only Leave Session retains a usable logical return path. Obtain the
+repository's independent Sol review if implementation changes shared session
+state or role/privacy boundaries. Verify local gameplay proof, rendered solo
+review, release deployment, and ordinary authorized play as separate
+evidence. The solo scene alone proves only presentation.
+
+**Feedback and handoff.** PC01-F01–PC01-F10 are guidance received outside a
+PC01 walkthrough, so do not describe them as PC01 review findings or infer
+approval of PC01. They are all planned for this PC02 shape and remain open
+until the released behavior and applicable internal gates are verified. The
+PC02 report must list any assumption correction first, then these six UI
+checks with the review link and numbered actions, a complete test-change
+inventory, remaining proof gaps, and any overflow routed to a named later
+candidate. If an item cannot fit the frozen shape, complete the independent
+PC02 work and route the unfinished item to the next appropriate candidate
+without marking the note resolved.
