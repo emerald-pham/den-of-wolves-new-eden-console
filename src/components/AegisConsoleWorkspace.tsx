@@ -375,7 +375,7 @@ function WingCommanderConsole({ galacticCoordinate, fuel, damage, navigationLogs
               <div><dt>Scouting envelope</dt><dd>One system within {console.scoutRange} jumps of AEGIS</dd></div>
               <div><dt>Fuelled sortie</dt><dd>Scout a second system</dd></div>
               <div><dt>Away mission</dt><dd>Explore +{console.awayMissionBonus.explore} // Salvage +{console.awayMissionBonus.salvage}</dd></div>
-              <div><dt>Fuel state</dt><dd>Tracked at the table</dd></div>
+              <div><dt>Fuel state</dt><dd>Tracked at the console</dd></div>
             </dl>
             <Link className="cic-text-button" to={`/shuttles/${starlight.id}`}
               aria-label="Open Starlight shuttle console">

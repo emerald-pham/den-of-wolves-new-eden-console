@@ -64,7 +64,7 @@ export default function PresidentWorkspace({ writable, consoleLocked = false }: 
       <p>Dione executive channel // Public audit record</p>
       <h3>President workspace</h3>
       <p>Record fleet policy, crisis decisions, political capital, addresses, visits, and election actions.</p>
-      <p>These records document table decisions. Mechanical effects resolve through their dedicated controls.</p>
+      <p>These records document session decisions. Mechanical effects resolve through their dedicated controls.</p>
     </header>
     <section aria-label="Political capital ledger" className="president-workspace__capital">
       <p>Political capital // Server ledger</p>

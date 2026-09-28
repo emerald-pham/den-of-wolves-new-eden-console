@@ -68,7 +68,7 @@ export function facilitatorQueueFor(state: FacilitatorQueueState): readonly Faci
     items.push(state.debriefActive
       ? {
         id: 'debrief-live', label: 'Debrief live',
-        detail: 'The shared finale is visible across the table.', state: 'waiting',
+        detail: 'The shared finale is visible to everyone in the session.', state: 'waiting',
       }
       : {
         id: 'enable-finale', label: 'Enable the debrief finale',
@@ -98,7 +98,7 @@ export function facilitatorQueueFor(state: FacilitatorQueueState): readonly Faci
   if (state.phase === 'retained-empty') {
     items.push({
       id: 'retained-empty', label: 'Session retained without players',
-      detail: 'Reconnect an eligible participant before resuming table operations.',
+      detail: 'Reconnect an eligible participant before resuming session operations.',
       state: 'waiting',
     });
     return items;

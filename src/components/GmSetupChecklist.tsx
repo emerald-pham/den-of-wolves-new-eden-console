@@ -20,7 +20,7 @@ export interface GmSetupChecklistProps {
 
 const PREP_STEPS = [
   'Room and components are ready',
-  'Star chart is selected and ready for the table',
+  'Star chart is selected and ready for the session',
   'Casting and private role briefs are accounted for',
   'Loyalty assignments remain private',
 ] as const;
@@ -51,7 +51,7 @@ export function GmSetupChecklist({
   return (
     <section className="onboarding-panel gm-setup-checklist" aria-label="Setup checklist">
       <p className="onboarding-eyebrow">Facilitator // preflight</p>
-      <h2>One facilitator can run the table.</h2>
+      <h2>One facilitator can run the session.</h2>
       <p>
         The primary facilitator prepares the room and components, teaches the rules,
         manages setup, and calls the phases. Assistant help is optional: a helper may

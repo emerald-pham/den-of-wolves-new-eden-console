@@ -115,7 +115,7 @@ export default function ShuttleConsoleTemplate({
             {shuttle.cargoTransfer && <div><dt>Cargo transfer</dt><dd>{shuttle.cargoTransfer}</dd></div>}
           </>}>
           <div className="console-workspace__status">
-            <p>Printed shuttle procedures // Resolve outcomes with the facilitator and table</p>
+            <p>Printed shuttle procedures // Resolve outcomes with the facilitator and crew</p>
           </div>
           {shuttle.operations.length > 0 && <section className="console-workspace__section"
             aria-label={`${shuttle.shortName} operational procedures`}>

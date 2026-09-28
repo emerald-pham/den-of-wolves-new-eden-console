@@ -4344,7 +4344,7 @@ export default function GmConsole() {
             >
               <h2 className="gm-console__section-title">Wolf action // console sabotage</h2>
               <p className="gm-player-roster__hint">
-                Start when the player reaches the ship table. The server requires 10 seconds
+                Start when the player reaches the ship console. The server requires 10 seconds
                 adjacent and facilitator confirmation within 1 minute.
               </p>
               <div className="gm-setup__grid">
@@ -4673,7 +4673,7 @@ export default function GmConsole() {
             <section className="gm-console__module cic-frame gm-arbour-vision" aria-label="Facilitator rule call">
               <h2 className="gm-console__section-title">Facilitator rule call</h2>
               <p className="gm-player-roster__hint">
-                Record a durable ruling when the table needs an ambiguity resolved. This call is labeled separately from random or dice results.
+                Record a durable ruling when the session needs an ambiguity resolved. This call is labeled separately from random or dice results.
               </p>
               <div className="gm-arbour-vision__form">
                 <label htmlFor="rule-call-ambiguity">Question or ambiguity</label>

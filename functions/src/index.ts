@@ -682,9 +682,19 @@ const FLEET_TICKER_COPY = {
   airspaceOpen: 'AIRSPACE CONTROL // AIRSPACE OPEN',
   emergency: 'AIRSPACE CONTROL // EMERGENCY TIMER PAUSED // ALL FLEET CLOCKS ON HOLD // GM RESUME REQUIRED',
   emptySession: 'AIRSPACE CONTROL // FLEET CLOCKS ON HOLD // RESUMES WHEN CREW RECONNECT',
+  redAlertDefault: 'RED ALERT // WOLF ATTACK IMMINENT ALL HANDS TO BATTLE STATIONS. NON-CREW MUST SHELTER IN PLACE UNTIL ALERT LIFTED .',
   standDown: 'AEGIS // RED ALERT CANCELLED BY AEGIS, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. REPEAT, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. RED ALERT CANCELLED BY AEGIS.',
   finale: 'CREDITS // BASED ON THE ORIGINAL MEGAGAME DEN OF WOLVES BY JOHN MIZON (SOUTH WEST MEGAGAMES) // NEW EDEN GAME DESIGN: JOHN KEYWORTH (KIWI GAME DESIGN) // WEB APP LEAD: EMERALD FLEUR PHAM',
 } as const;
+
+const FLEET_ADMIRAL_PREFIX = 'ICSN ADMIRAL // ';
+
+function formatAdmiralTickerCopy(text?: string): string {
+  const copy = typeof text === 'string' && text.trim().length > 0
+    ? text.trim().toUpperCase()
+    : FLEET_TICKER_COPY.redAlertDefault;
+  return copy.startsWith(FLEET_ADMIRAL_PREFIX) ? copy : `${FLEET_ADMIRAL_PREFIX}${copy}`;
+}
 
 const TURN_ZERO_ATC_SOURCE_ID = 'turn-zero-atc';
 
@@ -734,8 +744,7 @@ function fleetTickerStateFromLegacy(
   if (alertRevision > 0 && alert?.active === true) {
     state = publishFleetTicker(sessionId, state, {
       source: 'admiral', priority: FLEET_TICKER_PRIORITIES.admiral,
-      text: `ICSN ADMIRAL // ${(typeof alert?.text === 'string' && alert.text.length > 0
-        ? alert.text : 'RED ALERT // WOLF ATTACK IMMINENT, ALL HANDS TO BATTLE STATIONS').toUpperCase()}`,
+      text: formatAdmiralTickerCopy(typeof alert?.text === 'string' ? alert.text : undefined),
       tone: 'danger', sourceId: `red-alert:${alertRevision}`,
     }, now);
   }
@@ -27135,7 +27144,10 @@ export const setFleetRedAlert = onCall<{
     if (data.active && !current?.active && lastRaisedAt !== undefined && now - lastRaisedAt < FLEET_ALERT_COOLDOWN_MS) {
       throw commandError('failed-precondition', 'Fleet red alert may be raised once every 10 minutes.', 'invalid-phase');
     }
-    const text = typeof data.text === 'string' ? data.text.trim().toUpperCase() : current?.text;
+    const providedText = typeof data.text === 'string' ? data.text.trim().toUpperCase() : current?.text;
+    const text = data.active && (!providedText || providedText.trim().length === 0)
+      ? FLEET_TICKER_COPY.redAlertDefault
+      : providedText;
     if ((current?.active ?? false) === data.active && (!data.active || text === current?.text)) {
       const result = { active: current?.active ?? false, revision: current?.revision ?? 0 };
       if (receiptRef && fingerprint) {
@@ -27158,7 +27170,7 @@ export const setFleetRedAlert = onCall<{
     const publishedTicker = data.active
       ? publishSessionFleetTicker(data.sessionId, session, {
         source: 'admiral', priority: FLEET_TICKER_PRIORITIES.admiral,
-        text: `ICSN ADMIRAL // ${text ?? 'RED ALERT // WOLF ATTACK IMMINENT, ALL HANDS TO BATTLE STATIONS'}`,
+        text: formatAdmiralTickerCopy(text),
         tone: 'danger', sourceId: `red-alert:${fleetRedAlert.revision}`,
       }, serverTime)
       : publishSessionFleetTicker(data.sessionId, session, {

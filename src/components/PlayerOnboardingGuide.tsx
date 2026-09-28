@@ -4,9 +4,9 @@ import './onboarding.css';
 export function PlayerOnboardingGuide() {
   return (
     <div className="onboarding-guide">
-      <section className="onboarding-panel" aria-label="Table ground rules">
+      <section className="onboarding-panel" aria-label="Session ground rules">
         <p className="onboarding-eyebrow">Before the first cycle</p>
-        <h2>Table ground rules</h2>
+        <h2>Session ground rules</h2>
         <ul>
           <li>Keep your own role and loyalty information private. Do not show another player your brief or read theirs.</li>
           <li>Do not use phones to message other players during play. Do not photograph game components to share with other players.</li>
@@ -19,7 +19,7 @@ export function PlayerOnboardingGuide() {
         <p className="onboarding-eyebrow">One cycle at a time</p>
         <h2>Core game loop</h2>
         <ol>
-          <li><strong>Team Phase.</strong> Stay at your ship’s table and run its maintenance cycle.</li>
+          <li><strong>Team Phase.</strong> Stay at your ship’s console and run its maintenance cycle.</li>
           <li><strong>Coordination Phase.</strong> Move and communicate freely, operate shuttles, trigger jumps, run away missions, or respond to Wolf attacks.</li>
           <li><strong>Pursuit.</strong> Track the pursuit counter; pursuit reaches 10 and the fleet’s run fails.</li>
           <li><strong>Jump and docking.</strong> When ready, use the ship’s Jump card to announce the jump. During a Wolf attack, shuttles dock with the nearest ship; armed players go to the Battle Table.</li>

@@ -48,7 +48,7 @@ const GUIDANCE: Readonly<Record<CommandErrorKind, string>> = {
   'malformed-input': 'The command could not be understood. Check the entered values and try again.',
   'rate-limited': 'This session is receiving too many requests. Wait for the displayed interval, then retry.',
   'unavailable-service': 'The fleet service is temporarily unavailable. Reconnect and retry.',
-  'terminal-session': 'This session is no longer available. Return to the landing screen to join another table.',
+  'terminal-session': 'This session is no longer available. Return to the landing screen to join another session.',
   unknown: 'The command could not be completed. Refresh the live state and try again.',
 };
 

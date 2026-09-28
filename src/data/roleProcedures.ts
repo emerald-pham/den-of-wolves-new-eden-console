@@ -4,7 +4,7 @@ export interface RoleProcedure { readonly name: string; readonly effect: string 
 
 const engineering: readonly RoleProcedure[] = [
   { name: 'Maintenance coordination', effect: 'Review storage, rations, unrest, reactor charges and shuttle refuelling with the ship’s team in maintenance order.' },
-  { name: 'Console upgrades', effect: 'Coordinate research and material costs with the Shepherd Scientist. Resolve upgrades and repairs at the table.' },
+  { name: 'Console upgrades', effect: 'Coordinate research and material costs with the Shepherd Scientist. Resolve upgrades and repairs at the console.' },
 ];
 
 export function proceduresForRole(roleId: string): readonly RoleProcedure[] {
@@ -18,7 +18,7 @@ export function proceduresForRole(roleId: string): readonly RoleProcedure[] {
 
 const ROLE_PROCEDURES: Readonly<Record<string, readonly RoleProcedure[]>> = {
   'dione-president': [
-    { name: 'Political capital', effect: 'Track 0–8 at the table. Resolving a crisis grants 1 political capital, plus the resolution’s consequences.' },
+    { name: 'Political capital', effect: 'Track 0–8 at the console. Resolving a crisis grants 1 political capital, plus the resolution’s consequences.' },
     { name: 'Presidential address', effect: 'At the start of each restricted-airspace window, address the fleet and invite up to one extra player to speak. Announce new laws and binding resolutions at the next restricted-airspace window.' },
     { name: 'Presidential visit', effect: 'During open airspace, spend 1 political capital to lower one ship’s unrest by 1.' },
   ],
@@ -29,7 +29,7 @@ const ROLE_PROCEDURES: Readonly<Record<string, readonly RoleProcedure[]>> = {
   'shepherd-scientist': [
     { name: 'Research programme', effect: 'During restricted airspace, advance up to 3 research types by one box each. Choose each type at most once per cycle.' },
     { name: 'Additional research', effect: 'Up to twice per cycle, spend 5 ore from Shepherd’s hold for an extra research choice.' },
-    { name: 'Construction costs', effect: 'Pay the left-most unlocked material cost from Shepherd’s hold. Research progress and built devices are tracked at the table.' },
+    { name: 'Construction costs', effect: 'Pay the left-most unlocked material cost from Shepherd’s hold. Research progress and built devices are tracked at the console.' },
     { name: 'Reactor / Jump Drive', effect: 'Material tracks: Reactor 8 / 7 / 6 / 5 / 4; Jump Drive 14 / 10 / 6 / 4 / 3.' },
     { name: 'Food and water research', effect: 'Hydroponics and Water Reclamation: 8 / 4 / 2 / 1 / 1. Advanced Hydroponics and Water Production: 18 / 14 / 10 / 6 / 3.' },
     { name: 'Industrial research', effect: 'Fuel Refinery: 14 / 12 / 8 / 6 / 5. Mining Drone Control: 18 / 14 / 10 / 6 / 4. Ram Scoop: 14 / 12 / 10 / 8 / 5.' },
@@ -38,7 +38,7 @@ const ROLE_PROCEDURES: Readonly<Record<string, readonly RoleProcedure[]>> = {
     { name: 'Wolf Agent Detector', effect: 'Material track: 18 / 12 / 7 / 5. Once built, test up to 3 players per cycle with about 80% accuracy; resolve privately with a facilitator.' },
   ],
   'quellon-explorer': [
-    { name: 'Exploration coordination', effect: 'Coordinate scouting information and away missions with the fleet. Resolve mission opportunities at the table.' },
+    { name: 'Exploration coordination', effect: 'Coordinate scouting information and away missions with the fleet. Resolve mission opportunities at the console.' },
     { name: 'Water supply', effect: 'Coordinate Quellon’s water production with ships that need it for rations and hydroponics.' },
   ],
   'refinery-124-pdf-colonel': [

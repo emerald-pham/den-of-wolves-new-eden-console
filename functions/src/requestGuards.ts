@@ -24,7 +24,7 @@ import { parseCivilUnrestResolutionInput } from './civilUnrestResolution';
 
 export function requireUid(auth: { uid: string } | undefined): string {
   if (!auth?.uid) {
-    throw commandError('unauthenticated', 'Sign in before joining a table.', 'unauthenticated');
+    throw commandError('unauthenticated', 'Sign in before joining a session.', 'unauthenticated');
   }
   return auth.uid;
 }
