@@ -241,14 +241,7 @@ function clampContactLabels(plot: HTMLElement): void {
           markIndex !== index && mark !== null && mark.width > 0 && mark.height > 0),
       ];
       const preferred = contact.dataset.labelAnchor as LabelAnchor;
-      const anchors: LabelAnchor[] = [
-        preferred,
-        ...(['north-east', 'south-east', 'north-west', 'south-west'] as const)
-          .filter((anchor) => anchor !== preferred),
-      ];
-      const sideProjections: Partial<Record<'east' | 'west', ProjectedAxes>> = {};
-      let best: { anchor: LabelAnchor; style: string; x: number; y: number; score: number } | null = null;
-      for (const anchor of anchors) {
+      const prepareAnchor = (anchor: LabelAnchor) => {
         contact.dataset.labelAnchor = anchor;
         label.style.removeProperty('--label-clamp-x');
         label.style.removeProperty('--label-clamp-y');
@@ -265,15 +258,82 @@ function clampContactLabels(plot: HTMLElement): void {
           label.style.minInlineSize = '0px';
           label.style.whiteSpace = 'normal';
           label.style.overflowWrap = 'anywhere';
-          for (let pass = 0; pass < 3; pass += 1) {
-            const width = label.getBoundingClientRect().width;
-            if (width <= sideWidth) break;
-            const cap = Number.parseFloat(label.style.maxWidth);
-            label.style.maxWidth = `${Math.max(1, cap * sideWidth / width - 2)}px`;
-          }
+          // Perspective scales the label in screen space. Estimate the CSS
+          // cap from its untransformed width and reserve a small margin before
+          // measuring the constrained box.
+          const untransformedWidth = label.offsetWidth;
+          const projectedScale = untransformedWidth > 0
+            ? original.width / untransformedWidth
+            : 1;
+          label.style.maxWidth = `${Math.max(1, sideWidth / projectedScale - 2)}px`;
           original = label.getBoundingClientRect();
+          // Keep one bounded correction for non-linear perspective or wrapping
+          // differences between the intrinsic and constrained label boxes.
+          if (original.width > sideWidth) {
+            const cap = Number.parseFloat(label.style.maxWidth);
+            label.style.maxWidth = `${Math.max(1, cap * sideWidth / original.width - 2)}px`;
+            original = label.getBoundingClientRect();
+          }
         }
-        const baseStyle = label.style.cssText;
+        return { original, sideWidth, style: label.style.cssText };
+      };
+      const preferredVertical = preferred.startsWith('north') ? 'north' : 'south';
+      const oppositeSide = preferred.endsWith('east') ? 'west' : 'east';
+      const quickCandidates: {
+        anchor: LabelAnchor;
+        style: string;
+        bounds: DOMRect;
+        clearance: number;
+      }[] = [];
+      for (const anchor of [preferred, `${preferredVertical}-${oppositeSide}` as LabelAnchor]) {
+        const candidate = prepareAnchor(anchor);
+        const bounds = candidate.original;
+        const anchorGap = anchor.endsWith('east')
+          ? marker.left - bounds.right : bounds.left - marker.right;
+        const minX = plotBounds.left + LABEL_VIEWPORT_GUTTER_PX;
+        const maxX = plotBounds.right - LABEL_VIEWPORT_GUTTER_PX;
+        const minY = plotBounds.top + LABEL_VIEWPORT_GUTTER_PX;
+        const maxY = plotBounds.bottom - LABEL_VIEWPORT_GUTTER_PX;
+        const fits = bounds.width > 0 && bounds.height > 0 &&
+          bounds.left >= minX && bounds.right <= maxX &&
+          bounds.top >= minY && bounds.bottom <= maxY &&
+          anchorGap >= 4;
+        if (!fits) continue;
+        let clearance = Number.POSITIVE_INFINITY;
+        let collides = false;
+        for (const rect of nearby) {
+          if (overlaps(bounds, rect)) {
+            collides = true;
+            break;
+          }
+          const x = Math.max(0, rect.left - bounds.right, bounds.left - rect.right);
+          const y = Math.max(0, rect.top - bounds.bottom, bounds.top - rect.bottom);
+          clearance = Math.min(clearance, x * x + y * y);
+        }
+        if (!collides) quickCandidates.push({
+          anchor,
+          style: candidate.style,
+          bounds,
+          clearance: Number.isFinite(clearance) ? clearance : 0,
+        });
+      }
+      if (quickCandidates.length > 0) {
+        const bestQuick = quickCandidates.reduce((best, candidate) =>
+          candidate.clearance > best.clearance ? candidate : best);
+        contact.dataset.labelAnchor = bestQuick.anchor;
+        label.style.cssText = bestQuick.style;
+        obstacles.push(bestQuick.bounds);
+        continue;
+      }
+      const anchors: LabelAnchor[] = [
+        preferred,
+        ...(['north-east', 'south-east', 'north-west', 'south-west'] as const)
+          .filter((anchor) => anchor !== preferred),
+      ];
+      const sideProjections: Partial<Record<'east' | 'west', ProjectedAxes>> = {};
+      let best: { anchor: LabelAnchor; style: string; x: number; y: number; score: number } | null = null;
+      for (const anchor of anchors) {
+        const { original, sideWidth, style: baseStyle } = prepareAnchor(anchor);
         let nearestClearLane: number | null = null;
         // A contact sits in a 3D plane. Measure its local translation axes
         // once per side, then score every anchor and nearby row without forcing a
