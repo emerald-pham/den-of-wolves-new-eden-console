@@ -204,6 +204,13 @@ describe('private scout result callables', () => {
     const noteRequest = { sessionId: 'session-1', noteId };
     put('sessions/session-1/players/scientist-1', {
       role: 'player', connected: true, lastSeenAt: now - 1_000,
+      assignedRoleId: 'shepherd-scientist', replacementRoleId: null,
+      replacementStatus: 'awaiting-re-role', seatId: null,
+    });
+    await expect(readMyScoutDiscoveryNote.run(callableRequest(noteRequest, 'scientist-1')))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    put('sessions/session-1/players/scientist-1', {
+      role: 'player', connected: true, lastSeenAt: now - 1_000,
       assignedRoleId: 'quellon-explorer', seatId: 'quellon-explorer',
     });
     await expect(readMyScoutDiscoveryNote.run(callableRequest(noteRequest, 'scientist-1')))

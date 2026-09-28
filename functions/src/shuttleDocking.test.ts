@@ -53,6 +53,10 @@ describe('holder-based shuttle docking', () => {
     expect(() => authoritativeHolderShip({ uid: 'none', role: 'player' }, dockings, activeVesselIds))
       .toThrow(/no authoritative role/i);
     expect(() => authoritativeHolderShip({
+      uid: 'former-captain', role: 'player', assignedRoleId: 'dione-captain',
+      replacementRoleId: null, replacementStatus: 'awaiting-re-role',
+    }, dockings, activeVesselIds)).toThrow(/no legal ship/i);
+    expect(() => authoritativeHolderShip({
       uid: 'dione', role: 'player', assignedRoleId: 'dione-engineer',
     }, dockings, ['aegis'])).toThrow(/active fleet ship/i);
     expect(() => resolveHolderBasedDocking({
