@@ -86,15 +86,32 @@ export default function RoleSelect() {
     }
   }
 
+  async function releaseOwnedSeat(seatId: string): Promise<void> {
+    setPendingSeatId(seatId);
+    setSeatStatus(null);
+    try {
+      const disposition = await releaseSeat(seatId);
+      setSeatStatus(disposition === 'stale'
+        ? 'STATION RELEASE STALE // REFRESH THE LIVE SEAT MAP AND RETRY'
+        : disposition === 'queued'
+          ? 'STATION RELEASE PENDING // AWAITING RECONNECTION'
+          : `STATION RELEASED // SERVER ${disposition.toUpperCase()}`);
+    } catch {
+      setSeatStatus('STATION RELEASE REJECTED // REVIEW THE LIVE SEAT MAP');
+    } finally {
+      setPendingSeatId(null);
+    }
+  }
+
   const activeCoreRoleIds = new Set(
     (session.activeRoleIds ?? []).filter((roleId) => roleId !== 'press-officer'),
   );
-  const gmOccupiedSeats = isGm ? seats
+  const gmClaimedSeats = isGm ? seats
     .filter((seat) => {
       const roleId = seat.roleId ?? seat.id;
       return roleId !== 'press-officer' &&
         (activeCoreRoleIds.size === 0 || activeCoreRoleIds.has(roleId)) &&
-        seat.status === 'claimed' && seat.holderUid !== me.uid;
+        seat.status === 'claimed';
     })
     .sort((left, right) => left.label.localeCompare(right.label)) : [];
 
@@ -121,40 +138,57 @@ export default function RoleSelect() {
         <p className="role-select__lede">GM join // Connect this authenticated device to the session.</p>
       </div>
 
-      {gmOccupiedSeats.length > 0 && (
-        <section className="role-seat-board cic-frame" aria-label="Occupied core station review">
+      {gmClaimedSeats.length > 0 && (
+        <section className="role-seat-board cic-frame" aria-label="Claimed core station review">
           <header className="role-seat-board__header">
             <div>
               <p className="eyebrow">GM-only roster review</p>
-              <h2>Occupied core stations</h2>
+              <h2>Claimed core stations</h2>
             </div>
-            <span className="role-seat-board__count">{gmOccupiedSeats.length} occupied</span>
+            <span className="role-seat-board__count">{gmClaimedSeats.length} claimed</span>
           </header>
           <ul className="role-seat-board__list">
-            {gmOccupiedSeats.map((seat) => (
-              <li className="role-seat" key={seat.id}>
-                <div className="role-seat__identity">
-                  <strong>{seat.label}</strong>
-                  <span className="role-seat__state" data-state="held">OCCUPIED // GM REVIEW</span>
-                </div>
-                <button
-                  className="cic-danger-button role-seat__action"
-                  type="button"
-                  disabled={pendingSeatId !== null}
-                  aria-label={`CLEAR STALE HOLDER // ${seat.label}`}
-                  onClick={(event) => {
-                    interventionTriggerRef.current = event.currentTarget;
-                    setInterventionSeatId(seat.id);
-                    setInterventionReason('');
-                  }}
-                >
-                  CLEAR STALE HOLDER
-                </button>
-              </li>
-            ))}
+            {gmClaimedSeats.map((seat) => {
+              const heldByYou = seat.holderUid === me.uid;
+              return (
+                <li className="role-seat" key={seat.id}>
+                  <div className="role-seat__identity">
+                    <strong>{seat.label}</strong>
+                    <span className="role-seat__state" data-state={heldByYou ? 'you' : 'held'}>
+                      {heldByYou ? 'HELD BY YOU' : 'OCCUPIED // GM REVIEW'}
+                    </span>
+                  </div>
+                  {heldByYou ? (
+                    <button
+                      className="cic-action-button role-seat__action"
+                      type="button"
+                      disabled={pendingSeatId !== null}
+                      aria-label={`RELEASE STATION // ${seat.label}`}
+                      onClick={() => void releaseOwnedSeat(seat.id)}
+                    >
+                      {pendingSeatId === seat.id ? 'RELEASING…' : 'RELEASE STATION'}
+                    </button>
+                  ) : (
+                    <button
+                      className="cic-danger-button role-seat__action"
+                      type="button"
+                      disabled={pendingSeatId !== null}
+                      aria-label={`CLEAR STALE HOLDER // ${seat.label}`}
+                      onClick={(event) => {
+                        interventionTriggerRef.current = event.currentTarget;
+                        setInterventionSeatId(seat.id);
+                        setInterventionReason('');
+                      }}
+                    >
+                      CLEAR STALE HOLDER
+                    </button>
+                  )}
+                </li>
+              );
+            })}
           </ul>
           <p className="role-seat-board__note" role="status" aria-live="polite" aria-label="Seat review status">
-            {seatStatus ?? 'STALE HOLDER CLEARANCE REQUIRES A REASON AND SERVER COMMIT.'}
+            {seatStatus ?? 'OWN SEAT RELEASES ARE SERVER-COMMITTED // CLEARING ANOTHER HOLDER REQUIRES A REASON.'}
           </p>
           {interventionSeatId && (
             <div
