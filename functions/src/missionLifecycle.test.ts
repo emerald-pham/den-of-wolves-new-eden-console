@@ -196,6 +196,15 @@ describe('pure away-mission lifecycle', () => {
     expect(first?.state.dealtCount).toBe(3);
   });
 
+  it('does not allocate extra cards to a participant who has not requested them', () => {
+    expect(allocateBlindExtraMissionCard(buildState(), {
+      actorUid: 'alice',
+      participantUid: 'bob',
+      opportunityId: 'A-1',
+      requestId: 'unrequested-extra',
+    })).toBeNull();
+  });
+
   it('limits blind distribution to one card per participant and opportunity', () => {
     const first = allocateBlindExtraMissionCard(buildState(), {
       actorUid: 'alice',
