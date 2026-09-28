@@ -243,7 +243,11 @@ try {
     measuredAt: new Date().toISOString(), baselineVersion: baseline.version, bundle,
     landingStartup: { samples: landingStartup.map(rounded), p95Ms: rounded(percentile(landingStartup)) },
     routeStartup: { samples: routeStartup.map(rounded), p95Ms: rounded(percentile(routeStartup)) },
-    dradisUpdate: { p95Ms: rounded(percentile(render.dradis.samples)), maxMs: rounded(Math.max(...render.dradis.samples)) },
+    dradisUpdate: {
+      p95Ms: rounded(percentile(render.dradis.samples)),
+      maxMs: rounded(Math.max(...render.dradis.samples)),
+      labelLayoutReads: render.dradis.labelLayoutReads,
+    },
     attackUpdate: { p95Ms: rounded(percentile(render.attack.samples)), maxMs: rounded(Math.max(...render.attack.samples)) },
     missionHandUpdate: { p95Ms: rounded(percentile(render.missionHands.samples)), maxMs: rounded(Math.max(...render.missionHands.samples)) },
     mobileFrame: {
@@ -261,6 +265,9 @@ try {
   assert.ok(results.landingStartup.p95Ms <= budgets.landingStartupP95Ms, `Landing startup p95 ${results.landingStartup.p95Ms}ms exceeds ${budgets.landingStartupP95Ms}ms.`);
   assert.ok(results.routeStartup.p95Ms <= budgets.routeStartupP95Ms, `Route startup p95 ${results.routeStartup.p95Ms}ms exceeds ${budgets.routeStartupP95Ms}ms.`);
   assert.ok(results.dradisUpdate.p95Ms <= budgets.dradisUpdateP95Ms, `DRADIS update p95 ${results.dradisUpdate.p95Ms}ms exceeds ${budgets.dradisUpdateP95Ms}ms.`);
+  const maxLabelReads = (measurement.renderUpdateSamples + 1) * 20 * budgets.dradisLabelLayoutReadsPerContactUpdate;
+  assert.ok(results.dradisUpdate.labelLayoutReads <= maxLabelReads,
+    `DRADIS label layout made ${results.dradisUpdate.labelLayoutReads} synchronous reads; budget ${maxLabelReads}.`);
   assert.ok(results.attackUpdate.p95Ms <= budgets.attackUpdateP95Ms, `Attack update p95 ${results.attackUpdate.p95Ms}ms exceeds ${budgets.attackUpdateP95Ms}ms.`);
   assert.ok(results.missionHandUpdate.p95Ms <= budgets.missionHandUpdateP95Ms, `Mission-hand update p95 ${results.missionHandUpdate.p95Ms}ms exceeds ${budgets.missionHandUpdateP95Ms}ms.`);
   assert.ok(results.mobileFrame.p95Ms <= budgets.mobileFrameP95Ms, `Mobile frame p95 ${results.mobileFrame.p95Ms}ms exceeds ${budgets.mobileFrameP95Ms}ms.`);

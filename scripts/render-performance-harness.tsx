@@ -8,7 +8,7 @@ import '@/index.css';
 import '@/routes/arrival.css';
 import '@/styles/starmap.css';
 
-type Sample = { name: string; samples: number[] };
+type Sample = { name: string; samples: number[]; labelLayoutReads?: number };
 type Harness = {
   measureDradis(iterations: number): Promise<Sample>;
   measureAttack(iterations: number): Promise<Sample>;
@@ -62,9 +62,22 @@ function seedMissionHands(revision: number): void {
 }
 
 window.__p637 = {
-  measureDradis: (iterations) => renderSamples('dradisUpdate', iterations, (revision) => {
-    root.render(<ContactPlot placement="inset" size="min(92vw, 760px)" contacts={contacts(revision)} centerLabel="AEGIS" />);
-  }),
+  measureDradis: async (iterations) => {
+    const getBounds = Element.prototype.getBoundingClientRect;
+    let labelLayoutReads = 0;
+    Element.prototype.getBoundingClientRect = function (this: Element): DOMRect {
+      if (this.classList.contains('contact-plot__tag')) labelLayoutReads += 1;
+      return getBounds.call(this);
+    };
+    try {
+      const sample = await renderSamples('dradisUpdate', iterations, (revision) => {
+        root.render(<ContactPlot placement="inset" size="min(92vw, 760px)" contacts={contacts(revision)} centerLabel="AEGIS" />);
+      });
+      return { ...sample, labelLayoutReads };
+    } finally {
+      Element.prototype.getBoundingClientRect = getBounds;
+    }
+  },
   measureAttack: (iterations) => renderSamples('attackUpdate', iterations, (revision) => {
     root.render(<ShipPlot hostile={revision % 2 === 1} aboard viewerId="aegis" expanded={false} />);
   }),
