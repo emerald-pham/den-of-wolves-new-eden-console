@@ -256,6 +256,11 @@ beforeEach(() => {
     if (ref.path === 'sessions/s1/awayMissionHandPointers/m9_mission-1u5_alice' && mock.discardPointer) {
       return snapshot(mock.discardPointer, ref.path);
     }
+    if (ref.path.startsWith('sessions/s1/awayMissionHandPointers/')) {
+      const handId = ref.path.split('/').at(-1)!;
+      const pointer = mock.pointerDocuments[handId];
+      return snapshot(pointer ?? {}, ref.path, pointer !== undefined);
+    }
     if (ref.path.includes('/serverState/awayMissions/instances/')) return snapshot({}, ref.path, false);
     return snapshot({}, ref.path, false);
   });
@@ -495,6 +500,10 @@ describe('dealPrivateInitialCards', () => {
   });
 
   it('deals one card per selected eligible participant and never includes cards in the reply', async () => {
+    mock.pdfEscortWingState = {
+      ...initialPdfEscortWingState(), revision: 1, attackId: 'attack-1', attackCycle: 1,
+      fighters: 0, launched: true, losses: 4,
+    };
     await expect(dealPrivateInitialCards.run(request(command))).resolves.toEqual({
       status: 'committed', sessionId: 's1', requestId: 'deal-1',
       opportunityId: defaultOpportunity.id, snapshotId: defaultOpportunity.id,
@@ -638,6 +647,10 @@ describe('dealPrivateInitialCards', () => {
 
     mock.missionOpportunities = { [defaultOpportunity.id]: { ...defaultOpportunity } };
     mock.shuttleDockings = [];
+    mock.pdfEscortWingState = {
+      ...initialPdfEscortWingState(), revision: 1, attackId: 'attack-1', attackCycle: 1,
+      fighters: 0, launched: true, losses: 4,
+    };
     await expect(dealPrivateInitialCards.run(request({
       ...command, participantUids: ['admiral'], missionLeaderUid: 'admiral',
     }))).rejects.toMatchObject({ code: 'failed-precondition' });
@@ -647,6 +660,10 @@ describe('dealPrivateInitialCards', () => {
   });
 
   it('allows a connected same-group teammate to join as Mission Leader when a current shuttle carries the roster', async () => {
+    mock.pdfEscortWingState = {
+      ...initialPdfEscortWingState(), revision: 1, attackId: 'attack-1', attackCycle: 1,
+      fighters: 0, launched: true, losses: 4,
+    };
     await expect(dealPrivateInitialCards.run(request({
       ...command,
       participantUids: ['alice', 'admiral'],
@@ -691,6 +708,10 @@ describe('dealPrivateInitialCards', () => {
       );
     }],
   ] as const)('rejects a mission when it has %s', async (_label, arrange) => {
+    mock.pdfEscortWingState = {
+      ...initialPdfEscortWingState(), revision: 1, attackId: 'attack-1', attackCycle: 1,
+      fighters: 0, launched: true, losses: 4,
+    };
     arrange();
     await expect(dealPrivateInitialCards.run(request(command))).rejects.toMatchObject({
       code: 'failed-precondition',
@@ -711,6 +732,26 @@ describe('dealPrivateInitialCards', () => {
     }))).rejects.toMatchObject({ code: 'failed-precondition' });
     expect(mock.create).not.toHaveBeenCalled();
     expect(mock.update).not.toHaveBeenCalled();
+  });
+
+  it('uses a live PDF Escort Wing at its printed group location as a carrier for a team-chosen roster', async () => {
+    mock.shuttleDockings = [];
+    mock.pdfEscortWingState = initialPdfEscortWingState();
+    await expect(dealPrivateInitialCards.run(request({
+      ...command,
+      participantUids: ['admiral', 'colonel'],
+      missionLeaderUid: 'admiral',
+    }))).resolves.toMatchObject({ status: 'committed', participantCount: 2, missionLeaderUid: 'admiral' });
+    const startWrite = mock.create.mock.calls.find(([ref]) =>
+      ref.path === `sessions/s1/missionStartSnapshots/${defaultOpportunity.id}`);
+    expect(startWrite?.[1]).toMatchObject({
+      inputs: {
+        participantSnapshots: expect.arrayContaining([
+          { uid: 'admiral', roleId: 'admiral', craftIds: ['pdf-escort-fighter-wing'] },
+          { uid: 'colonel', roleId: 'refinery-124-pdf-colonel', craftIds: ['pdf-escort-fighter-wing'] },
+        ]),
+      },
+    });
   });
 
   it('does not let an earlier J/K cycle opportunity start after a later leave-and-return opportunity exists', async () => {
