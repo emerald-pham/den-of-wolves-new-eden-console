@@ -179,6 +179,16 @@ beforeEach(() => {
   mock.runTransaction.mockClear();
 });
 
+it('does not offer or apply AEGIS Command and Control while AEGIS is in mutiny', async () => {
+  mock.documents.get('sessions/s1')!.shipUnrest = { aegis: 8 };
+  await expect(getAegisCommandAndControl.run(request({ sessionId: 's1' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  await expect(applyAegisCommandAndControl.run(request({
+    sessionId: 's1', requestId: 'cnc-mutiny', expectedTurn: 1, expectedRevision: 1, rosterIndex: 0,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
 it('requires a committed Commander finish even when the assigned Commander is disconnected', async () => {
   currentGame({ connected: false });
   await expect(getAegisCommandAndControl.run(request({ sessionId: 's1' }))).resolves.toMatchObject({
