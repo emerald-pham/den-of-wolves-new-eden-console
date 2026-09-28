@@ -14,6 +14,7 @@ const mock = vi.hoisted(() => ({
   chartLocked: true,
   coordinate: '0000',
   fuel: 4,
+  dioneFuel: 8,
   charges: ['jump-drive'] as string[],
   jumpStates: {} as Record<string, unknown>,
   systemHistory: {} as Record<string, unknown>,
@@ -29,22 +30,31 @@ const mock = vi.hoisted(() => ({
   }>,
   upgrades: {} as Record<string, unknown>,
   damage: {} as Record<string, unknown>,
+  survivors: {} as Record<string, number>,
   wolfAttackState: undefined as Record<string, unknown> | undefined,
   arrivalPressureState: undefined as Record<string, unknown> | undefined,
   missionOpportunityRecord: undefined as Record<string, unknown> | undefined,
   missionOpportunityRecordPath: undefined as string | undefined,
   commandReceiptRecord: undefined as Record<string, unknown> | undefined,
+  jumpFailures: {} as Record<string, Record<string, unknown>>,
   transactionRetries: 0,
   randomInt: vi.fn(() => 6),
   randomUUID: vi.fn(() => 'jump-event'),
 }));
 
-vi.mock('node:crypto', () => ({ randomInt: mock.randomInt, randomUUID: mock.randomUUID }));
+vi.mock('node:crypto', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:crypto')>();
+  return { ...actual, randomInt: mock.randomInt, randomUUID: mock.randomUUID };
+});
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => ({
     doc: (path: string) => path,
-    collection: (path: string) => path,
+    collection: (path: string) => {
+      if (!path.endsWith('/jumpFailures')) return path;
+      const query = { path, where: () => query, limit: () => query };
+      return query;
+    },
     runTransaction: async (callback: (tx: unknown) => unknown) => {
       let result: unknown;
       const attempts = mock.transactionRetries + 1;
@@ -68,7 +78,7 @@ vi.mock('firebase-admin/firestore', () => ({
   Timestamp: { now: () => ({ toMillis: () => Date.now() }) },
 }));
 
-import { jumpShip, moveShipToLocation } from './index';
+import { adjudicateFailedJump, jumpShip, listUnresolvedJumpFailures, moveShipToLocation } from './index';
 
 function request(data: Record<string, unknown>, uid = 'u1') {
   return { data: data.requestId === undefined ? { ...data, requestId: 'test-jump' } : data, auth: { uid } } as CallableRequest<Record<string, unknown>>;
@@ -89,6 +99,7 @@ beforeEach(() => {
   mock.chartLocked = true;
   mock.coordinate = '0000';
   mock.fuel = 4;
+  mock.dioneFuel = 8;
   mock.charges = ['jump-drive'];
   mock.jumpStates = {};
   mock.systemHistory = {};
@@ -102,11 +113,13 @@ beforeEach(() => {
   mock.players = [{ id: 'u1', fields: { role: 'gm', connected: true, fleetGroupId: 'fleet-1' } }];
   mock.upgrades = {};
   mock.damage = {};
+  mock.survivors = {};
   mock.wolfAttackState = undefined;
   mock.arrivalPressureState = undefined;
   mock.missionOpportunityRecord = undefined;
   mock.missionOpportunityRecordPath = undefined;
   mock.commandReceiptRecord = undefined;
+  mock.jumpFailures = {};
   mock.transactionRetries = 0;
   mock.randomInt.mockReset();
   mock.randomInt.mockReturnValue(6);
@@ -114,7 +127,26 @@ beforeEach(() => {
   mock.randomUUID.mockReturnValue('jump-event');
   mock.update.mockReset();
   mock.set.mockReset();
-  mock.get.mockImplementation(async (path: string) => {
+  mock.get.mockImplementation(async (rawRef: unknown) => {
+    const path = typeof rawRef === 'string'
+      ? rawRef
+      : typeof rawRef === 'object' && rawRef !== null && 'path' in rawRef
+        ? String((rawRef as { path: unknown }).path)
+        : '';
+    if (path === 'sessions/s1/jumpFailures') return {
+      docs: Object.entries(mock.jumpFailures).map(([id, failure]) => ({
+        exists: true, id, data: () => failure, get: (key: string) => failure[key],
+      })),
+    };
+    if (path.startsWith('sessions/s1/jumpFailures/')) {
+      const failure = mock.jumpFailures[path.split('/').at(-1) ?? ''];
+      return {
+        exists: failure !== undefined,
+        id: path.split('/').at(-1),
+        data: () => failure,
+        get: (key: string) => failure?.[key],
+      };
+    }
     if (path.includes('/commandReceipts/')) return {
       exists: mock.commandReceiptRecord !== undefined,
       get: (key: string) => mock.commandReceiptRecord?.[key],
@@ -158,6 +190,9 @@ beforeEach(() => {
         data: () => entry.fields, get: (key: string) => entry.fields[key],
       })) };
     }
+    if (path === 'sessions/s1/gmInstances') {
+      return { docs: [{ id: 'bridge' }] };
+    }
     const fields: Record<string, unknown> = path.includes('/players/')
       ? {
         role: mock.role, connected: mock.connected, activeConsoleRoleId: undefined,
@@ -198,7 +233,9 @@ beforeEach(() => {
           },
           shipResources: {
             aegis: { ore: 0, fuel: mock.fuel, food: 8, water: 6, materials: 1, securityTeams: 9 },
+            dione: { ore: 0, fuel: mock.dioneFuel, food: 8, water: 6, materials: 1, securityTeams: 9 },
           },
+          shipSurvivors: mock.survivors,
           shipDamage: mock.damage,
           shipUpgrades: mock.upgrades,
           shipJumpStates: mock.jumpStates,
@@ -1258,6 +1295,142 @@ it('exposes only active-GM jump-failure adjudication and read callables', () => 
   const exports = jumpCallables as unknown as Record<string, unknown>;
   expect(exports.adjudicateFailedJump).toBeTypeOf('function');
   expect(exports.listUnresolvedJumpFailures).toBeTypeOf('function');
+});
+
+it('lists only the current, unresolved, adjudicable failure through facilitator authority', async () => {
+  mock.jumpStates = { aegis: { lastFailureRequestId: 'current-failure' } };
+  mock.jumpFailures = {
+    'current-failure': {
+      type: 'ship-jump-failure', status: 'unresolved', adjudicable: true,
+      requestId: 'current-failure', shipId: 'aegis', origin: '0000', destination: '9997',
+      failureStatus: 'fuel-shortage', failureRevision: 0, currentTurn: 1, fuelAtFailure: 4,
+      requiredFuel: 3,
+    },
+    'superseded-failure': {
+      type: 'ship-jump-failure', status: 'unresolved', adjudicable: true,
+      requestId: 'superseded-failure', shipId: 'aegis', origin: '0000', destination: '5143',
+      failureStatus: 'drive-failure', failureRevision: 0, currentTurn: 1, fuelAtFailure: 4,
+      failureRoll: 2, failureThreshold: 3,
+    },
+    'denied-attempt': {
+      type: 'ship-jump-failure', status: 'unresolved', adjudicable: false,
+      requestId: 'denied-attempt', shipId: 'aegis', origin: '0000', destination: '5143',
+      failureStatus: 'not-charged', failureRevision: 0, currentTurn: 1, fuelAtFailure: 4,
+    },
+  };
+
+  await expect(listUnresolvedJumpFailures.run(request({
+    sessionId: 's1', instanceId: 'bridge',
+  }))).resolves.toEqual({ failures: [{
+    requestId: 'current-failure', shipId: 'aegis', origin: '0000', destination: '9997',
+    failureStatus: 'fuel-shortage', failureRevision: 0, currentTurn: 1, fuelAtFailure: 4,
+    requiredFuel: 3,
+  }] });
+  const readPaths = mock.get.mock.calls.map(([rawRef]) => typeof rawRef === 'string'
+    ? rawRef
+    : typeof rawRef === 'object' && rawRef !== null && 'path' in rawRef
+      ? String((rawRef as { path: unknown }).path)
+      : '');
+  expect(readPaths).toContain('sessions/s1/jumpFailures/current-failure');
+  expect(readPaths).not.toContain('sessions/s1/jumpFailures');
+});
+
+it('completes an exact under-fueled failure with available fuel and a full server d6 of common damage', async () => {
+  mock.fuel = 1;
+  mock.jumpStates = { aegis: { lastFailureRequestId: 'underfunded-failure' } };
+  mock.jumpFailures = {
+    'underfunded-failure': {
+      type: 'ship-jump-failure', status: 'unresolved', adjudicable: true,
+      requestId: 'underfunded-failure', shipId: 'aegis', origin: '0000', destination: '9997',
+      failureStatus: 'fuel-shortage', failureRevision: 0, currentTurn: 1, fuelAtFailure: 1,
+      requiredFuel: 3,
+    },
+  };
+  mock.randomInt.mockReturnValue(6);
+
+  await expect(adjudicateFailedJump.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'complete-underfunded',
+    expectedRevision: 0, failureRequestId: 'underfunded-failure', destination: '9997',
+  }))).resolves.toMatchObject({
+    status: 'jumped', shipId: 'aegis', origin: '0000', destination: '9997',
+    fuelSpent: 1, remainingFuel: 0, failureRoll: 6,
+    damageDraws: expect.arrayContaining([expect.objectContaining({ systemId: expect.any(String) })]),
+    state: { lastJumpTurn: 1 },
+  });
+  const receipt = mock.set.mock.calls.find(([path]) => String(path).includes('/commandReceipts/'))?.[1];
+  expect(receipt).toBeDefined();
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'shipResources.aegis.fuel': 0,
+    'shipJumpStates.aegis': expect.objectContaining({ lastJumpTurn: 1 }),
+    'shipSurvivors.aegis': expect.any(Number),
+  }));
+  expect(mock.update).toHaveBeenCalledWith(
+    'sessions/s1/jumpFailures/underfunded-failure',
+    expect.objectContaining({ status: 'resolved', resolution: 'full-d6-damage-facilitator-jump' }),
+  );
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/events/ship-jump-complete-underfunded',
+    expect.objectContaining({
+      type: 'ship-jump', outcome: 'facilitator-adjudication', failureRoll: 6,
+      fuelSpent: 1, damageCount: 6,
+    }),
+  );
+});
+
+it('records the printed population value where a multi-card adjudication first crossed its alert threshold', async () => {
+  mock.dioneFuel = 1;
+  mock.survivors = { dione: 100_000 };
+  mock.jumpStates = { dione: { lastFailureRequestId: 'dione-failure' } };
+  mock.jumpFailures = {
+    'dione-failure': {
+      type: 'ship-jump-failure', status: 'unresolved', adjudicable: true,
+      requestId: 'dione-failure', shipId: 'dione', origin: '0000', destination: '5143',
+      failureStatus: 'fuel-shortage', failureRevision: 0, currentTurn: 1, fuelAtFailure: 1,
+      requiredFuel: 8,
+    },
+  };
+
+  await expect(adjudicateFailedJump.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'dione-adjudication',
+    expectedRevision: 0, failureRequestId: 'dione-failure', destination: '5143',
+  }))).resolves.toMatchObject({ status: 'jumped', failureRoll: 6, damageDraws: expect.any(Array) });
+
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'shipSurvivors.dione': 74_000,
+    populationAlerts: expect.objectContaining({
+      dione: expect.objectContaining({ population: 90_000, targetGmInstanceIds: ['bridge'] }),
+    }),
+  }));
+});
+
+it('rejects facilitator adjudication after fuel changes and performs no jump or damage work', async () => {
+  mock.fuel = 2;
+  mock.jumpStates = { aegis: { lastFailureRequestId: 'changed-failure' } };
+  mock.jumpFailures = {
+    'changed-failure': {
+      type: 'ship-jump-failure', status: 'unresolved', adjudicable: true,
+      requestId: 'changed-failure', shipId: 'aegis', origin: '0000', destination: '9997',
+      failureStatus: 'fuel-shortage', failureRevision: 0, currentTurn: 1, fuelAtFailure: 1,
+      requiredFuel: 3,
+    },
+  };
+
+  await expect(adjudicateFailedJump.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'stale-underfuel',
+    expectedRevision: 0, failureRequestId: 'changed-failure', destination: '9997',
+  }))).resolves.toMatchObject({ status: 'stale', shipId: 'aegis', currentRevision: 0 });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.randomInt).not.toHaveBeenCalled();
+});
+
+it('denies jump-failure adjudication to a player before drawing damage', async () => {
+  mock.role = 'player';
+  await expect(adjudicateFailedJump.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'unauthorized-adjudication',
+    expectedRevision: 0, failureRequestId: 'missing-failure', destination: '5143',
+  }))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.randomInt).not.toHaveBeenCalled();
 });
 
 it('denies a player operating a different ship even with a valid printed destination', async () => {

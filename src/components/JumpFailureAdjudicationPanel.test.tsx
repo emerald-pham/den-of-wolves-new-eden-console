@@ -1,9 +1,10 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
+import type { FailedJumpSummary } from '@/lib/sessionService';
 import JumpFailureAdjudicationPanel from './JumpFailureAdjudicationPanel';
 
-const failure = {
+const failure: FailedJumpSummary = {
   requestId: 'failed-jump-1', shipId: 'aegis', origin: '0000', destination: '5143',
   failureStatus: 'fuel-shortage', failureRevision: 4, currentTurn: 2, fuelAtFailure: 1,
   requiredFuel: 3,
@@ -53,6 +54,17 @@ it('lets an active facilitator inspect an exact failure and complete it with a f
   expect(createFailedJumpAdjudicationAttempt).toHaveBeenCalledWith(failure, '5143');
   expect(adjudicateFailedJump).toHaveBeenCalledWith(attempt);
   expect(await screen.findByRole('status')).toHaveTextContent(/jump completed.*6 damage draws/i);
+});
+
+it('does not show a failed-jump list returned after facilitator authority changes', async () => {
+  const user = userEvent.setup();
+  vi.mocked(listUnresolvedJumpFailures).mockResolvedValue({ failures: [], stale: true });
+  render(<JumpFailureAdjudicationPanel active />);
+
+  await user.click(screen.getByRole('button', { name: /check failed jumps/i }));
+
+  expect(await screen.findByRole('status')).toHaveTextContent(/facilitator session changed.*check failed jumps again/i);
+  expect(screen.queryByText(/FUEL SHORTAGE/)).not.toBeInTheDocument();
 });
 
 it('keeps the exact adjudication request available after an uncertain reply', async () => {
