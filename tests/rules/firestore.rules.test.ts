@@ -357,6 +357,16 @@ describe('role-private brief boundary', () => {
       targetUid: 'alice', replacementRoleId: 'admiral',
     }));
   });
+
+  it('denies a historical assigned brief while the former captain awaits a new role', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/alice`), {
+        assignedRoleId: 'admiral', replacementRoleId: null,
+        replacementStatus: 'awaiting-re-role', activeConsoleRoleId: null, seatId: null,
+      });
+    });
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/roleBriefs/alice`)));
+  });
 });
 
 describe('private projection listener bootstrap', () => {
@@ -904,6 +914,14 @@ describe('crisis state boundary', () => {
 
     await env.withSecurityRulesDisabled(async (ctx) => {
       await updateDoc(doc(ctx.firestore(), `${SESSION}/players/captain`), {
+        replacementRoleId: null, replacementStatus: 'awaiting-re-role',
+        activeConsoleRoleId: null, seatId: null,
+      });
+    });
+    await assertFails(getDoc(doc(as('captain'), `${SESSION}/civilUnrestGrievances/icebreaker`)));
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/captain`), {
         assignedRoleId: 'shepherd-captain', activeConsoleRoleId: 'shepherd-captain',
       });
     });
@@ -945,6 +963,14 @@ describe('Hummingbird harvest boundary', () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       await updateDoc(doc(ctx.firestore(), `${SESSION}/players/alice`), {
         activeConsoleRoleId: 'quellon-explorer', replacementRoleId: 'wolf-commander',
+      });
+    });
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/hummingbirdHarvests/alice`)));
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/alice`), {
+        activeConsoleRoleId: 'quellon-explorer', replacementRoleId: null,
+        replacementStatus: 'awaiting-re-role',
       });
     });
     await assertFails(getDoc(doc(as('alice'), `${SESSION}/hummingbirdHarvests/alice`)));
