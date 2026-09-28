@@ -23,6 +23,15 @@ it('walks from setup guidance to a prepared first action and back to the briefin
   expect(screen.getByRole('heading', { name: 'Select a role' })).toBeVisible();
 });
 
+it('keeps production roster links inside a reversible sample station route', async () => {
+  const user = userEvent.setup();
+  render(<PC02ReviewScene />);
+  await user.click(screen.getByRole('link', { name: 'AEGIS // Admiral // OPEN' }));
+  expect(screen.getByRole('region', { name: 'Prepared station preview' })).toHaveTextContent('Admiral');
+  await user.click(screen.getByRole('link', { name: 'Return to role lobby' }));
+  expect(screen.getByRole('heading', { name: 'Select a role' })).toBeVisible();
+});
+
 it('provides one clearly synthetic six-step PC02 sitting with every requested perspective', async () => {
   const user = userEvent.setup();
   render(<PC02ReviewScene />);
