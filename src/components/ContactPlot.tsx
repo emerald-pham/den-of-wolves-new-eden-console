@@ -241,7 +241,18 @@ function clampContactLabels(plot: HTMLElement): void {
           markIndex !== index && mark !== null && mark.width > 0 && mark.height > 0),
       ];
       const preferred = contact.dataset.labelAnchor as LabelAnchor;
+      const preparedByAnchor = new Map<LabelAnchor, {
+        original: DOMRect;
+        sideWidth: number;
+        style: string;
+      }>();
       const prepareAnchor = (anchor: LabelAnchor) => {
+        const prepared = preparedByAnchor.get(anchor);
+        if (prepared) {
+          contact.dataset.labelAnchor = anchor;
+          label.style.cssText = prepared.style;
+          return prepared;
+        }
         contact.dataset.labelAnchor = anchor;
         label.style.removeProperty('--label-clamp-x');
         label.style.removeProperty('--label-clamp-y');
@@ -258,24 +269,19 @@ function clampContactLabels(plot: HTMLElement): void {
           label.style.minInlineSize = '0px';
           label.style.whiteSpace = 'normal';
           label.style.overflowWrap = 'anywhere';
-          // Perspective scales the label in screen space. Estimate the CSS
-          // cap from its untransformed width and reserve a small margin before
-          // measuring the constrained box.
-          const untransformedWidth = label.offsetWidth;
-          const projectedScale = untransformedWidth > 0
-            ? original.width / untransformedWidth
-            : 1;
-          label.style.maxWidth = `${Math.max(1, sideWidth / projectedScale - 2)}px`;
+          // Measure after the side cap so the CSS width and transformed box
+          // describe the same state. Leave two screen pixels of clearance so
+          // one proportional correction absorbs subpixel rounding too.
           original = label.getBoundingClientRect();
-          // Keep one bounded correction for non-linear perspective or wrapping
-          // differences between the intrinsic and constrained label boxes.
           if (original.width > sideWidth) {
             const cap = Number.parseFloat(label.style.maxWidth);
-            label.style.maxWidth = `${Math.max(1, cap * sideWidth / original.width - 2)}px`;
+            label.style.maxWidth = `${Math.max(1, cap * Math.max(1, sideWidth - 2) / original.width)}px`;
             original = label.getBoundingClientRect();
           }
         }
-        return { original, sideWidth, style: label.style.cssText };
+        const candidate = { original, sideWidth, style: label.style.cssText };
+        preparedByAnchor.set(anchor, candidate);
+        return candidate;
       };
       const preferredVertical = preferred.startsWith('north') ? 'north' : 'south';
       const oppositeSide = preferred.endsWith('east') ? 'west' : 'east';

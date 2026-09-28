@@ -1197,7 +1197,7 @@ it('fits an expanded DRADIS name using widths measured in the same label state',
     x: left, y: top, left, top, width, height,
     right: left + width, bottom: top + height,
   }) as DOMRect;
-  vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
+  const offsetWidthRead = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
     if (!this.classList.contains('contact-plot__tag')) return 0;
     const cap = Number.parseFloat(this.style.maxWidth);
     return Number.isFinite(cap) ? Math.min(180, cap) : 180;
@@ -1224,6 +1224,7 @@ it('fits an expanded DRADIS name using widths measured in the same label state',
   ]} />);
   const label = container.querySelector<HTMLElement>('.contact-plot__tag')!;
 
+  expect(offsetWidthRead).not.toHaveBeenCalled();
   expect(label.getBoundingClientRect().width).toBeGreaterThanOrEqual(90);
   expect(label.getBoundingClientRect().width).toBeLessThanOrEqual(100);
 });
