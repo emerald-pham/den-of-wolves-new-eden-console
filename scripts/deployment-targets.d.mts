@@ -16,6 +16,7 @@ export interface DeploymentRangeClassification extends DeploymentTargetClassific
   readonly currentTip: boolean;
   readonly staleRun: boolean;
   readonly baselineAncestry: boolean;
+  readonly verificationBaselineAncestry: boolean;
   readonly deployOnly?: string;
 }
 
@@ -26,11 +27,14 @@ export function classifyChangedFiles(
 
 export function classifyDeploymentRange(options: {
   readonly before?: string;
+  readonly verificationBefore?: string;
   readonly after?: string;
   readonly currentMainTip?: string;
   readonly manual?: boolean;
   readonly changedFiles?: readonly string[];
+  readonly verificationChangedFiles?: readonly string[];
   readonly versionMetadataOnly?: boolean;
+  readonly verificationVersionMetadataOnly?: boolean;
   readonly cwd?: string;
   readonly isAncestor?: (before: string, after: string) => boolean;
 }): DeploymentRangeClassification;
