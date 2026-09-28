@@ -201,9 +201,9 @@ function clampContactLabels(plot: HTMLElement): void {
     });
   }
 
-  // Boundary clamping alone can stack several names into the same corner.
-  // Reserve the centre identifier and place each contact in the closest free
-  // rectangle. A scan reruns this after the displayed return moves.
+  // Reserve controls, the centre identifier, and every return mark. A name
+  // stays beside its own return: choose its clearer left or right side before
+  // considering a boundary correction. A scan reruns this for moving fixes.
   const shipPlot = plot.closest<HTMLElement>('.ship-plot');
   const overlayControls = shipPlot?.querySelectorAll<HTMLElement>(
     '.ship-plot__label, .ship-plot__toggle, .ship-plot__galactic-coordinate, ' +
@@ -214,7 +214,88 @@ function clampContactLabels(plot: HTMLElement): void {
     ...overlayControls,
   ].map((element) => element.getBoundingClientRect())
     .filter((rect) => rect.width > 0 && rect.height > 0);
-  for (const label of labels) {
+  const marks = labels.map((label) => label.closest('.contact-plot__contact')
+    ?.querySelector<HTMLElement>('.contact-plot__blip')?.getBoundingClientRect() ?? null);
+  const distanceFrom = (a: DOMRect, b: DOMRect) => {
+    const x = Math.max(0, b.left - a.right, a.left - b.right);
+    const y = Math.max(0, b.top - a.bottom, a.top - b.bottom);
+    return Math.hypot(x, y);
+  };
+  for (const [index, label] of labels.entries()) {
+    const marker = marks[index];
+    const contact = label.closest<HTMLElement>('.contact-plot__contact');
+    if (marker && marker.width > 0 && marker.height > 0 && contact &&
+      label.getBoundingClientRect().width > 0) {
+      const nearby = [
+        ...obstacles,
+        ...marks.filter((mark, markIndex): mark is DOMRect =>
+          markIndex !== index && mark !== null && mark.width > 0 && mark.height > 0),
+      ];
+      const preferred = contact.dataset.labelAnchor as LabelAnchor;
+      const anchors: LabelAnchor[] = [
+        preferred,
+        ...(['north-east', 'south-east', 'north-west', 'south-west'] as const)
+          .filter((anchor) => anchor !== preferred),
+      ];
+      let best: { anchor: LabelAnchor; style: string; bounds: DOMRect; score: number } | null = null;
+      for (const anchor of anchors) {
+        contact.dataset.labelAnchor = anchor;
+        label.style.removeProperty('--label-clamp-x');
+        label.style.removeProperty('--label-clamp-y');
+        label.style.removeProperty('max-width');
+        label.style.removeProperty('min-inline-size');
+        label.style.removeProperty('white-space');
+        label.style.removeProperty('overflow-wrap');
+        const sideWidth = anchor.endsWith('east')
+          ? marker.left - plotBounds.left - LABEL_VIEWPORT_GUTTER_PX - 11
+          : plotBounds.right - LABEL_VIEWPORT_GUTTER_PX - marker.right - 11;
+        if (label.getBoundingClientRect().width > sideWidth && sideWidth > 0) {
+          label.style.maxWidth = `${sideWidth}px`;
+          label.style.minInlineSize = '0px';
+          label.style.whiteSpace = 'normal';
+          label.style.overflowWrap = 'anywhere';
+          for (let pass = 0; pass < 3; pass += 1) {
+            const width = label.getBoundingClientRect().width;
+            if (width <= sideWidth) break;
+            const cap = Number.parseFloat(label.style.maxWidth);
+            label.style.maxWidth = `${Math.max(1, cap * sideWidth / width - 2)}px`;
+          }
+        }
+        const original = label.getBoundingClientRect();
+        const minX = plotBounds.left + LABEL_VIEWPORT_GUTTER_PX;
+        const maxX = plotBounds.right - LABEL_VIEWPORT_GUTTER_PX;
+        const minY = plotBounds.top + LABEL_VIEWPORT_GUTTER_PX;
+        const maxY = plotBounds.bottom - LABEL_VIEWPORT_GUTTER_PX;
+        const x = original.left < minX ? minX - original.left
+          : original.right > maxX ? maxX - original.right : 0;
+        const y = original.top < minY ? minY - original.top
+          : original.bottom > maxY ? maxY - original.bottom : 0;
+        shift(label, x, y);
+        const bounds = label.getBoundingClientRect();
+        const anchorGap = anchor.endsWith('east')
+          ? marker.left - bounds.right : bounds.left - marker.right;
+        const collisionCount = nearby.filter((rect) => overlaps(bounds, rect)).length;
+        const clearance = nearby.length > 0
+          ? Math.min(...nearby.map((rect) => distanceFrom(bounds, rect))) : 0;
+        const edgeOverflow = Math.max(0, minX - bounds.left, bounds.right - maxX,
+          minY - bounds.top, bounds.bottom - maxY);
+        const score = collisionCount * 1_000_000 + edgeOverflow * 100_000 +
+          Math.max(0, 4 - anchorGap) * 100_000 +
+          Math.max(0, 48 - sideWidth) * 1_000 +
+          (Math.abs(x) + Math.abs(y)) * 100 - clearance;
+        if (!best || score < best.score) {
+          best = { anchor, style: label.style.cssText, bounds, score };
+        }
+      }
+      if (best) {
+        contact.dataset.labelAnchor = best.anchor;
+        label.style.cssText = best.style;
+        obstacles.push(best.bounds);
+      }
+      continue;
+    }
+    // Keep non-layout environments and detached plots safe. A browser with a
+    // measurable return mark always uses the anchored placement above.
     for (let pass = 0; pass < 2; pass += 1) {
       const current = label.getBoundingClientRect();
       if (!obstacles.some((rect) => overlaps(current, rect))) break;
@@ -454,7 +535,8 @@ export default function ContactPlot({
       window.removeEventListener('resize', clamp);
       node.removeEventListener(CONTACT_SCAN_EVENT, clamp);
     };
-  }, [ambient?.id, classifiedOccurrenceId, contacts, departing, hostile, placement, size, still, tracks.length]);
+  }, [ambient?.id, classifiedOccurrenceId, contacts, departing, hostile,
+    orientation?.pitch, orientation?.yaw, placement, size, still, tracks.length]);
 
   return (
     <div
