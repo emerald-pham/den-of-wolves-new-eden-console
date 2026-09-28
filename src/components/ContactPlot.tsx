@@ -262,6 +262,7 @@ function clampContactLabels(plot: HTMLElement): void {
           }
         }
         const baseStyle = label.style.cssText;
+        let nearestClearLane: number | null = null;
         const original = label.getBoundingClientRect();
         const minX = plotBounds.left + LABEL_VIEWPORT_GUTTER_PX;
         const maxX = plotBounds.right - LABEL_VIEWPORT_GUTTER_PX;
@@ -274,7 +275,7 @@ function clampContactLabels(plot: HTMLElement): void {
         // If both adjacent quadrants are occupied, move the name only along
         // its return's side, one nearby text row at a time. Its horizontal
         // gap from the return remains fixed, even in a crowded plot.
-        for (const lane of [0, -1, 1, -2, 2]) {
+        for (const lane of [0, -1, 1, -2, 2, -3, 3, -4, 4, -5, 5, -6, 6, -7, 7, -8, 8]) {
           label.style.cssText = baseStyle;
           shift(label, x, y + lane * (original.height + gap));
           const candidate = label.getBoundingClientRect();
@@ -297,6 +298,10 @@ function clampContactLabels(plot: HTMLElement): void {
           if (!best || score < best.score) {
             best = { anchor, style: label.style.cssText, bounds, score };
           }
+          if (collisionCount === 0 && nearestClearLane === null) nearestClearLane = Math.abs(lane);
+          // The nearest clear row wins on this side. Finish its matching
+          // opposite row before considering a more distant lane.
+          if (nearestClearLane !== null && (lane === 0 || lane === nearestClearLane)) break;
         }
       }
       if (best) {

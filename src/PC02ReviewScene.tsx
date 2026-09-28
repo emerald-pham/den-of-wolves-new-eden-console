@@ -45,6 +45,16 @@ const SAMPLE_CONTACTS: readonly PlotContact[] = [
   { id: 'quellon', tag: 'QUELLON', x: -0.18, y: 0.04, z: -0.17, color: 'var(--cic-faction-gliese)', showCombatRange: false },
 ];
 
+const CROWDED_CONTACTS: readonly PlotContact[] = [
+  ...SAMPLE_CONTACTS,
+  { id: 'gorgoneion', tag: 'GORGONEION', x: -0.42, y: -0.05, z: 0.2, color: 'var(--cic-cyan-hot)', showCombatRange: false },
+  { id: 'warrior', tag: 'WARRIOR', x: -0.05, y: 0.3, z: -0.1, color: 'var(--cic-cyan-hot)', showCombatRange: false },
+  { id: 'vulcan', tag: 'VULCAN', x: 0.42, y: -0.1, z: 0.12, color: 'var(--cic-cyan-hot)', showCombatRange: false },
+  { id: 'endeavour', tag: 'ENDEAVOUR', x: 0.35, y: 0.35, z: -0.2, color: 'var(--cic-cyan-hot)', showCombatRange: false },
+  { id: 'macaw', tag: 'MACAW', x: -0.38, y: -0.32, z: 0.1, color: 'var(--cic-cyan-hot)', showCombatRange: false },
+  { id: 'philia', tag: 'PHILIA', x: 0.08, y: -0.42, z: 0.1, color: 'var(--cic-cyan-hot)', showCombatRange: false },
+];
+
 const SAMPLE_GM_STATUS = {
   cycle: 'CYCLE 0',
   phase: 'LOBBY',
@@ -78,6 +88,7 @@ export default function PC02ReviewScene() {
   const [perspective, setPerspective] = useState<Perspective>('gm');
   const [waiverTime, setWaiverTime] = useState<WaiverTime>('new');
   const [scanStage, setScanStage] = useState<ScanStage>('first');
+  const [crowdedContacts, setCrowdedContacts] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [continuityStage, setContinuityStage] = useState<ContinuityStage>('active');
   const [continuityRole, setContinuityRole] = useState('admiral');
@@ -232,6 +243,8 @@ export default function PC02ReviewScene() {
               onClick={() => setScanStage('repeat')}>Repeat sweep</button>
             <button type="button" className="cic-action-button" aria-pressed={scanStage === 'after'}
               onClick={() => setScanStage('after')}>After first sweep</button>
+            <button type="button" className="cic-action-button" aria-pressed={crowdedContacts}
+              onClick={() => setCrowdedContacts((current) => !current)}>Crowded contacts</button>
           </div>
           <p role="status">{scanStage === 'after'
             ? `${SCAN_FRESH_MS} ms since first acquisition // original first-sweep time passed // normal return size`
@@ -240,7 +253,8 @@ export default function PC02ReviewScene() {
               : '0 ms // first acquisition // enlarged return'}</p>
         </div>
         <div className="pc02-review__plot dradis-outline" data-scan-stage={scanStage}>
-          <ContactPlot placement="inset" size="min(80vw, 24rem)" centerLabel="AEGIS" contacts={SAMPLE_CONTACTS} />
+          <ContactPlot placement="inset" size="min(80vw, 24rem)" centerLabel="AEGIS"
+            contacts={crowdedContacts ? CROWDED_CONTACTS : SAMPLE_CONTACTS} />
         </div>
       </section>}
 
