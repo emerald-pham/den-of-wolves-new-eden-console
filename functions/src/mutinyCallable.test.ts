@@ -269,7 +269,15 @@ it('records Voyage 33-0 crew-captain attestation without granting a player role'
   mock.documents.set('sessions/s1', {
     phase: 'active', currentTurn: 1, setupRevision: 4,
     activeVesselIds: ['aegis'],
-    voyage33Admission: { status: 'admitted', id: 'voyage-33-0' },
+    voyage33Admission: {
+      type: 'voyage-admission', sessionId: 's1', id: 'voyage-33-0', status: 'admitted',
+      crisisId: 'approach-1', crisisRevision: 2, population: 40_000, unrest: 0,
+      hostShipId: null,
+      commitments: {
+        requiresHostDocking: true, hostProvidesResources: true,
+        maintenanceSteps: [1, 2, 3, 4], maxConsoleCharges: 1,
+      },
+    },
     voyage33Maintenance: {
       ...voyage, unrest: 9, cycle: { ...voyage.cycle, revision: 3 },
       mutiny: { status: 'active', revision: 3, triggerUnrest: 9, triggeredAt: 'first' },
