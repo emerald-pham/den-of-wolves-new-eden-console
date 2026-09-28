@@ -3,6 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from 'playwright';
 import { assessTickerGeometry } from './ticker-browser-geometry.mjs';
+import { resolveTickerSmokePlan } from './ticker-smoke-shards.mjs';
 import { createTickerSmokeRuntime } from './ticker-smoke-runtime.mjs';
 
 const geometryTests = spawnSync(
@@ -1214,12 +1215,17 @@ async function runCase(fontMode, reducedMotion, viewport, scenario = 'press') {
   }
 }
 
+const tickerSmokePlan = resolveTickerSmokePlan({
+  shard: process.env.TICKER_SMOKE_SHARD,
+  onlyLifecycle: process.env.TICKER_SMOKE_ONLY_LIFECYCLE === '1',
+  onlyReducedLifecycle: process.env.TICKER_SMOKE_ONLY_REDUCED_LIFECYCLE === '1',
+});
+
 const { child: vite, output: viteOutput } = startVite();
 try {
   await waitForServer(vite, viteOutput);
-  if (process.env.TICKER_SMOKE_ONLY_LIFECYCLE !== '1'
-    && process.env.TICKER_SMOKE_ONLY_REDUCED_LIFECYCLE !== '1') {
-    for (const scenario of ['press', 'turn-zero']) {
+  if (tickerSmokePlan.scenarios.length > 0) {
+    for (const scenario of tickerSmokePlan.scenarios) {
       for (const fontMode of ['pending', 'ready']) {
         for (const reducedMotion of [false, true]) {
           const viewports = scenario === 'turn-zero'
@@ -1233,11 +1239,8 @@ try {
       }
     }
   }
-  if (process.env.TICKER_SMOKE_ONLY_REDUCED_LIFECYCLE !== '1') await runTickerLifecycleCase();
-  if (process.env.TICKER_SMOKE_ONLY_LIFECYCLE !== '1'
-    || process.env.TICKER_SMOKE_ONLY_REDUCED_LIFECYCLE === '1') {
-    await runReducedTickerLifecycleCase();
-  }
+  if (tickerSmokePlan.normalLifecycle) await runTickerLifecycleCase();
+  if (tickerSmokePlan.reducedLifecycle) await runReducedTickerLifecycleCase();
 } finally {
   await stopVite(vite);
   await runtime.cleanup();

@@ -71,6 +71,7 @@ authority or cause one vessel's configuration to leak into another.
 | [Runtime threat-model manifest](../security/threat-model.json) | Machine-readable hostile-client, session-code, and resource-exhaustion control map |
 | [PRESERVED_IN_AMBER.md](PRESERVED_IN_AMBER.md) | Immutable rollback-anchor policy and recovery reference |
 | [ci-deploy-setup.md](ci-deploy-setup.md) | Dated Workload Identity Federation setup and troubleshooting handoff |
+| [CHECKPOINT_RELEASE_LEARNINGS.md](CHECKPOINT_RELEASE_LEARNINGS.md) | Reusable checkpoint-release findings, implemented velocity improvements, and follow-up measurements |
 
 Historical handoffs describe the state observed when they were written. Verify
 current external configuration before acting on their recorded values.
