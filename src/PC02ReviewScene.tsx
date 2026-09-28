@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import ContactPlot, { type PlotContact } from '@/components/ContactPlot';
+import { SCAN_FRESH_MS } from '@/components/sweep';
 import PursuitTracker from '@/components/PursuitTracker';
 import { PrimaryStatusView } from '@/components/PrimaryStatus';
 import SessionWaiver from '@/components/SessionWaiver';
@@ -233,10 +234,10 @@ export default function PC02ReviewScene() {
               onClick={() => setScanStage('after')}>After first sweep</button>
           </div>
           <p role="status">{scanStage === 'after'
-            ? 'Original first-sweep time passed // normal return size'
+            ? `${SCAN_FRESH_MS} ms since first acquisition // original first-sweep time passed // normal return size`
             : scanStage === 'repeat'
-              ? 'Repeat ping // original enlargement continues'
-              : 'First acquisition // enlarged return'}</p>
+              ? '800 ms since first acquisition // repeat ping // original enlargement continues'
+              : '0 ms // first acquisition // enlarged return'}</p>
         </div>
         <div className="pc02-review__plot dradis-outline" data-scan-stage={scanStage}>
           <ContactPlot placement="inset" size="min(80vw, 24rem)" centerLabel="AEGIS" contacts={SAMPLE_CONTACTS} />
