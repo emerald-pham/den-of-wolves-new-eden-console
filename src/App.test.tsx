@@ -1655,9 +1655,9 @@ describe('App', () => {
     expect(fleetCombatRanges()).toHaveLength(0);
     expect(contacts()).not.toContain('AEGIS');
 
-    await user.click(screen.getByRole('link', { name: /join quellon/i }));
-    expect(await screen.findByRole('heading', { name: /select command role/i })).toBeInTheDocument();
-    await user.click(screen.getByRole('link', { name: /^captain$/i }));
+    await user.click(screen.getByRole('link', { name: /view quellon station overview/i }));
+    expect(await screen.findByRole('heading', { name: /quellon \/\/ station overview/i })).toBeInTheDocument();
+    await user.click(screen.getByRole('link', { name: /^captain/i }));
     expect(await screen.findByRole('heading', { name: 'Quellon' })).toBeInTheDocument();
     expect(center()).toBe('QUELLON');
     expect(contacts()).toContain('AEGIS');
