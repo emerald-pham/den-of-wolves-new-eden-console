@@ -1,10 +1,8 @@
 import { useRef, useState, type FormEvent } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import {
   claimGmInstance,
-  claimSeat,
   releaseSeat,
-  type CommandDisposition,
 } from '@/lib/sessionService';
 import {
   selectGmAccessAuthenticated,
@@ -25,6 +23,7 @@ const MODES: readonly {
 ];
 
 export default function RoleSelect() {
+  const location = useLocation();
   const navigate = useNavigate();
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
@@ -32,6 +31,7 @@ export default function RoleSelect() {
   const seats = useSessionStore((state) => state.seats);
   const gmAccessAuthenticated = useSessionStore(selectGmAccessAuthenticated);
   const isGm = useSessionStore(selectIsGm);
+  const gmJoinIntent = (location.state as { intent?: unknown } | null)?.intent === 'gm-join';
   const pendingClaim = useSessionStore((state) =>
     state.pendingCommands.some((command) => command.kind === 'claimGmInstance'));
   const setMode = useSessionStore((state) => state.setMode);
@@ -57,29 +57,10 @@ export default function RoleSelect() {
   });
 
   if (!session || !me) return <Navigate to="/" replace />;
-  if (!gmAccessAuthenticated && !isGm) return <Navigate to="/console" replace />;
+  if (!isGm && (!gmAccessAuthenticated || !gmJoinIntent)) return <Navigate to="/console" replace />;
   function connectAs(mode: ConsoleMode): void {
     setMode(mode);
     navigate(`/${mode}`);
-  }
-
-  async function changeSeat(seatId: string, action: 'claim' | 'release'): Promise<void> {
-    setPendingSeatId(seatId);
-    setSeatStatus(null);
-    try {
-      const disposition: CommandDisposition = action === 'claim'
-        ? await claimSeat(seatId)
-        : await releaseSeat(seatId);
-      setSeatStatus(disposition === 'queued'
-        ? 'STATION CHANGE PENDING // AWAITING RECONNECTION'
-        : disposition === 'stale'
-          ? 'STATION CHANGE STALE // REFRESH THE LIVE SEAT MAP AND RETRY'
-          : `STATION ${action === 'claim' ? 'CLAIMED' : 'RELEASED'} // SERVER ${disposition.toUpperCase()}`);
-    } catch {
-      setSeatStatus('STATION CHANGE REJECTED // REVIEW THE LIVE SEAT MAP');
-    } finally {
-      setPendingSeatId(null);
-    }
   }
 
   async function clearStaleSeat(): Promise<void> {
@@ -108,13 +89,14 @@ export default function RoleSelect() {
   const activeCoreRoleIds = new Set(
     (session.activeRoleIds ?? []).filter((roleId) => roleId !== 'press-officer'),
   );
-  const coreSeats = seats
+  const gmOccupiedSeats = isGm ? seats
     .filter((seat) => {
       const roleId = seat.roleId ?? seat.id;
       return roleId !== 'press-officer' &&
-        (activeCoreRoleIds.size === 0 || activeCoreRoleIds.has(roleId));
+        (activeCoreRoleIds.size === 0 || activeCoreRoleIds.has(roleId)) &&
+        seat.status === 'claimed' && seat.holderUid !== me.uid;
     })
-    .sort((left, right) => left.label.localeCompare(right.label));
+    .sort((left, right) => left.label.localeCompare(right.label)) : [];
 
   async function claim(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -139,62 +121,40 @@ export default function RoleSelect() {
         <p className="role-select__lede">GM join // Connect this authenticated device to the session.</p>
       </div>
 
-      {coreSeats.length > 0 && (
-        <section className="role-seat-board cic-frame" aria-label="Core station seats">
+      {gmOccupiedSeats.length > 0 && (
+        <section className="role-seat-board cic-frame" aria-label="Occupied core station review">
           <header className="role-seat-board__header">
             <div>
-              <p className="eyebrow">Confirmed core roster</p>
-              <h2>Choose your station</h2>
+              <p className="eyebrow">GM-only roster review</p>
+              <h2>Occupied core stations</h2>
             </div>
-            <span className="role-seat-board__count">{coreSeats.length} core seats</span>
+            <span className="role-seat-board__count">{gmOccupiedSeats.length} occupied</span>
           </header>
           <ul className="role-seat-board__list">
-            {coreSeats.map((seat) => {
-              const heldByYou = seat.holderUid === me.uid;
-              const occupied = seat.status === 'claimed' && !heldByYou;
-              const action = heldByYou ? 'release' : 'claim';
-              return (
-                <li className="role-seat" key={seat.id}>
-                  <div className="role-seat__identity">
-                    <strong>{seat.label}</strong>
-                    <span className="role-seat__state" data-state={heldByYou ? 'you' : occupied ? 'held' : seat.status}>
-                      {heldByYou ? 'HELD BY YOU' : occupied ? 'OCCUPIED' : seat.status.toUpperCase()}
-                    </span>
-                  </div>
-                  {!occupied && (!isGm || heldByYou) && (
-                    <button
-                      className="cic-action-button role-seat__action"
-                      type="button"
-                      disabled={pendingSeatId !== null}
-                      aria-label={`${action === 'claim' ? 'CLAIM' : 'RELEASE'} STATION // ${seat.label}`}
-                      onClick={() => void changeSeat(seat.id, action)}
-                    >
-                      {pendingSeatId === seat.id
-                        ? `${action === 'claim' ? 'CLAIMING' : 'RELEASING'}…`
-                        : `${action === 'claim' ? 'CLAIM' : 'RELEASE'} STATION`}
-                    </button>
-                  )}
-                  {occupied && isGm && (
-                    <button
-                      className="cic-danger-button role-seat__action"
-                      type="button"
-                      disabled={pendingSeatId !== null}
-                      aria-label={`CLEAR STALE HOLDER // ${seat.label}`}
-                      onClick={(event) => {
-                        interventionTriggerRef.current = event.currentTarget;
-                        setInterventionSeatId(seat.id);
-                        setInterventionReason('');
-                      }}
-                    >
-                      CLEAR STALE HOLDER
-                    </button>
-                  )}
-                </li>
-              );
-            })}
+            {gmOccupiedSeats.map((seat) => (
+              <li className="role-seat" key={seat.id}>
+                <div className="role-seat__identity">
+                  <strong>{seat.label}</strong>
+                  <span className="role-seat__state" data-state="held">OCCUPIED // GM REVIEW</span>
+                </div>
+                <button
+                  className="cic-danger-button role-seat__action"
+                  type="button"
+                  disabled={pendingSeatId !== null}
+                  aria-label={`CLEAR STALE HOLDER // ${seat.label}`}
+                  onClick={(event) => {
+                    interventionTriggerRef.current = event.currentTarget;
+                    setInterventionSeatId(seat.id);
+                    setInterventionReason('');
+                  }}
+                >
+                  CLEAR STALE HOLDER
+                </button>
+              </li>
+            ))}
           </ul>
-          <p className="role-seat-board__note" role="status" aria-live="polite" aria-label="Seat status">
-            {seatStatus ?? 'SEAT CHANGES COMMIT THROUGH THE CIC.'}
+          <p className="role-seat-board__note" role="status" aria-live="polite" aria-label="Seat review status">
+            {seatStatus ?? 'STALE HOLDER CLEARANCE REQUIRES A REASON AND SERVER COMMIT.'}
           </p>
           {interventionSeatId && (
             <div

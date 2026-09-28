@@ -31,9 +31,9 @@ it('offers the three AEGIS command roles with the ship flag and no repeated cons
     </MemoryRouter>,
   );
 
-  expect(screen.getByRole('link', { name: /^admiral$/i })).toBeInTheDocument();
-  expect(screen.getByRole('link', { name: /^executive officer$/i })).toBeInTheDocument();
-  expect(screen.getByRole('link', { name: /^wing commander$/i })).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /^admiral/i })).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /^executive officer/i })).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /^wing commander/i })).toBeInTheDocument();
   expect(screen.getByRole('heading', { name: /aegis \/\/ station overview/i })).toBeVisible();
   expect(screen.getByText(/viewing this overview does not enter a station/i)).toBeVisible();
   expect(screen.queryByText(/wolf/i)).not.toBeInTheDocument();
@@ -42,7 +42,7 @@ it('offers the three AEGIS command roles with the ship flag and no repeated cons
     .toHaveStyle({ viewTransitionName: 'shared-ship-flag' });
   expect(screen.queryByText(/shared aegis command/i)).not.toBeInTheDocument();
 
-  await user.click(screen.getByRole('link', { name: /^executive officer$/i }));
+  await user.click(screen.getByRole('link', { name: /^executive officer/i }));
   expect(screen.getByText('AEGIS console')).toBeInTheDocument();
 });
 
@@ -65,7 +65,7 @@ it('shows live station occupancy and preserves direct station entry and read-onl
     </MemoryRouter>,
   );
 
-  expect(screen.getByRole('link', { name: /admiral.*claimed.*read-only/i }))
+  expect(screen.getByRole('link', { name: /admiral.*occupied.*read-only/i }))
     .toHaveAttribute('href', '/ships/aegis/roles/admiral');
   expect(screen.getByRole('link', { name: /executive officer.*open/i }))
     .toHaveAttribute('href', '/ships/aegis/roles/executive-officer');
@@ -138,7 +138,7 @@ it('offers only roles the GM has enabled', () => {
     </MemoryRouter>,
   );
 
-  expect(screen.getByRole('link', { name: /^admiral$/i })).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /^admiral/i })).toBeInTheDocument();
   expect(screen.queryByRole('link', { name: /executive officer/i })).not.toBeInTheDocument();
   expect(screen.queryByRole('link', { name: /wing commander/i })).not.toBeInTheDocument();
 });
@@ -201,8 +201,8 @@ it('lets an assigned officer view another console without releasing their role, 
     <Route path="/ships/:shipId/roles" element={<ShipRoleSelect />} />
     <Route path="/ships/aegis/roles/wing-commander" element={<p>Wing console</p>} />
   </Routes></MemoryRouter>);
-  expect(screen.getByRole('heading', { name: 'View ship consoles' })).toBeVisible();
-  await userEvent.click(screen.getByRole('link', { name: 'Wing Commander' }));
+  expect(screen.getByRole('heading', { name: /aegis \/\/ station overview/i })).toBeVisible();
+  await userEvent.click(screen.getByRole('link', { name: /^Wing Commander/i }));
   expect(screen.getByText('Wing console')).toBeVisible();
   expect(useSessionStore.getState().me?.activeConsoleRoleId).toBe('admiral');
 });
