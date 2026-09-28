@@ -87,6 +87,20 @@ it('edits four digits, locks the destination, powers the rail, and submits the j
   expect(jumpShip).toHaveBeenCalledWith(expect.objectContaining({ shipId: 'aegis', destination: '2000' }));
 });
 
+it('offers an emergency jump at pursuit 10 without requiring the drive power rail', async () => {
+  const user = userEvent.setup();
+  renderConsole({ pursuitValue: 10 } as unknown as Partial<ComponentProps<typeof JumpDriveConsole>>);
+
+  await user.click(screen.getByRole('button', { name: 'Increase coordinate digit 1' }));
+  await user.click(screen.getByRole('button', { name: /lock destination coordinates/i }));
+  expect(screen.getByRole('slider', { name: /jump drive power/i })).toHaveValue('0');
+
+  await user.click(screen.getByRole('button', { name: /emergency jump to 1000/i }));
+  expect(jumpShip).toHaveBeenCalledWith(expect.objectContaining({
+    shipId: 'aegis', destination: '1000', emergency: true,
+  }));
+});
+
 it('shows the effective fuel bands after the Jump Drive upgrade', () => {
   renderConsole({ upgraded: true });
 

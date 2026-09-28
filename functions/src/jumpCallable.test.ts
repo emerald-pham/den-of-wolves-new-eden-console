@@ -1,5 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
+import * as jumpCallables from './index';
 
 const mock = vi.hoisted(() => ({
   get: vi.fn(),
@@ -1190,6 +1191,67 @@ it('honours an existing integrity lock without changing authoritative state', as
   });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.randomInt).not.toHaveBeenCalled();
+});
+
+it('records an under-fuel attempt without spending resources so an exact GM adjudication can follow', async () => {
+  mock.fuel = 1;
+  mock.update.mockClear();
+  mock.set.mockClear();
+
+  await expect(jumpShip.run(request({
+    ...data, requestId: 'under-fuel-attempt', destination: '9997',
+  }))).resolves.toMatchObject({
+    status: 'fuel-shortage', shipId: 'aegis', origin: '0000', destination: '9997',
+    availableFuel: 1, requiredFuel: 3, revision: 0, idempotencyKey: 'under-fuel-attempt',
+  });
+
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/jumpFailures/under-fuel-attempt',
+    expect.objectContaining({
+      status: 'unresolved', shipId: 'aegis', origin: '0000', destination: '9997',
+      failureStatus: 'fuel-shortage', fuelRevision: 0,
+    }),
+  );
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/events/ship-jump-under-fuel-attempt',
+    expect.objectContaining({ type: 'ship-jump', outcome: 'fuel-shortage', shipId: 'aegis' }),
+  );
+  expect(mock.randomInt).not.toHaveBeenCalled();
+});
+
+it('accepts a pursuit-10 emergency jump without a charge or fuel and damages the drive plus half the remaining consoles', async () => {
+  mock.charges = [];
+  mock.fuel = 0;
+  mock.pursuitGroups = { 'fleet-1': 10 };
+  mock.update.mockClear();
+  mock.set.mockClear();
+
+  await expect(jumpShip.run(request({
+    ...data, requestId: 'emergency-at-pursuit-ten', destination: '5143', emergency: true,
+  }))).resolves.toMatchObject({
+    status: 'jumped', emergency: true, shipId: 'aegis',
+    origin: '0000', destination: '5143', fuelSpent: 0, remainingFuel: 0,
+    state: { lastJumpTurn: 1, emergencyJumpUsed: true },
+    damage: { destroyed: false, damagedSystemIds: expect.arrayContaining(['jump-drive']) },
+  });
+
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'shipResources.aegis.fuel': 0,
+    'shipJumpStates.aegis': expect.objectContaining({ lastJumpTurn: 1, emergencyJumpUsed: true }),
+    'maintenanceCycles.aegis': expect.objectContaining({ charges: [] }),
+    shipGalacticCoordinates: 'delete-field',
+  }));
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/events/ship-jump-emergency-at-pursuit-ten',
+    expect.objectContaining({ type: 'ship-jump', outcome: 'emergency', shipId: 'aegis' }),
+  );
+});
+
+it('exposes only active-GM jump-failure adjudication and read callables', () => {
+  const exports = jumpCallables as unknown as Record<string, unknown>;
+  expect(exports.adjudicateFailedJump).toBeTypeOf('object');
+  expect(exports.listUnresolvedJumpFailures).toBeTypeOf('object');
 });
 
 it('denies a player operating a different ship even with a valid printed destination', async () => {
