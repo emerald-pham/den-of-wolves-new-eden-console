@@ -18,6 +18,14 @@ Use `max` for every `gpt-6-luna` subagent. `gpt-6-sol` may use only `medium`,
 `high`, `xhigh`, or `max`, selected for the bounded task. Use `max` when the
 task's complexity warrants it.
 
+If a Luna-owned implementation fails the same acceptance gate after two
+distinct, substantive repair attempts on separate candidate commits, transfer
+implementation ownership to Sol before another repair. Preserve failing
+evidence, exact commits, checkout and coordination state in the handoff, and
+park Luna's edit scope. Deliberate red tests during test-first work are not
+failed attempts. This specific repeated-failure rule supersedes the general
+escalation threshold in `CLAUDE.md` for Luna-owned work.
+
 For a shaped checkpoint, assign independent critical-path work to available
 subagents when parallel execution is likely to shorten the release. Give each
 owner a bounded scope, separate checkout, shared-file boundary, and explicit
