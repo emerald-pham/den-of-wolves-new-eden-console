@@ -5,6 +5,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 const mock = vi.hoisted(() => ({
   get: vi.fn(),
   set: vi.fn(),
+  create: vi.fn(),
   update: vi.fn(),
   marker: undefined as Record<string, unknown> | undefined,
   orphanEvent: false,
@@ -15,6 +16,9 @@ const mock = vi.hoisted(() => ({
   readyMarker: undefined as Record<string, unknown> | undefined,
   discardEvent: false,
   arrivalPressureState: undefined as Record<string, unknown> | undefined,
+  missionOpportunities: {} as Record<string, Record<string, unknown>>,
+  missionStartSnapshots: {} as Record<string, Record<string, unknown>>,
+  navigationState: {} as Record<string, unknown>,
   fleetGroups: [] as Array<{ id: string; fields: Record<string, unknown> }>,
 }));
 
@@ -31,6 +35,7 @@ vi.mock('firebase-admin/firestore', () => ({
     runTransaction: async (callback: (tx: unknown) => unknown) => callback({
       get: mock.get,
       set: mock.set,
+      create: mock.create,
       update: mock.update,
       delete: vi.fn(),
     }),
@@ -47,11 +52,15 @@ import { activeVesselIdsForRoles } from './gameSetup';
 
 const activeRoleIds = [...recommendedRoleIds(8)];
 const activeVesselIds = [...activeVesselIdsForRoles(activeRoleIds)];
+const teamPhaseEndsAt = '2099-09-28T12:00:00.000Z';
+const openAirspaceEndsAt = '2099-09-28T12:15:00.000Z';
 const sessionFields = {
   phase: 'active',
+  currentTurn: 2,
   setupRevision: 1,
   playerCount: 8,
   chartId: 'A',
+  chartSelectionLocked: true,
   expansion: 'base',
   turnLimit: 6,
   dioneEnabled: false,
@@ -60,6 +69,20 @@ const sessionFields = {
   wolfCultEnabled: false,
   activeRoleIds,
   activeVesselIds,
+  turnPhase: {
+    turn: 2,
+    teamPhaseEndsAt,
+    openAirspaceEndsAt,
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+  },
+  turnState: {
+    currentTurn: 2,
+    maxTurn: 6,
+    phase: 'coordination',
+    phaseRevision: 3,
+    startedAt: teamPhaseEndsAt,
+    endsAt: openAirspaceEndsAt,
+  },
 };
 const players = [
   { id: 'gm1', fields: { connected: true, role: 'gm', assignedRoleId: null, fleetGroupId: 'fleet-1' } },
@@ -68,6 +91,19 @@ const players = [
 ];
 const deck = missionDeckStateFromCards(missionDeck());
 const manifest = roleOwnedCraftManifestForSetup(activeRoleIds, 'none');
+const defaultOpportunity = {
+  type: 'mission-opportunity',
+  status: 'available',
+  sessionId: 's1',
+  id: 'arrival-fleet-1-A-5143',
+  groupId: 'fleet-1',
+  chart: 'A',
+  coordinate: '5143',
+  siteCode: 'L',
+  sourceShipId: 'aegis',
+  sourceTransitionId: 'jump-entry-1',
+  sourceCycle: 2,
+};
 
 function snapshot(fields: Record<string, unknown>, path: string, exists = true) {
   return {
@@ -86,6 +122,7 @@ function request(data: Record<string, unknown>, uid = 'gm1') {
 beforeEach(() => {
   mock.get.mockReset();
   mock.set.mockReset();
+  mock.create.mockReset();
   mock.update.mockReset();
   mock.marker = undefined;
   mock.orphanEvent = false;
@@ -96,7 +133,18 @@ beforeEach(() => {
   mock.readyMarker = undefined;
   mock.discardEvent = false;
   mock.arrivalPressureState = undefined;
-  for (const player of players) player.fields.fleetGroupId = 'fleet-1';
+  mock.missionOpportunities = { [defaultOpportunity.id]: { ...defaultOpportunity } };
+  mock.missionStartSnapshots = {};
+  mock.navigationState = {
+    revision: 4,
+    shipGalacticCoordinates: Object.fromEntries(activeVesselIds.map((vesselId) => [vesselId, '5143'])),
+  };
+  for (const player of players) {
+    player.fields.connected = true;
+    player.fields.fleetGroupId = 'fleet-1';
+    if (player.id === 'alice') player.fields.assignedRoleId = 'wing-commander';
+    if (player.id === 'bob') player.fields.assignedRoleId = 'icebreaker-miner';
+  }
   mock.fleetGroups = [{
     id: 'fleet-1',
     fields: { id: 'fleet-1', vesselIds: activeVesselIds, memberUids: players.map(({ id }) => id) },
@@ -123,6 +171,17 @@ beforeEach(() => {
     }
     if (ref.path === 'sessions/s1/craftOwnership/manifest') return snapshot(manifest, ref.path);
     if (ref.path === 'sessions/s1/serverState/missionDeck') return snapshot(deck, ref.path);
+    if (ref.path === 'sessions/s1/serverState/navigation') return snapshot(mock.navigationState, ref.path);
+    if (ref.path.startsWith('sessions/s1/missionOpportunities/')) {
+      const opportunityId = ref.path.split('/').at(-1)!;
+      const opportunity = mock.missionOpportunities[opportunityId];
+      return snapshot(opportunity ?? {}, ref.path, opportunity !== undefined);
+    }
+    if (ref.path.startsWith('sessions/s1/missionStartSnapshots/')) {
+      const opportunityId = ref.path.split('/').at(-1)!;
+      const start = mock.missionStartSnapshots[opportunityId];
+      return snapshot(start ?? {}, ref.path, start !== undefined);
+    }
     if (ref.path === 'sessions/s1/serverState/wolfArrivalPressure/groups/fleet-1') {
       return snapshot(
         mock.arrivalPressureState ?? {},
@@ -341,7 +400,10 @@ describe('openPrivateMissionDiscards', () => {
 describe('dealPrivateInitialCards', () => {
   const command = {
     sessionId: 's1', instanceId: 'bridge', requestId: 'deal-1',
-    expectedSetupRevision: 1, missionId: 'mission-1', participantUids: ['alice', 'bob'],
+    expectedSetupRevision: 1, expectedPhaseRevision: 3, expectedCycle: 2,
+    opportunityId: defaultOpportunity.id, groupId: 'fleet-1', chart: 'A',
+    coordinate: '5143', sourceCycle: 2, missionLeaderUid: 'alice',
+    participantUids: ['alice', 'bob'],
   };
 
   it('rejects a team-selected Mission Leader who is outside the source-bound participant roster', async () => {
@@ -363,14 +425,18 @@ describe('dealPrivateInitialCards', () => {
 
   it('deals one card per selected eligible participant and never includes cards in the reply', async () => {
     await expect(dealPrivateInitialCards.run(request(command))).resolves.toEqual({
-      status: 'committed', sessionId: 's1', requestId: 'deal-1', missionId: 'mission-1',
-      participantCount: 2, expectedSetupRevision: 1,
+      status: 'committed', sessionId: 's1', requestId: 'deal-1',
+      opportunityId: defaultOpportunity.id, snapshotId: defaultOpportunity.id,
+      missionId: `mission-${defaultOpportunity.id}`, groupId: 'fleet-1',
+      coordinate: '5143', sourceCycle: 2, participantCount: 2,
+      missionLeaderUid: 'alice', expectedSetupRevision: 1,
+      expectedPhaseRevision: 3, expectedCycle: 2,
     });
     const handWrites = mock.set.mock.calls.filter(([ref]) => ref.path.includes('/awayMissionHands/'));
     expect(handWrites).toHaveLength(2);
     expect(handWrites.map(([, value]) => value.cardId)).toEqual(['A♥', '4♥']);
     expect(mock.set.mock.calls.some(([ref, value]) =>
-      ref.path === 'sessions/s1/serverState/awayMissions/instances/mission-1' &&
+      ref.path === `sessions/s1/serverState/awayMissions/instances/mission-${defaultOpportunity.id}` &&
       value.phase === 'awaiting-card-selection' && value.revision === 0 &&
       Array.isArray(value.discardedParticipantUids) && value.discardedParticipantUids.length === 0,
     )).toBe(true);
@@ -378,15 +444,47 @@ describe('dealPrivateInitialCards', () => {
     expect(mock.set.mock.calls.some(([ref, value]) =>
       ref.path === 'sessions/s1/events/mission-cards-dealt-deal-1' &&
       Object.prototype.hasOwnProperty.call(value, 'cardId'))).toBe(false);
+    const startWrite = mock.create.mock.calls.find(([ref]) =>
+      ref.path === `sessions/s1/missionStartSnapshots/${defaultOpportunity.id}`);
+    expect(startWrite?.[1]).toMatchObject({
+      type: 'away-mission-start-snapshot', sessionId: 's1',
+      opportunityId: defaultOpportunity.id, missionId: `mission-${defaultOpportunity.id}`,
+      groupId: 'fleet-1', chart: 'A', coordinate: '5143', sourceCycle: 2,
+      missionLeader: { uid: 'alice', roleId: 'wing-commander' },
+      source: { assumptionId: 'PC04-A1', ruleId: 'new-location-mission-with-team-selected-leader' },
+      inputs: {
+        expectedSetupRevision: 1, expectedPhaseRevision: 3, expectedCycle: 2,
+        missionLeaderUid: 'alice',
+        participantSnapshots: expect.arrayContaining([
+          { uid: 'alice', roleId: 'wing-commander', craftIds: ['starlight'] },
+          { uid: 'bob', roleId: 'icebreaker-miner', craftIds: ['highwall'] },
+        ]),
+      },
+      modifiers: [], outcome: 'started',
+      stateDelta: { missionSnapshotCreated: true, participantHandCount: 2, participantPointerCount: 2 },
+      revisions: { setup: 1, phase: { cycle: 2, phase: 'coordination', revision: 3 } },
+      replay: { status: 'committed', requestId: 'deal-1' },
+      recovery: { duplicateStart: expect.any(String) },
+    });
+    expect(mock.update).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'sessions/s1/serverState/missionDeck' }),
+      expect.objectContaining({ dealtCount: 2 }),
+    );
   });
 
   it('replays the same request without writing a second hand', async () => {
     const first = await dealPrivateInitialCards.run(request(command));
     const markerWrite = mock.set.mock.calls.find(([ref]) => ref.path === 'sessions/s1/commandReceipts/deal-1');
     mock.marker = markerWrite?.[1];
+    const startWrite = mock.create.mock.calls.find(([ref]) =>
+      ref.path === `sessions/s1/missionStartSnapshots/${defaultOpportunity.id}`);
+    mock.missionStartSnapshots[defaultOpportunity.id] = startWrite?.[1] as Record<string, unknown>;
     mock.set.mockClear();
+    mock.create.mockClear();
     await expect(dealPrivateInitialCards.run(request(command))).resolves.toMatchObject({ status: 'replayed' });
     expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.create).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
     expect(first).toMatchObject({ status: 'committed' });
   });
 
@@ -411,7 +509,7 @@ describe('dealPrivateInitialCards', () => {
     expect(mock.update).not.toHaveBeenCalled();
   });
 
-  it.each(['stale-pointer', 'missing-group', 'non-member'] as const)(
+  it.each(['stale-pointer', 'missing-group', 'non-member', 'disconnected'] as const)(
     'rejects %s fleet-group authority without consuming mission cards',
     async (scenario) => {
       if (scenario === 'stale-pointer') players[1]!.fields.fleetGroupId = 'fleet-2';
@@ -419,10 +517,12 @@ describe('dealPrivateInitialCards', () => {
       if (scenario === 'non-member') {
         mock.fleetGroups[0]!.fields.memberUids = ['gm1', 'bob'];
       }
+      if (scenario === 'disconnected') players[1]!.fields.connected = false;
       await expect(dealPrivateInitialCards.run(request(command))).rejects.toMatchObject({
         code: 'failed-precondition',
       });
       expect(mock.set).not.toHaveBeenCalled();
+      expect(mock.create).not.toHaveBeenCalled();
       expect(mock.update).not.toHaveBeenCalled();
     },
   );
@@ -443,6 +543,52 @@ describe('dealPrivateInitialCards', () => {
     await expect(dealPrivateInitialCards.run(request(command))).rejects.toMatchObject({
       code: 'failed-precondition', details: { commandError: 'malformed-input' },
     });
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.create).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects an opportunity whose source cycle does not match the selected arrival', async () => {
+    await expect(dealPrivateInitialCards.run(request({ ...command, sourceCycle: 1 })))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.create).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects a missing arrival opportunity and a roster with no eligible craft', async () => {
+    mock.missionOpportunities = {};
+    await expect(dealPrivateInitialCards.run(request(command)))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.create).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+
+    mock.missionOpportunities = { [defaultOpportunity.id]: { ...defaultOpportunity } };
+    players[2]!.fields.assignedRoleId = 'admiral';
+    await expect(dealPrivateInitialCards.run(request({
+      ...command, participantUids: ['bob'], missionLeaderUid: 'bob',
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.create).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+  });
+
+  it('returns a stale revision receipt without starting a mission or dealing cards', async () => {
+    await expect(dealPrivateInitialCards.run(request({ ...command, expectedPhaseRevision: 2 })))
+      .resolves.toMatchObject({
+        status: 'stale', expectedPhaseRevision: 2, currentPhaseRevision: 3,
+      });
+    expect(mock.create).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.set.mock.calls.map(([ref]) => ref.path)).toEqual(['sessions/s1/commandReceipts/deal-1']);
+  });
+
+  it('does not overwrite an opportunity that already has an immutable start snapshot', async () => {
+    mock.missionStartSnapshots[defaultOpportunity.id] = { type: 'away-mission-start-snapshot' };
+    await expect(dealPrivateInitialCards.run(request({ ...command, requestId: 'duplicate-start' })))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.create).not.toHaveBeenCalled();
     expect(mock.set).not.toHaveBeenCalled();
     expect(mock.update).not.toHaveBeenCalled();
   });
@@ -468,30 +614,45 @@ describe('dealPrivateInitialCards', () => {
   it('rejects a non-facilitator before private state can be read or written', async () => {
     await expect(dealPrivateInitialCards.run(request(command, 'alice'))).rejects.toMatchObject({ code: 'permission-denied' });
     expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.create).not.toHaveBeenCalled();
   });
 
   it('rejects an orphaned public event without writing a hand or advancing the deck', async () => {
     mock.orphanEvent = true;
     await expect(dealPrivateInitialCards.run(request(command))).rejects.toMatchObject({ code: 'failed-precondition' });
     expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.create).not.toHaveBeenCalled();
     expect(mock.update).not.toHaveBeenCalled();
   });
 
   it('keeps overlapping missions for the same participant on distinct pointers', async () => {
     const first = {
-      ...command, requestId: 'deal-m1', missionId: 'mission-1', participantUids: ['alice'],
+      ...command, requestId: 'deal-m1', participantUids: ['alice'],
     };
     const second = {
-      ...command, requestId: 'deal-m2', missionId: 'mission-2', participantUids: ['alice'],
+      ...command, requestId: 'deal-m2', opportunityId: 'arrival-fleet-1-A-8378-cycle-2',
+      coordinate: '8378', sourceCycle: 2, participantUids: ['alice'],
     };
-    await expect(dealPrivateInitialCards.run(request(first))).resolves.toMatchObject({ missionId: 'mission-1' });
-    await expect(dealPrivateInitialCards.run(request(second))).resolves.toMatchObject({ missionId: 'mission-2' });
+    mock.missionOpportunities[second.opportunityId] = {
+      type: 'mission-opportunity', status: 'available', sessionId: 's1',
+      id: second.opportunityId, groupId: 'fleet-1', chart: 'A', coordinate: '8378',
+      siteCode: 'J', sourceShipId: 'aegis', sourceTransitionId: 'jump-entry-2', sourceCycle: 2,
+    };
+    await expect(dealPrivateInitialCards.run(request(first))).resolves.toMatchObject({
+      missionId: `mission-${first.opportunityId}`,
+    });
+    mock.navigationState.shipGalacticCoordinates = Object.fromEntries(
+      activeVesselIds.map((vesselId) => [vesselId, '8378']),
+    );
+    await expect(dealPrivateInitialCards.run(request(second))).resolves.toMatchObject({
+      missionId: `mission-${second.opportunityId}`,
+    });
     const pointerPaths = mock.set.mock.calls
       .filter(([ref]) => ref.path.includes('/awayMissionHandPointers/'))
       .map(([ref]) => ref.path);
     expect(pointerPaths).toEqual(expect.arrayContaining([
-      'sessions/s1/awayMissionHandPointers/m9_mission-1u5_alice',
-      'sessions/s1/awayMissionHandPointers/m9_mission-2u5_alice',
+      `sessions/s1/awayMissionHandPointers/m${`mission-${first.opportunityId}`.length}_mission-${first.opportunityId}u5_alice`,
+      `sessions/s1/awayMissionHandPointers/m${`mission-${second.opportunityId}`.length}_mission-${second.opportunityId}u5_alice`,
     ]));
     expect(new Set(pointerPaths).size).toBe(2);
   });

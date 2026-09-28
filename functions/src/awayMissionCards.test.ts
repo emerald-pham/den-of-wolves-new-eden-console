@@ -11,7 +11,15 @@ describe('away mission private-card allocation', () => {
   it('keeps the source-defined participant craft boundary explicit', () => {
     expect(awayMissionCraftForRole('wing-commander')).toEqual(['starlight']);
     expect(awayMissionCraftForRole('icebreaker-miner')).toEqual(['highwall']);
+    expect(awayMissionCraftForRole('refinery-124-pdf-colonel')).toEqual(['pdf-escort-fighter-wing']);
+    expect(awayMissionCraftForRole('press-officer')).toEqual([]);
     expect(awayMissionCraftForRole('admiral')).toEqual([]);
+    expect(awayMissionCraftForRole('gorgoneion-captain')).toEqual([]);
+    expect(awayMissionCraftForRole('capybara-captain')).toEqual([]);
+    expect(awayMissionCraftForRole('capybara-recycler')).toEqual([]);
+    expect(awayMissionCraftForRole('warrior-captain')).toEqual([]);
+    expect(awayMissionCraftForRole('joint-engineering-quellon-refinery')).toEqual([]);
+    expect(awayMissionCraftForRole('joint-engineering-shepherd-icebreaker')).toEqual([]);
   });
 
   it('keeps mission and participant components injective in hand paths', () => {

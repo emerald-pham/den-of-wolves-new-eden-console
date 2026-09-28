@@ -45,6 +45,25 @@ it('shows the participant-owned card and submits one private discard', async () 
   expect(discardPrivateMissionCard).toHaveBeenCalledWith('mission-1', 'A♥');
 });
 
+it('keeps the source group, coordinate, and team-selected Mission Leader visible beside the private hand', () => {
+  const store = useSessionStore.getState();
+  store.setSession({ id: 's1', setupRevision: 1 } as never);
+  store.setMe({ uid: 'alice', sessionId: 's1', role: 'player' } as never);
+  store.setAwayMissionHandPointer({
+    sessionId: 's1', participantUid: 'alice', missionId: 'mission-1', handId: 'hand-1',
+    phase: 'awaiting-card-selection', revision: 0, discarded: false,
+    groupId: 'fleet-2', chart: 'B', coordinate: '3825', siteCode: 'O', sourceCycle: 3,
+    participantCount: 2, missionLeaderUid: 'bob', missionLeaderRoleId: 'icebreaker-miner',
+  });
+
+  render(<AwayMissionDiscardPanel />);
+
+  const panel = screen.getByRole('region', { name: /private away mission cards/i });
+  expect(panel).toHaveTextContent('fleet-2');
+  expect(panel).toHaveTextContent('B // 3825');
+  expect(panel).toHaveTextContent('Mission Leader // bob');
+});
+
 it('shows the GM readiness control without exposing card content', async () => {
   const user = userEvent.setup();
   vi.mocked(openPrivateMissionDiscards).mockResolvedValue({
