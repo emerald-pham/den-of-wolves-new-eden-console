@@ -1290,7 +1290,7 @@ test('PC05 setup and maintenance candidate selects runtime consumers before rele
   const selected = deploymentSelector({ before, after, files, targets: ['hosting', 'functions'] });
   for (const name of [
     'startGame', 'confirmSetup', 'joinSession', 'resumeSession', 'assignLoyalty',
-    'runMaintenance', 'rerollDioneMaintenanceDie', 'resolveShipMutiny',
+    'runMaintenance', 'rerollVipUnrest', 'resolveShipMutiny',
     'runSmallShipMaintenance', 'runVoyage33Maintenance', 'jumpShip',
   ]) {
     assert.ok(selected.split(',').includes(`functions:${name}`), `${name} must receive the PC05 contract`);
