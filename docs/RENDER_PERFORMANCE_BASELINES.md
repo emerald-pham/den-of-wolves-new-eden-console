@@ -16,6 +16,7 @@ The versioned budgets live in
 | Landing startup, p95 of five cold contexts | 2,500 ms |
 | Role Select startup from a cached session, p95 of five cold contexts | 2,500 ms |
 | DRADIS update, p95 of 30 renders | 150 ms |
+| DRADIS label layout reads, 20 contacts across initial render and 30 updates | at most 12,400 total |
 | Hostile attack update, p95 of 30 renders | 120 ms |
 | Eight simultaneous private mission hands, p95 of 30 updates | 100 ms |
 | Mobile frame interval at 390×844, p95 of 120 update frames | 120 ms |
@@ -342,3 +343,13 @@ production telemetry. The clean-main and candidate results are recorded in
 `/tmp/p397-candidate-no-lazy-p637/results.json`; the candidate is 0.5.31 with
 P397/P453 still partial pending source-supported production paths. Remeasure
 if reviewed application code changes.
+
+Baseline version 21 adds a layout-read limit for the crowded 20-contact
+DRADIS probe without increasing any timing or bundle budget. GitHub Actions
+run `36371534522` measured a 258.9 ms DRADIS update p95 against the existing
+150 ms ceiling after the PC02 label placement change. The new counter found
+70,452 synchronous label-box reads in the pre-repair 31-render probe. It
+allows at most 12,400 reads, including the initial render, so a return to
+per-row forced layout fails even on a faster local machine. This counter
+records browser layout reads, not live production telemetry; the 150 ms
+CI-host timing ceiling remains the release gate.
