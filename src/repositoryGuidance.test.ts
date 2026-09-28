@@ -114,33 +114,33 @@ describe('repository guidance', () => {
     expect(errors, errors.join('\n')).toEqual([]);
 
     const weak = new Map(sources);
-    weak.set('AGENTS.md', readGuidance('AGENTS.md').replaceAll('gpt-6-sol', 'gpt-5.6-terra'));
-    weak.set('CLAUDE.md', readGuidance('CLAUDE.md').replaceAll('gpt-6-sol', 'gpt-5.6-terra'));
-    weak.set('docs/AGENT_CAMPAIGN_PLAYBOOK.md', readGuidance('docs/AGENT_CAMPAIGN_PLAYBOOK.md').replaceAll('gpt-6-sol', 'gpt-5.6-terra'));
+    weak.set('AGENTS.md', readGuidance('AGENTS.md').replaceAll('gpt-5.6-sol', 'gpt-5.6-terra'));
+    weak.set('CLAUDE.md', readGuidance('CLAUDE.md').replaceAll('gpt-5.6-sol', 'gpt-5.6-terra'));
+    weak.set('docs/AGENT_CAMPAIGN_PLAYBOOK.md', readGuidance('docs/AGENT_CAMPAIGN_PLAYBOOK.md').replaceAll('gpt-5.6-sol', 'gpt-5.6-terra'));
     const weakErrors: string[] = [];
     validateAgentModelEscalation({ sources: weak, errors: weakErrors });
     expect(weakErrors).toEqual(expect.arrayContaining([
-      expect.stringContaining('must not authorize older or Terra subagent models'),
+      expect.stringContaining('must not authorize models outside GPT-5.6 Sol and GPT-6 Luna'),
     ]));
 
     const wrongEffort = new Map(sources);
     wrongEffort.set('CLAUDE.md', readGuidance('CLAUDE.md')
       .replace('Use `max` for every `gpt-6-luna`', 'Use `high` for every `gpt-6-luna`')
-      .replace('may use only `medium`, `high`, `xhigh`, or `max`', 'may use any effort'));
+      .replace('may use only `low`, `medium`, `high`, or `xhigh`', 'may use any effort'));
     const effortErrors: string[] = [];
     validateAgentModelEscalation({ sources: wrongEffort, errors: effortErrors });
     expect(effortErrors).toEqual(expect.arrayContaining([
       expect.stringContaining('must require max effort for every GPT-6 Luna subagent'),
-      expect.stringContaining('must limit GPT-6 Sol effort to medium, high, xhigh, or max'),
+      expect.stringContaining('must limit GPT-5.6 Sol effort to low, medium, high, or xhigh'),
     ]));
 
     const oldCeiling = new Map(sources);
     oldCeiling.set('CLAUDE.md', readGuidance('CLAUDE.md')
-      .replace('may use only `medium`, `high`, `xhigh`, or `max`', 'may use only `medium`, `high`, or `xhigh`'));
+      .replace('may use only `low`, `medium`, `high`, or `xhigh`', 'may use only `low`, `medium`, `high`, `xhigh`, or `max`'));
     const ceilingErrors: string[] = [];
     validateAgentModelEscalation({ sources: oldCeiling, errors: ceilingErrors });
     expect(ceilingErrors).toEqual(expect.arrayContaining([
-      expect.stringContaining('must limit GPT-6 Sol effort to medium, high, xhigh, or max'),
+      expect.stringContaining('must limit GPT-5.6 Sol effort to low, medium, high, or xhigh'),
     ]));
   });
 
