@@ -117,7 +117,7 @@ const PDF_ESCORT_WING_SOURCE_MODULE_CALLABLES = Object.freeze({
   'functions/src/pdfEscortWingProjection.ts': ['declareWolfAttack', 'launchPdfEscortWing'],
 });
 const AWAY_MISSION_SOURCE_MODULE_CALLABLES = Object.freeze({
-  'functions/src/awayMissionCards.ts': ['startAwayMission'],
+  'functions/src/awayMissionCards.ts': ['dealPrivateInitialCards'],
   // Pure follow-on candidate only; no deployed callable imports it yet.
   'functions/src/missionLifecycle.ts': [],
 });
@@ -1067,10 +1067,10 @@ test('maps PDF Escort Wing server modules to their exact deployed callable consu
 
 test('maps away-mission server modules only to their audited deployed callable consumers', () => {
   const selected = selectorFor(Object.keys(AWAY_MISSION_SOURCE_MODULE_CALLABLES));
-  assert.deepEqual(selectedFunctions(selected), functionTargets(['startAwayMission']));
+  assert.deepEqual(selectedFunctions(selected), functionTargets(['dealPrivateInitialCards']));
 
   const indexSource = readFileSync(new URL('../functions/src/index.ts', import.meta.url), 'utf8');
-  assert.match(indexSource, /export const startAwayMission\s*=\s*onCall/);
+  assert.match(indexSource, /export const dealPrivateInitialCards\s*=\s*onCall/);
   assert.throws(
     () => selectorFor(['functions/src/missionLifecycle.ts']),
     /Functions changed but no named callable deployment could be proven/,

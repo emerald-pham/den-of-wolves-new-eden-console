@@ -161,6 +161,9 @@ const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
   'functions/src/pdfEscortWingState.ts': [
     'declareWolfAttack', 'getPdfEscortWingLaunch', 'launchPdfEscortWing',
   ],
+  'functions/src/awayMissionCards.ts': ['dealPrivateInitialCards'],
+  // This pure follow-on domain candidate has no deployed callable consumer yet.
+  'functions/src/missionLifecycle.ts': [],
   // advanceSmallShipMaintenance is used by these three deployed transactions;
   // type-only and test imports do not add callable consumers.
   'functions/src/smallShip.ts': [
