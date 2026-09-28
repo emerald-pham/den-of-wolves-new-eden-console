@@ -26,6 +26,17 @@ the original assumption; append the resolution so the decision is traceable.
 
 ## Entries
 
+### PC04-A1 — Mission Leader selection is recorded, not decided, by the GM
+
+| Field | Record |
+|---|---|
+| ID and milestone | PC04-A1; exploration and split-fleet map. |
+| Source passage | Player's Guide v1.1, printed pp. 10 and 14–15, Away Missions: the players decide who joins each mission and select one participant as Mission Leader before the facilitator deals the mission cards and resolves the procedure. Facilitator's Guide v1.1, printed pp. 13–14, Away Missions: the facilitator runs the mission procedure, records its result, and handles any reward. A4 card pack v1.1, printed shuttle and ship sheets: ordinary away-mission carriage comes from the active printed craft and its capacity. |
+| Ambiguity and alternatives | The printed rules require the team to select the Mission Leader but do not name the digital actor who enters that already-made choice. Plausible digital readings are participant self-service, a leader claim, or a facilitator record. The source also does not create a default participant, a mission without eligible transport, or general permission for optional vessels whose separate admission rules are unfinished. |
+| Chosen reading | The participating team still makes the choice; the active GM only records one connected participant roster and its single selected leader. The server rejects an empty roster, a leader outside that roster, a participant outside the bound fleet group, or a start without currently eligible active craft. Optional Gorgoneion, Capybara, Warrior, Union, and other separately governed craft are excluded until their own canonical admission rules are complete. |
+| Product effect | Prompt 401 binds mission start to the exact opportunity, fleet group, coordinate, cycle, roster, and selected leader. The authoritative transaction may then automate the source-deterministic initial deal from Prompt 403 and append the GM-log receipt required by PC03-F05. Focused domain, callable, privacy, replay, stale-revision, rules, and projection tests rely on this reading. |
+| Review state | New; pending explicit PC04 checkpoint authorization or a later owner correction. A UI walkthrough is optional. |
+
 ### PC01-A1 — Receiving ship for a shuttle's scanned coordinate
 
 | Field | Record |
