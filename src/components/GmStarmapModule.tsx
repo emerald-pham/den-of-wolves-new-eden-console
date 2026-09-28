@@ -44,6 +44,14 @@ export default function GmStarmapModule({ session }: Props) {
   }, [fleetMarkers, selectedShipId]);
 
   const selectedShip = fleetMarkers.find((marker) => marker.id === selectedShipId);
+  const groupedMarkers = new Map<string, StarmapFleetMarker[]>();
+  for (const marker of fleetMarkers) {
+    const groupId = session.shipFleetGroupIds?.[marker.id];
+    if (!groupId) continue;
+    groupedMarkers.set(groupId, [...(groupedMarkers.get(groupId) ?? []), marker]);
+  }
+  const fleetGroups = [...groupedMarkers.entries()].sort(([left], [right]) =>
+    left.localeCompare(right, undefined, { numeric: true }));
   const gameplayFrozen = ['success', 'failure', 'debrief', 'closed'].includes(session.phase);
   const canMove = Boolean(
     selectedShip && selectedCoordinate !== selectedShip.coordinate && !moving && !gameplayFrozen,
@@ -97,6 +105,40 @@ export default function GmStarmapModule({ session }: Props) {
           ? 'Endgame evaluation // ship movement is frozen.'
           : status}</p>
       </div>
+      {fleetGroups.length > 0 && <section
+        className="gm-starmap__groups"
+        role="region"
+        aria-label="GM fleet group status"
+      >
+        <header>
+          <p className="cic-overline">SERVER-OWNED GROUP PROJECTION</p>
+          <h3>Fleet groups</h3>
+        </header>
+        <p>Ordinary communications remain within each group.</p>
+        <div className="gm-starmap__group-grid">
+          {fleetGroups.map(([groupId, markers]) => {
+            const coordinates = [...new Set(markers.map((marker) => marker.coordinate))];
+            const location = coordinates.length === 1
+              ? coordinates[0]
+              : `LOCATION CONFLICT // ${coordinates.join(' // ')}`;
+            const pursuit = session.pursuitGroups?.[groupId];
+            return <section
+              className="gm-starmap__group cic-frame"
+              role="region"
+              aria-label={`${groupId.toUpperCase()} status`}
+              data-fleet-group-id={groupId}
+              key={groupId}
+            >
+              <h4>{groupId.toUpperCase()}</h4>
+              <dl>
+                <div><dt>Ships</dt><dd>{markers.map((marker) => marker.label.toUpperCase()).join(' // ')}</dd></div>
+                <div><dt>Current location</dt><dd>{location}</dd></div>
+                <div><dt>Wolf pursuit</dt><dd>{pursuit === undefined ? 'Pursuit unavailable' : `${pursuit} / 10`}</dd></div>
+              </dl>
+            </section>;
+          })}
+        </div>
+      </section>}
       <Starmap
         chart={chart}
         {...(session.organiserSites ? { organiserSites: session.organiserSites } : {})}

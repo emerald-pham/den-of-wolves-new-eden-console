@@ -512,6 +512,71 @@
   text-transform: uppercase;
 }
 
+.gm-starmap__groups {
+  display: grid;
+  gap: 0.7rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--cic-rule);
+}
+
+.gm-starmap__groups > header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.gm-starmap__groups h3,
+.gm-starmap__groups h4,
+.gm-starmap__groups p,
+.gm-starmap__groups dl,
+.gm-starmap__groups dd {
+  margin: 0;
+}
+
+.gm-starmap__groups h3,
+.gm-starmap__groups h4 {
+  color: var(--cic-cyan);
+  font-family: var(--cic-display);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.gm-starmap__groups > p,
+.gm-starmap__group dl {
+  font: 0.72rem/1.45 var(--cic-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.gm-starmap__group-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: 0.7rem;
+}
+
+.gm-starmap__group {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.7rem;
+}
+
+.gm-starmap__group dl {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.gm-starmap__group dt {
+  color: var(--cic-muted);
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+}
+
+.gm-starmap__group dd {
+  overflow-wrap: anywhere;
+  color: var(--cic-ink);
+}
+
 .ship-navigation-workspace {
   display: grid;
   gap: 1rem;
