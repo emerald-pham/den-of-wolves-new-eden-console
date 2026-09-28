@@ -295,32 +295,33 @@ describe('RoleSelect', () => {
     expect(releaseSeat).not.toHaveBeenCalled();
   });
 
-  it('does not offer core-seat claim or release controls to an active GM on Role Select', () => {
+  it('lets an active GM release its own legacy seat when no active console role is recorded', async () => {
+    const user = userEvent.setup();
     useSessionStore.getState().setSession({
       ...session,
-      activeRoleIds: ['admiral', 'seat-1'],
+      activeRoleIds: ['seat-1'],
       setupRevision: 2,
     });
-    useSessionStore.getState().setMe({ ...gm, role: 'gm', seatId: 'seat-1' });
+    useSessionStore.getState().setMe({
+      ...gm, role: 'gm', seatId: 'seat-1', activeConsoleRoleId: null,
+    });
     useSessionStore.getState().setGmInstance({
       id: 'instance-1', sessionId: 's1', uid: 'gm1', name: 'Bridge laptop',
       deviceLabel: 'Mac / Chrome', claimedAt: '2026-01-01T00:00:00.000Z',
     });
-    useSessionStore.getState().setSeats([
-      {
-        id: 'admiral', sessionId: 's1', roleId: 'admiral', label: 'AEGIS // Admiral',
-        status: 'open', holderUid: null, factionId: 'aegis', claimedAt: null,
-      },
-      {
-        id: 'seat-1', sessionId: 's1', roleId: 'seat-1', label: 'Seat 1',
-        status: 'claimed', holderUid: 'gm1', factionId: 'aegis', claimedAt: 'legacy-claim',
-      },
-    ]);
+    useSessionStore.getState().setSeats([{
+      id: 'seat-1', sessionId: 's1', roleId: 'seat-1', label: 'Seat 1',
+      status: 'claimed', holderUid: 'gm1', factionId: 'aegis', claimedAt: 'legacy-claim',
+    }]);
     vi.mocked(releaseSeat).mockResolvedValue('applied');
+    vi.mocked(releaseSeat).mockClear();
     renderRoute();
 
     expect(screen.queryByRole('button', { name: /claim station/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /release station/i })).not.toBeInTheDocument();
+    const release = screen.getByRole('button', { name: /release station.*seat 1/i });
+    expect(release).toBeVisible();
+    await user.click(release);
+    expect(releaseSeat).toHaveBeenCalledWith('seat-1');
   });
 
   it('gives an active GM an accessible reasoned intervention for a stale occupied seat', async () => {
