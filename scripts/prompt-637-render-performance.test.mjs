@@ -13,6 +13,7 @@ test('measures the PC04 player station catalog instead of the GM-only Role Selec
   assert.deepEqual(playerConsoleRouteProbe(), {
     route: '/console',
     readySelector: '.fleet-roster',
+    forceOffline: false,
   });
 });
 
