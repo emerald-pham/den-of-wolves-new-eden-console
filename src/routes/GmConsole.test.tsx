@@ -2179,7 +2179,7 @@ it('keeps stale counter input when an alert blocks retry until a fresh snapshot'
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(within(dione).getByRole('status')).toHaveTextContent(/retry is paused/i);
+    expect(within(dione).getByText(/retry is paused/i)).toHaveAttribute('role', 'status');
     expect(within(dione).getByRole('button', { name: /retry.*unrest/i })).toBeDisabled();
     expect(applyShipCounterSteps).toHaveBeenCalledTimes(2);
 
