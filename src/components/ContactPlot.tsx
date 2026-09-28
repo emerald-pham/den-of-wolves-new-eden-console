@@ -624,10 +624,11 @@ export default function ContactPlot({
     const clampMovingFix = (event: Event) => {
       const contact = event.target instanceof HTMLElement
         ? event.target.closest<HTMLElement>('.contact-plot__contact') : null;
-      // Acquiring a stationary return changes opacity only. Its label was
-      // already placed at that position; repeating the layout for every ping
-      // would force several complete scan-board reflows per frame.
-      if (!contact || contact.dataset.moving === 'true') clamp();
+      // A held stationary fix can change on first acquisition or a later
+      // eligible sweep. Relayout for that new mark, but skip same-fix pings
+      // that only refresh its flare.
+      const fixChanged = (event as CustomEvent<{ fixChanged?: boolean }>).detail?.fixChanged === true;
+      if (!contact || contact.dataset.moving === 'true' || fixChanged) clamp();
     };
     clamp();
     let observedWidth = node.clientWidth;

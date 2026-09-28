@@ -217,6 +217,7 @@ export function followSweeps(plot: HTMLElement): () => void {
       // may choose another bearing, before starting its new flash. Moving
       // contacts use the same sample-and-hold window as stationary returns.
       const mayRefreshFix = firstAcquisition || now - state.scannedAt >= SCAN_FRESH_MS;
+      const previousFix = state.fix;
       if (mayRefreshFix) {
         if (moving) {
           // The true-position marker follows the CSS trajectory continuously.
@@ -234,6 +235,8 @@ export function followSweeps(plot: HTMLElement): () => void {
         }
         state.scans += 1;
       }
+      const fixChanged = firstAcquisition || state.fix.x !== previousFix.x ||
+        state.fix.y !== previousFix.y || state.fix.z !== previousFix.z;
       // Every crossing is still a ping: it refreshes the visible flare and
       // dispatches CONTACT_SCAN_EVENT below, even when the fresh fix is held.
       state.scannedAt = now;
@@ -267,7 +270,10 @@ export function followSweeps(plot: HTMLElement): () => void {
         blip.animate?.(fade, { duration: 7000, fill: 'forwards' }),
         state.drop?.animate?.(fade, { duration: 7000, fill: 'forwards' }),
       ].filter((animation): animation is Animation => animation !== undefined);
-      element.dispatchEvent(new CustomEvent(CONTACT_SCAN_EVENT, { bubbles: true }));
+      element.dispatchEvent(new CustomEvent(CONTACT_SCAN_EVENT, {
+        bubbles: true,
+        detail: { fixChanged },
+      }));
     }
     previous = normals;
     frame = requestAnimationFrame(tick);
