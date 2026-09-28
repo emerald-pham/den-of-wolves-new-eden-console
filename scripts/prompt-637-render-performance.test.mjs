@@ -5,9 +5,17 @@ import { tmpdir } from 'node:os';
 import test from 'node:test';
 import {
   collectJavaScriptModuleGraph,
+  isAwayMissionDiscardChunkRequest,
   measureBundleSizes,
   playerConsoleRouteProbe,
 } from './prompt-637-render-performance.mjs';
+
+test('recognizes only the protected away-mission discard browser chunk', () => {
+  assert.equal(isAwayMissionDiscardChunkRequest('http://127.0.0.1:4173/assets/AwayMissionDiscardPanel-abc123.js'), true);
+  assert.equal(isAwayMissionDiscardChunkRequest('http://127.0.0.1:4173/assets/AwayMissionDiscardPanel-abc123.js?v=1'), true);
+  assert.equal(isAwayMissionDiscardChunkRequest('http://127.0.0.1:4173/assets/SessionMode-abc123.js'), false);
+  assert.equal(isAwayMissionDiscardChunkRequest('http://127.0.0.1:4173/src/components/AwayMissionDiscardPanel.tsx'), false);
+});
 
 test('measures the PC04 player station catalog instead of the GM-only Role Select route', () => {
   assert.deepEqual(playerConsoleRouteProbe(), {
