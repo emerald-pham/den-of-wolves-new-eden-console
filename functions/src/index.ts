@@ -18478,6 +18478,7 @@ export const launchDioneMaliades = onCall<{
     );
     const replay = replayBoundCommand(receipt, fingerprint, isDioneMaliadesLaunchResult, 'Maliades launch');
     if (replay) return { ...replay, status: 'replayed' };
+    requireUsableShip(session, 'dione');
     if (audit.exists || event.exists) rejectLegacyEventReplay('Maliades launch');
     requireActiveGameplayPhase(session);
     const view = dioneMaliadesLaunchView(sessionId, session, state);
@@ -18753,6 +18754,7 @@ export const launchPdfEscortWing = onCall<{
     await rejectForeignLegacyM1Command(tx, sessionId, requestId, 'P.D.F. Escort Wing launch', []);
     const replay = replayBoundCommand(receipt, fingerprint, isPdfEscortWingLaunchResult, 'P.D.F. Escort Wing launch');
     if (replay) return { ...replay, status: 'replayed' };
+    requireUsableShip(session, 'refinery-124');
     if (audit.exists) rejectLegacyEventReplay('P.D.F. Escort Wing launch');
     requireActiveGameplayPhase(session);
     const view = pdfEscortWingLaunchView(sessionId, session, attack, wing);
@@ -24859,6 +24861,7 @@ export const runHighwallMining = onCall<{
     await rejectForeignLegacyM1Command(tx, data.sessionId, data.requestId, 'Highwall mining', []);
     const replay = highwallMiningReplay(prior, fingerprint);
     if (replay) return { replay, stale: undefined, fingerprint, authority };
+    requireUsableShip(authority.session, authority.hostShipId);
     if (event.exists) rejectLegacyEventReplay('Highwall mining');
     if (actionAudit.exists) rejectLegacyEventReplay('Highwall mining audit');
     const cycle = requireLiveHighwallMiningWindow(authority.session);
@@ -24910,6 +24913,7 @@ export const runHighwallMining = onCall<{
     await rejectForeignLegacyM1Command(tx, data.sessionId, data.requestId, 'Highwall mining', []);
     const replay = highwallMiningReplay(prior, fingerprint);
     if (replay) return replay;
+    requireUsableShip(authority.session, authority.hostShipId);
     if (event.exists) rejectLegacyEventReplay('Highwall mining');
     if (actionAudit.exists) rejectLegacyEventReplay('Highwall mining audit');
     const cycle = requireLiveHighwallMiningWindow(authority.session);
@@ -25206,6 +25210,8 @@ export const requestScout = onCall<{
       throw commandError('failed-precondition', 'Current ship positions are unavailable for scouting.', 'malformed-input');
     }
     const receivingShipId = scoutReceivingShipId(session, entitlementId, activeRoleIds, activeVesselIds);
+    requireUsableShip(session, entitlement.anchorShipId);
+    if (receivingShipId !== entitlement.anchorShipId) requireUsableShip(session, receivingShipId);
     let scan: AuthorizedScoutScan;
     try {
       scan = authorizeCurrentScoutScan({
