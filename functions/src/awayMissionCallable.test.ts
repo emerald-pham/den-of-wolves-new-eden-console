@@ -10,6 +10,7 @@ const mock = vi.hoisted(() => ({
   marker: undefined as Record<string, unknown> | undefined,
   orphanEvent: false,
   discardMission: undefined as Record<string, unknown> | undefined,
+  discardMissionId: 'mission-1',
   discardHand: undefined as Record<string, unknown> | undefined,
   discardPointer: undefined as Record<string, unknown> | undefined,
   pointerDocuments: {} as Record<string, Record<string, unknown>>,
@@ -129,6 +130,11 @@ function request(data: Record<string, unknown>, uid = 'gm1') {
 beforeEach(() => {
   mock.get.mockReset();
   mock.set.mockReset();
+  mock.set.mockImplementation((ref: { path: string }, value: Record<string, unknown>) => {
+    if (!ref.path.includes('/awayMissionHandPointers/')) return;
+    const handId = ref.path.split('/').at(-1)!;
+    mock.pointerDocuments[handId] = value;
+  });
   mock.create.mockReset();
   mock.update.mockReset();
   mock.update.mockImplementation((ref: { path: string }, patch: Record<string, unknown>) => {
@@ -143,6 +149,7 @@ beforeEach(() => {
   mock.marker = undefined;
   mock.orphanEvent = false;
   mock.discardMission = undefined;
+  mock.discardMissionId = 'mission-1';
   mock.discardHand = undefined;
   mock.discardPointer = undefined;
   mock.pointerDocuments = {};
@@ -247,7 +254,7 @@ beforeEach(() => {
     if (ref.path === 'sessions/s1/events/mission-card-discarded-discard-1' && mock.discardEvent) {
       return snapshot({ type: 'mission-card-discarded' }, ref.path);
     }
-    if (ref.path === 'sessions/s1/serverState/awayMissions/instances/mission-1' && mock.discardMission) {
+    if (ref.path === `sessions/s1/serverState/awayMissions/instances/${mock.discardMissionId}` && mock.discardMission) {
       return snapshot(mock.discardMission, ref.path);
     }
     if (ref.path === 'sessions/s1/awayMissionHands/m9_mission-1u5_alice' && mock.discardHand) {
@@ -386,21 +393,21 @@ describe('openPrivateMissionDiscards', () => {
         { uid: 'bob', roleId: 'icebreaker-miner', craftIds: ['highwall'] },
       ],
       handIds: ['m9_mission-1u5_alice', 'm9_mission-1u3_bob'],
-      groupId: 'fleet-1', chart: 'A', coordinate: '5143', sourceCycle: 2,
-      missionLeaderUid: 'alice',
+      groupId: 'fleet-1', chart: 'A', coordinate: '5143', siteCode: 'L', sourceCycle: 2,
+      missionLeaderUid: 'alice', missionLeaderRoleId: 'wing-commander',
     };
     mock.pointerDocuments = {
       'm9_mission-1u5_alice': {
         type: 'away-mission-hand-pointer', sessionId: 's1', participantUid: 'alice',
         missionId: 'mission-1', handId: 'm9_mission-1u5_alice',
-        groupId: 'fleet-1', chart: 'A', coordinate: '5143', sourceCycle: 2,
-        missionLeaderUid: 'alice',
+        groupId: 'fleet-1', chart: 'A', coordinate: '5143', siteCode: 'L', sourceCycle: 2,
+        participantCount: 2, missionLeaderUid: 'alice', missionLeaderRoleId: 'wing-commander',
       },
       'm9_mission-1u3_bob': {
         type: 'away-mission-hand-pointer', sessionId: 's1', participantUid: 'bob',
         missionId: 'mission-1', handId: 'm9_mission-1u3_bob',
-        groupId: 'fleet-1', chart: 'A', coordinate: '5143', sourceCycle: 2,
-        missionLeaderUid: 'alice',
+        groupId: 'fleet-1', chart: 'A', coordinate: '5143', siteCode: 'L', sourceCycle: 2,
+        participantCount: 2, missionLeaderUid: 'alice', missionLeaderRoleId: 'wing-commander',
       },
     };
     await expect(openPrivateMissionDiscards.run(request({
@@ -421,13 +428,13 @@ describe('openPrivateMissionDiscards', () => {
     ]));
     expect(mock.pointerDocuments['m9_mission-1u5_alice']).toMatchObject({
       phase: 'discarding', revision: 1, discarded: false,
-      groupId: 'fleet-1', chart: 'A', coordinate: '5143', sourceCycle: 2,
-      missionLeaderUid: 'alice',
+      groupId: 'fleet-1', chart: 'A', coordinate: '5143', siteCode: 'L', sourceCycle: 2,
+      participantCount: 2, missionLeaderUid: 'alice', missionLeaderRoleId: 'wing-commander',
     });
     expect(mock.pointerDocuments['m9_mission-1u3_bob']).toMatchObject({
       phase: 'discarding', revision: 1, discarded: false,
-      groupId: 'fleet-1', chart: 'A', coordinate: '5143', sourceCycle: 2,
-      missionLeaderUid: 'alice',
+      groupId: 'fleet-1', chart: 'A', coordinate: '5143', siteCode: 'L', sourceCycle: 2,
+      participantCount: 2, missionLeaderUid: 'alice', missionLeaderRoleId: 'wing-commander',
     });
   });
 
@@ -550,6 +557,37 @@ describe('dealPrivateInitialCards', () => {
       expect.objectContaining({ path: 'sessions/s1/serverState/missionDeck' }),
       expect.objectContaining({ dealtCount: 2 }),
     );
+  });
+
+  it('keeps the exact start group and leader projection through opening private discards', async () => {
+    mock.pdfEscortWingState = {
+      ...initialPdfEscortWingState(), revision: 1, attackId: 'attack-1', attackCycle: 1,
+      fighters: 0, launched: true, losses: 4,
+    };
+    const missionId = `mission-${defaultOpportunity.id}`;
+    await dealPrivateInitialCards.run(request(command));
+    const missionWrite = mock.set.mock.calls.find(([ref]) =>
+      ref.path === `sessions/s1/serverState/awayMissions/instances/${missionId}`);
+    expect(missionWrite).toBeDefined();
+    mock.discardMission = missionWrite?.[1];
+    mock.discardMissionId = missionId;
+    mock.update.mockClear();
+
+    await expect(openPrivateMissionDiscards.run(request({
+      sessionId: 's1', instanceId: 'bridge', requestId: 'ready-after-start',
+      expectedSetupRevision: 1, missionId,
+    }))).resolves.toMatchObject({ status: 'committed', missionId, participantCount: 2 });
+
+    const pointerUpdates = mock.update.mock.calls.filter(([ref]) => ref.path.includes('/awayMissionHandPointers/'));
+    expect(pointerUpdates).toHaveLength(2);
+    expect(Object.values(mock.pointerDocuments)).toHaveLength(2);
+    for (const pointer of Object.values(mock.pointerDocuments)) {
+      expect(pointer).toMatchObject({
+        groupId: 'fleet-1', chart: 'A', coordinate: '5143', siteCode: 'L', sourceCycle: 2,
+        participantCount: 2, missionLeaderUid: 'alice', missionLeaderRoleId: 'wing-commander',
+        phase: 'discarding', revision: 1,
+      });
+    }
   });
 
   it('replays the same request without writing a second hand', async () => {
