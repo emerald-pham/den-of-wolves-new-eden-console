@@ -49,6 +49,7 @@ test('PC03 solo review route stays usable at phone, short-landscape, and desktop
         await lock.click();
         assert.equal(await control.getByLabel('Locked destination coordinates').textContent(), '6143');
         await expectContained('jump drive');
+        assert.equal(await control.getByRole('button', { name: 'Jump to 6143' }).isEnabled(), false, 'sample launch must remain disabled');
 
         await steps.getByRole('button', { name: /3\. Shuttle route/ }).click();
         const shuttleStates = page.getByRole('group', { name: 'Prepared shuttle states' });

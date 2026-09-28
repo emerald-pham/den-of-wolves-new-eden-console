@@ -57,7 +57,7 @@ it('shows the Drive state matrix while keeping the production jump control inert
   await user.click(within(states).getByRole('button', { name: 'Stale reply' }));
   expect(screen.getByRole('status', { name: 'Prepared drive outcome' }))
     .toHaveTextContent(/stale.*refresh the sample before retry/i);
-  expect(screen.getByRole('button', { name: /Jump to 5143/i })).toBeDisabled();
+  expect(within(control).getByRole('button', { name: 'Jump to 6143' })).toBeDisabled();
 });
 
 it('walks the production shuttle presentation through docking, transit, retarget, airspace, and arrival', async () => {
