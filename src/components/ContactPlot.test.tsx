@@ -474,6 +474,7 @@ it('holds a moving return at its sampled fix until another sweep crosses its tru
   expect(painted[7]?.keyframes[0]).toMatchObject({ opacity: 1 });
   expect(painted.filter(({ keyframes }) => keyframes[0]?.transform === 'scale(2)')).toHaveLength(1);
   unmount();
+  expect(firstSizeCancel).toHaveBeenCalledOnce();
 });
 
 it('groups every return above the three-dimensional scan planes', () => {
@@ -795,7 +796,7 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
   rerender(<ContactPlot contacts={[]} />);
   cancel.mockClear();
   act(() => frame(112 + SCAN_FRESH_MS));
-  expect(cancel).toHaveBeenCalledTimes(4);
+  expect(cancel).toHaveBeenCalledTimes(6);
   expect(vi.getTimerCount()).toBe(0);
   rerender(<ContactPlot contacts={[contact]} />);
   act(() => frame(128 + SCAN_FRESH_MS));
