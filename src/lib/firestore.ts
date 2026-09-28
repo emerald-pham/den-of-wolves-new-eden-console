@@ -639,6 +639,11 @@ function awayMissionStartSnapshot(value: unknown, sessionId: string): AwayMissio
       typeof source.ruleId !== 'string' || !inputs ||
       !Number.isSafeInteger(inputs.expectedSetupRevision) ||
       !Number.isSafeInteger(inputs.expectedPhaseRevision) || !Number.isSafeInteger(inputs.expectedCycle) ||
+      !Array.isArray(inputs.availableCarrierCraftIds) ||
+      inputs.availableCarrierCraftIds.length < 1 || inputs.availableCarrierCraftIds.length > 33 ||
+      inputs.availableCarrierCraftIds.some((craftId) =>
+        typeof craftId !== 'string' || !isWireSafeEntityId(craftId)) ||
+      new Set(inputs.availableCarrierCraftIds).size !== inputs.availableCarrierCraftIds.length ||
       inputs.missionLeaderUid !== missionLeaderUid || !Array.isArray(inputs.participantSnapshots) ||
       inputs.participantSnapshots.length < 1 || inputs.participantSnapshots.length > 33 ||
       !Array.isArray(raw.modifiers) || raw.modifiers.some((modifier) => typeof modifier !== 'string') ||
@@ -648,9 +653,8 @@ function awayMissionStartSnapshot(value: unknown, sessionId: string): AwayMissio
     const participant = recordValue(entry);
     const uid = parseEntityId('player', participant?.uid);
     const roleId = parseEntityId('role', participant?.roleId);
-    if (!participant || !uid || !roleId || !Array.isArray(participant.craftIds) ||
-        participant.craftIds.length === 0 || participant.craftIds.some((craftId) => typeof craftId !== 'string')) return [];
-    return [{ uid, roleId, craftIds: participant.craftIds as string[] }];
+    if (!participant || !uid || !roleId) return [];
+    return [{ uid, roleId }];
   });
   if (participants.length !== inputs.participantSnapshots.length ||
       !participants.some((participant) => participant.uid === missionLeaderUid)) return null;
@@ -671,6 +675,7 @@ function awayMissionStartSnapshot(value: unknown, sessionId: string): AwayMissio
       expectedSetupRevision: inputs.expectedSetupRevision as number,
       expectedPhaseRevision: inputs.expectedPhaseRevision as number,
       expectedCycle: inputs.expectedCycle as number,
+      availableCarrierCraftIds: inputs.availableCarrierCraftIds as string[],
       participantSnapshots: participants,
       missionLeaderUid,
     },

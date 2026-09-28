@@ -124,11 +124,12 @@ function isStaleReply(
 
 function receiptDetails(receipt: AwayMissionStartSnapshot): readonly [string, string][] {
   const participants = receipt.inputs.participantSnapshots
-    .map(({ uid, roleId, craftIds }) => `${uid} (${roleId}; ${craftIds.join(', ')})`)
+    .map(({ uid, roleId }) => `${uid} (${roleId})`)
     .join('; ');
   return [
     ['Source', `${receipt.source.assumptionId} // ${receipt.source.playerGuide} // ${receipt.source.facilitatorGuide} // ${receipt.source.a4CardPack} // ${receipt.source.ruleId}`],
     ['Inputs', `setup ${receipt.inputs.expectedSetupRevision} // phase ${receipt.inputs.expectedPhaseRevision} // cycle ${receipt.inputs.expectedCycle} // participants ${participants} // Mission Leader ${receipt.inputs.missionLeaderUid}`],
+    ['Available carriers', receipt.inputs.availableCarrierCraftIds.join(', ')],
     ['Modifiers', receipt.modifiers.length ? receipt.modifiers.join(', ') : 'None'],
     ['Outcome', receipt.outcome],
     ['State delta', JSON.stringify(receipt.stateDelta)],

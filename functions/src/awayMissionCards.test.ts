@@ -36,8 +36,8 @@ describe('away mission private-card allocation', () => {
   it('allocates contiguous cards in the facilitator-selected order and fails closed on depletion', () => {
     const state = missionDeckStateFromCards(missionDeck());
     const participants = [
-      { uid: 'alice', roleId: 'wing-commander', craftIds: ['starlight'] },
-      { uid: 'bob', roleId: 'icebreaker-miner', craftIds: ['highwall'] },
+      { uid: 'alice', roleId: 'wing-commander' },
+      { uid: 'bob', roleId: 'icebreaker-miner' },
     ] as const;
     const allocation = allocateMissionCards(state, 0, participants);
     expect(allocation?.map(({ participant, card }) => [participant.uid, card.id])).toEqual([

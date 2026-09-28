@@ -314,10 +314,11 @@ export interface AwayMissionStartSnapshot {
     expectedSetupRevision: number;
     expectedPhaseRevision: number;
     expectedCycle: number;
+    /** Source-authorized craft currently available to carry this group to the mission. */
+    availableCarrierCraftIds: readonly string[];
     participantSnapshots: readonly Readonly<{
       uid: PlayerId;
       roleId: RoleId;
-      craftIds: readonly string[];
     }>[];
     missionLeaderUid: PlayerId;
   }>;
