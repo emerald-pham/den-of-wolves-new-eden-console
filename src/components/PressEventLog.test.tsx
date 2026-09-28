@@ -50,8 +50,8 @@ it('shows survivor changes, Commissar purges and presidential copy on the Press 
   expect(log).toHaveTextContent('AEGIS');
   expect(log).toHaveTextContent('2,500');
   expect(log).toHaveTextContent('2,000');
-  expect(log).toHaveTextContent('Commissar');
-  expect(log).toHaveTextContent('500 survivors');
+  expect(log).toHaveTextContent('COMMISSAR');
+  expect(log).toHaveTextContent('500 SURVIVORS');
   expect(log).toHaveTextContent('The fleet will hold course.');
 });
 
@@ -78,13 +78,14 @@ it('clears loaded Press copy as soon as the active role changes', async () => {
     id: 'president', type: 'president-action', sourceId: 'president:r4', actionKind: 'address',
     text: 'A restricted Press item.', cycle: 3, recordedAt: '2026-09-27T21:00:00.000Z',
   }]));
-  expect(screen.getByText('A restricted Press item.')).toBeVisible();
+  expect(screen.getByRole('region', { name: 'SNN Press log' }))
+    .toHaveTextContent('A restricted Press item.');
 
   const me = useSessionStore.getState().me;
   if (!me) throw new Error('Expected the test player.');
   act(() => useSessionStore.getState().setMe({ ...me, activeConsoleRoleId: null }));
   rerender(<PressEventLog />);
 
-  expect(screen.queryByText('A restricted Press item.')).not.toBeInTheDocument();
+  expect(screen.queryByRole('region', { name: 'SNN Press log' })).not.toBeInTheDocument();
   expect(unsubscribe).toHaveBeenCalledOnce();
 });
