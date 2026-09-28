@@ -1457,9 +1457,10 @@ export async function applyShipCounterSteps(
 /** GM-only active-game captain swap that resolves one ship's mutiny. */
 export async function resolveShipMutiny(
   shipId: string,
-  newCaptainUid: string,
+  newCaptainUid: string | null,
   reduction: 1 | 2 | 3,
   expectedRevision: number,
+  recoveryMode?: 'replacement-transfer' | 'crew-attestation',
 ): Promise<{ status: 'committed' | 'replayed' | 'stale'; unrest?: number }> {
   const store = useSessionStore.getState();
   if (!store.session || !store.me || store.me.role !== 'gm' || !store.gmInstance ||
@@ -1470,6 +1471,7 @@ export async function resolveShipMutiny(
   const payload = {
     sessionId: store.session.id, instanceId: store.gmInstance.id,
     requestId: commandId(), shipId, newCaptainUid, reduction, expectedRevision,
+    ...(recoveryMode ? { recoveryMode } : {}),
   };
   await ensureSignedIn();
   const result = (await httpsCallable<typeof payload, unknown>(functions(), 'resolveShipMutiny')(payload)).data;

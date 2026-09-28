@@ -22,7 +22,7 @@ import { sessionSnapshotAuthorityFor, sessionSnapshotAuthorityVersion } from '@/
 import { RESOURCE_DEFINITIONS, resourcesForShip, type ResourceId } from '@/data/resources';
 import { AEGIS_FIGHTER_WING_CAPACITY, FIGHTER_WING_IDS } from '@/data/aegisConsoles';
 import { consoleSabotageTargetsForShip } from '@/data/consoleSabotageTargets';
-import { SHIPS } from '@/data/ships';
+import { SHIPS, SMALL_SHIPS } from '@/data/ships';
 import { ORIGIN_GALACTIC_COORDINATE } from '@/data/ships';
 import { activeFleetShipIds, CONSOLE_ROLES, DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
 import {
@@ -101,6 +101,7 @@ import type {
   GmInstance,
   Player,
   SessionEvent,
+  SmallShipId,
   WolfAttackPreparation,
   WolfAttackDeclarationState,
   WolfAttackPreparationModifierId,
@@ -132,6 +133,13 @@ import {
 } from '@/data/replacementRoles';
 
 const AwayMissionStartPanel = lazy(() => import('@/components/AwayMissionStartPanel'));
+
+const SMALL_SHIP_CAPTAIN_ROLE_IDS: Readonly<Record<SmallShipId, string>> = {
+  gorgoneion: 'gorgoneion-captain',
+  'capybara-small': 'capybara-small-captain',
+  warrior: 'warrior-captain',
+  vulcan: 'vulcan-captain',
+};
 
 const WOLF_PREPARATION_CARD_TYPES = [
   { id: 'wolf-fighter-wing', label: 'Fighter Wing' },
@@ -3748,6 +3756,69 @@ export default function GmConsole() {
                   </section>
                 );
               })}
+              {SMALL_SHIPS.flatMap((smallShip) => {
+                const id = smallShip.id as SmallShipId;
+                const state = session.smallShipStates?.[id];
+                const activeMutiny = state && (
+                  state.mutiny?.status === 'active' ||
+                  (state.unrest >= 8 && state.mutiny?.status !== 'resolved')
+                );
+                if (!state || !activeMutiny) return [];
+                const captainRoleId = SMALL_SHIP_CAPTAIN_ROLE_IDS[id];
+                const captainHolders = allPlayers.filter((candidate) =>
+                  candidate.role === 'player' && candidate.replacementRoleId === captainRoleId &&
+                  candidate.replacementStatus == null);
+                const currentCaptain = captainHolders.length === 1 ? captainHolders[0] : undefined;
+                const candidates = connectedPlayers.filter((candidate) =>
+                  candidate.role === 'player' && candidate.uid !== currentCaptain?.uid &&
+                  candidate.replacementRoleId == null && candidate.replacementStatus == null &&
+                  !candidate.escapeState,
+                ).map((candidate) => ({
+                  uid: candidate.uid,
+                  displayName: candidate.displayName,
+                  roleId: candidate.assignedRoleId ?? 'awaiting new role',
+                }));
+                return [<section className="gm-fleet-resource-ship" role="group"
+                  aria-label={`${smallShip.name} mutiny controls`} key={`mutiny-${id}`}>
+                  <GmMutinyRecovery
+                    shipId={id}
+                    shipName={smallShip.name}
+                    unrest={state.unrest}
+                    mutiny={state.mutiny}
+                    mode="replacement-transfer"
+                    {...(currentCaptain ? { currentCaptain: {
+                      uid: currentCaptain.uid,
+                      displayName: currentCaptain.displayName,
+                      roleId: captainRoleId,
+                    } } : {})}
+                    expectedRevision={state.cycle.revision}
+                    writable={Boolean(currentCaptain) && isGm && connection === 'live'}
+                    candidates={candidates}
+                  />
+                  {!currentCaptain && (
+                    <p role="status">Recovery blocked // no single current Captain assignment is available.</p>
+                  )}
+                </section>];
+              })}
+              {session.voyage33Maintenance && (
+                session.voyage33Maintenance.mutiny?.status === 'active' ||
+                (session.voyage33Maintenance.unrest >= 8 &&
+                  session.voyage33Maintenance.mutiny?.status !== 'resolved')
+              ) && (
+                <section className="gm-fleet-resource-ship" role="group"
+                  aria-label="Voyage 33-0 mutiny controls">
+                  <GmMutinyRecovery
+                    shipId="voyage-33-0"
+                    shipName="Voyage 33-0"
+                    unrest={session.voyage33Maintenance.unrest}
+                    mutiny={session.voyage33Maintenance.mutiny}
+                    mode="crew-attestation"
+                    expectedRevision={session.voyage33Maintenance.cycle.revision}
+                    writable={isGm && connection === 'live'}
+                    candidates={[]}
+                  />
+                </section>
+              )}
             </div>
           </section>
 

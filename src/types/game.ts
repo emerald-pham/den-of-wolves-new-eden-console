@@ -20,6 +20,7 @@ import type {
   VesselId,
 } from './identifiers';
 import type { ResourceId } from '@/data/resources';
+import type { CrisisStateName } from './crisis';
 
 export type {
   AnyEntityId,
@@ -419,12 +420,23 @@ export interface SmallShipMaintenanceCycle {
 
 export type SmallShipId = 'gorgoneion' | 'capybara-small' | 'warrior' | 'vulcan';
 
+export interface ShipMutinyState {
+  readonly status: 'active' | 'resolved';
+  readonly revision: number;
+  readonly triggerUnrest: number;
+  readonly triggeredAt: string;
+  readonly reduction?: number;
+  readonly recoveryRequestId?: string;
+  readonly recoveredAt?: string;
+}
+
 export interface SmallShipState {
   readonly id: SmallShipId;
   readonly hostShipId: VesselId | null;
   readonly dockingRevision: number;
   readonly population: number;
   readonly unrest: number;
+  readonly mutiny?: ShipMutinyState;
   readonly cycle: SmallShipMaintenanceCycle;
 }
 
@@ -448,6 +460,7 @@ export interface Voyage33MaintenanceState {
   readonly dockingRevision: number;
   readonly population: number;
   readonly unrest: number;
+  readonly mutiny?: ShipMutinyState;
   readonly cycle: SmallShipMaintenanceCycle;
 }
 
@@ -1164,10 +1177,7 @@ export interface GameSession {
   readonly pdfEscortWing?: PdfEscortWingMemberView;
   /** Per-ship unrest ranges from 0–10; the physical-style dial fails above 7. */
   readonly shipUnrest?: Readonly<Record<string, number>>;
-  readonly shipMutinies?: Readonly<Record<string, Readonly<{
-    status: 'active' | 'resolved'; revision: number; triggerUnrest: number;
-    triggeredAt: string; reduction?: number; recoveryRequestId?: string; recoveredAt?: string;
-  }>>>;
+  readonly shipMutinies?: Readonly<Record<string, ShipMutinyState>>;
   /** Threshold alerts awaiting acknowledgement by the GM instances active when triggered. */
   readonly unrestAlerts?: Readonly<Record<string, UnrestAlert>>;
   /** Locks subsequent GM claims while at least one GM remains present. */
@@ -1606,6 +1616,8 @@ export interface Player {
   readonly assignedRoleId?: RoleId | null;
   /** Historical printed role retained after an in-game replacement. */
   readonly replacementRoleId?: RoleId | null;
+  /** Former command holder is deliberately unassigned until the GM gives a new role. */
+  readonly replacementStatus?: 'awaiting-re-role' | null;
   /** Presence is included in the GM roster projection. */
   readonly connected?: boolean;
   /** Monotonic server-owned connection identity used to reject stale cleanup. */
@@ -1702,7 +1714,7 @@ export interface CrisisStateEvent {
   readonly sessionId: SessionId;
   readonly type: 'crisis-state';
   readonly crisisId: string;
-  readonly state: import('./crisis').CrisisStateName;
+  readonly state: CrisisStateName;
   readonly title: string;
   readonly createdAt: Timestamp;
 }

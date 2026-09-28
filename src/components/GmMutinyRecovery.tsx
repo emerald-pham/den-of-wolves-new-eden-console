@@ -9,14 +9,19 @@ export interface MutinyCaptainCandidate {
   readonly roleId: string;
 }
 
+export type MutinyRecoveryMode = 'captain-swap' | 'replacement-transfer' | 'crew-attestation';
+
 export default function GmMutinyRecovery({
   shipId, shipName, unrest, mutiny, candidates, expectedRevision, writable,
+  mode = 'captain-swap', currentCaptain,
 }: {
   readonly shipId: string;
   readonly shipName: string;
   readonly unrest: number;
   readonly mutiny?: NonNullable<GameSession['shipMutinies']>[string] | undefined;
   readonly candidates: readonly MutinyCaptainCandidate[];
+  readonly mode?: MutinyRecoveryMode;
+  readonly currentCaptain?: MutinyCaptainCandidate;
   readonly expectedRevision: number;
   readonly writable: boolean;
 }) {
@@ -26,15 +31,23 @@ export default function GmMutinyRecovery({
   const [message, setMessage] = useState('');
   const active = mutiny?.status === 'active' || (unrest >= 8 && mutiny?.status !== 'resolved');
   if (!active) return null;
+  const crewAttestation = mode === 'crew-attestation';
 
   const submit = async () => {
-    if (!writable || pending || !candidates.some(candidate => candidate.uid === newCaptainUid)) return;
+    if (!writable || pending ||
+        (!crewAttestation && !candidates.some(candidate => candidate.uid === newCaptainUid))) return;
     setPending(true); setMessage('');
     try {
-      const result = await resolveShipMutiny(shipId, newCaptainUid, reduction, expectedRevision);
+      const result = mode === 'captain-swap'
+        ? await resolveShipMutiny(shipId, newCaptainUid, reduction, expectedRevision)
+        : await resolveShipMutiny(
+          shipId, crewAttestation ? null : newCaptainUid, reduction, expectedRevision, mode,
+        );
       setMessage(result.status === 'stale'
         ? 'The ship changed. Refresh before installing the new captain.'
-        : 'Replacement captain installed. The crew can select their new stations.');
+        : crewAttestation
+          ? 'Crew captain replacement recorded. Voyage 33-0 is usable again.'
+          : 'Replacement captain installed. The former captain is waiting for a new role.');
     } catch (cause) {
       setMessage(normalizeCommandError(cause).message);
     } finally { setPending(false); }
@@ -42,18 +55,25 @@ export default function GmMutinyRecovery({
 
   return <section className="gm-mutiny-recovery cic-frame" aria-label={`${shipName} mutiny recovery`}>
     <h4>{shipName} mutiny // new captain required</h4>
-    <p>This ship cannot be used until a different officer takes command. Select an active officer aboard this ship, then choose the printed 1–3 unrest reduction. If the captain station is occupied, their roles exchange; a sparse roster appoints the officer as acting captain. The default reduction is 2.</p>
+    {mode === 'replacement-transfer' && currentCaptain && (
+      <p>Current captain // {currentCaptain.displayName} // {currentCaptain.roleId}</p>
+    )}
+    <p>{crewAttestation
+      ? 'Confirm that the crew has installed a new in-world captain, then choose the printed 1–3 unrest reduction. This attestation does not create a player identity or grant a player role.'
+      : mode === 'replacement-transfer'
+        ? 'Select a different active player, then choose the printed 1–3 unrest reduction. The server requires current replacement eligibility, transfers this craft’s Captain role, and leaves the former captain waiting for a new role.'
+        : 'This ship cannot be used until a different officer takes command. Select an active officer aboard this ship, then choose the printed 1–3 unrest reduction. If the captain station is occupied, their roles exchange; a sparse roster appoints the officer as acting captain. The default reduction is 2.'}</p>
     <fieldset className="maintenance-controls" disabled={!writable || pending}>
-      <legend>Install replacement captain</legend>
-      <label>New captain
-        <select aria-label="New captain" value={newCaptainUid}
-          onChange={event => setNewCaptainUid(event.target.value)}>
-          <option value="">Choose an officer</option>
-          {candidates.map(candidate => <option key={candidate.uid} value={candidate.uid}>
-            {candidate.displayName} // {candidate.roleId}
-          </option>)}
-        </select>
-      </label>
+      <legend>{crewAttestation ? 'Confirm crew captain replacement' : 'Install replacement captain'}</legend>
+      {!crewAttestation && <label>New captain
+          <select aria-label="New captain" value={newCaptainUid}
+            onChange={event => setNewCaptainUid(event.target.value)}>
+            <option value="">Choose an officer</option>
+            {candidates.map(candidate => <option key={candidate.uid} value={candidate.uid}>
+              {candidate.displayName} // {candidate.roleId}
+            </option>)}
+          </select>
+        </label>}
       <label>Unrest reduction
         <select aria-label="Unrest reduction" value={reduction}
           onChange={event => setReduction(Number(event.target.value) as 1 | 2 | 3)}>
@@ -63,10 +83,15 @@ export default function GmMutinyRecovery({
         </select>
       </label>
       <button className="cic-action-button" type="button"
-        disabled={!writable || pending || !newCaptainUid || !candidates.some(candidate => candidate.uid === newCaptainUid)}
-        onClick={() => void submit()}>{pending ? 'Installing…' : 'Install replacement captain'}</button>
+        disabled={!writable || pending || (!crewAttestation &&
+          (!newCaptainUid || !candidates.some(candidate => candidate.uid === newCaptainUid)))}
+        onClick={() => void submit()}>{pending
+          ? 'Installing…'
+          : crewAttestation ? 'Confirm crew captain replacement' : 'Install replacement captain'}</button>
     </fieldset>
-    {!candidates.length && <p role="status">No eligible officer aboard this ship is available to take command.</p>}
+    {!crewAttestation && !candidates.length && (
+      <p role="status">No eligible officer aboard this ship is available to take command.</p>
+    )}
     {message && <p role="status">{message}</p>}
   </section>;
 }

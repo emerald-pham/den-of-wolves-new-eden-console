@@ -1,5 +1,11 @@
 import { addResourceAmount, type ShipResourceInventory } from './resources';
 import { maintenanceActionForStep } from './maintenanceOrder';
+import {
+  isShipInMutiny,
+  mutinyAfterUnrestChange,
+  parseShipMutiny,
+  type ShipMutiny,
+} from './mutiny';
 
 /**
  * Shared rules for the four optional base-game small ships.  A small ship is
@@ -49,6 +55,7 @@ export interface SmallShipState {
   dockingRevision: number;
   population: number;
   unrest: number;
+  mutiny?: ShipMutiny;
   cycle: SmallShipMaintenanceCycle;
 }
 
@@ -131,16 +138,23 @@ export function parseSmallShipState(value: unknown, id: SmallShipId): SmallShipS
   const population = safeNonNegative(raw.population);
   const unrest = safeNonNegative(raw.unrest);
   const cycle = parseCycle(raw.cycle);
+  const mutiny = raw.mutiny === undefined ? undefined : parseShipMutiny(raw.mutiny);
   if (dockingRevision === undefined || population === undefined || population > SMALL_SHIP_RULES[id].population ||
-      unrest === undefined || unrest > 10 || !cycle) return undefined;
+      unrest === undefined || unrest > 10 || !cycle || (raw.mutiny !== undefined && !mutiny)) return undefined;
   return {
     id,
     hostShipId: raw.hostShipId as string | null,
     dockingRevision,
     population,
     unrest,
+    ...(mutiny ? { mutiny } : {}),
     cycle,
   };
+}
+
+/** Legacy unrest at eight or more also fails closed until GM recovery. */
+export function isSmallShipInMutiny(state: Pick<SmallShipState, 'unrest' | 'mutiny'>): boolean {
+  return isShipInMutiny(state.mutiny, state.unrest);
 }
 
 function requireRolls(rolls: readonly number[], count: number): void {
@@ -157,6 +171,9 @@ export function advanceSmallShipMaintenance(input: SmallShipMaintenanceInput): {
   const { state, action } = input;
   const cycleInput = parseSmallShipState(state, state.id)?.cycle;
   if (!cycleInput) throw new Error('Malformed small-ship state.');
+  if (isSmallShipInMutiny(state)) {
+    throw new Error('Small ship is in mutiny and cannot be used until a new captain is installed.');
+  }
   if (!state.hostShipId) throw new Error('Small ship must be docked with a host ship.');
   if (input.expectedRevision !== cycleInput.revision) throw new Error('Small-ship maintenance changed. Refresh before proceeding.');
   const expectedAction = maintenanceActionForStep(state.id, cycleInput.step);
@@ -273,11 +290,13 @@ export function advanceSmallShipMaintenance(input: SmallShipMaintenanceInput): {
     cycle.completedAt = input.now;
   }
   cycle.step = action === 'end' || isProduction ? (action === 'end' ? 0 : cycle.step) : cycle.step + 1;
+  const mutiny = mutinyAfterUnrestChange(state.mutiny, state.unrest, unrest, input.now);
   return {
     state: {
       ...state,
       population,
       unrest,
+      ...(mutiny ? { mutiny } : {}),
       cycle,
     },
     hostResources,

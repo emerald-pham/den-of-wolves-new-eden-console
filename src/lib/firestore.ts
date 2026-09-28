@@ -54,6 +54,7 @@ import type {
   OrganiserSiteProjection,
   ShipJumpStates,
   ShipJumpTransitions,
+  ShipMutinyState,
   ShipNavigationLogs,
   SetupReceipt,
   UnrestAlert,
@@ -1864,6 +1865,29 @@ function timestampString(value: unknown): string | undefined {
   return undefined;
 }
 
+function shipMutinyState(value: unknown): ShipMutinyState | undefined {
+  const raw = recordValue(value);
+  if (!raw || (raw.status !== 'active' && raw.status !== 'resolved') ||
+      !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
+      !Number.isSafeInteger(raw.triggerUnrest) || (raw.triggerUnrest as number) < 8 ||
+      (raw.triggerUnrest as number) > 10 || typeof raw.triggeredAt !== 'string') return undefined;
+  if (raw.status === 'resolved' && (
+    !Number.isSafeInteger(raw.reduction) || (raw.reduction as number) < 1 ||
+    (raw.reduction as number) > 3 || typeof raw.recoveryRequestId !== 'string' ||
+    typeof raw.recoveredAt !== 'string')) return undefined;
+  return {
+    status: raw.status,
+    revision: raw.revision as number,
+    triggerUnrest: raw.triggerUnrest as number,
+    triggeredAt: raw.triggeredAt,
+    ...(raw.status === 'resolved' ? {
+      reduction: raw.reduction as number,
+      recoveryRequestId: raw.recoveryRequestId as string,
+      recoveredAt: raw.recoveredAt as string,
+    } : {}),
+  };
+}
+
 function maintenanceCycles(value: unknown): NonNullable<GameSession['maintenanceCycles']> {
   const stored = recordValue(value);
   if (!stored) return {};
@@ -1902,13 +1926,15 @@ function smallShipStates(
     const parsedUnrest = nonNegativeInteger(unrest);
     const parsedStep = nonNegativeInteger(cycle?.step);
     const parsedRevision = nonNegativeInteger(cycle?.revision);
+    const mutiny = raw?.mutiny === undefined ? undefined : shipMutinyState(raw.mutiny);
     if (!raw || (raw.hostShipId !== null && typeof raw.hostShipId !== 'string') ||
         (raw.hostShipId !== null && hostShipId === undefined) ||
         dockingRevision === undefined || parsedPopulation === undefined ||
         parsedPopulation > (SMALL_SHIPS.find((ship) => ship.id === id)?.printedStatistics.population ?? 0) ||
         parsedUnrest === undefined || parsedUnrest > 10 || !cycle ||
         parsedStep === undefined || parsedStep > 5 || parsedRevision === undefined ||
-        !results || !Array.isArray(charges) || charges.some((charge) => typeof charge !== 'string')) return [];
+        !results || !Array.isArray(charges) || charges.some((charge) => typeof charge !== 'string') ||
+        (raw.mutiny !== undefined && !mutiny)) return [];
     if (cycle.turn !== undefined && !nonNegativeInteger(cycle.turn)) return [];
     if (cycle.rationBonus !== undefined && (typeof cycle.rationBonus !== 'number' || !Number.isFinite(cycle.rationBonus))) return [];
     if (cycle.chargingSkipped !== undefined && typeof cycle.chargingSkipped !== 'boolean') return [];
@@ -1923,6 +1949,7 @@ function smallShipStates(
       dockingRevision,
       population: parsedPopulation,
       unrest: parsedUnrest,
+      ...(mutiny ? { mutiny } : {}),
       cycle: {
         step: parsedStep,
         revision: parsedRevision,
@@ -1950,12 +1977,14 @@ function voyage33Maintenance(value: unknown, sessionId: string): Voyage33Mainten
   const unrest = nonNegativeInteger(raw?.unrest);
   const step = nonNegativeInteger(cycle?.step);
   const revision = nonNegativeInteger(cycle?.revision);
+  const mutiny = raw?.mutiny === undefined ? undefined : shipMutinyState(raw.mutiny);
   if (!raw || raw.id !== 'voyage-33-0' || raw.sessionId !== undefined && raw.sessionId !== sessionId ||
       (raw.hostShipId !== null && typeof raw.hostShipId !== 'string') ||
       (raw.hostShipId !== null && hostShipId === undefined) || dockingRevision === undefined ||
       population === undefined || population > 40_000 || unrest === undefined || unrest > 10 ||
       !cycle || step === undefined || step > 5 || revision === undefined || !results ||
-      !Array.isArray(charges) || charges.some((charge) => typeof charge !== 'string')) return undefined;
+      !Array.isArray(charges) || charges.some((charge) => typeof charge !== 'string') ||
+      (raw.mutiny !== undefined && !mutiny)) return undefined;
   if (cycle.turn !== undefined && !nonNegativeInteger(cycle.turn)) return undefined;
   if (cycle.rationBonus !== undefined && (typeof cycle.rationBonus !== 'number' || !Number.isFinite(cycle.rationBonus))) return undefined;
   if (cycle.chargingSkipped !== undefined && typeof cycle.chargingSkipped !== 'boolean') return undefined;
@@ -1966,7 +1995,7 @@ function voyage33Maintenance(value: unknown, sessionId: string): Voyage33Mainten
   if ((cycle.startedAt !== undefined && !startedAt) || (cycle.completedAt !== undefined && !completedAt)) return undefined;
   return {
     id: 'voyage-33-0', hostShipId: hostShipId ?? null,
-    dockingRevision, population, unrest,
+    dockingRevision, population, unrest, ...(mutiny ? { mutiny } : {}),
     cycle: {
       step, revision, results: parsedResults, charges: charges as string[],
       ...(cycle.turn === undefined ? {} : { turn: cycle.turn as number }),
@@ -2437,23 +2466,8 @@ function shipMutinies(value: unknown): NonNullable<GameSession['shipMutinies']> 
   const stored = recordValue(value);
   if (!stored) return {};
   return Object.fromEntries(Object.keys(INITIAL_SHIP_CONSOLE_LOCKS).flatMap(shipId => {
-    const raw = recordValue(stored[shipId]);
-    if (!raw || (raw.status !== 'active' && raw.status !== 'resolved') ||
-        !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
-        !Number.isSafeInteger(raw.triggerUnrest) || (raw.triggerUnrest as number) < 8 ||
-        (raw.triggerUnrest as number) > 10 || typeof raw.triggeredAt !== 'string') return [];
-    if (raw.status === 'resolved' && (
-      !Number.isSafeInteger(raw.reduction) || (raw.reduction as number) < 1 ||
-      (raw.reduction as number) > 3 || typeof raw.recoveryRequestId !== 'string' ||
-      typeof raw.recoveredAt !== 'string')) return [];
-    return [[shipId, {
-      status: raw.status, revision: raw.revision as number,
-      triggerUnrest: raw.triggerUnrest as number, triggeredAt: raw.triggeredAt,
-      ...(raw.status === 'resolved' ? {
-        reduction: raw.reduction as number, recoveryRequestId: raw.recoveryRequestId as string,
-        recoveredAt: raw.recoveredAt as string,
-      } : {}),
-    }]];
+    const mutiny = shipMutinyState(stored[shipId]);
+    return mutiny ? [[shipId, mutiny]] : [];
   }));
 }
 
@@ -2898,6 +2912,9 @@ function playerFrom(sessionId: string, uid: string, data: DocumentData): Player 
   const parsedReplacementRoleId = data.replacementRoleId === null || data.replacementRoleId === undefined
     ? null
     : parseEntityId('role', data.replacementRoleId);
+  const parsedReplacementStatus = data.replacementStatus == null
+    ? null
+    : 'awaiting-re-role' as const;
   const parsedVesselId = data.shipPreferenceId === null || data.shipPreferenceId === undefined
     ? null
     : parseEntityId('vessel', data.shipPreferenceId);
@@ -2933,6 +2950,7 @@ function playerFrom(sessionId: string, uid: string, data: DocumentData): Player 
     seatId: parsedSeatId,
     ...(parsedRoleId !== undefined ? { assignedRoleId: parsedRoleId } : {}),
     ...(parsedReplacementRoleId !== undefined ? { replacementRoleId: parsedReplacementRoleId } : {}),
+    ...(data.replacementStatus !== undefined ? { replacementStatus: parsedReplacementStatus } : {}),
     ...(parsedVesselId !== undefined ? { shipPreferenceId: parsedVesselId } : {}),
     ...(parsedConsoleId !== undefined ? { activeConsoleRoleId: parsedConsoleId } : {}),
     ...(parsedFleetGroupId !== undefined ? { fleetGroupId: parsedFleetGroupId } : {}),

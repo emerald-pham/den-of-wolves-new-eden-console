@@ -310,6 +310,7 @@ export function recordScoutedCoordinateForShip(
 }
 
 export function playerShipId(player: Pick<DocumentSnapshot, 'get'>): string | undefined {
+  if (player.get('replacementStatus') != null) return undefined;
   const replacement = player.get('replacementRoleId');
   if (replacement !== undefined && replacement !== null) {
     return typeof replacement === 'string' ? replacementRoleFor(replacement)?.vesselId : undefined;

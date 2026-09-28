@@ -77,6 +77,7 @@ function stripNavigationProjection(session: GameSession): GameSession {
 
 function effectivePlayerShip(player: Player | null | undefined): Player['shipPreferenceId'] {
   if (!player) return undefined;
+  if (player.replacementStatus === 'awaiting-re-role') return undefined;
   if (player.replacementRoleId) {
     const replacement = replacementRoleFor(player.replacementRoleId);
     const replacementShip = replacement?.vesselId ? findShip(replacement.vesselId) : undefined;
@@ -88,12 +89,14 @@ function effectivePlayerShip(player: Player | null | undefined): Player['shipPre
 
 function playerEntitlementKey(player: Player | null | undefined): string | undefined {
   if (!player) return undefined;
+  if (player.replacementStatus === 'awaiting-re-role') return undefined;
   if (player.replacementRoleId) return `replacement:${player.replacementRoleId}`;
   return player.assignedRoleId ? `assigned:${player.assignedRoleId}` : undefined;
 }
 
 function playerAuthorityKey(player: Player | null | undefined): string | undefined {
   if (!player || player.role !== 'player') return undefined;
+  if (player.replacementStatus === 'awaiting-re-role') return undefined;
   if (player.replacementRoleId === 'commissar' && player.activeConsoleRoleId === null) {
     return `commissar:${player.uid}`;
   }
@@ -527,7 +530,9 @@ function AppRoutes() {
               useSessionStore.getState().setSession(stripNavigationProjection(current));
             }
           }
-          const effectiveBriefRoleId = next.replacementRoleId ?? next.assignedRoleId;
+          const effectiveBriefRoleId = next.replacementStatus === 'awaiting-re-role'
+            ? undefined
+            : next.replacementRoleId ?? next.assignedRoleId;
           if (!effectiveBriefRoleId) {
             pendingRoleBrief = null;
             store.setRoleBrief(null);

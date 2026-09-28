@@ -16,6 +16,7 @@ export interface WolfActionAuthorizationInput {
   readonly assignedRoleId: unknown;
   readonly activeConsoleRoleId: unknown;
   readonly replacementRoleId: unknown;
+  readonly replacementStatus?: unknown;
   readonly escapeState: unknown;
   readonly loyaltyAudience: unknown;
   readonly loyaltyPayload: unknown;
@@ -41,7 +42,8 @@ export function wolfActionAuthorization(
 ): WolfActionAuthorizationDecision {
   if (!input.active) return { allowed: false, reason: 'inactive' };
   if (input.connectedRole !== 'player') return { allowed: false, reason: 'not-player' };
-  if (input.replacementRoleId !== undefined && input.replacementRoleId !== null) {
+  if ((input.replacementStatus !== undefined && input.replacementStatus !== null) ||
+      (input.replacementRoleId !== undefined && input.replacementRoleId !== null)) {
     return { allowed: false, reason: 'replaced' };
   }
   if (input.escapeState !== undefined && input.escapeState !== null) {

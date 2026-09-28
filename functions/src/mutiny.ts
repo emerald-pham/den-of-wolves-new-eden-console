@@ -87,3 +87,26 @@ export function resolveShipMutiny(
     },
   };
 }
+
+/** Resolve a crew-commanded vessel after the GM confirms an in-world replacement. */
+export function resolveAttestedShipMutiny(
+  record: ShipMutiny | undefined,
+  unrest: number,
+  reduction: number,
+  requestId: string,
+  at: string,
+): { readonly mutiny: ShipMutiny; readonly unrest: number } {
+  if (!isShipInMutiny(record, unrest)) throw new Error('The ship is not in mutiny.');
+  if (!Number.isSafeInteger(reduction) || reduction < 1 || reduction > 3) {
+    throw new Error('Choose a printed unrest reduction from 1 to 3.');
+  }
+  return {
+    unrest: Math.max(0, unrest - reduction),
+    mutiny: {
+      status: 'resolved', revision: (record?.revision ?? 0) + 1,
+      triggerUnrest: record?.triggerUnrest ?? unrest,
+      triggeredAt: record?.triggeredAt ?? at,
+      reduction, recoveryRequestId: requestId, recoveredAt: at,
+    },
+  };
+}

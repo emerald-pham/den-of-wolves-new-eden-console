@@ -74,8 +74,10 @@ function SmallShipCard({ id, state, currentTurn, activeHostShipIds, available, c
   const cycle = state?.cycle;
   const currentHost = state?.hostShipId ?? null;
   const selectedHost = currentHost ?? hostShipId;
+  const inMutiny = state?.mutiny?.status === 'active' ||
+    ((state?.unrest ?? 0) >= 8 && state?.mutiny?.status !== 'resolved');
   const submit = async (action: string, choices: { foodLevel?: number; waterLevel?: number; consoles?: readonly string[]; productionConsoleId?: (typeof BASE_CAPYBARA_PRODUCTION_CONSOLES)[number]['id']; productionOreAmount?: number } = {}) => {
-    if (!state) return;
+    if (!state || inMutiny) return;
     setError('');
     setPending(true);
     try {
@@ -88,6 +90,7 @@ function SmallShipCard({ id, state, currentTurn, activeHostShipIds, available, c
     }
   };
   const dock = async (docked: boolean) => {
+    if (inMutiny) return;
     setError('');
     setPending(true);
     try {
@@ -99,7 +102,7 @@ function SmallShipCard({ id, state, currentTurn, activeHostShipIds, available, c
     }
   };
   const step = cycle?.step ?? 0;
-  const disabled = pending || !state?.hostShipId;
+  const disabled = pending || !state?.hostShipId || inMutiny;
   const latestResult = Object.entries(cycle?.results ?? {})
     .sort(([left], [right]) => Number(left) - Number(right))
     .at(-1)?.[1];
@@ -122,29 +125,35 @@ function SmallShipCard({ id, state, currentTurn, activeHostShipIds, available, c
           ))}
         </section>
       )}
+      {inMutiny && (
+        <p className="small-ship-operations__status" role="status">
+          Mutiny lock // ordinary operations remain unavailable until the GM installs a new captain.
+        </p>
+      )}
       <label>Host ship
-        <select aria-label={`${vessel.name} host ship`} value={selectedHost} disabled={currentHost !== null || pending}
+        <select aria-label={`${vessel.name} host ship`} value={selectedHost}
+          disabled={currentHost !== null || pending || inMutiny}
           onChange={(event) => setHostShipId(event.target.value)}>
           <option value="">Choose an active host</option>
           {SHIPS.filter((ship) => activeHostShipIds.includes(ship.id)).map((ship) => <option key={ship.id} value={ship.id}>{ship.name}</option>)}
         </select>
       </label>
       {currentHost === null ? (
-        <button className="cic-action-button" type="button" disabled={!hostShipId || pending} onClick={() => void dock(true)}>
+        <button className="cic-action-button" type="button" disabled={!hostShipId || pending || inMutiny} onClick={() => void dock(true)}>
           {pending ? 'Docking…' : 'Dock for Team / Wolf Attack'}
         </button>
       ) : (
         <>
           <p role="status">Docked with {SHIPS.find((ship) => ship.id === currentHost)?.name ?? currentHost} // host stores fund rations</p>
-          {step === 0 && <button className="cic-action-button" type="button" disabled={pending} onClick={() => void submit('begin')}>Begin small-ship cycle // Cycle {currentTurn}</button>}
-          {step === 1 && <fieldset disabled={pending} className="maintenance-controls"><legend>Step 1 // Rations</legend>
+          {step === 0 && <button className="cic-action-button" type="button" disabled={pending || inMutiny} onClick={() => void submit('begin')}>Begin small-ship cycle // Cycle {currentTurn}</button>}
+          {step === 1 && <fieldset disabled={pending || inMutiny} className="maintenance-controls"><legend>Step 1 // Rations</legend>
             <label>Food<select aria-label={`${vessel.name} food ration`} value={foodLevel} onChange={(event) => setFoodLevel(Number(event.target.value))}>{RATION_NAMES.map((name, index) => <option key={name} value={index}>{name} // {rules.food[index]}</option>)}</select></label>
             <label>Water<select aria-label={`${vessel.name} water ration`} value={waterLevel} onChange={(event) => setWaterLevel(Number(event.target.value))}>{RATION_NAMES.map((name, index) => <option key={name} value={index}>{name} // {rules.water[index]}</option>)}</select></label>
             <button className="cic-action-button" type="button" onClick={() => void submit('rations', { foodLevel, waterLevel })}>Apply host-funded rations</button>
           </fieldset>}
           {step === 2 && <button className="cic-action-button" type="button" disabled={disabled} onClick={() => void submit('unrest')}>Run unrest roll // server dice</button>}
           {step === 3 && <button className="cic-action-button" type="button" disabled={disabled} onClick={() => void submit('riot')}>Run population / riot roll // server dice</button>}
-          {step === 4 && <fieldset disabled={pending} className="maintenance-controls"><legend>Step 4 // Reactor // up to {rules.reactorCapacity}</legend>
+          {step === 4 && <fieldset disabled={pending || inMutiny} className="maintenance-controls"><legend>Step 4 // Reactor // up to {rules.reactorCapacity}</legend>
             {(id === 'capybara-small'
               ? BASE_CAPYBARA_PRODUCTION_CONSOLES
               : id === 'vulcan'
@@ -157,7 +166,7 @@ function SmallShipCard({ id, state, currentTurn, activeHostShipIds, available, c
               })}
             <button className="cic-action-button" type="button" onClick={() => void submit('reactor', { consoles })}>Charge selected consoles</button>
           </fieldset>}
-          {step === 5 && id === 'capybara-small' && <fieldset disabled={pending} className="maintenance-controls">
+          {step === 5 && id === 'capybara-small' && <fieldset disabled={pending || inMutiny} className="maintenance-controls">
             <legend>Capybara production // charged consoles</legend>
             {BASE_CAPYBARA_PRODUCTION_CONSOLES.map((console) => {
               const charged = cycle?.charges.includes(console.id) ?? false;
@@ -175,9 +184,9 @@ function SmallShipCard({ id, state, currentTurn, activeHostShipIds, available, c
               </div>;
             })}
           </fieldset>}
-          {step === 5 && <button className="cic-action-button" type="button" disabled={pending} onClick={() => void submit('end')}>End small-ship cycle</button>}
+          {step === 5 && <button className="cic-action-button" type="button" disabled={pending || inMutiny} onClick={() => void submit('end')}>End small-ship cycle</button>}
           {latestResult && <p role="status">{latestResult}</p>}
-          {step === 0 && <button className="cic-text-button" type="button" disabled={pending} onClick={() => void dock(false)}>Undock after cycle</button>}
+          {step === 0 && <button className="cic-text-button" type="button" disabled={pending || inMutiny} onClick={() => void dock(false)}>Undock after cycle</button>}
         </>
       )}
       {currentHost === null && <p className="small-ship-operations__status" role="status">No live docked state // GM admission required.</p>}

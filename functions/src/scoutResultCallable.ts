@@ -328,6 +328,7 @@ export const listMyScoutReports = onCall(CALLABLE_RUNTIME_OPTIONS, async (reques
 });
 
 function currentRoleShip(player: DocumentSnapshot): string | undefined {
+  if (player.get('replacementStatus') != null) return undefined;
   const replacementRoleId = player.get('replacementRoleId');
   if (typeof replacementRoleId === 'string' && replacementRoleId.length > 0) {
     return replacementRoleFor(replacementRoleId)?.vesselId;

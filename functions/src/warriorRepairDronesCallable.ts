@@ -14,6 +14,7 @@ import {
 import { serviceRechargeDamageState, serviceRechargeResourceState } from './serviceShuttleRecharge';
 import { turnPhaseState } from './turnZero';
 import { isResourceShipId } from './resources';
+import { isSmallShipInMutiny, parseSmallShipState } from './smallShip';
 
 const ROLE_ID = 'warrior-captain' as const;
 const SMALL_SHIP_ID = 'warrior' as const;
@@ -252,11 +253,18 @@ export const repairWarriorWithDrones = onCall<{
     })) {
       throw new HttpsError('failed-precondition', 'Warrior has not been admitted by current host docking.');
     }
-    const smallShipState = isRecord(smallShipStates) ? smallShipStates[SMALL_SHIP_ID] : undefined;
-    if (!isRecord(smallShipState) || smallShipState.id !== SMALL_SHIP_ID ||
-        smallShipState.dockingRevision !== command.expectedDockingRevision ||
+    const smallShipState = isRecord(smallShipStates)
+      ? parseSmallShipState(smallShipStates[SMALL_SHIP_ID], SMALL_SHIP_ID)
+      : undefined;
+    if (!smallShipState || smallShipState.dockingRevision !== command.expectedDockingRevision ||
         smallShipState.hostShipId !== command.expectedHostShipId) {
       throw new HttpsError('failed-precondition', 'Warrior’s dock or state changed. Refresh before repairing.');
+    }
+    if (isSmallShipInMutiny(smallShipState)) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Warrior is in mutiny and cannot be used until a new captain is installed.',
+      );
     }
     const hostShipId = smallShipState.hostShipId;
     if (typeof hostShipId !== 'string' || !isResourceShipId(hostShipId) ||
