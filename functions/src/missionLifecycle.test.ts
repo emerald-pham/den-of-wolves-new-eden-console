@@ -177,6 +177,25 @@ describe('pure away-mission lifecycle', () => {
     expect(replay?.state.dealtCount).toBe(3);
   });
 
+  it('treats a participant request count as the maximum number of extra cards across opportunities', () => {
+    const requested = recordMissionCardRequest(buildState(), 'bob', { count: 1 });
+    const first = allocateBlindExtraMissionCard(requested!, {
+      actorUid: 'alice',
+      participantUid: 'bob',
+      opportunityId: 'A-1',
+      requestId: 'allocate-bob-a1',
+    });
+
+    expect(first?.state.cards.filter((card) => card.participantUid === 'bob')).toHaveLength(2);
+    expect(allocateBlindExtraMissionCard(first!.state, {
+      actorUid: 'alice',
+      participantUid: 'bob',
+      opportunityId: 'A-2',
+      requestId: 'allocate-bob-a2',
+    })).toBeNull();
+    expect(first?.state.dealtCount).toBe(3);
+  });
+
   it('limits blind distribution to one card per participant and opportunity', () => {
     const first = allocateBlindExtraMissionCard(buildState(), {
       actorUid: 'alice',
