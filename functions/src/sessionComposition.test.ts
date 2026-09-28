@@ -1652,7 +1652,7 @@ it('starts a newly created confirmed empty roster through ordinary callable comp
     playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 8,
     dioneEnabled: false, capybaraEnabled: true, activeRoleIds: EXPECTED_ROSTERS[8],
   }, ownerUid)) as { setupRevision: number };
-  expect(read(`sessions/${sessionId}`)?.phase).toBe('casting');
+  expect(read(`sessions/${sessionId}`)?.setupConfirmed).toBe(true);
   await expect(startGame.run(request({
     sessionId, instanceId: 'empty-bridge', requestId: 'empty-start', expectedSetupRevision: confirmed.setupRevision,
   }, ownerUid))).resolves.toMatchObject({ currentTurn: 1 });

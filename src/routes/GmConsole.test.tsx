@@ -4029,3 +4029,14 @@ it('keeps the facilitator checklist local and read-only inside Setup', async () 
   expect(setFacilitatorResponsibility).not.toHaveBeenCalled();
   expect(useSessionStore.getState().session?.phase).toBe('lobby');
 });
+
+it('enables production start for a confirmed empty roster still in the lobby', async () => {
+  const session = useSessionStore.getState().session!;
+  useSessionStore.getState().setSession({ ...session, phase: 'lobby', currentTurn: 0, setupConfirmed: true });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+  await userEvent.setup().click(await screen.findByRole('button', { name: /^setup$/i }));
+  expect(screen.getByRole('button', { name: /start production/i })).toBeEnabled();
+  expect(screen.getByRole('group', { name: 'Ordinary production start' })).toHaveTextContent('Ready // confirmed roster');
+});
