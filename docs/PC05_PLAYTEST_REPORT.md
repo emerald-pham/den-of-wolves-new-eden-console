@@ -298,3 +298,30 @@ existing Press release decision into the returning-join reselection flag.
 Independent Sol 5.6 xhigh follow-up at exact `72034d75` confirms the remaining
 finding is resolved, with no new finding in that bounded repair. The later
 integrated jump and small-craft candidate still needs its risk review.
+
+
+### Supplemental craft integration and deployment coverage
+
+Parent `eff0ed30` integrates the PC05-A4 candidate `0a201dea`, following ten
+separate worker test commits. The replacement-assignment fixture adjustment
+was split into parent test-only `9704ddf0`: three observed failures require
+normal assignment to clear `replacementStatus`, then the production change
+passes. No assertion was removed. The integrated focused mutiny, small-craft,
+Voyage, replacement, navigation and GM recovery suites pass **81 tests**.
+The worker reports **5,993 unit/Functions tests**, **142 rules tests**, builds
+and responsive rendering; its exact-candidate authority/privacy review remains
+in progress. Those checks do not establish production gameplay.
+
+Test-first `81c9148a`/`3bfb9f1a` add isolated deployment coverage for the shared
+replacement, craft state, docking, Wolf authority and navigation guards.
+Nine deployment tests initially failed; **78 now pass**. The navigation change
+is accepted only as the exact pending-re-role exclusion, and the older P238
+consumer set remains restricted to its exact historical module digest.
+Other projection changes and unknown helper paths still fail closed.
+
+An additional real player joined the prepared production verification session
+through a separate Safari private window and completed the ordinary motion and
+conduct acknowledgements. The app showed three connected participants and the
+existing Scientist station as claimed/read-only. This is setup for post-deploy
+multiplayer checks, not acceptance of unreleased behavior. The unrelated Safari
+session was left intact.
