@@ -700,6 +700,51 @@ it('keeps a contact name clear of the compact DRADIS controls', () => {
     labelRect.bottom <= controlRect.top || labelRect.top >= controlRect.bottom).toBe(true);
 });
 
+it('keeps a name beside its return and chooses the side farthest from other contact marks on each scan', () => {
+  const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
+    x: left, y: top, left, top, width, height,
+    right: left + width, bottom: top + height,
+  }) as DOMRect;
+  const markers = [{ x: 150, y: 100 }, { x: 100, y: 75 }, { x: 100, y: 125 }];
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    if (this.classList.contains('contact-plot')) return bounds(0, 0, 320, 240);
+    const contact = this.closest('.contact-plot__contact');
+    const index = [...document.querySelectorAll('.contact-plot__contact')].indexOf(contact!);
+    const marker = markers[index];
+    if (!marker) return bounds(0, 0, 0, 0);
+    if (this.classList.contains('contact-plot__blip')) return bounds(marker.x, marker.y, 8, 8);
+    if (this.classList.contains('contact-plot__tag')) {
+      const width = index === 0 ? 70 : 45;
+      const height = 18;
+      const anchor = contact?.getAttribute('data-label-anchor') ?? 'north-east';
+      const left = anchor.endsWith('east') ? marker.x - 11 - width : marker.x + 8 + 11;
+      const top = anchor.startsWith('north') ? marker.y - 8 - height : marker.y + 8 + 8;
+      const x = Number.parseFloat((this as HTMLElement).style.getPropertyValue('--label-clamp-x')) || 0;
+      const y = Number.parseFloat((this as HTMLElement).style.getPropertyValue('--label-clamp-y')) || 0;
+      return bounds(left + x, top + y, width, height);
+    }
+    return bounds(0, 0, 0, 0);
+  });
+  const { container } = render(<ContactPlot contacts={[
+    { tag: 'LEAD', x: 0.1, y: 0.1, z: 0, color: 'white' },
+    { tag: 'PORT ABOVE', x: -0.1, y: 0.1, z: 0, color: 'white' },
+    { tag: 'PORT BELOW', x: -0.1, y: -0.1, z: 0, color: 'white' },
+  ]} />);
+  const lead = container.querySelector<HTMLElement>('.contact-plot__contact')!;
+  const tag = lead.querySelector<HTMLElement>('.contact-plot__tag')!;
+  const blip = lead.querySelector<HTMLElement>('.contact-plot__blip')!;
+  expect(lead.dataset.labelAnchor).toMatch(/west$/);
+  expect(tag.getBoundingClientRect().left - blip.getBoundingClientRect().right).toBeLessThanOrEqual(15);
+
+  markers[1] = { x: 210, y: 75 };
+  markers[2] = { x: 210, y: 125 };
+  act(() => container.querySelector('.contact-plot')?.dispatchEvent(
+    new CustomEvent(CONTACT_SCAN_EVENT, { bubbles: true }),
+  ));
+  expect(lead.dataset.labelAnchor).toMatch(/east$/);
+  expect(blip.getBoundingClientRect().left - tag.getBoundingClientRect().right).toBeLessThanOrEqual(15);
+});
+
 it('sets readable contact-name type sizes in compact and expanded ship plots', () => {
   const css = readFileSync('src/styles/plot.css', 'utf8');
   expect(css).toMatch(/\.ship-plot\[data-expanded='false'\] \.contact-plot__tag\s*\{[^}]*font-size:\s*0\.6rem/s);
