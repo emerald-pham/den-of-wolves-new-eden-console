@@ -612,6 +612,59 @@ it.each([
   unmount();
 });
 
+it('keeps clustered contact names separate from each other and the plot origin after a scan', () => {
+  const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
+    x: left, y: top, left, top, width, height,
+    right: left + width, bottom: top + height,
+  }) as DOMRect;
+  const baseRects = [
+    bounds(100, 100, 70, 18),
+    bounds(124, 105, 72, 18),
+    bounds(144, 108, 74, 18),
+  ];
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    if (this.classList.contains('contact-plot')) return bounds(0, 0, 320, 240);
+    if (this.classList.contains('contact-plot__origin')) return bounds(132, 100, 54, 20);
+    if (this.classList.contains('contact-plot__tag')) {
+      const index = [...document.querySelectorAll<HTMLElement>('.contact-plot__tag')].indexOf(this as HTMLElement);
+      const base = baseRects[index] ?? baseRects[0]!;
+      const offsetX = Number.parseFloat((this as HTMLElement).style.getPropertyValue('--label-clamp-x')) || 0;
+      const offsetY = Number.parseFloat((this as HTMLElement).style.getPropertyValue('--label-clamp-y')) || 0;
+      return bounds(base.left + offsetX, base.top + offsetY, base.width, base.height);
+    }
+    return bounds(0, 0, 0, 0);
+  });
+  const contacts = [
+    { tag: 'ICEBREAKER', x: 0.12, y: 0.03, z: 0.3, color: 'white' },
+    { tag: 'QUELLON', x: 0.11, y: 0.04, z: 0.3, color: 'white' },
+    { tag: 'REFINERY 124', x: 0.13, y: 0.02, z: 0.3, color: 'white' },
+  ];
+  const { container } = render(<ContactPlot contacts={contacts} centerLabel="AEGIS" />);
+  const labels = [...container.querySelectorAll<HTMLElement>('.contact-plot__tag')];
+  const origin = container.querySelector<HTMLElement>('.contact-plot__origin')!;
+  const overlaps = (a: DOMRect, b: DOMRect) =>
+    a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+  const expectReadable = () => {
+    const rectangles = labels.map((label) => label.getBoundingClientRect());
+    for (const [index, rectangle] of rectangles.entries()) {
+      expect(rectangle.left).toBeGreaterThanOrEqual(8);
+      expect(rectangle.right).toBeLessThanOrEqual(312);
+      expect(rectangle.top).toBeGreaterThanOrEqual(8);
+      expect(rectangle.bottom).toBeLessThanOrEqual(232);
+      expect(overlaps(rectangle, origin.getBoundingClientRect())).toBe(false);
+      for (const other of rectangles.slice(index + 1)) expect(overlaps(rectangle, other)).toBe(false);
+      expect(labels[index]).toHaveTextContent(contacts[index]!.tag);
+    }
+  };
+  expectReadable();
+
+  baseRects[2] = bounds(110, 102, 74, 18);
+  act(() => container.querySelector('.contact-plot')?.dispatchEvent(
+    new CustomEvent(CONTACT_SCAN_EVENT, { bubbles: true }),
+  ));
+  expectReadable();
+});
+
 it('keeps ambient contact names private until acquisition while labels are clamped', () => {
   vi.useFakeTimers();
   vi.setSystemTime('2026-01-01T00:10:00.000Z');
