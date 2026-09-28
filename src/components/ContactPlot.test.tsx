@@ -296,6 +296,11 @@ it('starts still when reduced motion is requested', () => {
   const { container } = render(<ContactPlot />);
 
   expect(plotIn(container)).toHaveAttribute('data-still', 'true');
+  for (const contact of contactsIn(container)) {
+    const apparent = contact.querySelector('.contact-plot__apparent');
+    expect(apparent).toContainElement(contact.querySelector('.contact-plot__blip'));
+    expect(apparent).toContainElement(contact.querySelector('.contact-plot__tag'));
+  }
 });
 
 it('stills a running plot when the reduced-motion preference arrives late', () => {
@@ -374,6 +379,31 @@ it('separates a moving contact true position from its sampled visible fix', () =
   expect(actual?.parentElement).toBe(contact);
   expect(apparent?.parentElement).toBe(contact);
   expect(actual).not.toContainElement(apparent as HTMLElement);
+});
+
+it('reacquires a renamed contact before revealing its new DRADIS name', () => {
+  const original = {
+    id: 'ship-1', tag: 'OLD CONTACT', x: 0.8, y: 0.1, z: 0.2, color: 'white',
+  };
+  const { container, rerender } = render(<ContactPlot contacts={[original]} />);
+  const previousContact = contactsIn(container)[0]!;
+  const previousReturn = previousContact.querySelector<HTMLElement>('.contact-plot__apparent')!;
+
+  // Model a return that a prior sweep acquired, then reuse its stable ship id
+  // when the current contact name changes.
+  previousReturn.dataset.acquired = 'true';
+  rerender(<ContactPlot contacts={[{ ...original, tag: 'NEW CONTACT', x: -0.7, y: -0.1 }]} />);
+
+  const contact = contactsIn(container)[0]!;
+  const apparent = contact.querySelector<HTMLElement>('.contact-plot__apparent')!;
+  const blip = contact.querySelector('.contact-plot__blip');
+  const label = contact.querySelector('.contact-plot__tag');
+  expect(contact).not.toBe(previousContact);
+  expect(previousContact).not.toBeInTheDocument();
+  expect(apparent).not.toHaveAttribute('data-acquired', 'true');
+  expect(label).toHaveTextContent('NEW CONTACT');
+  expect(apparent).toContainElement(blip);
+  expect(apparent).toContainElement(label);
 });
 
 it('holds a moving return at its sampled fix until another sweep crosses its true position', () => {
@@ -963,6 +993,8 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
     scanFixChanges.push((event as CustomEvent<{ fixChanged: boolean }>).detail?.fixChanged ?? false);
   });
   const apparent = () => container.querySelector<HTMLElement>('.contact-plot__apparent');
+  const name = () => container.querySelector<HTMLElement>('.contact-plot__tag');
+  const blip = () => container.querySelector<HTMLElement>('.contact-plot__blip');
   const findMany = vi.spyOn(plotIn(container)!, 'querySelectorAll');
   const firstContact = contactsIn(container)[0]!;
   const findParts = vi.spyOn(firstContact, 'querySelector');
@@ -970,6 +1002,8 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
   findMany.mockClear();
   findParts.mockClear();
   expect(apparent()).not.toHaveAttribute('data-acquired', 'true');
+  expect(apparent()).toContainElement(name());
+  expect(apparent()).toContainElement(blip());
   normal = { x: 0.5, y: 0, z: 0.866 };
   act(() => frame(16));
   // Stable tracks reuse their DOM handles instead of allocating query results
@@ -977,9 +1011,13 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
   expect(findMany).not.toHaveBeenCalled();
   expect(findParts).not.toHaveBeenCalled();
   expect(apparent()).not.toHaveAttribute('data-acquired', 'true');
+  expect(apparent()).toContainElement(name());
+  expect(apparent()).toContainElement(blip());
   normal = { x: 0.996, y: 0, z: 0.087 };
   act(() => frame(32));
   expect(apparent()).toHaveAttribute('data-acquired', 'true');
+  expect(apparent()).toContainElement(name());
+  expect(apparent()).toContainElement(blip());
   expect(scanFixChanges).toEqual([true]);
   expect(apparent()?.parentElement).toHaveAttribute('data-scan-fresh', 'true');
   // A second sweep can reach the same return during its first enlargement.
