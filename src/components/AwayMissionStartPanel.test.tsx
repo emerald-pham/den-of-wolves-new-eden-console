@@ -30,6 +30,11 @@ const session = {
   id: 's1', phase: 'active', currentTurn: 2, turnLimit: 6, setupRevision: 4, chartId: 'A',
   chartSelectionLocked: true,
   activeRoleIds: ['wing-commander', 'icebreaker-miner'],
+  turnPhase: {
+    turn: 2, teamPhaseEndsAt: '2026-01-01T00:00:00.000Z',
+    openAirspaceEndsAt: '2026-01-01T00:10:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+  },
   turnState: {
     currentTurn: 2, maxTurn: 6, phase: 'coordination', phaseRevision: 3,
     startedAt: '2026-01-01T00:00:00.000Z', endsAt: '2026-01-01T00:10:00.000Z',
