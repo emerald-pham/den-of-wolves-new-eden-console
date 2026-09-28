@@ -4609,6 +4609,58 @@ body {
   text-transform: uppercase;
 }
 
+.press-event-log {
+  margin-top: 0.8rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--cic-rule);
+  font-family: var(--cic-mono);
+}
+.press-event-log__header p,
+.press-event-log__header h3 { margin: 0; }
+.press-event-log__eyebrow {
+  color: var(--cic-amber);
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.press-event-log__header h3 {
+  margin-top: 0.35rem;
+  color: var(--cic-ink);
+  font: 400 1rem/1.2 var(--cic-display);
+  text-transform: uppercase;
+}
+.press-event-log__list {
+  display: grid;
+  gap: 0.55rem;
+  max-height: 22rem;
+  overflow-y: auto;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.press-event-log__entry {
+  min-width: 0;
+  padding-top: 0.5rem;
+  border-top: 1px solid color-mix(in srgb, var(--cic-rule) 72%, transparent);
+}
+.press-event-log__time {
+  display: block;
+  overflow-wrap: anywhere;
+  color: var(--cic-amber-dim);
+  font-size: 0.52rem;
+  line-height: 1.45;
+}
+.press-event-log__copy,
+.press-event-log__status {
+  margin: 0.28rem 0 0;
+  overflow-wrap: anywhere;
+  color: var(--cic-cyan);
+  font-size: 0.62rem;
+  line-height: 1.45;
+  text-transform: uppercase;
+}
+.press-event-log__status { color: var(--cic-cyan-dim); }
+
 .admiral-directives {
   display: grid;
   gap: 1rem;

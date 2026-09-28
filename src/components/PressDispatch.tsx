@@ -1,11 +1,11 @@
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import type { Shuttlecraft } from '@/data/shuttles';
 import { dismissPressDispatch, publishPressDispatch } from '@/lib/pressDispatchService';
 import { normalizePressDispatch } from '@/lib/pressDispatchState';
 import { useSessionStore } from '@/store/useSessionStore';
 import { normalizeCommandError } from '@/lib/commandErrors';
-
-const MAX_DISPATCH_LENGTH = 220;
+import PressEventLog from './PressEventLog';
+import { PressDispatchDesk } from './PressDispatchDesk';
 
 export default function PressDispatch({ shuttle }: {
   readonly shuttle: Pick<Shuttlecraft, 'captainRoleId' | 'operatorShort'>;
@@ -25,8 +25,7 @@ export default function PressDispatch({ shuttle }: {
   const gameplayFrozen = ['success', 'failure', 'debrief', 'closed'].includes(session?.phase ?? '');
   const authorized = hasPressAuthority && !gameplayFrozen;
 
-  async function publish(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
+  async function publish(): Promise<void> {
     const dispatch = text.trim();
     if (!authorized || connection !== 'live' || sending || !dispatch) return;
     setSending(true);
@@ -57,60 +56,25 @@ export default function PressDispatch({ shuttle }: {
   }
 
   return (
-    <section className="press-dispatch cic-frame" aria-label="Press dispatch desk">
-      <p className="press-dispatch__eyebrow">{shuttle.operatorShort} // Fleet press ticker</p>
-      <h2>Dispatch desk</h2>
-      <form onSubmit={(event) => void publish(event)}>
-        <label htmlFor="press-dispatch">Dispatch</label>
-        <div className="press-dispatch__copy">
-          <span aria-hidden="true">SNN //</span>
-          <textarea
-            id="press-dispatch"
-            maxLength={MAX_DISPATCH_LENGTH}
-            rows={4}
-            value={text}
-            disabled={!authorized}
-            onChange={(event) => {
-              setText(event.target.value);
-              setNotice('');
-            }}
-          />
-        </div>
-        <button className="cic-action-button" type="submit"
-          disabled={!authorized || connection !== 'live' || sending || dismissing !== null || !text.trim()}>
-          {sending ? 'Transmitting' : 'Publish dispatch'}
-        </button>
-      </form>
-      <div className="press-dispatch__current">
-        <p className="press-dispatch__current-heading">
-          Current dispatches // {current.length}
-        </p>
-        {current.length > 0 ? (
-          <ul className="press-dispatch__current-list">
-            {current.map((dispatch) => (
-              <li className="press-dispatch__current-item" key={dispatch.id}>
-                <p className="press-dispatch__current-copy">{dispatch.text}</p>
-                <button
-                  aria-label={`Dismiss dispatch: ${dispatch.text}`}
-                  className="cic-action-button"
-                  type="button"
-                  disabled={
-                    !authorized || connection !== 'live' || sending || dismissing !== null
-                  }
-                  onClick={() => void dismiss(dispatch.id)}
-                >
-                  {dismissing === dispatch.id ? 'Dismissing' : 'Dismiss dispatch'}
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : <p className="press-dispatch__empty">No active dispatches</p>}
-      </div>
-      <p className="press-dispatch__status" aria-live="polite">
-        {notice || (gameplayFrozen
-            ? 'Endgame evaluation // gameplay dispatches frozen'
-            : !authorized ? 'Press Officer authority required' : '')}
-      </p>
-    </section>
+    <PressDispatchDesk
+      operatorShort={shuttle.operatorShort}
+      dispatches={current}
+      text={text}
+      authorized={authorized}
+      connectionReady={connection === 'live'}
+      sending={sending}
+      dismissingId={dismissing}
+      notice={notice}
+      status={gameplayFrozen
+        ? 'Endgame evaluation // gameplay dispatches frozen'
+        : !authorized ? 'Press Officer authority required' : ''}
+      eventLog={<PressEventLog />}
+      onTextChange={(value) => {
+        setText(value);
+        setNotice('');
+      }}
+      onPublish={() => void publish()}
+      onDismiss={(dispatchId) => void dismiss(dispatchId)}
+    />
   );
 }

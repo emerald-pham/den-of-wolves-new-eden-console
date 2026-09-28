@@ -32,6 +32,24 @@ service cloud.firestore {
       ).data.role == 'gm';
     }
 
+    function isPressLogReader(sessionId) {
+      let session = get(
+        /databases/$(database)/documents/sessions/$(sessionId)
+      ).data;
+      let player = get(
+        /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+      ).data;
+      return isMember(sessionId)
+        && player.role == 'player'
+        && player.activeConsoleRoleId == 'press-officer'
+        && (!('assignedRoleId' in player) || player.assignedRoleId == null ||
+          player.assignedRoleId == 'press-officer')
+        && (!('seatId' in player) || player.seatId == null ||
+          player.seatId == 'press-officer')
+        && (!('pressEnabled' in session) || session.pressEnabled != false)
+        && (!('pressHolderUid' in session) || session.pressHolderUid == uid());
+    }
+
     function isSafePlayerHackingNoticeFeed(sessionId, feedId) {
       return isMember(sessionId)
         && feedId == 'current'
@@ -923,6 +941,11 @@ service cloud.firestore {
 
       match /events/{eventId} {
         allow get, list: if isMember(sessionId);
+        allow write: if false;
+      }
+
+      match /pressLog/{entryId} {
+        allow get, list: if isPressLogReader(sessionId);
         allow write: if false;
       }
 
