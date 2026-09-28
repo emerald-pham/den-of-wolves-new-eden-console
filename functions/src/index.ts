@@ -18431,6 +18431,7 @@ export const getDioneMaliadesLaunch = onCall<{ sessionId?: unknown }>(async requ
   if (!session.exists) throw new HttpsError('not-found', 'No such session.');
   requireDioneEngineer(player);
   requireActiveGameplayPhase(session);
+  requireUsableShip(session, 'dione');
   return dioneMaliadesLaunchView(sessionId, session, state);
 });
 
@@ -18705,6 +18706,7 @@ export const getPdfEscortWingLaunch = onCall<{ sessionId?: unknown }>(async requ
   if (!session.exists) throw new HttpsError('not-found', 'No such session.');
   requirePdfColonel(player);
   requireActiveGameplayPhase(session);
+  requireUsableShip(session, 'refinery-124');
   return pdfEscortWingLaunchView(sessionId, session, attack, wing);
 });
 
@@ -25480,6 +25482,8 @@ export const rollHummingbirdHarvest = onCall<{
     };
     const replay = hummingbirdHarvestReceiptReply(prior, fingerprint, uid);
     if (replay) return { replay, authority, fingerprint, reusePending: false };
+    requireUsableShip(authority.session, 'quellon');
+    if (authority.hostShipId !== 'quellon') requireUsableShip(authority.session, authority.hostShipId);
     requireCurrentHummingbirdGameplayCycle(authority.session);
     requireActionPhase(authority.session, 'scouting', 'player');
     const stored = await tx.get(harvestRef);
@@ -25523,6 +25527,8 @@ export const rollHummingbirdHarvest = onCall<{
     };
     const replay = hummingbirdHarvestReceiptReply(prior, fingerprint, uid);
     if (replay) return replay;
+    requireUsableShip(authority.session, 'quellon');
+    if (authority.hostShipId !== 'quellon') requireUsableShip(authority.session, authority.hostShipId);
     requireCurrentHummingbirdGameplayCycle(authority.session);
     requireActionPhase(authority.session, 'scouting', 'player');
     const stored = await tx.get(harvestRef);
