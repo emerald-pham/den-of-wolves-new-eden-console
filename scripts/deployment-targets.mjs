@@ -95,6 +95,12 @@ const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
     'runHighwallMining', 'authorFacilitatorRuleCall', 'setFighterWingCount',
     'repairAllShipDamage', 'addShipDamage',
   ],
+  'functions/src/pressLogEvent.ts': [
+    'evacuateShuttleSurvivorsCommand', 'applyCommissarPurge',
+    'addShipDamage', 'adjustShipPopulation', 'applyShipCounterSteps',
+    'runSmallShipMaintenance', 'runVoyage33Maintenance', 'runMaintenance',
+    'recordPresidentActionCommand',
+  ],
   'functions/src/candidateRevealProjection.ts': CANDIDATE_REVEAL_CALLABLES,
   'functions/src/callableRateLimitFirestore.ts': [
     'resumeSession', 'getSessionPresence', 'listGmInstances', 'rollDice',
