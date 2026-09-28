@@ -107,6 +107,27 @@ it('keeps an enabled toggle from plotting Capybara outside the canonical expansi
     .queryByRole('option', { name: 'Capybara' })).not.toBeInTheDocument();
 });
 
+it('shows the GM each authoritative split group without merging location or pursuit', () => {
+  render(<GmStarmapModule session={{
+    ...session,
+    activeVesselIds: ['aegis', 'dione', 'shepherd'],
+    shipGalacticCoordinates: { aegis: '5143', dione: '6798', shepherd: '6798' },
+    shipFleetGroupIds: { aegis: 'fleet-1', dione: 'fleet-2', shepherd: 'fleet-2' },
+    pursuitGroups: { 'fleet-1': 4, 'fleet-2': 7 },
+  } as unknown as GameSession} />);
+
+  const status = screen.getByRole('region', { name: 'GM fleet group status' });
+  const first = within(status).getByRole('region', { name: 'FLEET-1 status' });
+  const second = within(status).getByRole('region', { name: 'FLEET-2 status' });
+  expect(first).toHaveTextContent('AEGIS');
+  expect(first).toHaveTextContent('5143');
+  expect(first).toHaveTextContent('4 / 10');
+  expect(second).toHaveTextContent('DIONE // SHEPHERD');
+  expect(second).toHaveTextContent('6798');
+  expect(second).toHaveTextContent('7 / 10');
+  expect(status).toHaveTextContent('Ordinary communications remain within each group');
+});
+
 it('removes a destroyed selected ship while keeping living movement choices and fallback', async () => {
   const user = userEvent.setup();
   vi.mocked(moveShipToLocation).mockClear();
