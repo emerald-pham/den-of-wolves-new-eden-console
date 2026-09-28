@@ -904,7 +904,21 @@ it('verifies risk-bearing main changes even when they select no Firebase surface
 it('uses separate successful deployment and verification baselines on main', () => {
   expect(deploy).toContain('Find last successful deployment baseline');
   expect(deploy).toContain('Find last successful verification baseline');
-  expect(deploy).toContain('select(.name == "verify / verify")');
+  const verificationStep = deploy.slice(
+    deploy.indexOf('      - name: Find last successful verification baseline'),
+    deploy.indexOf('      - name: Determine deployment targets'),
+  );
+  expect(verificationStep).toContain('select(.status == "completed")');
+  expect(verificationStep).not.toContain(
+    'select(.status == "completed" and .conclusion == "success")',
+  );
+  expect(verificationStep).toContain('select(.name | startswith("verify / "))');
+  expect(verificationStep).toContain(
+    'select(.name == "verify / verify" and .conclusion == "success")',
+  );
+  expect(verificationStep).toContain(
+    'select(.conclusion != "success" and .conclusion != "skipped")',
+  );
   expect(deploy).toContain('VERIFICATION_BASELINE_SHA: ${{ steps.verification-baseline.outputs.base_sha }}');
   expect(deploy).toContain('--verification-before "$VERIFICATION_BASELINE_SHA"');
 });
