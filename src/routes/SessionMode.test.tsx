@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
 import { recommendedRoleIds } from '@/data/rolePresets';
 import { createSession } from '@/lib/sessionService';
@@ -23,6 +23,12 @@ const { httpsCallable } = await import('firebase/functions');
 
 function callableReturning(value: unknown) {
   return Object.assign(vi.fn().mockResolvedValue(value), { stream: vi.fn() });
+}
+
+function GmJoinRoute() {
+  const location = useLocation();
+  const intent = (location.state as { intent?: string } | null)?.intent ?? 'none';
+  return <p>GM join route // {intent}</p>;
 }
 
 beforeEach(() => {
@@ -91,13 +97,13 @@ it('exposes a separate GM join route to an authenticated player', async () => {
     <MemoryRouter initialEntries={['/console']}>
       <Routes>
         <Route path="/console" element={<SessionMode mode="console" />} />
-        <Route path="/roles" element={<p>GM join route</p>} />
+        <Route path="/roles" element={<GmJoinRoute />} />
       </Routes>
     </MemoryRouter>,
   );
 
   await user.click(screen.getByRole('link', { name: 'GM join' }));
-  expect(screen.getByText('GM join route')).toBeVisible();
+  expect(screen.getByText('GM join route // gm-join')).toBeVisible();
 });
 
 it('keeps the current private assignment on the station catalog without exposing its text', async () => {
@@ -609,7 +615,7 @@ it('removes Capybara from the joinable fleet when the GM disables it', () => {
     </MemoryRouter>,
   );
 
-  expect(screen.queryByRole('link', { name: /join capybara/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: /view capybara station overview/i })).not.toBeInTheDocument();
   expect(screen.getAllByRole('img')).toHaveLength(6);
 });
 
@@ -632,7 +638,7 @@ it('does not surface the expansion ship from a base roster with Capybara enabled
     </MemoryRouter>,
   );
 
-  expect(screen.queryByRole('link', { name: /join capybara/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: /view capybara station overview/i })).not.toBeInTheDocument();
   expect(screen.getAllByRole('img')).toHaveLength(5);
 });
 
@@ -655,7 +661,7 @@ it.each([19, 20] as const)('keeps Capybara visible for the canonical %i-player e
     </MemoryRouter>,
   );
 
-  expect(screen.getByRole('link', { name: /join capybara/i })).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /view capybara station overview/i })).toBeInTheDocument();
   expect(screen.getAllByRole('img')).toHaveLength(7);
 });
 
@@ -673,7 +679,7 @@ it('removes Dione from the joinable fleet when the GM disables it', () => {
     </MemoryRouter>,
   );
 
-  expect(screen.queryByRole('link', { name: /join dione/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: /view dione station overview/i })).not.toBeInTheDocument();
   expect(screen.getAllByRole('img')).toHaveLength(6);
 });
 
@@ -696,7 +702,7 @@ it('hides disabled roles and offers enabled Joint Engineering Union stations', (
   );
 
   expect(screen.queryByRole('link', { name: /press officer/i })).not.toBeInTheDocument();
-  expect(screen.queryByRole('link', { name: /join dione/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: /view dione station overview/i })).not.toBeInTheDocument();
   expect(screen.getByRole('link', { name: /quellon.*refinery engineer/i }))
     .toHaveAttribute('href', '/union/roles/joint-engineering-quellon-refinery');
 });
@@ -820,6 +826,6 @@ it('lets a GM reach every ship observer when command roles are disabled', () => 
     </MemoryRouter>,
   );
 
-  expect(screen.getByRole('link', { name: /join aegis/i })).toBeInTheDocument();
-  expect(screen.getByRole('link', { name: /join refinery 124/i })).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /view aegis station overview/i })).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /view refinery 124 station overview/i })).toBeInTheDocument();
 });

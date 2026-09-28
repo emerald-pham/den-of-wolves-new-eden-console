@@ -40,9 +40,12 @@ const gm: Player = {
   joinedAt: '2026-01-01T00:00:00.000Z',
 };
 
-function renderRoute() {
+function renderRoute(gmJoinIntent = false) {
+  const initialEntry = gmJoinIntent
+    ? { pathname: '/roles', state: { intent: 'gm-join' } }
+    : '/roles';
   return render(
-    <MemoryRouter initialEntries={['/roles']}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route path="/" element={<p>Landing route</p>} />
         <Route path="/roles" element={<RoleSelect />} />
@@ -91,10 +94,21 @@ describe('RoleSelect', () => {
     useSessionStore.getState().setMe({ ...gm, role: 'player' });
     useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
 
-    renderRoute();
+    renderRoute(true);
 
     expect(screen.getByRole('heading', { name: /^role select$/i })).toBeVisible();
     expect(screen.getByRole('button', { name: /^join as gm/i })).toBeVisible();
+  });
+
+  it('redirects a password-authenticated non-GM deep link unless the user chose GM join', () => {
+    useSessionStore.getState().setSession(session);
+    useSessionStore.getState().setMe({ ...gm, role: 'player' });
+    useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
+
+    renderRoute();
+
+    expect(screen.getByText('Console route')).toBeVisible();
+    expect(screen.queryByRole('heading', { name: /^role select$/i })).not.toBeInTheDocument();
   });
 
   it('offers the authenticated GM join flow and a separate station catalog link', () => {
@@ -128,7 +142,7 @@ describe('RoleSelect', () => {
     useSessionStore.getState().setSession(session);
     useSessionStore.getState().setMe({ ...gm, role: 'player' });
     useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
-    renderRoute();
+    renderRoute(true);
 
     await user.click(screen.getByRole('button', { name: /open station catalog/i }));
     expect(screen.getByText('Console route')).toBeVisible();
@@ -142,7 +156,7 @@ describe('RoleSelect', () => {
     useSessionStore.getState().setSession(session);
     useSessionStore.getState().setMe({ ...gm, role: 'player' });
     useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
-    renderRoute();
+    renderRoute(true);
 
     await user.click(screen.getByRole('button', { name: /open station catalog/i }));
 
@@ -173,7 +187,7 @@ describe('RoleSelect', () => {
       useSessionStore.getState().setMe(gm);
       return 'applied';
     });
-    renderRoute();
+    renderRoute(true);
 
     const claim = screen.getByRole('button', { name: /^join as gm/i });
     expect(claim).toBeDisabled();
@@ -234,7 +248,7 @@ describe('RoleSelect', () => {
     useSessionStore.getState().setMe({ ...gm, role: 'player' });
     useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
     vi.mocked(claimGmInstance).mockResolvedValue('applied');
-    renderRoute();
+    renderRoute(true);
 
     expect(subscribeGmInstances).not.toHaveBeenCalled();
     expect(screen.queryByText(/registration locked|failsafe/i)).not.toBeInTheDocument();
@@ -271,7 +285,7 @@ describe('RoleSelect', () => {
         factionId: 'press', claimedAt: null,
       },
     ]);
-    renderRoute();
+    renderRoute(true);
 
     expect(screen.getByRole('heading', { name: /^role select$/i })).toBeVisible();
     expect(screen.getByRole('button', { name: /open station catalog/i })).toBeVisible();
