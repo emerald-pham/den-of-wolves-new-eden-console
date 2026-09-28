@@ -5,7 +5,22 @@ const mocks = vi.hoisted(() => ({ call: vi.fn(), callable: vi.fn() }));
 vi.mock('firebase/functions', () => ({ httpsCallable: mocks.callable }));
 vi.mock('./firebase', () => ({ functions: () => 'functions' }));
 
-import { transferShuttleCargo } from './shuttleCargoService';
+import {
+  replayShuttleCargoTransfer,
+  transferShuttleCargo,
+} from './shuttleCargoService';
+
+interface UncertainCargoAttempt extends Error {
+  readonly attempt: {
+    readonly command: Record<string, unknown>;
+    readonly authority: Record<string, unknown>;
+  };
+}
+
+function isUncertainCargoAttempt(cause: unknown): cause is UncertainCargoAttempt {
+  return cause instanceof Error && cause.name === 'ShuttleCargoTransferUncertainError' &&
+    'attempt' in cause;
+}
 
 const committedReply = {
   status: 'committed', sessionId: 's1', requestId: 'cargo-request-1', shuttleId: 'hummingbird',
@@ -184,4 +199,61 @@ it('rejects cache-backed authority before contacting the callable', async () => 
   await expect(transferShuttleCargo('hummingbird', 'food', 'load', 1, 3))
     .rejects.toThrow(/live session state/i);
   expect(mocks.callable).not.toHaveBeenCalled();
+});
+
+it('replays the exact cargo receipt after an uncertain transport result without creating a duplicate request', async () => {
+  mocks.call.mockRejectedValueOnce(Object.assign(new Error('The callable is unavailable.'), {
+    code: 'functions/unavailable',
+  }));
+  let uncertain: UncertainCargoAttempt | undefined;
+  try {
+    await transferShuttleCargo('hummingbird', 'food', 'load', 2, 3);
+  } catch (cause) {
+    if (isUncertainCargoAttempt(cause)) uncertain = cause;
+    else throw cause;
+  }
+  expect(uncertain).toBeDefined();
+  const original = mocks.call.mock.calls[0]![0];
+  expect(original).toMatchObject({
+    sessionId: 's1', requestId: 'cargo-request-1', shuttleId: 'hummingbird',
+    resourceId: 'food', direction: 'load', amount: 2, expectedControlRevision: 3,
+  });
+  expect(uncertain?.attempt.authority).toMatchObject({
+    sessionId: 's1', uid: 'holder', role: 'player', fleetGroupId: 'fleet-1',
+    shuttleId: 'hummingbird', hostShipId: 'quellon', expectedControlRevision: 3,
+  });
+
+  mocks.call.mockResolvedValueOnce({
+    data: { ...committedReply, status: 'replayed' },
+  });
+  await expect(replayShuttleCargoTransfer(uncertain!.attempt)).resolves.toEqual({ status: 'replayed' });
+  expect(mocks.callable).toHaveBeenCalledTimes(2);
+  expect(mocks.call.mock.calls[1]![0]).toEqual(original);
+  expect(vi.mocked(window.crypto.randomUUID)).toHaveBeenCalledTimes(1);
+});
+
+it.each([
+  ['actor', () => useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, uid: 'another-holder',
+  })],
+  ['session', () => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!, id: 's2',
+  })],
+])('rejects exact cargo replay when the captured %s binding changes', async (_label, changeBinding) => {
+  mocks.call.mockRejectedValueOnce(Object.assign(new Error('The callable timed out.'), {
+    code: 'functions/deadline-exceeded',
+  }));
+  let uncertain: UncertainCargoAttempt | undefined;
+  try {
+    await transferShuttleCargo('hummingbird', 'food', 'load', 2, 3);
+  } catch (cause) {
+    if (isUncertainCargoAttempt(cause)) uncertain = cause;
+    else throw cause;
+  }
+  expect(uncertain).toBeDefined();
+  changeBinding();
+
+  await expect(replayShuttleCargoTransfer(uncertain!.attempt))
+    .rejects.toThrow(/current shuttle holder|session authority/i);
+  expect(mocks.callable).toHaveBeenCalledTimes(1);
 });

@@ -61,6 +61,7 @@ vi.mock('@/lib/shuttleDepartureService', () => ({
 }));
 vi.mock('@/lib/shuttleCargoService', () => ({
   transferShuttleCargo: vi.fn().mockResolvedValue(undefined),
+  replayShuttleCargoTransfer: vi.fn().mockResolvedValue({ status: 'replayed' }),
 }));
 vi.mock('@/lib/serviceShuttleRechargeService', async (importOriginal) => ({
   ...(await importOriginal<typeof ServiceShuttleRechargeServiceModule>()),
@@ -100,7 +101,7 @@ const { subscribeShuttleDeparture } = await import('@/lib/firestore');
 const { transferShuttleControl } = await import('@/lib/shuttleControlService');
 const { beginShuttleTransit, completeShuttleArrival, requestShuttleDeparture, retargetShuttleTransit } =
   await import('@/lib/shuttleDepartureService');
-const { transferShuttleCargo } = await import('@/lib/shuttleCargoService');
+const { transferShuttleCargo, replayShuttleCargoTransfer } = await import('@/lib/shuttleCargoService');
 const { rechargeHostConsoleFromShuttle, replayServiceShuttleRecharge } =
   await import('@/lib/serviceShuttleRechargeService');
 const { repairConsolesFromBlacksmith } = await import('@/lib/blacksmithRepairService');
@@ -222,6 +223,8 @@ beforeEach(() => {
   });
   vi.mocked(transferShuttleCargo).mockReset();
   vi.mocked(transferShuttleCargo).mockResolvedValue(undefined as never);
+  vi.mocked(replayShuttleCargoTransfer).mockReset();
+  vi.mocked(replayShuttleCargoTransfer).mockResolvedValue({ status: 'replayed' } as never);
   vi.mocked(rechargeHostConsoleFromShuttle).mockReset();
   vi.mocked(rechargeHostConsoleFromShuttle).mockResolvedValue({
     status: 'committed', sessionId: 's1', requestId: 'mock-recharge', shuttleId: 'condor',
@@ -686,6 +689,59 @@ it('lets the current holder transfer only Hummingbird printed cargo while docked
   await user.click(screen.getByRole('button', { name: 'Load shuttle' }));
   expect(transferShuttleCargo).toHaveBeenCalledWith('hummingbird', 'food', 'load', 2, 3);
   expect(screen.getByText('Loaded 2 Food.')).toHaveAttribute('role', 'status');
+});
+
+it('shows cargo transfer pending and retries an uncertain result with the exact receipt identity', async () => {
+  const user = userEvent.setup();
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!, phase: 'active', activeRoleIds: ['quellon-explorer'], activeVesselIds: ['quellon'],
+    shipResources: { quellon: { ore: 0, fuel: 3, food: 10, water: 8, materials: 0, securityTeams: 2 } },
+    shuttleCargo: { hummingbird: { food: 1, water: 2 } },
+    shuttleDockings: [{ shuttleId: 'hummingbird', shipId: 'quellon', dockedAt: 'SESSION START' }],
+    shuttleControl: { hummingbird: {
+      shuttleId: 'hummingbird', ownerRoleId: 'quellon-explorer', ownerUid: 'u1',
+      holderUid: 'u1', revision: 3,
+    } },
+  });
+  state.setMe({ ...state.me!, activeConsoleRoleId: 'quellon-explorer', fleetGroupId: 'fleet-1' });
+  state.setConnection('live');
+  state.setSessionSnapshotFreshness('server');
+  const response = deferred<unknown>();
+  const exactAttempt = {
+    command: {
+      sessionId: 's1', requestId: 'cargo-request-1', shuttleId: 'hummingbird',
+      resourceId: 'food', direction: 'load', amount: 2, expectedControlRevision: 3,
+    },
+    authority: {
+      sessionId: 's1', uid: 'u1', role: 'player', fleetGroupId: 'fleet-1',
+      shuttleId: 'hummingbird', hostShipId: 'quellon', expectedControlRevision: 3,
+    },
+  };
+  vi.mocked(transferShuttleCargo).mockReturnValueOnce(response.promise as never);
+  vi.mocked(replayShuttleCargoTransfer).mockResolvedValueOnce({ status: 'replayed' } as never);
+  render(<MemoryRouter initialEntries={['/shuttles/hummingbird']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+
+  const cargo = screen.getByRole('region', { name: 'Shuttle cargo transfer' });
+  await user.selectOptions(within(cargo).getByLabelText('Resource'), 'food');
+  await user.clear(within(cargo).getByLabelText('Amount'));
+  await user.type(within(cargo).getByLabelText('Amount'), '2');
+  await user.click(within(cargo).getByRole('button', { name: 'Load shuttle' }));
+  expect(await within(cargo).findByRole('status')).toHaveTextContent(/transferring 2 food/i);
+  expect(within(cargo).getByRole('button', { name: 'Load shuttle' })).toBeDisabled();
+
+  await act(async () => response.reject(Object.assign(new Error('The callable timed out.'), {
+    name: 'ShuttleCargoTransferUncertainError', attempt: exactAttempt,
+  })));
+  expect(await within(cargo).findByRole('button', { name: 'Retry exact cargo request' })).toBeVisible();
+  expect(within(cargo).getByRole('status')).toHaveTextContent(/result is uncertain/i);
+
+  await user.click(within(cargo).getByRole('button', { name: 'Retry exact cargo request' }));
+  await waitFor(() => expect(replayShuttleCargoTransfer).toHaveBeenCalledWith(exactAttempt));
+  expect(transferShuttleCargo).toHaveBeenCalledTimes(1);
+  expect(within(cargo).getByRole('status')).toHaveTextContent('Loaded 2 Food.');
 });
 
 it('keeps the cargo draft and waits for the newer control snapshot when stale result arrives first', async () => {

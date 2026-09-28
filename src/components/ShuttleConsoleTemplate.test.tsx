@@ -5,6 +5,14 @@ import { defineShuttle } from '@/data/vessels/templates';
 import { SHUTTLECRAFT } from '@/data/shuttles';
 import ShuttleConsoleTemplate from './ShuttleConsoleTemplate';
 
+const shuttleControlMocks = vi.hoisted(() => ({ render: vi.fn() }));
+vi.mock('./ShuttleControl', () => ({
+  default: () => {
+    shuttleControlMocks.render();
+    return null;
+  },
+}));
+
 vi.mock('./PressConfetti', () => ({ default: () => <section aria-label="Newspaper confetti dispenser" /> }));
 vi.mock('./PressDispatch', () => ({ default: () => <section aria-label="Press dispatch desk" /> }));
 
@@ -70,4 +78,46 @@ it('renders a printed shuttle’s operational sheet through the shared ship work
   expect(within(workspace).getAllByText('Airspace open')).toHaveLength(2);
   expect(within(workspace).getByText('Fuelled this cycle')).toBeInTheDocument();
   expect(within(workspace).queryByRole('region', { name: 'Press dispatch desk' })).not.toBeInTheDocument();
+});
+
+it('renders a presentation-only shuttle control snapshot without mounting live controls', () => {
+  const shuttle = defineShuttle({
+    id: 'review-shuttle', name: 'Review Shuttle', shortName: 'Review', consoleName: 'Review Console',
+    operator: 'Review Fleet', operatorShort: 'REVIEW', vesselType: 'Review shuttle',
+    description: 'Presents a prepared operational snapshot.', captainRoleId: 'review-captain',
+  });
+  const controlPreview = {
+    holderLabel: 'Explorer',
+    locationLabel: 'Docked // Quellon',
+    movement: {
+      actionLabel: 'Request departure', status: 'pending',
+      message: 'Departure request is awaiting the server.',
+    },
+    cargo: {
+      actionLabel: 'Load food', status: 'stale',
+      message: 'Cargo state changed. Review before sending a fresh request.',
+    },
+    service: {
+      actionLabel: 'Recharge console', status: 'committed',
+      message: 'Recharge receipt confirmed for this host.',
+    },
+  } as const;
+  shuttleControlMocks.render.mockClear();
+  render(<MemoryRouter><ShuttleConsoleTemplate
+    shuttle={shuttle} captainName="Explorer" canLeave={false}
+    control={{ shuttleId: shuttle.id, holderUid: 'synthetic-holder' } as never}
+    controlPreview={controlPreview}
+  /></MemoryRouter>);
+
+  const preview = screen.getByRole('region', { name: 'Shuttle control preview' });
+  expect(within(preview).getByText('Current holder // Explorer')).toBeVisible();
+  expect(within(preview).getByText('Shuttle location // Docked // Quellon')).toBeVisible();
+  expect(within(preview).getByText('Departure request is awaiting the server.')).toBeVisible();
+  expect(within(preview).getByText('Cargo state changed. Review before sending a fresh request.')).toBeVisible();
+  expect(within(preview).getByText('Recharge receipt confirmed for this host.')).toBeVisible();
+  expect(within(preview).getByRole('button', { name: 'Request departure' })).toBeDisabled();
+  expect(within(preview).getByRole('button', { name: 'Load food' })).toBeDisabled();
+  expect(within(preview).getByRole('button', { name: 'Recharge console' })).toBeDisabled();
+  expect(within(preview).getByText('Review view only. No shuttle action is sent.')).toBeVisible();
+  expect(shuttleControlMocks.render).not.toHaveBeenCalled();
 });
