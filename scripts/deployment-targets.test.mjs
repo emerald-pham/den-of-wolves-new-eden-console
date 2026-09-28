@@ -10,6 +10,12 @@ test('classifies the isolated PC01 review entry as Hosting', () => {
   assert.deepEqual(result.unknownFiles, []);
 });
 
+test('classifies the isolated PC02 review entry as Hosting', () => {
+  const result = classifyChangedFiles(['pc02-review.html']);
+  assert.deepEqual(result.targets, ['hosting']);
+  assert.deepEqual(result.unknownFiles, []);
+});
+
 test('PC01 selects its new callables and existing ship-map writers for deployment', () => {
   const before = '9fc824f5';
   const after = '33fb746d';
