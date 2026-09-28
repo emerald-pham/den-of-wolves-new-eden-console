@@ -186,9 +186,8 @@ it('replays an exact purge request without another mutation and rejects a second
   await expect(applyCommissarPurge.run(request(purgeRequest))).resolves.toMatchObject({
     status: 'committed', revision: 1,
   });
-  const pressWrites = mock.set.mock.calls.filter(([path]) => String(path).includes('/pressLog/')).length;
   expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
-  expect(pressWrites).toBe(1);
+  expect([...mock.documents.keys()].filter((path) => path.includes('/pressLog/'))).toHaveLength(1);
   await expect(applyCommissarPurge.run(request({
     ...purgeRequest, requestId: 'purge-2', expectedRevision: 1,
   }))).rejects.toMatchObject({ code: 'already-exists' });

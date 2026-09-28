@@ -14,7 +14,9 @@ const mock = vi.hoisted(() => ({
   players: [] as Array<{ id: string; fields: Record<string, unknown> }>,
   randomInt: vi.fn(() => 3_100_000_000), randomUUID: vi.fn(() => 'damage-event'),
 }));
-vi.mock('node:crypto', () => ({ randomInt: mock.randomInt, randomUUID: mock.randomUUID }));
+vi.mock('node:crypto', async (importOriginal) => ({
+  ...await importOriginal(), randomInt: mock.randomInt, randomUUID: mock.randomUUID,
+}));
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => ({
@@ -189,6 +191,7 @@ it.each(aegisHullCases)('production path $name without survivor loss', async ({ 
   expect(mock.set).toHaveBeenCalledWith('sessions/s1/damageDraws/damage-test-damage', expect.objectContaining({
     type: 'ship-damage', shipId: 'aegis', card, systemId, systemName, recycled,
   }));
+  expect(mock.set.mock.calls.some(([path]) => String(path).includes('/pressLog/'))).toBe(false);
 });
 
 it('does not reroll or fork the audit when a recycled hull transaction retries', async () => {
@@ -394,6 +397,7 @@ it('does not write an audit for a stale ship damage receipt', async () => {
     result: expect.objectContaining({ status: 'stale', revision: 4 }),
   }));
   expect(mock.set.mock.calls.some(([path]) => String(path).includes('/actionAudits/'))).toBe(false);
+  expect(mock.set.mock.calls.some(([path]) => String(path).includes('/pressLog/'))).toBe(false);
 });
 
 it('does not reroll the card or event identity when Firestore retries the transaction', async () => {
@@ -404,13 +408,16 @@ it('does not reroll the card or event identity when Firestore retries the transa
 
   expect(mock.randomInt).toHaveBeenCalledTimes(1);
   expect(mock.randomUUID).not.toHaveBeenCalled();
-  expect(mock.set).toHaveBeenCalledTimes(6);
+  expect(mock.set).toHaveBeenCalledTimes(8);
   const eventCalls = mock.set.mock.calls.filter(([path]) => String(path).includes('/damageDraws/'));
   expect(eventCalls).toHaveLength(2);
   expect(eventCalls[0]).toEqual(['sessions/s1/damageDraws/damage-test-damage',
     expect.objectContaining({ card: '10♥', systemId: 'reactor' })]);
   expect(eventCalls[1]).toEqual(['sessions/s1/damageDraws/damage-test-damage',
     expect.objectContaining({ card: '10♥', systemId: 'reactor' })]);
+  const pressCalls = mock.set.mock.calls.filter(([path]) => String(path).includes('/pressLog/'));
+  expect(pressCalls).toHaveLength(2);
+  expect(pressCalls[0]).toEqual(pressCalls[1]);
 });
 
 it.each(['player', 'observer'])('denies %s even with a forged GM instance', async (role) => {

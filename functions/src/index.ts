@@ -59,6 +59,14 @@ import {
   type PoliticalCapitalAction,
   type PoliticalCapitalState,
 } from './politicalCapital';
+import {
+  buildCommissarPurgePressLogEntry,
+  buildPresidentActionPressLogEntry,
+  buildShuttleSurvivorTransferPressLogEntry,
+  buildSurvivorChangePressLogEntry,
+  pressLogDocumentId,
+  type PressLogEvent,
+} from './pressLogEvent';
 import { isWireSafeEntityId } from './identifiers';
 import { canClaimSeat, shouldClearSeatPointer } from './seatPolicy';
 import {
@@ -646,6 +654,11 @@ initializeApp();
 setGlobalOptions(CALLABLE_RUNTIME_OPTIONS);
 
 const db = getFirestore();
+
+/** Persist server-authoritative source events to the Press-only intake. */
+function writePressLogEvent(tx: Transaction, sessionId: string, event: PressLogEvent): void {
+  tx.set(db.doc(`sessions/${sessionId}/pressLog/${pressLogDocumentId(event)}`), { ...event });
+}
 
 // Keep request bounds tied to the printed/domain catalogs. The resolver still
 // decides whether each canonical id is valid for the selected vessel.
@@ -8229,6 +8242,7 @@ export const evacuateShuttleSurvivorsCommand = onCall<{
   const actorRef = db.doc(`sessions/${data.sessionId}/players/${uid}`);
   const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
   const eventRef = db.doc(`sessions/${data.sessionId}/events/shuttle-evacuation-${data.requestId}`);
+  let recordedAt: string | undefined;
   return db.runTransaction(async tx => {
     const [session, actor, receipt, event] = await Promise.all([
       tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(eventRef),
@@ -8315,19 +8329,33 @@ export const evacuateShuttleSurvivorsCommand = onCall<{
       sourcePopulation: result.sourcePopulation, destinationPopulation: result.destinationPopulation,
       cycle, movedThisCycle: result.ledger.moved, evacuationRevision: result.ledger.revision,
     };
+    recordedAt ??= new Date().toISOString();
     tx.update(sessionRef, {
       [`shipSurvivors.${result.sourceShipId}`]: result.sourcePopulation,
       [`shipSurvivors.${result.destinationShipId}`]: result.destinationPopulation,
       [`shuttleEvacuations.${data.shuttleId}`]: result.ledger,
       updatedAt: FieldValue.serverTimestamp(),
     });
+    writePressLogEvent(tx, data.sessionId, buildShuttleSurvivorTransferPressLogEntry({
+      sourceId: `shuttle-evacuation:${data.requestId}`,
+      shuttleId: data.shuttleId,
+      sourceShipId: result.sourceShipId,
+      destinationShipId: result.destinationShipId,
+      cycle,
+      recordedAt,
+      amount: result.amount,
+      sourcePopulationBefore: result.sourcePopulation + result.amount,
+      sourcePopulationAfter: result.sourcePopulation,
+      destinationPopulationBefore: result.destinationPopulation - result.amount,
+      destinationPopulationAfter: result.destinationPopulation,
+    }));
     tx.set(eventRef, buildPrivacySafeEventRecord({
       type: 'shuttle-survivor-evacuation',
       envelope: buildAuthoritativeEventEnvelope({
         sessionId: data.sessionId, actorUid: uid, actorRoleId: actor.get('assignedRoleId'),
         turn: cycle, phase: vesselActionPhase(session), type: 'shuttle-survivor-evacuation',
         requestId: data.requestId, revision: result.ledger.revision,
-        serverTime: new Date(), visibility: EventVisibility.Member,
+        serverTime: recordedAt, visibility: EventVisibility.Member,
       }),
       payload: {
         shuttleId: data.shuttleId, sourceShipId: result.sourceShipId,
@@ -22645,6 +22673,7 @@ export const applyCommissarPurge = onCall<{
     'commissar-purge', purge.sessionId, purge.requestId, uid, null,
     purge.expectedRevision, { shipId: purge.shipId },
   );
+  let recordedAt: string | undefined;
   return db.runTransaction(async (tx) => {
     const [session, player, prior, purgeStateSnapshot] = await Promise.all([
       tx.get(sessionRef),
@@ -22719,6 +22748,7 @@ export const applyCommissarPurge = onCall<{
     if (unrestResult.kind === 'blocked') {
       throw commandError('failed-precondition', 'The GM unrest alert must be dismissed first.', 'conflict');
     }
+    recordedAt ??= new Date().toISOString();
     const nextConsents = { ...consents };
     delete nextConsents[purge.shipId];
     const nextLedger = {
@@ -22735,7 +22765,7 @@ export const applyCommissarPurge = onCall<{
           shipName: (FLEET_SHIP_NAMES as Readonly<Record<string, string>>)[purge.shipId] ?? purge.shipId,
           population: populationResult.amount,
           targetGmInstanceIds,
-          createdAt: new Date().toISOString(),
+          createdAt: recordedAt,
         };
       }
     }
@@ -22768,6 +22798,16 @@ export const applyCommissarPurge = onCall<{
         purge.requestId, 'commissar-purge',
       ),
     };
+    writePressLogEvent(tx, purge.sessionId, buildCommissarPurgePressLogEntry({
+      sourceId: `commissar-purge:${purge.requestId}`,
+      shipId: purge.shipId,
+      cycle: currentTurn,
+      recordedAt,
+      populationBefore: population,
+      populationAfter: populationResult.amount,
+      unrestBefore: unrest,
+      unrestAfter: unrestResult.amount,
+    }));
     txSetIfSupported(tx, receiptRef, {
       fingerprint, result, createdAt: FieldValue.serverTimestamp(),
     });
@@ -22960,7 +23000,7 @@ export const addShipDamage = onCall<{
       const instances = await tx.get(db.collection(`sessions/${change.sessionId}/gmInstances`));
       const targetGmInstanceIds = instances.docs.map(instance => instance.id);
       if (targetGmInstanceIds.length) {
-        const alert = { shipId: change.shipId, shipName: (FLEET_SHIP_NAMES as Readonly<Record<string, string>>)[change.shipId] ?? change.shipId, targetGmInstanceIds, createdAt: new Date().toISOString() };
+        const alert = { shipId: change.shipId, shipName: (FLEET_SHIP_NAMES as Readonly<Record<string, string>>)[change.shipId] ?? change.shipId, targetGmInstanceIds, createdAt: stableOccurredAt };
         populationAlerts[change.shipId] = { ...alert, population: nextPopulation };
         if (unrest < 8 && nextUnrest >= 8) unrestAlerts[change.shipId] = alert;
       }
@@ -23031,6 +23071,17 @@ export const addShipDamage = onCall<{
           identity.requestId, 'add-damage') };
       txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
       return reply;
+    }
+    if (nextPopulation !== currentPopulation) {
+      writePressLogEvent(tx, change.sessionId, buildSurvivorChangePressLogEntry({
+        sourceId: `ship-damage:${identity.requestId}`,
+        cause: 'ship-damage',
+        vesselId: change.shipId,
+        cycle: sessionTurn(session.get('currentTurn')),
+        recordedAt: stableOccurredAt!,
+        fromPopulation: currentPopulation,
+        toPopulation: nextPopulation,
+      }));
     }
     tx.set(db.doc(`sessions/${change.sessionId}/damageDraws/${eventId}`), {
       type: 'ship-damage',
@@ -23115,6 +23166,7 @@ export const adjustShipPopulation = onCall<{
     'adjust-population', change.sessionId, identity.requestId, uid, change.instanceId ?? null,
     identity.expectedRevision ?? null, { shipId: change.shipId, delta: change.delta },
   );
+  let recordedAt: string | undefined;
   return db.runTransaction(async (tx) => {
     await requireShipCounterAuthority(tx, change.sessionId, uid, change.shipId, change.instanceId, true);
     const [session, player, prior, actionAudit] = await Promise.all([
@@ -23160,6 +23212,7 @@ export const adjustShipPopulation = onCall<{
     } catch (cause) {
       throw commandError('failed-precondition', cause instanceof Error ? cause.message : 'Invalid population change.', 'conflict');
     }
+    if (result.amount !== population) recordedAt ??= new Date().toISOString();
     const nextAlerts = { ...alerts };
     const nextUnrestAlerts = { ...unrestAlerts };
     const unrest = shipUnrest(session.get('shipUnrest'))[change.shipId] ?? 0;
@@ -23173,7 +23226,7 @@ export const adjustShipPopulation = onCall<{
         const alert = {
           shipId: change.shipId,
           shipName: (FLEET_SHIP_NAMES as Readonly<Record<string, string>>)[change.shipId] ?? change.shipId,
-          targetGmInstanceIds, createdAt: new Date().toISOString(),
+          targetGmInstanceIds, createdAt: recordedAt ?? new Date().toISOString(),
         };
         nextAlerts[change.shipId] = { ...alert, population: result.amount };
         if (unrest < 8 && nextUnrest >= 8) nextUnrestAlerts[change.shipId] = alert;
@@ -23187,6 +23240,17 @@ export const adjustShipPopulation = onCall<{
       ...vesselActionRevisionPatch(change.shipId, currentRevision + 1),
       updatedAt: FieldValue.serverTimestamp(),
     });
+    if (result.amount !== population) {
+      writePressLogEvent(tx, change.sessionId, buildSurvivorChangePressLogEntry({
+        sourceId: `population-adjustment:${identity.requestId}`,
+        cause: 'population-adjustment',
+        vesselId: change.shipId,
+        cycle: sessionTurn(session.get('currentTurn')),
+        recordedAt: recordedAt!,
+        fromPopulation: population,
+        toPopulation: result.amount,
+      }));
+    }
     const reply = {
       ...result,
       ...vesselActionEnvelope(session, player, uid, change.shipId, currentRevision + 1,
@@ -23242,6 +23306,7 @@ export const applyShipCounterSteps = onCall<{
     identity.expectedRevision ?? null,
     { shipId: change.shipId, counter: change.counter, steps: change.steps.join(','), ...(change.counter === 'resource' ? { resourceId: change.resourceId } : {}) },
   );
+  let recordedAt: string | undefined;
   return db.runTransaction(async (tx) => {
     await requireShipCounterAuthority(
       tx, change.sessionId, uid, change.shipId, change.instanceId, true,
@@ -23393,6 +23458,7 @@ export const applyShipCounterSteps = onCall<{
         'conflict',
       );
     }
+    if (result.amount !== population) recordedAt ??= new Date().toISOString();
     const nextAlerts = { ...alerts };
     const nextUnrestAlerts = { ...unrestAlerts };
     const unrest = shipUnrest(session.get('shipUnrest'))[change.shipId] ?? 0;
@@ -23408,7 +23474,7 @@ export const applyShipCounterSteps = onCall<{
           shipName: (FLEET_SHIP_NAMES as Readonly<Record<string, string>>)[change.shipId]
             ?? change.shipId,
           targetGmInstanceIds,
-          createdAt: new Date().toISOString(),
+          createdAt: recordedAt ?? new Date().toISOString(),
         };
         nextAlerts[change.shipId] = { ...alert, population: result.amount };
         if (unrest < 8 && nextUnrest >= 8) nextUnrestAlerts[change.shipId] = alert;
@@ -23422,6 +23488,17 @@ export const applyShipCounterSteps = onCall<{
       ...vesselActionRevisionPatch(change.shipId, revision),
       updatedAt: FieldValue.serverTimestamp(),
     });
+    if (result.amount !== population) {
+      writePressLogEvent(tx, change.sessionId, buildSurvivorChangePressLogEntry({
+        sourceId: `population-adjustment:${identity.requestId}`,
+        cause: 'population-adjustment',
+        vesselId: change.shipId,
+        cycle: sessionTurn(session.get('currentTurn')),
+        recordedAt: recordedAt!,
+        fromPopulation: population,
+        toPopulation: result.amount,
+      }));
+    }
     const reply = { ...result, ...batchContext, ...vesselActionEnvelope(session, player, uid, change.shipId,
       revision, identity.requestId, 'counter-batch') };
     writeVesselActionAudit(
@@ -25236,6 +25313,17 @@ export const runSmallShipMaintenance = onCall<{
       [`shipResources.${state.hostShipId}`]: result.hostResources,
       updatedAt: FieldValue.serverTimestamp(),
     });
+    if (result.state.population !== state.population) {
+      writePressLogEvent(tx, data.sessionId, buildSurvivorChangePressLogEntry({
+        sourceId: `small-ship-maintenance:${data.requestId}`,
+        cause: 'small-ship-maintenance',
+        vesselId: id,
+        cycle: sessionTurn(session.get('currentTurn')),
+        recordedAt: serverTime,
+        fromPopulation: state.population,
+        toPopulation: result.state.population,
+      }));
+    }
     tx.set(db.doc(`sessions/${data.sessionId}/events/${eventId}`), buildPrivacySafeEventRecord({
       type: 'maintenance',
       envelope: buildAuthoritativeEventEnvelope({
@@ -25445,6 +25533,17 @@ export const runVoyage33Maintenance = onCall<{
       [`shipResources.${hostShipId}`]: result.hostResources,
       updatedAt: FieldValue.serverTimestamp(),
     });
+    if (result.state.population !== authority.state.population) {
+      writePressLogEvent(tx, parsed.sessionId, buildSurvivorChangePressLogEntry({
+        sourceId: `voyage-33-maintenance:${parsed.requestId}`,
+        cause: 'voyage-33-maintenance',
+        vesselId: VOYAGE_33_ID,
+        cycle: sessionTurn(authority.session.get('currentTurn')),
+        recordedAt: serverTime,
+        fromPopulation: authority.state.population,
+        toPopulation: result.state.population,
+      }));
+    }
     tx.set(db.doc(`sessions/${parsed.sessionId}/events/${eventId}`), buildPrivacySafeEventRecord({
       type: 'maintenance',
       envelope: buildAuthoritativeEventEnvelope({
@@ -26173,6 +26272,17 @@ export const runMaintenance = onCall<{
     };
     tx.set(undoRef, { turn: currentTurn, entries });
     tx.update(ref, { ...patch, ...terminalPatch, updatedAt: FieldValue.serverTimestamp() });
+    if (result.population !== population) {
+      writePressLogEvent(tx, data.sessionId, buildSurvivorChangePressLogEntry({
+        sourceId: `maintenance:${data.requestId}`,
+        cause: 'ship-maintenance',
+        vesselId: data.shipId,
+        cycle: currentTurn,
+        recordedAt: serverTime,
+        fromPopulation: population,
+        toPopulation: result.population,
+      }));
+    }
     if (environmentalHazard && environmentalHistoryAuthority) {
       const nextNavigation = {
         ...environmentalHistoryAuthority.currentNavigation,
@@ -26804,6 +26914,13 @@ export const recordPresidentActionCommand = onCall<{
       presidentWorkspace: next,
       updatedAt: FieldValue.serverTimestamp(),
     });
+    writePressLogEvent(tx, data.sessionId, buildPresidentActionPressLogEntry({
+      sourceId: `president-action:${data.requestId}`,
+      actionKind: data.kind,
+      text: data.text,
+      cycle: sessionTurn(session.get('currentTurn')),
+      recordedAt: serverTime,
+    }));
     txSetIfSupported(
       tx,
       eventRef,
