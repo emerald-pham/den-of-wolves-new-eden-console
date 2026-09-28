@@ -12,9 +12,12 @@ separate boundary.
   Leader. The active GM records that choice together with one connected
   participant roster; the console does not choose the leader for the team.
 - **Eligible craft:** A mission start requires a new-location opportunity and
-  one source-authorized active capable craft in the same fleet group. Optional
-  Gorgoneion, Capybara, Warrior, Union, and other not-yet-admitted craft remain
-  excluded.
+  one source-authorized, currently usable and colocated active craft in the
+  same fleet group. Connected teammates may ride without personally owning
+  that craft. The inspected mission procedure recommends at least three
+  shuttles but prints no numeric passenger capacity, so the console does not
+  invent one. Optional Gorgoneion, Capybara, Warrior, Union, and other
+  not-yet-admitted craft remain excluded.
 - **Rejoined pursuit:** The printed split-fleet rule does not define one merged
   pursuit value after groups rejoin. The checkpoint preserves the independently
   tracked values and does not invent a merge.
