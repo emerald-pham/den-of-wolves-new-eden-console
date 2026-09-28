@@ -2660,6 +2660,13 @@ describe('Press log audience', () => {
       await assertFails(getDoc(doc(as(uid), pressEntry)));
       await assertFails(getDocs(collection(as(uid), `${SESSION}/pressLog`)));
     }
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/gm1`), {
+        activeConsoleRoleId: 'press-officer',
+        assignedRoleId: null,
+      });
+    });
+    await assertFails(getDoc(doc(as('gm1'), pressEntry)));
     await assertFails(setDoc(doc(as('press'), `${SESSION}/pressLog/forged`), {
       type: 'president-action', text: 'Client-authored report',
     }));
