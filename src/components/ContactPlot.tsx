@@ -146,9 +146,44 @@ function clampContactLabels(plot: HTMLElement): void {
   const plotBounds = plot.getBoundingClientRect();
   if (plotBounds.width <= 0 || plotBounds.height <= 0) return;
   const labels = [...plot.querySelectorAll<HTMLElement>('.contact-plot__tag')];
+  const gap = 4;
+  const overlaps = (a: Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom'>,
+    b: Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom'>) =>
+    a.left < b.right + gap && a.right + gap > b.left &&
+    a.top < b.bottom + gap && a.bottom + gap > b.top;
+  const shift = (label: HTMLElement, x: number, y: number) => {
+    if (x !== 0) {
+      const previous = Number.parseFloat(label.style.getPropertyValue('--label-clamp-x')) || 0;
+      label.style.setProperty('--label-clamp-x', `${round(previous + x)}px`);
+    }
+    if (y !== 0) {
+      const previous = Number.parseFloat(label.style.getPropertyValue('--label-clamp-y')) || 0;
+      label.style.setProperty('--label-clamp-y', `${round(previous + y)}px`);
+    }
+  };
   labels.forEach((label) => {
     label.style.removeProperty('--label-clamp-x');
     label.style.removeProperty('--label-clamp-y');
+    label.style.removeProperty('max-width');
+    label.style.removeProperty('min-inline-size');
+    label.style.removeProperty('white-space');
+    label.style.removeProperty('overflow-wrap');
+    const visibleWidth = Math.max(1, plotBounds.width - 2 * LABEL_VIEWPORT_GUTTER_PX);
+    if (label.getBoundingClientRect().width > visibleWidth) {
+      label.style.maxWidth = `${visibleWidth}px`;
+      label.style.minInlineSize = '0px';
+      label.style.whiteSpace = 'normal';
+      label.style.overflowWrap = 'anywhere';
+      // The 3D contact plane can magnify a CSS-width label. Reduce the cap
+      // until the rendered rectangle, rather than its untransformed width,
+      // fits the visible scan area.
+      for (let pass = 0; pass < 3; pass += 1) {
+        const renderedWidth = label.getBoundingClientRect().width;
+        if (renderedWidth <= visibleWidth) break;
+        const cap = Number.parseFloat(label.style.maxWidth);
+        label.style.maxWidth = `${Math.max(1, cap * visibleWidth / renderedWidth - 2)}px`;
+      }
+    }
   });
 
   // The second pass accounts for the transform changing the measured box in
@@ -162,15 +197,47 @@ function clampContactLabels(plot: HTMLElement): void {
       const maxY = plotBounds.bottom - LABEL_VIEWPORT_GUTTER_PX;
       const x = bounds.left < minX ? minX - bounds.left : bounds.right > maxX ? maxX - bounds.right : 0;
       const y = bounds.top < minY ? minY - bounds.top : bounds.bottom > maxY ? maxY - bounds.bottom : 0;
-      if (x !== 0) {
-        const previous = Number.parseFloat(label.style.getPropertyValue('--label-clamp-x')) || 0;
-        label.style.setProperty('--label-clamp-x', `${round(previous + x)}px`);
-      }
-      if (y !== 0) {
-        const previous = Number.parseFloat(label.style.getPropertyValue('--label-clamp-y')) || 0;
-        label.style.setProperty('--label-clamp-y', `${round(previous + y)}px`);
-      }
+      shift(label, x, y);
     });
+  }
+
+  // Boundary clamping alone can stack several names into the same corner.
+  // Reserve the centre identifier and place each contact in the closest free
+  // rectangle. A scan reruns this after the displayed return moves.
+  const obstacles = [...plot.querySelectorAll<HTMLElement>(
+    '.contact-plot__origin, .contact-plot__red-alert',
+  )].map((element) => element.getBoundingClientRect())
+    .filter((rect) => rect.width > 0 && rect.height > 0);
+  for (const label of labels) {
+    for (let pass = 0; pass < 2; pass += 1) {
+      const current = label.getBoundingClientRect();
+      if (!obstacles.some((rect) => overlaps(current, rect))) break;
+      const minX = plotBounds.left + LABEL_VIEWPORT_GUTTER_PX;
+      const minY = plotBounds.top + LABEL_VIEWPORT_GUTTER_PX;
+      const maxX = plotBounds.right - LABEL_VIEWPORT_GUTTER_PX - current.width;
+      const maxY = plotBounds.bottom - LABEL_VIEWPORT_GUTTER_PX - current.height;
+      if (maxX < minX || maxY < minY) break;
+      const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+      const xs = [current.left, ...obstacles.flatMap((rect) => [
+        rect.left - current.width - gap, rect.right + gap,
+      ])].map((x) => clamp(x, minX, maxX));
+      const ys = [current.top, ...obstacles.flatMap((rect) => [
+        rect.top - current.height - gap, rect.bottom + gap,
+      ])].map((y) => clamp(y, minY, maxY));
+      let best: { x: number; y: number; distance: number } | null = null;
+      for (const x of new Set(xs)) {
+        for (const y of new Set(ys)) {
+          const candidate = { left: x, right: x + current.width, top: y, bottom: y + current.height };
+          if (obstacles.some((rect) => overlaps(candidate, rect))) continue;
+          const distance = (x - current.left) ** 2 + (y - current.top) ** 2;
+          if (!best || distance < best.distance) best = { x, y, distance };
+        }
+      }
+      if (!best) break;
+      shift(label, best.x - current.left, best.y - current.top);
+    }
+    const placed = label.getBoundingClientRect();
+    if (placed.width > 0 && placed.height > 0) obstacles.push(placed);
   }
 }
 
@@ -375,9 +442,11 @@ export default function ContactPlot({
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(clamp);
     observer?.observe(node);
     window.addEventListener('resize', clamp);
+    node.addEventListener(CONTACT_SCAN_EVENT, clamp);
     return () => {
       observer?.disconnect();
       window.removeEventListener('resize', clamp);
+      node.removeEventListener(CONTACT_SCAN_EVENT, clamp);
     };
   }, [ambient?.id, classifiedOccurrenceId, contacts, departing, hostile, placement, size, still, tracks.length]);
 
