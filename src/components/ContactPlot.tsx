@@ -265,13 +265,19 @@ function clampContactLabels(plot: HTMLElement): void {
           : plotBounds.right - LABEL_VIEWPORT_GUTTER_PX - marker.right - 11;
         let original = label.getBoundingClientRect();
         if (original.width > sideWidth && sideWidth > 0) {
-          label.style.maxWidth = `${sideWidth}px`;
+          // Read the untransformed width before changing the cap. This shares
+          // the intrinsic layout state with `original`, so perspective scale
+          // is estimated without a second style/layout flush.
+          const untransformedWidth = label.offsetWidth;
+          const projectedScale = untransformedWidth > 0
+            ? original.width / untransformedWidth
+            : 1;
+          label.style.maxWidth = `${Math.max(1, Math.max(1, sideWidth - 2) / projectedScale)}px`;
           label.style.minInlineSize = '0px';
           label.style.whiteSpace = 'normal';
           label.style.overflowWrap = 'anywhere';
-          // Measure after the side cap so the CSS width and transformed box
-          // describe the same state. Leave two screen pixels of clearance so
-          // one proportional correction absorbs subpixel rounding too.
+          // Check the first projection after capping and correct any nonlinear
+          // perspective or wrapping difference with one counted read.
           original = label.getBoundingClientRect();
           if (original.width > sideWidth) {
             const cap = Number.parseFloat(label.style.maxWidth);
