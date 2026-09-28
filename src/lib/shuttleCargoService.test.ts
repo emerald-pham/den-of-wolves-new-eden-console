@@ -255,3 +255,16 @@ it.each([
     .rejects.toThrow(/current shuttle holder|session authority/i);
   expect(mocks.callable).toHaveBeenCalledTimes(1);
 });
+
+it('classifies a server-declared stale rejection separately from an uncertain transport outcome', async () => {
+  mocks.call.mockRejectedValueOnce(Object.assign(new Error('The control revision changed.'), {
+    code: 'functions/failed-precondition',
+    details: { commandError: 'stale-revision' },
+  }));
+
+  await expect(transferShuttleCargo('hummingbird', 'food', 'load', 2, 3))
+    .rejects.toMatchObject({
+      name: 'ShuttleCargoTransferRejectedError',
+      message: /live session changed/i,
+    });
+});
