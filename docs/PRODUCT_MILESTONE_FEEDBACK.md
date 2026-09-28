@@ -121,3 +121,19 @@ credits toward the fixed 49 assigned closures.
 
 The explicit request to complete PC05 authorizes the checkpoint work. It does
 not waive the 507/751 overall completion target or ordinary gameplay evidence.
+
+## Standing authorization for remaining checkpoints — 2026-09-28
+
+The owner stated they will be away and instructed agents to finish without
+them, then explicitly requested that future checkpoints reflect this policy.
+PC05–PC10 therefore use the autonomous execution section in the milestone
+guide. Optional UI review and later feedback remain available; routine owner
+approval and checkpoint-transition waits are removed. Fixed closure targets
+and ordinary authorized gameplay proof remain required.
+
+The owner also explicitly approved automatic server Wolf assignment and
+confirmed-roster start with only available real players, including zero Wolves
+when nobody is eligible; the configured roster's normal Wolf count remains the
+target. They approved the exact onboarding sentence: “Wolf agents are humans,
+just like the other survivors.” These decisions resolve the P654/P662 policy
+choice and P589 copy question; implementation and gameplay proof still apply.

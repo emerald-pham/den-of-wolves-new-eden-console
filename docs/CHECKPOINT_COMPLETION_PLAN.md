@@ -51,6 +51,16 @@ reported; authorizing a review scene never silently waives these targets.
 Any shortfall carries forward rather than restarting the next 49 from a lower
 base. No further catch-up to the superseded PC05-half target is required.
 
+## Standing execution authorization
+
+The owner's 2026-09-28 instruction is to complete PC05–PC10 autonomously while
+they are away. Apply [Autonomous execution](PRODUCT_MILESTONES.md#autonomous-execution-for-pc05pc10)
+to every tranche below: source-backed decisions, implementation, review,
+release, and ordinary gameplay proof belong to the agents. Do not wait for
+routine owner approval, a walkthrough, feedback, or permission to continue to
+the next completed tranche. Genuine blockers preserve the incomplete target
+and do not stop independent useful work.
+
 ## Execution and proof
 
 1. Reconcile existing work first using the [accounting audit](CHECKPOINT_ACCOUNTING_AUDIT.md).
