@@ -831,6 +831,19 @@ it('tests Firestore rules before a main-branch deployment', () => {
     .toBeLessThan(deploy.indexOf(`${FIREBASE_CLI} deploy`));
 });
 
+it('verifies risk-bearing main changes even when they select no Firebase surface', () => {
+  expect(deploy).toContain('verification_required: ${{ steps.targets.outputs.root_install }}');
+  expect(deploy).toContain(
+    "if: needs.determine-targets.outputs.current_tip == 'true' && " +
+    "(needs.determine-targets.outputs.has_targets == 'true' || " +
+    "needs.determine-targets.outputs.verification_required == 'true')",
+  );
+  expect(deploy).toContain(
+    "deploy:\n    if: needs.determine-targets.outputs.has_targets == 'true' && " +
+    "needs.determine-targets.outputs.current_tip == 'true'",
+  );
+});
+
 it('does not repeat unit tests during deployment after CI artifact verification', () => {
   expect(ci).toContain('run: npm run test:unit');
   expect(ci).toContain('run: npm run test:functions');
