@@ -25,7 +25,9 @@ it('lets an explicit captain recovery record a chosen 1–3 reduction, then retr
   const resolved = resolveShipMutiny(active, 10, 1, 'old', 'new', 'recovery-1', 'second');
   expect(resolved.unrest).toBe(9);
   expect(resolved.mutiny).toMatchObject({ status: 'resolved', revision: 2,
-    oldCaptainUid: 'old', newCaptainUid: 'new', reduction: 1 });
+    reduction: 1 });
+  expect(resolved.mutiny).not.toHaveProperty('oldCaptainUid');
+  expect(resolved.mutiny).not.toHaveProperty('newCaptainUid');
   expect(isShipInMutiny(resolved.mutiny, 9)).toBe(false);
   const retriggered = mutinyAfterUnrestChange(resolved.mutiny, 9, 10, 'third');
   expect(retriggered).toMatchObject({ status: 'active', revision: 3 });
