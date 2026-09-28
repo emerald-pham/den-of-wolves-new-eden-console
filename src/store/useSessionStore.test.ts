@@ -373,3 +373,25 @@ it('avoids rewriting the session snapshot for unchanged heartbeat and route stat
     writes.mockRestore();
   }
 });
+
+it('hides a former role private card as soon as a live player projection loses that assignment', () => {
+  const store = useSessionStore.getState();
+  const assigned = { ...player, assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral' };
+  store.setIdentity(session, assigned);
+  store.setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
+
+  store.setMe({ ...assigned, assignedRoleId: null, activeConsoleRoleId: null, seatId: null });
+
+  expect(useSessionStore.getState().privateLoyalty).toBeNull();
+});
+
+it('drops a stale private card when a reconnect reply changes the authorized role', () => {
+  const store = useSessionStore.getState();
+  const assigned = { ...player, assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral' };
+  store.setIdentity(session, assigned);
+  store.setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
+
+  store.setIdentity(session, { ...assigned, assignedRoleId: null, activeConsoleRoleId: null });
+
+  expect(useSessionStore.getState().privateLoyalty).toBeNull();
+});
