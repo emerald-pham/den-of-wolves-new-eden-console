@@ -137,20 +137,28 @@ const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
     'applyShipCounterSteps', 'runVulcanAdditionalLabour', 'runMaintenance',
   ],
   'functions/src/mutiny.ts': [
-    'joinSession', 'resumeSession', 'moveShipToLocation', 'jumpShip',
-    'setShipConsoleLock', 'getAegisCommandAndControl', 'applyAegisCommandAndControl', 'getDioneMaliadesLaunch',
-    'launchDioneMaliades', 'getPdfEscortWingLaunch', 'launchPdfEscortWing', 'unlockPressAirspace',
-    'adjustShipResource', 'adjustShipUnrest', 'dismissUnrestAlert', 'resolveShipMutiny',
-    'addShipDamage', 'adjustShipPopulation', 'applyShipCounterSteps', 'setFighterWingCount',
-    'buildFighter', 'dismissPopulationAlert', 'runHighwallMining', 'requestScout',
-    'rollHummingbirdHarvest', 'allocateHummingbirdHarvest', 'setSmallShipDocking', 'runSmallShipMaintenance', 'runVoyage33Maintenance',
-    'runMaintenance', 'drawVipCard', 'transferVipCard', 'rerollVipUnrest',
-    'publishAdmiralDirectiveCommand', 'recordPresidentActionCommand', 'updatePoliticalCapital', 'setFleetRedAlert',
-    'repairAllShipDamage', 'rollbackMaintenance',
+    'joinSession', 'resumeSession', 'moveShipToLocation',
+    'jumpShip', 'setShipConsoleLock', 'getAegisCommandAndControl',
+    'applyAegisCommandAndControl', 'getDioneMaliadesLaunch', 'launchDioneMaliades',
+    'getPdfEscortWingLaunch', 'launchPdfEscortWing', 'unlockPressAirspace',
+    'adjustShipResource', 'adjustShipUnrest', 'dismissUnrestAlert',
+    'resolveShipMutiny', 'addShipDamage', 'adjustShipPopulation',
+    'applyShipCounterSteps', 'setFighterWingCount', 'buildFighter',
+    'dismissPopulationAlert', 'runHighwallMining', 'requestScout',
+    'rollHummingbirdHarvest', 'allocateHummingbirdHarvest', 'setSmallShipDocking',
+    'runSmallShipMaintenance', 'runVoyage33Maintenance', 'runMaintenance',
+    'drawVipCard', 'transferVipCard', 'rerollVipUnrest',
+    'publishAdmiralDirectiveCommand', 'recordPresidentActionCommand', 'updatePoliticalCapital',
+    'setFleetRedAlert', 'repairAllShipDamage', 'rollbackMaintenance',
+    'repairGorgoneionWithDrones', 'repairWarriorWithDrones', 'transferBaseCapybaraCargo',
+    'startGame', 'assignReplacementRole', 'advanceTurn',
+    'startSinglePlayerDemo', 'setWolfAttackWindow', 'declareWolfAttack',
+    'runVulcanAdditionalLabour',
   ],
   'functions/src/voyage33Maintenance.ts': [
-    'startGame', 'joinSession', 'resumeSession', 'advanceTurn',
-    'startSinglePlayerDemo', 'addShipDamage', 'runVoyage33Maintenance', 'runMaintenance',
+    'startGame', 'joinSession', 'resumeSession',
+    'advanceTurn', 'startSinglePlayerDemo', 'addShipDamage',
+    'runVoyage33Maintenance', 'runMaintenance', 'resolveShipMutiny',
   ],
   'functions/src/actionAudit.ts': [
     'scavengeDestroyedShipStores', 'adjustShipResource', 'adjustShipUnrest',
@@ -203,8 +211,34 @@ const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
   'functions/src/extraShipAdmission.ts': [
     'assignReplacementRole', 'joinSession', 'resumeSession',
     'repairGorgoneionWithDrones', 'repairWarriorWithDrones', 'transferBaseCapybaraCargo',
+    'resolveShipMutiny',
   ],
-  'functions/src/replacementRoles.ts': ['assignReplacementRole', 'transferBaseCapybaraCargo'],
+  'functions/src/shuttleDocking.ts': [
+    'transferShuttleControlCommand',
+  ],
+  'functions/src/wolfActionAuthorization.ts': [
+    'startWolfConsoleVisit', 'resolveWolfConsoleSabotage', 'submitWolfSupplySabotage',
+    'submitWolfHomingBeacon', 'submitWolfIntelligence',
+  ],
+  'functions/src/replacementRoles.ts': [
+    'assignReplacementRole', 'transferBaseCapybaraCargo', 'repairGorgoneionWithDrones',
+    'repairWarriorWithDrones', 'readMyScoutDiscoveryNote', 'resolvePendingScoutRequest',
+    'confirmSetup', 'startGame', 'transferShuttleControlCommand',
+    'setReplacementEligibility', 'submitCivilUnrestGrievance', 'joinSession',
+    'resumeSession', 'moveShipToLocation', 'jumpShip',
+    'setShipConsoleLock', 'advanceTurn', 'startSinglePlayerDemo',
+    'unlockPressAirspace', 'popShipConfetti', 'adjustShipResource',
+    'adjustShipUnrest', 'consentCommissarPurge', 'applyCommissarPurge',
+    'getCommissarPurgeAuthority', 'dismissUnrestAlert', 'resolveShipMutiny',
+    'addShipDamage', 'adjustShipPopulation', 'applyShipCounterSteps',
+    'setFighterWingCount', 'buildFighter', 'dismissPopulationAlert',
+    'requestScout', 'rollHummingbirdHarvest', 'allocateHummingbirdHarvest',
+    'setSmallShipDocking', 'runSmallShipMaintenance', 'runVoyage33Maintenance',
+    'runMaintenance', 'drawVipCard', 'transferVipCard',
+    'rerollVipUnrest', 'publishAdmiralDirectiveCommand', 'recordPresidentActionCommand',
+    'updatePoliticalCapital', 'setFleetRedAlert', 'repairAllShipDamage',
+    'rollbackMaintenance',
+  ],
   'functions/src/baseCapybaraCargoTransfer.ts': ['transferBaseCapybaraCargo'],
   'functions/src/baseCapybaraCargoTransferCallable.ts': ['transferBaseCapybaraCargo'],
   'functions/src/boaRecyclingCallable.ts': ['recycleWithBoa'],
@@ -225,11 +259,15 @@ const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
   'functions/src/awayMissionCards.ts': ['dealPrivateInitialCards'],
   // This pure follow-on domain candidate has no deployed callable consumer yet.
   'functions/src/missionLifecycle.ts': [],
-  // advanceSmallShipMaintenance is used by these three deployed transactions;
-  // type-only and test imports do not add callable consumers.
+  // Small-craft state and mutiny guards are shared by these runtime paths.
+  // Include transitive consumers; type-only and test imports are excluded.
   'functions/src/smallShip.ts': [
     'runSmallShipMaintenance', 'repairGorgoneionWithDrones', 'repairWarriorWithDrones',
-    'transferBaseCapybaraCargo',
+    'transferBaseCapybaraCargo', 'startGame', 'assignReplacementRole',
+    'joinSession', 'resumeSession', 'advanceTurn',
+    'startSinglePlayerDemo', 'setWolfAttackWindow', 'declareWolfAttack',
+    'resolveShipMutiny', 'addShipDamage', 'setSmallShipDocking',
+    'runVoyage33Maintenance', 'runVulcanAdditionalLabour', 'runMaintenance',
   ],
   'functions/src/wolfCommandAndControl.ts': [
     'applyAegisCommandAndControl', 'applyWolfCommanderTargetRerolls',
@@ -804,6 +842,13 @@ function candidateRevealNavigationProjectionImpacts(before, after, cwd, sourceAt
   const previous = readAt(before);
   const current = readAt(after);
   const digest = (source) => createHash('sha256').update(source).digest('hex');
+  // PC05 only adds the pending-rerole exclusion to playerShipId. Keep other
+  // projection edits fail-closed until their separate consumer audit.
+  const reroleExclusion = "  if (player.get('replacementStatus') != null) return undefined;\n";
+  if (!previous.includes(reroleExclusion) && current.split(reroleExclusion).length === 2 &&
+      current.replace(reroleExclusion, '') === previous) {
+    return ["activateEndeavourEcmDevice", "readEndeavourEcmDeviceWorkspace", "resolvePendingScoutRequest", "createSession", "confirmSetup", "startGame", "dealPrivateInitialCards", "assignReplacementRole", "setCandidatePlanCheckpoint", "joinSession", "resumeSession", "moveShipToLocation", "jumpShip", "advanceTurn", "startSinglePlayerDemo", "declareWolfAttack", "submitWolfHomingBeacon", "requestScout", "runMaintenance"];
+  }
   // Exact reviewed PC01 file transition. An additional navigation change must
   // receive its own audited consumer mapping before Functions deployment.
   if (digest(previous) === 'a4e97d779601b9e6bd2b5c853a5bc5c2704372e6ccab23341f026b098a5dcb81' &&
@@ -1178,7 +1223,19 @@ function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }
       for (const name of maliadesCallableImpacts(before, after, cwd, sourceAtRevision)) selected.add(name);
       continue;
     }
-    const consumers = CALLABLES_BY_CHANGED_MODULE[file];
+    let consumers = CALLABLES_BY_CHANGED_MODULE[file];
+    if (file === 'functions/src/smallShip.ts') {
+      const source = sourceAtRevision ? sourceAtRevision(after, file)
+        : execFileSync('git', ['show', `${after}:${file}`], { cwd, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+      // Preserve the exact reviewed P238 historical resolver before PC05 added
+      // shared small-craft state/mutiny consumers. Never apply the old set to
+      // an unknown or current module revision.
+      if (createHash('sha256').update(source).digest('hex') ===
+          '618a1d69e2c01ca05aadf42af684727a4e41368e2eb6983b5407b95d378022c1') {
+        consumers = ['runSmallShipMaintenance', 'repairGorgoneionWithDrones',
+          'repairWarriorWithDrones', 'transferBaseCapybaraCargo'];
+      }
+    }
     if (!consumers) throw new Error(`No audited callable consumer map exists for changed Functions module ${file}.`);
     for (const name of consumers) {
       // The Warrior repair domain shares this helper, but the callable became
