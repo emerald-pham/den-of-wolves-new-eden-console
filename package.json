@@ -28,6 +28,7 @@
     "test:render:p620:ally": "node scripts/prompt-620-render-ally.mjs",
     "test:render:p583": "node scripts/prompt-583-render.mjs",
     "test:render:pc02": "node --test scripts/test-pc02-contact-layout.mjs scripts/test-pc02-scene-layout.mjs",
+    "test:render:pc05:dradis": "node scripts/test-dradis-label-visibility.mjs",
     "test:watch": "vitest --project unit",
     "test:ticker:browser": "node scripts/test-fleet-ticker-browser.mjs",
     "test:health-metrics": "node --test scripts/health-metrics.test.mjs",

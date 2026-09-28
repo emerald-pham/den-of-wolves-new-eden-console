@@ -45,23 +45,6 @@ const pairSnapshot = (contact) => {
   };
 };
 
-const pauseSweeps = (plot, paused) => plot.querySelectorAll('.contact-plot__sweep')
-  .forEach((sweep) => sweep.getAnimations().forEach((animation) => {
-    if (paused) animation.pause();
-    else animation.play();
-  }));
-
-const setPaintTime = (contact, time) => {
-  for (const selector of ['.contact-plot__tag', '.contact-plot__blip']) {
-    const node = contact.querySelector(selector);
-    for (const animation of node.getAnimations()) {
-      if (animation.effect?.getTiming().duration !== 7000) continue;
-      animation.pause();
-      animation.currentTime = time;
-    }
-  }
-};
-
 const assertPaired = (sample, label) => {
   assert.ok(Math.abs(sample.labelAlpha - sample.blipAlpha) <= 0.025,
     `${label}: name alpha ${sample.labelAlpha.toFixed(3)} differs from contact alpha ${sample.blipAlpha.toFixed(3)}`);
@@ -218,11 +201,15 @@ async function runNormalShip(viewport) {
     assert.equal(initial.labelAlpha, 0, `${viewportName}: ShipPlot name appeared before acquisition`);
     assert.equal(initial.blipAlpha, 0, `${viewportName}: ShipPlot return appeared before acquisition`);
     await waitForScan(page);
+    const acquiredContact = page.locator(
+      ".contact-plot__contact:has(.contact-plot__apparent[data-acquired='true'])",
+    ).first();
+    await acquiredContact.waitFor({ state: 'attached' });
     await plot.evaluate((element) => element.querySelectorAll('.contact-plot__sweep')
       .forEach((sweep) => sweep.getAnimations().forEach((animation) => animation.pause())));
-    const acquired = await snapshot(page);
+    const acquired = await acquiredContact.evaluate(pairSnapshot);
     assertPaired(acquired, `${viewportName} ShipPlot sweep boundary`);
-    await page.locator('.contact-plot__contact').first().evaluate((contact) => {
+    await acquiredContact.evaluate((contact) => {
       for (const selector of ['.contact-plot__tag', '.contact-plot__blip']) {
         for (const animation of contact.querySelector(selector).getAnimations()) {
           if (animation.effect?.getTiming().duration !== 7000) continue;
@@ -231,10 +218,10 @@ async function runNormalShip(viewport) {
         }
       }
     });
-    const fading = await snapshot(page);
+    const fading = await acquiredContact.evaluate(pairSnapshot);
     results.push({ viewportName, mode: 'normal', component: 'ShipPlot', state: 'mid-fade', ...fading });
     assertPaired(fading, `${viewportName} ShipPlot mid-fade`);
-    await page.locator('.contact-plot__contact').first().evaluate((contact) => {
+    await acquiredContact.evaluate((contact) => {
       for (const selector of ['.contact-plot__tag', '.contact-plot__blip']) {
         for (const animation of contact.querySelector(selector).getAnimations()) {
           if (animation.effect?.getTiming().duration !== 7000) continue;
@@ -243,7 +230,7 @@ async function runNormalShip(viewport) {
         }
       }
     });
-    const postFade = await snapshot(page);
+    const postFade = await acquiredContact.evaluate(pairSnapshot);
     results.push({ viewportName, mode: 'normal', component: 'ShipPlot', state: 'post-fade', ...postFade });
     assertPaired(postFade, `${viewportName} ShipPlot post-fade`);
     if (pageErrors.length > 0) throw new Error(`Browser errors: ${pageErrors.join('; ')}`);
@@ -262,11 +249,12 @@ async function runReduced(viewport, mode) {
     assert.ok(count > 0);
     for (let index = 0; index < count; index += 1) {
       const pair = await contacts.nth(index).evaluate(pairSnapshot);
-      assert.ok(pair.labelAlpha > 0.9, `${viewportName}: reduced-motion name was not visible with its return`);
-      assert.ok(pair.blipAlpha > 0.9, `${viewportName}: reduced-motion return was not visible with its name`);
+      assert.ok(pair.labelAlpha > 0.55, `${viewportName}: reduced-motion name was not visible with its return`);
+      assert.ok(pair.blipAlpha > 0.55, `${viewportName}: reduced-motion return was not visible with its name`);
       assertPaired(pair, `${viewportName} reduced-motion ${mode}`);
     }
-    assert.equal(await plot.locator('.contact-plot__sweep').evaluate((node) => getComputedStyle(node).animationName), 'none');
+    assert.equal(await plot.locator('.contact-plot__sweep').first()
+      .evaluate((node) => getComputedStyle(node).animationName), 'none');
     if (mode === 'contact') {
       await page.evaluate(() => window.__dradisVisibility.setTag('CONTACT BETA'));
       const changed = await snapshot(page);

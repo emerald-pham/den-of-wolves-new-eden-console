@@ -715,13 +715,15 @@ describe('friendly DRADIS returns', () => {
     expect(returns).toContain('isolation: isolate');
   });
 
-  it('lets blips nearly decay between sweeps while acquired ship names remain solid', () => {
+  it('starts acquired name, blip, and drop on the same sweep fade', () => {
     const plot = SHEETS.find(({ name }) => name === 'src/styles/plot.css')?.css ?? '';
     const blip = plot.match(/\.contact-plot__blip\s*\{([^}]*)\}/)?.[1] ?? '';
     const tag = plot.match(/\.contact-plot__tag\s*\{([^}]*)\}/)?.[1] ?? '';
+    const sweep = readFileSync(join(SRC, 'components/sweep.ts'), 'utf8');
     expect(blip).toContain('opacity: 0.03');
     expect(blip).not.toContain('animation');
     expect(tag).toContain('opacity: 1');
+    expect(sweep).toMatch(/blip\.animate\?\.\(fade,[\s\S]*tag\.animate\?\.\(fade,[\s\S]*drop\?\.animate\?\.\(fade/);
   });
 
   it('leaves altitude fade timing to the same sweep crossing as its blip', () => {
