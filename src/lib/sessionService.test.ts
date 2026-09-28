@@ -1110,6 +1110,17 @@ it('sends the exact source-bound mission start through the current facilitator c
   });
   expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'dealPrivateInitialCards');
   expect(callable).toHaveBeenCalledWith(request);
+
+  const misbound = callableReturning({ data: {
+    status: 'committed', sessionId: 's1', requestId: 'mission-start-misbound',
+    opportunityId: request.opportunityId, snapshotId: request.opportunityId,
+    missionId: `mission-${request.opportunityId}`, groupId: request.groupId, coordinate: '9997',
+    sourceCycle: 2, participantCount: 1, missionLeaderUid: 'alice',
+    expectedSetupRevision: 4, expectedPhaseRevision: 3, expectedCycle: 2,
+  } });
+  vi.mocked(httpsCallable).mockReturnValue(misbound);
+  await expect(startAwayMission({ ...request, requestId: 'mission-start-misbound' }))
+    .rejects.toThrow(/invalid away-mission start result/i);
 });
 
 it('sends replacement eligibility and assignment with both CAS cursors', async () => {
