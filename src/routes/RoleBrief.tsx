@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
 import { AEGIS_ROLE_CONSOLES } from '@/data/aegisConsoles';
 import { PDF_ESCORT_FIGHTER_WING } from '@/data/pdfConsoles';
@@ -10,6 +10,9 @@ import VulcanAdditionalLabourPanel from '@/components/VulcanAdditionalLabourPane
 import DecisionAttribution from '@/components/DecisionAttribution';
 import ExtraShipCaptainWorkspace from '@/components/ExtraShipCaptainWorkspace';
 import FocusDialog from '@/components/FocusDialog';
+import { OnboardingFirstAction } from '@/components/OnboardingFirstAction';
+import { PlayerOnboardingGuide } from '@/components/PlayerOnboardingGuide';
+import { consoleRoleRoute } from '@/lib/consoleRole';
 
 const CRAFT_NAMES = new Map([
   ...SHUTTLECRAFT.map((craft) => [craft.id, craft.name] as const),
@@ -82,6 +85,7 @@ function CraftHelpPanel({ help }: { readonly help: CraftHelp }) {
 
 /** The authenticated player's role brief and common rules projection. */
 export default function RoleBrief() {
+  const navigate = useNavigate();
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
   const brief = useSessionStore((state) => state.roleBrief);
@@ -191,6 +195,18 @@ export default function RoleBrief() {
           <h2 id="role-brief-rules-title">Common rules</h2>
           <p>{brief.commonRules}</p>
         </section>
+
+        <PlayerOnboardingGuide />
+
+        <OnboardingFirstAction
+          actionLabel="Open assigned console"
+          actionHint="Start with the controls for your assigned role. Coordinate your first available action with the team."
+          onAction={() => navigate(
+            me.replacementRoleId
+              ? `/replacement/${brief.roleId}`
+              : consoleRoleRoute(brief.roleId),
+          )}
+        />
 
         {me.replacementRoleId === 'wolf-commander' && <WolfCommanderTargetingPanel />}
 
