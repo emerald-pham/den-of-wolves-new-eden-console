@@ -28,7 +28,7 @@ export default function PrimaryStatus() {
   const connection = useSessionStore((state) => state.connection);
   const snapshotFreshness = useSessionStore((state) => state.sessionSnapshotFreshness);
 
-  if (!session) return null;
+  if (!session || !facilitatorActive || !facilitatorAccessAuthenticated) return null;
 
   const status = primaryStatusModel({
     pathname,

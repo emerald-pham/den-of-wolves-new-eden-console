@@ -45,6 +45,8 @@ type ReturnState = {
   moving: boolean;
   scans: number;
   scannedAt: number;
+  /** Keep the first enlarged return until it reaches its normal size. */
+  firstFlashUntil: number;
   paint: Animation[];
   freshTimer: number | undefined;
 };
@@ -176,6 +178,7 @@ export function followSweeps(plot: HTMLElement): () => void {
         moving: false,
         scans: index,
         scannedAt: -Infinity,
+        firstFlashUntil: -Infinity,
         paint: [],
         freshTimer: undefined,
       };
@@ -208,6 +211,7 @@ export function followSweeps(plot: HTMLElement): () => void {
       // The first return gets a larger acquisition flash. Refreshes confirm a
       // known track and should preserve its normal apparent size.
       const firstAcquisition = apparent.dataset.acquired !== 'true';
+      if (firstAcquisition) state.firstFlashUntil = now + SCAN_FRESH_MS;
       // Both rims can cross within a few frames. Confirm the existing fix
       // while its paint is fresh; only a later crossing of a dimmed return
       // may choose another bearing, before starting its new flash. Moving
@@ -245,19 +249,23 @@ export function followSweeps(plot: HTMLElement): () => void {
       apparent.style.setProperty('--fix-z', String(state.fix.z));
       apparent.style.setProperty('--drop', String(Math.abs(state.fix.y)));
       apparent.style.setProperty('--flip', state.fix.y < 0 ? '1' : '-1');
-      state.paint.forEach((animation) => animation.cancel());
-      const fade = [
-        { opacity: 1, offset: 0 },
-        { opacity: 0.34 + (state.fix.z + 1) * 0.25, offset: 0.16 },
-        { opacity: 0.03, offset: 1 },
-      ];
-      const drop = state.drop;
-      state.paint = [
-        blip.animate?.(fade.map((keyframe, i) => ({
-          ...keyframe, transform: firstAcquisition && i === 0 ? 'scale(2)' : 'scale(1)',
-        })), { duration: 7000, fill: 'forwards' }),
-        drop?.animate?.(fade, { duration: 7000, fill: 'forwards' }),
-      ].filter((animation): animation is Animation => animation !== undefined);
+      // A second rim can cross during the 1.12s growth-to-normal beat. Keep
+      // that first paint alive; the crossing still confirms the fix and pings.
+      if (firstAcquisition || now >= state.firstFlashUntil) {
+        state.paint.forEach((animation) => animation.cancel());
+        const fade = [
+          { opacity: 1, offset: 0 },
+          { opacity: 0.34 + (state.fix.z + 1) * 0.25, offset: 0.16 },
+          { opacity: 0.03, offset: 1 },
+        ];
+        const drop = state.drop;
+        state.paint = [
+          blip.animate?.(fade.map((keyframe, i) => ({
+            ...keyframe, transform: firstAcquisition && i === 0 ? 'scale(2)' : 'scale(1)',
+          })), { duration: 7000, fill: 'forwards' }),
+          drop?.animate?.(fade, { duration: 7000, fill: 'forwards' }),
+        ].filter((animation): animation is Animation => animation !== undefined);
+      }
       element.dispatchEvent(new CustomEvent(CONTACT_SCAN_EVENT, { bubbles: true }));
     }
     previous = normals;

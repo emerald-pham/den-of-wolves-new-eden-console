@@ -47,7 +47,7 @@ export default function PursuitTracker({
   const failureCountdownLabel = `${failureCountdown} cycle${failureCountdown === 1 ? '' : 's'}`;
   const mapDepth = entitledDistance === 0 ? 'Start system' : `-${entitledDistance} pursuit distance`;
   const statusLabel = !hasAuthoritativeValue
-    ? currentTurn < 1 ? 'STANDBY // CYCLE 0' : 'AWAITING SERVER PURSUIT'
+    ? currentTurn < 1 ? 'STANDBY // CYCLE 0' : 'AWAITING CIC HANDSHAKE'
     : status === 'surrounded'
     ? 'SURROUNDED // GAME OVER'
     : status === 'critical'
@@ -77,7 +77,7 @@ export default function PursuitTracker({
         <strong data-pending={!hasAuthoritativeValue}>
           {hasAuthoritativeValue
             ? <>{failureCountdown} <small>{failureCountdown === 1 ? 'cycle' : 'cycles'}</small></>
-            : 'Awaiting server telemetry'}
+            : 'Awaiting CIC handshake'}
         </strong>
       </p>
 
@@ -100,7 +100,7 @@ export default function PursuitTracker({
         aria-valuenow={pursuitScore}
         aria-valuetext={hasAuthoritativeValue
           ? `${pursuitScore} of ${MAX_PURSUIT}; ${failureCountdownLabel} to failure`
-          : 'Awaiting authoritative pursuit value'}
+          : 'Awaiting CIC handshake'}
         role="progressbar"
       >
         {TRACK_SEGMENTS.map((segment) => (
