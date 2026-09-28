@@ -2417,6 +2417,8 @@ it('shows an authorized departure as awaiting transit and hides departure contro
 
 it('lets the holder enter transit from an authorized departure without a duplicate request', async () => {
   const user = userEvent.setup();
+  const transitRequest = deferred<void>();
+  vi.mocked(beginShuttleTransit).mockReturnValueOnce(transitRequest.promise);
   const state = useSessionStore.getState();
   state.setSession({
     ...state.session!, phase: 'active', currentTurn: 2,
@@ -2454,6 +2456,9 @@ it('lets the holder enter transit from an authorized departure without a duplica
   expect(screen.queryByRole('button', { name: 'Request departure' })).not.toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: 'Begin transit' }));
   expect(beginShuttleTransit).toHaveBeenCalledWith('starlight', 'departure-1', 3, 2);
+  expect(screen.getByText('Shuttle action pending. Waiting for the server to confirm this action.'))
+    .toBeVisible();
+  await act(async () => transitRequest.resolve());
   expect(screen.getByRole('status')).toHaveTextContent('Transit begun to Icebreaker.');
 });
 
