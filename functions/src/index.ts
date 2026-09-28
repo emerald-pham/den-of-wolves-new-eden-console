@@ -14094,7 +14094,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
         return {
           seatId: returningSeat?.seatId ?? null,
-          stationSelectionRequired: returningSeat?.stationSelectionRequired === true,
+          stationSelectionRequired: returningSeat?.stationSelectionRequired === true || releasePress,
           connectionGeneration,
         };
       } else {
