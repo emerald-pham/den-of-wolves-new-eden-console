@@ -682,6 +682,11 @@ it('renders current and retained repair history with progress and keyboard stop 
   expect(region).toHaveAttribute('tabindex', '0');
   expect(renderedChanges.every((change) => !/\bprompts?\b/i.test(change))).toBe(true);
   expect(within(newestEntry).getByText(
+    'The Press Officer now receives private reports when survivors change, a Commissar purge resolves, or the President records an action. Publishing a fleet dispatch remains their choice.',
+  )).toBeVisible();
+  const previousScienceEntry = within(region).getByRole('heading', { name: 'Build 0.5.51' }).closest('article');
+  if (!previousScienceEntry) throw new Error('Expected the preserved 0.5.51 science release entry.');
+  expect(within(previousScienceEntry).getByText(
     'The Shepherd Scientist can use Endeavour’s ECM Device after completing its research. The control shows when it is ready, working, or spent, and the fleet pursuit display refreshes after activation.',
   )).toBeVisible();
   const previousRechargeEntry = within(region).getByRole('heading', { name: 'Build 0.5.50' }).closest('article');
