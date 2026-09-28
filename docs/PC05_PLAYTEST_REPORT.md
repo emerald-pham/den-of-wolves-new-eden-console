@@ -261,3 +261,14 @@ At parent `c3bbd386` (runtime code identical to the `dd09f90b` review target),
 broad combined run after the reconnect and full-ship maintenance integration.
 It excludes the still-active jump and small-craft follow-up candidates and
 therefore is not the final PC05 release gate. No tests were disabled.
+
+### Ordinary walkthrough preparation
+
+Using the released 0.5.54 app's normal browser UI, a separate real player joined
+the prepared verification session, and the authenticated facilitator assigned
+that player to Scientist. The casting board returned `CASTING ASSIGNMENT
+APPLIED` and `Assigned // Scientist`. This prepares the ordinary partial-roster
+science walkthrough; it does not prove the unreleased start, onboarding or
+reconnect changes. No direct database writes, synthetic account insertion or
+attestation bypass was used. Both browser contexts are retained for the
+post-deployment continuation.
