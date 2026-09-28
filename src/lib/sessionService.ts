@@ -3344,6 +3344,8 @@ export interface AwayMissionStartReply {
 export interface StartAwayMissionOptions {
   /** Reuse this id and the same inputs when the transport result is ambiguous. */
   readonly requestId: string;
+  /** Client-local signal that this unchanged command is retrying a server receipt lookup. */
+  readonly allowReplay?: boolean;
   readonly sessionId: string;
   readonly instanceId: string;
   readonly expectedSetupRevision: number;
@@ -3440,15 +3442,21 @@ export async function startAwayMission(options: StartAwayMissionOptions): Promis
   if (!currentTurn || store.session.phase !== 'active') {
     throw new Error('A current server-authorized game phase is required before mission start.');
   }
-  if (options.expectedSetupRevision !== expectedSetupRevision(store.session) ||
+  if (options.allowReplay !== true && (
+      options.expectedSetupRevision !== expectedSetupRevision(store.session) ||
       options.expectedPhaseRevision !== currentTurn.phaseRevision ||
-      options.expectedCycle !== currentTurn.currentTurn) {
+      options.expectedCycle !== currentTurn.currentTurn)) {
     throw new Error('The mission-start request is stale. Refresh the facilitator console and retry.');
   }
   if (options.chart !== store.session.chartId) {
     throw new Error('The mission opportunity no longer matches the locked organiser chart. Refresh and retry.');
   }
-  const payload = { ...options, participantUids: [...options.participantUids] };
+  const { allowReplay, ...payloadOptions } = options;
+  void allowReplay;
+  const payload: Omit<StartAwayMissionOptions, 'allowReplay'> = {
+    ...payloadOptions,
+    participantUids: [...options.participantUids],
+  };
   const checkpoint = sessionAuthorityCheckpoint(payload.sessionId, sessionAuthorityUid(store));
   try {
     await ensureSignedIn();
