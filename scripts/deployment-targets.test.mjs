@@ -116,6 +116,11 @@ const PDF_ESCORT_WING_SOURCE_MODULE_CALLABLES = Object.freeze({
   ],
   'functions/src/pdfEscortWingProjection.ts': ['declareWolfAttack', 'launchPdfEscortWing'],
 });
+const AWAY_MISSION_SOURCE_MODULE_CALLABLES = Object.freeze({
+  'functions/src/awayMissionCards.ts': ['startAwayMission'],
+  // Pure follow-on candidate only; no deployed callable imports it yet.
+  'functions/src/missionLifecycle.ts': [],
+});
 const WOLF_ATTACK_DECLARATION_ADDITIONS = [
   '  /** Stable identity for this declared attack; range actions bind to it. */\n  readonly attackId: string;\n',
   '  /** Hidden Maliades effects committed against this exact attack. */\n  readonly maliadesRangeEffects: unknown;\n',
@@ -1058,6 +1063,18 @@ test('maps PDF Escort Wing server modules to their exact deployed callable consu
   assert.match(indexSource, /export const getPdfEscortWingLaunch\s*=\s*onCall/);
   assert.match(indexSource, /export const launchPdfEscortWing\s*=\s*onCall/);
   assert.match(indexSource, /projectPdfEscortWingMemberView/);
+});
+
+test('maps away-mission server modules only to their audited deployed callable consumers', () => {
+  const selected = selectorFor(Object.keys(AWAY_MISSION_SOURCE_MODULE_CALLABLES));
+  assert.deepEqual(selectedFunctions(selected), functionTargets(['startAwayMission']));
+
+  const indexSource = readFileSync(new URL('../functions/src/index.ts', import.meta.url), 'utf8');
+  assert.match(indexSource, /export const startAwayMission\s*=\s*onCall/);
+  assert.throws(
+    () => selectorFor(['functions/src/missionLifecycle.ts']),
+    /Functions changed but no named callable deployment could be proven/,
+  );
 });
 
 test('fails closed when WolfAttackDeclaration changes beyond the exact type-only attack-state fields', () => {
