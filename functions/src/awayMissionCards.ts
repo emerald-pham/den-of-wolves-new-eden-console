@@ -5,9 +5,9 @@ import {
 } from './missionDeck';
 
 /**
- * The routed away-mission procedure names mission-capable craft as the
- * participant boundary. Keep those source facts explicit instead of treating
- * every role holder or every session member as a participant.
+ * Source-authorized ordinary away-mission carriers. The team chooses its
+ * connected group roster independently; these craft IDs establish carriage,
+ * not which role holders may participate.
  */
 export const AWAY_MISSION_ROLE_CRAFT = {
   'wing-commander': ['starlight'],

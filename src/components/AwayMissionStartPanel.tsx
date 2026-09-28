@@ -3,7 +3,7 @@ import {
   subscribeGmMissionOpportunities,
   subscribeGmMissionStartSnapshots,
 } from '@/lib/firestore';
-import { startAwayMission } from '@/lib/sessionService';
+import { startAwayMission, type StartAwayMissionOptions } from '@/lib/sessionService';
 import { normalizeCommandError } from '@/lib/commandErrors';
 import { turnLimitForSession, turnPhaseState, turnStateForPhaseContext } from '@/lib/turnPhase';
 import type {
@@ -13,13 +13,8 @@ import type {
   Player,
 } from '@/types/game';
 
-const SOURCE_ELIGIBLE_ROLE_IDS = new Set([
-  'wing-commander',
-  'icebreaker-miner',
-  'shepherd-scientist',
-  'quellon-explorer',
-  'refinery-124-pdf-colonel',
-]);
+type MissionStartPayload = Omit<StartAwayMissionOptions, 'requestId' | 'allowReplay'>;
+type ExactMissionStartCommand = Omit<StartAwayMissionOptions, 'allowReplay'>;
 
 interface Props {
   readonly session: GameSession | null;
@@ -30,7 +25,8 @@ interface Props {
 
 interface PendingAttempt {
   readonly fingerprint: string;
-  readonly requestId: string;
+  readonly commandFingerprint: string;
+  readonly command: ExactMissionStartCommand;
 }
 
 function requestId(): string {
@@ -41,6 +37,89 @@ function requestId(): string {
 function failureMessage(error: unknown): string {
   if (error instanceof Error && !('code' in error)) return error.message;
   return normalizeCommandError(error).message;
+}
+
+function storageKey(sessionId: string, instanceId: string): string {
+  return `pc04:mission-start:${encodeURIComponent(sessionId)}:${encodeURIComponent(instanceId)}`;
+}
+
+function missionStartFingerprint(payload: MissionStartPayload): string {
+  return JSON.stringify({ ...payload, participantUids: [...payload.participantUids] });
+}
+
+function exactCommandFingerprint(command: ExactMissionStartCommand): string {
+  return JSON.stringify({ ...command, participantUids: [...command.participantUids] });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function restoreAttempt(key: string, sessionId: string, instanceId: string): PendingAttempt | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const stored = window.sessionStorage.getItem(key);
+    if (!stored) return null;
+    const parsed: unknown = JSON.parse(stored);
+    if (!isRecord(parsed) || typeof parsed.fingerprint !== 'string' ||
+        typeof parsed.commandFingerprint !== 'string' || !isRecord(parsed.command)) return null;
+    const raw = parsed.command;
+    if (Object.prototype.hasOwnProperty.call(raw, 'allowReplay') ||
+        raw.sessionId !== sessionId || raw.instanceId !== instanceId ||
+        typeof raw.requestId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(raw.requestId) ||
+        !Number.isSafeInteger(raw.expectedSetupRevision) || (raw.expectedSetupRevision as number) < 0 ||
+        !Number.isSafeInteger(raw.expectedPhaseRevision) || (raw.expectedPhaseRevision as number) < 0 ||
+        !Number.isSafeInteger(raw.expectedCycle) || (raw.expectedCycle as number) < 1 ||
+        !Number.isSafeInteger(raw.sourceCycle) || (raw.sourceCycle as number) < 0 ||
+        typeof raw.opportunityId !== 'string' || raw.opportunityId.length === 0 ||
+        typeof raw.groupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(raw.groupId) ||
+        (raw.chart !== 'A' && raw.chart !== 'B' && raw.chart !== 'C') ||
+        typeof raw.coordinate !== 'string' || !/^\d{4}$/.test(raw.coordinate) ||
+        !Array.isArray(raw.participantUids) || raw.participantUids.length === 0 ||
+        raw.participantUids.some((uid) => typeof uid !== 'string' || uid.length === 0) ||
+        new Set(raw.participantUids).size !== raw.participantUids.length ||
+        typeof raw.missionLeaderUid !== 'string' || !raw.participantUids.includes(raw.missionLeaderUid)) return null;
+    const command = raw as unknown as ExactMissionStartCommand;
+    const { requestId, ...payload } = command;
+    void requestId;
+    const fingerprint = missionStartFingerprint(payload);
+    return parsed.fingerprint === fingerprint &&
+      parsed.commandFingerprint === exactCommandFingerprint(command)
+      ? { fingerprint, commandFingerprint: parsed.commandFingerprint, command }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveAttempt(key: string, attempt: PendingAttempt): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    window.sessionStorage.setItem(key, JSON.stringify(attempt));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function clearAttempt(key: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.removeItem(key);
+  } catch {
+    // A stale local receipt is harmless; the server still owns replay authority.
+  }
+}
+
+function isStaleReply(
+  reply: Awaited<ReturnType<typeof startAwayMission>>,
+  command: ExactMissionStartCommand,
+): boolean {
+  return reply.status === 'stale' || reply.status === 'replayed' && (
+    reply.currentSetupRevision !== undefined && reply.currentSetupRevision !== command.expectedSetupRevision ||
+    reply.currentPhaseRevision !== undefined && reply.currentPhaseRevision !== command.expectedPhaseRevision ||
+    reply.currentCycle !== undefined && reply.currentCycle !== command.expectedCycle
+  );
 }
 
 function receiptDetails(receipt: AwayMissionStartSnapshot): readonly [string, string][] {
@@ -61,13 +140,15 @@ function receiptDetails(receipt: AwayMissionStartSnapshot): readonly [string, st
 }
 
 export default function AwayMissionStartPanel({ session, players, instanceId, isGm }: Props) {
+  const pendingStorageKey = session?.id && instanceId ? storageKey(session.id, instanceId) : null;
   const [opportunities, setOpportunities] = useState<readonly MissionOpportunity[]>([]);
   const [receipts, setReceipts] = useState<readonly AwayMissionStartSnapshot[]>([]);
   const [selectedOpportunityId, setSelectedOpportunityId] = useState('');
   const [selectedParticipantUids, setSelectedParticipantUids] = useState<readonly string[]>([]);
   const [missionLeaderUid, setMissionLeaderUid] = useState('');
   const [locallyStartedIds, setLocallyStartedIds] = useState<ReadonlySet<string>>(() => new Set());
-  const [pendingAttempt, setPendingAttempt] = useState<PendingAttempt | null>(null);
+  const [pendingAttempt, setPendingAttempt] = useState<PendingAttempt | null>(() =>
+    session?.id && instanceId ? restoreAttempt(storageKey(session.id, instanceId), session.id, instanceId) : null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -78,7 +159,9 @@ export default function AwayMissionStartPanel({ session, players, instanceId, is
     setSelectedParticipantUids([]);
     setMissionLeaderUid('');
     setLocallyStartedIds(new Set());
-    setPendingAttempt(null);
+    setPendingAttempt(session?.id && instanceId
+      ? restoreAttempt(storageKey(session.id, instanceId), session.id, instanceId)
+      : null);
     setMessage(null);
     if (!isGm || !session?.id || session.phase !== 'active') return;
     let active = true;
@@ -93,7 +176,7 @@ export default function AwayMissionStartPanel({ session, players, instanceId, is
       stopOpportunities();
       stopReceipts();
     };
-  }, [isGm, session?.id, session?.phase]);
+  }, [instanceId, isGm, session?.id, session?.phase]);
 
   const currentPhase = session ? turnPhaseState(session.turnPhase) : undefined;
   const currentTurn = session && currentPhase
@@ -125,16 +208,19 @@ export default function AwayMissionStartPanel({ session, players, instanceId, is
       .filter((player) => player.role === 'player' && player.connected === true &&
         player.fleetGroupId === selectedOpportunity.groupId &&
         typeof player.assignedRoleId === 'string' &&
-        activeRoleIds.has(player.assignedRoleId) &&
-        SOURCE_ELIGIBLE_ROLE_IDS.has(player.assignedRoleId))
+        activeRoleIds.has(player.assignedRoleId))
       .slice()
       .sort((left, right) => left.displayName.localeCompare(right.displayName) || left.uid.localeCompare(right.uid));
   }, [activeRoleIds, players, selectedOpportunity]);
-  const selectedParticipants = eligibleParticipants.filter(({ uid }) => selectedParticipantUids.includes(uid));
-  const selectedUids = selectedParticipants.map(({ uid }) => uid);
+  const selectedUids = selectedParticipantUids.filter((uid) =>
+    eligibleParticipants.some((participant) => participant.uid === uid));
+  const selectedParticipants = selectedUids.flatMap((uid) => {
+    const participant = eligibleParticipants.find((candidate) => candidate.uid === uid);
+    return participant ? [participant] : [];
+  });
   const leaderIsSelected = missionLeaderUid !== '' && selectedUids.includes(missionLeaderUid);
   const canStart = Boolean(session && selectedOpportunity && activePhaseReady && instanceId &&
-    selectedUids.length > 0 && leaderIsSelected && !busy);
+    selectedUids.length > 0 && leaderIsSelected && !busy && !pendingAttempt);
 
   if (!isGm || !session) return null;
 
@@ -155,13 +241,11 @@ export default function AwayMissionStartPanel({ session, players, instanceId, is
 
   const start = async () => {
     if (!session || !currentTurn || !selectedOpportunity || !canStart || !leaderIsSelected) return;
-    const participantUids = eligibleParticipants
-      .filter(({ uid }) => selectedUids.includes(uid))
-      .map(({ uid }) => uid);
+    const participantUids = [...selectedUids];
     const expectedSetupRevision = Number.isSafeInteger(session.setupRevision) && (session.setupRevision ?? 0) >= 0
       ? session.setupRevision ?? 0
       : 0;
-    const command = {
+    const payload: MissionStartPayload = {
       sessionId: session.id,
       instanceId,
       expectedSetupRevision,
@@ -175,28 +259,28 @@ export default function AwayMissionStartPanel({ session, players, instanceId, is
       participantUids,
       missionLeaderUid,
     } as const;
-    const fingerprint = JSON.stringify(command);
+    const fingerprint = missionStartFingerprint(payload);
+    const command = { ...payload, requestId: requestId() };
     const attempt = pendingAttempt?.fingerprint === fingerprint
       ? pendingAttempt
-      : { fingerprint, requestId: requestId() };
+      : { fingerprint, commandFingerprint: exactCommandFingerprint(command), command };
+    if (!pendingStorageKey || !saveAttempt(pendingStorageKey, attempt)) {
+      setMessage('This browser cannot save the exact retry identity, so the mission request was not submitted. Enable session storage and try again.');
+      return;
+    }
     setPendingAttempt(attempt);
     setBusy(true);
     setMessage(null);
     try {
-      const reply = await startAwayMission({
-        ...command,
-        requestId: attempt.requestId,
-      });
-      const replayedStale = reply.status === 'replayed' && (
-        reply.currentSetupRevision !== undefined && reply.currentSetupRevision !== command.expectedSetupRevision ||
-        reply.currentPhaseRevision !== undefined && reply.currentPhaseRevision !== command.expectedPhaseRevision ||
-        reply.currentCycle !== undefined && reply.currentCycle !== command.expectedCycle
-      );
-      if (reply.status === 'stale' || replayedStale) {
+      const reply = await startAwayMission(attempt.command);
+      if (isStaleReply(reply, attempt.command)) {
+        if (pendingStorageKey) clearAttempt(pendingStorageKey);
+        setPendingAttempt(null);
         setMessage('The mission start was not committed because the game phase changed. Refresh this panel before retrying.');
         return;
       }
       setLocallyStartedIds((previous) => new Set([...previous, selectedOpportunity.id]));
+      if (pendingStorageKey) clearAttempt(pendingStorageKey);
       setPendingAttempt(null);
       setSelectedParticipantUids([]);
       setMissionLeaderUid('');
@@ -212,13 +296,58 @@ export default function AwayMissionStartPanel({ session, players, instanceId, is
     }
   };
 
+  const retryExact = async () => {
+    const attempt = pendingAttempt;
+    if (!session || !isGm || !attempt || !pendingStorageKey || busy ||
+        attempt.command.sessionId !== session.id || attempt.command.instanceId !== instanceId) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const reply = await startAwayMission({ ...attempt.command, allowReplay: true });
+      if (isStaleReply(reply, attempt.command)) {
+        clearAttempt(pendingStorageKey);
+        setPendingAttempt(null);
+        setMessage('The original mission start was not committed because its saved revisions are stale. Refresh before starting a new request.');
+        return;
+      }
+      setLocallyStartedIds((previous) => new Set([...previous, attempt.command.opportunityId]));
+      clearAttempt(pendingStorageKey);
+      setPendingAttempt(null);
+      setMessage(reply.status === 'replayed'
+        ? `Mission start was already recorded for ${reply.groupId} at ${reply.coordinate}; no second deal was made.`
+        : `Mission started for ${reply.groupId} at ${reply.coordinate}. Participant cards are private.`);
+    } catch (error) {
+      setMessage(failureMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <section className="gm-console__module away-mission-start-panel cic-frame" aria-label="New-location mission start">
       <h2 className="gm-console__section-title">Away mission // new location</h2>
       <p className="gm-console__hint">
         Record the connected team roster and its selected Mission Leader at the exact newly reached opportunity.
-        The server validates current group, craft, phase, and source authority before it deals private cards.
+        The server validates current group, usable source craft, phase, and source authority before it deals private cards.
       </p>
+      {pendingAttempt && (
+        <section className="away-mission-start-panel__pending" aria-label="Pending exact mission start">
+          <p className="gm-console__status">
+            Awaiting confirmation for {pendingAttempt.command.groupId} // {pendingAttempt.command.chart}{' '}
+            {pendingAttempt.command.coordinate} // cycle {pendingAttempt.command.sourceCycle}.
+            {' '}Retry sends the same roster, leader, revisions, and request identity.
+          </p>
+          <button
+            type="button"
+            className="cic-action-button"
+            onClick={() => void retryExact()}
+            disabled={busy || pendingAttempt.command.sessionId !== session.id ||
+              pendingAttempt.command.instanceId !== instanceId}
+          >
+            {busy ? 'Retrying mission start…' : 'Retry exact mission start'}
+          </button>
+        </section>
+      )}
       {availableOpportunities.length > 0 ? (
         <>
           {availableOpportunities.length > 1 && (
@@ -228,6 +357,7 @@ export default function AwayMissionStartPanel({ session, players, instanceId, is
                 aria-label="Mission opportunity"
                 value={selectedOpportunity?.id ?? ''}
                 onChange={(event) => selectOpportunity(event.currentTarget.value)}
+                disabled={busy || Boolean(pendingAttempt)}
               >
                 {availableOpportunities.map((opportunity) => (
                   <option key={opportunity.id} value={opportunity.id}>
@@ -255,7 +385,7 @@ export default function AwayMissionStartPanel({ session, players, instanceId, is
             </p>
           )}
           {eligibleParticipants.length > 0 ? (
-            <fieldset className="away-mission-start-panel__roster" disabled={busy}>
+            <fieldset className="away-mission-start-panel__roster" disabled={busy || Boolean(pendingAttempt)}>
               <legend>Participants selected by the team</legend>
               {eligibleParticipants.map((participant) => (
                 <label key={participant.uid}>
@@ -286,7 +416,7 @@ export default function AwayMissionStartPanel({ session, players, instanceId, is
             </fieldset>
           ) : (
             <p className="gm-console__status" role="status">
-              No connected eligible mission-craft participants are currently in this fleet group.
+              No connected team-choice participants are currently in this fleet group.
             </p>
           )}
           <button type="button" className="cic-action-button" onClick={() => void start()} disabled={!canStart}>

@@ -9214,6 +9214,59 @@ export const dealPrivateInitialCards = onCall<{
         'conflict',
       );
     }
+    if (opportunity.sourceCycle > currentCycle) {
+      throw commandError(
+        'failed-precondition',
+        'The mission opportunity is from a future cycle.',
+        'conflict',
+      );
+    }
+    if (missionDefinition.siteRules.repeatability === 'everyTurn' &&
+        opportunity.sourceCycle < currentCycle) {
+      const laterCycleOpportunitySnapshots = await Promise.all(
+        Array.from(
+          { length: currentCycle - opportunity.sourceCycle },
+          (_, index) => opportunity.sourceCycle + index + 1,
+        ).map((cycle) => tx.get(db.doc(missionOpportunityDocumentPath(
+          command.sessionId,
+          `arrival-${opportunity.groupId}-${opportunity.chart}-${opportunity.coordinate}-cycle-${cycle}`,
+        )))),
+      );
+      for (const laterOpportunitySnapshot of laterCycleOpportunitySnapshots) {
+        if (!laterOpportunitySnapshot.exists) continue;
+        const later = laterOpportunitySnapshot.data();
+        const id = laterOpportunitySnapshot.id;
+        if (!isRecord(later) || typeof later.sourceShipId !== 'string' ||
+            typeof later.sourceTransitionId !== 'string') {
+          throw commandError(
+            'failed-precondition',
+            'A later cycle mission opportunity is malformed.',
+            'malformed-input',
+          );
+        }
+        try {
+          parseStoredMissionOpportunity(later, command.sessionId, {
+            type: 'mission-opportunity', status: 'available', id,
+            groupId: opportunity.groupId, chart: opportunity.chart,
+            coordinate: opportunity.coordinate, siteCode: opportunity.siteCode,
+            sourceShipId: later.sourceShipId,
+            sourceTransitionId: later.sourceTransitionId,
+            sourceCycle: Number(id.slice(id.lastIndexOf('-cycle-') + '-cycle-'.length)),
+          });
+        } catch (cause) {
+          throw commandError(
+            'failed-precondition',
+            cause instanceof Error ? cause.message : 'A later cycle mission opportunity is malformed.',
+            'malformed-input',
+          );
+        }
+        throw commandError(
+          'failed-precondition',
+          'A later leave-and-return opportunity supersedes this earlier repeatable mission location.',
+          'conflict',
+        );
+      }
+    }
 
     const expectedCraftManifest = roleOwnedCraftManifestForSetup(
       lockedSetup.activeRoleIds,
@@ -9254,6 +9307,78 @@ export const dealPrivateInitialCards = onCall<{
       );
     }
 
+    const rawDockings = authority.session.get('shuttleDockings');
+    const currentDockings = Array.isArray(rawDockings) ? rawDockings : [];
+    const wellFormedDockings = currentDockings.filter((docking): docking is {
+      shuttleId: string;
+      shipId: string;
+    } => isRecord(docking) && typeof docking.shuttleId === 'string' &&
+      typeof docking.shipId === 'string');
+    const shuttleStateIsUsable = Array.isArray(rawDockings) &&
+      shuttleDockingsAreKnownAndUnique(currentDockings as { shuttleId: string; shipId: string }[]) &&
+      shuttleDockingsMatchActiveRoleOwnedSubset(activeRoleIds, currentDockings as { shuttleId: string; shipId: string }[]);
+    const shuttleControls = parseShuttleControl(authority.session.get('shuttleControl'));
+    const retainedShuttles = parseRetainedShuttles(authority.session.get('retainedShuttles'));
+    const eligibleRoleCraft = expectedCraftManifest.roleOwnedCraft.filter((craft) =>
+      awayMissionCraftForRole(craft.ownerRoleId).includes(craft.id));
+    const eligibleShuttleCraft = eligibleRoleCraft.filter((craft) => craft.kind === 'shuttle');
+    const shuttleDepartureSnapshots = await Promise.all(eligibleShuttleCraft.map((craft) =>
+      tx.get(db.doc(`sessions/${command.sessionId}/shuttleDepartures/${craft.id}`))));
+    const pdfWingCraft = eligibleRoleCraft.find((craft) => craft.id === 'pdf-escort-fighter-wing');
+    const pdfWingSnapshot = pdfWingCraft
+      ? await tx.get(db.doc(`sessions/${command.sessionId}/serverState/pdfEscortWing`))
+      : undefined;
+    const startingCraftManifest = craftStartingManifestForSetup(
+      lockedSetup.activeRoleIds,
+      vesselModeForConfiguration(lockedSetup),
+      wellFormedDockings,
+    );
+    const carrierCraftIds: string[] = [];
+    const playerDocumentsByUid = new Map(players.docs.map((player) => [player.id, player]));
+    if (shuttleStateIsUsable && shuttleControls && retainedShuttles) {
+      eligibleShuttleCraft.forEach((craft, index) => {
+        const docking = currentDockings.find((entry) =>
+          isRecord(entry) && entry.shuttleId === craft.id);
+        const control = shuttleControls[craft.id];
+        const departure = shuttleDepartureSnapshots[index];
+        if (!isRecord(docking) || typeof docking.shipId !== 'string' ||
+            typeof docking.dockedAt !== 'string' || docking.dockedAt.trim().length === 0 ||
+            docking.inTransit === true || docking.transit === true || docking.status === 'in-transit' ||
+            docking.state === 'in-transit' || docking.dockingState === 'in-transit' ||
+            !opportunityGroup.vesselIds.includes(docking.shipId) ||
+            currentNavigation.shipGalacticCoordinates[docking.shipId] !== opportunity.coordinate ||
+            departure?.exists || retainedShuttles[craft.id] !== undefined ||
+            !control || control.shuttleId !== craft.id || control.ownerRoleId !== craft.ownerRoleId) return;
+        const holder = playerDocumentsByUid.get(control.holderUid);
+        const holderGroups = canonicalFleetGroups.filter((group) =>
+          group.memberUids.includes(control.holderUid));
+        if (!holder || !isActivePlayer(holder) || holder.get('role') !== 'player' ||
+            !activeRoleIds.includes(String(holder.get('assignedRoleId') ?? '')) ||
+            holder.get('fleetGroupId') !== opportunityGroup.id || holderGroups.length !== 1 ||
+            holderGroups[0]!.id !== opportunityGroup.id) return;
+        carrierCraftIds.push(craft.id);
+      });
+    }
+    if (pdfWingCraft && pdfWingSnapshot) {
+      const pdfWingState = parsePdfEscortWingState(
+        pdfWingSnapshot.exists ? pdfWingSnapshot.data() : undefined,
+      );
+      const printedHostId = startingCraftManifest.entries.find((entry) =>
+        entry.id === pdfWingCraft.id)?.startingHostId;
+      if (pdfWingState && pdfWingState.fighters > 0 && printedHostId &&
+          opportunityGroup.vesselIds.includes(printedHostId) &&
+          currentNavigation.shipGalacticCoordinates[printedHostId] === opportunity.coordinate) {
+        carrierCraftIds.push(pdfWingCraft.id);
+      }
+    }
+    if (carrierCraftIds.length === 0) {
+      throw commandError(
+        'failed-precondition',
+        'The opportunity group has no currently usable source-authorized craft at this location.',
+        'conflict',
+      );
+    }
+
     if (missionSnapshot.exists) {
       throw commandError(
         'failed-precondition',
@@ -9272,22 +9397,14 @@ export const dealPrivateInitialCards = onCall<{
       const canonicalGroups = canonicalFleetGroups.filter((group) =>
         group.memberUids.includes(participantUid));
       const canonicalGroupId = canonicalGroups.length === 1 ? canonicalGroups[0]!.id : undefined;
-      const sourceCraftIds = typeof roleId === 'string' ? awayMissionCraftForRole(roleId) : [];
-      const manifestCraftIds = typeof roleId === 'string'
-        ? expectedCraftManifest.roleOwnedCraft
-          .filter((craft) => craft.ownerRoleId === roleId)
-          .map((craft) => craft.id)
-        : [];
       if (!player || !isActivePlayer(player) || player.get('role') !== 'player' ||
         typeof roleId !== 'string' || !activeRoleIds.includes(roleId) ||
         typeof groupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(groupId) ||
         canonicalGroupId !== groupId || groupId !== opportunity.groupId ||
-        (missionGroupId !== undefined && missionGroupId !== canonicalGroupId) ||
-        sourceCraftIds.length === 0 ||
-          sourceCraftIds.some((craftId) => !manifestCraftIds.includes(craftId))) {
+        (missionGroupId !== undefined && missionGroupId !== canonicalGroupId)) {
         throw commandError(
           'failed-precondition',
-          `Selected participant ${participantUid} is not an eligible away-mission craft owner.`,
+          `Selected participant ${participantUid} is not a connected member of the opportunity group.`,
           'conflict',
         );
       }
@@ -9295,7 +9412,7 @@ export const dealPrivateInitialCards = onCall<{
       participants.push({
         uid: participantUid,
         roleId,
-        craftIds: [...sourceCraftIds],
+        craftIds: [...carrierCraftIds],
       });
     }
     if (!missionGroupId || !participants.some((participant) => participant.uid === command.missionLeaderUid)) {
@@ -9592,6 +9709,36 @@ export const openPrivateMissionDiscards = onCall<{
         storedHandIds.some((handId) => typeof handId !== 'string')) {
       throw commandError('failed-precondition', 'The away-mission hand roster is malformed.', 'malformed-input');
     }
+    const pointerRefs = storedHandIds.map((handId) =>
+      db.doc(`sessions/${command.sessionId}/awayMissionHandPointers/${handId as string}`));
+    const pointerSnapshots = await Promise.all(pointerRefs.map((pointerRef) => tx.get(pointerRef)));
+    const missionGroupId = missionSnapshot.get('groupId');
+    const missionChart = missionSnapshot.get('chart');
+    const missionCoordinate = missionSnapshot.get('coordinate');
+    const missionSiteCode = missionSnapshot.get('siteCode');
+    const missionSourceCycle = missionSnapshot.get('sourceCycle');
+    const missionLeaderUid = missionSnapshot.get('missionLeaderUid');
+    const missionLeaderRoleId = missionSnapshot.get('missionLeaderRoleId');
+    if (pointerSnapshots.some((pointerSnapshot, index) => {
+      const pointer = pointerSnapshot.exists ? pointerSnapshot.data() : undefined;
+      const participant = participants[index];
+      return !isRecord(pointer) || !participant ||
+        storedHandIds[index] !== awayMissionHandId(command.missionId, participant.uid) ||
+        pointer.type !== 'away-mission-hand-pointer' ||
+        pointer.sessionId !== command.sessionId || pointer.participantUid !== participant.uid ||
+        pointer.missionId !== command.missionId || pointer.handId !== storedHandIds[index] ||
+        pointer.groupId !== missionGroupId || pointer.chart !== missionChart ||
+        pointer.coordinate !== missionCoordinate || pointer.siteCode !== missionSiteCode ||
+        pointer.sourceCycle !== missionSourceCycle || pointer.participantCount !== participants.length ||
+        pointer.missionLeaderUid !== missionLeaderUid ||
+        pointer.missionLeaderRoleId !== missionLeaderRoleId;
+    })) {
+      throw commandError(
+        'failed-precondition',
+        'An away-mission hand pointer is missing or no longer matches its mission context.',
+        'conflict',
+      );
+    }
     const revision = missionSnapshot.get('revision');
     if (!Number.isSafeInteger(revision) || (revision as number) < 0) {
       throw commandError('failed-precondition', 'The away-mission revision is malformed.', 'malformed-input');
@@ -9609,14 +9756,8 @@ export const openPrivateMissionDiscards = onCall<{
       revision: (revision as number) + 1,
       updatedAt: FieldValue.serverTimestamp(),
     });
-    participants.forEach((participant, index) => {
-      const handId = storedHandIds[index];
-      tx.set(db.doc(`sessions/${command.sessionId}/awayMissionHandPointers/${handId}`), {
-        type: 'away-mission-hand-pointer',
-        sessionId: command.sessionId,
-        participantUid: participant.uid,
-        missionId: command.missionId,
-        handId: storedHandIds[index],
+    participants.forEach((_participant, index) => {
+      tx.update(pointerRefs[index]!, {
         phase: 'discarding',
         revision: (revision as number) + 1,
         discarded: false,
