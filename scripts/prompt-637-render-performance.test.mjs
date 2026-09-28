@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import test from 'node:test';
@@ -15,6 +15,15 @@ test('measures the PC04 player station catalog instead of the GM-only Role Selec
     readySelector: '.fleet-roster',
     forceOffline: false,
   });
+});
+
+test('keeps the PC04 mission-start workspace out of the landing module graph', async () => {
+  const gmConsole = await readFile(new URL('../src/routes/GmConsole.tsx', import.meta.url), 'utf8');
+  assert.doesNotMatch(gmConsole, /^import AwayMissionStartPanel from/m);
+  assert.match(
+    gmConsole,
+    /const AwayMissionStartPanel = lazy\(\(\) => import\('@\/components\/AwayMissionStartPanel'\)\);/,
+  );
 });
 
 test('measures landing HTML modulepreloads and static imports, excluding lazy and isolated review assets', async (t) => {
