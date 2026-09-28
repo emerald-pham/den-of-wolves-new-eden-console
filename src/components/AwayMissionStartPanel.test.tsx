@@ -60,6 +60,7 @@ it('records the selected roster and in-roster Mission Leader against the exact o
   mocks.startAwayMission.mockResolvedValue({
     status: 'committed', sessionId: 's1', requestId: 'request-1',
     opportunityId: opportunity.id, missionId: 'mission-arrival-fleet-1-A-5143',
+    groupId: 'fleet-1', coordinate: '5143',
     participantCount: 1, expectedSetupRevision: 4, expectedPhaseRevision: 3,
   });
 
@@ -84,7 +85,7 @@ it('records the selected roster and in-roster Mission Leader against the exact o
     coordinate: '5143', sourceCycle: 2,
     participantUids: ['alice'], missionLeaderUid: 'alice',
   }));
-  expect(screen.getByRole('status')).toHaveTextContent(/mission started/i);
+  expect(screen.getByRole('status', { name: 'Mission start result' })).toHaveTextContent(/mission started/i);
   expect(screen.queryByText(/A♥/)).not.toBeInTheDocument();
 });
 
