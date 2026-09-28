@@ -6,6 +6,7 @@ import {
   SESSION_RETENTION_MS,
 } from './sessionLifecycle';
 import { ROLE_IDS, recommendedRoleIds } from './roleConfiguration';
+import { REPLACEMENT_ROLE_CATALOG } from './replacementRoles';
 
 type StoredDocument = Record<string, unknown>;
 
@@ -1078,6 +1079,52 @@ describe('midgame departure and recovery', () => {
     });
     expect(read('activeMemberships/u1')).toEqual({ sessionId: 's1' });
   });
+
+  it.each(REPLACEMENT_ROLE_CATALOG.flatMap((replacement) => [
+    { replacementRoleId: replacement.id, historicalCoreRoleId: 'admiral' },
+    { replacementRoleId: replacement.id, historicalCoreRoleId: null },
+  ]))(
+    'revokes a departed $replacementRoleId replacement with historical core $historicalCoreRoleId',
+    async ({ replacementRoleId, historicalCoreRoleId }) => {
+      const privateMarker = `private-${replacementRoleId}`;
+      session({
+        phase: 'active', currentTurn: 2,
+        activeRoleIds: [...recommendedRoleIds(8)], turnPhase: ACTIVE_TURN_PHASE,
+      });
+      player({
+        assignedRoleId: historicalCoreRoleId, seatId: null,
+        replacementRoleId, activeConsoleRoleId: null,
+      });
+      livePlayer('u2');
+      put('activeMemberships/u1', { sessionId: 's1' });
+      put('sessions/s1/secrets/loyalty-u1', {
+        visibleToUids: ['u1'], payload: { type: 'loyalty', marker: privateMarker },
+      });
+      put('sessions/s1/roleBriefs/u1', { roleId: replacementRoleId, marker: privateMarker });
+      put('sessions/s1/intelligenceInvestigations/u1', { marker: privateMarker });
+
+      await disconnectFromSession.run(request({ sessionId: 's1' }));
+
+      expect(read('sessions/s1/players/u1')).toMatchObject({
+        connected: false, assignedRoleId: null, seatId: null,
+        replacementRoleId: null, activeConsoleRoleId: null,
+      });
+      expect(read('sessions/s1/secrets/loyalty-u1')).toBeUndefined();
+      expect(read('sessions/s1/roleBriefs/u1')).toBeUndefined();
+      expect(read('sessions/s1/intelligenceInvestigations/u1')).toBeUndefined();
+      expect(read('sessions/s1')).toMatchObject({
+        phase: 'active', currentTurn: 2, turnPhase: ACTIVE_TURN_PHASE, deleteAfter: null,
+      });
+
+      const resumed = await resumeSession.run(request({ sessionId: 's1' }));
+      expect(resumed.player).toMatchObject({
+        assignedRoleId: null, seatId: null, replacementRoleId: null,
+        activeConsoleRoleId: null,
+      });
+      expect(JSON.stringify(resumed)).not.toContain(privateMarker);
+      expect(read('sessions/s1/players/u1')?.replacementRoleId).toBeNull();
+    },
+  );
 
   it.each(NON_GM_CORE_ROLE_IDS)(
     'vacates an explicitly departed core role without restoring private state: %s',

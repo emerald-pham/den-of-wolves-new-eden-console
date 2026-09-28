@@ -5,6 +5,8 @@ type Fields = Record<string, unknown>;
 
 const mock = vi.hoisted(() => {
   const documents = new Map<string, Fields>();
+  let transactionWrote = false;
+  let rejectReadsAfterWrite = false;
   const snapshot = (path: string) => {
     const fields = documents.get(path);
     return {
@@ -17,6 +19,9 @@ const mock = vi.hoisted(() => {
   };
   const ref = (path: string) => ({ path, id: path.split('/').at(-1) ?? '' });
   const get = vi.fn(async (target: { path: string }) => {
+    if (rejectReadsAfterWrite && transactionWrote) {
+      throw new Error('Firestore transaction read after write');
+    }
     if (target.path.endsWith('/players') || target.path.endsWith('/gmInstances')) {
       const prefix = `${target.path}/`;
       return {
@@ -28,9 +33,11 @@ const mock = vi.hoisted(() => {
     return snapshot(target.path);
   });
   const set = vi.fn((target: { path: string }, fields: Fields) => {
+    transactionWrote = true;
     documents.set(target.path, { ...fields });
   });
   const update = vi.fn((target: { path: string }, fields: Fields) => {
+    transactionWrote = true;
     const current = { ...(documents.get(target.path) ?? {}) };
     for (const [key, value] of Object.entries(fields)) {
       const segments = key.split('.');
@@ -48,9 +55,19 @@ const mock = vi.hoisted(() => {
     }
     documents.set(target.path, current);
   });
-  const runTransaction = vi.fn(async (callback: (tx: unknown) => unknown) =>
-    callback({ get, update, set }));
-  return { documents, get, set, update, runTransaction, db: { doc: ref, collection: ref, runTransaction } };
+  const runTransaction = vi.fn(async (callback: (tx: unknown) => unknown) => {
+    transactionWrote = false;
+    try {
+      return await callback({ get, update, set });
+    } finally {
+      transactionWrote = false;
+    }
+  });
+  return {
+    documents, get, set, update, runTransaction,
+    setRejectReadsAfterWrite: (value: boolean) => { rejectReadsAfterWrite = value; },
+    db: { doc: ref, collection: ref, runTransaction },
+  };
 });
 
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
@@ -86,6 +103,7 @@ function put(path: string, fields: Fields): void {
 
 function resetFixture(): void {
   mock.documents.clear();
+  mock.setRejectReadsAfterWrite(false);
   mock.get.mockClear();
   mock.set.mockClear();
   mock.update.mockClear();
@@ -177,6 +195,15 @@ it('requires current captain consent, applies one printed population step and on
   expect(pressEntries[0]?.[1]).not.toHaveProperty('actorUid');
   expect(pressEntries[0]?.[1]).not.toHaveProperty('captainUid');
   expect([...mock.documents.keys()].some((path) => path.includes('/damageDraws/'))).toBe(false);
+});
+
+it('commits the purge and private Press report with Firestore read-before-write ordering', async () => {
+  mock.setRejectReadsAfterWrite(true);
+  await consentCommissarPurge.run(request(consentRequest, captainUid));
+  await expect(applyCommissarPurge.run(request(purgeRequest))).resolves.toMatchObject({
+    status: 'committed', population: 37000, unrest: 1,
+  });
+  expect([...mock.documents.keys()].filter((path) => path.includes('/pressLog/'))).toHaveLength(1);
 });
 
 it('replays an exact purge request without another mutation and rejects a second same-turn purge', async () => {
