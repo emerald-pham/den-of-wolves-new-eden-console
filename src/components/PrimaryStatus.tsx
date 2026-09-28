@@ -4,7 +4,7 @@ import {
   selectIsGm,
   useSessionStore,
 } from '@/store/useSessionStore';
-import { primaryStatusModel } from './primaryStatusModel';
+import { primaryStatusModel, type PrimaryStatusModel } from './primaryStatusModel';
 import './primary-status.css';
 
 const FIELDS = [
@@ -15,6 +15,25 @@ const FIELDS = [
   ['nextAction', 'Next action'],
   ['failureState', 'Failure state'],
 ] as const;
+
+export function PrimaryStatusView({ status }: { readonly status: PrimaryStatusModel }) {
+  return (
+    <section
+      className="primary-status"
+      aria-label="Primary game status"
+      data-severity={status.severity}
+    >
+      <dl className="primary-status__grid">
+        {FIELDS.map(([key, label]) => (
+          <div className="primary-status__field" key={key}>
+            <dt>{label}</dt>
+            <dd>{status[key]}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
 
 export default function PrimaryStatus() {
   const { pathname } = useLocation();
@@ -43,20 +62,5 @@ export default function PrimaryStatus() {
     snapshotFreshness,
   });
 
-  return (
-    <section
-      className="primary-status"
-      aria-label="Primary game status"
-      data-severity={status.severity}
-    >
-      <dl className="primary-status__grid">
-        {FIELDS.map(([key, label]) => (
-          <div className="primary-status__field" key={key}>
-            <dt>{label}</dt>
-            <dd>{status[key]}</dd>
-          </div>
-        ))}
-      </dl>
-    </section>
-  );
+  return <PrimaryStatusView status={status} />;
 }
