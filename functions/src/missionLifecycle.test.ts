@@ -69,7 +69,12 @@ function addExtra(
   opportunityId: string,
   requestId: string,
 ): MissionLifecycleState {
-  const result = allocateBlindExtraMissionCard(state, { participantUid, opportunityId, requestId });
+  const result = allocateBlindExtraMissionCard(state, {
+    actorUid: state.leaderUid,
+    participantUid,
+    opportunityId,
+    requestId,
+  });
   if (!result) throw new Error('Could not allocate a fixture extra card.');
   return result.state;
 }
@@ -129,9 +134,10 @@ describe('pure away-mission lifecycle', () => {
     });
 
     expect(requested?.requestsByParticipant).toEqual([{ participantUid: 'bob', count: 2 }]);
-    expect(missionLeaderCardRequestCounts(requested!)).toEqual([
+    expect(missionLeaderCardRequestCounts(requested!, 'alice')).toEqual([
       { participantUid: 'bob', count: 2 },
     ]);
+    expect(missionLeaderCardRequestCounts(requested!, 'bob')).toBeNull();
     expect(JSON.stringify(requested?.requestsByParticipant)).not.toContain('secret strategy');
     expect(recordMissionCardRequest(state, { participantUid: 'outsider', count: 1 })).toBeNull();
     expect(recordMissionCardRequest(state, { participantUid: 'bob', count: Number.POSITIVE_INFINITY })).toBeNull();
@@ -140,6 +146,7 @@ describe('pure away-mission lifecycle', () => {
   it('allocates an extra card blindly and safely replays the same leader request', () => {
     const initial = buildState();
     const first = allocateBlindExtraMissionCard(initial, {
+      actorUid: 'alice',
       participantUid: 'bob',
       opportunityId: 'A-1',
       requestId: 'allocate-1',
@@ -160,6 +167,7 @@ describe('pure away-mission lifecycle', () => {
       .toEqual(['A♥']);
 
     const replay = allocateBlindExtraMissionCard(first!.state, {
+      actorUid: 'alice',
       participantUid: 'bob',
       opportunityId: 'A-1',
       requestId: 'allocate-1',
@@ -171,6 +179,7 @@ describe('pure away-mission lifecycle', () => {
 
   it('limits blind distribution to one card per participant and opportunity', () => {
     const first = allocateBlindExtraMissionCard(buildState(), {
+      actorUid: 'alice',
       participantUid: 'alice',
       opportunityId: 'A-1',
       requestId: 'allocate-1',
@@ -178,15 +187,23 @@ describe('pure away-mission lifecycle', () => {
     expect(first).not.toBeNull();
 
     expect(allocateBlindExtraMissionCard(first!.state, {
+      actorUid: 'alice',
       participantUid: 'alice',
       opportunityId: 'A-1',
       requestId: 'allocate-2',
     })).toBeNull();
     expect(first!.state.dealtCount).toBe(3);
     expect(allocateBlindExtraMissionCard(first!.state, {
+      actorUid: 'alice',
       participantUid: 'alice',
       opportunityId: 'A-2',
       requestId: 'allocate-1',
+    })).toBeNull();
+    expect(allocateBlindExtraMissionCard(buildState(), {
+      actorUid: 'bob',
+      participantUid: 'alice',
+      opportunityId: 'A-2',
+      requestId: 'forged-leader',
     })).toBeNull();
   });
 
