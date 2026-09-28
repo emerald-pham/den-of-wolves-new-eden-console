@@ -665,6 +665,26 @@ it('keeps clustered contact names separate from each other and the plot origin a
   expectReadable();
 });
 
+it('lets a name wider than the plot wrap inside the visible scan area', () => {
+  const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
+    x: left, y: top, left, top, width, height,
+    right: left + width, bottom: top + height,
+  }) as DOMRect;
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    if (this.classList.contains('contact-plot')) return bounds(0, 0, 320, 240);
+    if (this.classList.contains('contact-plot__tag')) return bounds(10, 20, 500, 18);
+    return bounds(0, 0, 0, 0);
+  });
+
+  const { container } = render(<ContactPlot contacts={[
+    { tag: 'VERY LONG USER DEFINED CONTACT NAME', x: 0.2, y: 0.1, z: 0, color: 'white' },
+  ]} />);
+  const label = container.querySelector<HTMLElement>('.contact-plot__tag')!;
+  expect(label.style.maxWidth).toBe('304px');
+  expect(label.style.whiteSpace).toBe('normal');
+  expect(label.style.minInlineSize).toBe('0px');
+});
+
 it('keeps ambient contact names private until acquisition while labels are clamped', () => {
   vi.useFakeTimers();
   vi.setSystemTime('2026-01-01T00:10:00.000Z');
