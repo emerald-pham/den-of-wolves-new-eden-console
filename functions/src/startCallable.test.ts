@@ -1437,3 +1437,14 @@ it.each([[8, 0], [8, 1], [8, 3], [8, 8], [20, 0], [20, 1], [20, 3]] as const)('s
     .toHaveLength(Math.min(playerCount < 14 ? 1 : 2, occupiedCount));
   expect(mock.set.mock.calls.some(([ref]) => /\/players\//.test(ref.path))).toBe(false);
 });
+
+it('starts with connected unassigned observers without fabricating their role or private loyalty', async () => {
+  provisionProductionRoster(8);
+  mock.playerDocs = mock.playerDocs.filter(player => player.id === 'u1');
+  mock.playerDocs.push({ id: 'unassigned-observer', fields: { connected: true, role: 'unassigned', seatId: null } });
+  mock.seatDocs = mock.seatDocs.map(seat => ({ ...seat, fields: { ...seat.fields, status: 'open', holderUid: null, claimedAt: null } }));
+  await expect(startGame.run(request({ sessionId: 's1', instanceId: 'bridge', requestId: 'start-observer', expectedSetupRevision: 0 })))
+    .resolves.toMatchObject({ currentTurn: 1 });
+  expect(mock.set.mock.calls.filter(([ref]) => /\/secrets\/loyalty-/.test(ref.path))).toHaveLength(0);
+  expect(mock.set.mock.calls.some(([ref]) => /\/players\//.test(ref.path))).toBe(false);
+});
