@@ -117,6 +117,16 @@ closed to the full verification profile. The deploy job still requires a
 non-empty Firebase target set. Contract tests pin the split and the fail-closed
 cases.
 
+The [live independent-baseline repair workflow](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/36483737374)
+passed at exact commit `3c668a5ff5ae79d4ba4bd13c9aa1b1edd4371464`.
+Target detection completed in 22 seconds and selected no Firebase surface. The
+base verifier finished in 3 minutes 20 seconds with the release contracts,
+documentation, threat model, lint, and unit suite green. Ticker, P637, rendered
+typography, Functions, rules, builds, and deployment stayed skipped because
+their exact inputs were already verified or were unaffected. This proves the
+split baseline removes redundant gates without turning a tooling change into a
+production deployment.
+
 That same workflow produced one resource-sensitive failure after 2,494 unit
 tests passed: the complete retained-changelog DOM test exceeded Vitest's
 five-second default under runner load. The focused test passed locally in 1.31
