@@ -6384,6 +6384,13 @@
       "language": "On 2026-09-28 the owner approved automatic Wolf assignment, confirmed starts with only available real players including zero eligible Wolves, and exact Wolf-humanity copy. PC05 source and focused tests implement the bounded changes; no deployment or ordinary production acceptance is claimed by this evidence.",
       "source": "docs/PRODUCT_MILESTONE_FEEDBACK.md; docs/PC05_PLAYTEST_REPORT.md; functions/src/gameSetup.ts; functions/src/wolfAssignment.ts; functions/src/startCallable.test.ts; functions/src/loyaltyCallable.test.ts; src/components/PlayerOnboardingGuide.tsx; src/routes/RoleBrief.test.tsx",
       "type": "owner-decision / candidate / production-proof-pending"
+    },
+    {
+      "direction": "117;118;184;299 -> PC05",
+      "id": "E-PC05-RATIONS-JUMP-SOURCE-DECISIONS",
+      "language": "Source reconciliation replaces obsolete owner-decision waits with documented printed evidence and bounded product inferences. Integrated ration candidates have focused tests; failed-jump implementation is in progress. No deployment or ordinary gameplay acceptance is established by this record.",
+      "source": "docs/PC05_MAINTENANCE_EVIDENCE.md; docs/PRODUCT_MILESTONE_ASSUMPTIONS.md; docs/PC05_PLAYTEST_REPORT.md; functions/src/maintenance.ts; functions/src/shipPopulation.ts; src/data/shipPopulation.ts",
+      "type": "source-decision / candidate / production-proof-pending"
     }
   ],
   "plan": {
@@ -9282,13 +9289,13 @@
     {
       "changeClass": "non-feature",
       "closureEvidenceGates": "none",
-      "decisionOwner": "OWNER-RATION-SPEND-BONUS-INTERPRETATION",
+      "decisionOwner": "none",
       "definition": {
         "acceptance": "the chosen interpretation distinguishes spend from bonus, is source-linked, and is fixed before product controls ship.",
         "title": "Resolve the ration-table wording conflict."
       },
-      "description": "Awaiting the owner decision required by the existing foundation matrix. Current maintenance code separately spends the vessel-table food/water amounts and adds the two selected level bonuses to the unrest roll; the authorized rules summaries support that distinction. The owner has been asked to confirm this interpretation. Keep the prompt and its dependent ration work unresolved until that answer is recorded; existing runtime behavior is not evidence of owner approval.",
-      "evidenceIds": "E-117-OWNER-DECISION-PENDING",
+      "description": "PC05 source reconciliation resolves the old owner hold under standing autonomous authorization. Player's Guide v1.1 printed p. 7 (physical p. 9) separates the vessel-table food/water debit from the two selected ration-level bonuses added to unrest dice. The existing server arithmetic follows that distinction; source and focused evidence are recorded in PC05_MAINTENANCE_EVIDENCE.md. Reconciled release and ordinary authorized gameplay proof remain pending.",
+      "evidenceIds": "E-117-OWNER-DECISION-PENDING;E-PC05-RATIONS-JUMP-SOURCE-DECISIONS",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -9299,7 +9306,7 @@
       "releases": [],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "DECISION"
     },
     {
@@ -9310,8 +9317,8 @@
         "acceptance": "crossing a starred vessel threshold changes only that vessel's allowed table.",
         "title": "Swap population-dependent ration tables."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-118",
+      "description": "The PC05 candidate integrates the printed replacement ration schedules from A4 Paper Duplex v1.1 physical pp. 41–44 into server population-dependent spending and the player table. The overlapping printed 50,000 boundary is resolved against Dione's starred change step, as documented in PC05_MAINTENANCE_EVIDENCE.md. The integrated population, maintenance and UI suites pass 272 focused tests. Independent review, reconciled release and ordinary authorized gameplay proof remain pending.",
+      "evidenceIds": "E-AUDIT-118;E-PC05-RATIONS-JUMP-SOURCE-DECISIONS",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "116;162",
@@ -9322,7 +9329,7 @@
       "releases": [],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "PRESERVE"
     },
     {
@@ -11079,8 +11086,8 @@
         "acceptance": "its discrete population track selects the correct progressively smaller table.",
         "title": "Resolve Dione rations and thresholds."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-184",
+      "description": "The PC05 candidate integrates the printed replacement ration schedules from A4 Paper Duplex v1.1 physical pp. 41–44 into server population-dependent spending and the player table. The overlapping printed 50,000 boundary is resolved against Dione's starred change step, as documented in PC05_MAINTENANCE_EVIDENCE.md. The integrated population, maintenance and UI suites pass 272 focused tests. Independent review, reconciled release and ordinary authorized gameplay proof remain pending.",
+      "evidenceIds": "E-AUDIT-184;E-PC05-RATIONS-JUMP-SOURCE-DECISIONS",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "116;118",
@@ -11091,7 +11098,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "PRESERVE"
     },
     {
@@ -14225,13 +14232,13 @@
     {
       "changeClass": "non-feature",
       "closureEvidenceGates": "none",
-      "decisionOwner": "OWNER-FAILED-JUMP-DAMAGE-POLICY",
+      "decisionOwner": "none",
       "definition": {
         "acceptance": "the chosen facilitator policy routes damage through the common draw path and labels the adjudication.",
         "title": "Apply failed-jump damage."
       },
-      "description": "The source review confirms that failed-jump damage is a facilitator adjudication without a defined trigger or number of common damage draws. A product-owner policy is required before implementation; the existing damaged-drive failure leaves the ship in place and does not invent damage.",
-      "evidenceIds": "E-299-FAILED-JUMP-DAMAGE-OWNER",
+      "description": "PC05 source decisions A1/A2 resolve the old policy hold under standing autonomous authorization. Facilitator Guide v1.1 printed p. 16 supports an explicit GM full-die damage adjudication that completes the failed jump through the common damage path; ordinary failures remain stationary. For fuel-starved adjudication, spending the available fuel is explicitly documented as a product inference. Implementation and gameplay proof remain in progress; no completion credit is claimed.",
+      "evidenceIds": "E-299-FAILED-JUMP-DAMAGE-OWNER;E-PC05-RATIONS-JUMP-SOURCE-DECISIONS",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
