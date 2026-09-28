@@ -2898,6 +2898,7 @@ it('exposes ordinary production start and retires caller-controlled Wolf assignm
   expect(screen.queryByRole('button', { name: /randomly assign/i })).not.toBeInTheDocument();
   expect(screen.queryByRole('checkbox', { name: /manual wolf assignment/i })).not.toBeInTheDocument();
   const start = screen.getByRole('button', { name: /start production/i });
+  expect(screen.getByRole('group', { name: 'Ordinary production start' })).toHaveTextContent('Unfilled stations do not block start.');
   expect(start).toBeEnabled();
   await user.click(start);
   expect(screen.getByRole('button', { name: 'ARE YOU SURE? // ADVANCE TO CYCLE 1' })).toBeInTheDocument();
