@@ -19,14 +19,16 @@ it('keeps ordinary station entry and authenticated GM Role Select distinct', asy
   render(<PC04ReviewScene />);
 
   const entry = screen.getByRole('region', { name: 'Prepared unified console entry' });
-  expect(entry).toHaveTextContent('Assigned console');
-  expect(entry).toHaveTextContent('Open console');
-  expect(entry).toHaveTextContent('View only');
-  expect(entry).toHaveTextContent('GM join // Role Select');
+  expect(within(entry).getByRole('heading', { name: 'Stations and consoles' })).toBeVisible();
+  expect(within(entry).getByRole('link', { name: 'GM join' })).toBeVisible();
+  expect(within(entry).getByRole('link', { name: 'Admiral' })).toBeVisible();
+  expect(entry).toHaveTextContent('HELD BY YOU');
+  expect(entry).toHaveTextContent('OPEN');
+  expect(entry).toHaveTextContent('CLAIMED // READ-ONLY');
   expect(within(entry).queryByRole('button', { name: /^Select a role$/i })).not.toBeInTheDocument();
-  await user.click(within(entry).getByRole('button', { name: /enter assigned console/i }));
-  expect(screen.getByRole('status', { name: 'Prepared entry result' }))
-    .toHaveTextContent(/single server-authorized console claim/i);
+  await user.click(within(entry).getByRole('link', { name: 'Admiral' }));
+  expect(within(entry).getByRole('region', { name: 'Prepared station preview' }))
+    .toHaveTextContent(/Admiral.*no station claim/i);
 });
 
 it('shows the exact default alert and current console terminology', async () => {
@@ -47,19 +49,28 @@ it('follows one group-bound mission and its automated GM log receipt', async () 
   render(<PC04ReviewScene />);
   await user.click(screen.getByRole('button', { name: '3 Follow a mission' }));
 
-  const mission = screen.getByRole('region', { name: 'Prepared away mission' });
-  expect(mission).toHaveTextContent('FLEET-2');
+  const mission = screen.getByRole('region', { name: 'New-location mission start' });
+  expect(mission).toHaveTextContent('fleet-2');
   expect(mission).toHaveTextContent('6798');
-  expect(mission).toHaveTextContent('Mission Leader // Dione Engineer');
-  expect(mission).toHaveTextContent('Craft // Starlight');
-  expect(mission).toHaveTextContent('Your private hand');
-  expect(mission).toHaveTextContent('Opportunity // Explore');
+  expect(mission).toHaveTextContent(/newly reached L location from starlight/i);
+  await user.click(within(mission).getByRole('checkbox', { name: /Dione Engineer/i }));
+  await user.click(within(mission).getByRole('checkbox', { name: /AEGIS Wing Commander/i }));
+  await user.selectOptions(within(mission).getByLabelText(/mission leader/i), 'dione-engineer-player');
+  await user.click(within(mission).getByRole('button', { name: /start mission/i }));
+  expect(within(mission).getByRole('status', { name: 'Mission start result' }))
+    .toHaveTextContent(/mission started/i);
 
-  const log = screen.getByRole('region', { name: 'Prepared automated GM log' });
-  for (const label of ['Source', 'Inputs', 'Modifiers', 'Outcome', 'State delta', 'Revision and replay', 'Recovery']) {
+  const privateHand = screen.getByRole('region', { name: 'Private away mission cards' });
+  expect(privateHand).toHaveTextContent('A♥');
+  expect(privateHand).not.toHaveTextContent('EXPLORE +2');
+  await user.click(within(privateHand).getByRole('button', { name: /discard this card secretly/i }));
+  expect(await within(privateHand).findByText(/card was discarded secretly/i)).toBeVisible();
+
+  const log = within(mission).getByRole('region', { name: 'Mission start receipts' });
+  for (const label of ['Source', 'Inputs', 'Available carriers', 'Modifiers', 'Outcome', 'State delta', 'Revision state', 'Replay state', 'Recovery']) {
     expect(log).toHaveTextContent(label);
   }
-  expect(log).toHaveTextContent(/automatic.*no GM transcription/i);
+  expect(log).toHaveTextContent('starlight');
 });
 
 it('keeps split locations, pursuit, communications, and taxi state separate', async () => {
