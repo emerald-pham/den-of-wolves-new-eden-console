@@ -632,18 +632,41 @@ export function requireAwayMissionCardDealRequest(data: {
   instanceId?: unknown;
   requestId?: unknown;
   expectedSetupRevision?: unknown;
-  missionId?: unknown;
+  expectedPhaseRevision?: unknown;
+  expectedCycle?: unknown;
+  opportunityId?: unknown;
+  groupId?: unknown;
+  chart?: unknown;
+  coordinate?: unknown;
+  sourceCycle?: unknown;
+  missionLeaderUid?: unknown;
   participantUids?: unknown;
 }): {
   sessionId: string;
   instanceId: string;
   requestId: string;
   expectedSetupRevision: number;
-  missionId: string;
+  expectedPhaseRevision: number;
+  expectedCycle: number;
+  opportunityId: string;
+  groupId: string;
+  chart: 'A' | 'B' | 'C';
+  coordinate: string;
+  sourceCycle: number;
+  missionLeaderUid: string;
   participantUids: string[];
 } {
   if (!Number.isSafeInteger(data.expectedSetupRevision) || (data.expectedSetupRevision as number) < 0) {
     throw new HttpsError('invalid-argument', 'expectedSetupRevision must be a non-negative integer.');
+  }
+  if (!Number.isSafeInteger(data.expectedPhaseRevision) || (data.expectedPhaseRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedPhaseRevision must be a non-negative integer.');
+  }
+  if (!Number.isSafeInteger(data.expectedCycle) || (data.expectedCycle as number) < 1) {
+    throw new HttpsError('invalid-argument', 'expectedCycle must be a positive integer.');
+  }
+  if (!Number.isSafeInteger(data.sourceCycle) || (data.sourceCycle as number) < 0) {
+    throw new HttpsError('invalid-argument', 'sourceCycle must be a non-negative integer.');
   }
   if (!Array.isArray(data.participantUids) || data.participantUids.length === 0 || data.participantUids.length > 33) {
     throw new HttpsError('invalid-argument', 'participantUids must contain between 1 and 33 selected participants.');
@@ -652,12 +675,34 @@ export function requireAwayMissionCardDealRequest(data: {
   if (new Set(participantUids).size !== participantUids.length) {
     throw new HttpsError('invalid-argument', 'participantUids must not contain duplicates.');
   }
+  const missionLeaderUid = requiredId(data.missionLeaderUid, 'missionLeaderUid');
+  if (!participantUids.includes(missionLeaderUid)) {
+    throw new HttpsError('invalid-argument', 'missionLeaderUid must be one of the selected participants.');
+  }
+  if (data.chart !== 'A' && data.chart !== 'B' && data.chart !== 'C') {
+    throw new HttpsError('invalid-argument', 'chart must identify a supported organiser chart.');
+  }
+  const coordinate = requiredId(data.coordinate, 'coordinate');
+  if (!isStarSystemCoordinate(coordinate)) {
+    throw new HttpsError('invalid-argument', 'coordinate must be a printed four-digit system coordinate.');
+  }
+  const groupId = requiredId(data.groupId, 'groupId');
+  if (!/^fleet-[1-9][0-9]*$/.test(groupId)) {
+    throw new HttpsError('invalid-argument', 'groupId must identify one canonical fleet group.');
+  }
   return {
     sessionId: requiredId(data.sessionId, 'sessionId'),
     instanceId: requiredId(data.instanceId, 'instanceId'),
     requestId: requiredId(data.requestId, 'requestId'),
     expectedSetupRevision: data.expectedSetupRevision as number,
-    missionId: requiredId(data.missionId, 'missionId'),
+    expectedPhaseRevision: data.expectedPhaseRevision as number,
+    expectedCycle: data.expectedCycle as number,
+    opportunityId: requiredId(data.opportunityId, 'opportunityId'),
+    groupId,
+    chart: data.chart,
+    coordinate,
+    sourceCycle: data.sourceCycle as number,
+    missionLeaderUid,
     participantUids,
   };
 }

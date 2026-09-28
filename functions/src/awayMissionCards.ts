@@ -5,9 +5,9 @@ import {
 } from './missionDeck';
 
 /**
- * The routed away-mission procedure names capable shuttles as the participant
- * boundary. Keep that source fact explicit instead of treating every role
- * holder or every session member as a participant.
+ * The routed away-mission procedure names mission-capable craft as the
+ * participant boundary. Keep those source facts explicit instead of treating
+ * every role holder or every session member as a participant.
  */
 export const AWAY_MISSION_ROLE_CRAFT = {
   'wing-commander': ['starlight'],

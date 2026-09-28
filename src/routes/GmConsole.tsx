@@ -7,6 +7,7 @@ import EmergencyTimerPauseControl from '@/components/EmergencyTimerPauseControl'
 import ShipPlot from '@/components/ShipPlot';
 import GmStarmapModule from '@/components/GmStarmapModule';
 import GmScoutRevealController from '@/components/GmScoutRevealController';
+import AwayMissionStartPanel from '@/components/AwayMissionStartPanel';
 import SmallShipOperations from '@/components/SmallShipOperations';
 import { GmSetupChecklist } from '@/components/GmSetupChecklist';
 import PursuitTracker from '@/components/PursuitTracker';
@@ -3376,6 +3377,12 @@ export default function GmConsole() {
           </section>
           <SmallShipOperations />
           <GmStarmapModule session={session} />
+          <AwayMissionStartPanel
+            session={session}
+            players={connectedPlayers}
+            instanceId={local.id}
+            isGm={isGm}
+          />
           <GmScoutRevealController />
           <section
             className="gm-console__module gm-fleet-resources cic-frame"

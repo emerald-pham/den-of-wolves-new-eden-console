@@ -52,6 +52,13 @@ function ParticipantPanel() {
         return (
           <article key={pointer.handId} className="away-mission-private-panel__mission" aria-label={`Private away mission card ${pointer.missionId}`}>
             <h3 className="gm-console__status">Mission {pointer.missionId}</h3>
+            {pointer.groupId && pointer.chart && pointer.coordinate && pointer.missionLeaderUid && (
+              <p className="gm-console__hint">
+                Fleet group {pointer.groupId} // {pointer.chart} // {pointer.coordinate}
+                {pointer.sourceCycle === undefined ? '' : ` // cycle ${pointer.sourceCycle}`}
+                {' '}// Mission Leader // {pointer.missionLeaderUid}
+              </p>
+            )}
             {pointer.phase === 'awaiting-card-selection' && (
               <p className="gm-console__status" role="status">
                 Waiting for the facilitator to finish extra-card selection.

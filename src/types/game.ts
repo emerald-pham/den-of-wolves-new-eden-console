@@ -273,6 +273,63 @@ export type AwayMissionHandPhase =
   | 'discarding'
   | 'assignment-ready';
 
+export interface MissionOpportunity {
+  readonly type: 'mission-opportunity';
+  readonly status: 'available';
+  readonly sessionId: SessionId;
+  readonly id: string;
+  readonly groupId: GroupId;
+  readonly chart: SessionChartId;
+  readonly coordinate: GalacticCoordinate;
+  readonly siteCode: string;
+  readonly sourceShipId: VesselId;
+  readonly sourceTransitionId: string;
+  readonly sourceCycle: number;
+}
+
+export interface AwayMissionStartSnapshot {
+  readonly type: 'away-mission-start-snapshot';
+  readonly sessionId: SessionId;
+  readonly opportunityId: string;
+  readonly missionId: string;
+  readonly groupId: GroupId;
+  readonly chart: SessionChartId;
+  readonly coordinate: GalacticCoordinate;
+  readonly siteCode: string;
+  readonly sourceShipId: VesselId;
+  readonly sourceTransitionId: string;
+  readonly sourceCycle: number;
+  readonly missionLeader: Readonly<{ uid: PlayerId; roleId: RoleId }>;
+  readonly actorUid: PlayerId;
+  readonly instanceId: string;
+  readonly requestId: string;
+  readonly source: Readonly<{
+    readonly assumptionId: 'PC04-A1';
+    playerGuide: string;
+    facilitatorGuide: string;
+    a4CardPack: string;
+    ruleId: string;
+  }>;
+  readonly inputs: Readonly<{
+    expectedSetupRevision: number;
+    expectedPhaseRevision: number;
+    expectedCycle: number;
+    participantSnapshots: readonly Readonly<{
+      uid: PlayerId;
+      roleId: RoleId;
+      craftIds: readonly string[];
+    }>[];
+    missionLeaderUid: PlayerId;
+  }>;
+  readonly modifiers: readonly string[];
+  readonly outcome: string;
+  readonly stateDelta: Readonly<Record<string, unknown>>;
+  readonly revisions: Readonly<Record<string, unknown>>;
+  readonly replay: Readonly<Record<string, unknown>>;
+  readonly recovery: Readonly<Record<string, unknown>>;
+  readonly createdAt: string;
+}
+
 /** Server-owned metadata used to discover the participant's private hand. */
 export interface AwayMissionHandPointer {
   readonly sessionId: SessionId;
@@ -282,6 +339,14 @@ export interface AwayMissionHandPointer {
   readonly phase: AwayMissionHandPhase;
   readonly revision: number;
   readonly discarded: boolean;
+  readonly groupId?: GroupId;
+  readonly chart?: SessionChartId;
+  readonly coordinate?: GalacticCoordinate;
+  readonly siteCode?: string;
+  readonly sourceCycle?: number;
+  readonly participantCount?: number;
+  readonly missionLeaderUid?: PlayerId;
+  readonly missionLeaderRoleId?: RoleId;
 }
 
 /** The single mission card visible only to its participant or facilitator. */
