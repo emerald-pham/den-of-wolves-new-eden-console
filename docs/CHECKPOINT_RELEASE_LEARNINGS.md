@@ -72,6 +72,18 @@ slowest complete shard rather than the sum of every ticker scenario plus P637.
 The first workflow using this layout must supply the observed timing; no speedup
 is claimed from the configuration alone.
 
+### Risk-selected verification without deployment
+
+The first post-PC04 tooling push exposed that `main` verification was coupled
+to `has_targets`: the target classifier correctly requested unit and ticker
+gates, but the reusable verify job was skipped because no Firebase surface was
+selected. The Deploy workflow now distinguishes verification from deployment.
+A current-tip change with non-documentation risk gates runs exact-SHA
+verification even when `targets` is empty; the deploy job still requires a real
+Firebase target. Documentation-only changes retain the no-verify/no-deploy fast
+path. A workflow contract test pins all three conditions so release tooling and
+tests cannot silently bypass their own gates again.
+
 ### Typography gate integrity
 
 PC04 repaired the exact command mapping for the mandatory computed-style

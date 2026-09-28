@@ -832,6 +832,17 @@ it('tests Firestore rules before a main-branch deployment', () => {
 });
 
 it('verifies risk-bearing main changes even when they select no Firebase surface', () => {
+  const toolingOutputs = formatGitHubOutputs(classifyChangedFiles([
+    'scripts/test-fleet-ticker-browser.mjs',
+  ]));
+  const documentationOutputs = formatGitHubOutputs(classifyChangedFiles([
+    'docs/CHECKPOINT_RELEASE_LEARNINGS.md',
+  ]));
+
+  expect(toolingOutputs).toContain('has_targets=false');
+  expect(toolingOutputs).toContain('root_install=true');
+  expect(documentationOutputs).toContain('has_targets=false');
+  expect(documentationOutputs).toContain('root_install=false');
   expect(deploy).toContain('verification_required: ${{ steps.targets.outputs.root_install }}');
   expect(deploy).toContain(
     "if: needs.determine-targets.outputs.current_tip == 'true' && " +
