@@ -81,6 +81,12 @@ export function parseMaintenanceCycle(value: unknown): MaintenanceCycle | undefi
   const rationBonus = typeof raw?.rationBonus === 'number' && Number.isFinite(raw.rationBonus)
     ? raw.rationBonus
     : undefined;
+  const unrestRolls = Array.isArray(raw?.unrestRolls) && raw.unrestRolls.length === 2 &&
+    raw.unrestRolls.every((die) => Number.isSafeInteger(die) && die >= 1 && die <= 6)
+    ? raw.unrestRolls as [number, number] : undefined;
+  const unrestBeforeCheck = typeof raw?.unrestBeforeCheck === 'number' &&
+    Number.isSafeInteger(raw.unrestBeforeCheck) && raw.unrestBeforeCheck >= 0 && raw.unrestBeforeCheck <= 10
+    ? raw.unrestBeforeCheck : undefined;
   const startedAt = optionalTimestampString(raw?.startedAt);
   const completedAt = optionalTimestampString(raw?.completedAt);
   const damageDrawId = optionalString(raw?.damageDrawId);
@@ -97,6 +103,8 @@ export function parseMaintenanceCycle(value: unknown): MaintenanceCycle | undefi
     refuelled: stringArray(raw?.refuelled),
     ...(turn === undefined ? {} : { turn }),
     ...(rationBonus === undefined ? {} : { rationBonus }),
+    ...(unrestRolls === undefined || unrestBeforeCheck === undefined
+      ? {} : { unrestRolls, unrestBeforeCheck }),
     ...(startedAt === undefined ? {} : { startedAt }),
     ...(completedAt === undefined ? {} : { completedAt }),
     ...(damageDrawId === undefined ? {} : { damageDrawId }),

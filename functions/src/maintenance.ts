@@ -8,6 +8,7 @@ export interface MaintenanceCycle {
   step: number; revision: number; results: Record<string, string>; charges: string[];
   refuelled: string[]; turn?: number; rationBonus?: number; startedAt?: string; completedAt?: string;
   damageDrawId?: string;
+  unrestRolls?: [number, number]; unrestBeforeCheck?: number;
 }
 export interface MaintenanceInput {
   shipId: string; cycle: MaintenanceCycle; currentTurn: number; expectedRevision: number; action: string;
@@ -138,6 +139,13 @@ export function parseMaintenanceCycle(value: unknown): MaintenanceCycle | undefi
   if (raw.turn !== undefined && nonNegativeInteger(raw.turn) === undefined) return undefined;
   if (raw.rationBonus !== undefined &&
       (typeof raw.rationBonus !== 'number' || !Number.isFinite(raw.rationBonus))) return undefined;
+  if (raw.unrestRolls !== undefined &&
+      (!Array.isArray(raw.unrestRolls) || raw.unrestRolls.length !== 2 ||
+        raw.unrestRolls.some((die) => !Number.isSafeInteger(die) || die < 1 || die > 6))) return undefined;
+  if (raw.unrestBeforeCheck !== undefined &&
+      (nonNegativeInteger(raw.unrestBeforeCheck) === undefined ||
+        (raw.unrestBeforeCheck as number) > 10)) return undefined;
+  if ((raw.unrestRolls === undefined) !== (raw.unrestBeforeCheck === undefined)) return undefined;
   for (const key of ['startedAt', 'completedAt', 'damageDrawId']) {
     if (raw[key] !== undefined && typeof raw[key] !== 'string') return undefined;
   }
@@ -152,6 +160,42 @@ export function parseMaintenanceCycle(value: unknown): MaintenanceCycle | undefi
     ...(raw.startedAt === undefined ? {} : { startedAt: raw.startedAt as string }),
     ...(raw.completedAt === undefined ? {} : { completedAt: raw.completedAt as string }),
     ...(raw.damageDrawId === undefined ? {} : { damageDrawId: raw.damageDrawId as string }),
+    ...(raw.unrestRolls === undefined ? {} : { unrestRolls: [...raw.unrestRolls] as [number, number] }),
+    ...(raw.unrestBeforeCheck === undefined ? {} : { unrestBeforeCheck: raw.unrestBeforeCheck as number }),
+  };
+}
+
+/** Recompute only step 3 after the owner discards one private VIP card. */
+export function rerollMaintenanceUnrest(
+  cycleValue: MaintenanceCycle, currentUnrest: number, dieIndex: number, newDie: number,
+): { cycle: MaintenanceCycle; unrest: number } {
+  const cycle = parseMaintenanceCycle(cycleValue);
+  if (!cycle || cycle.step !== 4 || cycle.results['4'] !== undefined ||
+      !cycle.unrestRolls || cycle.unrestBeforeCheck === undefined) {
+    throw new Error('The unrest check step is no longer open for a VIP reroll.');
+  }
+  if ((dieIndex !== 0 && dieIndex !== 1) || !Number.isSafeInteger(newDie) || newDie < 1 || newDie > 6) {
+    throw new Error('Choose exactly one valid die to reroll.');
+  }
+  const bonus = cycle.rationBonus ?? 0;
+  const previousTotal = cycle.unrestRolls[0] + cycle.unrestRolls[1] + bonus;
+  const previousGain = previousTotal < 12 ? 2 : previousTotal < 20 ? 1 : 0;
+  if (currentUnrest !== Math.min(10, cycle.unrestBeforeCheck + previousGain)) {
+    throw new Error('Ship unrest changed after the check; refresh before rerolling.');
+  }
+  const rolls: [number, number] = [...cycle.unrestRolls];
+  rolls[dieIndex] = newDie;
+  const total = rolls[0] + rolls[1] + bonus;
+  const gain = total < 12 ? 2 : total < 20 ? 1 : 0;
+  const unrest = Math.min(10, cycle.unrestBeforeCheck + gain);
+  return {
+    unrest,
+    cycle: {
+      ...cycle, revision: cycle.revision + 1, unrestRolls: rolls,
+      results: { ...cycle.results,
+        '3': `VIP reroll: ${rolls[0]} + ${rolls[1]} + ${bonus} = ${total}. Added ${gain} unrest; unrest ${unrest}.`,
+      },
+    },
   };
 }
 
@@ -194,6 +238,8 @@ export function advanceMaintenance(input: MaintenanceInput) {
     cycle.startedAt = input.now;
     delete cycle.completedAt;
     delete cycle.damageDrawId;
+    delete cycle.unrestRolls;
+    delete cycle.unrestBeforeCheck;
     if (input.environmentalHazard) {
       const hazard = input.environmentalHazard;
       const damaged = hazard.roll >= hazard.threshold;
@@ -242,6 +288,8 @@ export function advanceMaintenance(input: MaintenanceInput) {
     const total = input.rolls[0]! + input.rolls[1]! + (cycle.rationBonus ?? 0);
     const gain = total < 12 ? 2 : total < 20 ? 1 : 0;
     unrest = Math.min(10, unrest + gain);
+    cycle.unrestRolls = [input.rolls[0]!, input.rolls[1]!];
+    cycle.unrestBeforeCheck = input.unrest;
     cycle.results['3'] = `Rolled ${input.rolls[0]} + ${input.rolls[1]} + ${cycle.rationBonus ?? 0} = ${total}. Added ${gain} unrest; unrest ${unrest}.`;
   } else if (action === 'riot') {
     const roll = input.rolls[0]!;

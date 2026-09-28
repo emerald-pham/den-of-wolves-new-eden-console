@@ -396,6 +396,8 @@ export interface MaintenanceCycle {
   readonly refuelled: readonly string[];
   readonly turn?: number;
   readonly rationBonus?: number;
+  readonly unrestRolls?: readonly [number, number];
+  readonly unrestBeforeCheck?: number;
   readonly startedAt?: Timestamp;
   readonly completedAt?: Timestamp;
   /** Links a damage-causing step to the shared record for the card that was drawn. */

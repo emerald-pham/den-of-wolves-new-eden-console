@@ -3,7 +3,7 @@ import { useSessionStore } from '@/store/useSessionStore';
 import { useConsoleAccess } from '@/lib/consoleAccess';
 import { normalizeCommandError } from '@/lib/commandErrors';
 import { phaseForSession } from '@/lib/turnPhase';
-import { drawVipCard, transferVipCard } from '@/lib/vipCardService';
+import { drawVipCard, rerollVipUnrest, transferVipCard } from '@/lib/vipCardService';
 import type { Player, VipHand } from '@/types/game';
 
 export default function DioneVipCards({
@@ -12,7 +12,11 @@ export default function DioneVipCards({
   damaged,
 }: {
   readonly shipId: string;
-  readonly cycle: { readonly step: number; readonly revision: number; readonly charges: readonly string[] } | undefined;
+  readonly cycle: {
+    readonly step: number; readonly revision: number; readonly charges: readonly string[];
+    readonly results?: Readonly<Record<string, string>>;
+    readonly unrestRolls?: readonly [number, number]; readonly unrestBeforeCheck?: number;
+  } | undefined;
   readonly damaged: boolean;
 }) {
   const session = useSessionStore((state) => state.session);
@@ -26,6 +30,8 @@ export default function DioneVipCards({
   const [players, setPlayers] = useState<readonly Player[]>([]);
   const [targetUid, setTargetUid] = useState('');
   const [cardId, setCardId] = useState('');
+  const [rerollCardId, setRerollCardId] = useState('');
+  const [rerollDieIndex, setRerollDieIndex] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
 
@@ -34,6 +40,8 @@ export default function DioneVipCards({
     setPlayers([]);
     setTargetUid('');
     setCardId('');
+    setRerollCardId('');
+    setRerollDieIndex('');
     if (!session?.id || !me?.uid) {
       return undefined;
     }
@@ -66,6 +74,12 @@ export default function DioneVipCards({
     !cycle.charges.includes('vip-lounge');
   const transferBlocked = !access.writable || pending || !session || !me || connection !== 'live' ||
     session.currentTurn === 0 || !coordination || availableCards.length === 0 || !targetUid || !cardId;
+  const rerollOpen = cycle?.step === 4 && cycle.unrestRolls !== undefined &&
+    cycle.unrestBeforeCheck !== undefined && cycle.results?.['4'] === undefined;
+  const rerollBlocked = !access.writable || pending || !session || !me || connection !== 'live' ||
+    session.currentTurn === 0 || coordination || !rerollOpen ||
+    !rerollCardId || !availableCards.some(card => card.id === rerollCardId) ||
+    (rerollDieIndex !== '0' && rerollDieIndex !== '1');
 
   async function draw(): Promise<void> {
     if (drawBlocked || !cycle) return;
@@ -80,6 +94,17 @@ export default function DioneVipCards({
     setPending(true); setError('');
     try { await transferVipCard(cardId, targetUid, hand.revision); }
     catch (cause) { setError(normalizeCommandError(cause).message); }
+    finally { setPending(false); }
+  }
+
+  async function reroll(): Promise<void> {
+    if (rerollBlocked || !cycle || (rerollDieIndex !== '0' && rerollDieIndex !== '1')) return;
+    setPending(true); setError('');
+    try {
+      await rerollVipUnrest(shipId, rerollCardId, Number(rerollDieIndex) as 0 | 1,
+        cycle.revision, access.roleId);
+      setRerollCardId(''); setRerollDieIndex('');
+    } catch (cause) { setError(normalizeCommandError(cause).message); }
     finally { setPending(false); }
   }
 
@@ -103,7 +128,28 @@ export default function DioneVipCards({
         <strong>{card.name}</strong> <span>// {card.status === 'spent' ? 'SPENT' : 'UNSPENT'}</span>
       </li>)}
     </ul> : <p role="status">No private VIP cards are currently held.</p>}
-    <p>Cards are single-use and transferable during Coordination. Prompt 191 owns the printed effect: discard a card to reroll one die during an unrest check in maintenance step 3. That use action is not available yet.</p>
+    <p>Cards are single-use and transferable during Coordination. Discard one during an open unrest check to reroll one of its server dice before the riot check.</p>
+    {rerollOpen && availableCards.length > 0 && <fieldset className="maintenance-controls">
+      <legend>VIP unrest reroll</legend>
+      <p>Die 1: {cycle.unrestRolls?.[0]} // Die 2: {cycle.unrestRolls?.[1]}. The resulting unrest check replaces only the chosen die.</p>
+      <label>VIP card to discard
+        <select aria-label="VIP card to discard" value={rerollCardId}
+          onChange={event => setRerollCardId(event.target.value)}>
+          <option value="">Choose a card</option>
+          {availableCards.map(card => <option key={card.id} value={card.id}>{card.name}</option>)}
+        </select>
+      </label>
+      <label>Unrest die to reroll
+        <select aria-label="Unrest die to reroll" value={rerollDieIndex}
+          onChange={event => setRerollDieIndex(event.target.value)}>
+          <option value="">Choose a die</option>
+          <option value="0">Die 1 // {cycle.unrestRolls?.[0]}</option>
+          <option value="1">Die 2 // {cycle.unrestRolls?.[1]}</option>
+        </select>
+      </label>
+      <button className="cic-action-button" type="button" disabled={rerollBlocked}
+        onClick={() => void reroll()}>Discard card and reroll one die</button>
+    </fieldset>}
     {coordination && availableCards.length > 0 && <fieldset className="maintenance-controls">
       <legend>Transfer a VIP card</legend>
       <label>Card

@@ -529,7 +529,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
         )}
         <DioneVipCards
           shipId={ship.id}
-          cycle={ship.id === 'dione' ? shipState?.maintenanceCycle : undefined}
+          cycle={shipState?.maintenanceCycle}
           damaged={ship.id === 'dione' && (shipState?.damage?.damagedSystemIds.includes('vip-lounge') ?? false)}
         />
         {damageDraws.some((draw) => draw.shipId === ship.id) && (

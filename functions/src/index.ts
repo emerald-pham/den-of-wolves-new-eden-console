@@ -7,7 +7,7 @@ import {
   parsePlayerEscapeState,
   type PlayerEscapeState,
 } from './escapeState';
-import { advanceMaintenance, chargeableConsoleIds, MAINTENANCE_RULES, emptyMaintenanceCycle, parseMaintenanceCycle, type MaintenanceCycle } from './maintenance';
+import { advanceMaintenance, chargeableConsoleIds, MAINTENANCE_RULES, emptyMaintenanceCycle, parseMaintenanceCycle, rerollMaintenanceUnrest, type MaintenanceCycle } from './maintenance';
 import { environmentalMaintenanceHazard } from './environmentalMaintenanceHazard';
 import { recordSystemHazard } from './systemHistory';
 import { candidateDiscoveryFromArrival } from './candidateDiscovery';
@@ -500,6 +500,7 @@ import {
 } from './voyageAdmission';
 import {
   availableVipCards,
+  consumeVipCardState,
   drawVipCardState,
   emptyVipDeckState,
   parseVipDeckState,
@@ -26776,7 +26777,7 @@ function vipCardEvent(
   session: DocumentSnapshot,
   revision: number,
   serverTime: string,
-  action: 'drawn' | 'transferred',
+  action: 'drawn' | 'transferred' | 'spent',
 ): void {
   // Card identity, owner, and recipient stay on private projections. Members
   // may learn that the Lounge/trade action happened without learning a hand.
@@ -27037,6 +27038,161 @@ export const transferVipCard = onCall<{
     };
     tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     vipCardEvent(tx, data.sessionId, data.requestId, player, uid, snapshot, transferred.revision, serverTime, 'transferred');
+    return reply;
+  });
+});
+
+/** Discard one privately held VIP card to reroll one server die before the riot step. */
+export const rerollVipUnrest = onCall<{
+  sessionId?: unknown; shipId?: unknown; requestId?: unknown; expectedRevision?: unknown;
+  cardId?: unknown; dieIndex?: unknown; instanceId?: unknown; consoleRoleId?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = [
+    'sessionId', 'shipId', 'requestId', 'expectedRevision', 'cardId', 'dieIndex',
+    'instanceId', 'consoleRoleId',
+  ];
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
+      Object.keys(raw).some((key) => !allowed.includes(key)) ||
+      typeof raw.sessionId !== 'string' || !isCanonicalRequestId(raw.sessionId) ||
+      typeof raw.shipId !== 'string' || !isResourceShipId(raw.shipId) ||
+      typeof raw.requestId !== 'string' || !isCanonicalRequestId(raw.requestId) ||
+      typeof raw.cardId !== 'string' || !/^[\w-]{1,128}$/.test(raw.cardId) ||
+      (raw.dieIndex !== 0 && raw.dieIndex !== 1) ||
+      !Number.isSafeInteger(raw.expectedRevision) || Number(raw.expectedRevision) < 0 ||
+      (raw.instanceId !== undefined &&
+        (typeof raw.instanceId !== 'string' || !isCanonicalRequestId(raw.instanceId))) ||
+      (raw.consoleRoleId !== undefined &&
+        (typeof raw.consoleRoleId !== 'string' || !isCanonicalRequestId(raw.consoleRoleId)))) {
+    throw new HttpsError('invalid-argument', 'Invalid VIP unrest reroll request.');
+  }
+  const data = {
+    sessionId: raw.sessionId, shipId: raw.shipId, requestId: raw.requestId,
+    cardId: raw.cardId, dieIndex: raw.dieIndex,
+    expectedRevision: raw.expectedRevision as number,
+    instanceId: raw.instanceId as string | undefined,
+    consoleRoleId: raw.consoleRoleId as string | undefined,
+  };
+  const sessionRef = db.doc(`sessions/${data.sessionId}`);
+  const deckRef = vipDeckRef(data.sessionId);
+  const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
+  const fingerprint = vesselActionFingerprint(
+    'reroll-vip-unrest', data.sessionId, data.requestId, uid, data.instanceId ?? null,
+    data.expectedRevision,
+    { shipId: data.shipId, cardId: data.cardId, dieIndex: data.dieIndex,
+      consoleRoleId: data.consoleRoleId ?? null },
+  );
+  const validate = async (tx: Transaction, player: DocumentSnapshot, snapshot: DocumentSnapshot) => {
+    requireTurnOneForGameplay(snapshot);
+    requireActionPhase(snapshot, 'maintenance', player.get('role') === 'gm' ? 'facilitator' : 'player');
+    if (snapshot.get('phase') === 'closed' || !activeVesselIdsForSession(snapshot).includes(data.shipId)) {
+      throw commandError('failed-precondition', 'The ship is unavailable.', 'conflict');
+    }
+    const cycles = isRecord(snapshot.get('maintenanceCycles'))
+      ? snapshot.get('maintenanceCycles') as Record<string, unknown> : {};
+    const cycle = parseMaintenanceCycle(cycles[data.shipId]) ?? emptyMaintenanceCycle();
+    if (cycle.revision !== data.expectedRevision) {
+      return { cycle, stale: true as const, deck: undefined };
+    }
+    if (cycle.step !== 4 || cycle.results['4'] !== undefined || !cycle.unrestRolls) {
+      throw commandError('failed-precondition', 'The unrest check reroll window has closed.', 'invalid-phase');
+    }
+    const unrest = shipUnrest(snapshot.get('shipUnrest'))[data.shipId];
+    if (unrest === undefined) {
+      throw commandError('failed-precondition', 'The ship unrest counter is unavailable.', 'malformed-input');
+    }
+    try { rerollMaintenanceUnrest(cycle, unrest, data.dieIndex, cycle.unrestRolls[data.dieIndex]!); }
+    catch (cause) {
+      throw commandError('failed-precondition', cause instanceof Error ? cause.message : 'Unrest changed.', 'conflict');
+    }
+    const deck = vipDeckState(await tx.get(deckRef));
+    if (!deck.cards.some((card) => card.id === data.cardId &&
+        card.ownerUid === uid && card.status === 'available')) {
+      throw commandError('failed-precondition', 'Only the current owner may discard an unspent VIP card.', 'conflict');
+    }
+    return { cycle, unrest, stale: false as const, deck };
+  };
+  const preflight = await db.runTransaction(async tx => {
+    const { player, snapshot } = await requireMaintenanceAuthority(
+      tx, data.sessionId, data.shipId, data.instanceId, data.consoleRoleId, uid, sessionRef,
+    );
+    const prior = await tx.get(receiptRef);
+    const replay = replayBoundCommand(prior, fingerprint, isVesselActionResult, 'VIP unrest reroll');
+    if (replay) return replay.status === 'committed' ? { ...replay, status: 'replayed' } : replay;
+    const current = await validate(tx, player, snapshot);
+    if (!current.stale) return null;
+    const stale = {
+      status: 'stale' as const, sessionId: data.sessionId, shipId: data.shipId,
+      action: 'vip-unrest-reroll', expectedRevision: data.expectedRevision,
+      currentRevision: current.cycle.revision,
+      ...vesselActionEnvelope(snapshot, player, uid, data.shipId, current.cycle.revision,
+        data.requestId, 'reroll-vip-unrest'),
+    };
+    tx.set(receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
+    return stale;
+  });
+  if (preflight) return preflight;
+  const rolledDie = randomInt(1, 7);
+  const serverTime = new Date().toISOString();
+  return db.runTransaction(async tx => {
+    const { player, snapshot } = await requireMaintenanceAuthority(
+      tx, data.sessionId, data.shipId, data.instanceId, data.consoleRoleId, uid, sessionRef,
+    );
+    const prior = await tx.get(receiptRef);
+    const replay = replayBoundCommand(prior, fingerprint, isVesselActionResult, 'VIP unrest reroll');
+    if (replay) return replay.status === 'committed' ? { ...replay, status: 'replayed' } : replay;
+    const current = await validate(tx, player, snapshot);
+    if (current.stale || current.unrest === undefined || !current.deck) {
+      const stale = {
+        status: 'stale' as const, sessionId: data.sessionId, shipId: data.shipId,
+        action: 'vip-unrest-reroll', expectedRevision: data.expectedRevision,
+        currentRevision: current.cycle.revision,
+        ...vesselActionEnvelope(snapshot, player, uid, data.shipId, current.cycle.revision,
+          data.requestId, 'reroll-vip-unrest'),
+      };
+      tx.set(receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
+    const nextDeck = consumeVipCardState(current.deck, uid, data.cardId);
+    if (!nextDeck) {
+      throw commandError('failed-precondition', 'The VIP card is no longer available.', 'conflict');
+    }
+    const result = rerollMaintenanceUnrest(current.cycle, current.unrest, data.dieIndex, rolledDie);
+    const unrestAlerts = { ...(snapshot.get('unrestAlerts') ?? {}) } as Record<string, StoredUnrestAlert>;
+    if (current.unrest >= 8 && result.unrest < 8) delete unrestAlerts[data.shipId];
+    if (current.unrest < 8 && result.unrest >= 8) {
+      const instances = await tx.get(db.collection(`sessions/${data.sessionId}/gmInstances`));
+      const targetGmInstanceIds = (instances.docs ?? []).map(instance => instance.id);
+      if (targetGmInstanceIds.length) unrestAlerts[data.shipId] = {
+        shipId: data.shipId,
+        shipName: (FLEET_SHIP_NAMES as Readonly<Record<string, string>>)[data.shipId] ?? data.shipId,
+        targetGmInstanceIds, createdAt: serverTime,
+      };
+    }
+    tx.set(deckRef, {
+      revision: nextDeck.revision, cards: nextDeck.cards.map((card) => ({ ...card })),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    writeVipHand(tx, data.sessionId, nextDeck, uid);
+    tx.update(sessionRef, {
+      [`maintenanceCycles.${data.shipId}`]: result.cycle,
+      [`shipUnrest.${data.shipId}`]: result.unrest,
+      unrestAlerts,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    const reply = {
+      status: 'committed' as const, sessionId: data.sessionId, shipId: data.shipId,
+      action: 'vip-unrest-reroll', requestId: data.requestId,
+      expectedRevision: data.expectedRevision, committedRevision: result.cycle.revision,
+      unrest: result.unrest, currentTurn: sessionTurn(snapshot.get('currentTurn')),
+      serverTime, cycle: result.cycle,
+      ...vesselActionEnvelope(snapshot, player, uid, data.shipId, result.cycle.revision,
+        data.requestId, 'reroll-vip-unrest'),
+    };
+    tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
+    vipCardEvent(tx, data.sessionId, data.requestId, player, uid, snapshot,
+      result.cycle.revision, serverTime, 'spent');
     return reply;
   });
 });
