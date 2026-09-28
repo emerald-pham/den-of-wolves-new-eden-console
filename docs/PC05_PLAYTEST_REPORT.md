@@ -138,3 +138,20 @@ post-fade. It passed 1440×900, 390×844 and 844×390; the worker's full unit su
 passed 2,499 tests with typecheck, targeted lint and build. Reconciled release
 verification remains pending. The worker checkout is reused for the independent
 jump tranche and remains active, so it must not be removed.
+
+### Coordination gate reconciliation
+
+At `933e6dbe`, the six focused metadata, scout-request, research cadence/writer,
+shuttle cargo and jump-callable suites pass **151 tests**. Inspection confirms
+fresh movement/jump, cargo and scout mutations deny Team or missing server
+phase; Endeavour research is the printed Team exception and denies fresh
+Coordination choices. Research and cargo exact receipt replay preserve prior
+results without new spending after a phase change. Scout requests deliberately
+revalidate their current authority before returning a result. This is scoped
+server-test evidence for P100 and its dependencies, not ordinary live gameplay
+or a claim that the entire PC05 tranche is complete.
+
+The confirmation marker is server-owned (direct session writes are denied by
+Firestore rules). Receipt and live snapshot projection coverage passes **345
+tests**, including rejection of truthy non-boolean confirmation values. The
+Functions build also passes for the empty-session repair.
