@@ -73,5 +73,7 @@ it('does not present a voluntary leave as a resumable transient disconnect', asy
   await user.click(screen.getByRole('button', { name: /leave and reconnect/i }));
   await user.click(screen.getByRole('button', { name: 'Open sample settings' }));
   await user.click(screen.getByRole('button', { name: 'Disconnect' }));
+  expect(screen.getByRole('button', { name: 'ARE YOU SURE?' })).toBeVisible();
+  await user.click(screen.getByRole('button', { name: 'ARE YOU SURE?' }));
   expect(screen.getByRole('button', { name: 'Resume same role' })).toBeDisabled();
 });
