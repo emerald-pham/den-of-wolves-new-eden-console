@@ -127,8 +127,8 @@ function dealTopCards(state: MissionLifecycleState): MissionLifecycleState {
 describe('pure away-mission lifecycle', () => {
   it('records participant requests as a count only and exposes no reason field', () => {
     const state = buildState();
-    const requested = recordMissionCardRequest(state, {
-      participantUid: 'bob',
+    const requested = recordMissionCardRequest(state, 'bob', {
+      participantUid: 'alice',
       count: 2,
       reason: 'secret strategy',
     });
@@ -139,8 +139,8 @@ describe('pure away-mission lifecycle', () => {
     ]);
     expect(missionLeaderCardRequestCounts(requested!, 'bob')).toBeNull();
     expect(JSON.stringify(requested?.requestsByParticipant)).not.toContain('secret strategy');
-    expect(recordMissionCardRequest(state, { participantUid: 'outsider', count: 1 })).toBeNull();
-    expect(recordMissionCardRequest(state, { participantUid: 'bob', count: Number.POSITIVE_INFINITY })).toBeNull();
+    expect(recordMissionCardRequest(state, 'outsider', { count: 1 })).toBeNull();
+    expect(recordMissionCardRequest(state, 'bob', { count: Number.POSITIVE_INFINITY })).toBeNull();
   });
 
   it('allocates an extra card blindly and safely replays the same leader request', () => {
