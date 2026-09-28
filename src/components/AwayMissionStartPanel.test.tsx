@@ -291,7 +291,7 @@ it('recovers an uncertain exact start after remount and replays it with original
   expect(screen.getByRole('status', { name: 'Mission start result' })).toHaveTextContent(/already recorded/i);
 });
 
-it('replays the saved exact request after remount in debrief and reports a server stale marker without claiming success', async () => {
+it('replays a committed saved request after remount in debrief without making a second deal', async () => {
   const user = userEvent.setup();
   mocks.startAwayMission
     .mockRejectedValueOnce(new Error('Connection lost after submission.'))
@@ -301,7 +301,6 @@ it('replays the saved exact request after remount in debrief and reports a serve
       missionId: `mission-${opportunity.id}`, groupId: 'fleet-1', coordinate: '5143',
       sourceCycle: 2, participantCount: 1, missionLeaderUid: 'alice',
       expectedSetupRevision: 4, expectedPhaseRevision: 3, expectedCycle: 2,
-      currentSetupRevision: 4, currentPhaseRevision: 4, currentCycle: 3,
     });
 
   const first = render(<AwayMissionStartPanel session={session as never} players={players as never} instanceId="bridge" isGm />);
@@ -321,8 +320,7 @@ it('replays the saved exact request after remount in debrief and reports a serve
   expect(mocks.startAwayMission.mock.calls[1]![0]).toEqual({ ...originalCall, allowReplay: true });
   expect(mocks.startAwayMission.mock.calls[1]![0].requestId).toBe(originalCall.requestId);
   expect(screen.getByRole('status', { name: 'Mission start result' }))
-    .toHaveTextContent(/saved revisions are stale/i);
-  expect(screen.queryByText(/already recorded/i)).not.toBeInTheDocument();
+    .toHaveTextContent(/already recorded.*no second deal/i);
 });
 
 it('replays the saved exact request after remount in debrief and reports a server stale marker without claiming success', async () => {
