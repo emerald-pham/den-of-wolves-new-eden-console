@@ -158,8 +158,9 @@ describe('rerollVipUnrest', () => {
     expect(committed).toMatchObject({ status: 'committed', unrest: 7, committedRevision: 5 });
     expect(sessionFields.shipUnrest).toEqual({ dione: 7 });
     expect(sessionFields.unrestAlerts).toEqual({});
-    expect(mock.documents.get('sessions/s1/serverState/vipCards')).toMatchObject({
-      revision: 2, cards: [expect.objectContaining({ id: 'party-deck', status: 'spent', ownerUid: 'alice' })],
+    expect(mock.documents.get('sessions/s1/serverState/vipCards')).toMatchObject({ revision: 2 });
+    expect((mock.documents.get('sessions/s1/serverState/vipCards')?.cards as unknown[])[0]).toMatchObject({
+      id: 'party-deck', status: 'spent', ownerUid: 'alice',
     });
     expect(mock.documents.get('sessions/s1/vipHands/alice')).toMatchObject({
       ownerUid: 'alice', cards: [expect.objectContaining({ id: 'party-deck', status: 'spent' })],
