@@ -201,7 +201,7 @@ it('transfers a base-craft Captain replacement role and leaves the former holder
     activeVesselIds: ['aegis'], expansion: 'base', capybaraEnabled: true,
     smallShipStates: {
       gorgoneion: {
-        ...craft, unrest: 8, cycle: { ...craft.cycle, revision: 4 },
+        ...craft, dockingRevision: 1, unrest: 8, cycle: { ...craft.cycle, revision: 4 },
         mutiny: { status: 'active', revision: 1, triggerUnrest: 8, triggeredAt: 'first' },
       },
     },
