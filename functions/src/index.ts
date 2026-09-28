@@ -21178,15 +21178,38 @@ export const disconnectFromSession = onCall<{
       ? !hasCoreStation(player)
       : typeof activeConsoleRoleId === 'string' &&
         boundCoreConsoleRole(player.get('assignedRoleId'), storedSeatId) === activeConsoleRoleId;
-    const disconnectRoleState = player.get('role') === 'gm'
-      ? disconnectedRoleState()
+    const explicitCoreDeparture = player.get('role') === 'player' &&
+      hasCoreAssignment(player) && !hasPressState(player);
+    const secretDocuments = secrets.docs ?? [];
+    const departingLoyalty = explicitCoreDeparture
+      ? secretDocuments.find((secret) => secret.id === `loyalty-${uid}`)
+      : undefined;
+    const departingFriendUid = privateFriendPartnerUid(departingLoyalty, uid);
+    const departingFriendSecret = departingFriendUid
+      ? secretDocuments.find((secret) => secret.id === `loyalty-${departingFriendUid}`)
+      : undefined;
+    const departingFriendIsReciprocal = departingFriendUid !== null &&
+      privateFriendPartnerUid(departingFriendSecret, departingFriendUid) === uid;
+    let disconnectRoleState: Record<string, unknown>;
+    if (player.get('role') === 'gm') {
+      disconnectRoleState = disconnectedRoleState();
+    } else if (explicitCoreDeparture) {
+      disconnectRoleState = {
+        role: 'player',
+        assignedRoleId: null,
+        seatId: null,
+        activeConsoleRoleId: null,
+      };
+    } else {
       // Membership and connected state are the authority gates. Keeping a
-      // player's validated console identity lets the same UID resume it.
-      : {
-          role: 'player' as const,
-          ...(typeof activeConsoleRoleId === 'string' && !roleBindingIsValid
-            ? { activeConsoleRoleId: null } : {}),
-        };
+      // transiently disconnected player's validated console identity lets
+      // the same UID resume it.
+      disconnectRoleState = {
+        role: 'player',
+        ...(typeof activeConsoleRoleId === 'string' && !roleBindingIsValid
+          ? { activeConsoleRoleId: null } : {}),
+      };
+    }
     tx.update(playerRef, {
       connected: false,
       ...disconnectRoleState,
@@ -21220,12 +21243,32 @@ export const disconnectFromSession = onCall<{
         });
       }
     }
+    if (explicitCoreDeparture) {
+      tx.delete(db.doc(`sessions/${sessionId}/roleBriefs/${uid}`));
+      tx.delete(db.doc(`sessions/${sessionId}/secrets/loyalty-${uid}`));
+      tx.delete(db.doc(`sessions/${sessionId}/intelligenceInvestigations/${uid}`));
+      const removedLoyalty = new Map<string, LoyaltyCensusEntry | null>([[uid, null]]);
+      if (departingFriendIsReciprocal && departingFriendUid) {
+        tx.delete(db.doc(`sessions/${sessionId}/secrets/loyalty-${departingFriendUid}`));
+        removedLoyalty.set(departingFriendUid, null);
+      }
+      setLoyaltyCensusFromSecrets(
+        tx,
+        sessionId,
+        setupRevision(sessionDoc),
+        secretDocuments,
+        playerSnapshot.docs,
+        configuredRoleIds(sessionDoc),
+        removedLoyalty,
+        census,
+      );
+    }
     if (
       seatRef && seat?.exists && seat.get('roleId') === storedSeatId &&
       seat.get('status') === 'claimed' && seat.get('holderUid') === uid
     ) {
-      // Explicit Leave releases the station while retaining the member's
-      // private assignment for a same-UID resume.
+      // Explicit core Leave vacates the station with the assignment cleanup;
+      // transient expiry leaves the assignment intact for recovery.
       tx.update(seatRef, { status: 'open', holderUid: null, claimedAt: null });
     }
     for (const instance of ownedInstances.docs) {
