@@ -204,9 +204,15 @@ function clampContactLabels(plot: HTMLElement): void {
   // Boundary clamping alone can stack several names into the same corner.
   // Reserve the centre identifier and place each contact in the closest free
   // rectangle. A scan reruns this after the displayed return moves.
-  const obstacles = [...plot.querySelectorAll<HTMLElement>(
-    '.contact-plot__origin, .contact-plot__red-alert',
-  )].map((element) => element.getBoundingClientRect())
+  const shipPlot = plot.closest<HTMLElement>('.ship-plot');
+  const overlayControls = shipPlot?.querySelectorAll<HTMLElement>(
+    '.ship-plot__label, .ship-plot__toggle, .ship-plot__galactic-coordinate, ' +
+    '.ship-plot__close, .ship-plot__compass, .turn-phase-timer, .dradis-effect-controls',
+  ) ?? [];
+  const obstacles = [
+    ...plot.querySelectorAll<HTMLElement>('.contact-plot__origin, .contact-plot__red-alert'),
+    ...overlayControls,
+  ].map((element) => element.getBoundingClientRect())
     .filter((rect) => rect.width > 0 && rect.height > 0);
   for (const label of labels) {
     for (let pass = 0; pass < 2; pass += 1) {
