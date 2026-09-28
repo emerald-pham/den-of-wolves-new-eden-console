@@ -27,6 +27,7 @@ it('renders a second craft through the base with its own identity and opt-in equ
     shuttle={shuttle} captainName="Survey Officer" canLeave={true}
   /></MemoryRouter>);
   expect(screen.getByRole('heading', { name: 'Survey Console' })).toBeInTheDocument();
+  expect(screen.getByText('Printed shuttle procedures // Resolve outcomes with the facilitator and crew')).toBeVisible();
   expect(screen.getByText('Survey Officer // Captain')).toBeInTheDocument();
   expect(screen.getByRole('region', { name: 'Shuttle systems' })).toHaveTextContent('In transit');
   expect(screen.getByText('Airspace closed')).toBeInTheDocument();

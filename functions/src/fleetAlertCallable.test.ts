@@ -37,7 +37,19 @@ beforeEach(() => {
 });
 it('lets the active Admiral raise and cancel the shared warning', async () => {
   await setFleetRedAlert.run(request());
-  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({ fleetRedAlert: expect.objectContaining({ active: true, revision: 1 }) }));
+  const raise = mock.update.mock.calls[0]?.[1] as Record<string, unknown>;
+  expect(raise.fleetRedAlert).toMatchObject({
+    active: true,
+    revision: 1,
+    text: 'RED ALERT // WOLF ATTACK IMMINENT ALL HANDS TO BATTLE STATIONS. NON-CREW MUST SHELTER IN PLACE UNTIL ALERT LIFTED .',
+  });
+  expect(raise.fleetTicker).toMatchObject({
+    current: {
+      source: 'admiral',
+      sourceId: 'red-alert:1',
+      text: 'ICSN ADMIRAL // RED ALERT // WOLF ATTACK IMMINENT ALL HANDS TO BATTLE STATIONS. NON-CREW MUST SHELTER IN PLACE UNTIL ALERT LIFTED .',
+    },
+  });
   mock.active = true; mock.revision = 1;
   await setFleetRedAlert.run(request({ ...data, active: false, expectedRevision: 1 }));
   expect(mock.update).toHaveBeenLastCalledWith('sessions/s1', expect.objectContaining({ fleetRedAlert: expect.objectContaining({ active: false, revision: 2 }) }));
@@ -84,7 +96,11 @@ it('keeps the eligible Press pool behind AEGIS instead of losing it to phase pri
 
   const update = mock.update.mock.calls[0]?.[1] as Record<string, unknown>;
   expect(update.fleetTicker).toMatchObject({
-    current: { source: 'admiral', sourceId: 'red-alert:1' },
+    current: {
+      source: 'admiral',
+      sourceId: 'red-alert:1',
+      text: 'ICSN ADMIRAL // RED ALERT // WOLF ATTACK IMMINENT ALL HANDS TO BATTLE STATIONS. NON-CREW MUST SHELTER IN PLACE UNTIL ALERT LIFTED .',
+    },
     queued: [{ source: 'press', sourceId: 'dispatch-1', priority: 50 }],
   });
 });

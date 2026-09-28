@@ -1392,7 +1392,7 @@ it('routes every Quellon Engineer responsibility to live controls', async () => 
   expect(within(workspace).getByRole('button', { name: 'Power up reactor' })).toBeEnabled();
   expect(within(workspace).getByRole('link', { name: 'Open Condor shuttle console' }))
     .toHaveAttribute('href', '/shuttles/condor');
-  expect(workspace).toHaveTextContent(/resolve upgrades and repairs at the table/i);
+  expect(workspace).toHaveTextContent(/resolve upgrades and repairs at the console/i);
 
   act(() => state.setSession({
     ...useSessionStore.getState().session!,

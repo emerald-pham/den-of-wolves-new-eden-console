@@ -25,10 +25,14 @@ describe('normalizeCommandError', () => {
     ['conflict', 'failed-precondition'],
     ['terminal-session', 'not-found'],
   ] as const)('uses the explicit %s detail for ambiguous %s failures', (kind, code) => {
-    expect(normalizeCommandError({ code, details: { commandError: kind }, message: 'server detail' })).toMatchObject({
+    const result = normalizeCommandError({ code, details: { commandError: kind }, message: 'server detail' });
+    expect(result).toMatchObject({
       code,
       kind,
     });
+    if (kind === 'terminal-session') {
+      expect(result.message).toBe('This session is no longer available. Return to the landing screen to join another session.');
+    }
   });
 
   it('classifies a structured stale reply without reading its message', () => {

@@ -15,7 +15,8 @@ it('shows one-facilitator setup lanes and keeps local checklist marks outside ga
   );
 
   const checklist = screen.getByRole('region', { name: 'Setup checklist' });
-  expect(checklist).toHaveTextContent('One facilitator can run the table.');
+  expect(checklist).toHaveTextContent('One facilitator can run the session.');
+  expect(checklist).toHaveTextContent('Star chart is selected and ready for the session');
   expect(checklist).toHaveTextContent('Primary facilitator // room, components, teaching, setup, and phase calls.');
   expect(checklist).toHaveTextContent('Assistant help is optional');
   expect(checklist).toHaveTextContent('Chart B // locked');

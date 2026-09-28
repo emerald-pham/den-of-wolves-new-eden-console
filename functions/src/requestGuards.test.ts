@@ -65,6 +65,10 @@ function expectHttpsError(action: () => unknown, code: string): void {
 }
 
 describe('callable request guards', () => {
+  it('uses session terminology in sign-in guidance', () => {
+    expect(() => requireUid(undefined)).toThrow('Sign in before joining a session.');
+  });
+
   it('accepts only a boolean facilitator Cycle 6 candidate-plan marker', () => {
     expect(requireCandidatePlanCheckpointRequest({
       sessionId: 's1', instanceId: 'bridge', requestId: 'checkpoint-1', planExists: true,

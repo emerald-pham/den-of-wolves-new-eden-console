@@ -56,7 +56,7 @@ it('renders the assigned role brief, common rules, and visible return control', 
   expect(screen.getByText('Role selection')).toBeInTheDocument();
 });
 
-it('teaches source-backed table ground rules and the core cycle loop from the assigned brief', () => {
+it('teaches source-backed session ground rules and the core cycle loop from the assigned brief', () => {
   render(
     <MemoryRouter initialEntries={['/brief']}>
       <Routes>
@@ -66,7 +66,7 @@ it('teaches source-backed table ground rules and the core cycle loop from the as
     </MemoryRouter>,
   );
 
-  const groundRules = screen.getByRole('region', { name: 'Table ground rules' });
+  const groundRules = screen.getByRole('region', { name: 'Session ground rules' });
   expect(groundRules).toHaveTextContent(
     'Keep your own role and loyalty information private. Do not show another player your brief or read theirs.',
   );
@@ -83,6 +83,8 @@ it('teaches source-backed table ground rules and the core cycle loop from the as
 
   const loop = screen.getByRole('region', { name: 'Core game loop' });
   expect(loop).toHaveTextContent('Team Phase');
+  expect(loop).toHaveTextContent('Stay at your ship’s console and run its maintenance cycle.');
+  expect(loop).toHaveTextContent('armed players go to the Battle Table');
   expect(loop).toHaveTextContent('Coordination Phase');
   expect(loop).toHaveTextContent('pursuit reaches 10');
   expect(loop).toHaveTextContent('announce the jump');

@@ -87,14 +87,17 @@ it('runs the Admiral command, waits for authority, then offers stand down', asyn
   fireEvent.click(screen.getByRole('button', { name: 'OPEN RED ALERT COMMAND COVER' }));
   expect(screen.getByRole('button', { name: 'RAISE FLEETWIDE RED ALERT' })).toHaveTextContent('STAND UP');
   fireEvent.click(screen.getByRole('button', { name: 'RAISE FLEETWIDE RED ALERT' }));
-  await waitFor(() => expect(setFleetRedAlert).toHaveBeenCalledWith(true, expect.stringContaining('WOLF ATTACK IMMINENT')));
+  await waitFor(() => expect(setFleetRedAlert).toHaveBeenCalledWith(
+    true,
+    'RED ALERT // WOLF ATTACK IMMINENT ALL HANDS TO BATTLE STATIONS. NON-CREW MUST SHELTER IN PLACE UNTIL ALERT LIFTED .',
+  ));
   expect(screen.queryByRole('status', { name: /WOLF ATTACK IMMINENT/ })).not.toBeInTheDocument();
   act(() => {
     const state = useSessionStore.getState();
     state.setSession({ ...state.session!, fleetRedAlert: { active: true, revision: 1 } });
   });
   expect(screen.getByRole('status', {
-    name: 'ICSN ADMIRAL // RED ALERT // WOLF ATTACK IMMINENT ALL HANDS TO BATTLE STATIONS. NON-CREW MUST SHELTER IN PLACE UNTIL ALERT LIFTED',
+    name: 'ICSN ADMIRAL // RED ALERT // WOLF ATTACK IMMINENT ALL HANDS TO BATTLE STATIONS. NON-CREW MUST SHELTER IN PLACE UNTIL ALERT LIFTED .',
   })).toBeVisible();
   fireEvent.click(screen.getByRole('button', { name: 'OPEN RED ALERT COMMAND COVER' }));
   fireEvent.click(screen.getByRole('button', { name: 'STAND DOWN' }));
@@ -644,7 +647,7 @@ it('converts the Admiral warning and default message to uppercase as it is writt
   render(<FleetAlertControl />);
   const input = screen.getByRole('textbox', { name: 'ALERT MESSAGE' });
   const original = (input as HTMLTextAreaElement).value;
-  expect(original).toBe('ICSN ADMIRAL // RED ALERT // WOLF ATTACK IMMINENT ALL HANDS TO BATTLE STATIONS. NON-CREW MUST SHELTER IN PLACE UNTIL ALERT LIFTED');
+  expect(original).toBe('RED ALERT // WOLF ATTACK IMMINENT ALL HANDS TO BATTLE STATIONS. NON-CREW MUST SHELTER IN PLACE UNTIL ALERT LIFTED .');
   fireEvent.change(input, { target: { value: 'Hold position' } });
   expect(input).toHaveValue('HOLD POSITION');
   fireEvent.click(screen.getByRole('button', { name: 'RESTORE DEFAULT' }));

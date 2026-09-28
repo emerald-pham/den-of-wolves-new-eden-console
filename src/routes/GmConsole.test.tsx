@@ -454,6 +454,7 @@ it('runs the server-timed facilitator flow for random or chosen console sabotage
   renderConsole();
 
   const panel = await screen.findByRole('region', { name: 'Wolf console sabotage observation' });
+  expect(panel).toHaveTextContent('Start when the player reaches the ship console. The server requires 10 seconds adjacent and facilitator confirmation within 1 minute.');
   await user.selectOptions(within(panel).getByLabelText('Visited ship'), 'dione');
   await user.click(within(panel).getByRole('button', { name: 'Start 10-second observation' }));
   await waitFor(() => expect(startWolfConsoleVisit).toHaveBeenCalledWith('wolf-player', 'dione'));
@@ -748,6 +749,7 @@ it('records a durable facilitator rule call for a selected player', async () => 
   renderConsole();
 
   const panel = await screen.findByRole('region', { name: 'Facilitator rule call' });
+  expect(panel).toHaveTextContent('Record a durable ruling when the session needs an ambiguity resolved.');
   await user.type(within(panel).getByLabelText('Question or ambiguity'), 'Does docking happen first?');
   await user.type(within(panel).getByLabelText('Source or reference'), 'Facilitator reference');
   await user.type(within(panel).getByLabelText('Decision'), 'Use the printed docking state.');
@@ -4011,7 +4013,7 @@ it('keeps the facilitator checklist local and read-only inside Setup', async () 
   await user.click(screen.getByRole('button', { name: 'Setup' }));
 
   const checklist = await screen.findByRole('region', { name: 'Setup checklist' });
-  expect(checklist).toHaveTextContent('One facilitator can run the table.');
+  expect(checklist).toHaveTextContent('One facilitator can run the session.');
   expect(checklist).toHaveTextContent('Assistant help is optional');
   expect(checklist).toHaveTextContent('The server validates readiness when Start Production is requested.');
   const room = within(checklist).getByRole('checkbox', { name: 'Room and components are ready' });

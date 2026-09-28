@@ -60,6 +60,18 @@ describe('facilitatorQueueFor', () => {
     expect(facilitatorQueueFor({ ...setupState, phase: 'debrief' })).toContainEqual(
       expect.objectContaining({ id: 'enable-finale', state: 'action' }),
     );
+    expect(facilitatorQueueFor({ ...setupState, phase: 'debrief', debriefActive: true })).toContainEqual(
+      expect.objectContaining({
+        id: 'debrief-live',
+        detail: 'The shared finale is visible to everyone in the session.',
+      }),
+    );
+    expect(facilitatorQueueFor({ ...setupState, phase: 'retained-empty' })).toContainEqual(
+      expect.objectContaining({
+        id: 'retained-empty',
+        detail: 'Reconnect an eligible participant before resuming session operations.',
+      }),
+    );
     expect(facilitatorQueueFor({ ...setupState, phase: 'closed' })).toContainEqual(
       expect.objectContaining({ id: 'closed', state: 'complete' }),
     );

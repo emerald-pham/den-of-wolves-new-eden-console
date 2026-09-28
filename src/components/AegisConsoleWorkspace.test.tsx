@@ -100,6 +100,12 @@ it('shows live Fighter Wing counts separately from bay status and effective capa
   expect(bravo).not.toHaveTextContent(/tracked at the table/i);
 });
 
+it('describes the Starlight fuel readout as tracked at its console', () => {
+  render(<MemoryRouter><AegisConsoleWorkspace roleId="wing-commander" galacticCoordinate="0000" fuel={3} /></MemoryRouter>);
+
+  expect(screen.getByText('Tracked at the console')).toBeVisible();
+});
+
 it('keeps fighter status unavailable while reconnecting from a cached session', () => {
   useSessionStore.getState().setSessionSnapshotFreshness('cache');
   useSessionStore.getState().setConnection('offline');
