@@ -579,6 +579,14 @@ function normalizePersistedSession(session: GameSession | null | undefined): Gam
   };
 }
 
+function samePrivateAssignment(previous: Player | null, next: Player | null): boolean {
+  return previous !== null && next !== null &&
+    previous.uid === next.uid && previous.sessionId === next.sessionId &&
+    previous.role === next.role &&
+    (previous.assignedRoleId ?? null) === (next.assignedRoleId ?? null) &&
+    (previous.replacementRoleId ?? null) === (next.replacementRoleId ?? null);
+}
+
 export const useSessionStore = create<SessionState>()(
   persist(
     (set, get) => ({
@@ -589,6 +597,7 @@ export const useSessionStore = create<SessionState>()(
       }),
       setIdentity: (session, me) => set((state) => ({
         session, me, roleBrief: null, awayMissionHandPointer: null, awayMissionHand: null,
+        privateLoyalty: samePrivateAssignment(state.me, me) ? state.privateLoyalty : null,
         awayMissionHandPointers: [], awayMissionHands: [],
         gmAwayMissionHandPointers: [], wolfCultIntelligence: null, gmWolfCultIntelligence: null,
         arbourVision: null, gmArbourVision: null, facilitatorRuleCall: null,
@@ -598,7 +607,13 @@ export const useSessionStore = create<SessionState>()(
       setSeats: (seats) => set({ seats }),
       // Presence snapshots often carry the same player fields. Avoid notifying
       // the entire UI and serializing the full persisted session in that case.
-      setMe: (me) => { if (!shallow(get().me, me)) set({ me }); },
+      setMe: (me) => {
+        const previous = get().me;
+        if (!shallow(previous, me)) set({
+          me,
+          ...(!samePrivateAssignment(previous, me) ? { privateLoyalty: null } : {}),
+        });
+      },
       setGmInstance: (gmInstance) => set({ gmInstance }),
       setGmAccessAuthenticatedAt: (gmAccessAuthenticatedAt) => set({ gmAccessAuthenticatedAt }),
       clearGmAccess: () => set({ gmAccessAuthenticatedAt: null }),
