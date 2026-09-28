@@ -332,3 +332,20 @@ At parent `f4df6ba4`, the combined `npm test` run passes **5,995 tests across
 reconnect/Press cases and confirms no broad integration failure before the
 remaining jump candidate lands. No test was disabled or removed. Final release
 validation and ordinary changed-behavior proof remain open.
+
+
+### Supplemental review hold
+
+Independent exact-candidate review of worker `0a201dea` is **not clear**.
+It found that awaiting former captains can retain active loyalty actions and
+private projections; some malformed pending-plus-replacement-role states still
+pass action gates; malformed replacement eligibility revisions normalize to
+zero; and the GM candidate list does not use authoritative eligibility. The
+implementation owner is repairing all four with focused regressions. Historical
+identity is retained, but must remain inert until a legitimate re-role.
+The review's deployment-selector gaps were already addressed separately in the
+parent's `728664a2`/`3bfb9f1a`; those parent changes were outside its worker SHA.
+The passing local suites above do not waive these findings. Candidate 0.5.55
+metadata is prepared at `b3edfd2b`, but no push, deployment or full PC05 release
+is authorized by this evidence; implementation, exact review and live proof
+remain required.
