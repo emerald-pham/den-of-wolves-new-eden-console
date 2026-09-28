@@ -29,7 +29,6 @@ const jumpAttempt = {
   instanceId: 'bridge',
 };
 const { createJumpShipAttempt } = await import('@/lib/sessionService');
-const { isJumpShipOutcomeUncertain } = await import('@/lib/sessionService');
 
 function renderConsole(props: Partial<ComponentProps<typeof JumpDriveConsole>> = {}) {
   return render(
