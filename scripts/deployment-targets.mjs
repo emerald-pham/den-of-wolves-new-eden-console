@@ -93,31 +93,32 @@ const MALIADE_REPAIR_REQUEST_ADDITIONS = Object.freeze([
 const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
   // PC05 source audit includes transitive helper consumers and re-exported callables.
   'functions/src/gameSetup.ts': [
-    'transferBaseCapybaraCargo', 'readPrivateScoutResult', 'listPendingScoutRequests', 'createSession',
-    'confirmSetup', 'setFacilitatorResponsibility', 'startGame', 'transferShuttleControlCommand',
-    'dealPrivateInitialCards', 'openPrivateMissionDiscards', 'setShipPreference', 'assignRole',
-    'releaseRole', 'setReplacementEligibility', 'assignReplacementRole', 'setFacilitatorCensusNote',
-    'calculateArrestPosse', 'deliverWolfCultIntelligence', 'transitionCrisis', 'setDiseaseQuarantine',
-    'admitVoyage33', 'recordZealotryResponse', 'recordCivilUnrestResolution', 'submitCivilUnrestGrievance',
-    'authorArbourVision', 'authorFacilitatorRuleCall', 'setCandidatePlanCheckpoint', 'assignLoyalty',
-    'joinSession', 'resumeSession', 'claimGmInstance', 'setGmShipConsoleWriteGrant',
-    'listGmInstances', 'kickGmInstance', 'releaseGmInstance', 'kickPlayer',
-    'triggerDradisContact', 'setPressEnabled', 'moveShipToLocation', 'jumpShip',
-    'setShipConsoleLock', 'setGmControlsLocked', 'setDebriefMode', 'advanceTurn',
-    'startSinglePlayerDemo', 'replayTurnStartAnnouncement', 'extendAirspaceWindow', 'setEmergencyTimerPaused',
-    'setWolfAttackWindow', 'stageWolfAttackPreparation', 'declareWolfAttack', 'advanceWolfAttackToLongRange',
-    'getPdfEscortWingLaunch', 'launchPdfEscortWing', 'startWolfConsoleVisit', 'resolveWolfConsoleSabotage',
-    'submitWolfSupplySabotage', 'acknowledgeWolfHackingAlert', 'submitWolfHomingBeacon', 'submitWolfIntelligence',
-    'investigateAsIntelligenceAgent', 'unlockPressAirspace', 'popShipConfetti', 'refreshPresence',
-    'disconnectFromSession', 'expireStalePlayers', 'releaseSeat', 'elevateToGm',
-    'scavengeDestroyedShipStores', 'adjustShipResource', 'adjustShipUnrest', 'consentCommissarPurge',
-    'applyCommissarPurge', 'getCommissarPurgeAuthority', 'dismissUnrestAlert', 'resolveShipMutiny',
-    'addShipDamage', 'adjustShipPopulation', 'applyShipCounterSteps', 'setFighterWingCount',
-    'buildFighter', 'dismissPopulationAlert', 'runHighwallMining', 'requestScout',
-    'rollHummingbirdHarvest', 'allocateHummingbirdHarvest', 'setSmallShipDocking', 'runSmallShipMaintenance',
-    'runVoyage33Maintenance', 'runVulcanAdditionalLabour', 'runMaintenance', 'drawVipCard',
-    'transferVipCard', 'rerollVipUnrest', 'publishAdmiralDirectiveCommand', 'recordPresidentActionCommand',
-    'updatePoliticalCapital', 'setFleetRedAlert', 'repairAllShipDamage', 'rollbackMaintenance',
+    'transferBaseCapybaraCargo', 'readPrivateScoutResult', 'listPendingScoutRequests', 'resolvePendingScoutRequest',
+    'createSession', 'confirmSetup', 'setFacilitatorResponsibility', 'startGame',
+    'transferShuttleControlCommand', 'dealPrivateInitialCards', 'openPrivateMissionDiscards', 'setShipPreference',
+    'assignRole', 'releaseRole', 'setReplacementEligibility', 'assignReplacementRole',
+    'setFacilitatorCensusNote', 'calculateArrestPosse', 'deliverWolfCultIntelligence', 'transitionCrisis',
+    'setDiseaseQuarantine', 'admitVoyage33', 'recordZealotryResponse', 'recordCivilUnrestResolution',
+    'submitCivilUnrestGrievance', 'authorArbourVision', 'authorFacilitatorRuleCall', 'setCandidatePlanCheckpoint',
+    'assignLoyalty', 'joinSession', 'resumeSession', 'claimGmInstance',
+    'setGmShipConsoleWriteGrant', 'listGmInstances', 'kickGmInstance', 'releaseGmInstance',
+    'kickPlayer', 'triggerDradisContact', 'setPressEnabled', 'moveShipToLocation',
+    'jumpShip', 'setShipConsoleLock', 'setGmControlsLocked', 'setDebriefMode',
+    'advanceTurn', 'parkShuttlesAtAirspaceClosure', 'startSinglePlayerDemo', 'replayTurnStartAnnouncement',
+    'extendAirspaceWindow', 'setEmergencyTimerPaused', 'setWolfAttackWindow', 'stageWolfAttackPreparation',
+    'declareWolfAttack', 'advanceWolfAttackToLongRange', 'getPdfEscortWingLaunch', 'launchPdfEscortWing',
+    'startWolfConsoleVisit', 'resolveWolfConsoleSabotage', 'submitWolfSupplySabotage', 'acknowledgeWolfHackingAlert',
+    'submitWolfHomingBeacon', 'submitWolfIntelligence', 'investigateAsIntelligenceAgent', 'unlockPressAirspace',
+    'popShipConfetti', 'refreshPresence', 'disconnectFromSession', 'expireStalePlayers',
+    'releaseSeat', 'elevateToGm', 'scavengeDestroyedShipStores', 'adjustShipResource',
+    'adjustShipUnrest', 'consentCommissarPurge', 'applyCommissarPurge', 'getCommissarPurgeAuthority',
+    'dismissUnrestAlert', 'resolveShipMutiny', 'addShipDamage', 'adjustShipPopulation',
+    'applyShipCounterSteps', 'setFighterWingCount', 'buildFighter', 'dismissPopulationAlert',
+    'runHighwallMining', 'requestScout', 'rollHummingbirdHarvest', 'allocateHummingbirdHarvest',
+    'setSmallShipDocking', 'runSmallShipMaintenance', 'runVoyage33Maintenance', 'runVulcanAdditionalLabour',
+    'runMaintenance', 'drawVipCard', 'transferVipCard', 'rerollVipUnrest',
+    'publishAdmiralDirectiveCommand', 'recordPresidentActionCommand', 'updatePoliticalCapital', 'setFleetRedAlert',
+    'repairAllShipDamage', 'rollbackMaintenance',
   ],
   'functions/src/wolfAssignment.ts': [
     'startGame',
@@ -137,13 +138,15 @@ const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
   ],
   'functions/src/mutiny.ts': [
     'joinSession', 'resumeSession', 'moveShipToLocation', 'jumpShip',
-    'setShipConsoleLock', 'unlockPressAirspace', 'adjustShipResource', 'adjustShipUnrest',
-    'dismissUnrestAlert', 'resolveShipMutiny', 'addShipDamage', 'adjustShipPopulation',
-    'applyShipCounterSteps', 'setFighterWingCount', 'buildFighter', 'dismissPopulationAlert',
-    'setSmallShipDocking', 'runSmallShipMaintenance', 'runVoyage33Maintenance', 'runMaintenance',
-    'drawVipCard', 'transferVipCard', 'rerollVipUnrest', 'publishAdmiralDirectiveCommand',
-    'recordPresidentActionCommand', 'updatePoliticalCapital', 'setFleetRedAlert', 'repairAllShipDamage',
-    'rollbackMaintenance',
+    'setShipConsoleLock', 'getAegisCommandAndControl', 'applyAegisCommandAndControl', 'getDioneMaliadesLaunch',
+    'launchDioneMaliades', 'getPdfEscortWingLaunch', 'launchPdfEscortWing', 'unlockPressAirspace',
+    'adjustShipResource', 'adjustShipUnrest', 'dismissUnrestAlert', 'resolveShipMutiny',
+    'addShipDamage', 'adjustShipPopulation', 'applyShipCounterSteps', 'setFighterWingCount',
+    'buildFighter', 'dismissPopulationAlert', 'runHighwallMining', 'requestScout',
+    'rollHummingbirdHarvest', 'allocateHummingbirdHarvest', 'setSmallShipDocking', 'runSmallShipMaintenance', 'runVoyage33Maintenance',
+    'runMaintenance', 'drawVipCard', 'transferVipCard', 'rerollVipUnrest',
+    'publishAdmiralDirectiveCommand', 'recordPresidentActionCommand', 'updatePoliticalCapital', 'setFleetRedAlert',
+    'repairAllShipDamage', 'rollbackMaintenance',
   ],
   'functions/src/voyage33Maintenance.ts': [
     'startGame', 'joinSession', 'resumeSession', 'advanceTurn',
@@ -1116,11 +1119,33 @@ function requestGuardCallableImpacts(before, after, cwd, sourceAtRevision = null
   return addedCallables;
 }
 
+function reconnectCommandErrorImpacts(before, after, cwd, sourceAtRevision) {
+  const file = 'functions/src/commandErrors.ts';
+  const readAt = (revision) => sourceAtRevision ? sourceAtRevision(revision, file)
+    : execFileSync('git', ['show', `${revision}:${file}`], {
+      encoding: 'utf8', cwd, stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  const previous = readAt(before);
+  const current = readAt(after);
+  const addition = "  'station-selection-required',\n";
+  if (previous.includes(addition) || current.split(addition).length !== 2 ||
+      current.replace(addition, '') !== previous) {
+    throw new Error('Cannot safely map command error changes outside the additive reconnect taxonomy value.');
+  }
+  // The taxonomy is consumed as a type; these three runtime writers emit the
+  // new discriminant. Other error behavior must receive a separate audit.
+  return ['joinSession', 'resumeSession', 'refreshPresence'];
+}
+
 function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }) {
   const runtimeFiles = files.map(normalizeFile).filter((file) =>
     file.startsWith('functions/src/') && !isTestFile(file) && /\.(?:ts|js|mjs|cjs)$/.test(file));
   const selected = new Set();
   for (const file of runtimeFiles) {
+    if (file === 'functions/src/commandErrors.ts') {
+      for (const name of reconnectCommandErrorImpacts(before, after, cwd, sourceAtRevision)) selected.add(name);
+      continue;
+    }
     if (file === 'functions/src/index.ts') {
       for (const name of changedIndexCallables(before, after, cwd, sourceAtRevision)) selected.add(name);
       continue;
