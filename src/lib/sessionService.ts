@@ -134,6 +134,13 @@ const TRANSIENT_COMMAND_ERRORS = new Set([
   'functions/internal',
   'functions/unknown',
 ]);
+const CONFIRMED_JUMP_REJECTION_ERRORS = new Set([
+  'unauthenticated',
+  'permission-denied',
+  'invalid-argument',
+  'failed-precondition',
+  'not-found',
+]);
 export const CONNECT_RETRY_INTERVAL_MS = 2_000;
 
 interface ResumeRateLimitHold {
@@ -3171,7 +3178,10 @@ export function createJumpShipAttempt(shipId: string, destination: string): Jump
 }
 
 export function isJumpShipOutcomeUncertain(cause: unknown): boolean {
-  return isTransientCommandError(cause);
+  const code = commandErrorCode(cause);
+  const confirmedRejection = CONFIRMED_JUMP_REJECTION_ERRORS.has(code) ||
+    (code === 'resource-exhausted' && isRateLimitedCommandError(cause));
+  return !confirmedRejection;
 }
 
 /** Submit one captured, powered, coordinate-locked jump request to the authoritative drive. */
