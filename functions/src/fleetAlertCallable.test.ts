@@ -41,13 +41,13 @@ it('lets the active Admiral raise and cancel the shared warning', async () => {
   expect(raise.fleetRedAlert).toMatchObject({
     active: true,
     revision: 1,
-    text: 'RED ALERT // WOLF ATTACK IMMINENT ALL HANDS TO BATTLE STATIONS. NON-CREW MUST SHELTER IN PLACE UNTIL ALERT LIFTED .',
+    text: 'RED ALERT // WOLF ATTACK IMMINENT ALL HANDS TO BATTLE STATIONS. NON-CREW MUST SHELTER IN PLACE UNTIL ALERT LIFTED',
   });
   expect(raise.fleetTicker).toMatchObject({
     current: {
       source: 'admiral',
       sourceId: 'red-alert:1',
-      text: 'ICSN ADMIRAL // RED ALERT // WOLF ATTACK IMMINENT ALL HANDS TO BATTLE STATIONS. NON-CREW MUST SHELTER IN PLACE UNTIL ALERT LIFTED .',
+      text: 'ICSN ADMIRAL // RED ALERT // WOLF ATTACK IMMINENT ALL HANDS TO BATTLE STATIONS. NON-CREW MUST SHELTER IN PLACE UNTIL ALERT LIFTED',
     },
   });
   mock.active = true; mock.revision = 1;
@@ -99,7 +99,7 @@ it('keeps the eligible Press pool behind AEGIS instead of losing it to phase pri
     current: {
       source: 'admiral',
       sourceId: 'red-alert:1',
-      text: 'ICSN ADMIRAL // RED ALERT // WOLF ATTACK IMMINENT ALL HANDS TO BATTLE STATIONS. NON-CREW MUST SHELTER IN PLACE UNTIL ALERT LIFTED .',
+      text: 'ICSN ADMIRAL // RED ALERT // WOLF ATTACK IMMINENT ALL HANDS TO BATTLE STATIONS. NON-CREW MUST SHELTER IN PLACE UNTIL ALERT LIFTED',
     },
     queued: [{ source: 'press', sourceId: 'dispatch-1', priority: 50 }],
   });
