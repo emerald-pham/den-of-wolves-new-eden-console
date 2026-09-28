@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
@@ -2235,6 +2235,56 @@ it('lets the current holder request a local departure during open airspace witho
   expect(requestShuttleDeparture).toHaveBeenCalledWith('starlight', 'icebreaker', 4, 2);
   expect(screen.getByRole('status')).toHaveTextContent('Departure requested to Icebreaker.');
   expect(screen.getByText('Shuttle location // Docked // AEGIS')).toBeVisible();
+});
+
+it('disables departure as soon as the airspace deadline passes without a session update', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-28T12:00:00.000Z'));
+  let unmount: () => void = () => undefined;
+  try {
+    const state = useSessionStore.getState();
+    state.setSession({
+      ...state.session!, phase: 'active', currentTurn: 2,
+      activeRoleIds: ['wing-commander', 'icebreaker-miner'],
+      activeVesselIds: ['aegis', 'icebreaker'],
+      turnPhase: {
+        turn: 2,
+        teamPhaseEndsAt: '2026-09-28T11:59:00.000Z',
+        openAirspaceEndsAt: '2026-09-28T12:00:30.000Z',
+        airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+      },
+      shuttleDockings: [
+        { shuttleId: 'starlight', shipId: 'aegis', dockedAt: '2026-09-28T11:00:00.000Z' },
+      ],
+      shuttleControl: { starlight: {
+        shuttleId: 'starlight', ownerRoleId: 'wing-commander', ownerUid: 'u1',
+        holderUid: 'u1', revision: 4,
+      } },
+    });
+    state.setMe({ ...state.me!, assignedRoleId: 'wing-commander',
+      activeConsoleRoleId: 'wing-commander', fleetGroupId: 'fleet-1' });
+    state.setConnection('live');
+    state.setSessionSnapshotFreshness('server');
+    ({ unmount } = render(<MemoryRouter initialEntries={['/shuttles/starlight']}><Routes>
+      <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+    </Routes></MemoryRouter>));
+
+    const destination = screen.getByRole('combobox', { name: 'Destination ship' });
+    const departure = screen.getByRole('button', { name: 'Request departure' });
+    expect(destination).toBeEnabled();
+    fireEvent.change(destination, { target: { value: 'icebreaker' } });
+    expect(departure).toBeEnabled();
+
+    act(() => vi.advanceTimersByTime(30_000));
+
+    expect(destination).toBeDisabled();
+    expect(departure).toBeDisabled();
+    expect(screen.getByText('Departure requests open when airspace is open.')).toBeVisible();
+    expect(requestShuttleDeparture).not.toHaveBeenCalled();
+  } finally {
+    unmount();
+    vi.useRealTimers();
+  }
 });
 
 it('lets the SNN holder request departure during AEGIS-authorized restricted airspace', async () => {
