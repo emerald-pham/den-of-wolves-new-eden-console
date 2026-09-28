@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MemoryRouter } from 'react-router-dom';
+import { Link, MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import ContactPlot, { type PlotContact } from '@/components/ContactPlot';
 import { SCAN_FRESH_MS } from '@/components/sweep';
 import PursuitTracker from '@/components/PursuitTracker';
@@ -86,6 +86,25 @@ const SAMPLE_PRESS_LOG: readonly PressLogEntry[] = [
     recordedAt: '2026-09-27T21:03:00.000Z' },
 ];
 
+function PreparedStationPreview() {
+  const { pathname } = useLocation();
+  const roleId = pathname.split('/').at(-1);
+  const role = CONSOLE_ROLES.find((candidate) => candidate.id === roleId);
+  const station = role?.name ?? (pathname === '/press'
+    ? 'Press Officer'
+    : pathname === '/gm'
+      ? 'GM Console'
+      : pathname === '/roles'
+        ? 'Role selection'
+        : 'Ship stations');
+  return <section className="pc02-review__station-preview cic-frame" aria-label="Prepared station preview">
+    <p className="cic-overline">SAMPLE ONLY // NO ROLE CLAIM</p>
+    <h4>{station}</h4>
+    <p>The roster leads to this station in the live console. This prepared scene keeps the route local and does not claim a seat or send a command.</p>
+    <Link className="cic-text-button" to="/console">Return to role lobby</Link>
+  </section>;
+}
+
 export default function PC02ReviewScene() {
   const [step, setStep] = useState<Step>('setup');
   const [perspective, setPerspective] = useState<Perspective>('gm');
@@ -161,8 +180,9 @@ export default function PC02ReviewScene() {
             : {})}
         />
         {setupActionStage === 'brief' ? <div className="pc02-review__roster" aria-label="Prepared role lobby">
-          <MemoryRouter>
-            <FleetRoster
+          <MemoryRouter initialEntries={['/console']}>
+            <Routes>
+              <Route path="/console" element={<FleetRoster
               session={{ phase: 'lobby' }}
               player={{ role: 'player' }}
               sessionName="FLEET-02 // PREPARED LOBBY"
@@ -178,7 +198,9 @@ export default function PC02ReviewScene() {
               viewerUid="sample-player"
               activeConsoleRoleId={null}
               replacementRoleId={null}
-            />
+              />} />
+              <Route path="*" element={<PreparedStationPreview />} />
+            </Routes>
           </MemoryRouter>
         </div> : <section className="pc02-review__sample-action cic-frame" aria-label="Prepared first action">
           <p className="cic-overline">Assigned station // Admiral // AEGIS</p>
