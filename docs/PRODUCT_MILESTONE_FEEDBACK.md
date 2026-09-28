@@ -92,3 +92,17 @@ later UI feedback remains welcome and follows the ordinary cooldown process.
 | PC03-F03 | Fixed in PC04 cooldown. | Client, callable, restore, alert, and ticker coverage asserts the exact owner-supplied default, and the exact-SHA ticker browser gates passed. |
 | PC03-F04 | Fixed in PC04 cooldown and retained as a mandatory release gate. | 61 font-contract checks and a 56-case rendered comparison against exact PC01 release `4e8e3876108709f2a620c4f71ea874183d3db4ee` passed; workflow 36466514603 ran the non-bypassable computed-style gate before deployment. |
 | PC03-F05 | Encoded app-wide and applied to the released mission-start slice. | The server owns the deterministic mission snapshot, initial deal, replay/recovery, and complete GM-log receipt; the GM records only the team-selected roster and leader. Ordinary authorized gameplay remains an agent-owned evidence gap. |
+
+
+## Campaign completion correction — latest instruction, 2026-09-28
+
+The owner first clarified the original half-by-PC05/all-by-PC10 intention,
+then considered PC15, and finally explicitly replaced both with: **distribute
+remaining prompts evenly across PC05 through PC10**. Only that latest
+instruction controls future targets. This is a completion plan, not permission
+to count partial work as done.
+
+| Note ID | Owner request | Disposition | Evidence / next action |
+|---|---|---|---|
+| CAMPAIGN-F01 | Distribute the 293 remaining prompts evenly across PC05–PC10. | Applied: 49 closures each for PC05–PC09 and 48 for PC10; literal total-done targets 507, 556, 605, 654, 703, 751. Earlier PC05-half and PC15 proposals superseded. | [Recovery plan](CHECKPOINT_COMPLETION_PLAN.md); task owner carries each assigned tranche through implementation and gameplay proof. |
+| CAMPAIGN-F02 | Check whether earlier checkpoints completed prompts without recording them. | Audited historical catalog snapshots and current descriptions; five stale implementation descriptions corrected, no unsupported done promotions. | [Accounting audit](CHECKPOINT_ACCOUNTING_AUDIT.md); recover completion credit only against full acceptance evidence. |

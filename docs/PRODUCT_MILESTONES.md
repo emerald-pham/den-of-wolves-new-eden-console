@@ -1,5 +1,15 @@
 # Product playtest checkpoints
 
+**Latest owner correction, 2026-09-28:** distribute the **293 remaining prompts
+evenly across PC05–PC10**: **49 each for PC05–PC09, then 48 for PC10**.
+The overall targets are **507, 556, 605, 654, 703, and 751 of 751 done**.
+This supersedes both the PC05-half catch-up proposal and the PC15 extension.
+Follow the literal targets and complete replacement allocation in
+[Checkpoint Completion Recovery Plan](CHECKPOINT_COMPLETION_PLAN.md).
+UI review and owner authorization do not waive these completion targets.
+The old cluster route and PC01–PC04 shapes below are historical context, not
+permission to advance the campaign on presentation-only releases.
+
 This is the owner-facing route through the unfinished Den of Wolves prompts.
 The word for an owner-facing milestone is **playtest checkpoint**. Each one is
 defined by **yes/no questions about the UI that the product owner may answer
@@ -28,7 +38,7 @@ before claiming the affected gameplay prompts complete.
 The final game-completion gate includes the full-table twenty-player proof;
 the owner is never responsible for recruiting or operating that table.
 
-The initial prompt allocation below covers the **293 partial or missing
+The historical initial prompt allocation below covered the **293 partial or missing
 prompts in the 751-prompt catalog on 2026-09-27**. It is a routing snapshot,
 not a second status ledger or a promise that every row is ready to build.
 [`implementation-prompts.json`](implementation-prompts.json) remains the
@@ -57,8 +67,9 @@ make, even when the shaped UI passed.
    current catalog, source passages, dependencies, live product, and active
    ownership. Write the problem, what is in and out, known rabbit holes,
    source-backed assumptions, and the exact owner-playable **UI** yes/no checks.
-   Provide a one-sitting walkthrough with prepared starting states. Split the
-   shape if that walkthrough needs more than one sitting. State how each
+   Provide a one-sitting walkthrough of representative finished workflows.
+   Split internal work or interim releases if needed; never shrink or split
+   the fixed checkpoint completion target to fit the walkthrough. State how each
    available prior feedback item is addressed. Only the next checkpoint is
    fully shaped; the later rows below are candidates, not fixed scope.
 2. **Build the shaped scope.** Once shaped, its scope is fixed. A defect that
@@ -80,8 +91,9 @@ make, even when the shaped UI passed.
    and build on that reading. Put new assumptions **first** in the milestone
    report so the owner can correct them. If a passage is unavailable, state
    that limit truthfully, work on independent scope, and report the gap. If
-   work grows beyond the shape, finish the shaped work, put the overflow in the
-   candidate list, and continue to the next checkpoint. Stop only when there
+   unrelated work grows beyond the shape, put it in the candidate list. Work
+   needed for the fixed completion target stays in the checkpoint; advance
+   only after that target is met. Stop only when there
    is no useful independent progress possible. Velocity never justifies
    weakening, skipping, or deleting a test.
 4. **Hand over a playable product.** Verify the released build and its
@@ -116,14 +128,16 @@ authorize the checkpoint. This process
 changes no existing task's accepted scope and creates no Git, CI, or
 deployment approval gate.
 
-## Provisional UI-cluster playtest route
+## Historical UI-cluster playtest route — superseded allocation
 
-These **ten candidate UI clusters** group screens from the same player
-workflow; PC02–PC10 remain provisional and are shaped after prior feedback.
+These **ten original candidate UI clusters** grouped screens from the same player
+workflow. The recovery plan now controls scope and completion targets; retain
+these themes only as presentation references.
 The owner may review presentation and usability in a solo review scene or
 explicitly authorize the checkpoint without completing that review. Agents
 complete the gameplay and technical proof, including multi-client tests. The
-tour must fit one sitting; if it does not, split the shape before building it.
+tour must fit one sitting; trim the representative tour or split internal
+work without reducing the fixed completion target.
 
 | Playtest checkpoint | Owner's UI yes/no question |
 |---|---|
@@ -138,9 +152,9 @@ tour must fit one sitting; if it does not, split the shape before building it.
 | PC09 — Candidate and endgame panels | Can I understand the Ring, Nebula, and Station panels and see the next available action in each prepared scene? |
 | PC10 — Endings and final UI pass | Can I read the distinct ending screens and move through the finished app without confusing or broken UI? |
 
-### Internal prompt allocation for agents
+### Historical initial prompt allocation for agents
 
-The IDs below allocate the 293 partial or missing prompts from the dated
+The IDs below record the original allocation of 293 partial or missing prompts from the dated
 catalog snapshot. They are **agent work, not owner acceptance checks**. The
 catalog controls current status and prerequisites. A held prompt may move to a
 later candidate during shaping; a pleasant screen cannot make it complete.
