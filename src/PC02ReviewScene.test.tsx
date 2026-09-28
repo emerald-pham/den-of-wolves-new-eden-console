@@ -24,6 +24,9 @@ it('provides one clearly synthetic six-step PC02 sitting with every requested pe
   await user.click(within(steps).getByRole('button', { name: /fleet board/i }));
   expect(screen.getByRole('region', { name: 'Pursuit tracker' }))
     .toHaveTextContent('Awaiting CIC handshake');
+  expect(screen.getByRole('region', { name: 'Primary game status' })).toHaveTextContent('Cycle');
+  await user.selectOptions(perspective, 'player');
+  expect(screen.queryByRole('region', { name: 'Primary game status' })).toBeNull();
 });
 
 it('shows the real three-check gate at the synthetic 72-hour boundary', async () => {
