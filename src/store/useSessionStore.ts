@@ -481,6 +481,8 @@ interface SessionState {
   sessionSnapshotFreshness: 'unknown' | 'cache' | 'server';
   /** A local-storage snapshot was restored before this browser revalidated it. */
   persistedSessionSnapshot: boolean;
+  /** Changes when a join or resume replaces identity and clears private projections. */
+  identityHydrationRevision: number;
 
   setSession: (session: GameSession | null) => void;
   setIdentity: (session: GameSession, me: Player) => void;
@@ -553,11 +555,12 @@ const initial = {
   connection: 'idle',
   sessionSnapshotFreshness: 'unknown',
   persistedSessionSnapshot: false,
+  identityHydrationRevision: 0,
 } satisfies Pick<
   SessionState,
   'session' | 'seats' | 'me' | 'gmInstance' | 'gmAccessAuthenticatedAt' | 'turnStartReplay' | 'pendingCommands' |
   'privateLoyalty' | 'roleBrief' | 'awayMissionHandPointer' | 'awayMissionHand' | 'awayMissionHandPointers' | 'awayMissionHands' | 'gmAwayMissionHandPointers' | 'gmLoyaltyCensus' | 'wolfCultIntelligence' | 'gmWolfCultIntelligence' | 'arbourVision' | 'gmArbourVision' | 'facilitatorRuleCall' | 'gmFacilitatorRuleCall' | 'gmCrisisState' | 'gmZealotryResponse' | 'gmCivilUnrestResolution' | 'gmSetupReceipt' | 'commissarPurgeAuthority' | 'communicationError' | 'mode' | 'lastRoute' | 'connection' |
-  'sessionSnapshotFreshness' | 'persistedSessionSnapshot'
+  'sessionSnapshotFreshness' | 'persistedSessionSnapshot' | 'identityHydrationRevision'
 >;
 
 function normalizePersistedSession(session: GameSession | null | undefined): GameSession | null {
@@ -584,13 +587,14 @@ export const useSessionStore = create<SessionState>()(
         session,
         ...(session === null ? { persistedSessionSnapshot: false } : {}),
       }),
-      setIdentity: (session, me) => set({
+      setIdentity: (session, me) => set((state) => ({
         session, me, roleBrief: null, awayMissionHandPointer: null, awayMissionHand: null,
         awayMissionHandPointers: [], awayMissionHands: [],
         gmAwayMissionHandPointers: [], wolfCultIntelligence: null, gmWolfCultIntelligence: null,
         arbourVision: null, gmArbourVision: null, facilitatorRuleCall: null,
         gmFacilitatorRuleCall: null, gmCrisisState: null, gmZealotryResponse: null, gmCivilUnrestResolution: null, commissarPurgeAuthority: null,
-      }),
+        identityHydrationRevision: state.identityHydrationRevision + 1,
+      })),
       setSeats: (seats) => set({ seats }),
       // Presence snapshots often carry the same player fields. Avoid notifying
       // the entire UI and serializing the full persisted session in that case.
@@ -674,6 +678,7 @@ export const useSessionStore = create<SessionState>()(
           lastRoute: null,
           sessionSnapshotFreshness: 'unknown',
           persistedSessionSnapshot: false,
+          identityHydrationRevision: state.identityHydrationRevision + 1,
           // Queued disconnect and logout commands must survive local teardown
           // so the server can receive the user's explicit cleanup decision.
           pendingCommands: state.pendingCommands.filter(
@@ -716,6 +721,7 @@ export const useSessionStore = create<SessionState>()(
             ? 'cache'
             : current.sessionSnapshotFreshness,
           persistedSessionSnapshot: hasRestoredSession && restoredSession !== null,
+          identityHydrationRevision: current.identityHydrationRevision,
         };
       },
     },

@@ -120,6 +120,7 @@ function AppRoutes() {
   const playerUid = me?.uid;
   const playerRole = me?.role;
   const playerAuthority = playerAuthorityKey(me);
+  const identityHydrationRevision = useSessionStore((state) => state.identityHydrationRevision);
   const escapeLocked = me?.role === 'player' && me.escapeState !== undefined;
   const playerListenerGeneration = useRef(0);
   const playerListenerIdentity = useRef('');
@@ -781,7 +782,7 @@ function AppRoutes() {
       unsubscribeAuthorityFreshness();
       unsubscribe();
     };
-  }, [playerAuthority, playerRole, playerUid, sessionId]);
+  }, [identityHydrationRevision, playerAuthority, playerRole, playerUid, sessionId]);
 
   useEffect(() => {
     if (gmAccessAuthenticatedAt === null) return;
