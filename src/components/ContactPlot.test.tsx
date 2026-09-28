@@ -672,6 +672,40 @@ it('gives the plot origin text a measurable box so contact names can avoid it', 
   expect(originRule).toMatch(/height:\s*auto/);
 });
 
+it('keeps a contact name clear of the compact DRADIS controls', () => {
+  const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
+    x: left, y: top, left, top, width, height,
+    right: left + width, bottom: top + height,
+  }) as DOMRect;
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    if (this.classList.contains('contact-plot')) return bounds(0, 0, 320, 240);
+    if (this.classList.contains('ship-plot__toggle')) return bounds(245, 188, 60, 30);
+    if (this.classList.contains('contact-plot__tag')) {
+      const x = Number.parseFloat((this as HTMLElement).style.getPropertyValue('--label-clamp-x')) || 0;
+      const y = Number.parseFloat((this as HTMLElement).style.getPropertyValue('--label-clamp-y')) || 0;
+      return bounds(240 + x, 190 + y, 70, 20);
+    }
+    return bounds(0, 0, 0, 0);
+  });
+
+  const { container } = render(<div className="ship-plot">
+    <ContactPlot contacts={[{ tag: 'REFINERY 124', x: 0.2, y: 0.1, z: 0, color: 'white' }]} />
+    <button className="ship-plot__toggle" type="button">Zoom</button>
+  </div>);
+  const label = container.querySelector<HTMLElement>('.contact-plot__tag')!;
+  const zoom = container.querySelector<HTMLElement>('.ship-plot__toggle')!;
+  const labelRect = label.getBoundingClientRect();
+  const controlRect = zoom.getBoundingClientRect();
+  expect(labelRect.right <= controlRect.left || labelRect.left >= controlRect.right ||
+    labelRect.bottom <= controlRect.top || labelRect.top >= controlRect.bottom).toBe(true);
+});
+
+it('sets readable contact-name type sizes in compact and expanded ship plots', () => {
+  const css = readFileSync('src/styles/plot.css', 'utf8');
+  expect(css).toMatch(/\.ship-plot\[data-expanded='false'\] \.contact-plot__tag\s*\{[^}]*font-size:\s*0\.6rem/s);
+  expect(css).toMatch(/\.ship-plot\[data-expanded='true'\] \.contact-plot__tag\s*\{[^}]*font-size:\s*0\.75rem/s);
+});
+
 it('lets a name wider than the plot wrap inside the visible scan area', () => {
   const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
     x: left, y: top, left, top, width, height,
