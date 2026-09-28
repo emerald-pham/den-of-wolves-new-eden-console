@@ -28,6 +28,7 @@ const players = [
 ];
 const session = {
   id: 's1', phase: 'active', currentTurn: 2, turnLimit: 6, setupRevision: 4, chartId: 'A',
+  chartSelectionLocked: true,
   activeRoleIds: ['wing-commander', 'icebreaker-miner'],
   turnState: {
     currentTurn: 2, maxTurn: 6, phase: 'coordination', phaseRevision: 3,
