@@ -754,6 +754,23 @@ describe('dealPrivateInitialCards', () => {
     });
   });
 
+  it('does not treat a surviving PDF Escort Wing outside the opportunity group as current carriage', async () => {
+    mock.shuttleDockings = [];
+    mock.pdfEscortWingState = initialPdfEscortWingState();
+    const group = mock.fleetGroups[0]!;
+    group.fields.vesselIds = (group.fields.vesselIds as string[]).filter((shipId) => shipId !== 'refinery-124');
+    group.fields.memberUids = (group.fields.memberUids as string[]).filter((uid) => uid !== 'colonel');
+    players.find(({ id }) => id === 'colonel')!.fields.fleetGroupId = 'fleet-2';
+    mock.fleetGroups.push({
+      id: 'fleet-2', fields: { id: 'fleet-2', vesselIds: ['refinery-124'], memberUids: ['colonel'] },
+    });
+    await expect(dealPrivateInitialCards.run(request({
+      ...command, participantUids: ['admiral'], missionLeaderUid: 'admiral',
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.create).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+  });
+
   it('does not let an earlier J/K cycle opportunity start after a later leave-and-return opportunity exists', async () => {
     const prior = {
       ...defaultOpportunity,
