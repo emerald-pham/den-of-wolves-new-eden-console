@@ -681,7 +681,9 @@ it('renders current and retained repair history with progress and keyboard stop 
 
   expect(region).toHaveAttribute('tabindex', '0');
   expect(renderedChanges.every((change) => !/\bprompts?\b/i.test(change))).toBe(true);
-  expect(within(newestEntry).getByText(
+  const previousPc03Entry = within(region).getByRole('heading', { name: 'Build 0.5.53' }).closest('article');
+  if (!previousPc03Entry) throw new Error('Expected the preserved 0.5.53 release entry.');
+  expect(within(previousPc03Entry).getByText(
     'Ship consoles now link directly to resource stores and shuttle docking history.',
   )).toBeVisible();
   const previousPc02Entry = within(region).getByRole('heading', { name: 'Build 0.5.52' }).closest('article');
