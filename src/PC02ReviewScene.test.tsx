@@ -4,6 +4,13 @@ import { expect, it } from 'vitest';
 import PC02ReviewScene from './PC02ReviewScene';
 import { CONSOLE_ROLES } from '@/data/roles';
 
+it('shows the production role roster in the prepared lobby without connecting a session', () => {
+  const { container } = render(<PC02ReviewScene />);
+  expect(container.querySelector('.fleet-roster')).not.toBeNull();
+  expect(screen.getByRole('heading', { name: 'Select a role' })).toBeVisible();
+  expect(screen.getByRole('link', { name: 'Press Officer' })).toBeVisible();
+});
+
 it('provides one clearly synthetic six-step PC02 sitting with every requested perspective', async () => {
   const user = userEvent.setup();
   render(<PC02ReviewScene />);
