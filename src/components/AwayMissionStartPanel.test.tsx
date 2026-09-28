@@ -81,3 +81,50 @@ it('records the selected roster and in-roster Mission Leader against the exact o
   expect(screen.getByRole('status')).toHaveTextContent(/mission started/i);
   expect(screen.queryByText(/A♥/)).not.toBeInTheDocument();
 });
+
+it('shows the complete server-owned mission-start receipt to the facilitator without private cards', () => {
+  mocks.subscribeGmMissionStartSnapshots.mockImplementation((_sessionId, onItems) => {
+    onItems([{
+      type: 'away-mission-start-snapshot', sessionId: 's1',
+      opportunityId: opportunity.id, missionId: `mission-${opportunity.id}`,
+      groupId: 'fleet-1', chart: 'A', coordinate: '5143', siteCode: 'L',
+      sourceShipId: 'aegis', sourceTransitionId: 'jump-entry-1', sourceCycle: 2,
+      missionLeader: { uid: 'alice', roleId: 'wing-commander' },
+      actorUid: 'gm1', instanceId: 'bridge', requestId: 'request-1',
+      source: {
+        assumptionId: 'PC04-A1',
+        playerGuide: 'Player’s Guide v1.1, printed pp. 14–15',
+        facilitatorGuide: 'Facilitator’s Guide v1.1, printed pp. 13–17',
+        ruleId: 'new-location-mission-with-team-selected-leader',
+      },
+      inputs: {
+        expectedSetupRevision: 4, expectedPhaseRevision: 3, expectedCycle: 2,
+        participantSnapshots: [{ uid: 'alice', roleId: 'wing-commander', craftIds: ['starlight'] }],
+        missionLeaderUid: 'alice',
+      },
+      modifiers: [], outcome: 'started',
+      stateDelta: { missionSnapshotCreated: true, participantHandCount: 1, participantPointerCount: 1 },
+      revisions: { setup: 4, phase: { cycle: 2, phase: 'coordination', revision: 3 } },
+      replay: { status: 'committed', requestId: 'request-1' },
+      recovery: { next: 'Refresh live mission and participant hand panels.' },
+      createdAt: '2026-01-01T00:00:00.000Z',
+    } as never]);
+    return vi.fn();
+  });
+
+  render(<AwayMissionStartPanel
+    session={session as never}
+    players={players as never}
+    instanceId="bridge"
+    isGm
+  />);
+
+  const receipt = screen.getByRole('region', { name: /mission start receipts/i });
+  expect(receipt).toHaveTextContent('PC04-A1');
+  expect(receipt).toHaveTextContent(/Player’s Guide v1\.1/);
+  expect(receipt).toHaveTextContent('alice');
+  expect(receipt).toHaveTextContent('missionSnapshotCreated');
+  expect(receipt).toHaveTextContent(/committed/);
+  expect(receipt).toHaveTextContent(/Refresh live mission/);
+  expect(receipt).not.toHaveTextContent(/A♥|card value/i);
+});
