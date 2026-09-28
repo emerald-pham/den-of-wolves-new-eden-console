@@ -1080,10 +1080,12 @@ describe('midgame departure and recovery', () => {
   });
 
   it.each(NON_GM_CORE_ROLE_IDS)(
-    'opens and safely restores the same core role after an explicit departure: %s',
+    'vacates an explicitly departed core role without restoring private state: %s',
     async (roleId) => {
       const roster = rosterForRole(roleId);
       const privateMarker = `private-loyalty-${roleId}`;
+      const briefMarker = `private-brief-${roleId}`;
+      const investigationMarker = `private-investigation-${roleId}`;
       session({
         phase: 'active', currentTurn: 2, playerCount: roster.length,
         activeRoleIds: [...roster], turnPhase: ACTIVE_TURN_PHASE,
@@ -1099,19 +1101,21 @@ describe('midgame departure and recovery', () => {
       put('sessions/s1/secrets/loyalty-u1', {
         visibleToUids: ['u1'], payload: { type: 'loyalty', marker: privateMarker },
       });
+      put('sessions/s1/roleBriefs/u1', { roleId, marker: briefMarker });
+      put('sessions/s1/intelligenceInvestigations/u1', { marker: investigationMarker });
 
       await disconnectFromSession.run(request({ sessionId: 's1' }));
 
       expect(read('sessions/s1/players/u1')).toMatchObject({
-        connected: false, assignedRoleId: roleId, seatId: roleId,
-        activeConsoleRoleId: roleId,
+        connected: false, assignedRoleId: null, seatId: null,
+        activeConsoleRoleId: null,
       });
       expect(read('sessions/s1/seats/' + roleId)).toMatchObject({
         roleId, status: 'open', holderUid: null, claimedAt: null,
       });
-      expect(read('sessions/s1/secrets/loyalty-u1')).toMatchObject({
-        payload: { marker: privateMarker },
-      });
+      expect(read('sessions/s1/secrets/loyalty-u1')).toBeUndefined();
+      expect(read('sessions/s1/roleBriefs/u1')).toBeUndefined();
+      expect(read('sessions/s1/intelligenceInvestigations/u1')).toBeUndefined();
       expect(read('sessions/s1')).toMatchObject({
         phase: 'active', currentTurn: 2, turnPhase: ACTIVE_TURN_PHASE, deleteAfter: null,
       });
@@ -1119,16 +1123,21 @@ describe('midgame departure and recovery', () => {
       const resumed = await resumeSession.run(request({ sessionId: 's1' }));
 
       expect(resumed.player).toMatchObject({
-        role: 'player', assignedRoleId: roleId, seatId: roleId,
-        activeConsoleRoleId: roleId,
+        role: 'player', assignedRoleId: null, seatId: null,
+        activeConsoleRoleId: null,
       });
       expect(read('sessions/s1/seats/' + roleId)).toMatchObject({
-        roleId, status: 'claimed', holderUid: 'u1',
+        roleId, status: 'open', holderUid: null,
       });
       expect(read('sessions/s1/players/u1')).toMatchObject({
-        connected: true, assignedRoleId: roleId, activeConsoleRoleId: roleId,
+        connected: true, assignedRoleId: null, seatId: null, activeConsoleRoleId: null,
       });
       expect(JSON.stringify(resumed)).not.toContain(privateMarker);
+      expect(JSON.stringify(resumed)).not.toContain(briefMarker);
+      expect(JSON.stringify(resumed)).not.toContain(investigationMarker);
+      expect(read('sessions/s1/secrets/loyalty-u1')).toBeUndefined();
+      expect(read('sessions/s1/roleBriefs/u1')).toBeUndefined();
+      expect(read('sessions/s1/intelligenceInvestigations/u1')).toBeUndefined();
       expect(read('sessions/s1')).toMatchObject({
         phase: 'active', currentTurn: 2, turnPhase: ACTIVE_TURN_PHASE,
       });
