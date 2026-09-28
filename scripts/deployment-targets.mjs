@@ -15,6 +15,7 @@ export const ALL_DEPLOYMENT_TARGETS = Object.freeze([
 const WEB_FILES = new Set([
   'index.html',
   'pc01-review.html',
+  'pc02-review.html',
   'package.json',
   'package-lock.json',
 ]);
