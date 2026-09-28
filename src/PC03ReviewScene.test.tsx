@@ -21,9 +21,10 @@ it('opens the production ship map and log, then returns through systems to the f
 
   expect(screen.getByRole('region', { name: 'Prepared assigned station' })).toHaveTextContent('AEGIS');
   await user.click(screen.getByRole('button', { name: 'Navigation' }));
-  expect(screen.getByRole('region', { name: 'Ship navigation map' })).toBeVisible();
+  const map = screen.getByRole('region', { name: 'Ship navigation map' });
+  expect(map).toBeVisible();
+  expect(map).toHaveTextContent(/Current ship.*5143/i);
   expect(screen.getByRole('region', { name: 'AEGIS ship log' })).toHaveTextContent(/0000.*5143/i);
-  expect(screen.getByText(/Current ship.*5143/i)).toBeVisible();
 
   await user.click(screen.getByRole('button', { name: 'Systems' }));
   await user.click(screen.getByRole('button', { name: 'Return to Fleet Board' }));
@@ -35,7 +36,7 @@ it('opens the production ship map and log, then returns through systems to the f
 it('shows the Drive state matrix while keeping the production jump control inert', async () => {
   const user = userEvent.setup();
   render(<PC03ReviewScene />);
-  await user.click(screen.getByRole('button', { name: /Jump Drive/i }));
+  await user.click(screen.getByRole('button', { name: /2\. Jump Drive/i }));
 
   const states = screen.getByRole('group', { name: 'Prepared Jump Drive states' });
   for (const label of ['Ready', 'Not charged', 'Fuel starved', 'Damaged', 'Integrity locked', 'Pending', 'Committed', 'Stale reply']) {
