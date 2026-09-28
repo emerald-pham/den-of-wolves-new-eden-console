@@ -1188,6 +1188,7 @@ function mockIntrinsicWidthForCacheTests(getNaturalWidth: (label: HTMLElement) =
     right: left + width, bottom: top + height,
   }) as DOMRect;
   let offsetWidthReads = 0;
+  let labelBoundsReads = 0;
   vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
     if (!this.classList.contains('contact-plot__tag')) return 0;
     offsetWidthReads += 1;
@@ -1198,6 +1199,7 @@ function mockIntrinsicWidthForCacheTests(getNaturalWidth: (label: HTMLElement) =
     if (this.classList.contains('contact-plot')) return bounds(0, 0, 246, 320);
     if (this.classList.contains('contact-plot__blip')) return bounds(119, 140, 8, 8);
     if (this.classList.contains('contact-plot__tag')) {
+      labelBoundsReads += 1;
       const label = this as HTMLElement;
       const cap = Number.parseFloat(label.style.maxWidth);
       const naturalWidth = getNaturalWidth(label);
@@ -1211,12 +1213,38 @@ function mockIntrinsicWidthForCacheTests(getNaturalWidth: (label: HTMLElement) =
     }
     return bounds(0, 0, 0, 0);
   });
-  return { offsetWidthReads: () => offsetWidthReads };
+  return {
+    offsetWidthReads: () => offsetWidthReads,
+    labelBoundsReads: () => labelBoundsReads,
+  };
 }
 
 const cachedWidthTestContacts = (x: number) => [{
   id: 'width-cache-context', tag: 'LONG RESEARCH CRUISER', x, y: 0.2, z: 0.1, color: 'white',
 }];
+
+it('reuses intrinsic DRADIS width across sweep freshness transitions while relaying label geometry', () => {
+  const { offsetWidthReads, labelBoundsReads } = mockIntrinsicWidthForCacheTests(() => 180);
+  const { container } = render(<ContactPlot contacts={cachedWidthTestContacts(0.8)} />);
+  const contact = contactsIn(container)[0]!;
+  const initialWidthReads = offsetWidthReads();
+  let previousBoundsReads = labelBoundsReads();
+  expect(initialWidthReads).toBeGreaterThan(0);
+  expect(previousBoundsReads).toBeGreaterThan(0);
+
+  for (const scanFresh of ['true', 'false']) {
+    act(() => {
+      contact.dataset.scanFresh = scanFresh;
+      contact.dispatchEvent(new CustomEvent(CONTACT_SCAN_EVENT, {
+        bubbles: true,
+        detail: { fixChanged: true },
+      }));
+    });
+    expect(labelBoundsReads()).toBeGreaterThan(previousBoundsReads);
+    expect(offsetWidthReads()).toBe(initialWidthReads);
+    previousBoundsReads = labelBoundsReads();
+  }
+});
 
 it('invalidates cached DRADIS name width when responsive viewport rules change', async () => {
   let narrowViewport = false;
