@@ -271,6 +271,7 @@ import {
 } from './index';
 import { recommendedRoleIds } from './roleConfiguration';
 import { INITIAL_SHIP_RESOURCES } from './resources';
+import { PRESENCE_LEASE_MS } from './sessionLifecycle';
 import { airspaceClosureEventId, airspaceClosureTaskPlan } from './airspaceClosureTasks';
 import { callableRateLimitDocumentId } from './callableRateLimit';
 
@@ -306,6 +307,32 @@ function request<T extends Record<string, unknown>>(data: T, uid: string) {
 
 function read(path: string) {
   return mock.documents.get(path);
+}
+
+function markTransientPlayerOffline(sessionId: string, uid: string) {
+  const path = `sessions/${sessionId}/players/${uid}`;
+  const current = read(path);
+  if (!current) throw new Error(`Missing transient player fixture: ${path}`);
+  const seatId = current.seatId;
+  mock.documents.set(path, {
+    ...current,
+    connected: false,
+    lastSeenAt: mock.MockTimestamp.fromDate(
+      new Date(Date.now() - PRESENCE_LEASE_MS - 1),
+    ),
+  });
+  if (typeof seatId === 'string') {
+    const seatPath = `sessions/${sessionId}/seats/${seatId}`;
+    const seat = read(seatPath);
+    if (seat?.holderUid === uid && seat.status === 'claimed') {
+      mock.documents.set(seatPath, {
+        ...seat,
+        status: 'open',
+        holderUid: null,
+        claimedAt: null,
+      });
+    }
+  }
 }
 
 function canonicalStateValue(value: unknown): unknown {
@@ -543,10 +570,7 @@ async function composeProductionSession(
       setupRevision = (assignment as { setupRevision: number }).setupRevision;
     }
 
-    await disconnectFromSession.run(request({
-      sessionId,
-      connectionGeneration: read(`sessions/${sessionId}/players/${coreUids[1]}`)?.connectionGeneration,
-    }, coreUids[1]!));
+    markTransientPlayerOffline(sessionId, coreUids[1]!);
     const resumedBeforeStart = await resumeSession.run(request({ sessionId }, coreUids[1]!));
     const resumedRoleId = (read(`sessions/${sessionId}/players/${coreUids[1]}`) as StoredDocument).assignedRoleId;
     expect(resumedBeforeStart).toMatchObject({
@@ -1207,10 +1231,7 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
       expect(stateSnapshot()).toBe(unsupportedState);
     }
 
-    await disconnectFromSession.run(request({
-      sessionId,
-      connectionGeneration: read(`sessions/${sessionId}/players/${coreUids[0]}`)?.connectionGeneration,
-    }, coreUids[0]!));
+    markTransientPlayerOffline(sessionId, coreUids[0]!);
     const resumed = await resumeSession.run(request({ sessionId }, coreUids[0]!));
     expect(resumed).toMatchObject({
       session: { id: sessionId, phase: 'active', currentTurn: 1 },
