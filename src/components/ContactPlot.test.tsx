@@ -789,6 +789,10 @@ it('moves an anchored name one nearby row when both sides have crowded contact m
       rectangle.bottom <= otherRect.top || rectangle.top >= otherRect.bottom).toBe(true);
   }
   expect(label.style.getPropertyValue('--label-clamp-y')).not.toBe('');
+  const leader = container.querySelector<SVGLineElement>('.contact-plot__leader-line');
+  expect(leader?.dataset.visible).toBe('true');
+  expect(Number(leader?.getAttribute('x1'))).toBeGreaterThan(0);
+  expect(Number(leader?.getAttribute('x2'))).toBeGreaterThan(0);
 });
 
 it('sets readable contact-name type sizes in compact and expanded ship plots', () => {
