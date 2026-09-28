@@ -3200,6 +3200,24 @@ body {
   color: var(--ship-accent);
 }
 
+.ship-console__sections {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.ship-console__sections a {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  white-space: normal;
+}
+
+.ship-console__identity :where(.ship-resources, .ship-shuttlebay) {
+  scroll-margin-block-start: 1rem;
+}
+
 .ship-console__nation {
   margin: 0 0 0.45rem;
   color: var(--ship-accent);

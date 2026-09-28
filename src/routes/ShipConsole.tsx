@@ -477,6 +477,10 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
               ? 'VIP Host'
               : replacementCommissar ? 'Commissar' : consoleRole?.name ?? ''} />
         )}
+        <nav className="ship-console__sections" aria-label="Ship sections">
+          {resources && <a className="cic-text-button" href={`#${ship.id}-resource-stores`}>Resource stores</a>}
+          <a className="cic-text-button" href={`#${ship.id}-shuttlebay`}>Shuttle docking history</a>
+        </nav>
         <section className="ship-console__travel-lock cic-frame" aria-label="ICN console lock">
           <p className="ship-resources__eyebrow">ICN console lock // {consoleLocked ? 'engaged' : 'clear'}</p>
           <p>{consoleLocked ? 'Console actions are locked while travelling.' : 'Lock this console before a ship travels.'}</p>
@@ -552,6 +556,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
         <div className="ship-console__counters">
           {resources && (
             <section
+              id={`${ship.id}-resource-stores`}
               className="ship-resources cic-frame"
               aria-label={`${ship.name} resource stores`}
             >
@@ -681,7 +686,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
             </section>
           </div>
         )}
-        <section className="ship-shuttlebay cic-frame" aria-label={`${ship.name} shuttlebay`}>
+        <section id={`${ship.id}-shuttlebay`} className="ship-shuttlebay cic-frame" aria-label={`${ship.name} shuttlebay`}>
           <p className="ship-shuttlebay__eyebrow">Shuttlebay // docking manifest</p>
           <h2>Shuttle docking history</h2>
           {shuttlebay?.visits.some((visit) => visit.action === 'docked') ? (
