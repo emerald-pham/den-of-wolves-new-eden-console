@@ -92,7 +92,7 @@ export interface MissionLifecycleState {
   readonly deckState: MissionDeckState;
   readonly dealtCount: number;
   readonly cards: readonly MissionLifecycleOwnedCard[];
-  /** Only participant uid and count are persisted for a request. */
+  /** Extra-card requests after P403's one private initial card; no reason is stored. */
   readonly requestsByParticipant: readonly { readonly participantUid: string; readonly count: number }[];
   /** P403-compatible one-card-per-participant discard ledger. */
   readonly discardedParticipantUids: readonly string[];
@@ -245,7 +245,7 @@ export function createMissionLifecycleState(
   return isValidMissionLifecycleState(state) ? state : null;
 }
 
-/** Store just the requested count under the server-derived participant uid. */
+/** Store just the requested extra-card count under the server-derived participant uid. */
 export function recordMissionCardRequest(
   state: MissionLifecycleState,
   participantUid: string,
@@ -260,7 +260,8 @@ export function recordMissionCardRequest(
   nextRequests.push({ participantUid, count: request.count as number });
   nextRequests.sort((left, right) => participantOrder(state, left.participantUid) -
     participantOrder(state, right.participantUid));
-  return { ...state, requestsByParticipant: nextRequests };
+  const nextState = { ...state, requestsByParticipant: nextRequests };
+  return isValidMissionLifecycleState(nextState) ? nextState : null;
 }
 
 /** Leader-only view of request counts. It contains no reason or card data. */
@@ -273,9 +274,10 @@ export function missionLeaderCardRequestCounts(
 }
 
 /**
- * Give one server-drawn card to a participant. `opportunityId` is the leader's
- * distribution slot for the one-per-player-per-opportunity cap; the
- * participant can still choose the final opportunity during assignment.
+ * Give one server-drawn card to a participant, up to their requested number of
+ * extras. `opportunityId` is the leader's distribution slot for the
+ * one-per-player-per-opportunity cap; the participant can still choose the
+ * final opportunity during assignment.
  */
 export function allocateBlindExtraMissionCard(
   state: MissionLifecycleState,
@@ -303,6 +305,11 @@ export function allocateBlindExtraMissionCard(
       state.cards.some((card) => card.source === 'leader-extra' &&
         card.participantUid === command.participantUid &&
         card.distributionOpportunityId === command.opportunityId)) return null;
+  const requestedExtraCount = state.requestsByParticipant.find(({ participantUid }) =>
+    participantUid === command.participantUid)?.count ?? 0;
+  const alreadyAllocatedExtraCount = state.cards.filter((card) => card.source === 'leader-extra' &&
+    card.participantUid === command.participantUid).length;
+  if (alreadyAllocatedExtraCount >= requestedExtraCount) return null;
 
   const participant = state.participants.find(({ uid }) => uid === command.participantUid)!;
   const allocations = allocateMissionCards(state.deckState, state.dealtCount, [participant]);
@@ -697,6 +704,7 @@ function isValidMissionLifecycleState(value: unknown): value is MissionLifecycle
   const opportunityIdSet = new Set<string>(opportunityIds);
   const participantSet = new Set(participantUids);
   const initialCounts = new Map<string, number>();
+  const extraCounts = new Map<string, number>();
   const cardOwners = new Map<string, string>();
   const extraSlots = new Set<string>();
   for (const candidate of value.cards) {
@@ -716,11 +724,13 @@ function isValidMissionLifecycleState(value: unknown): value is MissionLifecycle
       const slot = `${candidate.participantUid}\u0000${candidate.distributionOpportunityId}`;
       if (extraSlots.has(slot)) return false;
       extraSlots.add(slot);
+      extraCounts.set(candidate.participantUid, (extraCounts.get(candidate.participantUid) ?? 0) + 1);
     }
   }
   if (normalizedParticipants.some(({ uid }) => initialCounts.get(uid) !== 1)) return false;
 
   const requests = new Set<string>();
+  const requestedExtraCounts = new Map<string, number>();
   for (const request of value.requestsByParticipant) {
     if (!isRecord(request) || Object.keys(request).some((key) => key !== 'participantUid' && key !== 'count') ||
         typeof request.participantUid !== 'string' || !participantSet.has(request.participantUid) ||
@@ -728,7 +738,9 @@ function isValidMissionLifecycleState(value: unknown): value is MissionLifecycle
       return false;
     }
     requests.add(request.participantUid);
+    requestedExtraCounts.set(request.participantUid, request.count as number);
   }
+  if ([...extraCounts].some(([uid, count]) => count > (requestedExtraCounts.get(uid) ?? 0))) return false;
 
   const discardedUids = new Set<string>();
   const discardedCardIds = new Set<string>();

@@ -15,6 +15,7 @@ import {
   type MissionLifecycleState,
   type MissionLifecycleStateInput,
 } from './missionLifecycle';
+import { missionCardForCode } from './missionCards';
 import {
   missionDeck,
   missionDeckStateFromCards,
@@ -69,7 +70,12 @@ function addExtra(
   opportunityId: string,
   requestId: string,
 ): MissionLifecycleState {
-  const result = allocateBlindExtraMissionCard(state, {
+  const existingRequest = state.requestsByParticipant.some((request) => request.participantUid === participantUid);
+  const requestedState = existingRequest ? state : recordMissionCardRequest(state, participantUid, {
+    count: missionCardForCode(state.siteCode)!.opportunities.length,
+  });
+  if (!requestedState) throw new Error('Could not record a fixture extra-card request.');
+  const result = allocateBlindExtraMissionCard(requestedState, {
     actorUid: state.leaderUid,
     participantUid,
     opportunityId,
@@ -144,7 +150,7 @@ describe('pure away-mission lifecycle', () => {
   });
 
   it('allocates an extra card blindly and safely replays the same leader request', () => {
-    const initial = buildState();
+    const initial = recordMissionCardRequest(buildState(), 'bob', { count: 1 })!;
     const first = allocateBlindExtraMissionCard(initial, {
       actorUid: 'alice',
       participantUid: 'bob',
@@ -206,7 +212,8 @@ describe('pure away-mission lifecycle', () => {
   });
 
   it('limits blind distribution to one card per participant and opportunity', () => {
-    const first = allocateBlindExtraMissionCard(buildState(), {
+    const requested = recordMissionCardRequest(buildState(), 'alice', { count: 2 })!;
+    const first = allocateBlindExtraMissionCard(requested, {
       actorUid: 'alice',
       participantUid: 'alice',
       opportunityId: 'A-1',
