@@ -261,6 +261,14 @@ known issues, and later candidates.
 
 ## PC02 shape — Setup, fleet board, and session continuity
 
+**Release update (2026-09-27).** Build 0.5.52 is deployed from
+`f0e4eb73c753915567412899efd4dd4d78faa9dc`. Its six-step
+[solo review scene](https://dow-new-eden-console.web.app/pc02-review) is live;
+the [PC02 report](PC02_PLAYTEST_REPORT.md) separates the green release gates
+from the still-open ordinary authorized gameplay proof. The owner authorized
+starting PC03 without waiting for a PC02 UI verdict. Keep later PC02 feedback
+in its own cooldown record rather than treating silence as approval.
+
 **State.** Shaped 2026-09-27. PC01's owner walkthrough has not happened, so
 there is no PC01 playtest verdict. The owner did provide separate
 cross-checkpoint guidance, PC01-F01 through PC01-F10, expressly to inform

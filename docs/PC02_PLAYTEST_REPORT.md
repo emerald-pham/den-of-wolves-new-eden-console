@@ -1,6 +1,6 @@
 # PC02 playtest report — setup, fleet board, and continuity
 
-**Build:** 0.5.52 candidate. **Solo review:** [Open the prepared PC02 scene](https://dow-new-eden-console.web.app/pc02-review.html). The scene uses real interface components with clearly marked synthetic states. It does not join or change a live session. Deployment and ordinary authorized play are separate checks below.
+**Build:** 0.5.52 released from `f0e4eb73c753915567412899efd4dd4d78faa9dc`. **Solo review:** [Open the prepared PC02 scene](https://dow-new-eden-console.web.app/pc02-review). The scene uses real interface components with clearly marked synthetic states. It does not join or change a live session. Deployment and ordinary authorized play are separate checks below.
 
 ## New rule reading to review first
 
@@ -49,13 +49,15 @@ Every new behavior was introduced with a failing test commit before its implemen
 | `src/components/ContactPlot.test.tsx`, `ShipPlot.test.tsx`, `PursuitTracker.test.tsx` | Verify first-contact timing, label placement, and the exact pending readout. |
 | `src/components/SessionWaiver.test.tsx`, `src/lib/sessionWaiver.test.ts`, `src/routes/RoleBrief.test.tsx`, `src/store/useSessionStore.test.ts` | Verify 72-hour expiry, onboarding route, and correct private-state rebinding or clearing. |
 
+After the first CI browser run exposed a DRADIS performance regression, a separate failing test commit added a counted label-layout-read budget to the P637 browser gate. A later independent review found that stationary contacts could change their held fix during a sweep without moving the label and leader. Separate failing test commits added first-acquisition, repeat-ping, later-fix, and conditional-relayout cases before the repair. **No existing test was skipped, deleted, or weakened.**
+
 The existing `src/version.test.ts` and `src/config/playerCopyContract.test.ts` caught candidate metadata and selector issues during the full suite; the release catalog and layout marker were corrected without changing those tests.
 
 ## Release and remaining proof
 
-- Local unit, Functions, rules, browser layout, lint, and build evidence will be recorded with the final validated commit. A green local emulator test is not a live Firebase observation.
-- Deployment workflow, hosted build version, and hosted review-scene access are pending final release verification.
+- Local candidate `f0e4eb73c753915567412899efd4dd4d78faa9dc` passed 5,756 unit and Functions tests, 140 Firestore rules tests, both PC02 browser layout checks, typecheck, web and Functions builds, and lint with zero errors (six pre-existing warnings). The P637 browser gate passed locally with 9,982 label layout reads against its 12,400 budget and a 37.7 ms DRADIS update p95 against the 150 ms budget. Independent Sol review approved the exact candidate after confirming that changed scan fixes update leader geometry and same-fix pings skip relayout. These local and review results are not a live Firebase observation.
+- [Deployment workflow 36374346054](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/36374346054) passed the exact-commit unit, rules, build, browser ticker, P637 render, and Firebase deployment jobs. The deployment selector included Hosting, Firestore rules, and the changed Press event-writer Functions. The public `build-version.json` reports `0.5.52`; the hosted review page returns HTTP 200 after its canonical redirect. A fresh hosted Chrome load at 390 × 844 displayed all six steps and opened the DRADIS panel.
 - Ordinary authorized join, private assignment, real first action, Press writer delivery, and same-member reconnect in a live game have not been observed for this checkpoint. They cannot be inferred from the prepared scene.
 - P589 needs an owner-approved exact player-facing sentence on Wolf humanity. P590/P599/P600 retain their dependency and composed-play proof gaps. P654/P662 and the blocked population/ration chain remain later catalog work. The owner's PC01 UI walkthrough has not occurred; its ten cross-checkpoint notes are guidance, not a PC01 verdict.
 
-The corresponding [feedback record](PRODUCT_MILESTONE_FEEDBACK.md) remains open for the owner's PC02 UI yes/no answers and corrections.
+The owner authorized proceeding to PC03 without waiting for a PC02 UI review. The corresponding [feedback record](PRODUCT_MILESTONE_FEEDBACK.md) remains open for the owner's PC02 yes/no answers and corrections; no approval is inferred from that authorization.
