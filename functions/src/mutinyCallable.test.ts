@@ -46,6 +46,7 @@ vi.mock('firebase-admin/firestore', () => ({
 }));
 
 import { resolveShipMutiny } from './index';
+import { recommendedRoleIds } from './roleConfiguration';
 
 function snapshot(path: string, value: Record<string, unknown> | undefined) {
   return {
@@ -135,5 +136,48 @@ it('rejects non-GM authority, an unclaimed target seat, and stale revision witho
   expect(mock.update).not.toHaveBeenCalled();
   mock.documents.set('sessions/s1/seats/dione-engineer', { roleId: 'dione-engineer', status: 'claimed', holderUid: 'new' });
   await expect(resolveShipMutiny.run(request({ ...command, expectedRevision: 1 }))).resolves.toMatchObject({ status: 'stale' });
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('installs an acting captain from the confirmed sparse roster without changing seats or loyalty', async () => {
+  mock.documents.set('sessions/s1', {
+    phase: 'active', currentTurn: 1, setupRevision: 4,
+    activeRoleIds: [...recommendedRoleIds(8)],
+    activeVesselIds: ['aegis', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
+    shipUnrest: { icebreaker: 8 }, vesselActionRevisions: { icebreaker: 0 },
+    shipMutinies: { icebreaker: { status: 'active', revision: 1, triggerUnrest: 8, triggeredAt: 'first' } },
+  });
+  mock.documents.delete('sessions/s1/players/old');
+  mock.documents.set('sessions/s1/players/new', {
+    role: 'player', connected: true, assignedRoleId: 'icebreaker-miner',
+    activeConsoleRoleId: 'icebreaker-miner', seatId: 'icebreaker-miner',
+  });
+  mock.documents.set('sessions/s1/seats/icebreaker-miner', {
+    roleId: 'icebreaker-miner', status: 'claimed', holderUid: 'new',
+  });
+  mock.documents.set('sessions/s1/secrets/loyalty-new', {
+    visibleToUids: ['new'], payload: { type: 'loyalty', kind: 'human', suspicion: null },
+  });
+  const sparse = { ...command, shipId: 'icebreaker' };
+  await expect(resolveShipMutiny.run(request(sparse))).resolves.toMatchObject({
+    status: 'committed', shipId: 'icebreaker', newCaptainUid: 'new', unrest: 6,
+  });
+  expect(mock.documents.get('sessions/s1')).toMatchObject({
+    activeRoleIds: [...recommendedRoleIds(8)],
+    shipCommandCaptains: { icebreaker: 'new' },
+    shipMutinies: { icebreaker: expect.objectContaining({ status: 'resolved' }) },
+  });
+  expect(mock.documents.get('sessions/s1/players/new')).toMatchObject({
+    assignedRoleId: 'icebreaker-miner', seatId: 'icebreaker-miner',
+    activeConsoleRoleId: 'icebreaker-miner',
+  });
+  expect(mock.documents.get('sessions/s1/seats/icebreaker-miner')).toMatchObject({ holderUid: 'new' });
+  expect(mock.documents.get('sessions/s1/secrets/loyalty-new')).toMatchObject({ visibleToUids: ['new'] });
+  expect(mock.documents.get('sessions/s1/mutinyRecoveries/mutiny-1')).toMatchObject({
+    mode: 'acting-appointment', oldCaptainUid: null, newCaptainUid: 'new',
+  });
+  mock.set.mockClear(); mock.update.mockClear();
+  await expect(resolveShipMutiny.run(request(sparse))).resolves.toMatchObject({ status: 'replayed' });
+  expect(mock.set).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();
 });
