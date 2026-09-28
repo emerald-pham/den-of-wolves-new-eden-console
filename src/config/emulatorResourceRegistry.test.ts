@@ -515,12 +515,16 @@ describe('simplified coordination registry', () => {
       .toEqual({ executable: 'npm', args: ['run', 'roadmap:check'] });
     expect(validationCommandSpec('npm run test:unit'))
       .toEqual({ executable: 'npm', args: ['run', 'test:unit'] });
+    expect(validationCommandSpec('npm run test:typography:browser'))
+      .toEqual({ executable: 'npm', args: ['run', 'test:typography:browser'] });
     expect(validationCommandSpec('node scripts/prompt-637-render-performance.mjs'))
       .toEqual({ executable: 'node', args: ['scripts/prompt-637-render-performance.mjs'] });
     expect(validationCommandSpec('node scripts/check-bundle-size.mjs'))
       .toEqual({ executable: 'node', args: ['scripts/check-bundle-size.mjs'] });
     expect(validationCommandArguments('npm run roadmap:check')).toEqual(['run', 'roadmap:check']);
     expect(validationCommandArguments('npm run test:unit')).toEqual(['run', 'test:unit']);
+    expect(validationCommandArguments('npm run test:typography:browser'))
+      .toEqual(['run', 'test:typography:browser']);
     expect(validationCommandArguments('node scripts/prompt-637-render-performance.mjs'))
       .toEqual(['scripts/prompt-637-render-performance.mjs']);
     expect(validationCommandArguments('node scripts/check-bundle-size.mjs'))
