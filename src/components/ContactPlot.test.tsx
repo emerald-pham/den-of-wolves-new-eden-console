@@ -1223,18 +1223,23 @@ const cachedWidthTestContacts = (x: number) => [{
   id: 'width-cache-context', tag: 'LONG RESEARCH CRUISER', x, y: 0.2, z: 0.1, color: 'white',
 }];
 
-it('reuses intrinsic DRADIS width across sweep freshness transitions while relaying label geometry', () => {
+it('reuses intrinsic DRADIS width across sweep visual-state transitions while relaying label geometry', () => {
   const { offsetWidthReads, labelBoundsReads } = mockIntrinsicWidthForCacheTests(() => 180);
   const { container } = render(<ContactPlot contacts={cachedWidthTestContacts(0.8)} />);
   const contact = contactsIn(container)[0]!;
+  const apparent = contact.querySelector<HTMLElement>('.contact-plot__apparent')!;
   const initialWidthReads = offsetWidthReads();
   let previousBoundsReads = labelBoundsReads();
   expect(initialWidthReads).toBeGreaterThan(0);
   expect(previousBoundsReads).toBeGreaterThan(0);
 
-  for (const scanFresh of ['true', 'false']) {
+  for (const changeVisualState of [
+    () => { apparent.dataset.acquired = 'true'; },
+    () => { contact.dataset.scanFresh = 'true'; },
+    () => { contact.dataset.scanFresh = 'false'; },
+  ]) {
     act(() => {
-      contact.dataset.scanFresh = scanFresh;
+      changeVisualState();
       contact.dispatchEvent(new CustomEvent(CONTACT_SCAN_EVENT, {
         bubbles: true,
         detail: { fixChanged: true },
