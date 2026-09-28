@@ -939,3 +939,29 @@ it('rejects a second Android proof disclosure even with a fresh request id', asy
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
 });
+
+it('denies caller-chosen Wolf designation in ordinary automatic setup', async () => {
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'manual-ordinary-wolf',
+    targetUid: 'u2', kind: 'wolf-agent', suspicion: 0,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/automatic.*wolf|wolf.*automatic/i),
+  });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('does not remove an existing ordinary Wolf through an unrelated manual loyalty request', async () => {
+  mock.loyaltySecrets = [{
+    id: 'loyalty-u2',
+    fields: { visibleToUids: ['u2'], payload: { type: 'loyalty', kind: 'wolf-agent', suspicion: 0 } },
+  }];
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'replace-ordinary-wolf',
+    targetUid: 'u2', kind: 'fleet-loyalist', suspicion: 0,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/automatic.*wolf|wolf.*automatic/i),
+  });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
