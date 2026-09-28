@@ -25,10 +25,20 @@ boundary. Never silently enlarge that accepted build.
 
 ## PC01 — Shepherd science station
 
-**Review state:** build 0.5.51 released with a solo review link, not yet reviewed
-by the owner. No owner feedback has been received for PC01. Append the owner's
-notes here after the playtest; do not pre-populate a result.
+**Review state:** the owner supplied feedback on 2026-09-27 after build 0.5.51,
+including a role-selection screenshot. These notes inform PC02–PC10; the owner
+prefers resolution by the PC02 handoff where the work can be completed safely.
+The local cooldown candidate is not yet a released or live-verified checkpoint.
 
 | Note ID | Owner's observation or request | Disposition | Cooldown evidence or later candidate | Next shape that addressed it |
 |---|---|---|---|---|
-| _Pending review_ | — | — | — | — |
+| PC01-F01 | Survivor population changes and purges are sent to the Press log. | Included in PC02 cooldown target. | Authoritative Press handoff, recipient privacy, and replay proof pending. | PC02 planned. |
+| PC01-F02 | Presidential events are handed to Press. | Included in PC02 cooldown target. | President event to Press handoff and audience proof pending. | PC02 planned. |
+| PC01-F03 | Replace “Awaiting server telemetry” with “Awaiting CIC handshake”; use in-universe language where possible. | Included in PC02 cooldown target. | Local candidate `4c0e7e80` changes the pursuit pending labels; focused UI tests pass. Release and in-app verification pending. | PC02 planned. |
+| PC01-F04 | Repeat DRADIS sweeps must keep the first contact enlargement for its full first-sweep duration, then resume normal-sized repeat behavior. | Included in PC02 cooldown target. | Local candidate `ff7baa15` separates the first size beat from repeat brightness pings; focused timing tests pass. Released gameplay review pending. | PC02 planned. |
+| PC01-F05 | Players can drop out midgame and play continues in every non-GM role. | Included in PC02 cooldown target. | Server-authoritative role, seat, and continuation proof pending. | PC02 planned. |
+| PC01-F06 | The three Code of Conduct checkboxes last for 72 hours. | Included in PC02 cooldown target. | Local candidate `4c0e7e80` sets a 72-hour browser acknowledgement and updates its label; boundary tests pass. Release and in-app verification pending. | PC02 planned. |
+| PC01-F07 | The screenshot-style cycle, phase, location, authority, next-action, and failure-state panel is visible only to people logged in as GM. | Included in PC02 cooldown target. | Local candidate `4c0e7e80` gates the panel on active authenticated GM access; player and unauthorized-GM tests pass. Release and in-app verification pending. | PC02 planned. |
+| PC01-F08 | Leave session must not sit at the top of the screen; Settings is an acceptable location. | Included in PC02 cooldown target. | Local candidate `4c0e7e80` removes the two top-screen controls; shared Settings retains the confirmed disconnect action. Release and in-app verification pending. | PC02 planned. |
+| PC01-F09 | DRADIS contact names overlap other plot content; every name must remain readable. | Included in PC02 cooldown target. | Local candidate `4525a4db` places labels clear of each other and the plot origin, wraps oversized names, and recalculates after scans. Focused tests and 320/390 px browser checks pass; released gameplay review pending. | PC02 planned. |
+| PC01-F10 | Reconnect does not restore the correct game state. | Included in PC02 cooldown target. | Local candidate `096aaf88` rebinds private state listeners after a same-player resume; focused route/private-projection test passes. Server continuity and released gameplay proof pending. | PC02 planned. |
