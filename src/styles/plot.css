@@ -343,6 +343,11 @@
   .ship-plot[data-expanded='false'] .contact-plot__tag {
     display: none;
   }
+
+  .ship-plot[data-expanded='true'] .contact-plot__tag,
+  .pc02-review__plot .contact-plot__tag {
+    letter-spacing: 0.08em;
+  }
 }
 
 .contact-plot__range {
