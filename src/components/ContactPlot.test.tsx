@@ -385,12 +385,13 @@ it('holds a moving return at its sampled fix until another sweep crosses its tru
   }));
   vi.stubGlobal('cancelAnimationFrame', vi.fn());
   const painted: { element: Element; keyframes: Keyframe[] }[] = [];
+  const firstSizeCancel = vi.fn();
   Object.defineProperty(Element.prototype, 'animate', {
     configurable: true,
     writable: true,
     value: vi.fn(function (this: Element, keyframes: Keyframe[]) {
       painted.push({ element: this, keyframes });
-      return { cancel: vi.fn() } as unknown as Animation;
+      return { cancel: keyframes[0]?.transform === 'scale(2)' ? firstSizeCancel : vi.fn() } as unknown as Animation;
     }),
   });
   let normal = { x: 0, y: 0, z: 1 };
@@ -436,7 +437,8 @@ it('holds a moving return at its sampled fix until another sweep crosses its tru
   expect(firstFix).toContain('--fix-y: 0.1');
   expect(firstFix).toContain('--fix-z: 0.2');
   expect(pinged).toHaveBeenCalledTimes(1);
-  expect(painted).toHaveLength(2);
+  expect(painted).toHaveLength(3);
+  expect(painted[0]?.keyframes[0]?.transform).toBe('scale(2)');
 
   actualPosition = { x: 40, y: -30, z: 60 };
   act(() => frame(32));
@@ -446,14 +448,17 @@ it('holds a moving return at its sampled fix until another sweep crosses its tru
   act(() => frame(48));
   expect(apparent?.style.cssText).toBe(firstFix);
   expect(pinged).toHaveBeenCalledTimes(2);
-  expect(painted).toHaveLength(2);
+  expect(painted).toHaveLength(5);
+  expect(firstSizeCancel).not.toHaveBeenCalled();
   normal = { x: 0.996, y: 0, z: 0.087 };
   act(() => frame(64));
-  // A recent repeat still confirms the contact and fires the scan event,
-  // while its original enlarged paint stays alive until it settles.
+  // A recent repeat still confirms and brightens the contact, while the
+  // original size animation keeps its own deadline and is not restarted.
   expect(apparent?.style.cssText).toBe(firstFix);
   expect(pinged).toHaveBeenCalledTimes(3);
-  expect(painted).toHaveLength(2);
+  expect(painted).toHaveLength(7);
+  expect(painted[5]?.keyframes[0]).toMatchObject({ opacity: 1 });
+  expect(firstSizeCancel).not.toHaveBeenCalled();
 
   // Once the contact has not been pinged for the fresh-return window, the
   // next crossing may sample its current true position again.
@@ -465,8 +470,9 @@ it('holds a moving return at its sampled fix until another sweep crosses its tru
   expect(apparent?.style.cssText).toContain('--fix-y: -0.3');
   expect(apparent?.style.cssText).toContain('--fix-z: 0.6');
   expect(pinged).toHaveBeenCalledTimes(4);
-  expect(painted).toHaveLength(4);
-  expect(painted[2]?.keyframes[0]).toMatchObject({ opacity: 1, transform: 'scale(1)' });
+  expect(painted).toHaveLength(9);
+  expect(painted[7]?.keyframes[0]).toMatchObject({ opacity: 1 });
+  expect(painted.filter(({ keyframes }) => keyframes[0]?.transform === 'scale(2)')).toHaveLength(1);
   unmount();
 });
 
@@ -749,19 +755,19 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
   expect(apparent()).toHaveAttribute('data-acquired', 'true');
   expect(apparent()?.parentElement).toHaveAttribute('data-scan-fresh', 'true');
   // A second sweep can reach the same return during its first enlargement.
-  // The new ping must not cancel that first visible growth and settle.
+  // Its ordinary ping must not restart the initial size animation.
   normal = { x: 0, y: 0, z: 1 };
   act(() => frame(48));
   normal = { x: 0.996, y: 0, z: 0.087 };
   act(() => frame(64));
-  expect(painted).toHaveLength(2);
-  expect(cancel).not.toHaveBeenCalled();
+  expect(painted).toHaveLength(7);
+  expect(painted.filter(({ keyframes }) => keyframes[0]?.transform === 'scale(2)')).toHaveLength(1);
   act(() => vi.advanceTimersByTime(SCAN_FRESH_MS - 1));
   expect(apparent()?.parentElement).toHaveAttribute('data-scan-fresh', 'true');
   act(() => vi.advanceTimersByTime(1));
   expect(apparent()?.parentElement).toHaveAttribute('data-scan-fresh', 'false');
-  expect(painted.map(({ element }) => element.className)).toEqual(['contact-plot__blip', 'contact-plot__drop']);
   expect(painted[0]?.keyframes[0]?.transform).toBe('scale(2)');
+  expect(painted[1]?.keyframes[0]).toMatchObject({ opacity: 1 });
   const fix = apparent()?.style.cssText;
   normal = { x: 0.996, y: 0, z: 0.087 };
   act(() => frame(48));
@@ -773,7 +779,7 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
   act(() => frame(80));
   expect(container.querySelectorAll('[data-acquired="true"]')).toHaveLength(2);
   expect(apparent()?.style.cssText).toBe(fix);
-  expect(painted[2]?.keyframes[0]?.transform).toBe('scale(2)');
+  expect(painted.filter(({ keyframes }) => keyframes[0]?.transform === 'scale(2)')).toHaveLength(2);
   normal = { x: 0.996, y: 0, z: 0.087 };
   act(() => frame(96));
   expect(apparent()?.style.cssText).toBe(fix);
