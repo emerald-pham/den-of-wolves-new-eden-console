@@ -23,6 +23,7 @@ import { loadChangelogDisplay, type ChangelogDisplayEntry } from '@/lib/changelo
 import { useDialogFocus } from '@/hooks/useDialogFocus';
 import FleetBroadcast from './FleetBroadcast';
 import PrimaryStatus from './PrimaryStatus';
+import SettingsDisconnectAction from './SettingsDisconnectAction';
 import { FleetDirectives } from './AdmiralDirectives';
 import {
   applyServiceWorkerUpdate,
@@ -237,7 +238,6 @@ export default function AppHeader() {
   const [changelog, setChangelog] = useState<readonly ChangelogDisplayEntry[] | null>(null);
   const [changelogLoading, setChangelogLoading] = useState(false);
   const [changelogFailed, setChangelogFailed] = useState(false);
-  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const [gmAccessPassword, setGmAccessPassword] = useState('');
   const [gmAccessBusy, setGmAccessBusy] = useState(false);
   const [singlePlayerDemoBusy, setSinglePlayerDemoBusy] = useState(false);
@@ -326,7 +326,6 @@ export default function AppHeader() {
   const indicatorStatus = displayStatus === 'green' && currentTurn === 0 ? 'blue' : displayStatus;
 
   function openSettings(): void {
-    setConfirmDisconnect(false);
     setChangelogOpen(false);
     setSettingsOpen(true);
   }
@@ -360,7 +359,6 @@ export default function AppHeader() {
   useEffect(() => subscribeServiceWorkerUpdates(setServiceWorkerUpdate), []);
 
   function closeSettings(): void {
-    setConfirmDisconnect(false);
     setSettingsOpen(false);
     setChangelogOpen(false);
   }
@@ -372,12 +370,6 @@ export default function AppHeader() {
     initialFocusRef: closeButton,
     onEscape: closeSettings,
   });
-
-  useEffect(() => {
-    if (!settingsOpen || !sessionId || disconnectQueued) {
-      setConfirmDisconnect(false);
-    }
-  }, [disconnectQueued, sessionId, settingsOpen]);
 
   async function loginGm(): Promise<void> {
     setGmAccessBusy(true);
@@ -423,7 +415,6 @@ export default function AppHeader() {
 
   async function disconnectNow(): Promise<void> {
     const disconnecting = disconnectFromSession();
-    setConfirmDisconnect(false);
     setSettingsOpen(false);
     navigate('/', { replace: true });
     try {
@@ -431,15 +422,6 @@ export default function AppHeader() {
     } catch {
       // A permanent rejection is reported by the shared interception notice.
     }
-  }
-
-  function requestDisconnect(): void {
-    if (!confirmDisconnect) {
-      setConfirmDisconnect(true);
-      return;
-    }
-    setConfirmDisconnect(false);
-    void disconnectNow();
   }
 
   async function releaseGm(): Promise<void> {
@@ -556,7 +538,6 @@ export default function AppHeader() {
                 label="Session status"
               />
             )}
-            {hasSession && <p>Disconnect this device from session {joinCode}.</p>}
             <p className="settings-dialog__version">Build {APP_VERSION}</p>
             {singlePlayerDemoAvailable && (
               <section className="settings-dialog__demo" aria-labelledby="single-player-demo-title">
@@ -700,24 +681,11 @@ export default function AppHeader() {
                     Release role
                   </button>
                 )}
-                <button
-                  className="settings-dialog__disconnect cic-action-button cic-action-button--confirm"
-                  type="button"
-                  disabled={disconnectQueued}
-                  style={confirmDisconnect
-                    ? { color: 'var(--cic-danger)', borderColor: 'var(--cic-danger)' }
-                    : undefined}
-                  onBlur={() => setConfirmDisconnect(false)}
-                  onKeyDown={(event) => {
-                    if (event.key !== 'Escape') return;
-                    event.preventDefault();
-                    event.stopPropagation();
-                    setConfirmDisconnect(false);
-                  }}
-                  onClick={requestDisconnect}
-                >
-                  {disconnectQueued ? 'Disconnect queued' : confirmDisconnect ? 'ARE YOU SURE?' : 'Disconnect'}
-                </button>
+                <SettingsDisconnectAction
+                  joinCode={joinCode ?? ''}
+                  queued={disconnectQueued}
+                  onDisconnect={() => { void disconnectNow(); }}
+                />
               </>
             )}
           </section>

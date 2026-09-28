@@ -3,6 +3,7 @@ import ContactPlot, { type PlotContact } from '@/components/ContactPlot';
 import PursuitTracker from '@/components/PursuitTracker';
 import { PrimaryStatusView } from '@/components/PrimaryStatus';
 import SessionWaiver from '@/components/SessionWaiver';
+import SettingsDisconnectAction from '@/components/SettingsDisconnectAction';
 import { CONSOLE_ROLES } from '@/data/roles';
 import './PC02ReviewScene.css';
 
@@ -212,12 +213,10 @@ export default function PC02ReviewScene() {
               <button className="settings-dialog__close" type="button" aria-label="Close settings"
                 onClick={() => setSettingsOpen(false)}>×</button>
             </div>
-            <p>Disconnect this device from session FLEET-02.</p>
-            <button className="settings-dialog__disconnect cic-action-button cic-action-button--confirm"
-              type="button" onClick={() => {
+            <SettingsDisconnectAction joinCode="FLEET-02" onDisconnect={() => {
                 setContinuityStage('left');
                 setSettingsOpen(false);
-              }}>Disconnect</button>
+              }} />
           </section>
         </div>}
       </section>}
