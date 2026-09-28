@@ -955,6 +955,10 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
   // foreground return layer is flattened by CSS. Follow the actual anchor.
   const contact = { tag: 'AHEAD', x: 0.8, y: 0, z: 0, color: 'white' };
   const { container, rerender, unmount } = render(<ContactPlot contacts={[contact]} />);
+  const scanFixChanges: boolean[] = [];
+  plotIn(container)?.addEventListener(CONTACT_SCAN_EVENT, (event) => {
+    scanFixChanges.push((event as CustomEvent<{ fixChanged: boolean }>).detail?.fixChanged ?? false);
+  });
   const apparent = () => container.querySelector<HTMLElement>('.contact-plot__apparent');
   const findMany = vi.spyOn(plotIn(container)!, 'querySelectorAll');
   const firstContact = contactsIn(container)[0]!;
@@ -973,6 +977,7 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
   normal = { x: 0.996, y: 0, z: 0.087 };
   act(() => frame(32));
   expect(apparent()).toHaveAttribute('data-acquired', 'true');
+  expect(scanFixChanges).toEqual([true]);
   expect(apparent()?.parentElement).toHaveAttribute('data-scan-fresh', 'true');
   // A second sweep can reach the same return during its first enlargement.
   // Its ordinary ping must not restart the initial size animation.
@@ -980,6 +985,7 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
   act(() => frame(48));
   normal = { x: 0.996, y: 0, z: 0.087 };
   act(() => frame(64));
+  expect(scanFixChanges).toEqual([true, false]);
   expect(painted).toHaveLength(7);
   expect(painted.filter(({ keyframes }) => keyframes[0]?.transform === 'scale(2)')).toHaveLength(1);
   act(() => vi.advanceTimersByTime(SCAN_FRESH_MS - 1));
@@ -1011,6 +1017,7 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
   normal = { x: 0, y: 0, z: 1 };
   act(() => frame(96 + SCAN_FRESH_MS));
   expect(apparent()?.style.cssText).not.toBe(fix);
+  expect(scanFixChanges.at(-1)).toBe(true);
   // Removing tracks must also release their cached handles, animations and timers.
   rerender(<ContactPlot contacts={[]} />);
   cancel.mockClear();
@@ -1023,6 +1030,28 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
   unmount();
   expect(cancelAnimationFrame).toHaveBeenCalled();
   expect(cancel).toHaveBeenCalled();
+});
+
+it('reclamps a stationary return when a sweep changes its held fix but skips same-fix pings', () => {
+  const { container } = render(<ContactPlot contacts={[
+    { tag: 'AHEAD', x: 0.8, y: 0, z: 0, color: 'white' },
+  ]} />);
+  const plot = plotIn(container)!;
+  const contact = contactsIn(container)[0]!;
+  const layout = vi.spyOn(plot, 'getBoundingClientRect');
+  layout.mockClear();
+
+  act(() => contact.dispatchEvent(new CustomEvent(CONTACT_SCAN_EVENT, {
+    bubbles: true,
+    detail: { fixChanged: false },
+  })));
+  expect(layout).not.toHaveBeenCalled();
+
+  act(() => contact.dispatchEvent(new CustomEvent(CONTACT_SCAN_EVENT, {
+    bubbles: true,
+    detail: { fixChanged: true },
+  })));
+  expect(layout).toHaveBeenCalled();
 });
 
 it('reuses stationary return projections until DRADIS geometry changes', () => {
