@@ -1123,6 +1123,70 @@ it('sends the exact source-bound mission start through the current facilitator c
     .rejects.toThrow(/invalid away-mission start result/i);
 });
 
+it('allows only an explicitly persisted exact mission-start retry to reach server replay after CAS advance', async () => {
+  const currentPhase = {
+    turn: 2,
+    teamPhaseEndsAt: '2026-01-01T00:00:00.000Z',
+    openAirspaceEndsAt: '2026-01-01T00:15:00.000Z',
+    airspace: { state: 'lifted' as const, tickerActive: true, pressAccess: true },
+  };
+  const missionSession = {
+    ...session, phase: 'active' as const, currentTurn: 2, setupRevision: 4,
+    turnLimit: 6 as const, chartId: 'A' as const, turnPhase: currentPhase,
+    turnState: {
+      currentTurn: 2, maxTurn: 6 as const, phase: 'coordination' as const,
+      phaseRevision: 3, startedAt: currentPhase.teamPhaseEndsAt,
+      endsAt: currentPhase.openAirspaceEndsAt,
+    },
+  };
+  useSessionStore.getState().setIdentity(missionSession, { ...player, role: 'gm' });
+  useSessionStore.getState().setGmInstance({
+    id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+    deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+  });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  const request = {
+    sessionId: 's1', instanceId: 'instance-1', requestId: 'mission-start-exact-retry',
+    expectedSetupRevision: 4, expectedPhaseRevision: 3, expectedCycle: 2,
+    opportunityId: 'arrival-fleet-1-A-5143', groupId: 'fleet-1',
+    coordinate: '5143', sourceCycle: 2, participantUids: ['alice', 'admiral'],
+    missionLeaderUid: 'admiral', chart: 'A' as const,
+  };
+  const lostAcknowledgement = callableReturning({ data: undefined }).mockRejectedValueOnce(
+    new Error('The acknowledgement was lost after submission.'),
+  );
+  vi.mocked(httpsCallable).mockReturnValue(lostAcknowledgement);
+  await expect(startAwayMission(request)).rejects.toThrow(/acknowledgement was lost/i);
+
+  const advancedPhase = {
+    ...missionSession.turnPhase, turn: 3,
+  };
+  const advancedSession = {
+    ...missionSession, currentTurn: 3, turnPhase: advancedPhase,
+    turnState: { ...missionSession.turnState, currentTurn: 3, phaseRevision: 4 },
+  };
+  useSessionStore.getState().setIdentity(advancedSession, { ...player, role: 'gm' });
+  useSessionStore.getState().setGmInstance({
+    id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+    deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+  });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  const replay = callableReturning({ data: {
+    status: 'replayed', sessionId: 's1', requestId: request.requestId,
+    opportunityId: request.opportunityId, snapshotId: request.opportunityId,
+    missionId: `mission-${request.opportunityId}`, groupId: request.groupId,
+    coordinate: request.coordinate, sourceCycle: request.sourceCycle,
+    participantCount: 2, missionLeaderUid: 'admiral',
+    expectedSetupRevision: 4, expectedPhaseRevision: 3, expectedCycle: 2,
+  } });
+  vi.mocked(httpsCallable).mockReturnValue(replay);
+
+  await expect(startAwayMission({ ...request, allowReplay: true })).resolves.toMatchObject({ status: 'replayed' });
+  expect(replay).toHaveBeenCalledWith(request);
+});
+
 it('sends replacement eligibility and assignment with both CAS cursors', async () => {
   useSessionStore.getState().setIdentity(
     { ...session, phase: 'active', currentTurn: 1, setupRevision: 4 },
