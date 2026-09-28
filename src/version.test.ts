@@ -127,6 +127,16 @@ it('keeps implementation-plan features mapped when release notes declare coverag
   }
 });
 
+it('retains the PC04 entry, typography, alert, and mission-start release boundary', () => {
+  const release = CHANGELOG.find((entry) => entry.version === '0.5.54');
+
+  expect(release?.changes.some((change) => /stations and consoles.*Role Select.*GM/i.test(change))).toBe(true);
+  expect(release?.changes.some((change) => /DRADIS.*typography.*mandatory/i.test(change))).toBe(true);
+  expect(release?.changes.some((change) => /RED ALERT.*WOLF ATTACK IMMINENT/i.test(change))).toBe(true);
+  expect(release?.changes.some((change) => /away mission.*Mission Leader.*GM log/i.test(change))).toBe(true);
+  expect(release?.implementationPrompts).toContain(401);
+});
+
 it('keeps roadmap jargon out of rendered changelog fields while retaining provenance', () => {
   const renderedChanges = CHANGELOG.flatMap((entry) => entry.changes);
   const historicalEntry = CHANGELOG.find((entry) => entry.version === '0.3.79');
