@@ -814,3 +814,39 @@ it('resumes the preserved timer when a newly authenticated participant joins an 
     expect(mock.set).toHaveBeenCalledWith(expect.objectContaining({ path: expect.stringMatching(/^sessions\/s1\/events\/presence-timer-/) }), expect.objectContaining({ type: 'timer-pause', action: 'resumed', reason: 'empty-session' }));
   } finally { now.mockRestore(); }
 });
+
+it.each([
+  { status: 'claimed', holderUid: 'u2', replacementStatus: undefined },
+  { status: 'open', holderUid: 'u2', replacementStatus: undefined },
+  { status: 'open', holderUid: null, replacementStatus: 'awaiting-re-role' },
+])('clears stale join console authority and requests selection for $status/$replacementStatus', async ({ status, holderUid, replacementStatus }) => {
+  mock.enforceReadOrder = true;
+  const fields: Record<string, unknown> = {
+    uid: 'u1', sessionId: 's1', role: 'player', connected: false,
+    seatId: 'admiral', assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral',
+    replacementRoleId: null, replacementStatus,
+  };
+  mock.update.mockImplementation((ref: { path: string }, update: Record<string, unknown>) => {
+    if (ref.path === 'sessions/s1/players/u1') Object.assign(fields, update);
+  });
+  mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
+    if (path === 'joinCodes/482109') return snapshot({ sessionId: 's1' });
+    if (path === 'sessions/s1') return snapshot({ name: 'Table one', phase: 'lobby' });
+    if (path === 'sessions/s1/players/u1') return snapshot(fields);
+    if (path === 'sessions/s1/players') return snapshot({}, true);
+    if (path === 'sessions/s1/seats/admiral') return snapshot({ status, holderUid, roleId: 'admiral' });
+    if (path.startsWith('sessions/s1/seats/') || path === 'activeMemberships/u1' ||
+        path === 'sessions/s1/fleetGroups/fleet-1' || path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
+    throw new Error(`Unexpected read: ${path}`);
+  });
+  await expect(joinSession.run(request('482109'))).resolves.toMatchObject({
+    stationSelectionRequired: true,
+    player: { uid: 'u1', seatId: null, activeConsoleRoleId: null },
+  });
+  expect(fields).toMatchObject({ connected: true, seatId: null, activeConsoleRoleId: null });
+  expect(mock.update).not.toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/seats/admiral' }),
+    expect.objectContaining({ holderUid: 'u1' }),
+  );
+});

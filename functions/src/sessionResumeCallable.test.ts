@@ -942,3 +942,17 @@ it('does not release a deliberate emergency hold during reconnect', async () => 
   prepareResume({}, { seatId: null }, { phase: 'active', currentTurn: 2, turnPhase: held });
   expect((await resumeSession.run(request('s1'))).session.turnPhase).toEqual(held);
 });
+
+it('never takes a foreign holder from an inconsistent open seat', async () => {
+  prepareResume({ status: 'open', holderUid: 'u2' }, {
+    seatId: 'admiral', assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral',
+  });
+  await expect(resumeSession.run(request('s1'))).resolves.toMatchObject({
+    stationSelectionRequired: true,
+    player: { seatId: null, activeConsoleRoleId: null },
+  });
+  expect(mock.update).not.toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/seats/admiral' }),
+    expect.objectContaining({ holderUid: 'u1' }),
+  );
+});
