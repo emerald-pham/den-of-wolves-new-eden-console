@@ -26,8 +26,8 @@ import {
 const asCardId = (value: string): MissionCardId => value as MissionCardId;
 
 const standardParticipants: readonly MissionLifecycleParticipant[] = [
-  { uid: 'alice', roleId: 'wing-commander', craftIds: ['starlight'] },
-  { uid: 'bob', roleId: 'icebreaker-miner', craftIds: ['highwall'] },
+  { uid: 'alice', roleId: 'wing-commander' },
+  { uid: 'bob', roleId: 'icebreaker-miner' },
 ];
 
 function deckWithPrefix(prefix: readonly string[]): MissionDeckState {
@@ -55,6 +55,7 @@ function buildState(overrides: Partial<MissionLifecycleStateInput> = {}): Missio
     siteCode: 'A',
     leaderUid: 'alice',
     participants,
+    availableCarrierCraftIds: ['starlight', 'highwall'],
     deckState: missionDeckStateFromCards(missionDeck()),
     dealtCount: participants.length,
     initialCards,
@@ -131,6 +132,22 @@ function dealTopCards(state: MissionLifecycleState): MissionLifecycleState {
 }
 
 describe('pure away-mission lifecycle', () => {
+  it('keeps shared carrier availability at mission level without inventing participant ownership', () => {
+    const participants: readonly MissionLifecycleParticipant[] = [
+      { uid: 'alice', roleId: 'press-officer' },
+      { uid: 'bob', roleId: 'admiral' },
+    ];
+    const state = buildState({
+      participants,
+      leaderUid: 'alice',
+      availableCarrierCraftIds: ['starlight'],
+    });
+
+    expect(state.availableCarrierCraftIds).toEqual(['starlight']);
+    expect(state.participants).toEqual(participants);
+    expect(state.participants.every((participant) => !Object.hasOwn(participant, 'craftIds'))).toBe(true);
+  });
+
   it('records participant requests as a count only and exposes no reason field', () => {
     const state = buildState();
     const requested = recordMissionCardRequest(state, 'bob', {
@@ -374,13 +391,14 @@ describe('pure away-mission lifecycle', () => {
 
   it('derives totals, bonuses, and critical branches from server-owned card and contribution ledgers', () => {
     const participants: readonly MissionLifecycleParticipant[] = [
-      { uid: 'alice', roleId: 'wing-commander', craftIds: ['starlight'] },
-      { uid: 'bob', roleId: 'refinery-124-pdf-colonel', craftIds: ['pdf-escort-fighter-wing'] },
+      { uid: 'alice', roleId: 'wing-commander' },
+      { uid: 'bob', roleId: 'refinery-124-pdf-colonel' },
     ];
     const deckState = deckWithPrefix(['4♥', '6♥', 'A♥', 'A♦', '5♥', '5♦']);
     let state = buildState({
       siteCode: 'D',
       participants,
+      availableCarrierCraftIds: ['starlight', 'pdf-escort-fighter-wing'],
       leaderUid: 'alice',
       deckState,
       dealtCount: 2,
@@ -444,14 +462,15 @@ describe('pure away-mission lifecycle', () => {
     expect(JSON.stringify(results)).not.toMatch(/A♥|A♦|5♥|rank|suit|cardId/);
   });
 
-  it('does not apply an authorized craft bonus unless its owner contributed to that opportunity', () => {
+  it('does not apply an available craft bonus unless its role owner contributed to that opportunity', () => {
     const participants: readonly MissionLifecycleParticipant[] = [
-      { uid: 'alice', roleId: 'wing-commander', craftIds: ['starlight'] },
-      { uid: 'bob', roleId: 'refinery-124-pdf-colonel', craftIds: ['pdf-escort-fighter-wing'] },
+      { uid: 'alice', roleId: 'wing-commander' },
+      { uid: 'bob', roleId: 'refinery-124-pdf-colonel' },
     ];
     const deckState = deckWithPrefix(['4♥', '6♥', 'A♥', 'A♦', '5♥', '5♦']);
     let state = buildState({
-      siteCode: 'D', participants, leaderUid: 'alice', deckState, dealtCount: 2,
+      siteCode: 'D', participants, availableCarrierCraftIds: ['starlight', 'pdf-escort-fighter-wing'],
+      leaderUid: 'alice', deckState, dealtCount: 2,
       initialCards: [
         { participantUid: 'alice', cardId: asCardId('4♥') },
         { participantUid: 'bob', cardId: asCardId('6♥') },
@@ -480,16 +499,25 @@ describe('pure away-mission lifecycle', () => {
     expect(results?.find(({ opportunityId }) => opportunityId === 'D-1')?.bonusTotal).toBe(1);
     expect(results?.find(({ opportunityId }) => opportunityId === 'D-2')?.bonusTotal).toBe(1);
     expect(results?.find(({ opportunityId }) => opportunityId === 'D-3')?.bonusTotal).toBe(0);
+    expect(calculateMissionOpportunityTotals({
+      ...state,
+      availableCarrierCraftIds: ['starlight'],
+    }, [{
+      participantUid: 'bob',
+      source: { kind: 'craft', id: 'pdf-escort-fighter-wing' },
+      bonuses: { salvage: 1 },
+    }], {})).toBeNull();
   });
 
   it('uses the printed secret d6 multiplier and critical offset for Wolf Supply Outpost K', () => {
     const participants: readonly MissionLifecycleParticipant[] = [
-      { uid: 'alice', roleId: 'wing-commander', craftIds: ['starlight'] },
+      { uid: 'alice', roleId: 'wing-commander' },
     ];
     const deckState = deckWithPrefix(['4♥', '10♥', '10♦']);
     let state = buildState({
       siteCode: 'K',
       participants,
+      availableCarrierCraftIds: ['starlight'],
       leaderUid: 'alice',
       deckState,
       dealtCount: 1,
@@ -522,6 +550,7 @@ describe('pure away-mission lifecycle', () => {
       siteCode: 'A',
       leaderUid: 'alice',
       participants: standardParticipants,
+      availableCarrierCraftIds: ['starlight', 'highwall'],
       deckState: missionDeckStateFromCards(missionDeck()),
       dealtCount: 2,
       initialCards: [
