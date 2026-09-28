@@ -6,6 +6,9 @@ import PursuitTracker from '@/components/PursuitTracker';
 import { PrimaryStatusView } from '@/components/PrimaryStatus';
 import SessionWaiver from '@/components/SessionWaiver';
 import SettingsDisconnectAction from '@/components/SettingsDisconnectAction';
+import { PlayerOnboardingGuide } from '@/components/PlayerOnboardingGuide';
+import { OnboardingFirstAction } from '@/components/OnboardingFirstAction';
+import { GmSetupChecklist } from '@/components/GmSetupChecklist';
 import { PressDispatchDesk } from '@/components/PressDispatchDesk';
 import { PressEventLogView } from '@/components/PressEventLog';
 import { CONSOLE_ROLES } from '@/data/roles';
@@ -95,6 +98,7 @@ export default function PC02ReviewScene() {
   const [pressText, setPressText] = useState('');
   const [sampleDispatches, setSampleDispatches] = useState<readonly PressDispatch[]>([]);
   const [pressNotice, setPressNotice] = useState('');
+  const [setupActionStage, setSetupActionStage] = useState<'brief' | 'action'>('brief');
   const selectedStep = STEPS.find((candidate) => candidate.id === step) ?? STEPS[0]!;
   const continuityRoleLabel = CONSOLE_ROLES.find((role) => role.id === continuityRole)?.name
     ?? continuityRole;
@@ -139,8 +143,24 @@ export default function PC02ReviewScene() {
 
       {step === 'setup' && <section className="pc02-review__panel cic-frame" aria-label="Setup sample">
         <h3>Opening station</h3>
-        <p>Prepared setup, ground rules, and first-action guide will appear here with the production help components.</p>
-        <div className="pc02-review__roster" aria-label="Prepared role lobby">
+        {perspective === 'gm' && <GmSetupChecklist
+          chartId="1189"
+          chartLocked
+          playerCount={6}
+          connectedPlayerCount={6}
+          roleAssignmentCount={6}
+        />}
+        <PlayerOnboardingGuide />
+        <OnboardingFirstAction
+          actionLabel="Open assigned console"
+          actionHint="Prepared Admiral brief // choose one available action with your team. This sample does not change a live session."
+          onAction={() => setSetupActionStage('action')}
+          actionComplete={setupActionStage === 'action'}
+          {...(setupActionStage === 'action'
+            ? { returnLabel: 'Return to briefing', onReturn: () => setSetupActionStage('brief') }
+            : {})}
+        />
+        {setupActionStage === 'brief' ? <div className="pc02-review__roster" aria-label="Prepared role lobby">
           <MemoryRouter>
             <FleetRoster
               session={{ phase: 'lobby' }}
@@ -160,7 +180,12 @@ export default function PC02ReviewScene() {
               replacementRoleId={null}
             />
           </MemoryRouter>
-        </div>
+        </div> : <section className="pc02-review__sample-action cic-frame" aria-label="Prepared first action">
+          <p className="cic-overline">Assigned station // Admiral // AEGIS</p>
+          <h4>First action sample</h4>
+          <p>Review the fleet board, then coordinate with your team before choosing an available command.</p>
+          <p>Action complete in this review scene. The live console requires your own assigned role and server confirmation.</p>
+        </section>}
       </section>}
 
       {step === 'waiver' && <section className="pc02-review__panel cic-frame" aria-label="Waiver sample">
