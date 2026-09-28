@@ -622,7 +622,7 @@ export function readinessForSetup(input: SetupReadinessInput): {
   const pressHasCoreAssignment = input.assignments.some((assignment) =>
     pressPlayerUids.has(assignment.uid) && assignment.roleId !== 'press-officer');
   if (strictSeatBackedReadiness
-    ? coreConnectedPlayers.length > input.playerCount
+    ? coreAssignments.length > input.playerCount
     : coreConnectedPlayers.length !== input.playerCount) reasons.push('players');
 
   const playerIds = new Set(coreConnectedPlayers);
@@ -637,7 +637,7 @@ export function readinessForSetup(input: SetupReadinessInput): {
   if (
     assignedPlayers.size !== coreAssignments.length ||
     roleIds.size !== coreAssignments.length ||
-    coreAssignments.length !== coreConnectedPlayers.length ||
+    (!strictSeatBackedReadiness && coreAssignments.length !== coreConnectedPlayers.length) ||
     !exactPrintedRoster ||
     pressHasCoreAssignment ||
     coreAssignments.some((assignment) => !playerIds.has(assignment.uid) || !input.activeRoleIds.includes(assignment.roleId))
@@ -669,6 +669,9 @@ export function readinessForSetup(input: SetupReadinessInput): {
       coreConnectedPlayers.every((uid) => {
         const pointer = pointerByUid.get(uid);
         const assignment = assignmentByUid.get(uid);
+        // A connected observer has no seat or private loyalty until they claim
+        // an actual station. A stale non-null pointer still blocks start.
+        if (!assignment) return pointer?.seatId === null;
         const seat = assignment ? seatByRole.get(assignment.roleId) : undefined;
         return pointer?.seatId !== null && pointer?.seatId !== undefined &&
           seat?.id === pointer.seatId && seat.holderUid === uid;
@@ -689,7 +692,10 @@ export function readinessForSetup(input: SetupReadinessInput): {
     }
   }
 
-  const expectedLoyaltyUids = new Set([...coreConnectedPlayers, ...pressPlayerUids]);
+  const expectedLoyaltyUids = new Set([
+    ...(strictSeatBackedReadiness ? assignedPlayers : coreConnectedPlayers),
+    ...pressPlayerUids,
+  ]);
   const relevantLoyaltyUids = input.loyaltyUids.filter((uid) => expectedLoyaltyUids.has(uid));
   const loyaltyIds = new Set(relevantLoyaltyUids);
   if (
