@@ -1162,6 +1162,21 @@ test('maps standardized action audit helper changes to every production consumer
   ]);
 });
 
+test('maps Press event builder changes to every authoritative writer', () => {
+  const selected = selectorFor(['functions/src/pressLogEvent.ts']);
+  assert.deepEqual(selectedFunctions(selected), functionTargets([
+    'evacuateShuttleSurvivorsCommand',
+    'applyCommissarPurge',
+    'addShipDamage',
+    'adjustShipPopulation',
+    'applyShipCounterSteps',
+    'runSmallShipMaintenance',
+    'runVoyage33Maintenance',
+    'runMaintenance',
+    'recordPresidentActionCommand',
+  ]));
+});
+
 test('matches the resolver ID addition in the real console metadata source', () => {
   assert.equal(CONSOLE_METADATA_AFTER.split(P436_RESOLVER_ID_ADDITION).length - 1, 1);
 });
