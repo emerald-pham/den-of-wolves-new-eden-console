@@ -462,6 +462,40 @@ describe('App', () => {
     });
   });
 
+  it('rebinds private projections after a same-player reconnect restores the session', async () => {
+    const subscriptions: Array<Parameters<typeof subscribeSessionState>[2]> = [];
+    vi.mocked(subscribeSessionState).mockImplementation((_id, _uid, handlers) => {
+      subscriptions.push(handlers);
+      return vi.fn();
+    });
+    const activeSession: GameSession = { ...session, phase: 'active' };
+    const member: Player = {
+      ...player, role: 'player', assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral',
+    };
+    const brief: RoleBrief = {
+      assignmentUid: 'u1', roleId: 'admiral', roleName: 'Admiral', vesselName: 'AEGIS',
+      text: 'Command the fleet.', commonRules: 'Follow the common rules.', setupRevision: 1,
+    };
+    window.location.hash = '#/ships/aegis/roles/admiral';
+    useSessionStore.getState().setIdentity(activeSession, member);
+    const { unmount } = render(<App />);
+    await waitFor(() => expect(subscriptions).toHaveLength(1));
+    act(() => subscriptions[0]?.onRoleBrief?.(brief));
+    expect(useSessionStore.getState().roleBrief).toEqual(brief);
+
+    // The callable resume refreshes public identity. Its private Firestore
+    // listeners must be rebound even when UID, role, and route are unchanged.
+    act(() => useSessionStore.getState().setIdentity(activeSession, member));
+    expect(useSessionStore.getState().roleBrief).toBeNull();
+    await waitFor(() => expect(subscriptions).toHaveLength(2));
+    act(() => subscriptions[0]?.onRoleBrief?.(brief));
+    expect(useSessionStore.getState().roleBrief).toBeNull();
+    act(() => subscriptions[1]?.onRoleBrief?.(brief));
+    expect(useSessionStore.getState().roleBrief).toEqual(brief);
+    expect(window.location.hash).toBe('#/ships/aegis/roles/admiral');
+    unmount();
+  });
+
   it('keeps ordinary members online without opening the GM-only census listener', async () => {
     let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
     vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
