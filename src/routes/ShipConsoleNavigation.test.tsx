@@ -52,6 +52,20 @@ function renderShip() {
   </MemoryRouter>);
 }
 
+it('links the ship workspace to its stores and shuttle docking sections', async () => {
+  const user = userEvent.setup();
+  renderShip();
+
+  await user.click(screen.getByRole('button', { name: 'Navigation' }));
+  const sections = screen.getByRole('navigation', { name: 'Ship sections' });
+  const stores = screen.getByRole('region', { name: 'AEGIS resource stores' });
+  const dockings = screen.getByRole('region', { name: 'AEGIS shuttlebay' });
+  expect(stores).toHaveAttribute('id', 'aegis-resource-stores');
+  expect(dockings).toHaveAttribute('id', 'aegis-shuttlebay');
+  expect(sections.querySelector('a[href="#aegis-resource-stores"]')).toHaveTextContent('Resource stores');
+  expect(sections.querySelector('a[href="#aegis-shuttlebay"]')).toHaveTextContent('Shuttle docking history');
+});
+
 it('lets a ship hide resource stores and census independently in its local view', async () => {
   const user = userEvent.setup();
   renderShip();
