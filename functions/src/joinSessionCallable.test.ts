@@ -850,3 +850,39 @@ it.each([
     expect.objectContaining({ holderUid: 'u1' }),
   );
 });
+
+
+it.each([
+  { pressEnabled: false, pressHolderUid: 'u1' },
+  { pressEnabled: true, pressHolderUid: 'u2' },
+])('requests station selection when joining with stale Press authority: $pressEnabled/$pressHolderUid', async (pressState) => {
+  mock.enforceReadOrder = true;
+  const fields: Record<string, unknown> = {
+    uid: 'u1', sessionId: 's1', role: 'player', connected: false,
+    seatId: null, assignedRoleId: 'press-officer', activeConsoleRoleId: 'press-officer',
+  };
+  mock.update.mockImplementation((ref: { path: string }, update: Record<string, unknown>) => {
+    if (ref.path === 'sessions/s1/players/u1') Object.assign(fields, update);
+  });
+  mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
+    if (path === 'joinCodes/482109') return snapshot({ sessionId: 's1' });
+    if (path === 'sessions/s1') return snapshot({ name: 'Table one', phase: 'lobby', ...pressState });
+    if (path === 'sessions/s1/players/u1') return snapshot(fields);
+    if (path === 'sessions/s1/players') return snapshot({}, true);
+    if (path.startsWith('sessions/s1/seats/') || path === 'activeMemberships/u1' ||
+        path === 'sessions/s1/fleetGroups/fleet-1' || path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
+    throw new Error(`Unexpected read: ${path}`);
+  });
+  await expect(joinSession.run(request('482109'))).resolves.toMatchObject({
+    stationSelectionRequired: true,
+    player: { uid: 'u1', seatId: null, assignedRoleId: null, activeConsoleRoleId: null },
+  });
+  expect(fields).toMatchObject({ connected: true, activeConsoleRoleId: null, assignedRoleId: null });
+  if (pressState.pressHolderUid === 'u2') {
+    expect(mock.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'sessions/s1' }),
+      expect.objectContaining({ pressHolderUid: 'u1' }),
+    );
+  }
+});
