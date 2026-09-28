@@ -1251,7 +1251,8 @@ it.each([
   });
   expect(within(scaffold).getByRole('heading', { name: 'Ship systems' })).toBeInTheDocument();
   expect(within(scaffold).getByRole('heading', { name: 'Role procedures' })).toBeInTheDocument();
-  expect(scaffold).toHaveTextContent(/tracked at the table/i);
+  expect(scaffold).toHaveTextContent(/Jump costs use the printed ship requirements/i);
+  expect(scaffold).not.toHaveTextContent(/procedure outcomes are tracked at the table/i);
 });
 
 it('routes every Icebreaker Engineer responsibility to live controls', async () => {

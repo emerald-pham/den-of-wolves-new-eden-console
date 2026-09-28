@@ -682,6 +682,11 @@ it('renders current and retained repair history with progress and keyboard stop 
   expect(region).toHaveAttribute('tabindex', '0');
   expect(renderedChanges.every((change) => !/\bprompts?\b/i.test(change))).toBe(true);
   expect(within(newestEntry).getByText(
+    'Ship consoles now link directly to resource stores and shuttle docking history, including on a phone.',
+  )).toBeVisible();
+  const previousPc02Entry = within(region).getByRole('heading', { name: 'Build 0.5.52' }).closest('article');
+  if (!previousPc02Entry) throw new Error('Expected the preserved 0.5.52 release entry.');
+  expect(within(previousPc02Entry).getByText(
     'The Press Officer now receives private reports when survivors change, a Commissar purge resolves, or the President records an action. Publishing a fleet dispatch remains their choice.',
   )).toBeVisible();
   const previousScienceEntry = within(region).getByRole('heading', { name: 'Build 0.5.51' }).closest('article');
