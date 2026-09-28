@@ -28,8 +28,9 @@ boundary. Never silently enlarge that accepted build.
 **Review state:** the owner supplied cross-checkpoint guidance on 2026-09-27,
 including a role-selection screenshot. This was not a PC01 walkthrough or
 verdict. These notes inform PC02–PC10; the owner prefers resolution by the
-PC02 handoff where the work can be completed safely. The local candidate is
-not yet a released or live-verified checkpoint.
+PC02 handoff where the work can be completed safely. PC01 build 0.5.51 has
+since been released; its owner UI review and ordinary authorized live-play
+proof remain open.
 
 | Note ID | Owner's observation or request | Disposition | Cooldown evidence or later candidate | Next shape that addressed it |
 |---|---|---|---|---|
