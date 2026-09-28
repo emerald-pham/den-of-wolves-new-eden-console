@@ -33,6 +33,17 @@ it('opens the production ship map and log, then returns through systems to the f
   expect(screen.getByRole('region', { name: 'Prepared assigned station' })).toBeVisible();
 });
 
+it('offers station paths to resource stores and shuttle docking history', async () => {
+  const user = userEvent.setup();
+  render(<PC03ReviewScene />);
+
+  await user.click(screen.getByRole('button', { name: 'Resource stores' }));
+  expect(screen.getByRole('region', { name: 'Stores and service preview' })).toBeVisible();
+  await user.click(screen.getByRole('button', { name: /Chart and return/i }));
+  await user.click(screen.getByRole('button', { name: 'Shuttle docking history' }));
+  expect(screen.getByRole('region', { name: 'Prepared shuttle route' })).toBeVisible();
+});
+
 it('shows the Drive state matrix while keeping the production jump control inert', async () => {
   const user = userEvent.setup();
   render(<PC03ReviewScene />);
