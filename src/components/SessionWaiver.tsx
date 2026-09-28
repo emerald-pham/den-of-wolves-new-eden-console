@@ -25,9 +25,11 @@ const REGULATIONS = [
 
 export interface SessionWaiverProps {
   readonly onAcknowledge: () => void;
+  /** Present the same checks inside an isolated review scene without blocking its controls. */
+  readonly inline?: boolean;
 }
 
-export default function SessionWaiver({ onAcknowledge }: SessionWaiverProps) {
+export default function SessionWaiver({ onAcknowledge, inline = false }: SessionWaiverProps) {
   const dialog = useRef<HTMLElement>(null);
   const [acknowledged, setAcknowledged] = useState(() => REGULATIONS.map(() => false));
   const [remainingMs, setRemainingMs] = useState(SESSION_WAIVER_CONFIRM_DELAY_MS);
@@ -35,7 +37,7 @@ export default function SessionWaiver({ onAcknowledge }: SessionWaiverProps) {
   const confirmationReady = allRegulationsAcknowledged && remainingMs <= 0;
   const remainingSeconds = Math.ceil(remainingMs / 1_000);
 
-  useDialogFocus({ open: true, dialogRef: dialog });
+  useDialogFocus({ open: !inline, dialogRef: dialog });
 
   useEffect(() => {
     const startedAt = Date.now();
@@ -60,12 +62,12 @@ export default function SessionWaiver({ onAcknowledge }: SessionWaiverProps) {
   }
 
   return (
-    <div className="session-waiver-backdrop" data-waiver-gate="true">
+    <div className="session-waiver-backdrop" data-waiver-gate={inline ? 'false' : 'true'}>
       <section
         ref={dialog}
         className="session-waiver cic-frame"
         role="dialog"
-        aria-modal="true"
+        aria-modal={inline ? undefined : 'true'}
         aria-labelledby="session-waiver-title"
         aria-describedby="session-waiver-intro"
       >

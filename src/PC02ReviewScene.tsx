@@ -222,7 +222,7 @@ export default function PC02ReviewScene() {
         </label>
         {(waiverTime === 'accepted' || waiverTime === 'before-expiry')
           ? <p role="status">Acknowledgement accepted on this device. No new checks are required before 72 hours.</p>
-          : <SessionWaiver onAcknowledge={() => setWaiverTime('accepted')} />}
+          : <SessionWaiver inline onAcknowledge={() => setWaiverTime('accepted')} />}
       </section>}
 
       {step === 'fleet' && <section className="pc02-review__panel" aria-label="Fleet board sample">
