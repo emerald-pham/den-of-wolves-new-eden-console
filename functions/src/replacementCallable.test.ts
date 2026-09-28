@@ -123,7 +123,8 @@ it('records explicit eligibility and assigns a replacement atomically', async ()
 
   expect(mock.update).toHaveBeenCalledWith(
     expect.objectContaining({ path: 'sessions/s1/players/player-1' }),
-    { replacementRoleId: 'wolf-commander', activeConsoleRoleId: null, seatId: null },
+    { replacementRoleId: 'wolf-commander', replacementStatus: null,
+      activeConsoleRoleId: null, seatId: null },
   );
   expect(mock.set).toHaveBeenCalledWith(
     expect.objectContaining({ path: 'sessions/s1/roleBriefs/player-1' }),
@@ -166,7 +167,8 @@ it('lets the GM reassign a replacement holder after the holder leaves a destroye
 
   expect(mock.update).toHaveBeenCalledWith(
     expect.objectContaining({ path: 'sessions/s1/players/player-1' }),
-    { replacementRoleId: 'wolf-commander', activeConsoleRoleId: null, seatId: null, escapeState: null },
+    { replacementRoleId: 'wolf-commander', replacementStatus: null,
+      activeConsoleRoleId: null, seatId: null, escapeState: null },
   );
 });
 
@@ -394,7 +396,8 @@ it('assigns an extra-ship replacement only after its server-owned docking state 
   }))).resolves.toMatchObject({ status: 'committed', replacementRoleId: 'gorgoneion-captain' });
   expect(mock.update).toHaveBeenCalledWith(
     expect.objectContaining({ path: 'sessions/s1/players/player-1' }),
-    { replacementRoleId: 'gorgoneion-captain', activeConsoleRoleId: null, seatId: null },
+    { replacementRoleId: 'gorgoneion-captain', replacementStatus: null,
+      activeConsoleRoleId: null, seatId: null },
   );
   expect(mock.set).toHaveBeenCalledWith(
     expect.objectContaining({ path: 'sessions/s1/roleBriefs/player-1' }),
