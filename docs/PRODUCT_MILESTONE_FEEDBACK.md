@@ -4,13 +4,15 @@ This is the record of the product owner's UI review by playing the app, not a
 gameplay-rules, test, or source-code review. Record notes on layout, wording,
 navigation, visible states, and any suggested change the owner raises. The
 next checkpoint shape must read every received note and state
-its disposition in [Product Milestones](PRODUCT_MILESTONES.md). Do not infer
-approval, satisfaction, or a decision from silence. If no feedback has arrived,
-record that fact in the next shape and continue; do not wait.
+its disposition in [Product Milestones](PRODUCT_MILESTONES.md). Written UI
+feedback and walkthrough answers are optional. Explicit owner authorization is
+sufficient checkpoint acceptance and must be recorded here; silence alone is
+not authorization. If no feedback has arrived, record that fact in the next
+shape and continue; do not wait.
 
-For each review, append an entry with:
+For each authorization or review, append an entry with:
 
-- milestone ID, reviewed build/version, date, and the owner's own notes;
+- milestone ID, build/version, date, authorization state, and any owner notes;
 - one row per note with a short ID and exact requested behavior;
 - disposition: fixed in cooldown, included in the next shape, or added to a
   named [later candidate](PRODUCT_MILESTONE_CANDIDATES.md);
@@ -29,8 +31,9 @@ boundary. Never silently enlarge that accepted build.
 including a role-selection screenshot. This was not a PC01 walkthrough or
 verdict. These notes inform PC02–PC10; the owner prefers resolution by the
 PC02 handoff where the work can be completed safely. PC01 build 0.5.51 has
-since been released; its owner UI review and ordinary authorized live-play
-proof remain open.
+since been released. PC01 checkpoint acceptance awaits explicit authorization;
+a completed UI walkthrough is not required. Ordinary authorized live-play
+proof remains a separate agent-owned evidence gap.
 
 | Note ID | Owner's observation or request | Disposition | Cooldown evidence or later candidate | Next shape that addressed it |
 |---|---|---|---|---|
@@ -45,4 +48,8 @@ proof remain open.
 | PC01-F09 | DRADIS contact names overlap other plot content. The expanded plot should keep each name readable and anchored on the left or right of its contact, choosing the side with more room from other labels and marks. The minimized plot is lower priority and may be less readable. | Included in PC02 cooldown target. | Local candidates `4525a4db`, `60eef106`, and `60d2ca71` wrap oversized names, choose the clearer anchored side after scans, and provide a “Read names” expansion control on narrow screens. Focused tests and rendered 320/390/844/1440 px checks pass for expanded labels without overlaps or detached names; released gameplay review pending. | PC02 planned. |
 | PC01-F10 | Reconnect does not restore the correct game state. | Included in PC02 cooldown target. | Local candidate `096aaf88` rebinds private state listeners after a same-player resume; focused route/private-projection test passes. Server continuity and released gameplay proof pending. | PC02 planned. |
 
-**PC02 release update (2026-09-27).** All ten requested presentation and continuity changes above are included in released build 0.5.52 from `f0e4eb73c753915567412899efd4dd4d78faa9dc`. [The release workflow](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/36374346054) passed, the public build marker reports 0.5.52, and the six-step [solo review scene](https://dow-new-eden-console.web.app/pc02-review) loads. The table preserves the earlier candidate and proof state as received; see [the PC02 report](PC02_PLAYTEST_REPORT.md) for the final test inventory and release evidence. The owner's PC02 UI walkthrough and ordinary authorized live-game proof are still open. The owner explicitly authorized moving to PC03 without waiting for that UI review; this does not count as approval of the PC02 presentation.
+**PC02 authorization update (2026-09-28).** All ten requested presentation and continuity changes above are included in released build 0.5.52 from `f0e4eb73c753915567412899efd4dd4d78faa9dc`. [The release workflow](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/36374346054) passed, the public build marker advanced through 0.5.52, and the six-step [solo review scene](https://dow-new-eden-console.web.app/pc02-review) loads. The owner explicitly authorized PC02 and confirmed that checkpoint authorization is sufficient without walkthrough answers or written UI feedback. PC02 owner acceptance is complete. The table preserves the earlier candidate and proof state as received; see [the PC02 report](PC02_PLAYTEST_REPORT.md) for the final test inventory and remaining agent-owned production evidence.
+
+## PC03 — Navigation and shuttle controls
+
+**Authorization state (2026-09-28): accepted.** The owner explicitly authorized PC03 and confirmed that checkpoint authorization is sufficient without walkthrough answers or written UI feedback. Build 0.5.53 and the five-step [solo review scene](https://dow-new-eden-console.web.app/pc03-review) are released. Optional later feedback remains welcome and follows the ordinary cooldown process. See [the PC03 report](PC03_PLAYTEST_REPORT.md) for release evidence, unresolved rule decisions, and remaining agent-owned production evidence.

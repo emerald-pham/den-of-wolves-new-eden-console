@@ -2,13 +2,15 @@
 
 This is the owner-facing route through the unfinished Den of Wolves prompts.
 The word for an owner-facing milestone is **playtest checkpoint**. Each one is
-defined by **yes/no questions about the UI that the product owner can answer
-by playing the app in one sitting**. The owner reviews screen layout, labels,
-navigation, controls, and visible feedback, and may suggest any change. Agents
-own gameplay rules, calculations, permissions, privacy, persistence, and tests.
-They supply prepared app states and step-by-step UI instructions; the owner
-does not need to inspect code, tests, raw logs, or rule math. The M1–M13 stories
-and exit fixtures in
+defined by **yes/no questions about the UI that the product owner may answer
+by playing the app in one sitting**. These questions are an optional review
+aid, not a required approval form. Explicit owner authorization accepts the
+checkpoint without a completed walkthrough or written feedback. The owner may
+review screen layout, labels, navigation, controls, and visible feedback and
+suggest any change. Agents own gameplay rules, calculations, permissions,
+privacy, persistence, and tests. They supply prepared app states and
+step-by-step UI instructions; the owner does not need to inspect code, tests,
+raw logs, or rule math. The M1–M13 stories and exit fixtures in
 [Implementation Milestones](IMPLEMENTATION_MILESTONES.md) remain internal
 engineering gates. They do not define an owner playtest checkpoint.
 
@@ -18,9 +20,11 @@ representative prepared states. It must not require twenty players, account
 switching, GM privileges, or a long setup. Reuse a genuine solo path where it
 covers the screens; otherwise supply an isolated review scene with synthetic
 data and no live-session writes. Label simulated actions and state changes so
-they cannot be mistaken for a live game. The scene is for judging presentation,
-not evidence that multiplayer gameplay works. Agents prove the real authorized
-paths and relevant multi-client behavior separately before claiming completion.
+they cannot be mistaken for a live game. Opening the scene or returning answers
+is optional once the owner explicitly authorizes the checkpoint. The scene is
+for judging presentation, not evidence that multiplayer gameplay works. Agents
+prove the real authorized paths and relevant multi-client behavior separately
+before claiming the affected gameplay prompts complete.
 The final game-completion gate includes the full-table twenty-player proof;
 the owner is never responsible for recruiting or operating that table.
 
@@ -90,20 +94,25 @@ make, even when the shaped UI passed.
    exact build and review access. Keep the direct handoff short; the full
    report and test inventory live in the repository. Do not call a technical
    fixture or synthetic review scene alone a playable checkpoint.
-5. **Record feedback and cool down.** Put each received review note in the
-   [feedback file](PRODUCT_MILESTONE_FEEDBACK.md). Fix what the owner flags in
+5. **Record authorization, feedback, and cooldown.** Explicit owner
+   authorization accepts the checkpoint even when the owner does not play the
+   review scene or send written UI feedback. Record that authorization in the
+   [feedback file](PRODUCT_MILESTONE_FEEDBACK.md). Put each received review note
+   there too. Fix what the owner flags in
    a bounded cooldown pass before starting a **new** checkpoint build; include
    the fix and its verification there. If feedback arrives while a previously
    shaped build is underway, finish that scope and do the cooldown at its next
    safe boundary. The next shape must list every prior note and say whether it
    was fixed, adopted into that shape, or routed to a named later candidate.
-   If no review has arrived, record that fact and keep going; never pause
-   merely to wait for feedback. A later correction to a rulebook assumption
-   is cooldown work.
+   If no feedback has arrived, record that fact and keep going; never pause
+   merely to wait for feedback. Silence alone is not authorization, but an
+   explicit authorization needs no accompanying walkthrough answers. A later
+   correction to a rulebook assumption is cooldown work.
 
 No checkpoint needs prebuild owner approval. Shape it internally, build and
 verify the complete result, then give the owner a playable UI review link and
-short report. The owner provides feedback on a finished product. This process
+short report. The owner may provide feedback on the finished product or simply
+authorize the checkpoint. This process
 changes no existing task's accepted scope and creates no Git, CI, or
 deployment approval gate.
 
@@ -111,7 +120,8 @@ deployment approval gate.
 
 These **ten candidate UI clusters** group screens from the same player
 workflow; PC02–PC10 remain provisional and are shaped after prior feedback.
-The owner reviews presentation and usability in a solo review scene. Agents
+The owner may review presentation and usability in a solo review scene or
+explicitly authorize the checkpoint without completing that review. Agents
 complete the gameplay and technical proof, including multi-client tests. The
 tour must fit one sitting; if it does not, split the shape before building it.
 
@@ -160,10 +170,12 @@ extra owner playtest steps.
 
 ## PC01 shape — Shepherd science station
 
-**State:** build 0.5.51 released; solo owner UI review and ordinary authorized
-facilitator/Scientist gameplay proof remain. PC02–PC10 remain provisional
-candidates. The deployed synthetic review scene supports the owner's UI tour;
-it does not establish the live gameplay proof.
+**State:** build 0.5.51 released; explicit PC01 checkpoint authorization has
+not been recorded, while its solo UI walkthrough remains optional. Ordinary
+authorized facilitator/Scientist gameplay proof remains a separate agent-owned
+gap. PC02–PC10 remain provisional candidates. The deployed synthetic review
+scene supports an optional owner UI tour; it does not establish live gameplay
+proof.
 
 **Execution note (2026-09-27).** The earlier optional-sidecar wording left
 independent PC01 work easy to run serially. Assign bounded, separate owners
@@ -251,26 +263,27 @@ boundary and the second ship's limited view; the owner is not asked to audit
 security. The synthetic review scene cannot count as production-path gameplay
 proof. No prompt closes from an isolated widget or unverified release.
 
-**Feedback and handoff.** Record PC01 owner notes in the feedback file. Fix
-flagged issues in cooldown before a new checkpoint build. PC02 is only a
-candidate: its shape reads every available PC01 note and states its
-resolution. If no review has arrived, record that fact and continue without
-waiting. The nontechnical PC01 report lists new source-backed assumptions
-first, then the four UI checks, the complete test-change inventory,
-known issues, and later candidates.
+**Authorization, feedback, and handoff.** Record PC01 authorization and any
+optional owner notes in the feedback file. Fix flagged issues in cooldown
+before a new checkpoint build. PC02 is only a candidate: its shape reads every
+available PC01 note and states its resolution. If no feedback has arrived,
+record that fact and continue without waiting. The nontechnical PC01 report
+lists new source-backed assumptions first, then the four optional UI checks,
+the complete test-change inventory, known issues, and later candidates.
 
 ## PC02 shape — Setup, fleet board, and session continuity
 
-**Release update (2026-09-27).** Build 0.5.52 is deployed from
+**Release and acceptance update (2026-09-28).** Build 0.5.52 is deployed from
 `f0e4eb73c753915567412899efd4dd4d78faa9dc`. Its six-step
 [solo review scene](https://dow-new-eden-console.web.app/pc02-review) is live;
 the [PC02 report](PC02_PLAYTEST_REPORT.md) separates the green release gates
-from the still-open ordinary authorized gameplay proof. The owner authorized
-starting PC03 without waiting for a PC02 UI verdict. Keep later PC02 feedback
-in its own cooldown record rather than treating silence as approval.
+from the still-open ordinary authorized gameplay proof. The owner explicitly
+authorized PC02 and confirmed that authorization is sufficient checkpoint
+acceptance. PC02 is accepted without required walkthrough answers. Record any
+later optional PC02 feedback in its own cooldown record.
 
-**State.** Shaped 2026-09-27. PC01's owner walkthrough has not happened, so
-there is no PC01 playtest verdict. The owner did provide separate
+**State.** Shaped 2026-09-27. Explicit PC01 authorization has not been
+recorded; its optional walkthrough has not happened. The owner did provide separate
 cross-checkpoint guidance, PC01-F01 through PC01-F10, expressly to inform
 PC02–PC10. This shape plans all ten for PC02 because they can be reviewed as
 one opening-to-active-play flow. Every item remains **planned** until the
@@ -470,13 +483,13 @@ without marking the note resolved.
 
 ## PC03 shape — Navigation and shuttle controls
 
-**State (2026-09-28).** PC02 build 0.5.52 and its six-step solo scene are
-released. The owner explicitly authorized starting PC03 before giving a PC02
-UI verdict. The PC02 report keeps ordinary authorized gameplay proof open;
-neither the prior synthetic scene nor silence closes that gate. No new PC02
-review note or later-milestone overflow is available at shaping time. Keep any
-PC02 feedback that arrives during this build for the next safe cooldown
-boundary.
+**State (2026-09-28).** PC02 build 0.5.52 and PC03 build 0.5.53 are released.
+The owner explicitly authorized both checkpoints and confirmed that explicit
+authorization is sufficient checkpoint acceptance; no walkthrough answers or
+written UI feedback are required. The PC02 and PC03 reports keep ordinary
+authorized gameplay proof separate and open where listed. No new PC02 review
+note or later-milestone overflow was available at shaping time. Record any
+later optional feedback at the next safe cooldown boundary.
 
 **Prior guidance disposition.** PC01-F01–PC01-F10 were direct owner guidance,
 not a PC01 review verdict. They shipped in PC02 build 0.5.52; ordinary

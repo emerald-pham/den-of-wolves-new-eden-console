@@ -91,8 +91,10 @@ completion chain, or ancestry-only merge requirement.
    workflow result after deployment. A pushed workflow, local green test, or rendered screenshot
    is not a substitute for the other kinds of evidence.
 6. Hand over a one-sitting UI walkthrough and the nontechnical checkpoint
-   report specified in the product plan. Record owner feedback in the repo and
-   fix flagged issues in cooldown before starting a new checkpoint build.
+   report specified in the product plan. Explicit owner authorization accepts
+   the checkpoint; walkthrough answers and written UI feedback are optional.
+   Record any feedback the owner chooses to give and fix flagged issues in
+   cooldown before starting a new checkpoint build.
 
 For a UI change, the implementing agent checks narrow phone, wide desktop, and short
 landscape rendering, fonts, contrast, overflow, reduced motion, and visible

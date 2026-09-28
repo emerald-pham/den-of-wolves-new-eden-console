@@ -35,7 +35,7 @@ the original assumption; append the resolution so the decision is traceable.
 | Ambiguity and alternatives | The printed rules do not define which digital ship map gains a coordinate when the shuttle is docked away from its owning role's ship. Plausible recipients are the role's home ship, the docked ship when the request is made, or the ship where the shuttle happens to be when the facilitator reveals the result. |
 | Chosen reading | Record the shuttle's valid parked host at request time as the receiving ship for map-coordinate knowledge. Keep the private result and note with the requesting player and role's current valid group, including after a legitimate same-ship fleet split. Later docking movement cannot redirect a pending scan. |
 | Product effect | Scout receipts and resolved coordinate knowledge bind to the request-time host; a different ship cannot read that coordinate merely because the craft later moves. This affects Prompts 321, 328–330, and 677, with request, replay, result, and two-ship projection tests. |
-| Review state | New; awaiting owner PC01 UI review. |
+| Review state | New; pending explicit PC01 checkpoint authorization or a later owner correction. A UI walkthrough is optional. |
 
 ### PC01-A2 — Hidden Deep Nebula scouting progress
 
@@ -46,7 +46,7 @@ the original assumption; append the resolution so the decision is traceable.
 | Ambiguity and alternatives | The printed instruction does not specify what a digital scout receipt should say about accumulating progress. Showing the count, showing no feedback, and giving a nonnumeric hint are plausible UI readings. |
 | Chosen reading | Persist one server-only marker per committed Deep Nebula scout result and show the requester a qualitative progress hint. Do not include a numeric total in the result, note, map, or hint. The later jump resolver may count the markers when its separate checkpoint implements that action. |
 | Product effect | Prompt 332 records exact-once hidden scans; Prompt 333 gives the Scientist useful feedback without exposing the accrued modifier. Replay, wrong-recipient, and no-total checks cover the boundary. |
-| Review state | New; awaiting owner PC01 UI review. |
+| Review state | New; pending explicit PC01 checkpoint authorization or a later owner correction. A UI walkthrough is optional. |
 
 ### PC02-A1 — Departed core stations remain vacant without facilitator rerole
 
@@ -57,4 +57,4 @@ the original assumption; append the resolution so the decision is traceable.
 | Ambiguity and alternatives | After a deliberate midgame departure, the vacated seat could remain open for facilitator action, automatically pass to another player, or be reclaimed by the departing identity. The printed rerole instruction does not authorize an automatic transfer. |
 | Chosen reading | Deliberate Leave Session ends that member's role and seat authority and clears their private projection. The active game continues for everyone else. A temporary connection loss keeps the same member's assignment for resume; a deliberate leave does not. Do not add a generic midgame core-seat claim without a separate source-backed casting rule. |
 | Product effect | PC01-F05 and PC01-F10 use separate leave and resume paths across every supported non-GM role. Callable and composition tests cover the continuing session, released authority, exact-seat vacancy, private-state removal, and same-member transient recovery. |
-| Review state | New; awaiting the PC02 owner walkthrough. |
+| Review state | Accepted with the owner's explicit PC02 checkpoint authorization on 2026-09-28. A later correction still enters cooldown. |

@@ -15,13 +15,14 @@
    Nebula; Facilitator's Guide v1.1, pp. 13–15 and 19. Full decision:
    [assumptions log](PRODUCT_MILESTONE_ASSUMPTIONS.md#pc01-a2--hidden-deep-nebula-scouting-progress).
 
-## Owner's one-sitting UI review
+## Optional owner's one-sitting UI review
 
 **Build:** 0.5.51. **Review scene:** [PC01 science review](https://dow-new-eden-console.web.app/pc01-review.html).
 The scene uses the real presentation components with labeled prepared states.
 Its clicks change only local synthetic state; they do not enter a live game or
-write to Firebase. The owner checks presentation and usability, while agents
-verify gameplay, permissions, and privacy separately.
+write to Firebase. The owner may check presentation and usability or authorize
+the checkpoint without completing this walkthrough. Agents verify gameplay,
+permissions, and privacy separately.
 
 1. **Research and navigation — yes/no.** Open the review link on your device.
    The default selector is `Scientist // Endeavour`. In `Team research`, find

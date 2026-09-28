@@ -56,7 +56,8 @@ system. Keep the workflow proportionate to the risk of the change.
 For numbered-prompt work, follow the one-sitting playtest checkpoints and
 shaping, assumptions, test-first commits, feedback, and cooldown process in
 [`docs/PRODUCT_MILESTONES.md`](docs/PRODUCT_MILESTONES.md). M1–M13 are internal
-gates. The owner reviews completed UI; agents own gameplay proof. Build without
+gates. Explicit owner authorization accepts a checkpoint; review-scene play
+and written UI feedback are optional. Agents own gameplay proof. Build without
 prebuild approval or routine owner questions: resolve choices from evidence,
 log assumptions, and report proof gaps. Do not pause for owner feedback or a
 rules ruling; ask only when higher authority requires it or no useful work remains.
