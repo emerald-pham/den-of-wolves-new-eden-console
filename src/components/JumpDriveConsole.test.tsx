@@ -99,7 +99,7 @@ it('shows the effective fuel bands after the Jump Drive upgrade', () => {
 it('allows local coordinate preview without exposing a jump mutation', async () => {
   const user = userEvent.setup();
   render(
-    <ConsoleAccessContext.Provider value={{ writable: false, roleId: null }}>
+    <ConsoleAccessContext.Provider value={{ writable: false }}>
       <JumpDriveConsole
         shipId="aegis" shipName="AEGIS" currentCoordinate="0000" fuel={4}
         jumpCosts={[2, 3, 6]} charged damaged={false} upgraded={false} presentationOnly

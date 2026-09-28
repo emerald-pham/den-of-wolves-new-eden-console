@@ -2773,7 +2773,10 @@ describe('immediate mutations require fresh server authority', () => {
     ['counter batch', () => applyShipCounterSteps('aegis', { counter: 'unrest' }, []), true],
     ['ship movement', () => moveShipToLocation('aegis', 'A-1'), true],
     ['console lock', () => setShipConsoleLock('aegis', true), true],
-    ['ship jump', () => jumpShip('aegis', 'A-1'), true],
+    ['ship jump', () => jumpShip({
+      sessionId: 's1', shipId: 'aegis', destination: 'A-1',
+      requestId: 'cache-denied-jump', expectedRevision: 0, instanceId: 'bridge',
+    }), true],
     ['game start', () => startGame(), true],
     ['turn advance', () => advanceTurn(), true],
     ['single-player demo', () => {
