@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   advanceVoyage33Maintenance,
   emptyVoyage33MaintenanceState,
+  isVoyage33InMutiny,
   parseVoyage33MaintenanceState,
 } from './voyage33Maintenance';
 
@@ -87,5 +88,27 @@ describe('Voyage 33-0 maintenance', () => {
       state, expectedRevision: 0, currentTurn: 1, hostResources,
       now: '2026-09-19T00:00:00.000Z', action: 'reactor', consoles: ['one', 'two'], rolls: [],
     })).toThrow(/current step|available/i);
+  });
+
+  it('durably enters mutiny at unrest eight and locks Voyage 33-0 until crew replacement', () => {
+    const baseState = emptyVoyage33MaintenanceState('aegis');
+    const state = {
+      ...baseState,
+      unrest: 7,
+      cycle: { ...baseState.cycle, step: 2, revision: 2, turn: 1, rationBonus: 0 },
+    };
+    const triggered = advanceVoyage33Maintenance({
+      state, action: 'unrest', expectedRevision: 2, currentTurn: 1,
+      hostResources, rolls: [1, 1], now: '2026-09-28T12:00:00.000Z',
+    });
+
+    expect(triggered.state.mutiny).toMatchObject({
+      status: 'active', revision: 1, triggerUnrest: 9,
+    });
+    expect(isVoyage33InMutiny(triggered.state)).toBe(true);
+    expect(() => advanceVoyage33Maintenance({
+      state: triggered.state, action: 'riot', expectedRevision: 3, currentTurn: 1,
+      hostResources, rolls: [6], now: 'later',
+    })).toThrow(/mutiny.*crew captain/i);
   });
 });

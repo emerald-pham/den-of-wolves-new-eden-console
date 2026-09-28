@@ -84,10 +84,21 @@ it('replays an exact request without spending the host a second time', async () 
   const receipt = mock.set.mock.calls.find(([path]) => String(path).includes('/voyage33MaintenanceRequests/'))?.[1] as Record<string, unknown>;
   mock.receipts['sessions/s1/voyage33MaintenanceRequests/voyage-maint-1'] = receipt;
   mock.session.activeVesselIds = ['aegis', 'dione'];
-  mock.session.voyage33Maintenance = { ...emptyVoyage33MaintenanceState('dione'), dockingRevision: 1 };
+  mock.session.voyage33Maintenance = {
+    ...emptyVoyage33MaintenanceState('dione'), dockingRevision: 1, unrest: 8,
+    mutiny: { status: 'active', revision: 1, triggerUnrest: 8, triggeredAt: 'now' },
+  };
   mock.update.mockReset();
   mock.set.mockReset();
   await expect(runVoyage33Maintenance.run(request(base))).resolves.toMatchObject({ status: 'replayed' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+
+  await expect(runVoyage33Maintenance.run(request({
+    ...base, requestId: 'voyage-maint-locked', expectedDockingRevision: 1,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/mutiny.*crew captain/i),
+  });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
 });
@@ -96,6 +107,10 @@ it('logs a Voyage 33-0 riot population loss atomically and does not repeat it on
   const state = emptyVoyage33MaintenanceState('aegis');
   mock.session.voyage33Maintenance = {
     ...state, population: 10_000, unrest: 10,
+    mutiny: {
+      status: 'resolved', revision: 1, triggerUnrest: 8, triggeredAt: 'earlier',
+      resolvedAt: 'earlier', reduction: 2,
+    },
     cycle: { ...state.cycle, step: 3, revision: 3, turn: 1 },
   };
   const riot = { ...base, action: 'riot', expectedRevision: 3, requestId: 'voyage-riot' };

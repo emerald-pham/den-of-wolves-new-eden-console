@@ -30,3 +30,29 @@ it('keeps the public mutiny resolved even if the selected reduction leaves unres
     candidates={candidates} expectedRevision={5} writable />);
   expect(container).toBeEmptyDOMElement();
 });
+
+it('shows the current base-craft holder and transfers command only to a selected eligible player', async () => {
+  render(<GmMutinyRecovery shipId="gorgoneion" shipName="Gorgoneion" unrest={8}
+    mode="replacement-transfer"
+    currentCaptain={{ uid: 'old', displayName: 'Old Captain', roleId: 'gorgoneion-captain' }}
+    mutiny={{ status: 'active', revision: 2, triggerUnrest: 8, triggeredAt: 'now' }}
+    candidates={candidates} expectedRevision={2} writable />);
+
+  expect(screen.getByText(/Current captain.*Old Captain.*gorgoneion-captain/i)).toBeVisible();
+  expect(screen.getByText(/replacement eligibility/i)).toBeVisible();
+  await userEvent.selectOptions(screen.getByRole('combobox', { name: 'New captain' }), 'engineer');
+  await userEvent.click(screen.getByRole('button', { name: 'Install replacement captain' }));
+  expect(resolve).toHaveBeenCalledWith('gorgoneion', 'engineer', 2, 2, 'replacement-transfer');
+});
+
+it('records explicit Voyage 33-0 crew replacement without selecting or granting a player identity', async () => {
+  render(<GmMutinyRecovery shipId="voyage-33-0" shipName="Voyage 33-0" unrest={9}
+    mode="crew-attestation"
+    mutiny={{ status: 'active', revision: 3, triggerUnrest: 9, triggeredAt: 'now' }}
+    candidates={[]} expectedRevision={3} writable />);
+
+  expect(screen.queryByRole('combobox', { name: 'New captain' })).not.toBeInTheDocument();
+  expect(screen.getByText(/crew has installed a new in-world captain/i)).toBeVisible();
+  await userEvent.click(screen.getByRole('button', { name: 'Confirm crew captain replacement' }));
+  expect(resolve).toHaveBeenCalledWith('voyage-33-0', null, 2, 3, 'crew-attestation');
+});

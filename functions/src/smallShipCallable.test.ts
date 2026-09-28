@@ -202,6 +202,10 @@ it('logs a small-ship riot population loss atomically and does not repeat it on 
   mock.session.smallShipStates = {
     gorgoneion: {
       ...baseState, population: 1_000, unrest: 10,
+      mutiny: {
+        status: 'resolved', revision: 1, triggerUnrest: 8, triggeredAt: 'earlier',
+        resolvedAt: 'earlier', reduction: 2,
+      },
       cycle: { ...baseState.cycle, step: 3, revision: 3, turn: 1 },
     },
   };
@@ -241,16 +245,35 @@ it('rejects fresh small-ship maintenance without an authoritative phase clock be
   expect(mock.set).not.toHaveBeenCalled();
 });
 
-it('replays a completed command before rechecking mutable host authority', async () => {
+it('replays a completed command after mutiny while fresh maintenance and docking stay locked', async () => {
   mock.session.smallShipStates = { gorgoneion: emptySmallShipState('gorgoneion', 'aegis') };
   await runSmallShipMaintenance.run(request(maintenanceBase));
   const receiptPath = 'sessions/s1/smallShipRequests/maint-1';
   const receipt = mock.set.mock.calls.find(([path]) => path === receiptPath)?.[1] as Record<string, unknown>;
   mock.receipts[receiptPath] = receipt;
-  mock.session.smallShipStates = {};
+  mock.session.smallShipStates = {
+    gorgoneion: {
+      ...emptySmallShipState('gorgoneion', 'aegis'), unrest: 8,
+      mutiny: { status: 'active', revision: 1, triggerUnrest: 8, triggeredAt: 'now' },
+    },
+  };
   mock.update.mockReset();
   mock.set.mockReset();
   await expect(runSmallShipMaintenance.run(request(maintenanceBase))).resolves.toMatchObject({ status: 'replayed' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+
+  await expect(runSmallShipMaintenance.run(request({
+    ...maintenanceBase, requestId: 'maint-locked',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/mutiny.*new captain/i),
+  });
+  mock.session.turnPhase = { turn: 1, airspace: { state: 'lifted' } };
+  await expect(setSmallShipDocking.run(request({
+    ...dockingBase, requestId: 'dock-locked',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/mutiny.*new captain/i),
+  });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
 });
@@ -498,6 +521,20 @@ it('runs Vulcan Additional Labour atomically for two independent charges, immedi
   mock.update.mockReset();
   mock.set.mockReset();
   await expect(runVulcanAdditionalLabour.run(request(first))).resolves.toMatchObject({ status: 'replayed' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+
+  mock.session.smallShipStates = {
+    vulcan: {
+      ...vulcan, unrest: 8,
+      mutiny: { status: 'active', revision: 1, triggerUnrest: 8, triggeredAt: 'now' },
+    },
+  };
+  await expect(runVulcanAdditionalLabour.run(request({
+    ...first, requestId: 'vulcan-labour-locked', expectedRevision: 1,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/mutiny.*new captain/i),
+  });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
 

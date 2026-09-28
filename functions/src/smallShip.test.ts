@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   advanceSmallShipMaintenance,
   emptySmallShipState,
+  isSmallShipInMutiny,
   parseSmallShipState,
   SMALL_SHIP_RULES,
   SMALL_SHIP_IDS,
@@ -306,5 +307,38 @@ describe('small-ship rules', () => {
     expect(result.state.population).toBe(0);
     expect(result.state.unrest).toBe(4);
     expect(result.state.cycle.chargingSkipped).toBe(true);
+  });
+
+  it('durably enters mutiny at unrest eight and locks the unfinished maintenance cycle', () => {
+    const baseState = docked('gorgoneion');
+    const state = {
+      ...baseState,
+      unrest: 7,
+      cycle: { ...baseState.cycle, step: 2, revision: 2, turn: 1, rationBonus: 0 },
+    };
+    const triggered = advanceSmallShipMaintenance({
+      state, action: 'unrest', expectedRevision: 2, currentTurn: 1,
+      hostResources, rolls: [1, 1], now: '2026-09-28T12:00:00.000Z',
+    });
+
+    expect(triggered.state.unrest).toBe(9);
+    expect(triggered.state.mutiny).toMatchObject({
+      status: 'active', revision: 1, triggerUnrest: 9,
+      triggeredAt: '2026-09-28T12:00:00.000Z',
+    });
+    expect(isSmallShipInMutiny(triggered.state)).toBe(true);
+    expect(() => advanceSmallShipMaintenance({
+      state: triggered.state, action: 'riot', expectedRevision: 3, currentTurn: 1,
+      hostResources, rolls: [6], now: 'later',
+    })).toThrow(/mutiny.*new captain/i);
+  });
+
+  it('fails closed for a legacy craft at unrest eight and rejects a malformed mutiny record', () => {
+    const legacy = { ...docked('warrior'), unrest: 8 };
+    expect(isSmallShipInMutiny(legacy)).toBe(true);
+    expect(parseSmallShipState({
+      ...legacy,
+      mutiny: { status: 'resolved', revision: 1, triggerUnrest: 8, triggeredAt: 'now' },
+    }, 'warrior')).toBeUndefined();
   });
 });

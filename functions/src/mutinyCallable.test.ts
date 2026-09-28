@@ -1,5 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
+import { emptySmallShipState } from './smallShip';
+import { emptyVoyage33MaintenanceState } from './voyage33Maintenance';
 
 const mock = vi.hoisted(() => ({
   documents: new Map<string, Record<string, unknown>>(),
@@ -190,4 +192,113 @@ it('installs an acting captain from the confirmed sparse roster without changing
   await expect(resolveShipMutiny.run(request({ ...sparse, requestId: 'mutiny-2', expectedRevision: 1 })))
     .rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.documents.get('sessions/s1')?.shipCommandCaptains).toEqual({ icebreaker: 'new' });
+});
+
+it('transfers a base-craft Captain replacement role and leaves the former holder awaiting a new role', async () => {
+  const craft = emptySmallShipState('gorgoneion', 'aegis');
+  mock.documents.set('sessions/s1', {
+    phase: 'active', currentTurn: 1, setupRevision: 4,
+    activeVesselIds: ['aegis'], expansion: 'base', capybaraEnabled: true,
+    smallShipStates: {
+      gorgoneion: {
+        ...craft, unrest: 8, cycle: { ...craft.cycle, revision: 4 },
+        mutiny: { status: 'active', revision: 1, triggerUnrest: 8, triggeredAt: 'first' },
+      },
+    },
+  });
+  mock.documents.set('sessions/s1/players/old', {
+    role: 'player', connected: true, assignedRoleId: 'aegis-admiral',
+    replacementRoleId: 'gorgoneion-captain', activeConsoleRoleId: null, seatId: null,
+  });
+  mock.documents.set('sessions/s1/players/new', {
+    role: 'player', connected: true, assignedRoleId: 'aegis-engineer',
+    replacementRoleId: null, activeConsoleRoleId: 'aegis-engineer', seatId: 'aegis-engineer',
+  });
+  mock.documents.set('sessions/s1/seats/aegis-engineer', {
+    roleId: 'aegis-engineer', status: 'claimed', holderUid: 'new',
+  });
+  mock.documents.set('sessions/s1/replacementEligibility/new', {
+    sessionId: 's1', targetUid: 'new', eligible: true, revision: 2,
+    reason: 'facilitator-confirmed',
+  });
+  mock.documents.set('sessions/s1/roleBriefs/old', { visibleToUids: ['old'], payload: { roleId: 'gorgoneion-captain' } });
+  const craftCommand = {
+    ...command, shipId: 'gorgoneion', newCaptainUid: 'new', expectedRevision: 4,
+    recoveryMode: 'replacement-transfer',
+  };
+
+  await expect(resolveShipMutiny.run(request(craftCommand))).resolves.toMatchObject({
+    status: 'committed', shipId: 'gorgoneion', unrest: 6, oldCaptainUid: 'old', newCaptainUid: 'new',
+  });
+  expect(mock.documents.get('sessions/s1')?.smallShipStates).toMatchObject({
+    gorgoneion: {
+      unrest: 6, cycle: { revision: 5 },
+      mutiny: { status: 'resolved', revision: 2, reduction: 2 },
+    },
+  });
+  expect(mock.documents.get('sessions/s1/players/old')).toMatchObject({
+    assignedRoleId: 'aegis-admiral', replacementRoleId: null,
+    replacementStatus: 'awaiting-re-role', activeConsoleRoleId: null, seatId: null,
+  });
+  expect(mock.documents.get('sessions/s1/players/new')).toMatchObject({
+    assignedRoleId: 'aegis-engineer', replacementRoleId: 'gorgoneion-captain',
+    replacementStatus: null, activeConsoleRoleId: null, seatId: null,
+  });
+  expect(mock.documents.get('sessions/s1/seats/aegis-engineer')).toMatchObject({ status: 'open', holderUid: null });
+  expect(mock.documents.get('sessions/s1/replacementEligibility/new')).toMatchObject({
+    eligible: false, replacementRoleId: 'gorgoneion-captain', consumedByRequestId: 'mutiny-1', revision: 3,
+  });
+  expect(mock.documents.has('sessions/s1/roleBriefs/old')).toBe(false);
+  expect(mock.documents.get('sessions/s1/roleBriefs/new')).toMatchObject({ visibleToUids: ['new'] });
+  expect(mock.documents.get('sessions/s1/mutinyRecoveries/mutiny-1')).toMatchObject({
+    mode: 'replacement-transfer', oldCaptainUid: 'old', newCaptainUid: 'new',
+  });
+  expect(mock.documents.get('sessions/s1/events/mutiny-mutiny-1')).not.toMatchObject({
+    payload: expect.objectContaining({ oldCaptainUid: expect.anything(), newCaptainUid: expect.anything() }),
+  });
+
+  mock.set.mockClear(); mock.update.mockClear(); mock.delete.mockClear();
+  await expect(resolveShipMutiny.run(request(craftCommand))).resolves.toMatchObject({ status: 'replayed' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.delete).not.toHaveBeenCalled();
+});
+
+it('records Voyage 33-0 crew-captain attestation without granting a player role', async () => {
+  const voyage = emptyVoyage33MaintenanceState('aegis');
+  mock.documents.set('sessions/s1', {
+    phase: 'active', currentTurn: 1, setupRevision: 4,
+    activeVesselIds: ['aegis'],
+    voyage33Admission: { status: 'admitted', id: 'voyage-33-0' },
+    voyage33Maintenance: {
+      ...voyage, unrest: 9, cycle: { ...voyage.cycle, revision: 3 },
+      mutiny: { status: 'active', revision: 3, triggerUnrest: 9, triggeredAt: 'first' },
+    },
+  });
+  const voyageCommand = {
+    sessionId: 's1', instanceId: 'bridge', requestId: 'voyage-mutiny-1',
+    shipId: 'voyage-33-0', newCaptainUid: null, reduction: 2,
+    expectedRevision: 3, recoveryMode: 'crew-attestation',
+  };
+
+  await expect(resolveShipMutiny.run(request(voyageCommand))).resolves.toMatchObject({
+    status: 'committed', shipId: 'voyage-33-0', unrest: 7,
+    oldCaptainUid: null, newCaptainUid: null,
+  });
+  expect(mock.documents.get('sessions/s1')?.voyage33Maintenance).toMatchObject({
+    unrest: 7, cycle: { revision: 4 },
+    mutiny: { status: 'resolved', revision: 4, reduction: 2 },
+  });
+  expect(mock.documents.get('sessions/s1/mutinyRecoveries/voyage-mutiny-1')).toMatchObject({
+    mode: 'crew-attestation', oldCaptainUid: null, newCaptainUid: null,
+    attestation: 'crew-installed-in-world-captain',
+  });
+  expect(mock.documents.get('sessions/s1/events/mutiny-voyage-mutiny-1')).not.toMatchObject({
+    payload: expect.objectContaining({ newCaptainUid: expect.anything() }),
+  });
+  expect([...mock.documents.keys()].filter(path => path.includes('/players/'))).toHaveLength(3);
+
+  await expect(resolveShipMutiny.run(request({
+    ...voyageCommand, requestId: 'voyage-mutiny-player', newCaptainUid: 'new',
+  }))).rejects.toMatchObject({ code: 'invalid-argument' });
 });

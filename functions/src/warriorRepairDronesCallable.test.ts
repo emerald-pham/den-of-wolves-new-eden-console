@@ -242,9 +242,21 @@ it('rejects a former holder UID when another player owns the current replacement
 it('replays the exact successful command after Coordination closes without another write', async () => {
   await repairWarriorWithDrones.run(request(command));
   const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
-  mock.documents.get('sessions/s1')!.phase = 'debrief';
+  mock.documents.get('sessions/s1')!.smallShipStates = {
+    warrior: {
+      ...warriorState(), unrest: 8,
+      mutiny: { status: 'active', revision: 1, triggerUnrest: 8, triggeredAt: 'now' },
+    },
+  };
   await expect(repairWarriorWithDrones.run(request(command))).resolves.toMatchObject({
     status: 'replayed', materialsRemaining: 3, repairRevision: 1,
+  });
+  expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
+
+  await expect(repairWarriorWithDrones.run(request({
+    ...command, requestId: 'warrior-repair-locked', expectedRepairRevision: 1,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/mutiny.*new captain/i),
   });
   expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
 });
