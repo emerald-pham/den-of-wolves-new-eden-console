@@ -114,11 +114,15 @@ function PreparedShipStation({
   onPageChange,
   onReturnToFleet,
   onOpenDrive,
+  onOpenStores,
+  onOpenShuttle,
 }: {
   readonly page: StationPage;
   readonly onPageChange: (page: StationPage) => void;
   readonly onReturnToFleet: () => void;
   readonly onOpenDrive: () => void;
+  readonly onOpenStores: () => void;
+  readonly onOpenShuttle: () => void;
 }) {
   const { short, medium, long } = aegis.printedStatistics.jumpCosts;
   return <section className="pc03-review__station" aria-label="Prepared assigned station">
@@ -145,7 +149,11 @@ function PreparedShipStation({
         <p className="cic-overline">Assigned station // AEGIS Admiral</p>
         <h3>Ship systems</h3>
         <p>Current ship fix // {SAMPLE_CURRENT_COORDINATE}</p>
-        <p>Resource stores and this station’s instruments remain on the ship console below the selected workspace.</p>
+        <p>Open a prepared ship section to inspect its stores or shuttlebay.</p>
+        <nav className="pc03-review__controls" aria-label="Prepared ship sections">
+          <button className="cic-action-button" type="button" onClick={onOpenStores}>Resource stores</button>
+          <button className="cic-action-button" type="button" onClick={onOpenShuttle}>Shuttle docking history</button>
+        </nav>
         <button className="cic-action-button" type="button" onClick={onOpenDrive}>Review Jump Drive states</button>
         <button className="cic-action-button" type="button" onClick={onReturnToFleet}>Return to Fleet Board</button>
       </section>}
@@ -415,6 +423,8 @@ export default function PC03ReviewScene() {
             page={stationPage}
             onPageChange={setStationPage}
             onOpenDrive={() => selectStep('drive')}
+            onOpenStores={() => selectStep('stores')}
+            onOpenShuttle={() => selectStep('shuttle')}
             onReturnToFleet={() => setStationRoute('fleet')}
           />
         </>)}
