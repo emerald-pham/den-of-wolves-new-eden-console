@@ -551,6 +551,7 @@ function applyCommandResult(
     );
     const nextSession = {
       ...store.session,
+      ...(reply.setupConfirmed === true ? { setupConfirmed: true } : {}),
       ...(typeof reply.chartSelectionLocked === 'boolean'
         ? { chartSelectionLocked: reply.chartSelectionLocked } : {}),
       ...(typeof reply.setupRevision === 'number' && Number.isSafeInteger(reply.setupRevision) && reply.setupRevision >= 0

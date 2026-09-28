@@ -536,6 +536,7 @@ export interface SetupGmInstance {
 
 export interface SetupReadinessInput {
   readonly phase: string;
+  readonly setupConfirmed?: boolean;
   readonly playerCount: number;
   readonly connectedPlayers: readonly PlayerId[];
   readonly assignments: readonly RoleAssignment[];
@@ -601,7 +602,7 @@ export function readinessForSetup(input: SetupReadinessInput): {
   const reasons: SetupReadinessReason[] = [];
   const strictSeatBackedReadiness = input.seatDocuments !== undefined ||
     input.playerSeatPointers !== undefined;
-  if (input.phase !== 'casting') reasons.push('wrong-phase');
+  if (input.phase !== 'casting' && !(input.phase === 'lobby' && input.setupConfirmed === true)) reasons.push('wrong-phase');
   if (!isOneOf(input.playerCount, SUPPORTED_PLAYER_COUNTS)) reasons.push('player-count');
   const pressCandidateUids = new Set(input.pressPlayerUids ?? []);
   const pressPlayerUids = input.pressEnabled === false ? new Set<string>() : pressCandidateUids;

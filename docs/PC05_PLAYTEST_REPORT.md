@@ -113,3 +113,28 @@ required card; all existing race, privacy and replay assertions remain. The
 focused combined start/setup/composition run passes 143 tests. The earlier
 broad run passed 5,887 tests with only those 13 policy-fixture failures; it is
 not recorded as a passing final suite.
+
+### Ordinary empty-session start repair
+
+A fresh authorized production session exposed a gap hidden by prefilled test
+fixtures: confirming a roster left an empty session in Lobby, and the start UI
+required Casting. Test-first `dd5466a2` reproduced the complete empty-session
+path. `29e37be5` refines the contract to explicit server confirmation rather
+than forcing Casting early, which would lock otherwise supported vessel-mode
+editing. The server now persists and projects `setupConfirmed`; a confirmed
+Lobby session may reach the same strict authoritative readiness checks as
+Casting. The existing UI becomes enabled on that receipt. No role selection
+or fabricated holder is required. The combined create/confirm/start/composition
+and full GM UI suites pass 263 tests; app typecheck passes.
+
+### DRADIS integration
+
+Parent commits `ebacf1d7` through `fd3ee866` integrate the separate DRADIS
+owner's test-first repairs. Compact DRADIS says Zoom. Renamed contacts acquire
+again, and labels share blip/drop fade timing. The real-render regression
+measures effective visibility on production ContactPlot/ShipPlot across
+normal/reduced motion, initial reveal, acquisition, repeat sweeps, rename and
+post-fade. It passed 1440×900, 390×844 and 844×390; the worker's full unit suite
+passed 2,499 tests with typecheck, targeted lint and build. Reconciled release
+verification remains pending. The worker checkout is reused for the independent
+jump tranche and remains active, so it must not be removed.

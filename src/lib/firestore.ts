@@ -2765,6 +2765,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
       ? { expansion: data.expansion } : {}),
     ...(data.turnLimit === 6 || data.turnLimit === 7 || data.turnLimit === 8
       ? { turnLimit: data.turnLimit } : {}),
+    ...(data.setupConfirmed === true ? { setupConfirmed: true } : {}),
     ...(typeof data.chartSelectionLocked === 'boolean'
       ? { chartSelectionLocked: data.chartSelectionLocked } : {}),
     ...(typeof data.configurationLocked === 'boolean'

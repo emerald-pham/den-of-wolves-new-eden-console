@@ -791,7 +791,7 @@ export default function GmConsole() {
     currentTurn,
     maxTurn: session?.turnState?.maxTurn ?? session?.turnLimit ?? session?.setup?.turnLimit ?? 6,
     setupSynchronized: session?.setup !== undefined && !hasUnconfirmedRosterChanges,
-    productionStartAvailable: currentTurn === 0 && session?.phase === 'casting',
+    productionStartAvailable: currentTurn === 0 && (session?.phase === 'casting' || (session?.phase === 'lobby' && session.setupConfirmed === true)),
     turnPhase: phaseReadout?.kind,
     timerPaused: Boolean(currentPhase?.timerPause && currentPhase.timerPause.reason !== 'empty-session'),
     wolfAttackStatus: wolfWindowStatus,
@@ -4017,7 +4017,7 @@ export default function GmConsole() {
                     {startMutationMessage ?? (
                       currentTurn !== 0
                         ? 'Start unavailable // this session has already left Cycle 0.'
-                        : session.phase !== 'casting'
+                        : !(session.phase === 'casting' || (session.phase === 'lobby' && session.setupConfirmed === true))
                           ? 'Start blocked // confirm the locked roster before production start.'
                           : 'Ready // confirmed roster. The server checks current authority, occupied seats, vessels, and private setup.'
                     )}
@@ -4025,7 +4025,7 @@ export default function GmConsole() {
                   <button
                     className={`cic-action-button${confirmGameStart ? ' cic-action-button--confirm' : ''}`}
                     type="button"
-                    disabled={startingGame || currentTurn !== 0 || session.phase !== 'casting'}
+                    disabled={startingGame || currentTurn !== 0 || !(session.phase === 'casting' || (session.phase === 'lobby' && session.setupConfirmed === true))}
                     onClick={requestProductionStart}
                   >
                     {startingGame

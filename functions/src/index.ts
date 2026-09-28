@@ -5122,6 +5122,7 @@ export const confirmSetup = onCall<{
     }
     const reply = {
       status: 'committed' as const,
+      setupConfirmed: true,
       chartSelectionLocked: authority.session.get('chartSelectionLocked') === true || command.lockChart,
       requestId: command.requestId,
       setupRevision: command.expectedSetupRevision + 1,
@@ -5131,6 +5132,7 @@ export const confirmSetup = onCall<{
     };
     tx.update(sessionRef, {
       ...setupWriteFields(setup),
+      setupConfirmed: true,
       chartSelectionLocked: reply.chartSelectionLocked,
       shipResources: nextShipResources,
       shipUnrest: nextShipUnrest,
@@ -5712,6 +5714,7 @@ export const startGame = onCall<{
     }
     const readiness = readinessForSetup({
       phase: String(authority.session.get('phase')),
+      setupConfirmed: authority.session.get('setupConfirmed') === true,
       playerCount,
       connectedPlayers,
       assignments,
@@ -14074,7 +14077,8 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
           ? { expansion: sessionSnap.get('expansion') } : {}),
         ...(sessionSnap.get('turnLimit') === 6 || sessionSnap.get('turnLimit') === 7 || sessionSnap.get('turnLimit') === 8
           ? { turnLimit: sessionSnap.get('turnLimit') } : {}),
-        ...(typeof sessionSnap.get('chartSelectionLocked') === 'boolean'
+        ...(sessionSnap.get('setupConfirmed') === true ? { setupConfirmed: true } : {}),
+      ...(typeof sessionSnap.get('chartSelectionLocked') === 'boolean'
           ? { chartSelectionLocked: sessionSnap.get('chartSelectionLocked') } : {}),
         ...(typeof sessionSnap.get('configurationLocked') === 'boolean'
           ? { configurationLocked: sessionSnap.get('configurationLocked') } : {}),
@@ -14380,6 +14384,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
         ? { expansion: sessionSnap.get('expansion') } : {}),
       ...(sessionSnap.get('turnLimit') === 6 || sessionSnap.get('turnLimit') === 7 || sessionSnap.get('turnLimit') === 8
         ? { turnLimit: sessionSnap.get('turnLimit') } : {}),
+      ...(sessionSnap.get('setupConfirmed') === true ? { setupConfirmed: true } : {}),
       ...(typeof sessionSnap.get('chartSelectionLocked') === 'boolean'
         ? { chartSelectionLocked: sessionSnap.get('chartSelectionLocked') } : {}),
       ...(typeof sessionSnap.get('configurationLocked') === 'boolean'
