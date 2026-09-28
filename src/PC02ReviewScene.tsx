@@ -5,8 +5,12 @@ import PursuitTracker from '@/components/PursuitTracker';
 import { PrimaryStatusView } from '@/components/PrimaryStatus';
 import SessionWaiver from '@/components/SessionWaiver';
 import SettingsDisconnectAction from '@/components/SettingsDisconnectAction';
+import { PressDispatchDesk } from '@/components/PressDispatchDesk';
+import { PressEventLogView } from '@/components/PressEventLog';
 import { CONSOLE_ROLES } from '@/data/roles';
 import { FleetRoster } from '@/routes/SessionMode';
+import type { PressLogEntry } from '@/lib/pressLogState';
+import type { PressDispatch } from '@/types/game';
 import './PC02ReviewScene.css';
 
 type Step = 'setup' | 'waiver' | 'fleet' | 'press' | 'dradis' | 'continuity';
@@ -50,6 +54,24 @@ const SAMPLE_GM_STATUS = {
   severity: 'normal',
 } as const;
 
+const SAMPLE_PRESS_LOG: readonly PressLogEntry[] = [
+  { id: 'sample-survivors', type: 'survivor-change', sourceId: 'sample:damage',
+    cause: 'ship-damage', vesselId: 'aegis', cycle: 2,
+    recordedAt: '2026-09-27T21:00:00.000Z', fromPopulation: 2_500, toPopulation: 2_430 },
+  { id: 'sample-transfer', type: 'survivor-transfer', sourceId: 'sample:evacuation',
+    shuttleId: 'aegis-shuttle', sourceShipId: 'aegis', destinationShipId: 'dione',
+    amount: 24, sourcePopulationBefore: 2_430, sourcePopulationAfter: 2_406,
+    destinationPopulationBefore: 1_800, destinationPopulationAfter: 1_824,
+    cycle: 2, recordedAt: '2026-09-27T21:01:00.000Z' },
+  { id: 'sample-purge', type: 'commissar-purge', sourceId: 'sample:purge',
+    shipId: 'icebreaker', cycle: 2, recordedAt: '2026-09-27T21:02:00.000Z',
+    survivorsRemoved: 80, populationBefore: 1_500, populationAfter: 1_420,
+    unrestBefore: 4, unrestAfter: 3 },
+  { id: 'sample-president', type: 'president-action', sourceId: 'sample:president',
+    actionKind: 'address', text: 'The fleet will hold course.', cycle: 2,
+    recordedAt: '2026-09-27T21:03:00.000Z' },
+];
+
 export default function PC02ReviewScene() {
   const [step, setStep] = useState<Step>('setup');
   const [perspective, setPerspective] = useState<Perspective>('gm');
@@ -58,6 +80,9 @@ export default function PC02ReviewScene() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [continuityStage, setContinuityStage] = useState<ContinuityStage>('active');
   const [continuityRole, setContinuityRole] = useState('admiral');
+  const [pressText, setPressText] = useState('');
+  const [sampleDispatches, setSampleDispatches] = useState<readonly PressDispatch[]>([]);
+  const [pressNotice, setPressNotice] = useState('');
   const selectedStep = STEPS.find((candidate) => candidate.id === step) ?? STEPS[0]!;
   const continuityRoleLabel = CONSOLE_ROLES.find((role) => role.id === continuityRole)?.name
     ?? continuityRole;
@@ -166,8 +191,33 @@ export default function PC02ReviewScene() {
       </section>}
 
       {step === 'press' && <section className="pc02-review__panel cic-frame" aria-label="Press handoff sample">
-        <h3>Editorial intake</h3>
-        <p>Prepared survivor, purge, and Presidential records will appear here in the production Press log.</p>
+        {perspective === 'press' ? <>
+          <p>Committed reports reach this private Press log. Publication is a separate Press Officer action.</p>
+          <PressDispatchDesk
+            operatorShort="SNN"
+            dispatches={sampleDispatches}
+            text={pressText}
+            authorized
+            connectionReady
+            sending={false}
+            dismissingId={null}
+            notice={pressNotice}
+            status="SAMPLE ONLY // NO LIVE TRANSMISSION"
+            eventLog={<PressEventLogView entries={SAMPLE_PRESS_LOG} status="" />}
+            onTextChange={setPressText}
+            onPublish={() => {
+              const copy = pressText.trim();
+              if (!copy) return;
+              setSampleDispatches((current) => [...current, { id: `sample-${current.length + 1}`, text: copy }]);
+              setPressText('');
+              setPressNotice('SAMPLE ONLY // DISPATCH SHOWN LOCALLY; NO LIVE TRANSMISSION');
+            }}
+            onDismiss={(id) => {
+              setSampleDispatches((current) => current.filter((dispatch) => dispatch.id !== id));
+              setPressNotice('SAMPLE ONLY // DISPATCH DISMISSED LOCALLY');
+            }}
+          />
+        </> : <p>Incoming reports are available to the connected Press Officer. Select the Press view to inspect the private handoff.</p>}
       </section>}
 
       {step === 'dradis' && <section className="pc02-review__panel" aria-label="DRADIS sample">
