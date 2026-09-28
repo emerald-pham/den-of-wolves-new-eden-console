@@ -1077,6 +1077,37 @@ test('maps away-mission server modules only to their audited deployed callable c
   );
 });
 
+test('maps the exact PC04 shared sign-in and mission guard transition to every affected callable', () => {
+  const baseSha = '57dedeee3075230cadc6700fc35bcafe7f945343';
+  const requestGuardsBefore = execFileSync(
+    'git', ['show', `${baseSha}:functions/src/requestGuards.ts`], { encoding: 'utf8' },
+  );
+  const requestGuardsAfter = readFileSync(
+    new URL('../functions/src/requestGuards.ts', import.meta.url), 'utf8',
+  );
+  const indexSource = readFileSync(new URL('../functions/src/index.ts', import.meta.url), 'utf8');
+  const boundaries = [...indexSource.matchAll(/^export const ([A-Za-z_$][\w$]*)\s*=/gm)];
+  const expected = boundaries.flatMap((match, index) => {
+    const block = indexSource.slice(match.index, boundaries[index + 1]?.index ?? indexSource.length);
+    return /\bonCall\s*[<(]/.test(block) && block.includes('requireUid(') ? [match[1]] : [];
+  });
+  assert.ok(expected.includes('dealPrivateInitialCards'));
+
+  const selected = deploymentSelector({
+    before: 'base', after: 'candidate', files: ['functions/src/requestGuards.ts'],
+    targets: ['hosting', 'functions'],
+    isAncestor: (ancestor, descendant) => ancestor === 'base' && descendant === 'candidate',
+    sourceAtRevision: (revision, file) => {
+      if (file === 'functions/src/requestGuards.ts') {
+        return revision === 'base' ? requestGuardsBefore : requestGuardsAfter;
+      }
+      if (file === 'functions/src/index.ts') return indexSource;
+      return '';
+    },
+  });
+  assert.deepEqual(selectedFunctions(selected), functionTargets(expected));
+});
+
 test('fails closed when WolfAttackDeclaration changes beyond the exact type-only attack-state fields', () => {
   const altered = WOLF_ATTACK_DECLARATION_AFTER.replace(
     "  return state.status !== 'resolved' || state.airspaceLocked !== false ||",
