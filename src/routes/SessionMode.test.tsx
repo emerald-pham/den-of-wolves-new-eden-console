@@ -54,6 +54,44 @@ it('returns from role selection to the intermediate screen', async () => {
   expect(screen.getByText('Intermediate route')).toBeInTheDocument();
 });
 
+it('opens the station catalog as the first route without a separate mode choice', () => {
+  useSessionStore.getState().setMode(null);
+  render(
+    <MemoryRouter initialEntries={['/console']}>
+      <Routes>
+        <Route path="/roles" element={<p>GM join route</p>} />
+        <Route path="/console" element={<SessionMode mode="console" />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('heading', { name: /stations and consoles/i })).toBeVisible();
+  expect(screen.queryByText('GM join route')).not.toBeInTheDocument();
+});
+
+it('keeps the current private assignment on the station catalog without exposing its text', () => {
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, role: 'player', assignedRoleId: 'admiral',
+  });
+  useSessionStore.getState().setRoleBrief({
+    assignmentUid: 'u1', roleId: 'admiral', roleName: 'Admiral', vesselName: 'AEGIS',
+    text: 'Coordinate the fleet.', commonRules: 'Keep this brief private.',
+    ownedCraftIds: ['fighter-wing-alpha'], setupRevision: 1,
+  });
+
+  render(
+    <MemoryRouter initialEntries={['/console']}>
+      <Routes><Route path="/console" element={<SessionMode mode="console" />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  const assignment = screen.getByRole('region', { name: 'Your private casting assignment' });
+  expect(within(assignment).getByRole('heading', { name: 'Admiral' })).toBeVisible();
+  expect(assignment).toHaveTextContent('Ship // AEGIS');
+  expect(assignment).not.toHaveTextContent('Coordinate the fleet.');
+  expect(assignment).not.toHaveTextContent('Keep this brief private.');
+});
+
 it('shows candidate discoveries to fresh members of the current group on the role roster', () => {
   const candidateView = {
     groupId: 'fleet-1', revision: 4,

@@ -76,6 +76,27 @@ describe('RoleSelect', () => {
     expect(screen.getByText('Landing route')).toBeInTheDocument();
   });
 
+  it('redirects an ordinary player compatibility URL to the station catalog', () => {
+    useSessionStore.getState().setSession(session);
+    useSessionStore.getState().setMe({ ...gm, role: 'player' });
+
+    renderRoute();
+
+    expect(screen.getByText('Console route')).toBeVisible();
+    expect(screen.queryByRole('heading', { name: /role select/i })).not.toBeInTheDocument();
+  });
+
+  it('reserves the Role Select title for an authenticated GM joining this session', () => {
+    useSessionStore.getState().setSession(session);
+    useSessionStore.getState().setMe({ ...gm, role: 'player' });
+    useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
+
+    renderRoute();
+
+    expect(screen.getByRole('heading', { name: /^role select$/i })).toBeVisible();
+    expect(screen.getByRole('button', { name: /^join as gm/i })).toBeVisible();
+  });
+
   it('offers the intermediate controls and a Select a role destination', () => {
     useSessionStore.getState().setSession(session);
     useSessionStore.getState().setMe(gm);
