@@ -80,3 +80,14 @@ the original assumption; append the resolution so the decision is traceable.
 | Chosen reading | Keep the ordinary failed attempt stationary and resource-preserving. An authenticated active facilitator may deliberately select the full-die damage option against that exact unresolved failed attempt; the server rolls once, uses the common damage-draw path, records the adjudication and completes the chosen legal movement atomically. Do not silently apply damage, allow the client to choose randomness, or invent half-die rounding. |
 | Product effect | The P299 implementation must bind authority, failure receipt, destination, revision and request replay, prevent duplicate movement/damage, and provide an audience-safe result. This is a source-backed implementation decision under the owner's standing autonomous PC05 authorization; implementation and live proof remain required. |
 | Review state | New; owner may correct during optional feedback/cooldown. No completion or deployment credit claimed. |
+
+### PC05-A2 — Fuel spent on an adjudicated fuel-starved jump
+
+| Field | Record |
+|---|---|
+| ID and milestone | PC05-A2; gameplay completion, Prompt 299. |
+| Source passage | Facilitator Guide v1.1, printed p. 16, Jump Failures: a facilitator may let a fuel-starved ship reach its destination with die-determined damage. The paragraph does not state the fuel debit for this exception. |
+| Ambiguity and alternatives | Charging the normal amount would make inventory negative; waiving all spending would make the exceptional jump free; spending the available balance uses the resources the ship actually possesses. |
+| Chosen reading | An explicitly selected full-die adjudication consumes all available fuel when the failed attempt was fuel-starved. This is a conservative product inference, not an asserted printed fuel formula. It grants no fuel, permits no negative balance and does not reset the once-per-cycle limit. A changed revision or intervening fuel transfer requires a fresh decision. |
+| Product effect | The GM exception completes the movement, spends fuel and any charge, applies common-path damage and records the outcome atomically against the exact failure. Replay cannot repeat spending, damage or movement. Ordinary denied attempts remain resource-preserving. |
+| Review state | New under standing autonomous PC05 authorization; subject to optional owner correction/cooldown. |
