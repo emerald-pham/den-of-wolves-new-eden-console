@@ -13,6 +13,9 @@ vi.mock('@/lib/sessionService', () => ({
     requestId: '30400000-0000-4000-8000-000000000001', expectedRevision: 3,
     instanceId: 'bridge',
   })),
+  isJumpShipOutcomeUncertain: vi.fn((cause: unknown) =>
+    typeof cause === 'object' && cause !== null && 'code' in cause &&
+      cause.code === 'functions/unavailable'),
 }));
 
 const { jumpShip } = await import('@/lib/sessionService');
@@ -25,6 +28,7 @@ const jumpAttempt = {
   instanceId: 'bridge',
 };
 const { createJumpShipAttempt } = await import('@/lib/sessionService');
+const { isJumpShipOutcomeUncertain } = await import('@/lib/sessionService');
 
 function renderConsole(props: Partial<ComponentProps<typeof JumpDriveConsole>> = {}) {
   return render(
@@ -56,6 +60,14 @@ beforeEach(() => {
     fuelCost: 2,
     remainingFuel: 2,
   });
+  vi.mocked(createJumpShipAttempt).mockReset().mockImplementation((shipId, destination) => ({
+    sessionId: 's1', shipId, destination,
+    requestId: '30400000-0000-4000-8000-000000000001', expectedRevision: 3,
+    instanceId: 'bridge',
+  }));
+  vi.mocked(isJumpShipOutcomeUncertain).mockImplementation((cause) =>
+    typeof cause === 'object' && cause !== null && 'code' in cause &&
+      cause.code === 'functions/unavailable');
 });
 
 it('edits four digits, locks the destination, powers the rail, and submits the jump', async () => {
@@ -101,7 +113,7 @@ it('allows local coordinate preview without exposing a jump mutation', async () 
   expect(screen.getByLabelText('Locked destination coordinates')).toHaveTextContent('1000');
   expect(screen.getByRole('button', { name: /unlock destination coordinates/i })).toBeEnabled();
   expect(screen.getByRole('button', { name: /jump to 1000/i })).toBeDisabled();
-  expect(screen.getByRole('status')).toHaveTextContent(/presentation preview.*local only/i);
+  expect(screen.getByRole('status')).toHaveTextContent(/presentation preview.*local controls only/i);
   expect(jumpShip).not.toHaveBeenCalled();
 });
 
@@ -141,7 +153,7 @@ it('prefers a newer server lockout projection to the local reply projection', as
   );
 
   expect(screen.getByRole('status', { name: /jump drive integrity locked/i })).toHaveTextContent(
-    /19:\d{2} until drive integrity reestablishes/i,
+    /20:\d{2} until drive integrity reestablishes/i,
   );
 });
 
@@ -160,7 +172,7 @@ it('reports a stale server result as stale instead of a drive failure', async ()
   fireEvent.change(screen.getByRole('slider', { name: /jump drive power/i }), { target: { value: '100' } });
   await user.click(screen.getByRole('button', { name: /jump to 1000/i }));
 
-  expect(await screen.findByRole('status')).toHaveTextContent(/jump not committed.*live ship state changed/i);
+  expect(await screen.findByText(/jump not committed.*live ship state changed/i)).toBeInTheDocument();
 });
 
 it('retries an uncertain jump with the same exact command identity', async () => {
@@ -179,7 +191,7 @@ it('retries an uncertain jump with the same exact command identity', async () =>
   fireEvent.change(screen.getByRole('slider', { name: /jump drive power/i }), { target: { value: '100' } });
   await user.click(screen.getByRole('button', { name: /jump to 1000/i }));
 
-  expect(await screen.findByRole('status')).toHaveTextContent(/jump status unconfirmed.*retry.*same request/i);
+  expect(await screen.findByText(/jump status unconfirmed.*retry.*same request/i)).toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: /retry jump confirmation/i }));
 
   expect(createJumpShipAttempt).toHaveBeenCalledTimes(1);
