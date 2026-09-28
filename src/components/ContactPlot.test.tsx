@@ -1141,6 +1141,47 @@ it('uses the prepared DRADIS label bounds for its leader without another layout 
   expect(labelLayoutReads).toBeLessThanOrEqual(3);
 });
 
+it('reuses intrinsic DRADIS name width across contact-position updates', () => {
+  const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
+    x: left, y: top, left, top, width, height,
+    right: left + width, bottom: top + height,
+  }) as DOMRect;
+  let offsetWidthReads = 0;
+  vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
+    if (!this.classList.contains('contact-plot__tag')) return 0;
+    offsetWidthReads += 1;
+    const cap = Number.parseFloat(this.style.maxWidth);
+    return Number.isFinite(cap) ? Math.min(180, cap) : 180;
+  });
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    if (this.classList.contains('contact-plot')) return bounds(0, 0, 246, 320);
+    if (this.classList.contains('contact-plot__blip')) return bounds(119, 140, 8, 8);
+    if (this.classList.contains('contact-plot__tag')) {
+      const style = (this as HTMLElement).style;
+      const cap = Number.parseFloat(style.maxWidth);
+      const width = (Number.isFinite(cap) ? Math.min(180, cap) : 180) * 1.2;
+      const anchor = this.closest<HTMLElement>('.contact-plot__contact')?.dataset.labelAnchor ?? 'south-east';
+      const left = anchor.endsWith('east') ? 119 - 11 - width : 127 + 11;
+      const top = anchor.startsWith('north') ? 140 - 8 - 18 : 140 + 8 + 8;
+      const x = Number.parseFloat(style.getPropertyValue('--label-clamp-x')) || 0;
+      const y = Number.parseFloat(style.getPropertyValue('--label-clamp-y')) || 0;
+      return bounds(left + x, top + y, width, 18);
+    }
+    return bounds(0, 0, 0, 0);
+  });
+  const contacts = (x: number) => [{
+    id: 'width-cache', tag: 'LONG RESEARCH CRUISER', x, y: 0.2, z: 0.1, color: 'white',
+  }];
+
+  const { rerender } = render(<ContactPlot contacts={contacts(0.8)} />);
+  const firstUpdateReads = offsetWidthReads;
+  expect(firstUpdateReads).toBeGreaterThan(0);
+
+  rerender(<ContactPlot contacts={contacts(0.81)} />);
+
+  expect(offsetWidthReads).toBe(firstUpdateReads);
+});
+
 it('keeps crowded 20-contact label layout within the per-update geometry-read budget', () => {
   const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
     x: left, y: top, left, top, width, height,
