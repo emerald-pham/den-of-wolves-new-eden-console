@@ -6,17 +6,18 @@ import { ConsoleAccessContext } from '@/lib/consoleAccess';
 import { useSessionStore } from '@/store/useSessionStore';
 import JumpDriveConsole from './JumpDriveConsole';
 
-vi.mock('@/lib/sessionService', () => ({
-  jumpShip: vi.fn(),
-  createJumpShipAttempt: vi.fn((shipId: string, destination: string) => ({
-    sessionId: 's1', shipId, destination,
-    requestId: '30400000-0000-4000-8000-000000000001', expectedRevision: 3,
-    instanceId: 'bridge',
-  })),
-  isJumpShipOutcomeUncertain: vi.fn((cause: unknown) =>
-    typeof cause === 'object' && cause !== null && 'code' in cause &&
-      cause.code === 'functions/unavailable'),
-}));
+vi.mock('@/lib/sessionService', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/sessionService')>();
+  return {
+    ...actual,
+    jumpShip: vi.fn(),
+    createJumpShipAttempt: vi.fn((shipId: string, destination: string) => ({
+      sessionId: 's1', shipId, destination,
+      requestId: '30400000-0000-4000-8000-000000000001', expectedRevision: 3,
+      instanceId: 'bridge',
+    })),
+  };
+});
 
 const { jumpShip } = await import('@/lib/sessionService');
 const jumpAttempt = {
@@ -65,9 +66,6 @@ beforeEach(() => {
     requestId: '30400000-0000-4000-8000-000000000001', expectedRevision: 3,
     instanceId: 'bridge',
   }));
-  vi.mocked(isJumpShipOutcomeUncertain).mockImplementation((cause) =>
-    typeof cause === 'object' && cause !== null && 'code' in cause &&
-      cause.code === 'functions/unavailable');
 });
 
 it('edits four digits, locks the destination, powers the rail, and submits the jump', async () => {
@@ -201,6 +199,60 @@ it('retries an uncertain jump with the same exact command identity', async () =>
   expect(jumpShip).toHaveBeenNthCalledWith(2, expect.objectContaining({
     requestId: '30400000-0000-4000-8000-000000000001', expectedRevision: 3,
   }));
+});
+
+it.each([
+  ['a cancelled callable response', { code: 'functions/cancelled', message: 'Request cancelled.' }],
+  ['an unclassified transport error', new Error('Connection closed before acknowledgement.')],
+])('retains the exact jump attempt after %s', async (_label, failure) => {
+  const user = userEvent.setup();
+  vi.mocked(createJumpShipAttempt).mockReturnValue(jumpAttempt);
+  vi.mocked(jumpShip)
+    .mockRejectedValueOnce(failure)
+    .mockResolvedValueOnce({
+      status: 'jumped', shipId: 'aegis', origin: '0000', destination: '1000',
+      length: 'short', fuelCost: 2, remainingFuel: 2,
+    });
+  renderConsole();
+
+  await user.click(screen.getByRole('button', { name: /increase coordinate digit 1/i }));
+  await user.click(screen.getByRole('button', { name: /lock destination coordinates/i }));
+  fireEvent.change(screen.getByRole('slider', { name: /jump drive power/i }), { target: { value: '100' } });
+  await user.click(screen.getByRole('button', { name: /jump to 1000/i }));
+
+  expect(await screen.findByText(/jump status unconfirmed.*retry.*same request/i)).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: /retry jump confirmation/i }));
+
+  expect(createJumpShipAttempt).toHaveBeenCalledTimes(1);
+  expect(jumpShip).toHaveBeenNthCalledWith(1, jumpAttempt);
+  expect(jumpShip).toHaveBeenNthCalledWith(2, jumpAttempt);
+});
+
+it('clears the attempt after a structured callable denial', async () => {
+  const user = userEvent.setup();
+  const retryAttempt = { ...jumpAttempt, requestId: '30400000-0000-4000-8000-000000000002' };
+  vi.mocked(createJumpShipAttempt)
+    .mockReturnValueOnce(jumpAttempt)
+    .mockReturnValueOnce(retryAttempt);
+  vi.mocked(jumpShip)
+    .mockRejectedValueOnce({ code: 'functions/permission-denied', message: 'Not authorized.' })
+    .mockResolvedValueOnce({
+      status: 'jumped', shipId: 'aegis', origin: '0000', destination: '1000',
+      length: 'short', fuelCost: 2, remainingFuel: 2,
+    });
+  renderConsole();
+
+  await user.click(screen.getByRole('button', { name: /increase coordinate digit 1/i }));
+  await user.click(screen.getByRole('button', { name: /lock destination coordinates/i }));
+  fireEvent.change(screen.getByRole('slider', { name: /jump drive power/i }), { target: { value: '100' } });
+  await user.click(screen.getByRole('button', { name: /jump to 1000/i }));
+
+  expect(await screen.findByText(/jump request rejected.*authority or drive conditions changed/i)).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: /jump to 1000/i }));
+
+  expect(createJumpShipAttempt).toHaveBeenCalledTimes(2);
+  expect(jumpShip).toHaveBeenNthCalledWith(1, jumpAttempt);
+  expect(jumpShip).toHaveBeenNthCalledWith(2, retryAttempt);
 });
 
 it('shows the server-owned one-hour integrity lockout and disables the drive', () => {

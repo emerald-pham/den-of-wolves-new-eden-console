@@ -77,6 +77,7 @@ const {
   scavengeDestroyedShipStores,
   setFighterWingCount,
   createJumpShipAttempt,
+  isJumpShipOutcomeUncertain,
 } = await import('./sessionService');
 const { httpsCallable } = await import('firebase/functions');
 const { acceptCallableSessionAuthority, sessionSnapshotAuthorityFor } = await import('./firestore');
@@ -3808,6 +3809,24 @@ it('retries a transport-uncertain Jump Drive request with the same receipt ident
     expectedRevision: 7, instanceId: 'bridge',
   });
   expect(callable.mock.calls[1]?.[0]).toEqual(callable.mock.calls[0]?.[0]);
+});
+
+it.each([
+  ['cancelled callable responses', { code: 'functions/cancelled', message: 'Request cancelled.' }],
+  ['errors without a callable code', new Error('Connection closed before acknowledgement.')],
+  ['unclassified callable errors', { code: 'functions/aborted', message: 'Unclassified failure.' }],
+])('treats %s as an uncertain Jump Drive outcome', (_label, cause) => {
+  expect(isJumpShipOutcomeUncertain(cause)).toBe(true);
+});
+
+it.each([
+  ['unauthenticated', { code: 'functions/unauthenticated', message: 'Sign in again.' }],
+  ['permission denied', { code: 'functions/permission-denied', message: 'The station is not authorized.' }],
+  ['invalid input', { code: 'functions/invalid-argument', message: 'The destination is invalid.' }],
+  ['failed precondition', { code: 'functions/failed-precondition', message: 'The drive is not charged.' }],
+  ['missing session', { code: 'functions/not-found', message: 'No such session.' }],
+])('treats a structured %s reply as a confirmed Jump Drive denial', (_label, cause) => {
+  expect(isJumpShipOutcomeUncertain(cause)).toBe(false);
 });
 
 describe('Commissar authority refresh ownership', () => {
