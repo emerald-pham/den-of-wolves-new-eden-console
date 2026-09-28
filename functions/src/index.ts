@@ -13916,6 +13916,8 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       ...(!releasePress && currentPressAuthority && currentPlayer.get('assignedRoleId') === 'press-officer'
         ? { assignedRoleId: null } : {}),
       ...(returningSeat.clearPointer ? { seatId: null } : {}),
+      ...(returningSeat.clearPointer && currentPlayer.get('activeConsoleRoleId') !== 'press-officer'
+        ? { activeConsoleRoleId: null } : {}),
     });
     const projectionPlayer = {
       get: (field: string) => field === 'fleetGroupId' ? group.id : currentPlayer.get(field),
@@ -21165,9 +21167,29 @@ export const disconnectFromSession = onCall<{
       return;
     }
     const wasConnected = player.get('connected') === true;
+    const storedSeatId = player.get('seatId');
+    const seatRef = typeof storedSeatId === 'string' && storedSeatId.length > 0 &&
+      storedSeatId !== 'press-officer'
+      ? db.doc(`sessions/${sessionId}/seats/${storedSeatId}`)
+      : null;
+    const seat = seatRef ? await tx.get(seatRef) : null;
+    const activeConsoleRoleId = player.get('activeConsoleRoleId');
+    const roleBindingIsValid = activeConsoleRoleId === 'press-officer'
+      ? !hasCoreStation(player)
+      : typeof activeConsoleRoleId === 'string' &&
+        boundCoreConsoleRole(player.get('assignedRoleId'), storedSeatId) === activeConsoleRoleId;
+    const disconnectRoleState = player.get('role') === 'gm'
+      ? disconnectedRoleState()
+      // Membership and connected state are the authority gates. Keeping a
+      // player's validated console identity lets the same UID resume it.
+      : {
+          role: 'player' as const,
+          ...(typeof activeConsoleRoleId === 'string' && !roleBindingIsValid
+            ? { activeConsoleRoleId: null } : {}),
+        };
     tx.update(playerRef, {
       connected: false,
-      ...disconnectedRoleState(),
+      ...disconnectRoleState,
       ...(hasPressState(player) ? releasedPressFields(player) : {}),
       lastSeenAt: FieldValue.serverTimestamp(),
     });
@@ -21197,6 +21219,14 @@ export const disconnectFromSession = onCall<{
           updatedAt: FieldValue.serverTimestamp(),
         });
       }
+    }
+    if (
+      seatRef && seat?.exists && seat.get('roleId') === storedSeatId &&
+      seat.get('status') === 'claimed' && seat.get('holderUid') === uid
+    ) {
+      // Explicit Leave releases the station while retaining the member's
+      // private assignment for a same-UID resume.
+      tx.update(seatRef, { status: 'open', holderUid: null, claimedAt: null });
     }
     for (const instance of ownedInstances.docs) {
       tx.delete(instance.ref);
@@ -21318,15 +21348,35 @@ export const expireStalePlayers = onSchedule('* * * * *', async () => {
         ? db.doc('sessions/' + sessionId + '/seats/' + storedSeatId)
         : null;
       const seat = seatRef ? await tx.get(seatRef) : null;
+      const anotherPressHolder = connected.docs.some((connectedPlayer) =>
+        connectedPlayer.id !== uid && isAuthoritativePressHolder(connectedPlayer));
+      const storedPressHolderUid = session.get('pressHolderUid');
+      const preservePressState = player.get('role') === 'player' &&
+        player.get('activeConsoleRoleId') === 'press-officer' &&
+        !hasCoreStation(player) && session.get('pressEnabled') !== false &&
+        (typeof storedPressHolderUid !== 'string' || storedPressHolderUid === uid) &&
+        !anotherPressHolder;
+      const activeConsoleRoleId = player.get('activeConsoleRoleId');
+      const roleBindingIsValid = activeConsoleRoleId === 'press-officer'
+        ? preservePressState
+        : typeof activeConsoleRoleId === 'string' &&
+          boundCoreConsoleRole(player.get('assignedRoleId'), storedSeatId) === activeConsoleRoleId;
+      const disconnectRoleState = player.get('role') === 'gm'
+        ? disconnectedRoleState()
+        // A dead device loses membership immediately, but its validated role
+        // identity remains so resumeSession can restore the same console.
+        : {
+            role: 'player' as const,
+            ...(typeof activeConsoleRoleId === 'string' && !roleBindingIsValid
+              ? { activeConsoleRoleId: null } : {}),
+          };
       tx.update(playerRef, {
         connected: false,
-        ...disconnectedRoleState(),
-        ...(hasPressState(player) ? releasedPressFields(player) : {}),
+        ...disconnectRoleState,
+        ...(hasPressState(player) && !preservePressState ? releasedPressFields(player) : {}),
         lastSeenAt: FieldValue.serverTimestamp(),
       });
-      if (hasPressState(player)) {
-        const anotherPressHolder = connected.docs.some((connectedPlayer) =>
-          connectedPlayer.id !== uid && isAuthoritativePressHolder(connectedPlayer));
+      if (hasPressState(player) && !preservePressState) {
         const removedLoyalty = clearPressPrivateState(
           tx, sessionId, player, wolfSecretRef, wolfSecret, !anotherPressHolder,
         );

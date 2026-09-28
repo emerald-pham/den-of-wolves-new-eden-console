@@ -1054,6 +1054,31 @@ describe('disconnect and retention', () => {
 });
 
 describe('midgame departure and recovery', () => {
+  it('does not vacate a current player seat for a delayed duplicate-tab Leave', async () => {
+    session({ phase: 'active', activeRoleIds: [...recommendedRoleIds(8)] });
+    player({
+      connectionGeneration: 2, assignedRoleId: 'admiral', seatId: 'admiral',
+      activeConsoleRoleId: 'admiral',
+    });
+    put('activeMemberships/u1', { sessionId: 's1' });
+    put('sessions/s1/seats/admiral', {
+      roleId: 'admiral', status: 'claimed', holderUid: 'u1',
+      claimedAt: mock.Timestamp.fromDate(NOW),
+    });
+
+    await disconnectFromSession.run(request({
+      sessionId: 's1', connectionGeneration: 1,
+    }));
+
+    expect(read('sessions/s1/players/u1')).toMatchObject({
+      connected: true, connectionGeneration: 2, activeConsoleRoleId: 'admiral',
+    });
+    expect(read('sessions/s1/seats/admiral')).toMatchObject({
+      status: 'claimed', holderUid: 'u1',
+    });
+    expect(read('activeMemberships/u1')).toEqual({ sessionId: 's1' });
+  });
+
   it.each(NON_GM_CORE_ROLE_IDS)(
     'opens and safely restores the same core role after an explicit departure: %s',
     async (roleId) => {
