@@ -969,6 +969,7 @@ const VALIDATION_COMMANDS = new Map([
   ['npm run test:all', { executable: 'npm', args: ['run', 'test:all'] }],
   ['npm run test:unit', { executable: 'npm', args: ['run', 'test:unit'] }],
   ['npm run test:font-consistency', { executable: 'npm', args: ['run', 'test:font-consistency'] }],
+  ['npm run test:typography:browser', { executable: 'npm', args: ['run', 'test:typography:browser'] }],
   ['npm run test:ticker:browser', { executable: 'npm', args: ['run', 'test:ticker:browser'] }],
   ['node scripts/prompt-637-render-performance.mjs', { executable: 'node', args: ['scripts/prompt-637-render-performance.mjs'] }],
   ['node scripts/check-bundle-size.mjs', { executable: 'node', args: ['scripts/check-bundle-size.mjs'] }],
