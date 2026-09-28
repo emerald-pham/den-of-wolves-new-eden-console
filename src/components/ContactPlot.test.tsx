@@ -665,6 +665,13 @@ it('keeps clustered contact names separate from each other and the plot origin a
   expectReadable();
 });
 
+it('gives the plot origin text a measurable box so contact names can avoid it', () => {
+  const css = readFileSync('src/styles/plot.css', 'utf8');
+  const originRule = css.match(/\.contact-plot__origin\s*\{([^}]*)\}/s)?.[1];
+  expect(originRule).toMatch(/width:\s*max-content/);
+  expect(originRule).toMatch(/height:\s*auto/);
+});
+
 it('lets a name wider than the plot wrap inside the visible scan area', () => {
   const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
     x: left, y: top, left, top, width, height,
