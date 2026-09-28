@@ -40,6 +40,7 @@ const {
   subscribeDamageDraws,
   subscribeLoyaltyCensus,
   subscribeGmArrestPosseCalculation,
+  subscribeGmMissionStartSnapshots,
   subscribeGmWolfActionReceipt,
   subscribeGmWolfSuspicionHistory,
   subscribeGmWolfHackingAlerts,
@@ -1916,6 +1917,59 @@ it('subscribes to the server-only arrest calculation, rejects cached or malforme
   callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => result });
   expect(unsubscribeSpies[0]).toHaveBeenCalledOnce();
   expect(onCalculation).toHaveBeenCalledTimes(callsAtUnsubscribe);
+});
+
+it('projects only complete server-confirmed PC04 mission-start receipts to the facilitator', () => {
+  const { callbacks, unsubscribeSpies } = captureSessionListener();
+  const onReceipts = vi.fn();
+  const stop = subscribeGmMissionStartSnapshots('s1', onReceipts);
+  const receipt = {
+    type: 'away-mission-start-snapshot', sessionId: 's1',
+    opportunityId: 'arrival-fleet-1-A-5143', missionId: 'mission-arrival-fleet-1-A-5143',
+    groupId: 'fleet-1', chart: 'A', coordinate: '5143', siteCode: 'L',
+    sourceShipId: 'aegis', sourceTransitionId: 'jump-entry-1', sourceCycle: 2,
+    missionLeader: { uid: 'alice', roleId: 'wing-commander' },
+    actorUid: 'gm1', instanceId: 'bridge', requestId: 'start-1',
+    source: {
+      assumptionId: 'PC04-A1', playerGuide: 'Player’s Guide v1.1 pp. 14–15',
+      facilitatorGuide: 'Facilitator’s Guide v1.1 pp. 13–17',
+      a4CardPack: 'A4 card pack v1.1, printed shuttle and ship sheets',
+      ruleId: 'new-location-mission-with-team-selected-leader',
+    },
+    inputs: {
+      expectedSetupRevision: 4, expectedPhaseRevision: 3, expectedCycle: 2,
+      participantSnapshots: [{ uid: 'alice', roleId: 'wing-commander', craftIds: ['starlight'] }],
+      missionLeaderUid: 'alice',
+    },
+    modifiers: [], outcome: 'started',
+    stateDelta: { missionSnapshotCreated: true, participantHandCount: 1, participantPointerCount: 1 },
+    revisions: { setup: 4, phase: { cycle: 2, phase: 'coordination', revision: 3 } },
+    replay: { status: 'committed', requestId: 'start-1' },
+    recovery: { duplicateStart: 'This source opportunity can start only once.' },
+    createdAt: '2026-01-01T00:00:00.000Z',
+    cardId: 'A♥',
+  };
+  const publish = (data: Record<string, unknown>, fromCache: boolean) => callbacks[0]?.({
+    metadata: { fromCache },
+    docs: [{ id: receipt.opportunityId, data: () => data }],
+  });
+
+  publish(receipt, true);
+  expect(onReceipts).toHaveBeenCalledWith([]);
+  publish(receipt, false);
+  expect(onReceipts).toHaveBeenLastCalledWith([expect.objectContaining({
+    opportunityId: receipt.opportunityId, missionId: receipt.missionId,
+    source: { assumptionId: 'PC04-A1', a4CardPack: receipt.source.a4CardPack,
+      playerGuide: receipt.source.playerGuide, facilitatorGuide: receipt.source.facilitatorGuide,
+      ruleId: receipt.source.ruleId },
+    inputs: expect.objectContaining({ missionLeaderUid: 'alice' }),
+  })]);
+  expect(onReceipts.mock.calls.at(-1)?.[0]?.[0]).not.toHaveProperty('cardId');
+  publish({ ...receipt, source: { ...receipt.source, assumptionId: 'unknown' } }, false);
+  expect(onReceipts).toHaveBeenLastCalledWith([]);
+
+  stop();
+  expect(unsubscribeSpies[0]).toHaveBeenCalledOnce();
 });
 
 it('hydrates only canonical facilitator Wolf clue disclosures', () => {
