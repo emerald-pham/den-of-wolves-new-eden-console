@@ -18006,6 +18006,7 @@ export const getAegisCommandAndControl = onCall<{ sessionId?: unknown }>(async r
   if (!session.exists) throw new HttpsError('not-found', 'No such session.');
   requireAegisExecutiveOfficerPlayer(player, uid);
   requireActiveGameplayPhase(session);
+  requireUsableShip(session, 'aegis');
   const commanderUids = assignedWolfCommanderUidsFromPlayers(players);
   const currentTurn = sessionTurn(session.get('currentTurn'));
   if (!state.exists) {
@@ -18120,6 +18121,7 @@ export const applyAegisCommandAndControl = onCall<{
     );
     if (replay) return replay;
     requireActiveGameplayPhase(session);
+    requireUsableShip(session, 'aegis');
     const inputs = wolfCommanderTargetingInputs(session, state);
     if (change.expectedTurn !== inputs.turn || change.expectedRevision !== inputs.revision) {
       throw commandError(
