@@ -248,10 +248,10 @@ export default function ShipPlot({
               <button
                 className="ship-plot__toggle"
                 type="button"
-                aria-label="Zoom into DRADIS panel to read contact names"
+                aria-label="Zoom into DRADIS panel"
                 onClick={() => setExpanded(true)}
               >
-                Read names
+                Zoom
               </button>
             </div>
           )}

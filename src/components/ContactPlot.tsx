@@ -149,6 +149,15 @@ function combatRangeLabel(track: Track | PlotContact): string {
   return (track.combatRange ?? 'short').toUpperCase();
 }
 
+/** A new ship name needs a new sweep acquisition; an ambient classification
+ *  changes only after its already-acquired return is scanned. */
+function contactRenderKey(track: Track | PlotContact, index: number, ambient: boolean): string {
+  if ('id' in track && track.id) {
+    return JSON.stringify([track.id, ambient ? null : track.tag]);
+  }
+  return JSON.stringify([track.tag, index]);
+}
+
 function styleScopeElementSignature(element: HTMLElement): string {
   const attributes = Array.from(element.attributes)
     .filter((attribute) => attribute.name !== 'style' && attribute.name !== 'data-label-anchor')
@@ -896,7 +905,7 @@ export default function ContactPlot({
           {tracks.map(({ track, spoof, ambient: isAmbient }, index) => (
             <div
               className="contact-plot__contact"
-              key={'id' in track && track.id ? track.id : `${track.tag}-${index}`}
+              key={contactRenderKey(track, index, isAmbient)}
               data-spoof={String(spoof)}
               data-ambient={String(isAmbient)}
               data-moving={String('transit' in track && Boolean(track.transit))}
