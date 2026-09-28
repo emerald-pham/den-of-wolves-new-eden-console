@@ -45,8 +45,8 @@ type ReturnState = {
   moving: boolean;
   scans: number;
   scannedAt: number;
-  /** Keep the first enlarged return until it reaches its normal size. */
-  firstFlashUntil: number;
+  /** The first enlargement has its own clock; repeat pings never restart it. */
+  firstScale: Animation | undefined;
   paint: Animation[];
   freshTimer: number | undefined;
 };
@@ -150,6 +150,7 @@ export function followSweeps(plot: HTMLElement): () => void {
     for (const [element, state] of returns) {
       if (!plot.contains(element)) {
         state.paint.forEach((animation) => animation.cancel());
+        state.firstScale?.cancel();
         if (state.freshTimer !== undefined) window.clearTimeout(state.freshTimer);
         returns.delete(element);
       }
@@ -178,7 +179,7 @@ export function followSweeps(plot: HTMLElement): () => void {
         moving: false,
         scans: index,
         scannedAt: -Infinity,
-        firstFlashUntil: -Infinity,
+        firstScale: undefined,
         paint: [],
         freshTimer: undefined,
       };
@@ -211,7 +212,6 @@ export function followSweeps(plot: HTMLElement): () => void {
       // The first return gets a larger acquisition flash. Refreshes confirm a
       // known track and should preserve its normal apparent size.
       const firstAcquisition = apparent.dataset.acquired !== 'true';
-      if (firstAcquisition) state.firstFlashUntil = now + SCAN_FRESH_MS;
       // Both rims can cross within a few frames. Confirm the existing fix
       // while its paint is fresh; only a later crossing of a dimmed return
       // may choose another bearing, before starting its new flash. Moving
@@ -249,23 +249,24 @@ export function followSweeps(plot: HTMLElement): () => void {
       apparent.style.setProperty('--fix-z', String(state.fix.z));
       apparent.style.setProperty('--drop', String(Math.abs(state.fix.y)));
       apparent.style.setProperty('--flip', state.fix.y < 0 ? '1' : '-1');
-      // A second rim can cross during the 1.12s growth-to-normal beat. Keep
-      // that first paint alive; the crossing still confirms the fix and pings.
-      if (firstAcquisition || now >= state.firstFlashUntil) {
-        state.paint.forEach((animation) => animation.cancel());
-        const fade = [
-          { opacity: 1, offset: 0 },
-          { opacity: 0.34 + (state.fix.z + 1) * 0.25, offset: 0.16 },
-          { opacity: 0.03, offset: 1 },
-        ];
-        const drop = state.drop;
-        state.paint = [
-          blip.animate?.(fade.map((keyframe, i) => ({
-            ...keyframe, transform: firstAcquisition && i === 0 ? 'scale(2)' : 'scale(1)',
-          })), { duration: 7000, fill: 'forwards' }),
-          drop?.animate?.(fade, { duration: 7000, fill: 'forwards' }),
-        ].filter((animation): animation is Animation => animation !== undefined);
+      // Repeat sweeps continue their ordinary brightness ping without
+      // shortening or restarting the first 1.12s growth-to-normal beat.
+      if (firstAcquisition) {
+        state.firstScale = blip.animate?.([
+          { transform: 'scale(2)' },
+          { transform: 'scale(1)' },
+        ], { duration: SCAN_FRESH_MS, fill: 'forwards' });
       }
+      state.paint.forEach((animation) => animation.cancel());
+      const fade = [
+        { opacity: 1, offset: 0 },
+        { opacity: 0.34 + (state.fix.z + 1) * 0.25, offset: 0.16 },
+        { opacity: 0.03, offset: 1 },
+      ];
+      state.paint = [
+        blip.animate?.(fade, { duration: 7000, fill: 'forwards' }),
+        state.drop?.animate?.(fade, { duration: 7000, fill: 'forwards' }),
+      ].filter((animation): animation is Animation => animation !== undefined);
       element.dispatchEvent(new CustomEvent(CONTACT_SCAN_EVENT, { bubbles: true }));
     }
     previous = normals;
@@ -279,6 +280,7 @@ export function followSweeps(plot: HTMLElement): () => void {
     window.removeEventListener('resize', invalidateGeometry);
     returns.forEach((state) => {
       state.paint.forEach((animation) => animation.cancel());
+      state.firstScale?.cancel();
       if (state.freshTimer !== undefined) window.clearTimeout(state.freshTimer);
     });
     returns.clear();
