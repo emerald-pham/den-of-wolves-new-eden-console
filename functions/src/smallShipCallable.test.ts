@@ -197,6 +197,27 @@ it('runs maintenance against only the docked host ledger and persists a replay r
   expect(receiptCall?.[1]).toEqual(expect.objectContaining({ reply: expect.objectContaining({ status: 'committed' }) }));
 });
 
+it('binds small-ship maintenance to the live craft Captain instead of a host console', async () => {
+  mock.session.smallShipStates = { gorgoneion: emptySmallShipState('gorgoneion', 'aegis') };
+  mock.role = 'player';
+  mock.replacementRoleId = 'gorgoneion-captain';
+
+  await expect(runSmallShipMaintenance.run(request({
+    ...maintenanceBase, instanceId: undefined, requestId: 'craft-captain-maintenance',
+  }))).resolves.toMatchObject({ status: 'committed', action: 'begin' });
+
+  mock.update.mockReset();
+  mock.set.mockReset();
+  mock.replacementRoleId = null;
+  mock.activeConsoleRoleId = 'aegis-admiral';
+  mock.session.activeRoleIds = ['aegis-admiral'];
+  await expect(runSmallShipMaintenance.run(request({
+    ...maintenanceBase, instanceId: undefined, requestId: 'host-console-maintenance',
+  }))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('logs a small-ship riot population loss atomically and does not repeat it on replay', async () => {
   const baseState = emptySmallShipState('gorgoneion', 'aegis');
   mock.session.smallShipStates = {
