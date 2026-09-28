@@ -666,6 +666,9 @@ it('lets the player retry the changelog after a temporary asset failure', async 
   expect(fetchMock).toHaveBeenCalledTimes(2);
 });
 
+// This deliberately renders and queries the complete retained release history.
+// Keep a finite per-test budget that tolerates a loaded shared CI runner without
+// weakening the default timeout for the rest of the unit suite.
 it('renders current and retained repair history with progress and keyboard stop intact', async () => {
   const user = userEvent.setup();
   render(<MemoryRouter><AppHeader /></MemoryRouter>);
@@ -894,7 +897,7 @@ it('renders current and retained repair history with progress and keyboard stop 
     "Endeavour upgrades now install the selected consoles using each target ship's current material cost. In-app controls and Team research progression remain under development.",
   )).toBeVisible();
   expect(within(region).getAllByText('217 of 750 planned items are complete (28.93%).').length).toBeGreaterThan(0);
-});
+}, 15_000);
 
 it('keeps the long settings changelog independently scrollable', () => {
   const stylesheet = readFileSync('src/index.css', 'utf8');

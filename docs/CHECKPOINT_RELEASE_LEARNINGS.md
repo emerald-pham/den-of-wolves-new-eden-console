@@ -96,6 +96,30 @@ three ticker shards while both P637 and Firebase deployment stayed skipped. A
 workflow contract test pins all three conditions so release tooling and tests
 cannot silently bypass their own gates again.
 
+### Independent deploy and verification baselines
+
+The [first documentation measurement push](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/36479313133)
+exposed a second selector problem. Deployment correctly needs the cumulative
+range from the last successful production deployment, but verification had
+been using that same older revision. As a result, a later documentation-only
+push repeated unit and ticker gates for tooling that had already passed at an
+exact commit.
+
+The Deploy workflow now resolves two independent ancestry-checked baselines:
+the last successful `deploy` job selects cumulative Firebase surfaces, while
+the last successful exact-SHA `verify / verify` job selects only the risk gates
+not yet passed. A missing or unrelated verification baseline fails closed to
+the full verification profile. The deploy job still requires a non-empty
+Firebase target set. Contract tests pin the split and the fail-closed cases.
+
+That same workflow produced one resource-sensitive failure after 2,494 unit
+tests passed: the complete retained-changelog DOM test exceeded Vitest's
+five-second default under runner load. The focused test passed locally in 1.31
+seconds, and the preceding exact-commit workflow had passed the full suite, so
+the assertion was retained rather than weakened. It now has an isolated
+15-second ceiling; the stricter default remains in force for every ordinary
+unit test.
+
 ### Typography gate integrity
 
 PC04 repaired the exact command mapping for the mandatory computed-style

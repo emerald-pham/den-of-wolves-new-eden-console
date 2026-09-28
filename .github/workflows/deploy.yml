@@ -84,16 +84,54 @@ jobs:
           fi
           echo "base_sha=$baseline" >> "$GITHUB_OUTPUT"
 
+      - name: Find last successful verification baseline
+        id: verification-baseline
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REPOSITORY: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            echo "base_sha=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          runs=""
+          if ! runs=$(gh api \
+            "repos/$REPOSITORY/actions/workflows/deploy.yml/runs?branch=main&per_page=100" \
+            --jq '.workflow_runs[] | select(.status == "completed" and .conclusion == "success") | [.id, .head_sha] | @tsv'); then
+            runs=""
+          fi
+          baseline=""
+          while IFS=$'\t' read -r run_id head_sha; do
+            [[ -n "$run_id" && -n "$head_sha" ]] || continue
+            verify_conclusion=""
+            if ! verify_conclusion=$(gh api \
+              "repos/$REPOSITORY/actions/runs/$run_id/jobs?per_page=100" \
+              --jq '[.jobs[] | select(.name == "verify / verify") | .conclusion] | .[0] // ""'); then
+              continue
+            fi
+            if [[ "$verify_conclusion" == "success" ]]; then
+              baseline="$head_sha"
+              break
+            fi
+          done <<< "$runs"
+          if [[ -z "$baseline" ]]; then
+            echo 'No prior exact-SHA verification completed successfully; verification will fail closed.'
+          fi
+          echo "base_sha=$baseline" >> "$GITHUB_OUTPUT"
+
       - name: Determine deployment targets
         id: targets
         env:
           EVENT_NAME: ${{ github.event_name }}
           BASELINE_SHA: ${{ steps.baseline.outputs.base_sha }}
+          VERIFICATION_BASELINE_SHA: ${{ steps.verification-baseline.outputs.base_sha }}
           COMMIT_SHA: ${{ github.sha }}
           CURRENT_MAIN_TIP: ${{ steps.current-tip.outputs.sha }}
         run: |
           node scripts/deployment-targets.mjs \
             --before "$BASELINE_SHA" \
+            --verification-before "$VERIFICATION_BASELINE_SHA" \
             --after "$COMMIT_SHA" \
             --current-main-tip "$CURRENT_MAIN_TIP" \
             --manual "$([[ "$EVENT_NAME" == "workflow_dispatch" ]] && echo true || echo false)" \

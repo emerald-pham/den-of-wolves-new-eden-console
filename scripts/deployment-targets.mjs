@@ -298,11 +298,14 @@ function revisionIsAncestor(before, after, cwd = process.cwd()) {
 
 export function classifyDeploymentRange({
   before,
+  verificationBefore = before,
   after,
   currentMainTip = after,
   manual = false,
   changedFiles,
+  verificationChangedFiles,
   versionMetadataOnly,
+  verificationVersionMetadataOnly,
   cwd = process.cwd(),
   isAncestor = revisionIsAncestor,
 } = {}) {
@@ -315,6 +318,7 @@ export function classifyDeploymentRange({
       currentTip: false,
       staleRun: true,
       baselineAncestry: false,
+      verificationBaselineAncestry: false,
     };
   }
   if (manual) {
@@ -325,6 +329,7 @@ export function classifyDeploymentRange({
       currentTip: true,
       staleRun: false,
       baselineAncestry: true,
+      verificationBaselineAncestry: true,
     };
   }
   if (!before) {
@@ -335,6 +340,7 @@ export function classifyDeploymentRange({
       currentTip: true,
       staleRun: false,
       baselineAncestry: false,
+      verificationBaselineAncestry: false,
     };
   }
   const baselineAncestry = isAncestor(before, after);
@@ -344,11 +350,31 @@ export function classifyDeploymentRange({
       currentTip: true,
       staleRun: false,
       baselineAncestry: false,
+      verificationBaselineAncestry: false,
     };
   }
   const files = changedFiles ?? filesFromGit(before, after, cwd);
   const metadataOnly = versionMetadataOnly ?? versionMetadataOnlyForRange(before, after, files, cwd);
   const classification = classifyChangedFiles(files, { versionMetadataOnly: metadataOnly });
+  const verificationBaselineAncestry = Boolean(
+    verificationBefore && isAncestor(verificationBefore, after),
+  );
+  if (verificationBaselineAncestry) {
+    const verificationFiles = verificationChangedFiles ?? (
+      verificationBefore === before ? files : filesFromGit(verificationBefore, after, cwd)
+    );
+    const verificationMetadataOnly = verificationVersionMetadataOnly ?? versionMetadataOnlyForRange(
+      verificationBefore,
+      after,
+      verificationFiles,
+      cwd,
+    );
+    classification.riskGates = classifyRiskGates(verificationFiles, {
+      versionMetadataOnly: verificationMetadataOnly,
+    });
+  } else {
+    classification.riskGates = classifyRiskGates(['__unknown_diff__']);
+  }
   // Keep the coarse release gate at Hosting + Functions for callable releases;
   // the Firebase selector below narrows the actual Function mutations.
   if (classification.targets.includes('functions') && !classification.targets.includes('hosting')) {
@@ -361,6 +387,7 @@ export function classifyDeploymentRange({
     currentTip: true,
     staleRun: false,
     baselineAncestry: true,
+    verificationBaselineAncestry,
   };
 }
 
@@ -1130,6 +1157,7 @@ export function formatGitHubOutputs(result) {
     `current_tip=${result.currentTip !== false}`,
     `stale_run=${result.staleRun === true}`,
     `baseline_ancestry=${result.baselineAncestry !== false}`,
+    `verification_baseline_ancestry=${result.verificationBaselineAncestry !== false}`,
     formatRiskGateOutputs(result.riskGates ?? classifyRiskGates(['__unknown_diff__'])),
   ].join('\n');
 }
@@ -1140,7 +1168,7 @@ function parseOptions(argv) {
     const name = argv[index];
     const value = argv[index + 1];
     if (!name?.startsWith('--') || value === undefined) {
-      throw new Error('Usage: deployment-targets.mjs --before <sha> --after <sha> [--current-main-tip <sha>] [--manual true|false]');
+      throw new Error('Usage: deployment-targets.mjs --before <sha> --verification-before <sha> --after <sha> [--current-main-tip <sha>] [--manual true|false]');
     }
     options[name.slice(2)] = value;
     index += 1;
@@ -1165,6 +1193,7 @@ if (process.argv[1] && process.argv[1].endsWith('/deployment-targets.mjs')) {
   const options = parseOptions(process.argv.slice(2));
   const result = classifyDeploymentRange({
     before: options.before,
+    verificationBefore: options['verification-before'],
     after: options.after,
     currentMainTip: options['current-main-tip'] || options.after,
     manual: options.manual === 'true',

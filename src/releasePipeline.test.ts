@@ -209,6 +209,31 @@ it('separates cumulative deployment targets from already-passed verification ris
   });
 });
 
+it('fails closed when the independent verification baseline is missing or unrelated', () => {
+  for (const verificationBefore of ['', 'unrelated-verified-sha']) {
+    const result = classifyDeploymentRange({
+      before: 'deployed-sha',
+      verificationBefore,
+      after: 'current-main-tip',
+      currentMainTip: 'current-main-tip',
+      changedFiles: ['docs/release.md'],
+      verificationChangedFiles: ['docs/release.md'],
+      isAncestor: (ancestor: string) => ancestor !== 'unrelated-verified-sha',
+    });
+
+    expect(result.targets).toEqual([]);
+    expect(result.verificationBaselineAncestry).toBe(false);
+    expect(result.riskGates).toMatchObject({
+      rootInstall: true,
+      unit: true,
+      functions: true,
+      firestore: true,
+      ticker: true,
+      render: true,
+    });
+  }
+});
+
 it('keeps exact Hosting builds while selecting unit and bundle checks by risk', () => {
   expect(ci).toContain('run_unit=$UNIT_REQUIRED');
   expect(ci).toContain('run_web_build=$has_hosting');
