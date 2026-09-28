@@ -4005,7 +4005,7 @@ export default function GmConsole() {
                   <legend>Ordinary production start</legend>
                   <p className="gm-role-setup__note">
                     The server derives the routine Wolf count and private loyalty cards from the locked roster.
-                    Wolf selection is not a caller-controlled setup step.
+                    Wolf selection is automatic among available players. Unfilled stations do not block start.
                   </p>
                   <p
                     className="gm-role-setup__note"
@@ -4019,7 +4019,7 @@ export default function GmConsole() {
                         ? 'Start unavailable // this session has already left Cycle 0.'
                         : session.phase !== 'casting'
                           ? 'Start blocked // confirm the locked roster before production start.'
-                          : 'Ready // validate the live roster, reciprocal seats, vessels, loyalty, and GM staffing.'
+                          : 'Ready // confirmed roster. The server checks current authority, occupied seats, vessels, and private setup.'
                     )}
                   </p>
                   <button
@@ -4041,7 +4041,7 @@ export default function GmConsole() {
                         <div><dt>Disposition</dt><dd>{startMutationState}</dd></div>
                         <div><dt>Source</dt><dd>{setupReceipt.source}</dd></div>
                         <div><dt>Locked configuration</dt><dd>{setupReceipt.mode} // {setupReceipt.playerCount} core</dd></div>
-                        <div><dt>Wolf rule / result</dt><dd>{setupReceipt.wolfRule} // {setupReceipt.wolfCount} // {setupReceipt.resultCount} private cards</dd></div>
+                        <div><dt>Wolf rule / result</dt><dd>{setupReceipt.wolfRule} // target {setupReceipt.wolfCount} // assigned {setupReceipt.selectedWolfRoleIds.length} // {setupReceipt.resultCount} private cards</dd></div>
                         <div><dt>Press input</dt><dd>
                           {setupReceipt.pressEligibility.enabled === false ? 'disabled' : 'enabled'} // {
                             typeof setupReceipt.pressEligibility.activeClaimCount === 'number'
