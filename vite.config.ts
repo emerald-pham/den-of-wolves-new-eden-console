@@ -130,6 +130,7 @@ export default defineConfig(({ mode }) => {
           index: resolvePath(projectRoot, 'index.html'),
           'pc01-review': resolvePath(projectRoot, 'pc01-review.html'),
           'pc02-review': resolvePath(projectRoot, 'pc02-review.html'),
+          'pc03-review': resolvePath(projectRoot, 'pc03-review.html'),
         },
         output: {
           manualChunks: {

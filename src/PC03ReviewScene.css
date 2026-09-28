@@ -1,0 +1,97 @@
+.pc03-review {
+  box-sizing: border-box;
+  width: min(100%, 86rem);
+  margin-inline: auto;
+  padding: clamp(1rem, 2.5vw, 2.25rem);
+  color: var(--cic-ink);
+  overflow-wrap: anywhere;
+}
+
+.pc03-review *,
+.pc03-review *::before,
+.pc03-review *::after { box-sizing: border-box; }
+.pc03-review__skip { position: absolute; left: -100vw; top: 0.5rem; z-index: 30; }
+.pc03-review__skip:focus-visible { left: 0.5rem; padding: 0.6rem; background: var(--cic-panel); }
+.pc03-review__header { display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+.pc03-review__header h1 { margin: 0.25rem 0; font-size: clamp(1.4rem, 4vw, 2.4rem); }
+.pc03-review__header p { margin-block: 0.35rem; }
+.pc03-review__mode { padding: 0.6rem 0.8rem; border: 1px solid var(--cic-rule); color: var(--cic-cyan); }
+.pc03-review__sample-banner { display: flex; flex-wrap: wrap; gap: 0.8rem; margin-block: 1rem; padding: 0.85rem 1rem; border: 1px solid var(--cic-amber); background: color-mix(in srgb, var(--cic-amber) 10%, transparent); }
+.pc03-review__sample-banner strong { letter-spacing: 0.08em; }
+.pc03-review__steps,
+.pc03-review__controls,
+.pc03-review__disabled-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.pc03-review__steps { padding-block-end: 1rem; border-bottom: 1px solid var(--cic-rule); }
+.pc03-review__steps button,
+.pc03-review__controls button,
+.pc03-review__disabled-actions button { min-height: 44px; white-space: normal; }
+.pc03-review__steps [aria-pressed='true'],
+.pc03-review__controls [aria-pressed='true'] { border-color: var(--cic-cyan); border-bottom-width: 3px; }
+.pc03-review__content { display: grid; gap: 1rem; min-width: 0; padding-block: 1rem; outline: none; }
+.pc03-review__intro h2 { margin-block: 0.25rem; }
+.pc03-review__intro p:last-child { margin-block-end: 0; }
+.pc03-review__station,
+.pc03-review__panel,
+.pc03-review__systems,
+.pc03-review__fleet,
+.pc03-review__service,
+.pc03-review__inventory { display: grid; gap: 0.85rem; min-width: 0; }
+.pc03-review__panel h3,
+.pc03-review__systems h3,
+.pc03-review__fleet h3,
+.pc03-review__service h3 { margin: 0; }
+.pc03-review__panel > p,
+.pc03-review__service > p { margin-block: 0; }
+.pc03-review__note { color: var(--cic-muted); }
+.pc03-review__station .console-workspace,
+.pc03-review__drive-control,
+.pc03-review__shuttle,
+.pc03-review__shuttle .ship-console,
+.pc03-review__inventory-grid,
+.pc03-review__inventory,
+.pc03-review__service,
+.pc03-review__service-grid,
+.pc03-review__recovery-grid,
+.pc03-review__recovery-card { min-width: 0; max-width: 100%; }
+.pc03-review__inventory-grid,
+.pc03-review__service-grid,
+.pc03-review__recovery-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+.pc03-review__inventory ul { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: 0.35rem 0.75rem; margin: 0; padding: 0; list-style: none; }
+.pc03-review__inventory li { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; min-width: 0; padding: 0.45rem; border-bottom: 1px solid var(--cic-rule); }
+.pc03-review__inventory .resource-label { display: flex; align-items: center; gap: 0.45rem; min-width: 0; }
+.pc03-review__inventory .resource-label > span:last-child { overflow-wrap: anywhere; }
+.pc03-review__service-grid article,
+.pc03-review__recovery-card { min-width: 0; padding: 0.8rem; border: 1px solid var(--cic-rule); background: color-mix(in srgb, var(--cic-panel) 85%, transparent); }
+.pc03-review__service-grid article { display: grid; align-content: start; gap: 0.6rem; }
+.pc03-review__service-grid h3 { font-size: 1rem; }
+.pc03-review__service-grid p { margin: 0; }
+.pc03-review__recovery-card h4 { margin: 0 0 0.5rem; color: var(--cic-cyan); }
+.pc03-review__recovery-card p { margin: 0.35rem 0 0; }
+.pc03-review__shuttle-data { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); gap: 0.6rem; margin: 0; }
+.pc03-review__shuttle-data div { padding: 0.65rem; border: 1px solid var(--cic-rule); }
+.pc03-review__shuttle-data dt { color: var(--cic-amber); }
+.pc03-review__shuttle-data dd { margin: 0.25rem 0 0; }
+.pc03-review__footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.75rem; padding-block: 1rem; border-top: 1px solid var(--cic-rule); }
+.pc03-review__footer p { margin: 0; }
+
+@media (max-width: 42rem) {
+  .pc03-review__header,
+  .pc03-review__header > *,
+  .pc03-review__mode { width: 100%; }
+  .pc03-review__steps button { flex: 1 1 9rem; }
+  .pc03-review__inventory-grid,
+  .pc03-review__service-grid,
+  .pc03-review__recovery-grid { grid-template-columns: minmax(0, 1fr); }
+  .pc03-review__shuttle .ship-console__instruments { grid-row: auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pc03-review *,
+  .pc03-review *::before,
+  .pc03-review *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
