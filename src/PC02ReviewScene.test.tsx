@@ -57,6 +57,13 @@ it('uses the real plot for an interactive first-contact and repeat-sweep review'
   expect(screen.getByRole('button', { name: /repeat sweep/i })).toBeVisible();
   expect(screen.getByRole('button', { name: /after first sweep/i })).toBeVisible();
   expect(screen.getByText(/first contact enlargement/i)).toBeVisible();
+  const plot = container.querySelector<HTMLElement>('.pc02-review__plot')!;
+  await user.click(screen.getByRole('button', { name: 'Repeat sweep' }));
+  expect(plot.dataset.scanStage).toBe('repeat');
+  expect(screen.getByRole('status')).toHaveTextContent('800 ms');
+  await user.click(screen.getByRole('button', { name: 'After first sweep' }));
+  expect(plot.dataset.scanStage).toBe('after');
+  expect(screen.getByRole('status')).toHaveTextContent('1120 ms');
 });
 
 it('shows committed sample reports on the actual Press desk before and after a local publish', async () => {
