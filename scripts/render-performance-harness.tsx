@@ -64,11 +64,20 @@ function seedMissionHands(revision: number): void {
 window.__p637 = {
   measureDradis: async (iterations) => {
     const getBounds = Element.prototype.getBoundingClientRect;
+    const offsetWidthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetWidth');
+    if (!offsetWidthDescriptor?.get) throw new Error('P637 could not instrument HTMLElement.offsetWidth.');
     let labelLayoutReads = 0;
     Element.prototype.getBoundingClientRect = function (this: Element): DOMRect {
       if (this.classList.contains('contact-plot__tag')) labelLayoutReads += 1;
       return getBounds.call(this);
     };
+    Object.defineProperty(HTMLElement.prototype, 'offsetWidth', {
+      ...offsetWidthDescriptor,
+      get: function (this: HTMLElement) {
+        if (this.classList.contains('contact-plot__tag')) labelLayoutReads += 1;
+        return offsetWidthDescriptor.get!.call(this);
+      },
+    });
     try {
       const sample = await renderSamples('dradisUpdate', iterations, (revision) => {
         root.render(<ContactPlot placement="inset" size="min(92vw, 760px)" contacts={contacts(revision)} centerLabel="AEGIS" />);
@@ -76,6 +85,7 @@ window.__p637 = {
       return { ...sample, labelLayoutReads };
     } finally {
       Element.prototype.getBoundingClientRect = getBounds;
+      Object.defineProperty(HTMLElement.prototype, 'offsetWidth', offsetWidthDescriptor);
     }
   },
   measureAttack: (iterations) => renderSamples('attackUpdate', iterations, (revision) => {
