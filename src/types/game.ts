@@ -1164,6 +1164,10 @@ export interface GameSession {
   readonly pdfEscortWing?: PdfEscortWingMemberView;
   /** Per-ship unrest ranges from 0–10; the physical-style dial fails above 7. */
   readonly shipUnrest?: Readonly<Record<string, number>>;
+  readonly shipMutinies?: Readonly<Record<string, Readonly<{
+    status: 'active' | 'resolved'; revision: number; triggerUnrest: number;
+    triggeredAt: string; reduction?: number; recoveryRequestId?: string; recoveredAt?: string;
+  }>>>;
   /** Threshold alerts awaiting acknowledgement by the GM instances active when triggered. */
   readonly unrestAlerts?: Readonly<Record<string, UnrestAlert>>;
   /** Locks subsequent GM claims while at least one GM remains present. */

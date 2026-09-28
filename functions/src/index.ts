@@ -491,6 +491,10 @@ import {
 import { civilUnrestReport, diseaseOutbreakReport, parseDiseaseOutbreak, APPROACHING_VESSEL_REPORT, PRESIDENTIAL_ELECTION_REPORT, RELIGIOUS_ZEALOTRY_REPORT, canTransitionCrisis, crisisConfigurationBlocker, isCrisisKind, isCrisisState, type CrisisStateName } from './crisisState';
 import { buildVesselActionEnvelope, type VesselActionEnvelope } from './vesselActionEnvelope';
 import {
+  isShipInMutiny, mutinyAfterUnrestChange,
+  parseShipMutiny, resolveShipMutiny as resolveShipMutinyState,
+} from './mutiny';
+import {
   VOYAGE_33_COMMITMENTS,
   VOYAGE_33_ID,
   VOYAGE_33_POPULATION,
@@ -1320,6 +1324,7 @@ function totalFleetLossTerminalPatch(
 /** Destruction removes a full ship from navigation while retaining its
  * survivors, pods, resources, and shuttle records for their own callables. */
 function requireNavigableShip(session: DocumentSnapshot, shipId: string): void {
+  requireUsableShip(session, shipId);
   if (shipDamage(session.get('shipDamage'))[shipId]?.destroyed === true) {
     throw commandError(
       'failed-precondition',
@@ -1327,6 +1332,47 @@ function requireNavigableShip(session: DocumentSnapshot, shipId: string): void {
       'conflict',
     );
   }
+}
+
+function shipMutinyForSession(session: DocumentSnapshot, shipId: string) {
+  const raw = session.get('shipMutinies');
+  const stored = isRecord(raw) ? raw[shipId] : undefined;
+  const parsed = parseShipMutiny(stored);
+  if (stored !== undefined && !parsed) {
+    throw commandError('failed-precondition', 'The ship mutiny record is malformed.', 'malformed-input');
+  }
+  return parsed;
+}
+
+function publicShipMutinies(value: unknown, activeVesselIds: readonly string[]) {
+  const stored = isRecord(value) ? value : {};
+  return Object.fromEntries(activeVesselIds.flatMap(shipId => {
+    const mutiny = parseShipMutiny(stored[shipId]);
+    return mutiny ? [[shipId, {
+      status: mutiny.status, revision: mutiny.revision,
+      triggerUnrest: mutiny.triggerUnrest, triggeredAt: mutiny.triggeredAt,
+      ...(mutiny.status === 'resolved' ? {
+        reduction: mutiny.reduction, recoveryRequestId: mutiny.recoveryRequestId,
+        recoveredAt: mutiny.recoveredAt,
+      } : {}),
+    }]] : [];
+  }));
+}
+
+function requireUsableShip(session: DocumentSnapshot, shipId: string): void {
+  const unrest = shipUnrest(session.get('shipUnrest'))[shipId] ?? 0;
+  if (isShipInMutiny(shipMutinyForSession(session, shipId), unrest)) {
+    throw commandError('failed-precondition',
+      'This ship is in mutiny. A GM must install a new captain before it can be used.', 'conflict');
+  }
+}
+
+function shipMutinyTransitionPatch(
+  session: DocumentSnapshot, shipId: string, before: number, after: number, at: string,
+): Record<string, unknown> {
+  const prior = shipMutinyForSession(session, shipId);
+  const next = mutinyAfterUnrestChange(prior, before, after, at);
+  return next && next !== prior ? { [`shipMutinies.${shipId}`]: next } : {};
 }
 
 function playerAuthoritativeVesselIds(player: DocumentSnapshot): readonly string[] {
@@ -14110,6 +14156,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         shipDamage: activeVesselRecord(shipDamage(sessionSnap.get('shipDamage')), activeVesselIds),
         shipResources: activeVesselRecord(shipResources(sessionSnap.get('shipResources')), activeVesselIds),
         shipUnrest: activeVesselRecord(shipUnrest(sessionSnap.get('shipUnrest')), activeVesselIds),
+        shipMutinies: publicShipMutinies(sessionSnap.get('shipMutinies'), activeVesselIds),
         unrestAlerts: publicAlertMap(sessionSnap.get('unrestAlerts'), activeVesselIds, false),
         maintenanceCycles: publicMaintenanceCycles(sessionSnap.get('maintenanceCycles'), activeVesselIds),
         smallShipStates: publicSmallShipStates(
@@ -14417,6 +14464,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       shipDamage: activeVesselRecord(shipDamage(sessionSnap.get('shipDamage')), activeVesselIds),
       shipResources: activeVesselRecord(shipResources(sessionSnap.get('shipResources')), activeVesselIds),
       shipUnrest: activeVesselRecord(shipUnrest(sessionSnap.get('shipUnrest')), activeVesselIds),
+      shipMutinies: publicShipMutinies(sessionSnap.get('shipMutinies'), activeVesselIds),
       unrestAlerts: publicAlertMap(sessionSnap.get('unrestAlerts'), activeVesselIds, false),
       maintenanceCycles: publicMaintenanceCycles(sessionSnap.get('maintenanceCycles'), activeVesselIds),
       smallShipStates: publicSmallShipStates(
@@ -22438,6 +22486,7 @@ async function requireShipCounterAuthority(
   instanceId?: string,
   gmOnly = false,
   requireScopedGmGrant = false,
+  allowMutinyResolution = false,
 ): Promise<void> {
   if (!isResourceShipId(shipId)) throw new HttpsError('invalid-argument', 'Unknown fleet ship.');
   const [player, session] = await Promise.all([
@@ -22468,6 +22517,7 @@ async function requireShipCounterAuthority(
     }
     return;
   }
+  if (!allowMutinyResolution) requireUsableShip(session, shipId);
   const ownRole = player.get('activeConsoleRoleId');
   const replacementRoleId = player.get('replacementRoleId');
   if (!replacementAuthorityAllowsRole(replacementRoleId, String(ownRole ?? ''))) {
@@ -22495,9 +22545,14 @@ function hasGmShipConsoleWriteGrant(
 async function requireConsoleAuthority(
   tx: Transaction, sessionId: string, player: DocumentSnapshot, targetRole: string,
   instanceId?: string,
+  allowMutinyResolution = false,
 ): Promise<void> {
   const session = await tx.get(db.doc(`sessions/${sessionId}`));
   if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+  if (!allowMutinyResolution) {
+    const targetShipId = shipForRole(targetRole);
+    if (targetShipId) requireUsableShip(session, targetShipId);
+  }
   const activeRoleIds = configuredRoleIds(session);
   const ownRole = player.get('activeConsoleRoleId');
   const replacementRoleId = player.get('replacementRoleId');
@@ -22927,6 +22982,8 @@ export const adjustShipUnrest = onCall<{
     tx.update(sessionRef, {
       [`shipUnrest.${change.shipId}`]: result.amount,
       unrestAlerts: nextAlerts,
+      ...shipMutinyTransitionPatch(session, change.shipId,
+        amounts[change.shipId] ?? 0, result.amount, new Date().toISOString()),
       ...vesselActionRevisionPatch(change.shipId, currentRevision + 1),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -23262,6 +23319,240 @@ export const dismissUnrestAlert = onCall<{
   });
 });
 
+/** Install a different live captain and record the facilitator's printed 1–3 reduction. */
+export const resolveShipMutiny = onCall<{
+  sessionId?: unknown; instanceId?: unknown; requestId?: unknown;
+  shipId?: unknown; newCaptainUid?: unknown; reduction?: unknown; expectedRevision?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = [
+    'sessionId', 'instanceId', 'requestId', 'shipId', 'newCaptainUid',
+    'reduction', 'expectedRevision',
+  ];
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
+      Object.keys(raw).some((key) => !allowed.includes(key)) ||
+      typeof raw.sessionId !== 'string' || !isCanonicalRequestId(raw.sessionId) ||
+      typeof raw.instanceId !== 'string' || !isCanonicalRequestId(raw.instanceId) ||
+      typeof raw.requestId !== 'string' || !isCanonicalRequestId(raw.requestId) ||
+      typeof raw.shipId !== 'string' || !captainRoleForShip(raw.shipId) ||
+      typeof raw.newCaptainUid !== 'string' || !isCanonicalRequestId(raw.newCaptainUid) ||
+      !Number.isSafeInteger(raw.reduction) || Number(raw.reduction) < 1 || Number(raw.reduction) > 3 ||
+      !Number.isSafeInteger(raw.expectedRevision) || Number(raw.expectedRevision) < 0) {
+    throw new HttpsError('invalid-argument', 'Invalid mutiny recovery request.');
+  }
+  const data = {
+    sessionId: raw.sessionId, instanceId: raw.instanceId, requestId: raw.requestId,
+    shipId: raw.shipId, newCaptainUid: raw.newCaptainUid,
+    reduction: raw.reduction as number, expectedRevision: raw.expectedRevision as number,
+  };
+  const captainRoleId = captainRoleForShip(data.shipId)!;
+  const sessionRef = db.doc(`sessions/${data.sessionId}`);
+  const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
+  const eventRef = db.doc(`sessions/${data.sessionId}/events/mutiny-${data.requestId}`);
+  const recoveryRef = db.doc(`sessions/${data.sessionId}/mutinyRecoveries/${data.requestId}`);
+  const fingerprint = vesselActionFingerprint(
+    'resolve-ship-mutiny', data.sessionId, data.requestId, uid, data.instanceId,
+    data.expectedRevision,
+    { shipId: data.shipId, newCaptainUid: data.newCaptainUid, reduction: data.reduction },
+  );
+  const serverTime = new Date().toISOString();
+  return db.runTransaction(async tx => {
+    const { session, player } = await requireFacilitatorInstance(
+      tx, data.sessionId, uid, data.instanceId,
+    );
+    const [receipt, players, wolfAssignment, recovery, event] = await Promise.all([
+      tx.get(receiptRef), tx.get(db.collection(`sessions/${data.sessionId}/players`)),
+      tx.get(db.doc(`sessions/${data.sessionId}/secrets/wolf-assignment`)),
+      tx.get(recoveryRef), tx.get(eventRef),
+    ]);
+    const replay = replayBoundCommand(receipt, fingerprint, isVesselActionResult, 'mutiny recovery');
+    if (replay) return replay.status === 'committed' ? { ...replay, status: 'replayed' } : replay;
+    if (recovery.exists || event.exists) {
+      throw commandError('failed-precondition', 'This mutiny request already has a different record.', 'conflict');
+    }
+    requireActiveGameplayPhase(session);
+    if (!activeVesselIdsForSession(session).includes(data.shipId)) {
+      throw commandError('failed-precondition', 'The ship is not active.', 'conflict');
+    }
+    const currentRevision = vesselActionRevision(session, data.shipId);
+    if (currentRevision !== data.expectedRevision) {
+      const stale = {
+        status: 'stale' as const, shipId: data.shipId,
+        expectedRevision: data.expectedRevision, currentRevision,
+        ...vesselActionEnvelope(session, player, uid, data.shipId, currentRevision,
+          data.requestId, 'resolve-ship-mutiny'),
+      };
+      tx.set(receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
+    const unrest = shipUnrest(session.get('shipUnrest'))[data.shipId];
+    if (unrest === undefined) {
+      throw commandError('failed-precondition', 'The ship unrest counter is unavailable.', 'malformed-input');
+    }
+    const rawMutinies = isRecord(session.get('shipMutinies'))
+      ? session.get('shipMutinies') as Record<string, unknown> : {};
+    const storedMutiny = rawMutinies[data.shipId];
+    const mutiny = parseShipMutiny(storedMutiny);
+    if (storedMutiny !== undefined && !mutiny) {
+      throw commandError('failed-precondition', 'The mutiny record is malformed.', 'malformed-input');
+    }
+    if (!isShipInMutiny(mutiny, unrest)) {
+      throw commandError('failed-precondition', 'This ship is not in mutiny.', 'conflict');
+    }
+    const oldCaptain = players.docs.find((member) =>
+      member.get('assignedRoleId') === captainRoleId);
+    const newCaptain = players.docs.find((member) => member.id === data.newCaptainUid);
+    if (!oldCaptain || !newCaptain || oldCaptain.id === newCaptain.id ||
+        !isActivePlayer(oldCaptain) || !isActivePlayer(newCaptain) ||
+        oldCaptain.get('role') !== 'player' || newCaptain.get('role') !== 'player' ||
+        oldCaptain.get('seatId') !== captainRoleId ||
+        typeof newCaptain.get('assignedRoleId') !== 'string' ||
+        newCaptain.get('assignedRoleId') !== newCaptain.get('seatId') ||
+        shipForRole(newCaptain.get('assignedRoleId')) !== data.shipId ||
+        oldCaptain.get('replacementRoleId') != null || newCaptain.get('replacementRoleId') != null ||
+        playerEscapeState(oldCaptain) || playerEscapeState(newCaptain)) {
+      throw commandError('failed-precondition', 'Choose a different active officer on the mutinous ship.', 'conflict');
+    }
+    const priorRoleId = newCaptain.get('assignedRoleId') as string;
+    if (priorRoleId === captainRoleId || !configuredRoleIds(session).includes(priorRoleId)) {
+      throw commandError('failed-precondition', 'The replacement captain has no swappable core role.', 'conflict');
+    }
+    if (players.docs.some((member) => member.id !== oldCaptain.id &&
+        member.get('assignedRoleId') === captainRoleId)) {
+      throw commandError('failed-precondition', 'The captain role has multiple holders.', 'conflict');
+    }
+    const oldSeatRef = db.doc(`sessions/${data.sessionId}/seats/${captainRoleId}`);
+    const newSeatRef = db.doc(`sessions/${data.sessionId}/seats/${priorRoleId}`);
+    const oldSecretRef = db.doc(`sessions/${data.sessionId}/secrets/loyalty-${oldCaptain.id}`);
+    const newSecretRef = db.doc(`sessions/${data.sessionId}/secrets/loyalty-${newCaptain.id}`);
+    const [oldSeat, newSeat, oldSecret, newSecret] = await Promise.all([
+      tx.get(oldSeatRef), tx.get(newSeatRef), tx.get(oldSecretRef), tx.get(newSecretRef),
+    ]);
+    if (!oldSeat.exists || oldSeat.get('roleId') !== captainRoleId ||
+        oldSeat.get('status') !== 'claimed' || oldSeat.get('holderUid') !== oldCaptain.id ||
+        !newSeat.exists || newSeat.get('roleId') !== priorRoleId ||
+        newSeat.get('status') !== 'claimed' || newSeat.get('holderUid') !== newCaptain.id) {
+      throw commandError('failed-precondition', 'The claimed captain or replacement seat changed.', 'conflict');
+    }
+    if (!hasExactPrivateSecretAudience(oldSecret, oldCaptain.id) ||
+        !hasExactPrivateSecretAudience(newSecret, newCaptain.id)) {
+      throw commandError('failed-precondition', 'A private loyalty record is unavailable.', 'malformed-input');
+    }
+    const oldLoyalty = oldSecret.get('payload') as Record<string, unknown> | undefined;
+    const newLoyalty = newSecret.get('payload') as Record<string, unknown> | undefined;
+    if (!oldLoyalty || oldLoyalty.type !== 'loyalty' ||
+        !newLoyalty || newLoyalty.type !== 'loyalty') {
+      throw commandError('failed-precondition', 'A private loyalty record is malformed.', 'malformed-input');
+    }
+    const oldWolf = oldLoyalty.kind === 'wolf-agent' || oldLoyalty.kind === 'wolf-cult';
+    const newWolf = newLoyalty.kind === 'wolf-agent' || newLoyalty.kind === 'wolf-cult';
+    const wolfPayload = wolfAssignment.get('payload') as Record<string, unknown> | undefined;
+    const wolfRoleIds = wolfPayload?.roleIds;
+    if (!wolfAssignment.exists || wolfPayload?.type !== 'wolf-assignment' ||
+        !Array.isArray(wolfRoleIds) || wolfRoleIds.some((roleId) =>
+          typeof roleId !== 'string' || !(ROLE_IDS as readonly string[]).includes(roleId)) ||
+        wolfRoleIds.includes(captainRoleId) !== oldWolf ||
+        wolfRoleIds.includes(priorRoleId) !== newWolf) {
+      throw commandError('failed-precondition', 'The private Wolf cover record does not match captain roles.', 'malformed-input');
+    }
+    const friendUids = [
+      privateFriendPartnerUid(oldSecret, oldCaptain.id),
+      privateFriendPartnerUid(newSecret, newCaptain.id),
+    ];
+    const friendRefs = [...new Set(friendUids.filter((friendUid): friendUid is string => friendUid !== null))]
+      .map(friendUid => db.doc(`sessions/${data.sessionId}/secrets/loyalty-${friendUid}`));
+    const friendSecrets = await Promise.all(friendRefs.map(ref => tx.get(ref)));
+    const friendUpdates = new Map<string, Record<string, unknown>>();
+    for (const [holder, holderRoleId, holderSecret, partnerUid] of [
+      [oldCaptain, captainRoleId, oldSecret, friendUids[0]],
+      [newCaptain, priorRoleId, newSecret, friendUids[1]],
+    ] as const) {
+      if (!partnerUid) continue;
+      const partner = friendSecrets.find(secret => secret.id === `loyalty-${partnerUid}`);
+      if (!isCompleteReciprocalFriendPair(
+        holderSecret, holder.id, holderRoleId, partner, partnerUid, holder.id,
+      )) {
+        throw commandError('failed-precondition', 'A Friend loyalty pair is inconsistent.', 'malformed-input');
+      }
+      const partnerPayload = friendUpdates.get(partnerUid) ??
+        partner?.get('payload') as Record<string, unknown>;
+      friendUpdates.set(partnerUid, { ...partnerPayload,
+        partnerRoleId: holder.id === oldCaptain.id ? priorRoleId : captainRoleId });
+    }
+    const setupRevisionAfter = setupRevision(session) + 1;
+    const activeRoleIds = configuredRoleIds(session);
+    const options = {
+      capybaraExpansion: session.get('expansion') === 'capybara', activeRoleIds,
+      voyage33Admitted: publicVoyage33Admission(session.get('voyage33Admission'), data.sessionId) !== undefined,
+    };
+    const oldBrief = serializedRoleBrief(
+      data.sessionId, oldCaptain.id, priorRoleId, setupRevisionAfter, options,
+    );
+    const newBrief = serializedRoleBrief(
+      data.sessionId, newCaptain.id, captainRoleId, setupRevisionAfter, options,
+    );
+    if (!oldBrief || !newBrief) {
+      throw commandError('failed-precondition', 'The new captain briefs are unavailable.', 'malformed-input');
+    }
+    const result = resolveShipMutinyState(
+      mutiny, unrest, data.reduction, oldCaptain.id, newCaptain.id, data.requestId, serverTime,
+    );
+    const alerts = { ...(session.get('unrestAlerts') ?? {}) } as Record<string, StoredUnrestAlert>;
+    delete alerts[data.shipId];
+    tx.update(oldCaptain.ref, {
+      assignedRoleId: priorRoleId, seatId: priorRoleId, activeConsoleRoleId: null,
+    });
+    tx.update(newCaptain.ref, {
+      assignedRoleId: captainRoleId, seatId: captainRoleId, activeConsoleRoleId: null,
+    });
+    tx.update(oldSeatRef, { holderUid: newCaptain.id });
+    tx.update(newSeatRef, { holderUid: oldCaptain.id });
+    tx.set(db.doc(`sessions/${data.sessionId}/roleBriefs/${oldCaptain.id}`), oldBrief);
+    tx.set(db.doc(`sessions/${data.sessionId}/roleBriefs/${newCaptain.id}`), newBrief);
+    for (const [friendUid, payload] of friendUpdates) {
+      tx.update(db.doc(`sessions/${data.sessionId}/secrets/loyalty-${friendUid}`), { payload });
+    }
+    if (oldWolf !== newWolf) {
+      const nextWolfRoles = (wolfRoleIds as string[]).filter(roleId =>
+        roleId !== captainRoleId && roleId !== priorRoleId);
+      nextWolfRoles.push(oldWolf ? priorRoleId : captainRoleId);
+      nextWolfRoles.sort((left, right) =>
+        (ROLE_IDS as readonly string[]).indexOf(left) - (ROLE_IDS as readonly string[]).indexOf(right));
+      tx.update(wolfAssignment.ref, { payload: { ...wolfPayload, roleIds: nextWolfRoles } });
+    }
+    const revision = currentRevision + 1;
+    tx.update(sessionRef, {
+      [`shipUnrest.${data.shipId}`]: result.unrest,
+      [`shipMutinies.${data.shipId}`]: result.mutiny,
+      unrestAlerts: alerts, setupRevision: setupRevisionAfter,
+      ...vesselActionRevisionPatch(data.shipId, revision),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    const reply = {
+      status: 'committed' as const, shipId: data.shipId,
+      oldCaptainUid: oldCaptain.id, newCaptainUid: newCaptain.id,
+      reduction: data.reduction, unrest: result.unrest, setupRevision: setupRevisionAfter,
+      ...vesselActionEnvelope(session, player, uid, data.shipId, revision,
+        data.requestId, 'resolve-ship-mutiny'),
+    };
+    tx.set(recoveryRef, {
+      sessionId: data.sessionId, shipId: data.shipId,
+      oldCaptainUid: oldCaptain.id, newCaptainUid: newCaptain.id,
+      oldRoleId: captainRoleId, newRoleId: priorRoleId,
+      reduction: data.reduction, unrestBefore: unrest, unrestAfter: result.unrest,
+      actorUid: uid, requestId: data.requestId, revision, serverTime,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(eventRef, buildPrivacySafeEventRecord({
+      type: 'mutiny-recovery', payload: { shipId: data.shipId, reduction: data.reduction },
+      createdAt: FieldValue.serverTimestamp(),
+    }));
+    tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
+    return reply;
+  });
+});
+
 /**
  * Draw randomly from the remaining deck for the GM damage control. Gameplay
  * mechanics use the same deck resolver inside their authoritative transactions.
@@ -23408,6 +23699,8 @@ export const addShipDamage = onCall<{
         [`shipSurvivors.${change.shipId}`]: nextPopulation,
         [`shipUnrest.${change.shipId}`]: nextUnrest,
         populationAlerts, unrestAlerts,
+        ...shipMutinyTransitionPatch(session, change.shipId,
+          unrest, nextUnrest, stableOccurredAt),
         ...(retainedShuttleTransition ? {
           shuttleDockings: retainedShuttleTransition.dockings,
           shuttleControl: retainedShuttleTransition.control,
@@ -23610,6 +23903,8 @@ export const adjustShipPopulation = onCall<{
       [`shipUnrest.${change.shipId}`]: nextUnrest,
       populationAlerts: nextAlerts,
       unrestAlerts: nextUnrestAlerts,
+      ...shipMutinyTransitionPatch(session, change.shipId,
+        unrest, nextUnrest, recordedAt ?? new Date().toISOString()),
       ...vesselActionRevisionPatch(change.shipId, currentRevision + 1),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -23799,6 +24094,8 @@ export const applyShipCounterSteps = onCall<{
       tx.update(sessionRef, {
         [`shipUnrest.${change.shipId}`]: result.amount,
         unrestAlerts: nextAlerts,
+        ...shipMutinyTransitionPatch(session, change.shipId,
+          current, result.amount, new Date().toISOString()),
         ...vesselActionRevisionPatch(change.shipId, revision),
         updatedAt: FieldValue.serverTimestamp(),
       });
@@ -23858,6 +24155,8 @@ export const applyShipCounterSteps = onCall<{
       [`shipUnrest.${change.shipId}`]: nextUnrest,
       populationAlerts: nextAlerts,
       unrestAlerts: nextUnrestAlerts,
+      ...shipMutinyTransitionPatch(session, change.shipId,
+        unrest, nextUnrest, recordedAt ?? new Date().toISOString()),
       ...vesselActionRevisionPatch(change.shipId, revision),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -26250,6 +26549,7 @@ async function requireMaintenanceAuthority(
   consoleRoleId: string | undefined,
   uid: string,
   sessionRef: DocumentReference,
+  allowMutinyResolution = false,
 ): Promise<MaintenanceAuthority> {
   const [player, snapshot] = await Promise.all([
     tx.get(db.doc(`sessions/${sessionId}/players/${uid}`)),
@@ -26271,6 +26571,7 @@ async function requireMaintenanceAuthority(
   if (!joint && !replacementVipHost) {
     await requireShipCounterAuthority(
       tx, sessionId, uid, shipId, instanceId, false, player.get('role') === 'gm',
+      allowMutinyResolution,
     );
   }
   if (consoleRoleId && player.get('role') !== 'gm') {
@@ -26283,9 +26584,11 @@ async function requireMaintenanceAuthority(
         throw new HttpsError('permission-denied', 'Joint Engineering may only use its assigned console.');
       }
     } else {
-      await requireConsoleAuthority(tx, sessionId, player, consoleRoleId);
+      await requireConsoleAuthority(tx, sessionId, player, consoleRoleId, undefined,
+        allowMutinyResolution);
     }
   }
+  if (!allowMutinyResolution) requireUsableShip(snapshot, shipId);
   return { player, snapshot };
 }
 
@@ -26584,6 +26887,8 @@ export const runMaintenance = onCall<{
       [`shipDamage.${data.shipId}`]: result.damage,
       [`shipUnrest.${data.shipId}`]: result.unrest,
       [`shipSurvivors.${data.shipId}`]: result.population,
+      ...shipMutinyTransitionPatch(snapshot, data.shipId,
+        unrest, result.unrest, serverTime),
       shuttleCargo: result.cargo, shuttleFuelled: result.fuelled,
       unrestAlerts, populationAlerts,
       ...(retainedShuttleTransition ? {
@@ -27115,7 +27420,7 @@ export const rerollVipUnrest = onCall<{
   };
   const preflight = await db.runTransaction(async tx => {
     const { player, snapshot } = await requireMaintenanceAuthority(
-      tx, data.sessionId, data.shipId, data.instanceId, data.consoleRoleId, uid, sessionRef,
+      tx, data.sessionId, data.shipId, data.instanceId, data.consoleRoleId, uid, sessionRef, true,
     );
     const prior = await tx.get(receiptRef);
     const replay = replayBoundCommand(prior, fingerprint, isVesselActionResult, 'VIP unrest reroll');
@@ -27137,7 +27442,7 @@ export const rerollVipUnrest = onCall<{
   const serverTime = new Date().toISOString();
   return db.runTransaction(async tx => {
     const { player, snapshot } = await requireMaintenanceAuthority(
-      tx, data.sessionId, data.shipId, data.instanceId, data.consoleRoleId, uid, sessionRef,
+      tx, data.sessionId, data.shipId, data.instanceId, data.consoleRoleId, uid, sessionRef, true,
     );
     const prior = await tx.get(receiptRef);
     const replay = replayBoundCommand(prior, fingerprint, isVesselActionResult, 'VIP unrest reroll');
@@ -27179,6 +27484,8 @@ export const rerollVipUnrest = onCall<{
       [`maintenanceCycles.${data.shipId}`]: result.cycle,
       [`shipUnrest.${data.shipId}`]: result.unrest,
       unrestAlerts,
+      ...shipMutinyTransitionPatch(snapshot, data.shipId,
+        current.unrest, result.unrest, serverTime),
       updatedAt: FieldValue.serverTimestamp(),
     });
     const reply = {

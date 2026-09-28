@@ -1421,6 +1421,36 @@ export async function applyShipCounterSteps(
   }
 }
 
+/** GM-only active-game captain swap that resolves one ship's mutiny. */
+export async function resolveShipMutiny(
+  shipId: string,
+  newCaptainUid: string,
+  reduction: 1 | 2 | 3,
+  expectedRevision: number,
+): Promise<{ status: 'committed' | 'replayed' | 'stale'; unrest?: number }> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.role !== 'gm' || !store.gmInstance ||
+      store.gmInstance.sessionId !== store.session.id || store.gmInstance.uid !== store.me.uid) {
+    throw new Error('An active GM instance is required.');
+  }
+  requireFreshSessionAuthority();
+  const payload = {
+    sessionId: store.session.id, instanceId: store.gmInstance.id,
+    requestId: commandId(), shipId, newCaptainUid, reduction, expectedRevision,
+  };
+  await ensureSignedIn();
+  const result = (await httpsCallable<typeof payload, unknown>(functions(), 'resolveShipMutiny')(payload)).data;
+  if (!result || typeof result !== 'object' || Array.isArray(result) ||
+      !['committed', 'replayed', 'stale'].includes(String((result as Record<string, unknown>).status))) {
+    throw new Error('The server returned an invalid mutiny recovery result.');
+  }
+  const reply = result as Record<string, unknown>;
+  return {
+    status: reply.status as 'committed' | 'replayed' | 'stale',
+    ...(typeof reply.unrest === 'number' ? { unrest: reply.unrest } : {}),
+  };
+}
+
 export interface FighterWingCountResult extends Partial<VesselActionEnvelope> {
   readonly status: 'committed' | 'replayed' | 'stale';
   readonly wingId: string;

@@ -7,6 +7,7 @@ import EmergencyTimerPauseControl from '@/components/EmergencyTimerPauseControl'
 import ShipPlot from '@/components/ShipPlot';
 import GmStarmapModule from '@/components/GmStarmapModule';
 import GmScoutRevealController from '@/components/GmScoutRevealController';
+import GmMutinyRecovery from '@/components/GmMutinyRecovery';
 import SmallShipOperations from '@/components/SmallShipOperations';
 import { GmSetupChecklist } from '@/components/GmSetupChecklist';
 import PursuitTracker from '@/components/PursuitTracker';
@@ -3663,6 +3664,25 @@ export default function GmConsole() {
                         )}
                       </li>
                     </ul>
+                    <GmMutinyRecovery
+                      shipId={ship.id}
+                      shipName={ship.name}
+                      unrest={unrestAmount}
+                      mutiny={session.shipMutinies?.[ship.id]}
+                      expectedRevision={session.vesselActionRevisions?.[ship.id] ?? 0}
+                      writable={shipNumberWrite && isGm && connection === 'live'}
+                      candidates={connectedPlayers.filter(player =>
+                        player.role === 'player' &&
+                        typeof player.assignedRoleId === 'string' &&
+                        player.assignedRoleId === player.seatId &&
+                        player.assignedRoleId !== (ship.id === 'aegis' ? 'admiral' : `${ship.id}-captain`) &&
+                        player.replacementRoleId == null && !player.escapeState &&
+                        CONSOLE_ROLES.some(role => role.id === player.assignedRoleId && role.shipId === ship.id),
+                      ).map(player => ({
+                        uid: player.uid, displayName: player.displayName,
+                        roleId: player.assignedRoleId!,
+                      }))}
+                    />
                     {ship.id === 'aegis' && (
                       <>
                         <h4 className="gm-fleet-resource-ship__category">Fighter wings</h4>

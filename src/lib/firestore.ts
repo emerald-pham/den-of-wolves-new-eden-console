@@ -2433,6 +2433,30 @@ function vesselActionRevisions(value: unknown): NonNullable<GameSession['vesselA
       ? [[vesselId, revision]] : []));
 }
 
+function shipMutinies(value: unknown): NonNullable<GameSession['shipMutinies']> {
+  const stored = recordValue(value);
+  if (!stored) return {};
+  return Object.fromEntries(Object.keys(INITIAL_SHIP_CONSOLE_LOCKS).flatMap(shipId => {
+    const raw = recordValue(stored[shipId]);
+    if (!raw || (raw.status !== 'active' && raw.status !== 'resolved') ||
+        !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
+        !Number.isSafeInteger(raw.triggerUnrest) || (raw.triggerUnrest as number) < 8 ||
+        (raw.triggerUnrest as number) > 10 || typeof raw.triggeredAt !== 'string') return [];
+    if (raw.status === 'resolved' && (
+      !Number.isSafeInteger(raw.reduction) || (raw.reduction as number) < 1 ||
+      (raw.reduction as number) > 3 || typeof raw.recoveryRequestId !== 'string' ||
+      typeof raw.recoveredAt !== 'string')) return [];
+    return [[shipId, {
+      status: raw.status, revision: raw.revision as number,
+      triggerUnrest: raw.triggerUnrest as number, triggeredAt: raw.triggeredAt,
+      ...(raw.status === 'resolved' ? {
+        reduction: raw.reduction as number, recoveryRequestId: raw.recoveryRequestId as string,
+        recoveredAt: raw.recoveredAt as string,
+      } : {}),
+    }]];
+  }));
+}
+
 function shipJumpStates(value: unknown): ShipJumpStates {
   const stored = typeof value === 'object' && value !== null && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -2841,6 +2865,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     fighterWingCounts: fighterWingCounts(data.fighterWingCounts),
     ...(pdfEscortWing === undefined ? {} : { pdfEscortWing }),
     shipUnrest: shipUnrest(data.shipUnrest),
+    shipMutinies: shipMutinies(data.shipMutinies),
     shipSurvivors: shipSurvivors(data.shipSurvivors),
     populationAlerts: alertMap<PopulationAlert>(data.populationAlerts, true),
     unrestAlerts: alertMap<UnrestAlert>(data.unrestAlerts, false),
