@@ -253,3 +253,11 @@ session service, App, command errors, lifecycle, start, composition and resume.
 The worker's four-size Chromium recovery checks and typecheck passed. An
 independent GPT-5.6 Sol xhigh review is active against exact `dd09f90b` for setup,
 reconnect authority and deployment mapping; this is not yet release approval.
+
+### Broad integrated suite after reconnect
+
+At parent `c3bbd386` (runtime code identical to the `dd09f90b` review target),
+`npm test` passes **5,978 tests across 439 files**. This is the first passing
+broad combined run after the reconnect and full-ship maintenance integration.
+It excludes the still-active jump and small-craft follow-up candidates and
+therefore is not the final PC05 release gate. No tests were disabled.
