@@ -5,6 +5,7 @@ import {
   PRESENCE_RECONCILIATION_INTERVAL_MS,
   SESSION_RETENTION_MS,
 } from './sessionLifecycle';
+import { ROLE_IDS, recommendedRoleIds } from './roleConfiguration';
 
 type StoredDocument = Record<string, unknown>;
 
@@ -219,6 +220,7 @@ vi.mock('firebase-functions/v2/scheduler', () => ({
 }));
 
 import {
+  beginOpenAirspacePhase,
   claimSeat,
   deleteInactiveSessions,
   disconnectFromSession,
@@ -231,6 +233,38 @@ import {
 import { callableRateLimitDocumentId } from './callableRateLimit';
 
 const NOW = new Date('2026-09-06T20:00:00.000Z');
+const NON_GM_CORE_ROLE_IDS = ROLE_IDS.filter((roleId) => roleId !== 'press-officer');
+
+function rosterForRole(roleId: string): readonly string[] {
+  for (let count = 8; count <= 20; count += 1) {
+    const roster = recommendedRoleIds(count);
+    if (roster.includes(roleId)) return roster;
+  }
+  throw new Error(`No recommended roster contains ${roleId}`);
+}
+
+function livePlayer(uid: string, fields: StoredDocument = {}) {
+  put(`sessions/s1/players/${uid}`, {
+    uid,
+    sessionId: 's1',
+    displayName: uid,
+    role: 'player',
+    seatId: null,
+    assignedRoleId: null,
+    activeConsoleRoleId: null,
+    connected: true,
+    connectionGeneration: 1,
+    lastSeenAt: mock.Timestamp.fromDate(NOW),
+    ...fields,
+  });
+}
+
+const ACTIVE_TURN_PHASE = {
+  turn: 2,
+  teamPhaseEndsAt: '2026-09-06T19:59:00.000Z',
+  openAirspaceEndsAt: '2026-09-06T20:14:00.000Z',
+  airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+};
 
 function put(path: string, fields: StoredDocument) {
   mock.documents.set(path, { ...fields });
@@ -1016,6 +1050,216 @@ describe('disconnect and retention', () => {
 
     expect(read('activeMemberships/u1')).toEqual({ sessionId: 's2' });
     expect(read('sessions/s1')?.deleteAfter).toBeNull();
+  });
+});
+
+describe('midgame departure and recovery', () => {
+  it.each(NON_GM_CORE_ROLE_IDS)(
+    'opens and safely restores the same core role after an explicit departure: %s',
+    async (roleId) => {
+      const roster = rosterForRole(roleId);
+      const privateMarker = `private-loyalty-${roleId}`;
+      session({
+        phase: 'active', currentTurn: 2, playerCount: roster.length,
+        activeRoleIds: [...roster], turnPhase: ACTIVE_TURN_PHASE,
+      });
+      player({
+        assignedRoleId: roleId, seatId: roleId, activeConsoleRoleId: roleId,
+      });
+      livePlayer('u2');
+      put('activeMemberships/u1', { sessionId: 's1' });
+      put('sessions/s1/seats/' + roleId, {
+        roleId, status: 'claimed', holderUid: 'u1', claimedAt: mock.Timestamp.fromDate(NOW),
+      });
+      put('sessions/s1/secrets/loyalty-u1', {
+        visibleToUids: ['u1'], payload: { type: 'loyalty', marker: privateMarker },
+      });
+
+      await disconnectFromSession.run(request({ sessionId: 's1' }));
+
+      expect(read('sessions/s1/players/u1')).toMatchObject({
+        connected: false, assignedRoleId: roleId, seatId: roleId,
+        activeConsoleRoleId: roleId,
+      });
+      expect(read('sessions/s1/seats/' + roleId)).toMatchObject({
+        roleId, status: 'open', holderUid: null, claimedAt: null,
+      });
+      expect(read('sessions/s1/secrets/loyalty-u1')).toMatchObject({
+        payload: { marker: privateMarker },
+      });
+      expect(read('sessions/s1')).toMatchObject({
+        phase: 'active', currentTurn: 2, turnPhase: ACTIVE_TURN_PHASE, deleteAfter: null,
+      });
+
+      const resumed = await resumeSession.run(request({ sessionId: 's1' }));
+
+      expect(resumed.player).toMatchObject({
+        role: 'player', assignedRoleId: roleId, seatId: roleId,
+        activeConsoleRoleId: roleId,
+      });
+      expect(read('sessions/s1/seats/' + roleId)).toMatchObject({
+        roleId, status: 'claimed', holderUid: 'u1',
+      });
+      expect(read('sessions/s1/players/u1')).toMatchObject({
+        connected: true, assignedRoleId: roleId, activeConsoleRoleId: roleId,
+      });
+      expect(JSON.stringify(resumed)).not.toContain(privateMarker);
+      expect(read('sessions/s1')).toMatchObject({
+        phase: 'active', currentTurn: 2, turnPhase: ACTIVE_TURN_PHASE,
+      });
+    },
+  );
+
+  it.each(NON_GM_CORE_ROLE_IDS)(
+    'restores the same core role and private state after transient expiry: %s',
+    async (roleId) => {
+      const roster = rosterForRole(roleId);
+      const privateMarker = `transient-loyalty-${roleId}`;
+      session({
+        phase: 'active', currentTurn: 2, playerCount: roster.length,
+        activeRoleIds: [...roster], turnPhase: ACTIVE_TURN_PHASE,
+      });
+      player({
+        assignedRoleId: roleId, seatId: roleId, activeConsoleRoleId: roleId,
+        lastSeenAt: mock.Timestamp.fromMillis(NOW.getTime() - PRESENCE_LEASE_MS),
+      });
+      livePlayer('u2');
+      put('activeMemberships/u1', { sessionId: 's1' });
+      put('sessions/s1/seats/' + roleId, {
+        roleId, status: 'claimed', holderUid: 'u1', claimedAt: mock.Timestamp.fromDate(NOW),
+      });
+      put('sessions/s1/secrets/loyalty-u1', {
+        visibleToUids: ['u1'], payload: { type: 'loyalty', marker: privateMarker },
+      });
+
+      await expireStalePlayers.run({});
+
+      expect(read('sessions/s1/players/u1')).toMatchObject({
+        connected: false, assignedRoleId: roleId, seatId: roleId,
+        activeConsoleRoleId: roleId,
+      });
+      expect(read('sessions/s1/seats/' + roleId)).toMatchObject({
+        roleId, status: 'open', holderUid: null, claimedAt: null,
+      });
+      expect(read('sessions/s1/secrets/loyalty-u1')).toMatchObject({
+        payload: { marker: privateMarker },
+      });
+      expect(read('sessions/s1')).toMatchObject({
+        phase: 'active', currentTurn: 2, turnPhase: ACTIVE_TURN_PHASE, deleteAfter: null,
+      });
+
+      const resumed = await resumeSession.run(request({ sessionId: 's1' }));
+
+      expect(resumed.player).toMatchObject({
+        role: 'player', assignedRoleId: roleId, seatId: roleId,
+        activeConsoleRoleId: roleId,
+      });
+      expect(read('sessions/s1/seats/' + roleId)).toMatchObject({
+        roleId, status: 'claimed', holderUid: 'u1',
+      });
+      expect(JSON.stringify(resumed)).not.toContain(privateMarker);
+      expect(read('sessions/s1')).toMatchObject({
+        phase: 'active', currentTurn: 2, turnPhase: ACTIVE_TURN_PHASE,
+      });
+    },
+  );
+
+  it('preserves a transient Press holder and private loyalty through reconnect', async () => {
+    const privateMarker = 'press-private-loyalty';
+    session({
+      phase: 'active', currentTurn: 2, pressEnabled: true, pressHolderUid: 'u1',
+      turnPhase: ACTIVE_TURN_PHASE,
+    });
+    player({
+      assignedRoleId: null, seatId: null, activeConsoleRoleId: 'press-officer',
+      lastSeenAt: mock.Timestamp.fromMillis(NOW.getTime() - PRESENCE_LEASE_MS),
+    });
+    livePlayer('u2');
+    put('activeMemberships/u1', { sessionId: 's1' });
+    put('sessions/s1/secrets/loyalty-u1', {
+      visibleToUids: ['u1'], payload: { type: 'loyalty', marker: privateMarker },
+    });
+    put('sessions/s1/secrets/wolf-assignment', {
+      payload: { type: 'wolf-assignment', roleIds: ['press-officer'] },
+    });
+
+    await expireStalePlayers.run({});
+
+    expect(read('sessions/s1/players/u1')).toMatchObject({
+      connected: false, activeConsoleRoleId: 'press-officer',
+    });
+    expect(read('sessions/s1')?.pressHolderUid).toBe('u1');
+    expect(read('sessions/s1/secrets/loyalty-u1')).toMatchObject({
+      payload: { marker: privateMarker },
+    });
+    expect(read('sessions/s1/secrets/wolf-assignment')).toMatchObject({
+      payload: { roleIds: ['press-officer'] },
+    });
+
+    const resumed = await resumeSession.run(request({ sessionId: 's1' }));
+
+    expect(resumed.player).toMatchObject({
+      role: 'player', activeConsoleRoleId: 'press-officer',
+    });
+    expect(read('sessions/s1')).toMatchObject({
+      pressHolderUid: 'u1', phase: 'active', currentTurn: 2, turnPhase: ACTIVE_TURN_PHASE,
+    });
+    expect(JSON.stringify(resumed)).not.toContain(privateMarker);
+  });
+
+  it('releases Press private state on an explicit midgame departure while play continues', async () => {
+    session({
+      phase: 'active', currentTurn: 2, pressEnabled: true, pressHolderUid: 'u1',
+      turnPhase: ACTIVE_TURN_PHASE,
+    });
+    player({ assignedRoleId: null, activeConsoleRoleId: 'press-officer' });
+    livePlayer('u2');
+    put('sessions/s1/secrets/loyalty-u1', {
+      visibleToUids: ['u1'], payload: { type: 'loyalty', kind: 'wolf-agent' },
+    });
+    put('sessions/s1/secrets/wolf-assignment', {
+      payload: { type: 'wolf-assignment', roleIds: ['press-officer'] },
+    });
+
+    await disconnectFromSession.run(request({ sessionId: 's1' }));
+
+    expect(read('sessions/s1/players/u1')).toMatchObject({
+      connected: false, activeConsoleRoleId: null,
+    });
+    expect(read('sessions/s1')?.pressHolderUid).toBeNull();
+    expect(read('sessions/s1/secrets/loyalty-u1')).toBeUndefined();
+    expect(read('sessions/s1/secrets/wolf-assignment')).toBeUndefined();
+    expect(read('sessions/s1')).toMatchObject({
+      phase: 'active', currentTurn: 2, turnPhase: ACTIVE_TURN_PHASE, deleteAfter: null,
+    });
+  });
+
+  it('continues the active turn and keeps midgame seat claims closed after a core player leaves', async () => {
+    const roleId = 'admiral';
+    const roster = rosterForRole(roleId);
+    session({
+      phase: 'active', currentTurn: 2, playerCount: roster.length,
+      activeRoleIds: [...roster], setupRevision: 1, turnPhase: ACTIVE_TURN_PHASE,
+    });
+    player({ assignedRoleId: roleId, seatId: roleId, activeConsoleRoleId: roleId });
+    livePlayer('u2');
+    put('sessions/s1/seats/' + roleId, {
+      roleId, status: 'claimed', holderUid: 'u1', claimedAt: mock.Timestamp.fromDate(NOW),
+    });
+
+    await disconnectFromSession.run(request({ sessionId: 's1' }));
+
+    await expect(claimSeat.run(legacyRequest({
+      sessionId: 's1', seatId: roleId, requestId: 'midgame-reseat', expectedSetupRevision: 1,
+    }, 'u2'))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(read('sessions/s1/seats/' + roleId)).toMatchObject({ status: 'open', holderUid: null });
+
+    await beginOpenAirspacePhase.run(legacyRequest({ sessionId: 's1', expectedTurn: 2 }, 'u2'));
+
+    expect(read('sessions/s1')).toMatchObject({
+      phase: 'active', currentTurn: 2,
+      turnPhase: { turn: 2, airspace: { state: 'lifted', tickerActive: true, pressAccess: false } },
+    });
   });
 });
 
