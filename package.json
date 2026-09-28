@@ -20,6 +20,8 @@
     "test:unit": "vitest run --project unit",
     "test:functions": "vitest run --project functions",
     "test:font-consistency": "vitest run --project unit src/styles/aesthetic.test.ts",
+    "test:typography:browser": "node scripts/test-typography-browser.mjs",
+    "test:typography:release-gate": "node --test scripts/test-typography-release-gate.mjs",
     "test:render:p591": "node scripts/prompt-591-render.mjs",
     "test:render:p602": "node scripts/prompt-602-return-navigation.mjs",
     "test:render:p603": "node scripts/prompt-603-render.mjs",

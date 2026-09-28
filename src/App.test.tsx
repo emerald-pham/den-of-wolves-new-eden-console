@@ -153,7 +153,7 @@ describe('App', () => {
 
     expect(screen.getByText('Opening private briefing…')).toBeInTheDocument();
     expect(await screen.findByRole('heading', { name: 'Admiral' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Back to roles' })).toHaveAttribute('href', '#/roles');
+    expect(screen.getByRole('link', { name: 'Back to stations' })).toHaveAttribute('href', '#/console');
   });
 
   it('requires a motion choice before exposing the game interface', async () => {
@@ -260,7 +260,7 @@ describe('App', () => {
 
     render(<App />);
 
-    expect(await screen.findByRole('heading', { name: /select a role/i })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /stations and consoles/i })).toBeInTheDocument();
     expect(window.location.hash).toBe('#/console');
   });
 
@@ -281,7 +281,7 @@ describe('App', () => {
 
   it('requires a joined player to acknowledge the code of conduct before continuing', async () => {
     vi.useFakeTimers();
-    window.location.hash = '#/roles';
+    window.location.hash = '#/console';
     localStorage.removeItem(SESSION_WAIVER_STORAGE_KEY);
     useSessionStore.getState().setIdentity(session, player);
     useSessionStore.getState().setMode('console');
@@ -289,7 +289,7 @@ describe('App', () => {
     render(<App />);
 
     expect(screen.getByRole('dialog', { name: /code of conduct/i })).toBeVisible();
-    expect(screen.getByRole('heading', { name: /connect this device/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /stations and consoles/i })).toBeInTheDocument();
 
     const checkboxes = screen.getAllByRole('checkbox');
     fireEvent.click(checkboxes[0]!);
@@ -301,7 +301,7 @@ describe('App', () => {
     }));
 
     expect(screen.queryByRole('dialog', { name: /code of conduct/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /connect this device/i })).toBeVisible();
+    expect(screen.getByRole('heading', { name: /stations and consoles/i })).toBeVisible();
     expect(localStorage.getItem(SESSION_WAIVER_STORAGE_KEY)).toEqual(expect.any(String));
   });
 
@@ -446,7 +446,7 @@ describe('App', () => {
 
     const { container } = render(<App />);
 
-    expect(await screen.findByRole('heading', { name: /select a role/i })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /stations and consoles/i })).toBeInTheDocument();
     expect(container.querySelector('.debrief-mode')).toHaveAttribute('aria-hidden', 'true');
     expect(container.querySelectorAll('.debrief-mode__confetti-piece')).toHaveLength(72);
   });
@@ -460,7 +460,7 @@ describe('App', () => {
     render(<App />);
 
     expect(
-      await screen.findByRole('heading', { name: /select a role/i }),
+      await screen.findByRole('heading', { name: /stations and consoles/i }),
     ).toBeInTheDocument();
     expect(window.location.hash).toBe('#/console');
     expect(createSession).not.toHaveBeenCalled();
@@ -1426,14 +1426,14 @@ describe('App', () => {
     render(<App />);
 
     expect(
-      await screen.findByRole('heading', { name: /connect this device/i }),
+      await screen.findByRole('heading', { name: /stations and consoles/i }),
     ).toBeInTheDocument();
-    expect(window.location.hash).toBe('#/roles');
+    expect(window.location.hash).toBe('#/console');
   });
 
   it.each([
-    ['/roles', /connect this device/i, 'console'],
-    ['/console', /select a role/i, 'console'],
+    ['/roles', /stations and consoles/i, 'console'],
+    ['/console', /stations and consoles/i, 'console'],
     ['/press', /snn.*system news network/i, 'press'],
   ] as const)('keeps the contact plot behind %s, not just the launcher', async (
     route,
@@ -1638,7 +1638,7 @@ describe('App', () => {
     useSessionStore.getState().setLastRoute('/console');
 
     const { container } = render(<App />);
-    expect(await screen.findByRole('heading', { name: /select a role/i })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /stations and consoles/i })).toBeInTheDocument();
 
     const center = () => container.querySelector('.contact-plot__origin')?.textContent;
     const contacts = () => Array.from(container.querySelectorAll('.contact-plot__contact .contact-plot__tag'))
@@ -1665,7 +1665,7 @@ describe('App', () => {
 
     await user.click(screen.getByRole('button', { name: /settings/i }));
     await user.click(await screen.findByRole('button', { name: /release role/i }));
-    expect(await screen.findByRole('heading', { name: /select a role/i })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /stations and consoles/i })).toBeInTheDocument();
     expect(center()).toBe('AEGIS');
   });
 

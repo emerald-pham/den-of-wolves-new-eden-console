@@ -6,6 +6,7 @@ import { useSessionStore } from '@/store/useSessionStore';
 import { recommendedRoleIds } from '@/data/rolePresets';
 import { createSession } from '@/lib/sessionService';
 import SessionMode from './SessionMode';
+import type * as FirestoreModule from '@/lib/firestore';
 
 vi.mock('firebase/functions', () => ({
   httpsCallable: vi.fn(),
@@ -13,6 +14,10 @@ vi.mock('firebase/functions', () => ({
 vi.mock('@/lib/firebase', () => ({
   auth: () => ({ currentUser: { uid: 'u1' } }),
   functions: vi.fn(() => ({ kind: 'functions' })),
+}));
+vi.mock('@/lib/firestore', async (importOriginal) => ({
+  ...(await importOriginal<typeof FirestoreModule>()),
+  subscribeShipConfetti: vi.fn(() => vi.fn()),
 }));
 const { httpsCallable } = await import('firebase/functions');
 
@@ -39,19 +44,17 @@ beforeEach(() => {
   useSessionStore.getState().setMode('console');
 });
 
-it('returns from role selection to the intermediate screen', async () => {
-  const user = userEvent.setup();
+it('keeps the first station catalog free of a role-selection back step', () => {
   render(
     <MemoryRouter initialEntries={['/console']}>
       <Routes>
-        <Route path="/roles" element={<p>Intermediate route</p>} />
         <Route path="/console" element={<SessionMode mode="console" />} />
       </Routes>
     </MemoryRouter>,
   );
 
-  await user.click(screen.getByRole('link', { name: /back to roles/i }));
-  expect(screen.getByText('Intermediate route')).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: /stations and consoles/i })).toBeVisible();
+  expect(screen.queryByRole('link', { name: /back to roles/i })).not.toBeInTheDocument();
 });
 
 it('opens the station catalog as the first route without a separate mode choice', () => {
@@ -69,7 +72,36 @@ it('opens the station catalog as the first route without a separate mode choice'
   expect(screen.queryByText('GM join route')).not.toBeInTheDocument();
 });
 
-it('keeps the current private assignment on the station catalog without exposing its text', () => {
+it('keeps the GM join route hidden from an ordinary player without GM authentication', () => {
+  useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, role: 'player' });
+  render(
+    <MemoryRouter initialEntries={['/console']}>
+      <Routes><Route path="/console" element={<SessionMode mode="console" />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.queryByRole('link', { name: 'GM join' })).not.toBeInTheDocument();
+});
+
+it('exposes a separate GM join route to an authenticated player', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, role: 'player' });
+  useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
+  render(
+    <MemoryRouter initialEntries={['/console']}>
+      <Routes>
+        <Route path="/console" element={<SessionMode mode="console" />} />
+        <Route path="/roles" element={<p>GM join route</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  await user.click(screen.getByRole('link', { name: 'GM join' }));
+  expect(screen.getByText('GM join route')).toBeVisible();
+});
+
+it('keeps the current private assignment on the station catalog without exposing its text', async () => {
+  const user = userEvent.setup();
   useSessionStore.getState().setMe({
     ...useSessionStore.getState().me!, role: 'player', assignedRoleId: 'admiral',
   });
@@ -81,7 +113,10 @@ it('keeps the current private assignment on the station catalog without exposing
 
   render(
     <MemoryRouter initialEntries={['/console']}>
-      <Routes><Route path="/console" element={<SessionMode mode="console" />} /></Routes>
+      <Routes>
+        <Route path="/console" element={<SessionMode mode="console" />} />
+        <Route path="/brief" element={<p>Private brief route</p>} />
+      </Routes>
     </MemoryRouter>,
   );
 
@@ -90,6 +125,28 @@ it('keeps the current private assignment on the station catalog without exposing
   expect(assignment).toHaveTextContent('Ship // AEGIS');
   expect(assignment).not.toHaveTextContent('Coordinate the fleet.');
   expect(assignment).not.toHaveTextContent('Keep this brief private.');
+  await user.click(within(assignment).getByRole('link', { name: 'Open private brief' }));
+  expect(screen.getByText('Private brief route')).toBeVisible();
+});
+
+it('does not show a private assignment card for an unassigned or mismatched projection', () => {
+  const me = useSessionStore.getState().me!;
+  useSessionStore.getState().setMe({ ...me, role: 'player', assignedRoleId: 'admiral' });
+  useSessionStore.getState().setRoleBrief({
+    assignmentUid: 'u1', roleId: 'wing-commander', roleName: 'Wing Commander',
+    vesselName: 'AEGIS', text: 'Private mission orders.', commonRules: 'Private rules.',
+    ownedCraftIds: ['fighter-wing-alpha'], setupRevision: 1,
+  });
+
+  render(
+    <MemoryRouter initialEntries={['/console']}>
+      <Routes><Route path="/console" element={<SessionMode mode="console" />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.queryByRole('region', { name: 'Your private casting assignment' }))
+    .not.toBeInTheDocument();
+  expect(screen.queryByText('Private mission orders.')).not.toBeInTheDocument();
 });
 
 it('shows candidate discoveries to fresh members of the current group on the role roster', () => {
@@ -154,6 +211,24 @@ it('identifies the unaffiliated SNN press shuttle', () => {
   expect(document.querySelector('.ship-console.shuttle-console')).toBeInTheDocument();
 });
 
+it('returns from the Press shuttle to the station catalog and restores console mode', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setMode('press');
+  render(
+    <MemoryRouter initialEntries={['/press']}>
+      <Routes>
+        <Route path="/press" element={<SessionMode mode="press" />} />
+        <Route path="/console" element={<SessionMode mode="console" />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  await user.click(screen.getByRole('link', { name: /leave shuttle/i }));
+
+  expect(screen.getByRole('heading', { name: /stations and consoles/i })).toBeVisible();
+  expect(useSessionStore.getState().mode).toBe('console');
+});
+
 it('shows and filters an admitted Voyage 33-0 without offering a role route', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setSession({
@@ -185,7 +260,7 @@ it('shows and filters an admitted Voyage 33-0 without offering a role route', as
   expect(screen.queryByRole('article', { name: 'AEGIS' })).not.toBeInTheDocument();
 });
 
-it('offers Press Officer and the GM Console from Select a role', async () => {
+it('offers Press Officer and the GM Console from the station catalog', async () => {
   const user = userEvent.setup();
   const pressView = render(
     <MemoryRouter initialEntries={['/console']}>
@@ -197,7 +272,7 @@ it('offers Press Officer and the GM Console from Select a role', async () => {
     </MemoryRouter>,
   );
 
-  expect(screen.getByRole('heading', { name: /select a role/i })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: /stations and consoles/i })).toBeInTheDocument();
   await user.click(screen.getByRole('link', { name: /press officer/i }));
   expect(screen.getByText('SNN console')).toBeInTheDocument();
   expect(useSessionStore.getState().mode).toBe('console');
@@ -622,7 +697,7 @@ it('keeps the full catalog visible to a non-GM with an active command role', () 
     </MemoryRouter>,
   );
 
-  expect(screen.getByRole('heading', { name: /select a role/i })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: /stations and consoles/i })).toBeInTheDocument();
   expect(screen.getByRole('link', { name: /dione.*engineer.*held by you/i })).toHaveAttribute(
     'href', '/ships/dione/roles/dione-engineer',
   );
@@ -685,7 +760,7 @@ it('does not redirect a player back into Dione after the GM disables it', () => 
     </MemoryRouter>,
   );
 
-  expect(screen.getByRole('heading', { name: /select a role/i })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: /stations and consoles/i })).toBeInTheDocument();
   expect(screen.queryByText('Dione console')).not.toBeInTheDocument();
 });
 

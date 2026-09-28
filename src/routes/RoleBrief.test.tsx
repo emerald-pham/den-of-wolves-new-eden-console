@@ -36,7 +36,7 @@ it('renders the assigned role brief, common rules, and visible return control', 
     <MemoryRouter initialEntries={['/brief']}>
       <Routes>
         <Route path="/brief" element={<RoleBrief />} />
-        <Route path="/roles" element={<p>Role selection</p>} />
+        <Route path="/console" element={<p>Station catalog</p>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -52,8 +52,8 @@ it('renders the assigned role brief, common rules, and visible return control', 
   expect(screen.getByRole('heading', { name: 'Action rules' })).toBeVisible();
   expect(screen.queryByText(/fighter count|current docking|holder uid/i)).not.toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Common rules' })).toBeVisible();
-  await user.click(screen.getByRole('link', { name: /return to role selection/i }));
-  expect(screen.getByText('Role selection')).toBeInTheDocument();
+  await user.click(screen.getByRole('link', { name: /return to station catalog/i }));
+  expect(screen.getByText('Station catalog')).toBeInTheDocument();
 });
 
 it('teaches source-backed session ground rules and the core cycle loop from the assigned brief', () => {
@@ -61,7 +61,7 @@ it('teaches source-backed session ground rules and the core cycle loop from the 
     <MemoryRouter initialEntries={['/brief']}>
       <Routes>
         <Route path="/brief" element={<RoleBrief />} />
-        <Route path="/roles" element={<p>Role selection</p>} />
+        <Route path="/console" element={<p>Station catalog</p>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -262,12 +262,12 @@ it('returns to role selection when the local assignment no longer matches', () =
     <MemoryRouter initialEntries={['/brief']}>
       <Routes>
         <Route path="/brief" element={<RoleBrief />} />
-        <Route path="/roles" element={<p>Role selection</p>} />
+        <Route path="/console" element={<p>Station catalog</p>} />
       </Routes>
     </MemoryRouter>,
   );
 
-  expect(screen.getByText('Role selection')).toBeInTheDocument();
+  expect(screen.getByText('Station catalog')).toBeInTheDocument();
 });
 
 it('does not render a brief assigned to another player', () => {
@@ -279,12 +279,12 @@ it('does not render a brief assigned to another player', () => {
     <MemoryRouter initialEntries={['/brief']}>
       <Routes>
         <Route path="/brief" element={<RoleBrief />} />
-        <Route path="/roles" element={<p>Role selection</p>} />
+        <Route path="/console" element={<p>Station catalog</p>} />
       </Routes>
     </MemoryRouter>,
   );
 
-  expect(screen.getByText('Role selection')).toBeInTheDocument();
+  expect(screen.getByText('Station catalog')).toBeInTheDocument();
 });
 
 it('states the Warrior Salvage Drones trigger while the damage ledger is unavailable', () => {
@@ -375,7 +375,7 @@ it('exposes the charged Vulcan Additional Labour flow on the private role brief'
   expect(runVulcanAdditionalLabour).toHaveBeenCalledWith('additional-labour-1', 'dione', 'hydroponics', 3, 0, undefined, undefined);
   expect(screen.getByText(/Hydroponics: spent 1 water/i)).toBeVisible();
   expect(screen.getByText(/If another action changes the session first, refresh before trying again/i)).toBeVisible();
-  expect(screen.getByRole('link', { name: /return to role selection/i })).toBeVisible();
+  expect(screen.getByRole('link', { name: /return to station catalog/i })).toBeVisible();
 
   await user.selectOptions(screen.getByRole('combobox', { name: 'Additional Labour target ship' }), 'refinery-124');
   await user.selectOptions(screen.getByRole('combobox', { name: 'Additional Labour target console' }), 'fuel-refinery-ii');
