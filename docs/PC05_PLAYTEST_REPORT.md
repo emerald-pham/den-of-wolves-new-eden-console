@@ -272,3 +272,17 @@ science walkthrough; it does not prove the unreleased start, onboarding or
 reconnect changes. No direct database writes, synthetic account insertion or
 attestation bypass was used. Both browser contexts are retained for the
 post-deployment continuation.
+
+### Independent review findings and repair candidate
+
+The bounded Sol xhigh review of `dd09f90b` found four issues: returning join did
+not apply stale-console clearing/reselection, incoherent open seats could
+replace a foreign holder, command-error taxonomy changes stopped deployment
+selection, and shared-helper maps omitted factory-created and mutiny consumers.
+Test-first `a1d28bed`/`321d76c1` repair both returning-seat boundaries; **58
+join/resume tests pass**. Test-first `50695451`/`728664a2` check the current exact
+candidate rather than an earlier intermediate commit, cover isolated helper
+consumers, and handle only the audited additive reconnect error taxonomy delta;
+**73 selector tests pass** and exact-candidate target preflight succeeds.
+The Functions build passes. Independent follow-up on `728664a2` is active;
+release approval is not yet claimed.
