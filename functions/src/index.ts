@@ -3125,6 +3125,16 @@ async function reconcileReturningSeat(
   canonicalSeatIds: readonly string[],
 ): Promise<ReturningSeat> {
   const storedSeatId = player.get('seatId');
+  if (player.get('replacementStatus') === 'awaiting-re-role') {
+    const activeRoleId = player.get('activeConsoleRoleId');
+    return {
+      seatId: null,
+      clearPointer: storedSeatId !== null && storedSeatId !== undefined,
+      claimSeat: false,
+      clearActiveConsoleRole: activeRoleId !== null && activeRoleId !== undefined,
+      stationSelectionRequired: true,
+    };
+  }
   if (storedSeatId === null || storedSeatId === undefined) {
     const activeRoleId = player.get('activeConsoleRoleId');
     const clearActiveConsoleRole = typeof activeRoleId === 'string' &&
