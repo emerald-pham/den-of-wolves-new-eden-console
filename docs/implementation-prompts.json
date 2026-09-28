@@ -6377,6 +6377,13 @@
       "language": "The checkpoint accounting audit found stale no-production-integration descriptions for four scout policies and stale no-producer wording for private discovery notes. Current requestScout calls authorizeCurrentScoutScan and persists requests, cadence and receipts; scoutResultCallable produces and privately reads discovery notes. These are documentation corrections for existing implementation, not newly verified gameplay or prompt closure. Historical release catalogs retain 458 done throughout PC01-PC04. The latest owner instruction redistributes the same 293 remaining IDs evenly across PC05-PC10: 49 closures each for PC05-PC09, then 48 for PC10. Cumulative overall targets are 507, 556, 605, 654, 703, and 751 done. This supersedes the PC05-half catch-up and PC15 extension proposals.",
       "source": "functions/src/index.ts requestScout; functions/src/scoutRequestCadence.ts; functions/src/scoutRequestCallable.test.ts; functions/src/scoutResultCallable.ts; functions/src/scoutResultCallable.test.ts; docs/CHECKPOINT_COMPLETION_PLAN.md; docs/CHECKPOINT_ACCOUNTING_AUDIT.md",
       "type": "evidence / documentation reconciliation"
+    },
+    {
+      "direction": "654;662;589 -> PC05",
+      "id": "E-PC05-OWNER-SETUP-AND-COPY",
+      "language": "On 2026-09-28 the owner approved automatic Wolf assignment, confirmed starts with only available real players including zero eligible Wolves, and exact Wolf-humanity copy. PC05 source and focused tests implement the bounded changes; no deployment or ordinary production acceptance is claimed by this evidence.",
+      "source": "docs/PRODUCT_MILESTONE_FEEDBACK.md; docs/PC05_PLAYTEST_REPORT.md; functions/src/gameSetup.ts; functions/src/wolfAssignment.ts; functions/src/startCallable.test.ts; functions/src/loyaltyCallable.test.ts; src/components/PlayerOnboardingGuide.tsx; src/routes/RoleBrief.test.tsx",
+      "type": "owner-decision / candidate / production-proof-pending"
     }
   ],
   "plan": {
@@ -21704,8 +21711,8 @@
         "acceptance": "onboarding covers private briefs, no out-of-game communication/photos, Wolf humanity, and resource components with exact approved copy.",
         "title": "Teach the table ground rules."
       },
-      "description": "PC02 candidate adds source-backed table ground rules to the authenticated private role brief and prepared review scene. Private briefs, out-of-game messages and photos, resource components, and the Code of Conduct are covered. The Facilitator Guide directs facilitators to emphasize Wolf humanity but supplies no approved player-facing sentence; that exact copy and ordinary production-path proof remain open.",
-      "evidenceIds": "E-AUDIT-589",
+      "description": "The owner approved the exact Wolf-humanity onboarding sentence on 2026-09-28. The PC05 candidate adds it to the authenticated private role brief alongside private-brief, communication/photo, resource-component, and Code of Conduct guidance. The route test first failed on the absent sentence and now passes. Exact-copy approval is resolved; reconciled deployment and ordinary onboarding gameplay proof remain pending.",
+      "evidenceIds": "E-AUDIT-589;E-PC05-OWNER-SETUP-AND-COPY",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "586",
@@ -23517,13 +23524,13 @@
     {
       "changeClass": "non-feature",
       "closureEvidenceGates": "none",
-      "decisionOwner": "OWNER-APPROVED-ZERO-ELIGIBLE-WOLF-OUTCOME",
+      "decisionOwner": "none",
       "definition": {
         "acceptance": "an authenticated active facilitator with a valid confirmed canonical setup can authoritatively start exactly once with zero, partial, or full role occupancy; unfilled roles are never blockers. Reject only genuine missing or invalid tuple, lifecycle/revision/closed/authority/malformed/unavailable server-result blockers with a stable nonsecret reason; never fabricate a role, player, or loyalty and never accept client randomness. Define an owner-approved server outcome for zero eligible Wolf/private-loyalty holders. After confirmation the existing start control is enabled and accessible, and role status names the actual blocker rather than stale `Start blocked // confirm...` copy. Preserve focus, 44px targets, reduced motion, and mobile CIC behavior. This repair supersedes the retired Prompt 071 acceptance and depends on Milestone 1; later server, client, UI, and security tests must replace the old missing-role blockers.",
         "title": "Start production after a confirmed roster without treating unfilled roles as a blocker."
       },
-      "description": "Planned [REPAIR] prompt: after a confirmed canonical roster, zero, partial, or full role occupancy must not block an authoritative one-time production start; preserve real blocker reasons, authority, private setup, client-RNG denial, accessible start status, and mobile/reduced-motion CIC behavior. Supersedes retired Prompt 071 and depends on Milestone 1.",
-      "evidenceIds": "E-M1-REPAIR;E-M1-REPAIR-SEQUENCE",
+      "description": "The owner approved automatic assignment and confirmed-roster start with zero, partial, or full real-player occupancy on 2026-09-28. The PC05 candidate accepts canonical open seats without fabricating holders, retains reciprocal occupied-seat and tuple checks, and limits automatic Wolves to available eligible players while retaining the configured target. Callable tests cover 0/1/3/full occupancy and both Wolf-count bands; replay and invalid-authority checks remain. The UI distinguishes target and assigned counts and explains that vacant stations do not block start. Reconciled release and ordinary authorized empty/partial/full start proof remain pending.",
+      "evidenceIds": "E-M1-REPAIR;E-M1-REPAIR-SEQUENCE;E-PC05-OWNER-SETUP-AND-COPY",
       "hardContract": "none",
       "hardMilestone": "M1",
       "hardPromptPrerequisites": "none",
@@ -23534,7 +23541,7 @@
       "releases": [],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "M1-REPAIR",
-      "status": "missing",
+      "status": "partial",
       "tag": "REPAIR"
     },
     {
@@ -23707,13 +23714,13 @@
     {
       "changeClass": "non-feature",
       "closureEvidenceGates": "none",
-      "decisionOwner": "OWNER-APPROVED-WOLF-DESIGNATION-POLICY",
+      "decisionOwner": "none",
       "definition": {
         "acceptance": "current ordinary Setup intentionally has no manual designation under Prompts 054/075, but residual exported caller-controlled `assignWolves`, `assignWolfRoles`, `resetWolves`, and manual-assignment guards require an explicit owner-approved policy. Audit printed references, current UI, callables, guards, secrets, tests, and history. If automatic server assignment is retained, retire or strictly constrain residual manual/random endpoints and stale guards, clarify in-universe copy explaining when the server assigns Wolves, and prove locked-roster-derived count, private audience, replay/CAS, and unauthorized denial. If manual designation is chosen, require a separate bounded GM-only pre-start flow with roster-derived count/candidates, authoritative validation, audit/replay/CAS, secrecy, a11y, and rules denial. Do not silently choose between policies. Note overlaps/dependencies 054, 071, 075, 496, and 586–588. This is low priority/deferred and remains missing until the owner-approved policy and bounded acceptance are recorded.",
         "title": "Resolve ordinary-start Wolf designation policy."
       },
-      "description": "Low-priority/deferred [DECISION]: current ordinary Setup intentionally has no manual Wolf designation under Prompts 054/075, but residual exported caller-controlled `assignWolves`, `assignWolfRoles`, and `resetWolves` plus manual-assignment guards require an owner-approved policy. Audit printed references, current UI, callables, guards, secrets, tests, and history. Do not choose automatic versus bounded manual policy here; record the locked-roster/private-audience/replay-CAS/authorization or GM-only roster-derived/a11y/rules-denial acceptance and overlaps/dependencies 054, 071, 075, 496, and 586–588. Remains missing.",
-      "evidenceIds": "E-662",
+      "description": "The owner approved retaining automatic server Wolf assignment on 2026-09-28. Source audit found no assignWolves, assignWolfRoles, or resetWolves exports; those prior catalog names were stale. The remaining assignLoyalty endpoint now rejects fresh ordinary caller-chosen Wolf designation and replacement of an existing ordinary Wolf, while exact authorized receipt replay and separately validated explicit optional-loyalty modes remain compatible. The start transaction derives the target from the canonical roster and selects only available real holders. Focused callable tests pass; independent review, release, and ordinary authorized production proof remain pending.",
+      "evidenceIds": "E-662;E-PC05-OWNER-SETUP-AND-COPY",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -23724,7 +23731,7 @@
       "releases": [],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "DECISION"
     },
     {

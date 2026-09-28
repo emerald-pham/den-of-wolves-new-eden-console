@@ -69,3 +69,32 @@ Pending. No new done statuses, deployment, or ordinary gameplay proof claimed.
 Every changed test and its reason, exact release commit/build, new versus
 recovered closures, remaining shortfall, and cleanup disposition will be
 recorded here as work reaches those boundaries.
+
+### Setup and onboarding candidate evidence
+
+The owner explicitly approved automatic Wolf designation with fewer real
+holders than the configured target (including zero), and approved the exact
+Wolf-humanity sentence. Test-first commits `97cc361f`/`3bbb0c56` cover the
+sentence, `f2cf2a90`/`86d274a2` cover zero/partial/full start occupancy, and
+`ef846f92`/`26fbcf57` constrain ordinary manual Wolf designation. The current
+combined setup, Wolf and loyalty suites pass 180 focused tests; the Functions
+build passes. Existing optional-loyalty configurations retain their separately
+validated explicit setup, and existing exact authenticated receipt replay is
+preserved. The receipt now distinguishes configured Wolf target from actual
+assigned holders. Its existing UI assertion was updated separately to reflect
+that approved distinction; no test was removed or disabled.
+
+GM access was successfully authorized through the released app's normal
+Settings flow. Credentials are not repository artifacts. Live proof is still
+pending; authorization alone does not close any prompt.
+
+### Owner-requested campaign policy updates
+
+Future PC05–PC10 execution now has standing autonomous authorization, optional
+UI review, source-backed decisions, and no routine approval/transition wait.
+A separate owner instruction restricts newly assigned agents to GPT-5.6 Sol
+at low/medium/high/xhigh or GPT-6 Luna at max, while allowing existing agents
+to finish. Test-only commit `16ca678d` updated model/effort and exact review
+receipt expectations; `8091373a` updates guidance and matching validators.
+All 29 guidance/coordination tests and documentation validation pass. These
+policy changes contribute no prompt completion credit.
