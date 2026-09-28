@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { MemoryRouter } from 'react-router-dom';
 import ContactPlot, { type PlotContact } from '@/components/ContactPlot';
 import PursuitTracker from '@/components/PursuitTracker';
 import { PrimaryStatusView } from '@/components/PrimaryStatus';
 import SessionWaiver from '@/components/SessionWaiver';
 import SettingsDisconnectAction from '@/components/SettingsDisconnectAction';
 import { CONSOLE_ROLES } from '@/data/roles';
+import { FleetRoster } from '@/routes/SessionMode';
 import './PC02ReviewScene.css';
 
 type Step = 'setup' | 'waiver' | 'fleet' | 'press' | 'dradis' | 'continuity';
@@ -101,6 +103,27 @@ export default function PC02ReviewScene() {
       {step === 'setup' && <section className="pc02-review__panel cic-frame" aria-label="Setup sample">
         <h3>Opening station</h3>
         <p>Prepared setup, ground rules, and first-action guide will appear here with the production help components.</p>
+        <div className="pc02-review__roster" aria-label="Prepared role lobby">
+          <MemoryRouter>
+            <FleetRoster
+              session={{ phase: 'lobby' }}
+              player={{ role: 'player' }}
+              sessionName="FLEET-02 // PREPARED LOBBY"
+              capybaraEnabled={false}
+              dioneEnabled={false}
+              pressEnabled
+              pressClaimed={false}
+              activeRoleIds={['admiral']}
+              activeVesselIds={['aegis']}
+              isGm={perspective === 'gm'}
+              sessionSnapshotFreshness="server"
+              seats={[]}
+              viewerUid="sample-player"
+              activeConsoleRoleId={null}
+              replacementRoleId={null}
+            />
+          </MemoryRouter>
+        </div>
       </section>}
 
       {step === 'waiver' && <section className="pc02-review__panel cic-frame" aria-label="Waiver sample">

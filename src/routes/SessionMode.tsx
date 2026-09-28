@@ -81,7 +81,7 @@ const FLEET_GROUPS: readonly { origin: ShipOrigin; label: string }[] = [
   { origin: 'colonies', label: SHIP_ORIGIN_LABELS.colonies },
 ];
 
-function FleetRoster({
+export function FleetRoster({
   sessionName,
   session,
   player,
@@ -100,8 +100,8 @@ function FleetRoster({
   activeConsoleRoleId,
   replacementRoleId,
 }: {
-  session: GameSession;
-  player: Player;
+  session: Pick<GameSession, 'phase' | 'currentGroupCandidateReveals'>;
+  player: Pick<Player, 'role' | 'fleetGroupId'>;
   sessionName: string;
   capybaraEnabled: boolean;
   dioneEnabled: boolean;
