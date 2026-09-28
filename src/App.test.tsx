@@ -961,6 +961,18 @@ describe('App', () => {
     act(() => handlers[0]?.onPlayerDiscovery?.(shepherdProjection));
     expect(useSessionStore.getState().session?.playerDiscovery?.shipId).toBe('shepherd');
     expect(useSessionStore.getState().session?.shipGalacticCoordinates).toEqual({ shepherd: '1413' });
+
+    act(() => handlers.at(-1)?.onPlayer?.({
+      ...shepherdPlayer,
+      replacementRoleId: null,
+      replacementStatus: 'awaiting-re-role',
+      seatId: null,
+      activeConsoleRoleId: null,
+    }));
+    expect(useSessionStore.getState().session?.playerDiscovery).toBeUndefined();
+    expect(useSessionStore.getState().session?.shipGalacticCoordinates).toBeUndefined();
+    act(() => handlers.at(-1)?.onPlayerDiscovery?.(dioneProjection));
+    expect(useSessionStore.getState().session?.playerDiscovery).toBeUndefined();
     unmount();
   });
 
