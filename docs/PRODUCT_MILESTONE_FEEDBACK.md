@@ -25,10 +25,11 @@ boundary. Never silently enlarge that accepted build.
 
 ## PC01 — Shepherd science station
 
-**Review state:** the owner supplied feedback on 2026-09-27 after build 0.5.51,
-including a role-selection screenshot. These notes inform PC02–PC10; the owner
-prefers resolution by the PC02 handoff where the work can be completed safely.
-The local cooldown candidate is not yet a released or live-verified checkpoint.
+**Review state:** the owner supplied cross-checkpoint guidance on 2026-09-27,
+including a role-selection screenshot. This was not a PC01 walkthrough or
+verdict. These notes inform PC02–PC10; the owner prefers resolution by the
+PC02 handoff where the work can be completed safely. The local candidate is
+not yet a released or live-verified checkpoint.
 
 | Note ID | Owner's observation or request | Disposition | Cooldown evidence or later candidate | Next shape that addressed it |
 |---|---|---|---|---|
@@ -40,5 +41,5 @@ The local cooldown candidate is not yet a released or live-verified checkpoint.
 | PC01-F06 | The three Code of Conduct checkboxes last for 72 hours. | Included in PC02 cooldown target. | Local candidates `4c0e7e80` and `6ad74397` set a 72-hour browser acknowledgement, update its label, and reopen the gate at expiry in active or resumed tabs. Focused boundary tests pass; release and in-app verification pending. | PC02 planned. |
 | PC01-F07 | The screenshot-style cycle, phase, location, authority, next-action, and failure-state panel is visible only to people logged in as GM. | Included in PC02 cooldown target. | Local candidate `4c0e7e80` gates the panel on active authenticated GM access; player and unauthorized-GM tests pass. Release and in-app verification pending. | PC02 planned. |
 | PC01-F08 | Leave session must not sit at the top of the screen; Settings is an acceptable location. | Included in PC02 cooldown target. | Local candidate `4c0e7e80` removes the two top-screen controls; shared Settings retains the confirmed disconnect action. Release and in-app verification pending. | PC02 planned. |
-| PC01-F09 | DRADIS contact names overlap other plot content; every name must remain readable. | Included in PC02 cooldown target. | Local candidate `4525a4db` places labels clear of each other and the plot origin, wraps oversized names, and recalculates after scans. Focused tests and 320/390 px browser checks pass; released gameplay review pending. | PC02 planned. |
+| PC01-F09 | DRADIS contact names overlap other plot content. The expanded plot should keep each name readable and anchored on the left or right of its contact, choosing the side with more room from other labels and marks. The minimized plot is lower priority and may be less readable. | Included in PC02 cooldown target. | Local candidates `4525a4db`, `60eef106`, and `60d2ca71` wrap oversized names, choose the clearer anchored side after scans, and provide a “Read names” expansion control on narrow screens. Focused tests and rendered 320/390/844/1440 px checks pass for expanded labels without overlaps or detached names; released gameplay review pending. | PC02 planned. |
 | PC01-F10 | Reconnect does not restore the correct game state. | Included in PC02 cooldown target. | Local candidate `096aaf88` rebinds private state listeners after a same-player resume; focused route/private-projection test passes. Server continuity and released gameplay proof pending. | PC02 planned. |

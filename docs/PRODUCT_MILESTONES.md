@@ -302,7 +302,7 @@ and private projection without making the disconnect a voluntary leave.
 | PC01-F06 — Keep the three Code of Conduct checks for 72 hours. | Keep the completed three-check acknowledgement valid for 72 hours on the same device, then require all three again. | Planned |
 | PC01-F07 — The screenshot's Primary Status panel is GM-only. | Show the Cycle/Phase/Location/Authority/Next action/Failure state instrument only to an authenticated GM; non-GM rendered and accessible UI must not expose that panel. | Planned |
 | PC01-F08 — Keep Leave Session out of the top of the screen. | Put the Leave Session control in Settings. Preserve a visible, keyboard-accessible route back to each screen's logical parent. | Planned |
-| PC01-F09 — DRADIS contact names must not overlap plot content. | Keep every rendered contact name readable, including at crowded plot positions and narrow viewports, without obscuring other contacts or plot content. | Planned |
+| PC01-F09 — DRADIS contact names must not overlap plot content. | Keep every expanded contact name readable beside its own return, on the left or right side with more room from other labels and marks. The minimized plot is a lower-priority preview and may be less readable. | Planned |
 | PC01-F10 — Reconnects should be graceful. | A transient reconnect restores the same member's non-GM role and latest authorized private state. It must remain distinct from PC01-F05 voluntary leave, which vacates the role/seat. | Planned |
 
 **Out of scope.** Do not resolve the owner decisions for ordinary Wolf
@@ -343,8 +343,10 @@ playtest step.
   rules during implementation; if a printed rule prevents the requested
   continuation, document the exact source gap instead of inventing a rule.
 - The DRADIS duration and contact-label requirements are direct owner
-  presentation requirements. They do not alter contact identity, detection,
-  position, scan cadence, or gameplay authority.
+  presentation requirements. The owner clarified that expanded names should
+  stay anchored beside their own marks on the clearer left or right side, and
+  that the minimized plot is lower priority. These requirements do not alter
+  contact identity, detection, position, scan cadence, or gameplay authority.
 
 **Known rabbit holes.** Press intake and public ticker publication are
 different stages. President event records may be copy-free; only safe,
@@ -388,8 +390,9 @@ multi-client behavior separately:
    understandable Press action?
 5. **Yes/no — DRADIS.** Can I follow the first enlarged contact through its
    full prepared lifetime while ordinary repeat pings continue, see it return
-   to normal size only after that original lifetime, and read every contact
-   name without overlap at the crowded and narrow-screen examples?
+   to normal size only after that original lifetime, and read every expanded
+   contact name beside its own mark without overlap at the crowded and
+   narrow-screen examples?
 6. **Yes/no — Leave and reconnect.** Can I find Leave Session in Settings
    rather than the top of the screen? From each prepared non-GM role/seat
    class, can I understand the difference between a temporary reconnect that
