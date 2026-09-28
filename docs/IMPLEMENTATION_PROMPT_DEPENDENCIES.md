@@ -743,10 +743,10 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 586 | EXTEND | done | none | none | none | none | none | none | none | none | E-586-VERIFIED | X | Build the roster configuration flow. |
 | 587 | EXTEND | done | none | none | none | none | none | none | none | none | E-587-VERIFIED | X | Present private casting assignments. |
 | 588 | EXTEND | done | none | none | none | none | none | none | none | none | E-588-VERIFIED | X | Present private loyalty assignment. |
-| 589 | EXTEND | missing | 586 | none | none | none | none | none | none | none | E-AUDIT-589 | X | Teach the table ground rules. |
+| 589 | EXTEND | partial | 586 | none | none | none | none | none | none | none | E-AUDIT-589 | X | Teach the table ground rules. |
 | 589a | PRESERVE | done | none | none | none | none | none | none | none | none | E-589A-MOTION-VERIFIED | X | Audit the motion-safety gate. |
 | 589b | REPAIR | done | none | none | none | none | none | PRESENTATION-INDEPENDENT | none | none | E-589B-VERIFIED;E-PRESENTATION | X | Simplify the authenticated-session waiver's human-first copy. |
-| 590 | EXTEND | missing | 589 | none | none | none | none | none | none | none | E-AUDIT-590 | X | Teach the core game loop. |
+| 590 | EXTEND | partial | 589 | none | none | none | none | none | none | none | E-AUDIT-590 | X | Teach the core game loop. |
 | 591 | EXTEND | done | 161;162;114 | none | none | none | none | none | none | none | E-AUDIT-591 | X | Show vessel-specific maintenance help. |
 | 592 | EXTEND | done | 361 | none | none | none | none | none | none | none | E-AUDIT-592;E-592-CRAFT-HELP | X | Show craft-specific help. |
 | 593 | EXTEND | missing | 541 | none | none | none | none | none | none | none | E-AUDIT-593 | X | Show candidate preparation help. |
@@ -755,9 +755,9 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 596 | PRESERVE | done | none | none | none | none | none | none | none | none | E-596-VERIFIED | X | Display bounded changelog history. |
 | 597 | PRESERVE | done | none | none | none | none | none | none | none | none | E-597-VERIFIED | X | Complete exact disconnect confirmation. |
 | 598 | REPAIR | done | 041;042 | none | none | none | none | none | none | none | E-AUDIT-598 | X | Explain connectivity truthfully. |
-| 599 | EXTEND | missing | 586;589 | none | none | none | none | none | none | none | E-AUDIT-599 | X | Build the single-facilitator setup checklist. |
-| 600 | PROVE | missing | 590;599 | none | none | none | none | none | none | none | E-AUDIT-600 | X | Run the onboarding-to-first-action scenario. |
-| 601 | EXTEND | done | none | none | none | none | none | none | none | none | E-601-UNIVERSAL-PRIMARY-STATUS | X | Make primary status universal. |
+| 599 | EXTEND | partial | 586;589 | none | none | none | none | none | none | none | E-AUDIT-599 | X | Build the single-facilitator setup checklist. |
+| 600 | PROVE | partial | 590;599 | none | none | none | none | none | none | none | E-AUDIT-600 | X | Run the onboarding-to-first-action scenario. |
+| 601 | EXTEND | done | none | none | none | none | none | none | none | none | E-601-UNIVERSAL-PRIMARY-STATUS | X | Keep primary status with the authenticated GM. |
 | 602 | PROVE | done | none | none | none | none | 602a:green | RETURN-REPAIR | none | none | E-602-CLOSURE;E-RETURN-REPAIR-SEQUENCE;E-602-UNIVERSAL-RETURN-PROOF | X | Prove return navigation everywhere. |
 | 602a | REPAIR | done | none | none | AUTHORITATIVE-SHUTTLE-ASSOCIATION;CONSOLE-ROUTE-ENTITLEMENT | none | none | RETURN-REPAIR | none | none | E-602A;E-RETURN-REPAIR-SEQUENCE | X | Restore shuttle-to-associated-ship return navigation. |
 | 603 | EXTEND | done | 361 | none | none | none | none | none | none | none | E-AUDIT-603;E-603-NARROW-SHIP-CONSOLES | X | Make ship consoles work on narrow phones. |

@@ -47,3 +47,14 @@ the original assumption; append the resolution so the decision is traceable.
 | Chosen reading | Persist one server-only marker per committed Deep Nebula scout result and show the requester a qualitative progress hint. Do not include a numeric total in the result, note, map, or hint. The later jump resolver may count the markers when its separate checkpoint implements that action. |
 | Product effect | Prompt 332 records exact-once hidden scans; Prompt 333 gives the Scientist useful feedback without exposing the accrued modifier. Replay, wrong-recipient, and no-total checks cover the boundary. |
 | Review state | New; awaiting owner PC01 UI review. |
+
+### PC02-A1 — Departed core stations remain vacant without facilitator rerole
+
+| Field | Record |
+|---|---|
+| ID and milestone | PC02-A1; setup, fleet board, and session continuity. |
+| Source passage | Facilitator's Guide v1.1, printed p. 12, and routed role reference: a facilitator may give a player who dies or needs a new role another role, with extra ships available for removed or late players. The source does not define automatic takeover of a departed player's core station. |
+| Ambiguity and alternatives | After a deliberate midgame departure, the vacated seat could remain open for facilitator action, automatically pass to another player, or be reclaimed by the departing identity. The printed rerole instruction does not authorize an automatic transfer. |
+| Chosen reading | Deliberate Leave Session ends that member's role and seat authority and clears their private projection. The active game continues for everyone else. A temporary connection loss keeps the same member's assignment for resume; a deliberate leave does not. Do not add a generic midgame core-seat claim without a separate source-backed casting rule. |
+| Product effect | PC01-F05 and PC01-F10 use separate leave and resume paths across every supported non-GM role. Callable and composition tests cover the continuing session, released authority, exact-seat vacancy, private-state removal, and same-member transient recovery. |
+| Review state | New; awaiting the PC02 owner walkthrough. |

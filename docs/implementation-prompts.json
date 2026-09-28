@@ -21680,7 +21680,7 @@
         "acceptance": "onboarding covers private briefs, no out-of-game communication/photos, Wolf humanity, and resource components with exact approved copy.",
         "title": "Teach the table ground rules."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
+      "description": "PC02 candidate adds source-backed table ground rules to the authenticated private role brief and prepared review scene. Private briefs, out-of-game messages and photos, resource components, and the Code of Conduct are covered. The Facilitator Guide directs facilitators to emphasize Wolf humanity but supplies no approved player-facing sentence; that exact copy and ordinary production-path proof remain open.",
       "evidenceIds": "E-AUDIT-589",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -21692,7 +21692,7 @@
       "releases": [],
       "section": "Onboarding, help, settings, and operational truth (Prompts 586–600)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "EXTEND"
     },
     {
@@ -21723,10 +21723,10 @@
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
-        "acceptance": "the human-first regulation body is owned only by the authenticated-session waiver and is exactly `Be bold. Remember the human on the other side.` with that casing and punctuation. Preserve the gate's title/eyebrow, acknowledgement lifetime, checkbox and focus semantics, reconnect/resume behavior, audit/privacy boundary, and distinction from GM access expiry; do not duplicate the live sentence into debrief or rewrite historical changelog evidence. Prove exact accessible copy and complete responsive text at 320×844, 390×844, 1440×900, and 844×390.",
+        "acceptance": "the human-first regulation body is owned only by the authenticated-session waiver and is exactly `Be bold. Remember the human on the other side.` with that casing and punctuation. Preserve the gate's title/eyebrow, current 72-hour acknowledgement lifetime, checkbox and focus semantics, reconnect/resume behavior, audit/privacy boundary, and distinction from GM access expiry; do not duplicate the live sentence into debrief or rewrite historical changelog evidence. Prove exact accessible copy and complete responsive text at 320×844, 390×844, 1440×900, and 844×390.",
         "title": "Simplify the authenticated-session waiver's human-first copy."
       },
-      "description": "The authenticated-session waiver now solely owns the exact human-first body Be bold. Remember the human on the other side. Existing title, eyebrow, checkboxes, focus handling, review delay, local 24-hour lifetime and session wiring are preserved. Component and session integration tests pass; actual rendered four-viewport checks confirm complete accessible text, 14px monospaced body, 44px checkbox targets, no horizontal overflow and reduced motion.",
+      "description": "The authenticated-session waiver solely owns the exact human-first body Be bold. Remember the human on the other side. PC02 owner guidance extends the same-device acknowledgement to 72 hours while preserving the three checks, focus handling, review delay, and session wiring. Focused boundary and rendered review checks cover the renewed lifetime and four viewport sizes.",
       "evidenceIds": "E-589B-VERIFIED;E-PRESENTATION",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -21736,7 +21736,8 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.3.64"
+        "0.3.64",
+        "0.5.52"
       ],
       "section": "Onboarding, help, settings, and operational truth (Prompts 586–600)",
       "sequenceRules": "PRESENTATION-INDEPENDENT",
@@ -21751,7 +21752,7 @@
         "acceptance": "help explains Team, Coordination, pursuit failure, jump announcements, attack docking, and away missions without unsupported mechanics.",
         "title": "Teach the core game loop."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
+      "description": "PC02 candidate adds a source-backed core-loop guide to the authenticated private role brief and prepared review scene. It covers Team and Coordination phases, pursuit failure, jump announcements, attack docking, and away missions. P589 exact approved Wolf-humanity wording and an ordinary authorized first-action walkthrough remain open.",
       "evidenceIds": "E-AUDIT-590",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -21763,7 +21764,7 @@
       "releases": [],
       "section": "Onboarding, help, settings, and operational truth (Prompts 586–600)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "EXTEND"
     },
     {
@@ -21969,7 +21970,7 @@
         "acceptance": "one complete checklist tracks both printed responsibilities, room/components, chart, casting, loyalties, automatic setup math, and readiness without mutating gameplay; optional additional-GM lane assignments remain collaborative and nonblocking.",
         "title": "Build the single-facilitator setup checklist."
       },
-      "description": "Planned [EXTEND] single-facilitator checklist with optional nonblocking additional-GM lanes and automatic setup receipt.",
+      "description": "PC02 candidate adds one read-only GM checklist for both printed facilitator lanes, room and components, chart, casting, private loyalties, and aggregate setup receipt. Assistant duties are optional and local checklist marks do not mutate gameplay; only Start Production server validation confirms readiness. The P589 exact-copy prerequisite and ordinary production-path proof remain open.",
       "evidenceIds": "E-AUDIT-599",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -21981,7 +21982,7 @@
       "releases": [],
       "section": "Onboarding, help, settings, and operational truth (Prompts 586–600)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "EXTEND"
     },
     {
@@ -21992,7 +21993,7 @@
         "acceptance": "a new player acknowledges safety, joins, receives private assignments, learns the loop, enters the right route, completes one real action, and returns.",
         "title": "Run the onboarding-to-first-action scenario."
       },
-      "description": "Planned [PROVE] prompt; no production-path evidence has been recorded yet.",
+      "description": "PC02 candidate connects the private brief guide to the assigned console route and a reversible solo first-action sample. The prepared scene uses synthetic state; one ordinary authorized join, private assignment, real first action, and return has not yet been observed. P590 and P599 remain partial while P589 exact copy is unresolved.",
       "evidenceIds": "E-AUDIT-600",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -22004,7 +22005,7 @@
       "releases": [],
       "section": "Onboarding, help, settings, and operational truth (Prompts 586–600)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "PROVE"
     },
     {
@@ -22012,10 +22013,10 @@
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
-        "acceptance": "every player, role, ship, shuttle, observer, GM, mission, attack, and debrief route names cycle, phase, location, authority, next action, and failure state.",
-        "title": "Make primary status universal."
+        "acceptance": "the six-field cycle, phase, location, authority, next-action, and failure-state instrument appears only for an authenticated GM. Player, role, ship, shuttle, observer, mission, attack, and debrief routes do not expose it to non-GM users.",
+        "title": "Keep primary status with the authenticated GM."
       },
-      "description": "Release 0.4.92 adds one shared primary-status instrument to the application header across every routed experience. It names cycle, phase, location, authority, next action, and failure state from the current server/session projection, and keeps all six labels visible with explicit Unknown or Unavailable values when data is incomplete. Focused tests cover route families and degraded projections; the real-browser return-navigation matrix proves the combined header on all 14 route families at phone, short-landscape, and desktop sizes, while the risk-based font and ticker lifecycle suites protect the console aesthetic and persistent ticker.",
+      "description": "Release 0.4.92 introduced the shared six-field primary-status instrument. PC02 owner guidance supersedes its universal audience: the current instrument renders only with authenticated GM access, using the server/session projection and explicit Unknown or Unavailable values when data is incomplete. Focused rendered and accessible tests cover GM, player, Press, and unauthorized-GM views; the original release history remains recorded.",
       "evidenceIds": "E-601-UNIVERSAL-PRIMARY-STATUS",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -22025,7 +22026,8 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.4.92"
+        "0.4.92",
+        "0.5.52"
       ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",

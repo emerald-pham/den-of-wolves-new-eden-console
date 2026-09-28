@@ -23,6 +23,23 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: APP_VERSION,
     implementationProgress: {
       completed: 458, total: 751, percentage: '60.99%',
+      done: 458, partial: 53, active: 0, missing: 240,
+    },
+    changes: [
+      'The Press Officer now receives private reports when survivors change, a Commissar purge resolves, or the President records an action. Publishing a fleet dispatch remains their choice.',
+      'Leaving an active session from Settings frees a non-GM station while the fleet continues. A temporary disconnect can resume the same station with its current private information.',
+      'The Code of Conduct acknowledgement lasts 72 hours on this device. The pursuit display says “Awaiting CIC handshake” while data is pending, and the six-field Primary Status belongs to the authenticated GM.',
+      'Expanded DRADIS names sit beside their own returns, and repeat sweeps keep a first contact enlarged until its original sweep time ends.',
+      'Role briefs explain the table rules and core cycle; the GM setup screen adds one checklist for a single facilitator.',
+      '458 of 751 planned items are complete (60.99%).',
+    ],
+    implementationPrompts: [589, '589b', 590, 599, 600, 601],
+  },
+
+  {
+    version: '0.5.51',
+    implementationProgress: {
+      completed: 458, total: 751, percentage: '60.99%',
       done: 458, partial: 49, active: 0, missing: 244,
     },
     changes: [
