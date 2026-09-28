@@ -529,7 +529,9 @@ until that evidence exists. Prompt 250 depends on movement Prompt 251, which
 depends on the jump chain. The supplemental small-ship vessel records are
 currently printed-statistics references without an independent resource ledger
 or player seat; do not present their Jump Drives as launch-ready on those
-records alone. Expose truthful current states but do not claim
+records alone. The blind-jump Prompt 679 and bounded-demo Prompt 020a depend
+on the still-open authoritative jump chain; neither closes from a cosmetic
+preview or a client-only denial. Expose truthful current states but do not claim
 these prompts complete from the review scene, local tests, or deployment.
 
 **Out of scope.** A new rule for jump distance bands, failed-jump damage,
