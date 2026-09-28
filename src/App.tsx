@@ -4,7 +4,6 @@ import { HashRouter, Link, Navigate, Route, Routes, useLocation } from 'react-ro
 import Landing from '@/routes/Landing';
 import RoleSelect from '@/routes/RoleSelect';
 import NotFound from '@/routes/NotFound';
-import SessionMode from '@/routes/SessionMode';
 import ShipConsole from '@/routes/ShipConsole';
 import GmConsole from '@/routes/GmConsole';
 import ShipRoleSelect from '@/routes/ShipRoleSelect';
@@ -40,7 +39,6 @@ import { replacementRoleFor } from '@/data/replacementRoles';
 import CrisisReportPanel from '@/components/CrisisReportPanel';
 import PrivateLoyaltyPanel from '@/components/PrivateLoyaltyPanel';
 import EndgameDialog from '@/components/EndgameDialog';
-import AwayMissionDiscardPanel from '@/components/AwayMissionDiscardPanel';
 import EscapeState from '@/routes/EscapeState';
 import ReplacementRoleWorkspace from '@/routes/ReplacementRoleWorkspace';
 import type {
@@ -60,6 +58,8 @@ import { stripGmNavigationProjection } from '@/lib/navigationPrivacy';
 const GM_RECONCILE_INTERVAL_MS = 5_000;
 const PRESENCE_HEARTBEAT_INTERVAL_MS = 10_000;
 const RoleBrief = lazy(() => import('@/routes/RoleBrief'));
+const SessionMode = lazy(() => import('@/routes/SessionMode'));
+const AwayMissionDiscardPanel = lazy(() => import('@/components/AwayMissionDiscardPanel'));
 const hasConsoleDradis = (path: string): boolean =>
   path === '/press' || path.startsWith('/ships/') || path.startsWith('/union/') ||
   path.startsWith('/shuttles/') || path.startsWith('/replacement/');
@@ -839,7 +839,9 @@ function AppRoutes() {
           <>
             <PrivateLoyaltyPanel />
             <CrisisReportPanel />
-            <AwayMissionDiscardPanel />
+            <Suspense fallback={null}>
+              <AwayMissionDiscardPanel />
+            </Suspense>
             {escapeLocked ? <EscapeState /> : <Routes location={screen}>
               <Route path="/" element={home} />
               <Route path="/roles" element={<RoleSelect />} />
@@ -859,8 +861,16 @@ function AppRoutes() {
               } />
               <Route path="/escape" element={<EscapeState />} />
               <Route path="/gm" element={<GmConsole />} />
-              <Route path="/console" element={<SessionMode mode="console" />} />
-              <Route path="/press" element={<SessionMode mode="press" />} />
+              <Route path="/console" element={(
+                <Suspense fallback={<main className="session-mode"><p role="status">Opening stations…</p></main>}>
+                  <SessionMode mode="console" />
+                </Suspense>
+              )} />
+              <Route path="/press" element={(
+                <Suspense fallback={<main className="session-mode"><p role="status">Opening Press…</p></main>}>
+                  <SessionMode mode="press" />
+                </Suspense>
+              )} />
               <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
               <Route path="/ships/:shipId/roles" element={<ShipRoleSelect />} />
               <Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} />

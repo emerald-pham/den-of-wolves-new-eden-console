@@ -1,8 +1,10 @@
 import ShipNavigationLog from './ShipNavigationLog';
 import ShipNavigationMap from './ShipNavigationMap';
-import FleetGroupContext from './FleetGroupContext';
+import { lazy, Suspense } from 'react';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { ShipNavigationLogEntry } from '@/types/game';
+
+const FleetGroupContext = lazy(() => import('./FleetGroupContext'));
 
 interface Props {
   readonly shipId: string;
@@ -32,14 +34,18 @@ export default function ShipNavigationWorkspace({
 
   return (
     <div className="ship-navigation-workspace" data-console-locked={String(consoleLocked)}>
-      {groupContext && <FleetGroupContext
-        groupId={groupContext.groupId}
-        currentCoordinate={currentCoordinate}
-        vesselIds={groupContext.fleetGroupVesselIds}
-        {...(groupContext.pursuitValue === undefined
-          ? {}
-          : { pursuitValue: groupContext.pursuitValue })}
-      />}
+      {groupContext && (
+        <Suspense fallback={null}>
+          <FleetGroupContext
+            groupId={groupContext.groupId}
+            currentCoordinate={currentCoordinate}
+            vesselIds={groupContext.fleetGroupVesselIds}
+            {...(groupContext.pursuitValue === undefined
+              ? {}
+              : { pursuitValue: groupContext.pursuitValue })}
+          />
+        </Suspense>
+      )}
       <ShipNavigationMap
         shipId={shipId}
         shipName={shipName}

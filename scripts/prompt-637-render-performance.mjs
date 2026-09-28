@@ -126,6 +126,14 @@ export async function measureBundleSizes(distDirectory) {
   };
 }
 
+export function playerConsoleRouteProbe() {
+  return {
+    route: '/console',
+    readySelector: '.fleet-roster',
+    forceOffline: false,
+  };
+}
+
 async function main() {
 const root = process.cwd();
 const baseline = JSON.parse(await readFile(join(root, 'config/render-performance-baseline.json'), 'utf8'));
@@ -143,26 +151,29 @@ const addressOf = (server) => {
   if (!address || typeof address === 'string') throw new Error('Vite did not expose a local port.');
   return `http://127.0.0.1:${address.port}`;
 };
-const acknowledgeSafety = () => {
+const acknowledgeSafety = ({ forceOffline = false } = {}) => {
   const now = Date.now();
-  // Keep the production-path startup probe deterministic and local. An offline
-  // cached session remains renderable, while a failed remote resume may
-  // correctly clear a terminal session and race the route measurement.
-  Object.defineProperty(Navigator.prototype, 'onLine', { configurable: true, get: () => false });
+  // Keep external traffic blocked at the browser context. Reporting the
+  // browser itself as offline causes protected-listener cache misses to be
+  // interpreted as a kicked player before the station catalog can render.
+  if (forceOffline) {
+    Object.defineProperty(Navigator.prototype, 'onLine', { configurable: true, get: () => false });
+  }
   localStorage.setItem('dow-new-eden-session-waiver', String(now));
   localStorage.setItem('dow-new-eden-motion-safety', JSON.stringify({ choice: 'full', acknowledgedAt: now }));
   localStorage.setItem('new-eden-motion-override', 'full');
 };
-const sessionSeed = () => {
+const sessionSeed = ({ lastRoute }) => {
   const now = new Date().toISOString();
   const state = {
     session: { id: 'p637-route', name: 'P637', phase: 'lobby', currentTurn: 0, ownerUid: 'p637-player', createdAt: now, updatedAt: now },
     me: { uid: 'p637-player', sessionId: 'p637-route', displayName: 'Performance probe', role: 'player', joinedAt: now },
-    seats: [], gmInstance: null, gmAccessAuthenticatedAt: null, pendingCommands: [], mode: 'console', lastRoute: '/roles',
+    seats: [], gmInstance: null, gmAccessAuthenticatedAt: null, pendingCommands: [], mode: 'console', lastRoute,
   };
   localStorage.setItem('dow-new-eden-session', JSON.stringify({ state, version: 1 }));
 };
 
+const routeProbe = playerConsoleRouteProbe();
 const bundle = await measureBundleSizes(join(root, 'dist'));
 const harnessOutput = join(artifactDirectory, 'harness-dist');
 let production;
@@ -200,7 +211,7 @@ try {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
     await context.route('**/*', (route) => new URL(route.request().url()).origin === productionOrigin ? route.continue() : route.abort());
     const page = await context.newPage();
-    await page.addInitScript(acknowledgeSafety);
+    await page.addInitScript(acknowledgeSafety, { forceOffline: routeProbe.forceOffline });
     let started = performance.now();
     await page.goto(productionOrigin, { waitUntil: 'domcontentloaded' });
     await page.locator('#join-code').waitFor();
@@ -213,11 +224,17 @@ try {
     const routeContext = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
     await routeContext.route('**/*', (route) => new URL(route.request().url()).origin === productionOrigin ? route.continue() : route.abort());
     const routePage = await routeContext.newPage();
-    await routePage.addInitScript(acknowledgeSafety);
-    await routePage.addInitScript(sessionSeed);
+    await routePage.addInitScript(acknowledgeSafety, { forceOffline: routeProbe.forceOffline });
+    await routePage.addInitScript(sessionSeed, { lastRoute: routeProbe.route });
     started = performance.now();
-    await routePage.goto(`${productionOrigin}/#/roles`, { waitUntil: 'domcontentloaded' });
-    await routePage.locator('.role-select').waitFor();
+    await routePage.goto(`${productionOrigin}/#${routeProbe.route}`, { waitUntil: 'domcontentloaded' });
+    await routePage.locator(routeProbe.readySelector).waitFor().catch(async (error) => {
+      const body = (await routePage.locator('body').innerText().catch(() => '')).slice(0, 1_000);
+      const persisted = await routePage.evaluate(() => localStorage.getItem('dow-new-eden-session'))
+        .catch(() => null);
+      console.error(`Route probe failed at ${routePage.url()}\n${body}\nPersisted session: ${persisted}`);
+      throw error;
+    });
     routeStartup.push(performance.now() - started);
     await routeContext.close();
   }
@@ -225,7 +242,7 @@ try {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
   await context.route('**/*', (route) => new URL(route.request().url()).origin === harnessOrigin ? route.continue() : route.abort());
   const page = await context.newPage();
-  await page.addInitScript(acknowledgeSafety);
+  await page.addInitScript(acknowledgeSafety, { forceOffline: routeProbe.forceOffline });
   await page.goto(`${harnessOrigin}/scripts/render-performance-harness.html`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => document.documentElement.dataset.ready === 'true');
   const render = await page.evaluate(async ({ updateSamples, frameSamples }) => {

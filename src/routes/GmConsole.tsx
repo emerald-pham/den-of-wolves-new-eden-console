@@ -1,13 +1,12 @@
 import DiseaseOutbreakFields from '../components/DiseaseOutbreakFields';
 import { populationForShip, populationTrackForShip } from '@/data/shipPopulation';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import ArrestPosseCalculator from '@/components/ArrestPosseCalculator';
 import EmergencyTimerPauseControl from '@/components/EmergencyTimerPauseControl';
 import ShipPlot from '@/components/ShipPlot';
 import GmStarmapModule from '@/components/GmStarmapModule';
 import GmScoutRevealController from '@/components/GmScoutRevealController';
-import AwayMissionStartPanel from '@/components/AwayMissionStartPanel';
 import SmallShipOperations from '@/components/SmallShipOperations';
 import { GmSetupChecklist } from '@/components/GmSetupChecklist';
 import PursuitTracker from '@/components/PursuitTracker';
@@ -130,6 +129,8 @@ import {
   REPLACEMENT_ROLE_CATALOG,
   replacementRoleAvailableForSession,
 } from '@/data/replacementRoles';
+
+const AwayMissionStartPanel = lazy(() => import('@/components/AwayMissionStartPanel'));
 
 const WOLF_PREPARATION_CARD_TYPES = [
   { id: 'wolf-fighter-wing', label: 'Fighter Wing' },
@@ -3377,12 +3378,18 @@ export default function GmConsole() {
           </section>
           <SmallShipOperations />
           <GmStarmapModule session={session} />
-          <AwayMissionStartPanel
-            session={session}
-            players={connectedPlayers}
-            instanceId={local.id}
-            isGm={isGm}
-          />
+          <Suspense fallback={(
+            <section className="gm-console__module away-mission-start-panel cic-frame" aria-label="New-location mission start">
+              <p role="status">Opening mission start controls…</p>
+            </section>
+          )}>
+            <AwayMissionStartPanel
+              session={session}
+              players={connectedPlayers}
+              instanceId={local.id}
+              isGm={isGm}
+            />
+          </Suspense>
           <GmScoutRevealController />
           <section
             className="gm-console__module gm-fleet-resources cic-frame"
