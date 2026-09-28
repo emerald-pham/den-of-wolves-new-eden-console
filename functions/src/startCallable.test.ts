@@ -1417,3 +1417,23 @@ it('lets one same-revision GM start commit and rejects the racing stale revision
     expect.objectContaining({ reply: expect.objectContaining({ status: 'stale' }) }),
   );
 });
+
+it.each([[8, 0], [8, 1], [8, 3], [8, 8], [20, 0], [20, 1], [20, 3]] as const)('starts a confirmed %i-player roster with %i occupied core seats without fabricating players or loyalties', async (playerCount, occupiedCount) => {
+  provisionProductionRoster(playerCount);
+  const retained = new Set(['u1', ...Array.from({ length: occupiedCount }, (_, index) => `core-${index + 1}`)]);
+  mock.playerDocs = mock.playerDocs.filter(player => retained.has(player.id));
+  mock.seatDocs = mock.seatDocs.map(seat => retained.has(String(seat.fields.holderUid))
+    ? seat
+    : { ...seat, fields: { ...seat.fields, status: 'open', holderUid: null, claimedAt: null } });
+
+  const result = await startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: `start-partial-${occupiedCount}`, expectedSetupRevision: 0,
+  }));
+  expect(result).toMatchObject({ currentTurn: 1 });
+  const loyaltyWrites = mock.set.mock.calls.filter(([ref]) => /\/secrets\/loyalty-/.test(ref.path));
+  expect(loyaltyWrites).toHaveLength(occupiedCount);
+  expect(loyaltyWrites.every(([ref]) => retained.has(ref.path.split('loyalty-')[1]))).toBe(true);
+  expect(loyaltyWrites.filter(([, value]) => value.payload.kind === 'wolf-agent'))
+    .toHaveLength(Math.min(playerCount < 14 ? 1 : 2, occupiedCount));
+  expect(mock.set.mock.calls.some(([ref]) => /\/players\//.test(ref.path))).toBe(false);
+});
