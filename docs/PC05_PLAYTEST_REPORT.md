@@ -5,7 +5,10 @@ explicit GM failed-jump adjudication; **PC05-A2** spends the available fuel on
 that exception when fuel is insufficient. The latter is a documented product
 inference. Both cite Facilitator Guide v1.1, printed p. 16. **PC05-A3** records
 a private acting-captain appointment when the confirmed roster has no Captain
-seat, preserving its existing station and craft entitlements (printed p. 17). See the
+seat, preserving its existing station and craft entitlements (printed p. 17).
+**PC05-A4** uses actual replacement-role transfer for base small-craft captains
+and explicit facilitator crew-replacement attestation for Voyage 33-0, without
+fabricating a player (same printed p. 17). See the
 [assumption log](PRODUCT_MILESTONE_ASSUMPTIONS.md).
 
 ## State and fixed scope
