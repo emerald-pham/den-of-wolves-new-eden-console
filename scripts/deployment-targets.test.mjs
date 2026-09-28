@@ -1280,3 +1280,19 @@ test('keeps mixed known and unknown Functions helper paths fail-closed', () => {
     /No audited callable consumer map exists for changed Functions module functions\/src\/unmappedPrivateHelper\.ts/,
   );
 });
+
+test('PC05 setup and maintenance candidate selects runtime consumers before release', () => {
+  const before = '7782840d';
+  const after = 'd4f74ea5';
+  const files = execFileSync('git', ['diff', '--name-only', `${before}..${after}`], {
+    encoding: 'utf8',
+  }).trim().split('\n');
+  const selected = deploymentSelector({ before, after, files, targets: ['hosting', 'functions'] });
+  for (const name of [
+    'startGame', 'confirmSetup', 'joinSession', 'resumeSession', 'assignLoyalty',
+    'runMaintenance', 'rerollDioneMaintenanceDie', 'resolveShipMutiny',
+    'runSmallShipMaintenance', 'runVoyage33Maintenance', 'jumpShip',
+  ]) {
+    assert.ok(selected.split(',').includes(`functions:${name}`), `${name} must receive the PC05 contract`);
+  }
+});
