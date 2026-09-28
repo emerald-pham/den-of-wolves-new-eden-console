@@ -109,7 +109,7 @@ it('logs a Voyage 33-0 riot population loss atomically and does not repeat it on
     ...state, population: 10_000, unrest: 10,
     mutiny: {
       status: 'resolved', revision: 1, triggerUnrest: 8, triggeredAt: 'earlier',
-      resolvedAt: 'earlier', reduction: 2,
+      recoveredAt: 'earlier', recoveryRequestId: 'earlier-recovery', reduction: 2,
     },
     cycle: { ...state.cycle, step: 3, revision: 3, turn: 1 },
   };

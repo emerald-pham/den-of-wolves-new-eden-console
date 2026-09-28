@@ -204,7 +204,7 @@ it('logs a small-ship riot population loss atomically and does not repeat it on 
       ...baseState, population: 1_000, unrest: 10,
       mutiny: {
         status: 'resolved', revision: 1, triggerUnrest: 8, triggeredAt: 'earlier',
-        resolvedAt: 'earlier', reduction: 2,
+        recoveredAt: 'earlier', recoveryRequestId: 'earlier-recovery', reduction: 2,
       },
       cycle: { ...baseState.cycle, step: 3, revision: 3, turn: 1 },
     },
@@ -527,6 +527,7 @@ it('runs Vulcan Additional Labour atomically for two independent charges, immedi
   mock.session.smallShipStates = {
     vulcan: {
       ...vulcan, unrest: 8,
+      cycle: { ...vulcan.cycle, revision: 1, charges: ['additional-labour-2'] },
       mutiny: { status: 'active', revision: 1, triggerUnrest: 8, triggeredAt: 'now' },
     },
   };
