@@ -467,3 +467,126 @@ inventory, remaining proof gaps, and any overflow routed to a named later
 candidate. If an item cannot fit the frozen shape, complete the independent
 PC02 work and route the unfinished item to the next appropriate candidate
 without marking the note resolved.
+
+## PC03 shape — Navigation and shuttle controls
+
+**State (2026-09-28).** PC02 build 0.5.52 and its six-step solo scene are
+released. The owner explicitly authorized starting PC03 before giving a PC02
+UI verdict. The PC02 report keeps ordinary authorized gameplay proof open;
+neither the prior synthetic scene nor silence closes that gate. No new PC02
+review note or later-milestone overflow is available at shaping time. Keep any
+PC02 feedback that arrives during this build for the next safe cooldown
+boundary.
+
+**Problem.** A player must move among the ship's chart, Jump Drive, shuttle
+station, stores, and service controls without mistaking a reference for an
+available action or a pending request for a committed result. These controls
+span ship, role, and shuttle workspaces. The same visible status must stay
+truthful when airspace closes, a craft moves, a drive cannot jump, a request
+races another client, or a session resumes.
+
+**In scope.** Make one coherent navigation-and-shuttle path through existing
+production components: ship chart and navigation log; the coordinate, lock,
+charge, fuel, damage, and result states of the Jump Drive; shuttle docking,
+departure, transit, arrival, cargo, and service surfaces; and the ship stores
+that those actions consume. Show available, unavailable, pending, committed,
+and stale/recovered states in place, with a logical return to the player's
+assigned station. Audit and repair source-supported behavior in the allocated
+PC03 prompt set where its prerequisites are satisfied. Keep server authority,
+privacy, revision and request identity, exact replay, and current seat/role
+checks underneath every enabled action. The solo scene uses production UI with
+clearly labeled synthetic states; it performs no live writes.
+
+**Held parts of the initial allocation.** The source-backed shortest-route
+graph exists, but Prompt 287's Short/Medium/Long edge cutoffs are an explicit
+owner decision. Prompt 299's failed-jump damage trigger and draw count are
+also an owner decision. Preserve the existing compatibility behavior without
+claiming either prompt complete or deriving a new policy; dependent prompt
+closure waits for the ruling. Prompt 112's same-table inventory/consent
+contract and Prompt 385's dismantling-consent identity/lifetime remain owner
+decisions. Prompt 371's real deadline enqueue/private worker proof, Prompt
+380's ordinary lost-race conflict, and the live repair/cargo checks for
+Prompts 238, 244, and 241c require authorized production play. They stay open
+until that evidence exists. Prompt 250 depends on movement Prompt 251, which
+depends on the jump chain. Expose truthful current states but do not claim
+these prompts complete from the review scene, local tests, or deployment.
+
+**Out of scope.** A new rule for jump distance bands, failed-jump damage,
+same-table trades, or permissioned dismantling; automatic facilitator
+adjudication of an undefined printed outcome; split-fleet exploration and
+away-mission result screens (PC04); attack and turn-stage dashboards (PC05);
+weapons or boarding (PC06); and the twenty-player owner walkthrough. The
+full-table proof remains an agent-owned final-game gate.
+
+**Sources, assumptions, and rabbit holes.** The authorized routed CORE_RULES
+derivative cited by catalog evidence E-287-JUMP-DISTANCE-OWNER defines distance
+along shortest printed chart edges but supplies no numeric band boundary.
+Evidence E-299-FAILED-JUMP-DAMAGE-OWNER records that facilitator error
+adjudication has no fixed damage trigger or common-draw count. The current
+`starChartGraph`, `jumpDrive`, and `jumpShip` paths are implementation evidence,
+not substitutes for those absent policies. Printed vessel statistics in
+`src/data/vessels` and the existing server cost catalog must be checked
+against the authorized v1.1 component source before changing a cost. The
+worldspace and movement contract in [Shuttlecraft](SHUTTLECRAFT.md) requires
+server-owned docking/transit timestamps and current position on retarget;
+animation is only a projection. The source-backed shuttle and maintenance
+paths can pass isolated tests yet remain unreachable or stale from an actual
+Captain or service station. Distinguish ship fuel from shuttle cargo, and
+distinguish a current docked host from a former host. Never reveal the GM's
+site overlay in a player map. No new gameplay assumption is chosen at shaping
+time; record any later source-backed interpretation in the assumptions log
+before depending on it.
+
+**Owner-playable UI yes/no checks.** The owner can do these in one solo sitting
+through a hosted, clearly labeled review scene. A view selector presents
+prepared ship and shuttle states without requiring multiple accounts, GM
+access, or live session writes. The owner judges labels, layout, navigation,
+and visible feedback; agents own rule math, authority, privacy, and replay:
+
+1. **Yes/no — Find the route.** From a ship's assigned station, can I find
+   Navigation, read my ship's current coordinate and known map, inspect its
+   log, then return to systems and the fleet board without losing my place?
+2. **Yes/no — Read the drive.** Can I find the Jump Drive, set and lock four
+   coordinate digits with touch or keyboard, and tell whether charge, fuel,
+   damage, integrity lock, or a busy request prevents departure? Can I tell a
+   prepared successful jump from a rejected or stale one without treating
+   the sample control as a real launch?
+3. **Yes/no — Follow a shuttle.** From its owning role or host ship, can I
+   find the assigned shuttle, tell its current dock, airspace permission,
+   destination, in-transit state, and arrival feedback, then return to the
+   correct station? Can I see when a retarget or competing request changes
+   that state?
+4. **Yes/no — Find stores and service.** Can I find ship fuel and materials,
+   shuttle cargo, and the relevant repair/recharge controls; distinguish
+   enough stock and a ready host from insufficient, undocked, already-used,
+   or wrong-phase states; and read an action's pending/result feedback?
+5. **Yes/no — Recover.** In prepared refresh/reconnect and stale-reply views,
+   do the map, drive, shuttle, stores, and service controls show the latest
+   authorized state and a useful next action without offering a duplicate
+   charge, jump, cargo move, or repair?
+
+**Prepared scene and walkthrough.** Start at a real ship console with a
+Navigation/Systems switch and ship-specific known map. Offer labeled views
+for drive ready, uncharged, fuel-starved, damaged, integrity-locked, pending,
+committed, and stale; a docked, departing, in-transit, retargeted, arrived,
+and airspace-closed shuttle; and stocked, depleted, eligible, ineligible,
+pending, and committed cargo/service states. Use representative owner/Captain
+and host-ship surfaces rather than twenty simultaneous players. The scene
+controls must say they simulate states and must not call production mutations.
+Give the owner a numbered click path and phone/desktop review link.
+
+**Internal exit gates and handoff.** Implement new behavior test-first, with
+the failing test committed before its code. Check the printed cost and
+operation passages available to each owner, current prompt dependencies,
+parked worktree ownership, and current production before editing a shared
+path. Exercise allowed/denied role and phase, stale revision, retry, concurrent
+fuel or stock spend, independent ship position, private map projection,
+airspace and docking transitions, and reconnect for the source-supported
+paths that this shape changes. Render the full walkthrough at phone, desktop,
+short landscape, and reduced motion. Obtain independent Sol review for
+changed shared state, callable, rules, or deployment authority. Reconcile one
+exact final commit, run its appropriate validation, push, verify deployment,
+and separately attempt ordinary authorized play. Report every unproven live
+path and held decision without treating the solo scene as gameplay proof.
+The direct handoff lists new assumptions first, the five UI checks, exact
+build/review access, a complete test-change inventory, and open questions.
