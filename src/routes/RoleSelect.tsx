@@ -16,13 +16,11 @@ import { useDialogFocus } from '@/hooks/useDialogFocus';
 
 const MODES: readonly {
   mode: ConsoleMode;
-  label: string;
   description: string;
 }[] = [
   {
     mode: 'console',
-    label: 'Select a role',
-    description: 'Choose an independent or shipboard station.',
+    description: 'Choose, enter, or view a station.',
   },
 ];
 
@@ -30,7 +28,6 @@ export default function RoleSelect() {
   const navigate = useNavigate();
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
-  const roleBrief = useSessionStore((state) => state.roleBrief);
   const gmInstance = useSessionStore((state) => state.gmInstance);
   const seats = useSessionStore((state) => state.seats);
   const gmAccessAuthenticated = useSessionStore(selectGmAccessAuthenticated);
@@ -60,6 +57,7 @@ export default function RoleSelect() {
   });
 
   if (!session || !me) return <Navigate to="/" replace />;
+  if (!gmAccessAuthenticated && !isGm) return <Navigate to="/console" replace />;
   function connectAs(mode: ConsoleMode): void {
     setMode(mode);
     navigate(`/${mode}`);
@@ -137,8 +135,8 @@ export default function RoleSelect() {
     <main className="role-select">
       <div className="role-select__intro">
         <p className="eyebrow">{session.name}</p>
-        <h1 className="role-select__title">Connect this device</h1>
-        <p className="role-select__lede">Choose how this console will be used.</p>
+        <h1 className="role-select__title">Role Select</h1>
+        <p className="role-select__lede">GM join // Connect this authenticated device to the session.</p>
       </div>
 
       {coreSeats.length > 0 && (
@@ -256,22 +254,6 @@ export default function RoleSelect() {
         </section>
       )}
 
-      {roleBrief &&
-        (roleBrief.roleId === me.replacementRoleId || roleBrief.roleId === me.assignedRoleId) && (
-        <section className="role-brief-link cic-frame" aria-label="Your private casting assignment">
-          <div>
-            <p className="eyebrow">Private assignment</p>
-            <h2>{roleBrief.roleName}</h2>
-            <p>Ship // {roleBrief.vesselName}</p>
-            <p>Device mode // Player console</p>
-            <p>Allowed route // Private role brief</p>
-          </div>
-          <button className="cic-action-button" type="button" onClick={() => navigate('/brief')}>
-            Open private brief
-          </button>
-        </section>
-      )}
-
       <div className="role-select__grid role-select__grid--two">
         <form className="role-card role-claim cic-frame" onSubmit={(event) => void claim(event)}>
           <button
@@ -302,14 +284,14 @@ export default function RoleSelect() {
             </span>
           )}
         </form>
-        {MODES.map(({ mode, label, description }) => (
+        {MODES.map(({ mode, description }) => (
           <button
             className="role-card cic-frame"
             type="button"
             key={mode}
             onClick={() => connectAs(mode)}
           >
-            <span className="role-card__name">{label}</span>
+            <span className="role-card__name">Open station catalog</span>
             <span className="role-card__description">{description}</span>
           </button>
         ))}

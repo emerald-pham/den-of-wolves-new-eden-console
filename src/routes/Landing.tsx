@@ -38,6 +38,7 @@ export default function Landing() {
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
   const lastRoute = useSessionStore((state) => state.lastRoute);
+  const setMode = useSessionStore((state) => state.setMode);
   const { reducedMotion } = useMotionPreference();
   const recoveryRoute = session && me ? restoreSessionRoute(lastRoute) : null;
 
@@ -51,7 +52,8 @@ export default function Landing() {
     setError(null);
     try {
       await action();
-      navigate('/roles');
+      setMode('console');
+      navigate('/console');
     } catch (cause) {
       setError(landingError(cause));
     } finally {

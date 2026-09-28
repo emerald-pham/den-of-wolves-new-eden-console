@@ -11,5 +11,5 @@ export function isSessionRoute(path: string): boolean {
 
 /** Keep a persisted return path inside the authenticated route surface. */
 export function restoreSessionRoute(lastRoute: string | null): string {
-  return lastRoute && isSessionRoute(lastRoute) ? lastRoute : '/roles';
+  return lastRoute && isSessionRoute(lastRoute) ? lastRoute : '/console';
 }

@@ -13,7 +13,7 @@ export default function EscapeState() {
 
   if (!session || !me) return <Navigate to="/" replace />;
   if (me.role !== 'player' || !me.escapeState) {
-    return <Navigate to="/roles" replace />;
+    return <Navigate to="/console" replace />;
   }
 
   const { escapeState } = me;
