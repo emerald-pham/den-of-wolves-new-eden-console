@@ -66,7 +66,7 @@ export default function SessionMode({ mode }: { mode: ConsoleMode }) {
         activeConsoleRoleId={me.activeConsoleRoleId ?? null}
         replacementRoleId={me.replacementRoleId ?? null}
         gmJoinAvailable={gmAccessAuthenticated && !isGm}
-        roleBrief={roleBrief &&
+        roleBrief={session.id === me.sessionId && roleBrief?.assignmentUid === me.uid &&
           (roleBrief.roleId === me.replacementRoleId || roleBrief.roleId === me.assignedRoleId)
           ? roleBrief
           : null}
@@ -173,7 +173,11 @@ export function FleetRoster({
     <main className="fleet-roster">
       <header className="fleet-roster__header">
         {gmJoinAvailable && (
-          <Link className="session-mode__back cic-text-button" to="/roles">
+          <Link
+            className="session-mode__back cic-text-button"
+            to="/roles"
+            state={{ intent: 'gm-join' }}
+          >
             GM join
           </Link>
         )}
@@ -284,7 +288,7 @@ export function FleetRoster({
                     <Link
                       className="fleet-card__link"
                       to={rolesForShip(ship.id).length > 0 ? `/ships/${ship.id}/roles` : `/ships/${ship.id}`}
-                      aria-label={`Join ${ship.name} ship`}
+                      aria-label={`View ${ship.name} station overview`}
                     >
                       <img
                         className="fleet-card__flag"
@@ -296,7 +300,7 @@ export function FleetRoster({
                         <span className="fleet-card__nation">{ship.nationShort} // {ship.vesselType}</span>
                         <span className="fleet-card__name">{ship.name}</span>
                         <span className="fleet-card__description">{ship.description}</span>
-                        <span className="fleet-card__action">Join ship</span>
+                        <span className="fleet-card__action">View station overview</span>
                       </span>
                     </Link>
                     <div className="fleet-card__console-list" aria-label={`${ship.name} console catalog`}>

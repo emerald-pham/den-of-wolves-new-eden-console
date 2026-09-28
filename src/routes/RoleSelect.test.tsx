@@ -115,7 +115,7 @@ describe('RoleSelect', () => {
     useSessionStore.getState().setSession(session);
     useSessionStore.getState().setMe(gm);
     useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
-    renderRoute();
+    renderRoute(true);
 
     expect(screen.getByRole('heading', { name: /^role select$/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^join as gm/i })).toBeInTheDocument();
@@ -219,7 +219,7 @@ describe('RoleSelect', () => {
     useSessionStore.getState().setSession(session);
     useSessionStore.getState().setMe(gm);
     useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
-    renderRoute();
+    renderRoute(true);
 
     expect(screen.queryByRole('button', { name: /gm console/i })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /open station catalog/i }));

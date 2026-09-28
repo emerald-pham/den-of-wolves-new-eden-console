@@ -5,12 +5,14 @@ import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
 import { useSessionStore } from '@/store/useSessionStore';
 import { selectIsGm } from '@/store/useSessionStore';
 import { replacementRoleFor } from '@/data/replacementRoles';
+import type { Seat } from '@/types/game';
 
 export default function ShipRoleSelect() {
   const { shipId } = useParams();
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
   const mode = useSessionStore((state) => state.mode);
+  const seats = useSessionStore((state) => state.seats);
   const isGm = useSessionStore(selectIsGm);
   const ship = findShip(shipId);
   const activeRoleIds = session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
@@ -46,19 +48,27 @@ export default function ShipRoleSelect() {
             style={{ viewTransitionName: 'shared-ship-flag' }}
           />
           <p className="eyebrow">{session.name} // {ship.name}</p>
-          <h1 className="role-select__title">{aboard ? 'View ship consoles' : 'Select command role'}</h1>
+          <h1 className="role-select__title">{ship.name} // Station overview</h1>
+          <p className="role-select__lede">
+            Overview only // viewing this overview does not enter a station. Choose an open station to enter
+            or an occupied station to view read-only.
+          </p>
         </div>
         <div className="role-select__grid">
-          {roles.map((role) => (
-            <Link
-              className="role-card cic-frame"
-              key={role.id}
-              to={`/ships/${ship.id}/roles/${role.id}`}
-              aria-label={role.name}
-            >
-              <span className="role-card__name">{role.name}</span>
-            </Link>
-          ))}
+          {roles.map((role) => {
+            const status = shipStationStatus(role.id, seats, me.uid, me.activeConsoleRoleId ?? null);
+            return (
+              <Link
+                className="role-card cic-frame"
+                key={role.id}
+                to={`/ships/${ship.id}/roles/${role.id}`}
+                aria-label={`${role.name} // ${status}`}
+              >
+                <span className="role-card__name">{role.name}</span>
+                <span className="role-card__status">{status}</span>
+              </Link>
+            );
+          })}
           {replacementAboard && (
             <Link
               className="role-card cic-frame"
@@ -85,4 +95,17 @@ export default function ShipRoleSelect() {
       </section>
     </main>
   );
+}
+
+function shipStationStatus(
+  roleId: string,
+  seats: readonly Seat[],
+  viewerUid: string,
+  activeConsoleRoleId: string | null,
+): 'OPEN' | 'HELD BY YOU' | 'OCCUPIED // READ-ONLY' {
+  const seat = seats.find((candidate) => (candidate.roleId ?? candidate.id) === roleId);
+  if (!seat) return activeConsoleRoleId === roleId ? 'HELD BY YOU' : 'OPEN';
+  if (seat.holderUid === viewerUid) return 'HELD BY YOU';
+  if (seat.status === 'open') return 'OPEN';
+  return 'OCCUPIED // READ-ONLY';
 }

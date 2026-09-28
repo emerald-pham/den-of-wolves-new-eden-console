@@ -167,7 +167,8 @@ const SURFACES = [
     ],
   },
   {
-    id: 'gm-join', route: '/roles', fixture: () => gmJoinState('pc04-gm-join', '/roles'),
+    id: 'gm-join', route: '/roles', fixture: () => gmJoinState('pc04-gm-join', '/console'),
+    enterThroughCatalog: true,
     targets: [
       ['gm-join-heading', '.role-select__title'],
       ['gm-join-action', '.role-claim__button'],
@@ -264,21 +265,22 @@ async function startServer(root) {
   try {
     server = await createServer({
       root,
-      configFile: resolve(ROOT, 'vite.config.ts'),
+      configFile: resolve(root, 'vite.config.ts'),
       cacheDir,
-      resolve: { alias: { '@': resolve(root, 'src') } },
       server: { host: '127.0.0.1', port: 0, strictPort: false },
       logLevel: 'silent',
     });
     const resolvedRoot = await realpath(root);
     const expectedConfigFile = resolve(resolvedRoot, 'vite.config.ts');
+    const actualConfigRoot = await realpath(server.config.root);
+    const actualConfigFile = await realpath(server.config.configFile);
     assert.equal(
-      await realpath(server.config.root),
+      actualConfigRoot,
       resolvedRoot,
       `Vite resolved ${server.config.root} instead of the requested reference root ${resolvedRoot}`,
     );
     assert.equal(
-      await realpath(server.config.configFile),
+      actualConfigFile,
       expectedConfigFile,
       `Vite resolved ${server.config.configFile} instead of the root-owned config ${expectedConfigFile}`,
     );
@@ -289,7 +291,7 @@ async function startServer(root) {
       server,
       url: `http://127.0.0.1:${address.port}`,
       cacheDir,
-      resolvedConfig: { root: resolvedRoot, configFile: expectedConfigFile },
+      resolvedConfig: { root: actualConfigRoot, configFile: actualConfigFile },
     };
   } catch (error) {
     await server?.close();
@@ -322,6 +324,10 @@ async function collectSurface(browser, appUrl, surface, viewport, motion, kind) 
   });
   const now = Date.now();
   const fixture = surface.fixture();
+  const initialRoute = surface.enterThroughCatalog && kind === 'candidate'
+    ? '/console'
+    : surface.route;
+  fixture.state.lastRoute = initialRoute;
   await context.addInitScript(({ state, timestamp, motionPreference }) => {
     localStorage.setItem('dow-new-eden-session', JSON.stringify(state));
     localStorage.setItem('dow-new-eden-session-waiver', String(timestamp));
@@ -333,9 +339,13 @@ async function collectSurface(browser, appUrl, surface, viewport, motion, kind) 
   }, { state: fixture, timestamp: now, motionPreference: motion === 'reduced' ? 'reduce' : 'full' });
 
   const search = `?typography=${kind}-${surface.id}-${viewport.width}x${viewport.height}-${motion}`;
-  const url = `${appUrl}/${search}#${surface.route}`;
+  const url = `${appUrl}/${search}#${initialRoute}`;
   try {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20_000 });
+    if (surface.enterThroughCatalog && kind === 'candidate') {
+      await page.getByRole('link', { name: 'GM join' }).click();
+      await page.locator('.role-claim__button').waitFor({ state: 'visible', timeout: 15_000 });
+    }
     const screenshotDir = resolve(EVIDENCE_DIR, kind, motion, viewport.name);
     await mkdir(screenshotDir, { recursive: true });
     const screenshot = resolve(screenshotDir, `${safeName(surface.id)}.png`);
