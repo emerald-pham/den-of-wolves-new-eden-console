@@ -188,6 +188,27 @@ it('classifies the cumulative range from the last successful deployment', () => 
   expect(result.targets).toEqual(['firestore', 'functions']);
 });
 
+it('separates cumulative deployment targets from already-passed verification risk', () => {
+  const result = classifyDeploymentRange({
+    before: 'deployed-sha',
+    verificationBefore: 'verified-sha',
+    after: 'current-main-tip',
+    currentMainTip: 'current-main-tip',
+    changedFiles: ['scripts/test-fleet-ticker-browser.mjs', 'docs/release.md'],
+    verificationChangedFiles: ['docs/release.md'],
+    isAncestor: () => true,
+  });
+
+  expect(result.targets).toEqual([]);
+  expect(result.verificationBaselineAncestry).toBe(true);
+  expect(result.riskGates).toMatchObject({
+    rootInstall: false,
+    unit: false,
+    ticker: false,
+    render: false,
+  });
+});
+
 it('keeps exact Hosting builds while selecting unit and bundle checks by risk', () => {
   expect(ci).toContain('run_unit=$UNIT_REQUIRED');
   expect(ci).toContain('run_web_build=$has_hosting');
@@ -853,6 +874,14 @@ it('verifies risk-bearing main changes even when they select no Firebase surface
     "deploy:\n    if: needs.determine-targets.outputs.has_targets == 'true' && " +
     "needs.determine-targets.outputs.current_tip == 'true'",
   );
+});
+
+it('uses separate successful deployment and verification baselines on main', () => {
+  expect(deploy).toContain('Find last successful deployment baseline');
+  expect(deploy).toContain('Find last successful verification baseline');
+  expect(deploy).toContain('select(.name == "verify / verify")');
+  expect(deploy).toContain('VERIFICATION_BASELINE_SHA: ${{ steps.verification-baseline.outputs.base_sha }}');
+  expect(deploy).toContain('--verification-before "$VERIFICATION_BASELINE_SHA"');
 });
 
 it('does not repeat unit tests during deployment after CI artifact verification', () => {
