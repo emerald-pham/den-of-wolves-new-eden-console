@@ -56,6 +56,40 @@ it('renders the assigned role brief, common rules, and visible return control', 
   expect(screen.getByText('Role selection')).toBeInTheDocument();
 });
 
+it('teaches source-backed table ground rules and the core cycle loop from the assigned brief', () => {
+  render(
+    <MemoryRouter initialEntries={['/brief']}>
+      <Routes>
+        <Route path="/brief" element={<RoleBrief />} />
+        <Route path="/roles" element={<p>Role selection</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  const groundRules = screen.getByRole('region', { name: 'Table ground rules' });
+  expect(groundRules).toHaveTextContent(
+    'Keep your own role and loyalty information private. Do not show another player your brief or read theirs.',
+  );
+  expect(groundRules).toHaveTextContent(
+    'Do not use phones to message other players during play. Do not photograph game components to share with other players.',
+  );
+  expect(groundRules).toHaveTextContent(
+    'Resources are tracked with tokens or resource sheets: strytium ore, strytium fuel, food, water, and material.',
+  );
+  expect(groundRules).toHaveTextContent(
+    'Continue to follow the Code of Conduct acknowledged at session entry.',
+  );
+  expect(groundRules).not.toHaveTextContent('Be bold. Remember the human on the other side.');
+
+  const loop = screen.getByRole('region', { name: 'Core game loop' });
+  expect(loop).toHaveTextContent('Team Phase');
+  expect(loop).toHaveTextContent('Coordination Phase');
+  expect(loop).toHaveTextContent('pursuit reaches 10');
+  expect(loop).toHaveTextContent('announce the jump');
+  expect(loop).toHaveTextContent('dock with the nearest ship');
+  expect(loop).toHaveTextContent('Mission Leader');
+});
+
 it('renders Voyage 33-0 support as a private role section when admitted', () => {
   useSessionStore.getState().setRoleBrief({
     ...useSessionStore.getState().roleBrief!,
