@@ -344,6 +344,23 @@ describe('dealPrivateInitialCards', () => {
     expectedSetupRevision: 1, missionId: 'mission-1', participantUids: ['alice', 'bob'],
   };
 
+  it('rejects a team-selected Mission Leader who is outside the source-bound participant roster', async () => {
+    await expect(dealPrivateInitialCards.run(request({
+      ...command,
+      opportunityId: 'arrival-fleet-1-A-5143',
+      groupId: 'fleet-1',
+      chart: 'A',
+      coordinate: '5143',
+      sourceCycle: 2,
+      expectedPhaseRevision: 3,
+      expectedCycle: 2,
+      participantUids: ['alice'],
+      missionLeaderUid: 'bob',
+    }))).rejects.toBeDefined();
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+  });
+
   it('deals one card per selected eligible participant and never includes cards in the reply', async () => {
     await expect(dealPrivateInitialCards.run(request(command))).resolves.toEqual({
       status: 'committed', sessionId: 's1', requestId: 'deal-1', missionId: 'mission-1',

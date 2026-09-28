@@ -1894,6 +1894,39 @@ describe('first-arrival mission opportunities', () => {
   });
 });
 
+it('exposes immutable mission-start receipts only to the current facilitator', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), `${SESSION}/missionStartSnapshots/arrival-fleet-1-A-1413`), {
+      type: 'away-mission-start-snapshot', sessionId: 's1',
+      opportunityId: 'arrival-fleet-1-A-1413', missionId: 'mission-arrival-fleet-1-A-1413',
+      groupId: 'fleet-1', chart: 'A', coordinate: '1413', sourceCycle: 1,
+      source: { ruleId: 'new-location-mission' }, inputs: { participantUids: ['alice'] },
+      modifiers: [], outcome: 'started', stateDelta: { participantCount: 1 },
+      revisions: { setup: 1, phase: 1 }, replay: { requestId: 'start-1' },
+      recovery: 'Retry with the same request id to inspect the committed result.',
+    });
+  });
+
+  const path = `${SESSION}/missionStartSnapshots/arrival-fleet-1-A-1413`;
+  await assertSucceeds(getDoc(doc(as('gm1'), path)));
+  await assertSucceeds(getDocs(collection(as('gm1'), `${SESSION}/missionStartSnapshots`)));
+  for (const uid of ['alice', 'press', 'observer']) {
+    await assertFails(getDoc(doc(as(uid), path)));
+    await assertFails(getDocs(collection(as(uid), `${SESSION}/missionStartSnapshots`)));
+  }
+  for (const uid of ['alice', 'gm1']) {
+    const target = doc(as(uid), path);
+    await assertFails(setDoc(target, { forged: true }));
+    await assertFails(updateDoc(target, { forged: true }));
+    await assertFails(deleteDoc(target));
+  }
+
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await updateDoc(doc(ctx.firestore(), `${SESSION}/players/gm1`), { role: 'player' });
+  });
+  await assertFails(getDoc(doc(as('gm1'), path)));
+});
+
 describe('private Wolf suspicion history', () => {
   it('allows facilitators to audit history and denies every lower audience and client write', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
