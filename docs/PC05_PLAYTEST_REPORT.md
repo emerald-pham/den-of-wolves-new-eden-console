@@ -286,3 +286,11 @@ consumers, and handle only the audited additive reconnect error taxonomy delta;
 **73 selector tests pass** and exact-candidate target preflight succeeds.
 The Functions build passes. Independent follow-up on `728664a2` is active;
 release approval is not yet claimed.
+
+
+The follow-up at `728664a2` confirmed the four repairs and found one additional
+Press-specific notice omission. Red `a1e377f3` demonstrates both disabled Press
+access and a foreign Press holder (two failures); `72034d75` propagates the
+existing Press release decision into the returning-join reselection flag.
+**203 join, resume and lifecycle tests pass**, and the Functions build passes.
+Independent follow-up is limited to this remaining finding at exact `72034d75`.
