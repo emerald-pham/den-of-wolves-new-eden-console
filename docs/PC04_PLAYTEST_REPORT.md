@@ -85,6 +85,15 @@ mission or split/rejoin playthrough.
 | Split fleet | Group-local roster, position, pursuit, map, messages, and scout-taxi exception remain isolated; pending rejoin does not merge pursuit without authority. | Projection/privacy, movement/range/capacity, communication, replay, and multi-client tests plus ordinary gameplay. |
 | Review scene | Five prepared views reuse production presentation components and make their no-write boundary explicit. | Component assertions and rendered walkthrough only. |
 
+The reconciled candidate now renders the production `FleetRoster`,
+`AwayMissionStartPanel`, private mission-card presentation, and fleet-group
+context in the prepared review route. Its local command boundaries cannot call
+Firebase or mutate a live session. The route-level browser check exercises the
+real station link, participant and Mission Leader controls, mission-start
+result, server-receipt presentation, private discard presentation, split-state
+controls, and recovery boundary at 320×844, 390×844, 844×390, and 1440×900
+with reduced motion.
+
 ## Held work and known gaps
 
 - P237 remains held pending optional Gorgoneion admission and pre-deal support.
@@ -99,14 +108,62 @@ mission or split/rejoin playthrough.
 
 ## Test-change inventory
 
-This section will be completed from the reconciled final diff. No test may be
-removed, skipped, or weakened to release PC04.
+No test is skipped or deleted for PC04.
+
+- **Entry and station catalog:** route tests cover the ordinary-player redirect
+  away from Role Select, explicit authenticated GM join intent, direct station
+  links, live OPEN / HELD BY YOU / CLAIMED READ-ONLY states, legacy GM-owned
+  seat release, foreign-seat intervention, and private-brief UID/session
+  binding. One prior assertion that prohibited every GM release on Role Select
+  changed test-first to the narrower product contract: an active GM may release
+  its own legacy seat, while ordinary players still cannot claim or release
+  there.
+- **Typography:** source-level CIC token and geometry tests cover 61 cases; two
+  release-contract tests require both typography gates before Hosting deploy;
+  the browser matrix compares seven production surfaces at four viewports in
+  normal and reduced motion against exact PC01 release
+  `4e8e3876108709f2a620c4f71ea874183d3db4ee`. The later oversized DRADIS label
+  override was removed after the rendered comparison established the
+  regression.
+- **Copy and alert:** client and callable tests assert the exact default,
+  restore, and ticker text and keep `ICSN ADMIRAL //` as the distinct ticker
+  source prefix. The visible-copy audit preserves genuine HTML/data tables,
+  physical session-table language, historical release notes, and the printed
+  Battle Table proper name.
+- **Mission start:** tests cover request shape, active-GM and instance
+  authority, current first-arrival opportunity, later-cycle supersession,
+  chart/coordinate/group/cycle binding, current shuttle and PDF carrier state,
+  mixed-role passengers, the team-selected Mission Leader, atomic private
+  initial deals, immutable context, separate shared-carrier receipt facts,
+  direct-write denial, private projection, stale and exact replay, ambiguous
+  lost acknowledgement, terminal-phase receipt lookup, and both committed and
+  stale terminal results. The duplicate terminal replay test was replaced with
+  distinct committed-versus-stale cases; its acceptance was not weakened.
+- **Prepared checkpoint:** component and responsive browser tests require the
+  production entry, mission-start, private-card, mission-receipt, fleet-group,
+  split, alert, typography, and recovery components. The browser script was
+  updated after its first red run still targeted the removed hand-built entry
+  button; the rerun passed all four viewports without horizontal overflow.
+- **Pure later lifecycle candidates:** separate domain tests cover blind extra
+  allocation, private request/discard/assignment, nonempty facilitator cards,
+  totals, bonuses, and results. Those tests do not claim production wiring or
+  close Prompts 404–412.
+
+Independent exact-head review cleared the entry/typography candidate
+`027a6b26a55a3039f0cf58a25a77767cf25f9d2c` after its legacy-GM repair and the
+mission-start candidate `8e16673c35dbdb8f12396aec6d808a35c7c48b55` after its
+cycle, carrier, participant, context, and replay repairs. Final review of the
+reconciled release commit remains required.
 
 ## Review, release, and hosted evidence
 
-This section intentionally remains open until one exact candidate commit has
-passed independent Sol review, coordinated validation, CI, deployment, hosted
-version verification, and the attempted ordinary authorized gameplay checks.
+Local owner evidence is currently green for the focused integrated suites,
+typecheck, application build, the production-component review scene, and the
+lane-level full/rules/build validations recorded above. This section remains
+open until one exact reconciled candidate commit passes final independent Sol
+review, coordinated validation, CI, deployment, hosted version verification,
+and the attempted ordinary authorized gameplay checks. No push, merge,
+deployment, hosted verification, or ordinary live gameplay is claimed yet.
 
 ## Authorized post-release documentation audit
 
