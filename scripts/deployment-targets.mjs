@@ -640,6 +640,10 @@ const REQUEST_GUARD_ADDITIONS = Object.freeze([
   { source: P503A_ACK_GUARD_ADDITION, callable: 'acknowledgeWolfHackingAlert' },
   { source: P513_ARREST_POSSE_GUARD_ADDITION, callable: 'calculateArrestPosse' },
 ]);
+const PC04_REQUEST_GUARD_TRANSITION = Object.freeze({
+  before: 'b80dbcc64847d47b02f519ec7e8e88a620a5f68acfcc53d07a421c0f73bf6c99',
+  after: 'ded4d4f080ab07c3669c12891673cf60db7d899be484d3bbf4ce4578a6693288',
+});
 
 const P541_CANDIDATE_REVEAL_NAVIGATION_ADDITIONS = Object.freeze([
   ["import type { CandidateReveal } from './candidateRevealProjection';", 1],
@@ -979,6 +983,32 @@ function requestGuardCallableImpacts(before, after, cwd, sourceAtRevision = null
   };
   const previous = readAt(before);
   const current = readAt(after);
+  const digest = (source) => createHash('sha256').update(source).digest('hex');
+  if (digest(previous) === PC04_REQUEST_GUARD_TRANSITION.before &&
+      digest(current) === PC04_REQUEST_GUARD_TRANSITION.after) {
+    let indexSource;
+    if (sourceAtRevision) {
+      indexSource = sourceAtRevision(after, 'functions/src/index.ts');
+    } else {
+      try {
+        indexSource = execFileSync('git', ['show', `${after}:functions/src/index.ts`], {
+          encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd, maxBuffer: 16 * 1024 * 1024,
+        });
+      } catch {
+        throw new Error(`Cannot safely determine PC04 request-guard consumers at ${after}:functions/src/index.ts.`);
+      }
+    }
+    if (typeof indexSource !== 'string') {
+      throw new Error(`Cannot safely determine PC04 request-guard consumers at ${after}:functions/src/index.ts.`);
+    }
+    const consumers = [...functionExports(indexSource)]
+      .filter(([, block]) => block.includes('requireUid('))
+      .map(([name]) => name);
+    if (!consumers.includes('dealPrivateInitialCards')) {
+      throw new Error('Cannot safely map the exact PC04 mission request guard to its deployed callable.');
+    }
+    return consumers;
+  }
   const addedCallables = [];
   let previousRest = previous;
   let currentRest = current;
