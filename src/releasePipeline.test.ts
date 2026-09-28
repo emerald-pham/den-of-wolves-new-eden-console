@@ -880,11 +880,13 @@ it('keeps CI dependency caches, timeouts, and single-pass bundle checking explic
   expect(ci).toContain('node scripts/check-bundle-size.mjs');
 });
 
-it('runs exact-SHA browser gates in parallel without weakening branch validation', () => {
+it('shards exact-SHA ticker coverage and render checks without weakening branch validation', () => {
   expect(ci).toContain('exact-sha-browser-gates:');
-  expect(ci).toContain("if: ${{ inputs.exact_head_commit && (inputs.ticker_required || inputs.render_required) }}");
-  expect(ci).toContain("if: ${{ inputs.ticker_required }}");
-  expect(ci).toContain("if: ${{ inputs.render_required }}");
+  expect(ci).toContain("if: ${{ inputs.exact_head_commit && inputs.ticker_required }}");
+  expect(ci).toMatch(/matrix:\s+shard: \[press, turn-zero, lifecycle\]/);
+  expect(ci).toContain('TICKER_SMOKE_SHARD: ${{ matrix.shard }}');
+  expect(ci).toContain('exact-sha-render-gate:');
+  expect(ci).toContain("if: ${{ inputs.exact_head_commit && inputs.render_required }}");
   expect(ci).toContain('Build web for render baseline');
   expect(ci).toContain("steps.change_scope.outputs.exact_head_commit != 'true'");
   expect(ci.match(/run: npm run test:ticker:browser/g)).toHaveLength(2);
