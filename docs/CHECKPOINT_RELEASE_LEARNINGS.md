@@ -120,6 +120,12 @@ the assertion was retained rather than weakened. It now has an isolated
 15-second ceiling; the stricter default remains in force for every ordinary
 unit test.
 
+The local full-suite rerun also exposed a lazy-boundary race in the ship
+navigation test: it waited for the synchronous map and then immediately queried
+the separately lazy-loaded fleet context. The assertion now awaits the fleet
+context itself. Future tests that cross a `lazy`/`Suspense` boundary must await
+the lazy-owned landmark or content, not an adjacent synchronous sibling.
+
 ### Typography gate integrity
 
 PC04 repaired the exact command mapping for the mandatory computed-style

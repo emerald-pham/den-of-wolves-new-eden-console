@@ -124,7 +124,7 @@ it('hides location contents without removing the ship coordinate knowledge', asy
   const map = await screen.findByRole('region', { name: 'Ship navigation map' });
   expect(map).toHaveTextContent('Current ship // 5143');
   expect(map).toHaveTextContent('6798');
-  const group = screen.getByRole('region', { name: 'Current fleet group and location' });
+  const group = await screen.findByRole('region', { name: 'Current fleet group and location' });
   expect(group).toHaveTextContent('FLEET-1');
   expect(group).toHaveTextContent('AEGIS // DIONE');
   expect(group).toHaveTextContent('6 / 10');
