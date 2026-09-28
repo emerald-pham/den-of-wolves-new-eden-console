@@ -1192,6 +1192,42 @@ it('keeps 20 readable DRADIS returns within 12 label reads per contact', () => {
   expect(labelLayoutReads).toBeLessThanOrEqual(12 * contacts.length);
 });
 
+it('fits an expanded DRADIS name using widths measured in the same label state', () => {
+  const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
+    x: left, y: top, left, top, width, height,
+    right: left + width, bottom: top + height,
+  }) as DOMRect;
+  vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
+    if (!this.classList.contains('contact-plot__tag')) return 0;
+    const cap = Number.parseFloat(this.style.maxWidth);
+    return Number.isFinite(cap) ? Math.min(180, cap) : 180;
+  });
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    if (this.classList.contains('contact-plot')) return bounds(0, 0, 246, 320);
+    if (this.classList.contains('contact-plot__blip')) return bounds(119, 140, 8, 8);
+    if (this.classList.contains('contact-plot__tag')) {
+      const style = (this as HTMLElement).style;
+      const cap = Number.parseFloat(style.maxWidth);
+      const width = (Number.isFinite(cap) ? Math.min(180, cap) : 180) * 1.2;
+      const anchor = this.closest<HTMLElement>('.contact-plot__contact')?.dataset.labelAnchor ?? 'north-east';
+      const left = anchor.endsWith('east') ? 119 - 11 - width : 127 + 11;
+      const top = anchor.startsWith('north') ? 140 - 8 - 18 : 140 + 8 + 8;
+      const x = Number.parseFloat(style.getPropertyValue('--label-clamp-x')) || 0;
+      const y = Number.parseFloat(style.getPropertyValue('--label-clamp-y')) || 0;
+      return bounds(left + x, top + y, width, 18);
+    }
+    return bounds(0, 0, 0, 0);
+  });
+
+  const { container } = render(<ContactPlot contacts={[
+    { tag: 'LONG RESEARCH CRUISER', x: 0.8, y: 0.2, z: 0.1, color: 'white' },
+  ]} />);
+  const label = container.querySelector<HTMLElement>('.contact-plot__tag')!;
+
+  expect(label.getBoundingClientRect().width).toBeGreaterThanOrEqual(90);
+  expect(label.getBoundingClientRect().width).toBeLessThanOrEqual(100);
+});
+
 it('exposes the active fleet alert outside the decorative plot for assistive technology', () => {
   useSessionStore.setState({ session: alertSession('s1', true, 1) });
   const { container } = render(<ContactPlot placement="widget" />);
