@@ -114,7 +114,8 @@ beforeEach(() => {
     turn: 1, airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
   };
   sessionFields.shipDamage = {};
-  sessionFields.shipUnrest = { dione: 8 };
+  sessionFields.shipUnrest = { dione: 0 };
+  sessionFields.shipMutinies = {};
   sessionFields.unrestAlerts = {};
   sessionFields.maintenanceCycles = {
     dione: { turn: 1, step: 5, revision: 0, charges: ['vip-lounge'], results: {}, refuelled: [] },
@@ -201,6 +202,15 @@ describe('rerollVipUnrest', () => {
 });
 
 describe('drawVipCard', () => {
+  it('denies use of the Dione Lounge while its ship is in mutiny', async () => {
+    sessionFields.shipUnrest = { dione: 8 };
+    sessionFields.shipMutinies = { dione: {
+      status: 'active', revision: 1, triggerUnrest: 8, triggeredAt: 'now',
+    } };
+    await expect(drawVipCard.run(request(drawCommand))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.randomInt).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled();
+  });
   it('draws privately after the charge and authority checks, and replays without rerolling', async () => {
     const committed = await drawVipCard.run(request(drawCommand));
     expect(committed).toMatchObject({ status: 'committed', deckRevision: 1 });
