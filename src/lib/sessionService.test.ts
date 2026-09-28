@@ -326,6 +326,99 @@ describe('connect', () => {
     expect(useSessionStore.getState().connection).toBe('live');
   });
 
+  it('keeps membership, clears cached private authority, and signals role selection after server station invalidation', async () => {
+    const assignedPlayer = {
+      ...player, assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral', seatId: 'admiral',
+    };
+    const activeSession = { ...session, activeRoleIds: ['admiral'] };
+    useSessionStore.getState().setIdentity(activeSession, assignedPlayer);
+    useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
+    useSessionStore.getState().setRoleBrief({
+      assignmentUid: player.uid, roleId: 'admiral', roleName: 'Admiral',
+      vesselName: 'AEGIS', text: 'Private brief', commonRules: '', setupRevision: 1,
+    });
+    const resumedPlayer = { ...assignedPlayer, seatId: null, activeConsoleRoleId: null };
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({
+      data: {
+        session: { ...activeSession, updatedAt: '2026-01-02T00:00:00.000Z' },
+        player: resumedPlayer,
+        stationSelectionRequired: true,
+      },
+    }));
+
+    await connect();
+
+    expect(useSessionStore.getState()).toMatchObject({
+      session: { id: 's1' },
+      me: { uid: 'u1', assignedRoleId: 'admiral', seatId: null, activeConsoleRoleId: null },
+      connection: 'live',
+      communicationError: {
+        kind: 'station-selection-required',
+        message: 'Your previous station is no longer available. Return to station select and reselect your role.',
+      },
+      privateLoyalty: null,
+      roleBrief: null,
+    });
+  });
+
+  it('does not reinterpret a transient reconnect failure as invalid station authority', async () => {
+    const assignedPlayer = {
+      ...player, assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral', seatId: 'admiral',
+    };
+    useSessionStore.getState().setIdentity(session, assignedPlayer);
+    useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
+    const resume = Object.assign(vi.fn()
+      .mockRejectedValueOnce({ code: 'functions/unavailable', message: 'temporary network outage' })
+      .mockResolvedValue({
+        data: {
+          session: { ...session, updatedAt: '2026-01-02T00:00:00.000Z' },
+          player: assignedPlayer,
+        },
+      }), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockImplementation((_, name) => name === 'resumeSession'
+      ? resume : callableReturning({ data: {} }));
+
+    await connect();
+
+    expect(useSessionStore.getState()).toMatchObject({
+      session: { id: 's1' }, me: assignedPlayer, connection: 'offline',
+      communicationError: null,
+      privateLoyalty: { kind: 'wolf-agent', suspicion: 0 },
+    });
+
+    await connect();
+
+    expect(useSessionStore.getState()).toMatchObject({
+      session: { id: 's1' }, me: assignedPlayer, connection: 'live',
+      communicationError: null,
+    });
+    expect(resume).toHaveBeenCalledTimes(2);
+  });
+
+  it('ignores a delayed station invalidation from a superseded reconnect response', async () => {
+    const currentSession = { ...session, updatedAt: '2026-01-02T00:00:00.000Z' };
+    const staleSession = { ...currentSession, updatedAt: '2026-01-01T00:00:00.000Z' };
+    const assignedPlayer = {
+      ...player, assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral', seatId: 'admiral',
+    };
+    useSessionStore.getState().setIdentity(currentSession, assignedPlayer);
+    useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({
+      data: {
+        session: staleSession, player: { ...assignedPlayer, activeConsoleRoleId: null, seatId: null },
+        stationSelectionRequired: true,
+      },
+    }));
+
+    await connect();
+
+    expect(useSessionStore.getState()).toMatchObject({
+      session: currentSession, me: assignedPlayer, connection: 'offline',
+      communicationError: null,
+      privateLoyalty: { kind: 'wolf-agent', suspicion: 0 },
+    });
+  });
+
   it('shows the limiter wait and keeps explicit manual recovery available after the interval', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-09-23T12:00:00.000Z'));
@@ -2929,6 +3022,53 @@ describe('client authority boundaries', () => {
     await refreshPresence();
 
     expect(httpsCallable).not.toHaveBeenCalled();
+  });
+
+  it('surfaces a structured stale station denial without dropping session membership', async () => {
+    const activeSession = { ...session, phase: 'active' as const, activeRoleIds: ['admiral'] };
+    const assignedPlayer = { ...player, assignedRoleId: 'admiral', seatId: 'admiral' };
+    useSessionStore.getState().setIdentity(activeSession, assignedPlayer);
+    useSessionStore.getState().setConnection('live');
+    vi.mocked(httpsCallable).mockReturnValue(callableRejecting({
+      code: 'functions/permission-denied',
+      details: { commandError: 'station-selection-required' },
+      message: 'private station detail',
+    }));
+
+    await expect(selectConsoleRole('admiral')).rejects.toMatchObject({
+      code: 'functions/permission-denied',
+    });
+
+    expect(useSessionStore.getState()).toMatchObject({
+      session: { id: 's1' }, me: assignedPlayer,
+      communicationError: {
+        kind: 'station-selection-required',
+        message: 'Your previous station is no longer available. Return to station select and reselect your role.',
+      },
+    });
+  });
+
+  it('ignores a station denial that arrives after the requesting session changed', async () => {
+    const activeSession = { ...session, phase: 'active' as const, activeRoleIds: ['admiral'] };
+    const assignedPlayer = { ...player, assignedRoleId: 'admiral', seatId: 'admiral' };
+    useSessionStore.getState().setIdentity(activeSession, assignedPlayer);
+    useSessionStore.getState().setConnection('live');
+    let rejectPresence!: (cause: unknown) => void;
+    const pendingPromise = new Promise((_, reject) => { rejectPresence = reject; });
+    const pendingPresence = Object.assign(vi.fn(() => pendingPromise), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockReturnValue(pendingPresence as never);
+
+    const selection = selectConsoleRole('admiral');
+    await vi.waitFor(() => expect(pendingPresence).toHaveBeenCalled());
+    const otherSession = { ...session, id: 's2', updatedAt: '2026-01-02T00:00:00.000Z' };
+    useSessionStore.getState().setIdentity(otherSession, { ...player, uid: 'u2', sessionId: 's2' });
+    rejectPresence({
+      code: 'functions/permission-denied',
+      details: { commandError: 'station-selection-required' },
+    });
+    await expect(selection).rejects.toMatchObject({ code: 'functions/permission-denied' });
+
+    expect(useSessionStore.getState()).toMatchObject({ session: { id: 's2' }, communicationError: null });
   });
 });
 

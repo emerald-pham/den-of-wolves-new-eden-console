@@ -12,6 +12,7 @@ import { SHIP_PLOT_RESIZE_MS } from '@/components/ShipPlot';
 import { SESSION_WAIVER_STORAGE_KEY } from '@/lib/sessionWaiver';
 import { MOTION_SAFETY_STORAGE_KEY } from '@/lib/motionSafety';
 import { recommendedRoleIds } from '@/data/rolePresets';
+import { normalizeCommandError } from '@/lib/commandErrors';
 
 vi.mock('@/lib/sessionService', () => ({
   CONNECT_RETRY_INTERVAL_MS: 2_000,
@@ -154,6 +155,37 @@ describe('App', () => {
     expect(screen.getByText('Opening private briefing…')).toBeInTheDocument();
     expect(await screen.findByRole('heading', { name: 'Admiral' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Back to stations' })).toHaveAttribute('href', '#/console');
+  });
+
+  it('returns a player from a stale station route to station selection with reselect guidance', async () => {
+    window.location.hash = '#/ships/aegis/roles/admiral';
+    const activeSession: GameSession = {
+      ...session, phase: 'active', activeRoleIds: ['admiral'], activeVesselIds: ['aegis'],
+    };
+    const member: Player = {
+      ...player, role: 'player', assignedRoleId: 'admiral', seatId: 'admiral',
+      activeConsoleRoleId: null,
+    };
+    useSessionStore.getState().setIdentity(activeSession, member);
+    useSessionStore.getState().setMode('console');
+    vi.mocked(selectConsoleRole).mockImplementationOnce(async () => {
+      useSessionStore.getState().setCommunicationError(normalizeCommandError({
+        code: 'functions/permission-denied',
+        details: { commandError: 'station-selection-required' },
+        message: 'private station detail',
+      }));
+      throw { code: 'functions/permission-denied' };
+    });
+
+    render(<App />);
+
+    await waitFor(() => expect(selectConsoleRole).toHaveBeenCalledWith('admiral'));
+    expect(await screen.findByRole('heading', { name: 'Stations and consoles' })).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Your previous station is no longer available. Return to station select and reselect your role.',
+    );
+    expect(useSessionStore.getState().session?.id).toBe('s1');
+    expect(useSessionStore.getState().me?.uid).toBe('u1');
   });
 
   it('keeps an in-app return path visible while the Press route chunk opens', async () => {
