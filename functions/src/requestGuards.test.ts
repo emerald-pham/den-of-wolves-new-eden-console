@@ -49,6 +49,7 @@ import {
   requireFacilitatorResponsibilityRequest,
   requireCandidatePlanCheckpointRequest,
   requireGameStartRequest,
+  requireAwayMissionCardDealRequest,
   requireShipCounterBatchRequest,
   requireShipCounterRequest,
   requireFighterWingCountRequest,
@@ -65,6 +66,26 @@ function expectHttpsError(action: () => unknown, code: string): void {
 }
 
 describe('callable request guards', () => {
+  it('binds an away-mission start to one source opportunity and an in-roster Mission Leader', () => {
+    const request = {
+      sessionId: 's1', instanceId: 'bridge', requestId: 'mission-start-1',
+      expectedSetupRevision: 4, expectedPhaseRevision: 3, expectedCycle: 2,
+      opportunityId: 'arrival-fleet-1-A-5143', groupId: 'fleet-1', chart: 'A',
+      coordinate: '5143', sourceCycle: 2, participantUids: ['alice', 'bob'],
+      missionLeaderUid: 'bob',
+    };
+    expect(requireAwayMissionCardDealRequest(request)).toMatchObject(request);
+    expectHttpsError(() => requireAwayMissionCardDealRequest({
+      ...request, participantUids: ['alice'], missionLeaderUid: 'bob',
+    }), 'invalid-argument');
+    expectHttpsError(() => requireAwayMissionCardDealRequest({
+      ...request, participantUids: [],
+    }), 'invalid-argument');
+    expectHttpsError(() => requireAwayMissionCardDealRequest({
+      ...request, opportunityId: undefined,
+    }), 'invalid-argument');
+  });
+
   it('accepts only a boolean facilitator Cycle 6 candidate-plan marker', () => {
     expect(requireCandidatePlanCheckpointRequest({
       sessionId: 's1', instanceId: 'bridge', requestId: 'checkpoint-1', planExists: true,
