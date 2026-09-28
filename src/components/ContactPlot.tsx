@@ -189,6 +189,10 @@ function labelFontStyleSignature(element: HTMLElement): string {
   return `${properties};${fontVariables}`;
 }
 
+// Sweeps change these visibility/animation flags without changing the label's
+// intrinsic typography. Its rendered position is still measured on each fix.
+const SWEEP_VISUAL_ATTRIBUTES = new Set(['data-acquired', 'data-scan-fresh']);
+
 /** Label ancestors inside the 3D contact may move every update; only their
  * typography-affecting inline declarations belong in this intrinsic-width key. */
 function intrinsicLabelWidthContext(
@@ -200,7 +204,8 @@ function intrinsicLabelWidthContext(
   const path: string[] = [];
   for (let element: HTMLElement | null = label; element && element !== plot; element = element.parentElement) {
     const attributes = Array.from(element.attributes)
-      .filter((attribute) => attribute.name !== 'style' && attribute.name !== 'data-label-anchor')
+      .filter((attribute) => attribute.name !== 'style' && attribute.name !== 'data-label-anchor' &&
+        !SWEEP_VISUAL_ATTRIBUTES.has(attribute.name))
       .map((attribute) => `${attribute.name}=${attribute.value}`)
       .sort()
       .join(';');
