@@ -2643,3 +2643,50 @@ it('denies client access to maintenance rollback snapshots, including GM clients
     await assertFails(setDoc(receipt, { forged: true }));
   }
 });
+
+describe('Press log audience', () => {
+  it('allows only the connected Press Officer to read incoming Press entries', async () => {
+    const pressEntry = `${SESSION}/pressLog/press-entry-1`;
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), pressEntry), {
+        type: 'president-action', sourceId: 'president:request-1', actionKind: 'address',
+        text: 'The fleet will hold course.', cycle: 1, recordedAt: '2026-09-27T21:00:00.000Z',
+      });
+    });
+
+    await assertSucceeds(getDoc(doc(as('press'), pressEntry)));
+    await assertSucceeds(getDocs(collection(as('press'), `${SESSION}/pressLog`)));
+    for (const uid of ['alice', 'gm1', 'observer', 'captain', 'commissar']) {
+      await assertFails(getDoc(doc(as(uid), pressEntry)));
+      await assertFails(getDocs(collection(as(uid), `${SESSION}/pressLog`)));
+    }
+    await assertFails(setDoc(doc(as('press'), `${SESSION}/pressLog/forged`), {
+      type: 'president-action', text: 'Client-authored report',
+    }));
+  });
+
+  it('revokes the Press log reader when Press is disabled or the active role changes', async () => {
+    const pressEntry = `${SESSION}/pressLog/press-entry-2`;
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, pressEntry), {
+        type: 'survivor-change', sourceId: 'maintenance:request-2', cause: 'ship-maintenance',
+        vesselId: 'aegis', cycle: 1, recordedAt: '2026-09-27T21:00:00.000Z',
+        fromPopulation: 2_500, toPopulation: 2_000,
+      });
+    });
+    await assertSucceeds(getDoc(doc(as('press'), pressEntry)));
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), SESSION), { pressEnabled: false });
+    });
+    await assertFails(getDoc(doc(as('press'), pressEntry)));
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await updateDoc(doc(db, SESSION), { pressEnabled: true });
+      await updateDoc(doc(db, `${SESSION}/players/press`), { activeConsoleRoleId: 'admiral' });
+    });
+    await assertFails(getDoc(doc(as('press'), pressEntry)));
+  });
+});
