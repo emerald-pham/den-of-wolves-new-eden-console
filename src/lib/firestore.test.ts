@@ -869,6 +869,10 @@ it('removes hidden state nested in public and crew projections while preserving 
       aegis: ['storage', { candidateBonus: 2 }],
     },
     shipSurvivors: { aegis: 2_000, notes: 4 },
+    shipMutinies: { aegis: {
+      status: 'active', revision: 1, triggerUnrest: 8, triggeredAt: 'TURN 1',
+      oldCaptainUid: 'private-former-cover', facilitatorNote: 'hidden',
+    } },
     unrestAlerts: {
       aegis: {
         shipId: 'aegis', shipName: 'AEGIS', targetGmInstanceIds: ['bridge'],
@@ -892,6 +896,9 @@ it('removes hidden state nested in public and crew projections while preserving 
   expect(session.shuttleCargo?.starlight).toEqual({ food: 3 });
   expect(session.shipDamage?.aegis).toEqual({ damagedSystemIds: ['storage'], destroyed: false });
   expect(session.shipUpgrades?.aegis).toEqual(['storage']);
+  expect(session.shipMutinies?.aegis).toEqual({
+    status: 'active', revision: 1, triggerUnrest: 8, triggeredAt: 'TURN 1',
+  });
   expect(session.shipGalacticCoordinates).toBeUndefined();
   expect(session.pursuitGroups).toBeUndefined();
   expect(session.confettiUsedShipIds).toEqual(['aegis']);
