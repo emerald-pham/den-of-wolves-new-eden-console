@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, expect, it } from 'vitest';
 import { useSessionStore } from '@/store/useSessionStore';
@@ -63,16 +63,20 @@ it('hides the detailed status instrument from players and unauthorized GM device
   const view = render(<MemoryRouter><PrimaryStatus /></MemoryRouter>);
   expect(screen.queryByRole('region', { name: 'Primary game status' })).not.toBeInTheDocument();
 
-  useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, role: 'gm' });
-  useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
+  act(() => {
+    useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, role: 'gm' });
+    useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
+  });
   view.rerender(<MemoryRouter><PrimaryStatus /></MemoryRouter>);
   expect(screen.queryByRole('region', { name: 'Primary game status' })).not.toBeInTheDocument();
 
-  useSessionStore.getState().setGmInstance({
-    id: 'gm-instance', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
-    deviceLabel: 'macOS / Chrome', claimedAt: '2026-09-22T14:00:00.000Z',
+  act(() => {
+    useSessionStore.getState().setGmInstance({
+      id: 'gm-instance', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'macOS / Chrome', claimedAt: '2026-09-22T14:00:00.000Z',
+    });
+    useSessionStore.getState().setGmAccessAuthenticatedAt(null);
   });
-  useSessionStore.getState().setGmAccessAuthenticatedAt(null);
   view.rerender(<MemoryRouter><PrimaryStatus /></MemoryRouter>);
   expect(screen.queryByRole('region', { name: 'Primary game status' })).not.toBeInTheDocument();
 });

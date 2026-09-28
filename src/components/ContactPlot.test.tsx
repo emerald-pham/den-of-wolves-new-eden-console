@@ -446,15 +446,14 @@ it('holds a moving return at its sampled fix until another sweep crosses its tru
   act(() => frame(48));
   expect(apparent?.style.cssText).toBe(firstFix);
   expect(pinged).toHaveBeenCalledTimes(2);
-  expect(painted).toHaveLength(4);
+  expect(painted).toHaveLength(2);
   normal = { x: 0.996, y: 0, z: 0.087 };
   act(() => frame(64));
-  // A recent repeat still confirms the contact: its return brightens and the
-  // scan event fires, but the sampled visible fix must not move yet.
+  // A recent repeat still confirms the contact and fires the scan event,
+  // while its original enlarged paint stays alive until it settles.
   expect(apparent?.style.cssText).toBe(firstFix);
   expect(pinged).toHaveBeenCalledTimes(3);
-  expect(painted).toHaveLength(6);
-  expect(painted[4]?.keyframes[0]).toMatchObject({ opacity: 1 });
+  expect(painted).toHaveLength(2);
 
   // Once the contact has not been pinged for the fresh-return window, the
   // next crossing may sample its current true position again.
@@ -466,6 +465,8 @@ it('holds a moving return at its sampled fix until another sweep crosses its tru
   expect(apparent?.style.cssText).toContain('--fix-y: -0.3');
   expect(apparent?.style.cssText).toContain('--fix-z: 0.6');
   expect(pinged).toHaveBeenCalledTimes(4);
+  expect(painted).toHaveLength(4);
+  expect(painted[2]?.keyframes[0]).toMatchObject({ opacity: 1, transform: 'scale(1)' });
   unmount();
 });
 
@@ -772,7 +773,7 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
   act(() => frame(80));
   expect(container.querySelectorAll('[data-acquired="true"]')).toHaveLength(2);
   expect(apparent()?.style.cssText).toBe(fix);
-  expect(painted[2]?.keyframes[0]?.transform).toBe('scale(1)');
+  expect(painted[2]?.keyframes[0]?.transform).toBe('scale(2)');
   normal = { x: 0.996, y: 0, z: 0.087 };
   act(() => frame(96));
   expect(apparent()?.style.cssText).toBe(fix);
