@@ -3,7 +3,11 @@ import {
   subscribeGmMissionOpportunities,
   subscribeGmMissionStartSnapshots,
 } from '@/lib/firestore';
-import { startAwayMission, type StartAwayMissionOptions } from '@/lib/sessionService';
+import {
+  startAwayMission,
+  type AwayMissionStartReply,
+  type StartAwayMissionOptions,
+} from '@/lib/sessionService';
 import { normalizeCommandError } from '@/lib/commandErrors';
 import { turnLimitForSession, turnPhaseState, turnStateForPhaseContext } from '@/lib/turnPhase';
 import type {
@@ -21,6 +25,12 @@ interface Props {
   readonly players: readonly Player[];
   readonly instanceId: string;
   readonly isGm: boolean;
+  /** Prepared source data for a synthetic review surface; production omits it. */
+  readonly preparedOpportunities?: readonly MissionOpportunity[];
+  /** Prepared receipts for a synthetic review surface; production omits it. */
+  readonly preparedReceipts?: readonly AwayMissionStartSnapshot[];
+  /** Local command boundary for a synthetic review surface; production omits it. */
+  readonly submitMissionStart?: (options: StartAwayMissionOptions) => Promise<AwayMissionStartReply>;
 }
 
 interface PendingAttempt {
@@ -140,7 +150,15 @@ function receiptDetails(receipt: AwayMissionStartSnapshot): readonly [string, st
   ];
 }
 
-export default function AwayMissionStartPanel({ session, players, instanceId, isGm }: Props) {
+export default function AwayMissionStartPanel({
+  session,
+  players,
+  instanceId,
+  isGm,
+  preparedOpportunities,
+  preparedReceipts,
+  submitMissionStart = startAwayMission,
+}: Props) {
   const pendingStorageKey = session?.id && instanceId ? storageKey(session.id, instanceId) : null;
   const [opportunities, setOpportunities] = useState<readonly MissionOpportunity[]>([]);
   const [receipts, setReceipts] = useState<readonly AwayMissionStartSnapshot[]>([]);
@@ -154,8 +172,8 @@ export default function AwayMissionStartPanel({ session, players, instanceId, is
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    setOpportunities([]);
-    setReceipts([]);
+    setOpportunities(preparedOpportunities ?? []);
+    setReceipts(preparedReceipts ?? []);
     setSelectedOpportunityId('');
     setSelectedParticipantUids([]);
     setMissionLeaderUid('');
@@ -164,6 +182,7 @@ export default function AwayMissionStartPanel({ session, players, instanceId, is
       ? restoreAttempt(storageKey(session.id, instanceId), session.id, instanceId)
       : null);
     setMessage(null);
+    if (preparedOpportunities !== undefined || preparedReceipts !== undefined) return;
     if (!isGm || !session?.id || session.phase !== 'active') return;
     let active = true;
     const stopOpportunities = subscribeGmMissionOpportunities(session.id, (next) => {
@@ -177,7 +196,7 @@ export default function AwayMissionStartPanel({ session, players, instanceId, is
       stopOpportunities();
       stopReceipts();
     };
-  }, [instanceId, isGm, session?.id, session?.phase]);
+  }, [instanceId, isGm, preparedOpportunities, preparedReceipts, session?.id, session?.phase]);
 
   const currentPhase = session ? turnPhaseState(session.turnPhase) : undefined;
   const currentTurn = session && currentPhase
@@ -273,7 +292,7 @@ export default function AwayMissionStartPanel({ session, players, instanceId, is
     setBusy(true);
     setMessage(null);
     try {
-      const reply = await startAwayMission(attempt.command);
+      const reply = await submitMissionStart(attempt.command);
       if (isStaleReply(reply, attempt.command)) {
         if (pendingStorageKey) clearAttempt(pendingStorageKey);
         setPendingAttempt(null);
@@ -304,7 +323,7 @@ export default function AwayMissionStartPanel({ session, players, instanceId, is
     setBusy(true);
     setMessage(null);
     try {
-      const reply = await startAwayMission({ ...attempt.command, allowReplay: true });
+      const reply = await submitMissionStart({ ...attempt.command, allowReplay: true });
       if (isStaleReply(reply, attempt.command)) {
         clearAttempt(pendingStorageKey);
         setPendingAttempt(null);

@@ -69,9 +69,9 @@ it('renders prepared review data and submits through the injected local command 
   });
   const preparedReceipt = {
     type: 'away-mission-start-snapshot', sessionId: 's1',
-    opportunityId: opportunity.id, missionId: `mission-${opportunity.id}`,
-    groupId: 'fleet-1', chart: 'A', coordinate: '5143', siteCode: 'L',
-    sourceShipId: 'starlight', sourceTransitionId: 'jump-entry-1', sourceCycle: 2,
+    opportunityId: 'arrival-fleet-1-A-4000', missionId: 'mission-arrival-fleet-1-A-4000',
+    groupId: 'fleet-1', chart: 'A', coordinate: '4000', siteCode: 'L',
+    sourceShipId: 'starlight', sourceTransitionId: 'jump-entry-prior', sourceCycle: 1,
     missionLeader: { uid: 'alice', roleId: 'wing-commander' },
     actorUid: 'gm1', instanceId: 'bridge', requestId: 'prepared-request',
     source: {

@@ -4,7 +4,7 @@ import {
   openPrivateMissionDiscards,
 } from '@/lib/sessionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
-import type { AwayMissionHandPointer } from '@/types/game';
+import type { AwayMissionHand, AwayMissionHandPointer } from '@/types/game';
 import { normalizeCommandError } from '@/lib/commandErrors';
 
 function failureMessage(error: unknown): string {
@@ -12,18 +12,28 @@ function failureMessage(error: unknown): string {
   return normalizeCommandError(error).message;
 }
 
-function ParticipantPanel() {
+interface AwayMissionParticipantPanelProps {
+  readonly pointers?: readonly AwayMissionHandPointer[];
+  readonly hands?: readonly AwayMissionHand[];
+  readonly discardCard?: (pointer: AwayMissionHandPointer, hand: AwayMissionHand) => Promise<unknown>;
+}
+
+export function AwayMissionParticipantPanel({
+  pointers: preparedPointers,
+  hands: preparedHands,
+  discardCard,
+}: AwayMissionParticipantPanelProps = {}) {
   const pointers = useSessionStore((state) => state.awayMissionHandPointers);
   const legacyPointer = useSessionStore((state) => state.awayMissionHandPointer);
   const hands = useSessionStore((state) => state.awayMissionHands);
   const legacyHand = useSessionStore((state) => state.awayMissionHand);
   const visiblePointers = useMemo(
-    () => pointers.length > 0 ? pointers : legacyPointer ? [legacyPointer] : [],
-    [legacyPointer, pointers],
+    () => preparedPointers ?? (pointers.length > 0 ? pointers : legacyPointer ? [legacyPointer] : []),
+    [legacyPointer, pointers, preparedPointers],
   );
   const visibleHands = useMemo(
-    () => hands.length > 0 ? hands : legacyHand ? [legacyHand] : [],
-    [hands, legacyHand],
+    () => preparedHands ?? (hands.length > 0 ? hands : legacyHand ? [legacyHand] : []),
+    [hands, legacyHand, preparedHands],
   );
   const handsById = useMemo(() => new Map(visibleHands.map((hand) => [hand.handId, hand])), [visibleHands]);
   const [busyHandId, setBusyHandId] = useState<string | null>(null);
@@ -35,7 +45,8 @@ function ParticipantPanel() {
     setBusyHandId(hand.handId);
     setMessage(null);
     try {
-      await discardPrivateMissionCard(pointer.missionId, hand.cardId);
+      if (discardCard) await discardCard(pointer, hand);
+      else await discardPrivateMissionCard(pointer.missionId, hand.cardId);
     } catch (error) {
       setMessage(failureMessage(error));
     } finally {
@@ -165,5 +176,5 @@ function FacilitatorPanel() {
 
 export default function AwayMissionDiscardPanel() {
   const isGm = useSessionStore(selectIsGm);
-  return isGm ? <FacilitatorPanel /> : <ParticipantPanel />;
+  return isGm ? <FacilitatorPanel /> : <AwayMissionParticipantPanel />;
 }
