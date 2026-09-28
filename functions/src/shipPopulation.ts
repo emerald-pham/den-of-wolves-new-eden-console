@@ -79,5 +79,8 @@ export function populationChange(shipId: string, current: number, delta: -1 | 1,
 }
 
 export function acknowledgePopulationAlert(targets: readonly string[], instanceId: string): string[] {
-  return targets.filter((id) => id !== instanceId);
+  // The caller authenticates a current GM instance before using this helper.
+  // One facilitator owns the blocking consequence; other instances may have
+  // seen the alert, but cannot hold the ship after that acknowledgement.
+  return targets.includes(instanceId) ? [] : [...targets];
 }

@@ -20,7 +20,6 @@ import { isDeepStrictEqual } from 'node:util';
 import { applyVulcanAdditionalLabour, emptyTargetMaintenanceCycle, VULCAN_ADDITIONAL_LABOUR_CONSOLES, type VulcanAdditionalLabourConsole } from './vulcanLabour';
 import {
   INITIAL_SHIP_SURVIVORS,
-  acknowledgePopulationAlert,
   populationChange,
   populationForShip,
   populationTrackForShip,
@@ -23245,16 +23244,14 @@ export const dismissUnrestAlert = onCall<{
     }
     const alerts = (session.get('unrestAlerts') ?? {}) as Record<string, StoredUnrestAlert>;
     const alert = alerts[dismissal.shipId];
-    if (!alert?.targetGmInstanceIds.includes(dismissal.instanceId)) {
+    if (!alert) {
       const result = { dismissed: true, ...vesselActionEnvelope(session, player, uid,
         dismissal.shipId, currentRevision, identity.requestId, 'dismiss-unrest') };
       txSetIfSupported(tx, receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
       return result;
     }
-    const remaining = alert.targetGmInstanceIds.filter((id) => id !== dismissal.instanceId);
     const nextAlerts = { ...alerts };
-    if (remaining.length === 0) delete nextAlerts[dismissal.shipId];
-    else nextAlerts[dismissal.shipId] = { ...alert, targetGmInstanceIds: remaining };
+    delete nextAlerts[dismissal.shipId];
     const revision = currentRevision + 1;
     tx.update(sessionRef, { unrestAlerts: nextAlerts, ...vesselActionRevisionPatch(dismissal.shipId, revision), updatedAt: FieldValue.serverTimestamp() });
     const result = { dismissed: true, ...vesselActionEnvelope(session, player, uid,
@@ -24254,16 +24251,14 @@ export const dismissPopulationAlert = onCall<{
     }
     const alerts = (session.get('populationAlerts') ?? {}) as Record<string, StoredPopulationAlert>;
     const alert = alerts[dismissal.shipId];
-    if (!alert?.targetGmInstanceIds.includes(dismissal.instanceId)) {
+    if (!alert) {
       const result = { dismissed: true, ...vesselActionEnvelope(session, player, uid,
         dismissal.shipId, currentRevision, identity.requestId, 'dismiss-population') };
       txSetIfSupported(tx, receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
       return result;
     }
-    const remaining = acknowledgePopulationAlert(alert.targetGmInstanceIds, dismissal.instanceId);
     const nextAlerts = { ...alerts };
-    if (remaining.length === 0) delete nextAlerts[dismissal.shipId];
-    else nextAlerts[dismissal.shipId] = { ...alert, targetGmInstanceIds: remaining };
+    delete nextAlerts[dismissal.shipId];
     const revision = currentRevision + 1;
     tx.update(sessionRef, { populationAlerts: nextAlerts, ...vesselActionRevisionPatch(dismissal.shipId, revision), updatedAt: FieldValue.serverTimestamp() });
     const result = { dismissed: true, ...vesselActionEnvelope(session, player, uid,

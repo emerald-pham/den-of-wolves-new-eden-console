@@ -185,7 +185,7 @@ export function advanceVoyage33Maintenance(input: Voyage33MaintenanceInput): {
     cycle.chargingSkipped = roll < unrest;
     if (cycle.chargingSkipped) {
       population = Math.max(0, population - roll);
-      if (population === 0) unrest = Math.min(10, unrest + 2);
+      if (state.population > 0 && population === 0) unrest = Math.min(10, unrest + 2);
       cycle.results['3'] = `Rolled ${roll} against unrest ${unrestBefore}. Population loss ${roll}; population ${population}${population === 0 ? `; unrest ${unrest}` : ''}. Voyage 33-0 charging is skipped.`;
     } else {
       cycle.results['3'] = `Rolled ${roll} against unrest ${unrestBefore}. No population loss.`;
