@@ -444,6 +444,11 @@ function functionTargets(names) {
   return names.map((name) => `functions:${name}`).sort();
 }
 
+test('maps jump resolution changes to the production jump callable', () => {
+  const selected = selectorFor(['functions/src/jumpDrive.ts']);
+  assert.deepEqual(selectedFunctions(selected), functionTargets(['jumpShip']));
+});
+
 test('maps Command and Control helpers without relying on index changes', () => {
   const selected = selectorFor(['functions/src/wolfCommandAndControl.ts']);
   assert.equal(selected.split(',')[0], 'hosting');
