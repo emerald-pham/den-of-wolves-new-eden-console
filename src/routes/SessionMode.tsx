@@ -1,12 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { selectIsGm, useSessionStore, type ConsoleMode } from '@/store/useSessionStore';
+import {
+  selectGmAccessAuthenticated,
+  selectIsGm,
+  useSessionStore,
+  type ConsoleMode,
+} from '@/store/useSessionStore';
 import { SHIPS, SHIP_ORIGIN_LABELS, VOYAGE_33_0, type ShipOrigin } from '@/data/ships';
 import { activeFleetShipIds, rolesForShip } from '@/data/roles';
 import { DEFAULT_ACTIVE_ROLE_IDS, CONSOLE_ROLES } from '@/data/roles';
 import ShuttleConsole from '@/routes/ShuttleConsole';
 import { isJointEngineeringRoleAvailable } from '@/data/rolePresets';
-import type { GameSession, Player, Seat, Voyage33Admission } from '@/types/game';
+import type { GameSession, Player, RoleBrief, Seat, Voyage33Admission } from '@/types/game';
 import { replacementRoleFor } from '@/data/replacementRoles';
 import CandidateRevealPanel from '@/components/CandidateRevealPanel';
 
@@ -20,14 +25,22 @@ export default function SessionMode({ mode }: { mode: ConsoleMode }) {
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
   const seats = useSessionStore((state) => state.seats);
+  const roleBrief = useSessionStore((state) => state.roleBrief);
   const selectedMode = useSessionStore((state) => state.mode);
   const sessionSnapshotFreshness = useSessionStore((state) => state.sessionSnapshotFreshness);
   const isGm = useSessionStore(selectIsGm);
+  const gmAccessAuthenticated = useSessionStore(selectGmAccessAuthenticated);
+  const setMode = useSessionStore((state) => state.setMode);
+
+  useEffect(() => {
+    if (mode === 'console' && selectedMode !== 'console') setMode('console');
+  }, [mode, selectedMode, setMode]);
 
   if (!session || !me) return <Navigate to="/" replace />;
-  if (mode === 'gm' && !isGm) return <Navigate to="/roles" replace />;
-  const modeIsValid = selectedMode === mode || (mode === 'press' && selectedMode === 'console');
-  if (!modeIsValid) return <Navigate to="/roles" replace />;
+  if (mode === 'gm' && !isGm) return <Navigate to="/console" replace />;
+  const modeIsValid = mode === 'console' || selectedMode === mode ||
+    (mode === 'press' && selectedMode === 'console');
+  if (!modeIsValid) return <Navigate to="/console" replace />;
   if (mode === 'press' && session.pressEnabled === false) {
     return <Navigate to="/console" replace />;
   }
@@ -52,6 +65,11 @@ export default function SessionMode({ mode }: { mode: ConsoleMode }) {
         viewerUid={me.uid}
         activeConsoleRoleId={me.activeConsoleRoleId ?? null}
         replacementRoleId={me.replacementRoleId ?? null}
+        gmJoinAvailable={gmAccessAuthenticated && !isGm}
+        roleBrief={roleBrief &&
+          (roleBrief.roleId === me.replacementRoleId || roleBrief.roleId === me.assignedRoleId)
+          ? roleBrief
+          : null}
       />
     );
   }
@@ -63,8 +81,8 @@ export default function SessionMode({ mode }: { mode: ConsoleMode }) {
   return (
     <main className="session-mode">
       <div className="session-mode__panel cic-frame">
-        <Link className="session-mode__back cic-text-button" to="/roles">
-          Back to roles
+        <Link className="session-mode__back cic-text-button" to="/console">
+          Back to stations
         </Link>
         <p className="eyebrow">{session.name}</p>
         <h1 className="role-select__title">{MODE_LABELS[mode]} connected</h1>
@@ -94,11 +112,13 @@ export function FleetRoster({
   admittedVesselIds,
   voyage33Admission,
   isGm,
+  gmJoinAvailable = false,
   sessionSnapshotFreshness,
   seats,
   viewerUid,
   activeConsoleRoleId,
   replacementRoleId,
+  roleBrief = null,
 }: {
   session: Pick<GameSession, 'phase' | 'currentGroupCandidateReveals'>;
   player: Pick<Player, 'role' | 'fleetGroupId'>;
@@ -112,11 +132,13 @@ export function FleetRoster({
   admittedVesselIds?: readonly string[];
   voyage33Admission?: Voyage33Admission;
   isGm: boolean;
+  gmJoinAvailable?: boolean;
   sessionSnapshotFreshness: 'unknown' | 'cache' | 'server';
   seats: readonly Seat[];
   viewerUid: string;
   activeConsoleRoleId: string | null;
   replacementRoleId: string | null;
+  roleBrief?: RoleBrief | null;
 }) {
   const [query, setQuery] = useState('');
   const active = new Set(activeRoleIds);
@@ -150,12 +172,14 @@ export function FleetRoster({
   return (
     <main className="fleet-roster">
       <header className="fleet-roster__header">
-        <Link className="session-mode__back cic-text-button" to="/roles">
-          Back to roles
-        </Link>
+        {gmJoinAvailable && (
+          <Link className="session-mode__back cic-text-button" to="/roles">
+            GM join
+          </Link>
+        )}
         <p className="eyebrow">{sessionName}</p>
-        <h1 className="role-select__title">Select a role</h1>
-        <p className="role-select__lede">Choose an independent or shipboard station.</p>
+        <h1 className="role-select__title">Stations and consoles</h1>
+        <p className="role-select__lede">Choose, enter, or view a station.</p>
         <label className="fleet-roster__filter">
           Filter consoles
           <input
@@ -166,6 +190,19 @@ export function FleetRoster({
           />
         </label>
       </header>
+
+      {roleBrief && (
+        <section className="role-brief-link cic-frame" aria-label="Your private casting assignment">
+          <div>
+            <p className="eyebrow">Private assignment</p>
+            <h2>{roleBrief.roleName}</h2>
+            <p>Ship // {roleBrief.vesselName}</p>
+            <p>Device mode // Player console</p>
+            <p>Allowed route // Private role brief</p>
+          </div>
+          <Link className="cic-action-button" to="/brief">Open private brief</Link>
+        </section>
+      )}
 
       <CandidateRevealPanel session={session} player={player} sessionSnapshotFreshness={sessionSnapshotFreshness} />
 

@@ -325,28 +325,11 @@
   opacity: 1;
 }
 
-.ship-plot[data-expanded='false'] .contact-plot__tag {
-  font-size: 0.6rem;
-}
-
-.ship-plot[data-expanded='true'] .contact-plot__tag {
-  font-size: 0.75rem;
-}
-
-.ship-plot[data-expanded='true'] .contact-plot__range {
-  font-size: 0.625rem;
-}
-
 /* A phone-sized widget can show several blips, but six full names cannot fit
    around them legibly. Keep the names in the expanded reading view. */
 @media (max-width: 32rem) {
   .ship-plot[data-expanded='false'] .contact-plot__tag {
     display: none;
-  }
-
-  .ship-plot[data-expanded='true'] .contact-plot__tag,
-  .pc02-review__plot .contact-plot__tag {
-    letter-spacing: 0.08em;
   }
 }
 

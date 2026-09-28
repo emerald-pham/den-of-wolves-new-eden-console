@@ -117,14 +117,14 @@ export default function RoleBrief() {
     brief.assignmentUid !== me.uid ||
     me.replacementRoleId !== brief.roleId && me.assignedRoleId !== brief.roleId
   ) {
-    return <Navigate to="/roles" replace />;
+    return <Navigate to="/console" replace />;
   }
 
   return (
     <main className="role-brief-screen">
       <article className="role-brief cic-frame" aria-labelledby="role-brief-title">
-        <Link className="session-mode__back cic-text-button" to="/roles">
-          Back to roles
+        <Link className="session-mode__back cic-text-button" to="/console">
+          Back to stations
         </Link>
         <p className="eyebrow">{session.name} // private briefing</p>
         <p className="role-brief__eyebrow">Assigned role // {brief.vesselName}</p>
@@ -214,8 +214,8 @@ export default function RoleBrief() {
 
         {me.replacementRoleId === 'vulcan-captain' && <VulcanAdditionalLabourPanel />}
 
-        <Link className="cic-action-button role-brief__return" to="/roles">
-          Return to role selection
+        <Link className="cic-action-button role-brief__return" to="/console">
+          Return to station catalog
         </Link>
       </article>
       <FocusDialog
