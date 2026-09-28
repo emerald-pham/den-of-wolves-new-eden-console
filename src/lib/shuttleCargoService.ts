@@ -263,7 +263,9 @@ async function sendAttempt(
     if (isConfirmedServerRejection(cause)) {
       throw new ShuttleCargoTransferRejectedError(attempt, cause);
     }
-    throw cause;
+    // A failure without a recognized server rejection does not prove that the
+    // callable never committed. Keep the receipt so recovery can replay it.
+    throw new ShuttleCargoTransferUncertainError(attempt);
   }
   if (!currentAuthorityMatches(attempt.authority)) {
     throw new ShuttleCargoTransferUncertainError(
