@@ -3200,7 +3200,7 @@ async function reconcileReturningSeat(
       clearActiveConsoleRole: false, stationSelectionRequired: false,
     };
   }
-  if (seat.exists && seat.get('status') === 'open') {
+  if (seat.exists && seat.get('status') === 'open' && seat.get('holderUid') === null) {
     // Defer this write until the caller has completed every transaction read.
     // Firestore rejects a read after any write in the same transaction, and
     // resumeSession still needs to hydrate the canonical setup after this
@@ -14060,9 +14060,13 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
           ...(!releasePress && currentPressAuthority && player.get('assignedRoleId') === 'press-officer'
             ? { assignedRoleId: null } : {}),
           ...(returningSeat?.clearPointer ? { seatId: null } : {}),
+          ...(returningSeat?.clearActiveConsoleRole ? { activeConsoleRoleId: null } : {}),
         });
         const projectionPlayer = {
-          get: (field: string) => field === 'fleetGroupId' ? group.id : player.get(field),
+          get: (field: string) => field === 'fleetGroupId' ? group.id
+            : field === 'seatId' && returningSeat?.clearPointer ? null
+            : field === 'activeConsoleRoleId' && returningSeat?.clearActiveConsoleRole ? null
+            : player.get(field),
         };
         const candidateReveals = currentGroupCandidateReveals(
           sessionId, sessionDoc, storedNavigation, navigation, playerDocs, [storedGroup], uid,
@@ -14090,6 +14094,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
         return {
           seatId: returningSeat?.seatId ?? null,
+          stationSelectionRequired: returningSeat?.stationSelectionRequired === true,
           connectionGeneration,
         };
       } else {
@@ -14138,7 +14143,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
       }
       tx.update(sessionRef, { deleteAfter: null, updatedAt: FieldValue.serverTimestamp() });
       tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
-      return { seatId: null, connectionGeneration: 1 };
+      return { seatId: null, connectionGeneration: 1, stationSelectionRequired: false };
     });
     const [sessionSnap, playerSnap] = await Promise.all([sessionRef.get(), playerRef.get()]);
 
@@ -14163,6 +14168,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
       sessionSnap.get('voyage33Maintenance'), voyageAdmission, activeVesselIds,
     );
     return {
+      ...(joinResult.stationSelectionRequired ? { stationSelectionRequired: true } : {}),
       session: {
         id: sessionId,
         name: sessionSnap.get('name') as string,
