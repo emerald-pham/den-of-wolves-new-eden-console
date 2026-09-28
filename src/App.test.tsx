@@ -157,6 +157,18 @@ describe('App', () => {
     expect(screen.getByRole('link', { name: 'Back to stations' })).toHaveAttribute('href', '#/console');
   });
 
+  it('keeps an in-app return path visible while the Press route chunk opens', async () => {
+    window.location.hash = '#/press';
+    useSessionStore.getState().setIdentity(session, { ...player, role: 'player' });
+    useSessionStore.getState().setMode('console');
+
+    render(<App />);
+
+    expect(screen.getByText('Opening Press…')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Back to stations' })).toHaveAttribute('href', '#/console');
+    expect(await screen.findByRole('heading', { name: /SNN Press Shuttle/i })).toBeInTheDocument();
+  });
+
   it('returns a player from a stale station route to station selection with reselect guidance', async () => {
     window.location.hash = '#/ships/aegis/roles/admiral';
     const activeSession: GameSession = {
@@ -186,18 +198,6 @@ describe('App', () => {
     );
     expect(useSessionStore.getState().session?.id).toBe('s1');
     expect(useSessionStore.getState().me?.uid).toBe('u1');
-  });
-
-  it('keeps an in-app return path visible while the Press route chunk opens', async () => {
-    window.location.hash = '#/press';
-    useSessionStore.getState().setIdentity(session, { ...player, role: 'player' });
-    useSessionStore.getState().setMode('console');
-
-    render(<App />);
-
-    expect(screen.getByText('Opening Press…')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Back to stations' })).toHaveAttribute('href', '#/console');
-    expect(await screen.findByRole('heading', { name: /SNN Press Shuttle/i })).toBeInTheDocument();
   });
 
   it('requires a motion choice before exposing the game interface', async () => {

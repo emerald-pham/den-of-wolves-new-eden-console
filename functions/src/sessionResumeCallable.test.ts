@@ -566,6 +566,56 @@ it('rejects a kicked browser before restoring its session', async () => {
   expect(nonRateLimitSetCalls()).toEqual([]);
 });
 
+it('returns a replacement awaiting re-role to station selection without reviving historical assignment', async () => {
+  prepareResume({ status: 'open', holderUid: null }, {
+    assignedRoleId: 'admiral', replacementRoleId: null, replacementStatus: 'awaiting-re-role',
+    seatId: null, activeConsoleRoleId: null,
+  });
+
+  const response = await resumeSession.run(request('s1')) as {
+    stationSelectionRequired?: boolean;
+    player: {
+      assignedRoleId?: string | null;
+      replacementRoleId?: string | null;
+      seatId: string | null;
+      activeConsoleRoleId: string | null;
+    };
+  };
+
+  expect(response).toMatchObject({
+    stationSelectionRequired: true,
+    player: {
+      assignedRoleId: 'admiral', replacementRoleId: null,
+      seatId: null, activeConsoleRoleId: null,
+    },
+  });
+  expect(mock.update).not.toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/seats/admiral' }),
+    expect.objectContaining({ holderUid: 'u1' }),
+  );
+});
+
+it('does not reclaim a historical open seat for a replacement awaiting re-role', async () => {
+  prepareResume({ status: 'open', holderUid: null }, {
+    assignedRoleId: 'admiral', replacementRoleId: null, replacementStatus: 'awaiting-re-role',
+    seatId: 'admiral', activeConsoleRoleId: 'admiral',
+  });
+
+  const response = await resumeSession.run(request('s1')) as {
+    stationSelectionRequired?: boolean;
+    player: { seatId: string | null; activeConsoleRoleId: string | null };
+  };
+
+  expect(response).toMatchObject({
+    stationSelectionRequired: true,
+    player: { seatId: null, activeConsoleRoleId: null },
+  });
+  expect(mock.update).not.toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/seats/admiral' }),
+    expect.objectContaining({ holderUid: 'u1' }),
+  );
+});
+
 it('keeps the old seat when the returning player still holds it', async () => {
   prepareResume({ status: 'claimed', holderUid: 'u1' }, {
     assignedRoleId: 'admiral', seatId: 'admiral', replacementRoleId: 'wolf-commander',

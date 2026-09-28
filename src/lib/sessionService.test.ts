@@ -327,10 +327,12 @@ describe('connect', () => {
   });
 
   it('keeps membership, clears cached private authority, and signals role selection after server station invalidation', async () => {
+    const recoverySessionId = 'station-recovery-s1';
     const assignedPlayer = {
-      ...player, assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral', seatId: 'admiral',
+      ...player, sessionId: recoverySessionId,
+      assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral', seatId: 'admiral',
     };
-    const activeSession = { ...session, activeRoleIds: ['admiral'] };
+    const activeSession = { ...session, id: recoverySessionId, activeRoleIds: ['admiral'] };
     useSessionStore.getState().setIdentity(activeSession, assignedPlayer);
     useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
     useSessionStore.getState().setRoleBrief({
@@ -349,7 +351,7 @@ describe('connect', () => {
     await connect();
 
     expect(useSessionStore.getState()).toMatchObject({
-      session: { id: 's1' },
+      session: { id: recoverySessionId },
       me: { uid: 'u1', assignedRoleId: 'admiral', seatId: null, activeConsoleRoleId: null },
       connection: 'live',
       communicationError: {
@@ -362,16 +364,19 @@ describe('connect', () => {
   });
 
   it('does not reinterpret a transient reconnect failure as invalid station authority', async () => {
+    const transientSessionId = 'transient-resume-s1';
     const assignedPlayer = {
-      ...player, assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral', seatId: 'admiral',
+      ...player, sessionId: transientSessionId,
+      assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral', seatId: 'admiral',
     };
-    useSessionStore.getState().setIdentity(session, assignedPlayer);
+    const transientSession = { ...session, id: transientSessionId };
+    useSessionStore.getState().setIdentity(transientSession, assignedPlayer);
     useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
     const resume = Object.assign(vi.fn()
       .mockRejectedValueOnce({ code: 'functions/unavailable', message: 'temporary network outage' })
       .mockResolvedValue({
         data: {
-          session: { ...session, updatedAt: '2026-01-02T00:00:00.000Z' },
+          session: { ...transientSession, updatedAt: '2026-01-02T00:00:00.000Z' },
           player: assignedPlayer,
         },
       }), { stream: vi.fn() });
@@ -381,7 +386,7 @@ describe('connect', () => {
     await connect();
 
     expect(useSessionStore.getState()).toMatchObject({
-      session: { id: 's1' }, me: assignedPlayer, connection: 'offline',
+      session: { id: transientSessionId }, me: assignedPlayer, connection: 'offline',
       communicationError: null,
       privateLoyalty: { kind: 'wolf-agent', suspicion: 0 },
     });
@@ -389,20 +394,25 @@ describe('connect', () => {
     await connect();
 
     expect(useSessionStore.getState()).toMatchObject({
-      session: { id: 's1' }, me: assignedPlayer, connection: 'live',
+      session: { id: transientSessionId }, me: assignedPlayer, connection: 'live',
       communicationError: null,
     });
     expect(resume).toHaveBeenCalledTimes(2);
   });
 
   it('ignores a delayed station invalidation from a superseded reconnect response', async () => {
-    const currentSession = { ...session, updatedAt: '2026-01-02T00:00:00.000Z' };
+    const staleResponseSessionId = 'stale-station-response-s1';
+    const currentSession = {
+      ...session, id: staleResponseSessionId, updatedAt: '2026-01-02T00:00:00.000Z',
+    };
     const staleSession = { ...currentSession, updatedAt: '2026-01-01T00:00:00.000Z' };
     const assignedPlayer = {
-      ...player, assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral', seatId: 'admiral',
+      ...player, sessionId: staleResponseSessionId,
+      assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral', seatId: 'admiral',
     };
     useSessionStore.getState().setIdentity(currentSession, assignedPlayer);
     useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
+    expect(acceptCallableSessionAuthority(currentSession, player.uid)).toBe(true);
     vi.mocked(httpsCallable).mockReturnValue(callableReturning({
       data: {
         session: staleSession, player: { ...assignedPlayer, activeConsoleRoleId: null, seatId: null },
