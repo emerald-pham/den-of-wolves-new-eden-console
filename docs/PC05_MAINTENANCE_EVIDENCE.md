@@ -54,6 +54,23 @@ authorized gameplay evidence.
   still required. If no eligible same-ship officer exists, recovery remains
   unavailable until the facilitator has a real authorized candidate; no
   player or captain role is fabricated.
+- P136 small-craft gap: base Gorgoneion, Capybara-small, Warrior, and Vulcan
+  keep unrest in `smallShipStates.*.unrest`; Voyage 33-0 keeps it in
+  `voyage33Maintenance.unrest`. `requireSmallShipHostAuthority` and
+  `requireVoyage33MaintenanceAuthority` authorize a current player/GM through
+  the docked full-ship `hostShipId` and its `requireShipCounterAuthority`, not
+  through a small-craft captain UID; their maintenance and docking callables
+  do not enter or deny mutiny at 8. The guide's general mutiny sentence
+  includes ships, but the four base small-craft captain roles are optional
+  `replacementRoleId` assignments, never core seats or new loyalty holders;
+  Voyage 33-0 has no configured player captain role. The Captain replacement
+  catalog is in `functions/src/replacementRoles.ts` and eligibility is
+  facilitator-controlled via `setReplacementEligibility`/
+  `assignReplacementRole` in `functions/src/index.ts`.
+  A follow-up must source-route the actual command appointment for each craft,
+  add authoritative lock and GM 1–3 recovery against its state, and verify
+  host resource exceptions without inventing a player. These paths remain
+  unclosed under P136/P137, even though full-ship recovery is implemented.
 - P191: the Dione VIP card component grants one die reroll during maintenance
   unrest step 3. Existing private hand/deck ownership is authoritative;
   consumption belongs in the same transaction as the new result and cannot
@@ -69,7 +86,7 @@ authorized gameplay evidence.
 | 121 | Base small ships and Voyage 33-0 use population loss and skip charge; Voyage runtime admission/docking still depends on its own unfinished production path. |
 | 134 | One authenticated live GM now clears a blocking alert; stale/duplicate acknowledgements are idempotent. Verify concurrent GM replay and ordinary live path. |
 | 135 | Full ships already only add +2 on crossing to zero; small ship and Voyage engines now do likewise. Verify no second increment on replay or later riot. |
-| 136, 137 | Full-ship mutiny lock and explicit transactional replacement-captain recovery are implemented. Check all ship-action denial seams, small-ship exception, concurrency, and ordinary live proof. |
+| 136, 137 | Full ships: mutiny lock, direct-action denial, occupied-captain swap, sparse acting-captain appointment, and GM 1–3 recovery are implemented with focused tests. Small-craft/Voyage33 mutiny gap above and ordinary live proof remain; do not close all-ship acceptance yet. |
 | 191 | VIP reroll now consumes a private card in the same transaction as the dice result; focused replay/privacy tests and player control exist. Ordinary live proof remains. |
 
 Maintenance lane commits are candidates only. Final prompt closure requires
