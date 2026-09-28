@@ -481,6 +481,7 @@ describe('dealPrivateInitialCards', () => {
     mock.missionStartSnapshots[defaultOpportunity.id] = startWrite?.[1] as Record<string, unknown>;
     mock.set.mockClear();
     mock.create.mockClear();
+    mock.update.mockClear();
     await expect(dealPrivateInitialCards.run(request(command))).resolves.toMatchObject({ status: 'replayed' });
     expect(mock.set).not.toHaveBeenCalled();
     expect(mock.create).not.toHaveBeenCalled();
