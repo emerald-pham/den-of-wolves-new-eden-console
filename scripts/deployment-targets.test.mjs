@@ -1283,7 +1283,7 @@ test('keeps mixed known and unknown Functions helper paths fail-closed', () => {
 
 test('PC05 setup and maintenance candidate selects runtime consumers before release', () => {
   const before = '7782840d';
-  const after = 'd4f74ea5';
+  const after = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
   const files = execFileSync('git', ['diff', '--name-only', `${before}..${after}`], {
     encoding: 'utf8',
   }).trim().split('\n');
@@ -1295,4 +1295,34 @@ test('PC05 setup and maintenance candidate selects runtime consumers before rele
   ]) {
     assert.ok(selected.split(',').includes(`functions:${name}`), `${name} must receive the PC05 contract`);
   }
+});
+
+
+test('maps every reviewed mutiny authority consumer in isolation', () => {
+  const selected = selectorFor(['functions/src/mutiny.ts']);
+  for (const name of ['getAegisCommandAndControl', 'applyAegisCommandAndControl',
+    'getDioneMaliadesLaunch', 'launchDioneMaliades', 'getPdfEscortWingLaunch',
+    'launchPdfEscortWing', 'runHighwallMining', 'requestScout',
+    'rollHummingbirdHarvest', 'allocateHummingbirdHarvest']) {
+    assert.ok(selected.split(',').includes(`functions:${name}`), name);
+  }
+});
+
+test('maps factory-created setup consumers in isolation', () => {
+  const selected = selectorFor(['functions/src/gameSetup.ts']);
+  for (const name of ['resolvePendingScoutRequest', 'parkShuttlesAtAirspaceClosure']) {
+    assert.ok(selected.split(',').includes(`functions:${name}`), name);
+  }
+});
+
+test('maps only the additive reconnect taxonomy change and rejects unrelated error changes', () => {
+  const source = readFileSync('functions/src/commandErrors.ts', 'utf8');
+  const addition = "  'station-selection-required',\n";
+  const select = (afterSource) => deploymentSelector({
+    before: 'before', after: 'after', files: ['functions/src/commandErrors.ts'],
+    targets: ['functions'], isAncestor: () => false,
+    sourceAtRevision: (revision) => revision === 'before' ? source.replace(addition, '') : afterSource,
+  });
+  assert.deepEqual(selectedFunctions(select(source)), functionTargets(['joinSession', 'resumeSession', 'refreshPresence']));
+  assert.throws(() => select(source + '// unrelated runtime edit\n'), /Cannot safely map command error changes/);
 });
