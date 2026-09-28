@@ -149,6 +149,50 @@ it('does not show a private assignment card for an unassigned or mismatched proj
   expect(screen.queryByText('Private mission orders.')).not.toBeInTheDocument();
 });
 
+it('withholds a stale same-role assignment projected for another player', () => {
+  const me = useSessionStore.getState().me!;
+  useSessionStore.getState().setMe({ ...me, role: 'player', assignedRoleId: 'admiral' });
+  useSessionStore.getState().setRoleBrief({
+    assignmentUid: 'u2', roleId: 'admiral', roleName: 'Stale Admiral',
+    vesselName: 'AEGIS', text: 'Orders for another player.', commonRules: 'Private rules.',
+    ownedCraftIds: ['fighter-wing-alpha'], setupRevision: 1,
+  });
+
+  render(
+    <MemoryRouter initialEntries={['/console']}>
+      <Routes><Route path="/console" element={<SessionMode mode="console" />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.queryByRole('region', { name: 'Your private casting assignment' }))
+    .not.toBeInTheDocument();
+  expect(screen.queryByText('Stale Admiral')).not.toBeInTheDocument();
+  expect(screen.queryByText('Orders for another player.')).not.toBeInTheDocument();
+});
+
+it('withholds an assignment when the cached member identity belongs to another session', () => {
+  const me = useSessionStore.getState().me!;
+  useSessionStore.getState().setMe({
+    ...me, sessionId: 's2', role: 'player', assignedRoleId: 'admiral',
+  });
+  useSessionStore.getState().setRoleBrief({
+    assignmentUid: 'u1', roleId: 'admiral', roleName: 'Stale-session Admiral',
+    vesselName: 'AEGIS', text: 'Orders from a previous session.', commonRules: 'Private rules.',
+    ownedCraftIds: ['fighter-wing-alpha'], setupRevision: 1,
+  });
+
+  render(
+    <MemoryRouter initialEntries={['/console']}>
+      <Routes><Route path="/console" element={<SessionMode mode="console" />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.queryByRole('region', { name: 'Your private casting assignment' }))
+    .not.toBeInTheDocument();
+  expect(screen.queryByText('Stale-session Admiral')).not.toBeInTheDocument();
+  expect(screen.queryByText('Orders from a previous session.')).not.toBeInTheDocument();
+});
+
 it('shows candidate discoveries to fresh members of the current group on the role roster', () => {
   const candidateView = {
     groupId: 'fleet-1', revision: 4,
@@ -525,8 +569,9 @@ it('groups every ship role by its world of origin without exposing ship actions'
   expect(screen.getByText(/main protector of the survivor fleet/i)).toBeInTheDocument();
   expect(screen.getByText(/produces food for the fleet/i)).toBeInTheDocument();
   expect(screen.getByText(/provides strytium fuel/i)).toBeInTheDocument();
-  expect(screen.getByRole('link', { name: /join aegis/i }))
+  expect(screen.getByRole('link', { name: /view aegis station overview/i }))
     .toHaveAttribute('href', '/ships/aegis/roles');
+  expect(screen.queryByRole('link', { name: /join aegis ship/i })).not.toBeInTheDocument();
   expect(screen.getByRole('img', { name: /interstellar council service navy flag/i }))
     .toHaveAttribute('data-shared-flag', 'aegis');
 });
@@ -544,7 +589,7 @@ it('sends every staffed ship through its role picker', async () => {
     </MemoryRouter>,
   );
 
-  await user.click(screen.getByRole('link', { name: /join capybara/i }));
+  await user.click(screen.getByRole('link', { name: /view capybara station overview/i }));
 
   expect(screen.getByText('Ship roles')).toBeInTheDocument();
   expect(useSessionStore.getState().mode).toBe('console');

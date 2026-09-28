@@ -18,7 +18,7 @@ vi.mock('@/lib/firestore', () => ({
   subscribeGmInstances: vi.fn(),
 }));
 
-const { claimGmInstance, setGmControlsLocked, claimSeat, releaseSeat, disconnectFromSession } = await import('@/lib/sessionService');
+const { claimGmInstance, setGmControlsLocked, releaseSeat, disconnectFromSession } = await import('@/lib/sessionService');
 const { subscribeGmInstances } = await import('@/lib/firestore');
 
 const session: GameSession = {
@@ -247,8 +247,7 @@ describe('RoleSelect', () => {
     expect(claimGmInstance).toHaveBeenCalledWith('Second bridge');
   });
 
-  it('shows accessible stable core stations with claim/release beside each state', async () => {
-    const user = userEvent.setup();
+  it('keeps ordinary core station claims and releases in the station catalog', () => {
     useSessionStore.getState().setSession({
       ...session,
       activeRoleIds: ['admiral', 'refinery-124-pdf-colonel', 'press-officer'],
@@ -272,37 +271,17 @@ describe('RoleSelect', () => {
         factionId: 'press', claimedAt: null,
       },
     ]);
-    vi.mocked(claimSeat).mockImplementation(async (seatId) => {
-      useSessionStore.getState().setSeats(useSessionStore.getState().seats.map((seat) =>
-        seat.id === seatId ? { ...seat, status: 'claimed', holderUid: 'gm1' } : seat));
-      return 'applied';
-    });
-    vi.mocked(releaseSeat).mockImplementation(async (seatId) => {
-      useSessionStore.getState().setSeats(useSessionStore.getState().seats.map((seat) =>
-        seat.id === seatId ? { ...seat, status: 'open', holderUid: null } : seat));
-      return 'applied';
-    });
     renderRoute();
 
-    expect(screen.getByRole('status', { name: 'Seat status' }))
-      .toHaveTextContent('SEAT CHANGES COMMIT THROUGH THE CIC.');
-    expect(screen.getByText('AEGIS // Admiral')).toBeInTheDocument();
-    expect(screen.getByText('Refinery 124 // P.D.F. Colonel')).toBeInTheDocument();
-    expect(screen.queryByText('SNN // Press Officer')).not.toBeInTheDocument();
-    const claim = screen.getByRole('button', { name: 'CLAIM STATION // AEGIS // Admiral' });
-    expect(claim).toHaveAttribute('type', 'button');
-    expect(claim).toHaveClass('cic-action-button');
-
-    await user.click(claim);
-    expect(claimSeat).toHaveBeenCalledWith('admiral');
-    expect(await screen.findByRole('button', { name: 'RELEASE STATION // AEGIS // Admiral' }))
-      .toBeVisible();
-    await user.click(screen.getByRole('button', { name: 'RELEASE STATION // AEGIS // Admiral' }));
-    expect(releaseSeat).toHaveBeenCalledWith('admiral');
+    expect(screen.getByRole('heading', { name: /^role select$/i })).toBeVisible();
+    expect(screen.getByRole('button', { name: /open station catalog/i })).toBeVisible();
+    expect(screen.queryByRole('region', { name: 'Core station seats' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /claim station/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /release station/i })).not.toBeInTheDocument();
+    expect(releaseSeat).not.toHaveBeenCalled();
   });
 
-  it('hides core seat claims from a GM but preserves legacy own-seat release', async () => {
-    const user = userEvent.setup();
+  it('does not offer core-seat claim or release controls to an active GM on Role Select', () => {
     useSessionStore.getState().setSession({
       ...session,
       activeRoleIds: ['admiral', 'seat-1'],
@@ -327,9 +306,7 @@ describe('RoleSelect', () => {
     renderRoute();
 
     expect(screen.queryByRole('button', { name: /claim station/i })).not.toBeInTheDocument();
-    const release = screen.getByRole('button', { name: /release station.*seat 1/i });
-    await user.click(release);
-    expect(releaseSeat).toHaveBeenCalledWith('seat-1');
+    expect(screen.queryByRole('button', { name: /release station/i })).not.toBeInTheDocument();
   });
 
   it('gives an active GM an accessible reasoned intervention for a stale occupied seat', async () => {

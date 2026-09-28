@@ -270,10 +270,27 @@ async function startServer(root) {
       server: { host: '127.0.0.1', port: 0, strictPort: false },
       logLevel: 'silent',
     });
+    const resolvedRoot = await realpath(root);
+    const expectedConfigFile = resolve(resolvedRoot, 'vite.config.ts');
+    assert.equal(
+      await realpath(server.config.root),
+      resolvedRoot,
+      `Vite resolved ${server.config.root} instead of the requested reference root ${resolvedRoot}`,
+    );
+    assert.equal(
+      await realpath(server.config.configFile),
+      expectedConfigFile,
+      `Vite resolved ${server.config.configFile} instead of the root-owned config ${expectedConfigFile}`,
+    );
     await server.listen();
     const address = server.httpServer?.address();
     assert.ok(address && typeof address !== 'string', `Vite did not open for ${root}`);
-    return { server, url: `http://127.0.0.1:${address.port}`, cacheDir };
+    return {
+      server,
+      url: `http://127.0.0.1:${address.port}`,
+      cacheDir,
+      resolvedConfig: { root: resolvedRoot, configFile: expectedConfigFile },
+    };
   } catch (error) {
     await server?.close();
     await rm(cacheDir, { recursive: true, force: true });
@@ -568,7 +585,12 @@ try {
   const pc01Comparison = comparePc01(candidate, pc01);
 
   const report = {
-    reference: { sha: PC01_SHA, source: 'git archive from the exact PC01 commit' },
+    reference: {
+      sha: PC01_SHA,
+      source: 'git archive from the exact PC01 commit',
+      root: pc01Server.resolvedConfig.root,
+      configFile: pc01Server.resolvedConfig.configFile,
+    },
     candidate,
     pc01,
     pc01Comparison,

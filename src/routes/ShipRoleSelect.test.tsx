@@ -34,6 +34,8 @@ it('offers the three AEGIS command roles with the ship flag and no repeated cons
   expect(screen.getByRole('link', { name: /^admiral$/i })).toBeInTheDocument();
   expect(screen.getByRole('link', { name: /^executive officer$/i })).toBeInTheDocument();
   expect(screen.getByRole('link', { name: /^wing commander$/i })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: /aegis \/\/ station overview/i })).toBeVisible();
+  expect(screen.getByText(/viewing this overview does not enter a station/i)).toBeVisible();
   expect(screen.queryByText(/wolf/i)).not.toBeInTheDocument();
   expect(screen.getByRole('img', { name: /interstellar council service navy flag/i })).toBeInTheDocument();
   expect(screen.getByRole('img', { name: /interstellar council service navy flag/i }))
@@ -42,6 +44,31 @@ it('offers the three AEGIS command roles with the ship flag and no repeated cons
 
   await user.click(screen.getByRole('link', { name: /^executive officer$/i }));
   expect(screen.getByText('AEGIS console')).toBeInTheDocument();
+});
+
+it('shows live station occupancy and preserves direct station entry and read-only links', () => {
+  useSessionStore.getState().setSeats([
+    {
+      id: 'admiral', sessionId: 's1', roleId: 'admiral', label: 'AEGIS // Admiral',
+      status: 'claimed', holderUid: 'another-player', factionId: 'aegis', claimedAt: 'now',
+    },
+    {
+      id: 'executive-officer', sessionId: 's1', roleId: 'executive-officer',
+      label: 'AEGIS // Executive Officer', status: 'open', holderUid: null,
+      factionId: 'aegis', claimedAt: null,
+    },
+  ]);
+
+  render(
+    <MemoryRouter initialEntries={['/ships/aegis/roles']}>
+      <Routes><Route path="/ships/:shipId/roles" element={<ShipRoleSelect />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('link', { name: /admiral.*claimed.*read-only/i }))
+    .toHaveAttribute('href', '/ships/aegis/roles/admiral');
+  expect(screen.getByRole('link', { name: /executive officer.*open/i }))
+    .toHaveAttribute('href', '/ships/aegis/roles/executive-officer');
 });
 
 it('returns to the fleet roster through a visible control', async () => {
