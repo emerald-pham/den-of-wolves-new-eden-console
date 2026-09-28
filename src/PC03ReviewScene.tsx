@@ -1,4 +1,4 @@
-import { useState, type ComponentProps, type ComponentType } from 'react';
+import { useState } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import FleetRoleConsoleTemplate from '@/components/FleetRoleConsoleTemplate';
 import JumpDriveConsole from '@/components/JumpDriveConsole';
@@ -12,9 +12,6 @@ import philia from '@/data/vessels/philia';
 import type { ShipNavigationLogEntry } from '@/types/game';
 import './PC03ReviewScene.css';
 
-type JumpDrivePresentationProps = ComponentProps<typeof JumpDriveConsole> & { readonly presentationOnly: true };
-const JumpDrivePresentation = JumpDriveConsole as ComponentType<JumpDrivePresentationProps>;
-
 type ShuttlePreviewOperation = {
   readonly actionLabel: string;
   readonly status: 'pending' | 'stale' | 'committed' | 'unavailable';
@@ -27,9 +24,6 @@ type ShuttlePreviewSnapshot = {
   readonly cargo?: ShuttlePreviewOperation;
   readonly service?: ShuttlePreviewOperation;
 };
-type ShuttleTemplatePreviewProps = ComponentProps<typeof ShuttleConsoleTemplate> & { readonly controlPreview: ShuttlePreviewSnapshot };
-const ShuttleTemplatePreview = ShuttleConsoleTemplate as ComponentType<ShuttleTemplatePreviewProps>;
-
 type Step = 'chart' | 'drive' | 'shuttle' | 'stores' | 'recovery';
 type StationPage = 'systems' | 'navigation';
 type DriveState = 'ready' | 'uncharged' | 'fuel-starved' | 'damaged' | 'integrity-locked' | 'pending' | 'committed' | 'stale';
@@ -182,7 +176,7 @@ function DrivePreview({ state, onStateChange }: {
     </div>
     <p role="status" aria-label="Prepared drive outcome">{selected.readout}</p>
     <section className="pc03-review__drive-control" role="region" aria-label="Jump Drive sample control">
-      <JumpDrivePresentation
+      <JumpDriveConsole
         shipId={aegis.id}
         shipName={aegis.name}
         currentCoordinate={SAMPLE_CURRENT_COORDINATE}
@@ -227,7 +221,7 @@ function ShuttlePreview({ state, onStateChange, onReturn }: {
     <section className="pc03-review__shuttle" role="region" aria-label="Black Sheep shuttle console preview">
       <p className="cic-overline">SAMPLE ONLY // NO SHUTTLE ACTION</p>
       <button className="cic-text-button" type="button" onClick={onReturn}>Return to owning station</button>
-      <ShuttleTemplatePreview
+      <ShuttleConsoleTemplate
         shuttle={blackSheep}
         captainName="Shepherd Engineer"
         canLeave={false}
