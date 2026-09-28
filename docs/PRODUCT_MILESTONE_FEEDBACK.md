@@ -70,3 +70,25 @@ mandatory CI/deployment gate.
 | PC03-F03 | The default Red Alert copy must be exactly “RED ALERT // WOLF ATTACK IMMINENT ALL HANDS TO BATTLE STATIONS. NON-CREW MUST SHELTER IN PLACE UNTIL ALERT LIFTED”. | Included in PC04 cooldown target. | Authoritative default/restore path, ticker/alert tests, and released in-app verification pending. | PC04 planned. |
 | PC03-F04 | The app-wide and DRADIS font regression since the end of PC01 is unacceptable and must be repaired by the end of PC04. PC01 looked correct but may contain outliers; the intended CIC typography controls. Typography must be a mandatory CI/deployment gate that cannot be bypassed again. | Included in PC04 cooldown target and release gate. | Compare PC01 exact release `4e8e3876108709f2a620c4f71ea874183d3db4ee` with the PC04 candidate, resolve any outlier against the documented CIC tokens, and gate representative rendered/computed styles at required viewports on every player-facing deployment. | PC04 planned. |
 | PC03-F05 | Automate every facilitator procedure that can be automated. The ultimate design target is one facilitator making only required choices, with automated facilitator actions and outcomes sent to the GM log. | Encoded as an app-wide product requirement and applied to PC04 mission/split work. | Automatic paths must own deterministic calculation and state changes, emit a complete server-owned GM-log receipt, and pause only for genuine choices, rulings, or interventions. Focused behavior, authority, replay, and log tests plus released in-app verification pending. | PC04 planned. |
+
+## PC04 — Exploration and split-fleet map
+
+**Authorization state (2026-09-28): accepted.** The owner explicitly authorized
+PC04 and confirmed through the standing checkpoint policy that authorization is
+sufficient without walkthrough answers or written UI feedback. Build 0.5.54
+from `0ba386f50689b375153ceee3b2eb11a9ecd19435` is released, [deploy workflow
+36466514603](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/36466514603)
+passed, the public build marker reports 0.5.54, and the five-step [solo review
+scene](https://dow-new-eden-console.web.app/pc04-review) is live. PC03-F01
+through PC03-F05 shipped in this checkpoint. Their earlier table remains as the
+received pre-release record; the [PC04 report](PC04_PLAYTEST_REPORT.md) contains
+the final evidence and the still-open ordinary-gameplay boundaries. Optional
+later UI feedback remains welcome and follows the ordinary cooldown process.
+
+| Note ID | PC04 release disposition | Released evidence |
+|---|---|---|
+| PC03-F01 | Fixed in PC04 cooldown. | Ordinary players use the early station/console catalog; Role Select is reserved for authenticated GM joining. Route, claim/race, occupancy, Back/deep-link, responsive review, and hosted review checks passed. |
+| PC03-F02 | Fixed in PC04 cooldown. | Current generic interface copy uses “console”; the visible-copy audit preserves genuine data tables, physical-table language, historical notes, and the printed Battle Table proper name. |
+| PC03-F03 | Fixed in PC04 cooldown. | Client, callable, restore, alert, and ticker coverage asserts the exact owner-supplied default, and the exact-SHA ticker browser gates passed. |
+| PC03-F04 | Fixed in PC04 cooldown and retained as a mandatory release gate. | 61 font-contract checks and a 56-case rendered comparison against exact PC01 release `4e8e3876108709f2a620c4f71ea874183d3db4ee` passed; workflow 36466514603 ran the non-bypassable computed-style gate before deployment. |
+| PC03-F05 | Encoded app-wide and applied to the released mission-start slice. | The server owns the deterministic mission snapshot, initial deal, replay/recovery, and complete GM-log receipt; the GM records only the team-selected roster and leader. Ordinary authorized gameplay remains an agent-owned evidence gap. |

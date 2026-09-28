@@ -629,18 +629,20 @@ build/review access, a complete test-change inventory, and open questions.
 
 ## PC04 shape — Exploration and split-fleet map
 
-**State (2026-09-28).** PC03 build 0.5.53 is released and explicitly accepted.
-The owner supplied five post-acceptance corrections, PC03-F01 through
-PC03-F05, and authorized PC04 work to begin. They are fixed requirements of
-this checkpoint: an early unified station/console entry flow with GM-only Role
-Select, current player-facing “table” copy changed to “console”, the exact new
-default Red Alert message, and restoration of the end-of-PC01 rendered
-typography across DRADIS and the app, with typography enforced as a mandatory
-CI/deployment gate. PC01 is the strongest known-good comparison, but the
-documented CIC contract controls any outlier. PC03-F05 also makes
-automation-first, one-facilitator operation an app-wide design rule. Ordinary authorized gameplay proof still
-remains distinct from this shape, local tests, a synthetic scene, and
-deployment.
+**State (2026-09-28).** PC04 build 0.5.54 is released from exact main commit
+`0ba386f50689b375153ceee3b2eb11a9ecd19435` and accepted by the owner's explicit
+PC04 authorization. The optional five-view [solo review scene](https://dow-new-eden-console.web.app/pc04-review)
+is live. The release includes the early unified station/console entry flow with
+GM-only Role Select, current player-facing “table” copy changed to “console”,
+the exact new default Red Alert message, restored CIC typography across DRADIS
+and the app, and a mandatory exact-SHA rendered typography deployment gate.
+PC01 remains the strongest known-good comparison, while the documented CIC
+contract controls any outlier. Automation-first, one-facilitator operation is
+now an app-wide design rule. Ordinary authorized gameplay proof remains
+distinct from owner acceptance, local tests, the synthetic scene, and the
+successful deployment; affected gameplay prompts stay partial or held until
+that evidence exists. See the [PC04 report](PC04_PLAYTEST_REPORT.md) for the
+complete release and evidence boundary.
 
 **Prior guidance disposition.** The ten PC01 guidance items shipped in PC02
 and retain the open production-play gaps reported there. No later PC02 note is

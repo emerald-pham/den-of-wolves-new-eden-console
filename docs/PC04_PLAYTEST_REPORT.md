@@ -1,10 +1,12 @@
 # PC04 playtest report — exploration and split-fleet map
 
-**State:** PC04 is in progress and has not been released. The local review
-scene and any passing tests remain candidate evidence until the reconciled
-runtime commit passes the required independent review, exact-SHA gates,
-deployment, and hosted verification. Ordinary authorized gameplay is a
-separate boundary.
+**State:** PC04 build 0.5.54 is released from exact main commit
+`0ba386f50689b375153ceee3b2eb11a9ecd19435`. The owner explicitly authorized
+PC04 on 2026-09-28; under the checkpoint policy, that authorization accepts the
+checkpoint without requiring walkthrough answers or written feedback. The
+review scene, local tests, CI, deployment, and hosted checks are complete.
+Ordinary authorized gameplay remains a separate, unproven boundary, so the
+affected gameplay prompts retain their truthful partial or held states.
 
 ## Rule decisions and evidence to review first
 
@@ -31,9 +33,8 @@ separate boundary.
 
 ## One-sitting owner UI walkthrough
 
-The hosted PC04 review link will be added after the exact release is deployed.
-The five numbered views use prepared states and must not submit production
-mutations.
+The [hosted PC04 review](https://dow-new-eden-console.web.app/pc04-review) uses
+five prepared views and must not submit production mutations.
 
 1. **Enter once — yes/no:** After joining, can I use one early catalog to find
    my assigned or open station, see live occupancy, enter or view its console,
@@ -73,7 +74,7 @@ A synthetic review scene proves presentation only. It cannot prove server
 authority, privacy, a committed mutation, replay safety, or a complete live
 mission or split/rejoin playthrough.
 
-## Candidate behavior and verification
+## Released behavior and verification
 
 | Area | Required candidate behavior | Required evidence |
 |---|---|---|
@@ -171,29 +172,40 @@ No test is skipped or deleted for PC04.
 Independent exact-head review cleared the entry/typography candidate
 `027a6b26a55a3039f0cf58a25a77767cf25f9d2c` after its legacy-GM repair and the
 mission-start candidate `8e16673c35dbdb8f12396aec6d808a35c7c48b55` after its
-cycle, carrier, participant, context, and replay repairs. Final review of the
-reconciled release commit remains required.
+cycle, carrier, participant, context, and replay repairs. Final Sol review of
+clean release commit `0ba386f50689b375153ceee3b2eb11a9ecd19435` passed after
+repairing the two findings from the first pass: the landing page no longer
+requests the protected mission-discard chunk, and the Press loading state has
+a keyboard-operable route back to stations. Chromium evidence records zero
+protected-chunk requests on landing and one for an entitled mission state.
 
 ## Review, release, and hosted evidence
 
-Local owner evidence is currently green for 5,880 unit/Functions tests, all 141
-Firestore Rules tests, both builds, typecheck, lint with no errors, bundle and
+Local owner evidence is green for 5,880 unit/Functions tests, all 141 Firestore
+Rules tests, both builds, typecheck, lint with no errors, bundle and
 documentation/catalog checks, 61 source/rendered font-contract cases, the
-56-case exact-PC01 typography comparison, the complete ticker lifecycle, and
-the responsive production-component review scene. This section remains open
-until the repaired exact commit passes final independent Sol review,
-coordinated validation, CI, deployment, hosted version verification, and the
-attempted ordinary authorized gameplay checks. No push, merge, deployment,
-hosted verification, or ordinary live gameplay is claimed yet.
+56-case exact-PC01 typography comparison, the complete ticker lifecycle, the
+fixed P637 performance budgets, and the responsive production-component review
+scene. Exact-commit Sol review and the full coordinated validation passed at
+`0ba386f50689b375153ceee3b2eb11a9ecd19435`.
 
-## Authorized post-release documentation audit
+[Deploy workflow 36466514603](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/36466514603)
+passed its exact-SHA verification lanes, including the mandatory computed-style
+typography gate, then deployed Hosting, Firestore, and 129 audited named
+Functions. The workflow captured pre-deploy Function revisions, completed the
+updates, and reported `Deployment verification passed`. An independent hosted
+check returned `{"version":"0.5.54"}`, and the hosted PC04 review route loads.
+No ordinary authorized GM and participant mission-start or complete
+split/rejoin playthrough was performed. The synthetic review scene and seeded
+browser mission state do not replace that evidence.
 
-The owner explicitly authorized a documentation audit and potential cleanup
-after PC04 is released. At that boundary, inspect the implementation-prompt
-catalog and generated views, product milestone and playtest records, release
-and deployment claims, cross-links, superseded guidance, duplicate material,
-and completed-work artifacts. Correct stale or contradictory current guidance,
-regenerate and validate derived documentation, and remove only exact items
-verified as redundant or terminal. Preserve primary/source records, historical
-release evidence, active worktrees, unique commits, user data, and anything
-whose ownership or recovery value is uncertain.
+## Post-release documentation audit
+
+The authorized audit reconciled this report, the PC04 milestone state,
+authorization/feedback record, PC04-A1 assumption state, and Prompt 401 catalog
+evidence with the exact release. Generated roadmap views were regenerated from
+the JSON authority and validated. Historical candidate notes and source records
+were retained because they explain the repair and evidence trail; no primary
+record was deleted merely because the checkpoint shipped. Prompt 401 remains
+partial, and the other held PC04 work remains held, because deployment and a
+synthetic review do not prove ordinary authorized gameplay.
