@@ -51,6 +51,11 @@ on:
         required: false
         default: false
         type: boolean
+      typography_required:
+        description: Run rendered computed-style typography verification for the exact release commit.
+        required: false
+        default: false
+        type: boolean
       render_required:
         description: Run the sustained-render benchmark for an affected release range.
         required: false
@@ -109,6 +114,7 @@ jobs:
           DEPLOYMENT_TARGETS: ${{ inputs.deployment_targets || '' }}
           TICKER_REQUIRED: ${{ inputs.ticker_required || false }}
           FONT_REQUIRED: ${{ inputs.font_required || false }}
+          TYPOGRAPHY_REQUIRED: ${{ inputs.typography_required || false }}
           RENDER_REQUIRED: ${{ inputs.render_required || false }}
           UNIT_REQUIRED: ${{ inputs.unit_required || false }}
           WEB_BUILD_REQUIRED: ${{ inputs.web_build_required || false }}
@@ -122,9 +128,16 @@ jobs:
             [[ ",$DEPLOYMENT_TARGETS," == *,hosting,* ]] && has_hosting=true
             [[ ",$DEPLOYMENT_TARGETS," == *,functions,* ]] && has_functions=true
             [[ ",$DEPLOYMENT_TARGETS," == *,firestore,* ]] && has_firestore=true
+            run_font=$FONT_REQUIRED
+            run_typography=$TYPOGRAPHY_REQUIRED
+            if [ "$has_hosting" = "true" ]; then
+              run_font=true
+              run_typography=true
+            fi
             # A Hosting release always builds its deployable artifact. Other web
             # checks follow the classifier so server-only releases do not rerun
-            # unrelated unit or bundle gates.
+            # unrelated unit or bundle gates. Hosting cannot opt out of either
+            # typography gate at the exact commit used for deployment.
             run_unit=$UNIT_REQUIRED
             run_web_build=$has_hosting
             run_bundle=$BUNDLE_REQUIRED
@@ -139,7 +152,8 @@ jobs:
             echo "firestore=$has_firestore" >> "$GITHUB_OUTPUT"
             echo "web_build=$run_web_build" >> "$GITHUB_OUTPUT"
             echo "ticker=$TICKER_REQUIRED" >> "$GITHUB_OUTPUT"
-            echo "font=$FONT_REQUIRED" >> "$GITHUB_OUTPUT"
+            echo "font=$run_font" >> "$GITHUB_OUTPUT"
+            echo "typography=$run_typography" >> "$GITHUB_OUTPUT"
             echo "render=$RENDER_REQUIRED" >> "$GITHUB_OUTPUT"
             echo "bundle=$run_bundle" >> "$GITHUB_OUTPUT"
           else
@@ -152,6 +166,9 @@ jobs:
             node scripts/risk-gates.mjs --files-file "$changed_paths_file" >> "$GITHUB_OUTPUT"
           fi
           echo "exact_head_commit=$EXACT_HEAD_COMMIT" >> "$GITHUB_OUTPUT"
+
+      - name: Typography release-gate contract
+        run: npm run test:typography:release-gate
 
       - name: Check prompt catalog and generated views
         if: steps.change_scope.outputs.roadmap_changed == 'true'
@@ -199,8 +216,25 @@ jobs:
         if: steps.change_scope.outputs.font == 'true'
         run: npm run test:font-consistency
 
+      - name: Install rendered typography browser
+        if: steps.change_scope.outputs.typography == 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Computed-style typography gate
+        if: steps.change_scope.outputs.typography == 'true'
+        run: npm run test:typography:browser
+
+      - name: Upload rendered typography evidence
+        if: always() && steps.change_scope.outputs.typography == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: computed-style-typography
+          path: /tmp/pc04-typography
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Install ticker smoke browser
-        if: (steps.change_scope.outputs.ticker == 'true' || steps.change_scope.outputs.render == 'true') && steps.change_scope.outputs.exact_head_commit != 'true'
+        if: (steps.change_scope.outputs.ticker == 'true' || steps.change_scope.outputs.render == 'true') && steps.change_scope.outputs.typography != 'true' && steps.change_scope.outputs.exact_head_commit != 'true'
         run: npx playwright install --with-deps chromium
 
       - name: Browser ticker smoke

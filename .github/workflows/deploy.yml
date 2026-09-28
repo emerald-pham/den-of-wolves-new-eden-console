@@ -108,6 +108,7 @@ jobs:
       deployment_targets: ${{ needs.determine-targets.outputs.targets }}
       ticker_required: ${{ needs.determine-targets.outputs.ticker_required == 'true' }}
       font_required: ${{ needs.determine-targets.outputs.font_required == 'true' }}
+      typography_required: ${{ contains(needs.determine-targets.outputs.targets, 'hosting') }}
       render_required: ${{ needs.determine-targets.outputs.render_required == 'true' }}
       unit_required: ${{ needs.determine-targets.outputs.unit_required == 'true' }}
       web_build_required: ${{ needs.determine-targets.outputs.web_build_required == 'true' }}

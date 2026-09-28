@@ -84,6 +84,7 @@ export function classifyRiskGates(files, { manual = false, versionMetadataOnly =
       webBuild: true,
       ticker: true,
       font: true,
+      typography: true,
       render: true,
       bundle: true,
     };
@@ -132,6 +133,7 @@ export function classifyRiskGates(files, { manual = false, versionMetadataOnly =
     webBuild: web || render || failClosed,
     ticker,
     font,
+    typography: font,
     render,
     bundle: riskWeb || failClosed,
   };
