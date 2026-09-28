@@ -626,3 +626,163 @@ and separately attempt ordinary authorized play. Report every unproven live
 path and held decision without treating the solo scene as gameplay proof.
 The direct handoff lists new assumptions first, the five UI checks, exact
 build/review access, a complete test-change inventory, and open questions.
+
+## PC04 shape — Exploration and split-fleet map
+
+**State (2026-09-28).** PC03 build 0.5.53 is released and explicitly accepted.
+The owner supplied four post-acceptance corrections, PC03-F01 through
+PC03-F04, and authorized PC04 work to begin. They are fixed requirements of
+this checkpoint: an early unified station/console entry flow with GM-only Role
+Select, current player-facing “table” copy changed to “console”, the exact new
+default Red Alert message, and restoration of the end-of-PC01 rendered
+typography across DRADIS and the app. Ordinary authorized gameplay proof still
+remains distinct from this shape, local tests, a synthetic scene, and
+deployment.
+
+**Prior guidance disposition.** The ten PC01 guidance items shipped in PC02
+and retain the open production-play gaps reported there. No later PC02 note is
+available. The four new PC03 notes are all adopted into PC04 rather than
+routed to later candidates:
+
+| Owner note | PC04 disposition |
+|---|---|
+| PC03-F01 — one early station/console entry screen; Role Select only for GM join | Cooldown requirement and first owner check. Preserve first-entry server claim, occupancy, read-only viewing, Press's distinct station, deep links, and Back behavior. |
+| PC03-F02 — “console”, not “table”, in current app-wide copy | Cooldown requirement. Audit visible current UI and accessibility copy; preserve internal protocol names, historical changelog text, source citations, actual HTML/data tables, and printed proper names whose mechanics still require separate product treatment. |
+| PC03-F03 — exact default Red Alert message | Cooldown requirement. Use the supplied sentence verbatim in the authoritative default and restore path, without an appended paragraph. |
+| PC03-F04 — end-of-PC01 typography baseline | PC04 release gate. Compare the exact PC01 release with the candidate in rendered browsers; cover DRADIS and representative shared chrome, entry, GM, ship, shuttle, and exploration surfaces. |
+
+**Problem.** An away mission crosses scouting, a group-local map, eligible
+craft, secret hands, one Mission Leader, facilitator resolution, and reward
+custody. A split fleet makes location, pursuit, roster, messages, and shuttle
+movement group-specific. The player must be able to tell which group and
+location every map, mission, and message belongs to without learning another
+group's private state. Before that flow can be understood, session entry must
+stop asking ordinary players to select a role and then select a station on a
+second screen, and the typography and terminology must return to the accepted
+console presentation.
+
+**In scope.** First complete PC03-F01 through PC03-F04 as a bounded cooldown.
+Compose the existing enabled fleet/console catalog, live station status, core
+claim/release, private assignment, Press station, and authenticated GM join
+into one early entry surface. Ordinary players enter or view stations; only
+the authenticated GM path is described as Role Select. Keep the first open
+core-console entry server-authoritative and atomic. Replace current visible
+generic “table” wording with “console” across the app where it names this
+digital interface, install the owner's exact default Red Alert sentence, and
+restore the end-of-PC01 mono/display treatment using rendered comparison rather
+than a source-string-only pass.
+
+For the exploration cluster, provide one coherent path through the current
+ship map, group/location identity, source-supported away-mission lifecycle,
+private participant hands, Mission Leader allocation, facilitator resolution,
+result/custody presentation, and group-local split state. The digital
+facilitator records the participants and the one Mission Leader selected by
+the mission team; a mission cannot start without a newly reached eligible
+location and at least one source-authorized capable craft. Only entitled
+participants see their own cards. The group label, coordinate, mission state,
+and message audience remain visible at every handoff. A split creates separate
+group membership, positions, pursuit values, ordinary roster visibility, and
+communication boundaries. The printed scout-taxi exception is a separately
+authorized, range-checked path. Audit and repair the initially allocated PC04
+prompts where their current prerequisites and source contracts are ready; a
+review scene or attractive panel does not close held gameplay.
+
+**Held parts of the initial allocation.** Prompt 237 stays held until the
+optional Gorgoneion admission, Captain entitlement, and pre-deal support
+lifecycle are defined. Prompts 241b and 243 cannot wire their special outcomes
+until the mission instance, contribution, result, and custody paths they
+consume exist. Prompts 334 and 335 remain held where “explore two systems” or
+“two Wolf systems” lacks a production recipient/history transaction; do not
+turn a review-scene choice into authoritative map knowledge. Prompt 348's
+single pursuit value after independently tracked groups rejoin is not stated
+by the printed split-fleet rule; preserve the separate values and do not merge
+them or claim Prompts 347, 349, 350, 424, or 643 complete until a source-backed
+resolution is recorded. Prompts 422 and 646 require an ordinary complete
+away-mission playthrough. Prompt 424 and 643 require an ordinary complete
+split/rejoin playthrough. Prompt 678 needs authoritative recipient selection
+and known-fact projection, not a client-only share button. Existing pure
+resolvers and parked candidates are evidence to reconcile, not permission to
+overwrite their preserved work or claim a production path.
+
+**Out of scope.** Inventing the pursuit value of rejoined groups; silently
+admitting optional Gorgoneion, Capybara, Warrior, Union, or other craft that
+canonical setup has not activated; exposing another participant's hand or
+another group's private map/roster/message state; closing a prompt from a
+synthetic review scene; attack-stage dashboards (PC05); weapon and boarding
+controls (PC06); unrelated President, crisis, investigation, candidate, or
+endgame workspaces; and the final twenty-player proof.
+
+**Sources, assumptions, and rabbit holes.** The Player's Guide v1.1 printed
+pp. 10, 14–15, Facilitator's Guide v1.1 printed pp. 13–17, and the routed
+v1.1 shuttle/component pages establish a new-location mission, one team-chosen
+Mission Leader, secret per-player hands, blind extra-card allocation, one
+secret discard, at most one contributed card per opportunity, facilitator
+addition only to nonempty opportunities, contribution-linked shuttle bonuses,
+leader reward custody, overrun persistence, and one-ship oversized-reward
+drop-off. Facilitator's Guide printed pp. 16–17 establishes independent split
+pursuit, blocked ordinary communication, and a range-bound scout taxi carrying
+up to two players or two fuel. The primary artifact inventory and checksums
+match the private provenance record, and the relevant pages were rendered and
+visually checked while shaping. The provenance row does not yet route the
+base A4 artifact to the maintained exploration derivative; record that as a
+documentation review gap and do not overstate source closure. No gameplay
+assumption is accepted merely by this shape; record any chosen reading in the
+assumptions log before dependent behavior is claimed.
+
+**Owner-playable UI yes/no checks.** A hosted, clearly labeled solo scene uses
+real production components with prepared synthetic states and no live writes.
+The owner can complete the checks in one sitting; agents own authority,
+privacy, calculations, multi-client behavior, and production proof:
+
+1. **Yes/no — Enter once.** After joining, can I use one early catalog to find
+   my assigned/open station, see live occupancy, enter or view its console,
+   return without losing place, and distinguish the separate authenticated
+   GM join path without a second role-then-station choice?
+2. **Yes/no — Read the console.** Across the entry surface, DRADIS, shared
+   header, representative ship/shuttle stations, and the mission view, does
+   the typography match the accepted end-of-PC01 console treatment? Is current
+   generic wording consistently “console,” and does the default warning read
+   exactly `RED ALERT // WOLF ATTACK IMMINENT ALL HANDS TO BATTLE STATIONS. NON-CREW MUST SHELTER IN PLACE UNTIL ALERT LIFTED`?
+3. **Yes/no — Follow a mission.** From a prepared newly reached system, can I
+   tell which group and coordinate owns the mission, who the Mission Leader
+   is, which craft/players are participating, what private action is mine,
+   which opportunity each visible result belongs to, and where rewards are
+   held or must be dropped off?
+4. **Yes/no — Follow a split.** In prepared whole-fleet, split, taxi, and
+   pending-rejoin views, can I tell each group's ships, current location,
+   pursuit, map knowledge, communication state, and next permitted action
+   without mistaking another group's information for mine?
+5. **Yes/no — Recover.** In prepared refresh, reconnect, simultaneous entry,
+   stale mission action, and group-change views, does the latest authorized
+   station, hand, mission, map, and group state remain understandable without
+   offering a duplicate claim, card action, reward, taxi, or message?
+
+**Prepared scene and walkthrough.** Start at the unified entry catalog with
+open, occupied, assigned, Press, and GM examples. Offer labeled comparisons
+for the exact PC01 typography baseline and repaired candidate at phone,
+desktop, and short landscape sizes. Continue through a current group map and a
+prepared mission in eligible, participant/leader, request, discard, assignment,
+resolved, custody, overrun, and drop-off states. Finish with whole-fleet,
+two-group, blocked-message, scout-taxi, and unresolved-rejoin states. Every
+simulated action says it is a sample and cannot call production mutations.
+
+**Internal exit gates and handoff.** Implement every new behavior test-first,
+committing the smallest failing focused test before the code. Compare PC01 exact
+release `4e8e3876108709f2a620c4f71ea874183d3db4ee` with the candidate using
+computed font families, sizes, weights, line heights, tracking, bounding boxes,
+and screenshots at 320×844, 390×844, 844×390, and 1440×900; cover DRADIS plus
+representative shared and route surfaces. Run `npm run test:font-consistency`
+and the ticker browser gate because global chrome, fonts, Role Select, and Red
+Alert copy are release-critical. Exercise first-entry claim races, GM-only join,
+Press separation, deep links/Back, private mission hands, wrong participant,
+leader/facilitator authority, replay/stale requests, empty opportunity,
+contribution-linked bonuses, overrun/reconnect, group-local roster/map/message
+projection, split isolation, taxi range/capacity, and denied direct writes for
+every changed source-supported production path. Obtain one independent Sol
+review of the exact candidate for shared session state, callable behavior,
+rules, privacy, and release evidence. Reconcile one final commit, run its
+appropriate validation, push, verify deployment, and separately attempt
+ordinary authorized play. The report lists new assumptions first, all five UI
+checks, every test change and reason, held prompts, exact build/review access,
+and truthful distinctions among local tests, rendered QA, deployment, and live
+gameplay.

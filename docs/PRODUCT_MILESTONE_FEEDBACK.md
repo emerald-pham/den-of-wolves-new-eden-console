@@ -53,3 +53,16 @@ proof remains a separate agent-owned evidence gap.
 ## PC03 — Navigation and shuttle controls
 
 **Authorization state (2026-09-28): accepted.** The owner explicitly authorized PC03 and confirmed that checkpoint authorization is sufficient without walkthrough answers or written UI feedback. Build 0.5.53 and the five-step [solo review scene](https://dow-new-eden-console.web.app/pc03-review) are released. Optional later feedback remains welcome and follows the ordinary cooldown process. See [the PC03 report](PC03_PLAYTEST_REPORT.md) for release evidence, unresolved rule decisions, and remaining agent-owned production evidence.
+
+**Post-acceptance guidance received for PC04 (2026-09-28).** The owner gave
+the following app-wide corrections while authorizing work to begin on PC04.
+They are cooldown requirements for the PC04 release, not a revocation of PC03
+acceptance. The end of released PC01 build 0.5.51 is the owner-selected visual
+typography baseline; a passing source-only font guard is not sufficient proof.
+
+| Note ID | Owner's observation or request | Disposition | Cooldown evidence or later candidate | Next shape that addressed it |
+|---|---|---|---|---|
+| PC03-F01 | Consolidate Role Select and station selection into one early screen. Ordinary players choose a station/console, not a role; Role Select remains only for authenticated GMs joining the game. | Included in PC04 cooldown target. | Test-first route and first-entry authority repair, responsive rendered checks, and released in-app verification pending. | PC04 planned. |
+| PC03-F02 | Change current player-facing “table” copy to “console” app-wide, including “UPGRADES AND PROCEDURE OUTCOMES ARE TRACKED AT THE TABLE.” | Included in PC04 cooldown target. | Current visible UI copy inventory, focused assertions, and released in-app verification pending. Internal wire names, historical release notes, source citations, and genuine HTML/data tables remain unchanged. | PC04 planned. |
+| PC03-F03 | The default Red Alert copy must be exactly “RED ALERT // WOLF ATTACK IMMINENT ALL HANDS TO BATTLE STATIONS. NON-CREW MUST SHELTER IN PLACE UNTIL ALERT LIFTED”. | Included in PC04 cooldown target. | Authoritative default/restore path, ticker/alert tests, and released in-app verification pending. | PC04 planned. |
+| PC03-F04 | The app-wide and DRADIS font regression since the end of PC01 is unacceptable and must be repaired by the end of PC04. | Included in PC04 cooldown target and release gate. | Compare PC01 exact release `4e8e3876108709f2a620c4f71ea874183d3db4ee` with the PC04 candidate at representative routes and viewports; add a rendered regression gate and verify the released build. | PC04 planned. |
