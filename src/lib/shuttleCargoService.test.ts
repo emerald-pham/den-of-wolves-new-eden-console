@@ -278,3 +278,13 @@ it('keeps server-classified transport failures out of exact replay recovery', as
   await expect(transferShuttleCargo('hummingbird', 'food', 'load', 2, 3))
     .rejects.toMatchObject({ name: 'ShuttleCargoTransferRejectedError' });
 });
+
+it('retains the exact request when the callable returns an unclassified transport error', async () => {
+  mocks.call.mockRejectedValueOnce(new Error('The response channel closed.'));
+
+  await expect(transferShuttleCargo('hummingbird', 'food', 'load', 2, 3))
+    .rejects.toMatchObject({
+      name: 'ShuttleCargoTransferUncertainError',
+      attempt: { command: { requestId: 'cargo-request-1' } },
+    });
+});
