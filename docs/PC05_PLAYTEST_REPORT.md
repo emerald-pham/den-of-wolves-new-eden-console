@@ -203,3 +203,23 @@ Wolf audiences and stale GM access. The emulator exited successfully and shut
 down. This establishes the tested direct-access boundary for this candidate;
 callable changes arriving from the active owners still need their own focused
 validation and independent authority review.
+
+### Full-ship mutiny handoff and deployment preflight
+
+Parent `f03f00c8` integrates the maintenance owner's sparse acting-captain
+appointment and direct-action denial inventory. The combined mutiny, panel,
+scout, mining, command, harvest, launch, President and Maliades suites pass
+**198 tests across ten files**. Worker synthetic rendered checks at 320×844,
+390×844, 844×390 reduced motion and 1440×900 found no clipping or horizontal
+overflow. They do not substitute for ordinary gameplay.
+
+P136/P137 remain open: the four base small craft and Voyage 33-0 use separate
+unrest and host-operated maintenance. A new GPT-5.6 Sol owner is completing
+their actual command replacement, lock and recovery in the reused maintenance
+checkout. No existing agent was interrupted and no new checkout was created.
+
+Deployment preflight originally failed on unmapped shared backend helpers.
+Test-first `75fd5182`/`51aa1b44` and implementation `263edc64` add audited named
+consumers; all 70 selector tests pass and the integrated candidate now selects
+hosting and backend targets. The consumer list must be reconciled once the
+remaining callable implementations land, before exact-candidate review.
