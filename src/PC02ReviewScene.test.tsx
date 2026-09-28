@@ -2,6 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it } from 'vitest';
 import PC02ReviewScene from './PC02ReviewScene';
+import { CONSOLE_ROLES } from '@/data/roles';
 
 it('provides one clearly synthetic six-step PC02 sitting with every requested perspective', async () => {
   const user = userEvent.setup();
@@ -55,6 +56,10 @@ it('keeps sample leave and reconnect controls local to the review scene', async 
   const user = userEvent.setup();
   render(<PC02ReviewScene />);
   await user.click(screen.getByRole('button', { name: /leave and reconnect/i }));
+  const roleSelector = screen.getByRole('combobox', { name: 'Non-GM station' });
+  expect(within(roleSelector).getAllByRole('option')).toHaveLength(CONSOLE_ROLES.length);
+  expect(roleSelector).toHaveTextContent('Press Officer');
+  expect(roleSelector).toHaveTextContent('President');
   expect(screen.getByRole('button', { name: 'Open sample settings' })).toBeVisible();
   await user.click(screen.getByRole('button', { name: 'Open sample settings' }));
   expect(screen.getByRole('dialog', { name: /session settings/i })).toHaveTextContent('Disconnect');
