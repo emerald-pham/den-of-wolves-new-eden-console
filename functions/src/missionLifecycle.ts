@@ -1,5 +1,6 @@
 import {
   allocateMissionCards,
+  AWAY_MISSION_ROLE_CRAFT,
   awayMissionCraftForRole,
   missionDeckDealtCount,
   type AwayMissionParticipantSnapshot,
@@ -20,6 +21,7 @@ import {
 } from './missionDeck';
 
 const CANONICAL_CARDS = new Map<string, MissionCard>(missionDeck().map((card) => [card.id, card]));
+const KNOWN_AWAY_MISSION_CRAFT_IDS = new Set<string>(Object.values(AWAY_MISSION_ROLE_CRAFT).flat());
 const OPPORTUNITY_TRAITS: readonly MissionOpportunityTrait[] = [
   'exploration',
   'mining',
@@ -52,6 +54,8 @@ export interface MissionLifecycleStateInput {
   readonly siteCode: CanonicalMissionCardCode;
   readonly leaderUid: string;
   readonly participants: readonly MissionLifecycleParticipant[];
+  /** Shared carriers present for the mission; never projected as participant ownership. */
+  readonly availableCarrierCraftIds: readonly string[];
   readonly deckState: MissionDeckState;
   /** The P402 cursor after P403's initial deal. */
   readonly dealtCount: number;
@@ -88,6 +92,7 @@ export interface MissionLifecycleState {
   readonly siteCode: CanonicalMissionCardCode;
   readonly leaderUid: string;
   readonly participants: readonly MissionLifecycleParticipant[];
+  readonly availableCarrierCraftIds: readonly string[];
   readonly phase: MissionLifecyclePhase;
   readonly deckState: MissionDeckState;
   readonly dealtCount: number;
@@ -182,8 +187,10 @@ export function createMissionLifecycleState(
 ): MissionLifecycleState | null {
   const opportunity = missionCardForCode(input.siteCode);
   const deckState = parseMissionDeckState(input.deckState);
+  const availableCarrierCraftIds = normalizeAvailableCarrierCraftIds(input.availableCarrierCraftIds);
   const dealtCount = missionDeckDealtCount({ dealtCount: input.dealtCount }, deckState?.order.length ?? 0);
-  if (!isNonEmptyString(input.missionId) || !opportunity || !deckState || dealtCount === null ||
+  if (!isNonEmptyString(input.missionId) || !opportunity || !deckState || !availableCarrierCraftIds ||
+      dealtCount === null ||
       !isNonEmptyString(input.leaderUid) || !Array.isArray(input.participants) ||
       input.participants.length === 0 || !Array.isArray(input.initialCards) ||
       input.initialCards.length !== input.participants.length) return null;
@@ -224,6 +231,7 @@ export function createMissionLifecycleState(
     siteCode: input.siteCode,
     leaderUid: input.leaderUid,
     participants: normalizedParticipants,
+    availableCarrierCraftIds,
     phase,
     deckState,
     dealtCount,
@@ -642,13 +650,7 @@ export function calculateMissionOpportunityTotals(
 }
 
 function normalizeParticipant(value: unknown): MissionLifecycleParticipant | null {
-  if (!isRecord(value) || !isNonEmptyString(value.uid) || !isNonEmptyString(value.roleId) ||
-      !Array.isArray(value.craftIds) || value.craftIds.length === 0 ||
-      value.craftIds.some((craftId) => !isNonEmptyString(craftId)) ||
-      new Set(value.craftIds).size !== value.craftIds.length) return null;
-  const allowedCraftIds = awayMissionCraftForRole(value.roleId);
-  if (allowedCraftIds.length === 0 || value.craftIds.length !== allowedCraftIds.length ||
-      value.craftIds.some((craftId) => !allowedCraftIds.includes(craftId as string))) return null;
+  if (!isRecord(value) || !isNonEmptyString(value.uid) || !isNonEmptyString(value.roleId)) return null;
   const deviceIds = value.deviceIds;
   if (deviceIds !== undefined && (!Array.isArray(deviceIds) ||
       deviceIds.some((deviceId) => !isNonEmptyString(deviceId)) ||
@@ -656,9 +658,15 @@ function normalizeParticipant(value: unknown): MissionLifecycleParticipant | nul
   return {
     uid: value.uid,
     roleId: value.roleId,
-    craftIds: [...value.craftIds] as string[],
     ...(deviceIds === undefined ? {} : { deviceIds: [...deviceIds] as string[] }),
   };
+}
+
+function normalizeAvailableCarrierCraftIds(value: unknown): readonly string[] | null {
+  if (!Array.isArray(value) || value.length === 0 ||
+      value.some((craftId) => !isNonEmptyString(craftId) || !KNOWN_AWAY_MISSION_CRAFT_IDS.has(craftId)) ||
+      new Set(value).size !== value.length) return null;
+  return [...value] as string[];
 }
 
 function validP403DiscardLedger(
@@ -682,7 +690,8 @@ function isValidMissionLifecycleState(value: unknown): value is MissionLifecycle
   if (!isRecord(value) || !isNonEmptyString(value.missionId) ||
       typeof value.siteCode !== 'string' || !missionCardForCode(value.siteCode) ||
       !isNonEmptyString(value.leaderUid) || !Array.isArray(value.participants) ||
-      value.participants.length === 0 || !Array.isArray(value.cards) ||
+      value.participants.length === 0 || !Array.isArray(value.availableCarrierCraftIds) ||
+      !normalizeAvailableCarrierCraftIds(value.availableCarrierCraftIds) || !Array.isArray(value.cards) ||
       !Array.isArray(value.requestsByParticipant) || !Array.isArray(value.discardedParticipantUids) ||
       !Array.isArray(value.discardedCardIds) || !Array.isArray(value.extraAllocationReceipts) ||
       !Array.isArray(value.assignments) || !Array.isArray(value.assignedParticipantUids) ||
@@ -891,13 +900,14 @@ function normalizeBonusSources(
     const participant = state.participants.find(({ uid }) => uid === candidate.participantUid)!;
     const kind = candidate.source.kind as 'craft' | 'role' | 'device';
     const sourceId = candidate.source.id;
-    const isOwned = kind === 'craft'
-      ? participant.craftIds.includes(sourceId)
+    const isAuthorized = kind === 'craft'
+      ? state.availableCarrierCraftIds.includes(sourceId) &&
+        awayMissionCraftForRole(participant.roleId).includes(sourceId)
       : kind === 'role'
         ? participant.roleId === sourceId
         : participant.deviceIds?.includes(sourceId) === true;
     const key = `${participant.uid}\u0000${kind}\u0000${sourceId}`;
-    if (!isOwned || seen.has(key)) return null;
+    if (!isAuthorized || seen.has(key)) return null;
     seen.add(key);
     const bonuses: Partial<Record<MissionOpportunityTrait, number>> = {};
     for (const [trait, amount] of Object.entries(candidate.bonuses)) {
