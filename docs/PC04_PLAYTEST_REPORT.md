@@ -146,8 +146,17 @@ No test is skipped or deleted for PC04.
   button; the rerun passed all four viewports without horizontal overflow.
 - **Pure later lifecycle candidates:** separate domain tests cover blind extra
   allocation, private request/discard/assignment, nonempty facilitator cards,
-  totals, bonuses, and results. Those tests do not claim production wiring or
-  close Prompts 404–412.
+  totals, bonuses, and results. Reconciled Functions compilation caught the
+  older candidate's per-participant `craftIds` assumption after mission start
+  moved shared carriers to the mission receipt. A test-first repair now keeps
+  carrier availability once at mission level, accepts teammates without
+  inventing craft ownership, and authorizes a craft bonus only when that craft
+  is present and its source-defined role owner contributed. Those tests do not
+  claim production wiring or close Prompts 404–412.
+- **Release history:** the first reconciled full run correctly failed because
+  one changelog test still expected PC03's console-links note inside the new
+  PC04 entry. The repaired test locates the preserved 0.5.53 entry explicitly;
+  it does not move or rewrite the historical note.
 
 Independent exact-head review cleared the entry/typography candidate
 `027a6b26a55a3039f0cf58a25a77767cf25f9d2c` after its legacy-GM repair and the
@@ -157,13 +166,15 @@ reconciled release commit remains required.
 
 ## Review, release, and hosted evidence
 
-Local owner evidence is currently green for the focused integrated suites,
-typecheck, application build, the production-component review scene, and the
-lane-level full/rules/build validations recorded above. This section remains
-open until one exact reconciled candidate commit passes final independent Sol
-review, coordinated validation, CI, deployment, hosted version verification,
-and the attempted ordinary authorized gameplay checks. No push, merge,
-deployment, hosted verification, or ordinary live gameplay is claimed yet.
+Local owner evidence is currently green for 5,880 unit/Functions tests, all 141
+Firestore Rules tests, the Functions TypeScript build, the application
+typecheck/build, focused integrated suites, and the production-component review
+scene. This section remains open until one exact reconciled candidate commit
+passes the remaining mandatory browser and documentation gates, final
+independent Sol review, coordinated validation, CI, deployment, hosted version
+verification, and the attempted ordinary authorized gameplay checks. No push,
+merge, deployment, hosted verification, or ordinary live gameplay is claimed
+yet.
 
 ## Authorized post-release documentation audit
 
