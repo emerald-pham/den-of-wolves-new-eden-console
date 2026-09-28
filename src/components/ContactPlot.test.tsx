@@ -795,10 +795,13 @@ it('moves an anchored name one nearby row when both sides have crowded contact m
   expect(Number(leader?.getAttribute('x2'))).toBeGreaterThan(0);
 });
 
-it('sets readable contact-name type sizes in compact and expanded ship plots', () => {
+it('keeps DRADIS contact names on the shared CIC type scale', () => {
   const css = readFileSync('src/styles/plot.css', 'utf8');
-  expect(css).toMatch(/\.ship-plot\[data-expanded='false'\] \.contact-plot__tag\s*\{[^}]*font-size:\s*0\.6rem/s);
-  expect(css).toMatch(/\.ship-plot\[data-expanded='true'\] \.contact-plot__tag\s*\{[^}]*font-size:\s*0\.75rem/s);
+  const label = css.match(/\.contact-plot__tag\s*\{([^}]*)\}/)?.[1] ?? '';
+
+  expect(label).toContain('font: clamp(0.45rem, 1.4vw, 0.55rem)/1 var(--cic-mono)');
+  expect(label).toContain('letter-spacing: 0.18em');
+  expect(css).not.toMatch(/\.ship-plot\[data-expanded='(?:false|true)'\] \.contact-plot__tag\s*\{[^}]*font-size/s);
 });
 
 it('reserves the cramped phone widget for blips and makes names visible in expanded DRADIS', () => {

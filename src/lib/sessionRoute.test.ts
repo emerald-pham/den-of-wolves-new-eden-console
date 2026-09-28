@@ -8,5 +8,5 @@ it('restores an authenticated replacement workspace route', () => {
 
 it('does not treat a replacement-looking public path as authenticated', () => {
   expect(isSessionRoute('/replacement')).toBe(false);
-  expect(restoreSessionRoute('/replacement')).toBe('/roles');
+  expect(restoreSessionRoute('/replacement')).toBe('/console');
 });

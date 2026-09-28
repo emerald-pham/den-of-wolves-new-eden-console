@@ -160,10 +160,12 @@ describe('validation profiles', () => {
   it('adds font and ticker gates only for affected UI paths', () => {
     const ui = deriveValidationProfile({ changedFiles: ['src/routes/ShipConsole.tsx'] });
     expect(ui.commands).toContain('npm run test:font-consistency');
+    expect(ui.commands).toContain('npm run test:typography:browser');
     expect(ui.commands).toContain('npm run test:ticker:browser');
 
     const data = deriveValidationProfile({ changedFiles: ['src/data/missionCards.ts'] });
     expect(data.commands).not.toContain('npm run test:font-consistency');
+    expect(data.commands).not.toContain('npm run test:typography:browser');
     expect(data.commands).not.toContain('npm run test:ticker:browser');
   });
 

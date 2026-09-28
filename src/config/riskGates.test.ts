@@ -16,6 +16,7 @@ describe('risk-based CI gates', () => {
     expect(profile.unit).toBe(false);
     expect(profile.ticker).toBe(false);
     expect(profile.font).toBe(false);
+    expect(profile.typography).toBe(false);
   });
 
   it('treats stored evidence PNGs as documentation while failing closed on other evidence artifacts', () => {
@@ -54,10 +55,18 @@ describe('risk-based CI gates', () => {
 
   it('runs ticker and font checks for shared UI and styling risks', () => {
     const route = classifyRiskGates(['src/routes/ShipConsole.tsx']);
-    expect(route).toMatchObject({ webBuild: true, ticker: true, font: true, bundle: true });
+    expect(route).toMatchObject({
+      webBuild: true, ticker: true, font: true, typography: true, bundle: true,
+    });
 
     const style = classifyRiskGates(['src/styles/starmap.css']);
-    expect(style).toMatchObject({ ticker: true, font: true, render: true });
+    expect(style).toMatchObject({ ticker: true, font: true, typography: true, render: true });
+  });
+
+  it('runs the rendered typography check for changed browser type and styling risks', () => {
+    expect(classifyRiskGates(['src/components/PressEventLog.tsx']).typography).toBe(true);
+    expect(classifyRiskGates(['src/components/onboarding.css']).typography).toBe(true);
+    expect(classifyRiskGates(['functions/src/pressDispatch.ts']).typography).toBe(false);
   });
 
   it('does not run browser or font gates for an isolated Functions change', () => {

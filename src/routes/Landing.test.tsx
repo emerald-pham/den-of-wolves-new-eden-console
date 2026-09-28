@@ -201,7 +201,7 @@ describe('Landing', () => {
     await user.click(screen.getByRole('button', { name: /join a session/i }));
 
     expect(joinSession).toHaveBeenCalledWith('4821');
-    await waitFor(() => expect(screen.getByLabelText('Current route')).toHaveTextContent('/roles'));
+    await waitFor(() => expect(screen.getByLabelText('Current route')).toHaveTextContent('/console'));
   });
 
   it('creates a session when asked', async () => {
@@ -212,7 +212,7 @@ describe('Landing', () => {
     await user.click(screen.getByRole('button', { name: /create a session/i }));
 
     expect(createSession).toHaveBeenCalledOnce();
-    await waitFor(() => expect(screen.getByLabelText('Current route')).toHaveTextContent('/roles'));
+    await waitFor(() => expect(screen.getByLabelText('Current route')).toHaveTextContent('/console'));
   });
 
   it('shows a truthful return link when a create attempt races with session recovery', async () => {

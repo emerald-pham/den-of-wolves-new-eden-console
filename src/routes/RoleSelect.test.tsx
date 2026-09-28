@@ -97,16 +97,17 @@ describe('RoleSelect', () => {
     expect(screen.getByRole('button', { name: /^join as gm/i })).toBeVisible();
   });
 
-  it('offers the intermediate controls and a Select a role destination', () => {
+  it('offers the authenticated GM join flow and a separate station catalog link', () => {
     useSessionStore.getState().setSession(session);
     useSessionStore.getState().setMe(gm);
+    useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
     renderRoute();
 
-    expect(screen.getByRole('heading', { name: /connect this device/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /^role select$/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^join as gm/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /gm console/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^setup/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /select a role/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /open station catalog/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Leave session' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /press.*snn/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/observer/i)).not.toBeInTheDocument();
@@ -122,81 +123,31 @@ describe('RoleSelect', () => {
     expect(useSessionStore.getState().session?.id).toBe('s1');
   });
 
-  it('does not put a session-exit button back on the role intro after navigation', async () => {
+  it('does not put a session-exit button on the authenticated GM join route or catalog', async () => {
     const user = userEvent.setup();
     useSessionStore.getState().setSession(session);
     useSessionStore.getState().setMe({ ...gm, role: 'player' });
+    useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
     renderRoute();
 
-    await user.click(screen.getByRole('button', { name: /select a role/i }));
+    await user.click(screen.getByRole('button', { name: /open station catalog/i }));
     expect(screen.getByText('Console route')).toBeVisible();
     await user.click(screen.getByText('Console route'));
     expect(screen.queryByRole('button', { name: 'Leave session' })).not.toBeInTheDocument();
     expect(disconnectFromSession).not.toHaveBeenCalled();
   });
 
-  it('opens the role selection screen from the intermediate screen', async () => {
+  it('allows an authorized GM to open the station catalog from GM join', async () => {
     const user = userEvent.setup();
     useSessionStore.getState().setSession(session);
     useSessionStore.getState().setMe({ ...gm, role: 'player' });
+    useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
     renderRoute();
 
-    await user.click(screen.getByRole('button', { name: /select a role/i }));
+    await user.click(screen.getByRole('button', { name: /open station catalog/i }));
 
     expect(screen.getByText('Console route')).toBeInTheDocument();
     expect(useSessionStore.getState().mode).toBe('console');
-  });
-
-  it('presents only the connected player’s private casting assignment and allowed route', async () => {
-    const user = userEvent.setup();
-    useSessionStore.getState().setSession({ ...session, phase: 'casting' });
-    useSessionStore.getState().setMe({
-      ...gm, uid: 'player-1', displayName: 'Ari', role: 'player', assignedRoleId: 'admiral',
-    });
-    useSessionStore.getState().setRoleBrief({
-      assignmentUid: 'player-1', roleId: 'admiral', roleName: 'Admiral', vesselName: 'AEGIS',
-      text: 'Coordinate the fleet.', commonRules: 'Keep this brief private.',
-      ownedCraftIds: ['fighter-wing-alpha'], setupRevision: 1,
-    });
-
-    renderRoute();
-
-    const assignment = screen.getByRole('region', { name: 'Your private casting assignment' });
-    expect(within(assignment).getByRole('heading', { name: 'Admiral' })).toBeVisible();
-    expect(assignment).toHaveTextContent('Ship // AEGIS');
-    expect(assignment).toHaveTextContent('Device mode // Player console');
-    expect(assignment).toHaveTextContent('Allowed route // Private role brief');
-    expect(assignment).not.toHaveTextContent('Coordinate the fleet.');
-    expect(assignment).not.toHaveTextContent('Keep this brief private.');
-
-    await user.click(within(assignment).getByRole('button', { name: 'Open private brief' }));
-    expect(screen.getByText('Private brief route')).toBeVisible();
-  });
-
-  it('does not invent a private casting assignment while this player is unassigned', () => {
-    useSessionStore.getState().setSession({ ...session, phase: 'casting' });
-    useSessionStore.getState().setMe({ ...gm, uid: 'player-1', role: 'player', assignedRoleId: null });
-
-    renderRoute();
-
-    expect(screen.queryByRole('region', { name: 'Your private casting assignment' })).not.toBeInTheDocument();
-  });
-
-  it('does not render a stale private brief for a different assignment', () => {
-    useSessionStore.getState().setSession({ ...session, phase: 'casting' });
-    useSessionStore.getState().setMe({
-      ...gm, uid: 'player-1', role: 'player', assignedRoleId: 'admiral',
-    });
-    useSessionStore.getState().setRoleBrief({
-      assignmentUid: 'player-1', roleId: 'wing-commander', roleName: 'Wing Commander',
-      vesselName: 'AEGIS', text: 'Command fighter wings.', commonRules: 'Keep this brief private.',
-      ownedCraftIds: ['fighter-wing-alpha'], setupRevision: 1,
-    });
-
-    renderRoute();
-
-    expect(screen.queryByRole('region', { name: 'Your private casting assignment' })).not.toBeInTheDocument();
-    expect(screen.queryByText('Wing Commander')).not.toBeInTheDocument();
   });
 
   it('does not open a GM manifest stream while registration is unlocked', async () => {
@@ -239,16 +190,13 @@ describe('RoleSelect', () => {
     expect(useSessionStore.getState().gmInstance?.name).toBe('Bridge laptop');
   });
 
-  it('requires GM login from Settings before claiming GM', async () => {
-    const user = userEvent.setup();
+  it('keeps unauthenticated ordinary players out of the GM join route', () => {
     useSessionStore.getState().setSession(session);
     useSessionStore.getState().setMe({ ...gm, role: 'player' });
     renderRoute();
 
-    await user.type(screen.getByRole('textbox', { name: /^input gm name$/i }), 'Bridge laptop');
-
-    expect(screen.getByRole('button', { name: /^join as gm/i })).toBeDisabled();
-    expect(screen.getByText(/🔐.*settings/i)).toBeInTheDocument();
+    expect(screen.getByText('Console route')).toBeVisible();
+    expect(screen.queryByRole('button', { name: /^join as gm/i })).not.toBeInTheDocument();
   });
 
 
@@ -256,10 +204,11 @@ describe('RoleSelect', () => {
     const user = userEvent.setup();
     useSessionStore.getState().setSession(session);
     useSessionStore.getState().setMe(gm);
+    useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
     renderRoute();
 
     expect(screen.queryByRole('button', { name: /gm console/i })).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /select a role/i }));
+    await user.click(screen.getByRole('button', { name: /open station catalog/i }));
 
     expect(screen.getByText('Console route')).toBeInTheDocument();
     expect(useSessionStore.getState().mode).toBe('console');
@@ -275,7 +224,7 @@ describe('RoleSelect', () => {
     });
     renderRoute();
 
-    await user.click(screen.getByRole('button', { name: /select a role/i }));
+    await user.click(screen.getByRole('button', { name: /open station catalog/i }));
     expect(screen.getByText('Console route')).toBeInTheDocument();
   });
 
@@ -306,6 +255,7 @@ describe('RoleSelect', () => {
       setupRevision: 2,
     });
     useSessionStore.getState().setMe({ ...gm, role: 'player' });
+    useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
     useSessionStore.getState().setSeats([
       {
         id: 'admiral', sessionId: 's1', roleId: 'admiral', label: 'AEGIS // Admiral',
