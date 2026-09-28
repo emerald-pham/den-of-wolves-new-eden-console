@@ -9409,11 +9409,7 @@ export const dealPrivateInitialCards = onCall<{
         );
       }
       missionGroupId ??= canonicalGroupId;
-      participants.push({
-        uid: participantUid,
-        roleId,
-        craftIds: [...carrierCraftIds],
-      });
+      participants.push({ uid: participantUid, roleId });
     }
     if (!missionGroupId || !participants.some((participant) => participant.uid === command.missionLeaderUid)) {
       throw commandError(
@@ -9490,6 +9486,7 @@ export const dealPrivateInitialCards = onCall<{
         expectedSetupRevision: command.expectedSetupRevision,
         expectedPhaseRevision: command.expectedPhaseRevision,
         expectedCycle: command.expectedCycle,
+        availableCarrierCraftIds: [...carrierCraftIds],
         participantSnapshots: participants,
         missionLeaderUid: missionLeader.uid,
       },
@@ -9536,6 +9533,7 @@ export const dealPrivateInitialCards = onCall<{
       missionLeaderUid: missionLeader.uid,
       missionLeaderRoleId: missionLeader.roleId,
       participantSnapshots: participants,
+      availableCarrierCraftIds: [...carrierCraftIds],
       handIds: participants.map((participant) => awayMissionHandId(missionId, participant.uid)),
       cardIds: allocations.map(({ card }) => card.id),
       dealtFrom: dealtCount,

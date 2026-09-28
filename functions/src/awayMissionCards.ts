@@ -20,7 +20,6 @@ export const AWAY_MISSION_ROLE_CRAFT = {
 export type AwayMissionParticipantSnapshot = Readonly<{
   uid: string;
   roleId: string;
-  craftIds: readonly string[];
 }>;
 
 export type AwayMissionCardAllocation = Readonly<{

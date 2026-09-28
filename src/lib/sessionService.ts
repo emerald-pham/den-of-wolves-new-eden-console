@@ -3344,7 +3344,7 @@ export interface AwayMissionStartReply {
 export interface StartAwayMissionOptions {
   /** Reuse this id and the same inputs when the transport result is ambiguous. */
   readonly requestId: string;
-  /** Client-local signal that this unchanged command is retrying a server receipt lookup. */
+  /** Client-local signal to submit this saved command for server receipt lookup. */
   readonly allowReplay?: boolean;
   readonly sessionId: string;
   readonly instanceId: string;
@@ -3439,13 +3439,17 @@ export async function startAwayMission(options: StartAwayMissionOptions): Promis
     store.session.currentTurn,
     turnLimitForSession(store.session),
   );
-  if (!currentTurn || store.session.phase !== 'active') {
+  const terminalReplayPhase = store.session.phase === 'success' || store.session.phase === 'failure' ||
+    store.session.phase === 'debrief' || store.session.phase === 'closed' ||
+    store.session.phase === 'retained-empty';
+  const terminalReceiptLookup = options.allowReplay === true && terminalReplayPhase;
+  if ((!currentTurn || store.session.phase !== 'active') && !terminalReceiptLookup) {
     throw new Error('A current server-authorized game phase is required before mission start.');
   }
   if (options.allowReplay !== true && (
       options.expectedSetupRevision !== expectedSetupRevision(store.session) ||
-      options.expectedPhaseRevision !== currentTurn.phaseRevision ||
-      options.expectedCycle !== currentTurn.currentTurn)) {
+      options.expectedPhaseRevision !== currentTurn?.phaseRevision ||
+      options.expectedCycle !== currentTurn?.currentTurn)) {
     throw new Error('The mission-start request is stale. Refresh the facilitator console and retry.');
   }
   if (options.chart !== store.session.chartId) {
