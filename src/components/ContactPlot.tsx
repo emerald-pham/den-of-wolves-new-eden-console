@@ -102,6 +102,10 @@ export const SPASM_MS = 3300;
 const AMBIENT_RANGE_UPDATE_MS = 1_000;
 const ZERO_ORIGIN: Vector = { x: 0, y: 0, z: 0 };
 const LABEL_VIEWPORT_GUTTER_PX = 8;
+const LABEL_LANE_OFFSETS = [0, -1, 1, -2, 2, -3, 3, -4, 4, -5, 5, -6, 6, -7, 7, -8, 8] as const;
+const intrinsicLabelWidths = new WeakMap<HTMLElement, { context: string; width: number }>();
+const handledFontEvents = new WeakSet<Event>();
+let fontMetricsVersion = 0;
 
 const MERIDIANS = [0, 30, 60, 90, 120, 150];
 const PARALLELS = [-60, -30, 0, 30, 60];
@@ -145,13 +149,94 @@ function combatRangeLabel(track: Track | PlotContact): string {
   return (track.combatRange ?? 'short').toUpperCase();
 }
 
+function styleScopeElementSignature(element: HTMLElement): string {
+  const attributes = Array.from(element.attributes)
+    .filter((attribute) => attribute.name !== 'style' && attribute.name !== 'data-label-anchor')
+    .map((attribute) => `${attribute.name}=${attribute.value}`)
+    .sort()
+    .join(';');
+  return `${element.tagName}[${attributes}]{${element.getAttribute('style') ?? ''}}`;
+}
+
+/** Shared style and responsive context outside one contact label. */
+function labelWidthStyleScope(plot: HTMLElement): string {
+  const ancestors: string[] = [];
+  for (let element: HTMLElement | null = plot; element; element = element.parentElement) {
+    ancestors.push(styleScopeElementSignature(element));
+  }
+  const viewport = typeof window === 'undefined'
+    ? 'server'
+    : `${window.innerWidth}x${window.innerHeight}@${window.devicePixelRatio || 1}`;
+  const fonts = typeof document === 'undefined' ? 'unavailable' : document.fonts?.status ?? 'unavailable';
+  return `${fontMetricsVersion}|${fonts}|${viewport}|${ancestors.join('>')}`;
+}
+
+const LABEL_FONT_STYLE_PROPERTIES = [
+  'display', 'font', 'font-family', 'font-size', 'font-stretch', 'font-style', 'font-variant',
+  'font-weight', 'line-height', 'letter-spacing', 'word-spacing', 'white-space', 'width',
+  'min-width', 'max-width', 'box-sizing', 'padding-inline', 'padding-left', 'padding-right',
+  'border-left-width', 'border-right-width',
+] as const;
+
+function labelFontStyleSignature(element: HTMLElement): string {
+  const properties = LABEL_FONT_STYLE_PROPERTIES
+    .map((property) => `${property}:${element.style.getPropertyValue(property)}`)
+    .join(';');
+  const fontVariables = Array.from(element.style)
+    .filter((property) => property.startsWith('--') && /(font|mono|type|letter|spacing)/i.test(property))
+    .map((property) => `${property}:${element.style.getPropertyValue(property)}`)
+    .join(';');
+  return `${properties};${fontVariables}`;
+}
+
+/** Label ancestors inside the 3D contact may move every update; only their
+ * typography-affecting inline declarations belong in this intrinsic-width key. */
+function intrinsicLabelWidthContext(
+  plot: HTMLElement,
+  label: HTMLElement,
+  plotBounds: DOMRect,
+  styleScope: string,
+): string {
+  const path: string[] = [];
+  for (let element: HTMLElement | null = label; element && element !== plot; element = element.parentElement) {
+    const attributes = Array.from(element.attributes)
+      .filter((attribute) => attribute.name !== 'style' && attribute.name !== 'data-label-anchor')
+      .map((attribute) => `${attribute.name}=${attribute.value}`)
+      .sort()
+      .join(';');
+    const inContact = element.closest('.contact-plot__contact') !== null;
+    const inlineStyle = inContact && element !== label
+      ? labelFontStyleSignature(element)
+      : element.getAttribute('style') ?? '';
+    path.push(`${element.tagName}[${attributes}]{${inlineStyle}}`);
+  }
+  return `${styleScope}|${plotBounds.width}x${plotBounds.height}|${label.textContent ?? ''}|${path.join('>')}`;
+}
+
 /** Keep intrinsic-width labels inside the actual rendered plot, on both axes. */
-function clampContactLabels(plot: HTMLElement): void {
+function clampContactLabels(plot: HTMLElement, styleScope: string): void {
   const plotBounds = plot.getBoundingClientRect();
   if (plotBounds.width <= 0 || plotBounds.height <= 0) return;
   const labels = [...plot.querySelectorAll<HTMLElement>('.contact-plot__tag')];
   const marks = labels.map((label) => label.closest('.contact-plot__contact')
     ?.querySelector<HTMLElement>('.contact-plot__blip')?.getBoundingClientRect() ?? null);
+  const passWidths = new Map<HTMLElement, { context: string; width: number }>();
+  const intrinsicWidth = (label: HTMLElement): number => {
+    const context = intrinsicLabelWidthContext(plot, label, plotBounds, styleScope);
+    const passCached = passWidths.get(label);
+    if (passCached?.context === context) return passCached.width;
+    const cached = intrinsicLabelWidths.get(label);
+    if (cached?.context === context) {
+      passWidths.set(label, cached);
+      return cached.width;
+    }
+    const width = label.offsetWidth;
+    const measured = { context, width };
+    intrinsicLabelWidths.set(label, measured);
+    passWidths.set(label, measured);
+    return width;
+  };
+  const finalBounds: Array<DOMRect | null> = Array.from({ length: labels.length }, () => null);
   const gap = 4;
   const overlaps = (a: Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom'>,
     b: Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom'>) =>
@@ -268,7 +353,7 @@ function clampContactLabels(plot: HTMLElement): void {
           // Read the untransformed width before changing the cap. This shares
           // the intrinsic layout state with `original`, so perspective scale
           // is estimated without a second style/layout flush.
-          const untransformedWidth = label.offsetWidth;
+          const untransformedWidth = intrinsicWidth(label);
           const projectedScale = untransformedWidth > 0
             ? original.width / untransformedWidth
             : 1;
@@ -334,6 +419,7 @@ function clampContactLabels(plot: HTMLElement): void {
           candidate.clearance > best.clearance ? candidate : best);
         contact.dataset.labelAnchor = bestQuick.anchor;
         label.style.cssText = bestQuick.style;
+        finalBounds[index] = bestQuick.bounds;
         obstacles.push(bestQuick.bounds);
         continue;
       }
@@ -392,7 +478,7 @@ function clampContactLabels(plot: HTMLElement): void {
         // If both adjacent quadrants are occupied, move the name only along
         // its return's side, one nearby text row at a time. Its horizontal
         // gap from the return remains fixed, even in a crowded plot.
-        for (const lane of [0, -1, 1, -2, 2, -3, 3, -4, 4, -5, 5, -6, 6, -7, 7, -8, 8]) {
+        for (const lane of LABEL_LANE_OFFSETS) {
           const laneY = y + lane * (original.height + gap);
           const candidate = projected(x, laneY);
           const correctionY = candidate.top < minY ? minY - candidate.top
@@ -400,9 +486,13 @@ function clampContactLabels(plot: HTMLElement): void {
           const bounds = projected(x, laneY + correctionY);
           const anchorGap = anchor.endsWith('east')
             ? marker.left - bounds.right : bounds.left - marker.right;
-          const collisionCount = nearby.filter((rect) => overlaps(bounds, rect)).length;
-          const clearance = nearby.length > 0
-            ? Math.min(...nearby.map((rect) => distanceFrom(bounds, rect))) : 0;
+          let collisionCount = 0;
+          let clearance = Number.POSITIVE_INFINITY;
+          for (const rect of nearby) {
+            if (overlaps(bounds, rect)) collisionCount += 1;
+            clearance = Math.min(clearance, distanceFrom(bounds, rect));
+          }
+          if (nearby.length === 0) clearance = 0;
           const edgeOverflow = Math.max(0, minX - bounds.left, bounds.right - maxX,
             minY - bounds.top, bounds.bottom - maxY);
           const score = collisionCount * 1_000_000 + edgeOverflow * 100_000 +
@@ -434,7 +524,10 @@ function clampContactLabels(plot: HTMLElement): void {
             placed = label.getBoundingClientRect();
           }
         }
+        finalBounds[index] = placed;
         obstacles.push(placed);
+      } else {
+        finalBounds[index] = label.getBoundingClientRect();
       }
       continue;
     }
@@ -468,6 +561,7 @@ function clampContactLabels(plot: HTMLElement): void {
       shift(label, best.x - current.left, best.y - current.top);
     }
     const placed = label.getBoundingClientRect();
+    finalBounds[index] = placed;
     if (placed.width > 0 && placed.height > 0) obstacles.push(placed);
   }
 
@@ -478,7 +572,7 @@ function clampContactLabels(plot: HTMLElement): void {
     const leader = leaders[index];
     const marker = marks[index];
     const contact = label.closest<HTMLElement>('.contact-plot__contact');
-    const bounds = label.getBoundingClientRect();
+    const bounds = finalBounds[index] ?? label.getBoundingClientRect();
     if (!leader || !marker || !contact || contact.dataset.moving === 'true' ||
       bounds.width === 0 || bounds.height === 0) {
       if (leader) leader.dataset.visible = 'false';
@@ -692,7 +786,11 @@ export default function ContactPlot({
   useLayoutEffect(() => {
     const node = plot.current;
     if (!node) return;
-    const clamp = () => clampContactLabels(node);
+    let observedStyleScope = labelWidthStyleScope(node);
+    const clamp = () => {
+      observedStyleScope = labelWidthStyleScope(node);
+      clampContactLabels(node, observedStyleScope);
+    };
     const clampMovingFix = (event: Event) => {
       const contact = event.target instanceof HTMLElement
         ? event.target.closest<HTMLElement>('.contact-plot__contact') : null;
@@ -714,10 +812,32 @@ export default function ContactPlot({
       clamp();
     });
     observer?.observe(node);
+    const styleObserver = typeof MutationObserver === 'undefined' ? null : new MutationObserver(() => {
+      const nextStyleScope = labelWidthStyleScope(node);
+      if (nextStyleScope !== observedStyleScope) clamp();
+    });
+    if (styleObserver) {
+      for (let ancestor: HTMLElement | null = node; ancestor; ancestor = ancestor.parentElement) {
+        styleObserver.observe(ancestor, { attributes: true });
+      }
+    }
+    const fonts = typeof document === 'undefined' ? undefined : document.fonts;
+    const fontMetricsChanged = (event: Event) => {
+      if (!handledFontEvents.has(event)) {
+        handledFontEvents.add(event);
+        fontMetricsVersion += 1;
+      }
+      clamp();
+    };
+    fonts?.addEventListener('loadingdone', fontMetricsChanged);
+    fonts?.addEventListener('loadingerror', fontMetricsChanged);
     window.addEventListener('resize', clamp);
     node.addEventListener(CONTACT_SCAN_EVENT, clampMovingFix);
     return () => {
       observer?.disconnect();
+      styleObserver?.disconnect();
+      fonts?.removeEventListener('loadingdone', fontMetricsChanged);
+      fonts?.removeEventListener('loadingerror', fontMetricsChanged);
       window.removeEventListener('resize', clamp);
       node.removeEventListener(CONTACT_SCAN_EVENT, clampMovingFix);
     };
