@@ -14301,7 +14301,7 @@
         "acceptance": "digits, lock, power rail, pending, success, failure, and cooldown reflect server authority and remain keyboard/touch usable.",
         "title": "Audit jump-button truthfulness."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
+      "description": "PC03 preserves the production coordinate digit, lock, and power controls while correcting the displayed installed-upgrade cost and distinguishing stale, uncertain, committed, and integrity-lockout replies. Focused client tests and the synthetic owner review scene cover these states; ordinary authorized jump play and the upstream distance policy remain open, so this prompt is partial.",
       "evidenceIds": "E-AUDIT-303",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -14310,10 +14310,12 @@
       "milestoneHints": "M4;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.53"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "PRESERVE"
     },
     {
@@ -14324,7 +14326,7 @@
         "acceptance": "a timeout retry returns the committed result or fresh denial without spending or moving twice.",
         "title": "Reconcile jump retries."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
+      "description": "PC03 captures one jump request ID, expected revision, and instance before submission, retains them after an uncertain transport outcome, and retries the same server receipt without creating a second request. Focused service, UI, and callable replay tests pass. Ordinary authorized timeout-and-reconnect proof and the upstream jump-chain decisions remain open, so this prompt is partial.",
       "evidenceIds": "E-AUDIT-304",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -14333,10 +14335,12 @@
       "milestoneHints": "M4;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.53"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "EXTEND"
     },
     {
@@ -15922,7 +15926,7 @@
         "acceptance": "a travelling shuttle resolves to its authoritative nearest legal host and cannot remain in motion.",
         "title": "Park craft when airspace closes."
       },
-      "description": "Server-side deadline parking, delayed-mutation guards, and bounded task reconciliation are implemented with source tests. Prompt 371 remains open until the deployed runtime proves successful Cloud Tasks enqueue and private worker invocation; source checks and function listings alone do not satisfy this live gate.",
+      "description": "Server-side deadline parking, delayed-mutation guards, and bounded task reconciliation are implemented with source tests. PC03 also updates departure availability when the airspace deadline passes without a new snapshot. Prompt 371 remains partial until the deployed runtime proves successful Cloud Tasks enqueue and private worker invocation; source and client checks alone do not satisfy this live gate.",
       "evidenceIds": "E-AUDIT-371",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -15931,10 +15935,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.53"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "NEW"
     },
     {
@@ -16064,7 +16070,7 @@
         "acceptance": "only current docked inventories and each craft's allowlist can move resources or teams.",
         "title": "Transfer permitted shuttle cargo."
       },
-      "description": "The production shuttle cargo callable already implements this acceptance through the released Prompt 113 path. It derives the current holder, unique live dock, active manifest, group-local host, exact printed allowlist and both current inventories from server state, then updates only the host and shuttle ledgers in one transaction. Transit, duplicate or missing docks, stale custody, unsupported cargo, cross-group hosts, malformed ledgers, insufficient stock and request collisions fail before mutation; exact retries return the stored result without moving cargo twice.",
+      "description": "The production shuttle cargo callable already implements this acceptance through the released Prompt 113 path. It derives the current holder, unique live dock, active manifest, group-local host, exact printed allowlist and both current inventories from server state, then updates only the host and shuttle ledgers in one transaction. Transit, duplicate or missing docks, stale custody, unsupported cargo, cross-group hosts, malformed ledgers, insufficient stock and request collisions fail before mutation; exact retries return the stored result without moving cargo twice. PC03 keeps the exact pending client request after uncertain transport outcomes and allows only the same session, actor, role, group, holder, and host to check that receipt.",
       "evidenceIds": "E-AUDIT-377;E-164-377-CARGO-AUTHORITY;E-164-TRANSFER-RELATED",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -16073,7 +16079,9 @@
       "milestoneHints": "M7",
       "relatedConsumes": "164",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.53"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
       "status": "done",

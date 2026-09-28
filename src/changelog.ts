@@ -23,6 +23,21 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: APP_VERSION,
     implementationProgress: {
       completed: 458, total: 751, percentage: '60.99%',
+      done: 458, partial: 56, active: 0, missing: 237,
+    },
+    changes: [
+      'Ship consoles now link directly to resource stores and shuttle docking history, including on a phone.',
+      'Jump Drive shows the fuel cost after an installed upgrade. If a jump acknowledgement is lost, the console can check the same request without starting another jump; stale replies ask for a live refresh.',
+      'Shuttle departure controls update when airspace closes. Cargo transfers keep their exact pending request for a safe retry after an uncertain connection result.',
+      '458 of 751 planned items are complete (60.99%).',
+    ],
+    implementationPrompts: [303, 304, 371, 377],
+  },
+
+  {
+    version: '0.5.52',
+    implementationProgress: {
+      completed: 458, total: 751, percentage: '60.99%',
       done: 458, partial: 53, active: 0, missing: 240,
     },
     changes: [

@@ -430,8 +430,8 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 300 | EXTEND | missing | 289;291 | none | none | none | none | none | none | none | E-AUDIT-300 | M4;M5 | Execute one emergency jump per ship. |
 | 301 | EXTEND | missing | 291;294 | none | none | none | none | none | none | none | E-AUDIT-301 | M4;M5 | Resolve concurrent fleet jumps. |
 | 302 | EXTEND | missing | 294;167 | none | none | none | none | none | none | none | E-AUDIT-302 | M4;M5 | Record every jump transition. |
-| 303 | PRESERVE | missing | 289;294 | none | none | none | none | none | none | none | E-AUDIT-303 | M4;M5 | Audit jump-button truthfulness. |
-| 304 | EXTEND | missing | 294;291;302 | none | none | none | none | none | none | none | E-AUDIT-304 | M4;M5 | Reconcile jump retries. |
+| 303 | PRESERVE | partial | 289;294 | none | none | none | none | none | none | none | E-AUDIT-303 | M4;M5 | Audit jump-button truthfulness. |
+| 304 | EXTEND | partial | 294;291;302 | none | none | none | none | none | none | none | E-AUDIT-304 | M4;M5 | Reconcile jump retries. |
 | 305 | NEW | done | 103;485 | none | none | none | none | none | none | none | E-AUDIT-305;E-305-GROUP-FOUNDATION;E-305-CYCLE-PURSUIT | M4;M5 | Advance pursuit each cycle. |
 | 306 | NEW | done | 281;285;305 | none | none | none | none | none | none | none | E-AUDIT-306;E-306-CHART-DEPTH-PURSUIT | M4;M5 | Reduce pursuit by chart depth. |
 | 307 | NEW | partial | 286;305 | none | none | none | none | none | none | none | E-AUDIT-307;E-307-SPLIT-PURSUIT-ISOLATION | M4;M5 | Isolate pursuit by fleet group. |
@@ -498,7 +498,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 368 | NEW | done | 366 | none | none | none | none | none | none | none | E-AUDIT-368;E-368-SHUTTLE-RETARGET | M7 | Retarget in flight. |
 | 369 | NEW | done | 361;363 | none | none | none | none | none | none | none | E-AUDIT-369;E-369-ELIGIBLE-DOCKED-FUELLING-VERIFIED | M7 | Fuel only eligible docked craft. |
 | 370 | NEW | done | 369;128 | none | none | none | none | none | none | none | E-AUDIT-370;E-370-TURN-BOUNDARY-FUEL-EXPIRY-VERIFIED | M7 | Expire unused shuttle fuel. |
-| 371 | NEW | missing | 145;146;366 | none | none | none | none | none | none | none | E-AUDIT-371 | M7 | Park craft when airspace closes. |
+| 371 | NEW | partial | 145;146;366 | none | none | none | none | none | none | none | E-AUDIT-371 | M7 | Park craft when airspace closes. |
 | 372 | NEW | done | 145;275a | none | none | none | none | none | none | none | E-AUDIT-372;E-372-SNN-AEGIS-MOVEMENT-EXCEPTION | M7 | Apply the SNN/AEGIS movement exception. |
 | 373 | NEW | done | 145;146;147 | none | none | none | none | none | none | none | E-AUDIT-373;E-373-WOLF-ATTACK-PARKING | M7 | Park every craft for a Wolf attack. |
 | 374 | NEW | done | 130;373 | none | none | none | none | none | none | none | E-AUDIT-374;E-374-SHUTTLE-DAMAGE-IMMUNITY | M7 | Preserve shuttle damage immunity. |
