@@ -1636,3 +1636,25 @@ describe('PC05 ordinary automatic setup composition', () => {
       .toBe(priorCards);
   });
 });
+
+it('starts a newly created confirmed empty roster through ordinary callable composition', async () => {
+  mock.reset();
+  const ownerUid = 'empty-roster-gm';
+  const created = await createSession.run(request({
+    requestId: 'empty-create', name: 'Empty confirmed roster', displayName: 'GM',
+    playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 8,
+  }, ownerUid));
+  const sessionId = (created.session as StoredDocument).id as string;
+  await loginGmAccess.run(request({ password: 'bananasplit' }, ownerUid));
+  await claimGmInstance.run(request({ sessionId, instanceId: 'empty-bridge', name: 'GM', deviceLabel: 'Composition test' }, ownerUid));
+  const confirmed = await confirmSetup.run(request({
+    sessionId, instanceId: 'empty-bridge', requestId: 'empty-confirm', expectedSetupRevision: 0,
+    playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 8,
+    dioneEnabled: false, capybaraEnabled: true, activeRoleIds: EXPECTED_ROSTERS[8],
+  }, ownerUid)) as { setupRevision: number };
+  expect(read(`sessions/${sessionId}`)?.phase).toBe('casting');
+  await expect(startGame.run(request({
+    sessionId, instanceId: 'empty-bridge', requestId: 'empty-start', expectedSetupRevision: confirmed.setupRevision,
+  }, ownerUid))).resolves.toMatchObject({ currentTurn: 1 });
+  expect([...mock.documents.keys()].filter(path => path.startsWith(`sessions/${sessionId}/secrets/loyalty-`))).toHaveLength(0);
+});
