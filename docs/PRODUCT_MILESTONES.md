@@ -526,7 +526,10 @@ decisions. Prompt 371's real deadline enqueue/private worker proof, Prompt
 380's ordinary lost-race conflict, and the live repair/cargo checks for
 Prompts 238, 244, and 241c require authorized production play. They stay open
 until that evidence exists. Prompt 250 depends on movement Prompt 251, which
-depends on the jump chain. Expose truthful current states but do not claim
+depends on the jump chain. The supplemental small-ship vessel records are
+currently printed-statistics references without an independent resource ledger
+or player seat; do not present their Jump Drives as launch-ready on those
+records alone. Expose truthful current states but do not claim
 these prompts complete from the review scene, local tests, or deployment.
 
 **Out of scope.** A new rule for jump distance bands, failed-jump damage,
