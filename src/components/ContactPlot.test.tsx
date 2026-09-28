@@ -1114,6 +1114,33 @@ it('reuses stationary return projections until DRADIS geometry changes', () => {
   expect(actualBounds).toHaveBeenCalledTimes(2);
 });
 
+it('uses the prepared DRADIS label bounds for its leader without another layout read', () => {
+  const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
+    x: left, y: top, left, top, width, height,
+    right: left + width, bottom: top + height,
+  }) as DOMRect;
+  let labelLayoutReads = 0;
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    if (this.classList.contains('contact-plot')) return bounds(0, 0, 320, 320);
+    if (this.classList.contains('contact-plot__blip')) return bounds(80, 80, 8, 8);
+    if (this.classList.contains('contact-plot__tag')) {
+      labelLayoutReads += 1;
+      const anchor = this.closest<HTMLElement>('.contact-plot__contact')?.dataset.labelAnchor ?? 'south-east';
+      const left = anchor.endsWith('east') ? 80 - 11 - 30 : 88 + 11;
+      const top = anchor.startsWith('north') ? 80 - 8 - 18 : 88 + 8;
+      return bounds(left, top, 30, 18);
+    }
+    return bounds(0, 0, 0, 0);
+  });
+
+  const { container } = render(<ContactPlot contacts={[
+    { id: 'single', tag: 'AHEAD', x: 0.8, y: 0.8, z: 0, color: 'white' },
+  ]} />);
+
+  expect(container.querySelector('.contact-plot__leader-line')).toBeInTheDocument();
+  expect(labelLayoutReads).toBeLessThanOrEqual(3);
+});
+
 it('keeps crowded 20-contact label layout within the per-update geometry-read budget', () => {
   const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
     x: left, y: top, left, top, width, height,
