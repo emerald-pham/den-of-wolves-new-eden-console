@@ -98,3 +98,18 @@ to finish. Test-only commit `16ca678d` updated model/effort and exact review
 receipt expectations; `8091373a` updates guidance and matching validators.
 All 29 guidance/coordination tests and documentation validation pass. These
 policy changes contribute no prompt completion credit.
+
+### Start observer and composition follow-up
+
+Test-first `8c7ee64b` reproduced an unassigned connected observer blocking an
+otherwise valid empty roster (`roles, seat-pointers`); `08d4fa80` permits null
+observer pointers and derives private-loyalty coverage only from real holders.
+Stale claimed seats remain blockers. The corresponding old rejection assertion
+now names the actual seat-document inconsistency. The broad suite found 13
+composition failures because its eight-player fixture manually designated a
+Wolf in ordinary setup. That explicit-loyalty/Intelligence-Agent race fixture
+now selects the supported optional Arbour configuration and supplies its
+required card; all existing race, privacy and replay assertions remain. The
+focused combined start/setup/composition run passes 143 tests. The earlier
+broad run passed 5,887 tests with only those 13 policy-fixture failures; it is
+not recorded as a passing final suite.

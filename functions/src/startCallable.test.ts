@@ -1124,14 +1124,14 @@ it('rejects a third explicit Wolf even with optional Press as the twenty-first p
   expect(mock.set).not.toHaveBeenCalled();
 });
 
-it('blocks incomplete readiness without writing and replays a completed start request', async () => {
+it('blocks a stale claimed seat without writing and replays a completed start request', async () => {
   mock.playerDocs[7] = {
     id: 'u8', fields: { connected: true, role: 'player', assignedRoleId: null },
   };
   await expect(startGame.run(request({
     sessionId: 's1', instanceId: 'bridge', requestId: 'start-1', expectedSetupRevision: 0,
   }))).rejects.toMatchObject({
-    code: 'failed-precondition', message: expect.stringMatching(/roles|loyalties|vessels/i),
+    code: 'failed-precondition', message: expect.stringMatching(/seat-documents/i),
   });
   expect(mock.update).not.toHaveBeenCalled();
 

@@ -446,6 +446,10 @@ async function composeProductionSession(
     dioneEnabled: playerCount >= 12,
     capybaraEnabled: true,
     activeRoleIds,
+    // The 8-player fixture exercises explicit loyalty composition and IA races.
+    // Ordinary setups now assign Wolves automatically; use the supported
+    // optional Arbour configuration for this explicit-assignment scenario.
+    universalArbourEnabled: playerCount === 8,
   };
   const confirmed = await confirmSetup.run(request(configuration, ownerUid)) as {
     setupRevision: number;
@@ -564,8 +568,8 @@ async function composeProductionSession(
         instanceId: `bridge-${playerCount}`,
         requestId: `loyalty-${playerCount}-${index}`,
         targetUid: uid,
-        kind: 'fleet-loyalist',
-        suspicion: 0,
+        kind: index === coreUids.length - 1 ? 'universal-arbour' : 'fleet-loyalist',
+        suspicion: index === coreUids.length - 1 ? 10 : 0,
       }, ownerUid));
       setupRevision = (assignment as { setupRevision: number }).setupRevision;
     }
