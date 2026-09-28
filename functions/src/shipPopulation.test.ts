@@ -6,7 +6,31 @@ import {
   populationChange,
   populationForShip,
   populationTrackForShip,
+  shipRationSchedule,
 } from './shipPopulation';
+
+it.each([
+  ['dione', 100_000, '90001-100000', [0, 6, 12, 18], [0, 6, 11, 14]],
+  ['dione', 90_000, '70001-90000', [0, 5, 11, 16], [0, 5, 10, 13]],
+  ['dione', 70_000, '50001-70000', [0, 5, 10, 14], [0, 4, 9, 12]],
+  ['dione', 50_000, '35001-50000', [0, 4, 9, 13], [0, 4, 7, 10]],
+  ['dione', 35_000, '25001-35000', [0, 4, 8, 12], [0, 3, 6, 9]],
+  ['dione', 25_000, '15001-25000', [0, 3, 7, 11], [0, 2, 5, 8]],
+  ['dione', 15_000, '5001-15000', [0, 3, 6, 10], [0, 2, 4, 7]],
+  ['dione', 5_000, '1-5000', [0, 3, 5, 8], [0, 2, 3, 6]],
+  ['dione', 0, '1-5000', [0, 3, 5, 8], [0, 2, 3, 6]],
+  ['icebreaker', 34_000, '25001-35000', [0, 4, 8, 12], [0, 3, 6, 9]],
+  ['shepherd', 24_000, '15001-25000', [0, 3, 7, 11], [0, 2, 5, 8]],
+  ['quellon', 15_000, '5001-15000', [0, 3, 6, 10], [0, 2, 4, 7]],
+  ['refinery-124', 5_000, '1-5000', [0, 3, 5, 8], [0, 2, 3, 6]],
+  ['aegis', 2_500, '1-5000', [0, 3, 5, 8], [0, 2, 3, 6]],
+] as const)('selects printed %s replacement at %i survivors', (shipId, population, populationBand, food, water) => {
+  expect(shipRationSchedule(shipId, population)).toEqual({ populationBand, food, water });
+});
+
+it('fails closed for a full ship population outside its printed track', () => {
+  expect(() => shipRationSchedule('dione', 69_999)).toThrow(/printed track/i);
+});
 
 it('initializes the current survivor count for every fleet ship', () => {
   expect(INITIAL_SHIP_SURVIVORS).toEqual({

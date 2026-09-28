@@ -143,6 +143,23 @@ it('keeps malformed Capybara survivor state rendered and locks ration submission
   expect(screen.getByRole('alert')).toHaveTextContent(/rations locked.*off the printed track/i);
   expect(screen.getByRole('button', { name: 'Proceed with rations' })).toBeDisabled();
 });
+it('shows Dione replacement costs at the crossed starred population and locks malformed state', () => {
+  useSessionStore.setState({ session: {
+    ...session,
+    shipSurvivors: { dione: 90_000 },
+    maintenanceCycles: { dione: { step: 2, revision: 2, results: {}, charges: [], refuelled: [] } },
+  } });
+  const view = render(<MaintenanceSystems name="Dione" shipId="dione" systems={[]}
+    renderSystem={() => null} rations={null} />);
+  expect(screen.getByText(/Food 0 \/ 5 \/ 11 \/ 16 \/\/ Water 0 \/ 5 \/ 10 \/ 13/)).toBeVisible();
+  expect(screen.getByText(/70001-90000 survivors/)).toBeVisible();
+  view.unmount();
+  useSessionStore.setState({ session: { ...session, shipSurvivors: { dione: 89_999 },
+    maintenanceCycles: { dione: { step: 2, revision: 2, results: {}, charges: [], refuelled: [] } } } });
+  render(<MaintenanceSystems name="Dione" shipId="dione" systems={[]} renderSystem={() => null} rations={null} />);
+  expect(screen.getByRole('alert')).toHaveTextContent(/rations locked.*off the printed track/i);
+  expect(screen.getByRole('button', { name: 'Proceed with rations' })).toBeDisabled();
+});
 
 it('renders Dione production controls from live charges and resource state', async () => {
   useSessionStore.setState({ session: {
