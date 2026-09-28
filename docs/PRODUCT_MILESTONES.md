@@ -478,6 +478,24 @@ review note or later-milestone overflow is available at shaping time. Keep any
 PC02 feedback that arrives during this build for the next safe cooldown
 boundary.
 
+**Prior guidance disposition.** PC01-F01–PC01-F10 were direct owner guidance,
+not a PC01 review verdict. They shipped in PC02 build 0.5.52; ordinary
+authorized gameplay proof remains separate. None is silently adopted as a
+new PC03 requirement:
+
+| Owner note | PC03 disposition |
+|---|---|
+| PC01-F01 — Population changes and purges to Press | Released in PC02; live Press intake proof open in the PC02 report. |
+| PC01-F02 — President events to Press | Released in PC02; live President writer proof open in the PC02 report. |
+| PC01-F03 — Awaiting CIC handshake | Released in PC02; retain that in-universe wording. |
+| PC01-F04 — Preserve the first large DRADIS beat | Released in PC02; retain the full first-beat lifetime. |
+| PC01-F05 — Midgame non-GM departure | Released in PC02; ordinary all-role proof open in the PC02 report. |
+| PC01-F06 — 72-hour three-check acknowledgement | Released in PC02; no PC03 change planned. |
+| PC01-F07 — GM-only Primary Status panel | Released in PC02; no PC03 exposure planned. |
+| PC01-F08 — Leave Session in Settings | Released in PC02; preserve logical return navigation. |
+| PC01-F09 — Readable anchored DRADIS names | Released in PC02; no PC03 change planned. |
+| PC01-F10 — Graceful reconnect | Released in PC02; live continuity proof open and PC03 checks current-state recovery in its own controls. |
+
 **Problem.** A player must move among the ship's chart, Jump Drive, shuttle
 station, stores, and service controls without mistaking a reference for an
 available action or a pending request for a committed result. These controls
