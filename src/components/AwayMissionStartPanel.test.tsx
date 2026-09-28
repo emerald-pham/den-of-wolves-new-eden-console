@@ -130,7 +130,8 @@ it('shows the complete server-owned mission-start receipt to the facilitator wit
       },
       inputs: {
         expectedSetupRevision: 4, expectedPhaseRevision: 3, expectedCycle: 2,
-        participantSnapshots: [{ uid: 'alice', roleId: 'wing-commander', craftIds: ['starlight'] }],
+        availableCarrierCraftIds: ['starlight'],
+        participantSnapshots: [{ uid: 'alice', roleId: 'wing-commander' }],
         missionLeaderUid: 'alice',
       },
       modifiers: [], outcome: 'started',
@@ -157,6 +158,11 @@ it('shows the complete server-owned mission-start receipt to the facilitator wit
   expect(receipt).toHaveTextContent('missionSnapshotCreated');
   expect(receipt).toHaveTextContent(/committed/);
   expect(receipt).toHaveTextContent(/Refresh live mission/);
+  expect(receipt).toHaveTextContent('Available carriers');
+  expect(receipt).toHaveTextContent('starlight');
+  const inputDetails = receipt.querySelectorAll('dd')[1];
+  expect(inputDetails).toHaveTextContent(/alice \(wing-commander\)/);
+  expect(inputDetails).not.toHaveTextContent('starlight');
   expect(receipt).not.toHaveTextContent(/A♥|card value/i);
 });
 
@@ -225,4 +231,72 @@ it('recovers an uncertain exact start after remount and replays it with original
     participantUids: ['alice'], missionLeaderUid: 'alice',
   });
   expect(screen.getByRole('status', { name: 'Mission start result' })).toHaveTextContent(/already recorded/i);
+});
+
+it('replays the saved exact request after remount in debrief and reports a server stale marker without claiming success', async () => {
+  const user = userEvent.setup();
+  mocks.startAwayMission
+    .mockRejectedValueOnce(new Error('Connection lost after submission.'))
+    .mockResolvedValueOnce({
+      status: 'replayed', sessionId: 's1', requestId: 'request-1',
+      opportunityId: opportunity.id, snapshotId: opportunity.id,
+      missionId: `mission-${opportunity.id}`, groupId: 'fleet-1', coordinate: '5143',
+      sourceCycle: 2, participantCount: 1, missionLeaderUid: 'alice',
+      expectedSetupRevision: 4, expectedPhaseRevision: 3, expectedCycle: 2,
+      currentSetupRevision: 4, currentPhaseRevision: 4, currentCycle: 3,
+    });
+
+  const first = render(<AwayMissionStartPanel session={session as never} players={players as never} instanceId="bridge" isGm />);
+  await user.click(screen.getByRole('checkbox', { name: /alice/i }));
+  await user.selectOptions(screen.getByLabelText(/mission leader/i), 'alice');
+  await user.click(screen.getByRole('button', { name: /start mission/i }));
+  const originalCall = mocks.startAwayMission.mock.calls[0]![0];
+  first.unmount();
+
+  const terminalSession = { ...session, phase: 'debrief', currentTurn: 6 };
+  delete (terminalSession as Partial<typeof terminalSession>).turnPhase;
+  delete (terminalSession as Partial<typeof terminalSession>).turnState;
+  render(<AwayMissionStartPanel session={terminalSession as never} players={players as never} instanceId="bridge" isGm />);
+  await user.click(await screen.findByRole('button', { name: /retry exact mission start/i }));
+
+  expect(mocks.startAwayMission).toHaveBeenCalledTimes(2);
+  expect(mocks.startAwayMission.mock.calls[1]![0]).toEqual({ ...originalCall, allowReplay: true });
+  expect(mocks.startAwayMission.mock.calls[1]![0].requestId).toBe(originalCall.requestId);
+  expect(screen.getByRole('status', { name: 'Mission start result' }))
+    .toHaveTextContent(/saved revisions are stale/i);
+  expect(screen.queryByText(/already recorded/i)).not.toBeInTheDocument();
+});
+
+it('replays the saved exact request after remount in debrief and reports a server stale marker without claiming success', async () => {
+  const user = userEvent.setup();
+  mocks.startAwayMission
+    .mockRejectedValueOnce(new Error('Connection lost after submission.'))
+    .mockResolvedValueOnce({
+      status: 'replayed', sessionId: 's1', requestId: 'request-1',
+      opportunityId: opportunity.id, snapshotId: opportunity.id,
+      missionId: `mission-${opportunity.id}`, groupId: 'fleet-1', coordinate: '5143',
+      sourceCycle: 2, participantCount: 1, missionLeaderUid: 'alice',
+      expectedSetupRevision: 4, expectedPhaseRevision: 3, expectedCycle: 2,
+      currentSetupRevision: 4, currentPhaseRevision: 4, currentCycle: 3,
+    });
+
+  const first = render(<AwayMissionStartPanel session={session as never} players={players as never} instanceId="bridge" isGm />);
+  await user.click(screen.getByRole('checkbox', { name: /alice/i }));
+  await user.selectOptions(screen.getByLabelText(/mission leader/i), 'alice');
+  await user.click(screen.getByRole('button', { name: /start mission/i }));
+  const originalCall = mocks.startAwayMission.mock.calls[0]![0];
+  first.unmount();
+
+  const terminalSession = { ...session, phase: 'debrief', currentTurn: 6 };
+  delete (terminalSession as Partial<typeof terminalSession>).turnPhase;
+  delete (terminalSession as Partial<typeof terminalSession>).turnState;
+  render(<AwayMissionStartPanel session={terminalSession as never} players={players as never} instanceId="bridge" isGm />);
+  await user.click(await screen.findByRole('button', { name: /retry exact mission start/i }));
+
+  expect(mocks.startAwayMission).toHaveBeenCalledTimes(2);
+  expect(mocks.startAwayMission.mock.calls[1]![0]).toEqual({ ...originalCall, allowReplay: true });
+  expect(mocks.startAwayMission.mock.calls[1]![0].requestId).toBe(originalCall.requestId);
+  expect(screen.getByRole('status', { name: 'Mission start result' }))
+    .toHaveTextContent(/saved revisions are stale/i);
+  expect(screen.queryByText(/already recorded/i)).not.toBeInTheDocument();
 });
