@@ -745,6 +745,52 @@ it('keeps a name beside its return and chooses the side farthest from other cont
   expect(blip.getBoundingClientRect().left - tag.getBoundingClientRect().right).toBeLessThanOrEqual(15);
 });
 
+it('moves an anchored name one nearby row when both sides have crowded contact marks', () => {
+  const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
+    x: left, y: top, left, top, width, height,
+    right: left + width, bottom: top + height,
+  }) as DOMRect;
+  const marks = [
+    { x: 150, y: 100 }, { x: 100, y: 78 }, { x: 100, y: 124 },
+    { x: 190, y: 78 }, { x: 190, y: 124 },
+  ];
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    if (this.classList.contains('contact-plot')) return bounds(0, 0, 320, 240);
+    const contact = this.closest('.contact-plot__contact');
+    const index = [...document.querySelectorAll('.contact-plot__contact')].indexOf(contact!);
+    const mark = marks[index];
+    if (!mark) return bounds(0, 0, 0, 0);
+    if (this.classList.contains('contact-plot__blip')) return bounds(mark.x, mark.y, 8, 8);
+    if (this.classList.contains('contact-plot__tag')) {
+      const width = index === 0 ? 70 : 40;
+      const anchor = contact?.getAttribute('data-label-anchor') ?? 'north-east';
+      const x = Number.parseFloat((this as HTMLElement).style.getPropertyValue('--label-clamp-x')) || 0;
+      const y = Number.parseFloat((this as HTMLElement).style.getPropertyValue('--label-clamp-y')) || 0;
+      return bounds((anchor.endsWith('east') ? mark.x - 11 - width : mark.x + 19) + x,
+        (anchor.startsWith('north') ? mark.y - 26 : mark.y + 16) + y, width, 18);
+    }
+    return bounds(0, 0, 0, 0);
+  });
+  const { container } = render(<ContactPlot contacts={marks.map((_, index) => ({
+    tag: `RETURN ${index}`, x: 0.1 * index, y: 0, z: 0, color: 'white',
+  }))} />);
+  const lead = container.querySelector<HTMLElement>('.contact-plot__contact')!;
+  const label = lead.querySelector<HTMLElement>('.contact-plot__tag')!;
+  const mark = lead.querySelector<HTMLElement>('.contact-plot__blip')!;
+  const rectangle = label.getBoundingClientRect();
+  const markRect = mark.getBoundingClientRect();
+  const horizontalGap = lead.dataset.labelAnchor?.endsWith('east')
+    ? markRect.left - rectangle.right : rectangle.left - markRect.right;
+  expect(horizontalGap).toBeGreaterThanOrEqual(4);
+  expect(horizontalGap).toBeLessThanOrEqual(15);
+  for (const other of [...container.querySelectorAll<HTMLElement>('.contact-plot__blip')].slice(1)) {
+    const otherRect = other.getBoundingClientRect();
+    expect(rectangle.right <= otherRect.left || rectangle.left >= otherRect.right ||
+      rectangle.bottom <= otherRect.top || rectangle.top >= otherRect.bottom).toBe(true);
+  }
+  expect(label.style.getPropertyValue('--label-clamp-y')).not.toBe('');
+});
+
 it('sets readable contact-name type sizes in compact and expanded ship plots', () => {
   const css = readFileSync('src/styles/plot.css', 'utf8');
   expect(css).toMatch(/\.ship-plot\[data-expanded='false'\] \.contact-plot__tag\s*\{[^}]*font-size:\s*0\.6rem/s);
