@@ -1114,6 +1114,44 @@ it('reuses stationary return projections until DRADIS geometry changes', () => {
   expect(actualBounds).toHaveBeenCalledTimes(2);
 });
 
+it('keeps crowded 20-contact label layout within the per-update geometry-read budget', () => {
+  const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
+    x: left, y: top, left, top, width, height,
+    right: left + width, bottom: top + height,
+  }) as DOMRect;
+  let labelLayoutReads = 0;
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    if (this.classList.contains('contact-plot')) return bounds(0, 0, 320, 240);
+    if (this.classList.contains('contact-plot__blip')) return bounds(160, 100, 8, 8);
+    if (this.classList.contains('contact-plot__tag')) {
+      labelLayoutReads += 1;
+      const anchor = this.closest<HTMLElement>('.contact-plot__contact')?.dataset.labelAnchor ?? 'north-east';
+      const style = (this as HTMLElement).style;
+      const cap = Number.parseFloat(style.maxWidth);
+      const width = Number.isFinite(cap) ? Math.min(180, cap * 1.2) : 180;
+      const left = anchor.endsWith('east') ? 160 - 11 - width : 168 + 11;
+      const top = anchor.startsWith('north') ? 100 - 8 - 18 : 108 + 8;
+      const x = Number.parseFloat(style.getPropertyValue('--label-clamp-x')) || 0;
+      const y = Number.parseFloat(style.getPropertyValue('--label-clamp-y')) || 0;
+      return bounds(left + x, top + y, width, 18);
+    }
+    return bounds(0, 0, 0, 0);
+  });
+  const contacts = Array.from({ length: 20 }, (_, index) => ({
+    id: `perf-${index}`,
+    tag: `CONTACT ${String(index + 1).padStart(2, '0')}`,
+    x: (index % 2 === 0 ? 0.1 : -0.1), y: Math.floor(index / 2) * 0.01, z: 0.4,
+    color: 'white',
+  }));
+
+  const { rerender } = render(<ContactPlot contacts={contacts} />);
+  expect(labelLayoutReads).toBeLessThanOrEqual(20 * contacts.length);
+
+  labelLayoutReads = 0;
+  rerender(<ContactPlot contacts={contacts.map((contact, index) => ({ ...contact, x: contact.x + index * 0.001 }))} />);
+  expect(labelLayoutReads).toBeLessThanOrEqual(20 * contacts.length);
+});
+
 it('exposes the active fleet alert outside the decorative plot for assistive technology', () => {
   useSessionStore.setState({ session: alertSession('s1', true, 1) });
   const { container } = render(<ContactPlot placement="widget" />);
