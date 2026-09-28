@@ -706,6 +706,12 @@ it('sets readable contact-name type sizes in compact and expanded ship plots', (
   expect(css).toMatch(/\.ship-plot\[data-expanded='true'\] \.contact-plot__tag\s*\{[^}]*font-size:\s*0\.75rem/s);
 });
 
+it('reserves the cramped phone widget for blips and makes names visible in expanded DRADIS', () => {
+  const css = readFileSync('src/styles/plot.css', 'utf8');
+  expect(css).toMatch(/@media\s*\(max-width:\s*32rem\)\s*\{\s*\.ship-plot\[data-expanded='false'\] \.contact-plot__tag\s*\{\s*display:\s*none/s);
+  expect(css).not.toMatch(/\.ship-plot\[data-expanded='true'\] \.contact-plot__tag\s*\{[^}]*display:\s*none/s);
+});
+
 it('lets a name wider than the plot wrap inside the visible scan area', () => {
   const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
     x: left, y: top, left, top, width, height,

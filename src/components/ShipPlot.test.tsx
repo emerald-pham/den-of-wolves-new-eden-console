@@ -42,6 +42,8 @@ it('offers every registered DRADIS effect in any expanded console to an active G
   render(<ShipPlot hostile={false} aboard viewerId="aegis" ambientSession={session} />);
 
   expect(screen.queryByRole('region', { name: /gm dradis effects/i })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /zoom into dradis.*read contact names/i }))
+    .toHaveTextContent(/read names/i);
   await user.click(screen.getByRole('button', { name: /zoom into dradis/i }));
   const effects = screen.getByRole('region', { name: /gm dradis effects/i });
   await user.click(within(effects).getByRole('button', { name: /trigger unknown contact/i }));
