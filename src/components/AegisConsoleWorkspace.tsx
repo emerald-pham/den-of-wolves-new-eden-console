@@ -268,6 +268,7 @@ function AdmiralConsole({ galacticCoordinate, fuel, damage, damageDraws, navigat
       fuel={fuel}
       reactorCapacity={printedStatistics.reactorCapacity}
       jumpCosts={[printedStatistics.jumpCosts.short, printedStatistics.jumpCosts.medium, printedStatistics.jumpCosts.long]}
+      jumpDriveUpgraded={upgrades.includes('jump-drive')}
       damage={damage}
       pages={[
         { id: 'systems', label: 'Ship systems' },
@@ -354,7 +355,7 @@ function WingCommanderConsole({ galacticCoordinate, fuel, damage, navigationLogs
         aegis.printedStatistics.jumpCosts.short,
         aegis.printedStatistics.jumpCosts.medium,
         aegis.printedStatistics.jumpCosts.long,
-      ]} damage={damage}
+      ]} jumpDriveUpgraded={upgrades.includes('jump-drive')} damage={damage}
       telemetry={<div><dt>Flight assets</dt><dd>{console.craft.length}</dd></div>}
       pages={[{ id: 'flight', label: 'Flight group' }, { id: 'combat', label: 'Combat doctrine' }, { id: 'navigation', label: 'Navigation' }]} activePage={page} onPageChange={setPage}>
       {page === 'navigation' ? <ShipNavigationWorkspace

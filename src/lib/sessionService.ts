@@ -3133,30 +3133,60 @@ export async function setShipConsoleLock(
 }
 
 export interface JumpShipReply extends Partial<VesselActionEnvelope> {
-  readonly status: 'integrity-locked' | 'integrity-lockout' | 'drive-failure' | 'jumped';
+  readonly status: 'integrity-locked' | 'integrity-lockout' | 'drive-failure' | 'jumped' | 'stale';
   readonly shipId: string;
-  readonly origin: string;
-  readonly destination: string;
+  readonly origin?: string;
+  readonly destination?: string;
   readonly integrityLockedUntil?: string;
   readonly length?: 'short' | 'medium' | 'long';
   readonly fuelCost?: number;
   readonly remainingFuel?: number;
+  readonly currentRevision?: number;
   readonly state?: ShipJumpState;
   readonly transition?: ShipJumpTransition;
 }
 
-/** Submit a powered, coordinate-locked jump directly to the authoritative drive. */
-export async function jumpShip(shipId: string, destination: string): Promise<JumpShipReply> {
+export interface JumpShipAttempt {
+  readonly sessionId: string;
+  readonly shipId: string;
+  readonly destination: string;
+  readonly requestId: string;
+  readonly expectedRevision: number;
+  readonly instanceId?: string;
+}
+
+/** Capture one immutable request identity so a lost acknowledgement can be retried exactly. */
+export function createJumpShipAttempt(shipId: string, destination: string): JumpShipAttempt {
   const store = useSessionStore.getState();
   if (!store.session || !store.me) throw new Error('Join a session before jumping.');
   requireFreshSessionAuthority();
-  const payload = {
+  return {
     sessionId: store.session.id,
     shipId,
     destination,
     requestId: commandId(),
     expectedRevision: store.session.vesselActionRevisions?.[shipId] ?? 0,
     ...(store.gmInstance ? { instanceId: store.gmInstance.id } : {}),
+  };
+}
+
+export function isJumpShipOutcomeUncertain(cause: unknown): boolean {
+  return isTransientCommandError(cause);
+}
+
+/** Submit one captured, powered, coordinate-locked jump request to the authoritative drive. */
+export async function jumpShip(attempt: JumpShipAttempt): Promise<JumpShipReply> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me) throw new Error('Join a session before jumping.');
+  requireFreshSessionAuthority();
+  if (store.session.id !== attempt.sessionId) throw new Error('Rejoin the original session before retrying this jump.');
+  const payload = {
+    sessionId: attempt.sessionId,
+    shipId: attempt.shipId,
+    destination: attempt.destination,
+    requestId: attempt.requestId,
+    expectedRevision: attempt.expectedRevision,
+    ...(attempt.instanceId === undefined ? {} : { instanceId: attempt.instanceId }),
   };
   const checkpoint = sessionAuthorityCheckpoint(payload.sessionId, sessionAuthorityUid(store));
   try {
@@ -3165,29 +3195,48 @@ export async function jumpShip(shipId: string, destination: string): Promise<Jum
     const reply = (await call(payload)).data;
     const current = useSessionStore.getState().session;
     if (current?.id === payload.sessionId && authorityCheckpointIsCurrent(checkpoint)) {
+      if (reply.status === 'stale') {
+        const localRevision = current.vesselActionRevisions?.[attempt.shipId] ?? 0;
+        const currentRevision = reply.currentRevision ?? reply.revision;
+        if (currentRevision !== undefined && currentRevision >= localRevision) {
+          useSessionStore.getState().setSession({
+            ...current,
+            vesselActionRevisions: {
+              ...(current.vesselActionRevisions ?? {}),
+              [attempt.shipId]: currentRevision,
+            },
+          });
+        }
+        recordStaleAuthorityReply();
+        return reply;
+      }
+      const currentResource = current.shipResources?.[attempt.shipId];
+      const normalizedResource = currentResource
+        ? resourcesForShip(attempt.shipId, current.shipResources)
+        : undefined;
       const nextSession: GameSession = {
         ...current,
         ...(reply.status === 'jumped' ? {
           shipGalacticCoordinates: {
             ...current.shipGalacticCoordinates,
-            [shipId]: reply.destination,
+            [attempt.shipId]: reply.destination ?? current.shipGalacticCoordinates?.[attempt.shipId] ?? '0000',
           },
-          ...(current.shipResources && reply.remainingFuel !== undefined && current.shipResources[shipId]
+          ...(current.shipResources && reply.remainingFuel !== undefined && normalizedResource
             ? { shipResources: {
               ...current.shipResources,
-              [shipId]: { ...current.shipResources[shipId], fuel: reply.remainingFuel },
+              [attempt.shipId]: { ...normalizedResource, fuel: reply.remainingFuel },
             } }
             : {}),
         } : {}),
         ...(reply.state ? {
-          shipJumpStates: { ...current.shipJumpStates, [shipId]: reply.state },
+          shipJumpStates: { ...current.shipJumpStates, [attempt.shipId]: reply.state },
         } : {}),
         ...(reply.transition ? {
-          shipJumpTransitions: { ...current.shipJumpTransitions, [shipId]: reply.transition },
+          shipJumpTransitions: { ...current.shipJumpTransitions, [attempt.shipId]: reply.transition },
         } : {}),
         vesselActionRevisions: {
           ...(current.vesselActionRevisions ?? {}),
-          ...(reply.revision === undefined ? {} : { [shipId]: reply.revision }),
+          ...(reply.revision === undefined ? {} : { [attempt.shipId]: reply.revision }),
         },
       };
       useSessionStore.getState().setSession(nextSession);

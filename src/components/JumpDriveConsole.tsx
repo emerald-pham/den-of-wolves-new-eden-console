@@ -1,5 +1,11 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
-import { jumpShip, type JumpShipReply } from '@/lib/sessionService';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import {
+  createJumpShipAttempt,
+  isJumpShipOutcomeUncertain,
+  jumpShip,
+  type JumpShipAttempt,
+  type JumpShipReply,
+} from '@/lib/sessionService';
 import {
   adjustCoordinateDigit,
   coordinateDigits,
@@ -18,6 +24,7 @@ interface Props {
   readonly upgraded: boolean;
   readonly consoleLocked?: boolean | undefined;
   readonly integrityLockedUntil?: string | undefined;
+  readonly presentationOnly?: boolean | undefined;
 }
 
 const DIGITS = [0, 1, 2, 3] as const;
@@ -31,6 +38,9 @@ function replyNotice(reply: JumpShipReply): string {
   }
   if (reply.status === 'integrity-locked') {
     return 'JUMP DRIVE INTEGRITY LOCKED // WAIT FOR REESTABLISHMENT';
+  }
+  if (reply.status === 'stale') {
+    return 'JUMP NOT COMMITTED // LIVE SHIP STATE CHANGED; RECONNECT BEFORE A NEW ATTEMPT';
   }
   return 'JUMP ABORTED // DRIVE INTEGRITY FAILURE';
 }
@@ -46,6 +56,7 @@ export default function JumpDriveConsole({
   upgraded,
   consoleLocked = false,
   integrityLockedUntil,
+  presentationOnly = false,
 }: Props) {
   const access = useConsoleAccess();
   const [destination, setDestination] = useState(() => coordinateDigits(currentCoordinate).join(''));
@@ -54,9 +65,16 @@ export default function JumpDriveConsole({
   const [pending, setPending] = useState(false);
   const [notice, setNotice] = useState('');
   const [localLockoutUntil, setLocalLockoutUntil] = useState<string | undefined>();
+  const [attempt, setAttempt] = useState<JumpShipAttempt | null>(null);
+  const attemptRef = useRef<JumpShipAttempt | null>(null);
   const [clock, setClock] = useState(Date.now);
 
-  const effectiveLockout = localLockoutUntil ?? integrityLockedUntil;
+  function updateAttempt(value: JumpShipAttempt | null): void {
+    attemptRef.current = value;
+    setAttempt(value);
+  }
+
+  const effectiveLockout = integrityLockedUntil ?? localLockoutUntil;
   const lockoutActive = Boolean(
     effectiveLockout && Date.parse(effectiveLockout) > clock,
   );
@@ -66,11 +84,17 @@ export default function JumpDriveConsole({
   );
 
   useEffect(() => {
+    if (attemptRef.current?.shipId === shipId) return;
+    attemptRef.current = null;
     setDestination(coordinateDigits(currentCoordinate).join(''));
     setLocked(false);
     setPower(0);
-    setNotice('');
-  }, [currentCoordinate]);
+    setAttempt(null);
+  }, [currentCoordinate, shipId]);
+
+  useEffect(() => {
+    setLocalLockoutUntil(undefined);
+  }, [integrityLockedUntil]);
 
   useEffect(() => {
     if (!lockoutActive || !effectiveLockout) return;
@@ -78,30 +102,52 @@ export default function JumpDriveConsole({
     return () => window.clearTimeout(timer);
   }, [effectiveLockout, lockoutActive, clock]);
 
-  const disabled = !access.writable || consoleLocked || pending || lockoutActive;
-  const powerDisabled = disabled || !locked || !charged;
-  const [short = 0, medium = 0, long = 0] = jumpCosts;
+  const blocked = !presentationOnly && (!access.writable || consoleLocked);
+  const disabled = blocked || pending || (lockoutActive && !attempt);
+  const editingDisabled = presentationOnly ? pending : disabled || attempt !== null;
+  const powerDisabled = presentationOnly || disabled || attempt !== null || !locked || !charged;
+  const [printedShort = 0, printedMedium = 0, printedLong = 0] = jumpCosts;
+  const upgradeReduction = upgraded ? 1 : 0;
+  const short = Math.max(0, printedShort - upgradeReduction);
+  const medium = Math.max(0, printedMedium - upgradeReduction);
+  const long = Math.max(0, printedLong - upgradeReduction);
 
   function adjustDigit(index: number, delta: -1 | 1): void {
-    if (disabled || locked) return;
+    if (editingDisabled || locked) return;
     setDestination((value) => adjustCoordinateDigit(value, index, delta));
     setNotice('');
   }
 
   async function submitJump(): Promise<void> {
-    if (disabled || !locked || power < 100 || !charged) return;
+    if (presentationOnly || disabled || !locked || (!attempt && (power < 100 || !charged))) return;
+    let request = attempt;
+    if (!request) {
+      try {
+        request = createJumpShipAttempt(shipId, destination);
+        updateAttempt(request);
+      } catch {
+        setNotice('JUMP REQUEST REJECTED // RECONNECT TO THE LIVE SHIP STATE');
+        return;
+      }
+    }
     setPending(true);
     setNotice('JUMP DRIVE // COMMITTING DESTINATION LOCK');
     try {
-      const reply = await jumpShip(shipId, destination);
+      const reply = await jumpShip(request);
+      updateAttempt(null);
       setNotice(replyNotice(reply));
       if (reply.status === 'integrity-lockout' || reply.status === 'integrity-locked') {
         setLocalLockoutUntil(reply.integrityLockedUntil);
         setPower(0);
       }
       if (reply.status === 'jumped') setPower(0);
-    } catch {
-      setNotice('JUMP REQUEST REJECTED // AUTHORITY OR DRIVE CONDITIONS CHANGED');
+    } catch (cause) {
+      if (isJumpShipOutcomeUncertain(cause)) {
+        setNotice('JUMP STATUS UNCONFIRMED // RETRY TO CHECK THE SAME REQUEST');
+      } else {
+        updateAttempt(null);
+        setNotice('JUMP REQUEST REJECTED // AUTHORITY OR DRIVE CONDITIONS CHANGED');
+      }
     } finally {
       setPending(false);
     }
@@ -117,6 +163,12 @@ export default function JumpDriveConsole({
         <strong className="jump-drive__mode">{lockoutActive ? 'INTEGRITY LOCK' : pending ? 'JUMPING' : locked ? 'DESTINATION LOCKED' : 'STANDBY'}</strong>
       </header>
 
+      {presentationOnly && (
+        <p className="jump-drive__notice" role="status">
+          PRESENTATION PREVIEW // LOCAL CONTROLS ONLY // JUMP COMMANDS ARE DISABLED
+        </p>
+      )}
+
       <div className="jump-drive__coordinates">
         <div className="jump-drive__readout">
           <span className="jump-drive__label">Destination coordinates</span>
@@ -131,14 +183,14 @@ export default function JumpDriveConsole({
               <button
                 type="button"
                 aria-label={`Increase coordinate digit ${index + 1}`}
-                disabled={disabled || locked}
+                disabled={editingDisabled || locked}
                 onClick={() => adjustDigit(index, 1)}
               >+</button>
               <span aria-label={`Coordinate digit ${index + 1} value`}>{destination[index]}</span>
               <button
                 type="button"
                 aria-label={`Decrease coordinate digit ${index + 1}`}
-                disabled={disabled || locked}
+                disabled={editingDisabled || locked}
                 onClick={() => adjustDigit(index, -1)}
               >−</button>
             </div>
@@ -149,7 +201,7 @@ export default function JumpDriveConsole({
       <button
         className="cic-action-button jump-drive__lock"
         type="button"
-        disabled={disabled || (!locked && !destination.match(/^\d{4}$/))}
+        disabled={editingDisabled || attempt !== null || (!locked && !destination.match(/^\d{4}$/))}
         onClick={() => {
           setLocked((value) => !value);
           setPower(0);
@@ -199,9 +251,9 @@ export default function JumpDriveConsole({
       <button
         className="cic-action-button jump-drive__launch"
         type="button"
-        disabled={disabled || !locked || power < 100 || !charged}
+        disabled={presentationOnly || disabled || !locked || (!attempt && (power < 100 || !charged))}
         onClick={() => void submitJump()}
-      >{pending ? 'Jumping…' : `Jump to ${destination}`}</button>
+      >{pending ? 'Jumping…' : attempt ? 'Retry jump confirmation' : `Jump to ${destination}`}</button>
     </section>
   );
 }

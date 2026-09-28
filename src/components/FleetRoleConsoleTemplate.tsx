@@ -10,6 +10,7 @@ interface Props<Page extends string> {
   readonly fuel: number;
   readonly reactorCapacity: number;
   readonly jumpCosts: readonly number[];
+  readonly jumpDriveUpgraded?: boolean | undefined;
   readonly damage?: ShipDamageState | undefined;
   readonly telemetry?: ReactNode;
   readonly children: ReactNode;
@@ -27,6 +28,7 @@ export default function FleetRoleConsoleTemplate<Page extends string>({
   fuel,
   reactorCapacity,
   jumpCosts,
+  jumpDriveUpgraded = false,
   damage,
   telemetry,
   children,
@@ -34,7 +36,11 @@ export default function FleetRoleConsoleTemplate<Page extends string>({
   activePage,
   onPageChange,
 }: Props<Page>) {
-  const [short = 0, medium = 0, long = 0] = jumpCosts;
+  const [printedShort = 0, printedMedium = 0, printedLong = 0] = jumpCosts;
+  const reduction = jumpDriveUpgraded ? 1 : 0;
+  const short = Math.max(0, printedShort - reduction);
+  const medium = Math.max(0, printedMedium - reduction);
+  const long = Math.max(0, printedLong - reduction);
   const navigation = pages && activePage !== undefined && onPageChange
     ? { pages, activePage, onPageChange }
     : {};
@@ -59,7 +65,9 @@ export default function FleetRoleConsoleTemplate<Page extends string>({
     >
       <div className="console-workspace__status">
         <p>Jump requirement // Short {short} // Medium {medium} // Long {long}</p>
-        <p>Maintenance and damage synchronized // Upgrades and procedure outcomes are tracked at the table</p>
+        <p>{jumpDriveUpgraded
+          ? 'Jump costs reflect the installed drive upgrade // −1 fuel per jump'
+          : 'Jump costs use the printed ship requirements // Charge and damage are shown in ship state'}</p>
       </div>
       {children}
     </RoleConsoleTemplate>

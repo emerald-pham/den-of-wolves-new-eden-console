@@ -115,6 +115,7 @@ export default function FleetSystemsWorkspace({
     galacticCoordinate={galacticCoordinate} fuel={fuel}
     reactorCapacity={commandMetrics.reactorCapacity}
     jumpCosts={[commandMetrics.jumpCosts.short, commandMetrics.jumpCosts.medium, commandMetrics.jumpCosts.long]}
+    jumpDriveUpgraded={upgrades.includes('jump-drive')}
     damage={damage}
     pages={[{ id: 'systems', label: 'Ship systems' }, { id: 'navigation', label: 'Navigation' }]}
     activePage={page} onPageChange={setPage}>
