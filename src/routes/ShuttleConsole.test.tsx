@@ -748,6 +748,122 @@ it('shows cargo transfer pending and retries an uncertain result with the exact 
   expect(within(cargo).getByRole('status')).toHaveTextContent('Loaded 2 Food.');
 });
 
+it('scopes uncertain cargo recovery to its holder and reconciles a fresh transfer for the next holder', async () => {
+  const user = userEvent.setup();
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!, phase: 'active', activeRoleIds: ['quellon-explorer', 'quellon-engineer'],
+    activeVesselIds: ['quellon'],
+    shipResources: { quellon: { ore: 0, fuel: 3, food: 10, water: 8, materials: 0, securityTeams: 2 } },
+    shuttleCargo: { hummingbird: { food: 1, water: 2 } },
+    shuttleDockings: [{ shuttleId: 'hummingbird', shipId: 'quellon', dockedAt: 'SESSION START' }],
+    shuttleControl: { hummingbird: {
+      shuttleId: 'hummingbird', ownerRoleId: 'quellon-explorer', ownerUid: 'u1',
+      holderUid: 'u1', revision: 3,
+    } },
+  });
+  state.setMe({ ...state.me!, assignedRoleId: 'quellon-explorer',
+    activeConsoleRoleId: 'quellon-explorer', seatId: 'seat-1', fleetGroupId: 'fleet-1' });
+  state.setConnection('live');
+  state.setSessionSnapshotFreshness('server');
+  const originalMe = useSessionStore.getState().me!;
+  const response = deferred<unknown>();
+  const exactAttempt = {
+    command: {
+      sessionId: 's1', requestId: 'cargo-request-original', shuttleId: 'hummingbird',
+      resourceId: 'food', direction: 'load', amount: 2, expectedControlRevision: 3,
+    },
+    authority: {
+      sessionId: 's1', uid: 'u1', role: 'player',
+      assignedRoleId: originalMe.assignedRoleId,
+      activeConsoleRoleId: originalMe.activeConsoleRoleId,
+      replacementRoleId: originalMe.replacementRoleId,
+      seatId: originalMe.seatId,
+      fleetGroupId: 'fleet-1', shuttleId: 'hummingbird',
+      ownerRoleId: 'quellon-explorer', ownerUid: 'u1', holderUid: 'u1',
+      hostShipId: 'quellon', expectedControlRevision: 3,
+    },
+  };
+  vi.mocked(transferShuttleCargo).mockReturnValueOnce(response.promise as never);
+  vi.mocked(transferShuttleCargo).mockResolvedValueOnce({ status: 'committed' } as never);
+  vi.mocked(replayShuttleCargoTransfer).mockResolvedValueOnce({ status: 'replayed' } as never);
+  render(<MemoryRouter initialEntries={['/shuttles/hummingbird']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+
+  const cargo = screen.getByRole('region', { name: 'Shuttle cargo transfer' });
+  await user.selectOptions(within(cargo).getByLabelText('Resource'), 'food');
+  await user.clear(within(cargo).getByLabelText('Amount'));
+  await user.type(within(cargo).getByLabelText('Amount'), '2');
+  await user.click(within(cargo).getByRole('button', { name: 'Load shuttle' }));
+  await act(async () => response.reject(Object.assign(new Error('The callable timed out.'), {
+    name: 'ShuttleCargoTransferUncertainError', attempt: exactAttempt,
+  })));
+  expect(within(cargo).getByRole('button', { name: 'Retry exact cargo request' })).toBeVisible();
+
+  act(() => {
+    state.setSession({
+      ...useSessionStore.getState().session!,
+      shuttleControl: { hummingbird: {
+        shuttleId: 'hummingbird', ownerRoleId: 'quellon-explorer', ownerUid: 'u1',
+        holderUid: 'u2', revision: 4,
+      } },
+    });
+    state.setMe({ ...useSessionStore.getState().me!, uid: 'u2', displayName: 'New Holder',
+      assignedRoleId: 'quellon-engineer', activeConsoleRoleId: 'quellon-engineer',
+      seatId: 'seat-2', fleetGroupId: 'fleet-1' });
+    state.setSessionSnapshotFreshness('cache');
+  });
+
+  expect(within(cargo).queryByRole('button', { name: 'Retry exact cargo request' })).not.toBeInTheDocument();
+  expect(within(cargo).queryByText(/The cargo transfer result is uncertain/i)).not.toBeInTheDocument();
+  expect(within(cargo).getByLabelText('Resource')).toHaveValue('');
+  expect(within(cargo).getByRole('button', { name: 'Load shuttle' })).toBeDisabled();
+  expect(within(cargo).getByText(/fresh live server snapshot/i)).toBeVisible();
+
+  act(() => {
+    state.setSession({
+      ...useSessionStore.getState().session!,
+      shipResources: { quellon: { ore: 0, fuel: 3, food: 8, water: 8, materials: 0, securityTeams: 2 } },
+      shuttleCargo: { hummingbird: { food: 3, water: 2 } },
+      shuttleControl: { hummingbird: {
+        shuttleId: 'hummingbird', ownerRoleId: 'quellon-explorer', ownerUid: 'u1',
+        holderUid: 'u2', revision: 4,
+      } },
+    });
+    state.setSessionSnapshotFreshness('server');
+  });
+
+  await user.selectOptions(within(cargo).getByLabelText('Resource'), 'food');
+  await user.clear(within(cargo).getByLabelText('Amount'));
+  await user.type(within(cargo).getByLabelText('Amount'), '1');
+  await user.click(within(cargo).getByRole('button', { name: 'Load shuttle' }));
+  await waitFor(() => expect(transferShuttleCargo).toHaveBeenLastCalledWith(
+    'hummingbird', 'food', 'load', 1, 4,
+  ));
+  expect(replayShuttleCargoTransfer).not.toHaveBeenCalled();
+  expect(within(cargo).getByRole('status')).toHaveTextContent('Loaded 1 Food.');
+
+  act(() => {
+    state.setSession({
+      ...useSessionStore.getState().session!,
+      shuttleControl: { hummingbird: {
+        shuttleId: 'hummingbird', ownerRoleId: 'quellon-explorer', ownerUid: 'u1',
+        holderUid: 'u1', revision: 5,
+      } },
+    });
+    state.setMe({ ...originalMe });
+    state.setSessionSnapshotFreshness('server');
+  });
+
+  expect(within(cargo).queryByText('Loaded 1 Food.')).not.toBeInTheDocument();
+  expect(within(cargo).getByRole('button', { name: 'Retry exact cargo request' })).toBeVisible();
+  expect(within(cargo).getByRole('status')).toHaveTextContent(/result is uncertain/i);
+  await user.click(within(cargo).getByRole('button', { name: 'Retry exact cargo request' }));
+  await waitFor(() => expect(replayShuttleCargoTransfer).toHaveBeenCalledWith(exactAttempt));
+  expect(transferShuttleCargo).toHaveBeenCalledTimes(2);
+});
+
 it('keeps the cargo draft and waits for the newer control snapshot when stale result arrives first', async () => {
   const user = userEvent.setup();
   const state = useSessionStore.getState();
