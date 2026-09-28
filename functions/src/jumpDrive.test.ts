@@ -196,6 +196,19 @@ describe('authoritative jump-drive resolution', () => {
     });
   });
 
+  it('preserves the once-per-game emergency marker across an ordinary later jump', () => {
+    const result = resolveJumpAttempt({
+      shipId: 'aegis', origin: '5143', destination: '0000', currentTurn: 2,
+      fuel: 4, charged: true, damaged: false, upgraded: false, now,
+      transitionId: 'jump-after-emergency', state: { emergencyJumpUsed: true, lastJumpTurn: 1 },
+    });
+
+    expect(result).toMatchObject({
+      status: 'jumped',
+      state: { lastJumpTurn: 2, emergencyJumpUsed: true },
+    });
+  });
+
   it('keeps an existing integrity lock authoritative until its expiry', () => {
     const result = resolveJumpAttempt({
       shipId: 'aegis',
