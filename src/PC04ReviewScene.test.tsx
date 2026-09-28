@@ -21,12 +21,13 @@ it('keeps ordinary station entry and authenticated GM Role Select distinct', asy
   const entry = screen.getByRole('region', { name: 'Prepared unified console entry' });
   expect(within(entry).getByRole('heading', { name: 'Stations and consoles' })).toBeVisible();
   expect(within(entry).getByRole('link', { name: 'GM join' })).toBeVisible();
-  expect(within(entry).getByRole('link', { name: 'Admiral' })).toBeVisible();
+  const admiral = within(entry).getByRole('link', { name: /AEGIS.*Admiral.*HELD BY YOU/i });
+  expect(admiral).toBeVisible();
   expect(entry).toHaveTextContent('HELD BY YOU');
   expect(entry).toHaveTextContent('OPEN');
   expect(entry).toHaveTextContent('CLAIMED // READ-ONLY');
   expect(within(entry).queryByRole('button', { name: /^Select a role$/i })).not.toBeInTheDocument();
-  await user.click(within(entry).getByRole('link', { name: 'Admiral' }));
+  await user.click(admiral);
   expect(within(entry).getByRole('region', { name: 'Prepared station preview' }))
     .toHaveTextContent(/Admiral.*no station claim/i);
 });

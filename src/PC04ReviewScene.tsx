@@ -1,5 +1,11 @@
 import { useState } from 'react';
+import { Link, MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import FleetGroupContext from '@/components/FleetGroupContext';
+import AwayMissionStartPanel from '@/components/AwayMissionStartPanel';
+import { AwayMissionParticipantPanel } from '@/components/AwayMissionDiscardPanel';
+import { FleetRoster } from '@/routes/SessionMode';
+import { CONSOLE_ROLES } from '@/data/roles';
+import type { AwayMissionStartReply, StartAwayMissionOptions } from '@/lib/sessionService';
 import './PC04ReviewScene.css';
 
 type Step = 'entry' | 'copy' | 'mission' | 'split' | 'recovery';
@@ -15,36 +21,140 @@ const STEPS: readonly { readonly id: Step; readonly label: string; readonly intr
 
 const RED_ALERT = 'RED ALERT // WOLF ATTACK IMMINENT ALL HANDS TO BATTLE STATIONS. NON-CREW MUST SHELTER IN PLACE UNTIL ALERT LIFTED';
 
+const REVIEW_SEATS = [
+  {
+    id: 'admiral', sessionId: 'pc04-review', roleId: 'admiral', label: 'AEGIS // Admiral',
+    factionId: 'aegis', status: 'claimed', holderUid: 'review-player', claimedAt: 'prepared',
+  },
+  {
+    id: 'dione-engineer', sessionId: 'pc04-review', roleId: 'dione-engineer', label: 'Dione // Engineer',
+    factionId: 'dione', status: 'open', holderUid: null, claimedAt: null,
+  },
+  {
+    id: 'shepherd-scientist', sessionId: 'pc04-review', roleId: 'shepherd-scientist', label: 'Shepherd // Scientist',
+    factionId: 'shepherd', status: 'claimed', holderUid: 'other-player', claimedAt: 'prepared',
+  },
+] as const;
+
+const REVIEW_MISSION_SESSION = {
+  id: 'pc04-review', name: 'PC04 // PREPARED REVIEW', phase: 'active', currentTurn: 4,
+  turnLimit: 6, setupRevision: 12, chartId: 'A', chartSelectionLocked: true,
+  activeRoleIds: ['dione-engineer', 'wing-commander'],
+  turnPhase: {
+    turn: 4, teamPhaseEndsAt: '2026-09-28T16:00:00.000Z',
+    openAirspaceEndsAt: '2026-09-28T16:10:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+  },
+  turnState: {
+    currentTurn: 4, maxTurn: 6, phase: 'coordination', phaseRevision: 12,
+    startedAt: '2026-09-28T16:00:00.000Z', endsAt: '2026-09-28T16:10:00.000Z',
+  },
+} as const;
+
+const REVIEW_MISSION_PLAYERS = [
+  {
+    uid: 'dione-engineer-player', displayName: 'Dione Engineer', role: 'player', connected: true,
+    assignedRoleId: 'dione-engineer', fleetGroupId: 'fleet-2',
+  },
+  {
+    uid: 'wing-commander-player', displayName: 'AEGIS Wing Commander', role: 'player', connected: true,
+    assignedRoleId: 'wing-commander', fleetGroupId: 'fleet-2',
+  },
+] as const;
+
+const REVIEW_MISSION_OPPORTUNITY = {
+  type: 'mission-opportunity', status: 'available', sessionId: 'pc04-review',
+  id: 'arrival-fleet-2-A-6798', groupId: 'fleet-2', chart: 'A', coordinate: '6798',
+  siteCode: 'L', sourceShipId: 'starlight', sourceTransitionId: 'jump-entry-cycle-4', sourceCycle: 4,
+} as const;
+
+const REVIEW_MISSION_RECEIPT = {
+  type: 'away-mission-start-snapshot', sessionId: 'pc04-review',
+  opportunityId: 'arrival-fleet-2-A-5143', missionId: 'mission-arrival-fleet-2-A-5143',
+  groupId: 'fleet-2', chart: 'A', coordinate: '5143', siteCode: 'L',
+  sourceShipId: 'starlight', sourceTransitionId: 'jump-entry-cycle-3', sourceCycle: 3,
+  missionLeader: { uid: 'dione-engineer-player', roleId: 'dione-engineer' },
+  actorUid: 'review-gm', instanceId: 'pc04-review-bridge', requestId: 'pc04-mission-prior',
+  source: {
+    assumptionId: 'PC04-A1',
+    playerGuide: 'Player’s Guide v1.1, printed pp. 14–15',
+    facilitatorGuide: 'Facilitator’s Guide v1.1, printed pp. 13–17',
+    a4CardPack: 'Home Printing A4 double-sided v1.1',
+    ruleId: 'new-location-mission-with-team-selected-leader',
+  },
+  inputs: {
+    expectedSetupRevision: 12, expectedPhaseRevision: 11, expectedCycle: 3,
+    availableCarrierCraftIds: ['starlight'],
+    participantSnapshots: [
+      { uid: 'dione-engineer-player', roleId: 'dione-engineer' },
+      { uid: 'wing-commander-player', roleId: 'wing-commander' },
+    ],
+    missionLeaderUid: 'dione-engineer-player',
+  },
+  modifiers: [], outcome: 'started',
+  stateDelta: { missionSnapshotCreated: true, participantHandCount: 2, participantPointerCount: 2 },
+  revisions: { setup: 12, phase: { cycle: 3, phase: 'coordination', revision: 11 } },
+  replay: { status: 'committed', requestId: 'pc04-mission-prior' },
+  recovery: { next: 'Exact replay returns this receipt without a second deal.' },
+  createdAt: '2026-09-28T16:00:00.000Z',
+} as const;
+
+async function submitPreparedMissionStart(options: StartAwayMissionOptions): Promise<AwayMissionStartReply> {
+  return {
+    status: 'committed', sessionId: options.sessionId, requestId: options.requestId,
+    opportunityId: options.opportunityId, snapshotId: options.opportunityId,
+    missionId: `mission-${options.opportunityId}`, groupId: options.groupId,
+    coordinate: options.coordinate, sourceCycle: options.sourceCycle,
+    participantCount: options.participantUids.length, missionLeaderUid: options.missionLeaderUid,
+    expectedSetupRevision: options.expectedSetupRevision,
+    expectedPhaseRevision: options.expectedPhaseRevision,
+    expectedCycle: options.expectedCycle,
+  };
+}
+
+function PreparedStationPreview() {
+  const { pathname } = useLocation();
+  const roleId = pathname.split('/').at(-1);
+  const role = CONSOLE_ROLES.find((candidate) => candidate.id === roleId);
+  const station = pathname === '/roles' ? 'GM join // Role Select' : role?.name ?? 'Station overview';
+  return <section className="pc04-review__station-preview cic-frame" aria-label="Prepared station preview">
+    <p className="cic-overline">LOCAL REVIEW ROUTE // NO LIVE COMMAND</p>
+    <h3>{station}</h3>
+    <p>This production catalog route is prepared locally. It makes no station claim and does not transfer authority.</p>
+    <Link className="cic-text-button" to="/console">Return to stations and consoles</Link>
+  </section>;
+}
+
 function EntryCheck() {
-  const [entered, setEntered] = useState(false);
   return <section className="pc04-review__panel cic-frame" role="region" aria-label="Prepared unified console entry">
     <header className="pc04-review__panel-heading">
       <div><p className="cic-overline">SINGLE EARLY SCREEN</p><h2>Console and station entry</h2></div>
       <p>PLAYER PATH // NO SECOND ROLE CHOICE</p>
     </header>
-    <div className="pc04-review__entry-grid">
-      <article className="pc04-review__entry-card" data-entry-state="assigned">
-        <p>Assigned console</p><h3>AEGIS // Admiral</h3><p>Held by you // ready to enter</p>
-        <button className="cic-action-button" type="button" onClick={() => setEntered(true)}>Enter assigned console</button>
-      </article>
-      <article className="pc04-review__entry-card" data-entry-state="open">
-        <p>Open console</p><h3>Dione // Engineer</h3><p>First entry claims this station through the server.</p>
-        <button className="cic-action-button" type="button" disabled>Prepared claim only</button>
-      </article>
-      <article className="pc04-review__entry-card" data-entry-state="view">
-        <p>View only</p><h3>Shepherd // Scientist</h3><p>Occupied // inspection does not transfer authority.</p>
-        <button className="cic-text-button" type="button" disabled>Prepared view</button>
-      </article>
-      <article className="pc04-review__entry-card pc04-review__entry-card--gm" data-entry-state="gm">
-        <p>Authenticated facilitator path</p><h3>GM join // Role Select</h3><p>Separate from ordinary station entry.</p>
-        <button className="cic-text-button" type="button" disabled>Prepared GM access</button>
-      </article>
-    </div>
-    <p className="pc04-review__result" role="status" aria-label="Prepared entry result">
-      {entered
-        ? 'Prepared result // single server-authorized console claim // catalog position retained for return'
-        : 'Prepared result // choose the assigned console to review the entry handoff'}
-    </p>
+    <MemoryRouter initialEntries={['/console']}>
+      <Routes>
+        <Route path="/console" element={<FleetRoster
+          session={{ phase: 'lobby' } as never}
+          player={{ role: 'player', fleetGroupId: 'fleet-2' } as never}
+          sessionName="PC04 // PREPARED ENTRY"
+          capybaraEnabled={false}
+          dioneEnabled
+          pressEnabled={false}
+          pressClaimed={false}
+          activeRoleIds={['admiral', 'dione-engineer', 'shepherd-scientist']}
+          activeVesselIds={['aegis', 'dione', 'shepherd']}
+          isGm={false}
+          gmJoinAvailable
+          sessionSnapshotFreshness="server"
+          seats={REVIEW_SEATS as never}
+          viewerUid="review-player"
+          activeConsoleRoleId="admiral"
+          replacementRoleId={null}
+        />} />
+        <Route path="*" element={<PreparedStationPreview />} />
+      </Routes>
+    </MemoryRouter>
+    <p className="pc04-review__note">The production station catalog is rendered here. Only the authenticated facilitator link enters Role Select.</p>
   </section>;
 }
 
@@ -69,41 +179,40 @@ function CopyCheck() {
 }
 
 function MissionCheck() {
+  const [discarded, setDiscarded] = useState(false);
+  const pointer = {
+    sessionId: 'pc04-review', participantUid: 'dione-engineer-player',
+    missionId: 'mission-arrival-fleet-2-A-6798', handId: 'hand-dione-engineer',
+    phase: 'discarding', revision: discarded ? 2 : 1, discarded,
+    groupId: 'fleet-2', chart: 'A', coordinate: '6798', siteCode: 'L', sourceCycle: 4,
+    participantCount: 2, missionLeaderUid: 'dione-engineer-player', missionLeaderRoleId: 'dione-engineer',
+  } as const;
+  const hand = {
+    sessionId: 'pc04-review', participantUid: 'dione-engineer-player',
+    missionId: 'mission-arrival-fleet-2-A-6798', handId: 'hand-dione-engineer',
+    cardId: 'A♥', rank: 'A', suit: 'hearts', value: 10, discarded,
+  } as const;
   return <div className="pc04-review__mission-layout">
-    <section className="pc04-review__panel cic-frame" role="region" aria-label="Prepared away mission">
-      <header className="pc04-review__panel-heading">
-        <div><p className="cic-overline">NEW LOCATION // GROUP-BOUND</p><h2>Away mission start</h2></div>
-        <p>FLEET-2 // 6798 // CYCLE 4</p>
-      </header>
-      <dl className="pc04-review__mission-facts">
-        <div><dt>Mission Leader</dt><dd>Mission Leader // Dione Engineer</dd></div>
-        <div><dt>Eligible craft</dt><dd>Craft // Starlight</dd></div>
-        <div><dt>Participants</dt><dd>AEGIS Wing Commander // Dione Engineer</dd></div>
-        <div><dt>Opportunity</dt><dd>Opportunity // Explore</dd></div>
-      </dl>
-      <section className="pc04-review__private-hand" aria-label="Prepared private mission hand">
-        <p className="cic-overline">ENTITLED PARTICIPANT ONLY</p>
-        <h3>Your private hand</h3>
-        <div><span>EXPLORE +2</span><span>SALVAGE +1</span><span>DANGER −1</span></div>
-        <p>Choose one secret discard. Other participants' cards are not rendered.</p>
-      </section>
-      <p className="pc04-review__note">This prepared view illustrates the production contract. Optional craft, rewards, and unresolved rejoin behavior are not admitted here.</p>
-    </section>
-    <section className="pc04-review__panel pc04-review__log cic-frame" role="region" aria-label="Prepared automated GM log">
-      <header className="pc04-review__panel-heading">
-        <div><p className="cic-overline">SERVER-OWNED RECEIPT</p><h2>Automated GM log</h2></div>
-        <p>AUTOMATIC // NO GM TRANSCRIPTION</p>
-      </header>
-      <dl>
-        <div><dt>Source</dt><dd>Away Mission procedure // Player's Guide v1.1</dd></div>
-        <div><dt>Inputs</dt><dd>FLEET-2 // 6798 // Cycle 4 // two participants</dd></div>
-        <div><dt>Modifiers</dt><dd>Starlight Explore bonus // prepared example</dd></div>
-        <div><dt>Outcome</dt><dd>Initial private deal committed</dd></div>
-        <div><dt>State delta</dt><dd>Mission snapshot + participant hands</dd></div>
-        <div><dt>Revision and replay</dt><dd>Revision 12 // request pc04-mission-1</dd></div>
-        <div><dt>Recovery</dt><dd>Exact replay returns the committed receipt</dd></div>
-      </dl>
-    </section>
+    <div className="pc04-review__panel">
+      <p className="pc04-review__note">Production mission controls with a local prepared command boundary. No callable or live session is used.</p>
+      <AwayMissionStartPanel
+        session={REVIEW_MISSION_SESSION as never}
+        players={REVIEW_MISSION_PLAYERS as never}
+        instanceId="pc04-review-bridge"
+        isGm
+        preparedOpportunities={[REVIEW_MISSION_OPPORTUNITY] as never}
+        preparedReceipts={[REVIEW_MISSION_RECEIPT] as never}
+        submitMissionStart={submitPreparedMissionStart}
+      />
+    </div>
+    <div className="pc04-review__panel">
+      <p className="pc04-review__note">Entitled-participant view. Only this prepared card is rendered; the local discard changes no session state.</p>
+      <AwayMissionParticipantPanel
+        pointers={[pointer] as never}
+        hands={[hand] as never}
+        discardCard={async () => setDiscarded(true)}
+      />
+    </div>
   </div>;
 }
 
