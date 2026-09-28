@@ -29,8 +29,8 @@ test('PC04 solo review route stays usable at phone, short-landscape, and desktop
 
         await expectContained('entry');
         const entry = page.getByRole('region', { name: 'Prepared unified console entry' });
-        await entry.getByRole('button', { name: 'Enter assigned console' }).click();
-        assert.match(await page.getByRole('status', { name: 'Prepared entry result' }).textContent(), /server-authorized console claim/i);
+        await entry.getByRole('link', { name: /AEGIS.*Admiral.*HELD BY YOU/i }).click();
+        assert.match(await entry.getByRole('region', { name: 'Prepared station preview' }).textContent(), /no station claim/i);
 
         await steps.getByRole('button', { name: '2 Read the console' }).click();
         await expectContained('typography');
@@ -38,7 +38,16 @@ test('PC04 solo review route stays usable at phone, short-landscape, and desktop
 
         await steps.getByRole('button', { name: '3 Follow a mission' }).click();
         await expectContained('mission');
-        await page.getByRole('region', { name: 'Prepared automated GM log' }).waitFor();
+        const mission = page.getByRole('region', { name: 'New-location mission start' });
+        await mission.getByRole('checkbox', { name: /Dione Engineer/i }).check();
+        await mission.getByRole('checkbox', { name: /AEGIS Wing Commander/i }).check();
+        await mission.getByLabel('Mission Leader').selectOption('dione-engineer-player');
+        await mission.getByRole('button', { name: 'Start mission' }).click();
+        assert.match(await mission.getByRole('status', { name: 'Mission start result' }).textContent(), /mission started/i);
+        await mission.getByRole('region', { name: 'Mission start receipts' }).waitFor();
+        const privateHand = page.getByRole('region', { name: 'Private away mission cards' });
+        await privateHand.getByRole('button', { name: /discard this card secretly/i }).click();
+        assert.match(await privateHand.textContent(), /card was discarded secretly/i);
 
         await steps.getByRole('button', { name: '4 Follow a split' }).click();
         const split = page.getByRole('region', { name: 'Prepared split fleet' });
