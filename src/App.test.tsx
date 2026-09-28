@@ -156,6 +156,18 @@ describe('App', () => {
     expect(screen.getByRole('link', { name: 'Back to stations' })).toHaveAttribute('href', '#/console');
   });
 
+  it('keeps an in-app return path visible while the Press route chunk opens', async () => {
+    window.location.hash = '#/press';
+    useSessionStore.getState().setIdentity(session, { ...player, role: 'player' });
+    useSessionStore.getState().setMode('console');
+
+    render(<App />);
+
+    expect(screen.getByText('Opening Press…')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Back to stations' })).toHaveAttribute('href', '#/console');
+    expect(await screen.findByRole('heading', { name: /SNN Press Shuttle/i })).toBeInTheDocument();
+  });
+
   it('requires a motion choice before exposing the game interface', async () => {
     localStorage.removeItem(MOTION_SAFETY_STORAGE_KEY);
     render(<App />);
