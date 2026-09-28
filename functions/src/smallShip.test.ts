@@ -294,4 +294,17 @@ describe('small-ship rules', () => {
     expect(result.state.population).toBe(0);
     expect(result.state.unrest).toBe(4);
   });
+
+  it('does not add zero-population unrest again in a later failed cycle', () => {
+    const baseState = docked('warrior');
+    const state = { ...baseState, population: 0, unrest: 4,
+      cycle: { ...baseState.cycle, step: 3, revision: 3 } };
+    const result = advanceSmallShipMaintenance({
+      state, action: 'riot', expectedRevision: 3, currentTurn: 2,
+      hostResources, rolls: [1], now: 'now',
+    });
+    expect(result.state.population).toBe(0);
+    expect(result.state.unrest).toBe(4);
+    expect(result.state.cycle.chargingSkipped).toBe(true);
+  });
 });

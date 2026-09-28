@@ -198,13 +198,14 @@ it('rejects an off-track population value without writing the session', async ()
     .rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.update).not.toHaveBeenCalled();
 });
-it('preserves the other GM acknowledgement and does not alter unrest', async () => {
+it('one GM acknowledgement releases the population gate without altering unrest', async () => {
   mock.alerts = { capybara: { shipId: 'capybara', population: 15000, targetGmInstanceIds: ['gm1','gm2'] } };
   await dismissPopulationAlert.run(request(data));
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
-    populationAlerts: { capybara: { shipId: 'capybara', population: 15000, targetGmInstanceIds: ['gm2'] } }, updatedAt: 'server-time',
+    populationAlerts: {}, updatedAt: 'server-time',
     'vesselActionRevisions.capybara': 1,
   }));
+  expect(mock.update.mock.calls[0]?.[1]).not.toHaveProperty('shipUnrest.capybara');
 });
 it('blocks advancing while a threshold is awaiting acknowledgement', async () => {
   mock.alerts = { capybara: { targetGmInstanceIds: ['gm1'] } };

@@ -53,8 +53,8 @@ describe('Capybara survivor track', () => {
     expect(() => populationChange('capybara',20000,1,false)).toThrow();
     expect(() => populationChange('capybara',15000,-1,true)).toThrow();
   });
-  it('acknowledges only the targeted GM and does not mutate other recipients', () => {
-    expect(acknowledgePopulationAlert(['gm1','gm2'],'gm1')).toEqual(['gm2']);
+  it('lets one targeted GM own the consequence without waiting for optional instances', () => {
+    expect(acknowledgePopulationAlert(['gm1','gm2'],'gm1')).toEqual([]);
     expect(acknowledgePopulationAlert(['gm1'],'stranger')).toEqual(['gm1']);
   });
 });

@@ -67,6 +67,19 @@ describe('Voyage 33-0 maintenance', () => {
     })).toThrow(/charging was skipped/i);
   });
 
+  it('applies the zero-population unrest consequence only on the transition', () => {
+    const base = emptyVoyage33MaintenanceState('aegis');
+    const state = { ...base, population: 0, unrest: 4,
+      cycle: { ...base.cycle, step: 3, revision: 3 } };
+    const result = advanceVoyage33Maintenance({
+      state, expectedRevision: 3, currentTurn: 2, hostResources,
+      now: '2026-09-19T00:00:00.000Z', action: 'riot', rolls: [1],
+    });
+    expect(result.state.population).toBe(0);
+    expect(result.state.unrest).toBe(4);
+    expect(result.state.cycle.chargingSkipped).toBe(true);
+  });
+
   it('fails closed on malformed or over-capacity state', () => {
     expect(parseVoyage33MaintenanceState({ id: 'voyage-33-0', hostShipId: 'aegis', population: 40_001 })).toBeUndefined();
     const state = emptyVoyage33MaintenanceState('aegis');
