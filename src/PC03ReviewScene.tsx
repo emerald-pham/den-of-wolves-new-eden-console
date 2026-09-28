@@ -161,7 +161,7 @@ function DrivePreview({ state, onStateChange }: {
   const costs = aegis.printedStatistics.jumpCosts;
   const fuel = state === 'fuel-starved' ? 1 : aegis.resources.fuel;
   return <section className="pc03-review__panel cic-frame" aria-label="Jump Drive preview">
-    <p className="cic-overline">SAMPLE ONLY // READ-ONLY JUMP CONTROL</p>
+    <p className="cic-overline">SAMPLE ONLY // LOCAL COORDINATE PREVIEW</p>
     <h3>AEGIS // Jump Drive</h3>
     <div className="pc03-review__controls" role="group" aria-label="Prepared Jump Drive states">
       {DRIVE_STATES.map((candidate) => <button
@@ -184,10 +184,11 @@ function DrivePreview({ state, onStateChange }: {
         damaged={state === 'damaged'}
         upgraded={false}
         consoleLocked
+        integrityLockedUntil={state === 'integrity-locked' ? new Date(Date.now() + 60 * 60 * 1000).toISOString() : undefined}
         presentationOnly
       />
     </section>
-    <p className="pc03-review__note">The production inputs are visible for review; every control that could lock, charge, or launch is disabled in this scene.</p>
+    <p className="pc03-review__note">The production digit and lock controls work locally for review. Power and launch are disabled; no command is sent.</p>
   </section>;
 }
 
@@ -201,7 +202,7 @@ function ShuttlePreview({ state, onStateChange, onReturn }: {
   const atShepherd = selected.host === 'shepherd';
   const controlPreview: ShuttlePreviewSnapshot = {
     holderLabel: `${atShepherd ? 'Shepherd Engineer' : 'AEGIS Engineer'} // sample holder`,
-    locationLabel: atShepherd ? `Docked // ${selected.destination}` : `In transit // ${selected.destination}`,
+    locationLabel: selected.host ? `Docked // ${selected.destination}` : `In transit // ${selected.destination}`,
     movement: SHUTTLE_MOVEMENT[state],
   };
   return <section className="pc03-review__panel" aria-label="Prepared shuttle route">
