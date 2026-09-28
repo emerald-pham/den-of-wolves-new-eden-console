@@ -1938,7 +1938,8 @@ it('projects only complete server-confirmed PC04 mission-start receipts to the f
     },
     inputs: {
       expectedSetupRevision: 4, expectedPhaseRevision: 3, expectedCycle: 2,
-      participantSnapshots: [{ uid: 'alice', roleId: 'wing-commander', craftIds: ['starlight'] }],
+      availableCarrierCraftIds: ['starlight'],
+      participantSnapshots: [{ uid: 'alice', roleId: 'wing-commander' }],
       missionLeaderUid: 'alice',
     },
     modifiers: [], outcome: 'started',
@@ -1965,6 +1966,12 @@ it('projects only complete server-confirmed PC04 mission-start receipts to the f
     inputs: expect.objectContaining({ missionLeaderUid: 'alice' }),
   })]);
   expect(onReceipts.mock.calls.at(-1)?.[0]?.[0]).not.toHaveProperty('cardId');
+  expect(onReceipts.mock.calls.at(-1)?.[0]?.[0]?.inputs).toMatchObject({
+    availableCarrierCraftIds: ['starlight'],
+    participantSnapshots: [{ uid: 'alice', roleId: 'wing-commander' }],
+  });
+  expect(onReceipts.mock.calls.at(-1)?.[0]?.[0]?.inputs.participantSnapshots[0])
+    .not.toHaveProperty('craftIds');
   publish({ ...receipt, source: { ...receipt.source, assumptionId: 'unknown' } }, false);
   expect(onReceipts).toHaveBeenLastCalledWith([]);
 

@@ -283,7 +283,7 @@ describe('discardPrivateMissionCard', () => {
     mock.discardMission = {
       schemaVersion: 1,
       missionId: 'mission-1',
-      participantSnapshots: [{ uid: 'alice', roleId: 'wing-commander', craftIds: ['starlight'] }],
+      participantSnapshots: [{ uid: 'alice', roleId: 'wing-commander' }],
       handIds: ['m9_mission-1u5_alice'],
       phase: 'discarding',
       discardedParticipantUids: [],
@@ -357,8 +357,8 @@ describe('discardPrivateMissionCard', () => {
     mock.discardMission = {
       ...mock.discardMission,
       participantSnapshots: [
-        { uid: 'alice', roleId: 'wing-commander', craftIds: ['starlight'] },
-        { uid: 'bob', roleId: 'icebreaker-miner', craftIds: ['highwall'] },
+        { uid: 'alice', roleId: 'wing-commander' },
+        { uid: 'bob', roleId: 'icebreaker-miner' },
       ],
       handIds: ['m9_mission-1u5_alice', 'm9_mission-1u3_bob'],
     };
@@ -389,8 +389,8 @@ describe('openPrivateMissionDiscards', () => {
       phase: 'awaiting-card-selection',
       revision: 0,
       participantSnapshots: [
-        { uid: 'alice', roleId: 'wing-commander', craftIds: ['starlight'] },
-        { uid: 'bob', roleId: 'icebreaker-miner', craftIds: ['highwall'] },
+        { uid: 'alice', roleId: 'wing-commander' },
+        { uid: 'bob', roleId: 'icebreaker-miner' },
       ],
       handIds: ['m9_mission-1u5_alice', 'm9_mission-1u3_bob'],
       groupId: 'fleet-1', chart: 'A', coordinate: '5143', siteCode: 'L', sourceCycle: 2,
@@ -442,7 +442,7 @@ describe('openPrivateMissionDiscards', () => {
     mock.discardMission = {
       schemaVersion: 1,
       missionId: 'mission-1',
-      participantSnapshots: [{ uid: 'alice', roleId: 'wing-commander', craftIds: ['starlight'] }],
+      participantSnapshots: [{ uid: 'alice', roleId: 'wing-commander' }],
       handIds: ['m9_mission-1u5_alice'],
     };
     await expect(openPrivateMissionDiscards.run(request({
@@ -458,7 +458,7 @@ describe('openPrivateMissionDiscards', () => {
       missionId: 'mission-1',
       phase: 'awaiting-card-selection',
       revision: 0,
-      participantSnapshots: [{ uid: 'alice', roleId: 'wing-commander', craftIds: ['starlight'] }],
+      participantSnapshots: [{ uid: 'alice', roleId: 'wing-commander' }],
       handIds: ['m9_mission-1u5_alice'],
     };
     const command = {
@@ -541,10 +541,11 @@ describe('dealPrivateInitialCards', () => {
       source: { assumptionId: 'PC04-A1', ruleId: 'new-location-mission-with-team-selected-leader' },
       inputs: {
         expectedSetupRevision: 1, expectedPhaseRevision: 3, expectedCycle: 2,
+        availableCarrierCraftIds: ['starlight', 'highwall'],
         missionLeaderUid: 'alice',
         participantSnapshots: expect.arrayContaining([
-          { uid: 'alice', roleId: 'wing-commander', craftIds: ['starlight', 'highwall'] },
-          { uid: 'bob', roleId: 'icebreaker-miner', craftIds: ['starlight', 'highwall'] },
+          { uid: 'alice', roleId: 'wing-commander' },
+          { uid: 'bob', roleId: 'icebreaker-miner' },
         ]),
       },
       modifiers: [], outcome: 'started',
@@ -552,6 +553,20 @@ describe('dealPrivateInitialCards', () => {
       revisions: { setup: 1, phase: { cycle: 2, phase: 'coordination', revision: 3 } },
       replay: { status: 'committed', requestId: 'deal-1' },
       recovery: { duplicateStart: expect.any(String) },
+    });
+    expect(startWrite?.[1].inputs).not.toHaveProperty('participantSnapshots.0.craftIds');
+    expect(startWrite?.[1].inputs?.participantSnapshots).toEqual([
+      { uid: 'alice', roleId: 'wing-commander' },
+      { uid: 'bob', roleId: 'icebreaker-miner' },
+    ]);
+    const missionWrite = mock.set.mock.calls.find(([ref]) =>
+      ref.path === `sessions/s1/serverState/awayMissions/instances/mission-${defaultOpportunity.id}`);
+    expect(missionWrite?.[1]).toMatchObject({
+      availableCarrierCraftIds: ['starlight', 'highwall'],
+      participantSnapshots: [
+        { uid: 'alice', roleId: 'wing-commander' },
+        { uid: 'bob', roleId: 'icebreaker-miner' },
+      ],
     });
     expect(mock.update).toHaveBeenCalledWith(
       expect.objectContaining({ path: 'sessions/s1/serverState/missionDeck' }),
@@ -713,8 +728,9 @@ describe('dealPrivateInitialCards', () => {
       ref.path === `sessions/s1/missionStartSnapshots/${defaultOpportunity.id}`);
     expect(startWrite?.[1]).toMatchObject({
       inputs: {
+        availableCarrierCraftIds: ['starlight', 'highwall'],
         participantSnapshots: expect.arrayContaining([
-          { uid: 'admiral', roleId: 'admiral', craftIds: ['starlight', 'highwall'] },
+          { uid: 'admiral', roleId: 'admiral' },
         ]),
         missionLeaderUid: 'admiral',
       },
@@ -784,9 +800,10 @@ describe('dealPrivateInitialCards', () => {
       ref.path === `sessions/s1/missionStartSnapshots/${defaultOpportunity.id}`);
     expect(startWrite?.[1]).toMatchObject({
       inputs: {
+        availableCarrierCraftIds: ['pdf-escort-fighter-wing'],
         participantSnapshots: expect.arrayContaining([
-          { uid: 'admiral', roleId: 'admiral', craftIds: ['pdf-escort-fighter-wing'] },
-          { uid: 'colonel', roleId: 'refinery-124-pdf-colonel', craftIds: ['pdf-escort-fighter-wing'] },
+          { uid: 'admiral', roleId: 'admiral' },
+          { uid: 'colonel', roleId: 'refinery-124-pdf-colonel' },
         ]),
       },
     });
