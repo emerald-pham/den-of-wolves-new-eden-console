@@ -3,6 +3,7 @@ import ContactPlot, { type PlotContact } from '@/components/ContactPlot';
 import PursuitTracker from '@/components/PursuitTracker';
 import { PrimaryStatusView } from '@/components/PrimaryStatus';
 import SessionWaiver from '@/components/SessionWaiver';
+import { CONSOLE_ROLES } from '@/data/roles';
 import './PC02ReviewScene.css';
 
 type Step = 'setup' | 'waiver' | 'fleet' | 'press' | 'dradis' | 'continuity';
@@ -36,11 +37,6 @@ const SAMPLE_CONTACTS: readonly PlotContact[] = [
   { id: 'quellon', tag: 'QUELLON', x: -0.18, y: 0.04, z: -0.17, color: 'var(--cic-faction-gliese)', showCombatRange: false },
 ];
 
-const CONTINUITY_ROLES = [
-  'AEGIS // Admiral', 'AEGIS // Executive Officer', 'AEGIS // Wing Commander',
-  'SNN // Press Officer', 'Independent // President', 'Shipboard // other core role',
-] as const;
-
 const SAMPLE_GM_STATUS = {
   cycle: 'CYCLE 0',
   phase: 'LOBBY',
@@ -58,8 +54,10 @@ export default function PC02ReviewScene() {
   const [scanStage, setScanStage] = useState<ScanStage>('first');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [continuityStage, setContinuityStage] = useState<ContinuityStage>('active');
-  const [continuityRole, setContinuityRole] = useState<string>(CONTINUITY_ROLES[0]);
+  const [continuityRole, setContinuityRole] = useState('admiral');
   const selectedStep = STEPS.find((candidate) => candidate.id === step) ?? STEPS[0]!;
+  const continuityRoleLabel = CONSOLE_ROLES.find((role) => role.id === continuityRole)?.name
+    ?? continuityRole;
 
   return <div className="pc02-review">
     <a className="pc02-review__skip" href="#pc02-review-content">Skip to review step</a>
@@ -178,11 +176,13 @@ export default function PC02ReviewScene() {
             setContinuityRole(event.currentTarget.value);
             setContinuityStage('active');
           }}>
-            {CONTINUITY_ROLES.map((role) => <option key={role}>{role}</option>)}
+            {CONSOLE_ROLES.map((role) => <option key={role.id} value={role.id}>
+              {role.shipId.toUpperCase()} // {role.name}
+            </option>)}
           </select>
         </label>
         <p>Session FLEET-02 // Cycle 2 remains active for the other players.</p>
-        <p role="status">{continuityRole} // {continuityStage === 'disconnected'
+        <p role="status">{continuityRoleLabel} // {continuityStage === 'disconnected'
           ? 'temporary connection loss; same member and role reserved'
           : continuityStage === 'resumed'
             ? 'reconnected; latest authorized role and private state restored'
@@ -190,10 +190,14 @@ export default function PC02ReviewScene() {
               ? 'deliberate leave; role vacated and private state unavailable'
               : 'connected and active'}</p>
         <div className="pc02-review__control-row">
-          <button className="cic-action-button" type="button" onClick={() => setContinuityStage('disconnected')}>
+          <button className="cic-action-button" type="button"
+            disabled={continuityStage === 'left'}
+            onClick={() => setContinuityStage('disconnected')}>
             Temporary disconnect
           </button>
-          <button className="cic-action-button" type="button" onClick={() => setContinuityStage('resumed')}>
+          <button className="cic-action-button" type="button"
+            disabled={continuityStage !== 'disconnected'}
+            onClick={() => setContinuityStage('resumed')}>
             Resume same role
           </button>
           <button className="cic-action-button" type="button" onClick={() => setSettingsOpen(true)}>
