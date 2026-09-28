@@ -90,6 +90,25 @@ it('teaches source-backed table ground rules and the core cycle loop from the as
   expect(loop).toHaveTextContent('Mission Leader');
 });
 
+it('opens the assigned console from the brief as the first production route', async () => {
+  const user = userEvent.setup();
+  render(
+    <MemoryRouter initialEntries={['/brief']}>
+      <Routes>
+        <Route path="/brief" element={<RoleBrief />} />
+        <Route path="/roles" element={<p>Role selection</p>} />
+        <Route
+          path="/ships/:shipId/roles/:roleId"
+          element={<p>Assigned console route</p>}
+        />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  await user.click(screen.getByRole('button', { name: 'Open assigned console' }));
+  expect(screen.getByText('Assigned console route')).toBeInTheDocument();
+});
+
 it('renders Voyage 33-0 support as a private role section when admitted', () => {
   useSessionStore.getState().setRoleBrief({
     ...useSessionStore.getState().roleBrief!,
