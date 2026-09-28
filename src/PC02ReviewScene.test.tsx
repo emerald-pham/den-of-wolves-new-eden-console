@@ -11,6 +11,18 @@ it('shows the production role roster in the prepared lobby without connecting a 
   expect(screen.getByRole('link', { name: 'Press Officer' })).toBeVisible();
 });
 
+it('walks from setup guidance to a prepared first action and back to the briefing', async () => {
+  const user = userEvent.setup();
+  render(<PC02ReviewScene />);
+  expect(screen.getByRole('heading', { name: 'Select a role' })).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Open assigned console' })).toBeVisible();
+
+  await user.click(screen.getByRole('button', { name: 'Open assigned console' }));
+  expect(screen.getByRole('button', { name: 'Return to briefing' })).toBeVisible();
+  await user.click(screen.getByRole('button', { name: 'Return to briefing' }));
+  expect(screen.getByRole('heading', { name: 'Select a role' })).toBeVisible();
+});
+
 it('provides one clearly synthetic six-step PC02 sitting with every requested perspective', async () => {
   const user = userEvent.setup();
   render(<PC02ReviewScene />);
