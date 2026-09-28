@@ -364,8 +364,8 @@ export function composeDefaultLoyaltyAssignments(
 ): Readonly<Record<string, SetupLoyalty>> {
   const byRole = new Map(holders.map((holder) => [holder.roleId, holder]));
   const uniqueWolfRoles = [...new Set(wolfRoleIds)];
-  if (uniqueWolfRoles.length !== wolfRoleIds.length || uniqueWolfRoles.length < 1 || uniqueWolfRoles.length > 2) {
-    throw new Error('Routine setup requires one or two distinct Wolf roles.');
+  if (uniqueWolfRoles.length !== wolfRoleIds.length || (uniqueWolfRoles.length === 0 && holders.length > 0) || uniqueWolfRoles.length > 2) {
+    throw new Error('Routine setup requires up to two distinct occupied Wolf roles; only an empty roster may have none.');
   }
   const wolfUids = uniqueWolfRoles.map((roleId) => byRole.get(roleId)?.uid);
   if (wolfUids.some((uid) => typeof uid !== 'string')) {
@@ -621,7 +621,9 @@ export function readinessForSetup(input: SetupReadinessInput): {
     assignment.roleId !== 'press-officer');
   const pressHasCoreAssignment = input.assignments.some((assignment) =>
     pressPlayerUids.has(assignment.uid) && assignment.roleId !== 'press-officer');
-  if (coreConnectedPlayers.length !== input.playerCount) reasons.push('players');
+  if (strictSeatBackedReadiness
+    ? coreConnectedPlayers.length > input.playerCount
+    : coreConnectedPlayers.length !== input.playerCount) reasons.push('players');
 
   const playerIds = new Set(coreConnectedPlayers);
   const roleIds = new Set(coreAssignments.map((assignment) => assignment.roleId));
@@ -651,8 +653,11 @@ export function readinessForSetup(input: SetupReadinessInput): {
         const metadata = ROLE_SEAT_METADATA[roleId];
         return seat?.id === roleId && seat.roleId === roleId &&
           metadata !== undefined && seat.label === metadata.label && seat.factionId === metadata.factionId &&
-          seat.status === 'claimed' && typeof seat.holderUid === 'string' &&
-          seat.holderUid.length > 0;
+          ((seat.status === 'open' && seat.holderUid === null &&
+            !coreAssignments.some((assignment) => assignment.roleId === roleId)) ||
+           (seat.status === 'claimed' && typeof seat.holderUid === 'string' &&
+            seat.holderUid.length > 0 && coreAssignments.some((assignment) =>
+              assignment.roleId === roleId && assignment.uid === seat.holderUid)));
       });
     if (!validSeatDocuments) reasons.push('seat-documents');
 
@@ -700,7 +705,10 @@ export function readinessForSetup(input: SetupReadinessInput): {
     if (!input.facilitatorResponsibilities.assistant) reasons.push('assistant-facilitator');
   }
 
-  const assignedVessels = new Set(coreAssignments.flatMap((assignment) => vesselIdsForRole(assignment.roleId)));
+  // A confirmed printed roster provisions the fleet even when some stations are vacant.
+  const assignedVessels = new Set(strictSeatBackedReadiness
+    ? activeVesselIdsForRoles(input.activeRoleIds)
+    : coreAssignments.flatMap((assignment) => vesselIdsForRole(assignment.roleId)));
   const configuredVessels = new Set(input.activeVesselIds);
   if (
     configuredVessels.size !== input.activeVesselIds.length ||
