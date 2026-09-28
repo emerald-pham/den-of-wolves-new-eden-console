@@ -4002,3 +4002,24 @@ it('allows removing an affected ship disabled after drafting before delivering t
     { crisisKind: 'disease-outbreak', configurationOverride: '', diseaseOutbreak: { ...diseaseOutbreak, affectedShipIds: ['aegis'] } },
   ));
 });
+
+it('keeps the facilitator checklist local and read-only inside Setup', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+  await user.click(screen.getByRole('button', { name: 'Setup' }));
+
+  const checklist = await screen.findByRole('region', { name: 'Setup checklist' });
+  expect(checklist).toHaveTextContent('One facilitator can run the table.');
+  expect(checklist).toHaveTextContent('Assistant help is optional');
+  expect(checklist).toHaveTextContent('The server validates readiness when Start Production is requested.');
+  const room = within(checklist).getByRole('checkbox', { name: 'Room and components are ready' });
+  await user.click(room);
+
+  expect(room).toBeChecked();
+  expect(confirmSetup).not.toHaveBeenCalled();
+  expect(startGame).not.toHaveBeenCalled();
+  expect(setFacilitatorResponsibility).not.toHaveBeenCalled();
+  expect(useSessionStore.getState().session?.phase).toBe('lobby');
+});
