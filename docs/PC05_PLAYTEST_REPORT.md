@@ -8,7 +8,9 @@ a private acting-captain appointment when the confirmed roster has no Captain
 seat, preserving its existing station and craft entitlements (printed p. 17).
 **PC05-A4** uses actual replacement-role transfer for base small-craft captains
 and explicit facilitator crew-replacement attestation for Voyage 33-0, without
-fabricating a player (same printed p. 17). See the
+fabricating a player (same printed p. 17). **PC05-A5** preserves the existing
+one/two/three-plus jump-distance bands as an explicitly unverified compatibility
+assumption because no primary numeric legend was found. See the
 [assumption log](PRODUCT_MILESTONE_ASSUMPTIONS.md).
 
 ## State and fixed scope

@@ -113,3 +113,15 @@ the original assumption; append the resolution so the decision is traceable.
 | Chosen reading | For a player-commanded base craft, transfer its actual Captain replacement role from its current holder to a different real, active player with valid replacement eligibility, using the established re-role and core-seat release boundary. The former holder awaits re-role without regaining historical core authority. For Voyage 33-0, require explicit authenticated facilitator attestation of an in-world crew captain replacement; create no player, seat or role and grant no user authority. These are documented digital product inferences. |
 | Product effect | Each craft has a durable mutiny lock that guards fresh operations before spending or randomness. Recovery binds the exact craft, revision and request, installs the replacement or records the Voyage attestation atomically with the source-range reduction, and preserves private identities, canonical seats and host ledgers. Authorized exact receipt replay cannot repeat the transfer or reduction. |
 | Review state | New under standing autonomous PC05 authorization; subject to optional owner correction/cooldown. Implementation, independent review and ordinary gameplay proof remain required. |
+
+
+### PC05-A5 — Preserve the existing jump-distance bands
+
+| Field | Record |
+|---|---|
+| ID and milestone | PC05-A5; gameplay completion, Prompt 287. |
+| Source passage | The routed guide and component material describe short, medium and long jumps. The PC05 source pass did not locate a primary numeric legend defining their graph-distance boundaries. |
+| Ambiguity and alternatives | Changing an unverified boundary would change fuel and legality without stronger source evidence. The existing console uses one graph edge for short, two for medium and three or more for long. |
+| Chosen reading | Preserve those existing one/two/three-plus distance bands as a bounded compatibility assumption. This is not a claim that the printed rules specify those numbers. Keep the server and displayed cost on the same policy; correct both together if primary evidence or owner feedback establishes another boundary. |
+| Product effect | Prompt 287 uses one authoritative classification for ordinary jumps and their fuel readout. Tests cover each boundary and the actual route; source uncertainty remains visible in the checkpoint report. This does not alter the separate Deep Nebula procedure in P551. |
+| Review state | New under standing autonomous PC05 authorization; subject to optional owner correction/cooldown. Implementation and ordinary gameplay proof remain required. |
