@@ -268,3 +268,13 @@ it('classifies a server-declared stale rejection separately from an uncertain tr
       message: /live session changed/i,
     });
 });
+
+it('keeps server-classified transport failures out of exact replay recovery', async () => {
+  mocks.call.mockRejectedValueOnce(Object.assign(new Error('The server rejected this request.'), {
+    code: 'functions/unavailable',
+    details: { commandError: 'stale-revision' },
+  }));
+
+  await expect(transferShuttleCargo('hummingbird', 'food', 'load', 2, 3))
+    .rejects.toMatchObject({ name: 'ShuttleCargoTransferRejectedError' });
+});
