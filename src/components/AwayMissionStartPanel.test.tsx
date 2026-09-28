@@ -135,3 +135,29 @@ it('shows the complete server-owned mission-start receipt to the facilitator wit
   expect(receipt).toHaveTextContent(/Refresh live mission/);
   expect(receipt).not.toHaveTextContent(/A♥|card value/i);
 });
+
+it('does not treat a replayed stale revision receipt as a committed mission', async () => {
+  const user = userEvent.setup();
+  mocks.startAwayMission.mockResolvedValue({
+    status: 'replayed', sessionId: 's1', requestId: 'request-1',
+    opportunityId: opportunity.id, snapshotId: opportunity.id,
+    missionId: `mission-${opportunity.id}`, groupId: 'fleet-1', coordinate: '5143',
+    sourceCycle: 2, participantCount: 1, missionLeaderUid: 'alice',
+    expectedSetupRevision: 4, expectedPhaseRevision: 3, expectedCycle: 2,
+    currentSetupRevision: 5, currentPhaseRevision: 3, currentCycle: 2,
+  });
+  render(<AwayMissionStartPanel
+    session={session as never}
+    players={players as never}
+    instanceId="bridge"
+    isGm
+  />);
+  await user.click(screen.getByRole('checkbox', { name: /alice/i }));
+  await user.selectOptions(screen.getByLabelText(/mission leader/i), 'alice');
+  await user.click(screen.getByRole('button', { name: /start mission/i }));
+
+  expect(screen.getByRole('status', { name: 'Mission start result' }))
+    .toHaveTextContent(/phase changed/i);
+  expect(screen.getByText(/newly reached L location/i)).toBeInTheDocument();
+  expect(screen.queryByText(/no second deal was made/i)).not.toBeInTheDocument();
+});
