@@ -68,6 +68,7 @@ const {
   dismissUnrestAlert,
   jumpShip,
   moveShipToLocation,
+  startAwayMission,
   setShipConsoleLock,
   startSinglePlayerDemo,
   triggerDradisContact,
@@ -1063,6 +1064,51 @@ it('starts production through one server receipt and hydrates the GM-private set
   expect(useSessionStore.getState().gmSetupReceipt).toMatchObject({
     source: 'routine-start', committedSetupRevision: 5,
   });
+});
+
+it('sends the exact source-bound mission start through the current facilitator callable', async () => {
+  const currentPhase = {
+    turn: 2,
+    teamPhaseEndsAt: '2026-01-01T00:00:00.000Z',
+    openAirspaceEndsAt: '2026-01-01T00:15:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+  };
+  const missionSession = {
+    ...session, phase: 'active' as const, currentTurn: 2, setupRevision: 4,
+    turnLimit: 6 as const, chartId: 'A' as const, turnPhase: currentPhase,
+    turnState: {
+      currentTurn: 2, maxTurn: 6 as const, phase: 'coordination' as const,
+      phaseRevision: 3, startedAt: currentPhase.teamPhaseEndsAt,
+      endsAt: currentPhase.openAirspaceEndsAt,
+    },
+  };
+  useSessionStore.getState().setIdentity(missionSession, { ...player, role: 'gm' });
+  useSessionStore.getState().setGmInstance({
+    id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+    deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+  });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  const callable = callableReturning({ data: {
+    status: 'committed', sessionId: 's1', requestId: 'mission-start-1',
+    opportunityId: 'arrival-fleet-1-A-5143', snapshotId: 'arrival-fleet-1-A-5143',
+    missionId: 'mission-arrival-fleet-1-A-5143', groupId: 'fleet-1', coordinate: '5143',
+    sourceCycle: 2, participantCount: 1, missionLeaderUid: 'alice',
+    expectedSetupRevision: 4, expectedPhaseRevision: 3, expectedCycle: 2,
+  } });
+  vi.mocked(httpsCallable).mockReturnValue(callable);
+  const request = {
+    sessionId: 's1', instanceId: 'instance-1', requestId: 'mission-start-1',
+    expectedSetupRevision: 4, expectedPhaseRevision: 3, expectedCycle: 2,
+    opportunityId: 'arrival-fleet-1-A-5143', groupId: 'fleet-1', chart: 'A',
+    coordinate: '5143', sourceCycle: 2, participantUids: ['alice'], missionLeaderUid: 'alice',
+  };
+
+  await expect(startAwayMission(request)).resolves.toMatchObject({
+    status: 'committed', missionId: 'mission-arrival-fleet-1-A-5143',
+  });
+  expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'dealPrivateInitialCards');
+  expect(callable).toHaveBeenCalledWith(request);
 });
 
 it('sends replacement eligibility and assignment with both CAS cursors', async () => {
