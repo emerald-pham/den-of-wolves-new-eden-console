@@ -19,6 +19,7 @@ import type { Shuttlecraft, ShuttleCapability, ShuttleOperationPhase } from '@/d
 import type { ShuttleDocking } from '@/types/game';
 import type { ShuttleControlEntry } from '@/types/game';
 import ShuttleControl from './ShuttleControl';
+import ShuttleControlReview, { type ShuttleControlPreviewSnapshot } from './ShuttleControlReview';
 
 const SHUTTLE_CAPABILITIES: Record<ShuttleCapability, { component: ComponentType<{ shuttle: Shuttlecraft }>; placement: 'workspace' | 'instruments' }> = {
   'newspaper-confetti': { component: PressConfetti, placement: 'instruments' },
@@ -46,6 +47,8 @@ interface Props {
   readonly docking?: ShuttleDocking | undefined;
   readonly fuelled?: boolean;
   readonly control?: ShuttleControlEntry | undefined;
+  /** Static UI review data. When set, all live shuttle tools stay unmounted. */
+  readonly controlPreview?: ShuttleControlPreviewSnapshot | undefined;
   readonly returnTo?: {
     readonly to: string;
     readonly label: string;
@@ -62,12 +65,13 @@ export default function ShuttleConsoleTemplate({
   docking,
   fuelled = false,
   control,
+  controlPreview,
   returnTo,
 }: Props) {
   const host = SHIPS.find((ship) => ship.id === docking?.shipId);
   const location = docking ? `Docked // ${host?.name ?? docking.shipId}` : 'In transit';
-  const workspaceCapabilities = shuttle.capabilities.filter(capability => SHUTTLE_CAPABILITIES[capability].placement === 'workspace');
-  const instrumentCapabilities = shuttle.capabilities.filter(capability => SHUTTLE_CAPABILITIES[capability].placement === 'instruments');
+  const workspaceCapabilities = controlPreview ? [] : shuttle.capabilities.filter(capability => SHUTTLE_CAPABILITIES[capability].placement === 'workspace');
+  const instrumentCapabilities = controlPreview ? [] : shuttle.capabilities.filter(capability => SHUTTLE_CAPABILITIES[capability].placement === 'instruments');
   const scoutEntitlementId = scoutEntitlementForShuttle(shuttle.id);
   const renderCapability = (capability: ShuttleCapability) => {
     const Capability = SHUTTLE_CAPABILITIES[capability].component;
@@ -80,7 +84,7 @@ export default function ShuttleConsoleTemplate({
     >
       {shuttle.mark && <div className="shuttle-console__mark" aria-hidden="true">{shuttle.mark}</div>}
       <section className="ship-console__identity" aria-labelledby="shuttle-name">
-        {returnTo && (returnTo.onClick ? (
+        {returnTo && (!controlPreview && returnTo.onClick ? (
           <button
             className="ship-console__back cic-text-button"
             type="button"
@@ -125,28 +129,29 @@ export default function ShuttleConsoleTemplate({
             </div>
           </section>}
           {workspaceCapabilities.map(renderCapability)}
-          {scoutEntitlementId && <Suspense fallback={<p className="console-workspace__status">Loading scouting request controls…</p>}>
+          {!controlPreview && scoutEntitlementId && <Suspense fallback={<p className="console-workspace__status">Loading scouting request controls…</p>}>
             <ScoutRequestControls key={scoutEntitlementId} entitlementId={scoutEntitlementId} />
           </Suspense>}
-          {shuttle.id === 'endeavour' && control?.shuttleId === 'endeavour' &&
+          {!controlPreview && shuttle.id === 'endeavour' && control?.shuttleId === 'endeavour' &&
             <EndeavourResearchPanel control={control} />}
-          {control && <ShuttleControl control={control} />}
-          {shuttle.id === 'philia' && control &&
+          {controlPreview ? <ShuttleControlReview snapshot={controlPreview} /> :
+            control && <ShuttleControl control={control} />}
+          {!controlPreview && shuttle.id === 'philia' && control &&
             <PhiliaRepairPanel control={control} docking={docking} fuelled={fuelled} />}
-          {shuttle.id === 'macaw' && control &&
+          {!controlPreview && shuttle.id === 'macaw' && control &&
             <MacawRepairPanel control={control} docking={docking} fuelled={fuelled}
               hostName={host?.name} hostSystems={host?.systems} />}
-          {shuttle.id === 'boa' && control &&
+          {!controlPreview && shuttle.id === 'boa' && control &&
             <BoaRecyclingPanel control={control} docking={docking} fuelled={fuelled}
               hostName={host?.name} />}
-          {shuttle.id === 'chacau' && control &&
+          {!controlPreview && shuttle.id === 'chacau' && control &&
             <ChacauRepairPanel control={control} docking={docking} fuelled={fuelled} />}
-          {shuttle.id === 'ally' && control &&
+          {!controlPreview && shuttle.id === 'ally' && control &&
             <AllyRepairPanel control={control} docking={docking} fuelled={fuelled} />}
-          {shuttle.id === 'maliades' && control &&
+          {!controlPreview && shuttle.id === 'maliades' && control &&
             <MaliadesPanel control={control} docking={docking} fuelled={fuelled} />}
-          {shuttle.id === 'highwall' && <HighwallMining control={control} docking={docking} fuelled={fuelled} />}
-          {shuttle.id === 'hummingbird' && <HummingbirdHarvest docking={docking} fuelled={fuelled} />}
+          {!controlPreview && shuttle.id === 'highwall' && <HighwallMining control={control} docking={docking} fuelled={fuelled} />}
+          {!controlPreview && shuttle.id === 'hummingbird' && <HummingbirdHarvest docking={docking} fuelled={fuelled} />}
         </RoleConsoleTemplate>
       </section>
 
