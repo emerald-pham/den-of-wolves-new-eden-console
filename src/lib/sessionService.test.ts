@@ -3834,7 +3834,7 @@ describe('authoritative setup and seating wrappers', () => {
     };
     vi.mocked(httpsCallable).mockReturnValue(callableReturning({
       data: {
-        status: 'committed', requestId: 'setup-projection', setupRevision: 5, chartSelectionLocked: true,
+        status: 'committed', requestId: 'setup-projection', setupRevision: 5, chartSelectionLocked: true, setupConfirmed: true,
         setup: canonicalSetup, activeRoleIds, activeVesselIds,
       },
     }));
@@ -3847,6 +3847,7 @@ describe('authoritative setup and seating wrappers', () => {
 
     expect(useSessionStore.getState().session).toMatchObject({
       setupRevision: 5,
+      setupConfirmed: true,
       chartSelectionLocked: true,
       playerCount: 19,
       chartId: 'B',

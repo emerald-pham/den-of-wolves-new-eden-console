@@ -4872,3 +4872,15 @@ it('restores valid outbreak details and rejects malformed private projections', 
   }
   stop();
 });
+
+
+it.each([true, false, 'true', undefined])('projects only an explicit server setup confirmation: %s', (setupConfirmed) => {
+  const { callbacks } = captureSessionListener();
+  const onSession = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+  });
+  callbacks[0]?.(sessionSnapshot(liveTurnData(0, 'restricted', { setupConfirmed })));
+  expect(onSession).toHaveBeenCalledTimes(1);
+  expect(onSession.mock.lastCall?.[0].setupConfirmed).toBe(setupConfirmed === true ? true : undefined);
+});
