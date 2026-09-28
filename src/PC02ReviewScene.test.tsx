@@ -1,0 +1,60 @@
+import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { expect, it } from 'vitest';
+import PC02ReviewScene from './PC02ReviewScene';
+
+it('provides one clearly synthetic six-step PC02 sitting with every requested perspective', async () => {
+  const user = userEvent.setup();
+  render(<PC02ReviewScene />);
+
+  expect(screen.getByRole('heading', { name: /PC02.*setup.*continuity/i })).toBeVisible();
+  expect(within(screen.getByRole('complementary', { name: 'Synthetic sample notice' }))
+    .getByText(/no live session/i)).toBeVisible();
+  const steps = screen.getByRole('navigation', { name: 'PC02 review steps' });
+  for (const name of ['Setup', 'Waiver', 'Fleet board', 'Press handoff', 'DRADIS', 'Leave and reconnect']) {
+    expect(within(steps).getByRole('button', { name: new RegExp(name, 'i') })).toBeVisible();
+  }
+  const perspective = screen.getByRole('combobox', { name: 'Review perspective' });
+  expect(within(perspective).getAllByRole('option').map((option) => option.textContent)).toEqual([
+    expect.stringMatching(/GM/i),
+    expect.stringMatching(/Press/i),
+    expect.stringMatching(/President/i),
+    expect.stringMatching(/Player/i),
+  ]);
+  await user.click(within(steps).getByRole('button', { name: /fleet board/i }));
+  expect(screen.getByRole('region', { name: 'Pursuit tracker' }))
+    .toHaveTextContent('Awaiting CIC handshake');
+});
+
+it('shows the real three-check gate at the synthetic 72-hour boundary', async () => {
+  const user = userEvent.setup();
+  render(<PC02ReviewScene />);
+  await user.click(screen.getByRole('button', { name: /waiver/i }));
+  await user.selectOptions(screen.getByRole('combobox', { name: 'Waiver sample time' }), 'expired');
+
+  const gate = screen.getByRole('dialog', { name: 'CODE OF CONDUCT' });
+  expect(within(gate).getAllByRole('checkbox')).toHaveLength(3);
+  expect(gate).toHaveTextContent('72 hours on this device');
+});
+
+it('uses the real plot for an interactive first-contact and repeat-sweep review', async () => {
+  const user = userEvent.setup();
+  const { container } = render(<PC02ReviewScene />);
+  await user.click(screen.getByRole('button', { name: /DRADIS/i }));
+
+  expect(container.querySelector('.contact-plot')).not.toBeNull();
+  expect(screen.getByRole('button', { name: /repeat sweep/i })).toBeVisible();
+  expect(screen.getByRole('button', { name: /after first sweep/i })).toBeVisible();
+  expect(screen.getByText(/first contact enlargement/i)).toBeVisible();
+});
+
+it('keeps sample leave and reconnect controls local to the review scene', async () => {
+  const user = userEvent.setup();
+  render(<PC02ReviewScene />);
+  await user.click(screen.getByRole('button', { name: /leave and reconnect/i }));
+  expect(screen.getByRole('button', { name: 'Open sample settings' })).toBeVisible();
+  await user.click(screen.getByRole('button', { name: 'Open sample settings' }));
+  expect(screen.getByRole('dialog', { name: /session settings/i })).toHaveTextContent('Disconnect');
+  expect(screen.getByRole('button', { name: 'Temporary disconnect' })).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Resume same role' })).toBeVisible();
+});
