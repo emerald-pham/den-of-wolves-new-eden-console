@@ -69,3 +69,14 @@ the original assumption; append the resolution so the decision is traceable.
 | Chosen reading | Deliberate Leave Session ends that member's role and seat authority and clears their private projection. The active game continues for everyone else. A temporary connection loss keeps the same member's assignment for resume; a deliberate leave does not. Do not add a generic midgame core-seat claim without a separate source-backed casting rule. |
 | Product effect | PC01-F05 and PC01-F10 use separate leave and resume paths across every supported non-GM role. Callable and composition tests cover the continuing session, released authority, exact-seat vacancy, private-state removal, and same-member transient recovery. |
 | Review state | Accepted with the owner's explicit PC02 checkpoint authorization on 2026-09-28. A later correction still enters cooldown. |
+
+### PC05-A1 — Facilitator-selected failed-jump damage
+
+| Field | Record |
+|---|---|
+| ID and milestone | PC05-A1; gameplay completion, Prompt 299. |
+| Source passage | Facilitator Guide v1.1, printed p. 16, Jump Failures (physical PDF p. 18), visually checked 2026-09-28: fuel shortage, damaged-drive failure, or incorrect entered coordinates may be adjudicated as a completed jump with damage determined by a six-sided die. The facilitator may alternatively leave the ship in place. |
+| Ambiguity and alternatives | This is a facilitator choice rather than an automatic penalty. The source also offers half-die damage and wrong-location outcomes, but does not define half-point rounding or a digital selection procedure. |
+| Chosen reading | Keep the ordinary failed attempt stationary and resource-preserving. An authenticated active facilitator may deliberately select the full-die damage option against that exact unresolved failed attempt; the server rolls once, uses the common damage-draw path, records the adjudication and completes the chosen legal movement atomically. Do not silently apply damage, allow the client to choose randomness, or invent half-die rounding. |
+| Product effect | The P299 implementation must bind authority, failure receipt, destination, revision and request replay, prevent duplicate movement/damage, and provide an audience-safe result. This is a source-backed implementation decision under the owner's standing autonomous PC05 authorization; implementation and live proof remain required. |
+| Review state | New; owner may correct during optional feedback/cooldown. No completion or deployment credit claimed. |
