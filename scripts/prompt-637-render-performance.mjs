@@ -134,6 +134,10 @@ export function playerConsoleRouteProbe() {
   };
 }
 
+export function isAwayMissionDiscardChunkRequest(url) {
+  return /\/assets\/AwayMissionDiscardPanel-[^/?#]+\.js(?:[?#]|$)/.test(url);
+}
+
 async function main() {
 const root = process.cwd();
 const baseline = JSON.parse(await readFile(join(root, 'config/render-performance-baseline.json'), 'utf8'));
@@ -163,12 +167,17 @@ const acknowledgeSafety = ({ forceOffline = false } = {}) => {
   localStorage.setItem('dow-new-eden-motion-safety', JSON.stringify({ choice: 'full', acknowledgedAt: now }));
   localStorage.setItem('new-eden-motion-override', 'full');
 };
-const sessionSeed = ({ lastRoute }) => {
+const sessionSeed = ({ lastRoute, mission = false }) => {
   const now = new Date().toISOString();
   const state = {
     session: { id: 'p637-route', name: 'P637', phase: 'lobby', currentTurn: 0, ownerUid: 'p637-player', createdAt: now, updatedAt: now },
     me: { uid: 'p637-player', sessionId: 'p637-route', displayName: 'Performance probe', role: 'player', joinedAt: now },
     seats: [], gmInstance: null, gmAccessAuthenticatedAt: null, pendingCommands: [], mode: 'console', lastRoute,
+    awayMissionHandPointers: mission ? [{
+      sessionId: 'p637-route', participantUid: 'p637-player', missionId: 'p637-mission',
+      handId: 'p637-hand', phase: 'discarding', revision: 1, discarded: false,
+    }] : [],
+    awayMissionHands: [],
   };
   localStorage.setItem('dow-new-eden-session', JSON.stringify({ state, version: 1 }));
 };
@@ -207,10 +216,12 @@ try {
   const harnessOrigin = addressOf(harnessServer);
   const landingStartup = [];
   const routeStartup = [];
+  const landingRequests = [];
   for (let index = 0; index < measurement.landingAndRouteSamples; index += 1) {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
     await context.route('**/*', (route) => new URL(route.request().url()).origin === productionOrigin ? route.continue() : route.abort());
     const page = await context.newPage();
+    page.on('request', (request) => landingRequests.push(request.url()));
     await page.addInitScript(acknowledgeSafety, { forceOffline: routeProbe.forceOffline });
     let started = performance.now();
     await page.goto(productionOrigin, { waitUntil: 'domcontentloaded' });
@@ -225,7 +236,7 @@ try {
     await routeContext.route('**/*', (route) => new URL(route.request().url()).origin === productionOrigin ? route.continue() : route.abort());
     const routePage = await routeContext.newPage();
     await routePage.addInitScript(acknowledgeSafety, { forceOffline: routeProbe.forceOffline });
-    await routePage.addInitScript(sessionSeed, { lastRoute: routeProbe.route });
+    await routePage.addInitScript(sessionSeed, { lastRoute: routeProbe.route, mission: false });
     started = performance.now();
     await routePage.goto(`${productionOrigin}/#${routeProbe.route}`, { waitUntil: 'domcontentloaded' });
     await routePage.locator(routeProbe.readySelector).waitFor().catch(async (error) => {
@@ -238,6 +249,17 @@ try {
     routeStartup.push(performance.now() - started);
     await routeContext.close();
   }
+
+  const missionContext = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
+  await missionContext.route('**/*', (route) => new URL(route.request().url()).origin === productionOrigin ? route.continue() : route.abort());
+  const missionPage = await missionContext.newPage();
+  const missionRequests = [];
+  missionPage.on('request', (request) => missionRequests.push(request.url()));
+  await missionPage.addInitScript(acknowledgeSafety, { forceOffline: routeProbe.forceOffline });
+  await missionPage.addInitScript(sessionSeed, { lastRoute: routeProbe.route, mission: true });
+  await missionPage.goto(`${productionOrigin}/#${routeProbe.route}`, { waitUntil: 'domcontentloaded' });
+  await missionPage.locator('.away-mission-private-panel').waitFor();
+  await missionContext.close();
 
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
   await context.route('**/*', (route) => new URL(route.request().url()).origin === harnessOrigin ? route.continue() : route.abort());
@@ -260,6 +282,10 @@ try {
     measuredAt: new Date().toISOString(), baselineVersion: baseline.version, bundle,
     landingStartup: { samples: landingStartup.map(rounded), p95Ms: rounded(percentile(landingStartup)) },
     routeStartup: { samples: routeStartup.map(rounded), p95Ms: rounded(percentile(routeStartup)) },
+    protectedMissionChunk: {
+      landingRequests: landingRequests.filter(isAwayMissionDiscardChunkRequest).length,
+      missionRequests: missionRequests.filter(isAwayMissionDiscardChunkRequest).length,
+    },
     dradisUpdate: {
       p95Ms: rounded(percentile(render.dradis.samples)),
       maxMs: rounded(Math.max(...render.dradis.samples)),
@@ -281,6 +307,10 @@ try {
   assert.ok(bundle.wholeBuild.largestChunkBytes <= budgets.largestJavaScriptChunkBytes, `Largest JavaScript chunk is ${bundle.wholeBuild.largestChunkBytes} bytes; budget ${budgets.largestJavaScriptChunkBytes}.`);
   assert.ok(results.landingStartup.p95Ms <= budgets.landingStartupP95Ms, `Landing startup p95 ${results.landingStartup.p95Ms}ms exceeds ${budgets.landingStartupP95Ms}ms.`);
   assert.ok(results.routeStartup.p95Ms <= budgets.routeStartupP95Ms, `Route startup p95 ${results.routeStartup.p95Ms}ms exceeds ${budgets.routeStartupP95Ms}ms.`);
+  assert.equal(results.protectedMissionChunk.landingRequests, 0,
+    'Landing requested the protected away-mission discard chunk.');
+  assert.ok(results.protectedMissionChunk.missionRequests > 0,
+    'A player with a private away-mission pointer did not request the protected discard chunk.');
   assert.ok(results.dradisUpdate.p95Ms <= budgets.dradisUpdateP95Ms, `DRADIS update p95 ${results.dradisUpdate.p95Ms}ms exceeds ${budgets.dradisUpdateP95Ms}ms.`);
   const maxLabelReads = (measurement.renderUpdateSamples + 1) * 20 * budgets.dradisLabelLayoutReadsPerContactUpdate;
   assert.ok(results.dradisUpdate.labelLayoutReads <= maxLabelReads,

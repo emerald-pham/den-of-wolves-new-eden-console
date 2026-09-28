@@ -54,6 +54,7 @@ import type {
 } from '@/types/game';
 import { isSessionRoute, restoreSessionRoute } from '@/lib/sessionRoute';
 import { stripGmNavigationProjection } from '@/lib/navigationPrivacy';
+import { shouldLoadAwayMissionDiscardPanel } from '@/lib/awayMissionVisibility';
 
 const GM_RECONCILE_INTERVAL_MS = 5_000;
 const PRESENCE_HEARTBEAT_INTERVAL_MS = 10_000;
@@ -119,6 +120,14 @@ function AppRoutes() {
   const sessionId = session?.id;
   const playerUid = me?.uid;
   const playerRole = me?.role;
+  const awayMissionPointerCount = useSessionStore((state) => state.awayMissionHandPointers.length);
+  const gmAwayMissionPointerCount = useSessionStore((state) => state.gmAwayMissionHandPointers.length);
+  const showAwayMissionDiscardPanel = shouldLoadAwayMissionDiscardPanel(
+    sessionId,
+    playerRole,
+    awayMissionPointerCount,
+    gmAwayMissionPointerCount,
+  );
   const playerAuthority = playerAuthorityKey(me);
   const identityHydrationRevision = useSessionStore((state) => state.identityHydrationRevision);
   const escapeLocked = me?.role === 'player' && me.escapeState !== undefined;
@@ -839,9 +848,11 @@ function AppRoutes() {
           <>
             <PrivateLoyaltyPanel />
             <CrisisReportPanel />
-            <Suspense fallback={null}>
-              <AwayMissionDiscardPanel />
-            </Suspense>
+            {showAwayMissionDiscardPanel && (
+              <Suspense fallback={null}>
+                <AwayMissionDiscardPanel />
+              </Suspense>
+            )}
             {escapeLocked ? <EscapeState /> : <Routes location={screen}>
               <Route path="/" element={home} />
               <Route path="/roles" element={<RoleSelect />} />
@@ -867,7 +878,16 @@ function AppRoutes() {
                 </Suspense>
               )} />
               <Route path="/press" element={(
-                <Suspense fallback={<main className="session-mode"><p role="status">Opening Press…</p></main>}>
+                <Suspense fallback={(
+                  <main className="session-mode">
+                    <div className="session-mode__panel cic-frame">
+                      <Link className="session-mode__back cic-text-button" to="/console">
+                        Back to stations
+                      </Link>
+                      <p role="status">Opening Press…</p>
+                    </div>
+                  </main>
+                )}>
                   <SessionMode mode="press" />
                 </Suspense>
               )} />
