@@ -58,6 +58,9 @@ it('shows the Drive state matrix while keeping the production jump control inert
   expect(screen.getByRole('status', { name: 'Prepared drive outcome' }))
     .toHaveTextContent(/stale.*refresh the sample before retry/i);
   expect(within(control).getByRole('button', { name: 'Jump to 6143' })).toBeDisabled();
+
+  await user.click(within(states).getByRole('button', { name: 'Integrity locked' }));
+  expect(within(control).getByRole('status', { name: 'Jump Drive integrity locked' })).toBeVisible();
 });
 
 it('walks the production shuttle presentation through docking, transit, retarget, airspace, and arrival', async () => {
@@ -76,6 +79,9 @@ it('walks the production shuttle presentation through docking, transit, retarget
   expect(screen.getByRole('status', { name: 'Prepared shuttle outcome' }))
     .toHaveTextContent(/retargeted.*current destination/i);
   expect(screen.getByText(/Review view only\. No shuttle action is sent\./i)).toBeVisible();
+  await user.click(within(states).getByRole('button', { name: 'Arrived' }));
+  expect(within(screen.getByRole('region', { name: 'Shuttle control preview' }))
+    .getByText('Shuttle location // Docked // AEGIS')).toBeVisible();
   await user.click(screen.getByRole('button', { name: 'Return to owning station' }));
   expect(screen.getByRole('region', { name: 'Prepared assigned station' })).toBeVisible();
 });
