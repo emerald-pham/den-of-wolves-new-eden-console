@@ -9,12 +9,10 @@ import {
   replayShuttleCargoTransfer,
   transferShuttleCargo,
 } from './shuttleCargoService';
+import type { ShuttleCargoTransferAttempt } from './shuttleCargoService';
 
 interface UncertainCargoAttempt extends Error {
-  readonly attempt: {
-    readonly command: Record<string, unknown>;
-    readonly authority: Record<string, unknown>;
-  };
+  readonly attempt: ShuttleCargoTransferAttempt;
 }
 
 function isUncertainCargoAttempt(cause: unknown): cause is UncertainCargoAttempt {
