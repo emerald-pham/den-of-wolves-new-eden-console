@@ -186,6 +186,8 @@ tables from A4 Paper Duplex v1.1, physical pp. 41–44. The maintenance owner
 verified the printed overlapping 50,000 boundary against Dione's component;
 focused boundary coverage is recorded in the maintenance evidence. The worker
 reported 165 focused tests and both app and Functions typechecks passing.
+After integration, the parent ran the client/server population, maintenance
+domain/callable and MaintenanceSystems UI suites together: **272 tests pass**.
 
 The preceding integrated broad run passed 5,926 tests and failed one GM-console
 assertion because the new mutiny panel adds a second status region. Test-only
