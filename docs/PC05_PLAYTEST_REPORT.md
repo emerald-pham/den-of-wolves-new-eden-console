@@ -236,3 +236,20 @@ P551's separate loss/success procedure into the fixed 49 closures. Preserve
 those server-only markers for P551 and never add their modifier to a generic
 damaged-drive roll. The original Away Missions v1.1, physical p. 12, must be
 reconciled with P551's catalog prior-loss-bonus wording at that later boundary.
+
+### Reconnect integration and repaired acceptance
+
+Parent `cf64a11c` integrates the structured invalid-station recovery, canonical
+seat-document ownership checks, private projection clearing, stale-response
+suppression and persistent station-selection notice. Initial combined testing
+found 12 failures: shared module-scoped lifecycle cursors leaked across newly
+added fixtures, and loading the stations chunk earlier changed the Press
+first-load test ordering. Test-only `90c86af0` isolates scenario session IDs,
+seeds the stale-reply cursor and preserves the loading assertion. `dd09f90b`
+also prevents awaiting-re-role players from reclaiming historical seats.
+
+The repaired integration passes **550 tests across seven files**: full client
+session service, App, command errors, lifecycle, start, composition and resume.
+The worker's four-size Chromium recovery checks and typecheck passed. An
+independent GPT-5.6 Sol xhigh review is active against exact `dd09f90b` for setup,
+reconnect authority and deployment mapping; this is not yet release approval.
