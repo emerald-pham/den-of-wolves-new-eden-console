@@ -23,6 +23,23 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: APP_VERSION,
     implementationProgress: {
       completed: 458, total: 751, percentage: '60.99%',
+      done: 458, partial: 71, active: 0, missing: 222,
+    },
+    changes: [
+      'An expired station assignment returns you to station selection with a clear request to reselect your role, while preserving your session.',
+      'DRADIS names appear with their visible contacts, including after a rename and with reduced motion. The compact control now says Zoom.',
+      'Confirmed games can start with fewer real players than the configured roster, including an empty roster. Wolf assignments use only eligible real players.',
+      'Maintenance uses the printed population-based ration tables. Mutiny recovery installs a new captain, including on small craft, before operations resume.',
+      'The onboarding guide explains: Wolf agents are humans, just like the other survivors.',
+      '458 of 751 planned items are complete (60.99%). Gameplay verification for the PC05 additions is in progress.',
+    ],
+    implementationPrompts: [116, 117, 118, 119, 120, 121, 134, 135, 136, 137, 184, 191, 589, 654, 662],
+  },
+
+  {
+    version: '0.5.54',
+    implementationProgress: {
+      completed: 458, total: 751, percentage: '60.99%',
       done: 458, partial: 57, active: 0, missing: 236,
     },
     changes: [

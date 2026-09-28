@@ -215,12 +215,12 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 113 | NEW | done | 111;361 | none | none | none | none | none | none | 164 | E-AUDIT-113;E-164-TRANSFER-RELATED | M2 | Resolve shuttle-mediated transfers. |
 | 114 | PRESERVE | done | 161;162;234;249 | none | none | none | none | none | none | 121;235;241;242;246;250;571;591 | E-AUDIT-114;E-AUDIT-114-ORDER;E-AUDIT-114-RELATED | M2 | Register vessel-specific maintenance order. |
 | 115 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Resolve damaged Storage. |
-| 116 | PRESERVE | missing | 117;162 | none | none | none | none | none | none | none | E-AUDIT-116 | M2 | Select food and water rations independently. |
-| 117 | DECISION | partial | none | none | none | none | none | none | none | none | E-117-OWNER-DECISION-PENDING;E-PC05-RATIONS-JUMP-SOURCE-DECISIONS | M2 | Resolve the ration-table wording conflict. |
-| 118 | PRESERVE | partial | 116;162 | none | none | none | none | none | none | none | E-AUDIT-118;E-PC05-RATIONS-JUMP-SOURCE-DECISIONS | M2 | Swap population-dependent ration tables. |
-| 119 | PRESERVE | missing | 111;116;117 | none | none | none | none | none | none | none | E-AUDIT-119 | M2 | Resolve the two-dice unrest check. |
-| 120 | PRESERVE | missing | 119;130 | none | none | none | none | none | none | none | E-AUDIT-120 | M2 | Resolve a riot. |
-| 121 | EXTEND | missing | 114;120 | none | none | none | none | none | none | none | E-AUDIT-121 | M2 | Resolve small-ship maintenance loss. |
+| 116 | PRESERVE | partial | 117;162 | none | none | none | none | none | none | none | E-AUDIT-116;E-PC05-MAINTENANCE-CANDIDATE | M2 | Select food and water rations independently. |
+| 117 | DECISION | partial | none | none | none | none | none | none | none | none | E-117-OWNER-DECISION-PENDING;E-PC05-RATIONS-JUMP-SOURCE-DECISIONS;E-PC05-MAINTENANCE-CANDIDATE | M2 | Resolve the ration-table wording conflict. |
+| 118 | PRESERVE | partial | 116;162 | none | none | none | none | none | none | none | E-AUDIT-118;E-PC05-RATIONS-JUMP-SOURCE-DECISIONS;E-PC05-MAINTENANCE-CANDIDATE | M2 | Swap population-dependent ration tables. |
+| 119 | PRESERVE | partial | 111;116;117 | none | none | none | none | none | none | none | E-AUDIT-119;E-PC05-MAINTENANCE-CANDIDATE | M2 | Resolve the two-dice unrest check. |
+| 120 | PRESERVE | partial | 119;130 | none | none | none | none | none | none | none | E-AUDIT-120;E-PC05-MAINTENANCE-CANDIDATE | M2 | Resolve a riot. |
+| 121 | EXTEND | partial | 114;120 | none | none | none | none | none | none | none | E-AUDIT-121;E-PC05-MAINTENANCE-CANDIDATE | M2 | Resolve small-ship maintenance loss. |
 | 122 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Enforce Reactor capacity. |
 | 122a | REPAIR | done | 122-125;128;138 | none | none | none | none | REACTOR-REPAIR | none | none | E-122A;E-REACTOR;E-122A-VERIFIED | M2 | Confirm Reactor power-up before authoritative mutation. |
 | 123 | EXTEND | done | 122;162 | none | none | none | none | none | none | none | E-AUDIT-123;E-123-VERIFIED | M2 | Apply vessel-specific damaged-Reactor penalties. |
@@ -234,10 +234,10 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 131 | PRESERVE | done | 130 | none | none | none | none | none | none | none | E-AUDIT-131;E-131-VERIFIED | M2 | Destroy a ship on empty-deck draw. |
 | 132 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Recycle AEGIS Armoured Hull. |
 | 133 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Step discrete population tracks. |
-| 134 | REPAIR | missing | 118 | none | none | none | none | none | none | none | E-AUDIT-134 | M2 | Alert starred population thresholds without a multi-GM deadlock. |
-| 135 | PRESERVE | missing | 119;120 | none | none | none | none | none | none | none | E-AUDIT-135 | M2 | Add two unrest at population zero. |
-| 136 | NEW | missing | 119 | none | none | none | none | none | none | none | E-AUDIT-136 | M2 | Enter mutiny at unrest 8. |
-| 137 | NEW | missing | 136 | none | none | none | none | none | none | none | E-AUDIT-137 | M2 | Resolve replacement-captain mutiny recovery. |
+| 134 | REPAIR | partial | 118 | none | none | none | none | none | none | none | E-AUDIT-134;E-PC05-MAINTENANCE-CANDIDATE | M2 | Alert starred population thresholds without a multi-GM deadlock. |
+| 135 | PRESERVE | partial | 119;120 | none | none | none | none | none | none | none | E-AUDIT-135;E-PC05-MAINTENANCE-CANDIDATE | M2 | Add two unrest at population zero. |
+| 136 | NEW | partial | 119 | none | none | none | none | none | none | none | E-AUDIT-136;E-PC05-MAINTENANCE-CANDIDATE | M2 | Enter mutiny at unrest 8. |
+| 137 | NEW | partial | 136 | none | none | none | none | none | none | none | E-AUDIT-137;E-PC05-MAINTENANCE-CANDIDATE | M2 | Resolve replacement-captain mutiny recovery. |
 | 138 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Make maintenance atomic and retry-safe. |
 | 138a | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Bound maintenance rollback. |
 | 139 | EXTEND | done | none | none | none | none | none | none | none | none | none | M2 | Publish maintenance results by audience. |
@@ -292,14 +292,14 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 181 | NEW | missing | 166;178;260;262;321;322;323;328;392;396;422;449;450;451;452 | none | none | none | none | none | none | none | E-AUDIT-181 | M3;M5 | Create the Wing Commander workspace. |
 | 182 | EXTEND | done | 165 | none | none | none | none | none | none | none | E-AUDIT-182;E-182-FAIL-CLOSED-COMBAT-CONSOLES | M3;M5 | Complete AEGIS combat-console registration. |
 | 183 | PRESERVE | done | 161;162 | none | none | none | none | none | none | none | E-AUDIT-183;E-183-VERIFIED | M3;M5 | Gate Dione by roster. |
-| 184 | PRESERVE | partial | 116;118 | none | none | none | none | none | none | none | E-AUDIT-184;E-PC05-RATIONS-JUMP-SOURCE-DECISIONS | M3;M5 | Resolve Dione rations and thresholds. |
+| 184 | PRESERVE | partial | 116;118 | none | none | none | none | none | none | none | E-AUDIT-184;E-PC05-RATIONS-JUMP-SOURCE-DECISIONS;E-PC05-MAINTENANCE-CANDIDATE | M3;M5 | Resolve Dione rations and thresholds. |
 | 185 | PRESERVE | done | 115;183 | none | none | none | none | none | none | none | E-AUDIT-185;E-VESSEL-STORAGE-VERIFIED | M3;M5 | Resolve Dione Storage. |
 | 186 | PRESERVE | done | 122;125 | none | none | none | none | none | none | none | E-AUDIT-186;E-VESSEL-REACTORS-VERIFIED | M3;M5 | Resolve the Dione Reactor. |
 | 187 | PRESERVE | done | 127;361 | none | none | none | none | none | none | none | E-AUDIT-187;E-187-VERIFIED | M3;M5 | Resolve the Dione Shuttle Bay. |
 | 188 | NEW | done | 122;125;183 | none | none | none | none | none | none | none | E-AUDIT-188 | M3;M5 | Resolve Dione Hydroponics. |
 | 189 | NEW | done | 122;125;183 | none | none | none | none | none | none | none | E-AUDIT-189 | M3;M5 | Resolve Dione Water Reclamation. |
 | 190 | NEW | done | 167 | none | none | none | none | none | none | none | E-AUDIT-190 | M3;M5 | Draw and own Dione VIP cards. |
-| 191 | NEW | missing | 119;190 | none | none | none | none | none | none | none | E-AUDIT-191 | M3;M5 | Spend a VIP unrest reroll. |
+| 191 | NEW | partial | 119;190 | none | none | none | none | none | none | none | E-AUDIT-191;E-PC05-MAINTENANCE-CANDIDATE | M3;M5 | Spend a VIP unrest reroll. |
 | 192 | NEW | done | 182;264 | none | none | none | none | none | none | none | E-AUDIT-192;E-192-MALIADES-LAUNCH | M3;M5 | Gate Dione's Fighter Bay and Maliades. |
 | 193 | NEW | done | 166 | none | none | none | none | none | none | none | E-AUDIT-193;E-FLEET-CAPTAIN-WORKSPACES-VERIFIED | M3;M5 | Complete the Dione Captain workspace. |
 | 193a | NEW | done | 166;183 | none | none | none | none | none | none | none | E-AUDIT-193A;E-193A-DIONE-ENGINEER-WORKSPACE | M3;M5 | Complete the Dione Engineer workspace. |
@@ -1780,6 +1780,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-CHECKPOINT-RECORDING-AUDIT-20260928 | evidence / documentation reconciliation | 322;323;324;326;629 | functions/src/index.ts requestScout; functions/src/scoutRequestCadence.ts; functions/src/scoutRequestCallable.test.ts; functions/src/scoutResultCallable.ts; functions/src/scoutResultCallable.test.ts; docs/CHECKPOINT_COMPLETION_PLAN.md; docs/CHECKPOINT_ACCOUNTING_AUDIT.md | The checkpoint accounting audit found stale no-production-integration descriptions for four scout policies and stale no-producer wording for private discovery notes. Current requestScout calls authorizeCurrentScoutScan and persists requests, cadence and receipts; scoutResultCallable produces and privately reads discovery notes. These are documentation corrections for existing implementation, not newly verified gameplay or prompt closure. Historical release catalogs retain 458 done throughout PC01-PC04. The latest owner instruction redistributes the same 293 remaining IDs evenly across PC05-PC10: 49 closures each for PC05-PC09, then 48 for PC10. Cumulative overall targets are 507, 556, 605, 654, 703, and 751 done. This supersedes the PC05-half catch-up and PC15 extension proposals. |
 | E-PC05-OWNER-SETUP-AND-COPY | owner-decision / candidate / production-proof-pending | 654;662;589 -> PC05 | docs/PRODUCT_MILESTONE_FEEDBACK.md; docs/PC05_PLAYTEST_REPORT.md; functions/src/gameSetup.ts; functions/src/wolfAssignment.ts; functions/src/startCallable.test.ts; functions/src/loyaltyCallable.test.ts; src/components/PlayerOnboardingGuide.tsx; src/routes/RoleBrief.test.tsx | On 2026-09-28 the owner approved automatic Wolf assignment, confirmed starts with only available real players including zero eligible Wolves, and exact Wolf-humanity copy. PC05 source and focused tests implement the bounded changes; no deployment or ordinary production acceptance is claimed by this evidence. |
 | E-PC05-RATIONS-JUMP-SOURCE-DECISIONS | source-decision / candidate / production-proof-pending | 117;118;184;299 -> PC05 | docs/PC05_MAINTENANCE_EVIDENCE.md; docs/PRODUCT_MILESTONE_ASSUMPTIONS.md; docs/PC05_PLAYTEST_REPORT.md; functions/src/maintenance.ts; functions/src/shipPopulation.ts; src/data/shipPopulation.ts | Source reconciliation replaces obsolete owner-decision waits with documented printed evidence and bounded product inferences. Integrated ration candidates have focused tests; failed-jump implementation is in progress. No deployment or ordinary gameplay acceptance is established by this record. |
+| E-PC05-MAINTENANCE-CANDIDATE | source / integrated-candidate / production-proof-pending | 116;117;118;119;120;121;134;135;136;137;184;191 -> PC05 | docs/PC05_MAINTENANCE_EVIDENCE.md; docs/PC05_PLAYTEST_REPORT.md; docs/PRODUCT_MILESTONE_ASSUMPTIONS.md; functions/src/maintenance.ts; functions/src/mutiny.ts; functions/src/smallShip.ts; functions/src/voyage33Maintenance.ts; functions/src/index.ts; src/components/GmMutinyRecovery.tsx | Integrated maintenance and supplemental-craft candidates at eff0ed30 have source-routed rations, authoritative maintenance, single-GM acknowledgement, private VIP reroll, mutiny locks and captain recovery. At f4df6ba4 all 5,995 unit/Functions tests pass; the supplemental worker also records 142 rules tests and responsive rendering. Independent review is in progress and deployment/ordinary gameplay proof remain pending. Status is partial, not done. |
 <!-- END GENERATED PROMPT CATALOG: dependency -->
 
 ## Shared integrity gate
