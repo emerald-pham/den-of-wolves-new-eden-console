@@ -207,7 +207,7 @@ function clampContactLabels(plot: HTMLElement): void {
   const shipPlot = plot.closest<HTMLElement>('.ship-plot');
   const overlayControls = shipPlot?.querySelectorAll<HTMLElement>(
     '.ship-plot__label, .ship-plot__toggle, .ship-plot__galactic-coordinate, ' +
-    '.ship-plot__close, .ship-plot__compass, .turn-phase-timer, .dradis-effect-controls',
+    '.ship-plot__close, .ship-plot__compass, [data-plot-obstacle], .dradis-effect-controls',
   ) ?? [];
   const obstacles = [
     ...plot.querySelectorAll<HTMLElement>('.contact-plot__origin, .contact-plot__red-alert'),

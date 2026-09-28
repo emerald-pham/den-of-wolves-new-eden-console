@@ -21689,7 +21689,9 @@
       "milestoneHints": "X",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.52"
+      ],
       "section": "Onboarding, help, settings, and operational truth (Prompts 586–600)",
       "sequenceRules": "none",
       "status": "partial",
@@ -21761,7 +21763,9 @@
       "milestoneHints": "X",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.52"
+      ],
       "section": "Onboarding, help, settings, and operational truth (Prompts 586–600)",
       "sequenceRules": "none",
       "status": "partial",
@@ -21979,7 +21983,9 @@
       "milestoneHints": "X",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.52"
+      ],
       "section": "Onboarding, help, settings, and operational truth (Prompts 586–600)",
       "sequenceRules": "none",
       "status": "partial",
@@ -22002,7 +22008,9 @@
       "milestoneHints": "X",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.52"
+      ],
       "section": "Onboarding, help, settings, and operational truth (Prompts 586–600)",
       "sequenceRules": "none",
       "status": "partial",

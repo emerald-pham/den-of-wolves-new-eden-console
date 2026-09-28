@@ -38,7 +38,7 @@ export function DradisAirspaceTimer({ phase }: { readonly phase: TurnPhase | und
   const time = formatTurnPhaseCountdown(readout.remainingMs);
   const label = closed ? 'Airspace closed' : 'Airspace open';
   return (
-    <div className="turn-phase-timer" role="status" aria-live="off"
+    <div className="turn-phase-timer" role="status" aria-live="off" data-plot-obstacle
       aria-label={`${label} // ${time} remaining${paused ? automatic ? ' // awaiting reconnect' : ' // emergency timer paused' : ''}`}
       data-tone={paused && !automatic ? 'red' : 'blue'}>
       <span>{label}{paused ? automatic ? ' // Session hold' : ' // Emergency hold' : ''}</span>
