@@ -8,7 +8,11 @@ interface Props {
 }
 
 function vesselLabel(vesselId: string): string {
-  return findVessel(vesselId)?.shortName ?? vesselId.toUpperCase();
+  const vessel = findVessel(vesselId);
+  const label = vessel && 'shortName' in vessel && typeof vessel.shortName === 'string'
+    ? vessel.shortName
+    : vessel?.name ?? vesselId;
+  return label.toUpperCase();
 }
 
 export default function FleetGroupContext({
