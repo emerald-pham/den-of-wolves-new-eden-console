@@ -357,6 +357,7 @@ function stateSnapshot(excludedPaths: readonly string[] = []) {
 async function composeProductionSession(
   playerCount: CompositionCount,
   options: {
+    readonly automaticLoyalties?: boolean;
     readonly afterSetup?: (context: {
       readonly sessionId: string;
       readonly ownerUid: string;
@@ -449,7 +450,7 @@ async function composeProductionSession(
     // The 8-player fixture exercises explicit loyalty composition and IA races.
     // Ordinary setups now assign Wolves automatically; use the supported
     // optional Arbour configuration for this explicit-assignment scenario.
-    universalArbourEnabled: playerCount === 8,
+    universalArbourEnabled: playerCount === 8 && !options.automaticLoyalties,
   };
   const confirmed = await confirmSetup.run(request(configuration, ownerUid)) as {
     setupRevision: number;
@@ -494,7 +495,7 @@ async function composeProductionSession(
   let iaRaceResults: PromiseSettledResult<unknown>[] = [];
   let iaRaceRequests: Array<Record<string, unknown>> = [];
   let iaRaceWinner: { request: Record<string, unknown>; result: Record<string, unknown> } | null = null;
-  if (playerCount === 8) {
+  if (playerCount === 8 && !options.automaticLoyalties) {
     await expect(assignLoyalty.run(request({
       sessionId,
       instanceId: `bridge-${playerCount}`,
@@ -1614,5 +1615,24 @@ describe('Prompt 055 private loyalty reassignment composition', () => {
     });
     expect(read(`sessions/${sessionId}/secrets/loyalty-${firstPartnerUid}`)).toBeUndefined();
     expect(read(`sessions/${sessionId}/secrets/loyalty-${secondPartnerUid}`)).toBeUndefined();
+  });
+});
+
+
+describe('PC05 ordinary automatic setup composition', () => {
+  beforeEach(() => mock.reset());
+
+  it('starts the eight-player ordinary roster with automatic private Wolves and exact replay', async () => {
+    const { sessionId, ownerUid, coreUids, started, startRequest } =
+      await composeProductionSession(8, { automaticLoyalties: true });
+    expect(started.setupReceipt.loyaltySource).toBe('automatic-default');
+    const cards = coreUids.map(uid => read(`sessions/${sessionId}/secrets/loyalty-${uid}`)!);
+    expect(cards.filter(card => (card.payload as StoredDocument).kind === 'wolf-agent')).toHaveLength(1);
+    cards.forEach((card, index) => expect(card.visibleToUids).toEqual([coreUids[index]]));
+    const priorCards = JSON.stringify(cards);
+    await expect(startGame.run(request(startRequest, ownerUid)))
+      .resolves.toMatchObject({ status: 'replayed', currentTurn: 1 });
+    expect(JSON.stringify(coreUids.map(uid => read(`sessions/${sessionId}/secrets/loyalty-${uid}`))))
+      .toBe(priorCards);
   });
 });
