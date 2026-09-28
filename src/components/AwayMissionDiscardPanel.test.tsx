@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { useSessionStore } from '@/store/useSessionStore';
 import { discardPrivateMissionCard, openPrivateMissionDiscards } from '@/lib/sessionService';
-import AwayMissionDiscardPanel from './AwayMissionDiscardPanel';
+import AwayMissionDiscardPanel, { AwayMissionParticipantPanel } from './AwayMissionDiscardPanel';
 
 vi.mock('@/lib/sessionService', () => ({
   discardPrivateMissionCard: vi.fn(),
@@ -19,6 +19,30 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   useSessionStore.getState().reset();
+});
+
+it('reuses the production participant hand with an injected local discard boundary', async () => {
+  const user = userEvent.setup();
+  const discardCard = vi.fn().mockResolvedValue(undefined);
+  const pointer = {
+    sessionId: 's1', participantUid: 'alice', missionId: 'mission-review', handId: 'hand-review',
+    phase: 'discarding', revision: 1, discarded: false,
+    groupId: 'fleet-2', chart: 'B', coordinate: '6798', siteCode: 'L', sourceCycle: 4,
+    participantCount: 2, missionLeaderUid: 'dione-engineer', missionLeaderRoleId: 'engineer',
+  } as const;
+  const hand = {
+    sessionId: 's1', participantUid: 'alice', missionId: 'mission-review', handId: 'hand-review',
+    cardId: 'A♥', rank: 'A', suit: 'hearts', value: 10, discarded: false,
+  } as const;
+
+  render(<AwayMissionParticipantPanel pointers={[pointer]} hands={[hand]} discardCard={discardCard} />);
+
+  const panel = screen.getByRole('region', { name: /private away mission cards/i });
+  expect(panel).toHaveTextContent('fleet-2');
+  expect(panel).toHaveTextContent('A♥');
+  await user.click(within(panel).getByRole('button', { name: /discard this card secretly/i }));
+  expect(discardCard).toHaveBeenCalledWith(pointer, hand);
+  expect(discardPrivateMissionCard).not.toHaveBeenCalled();
 });
 
 it('shows the participant-owned card and submits one private discard', async () => {

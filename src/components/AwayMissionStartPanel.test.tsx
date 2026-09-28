@@ -58,6 +58,64 @@ beforeEach(() => {
 
 afterEach(() => cleanup());
 
+it('renders prepared review data and submits through the injected local command boundary', async () => {
+  const user = userEvent.setup();
+  const submitMissionStart = vi.fn().mockResolvedValue({
+    status: 'committed', sessionId: 's1', requestId: 'prepared-request',
+    opportunityId: opportunity.id, snapshotId: opportunity.id,
+    missionId: `mission-${opportunity.id}`, groupId: 'fleet-1', coordinate: '5143',
+    sourceCycle: 2, participantCount: 1, missionLeaderUid: 'alice',
+    expectedSetupRevision: 4, expectedPhaseRevision: 3, expectedCycle: 2,
+  });
+  const preparedReceipt = {
+    type: 'away-mission-start-snapshot', sessionId: 's1',
+    opportunityId: opportunity.id, missionId: `mission-${opportunity.id}`,
+    groupId: 'fleet-1', chart: 'A', coordinate: '5143', siteCode: 'L',
+    sourceShipId: 'starlight', sourceTransitionId: 'jump-entry-1', sourceCycle: 2,
+    missionLeader: { uid: 'alice', roleId: 'wing-commander' },
+    actorUid: 'gm1', instanceId: 'bridge', requestId: 'prepared-request',
+    source: {
+      assumptionId: 'PC04-A1', playerGuide: 'Player’s Guide v1.1',
+      facilitatorGuide: 'Facilitator’s Guide v1.1', a4CardPack: 'A4 card pack v1.1',
+      ruleId: 'new-location-mission-with-team-selected-leader',
+    },
+    inputs: {
+      expectedSetupRevision: 4, expectedPhaseRevision: 3, expectedCycle: 2,
+      availableCarrierCraftIds: ['starlight'],
+      participantSnapshots: [{ uid: 'alice', roleId: 'wing-commander' }],
+      missionLeaderUid: 'alice',
+    },
+    modifiers: [], outcome: 'started',
+    stateDelta: { missionSnapshotCreated: true },
+    revisions: { setup: 4 }, replay: { status: 'committed' },
+    recovery: { next: 'Refresh live mission and participant hand panels.' },
+    createdAt: '2026-01-01T00:00:00.000Z',
+  };
+
+  render(<AwayMissionStartPanel
+    session={session as never}
+    players={players as never}
+    instanceId="bridge"
+    isGm
+    preparedOpportunities={[{ ...opportunity, type: 'mission-opportunity', status: 'available', sessionId: 's1' }] as never}
+    preparedReceipts={[preparedReceipt] as never}
+    submitMissionStart={submitMissionStart}
+  />);
+
+  expect(mocks.subscribeGmMissionOpportunities).not.toHaveBeenCalled();
+  expect(mocks.subscribeGmMissionStartSnapshots).not.toHaveBeenCalled();
+  expect(screen.getByRole('region', { name: /mission start receipts/i })).toHaveTextContent('Available carriers');
+  await user.click(screen.getByRole('checkbox', { name: /alice/i }));
+  await user.selectOptions(screen.getByLabelText(/mission leader/i), 'alice');
+  await user.click(screen.getByRole('button', { name: /start mission/i }));
+
+  expect(submitMissionStart).toHaveBeenCalledWith(expect.objectContaining({
+    opportunityId: opportunity.id, participantUids: ['alice'], missionLeaderUid: 'alice',
+  }));
+  expect(mocks.startAwayMission).not.toHaveBeenCalled();
+  expect(screen.getByRole('status', { name: 'Mission start result' })).toHaveTextContent(/mission started/i);
+});
+
 it('records the selected roster and in-roster Mission Leader against the exact opportunity', async () => {
   const user = userEvent.setup();
   mocks.startAwayMission.mockResolvedValue({
