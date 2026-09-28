@@ -14,11 +14,9 @@ authorization accepts a checkpoint; a completed walkthrough or written UI
 feedback is not required. Agents own gameplay and technical correctness. The
 older M1–M13 fixtures remain internal gates.
 
-Only `gpt-6-luna` and `gpt-6-sol` may be delegated as subagents. Use
-`gpt-6-sol` for the independent risk reviews specified in `CLAUDE.md`.
-Use `max` for every `gpt-6-luna` subagent. `gpt-6-sol` may use only `medium`,
-`high`, `xhigh`, or `max`, selected for the bounded task. Use `max` when the
-task's complexity warrants it.
+Only `gpt-6-luna` and `gpt-5.6-sol` may be delegated as subagents. Existing agents may finish their current assignments without interruption; apply this model policy to new agents and subsequent assignments. Use
+`gpt-5.6-sol` for the independent risk reviews specified in `CLAUDE.md`.
+Use `max` for every `gpt-6-luna` subagent. `gpt-5.6-sol` may use only `low`, `medium`, `high`, or `xhigh`, selected for the bounded task. Never use `max` or a higher effort for Sol.
 
 If a Luna-owned implementation fails the same acceptance gate after two
 distinct, substantive repair attempts on separate candidate commits, transfer
