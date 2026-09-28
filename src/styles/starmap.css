@@ -517,6 +517,58 @@
   gap: 1rem;
 }
 
+.fleet-group-context {
+  padding: 0.85rem 1rem;
+}
+
+.fleet-group-context header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid var(--cic-rule);
+}
+
+.fleet-group-context header p,
+.fleet-group-context h3,
+.fleet-group-context dl,
+.fleet-group-context dd {
+  margin: 0;
+}
+
+.fleet-group-context h3 {
+  color: var(--cic-cyan);
+  font: 1.05rem/1.1 var(--cic-display);
+  letter-spacing: 0.12em;
+}
+
+.fleet-group-context dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+  gap: 0.65rem 1rem;
+  padding-top: 0.7rem;
+}
+
+.fleet-group-context dl div {
+  min-width: 0;
+}
+
+.fleet-group-context dt {
+  color: var(--cic-muted);
+  font: 0.64rem/1.25 var(--cic-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.fleet-group-context dd {
+  overflow-wrap: anywhere;
+  color: var(--cic-ink);
+  font: 0.76rem/1.45 var(--cic-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
 .ship-navigation-log {
   min-width: 0;
   padding: 1rem;
