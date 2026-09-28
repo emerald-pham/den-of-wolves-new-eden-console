@@ -478,6 +478,7 @@ describe('App', () => {
     };
     window.location.hash = '#/ships/aegis/roles/admiral';
     useSessionStore.getState().setIdentity(activeSession, member);
+    useSessionStore.getState().setMode('console');
     const { unmount } = render(<App />);
     await waitFor(() => expect(subscriptions).toHaveLength(1));
     act(() => subscriptions[0]?.onRoleBrief?.(brief));
