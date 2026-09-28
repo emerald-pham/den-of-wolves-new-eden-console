@@ -2926,7 +2926,7 @@ it('commits ordinary production only on the second click and renders the private
   expect(receipt).toHaveTextContent(/Source/);
   expect(receipt).toHaveTextContent(/routine-start/);
   expect(receipt).toHaveTextContent(/base \/\/ 8 core/);
-  expect(receipt).toHaveTextContent(/one-wolf-at-8-13 \/\/ 1 \/\/ 8 private cards/);
+  expect(receipt).toHaveTextContent(/one-wolf-at-8-13 \/\/ target 1 \/\/ assigned 1 \/\/ 8 private cards/);
   expect(receipt).toHaveTextContent(/Press input/);
   expect(receipt).toHaveTextContent(/Setup revisions/);
   expect(screen.getByRole('button', { name: /skip to cycle 1/i })).toBeInTheDocument();
