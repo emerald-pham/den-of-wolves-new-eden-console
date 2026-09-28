@@ -66,3 +66,12 @@ it('keeps sample leave and reconnect controls local to the review scene', async 
   expect(screen.getByRole('button', { name: 'Temporary disconnect' })).toBeVisible();
   expect(screen.getByRole('button', { name: 'Resume same role' })).toBeVisible();
 });
+
+it('does not present a voluntary leave as a resumable transient disconnect', async () => {
+  const user = userEvent.setup();
+  render(<PC02ReviewScene />);
+  await user.click(screen.getByRole('button', { name: /leave and reconnect/i }));
+  await user.click(screen.getByRole('button', { name: 'Open sample settings' }));
+  await user.click(screen.getByRole('button', { name: 'Disconnect' }));
+  expect(screen.getByRole('button', { name: 'Resume same role' })).toBeDisabled();
+});
