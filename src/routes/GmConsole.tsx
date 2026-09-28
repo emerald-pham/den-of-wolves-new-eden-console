@@ -8,6 +8,7 @@ import ShipPlot from '@/components/ShipPlot';
 import GmStarmapModule from '@/components/GmStarmapModule';
 import GmScoutRevealController from '@/components/GmScoutRevealController';
 import SmallShipOperations from '@/components/SmallShipOperations';
+import { GmSetupChecklist } from '@/components/GmSetupChecklist';
 import PursuitTracker from '@/components/PursuitTracker';
 import LiveChangeRegion from '@/components/LiveChangeRegion';
 import DecisionAttribution from '@/components/DecisionAttribution';
@@ -3727,6 +3728,19 @@ export default function GmConsole() {
             </button>
             {setupOpen && (
               <div className="gm-setup" aria-label="Setup controls">
+                <GmSetupChecklist
+                  chartId={draftChartId}
+                  chartLocked={chartLocked}
+                  playerCount={draftPlayerCount}
+                  connectedPlayerCount={castingPlayers.length}
+                  roleAssignmentCount={assignedCastingRoleIds.size}
+                  setupReceipt={setupReceipt ? {
+                    playerCount: setupReceipt.playerCount,
+                    wolfCount: setupReceipt.wolfCount,
+                    wolfRule: setupReceipt.wolfRule,
+                    privateCardCount: setupReceipt.resultCount,
+                  } : null}
+                />
                 <button
                   className="gm-dradis__availability cic-action-button"
                   type="button"
