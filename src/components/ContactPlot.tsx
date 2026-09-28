@@ -113,6 +113,10 @@ const round = (value: number): number => Math.round(value * 1e4) / 1e4;
 const radians = (degrees: number): number => (degrees * Math.PI) / 180;
 
 type LabelAnchor = 'north-east' | 'north-west' | 'south-east' | 'south-west';
+type ProjectedAxes = {
+  x: Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom'>;
+  y: Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom'>;
+};
 
 function labelAnchor(track: Track | PlotContact, index: number): LabelAnchor {
   let x: number;
@@ -146,6 +150,8 @@ function clampContactLabels(plot: HTMLElement): void {
   const plotBounds = plot.getBoundingClientRect();
   if (plotBounds.width <= 0 || plotBounds.height <= 0) return;
   const labels = [...plot.querySelectorAll<HTMLElement>('.contact-plot__tag')];
+  const marks = labels.map((label) => label.closest('.contact-plot__contact')
+    ?.querySelector<HTMLElement>('.contact-plot__blip')?.getBoundingClientRect() ?? null);
   const gap = 4;
   const overlaps = (a: Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom'>,
     b: Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom'>) =>
@@ -161,7 +167,10 @@ function clampContactLabels(plot: HTMLElement): void {
       label.style.setProperty('--label-clamp-y', `${round(previous + y)}px`);
     }
   };
-  labels.forEach((label) => {
+  labels.forEach((label, index) => {
+    // Measurable returns use the anchored pass below, which resets these
+    // styles before scoring. Avoid a full throwaway sizing pass for each one.
+    if (marks[index] && marks[index].width > 0 && marks[index].height > 0) return;
     label.style.removeProperty('--label-clamp-x');
     label.style.removeProperty('--label-clamp-y');
     label.style.removeProperty('max-width');
@@ -189,7 +198,8 @@ function clampContactLabels(plot: HTMLElement): void {
   // The second pass accounts for the transform changing the measured box in
   // perspective layouts without ever allowing a label to oscillate.
   for (let pass = 0; pass < 2; pass += 1) {
-    labels.forEach((label) => {
+    labels.forEach((label, index) => {
+      if (marks[index] && marks[index].width > 0 && marks[index].height > 0) return;
       const bounds = label.getBoundingClientRect();
       const minX = plotBounds.left + LABEL_VIEWPORT_GUTTER_PX;
       const maxX = plotBounds.right - LABEL_VIEWPORT_GUTTER_PX;
@@ -214,9 +224,8 @@ function clampContactLabels(plot: HTMLElement): void {
     ...overlayControls,
   ].map((element) => element.getBoundingClientRect())
     .filter((rect) => rect.width > 0 && rect.height > 0);
-  const marks = labels.map((label) => label.closest('.contact-plot__contact')
-    ?.querySelector<HTMLElement>('.contact-plot__blip')?.getBoundingClientRect() ?? null);
-  const distanceFrom = (a: DOMRect, b: DOMRect) => {
+  const distanceFrom = (a: Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom'>,
+    b: Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom'>) => {
     const x = Math.max(0, b.left - a.right, a.left - b.right);
     const y = Math.max(0, b.top - a.bottom, a.top - b.bottom);
     return Math.hypot(x, y);
@@ -237,7 +246,8 @@ function clampContactLabels(plot: HTMLElement): void {
         ...(['north-east', 'south-east', 'north-west', 'south-west'] as const)
           .filter((anchor) => anchor !== preferred),
       ];
-      let best: { anchor: LabelAnchor; style: string; bounds: DOMRect; score: number } | null = null;
+      const sideProjections: Partial<Record<'east' | 'west', ProjectedAxes>> = {};
+      let best: { anchor: LabelAnchor; style: string; x: number; y: number; score: number } | null = null;
       for (const anchor of anchors) {
         contact.dataset.labelAnchor = anchor;
         label.style.removeProperty('--label-clamp-x');
@@ -249,7 +259,8 @@ function clampContactLabels(plot: HTMLElement): void {
         const sideWidth = anchor.endsWith('east')
           ? marker.left - plotBounds.left - LABEL_VIEWPORT_GUTTER_PX - 11
           : plotBounds.right - LABEL_VIEWPORT_GUTTER_PX - marker.right - 11;
-        if (label.getBoundingClientRect().width > sideWidth && sideWidth > 0) {
+        let original = label.getBoundingClientRect();
+        if (original.width > sideWidth && sideWidth > 0) {
           label.style.maxWidth = `${sideWidth}px`;
           label.style.minInlineSize = '0px';
           label.style.whiteSpace = 'normal';
@@ -260,10 +271,44 @@ function clampContactLabels(plot: HTMLElement): void {
             const cap = Number.parseFloat(label.style.maxWidth);
             label.style.maxWidth = `${Math.max(1, cap * sideWidth / width - 2)}px`;
           }
+          original = label.getBoundingClientRect();
         }
         const baseStyle = label.style.cssText;
         let nearestClearLane: number | null = null;
-        const original = label.getBoundingClientRect();
+        // A contact sits in a 3D plane. Measure its local translation axes
+        // once per side, then score every anchor and nearby row without forcing a
+        // browser layout for each candidate. Measure the final choice again.
+        const probePx = 8;
+        const side = anchor.endsWith('east') ? 'east' : 'west';
+        const projection: ProjectedAxes = sideProjections[side] ?? (() => {
+          label.style.setProperty('--label-clamp-x', `${probePx}px`);
+          const xProbe = label.getBoundingClientRect();
+          label.style.removeProperty('--label-clamp-x');
+          label.style.setProperty('--label-clamp-y', `${probePx}px`);
+          const yProbe = label.getBoundingClientRect();
+          label.style.cssText = baseStyle;
+          return {
+            x: {
+              left: (xProbe.left - original.left) / probePx,
+              right: (xProbe.right - original.right) / probePx,
+              top: (xProbe.top - original.top) / probePx,
+              bottom: (xProbe.bottom - original.bottom) / probePx,
+            },
+            y: {
+              left: (yProbe.left - original.left) / probePx,
+              right: (yProbe.right - original.right) / probePx,
+              top: (yProbe.top - original.top) / probePx,
+              bottom: (yProbe.bottom - original.bottom) / probePx,
+            },
+          };
+        })();
+        sideProjections[side] = projection;
+        const projected = (cssX: number, cssY: number) => ({
+          left: original.left + cssX * projection.x.left + cssY * projection.y.left,
+          right: original.right + cssX * projection.x.right + cssY * projection.y.right,
+          top: original.top + cssX * projection.x.top + cssY * projection.y.top,
+          bottom: original.bottom + cssX * projection.x.bottom + cssY * projection.y.bottom,
+        });
         const minX = plotBounds.left + LABEL_VIEWPORT_GUTTER_PX;
         const maxX = plotBounds.right - LABEL_VIEWPORT_GUTTER_PX;
         const minY = plotBounds.top + LABEL_VIEWPORT_GUTTER_PX;
@@ -276,13 +321,11 @@ function clampContactLabels(plot: HTMLElement): void {
         // its return's side, one nearby text row at a time. Its horizontal
         // gap from the return remains fixed, even in a crowded plot.
         for (const lane of [0, -1, 1, -2, 2, -3, 3, -4, 4, -5, 5, -6, 6, -7, 7, -8, 8]) {
-          label.style.cssText = baseStyle;
-          shift(label, x, y + lane * (original.height + gap));
-          const candidate = label.getBoundingClientRect();
+          const laneY = y + lane * (original.height + gap);
+          const candidate = projected(x, laneY);
           const correctionY = candidate.top < minY ? minY - candidate.top
             : candidate.bottom > maxY ? maxY - candidate.bottom : 0;
-          shift(label, 0, correctionY);
-          const bounds = label.getBoundingClientRect();
+          const bounds = projected(x, laneY + correctionY);
           const anchorGap = anchor.endsWith('east')
             ? marker.left - bounds.right : bounds.left - marker.right;
           const collisionCount = nearby.filter((rect) => overlaps(bounds, rect)).length;
@@ -296,7 +339,7 @@ function clampContactLabels(plot: HTMLElement): void {
             (Math.abs(x) + Math.abs(y + correctionY)) * 100 +
             Math.abs(lane) * 2_000 - clearance;
           if (!best || score < best.score) {
-            best = { anchor, style: label.style.cssText, bounds, score };
+            best = { anchor, style: baseStyle, x, y: laneY + correctionY, score };
           }
           if (collisionCount === 0 && nearestClearLane === null) nearestClearLane = Math.abs(lane);
           // The nearest clear row wins on this side. Finish its matching
@@ -307,7 +350,19 @@ function clampContactLabels(plot: HTMLElement): void {
       if (best) {
         contact.dataset.labelAnchor = best.anchor;
         label.style.cssText = best.style;
-        obstacles.push(best.bounds);
+        shift(label, best.x, best.y);
+        let placed = label.getBoundingClientRect();
+        const east = best.anchor.endsWith('east');
+        const anchorGap = east ? marker.left - placed.right : placed.left - marker.right;
+        const finalProjection = sideProjections[east ? 'east' : 'west'];
+        if (anchorGap < 4 && finalProjection) {
+          const xScale = east ? finalProjection.x.right : finalProjection.x.left;
+          if (Math.abs(xScale) > 0.1) {
+            shift(label, (east ? -1 : 1) * (4 - anchorGap) / xScale, 0);
+            placed = label.getBoundingClientRect();
+          }
+        }
+        obstacles.push(placed);
       }
       continue;
     }
@@ -566,15 +621,32 @@ export default function ContactPlot({
     const node = plot.current;
     if (!node) return;
     const clamp = () => clampContactLabels(node);
+    const clampMovingFix = (event: Event) => {
+      const contact = event.target instanceof HTMLElement
+        ? event.target.closest<HTMLElement>('.contact-plot__contact') : null;
+      // Acquiring a stationary return changes opacity only. Its label was
+      // already placed at that position; repeating the layout for every ping
+      // would force several complete scan-board reflows per frame.
+      if (!contact || contact.dataset.moving === 'true') clamp();
+    };
     clamp();
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(clamp);
+    let observedWidth = node.clientWidth;
+    let observedHeight = node.clientHeight;
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(([entry]) => {
+      if (!entry) return;
+      const { width, height } = entry.contentRect;
+      if (width === observedWidth && height === observedHeight) return;
+      observedWidth = width;
+      observedHeight = height;
+      clamp();
+    });
     observer?.observe(node);
     window.addEventListener('resize', clamp);
-    node.addEventListener(CONTACT_SCAN_EVENT, clamp);
+    node.addEventListener(CONTACT_SCAN_EVENT, clampMovingFix);
     return () => {
       observer?.disconnect();
       window.removeEventListener('resize', clamp);
-      node.removeEventListener(CONTACT_SCAN_EVENT, clamp);
+      node.removeEventListener(CONTACT_SCAN_EVENT, clampMovingFix);
     };
   }, [ambient?.id, classifiedOccurrenceId, contacts, departing, hostile,
     orientation?.pitch, orientation?.yaw, placement, size, still, tracks.length]);
