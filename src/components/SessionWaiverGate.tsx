@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import {
   acknowledgeSessionWaiver,
   isSessionWaiverAcknowledged,
+  readSessionWaiverAcknowledgedAt,
   SESSION_WAIVER_RESET_EVENT,
+  SESSION_WAIVER_TTL_MS,
 } from '@/lib/sessionWaiver';
 import { useSessionStore } from '@/store/useSessionStore';
 import SessionWaiver from './SessionWaiver';
@@ -19,8 +21,30 @@ export default function SessionWaiverGate() {
 
   useEffect(() => {
     if (!sessionId || !playerUid) return;
-    setAcknowledged(isSessionWaiverAcknowledged());
-  }, [playerUid, sessionId]);
+    let timer: number | undefined;
+    const recheck = () => {
+      window.clearTimeout(timer);
+      const valid = isSessionWaiverAcknowledged();
+      setAcknowledged(valid);
+      if (!valid) return;
+      const acknowledgedAt = readSessionWaiverAcknowledgedAt();
+      if (acknowledgedAt === null) return;
+      timer = window.setTimeout(recheck, acknowledgedAt + SESSION_WAIVER_TTL_MS - Date.now());
+    };
+    const recheckWhenVisible = () => {
+      if (document.visibilityState === 'visible') recheck();
+    };
+    recheck();
+    document.addEventListener('visibilitychange', recheckWhenVisible);
+    window.addEventListener('focus', recheck);
+    window.addEventListener('storage', recheck);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', recheckWhenVisible);
+      window.removeEventListener('focus', recheck);
+      window.removeEventListener('storage', recheck);
+    };
+  }, [acknowledged, playerUid, sessionId]);
 
   useEffect(() => {
     const reset = () => setAcknowledged(false);
