@@ -21206,10 +21206,13 @@ export const disconnectFromSession = onCall<{
       ? !hasCoreStation(player)
       : typeof activeConsoleRoleId === 'string' &&
         boundCoreConsoleRole(player.get('assignedRoleId'), storedSeatId) === activeConsoleRoleId;
-    const explicitCoreDeparture = player.get('role') === 'player' &&
-      hasCoreAssignment(player) && !hasPressState(player);
+    const replacementRoleId = player.get('replacementRoleId');
+    const hasReplacementAssignment = typeof replacementRoleId === 'string' &&
+      replacementRoleId.length > 0;
+    const explicitStationDeparture = player.get('role') === 'player' &&
+      (hasCoreAssignment(player) || hasReplacementAssignment) && !hasPressState(player);
     const secretDocuments = secrets.docs ?? [];
-    const departingLoyalty = explicitCoreDeparture
+    const departingLoyalty = explicitStationDeparture
       ? secretDocuments.find((secret) => secret.id === `loyalty-${uid}`)
       : undefined;
     const departingFriendUid = privateFriendPartnerUid(departingLoyalty, uid);
@@ -21221,7 +21224,7 @@ export const disconnectFromSession = onCall<{
     let disconnectRoleState: Record<string, unknown>;
     if (player.get('role') === 'gm') {
       disconnectRoleState = disconnectedRoleState();
-    } else if (explicitCoreDeparture) {
+    } else if (explicitStationDeparture) {
       disconnectRoleState = {
         role: 'player',
         assignedRoleId: null,
@@ -21241,6 +21244,7 @@ export const disconnectFromSession = onCall<{
     tx.update(playerRef, {
       connected: false,
       ...disconnectRoleState,
+      replacementRoleId: null,
       ...(hasPressState(player) ? releasedPressFields(player) : {}),
       lastSeenAt: FieldValue.serverTimestamp(),
     });
@@ -21271,7 +21275,7 @@ export const disconnectFromSession = onCall<{
         });
       }
     }
-    if (explicitCoreDeparture) {
+    if (explicitStationDeparture) {
       tx.delete(db.doc(`sessions/${sessionId}/roleBriefs/${uid}`));
       tx.delete(db.doc(`sessions/${sessionId}/secrets/loyalty-${uid}`));
       tx.delete(db.doc(`sessions/${sessionId}/intelligenceInvestigations/${uid}`));
@@ -21295,7 +21299,7 @@ export const disconnectFromSession = onCall<{
       seatRef && seat?.exists && seat.get('roleId') === storedSeatId &&
       seat.get('status') === 'claimed' && seat.get('holderUid') === uid
     ) {
-      // Explicit core Leave vacates the station with the assignment cleanup;
+      // Explicit Leave vacates a held core station with assignment cleanup;
       // transient expiry leaves the assignment intact for recovery.
       tx.update(seatRef, { status: 'open', holderUid: null, claimedAt: null });
     }
@@ -22769,6 +22773,7 @@ export const applyCommissarPurge = onCall<{
         };
       }
     }
+    const players = await tx.get(db.collection(`sessions/${purge.sessionId}/players`));
     tx.update(sessionRef, {
       [`shipSurvivors.${purge.shipId}`]: populationResult.amount,
       [`shipUnrest.${purge.shipId}`]: unrestResult.amount,
@@ -22782,7 +22787,6 @@ export const applyCommissarPurge = onCall<{
       ...nextState,
       updatedAt: FieldValue.serverTimestamp(),
     });
-    const players = await tx.get(db.collection(`sessions/${purge.sessionId}/players`));
     writeCommissarPurgeAuthorityViews(tx, purge.sessionId, session, players, nextState, {
       [purge.shipId]: currentRevision + 1,
     });
