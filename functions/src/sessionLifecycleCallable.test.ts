@@ -1126,6 +1126,49 @@ describe('midgame departure and recovery', () => {
     },
   );
 
+  it.each(REPLACEMENT_ROLE_CATALOG)(
+    'restores transient $id replacement authority to the same member',
+    async (replacement) => {
+      const privateMarker = `transient-${replacement.id}`;
+      session({
+        phase: 'active', currentTurn: 2,
+        activeRoleIds: [...recommendedRoleIds(8)], turnPhase: ACTIVE_TURN_PHASE,
+      });
+      player({
+        assignedRoleId: 'admiral', seatId: null,
+        replacementRoleId: replacement.id, activeConsoleRoleId: null,
+        lastSeenAt: mock.Timestamp.fromMillis(NOW.getTime() - PRESENCE_LEASE_MS),
+      });
+      livePlayer('u2');
+      put('activeMemberships/u1', { sessionId: 's1' });
+      put('sessions/s1/secrets/loyalty-u1', {
+        visibleToUids: ['u1'], payload: { type: 'loyalty', marker: privateMarker },
+      });
+      put('sessions/s1/roleBriefs/u1', { roleId: replacement.id, marker: privateMarker });
+
+      await expireStalePlayers.run({});
+      expect(read('sessions/s1/players/u1')).toMatchObject({
+        connected: false, replacementRoleId: replacement.id, activeConsoleRoleId: null,
+      });
+      expect(read('sessions/s1/roleBriefs/u1')).toMatchObject({ roleId: replacement.id });
+      expect(read('sessions/s1/secrets/loyalty-u1')).toBeDefined();
+
+      const resumed = await resumeSession.run(request({ sessionId: 's1' }));
+      expect(resumed.player).toMatchObject({
+        replacementRoleId: replacement.id, activeConsoleRoleId: null,
+      });
+      expect(read('sessions/s1/players/u1')).toMatchObject({
+        connected: true, replacementRoleId: replacement.id,
+      });
+      expect(read('sessions/s1/roleBriefs/u1')).toMatchObject({ roleId: replacement.id });
+      expect(read('sessions/s1/secrets/loyalty-u1')).toBeDefined();
+      expect(JSON.stringify(resumed)).not.toContain(privateMarker);
+      expect(read('sessions/s1')).toMatchObject({
+        phase: 'active', currentTurn: 2, turnPhase: ACTIVE_TURN_PHASE,
+      });
+    },
+  );
+
   it.each(NON_GM_CORE_ROLE_IDS)(
     'vacates an explicitly departed core role without restoring private state: %s',
     async (roleId) => {
