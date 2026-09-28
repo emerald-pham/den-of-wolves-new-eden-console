@@ -261,6 +261,7 @@ function clampContactLabels(plot: HTMLElement): void {
             label.style.maxWidth = `${Math.max(1, cap * sideWidth / width - 2)}px`;
           }
         }
+        const baseStyle = label.style.cssText;
         const original = label.getBoundingClientRect();
         const minX = plotBounds.left + LABEL_VIEWPORT_GUTTER_PX;
         const maxX = plotBounds.right - LABEL_VIEWPORT_GUTTER_PX;
@@ -270,21 +271,32 @@ function clampContactLabels(plot: HTMLElement): void {
           : original.right > maxX ? maxX - original.right : 0;
         const y = original.top < minY ? minY - original.top
           : original.bottom > maxY ? maxY - original.bottom : 0;
-        shift(label, x, y);
-        const bounds = label.getBoundingClientRect();
-        const anchorGap = anchor.endsWith('east')
-          ? marker.left - bounds.right : bounds.left - marker.right;
-        const collisionCount = nearby.filter((rect) => overlaps(bounds, rect)).length;
-        const clearance = nearby.length > 0
-          ? Math.min(...nearby.map((rect) => distanceFrom(bounds, rect))) : 0;
-        const edgeOverflow = Math.max(0, minX - bounds.left, bounds.right - maxX,
-          minY - bounds.top, bounds.bottom - maxY);
-        const score = collisionCount * 1_000_000 + edgeOverflow * 100_000 +
-          Math.max(0, 4 - anchorGap) * 100_000 +
-          Math.max(0, 48 - sideWidth) * 1_000 +
-          (Math.abs(x) + Math.abs(y)) * 100 - clearance;
-        if (!best || score < best.score) {
-          best = { anchor, style: label.style.cssText, bounds, score };
+        // If both adjacent quadrants are occupied, move the name only along
+        // its return's side, one nearby text row at a time. Its horizontal
+        // gap from the return remains fixed, even in a crowded plot.
+        for (const lane of [0, -1, 1, -2, 2]) {
+          label.style.cssText = baseStyle;
+          shift(label, x, y + lane * (original.height + gap));
+          const candidate = label.getBoundingClientRect();
+          const correctionY = candidate.top < minY ? minY - candidate.top
+            : candidate.bottom > maxY ? maxY - candidate.bottom : 0;
+          shift(label, 0, correctionY);
+          const bounds = label.getBoundingClientRect();
+          const anchorGap = anchor.endsWith('east')
+            ? marker.left - bounds.right : bounds.left - marker.right;
+          const collisionCount = nearby.filter((rect) => overlaps(bounds, rect)).length;
+          const clearance = nearby.length > 0
+            ? Math.min(...nearby.map((rect) => distanceFrom(bounds, rect))) : 0;
+          const edgeOverflow = Math.max(0, minX - bounds.left, bounds.right - maxX,
+            minY - bounds.top, bounds.bottom - maxY);
+          const score = collisionCount * 1_000_000 + edgeOverflow * 100_000 +
+            Math.max(0, 4 - anchorGap) * 100_000 +
+            Math.max(0, 48 - sideWidth) * 1_000 +
+            (Math.abs(x) + Math.abs(y + correctionY)) * 100 +
+            Math.abs(lane) * 2_000 - clearance;
+          if (!best || score < best.score) {
+            best = { anchor, style: label.style.cssText, bounds, score };
+          }
         }
       }
       if (best) {
