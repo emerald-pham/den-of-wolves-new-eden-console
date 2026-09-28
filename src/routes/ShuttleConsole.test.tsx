@@ -60,6 +60,7 @@ vi.mock('@/lib/shuttleDepartureService', () => ({
   retargetShuttleTransit: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('@/lib/shuttleCargoService', () => ({
+  canReplayShuttleCargoTransfer: vi.fn(() => true),
   transferShuttleCargo: vi.fn().mockResolvedValue(undefined),
   replayShuttleCargoTransfer: vi.fn().mockResolvedValue({ status: 'replayed' }),
 }));
@@ -101,7 +102,8 @@ const { subscribeShuttleDeparture } = await import('@/lib/firestore');
 const { transferShuttleControl } = await import('@/lib/shuttleControlService');
 const { beginShuttleTransit, completeShuttleArrival, requestShuttleDeparture, retargetShuttleTransit } =
   await import('@/lib/shuttleDepartureService');
-const { transferShuttleCargo, replayShuttleCargoTransfer } = await import('@/lib/shuttleCargoService');
+const { canReplayShuttleCargoTransfer, transferShuttleCargo, replayShuttleCargoTransfer } =
+  await import('@/lib/shuttleCargoService');
 const { rechargeHostConsoleFromShuttle, replayServiceShuttleRecharge } =
   await import('@/lib/serviceShuttleRechargeService');
 const { repairConsolesFromBlacksmith } = await import('@/lib/blacksmithRepairService');
@@ -223,6 +225,8 @@ beforeEach(() => {
   });
   vi.mocked(transferShuttleCargo).mockReset();
   vi.mocked(transferShuttleCargo).mockResolvedValue(undefined as never);
+  vi.mocked(canReplayShuttleCargoTransfer).mockReset();
+  vi.mocked(canReplayShuttleCargoTransfer).mockReturnValue(true);
   vi.mocked(replayShuttleCargoTransfer).mockReset();
   vi.mocked(replayShuttleCargoTransfer).mockResolvedValue({ status: 'replayed' } as never);
   vi.mocked(rechargeHostConsoleFromShuttle).mockReset();
