@@ -57,6 +57,8 @@ it('uses the real plot for an interactive first-contact and repeat-sweep review'
   expect(screen.getByRole('button', { name: /repeat sweep/i })).toBeVisible();
   expect(screen.getByRole('button', { name: /after first sweep/i })).toBeVisible();
   expect(screen.getByText(/first contact enlargement/i)).toBeVisible();
+  await user.click(screen.getByRole('button', { name: 'Crowded contacts' }));
+  expect(container.querySelectorAll('.contact-plot__contact')).toHaveLength(12);
   const plot = container.querySelector<HTMLElement>('.pc02-review__plot')!;
   await user.click(screen.getByRole('button', { name: 'Repeat sweep' }));
   expect(plot.dataset.scanStage).toBe('repeat');
