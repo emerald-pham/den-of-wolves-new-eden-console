@@ -13574,6 +13574,21 @@ export const assignLoyalty = onCall<{
         'conflict',
       );
     }
+    // Ordinary setup owns Wolf designation automatically. Explicit optional
+    // loyalty modes retain their separately validated printed configuration;
+    // this endpoint cannot choose or replace ordinary Wolf holders.
+    if (!lockedSetup.universalArbourEnabled && !lockedSetup.wolfCultEnabled) {
+      const changesWolf = kind === 'wolf-agent' || kind === 'wolf-cult' ||
+        [targetSecret, partnerSecret].some((secret) => {
+          const payload = secret?.get('payload');
+          return typeof payload === 'object' && payload !== null &&
+            (payload.kind === 'wolf-agent' || payload.kind === 'wolf-cult');
+        });
+      if (changesWolf) {
+        throw commandError('failed-precondition',
+          'Ordinary Wolf designation is automatic at production start.', 'conflict');
+      }
+    }
     if (kind === 'friend' && !assignment.partnerUid) {
       throw new HttpsError('invalid-argument', 'Friend loyalty requires a private partner.');
     }
