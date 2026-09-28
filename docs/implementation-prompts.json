@@ -2970,6 +2970,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "401 -> PC04-A1;315;361;402;403",
+      "id": "E-401-PC04-CANDIDATE",
+      "language": "PC04 implements the production mission-start slice for one source-authorized new-location opportunity. The active GM records the connected same-group team and its team-selected Mission Leader; the transaction revalidates the exact opportunity, cycle, chart, coordinate, current active roles, and at least one currently usable colocated carrier from the admitted source-supported craft set. It creates one immutable mission snapshot and private initial deal, records shared carrier identities once rather than attributing them to participants, and appends a complete GM receipt with source, inputs, modifiers, outcome, state delta, revisions, replay, and recovery. Direct writes and private-card leaks remain denied, and ambiguous replies retry only the saved exact request, including receipt lookup after a terminal phase. Full local, rules, focused, build, rendered-review, and independent Sol review evidence exists; deployment and ordinary authorized GM and participant gameplay are reported separately, so Prompt 401 remains partial at this candidate boundary.",
+      "source": "docs/PRODUCT_MILESTONE_ASSUMPTIONS.md PC04-A1; functions/src/index.ts; functions/src/missionStart.ts; functions/src/awayMissionCallable.test.ts; functions/src/missionStart.test.ts; functions/src/requestGuards.ts; firestore.rules; tests/rules/firestore.rules.test.ts; src/components/AwayMissionStartPanel.tsx; src/components/AwayMissionStartPanel.test.tsx; src/lib/sessionService.ts; src/lib/sessionService.test.ts; src/lib/firestore.ts; docs/PC04_PLAYTEST_REPORT.md",
+      "type": "evidence / production-path candidate / server-authoritative / privacy / replay / GM log / independent review"
+    },
+    {
       "direction": "403 -> 402",
       "id": "E-AUDIT-403",
       "language": "Private card dealing consumes the authoritative mission deck.",
@@ -16647,8 +16654,8 @@
         "acceptance": "one newly reached system starts one mission with eligible craft and exactly one entitled Mission Leader.",
         "title": "Validate mission eligibility and leader."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-401",
+      "description": "PC04 implements the production mission-start slice for one exact source-authorized new-location opportunity. The active GM records the connected same-group participant roster and its team-selected Mission Leader; the server transaction revalidates opportunity freshness, cycle, chart, coordinate, current active roles, and at least one currently usable colocated carrier before it creates one immutable mission snapshot and private initial deal. Shared available carriers are recorded once at mission level, participant snapshots contain only known per-person UID and role facts, direct writes and unauthorized private reads are denied, and exact ambiguous retries recover the committed receipt without a second deal even after the session reaches a terminal phase. A complete source/input/modifier/outcome/delta/revision/replay/recovery receipt is projected to the GM log automatically. Local full, rules, focused, build, rendered-review, and independent Sol review evidence passed; deployment and ordinary authorized GM and participant gameplay remain separate, so the prompt is partial rather than complete.",
+      "evidenceIds": "E-AUDIT-401;E-401-PC04-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "315;361",
@@ -16656,10 +16663,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.54"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "NEW"
     },
     {

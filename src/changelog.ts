@@ -23,6 +23,22 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: APP_VERSION,
     implementationProgress: {
       completed: 458, total: 751, percentage: '60.99%',
+      done: 458, partial: 57, active: 0, missing: 236,
+    },
+    changes: [
+      'Stations and consoles now share one early catalog for ordinary players; Role Select is reserved for the authenticated GM join path.',
+      'DRADIS and app-wide CIC typography are restored to the intended PC01-era treatment, with rendered font checks mandatory before an exact build can deploy.',
+      'Current digital-interface copy says “console”; the default fleet warning now reads “RED ALERT // WOLF ATTACK IMMINENT ALL HANDS TO BATTLE STATIONS. NON-CREW MUST SHELTER IN PLACE UNTIL ALERT LIFTED”.',
+      'Away mission start lets the GM record the team’s participants and Mission Leader; the server checks the exact group, cycle, opportunity, and current carrier craft, deals private cards, and writes the complete GM log receipt automatically.',
+      '458 of 751 planned items are complete (60.99%).',
+    ],
+    implementationPrompts: [401],
+  },
+
+  {
+    version: '0.5.53',
+    implementationProgress: {
+      completed: 458, total: 751, percentage: '60.99%',
       done: 458, partial: 56, active: 0, missing: 237,
     },
     changes: [
