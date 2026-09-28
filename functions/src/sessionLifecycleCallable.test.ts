@@ -210,7 +210,7 @@ vi.mock('firebase-admin/firestore', () => ({
 vi.mock('firebase-functions/v2', () => ({ setGlobalOptions: vi.fn() }));
 vi.mock('firebase-functions/v2/https', () => ({
   HttpsError: class HttpsError extends Error {
-    constructor(readonly code: string, message: string) {
+    constructor(readonly code: string, message: string, readonly details?: unknown) {
       super(message);
     }
   },
@@ -430,7 +430,7 @@ describe('presence lease', () => {
     });
 
     expect(read('sessions/s1/players/u1')).toMatchObject({ lastSeenAt: 'server-time' });
-    expect(read('activeMemberships/u1')).toMatchObject({ sessionId: 's1' });
+    expect(read('activeMemberships/u1')).toEqual({ sessionId: 's1' });
     expect(readPaths()).toContain('sessions/s1/players');
     expect(read('sessions/s1/presenceReconciliations/u1')?.lastFullReconciliationAt)
       .toEqual(expect.any(mock.Timestamp));
@@ -560,16 +560,43 @@ describe('presence lease', () => {
     expect(read('sessions/s1/players/u1')?.activeConsoleRoleId).toBe('dione-captain');
   });
 
+  it('does not grant console presence when another UID holds the canonical seat', async () => {
+    session({ phase: 'active', activeRoleIds: ['admiral'] });
+    player({ assignedRoleId: 'admiral', seatId: 'admiral', activeConsoleRoleId: null });
+    livePlayer('u2');
+    put('sessions/s1/seats/admiral', {
+      roleId: 'admiral', status: 'claimed', holderUid: 'u2',
+    });
+
+    await expect(refreshPresence.run(request({
+      sessionId: 's1', activeConsoleRoleId: 'admiral',
+    }))).rejects.toMatchObject({
+      code: 'permission-denied',
+      details: { commandError: 'station-selection-required' },
+    });
+
+    expect(read('sessions/s1/players/u1')).toMatchObject({ activeConsoleRoleId: null });
+    expect(read('sessions/s1/seats/admiral')).toMatchObject({
+      status: 'claimed', holderUid: 'u2',
+    });
+  });
+
   it('fails closed when assignment and seat pointers disagree', async () => {
     session({ phase: 'active', activeRoleIds: ['admiral', 'dione-captain'] });
     player({ assignedRoleId: 'dione-captain', seatId: 'admiral' });
 
     await expect(refreshPresence.run(request({
       sessionId: 's1', activeConsoleRoleId: 'dione-captain',
-    }))).rejects.toMatchObject({ code: 'permission-denied' });
+    }))).rejects.toMatchObject({
+      code: 'permission-denied',
+      details: { commandError: 'station-selection-required' },
+    });
     await expect(refreshPresence.run(request({
       sessionId: 's1', activeConsoleRoleId: 'admiral',
-    }))).rejects.toMatchObject({ code: 'permission-denied' });
+    }))).rejects.toMatchObject({
+      code: 'permission-denied',
+      details: { commandError: 'station-selection-required' },
+    });
     expect(read('sessions/s1/players/u1')?.activeConsoleRoleId).toBeNull();
   });
 
@@ -595,7 +622,7 @@ describe('presence lease', () => {
     });
 
     await expect(refreshPresence.run(request({ sessionId: 's1' })))
-      .resolves.toEqual({ sessionId: 's1' });
+      .resolves.toEqual({ sessionId: 's1', stationSelectionRequired: true });
 
     expect(readPaths()).toContain('sessions/s1/players');
     expect(read('sessions/s1/players/u1')).toMatchObject({ activeConsoleRoleId: null });
@@ -958,7 +985,7 @@ describe('disconnect and retention', () => {
     expect(read('sessions/s1/players/u1')).toMatchObject({
       connected: true, connectionGeneration: 2, role: 'gm',
     });
-    expect(read('activeMemberships/u1')).toEqual({ sessionId: 's1' });
+    expect(read('activeMemberships/u1')).toMatchObject({ sessionId: 's1' });
     expect(read('sessions/s1/gmInstances/bridge')).toBeDefined();
   });
 
@@ -1319,7 +1346,7 @@ describe('midgame departure and recovery', () => {
     expect(read('sessions/s1/seats/admiral')).toMatchObject({
       status: 'claimed', holderUid: 'u2',
     });
-    expect(read('activeMemberships/u1')).toEqual({ sessionId: 's1' });
+    expect(read('activeMemberships/u1')).toMatchObject({ sessionId: 's1' });
   });
 
   it('preserves a transient Press holder and private loyalty through reconnect', async () => {
