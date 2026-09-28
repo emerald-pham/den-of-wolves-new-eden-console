@@ -639,6 +639,16 @@ it('launches the PDF Escort Wing through the current Wolf attack and charged Ref
   expect(mock.set).not.toHaveBeenCalled();
 });
 
+it('denies fresh PDF launch while Refinery 124 is in mutiny', async () => {
+  await declareThenSeatPdfColonel();
+  mock.documents.get('sessions/s1')!.shipUnrest = { 'refinery-124': 8 };
+  await expect(launchPdfEscortWing.run(request({
+    sessionId: 's1', requestId: 'launch-pdf-mutiny', expectedTurn: 1,
+    expectedRevision: 1, expectedWingRevision: 0,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.get('sessions/s1/serverState/pdfEscortWing')).toMatchObject({ launched: false });
+});
+
 it('rejects a non-Colonel and a stale P.D.F. launch view without writes', async () => {
   await declareThenSeatPdfColonel();
   const view = await getPdfEscortWingLaunch.run(request({ sessionId: 's1' }));
@@ -733,6 +743,15 @@ it('lets only the active Dione Engineer launch Maliades from a charged operation
   });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('denies a fresh Maliades launch while Dione is in mutiny', async () => {
+  await declareThenSeatDioneEngineer();
+  mock.documents.get('sessions/s1')!.shipUnrest = { dione: 8 };
+  await expect(launchDioneMaliades.run(request({
+    sessionId: 's1', requestId: 'launch-maliades-mutiny', expectedTurn: 1, expectedRevision: 1,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.get('sessions/s1')?.maliadesState).toMatchObject({ launched: false });
 });
 
 it('resets only per-attack Maliades action records across declarations while preserving durability', async () => {

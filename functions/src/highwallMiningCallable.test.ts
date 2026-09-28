@@ -110,6 +110,13 @@ it('commits one material roll and exact retry without another random draw or wri
   expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
 });
 
+it('denies a new Highwall mining roll when its docked host is in mutiny', async () => {
+  mock.documents.get('sessions/s1')!.shipUnrest = { icebreaker: 8 };
+  await expect(runHighwallMining.run(request(command))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+  expect(mock.documents.has('sessions/s1/actionAudits/mine-1')).toBe(false);
+});
+
 it('allows a same-group Icebreaker Engineer who received Highwall control to mine', async () => {
   mock.documents.get('sessions/s1')!.activeRoleIds = ['icebreaker-miner', 'icebreaker-engineer'];
   Object.assign(mock.documents.get('sessions/s1/players/holder')!, {
