@@ -157,6 +157,16 @@ No test is skipped or deleted for PC04.
   one changelog test still expected PC03's console-links note inside the new
   PC04 entry. The repaired test locates the preserved 0.5.53 entry explicitly;
   it does not move or rewrite the historical note.
+- **Deployment selection:** the first exact range dry-run failed closed because
+  the new away-mission helper and pure lifecycle candidate had no audited
+  callable-consumer entries. The next dry-run correctly caught that the shared
+  sign-in wording and mission request guard also needed an exact transition
+  mapping. Test-first selector repairs now deploy the mission helper only with
+  `dealPrivateInitialCards`, treat the pure lifecycle module as having no live
+  consumer, and enumerate all current `requireUid` callable consumers for the
+  shared sign-in copy. The exact PC04 range selects Hosting, Firestore, and 129
+  named Functions with no unknown files; it does not use a coarse or manual
+  Functions deployment.
 
 Independent exact-head review cleared the entry/typography candidate
 `027a6b26a55a3039f0cf58a25a77767cf25f9d2c` after its legacy-GM repair and the
@@ -167,14 +177,14 @@ reconciled release commit remains required.
 ## Review, release, and hosted evidence
 
 Local owner evidence is currently green for 5,880 unit/Functions tests, all 141
-Firestore Rules tests, the Functions TypeScript build, the application
-typecheck/build, focused integrated suites, and the production-component review
-scene. This section remains open until one exact reconciled candidate commit
-passes the remaining mandatory browser and documentation gates, final
-independent Sol review, coordinated validation, CI, deployment, hosted version
-verification, and the attempted ordinary authorized gameplay checks. No push,
-merge, deployment, hosted verification, or ordinary live gameplay is claimed
-yet.
+Firestore Rules tests, both builds, typecheck, lint with no errors, bundle and
+documentation/catalog checks, 61 source/rendered font-contract cases, the
+56-case exact-PC01 typography comparison, the complete ticker lifecycle, and
+the responsive production-component review scene. This section remains open
+until the repaired exact commit passes final independent Sol review,
+coordinated validation, CI, deployment, hosted version verification, and the
+attempted ordinary authorized gameplay checks. No push, merge, deployment,
+hosted verification, or ordinary live gameplay is claimed yet.
 
 ## Authorized post-release documentation audit
 
