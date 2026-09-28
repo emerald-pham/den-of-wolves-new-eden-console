@@ -1182,6 +1182,107 @@ it('reuses intrinsic DRADIS name width across contact-position updates', () => {
   expect(offsetWidthReads).toBe(firstUpdateReads);
 });
 
+function mockIntrinsicWidthForCacheTests(getNaturalWidth: (label: HTMLElement) => number) {
+  const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
+    x: left, y: top, left, top, width, height,
+    right: left + width, bottom: top + height,
+  }) as DOMRect;
+  let offsetWidthReads = 0;
+  vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
+    if (!this.classList.contains('contact-plot__tag')) return 0;
+    offsetWidthReads += 1;
+    const cap = Number.parseFloat(this.style.maxWidth);
+    return Number.isFinite(cap) ? Math.min(getNaturalWidth(this), cap) : getNaturalWidth(this);
+  });
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    if (this.classList.contains('contact-plot')) return bounds(0, 0, 246, 320);
+    if (this.classList.contains('contact-plot__blip')) return bounds(119, 140, 8, 8);
+    if (this.classList.contains('contact-plot__tag')) {
+      const label = this as HTMLElement;
+      const cap = Number.parseFloat(label.style.maxWidth);
+      const naturalWidth = getNaturalWidth(label);
+      const width = (Number.isFinite(cap) ? Math.min(naturalWidth, cap) : naturalWidth) * 1.2;
+      const anchor = label.closest<HTMLElement>('.contact-plot__contact')?.dataset.labelAnchor ?? 'south-east';
+      const left = anchor.endsWith('east') ? 119 - 11 - width : 127 + 11;
+      const top = anchor.startsWith('north') ? 140 - 8 - 18 : 140 + 8 + 8;
+      const x = Number.parseFloat(label.style.getPropertyValue('--label-clamp-x')) || 0;
+      const y = Number.parseFloat(label.style.getPropertyValue('--label-clamp-y')) || 0;
+      return bounds(left + x, top + y, width, 18);
+    }
+    return bounds(0, 0, 0, 0);
+  });
+  return { offsetWidthReads: () => offsetWidthReads };
+}
+
+const cachedWidthTestContacts = (x: number) => [{
+  id: 'width-cache-context', tag: 'LONG RESEARCH CRUISER', x, y: 0.2, z: 0.1, color: 'white',
+}];
+
+it('invalidates cached DRADIS name width when responsive viewport rules change', async () => {
+  let narrowViewport = false;
+  const { offsetWidthReads } = mockIntrinsicWidthForCacheTests(() => narrowViewport ? 200 : 180);
+  const originalWidth = Object.getOwnPropertyDescriptor(window, 'innerWidth');
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 900 });
+  try {
+    const { rerender } = render(<ContactPlot contacts={cachedWidthTestContacts(0.8)} />);
+    const firstUpdateReads = offsetWidthReads();
+    expect(firstUpdateReads).toBeGreaterThan(0);
+
+    narrowViewport = true;
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 320 });
+    await act(async () => {
+      window.dispatchEvent(new Event('resize'));
+      rerender(<ContactPlot contacts={cachedWidthTestContacts(0.81)} />);
+    });
+
+    expect(offsetWidthReads()).toBeGreaterThan(firstUpdateReads);
+  } finally {
+    if (originalWidth) Object.defineProperty(window, 'innerWidth', originalWidth);
+    else Reflect.deleteProperty(window, 'innerWidth');
+  }
+});
+
+it('invalidates cached DRADIS name width when an ancestor style context changes', async () => {
+  const { offsetWidthReads } = mockIntrinsicWidthForCacheTests((label) => (
+    label.closest<HTMLElement>('.ship-plot')?.dataset.expanded === 'true' ? 210 : 180
+  ));
+  const { container } = render(<div className="ship-plot" data-expanded="false">
+    <ContactPlot contacts={cachedWidthTestContacts(0.8)} />
+  </div>);
+  const firstUpdateReads = offsetWidthReads();
+  expect(firstUpdateReads).toBeGreaterThan(0);
+
+  await act(async () => {
+    container.querySelector<HTMLElement>('.ship-plot')?.setAttribute('data-expanded', 'true');
+    await Promise.resolve();
+  });
+
+  expect(offsetWidthReads()).toBeGreaterThan(firstUpdateReads);
+});
+
+it('invalidates cached DRADIS name width after a font face finishes loading', async () => {
+  const fontSet = new EventTarget();
+  const previousFonts = Object.getOwnPropertyDescriptor(document, 'fonts');
+  Object.defineProperty(document, 'fonts', { configurable: true, value: fontSet });
+  try {
+    let fontLoaded = false;
+    const { offsetWidthReads } = mockIntrinsicWidthForCacheTests(() => fontLoaded ? 210 : 180);
+    render(<ContactPlot contacts={cachedWidthTestContacts(0.8)} />);
+    const firstUpdateReads = offsetWidthReads();
+    expect(firstUpdateReads).toBeGreaterThan(0);
+
+    fontLoaded = true;
+    await act(async () => {
+      fontSet.dispatchEvent(new Event('loadingdone'));
+    });
+
+    expect(offsetWidthReads()).toBeGreaterThan(firstUpdateReads);
+  } finally {
+    if (previousFonts) Object.defineProperty(document, 'fonts', previousFonts);
+    else Reflect.deleteProperty(document, 'fonts');
+  }
+});
+
 it('keeps crowded 20-contact label layout within the per-update geometry-read budget', () => {
   const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
     x: left, y: top, left, top, width, height,
