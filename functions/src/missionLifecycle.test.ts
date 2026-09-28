@@ -316,23 +316,8 @@ describe('pure away-mission lifecycle', () => {
     expect(state.phase).toBe('assignments-complete');
     expect(state.facilitatorCards).toEqual([]);
 
-    const exhausted = createMissionLifecycleState({
-      missionId: state.missionId,
-      siteCode: state.siteCode,
-      leaderUid: state.leaderUid,
-      participants: state.participants,
-      deckState: state.deckState,
-      dealtCount: state.deckState.order.length,
-      initialCards: state.cards.filter(({ source }) => source === 'initial').map(({ participantUid, cardId }) => ({
-        participantUid,
-        cardId,
-      })),
-      phase: 'assignment-ready',
-      discardedParticipantUids: state.participants.map(({ uid }) => uid),
-      discardedCardIds: state.participants.map(({ uid }) =>
-        state.cards.find((card) => card.participantUid === uid && card.source === 'initial')!.cardId),
-    });
-    expect(exhausted).not.toBeNull();
+    const exhausted = { ...state, dealtCount: state.deckState.order.length };
+    expect(addFacilitatorCardsFromTopDeck(exhausted, 'depleted-deck', () => 0)).toBeNull();
   });
 
   it('derives totals, bonuses, and critical branches from server-owned card and contribution ledgers', () => {
