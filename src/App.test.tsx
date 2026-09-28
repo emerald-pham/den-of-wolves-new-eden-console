@@ -136,6 +136,26 @@ describe('App', () => {
     ).toBeInTheDocument();
   });
 
+  it('opens a directly linked private brief after a visible loading state', async () => {
+    const member: Player = {
+      ...player, role: 'player', assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral',
+    };
+    const brief: RoleBrief = {
+      assignmentUid: 'u1', roleId: 'admiral', roleName: 'Admiral', vesselName: 'AEGIS',
+      text: 'Command the fleet.', commonRules: 'Follow the common rules.', setupRevision: 1,
+    };
+    window.location.hash = '#/brief';
+    useSessionStore.getState().setIdentity(session, member);
+    useSessionStore.getState().setMode('console');
+    useSessionStore.getState().setRoleBrief(brief);
+
+    render(<App />);
+
+    expect(screen.getByText('Opening private briefing…')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Admiral' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Back to roles' })).toHaveAttribute('href', '#/roles');
+  });
+
   it('requires a motion choice before exposing the game interface', async () => {
     localStorage.removeItem(MOTION_SAFETY_STORAGE_KEY);
     render(<App />);
