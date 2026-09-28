@@ -3108,6 +3108,8 @@ type ReturningSeat = Readonly<{
   seatId: string | null;
   clearPointer: boolean;
   claimSeat: boolean;
+  clearActiveConsoleRole: boolean;
+  stationSelectionRequired: boolean;
 }>;
 
 /**
@@ -3124,10 +3126,25 @@ async function reconcileReturningSeat(
 ): Promise<ReturningSeat> {
   const storedSeatId = player.get('seatId');
   if (storedSeatId === null || storedSeatId === undefined) {
-    return { seatId: null, clearPointer: false, claimSeat: false };
+    const activeRoleId = player.get('activeConsoleRoleId');
+    const clearActiveConsoleRole = typeof activeRoleId === 'string' &&
+      activeRoleId !== 'press-officer' && (
+        player.get('role') !== 'player' ||
+        typeof player.get('replacementRoleId') === 'string' ||
+        boundCoreConsoleRole(player.get('assignedRoleId'), player.get('seatId')) !== activeRoleId
+      );
+    return {
+      seatId: null, clearPointer: false, claimSeat: false,
+      clearActiveConsoleRole,
+      stationSelectionRequired: clearActiveConsoleRole,
+    };
   }
   if (typeof storedSeatId !== 'string' || storedSeatId.length === 0) {
-    return { seatId: null, clearPointer: true, claimSeat: false };
+    return {
+      seatId: null, clearPointer: true, claimSeat: false,
+      clearActiveConsoleRole: player.get('activeConsoleRoleId') !== 'press-officer',
+      stationSelectionRequired: !playerEscapeState(player),
+    };
   }
 
   const seatRef = db.doc('sessions/' + sessionId + '/seats/' + storedSeatId);
@@ -3137,31 +3154,57 @@ async function reconcileReturningSeat(
     // facilitator adjudicates the escape, but reconnect must never reclaim an
     // open seat or turn that pointer back into console authority.
     if (seat.exists && seat.get('status') === 'claimed' && seat.get('holderUid') === uid) {
-      return { seatId: storedSeatId, clearPointer: false, claimSeat: false };
+      return {
+        seatId: storedSeatId, clearPointer: false, claimSeat: false,
+        clearActiveConsoleRole: false, stationSelectionRequired: false,
+      };
     }
-    return { seatId: null, clearPointer: true, claimSeat: false };
+    return {
+      seatId: null, clearPointer: true, claimSeat: false,
+      clearActiveConsoleRole: false, stationSelectionRequired: false,
+    };
+  }
+  if (boundCoreConsoleRole(player.get('assignedRoleId'), storedSeatId) !== storedSeatId) {
+    return {
+      seatId: null, clearPointer: true, claimSeat: false,
+      clearActiveConsoleRole: player.get('activeConsoleRoleId') !== 'press-officer',
+      stationSelectionRequired: true,
+    };
   }
   if (!seat.exists && canonicalSeatIds.includes(storedSeatId)) {
     // Canonical setup hydration may be repairing this role-keyed seat in the
     // same transaction. Preserve a validated pointer and apply its claim only
     // after hydration has materialized the missing document.
-    return { seatId: storedSeatId, clearPointer: false, claimSeat: true };
+    return {
+      seatId: storedSeatId, clearPointer: false, claimSeat: true,
+      clearActiveConsoleRole: false, stationSelectionRequired: false,
+    };
   }
   if (
     seat.exists &&
     seat.get('status') === 'claimed' &&
     seat.get('holderUid') === uid
   ) {
-    return { seatId: storedSeatId, clearPointer: false, claimSeat: false };
+    return {
+      seatId: storedSeatId, clearPointer: false, claimSeat: false,
+      clearActiveConsoleRole: false, stationSelectionRequired: false,
+    };
   }
   if (seat.exists && seat.get('status') === 'open') {
     // Defer this write until the caller has completed every transaction read.
     // Firestore rejects a read after any write in the same transaction, and
     // resumeSession still needs to hydrate the canonical setup after this
     // seat check.
-    return { seatId: storedSeatId, clearPointer: false, claimSeat: true };
+    return {
+      seatId: storedSeatId, clearPointer: false, claimSeat: true,
+      clearActiveConsoleRole: false, stationSelectionRequired: false,
+    };
   }
-  return { seatId: null, clearPointer: true, claimSeat: false };
+  return {
+    seatId: null, clearPointer: true, claimSeat: false,
+    clearActiveConsoleRole: player.get('activeConsoleRoleId') !== 'press-officer',
+    stationSelectionRequired: true,
+  };
 }
 
 function sessionTurn(value: unknown): number {
@@ -14350,6 +14393,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       currentPlayer.get('role') !== 'player' || hasCoreStation(currentPlayer) ||
       (typeof storedPressHolderUid === 'string' && storedPressHolderUid !== uid)
     );
+    const stationSelectionRequired = returningSeat.stationSelectionRequired || releasePress;
     ensureFleetTickerBaseline(tx, sessionRef, currentSession, new Date().toISOString());
     reconcilePresenceTimer(tx, sessionRef, currentSession, attackState, true);
     tx.update(playerRef, {
@@ -14361,7 +14405,8 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       ...(!releasePress && currentPressAuthority && currentPlayer.get('assignedRoleId') === 'press-officer'
         ? { assignedRoleId: null } : {}),
       ...(returningSeat.clearPointer ? { seatId: null } : {}),
-      ...(returningSeat.clearPointer && currentPlayer.get('activeConsoleRoleId') !== 'press-officer'
+      ...((returningSeat.clearActiveConsoleRole ||
+        (returningSeat.clearPointer && currentPlayer.get('activeConsoleRoleId') !== 'press-officer'))
         ? { activeConsoleRoleId: null } : {}),
     });
     const projectionPlayer = {
@@ -14392,6 +14437,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
     return {
       seatId: returningSeat.seatId,
       connectionGeneration,
+      stationSelectionRequired,
     };
   });
 
@@ -14418,6 +14464,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
     sessionSnap.get('voyage33Maintenance'), voyageAdmission, activeVesselIds,
   );
   return {
+    ...(resumeResult.stationSelectionRequired ? { stationSelectionRequired: true } : {}),
     session: {
       id: sessionId,
       name: sessionSnap.get('name') as string,
@@ -21344,7 +21391,7 @@ export const refreshPresence = onCall<{
   const wolfSecretRef = db.doc(`sessions/${sessionId}/secrets/wolf-assignment`);
   const censusRef = db.doc(`sessions/${sessionId}/loyaltyCensus/current`);
   const reconciliationRef = presenceReconciliationRef(sessionId, uid);
-  await db.runTransaction(async (tx) => {
+  const stationSelectionRequired = await db.runTransaction(async (tx) => {
     const requestedRoleId = activeConsoleRoleId ?? null;
     const roleHolders = requestedRoleId
       ? db.collection(`sessions/${sessionId}/players`)
@@ -21364,11 +21411,42 @@ export const refreshPresence = onCall<{
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
     const currentCoreRoleId = player.get('activeConsoleRoleId');
+    const currentSeatId = player.get('seatId');
+    const requestedCoreRoleId = typeof activeConsoleRoleId === 'string' &&
+      activeConsoleRoleId !== 'press-officer' ? activeConsoleRoleId : undefined;
+    const seatIdsToCheck = new Set<string>();
+    if (typeof currentCoreRoleId === 'string' && currentCoreRoleId !== 'press-officer') {
+      seatIdsToCheck.add(currentCoreRoleId);
+    }
+    if (typeof currentSeatId === 'string' && currentSeatId.length > 0) {
+      seatIdsToCheck.add(currentSeatId);
+    }
+    if (requestedCoreRoleId) seatIdsToCheck.add(requestedCoreRoleId);
+    const seatSnapshots = await Promise.all([...seatIdsToCheck].map((seatId) =>
+      tx.get(db.doc(`sessions/${sessionId}/seats/${seatId}`)),
+    ));
+    const seatById = new Map([...seatIdsToCheck].map((seatId, index) => [seatId, seatSnapshots[index]]));
+    const hasSeatAuthority = (seatId: unknown): boolean => {
+      if (typeof seatId !== 'string' || seatId.length === 0) return true;
+      const seat = seatById.get(seatId);
+      // Older role assignments can exist without a materialized seat. Resume
+      // hydrates those records; if a document exists, however, its claim is
+      // the server's exclusive authority and must match this UID.
+      return !seat?.exists || (seat.get('status') === 'claimed' && seat.get('holderUid') === uid);
+    };
+    if (requestedCoreRoleId && !hasSeatAuthority(requestedCoreRoleId)) {
+      throw commandError(
+        'permission-denied',
+        'That station is no longer available to this browser. Return to station select and reselect your role.',
+        'station-selection-required',
+      );
+    }
     const invalidCurrentCoreAuthority = typeof currentCoreRoleId === 'string' &&
       currentCoreRoleId !== 'press-officer' && (
         player.get('role') !== 'player' ||
         typeof player.get('replacementRoleId') === 'string' ||
-        boundCoreConsoleRole(player.get('assignedRoleId'), player.get('seatId')) !== currentCoreRoleId
+        boundCoreConsoleRole(player.get('assignedRoleId'), currentSeatId) !== currentCoreRoleId ||
+        !hasSeatAuthority(currentCoreRoleId) || !hasSeatAuthority(currentSeatId)
       );
     const lastFullReconciliationAt = toTimestampMillis(
       reconciliation.get('lastFullReconciliationAt'),
@@ -21387,7 +21465,7 @@ export const refreshPresence = onCall<{
         });
       }
       tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
-      return;
+      return false;
     }
     const [holders, pressHolders, wolfSecret, players, secrets, census] = await Promise.all([
       roleHolders ? tx.get(roleHolders) : null,
@@ -21414,6 +21492,8 @@ export const refreshPresence = onCall<{
     const explicitRelease = activeConsoleRoleId === null;
     const orphanedPressAssignment = player.get('assignedRoleId') === 'press-officer' &&
       !currentPressAuthority;
+    const invalidStationAuthority = invalidCurrentCoreAuthority ||
+      invalidCurrentPressAuthority || orphanedPressAssignment;
     if (explicitRelease || invalidCurrentPressAuthority || orphanedPressAssignment) {
       Object.assign(presenceUpdate, releasedPressFields(player));
       if (hasPressState(player)) {
@@ -21479,9 +21559,10 @@ export const refreshPresence = onCall<{
           boundCoreConsoleRole(player.get('assignedRoleId'), player.get('seatId')) !== requestedRoleId
         )
       ) {
-        throw new HttpsError(
+        throw commandError(
           'permission-denied',
           'That console does not match your assigned role or claimed seat.',
+          'station-selection-required',
         );
       }
       const heldByAnotherPlayer = holders?.docs.some(
@@ -21490,7 +21571,9 @@ export const refreshPresence = onCall<{
         ),
       ) ?? false;
       if (!canSelectConsoleRole(
-        player.get('activeConsoleRoleId') as string | null | undefined,
+        invalidCurrentCoreAuthority
+          ? null
+          : player.get('activeConsoleRoleId') as string | null | undefined,
         requestedRoleId,
         player.get('role') === 'gm',
         heldByAnotherPlayer,
@@ -21555,8 +21638,11 @@ export const refreshPresence = onCall<{
       lastFullReconciliationAt: presenceReconciliationTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
+    return invalidStationAuthority;
   });
-  return { sessionId };
+  return stationSelectionRequired
+    ? { sessionId, stationSelectionRequired: true }
+    : { sessionId };
 });
 
 /** Mark this identity disconnected and start retention on a transition to empty. */

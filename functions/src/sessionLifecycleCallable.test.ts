@@ -414,7 +414,7 @@ describe('presence lease', () => {
     })))
       .rejects.toMatchObject({ code: 'permission-denied' });
     await expect(refreshPresence.run(request({ sessionId: 's1' })))
-      .rejects.toMatchObject({ code: 'permission-denied' });
+      .rejects.toMatchObject({ code: 'permission-denied', details: undefined });
 
     expect(read('sessions/s1/seats/seat-1')).toEqual({ status: 'open', holderUid: null });
     expect(read('sessions/s1/players/u1')?.lastSeenAt)
@@ -430,7 +430,7 @@ describe('presence lease', () => {
     });
 
     expect(read('sessions/s1/players/u1')).toMatchObject({ lastSeenAt: 'server-time' });
-    expect(read('activeMemberships/u1')).toEqual({ sessionId: 's1' });
+    expect(read('activeMemberships/u1')).toMatchObject({ sessionId: 's1' });
     expect(readPaths()).toContain('sessions/s1/players');
     expect(read('sessions/s1/presenceReconciliations/u1')?.lastFullReconciliationAt)
       .toEqual(expect.any(mock.Timestamp));
@@ -581,6 +581,24 @@ describe('presence lease', () => {
     });
   });
 
+  it('returns an occupied current station to selection during a passive heartbeat', async () => {
+    session({ phase: 'active', activeRoleIds: ['admiral'] });
+    player({ assignedRoleId: 'admiral', seatId: 'admiral', activeConsoleRoleId: 'admiral' });
+    livePlayer('u2');
+    put('sessions/s1/seats/admiral', {
+      roleId: 'admiral', status: 'claimed', holderUid: 'u2',
+    });
+
+    await expect(refreshPresence.run(request({ sessionId: 's1' }))).resolves.toEqual({
+      sessionId: 's1', stationSelectionRequired: true,
+    });
+
+    expect(read('sessions/s1/players/u1')).toMatchObject({ activeConsoleRoleId: null });
+    expect(read('sessions/s1/seats/admiral')).toMatchObject({
+      status: 'claimed', holderUid: 'u2',
+    });
+  });
+
   it('fails closed when assignment and seat pointers disagree', async () => {
     session({ phase: 'active', activeRoleIds: ['admiral', 'dione-captain'] });
     player({ assignedRoleId: 'dione-captain', seatId: 'admiral' });
@@ -679,7 +697,7 @@ describe('presence lease', () => {
     player({ assignedRoleId: null, seatId: 'admiral', activeConsoleRoleId: 'press-officer' });
 
     await expect(refreshPresence.run(request({ sessionId: 's1' })))
-      .resolves.toEqual({ sessionId: 's1' });
+      .resolves.toEqual({ sessionId: 's1', stationSelectionRequired: true });
 
     expect(read('sessions/s1/players/u1')).toMatchObject({
       seatId: 'admiral', activeConsoleRoleId: null,
@@ -909,7 +927,7 @@ describe('presence lease', () => {
     player({ activeConsoleRoleId: 'press-officer' });
 
     await expect(refreshPresence.run(request({ sessionId: 's1' }))).resolves.toEqual({
-      sessionId: 's1',
+      sessionId: 's1', stationSelectionRequired: true,
     });
 
     expect(read('sessions/s1/players/u1')).toMatchObject({

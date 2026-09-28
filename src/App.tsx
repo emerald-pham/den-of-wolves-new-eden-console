@@ -1,6 +1,6 @@
 import { commissarPurgeAuthorityIsCurrent } from '@/lib/commissarPurgeAuthority';
 import { lazy, Suspense, useEffect, useRef } from 'react';
-import { HashRouter, Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { HashRouter, Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import Landing from '@/routes/Landing';
 import RoleSelect from '@/routes/RoleSelect';
 import NotFound from '@/routes/NotFound';
@@ -115,8 +115,10 @@ function playerAuthorityKey(player: Player | null | undefined): string | undefin
 function AppRoutes() {
   const { reducedMotion } = useMotionPreference();
   const location = useLocation();
+  const navigate = useNavigate();
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
+  const communicationError = useSessionStore((state) => state.communicationError);
   const sessionId = session?.id;
   const playerUid = me?.uid;
   const playerRole = me?.role;
@@ -166,6 +168,11 @@ function AppRoutes() {
       setLastRoute(location.pathname);
     }
   }, [location.pathname, session, setLastRoute]);
+
+  useEffect(() => {
+    if (communicationError?.kind !== 'station-selection-required' || location.pathname === '/console') return;
+    navigate('/console', { replace: true });
+  }, [communicationError?.kind, location.pathname, navigate]);
 
   useEffect(() => {
     if (!sessionId || !playerUid) return;

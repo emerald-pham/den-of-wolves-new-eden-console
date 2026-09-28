@@ -79,6 +79,7 @@ import {
 interface SessionReply {
   readonly session: GameSession;
   readonly player: Player;
+  readonly stationSelectionRequired?: boolean;
 }
 
 const SESSION_PHASES: ReadonlySet<SessionPhase> = new Set([
@@ -199,6 +200,34 @@ function setConnectRateLimitWait(seconds: number): void {
     code: 'functions/resource-exhausted',
     details: { commandError: 'rate-limited', retryAfterSeconds: seconds },
   }));
+}
+
+function stationSelectionNotice() {
+  return normalizeCommandError({
+    code: 'functions/permission-denied',
+    details: { commandError: 'station-selection-required' },
+  });
+}
+
+/** Drop identity-scoped private projections after the server rejects station authority. */
+function clearPrivateStationState(): void {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me) return;
+  store.setIdentity(store.session, store.me);
+  // setIdentity intentionally retains UID-bound loyalty during ordinary
+  // reconnects. A lost station requires a fresh private projection before it
+  // can be shown again.
+  useSessionStore.getState().setPrivateLoyalty(null);
+}
+
+function requireStationReselection(checkpoint: SessionAuthorityCheckpoint | undefined): boolean {
+  if (!authorityCheckpointIsCurrent(checkpoint)) return false;
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me) return false;
+  store.setMe({ ...store.me, activeConsoleRoleId: null });
+  clearPrivateStationState();
+  useSessionStore.getState().setCommunicationError(stationSelectionNotice());
+  return true;
 }
 
 export const COMMAND_RECONNECT_WINDOW_MS = 15_000;
@@ -1075,6 +1104,10 @@ function applySession(reply: SessionReply, expectedDisplayedSessionId: string | 
     // replaces. A reply rejected by the shared authority cursor must not
     // promote cached state or make an older queued mutation eligible.
     store.setSessionSnapshotFreshness('server');
+    if (reply.stationSelectionRequired === true) {
+      clearPrivateStationState();
+      useSessionStore.getState().setCommunicationError(stationSelectionNotice());
+    }
   }
   return true;
 }
@@ -2629,7 +2662,8 @@ export async function getSessionPresence(): Promise<{ connectedPlayers: number }
 export async function refreshPresence(activeConsoleRoleId?: string | null): Promise<void> {
   const store = useSessionStore.getState();
   const session = store.session;
-  if (!session) return;
+  if (!session || !store.me) return;
+  const checkpoint = sessionAuthorityCheckpoint(session.id, sessionAuthorityUid(store));
   const instanceId = store.gmInstance?.sessionId === session.id
     ? store.gmInstance.id
     : undefined;
@@ -2644,15 +2678,19 @@ export async function refreshPresence(activeConsoleRoleId?: string | null): Prom
   await ensureSignedIn();
   const call = httpsCallable<{
     sessionId: string; activeConsoleRoleId?: string | null; instanceId?: string;
-  }, { sessionId: string }>(
+  }, { sessionId: string; stationSelectionRequired?: boolean }>(
     functions(),
     'refreshPresence',
   );
-  await call({
+  const reply = await call({
     sessionId: session.id,
     ...(instanceId ? { instanceId } : {}),
     ...(activeConsoleRoleId === undefined ? {} : { activeConsoleRoleId }),
   });
+  const stationSelectionRequired = reply.data.stationSelectionRequired === true;
+  if (stationSelectionRequired && useSessionStore.getState().session?.id === session.id) {
+    requireStationReselection(checkpoint);
+  }
 }
 
 export async function selectConsoleRole(roleId: string): Promise<void> {
@@ -2660,6 +2698,10 @@ export async function selectConsoleRole(roleId: string): Promise<void> {
   const checkpoint = before.session
     ? sessionAuthorityCheckpoint(before.session.id, sessionAuthorityUid(before))
     : undefined;
+  if (before.communicationError?.kind === 'station-selection-required' &&
+      authorityCheckpointIsCurrent(checkpoint)) {
+    before.setCommunicationError(null);
+  }
   try {
     // A console route is only an intent.  For the canonical setup roster, the
     // first entry into an open core role must win the same server CAS used by
@@ -2672,22 +2714,31 @@ export async function selectConsoleRole(roleId: string): Promise<void> {
     const isGm = before.me?.role === 'gm';
     if (!isGm && targetSeat?.status === 'open') {
       const disposition = await claimSeat(targetSeat.id);
-      if (disposition !== 'applied') return;
+      if (disposition !== 'applied') {
+        if (disposition === 'stale') requireStationReselection(checkpoint);
+        return;
+      }
     } else if (!isGm && (
       targetSeat && targetSeat.holderUid !== before.me?.uid
     )) {
       // A claimed or locked seat is already read-only for this browser.  Do
       // not let the presence callable turn a route visit into role authority
       // while a seat projection is ahead of the presence projection.
+      requireStationReselection(checkpoint);
       return;
     }
     await refreshPresence(roleId);
+    if (useSessionStore.getState().communicationError?.kind === 'station-selection-required') return;
     const store = useSessionStore.getState();
     if (store.me && authorityCheckpointIsCurrent(checkpoint)) {
       store.setMe({ ...store.me, activeConsoleRoleId: roleId });
     }
   } catch (cause) {
-    useSessionStore.getState().setCommunicationError(interception(cause));
+    if (authorityCheckpointIsCurrent(checkpoint)) {
+      const error = interception(cause);
+      if (error.kind === 'station-selection-required') requireStationReselection(checkpoint);
+      else useSessionStore.getState().setCommunicationError(error);
+    }
     throw cause;
   }
 }

@@ -14,7 +14,7 @@ export default function CommunicationError() {
   const clear = useSessionStore((state) => state.setCommunicationError);
 
   useEffect(() => {
-    if (!error) return;
+    if (!error || error.kind === 'station-selection-required') return;
     const timer = window.setTimeout(() => clear(null), NOTICE_MS);
     return () => window.clearTimeout(timer);
   }, [clear, error]);

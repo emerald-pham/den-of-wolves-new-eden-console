@@ -2748,7 +2748,10 @@ describe('command role presence', () => {
     await selectConsoleRole('admiral');
 
     expect(httpsCallable).not.toHaveBeenCalled();
-    expect(useSessionStore.getState().me?.activeConsoleRoleId).toBeUndefined();
+    expect(useSessionStore.getState().me?.activeConsoleRoleId).toBeNull();
+    expect(useSessionStore.getState().communicationError).toMatchObject({
+      kind: 'station-selection-required',
+    });
   });
 
   it('renews the exact GM browser lease with a presence heartbeat', async () => {
@@ -3029,6 +3032,11 @@ describe('client authority boundaries', () => {
     const assignedPlayer = { ...player, assignedRoleId: 'admiral', seatId: 'admiral' };
     useSessionStore.getState().setIdentity(activeSession, assignedPlayer);
     useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
+    useSessionStore.getState().setRoleBrief({
+      assignmentUid: player.uid, roleId: 'admiral', roleName: 'Admiral',
+      vesselName: 'AEGIS', text: 'Private brief', commonRules: '', setupRevision: 1,
+    });
     vi.mocked(httpsCallable).mockReturnValue(callableRejecting({
       code: 'functions/permission-denied',
       details: { commandError: 'station-selection-required' },
@@ -3045,6 +3053,36 @@ describe('client authority boundaries', () => {
         kind: 'station-selection-required',
         message: 'Your previous station is no longer available. Return to station select and reselect your role.',
       },
+      privateLoyalty: null,
+      roleBrief: null,
+    });
+  });
+
+  it('applies a server presence invalidation without dropping session membership', async () => {
+    const activeSession = { ...session, phase: 'active' as const, activeRoleIds: ['admiral'] };
+    const assignedPlayer = {
+      ...player, assignedRoleId: 'admiral', seatId: 'admiral', activeConsoleRoleId: 'admiral',
+    };
+    useSessionStore.getState().setIdentity(activeSession, assignedPlayer);
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
+    useSessionStore.getState().setRoleBrief({
+      assignmentUid: player.uid, roleId: 'admiral', roleName: 'Admiral',
+      vesselName: 'AEGIS', text: 'Private brief', commonRules: '', setupRevision: 1,
+    });
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({
+      data: { sessionId: 's1', stationSelectionRequired: true },
+    }));
+
+    await refreshPresence();
+
+    expect(useSessionStore.getState()).toMatchObject({
+      session: { id: 's1' },
+      me: { uid: 'u1', sessionId: 's1', activeConsoleRoleId: null },
+      communicationError: { kind: 'station-selection-required' },
+      privateLoyalty: null,
+      roleBrief: null,
     });
   });
 

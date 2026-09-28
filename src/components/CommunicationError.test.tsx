@@ -39,6 +39,21 @@ it('shows a dismissible Wolf Communications Interception Code and expires', () =
   expect(screen.queryByRole('alert')).not.toBeInTheDocument();
 });
 
+it('keeps station reselection guidance visible until the player dismisses it', () => {
+  useSessionStore.getState().setCommunicationError({
+    kind: 'station-selection-required',
+    code: 'permission-denied',
+    message: 'Your previous station is no longer available. Return to station select and reselect your role.',
+  });
+  render(<CommunicationError />);
+
+  act(() => vi.advanceTimersByTime(60_000));
+  expect(screen.getByRole('alert')).toHaveTextContent(/reselect your role/i);
+
+  fireEvent.click(screen.getByRole('button', { name: /dismiss error/i }));
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+});
+
 it('shows a bounded retry wait without rendering the server message', () => {
   useSessionStore.getState().setCommunicationError({
     kind: 'rate-limited',
