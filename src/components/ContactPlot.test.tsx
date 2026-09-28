@@ -1119,6 +1119,7 @@ it('keeps crowded 20-contact label layout within the per-update geometry-read bu
     x: left, y: top, left, top, width, height,
     right: left + width, bottom: top + height,
   }) as DOMRect;
+  vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(150);
   let labelLayoutReads = 0;
   vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
     if (this.classList.contains('contact-plot')) return bounds(0, 0, 320, 240);
