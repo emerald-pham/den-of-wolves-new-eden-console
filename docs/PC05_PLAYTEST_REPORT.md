@@ -325,3 +325,10 @@ conduct acknowledgements. The app showed three connected participants and the
 existing Scientist station as claimed/read-only. This is setup for post-deploy
 multiplayer checks, not acceptance of unreleased behavior. The unrelated Safari
 session was left intact.
+
+
+At parent `f4df6ba4`, the combined `npm test` run passes **5,995 tests across
+439 files** after supplemental craft integration. This includes the newer
+reconnect/Press cases and confirms no broad integration failure before the
+remaining jump candidate lands. No test was disabled or removed. Final release
+validation and ordinary changed-behavior proof remain open.
