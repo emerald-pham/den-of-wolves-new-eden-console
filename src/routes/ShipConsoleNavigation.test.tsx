@@ -89,6 +89,7 @@ it('hides location contents without removing the ship coordinate knowledge', asy
     shipGalacticCoordinates: { aegis: '5143' },
     playerDiscovery: {
       groupId: 'fleet-1', shipId: 'aegis', currentCoordinate: '5143',
+      fleetGroupVesselIds: ['aegis', 'dione'], pursuitValue: 6,
       knownCoordinates: ['0000', '5143', '6798'],
       knownSystems: { 'system-01': '0000', 'system-02': '5143', 'system-03': '6798' },
       pursuitDistance: 1, navigationLogs: [], revision: 4,
@@ -123,6 +124,11 @@ it('hides location contents without removing the ship coordinate knowledge', asy
   const map = await screen.findByRole('region', { name: 'Ship navigation map' });
   expect(map).toHaveTextContent('Current ship // 5143');
   expect(map).toHaveTextContent('6798');
+  const group = screen.getByRole('region', { name: 'Current fleet group and location' });
+  expect(group).toHaveTextContent('FLEET-1');
+  expect(group).toHaveTextContent('AEGIS // DIONE');
+  expect(group).toHaveTextContent('6 / 10');
+  expect(group).toHaveTextContent('This fleet group only');
 });
 
 it('does not show another ship knowledge on the currently viewed ship map', async () => {
