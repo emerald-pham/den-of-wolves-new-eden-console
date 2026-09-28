@@ -10,6 +10,7 @@ export interface RiskGateProfile {
   readonly webBuild: boolean;
   readonly ticker: boolean;
   readonly font: boolean;
+  readonly typography: boolean;
   readonly render: boolean;
   readonly bundle: boolean;
 }

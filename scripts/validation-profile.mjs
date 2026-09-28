@@ -167,6 +167,7 @@ export function deriveValidationProfile({
   const riskGates = classifyRiskGates(files, { versionMetadataOnly });
   const riskCommands = [
     ...(riskGates.font ? ['npm run test:font-consistency'] : []),
+    ...(riskGates.typography ? ['npm run test:typography:browser'] : []),
     ...(riskGates.ticker ? ['npm run test:ticker:browser'] : []),
     ...(riskGates.render ? ['node scripts/prompt-637-render-performance.mjs'] : []),
     ...(riskGates.bundle ? ['node scripts/check-bundle-size.mjs'] : []),
