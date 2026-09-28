@@ -1071,7 +1071,7 @@ it('sends the exact source-bound mission start through the current facilitator c
     turn: 2,
     teamPhaseEndsAt: '2026-01-01T00:00:00.000Z',
     openAirspaceEndsAt: '2026-01-01T00:15:00.000Z',
-    airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+    airspace: { state: 'lifted' as const, tickerActive: true, pressAccess: true },
   };
   const missionSession = {
     ...session, phase: 'active' as const, currentTurn: 2, setupRevision: 4,
@@ -1100,8 +1100,9 @@ it('sends the exact source-bound mission start through the current facilitator c
   const request = {
     sessionId: 's1', instanceId: 'instance-1', requestId: 'mission-start-1',
     expectedSetupRevision: 4, expectedPhaseRevision: 3, expectedCycle: 2,
-    opportunityId: 'arrival-fleet-1-A-5143', groupId: 'fleet-1', chart: 'A',
+    opportunityId: 'arrival-fleet-1-A-5143', groupId: 'fleet-1',
     coordinate: '5143', sourceCycle: 2, participantUids: ['alice'], missionLeaderUid: 'alice',
+    chart: 'A' as const,
   };
 
   await expect(startAwayMission(request)).resolves.toMatchObject({
