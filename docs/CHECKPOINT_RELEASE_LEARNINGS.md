@@ -107,10 +107,15 @@ exact commit.
 
 The Deploy workflow now resolves two independent ancestry-checked baselines:
 the last successful `deploy` job selects cumulative Firebase surfaces, while
-the last successful exact-SHA `verify / verify` job selects only the risk gates
-not yet passed. A missing or unrelated verification baseline fails closed to
-the full verification profile. The deploy job still requires a non-empty
-Firebase target set. Contract tests pin the split and the fail-closed cases.
+the latest completed run whose base verifier and every applicable ticker and
+P637 verification job succeeded selects only the risk gates not yet passed.
+Intentionally unselected jobs may be skipped; any failed or cancelled
+verification job rejects the candidate. This remains independent of the later
+Firebase deploy outcome, so a deployment failure does not erase valid
+verification progress. A missing or unrelated verification baseline fails
+closed to the full verification profile. The deploy job still requires a
+non-empty Firebase target set. Contract tests pin the split and the fail-closed
+cases.
 
 That same workflow produced one resource-sensitive failure after 2,494 unit
 tests passed: the complete retained-changelog DOM test exceeded Vitest's

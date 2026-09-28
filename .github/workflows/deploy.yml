@@ -98,19 +98,27 @@ jobs:
           runs=""
           if ! runs=$(gh api \
             "repos/$REPOSITORY/actions/workflows/deploy.yml/runs?branch=main&per_page=100" \
-            --jq '.workflow_runs[] | select(.status == "completed" and .conclusion == "success") | [.id, .head_sha] | @tsv'); then
+            --jq '.workflow_runs[] | select(.status == "completed") | [.id, .head_sha] | @tsv'); then
             runs=""
           fi
           baseline=""
           while IFS=$'\t' read -r run_id head_sha; do
             [[ -n "$run_id" && -n "$head_sha" ]] || continue
-            verify_conclusion=""
-            if ! verify_conclusion=$(gh api \
+            verification_ok=""
+            if ! verification_ok=$(gh api \
               "repos/$REPOSITORY/actions/runs/$run_id/jobs?per_page=100" \
-              --jq '[.jobs[] | select(.name == "verify / verify") | .conclusion] | .[0] // ""'); then
+              --jq '
+                [.jobs[] | select(.name | startswith("verify / "))] as $verification_jobs
+                | (($verification_jobs
+                    | map(select(.name == "verify / verify" and .conclusion == "success"))
+                    | length) == 1)
+                  and (($verification_jobs
+                    | map(select(.conclusion != "success" and .conclusion != "skipped"))
+                    | length) == 0)
+              '); then
               continue
             fi
-            if [[ "$verify_conclusion" == "success" ]]; then
+            if [[ "$verification_ok" == "true" ]]; then
               baseline="$head_sha"
               break
             fi
