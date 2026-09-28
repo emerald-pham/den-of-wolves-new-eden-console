@@ -31,6 +31,8 @@ test('defers PC04 mission discard and fleet-group detail until their protected s
     readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/components/ShipNavigationWorkspace.tsx', import.meta.url), 'utf8'),
   ]);
+  assert.doesNotMatch(app, /^import SessionMode from/m);
+  assert.match(app, /const SessionMode = lazy\(\(\) => import\('@\/routes\/SessionMode'\)\);/);
   assert.doesNotMatch(app, /^import AwayMissionDiscardPanel from/m);
   assert.match(app, /const AwayMissionDiscardPanel = lazy\(\(\) => import\('@\/components\/AwayMissionDiscardPanel'\)\);/);
   assert.doesNotMatch(navigation, /^import FleetGroupContext from/m);
