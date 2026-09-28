@@ -194,3 +194,12 @@ assertion because the new mutiny panel adds a second status region. Test-only
 `38e6ad65` selects the intended retry message and retains its status-role
 assertion; that focused test now passes. This is not a final passing broad run.
 No prompt closure or deployed gameplay credit follows from these local checks.
+
+### Integrated Firestore access checks
+
+At parent `405f94e4`, the isolated slot-2 rules run passes **141 tests across
+four files**, including private scout requests/results, projection bootstrap,
+Wolf audiences and stale GM access. The emulator exited successfully and shut
+down. This establishes the tested direct-access boundary for this candidate;
+callable changes arriving from the active owners still need their own focused
+validation and independent authority review.
