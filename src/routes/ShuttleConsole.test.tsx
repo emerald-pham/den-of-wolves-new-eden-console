@@ -711,6 +711,7 @@ it('shows cargo transfer pending and retries an uncertain result with the exact 
   state.setMe({ ...state.me!, activeConsoleRoleId: 'quellon-explorer', fleetGroupId: 'fleet-1' });
   state.setConnection('live');
   state.setSessionSnapshotFreshness('server');
+  const originalMe = useSessionStore.getState().me!;
   const response = deferred<unknown>();
   const exactAttempt = {
     command: {
@@ -718,8 +719,14 @@ it('shows cargo transfer pending and retries an uncertain result with the exact 
       resourceId: 'food', direction: 'load', amount: 2, expectedControlRevision: 3,
     },
     authority: {
-      sessionId: 's1', uid: 'u1', role: 'player', fleetGroupId: 'fleet-1',
+      sessionId: 's1', uid: 'u1', role: 'player',
+      assignedRoleId: originalMe.assignedRoleId,
+      activeConsoleRoleId: originalMe.activeConsoleRoleId,
+      replacementRoleId: originalMe.replacementRoleId,
+      seatId: originalMe.seatId,
+      fleetGroupId: 'fleet-1',
       shuttleId: 'hummingbird', hostShipId: 'quellon', expectedControlRevision: 3,
+      ownerRoleId: 'quellon-explorer', ownerUid: 'u1', holderUid: 'u1',
     },
   };
   vi.mocked(transferShuttleCargo).mockReturnValueOnce(response.promise as never);
