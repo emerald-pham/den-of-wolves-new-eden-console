@@ -8,6 +8,27 @@ import {
 const now = new Date('2026-09-07T13:04:09.000Z');
 
 describe('authoritative jump-drive resolution', () => {
+  it.each([
+    ['aegis', 2, 3, 6],
+    ['dione', 2, 4, 8],
+    ['icebreaker', 3, 6, 12],
+    ['capybara', 3, 6, 12],
+    ['shepherd', 3, 6, 12],
+    ['quellon', 2, 4, 8],
+    ['refinery-124', 2, 4, 8],
+  ] as const)('uses the source-printed fuel bands for %s', (shipId, short, medium, long) => {
+    expect([
+      jumpFuelCost(shipId, 'short', false),
+      jumpFuelCost(shipId, 'medium', false),
+      jumpFuelCost(shipId, 'long', false),
+    ]).toEqual([short, medium, long]);
+    expect([
+      jumpFuelCost(shipId, 'short', true),
+      jumpFuelCost(shipId, 'medium', true),
+      jumpFuelCost(shipId, 'long', true),
+    ]).toEqual([Math.max(0, short - 1), Math.max(0, medium - 1), Math.max(0, long - 1)]);
+  });
+
   it('derives the printed short, medium, and long fuel bands from chart distance', () => {
     expect(jumpLengthBetween('0000', '5143')).toBe('short');
     expect(jumpLengthBetween('0000', '9997')).toBe('medium');

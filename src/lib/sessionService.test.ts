@@ -76,6 +76,7 @@ const {
   fleeDestroyedShip,
   scavengeDestroyedShipStores,
   setFighterWingCount,
+  createJumpShipAttempt,
 } = await import('./sessionService');
 const { httpsCallable } = await import('firebase/functions');
 const { acceptCallableSessionAuthority, sessionSnapshotAuthorityFor } = await import('./firestore');
@@ -3761,6 +3762,50 @@ describe('authoritative setup and seating wrappers', () => {
   });
 });
 
+
+it('retries a transport-uncertain Jump Drive request with the same receipt identity', async () => {
+  const requestId = '30400000-0000-4000-8000-000000000001';
+  vi.spyOn(window.crypto, 'randomUUID').mockReturnValue(requestId);
+  useSessionStore.getState().setIdentity(
+    { ...session, phase: 'active', currentTurn: 1, vesselActionRevisions: { aegis: 7 } },
+    { ...player, role: 'gm' },
+  );
+  useSessionStore.getState().setGmInstance({
+    id: 'bridge', sessionId: 's1', uid: 'u1', name: 'Bridge',
+    deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+  });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  const callable = Object.assign(
+    vi.fn()
+      .mockRejectedValueOnce({ code: 'functions/unavailable', message: 'Transport interrupted.' })
+      .mockResolvedValueOnce({ data: {
+        status: 'jumped', shipId: 'aegis', origin: '0000', destination: '5143',
+        length: 'short', fuelCost: 2, remainingFuel: 2, state: { lastJumpTurn: 1 },
+        revision: 8, idempotencyKey: requestId, auditId: `jump-ship-${requestId}`,
+        actorUid: 'u1', actorRoleId: null, vesselId: 'aegis', turn: 1, phase: 'active',
+      } }),
+    { stream: vi.fn() },
+  );
+  vi.mocked(httpsCallable).mockReturnValue(callable as never);
+
+  const attempt = createJumpShipAttempt('aegis', '5143');
+  await expect(jumpShip(attempt)).rejects.toMatchObject({ code: 'functions/unavailable' });
+
+  // A newer snapshot must not change the revision bound to an uncertain request.
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    vesselActionRevisions: { aegis: 8 },
+  });
+  await expect(jumpShip(attempt)).resolves.toMatchObject({ status: 'jumped', destination: '5143' });
+
+  expect(callable).toHaveBeenCalledTimes(2);
+  expect(callable.mock.calls[0]?.[0]).toEqual({
+    sessionId: 's1', shipId: 'aegis', destination: '5143', requestId,
+    expectedRevision: 7, instanceId: 'bridge',
+  });
+  expect(callable.mock.calls[1]?.[0]).toEqual(callable.mock.calls[0]?.[0]);
+});
 
 describe('Commissar authority refresh ownership', () => {
   beforeEach(() => {

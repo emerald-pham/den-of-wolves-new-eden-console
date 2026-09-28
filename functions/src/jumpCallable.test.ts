@@ -1069,6 +1069,30 @@ it('uses the active GM instance and atomically moves, burns fuel, consumes charg
   }));
 });
 
+it('returns the exact Jump Drive receipt after an uncertain transport retry without a second jump', async () => {
+  const command = {
+    ...data,
+    requestId: '30400000-0000-4000-8000-000000000001',
+    expectedRevision: 0,
+    destination: '5143',
+  };
+  const committed = await jumpShip.run(request(command));
+  expect(committed).toMatchObject({ status: 'jumped', destination: '5143', fuelCost: 2 });
+  const receipt = mock.set.mock.calls.find(([path]) =>
+    path === `sessions/s1/commandReceipts/${command.requestId}`)?.[1];
+  expect(receipt).toBeDefined();
+  mock.commandReceiptRecord = { fingerprint: receipt?.fingerprint, result: receipt?.result };
+  mock.set.mockClear();
+  mock.update.mockClear();
+  mock.randomInt.mockClear();
+
+  await expect(jumpShip.run(request(command))).resolves.toEqual(committed);
+
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.randomInt).not.toHaveBeenCalled();
+});
+
 it('rejects Coordination jumps while the server phase is Team', async () => {
   let includePhaseClock = true;
   mock.get.mockImplementation(async (path: string) => {

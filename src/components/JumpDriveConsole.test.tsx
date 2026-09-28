@@ -6,9 +6,25 @@ import { ConsoleAccessContext } from '@/lib/consoleAccess';
 import { useSessionStore } from '@/store/useSessionStore';
 import JumpDriveConsole from './JumpDriveConsole';
 
-vi.mock('@/lib/sessionService', () => ({ jumpShip: vi.fn() }));
+vi.mock('@/lib/sessionService', () => ({
+  jumpShip: vi.fn(),
+  createJumpShipAttempt: vi.fn((shipId: string, destination: string) => ({
+    sessionId: 's1', shipId, destination,
+    requestId: '30400000-0000-4000-8000-000000000001', expectedRevision: 3,
+    instanceId: 'bridge',
+  })),
+}));
 
 const { jumpShip } = await import('@/lib/sessionService');
+const jumpAttempt = {
+  sessionId: 's1',
+  shipId: 'aegis',
+  destination: '1000',
+  requestId: '30400000-0000-4000-8000-000000000001',
+  expectedRevision: 3,
+  instanceId: 'bridge',
+};
+const { createJumpShipAttempt } = await import('@/lib/sessionService');
 
 function renderConsole(props: Partial<ComponentProps<typeof JumpDriveConsole>> = {}) {
   return render(
@@ -59,7 +75,120 @@ it('edits four digits, locks the destination, powers the rail, and submits the j
   expect(screen.getByRole('button', { name: /jump to 2000/i })).toBeEnabled();
 
   await user.click(screen.getByRole('button', { name: /jump to 2000/i }));
-  expect(jumpShip).toHaveBeenCalledWith('aegis', '2000');
+  expect(jumpShip).toHaveBeenCalledWith(expect.objectContaining({ shipId: 'aegis', destination: '2000' }));
+});
+
+it('shows the effective fuel bands after the Jump Drive upgrade', () => {
+  renderConsole({ upgraded: true });
+
+  expect(screen.getByLabelText('Jump drive telemetry')).toHaveTextContent('Cost bands // S 1 // M 2 // L 5');
+});
+
+it('allows local coordinate preview without exposing a jump mutation', async () => {
+  const user = userEvent.setup();
+  render(
+    <ConsoleAccessContext.Provider value={{ writable: false, roleId: null }}>
+      <JumpDriveConsole
+        shipId="aegis" shipName="AEGIS" currentCoordinate="0000" fuel={4}
+        jumpCosts={[2, 3, 6]} charged damaged={false} upgraded={false} presentationOnly
+      />
+    </ConsoleAccessContext.Provider>,
+  );
+
+  await user.click(screen.getByRole('button', { name: /increase coordinate digit 1/i }));
+  await user.click(screen.getByRole('button', { name: /lock destination coordinates/i }));
+
+  expect(screen.getByLabelText('Locked destination coordinates')).toHaveTextContent('1000');
+  expect(screen.getByRole('button', { name: /unlock destination coordinates/i })).toBeEnabled();
+  expect(screen.getByRole('button', { name: /jump to 1000/i })).toBeDisabled();
+  expect(screen.getByRole('status')).toHaveTextContent(/presentation preview.*local only/i);
+  expect(jumpShip).not.toHaveBeenCalled();
+});
+
+it('prefers a newer server lockout projection to the local reply projection', async () => {
+  const user = userEvent.setup();
+  const localLockout = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  const serverLockout = new Date(Date.now() + 20 * 60 * 1000).toISOString();
+  vi.mocked(jumpShip).mockResolvedValueOnce({
+    status: 'integrity-lockout',
+    shipId: 'aegis',
+    origin: '0000',
+    destination: '2000',
+    integrityLockedUntil: localLockout,
+    state: { integrityLockedUntil: localLockout },
+  });
+  const view = renderConsole({ integrityLockedUntil: undefined });
+
+  await user.click(screen.getByRole('button', { name: /increase coordinate digit 1/i }));
+  await user.click(screen.getByRole('button', { name: /lock destination coordinates/i }));
+  fireEvent.change(screen.getByRole('slider', { name: /jump drive power/i }), { target: { value: '100' } });
+  await user.click(screen.getByRole('button', { name: /jump to 1000/i }));
+
+  view.rerender(
+    <ConsoleAccessContext.Provider value={{ writable: true, roleId: 'aegis' }}>
+      <JumpDriveConsole
+        shipId="aegis"
+        shipName="AEGIS"
+        currentCoordinate="0000"
+        fuel={4}
+        jumpCosts={[2, 3, 6]}
+        charged
+        damaged={false}
+        upgraded={false}
+        integrityLockedUntil={serverLockout}
+      />
+    </ConsoleAccessContext.Provider>,
+  );
+
+  expect(screen.getByRole('status', { name: /jump drive integrity locked/i })).toHaveTextContent(
+    /19:\d{2} until drive integrity reestablishes/i,
+  );
+});
+
+it('reports a stale server result as stale instead of a drive failure', async () => {
+  const user = userEvent.setup();
+  vi.mocked(jumpShip).mockResolvedValueOnce({
+    status: 'stale',
+    shipId: 'aegis',
+    currentRevision: 4,
+    revision: 4,
+  });
+  renderConsole();
+
+  await user.click(screen.getByRole('button', { name: /increase coordinate digit 1/i }));
+  await user.click(screen.getByRole('button', { name: /lock destination coordinates/i }));
+  fireEvent.change(screen.getByRole('slider', { name: /jump drive power/i }), { target: { value: '100' } });
+  await user.click(screen.getByRole('button', { name: /jump to 1000/i }));
+
+  expect(await screen.findByRole('status')).toHaveTextContent(/jump not committed.*live ship state changed/i);
+});
+
+it('retries an uncertain jump with the same exact command identity', async () => {
+  const user = userEvent.setup();
+  vi.mocked(createJumpShipAttempt).mockReturnValue(jumpAttempt);
+  vi.mocked(jumpShip)
+    .mockRejectedValueOnce({ code: 'functions/unavailable' })
+    .mockResolvedValueOnce({
+      status: 'jumped', shipId: 'aegis', origin: '0000', destination: '2000',
+      length: 'short', fuelCost: 2, remainingFuel: 2,
+    });
+  renderConsole();
+
+  await user.click(screen.getByRole('button', { name: /increase coordinate digit 1/i }));
+  await user.click(screen.getByRole('button', { name: /lock destination coordinates/i }));
+  fireEvent.change(screen.getByRole('slider', { name: /jump drive power/i }), { target: { value: '100' } });
+  await user.click(screen.getByRole('button', { name: /jump to 1000/i }));
+
+  expect(await screen.findByRole('status')).toHaveTextContent(/jump status unconfirmed.*retry.*same request/i);
+  await user.click(screen.getByRole('button', { name: /retry jump confirmation/i }));
+
+  expect(createJumpShipAttempt).toHaveBeenCalledTimes(1);
+  expect(jumpShip).toHaveBeenNthCalledWith(1, expect.objectContaining({
+    requestId: '30400000-0000-4000-8000-000000000001', expectedRevision: 3,
+  }));
+  expect(jumpShip).toHaveBeenNthCalledWith(2, expect.objectContaining({
+    requestId: '30400000-0000-4000-8000-000000000001', expectedRevision: 3,
+  }));
 });
 
 it('shows the server-owned one-hour integrity lockout and disables the drive', () => {
