@@ -14,7 +14,7 @@ beforeEach(() => {
   useSessionStore.getState().reset();
   useSessionStore.getState().setIdentity({
     id: 's1', name: 'Table', joinCode: '4821', phase: 'active', ownerUid: 'gm1',
-    currentTurn: 3,
+    currentTurn: 3, createdAt: '', updatedAt: '',
   }, {
     uid: 'press1', sessionId: 's1', displayName: 'Press Officer', role: 'player',
     seatId: null, activeConsoleRoleId: 'press-officer', joinedAt: '',

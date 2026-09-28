@@ -18,12 +18,12 @@ it('renders synthetic Press intake and routes desk actions only through supplied
     <PressDispatchDesk
       operatorShort="SNN"
       dispatches={[{ id: 'dispatch-demo', text: 'Synthetic live ticker item.' }]}
-      text=""
+      text="Ready synthetic dispatch."
       authorized
       connectionReady
       sending={false}
       dismissingId={null}
-      notice="Review scene"
+      notice=""
       status="SIMULATION // NO SERVER CONNECTION"
       eventLog={<PressEventLogView entries={syntheticEntries} status="" />}
       onTextChange={onTextChange}
@@ -36,7 +36,8 @@ it('renders synthetic Press intake and routes desk actions only through supplied
   fireEvent.click(screen.getByRole('button', { name: 'Publish dispatch' }));
   fireEvent.click(screen.getByRole('button', { name: 'Dismiss dispatch: Synthetic live ticker item.' }));
 
-  expect(screen.getByText('Synthetic presidential address.')).toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'SNN Press log' }))
+    .toHaveTextContent('Synthetic presidential address.');
   expect(screen.getByText('SIMULATION // NO SERVER CONNECTION')).toBeInTheDocument();
   expect(onTextChange).toHaveBeenCalledWith('Synthetic new dispatch.');
   expect(onPublish).toHaveBeenCalledOnce();
