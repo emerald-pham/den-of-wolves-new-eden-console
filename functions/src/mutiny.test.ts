@@ -15,6 +15,9 @@ it('holds a ship at unrest 8 and preserves that lock after unrelated GM reductio
   expect(isShipInMutiny(active, 7)).toBe(true);
   expect(isShipInMutiny(undefined, 8)).toBe(true);
   expect(mutinyAfterUnrestChange(active, 8, 7, 'later')).toEqual(active);
+  expect(mutinyAfterUnrestChange(undefined, 8, 7, 'legacy')).toMatchObject({
+    status: 'active', revision: 1, triggerUnrest: 8,
+  });
 });
 
 it('lets an explicit captain recovery record a chosen 1–3 reduction, then retriggers on later unrest gain', () => {
