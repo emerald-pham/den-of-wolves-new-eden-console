@@ -75,6 +75,7 @@ it('walks the production shuttle presentation through docking, transit, retarget
   await user.click(within(states).getByRole('button', { name: 'Retargeted' }));
   expect(screen.getByRole('status', { name: 'Prepared shuttle outcome' }))
     .toHaveTextContent(/retargeted.*current destination/i);
+  expect(screen.getByText(/Review view only\. No shuttle action is sent\./i)).toBeVisible();
   await user.click(screen.getByRole('button', { name: 'Return to owning station' }));
   expect(screen.getByRole('region', { name: 'Prepared assigned station' })).toBeVisible();
 });
