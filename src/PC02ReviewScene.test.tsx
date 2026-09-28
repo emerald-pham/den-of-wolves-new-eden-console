@@ -59,6 +59,25 @@ it('uses the real plot for an interactive first-contact and repeat-sweep review'
   expect(screen.getByText(/first contact enlargement/i)).toBeVisible();
 });
 
+it('shows committed sample reports on the actual Press desk before and after a local publish', async () => {
+  const user = userEvent.setup();
+  render(<PC02ReviewScene />);
+  await user.click(screen.getByRole('button', { name: /press handoff/i }));
+  expect(screen.queryByRole('region', { name: 'SNN Press log' })).toBeNull();
+  await user.selectOptions(screen.getByRole('combobox', { name: 'Review perspective' }), 'press');
+  const log = screen.getByRole('region', { name: 'SNN Press log' });
+  expect(log).toHaveTextContent('SURVIVORS');
+  expect(log).toHaveTextContent('COMMISSAR PURGE');
+  expect(log).toHaveTextContent('PRESIDENT');
+  const desk = screen.getByRole('region', { name: 'Press dispatch desk' });
+  expect(desk).toHaveTextContent('No active dispatches');
+  await user.type(within(desk).getByLabelText('Dispatch'), 'The fleet holds course.');
+  await user.click(within(desk).getByRole('button', { name: 'Publish dispatch' }));
+  expect(desk).toHaveTextContent('The fleet holds course.');
+  expect(desk).toHaveTextContent('SAMPLE ONLY');
+  expect(log).toHaveTextContent('COMMISSAR PURGE');
+});
+
 it('keeps sample leave and reconnect controls local to the review scene', async () => {
   const user = userEvent.setup();
   render(<PC02ReviewScene />);
