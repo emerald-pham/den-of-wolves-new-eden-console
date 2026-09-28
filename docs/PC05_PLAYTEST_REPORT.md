@@ -1,5 +1,11 @@
 # PC05 — Gameplay completion and station recovery
 
+New source-backed decisions: **PC05-A1** uses the printed full-die option for an
+explicit GM failed-jump adjudication; **PC05-A2** spends the available fuel on
+that exception when fuel is insufficient. The latter is a documented product
+inference. Both cite Facilitator Guide v1.1, printed p. 16; see the
+[assumption log](PRODUCT_MILESTONE_ASSUMPTIONS.md).
+
 ## State and fixed scope
 
 Work authorized on 2026-09-28; implementation and proof in progress. Opening
@@ -24,8 +30,10 @@ The current private source index and provenance inventory are available.
 Specific rules decisions require their routed component/guide evidence before
 implementation. Existing decision holds for rations, jump distance, failed-jump
 damage, Wolf assignment and onboarding copy are being re-evaluated under the
-standing source-backed assumption policy. No new gameplay assumption is yet
-claimed. Ordinary authenticated facilitator access is being checked early.
+standing source-backed assumption policy. Failed-jump decisions are recorded
+as PC05-A1/A2. The replacement ration tables have been located in the original
+A4 Paper Duplex component PDF and are being implemented from its printed rows.
+Ordinary authenticated facilitator access has been verified.
 Cached screens, emulator tests, and synthetic review scenes do not establish
 ordinary production gameplay.
 
@@ -155,3 +163,16 @@ The confirmation marker is server-owned (direct session writes are denied by
 Firestore rules). Receipt and live snapshot projection coverage passes **345
 tests**, including rejection of truthy non-boolean confirmation values. The
 Functions build also passes for the empty-session repair.
+
+
+### Maintenance integration in progress
+
+Parent `dcc86114` integrates the completed one-GM alert acknowledgement,
+one-time zero-population bonus, private VIP maintenance reroll and full-ship
+mutiny recovery candidates through worker `afa4f77b`. The integration passes
+355 focused server/start/composition/projection/panel tests and all 36
+MaintenanceSystems UI tests; app typecheck passes. Captain replacement keeps
+loyalties bound to player identity and uses a private, authenticated GM action.
+The maintenance owner is completing the remaining denial inventory and exact
+population-dependent ration cards. No maintenance prompt closure, rendered
+acceptance, or release is claimed by this intermediate integration.
