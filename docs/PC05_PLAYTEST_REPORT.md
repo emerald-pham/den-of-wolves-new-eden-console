@@ -223,3 +223,13 @@ Test-first `75fd5182`/`51aa1b44` and implementation `263edc64` add audited named
 consumers; all 70 selector tests pass and the integrated candidate now selects
 hosting and backend targets. The consumer list must be reconciled once the
 remaining callable implementations land, before exact-candidate review.
+
+### Deep Nebula boundary
+
+The jump source audit distinguishes the later P551 special Deep Nebula attempt
+from an ordinary damaged-drive roll. P332/P333 in this checkpoint require
+exact-once private scouting markers and concealed totals; they do not pull
+P551's separate loss/success procedure into the fixed 49 closures. Preserve
+those server-only markers for P551 and never add their modifier to a generic
+damaged-drive roll. The original Away Missions v1.1, physical p. 12, must be
+reconciled with P551's catalog prior-loss-bonus wording at that later boundary.
