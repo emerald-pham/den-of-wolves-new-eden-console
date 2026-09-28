@@ -59,7 +59,7 @@ it('walks the production shuttle presentation through docking, transit, retarget
   for (const label of ['Docked', 'Departing', 'In transit', 'Retargeted', 'Airspace closed', 'Arrived']) {
     expect(within(states).getByRole('button', { name: label })).toBeVisible();
   }
-  expect(screen.getByRole('main', { name: /Black Sheep/i })).toBeVisible();
+  expect(screen.getByRole('region', { name: 'Black Sheep shuttle console preview' })).toBeVisible();
   await user.click(within(states).getByRole('button', { name: 'In transit' }));
   expect(screen.getByText(/Shuttle location.*In transit/i)).toBeVisible();
   await user.click(within(states).getByRole('button', { name: 'Retargeted' }));
