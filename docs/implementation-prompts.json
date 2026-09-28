@@ -21785,7 +21785,7 @@
         "acceptance": "help explains Team, Coordination, pursuit failure, jump announcements, attack docking, and away missions without unsupported mechanics.",
         "title": "Teach the core game loop."
       },
-      "description": "PC02 candidate adds a source-backed core-loop guide to the authenticated private role brief and prepared review scene. It covers Team and Coordination phases, pursuit failure, jump announcements, attack docking, and away missions. P589 exact approved Wolf-humanity wording and an ordinary authorized first-action walkthrough remain open.",
+      "description": "PC02 candidate adds a source-backed core-loop guide to the authenticated private role brief and prepared review scene. It covers Team and Coordination phases, pursuit failure, jump announcements, attack docking, and away missions. The owner approved P589 Wolf-humanity wording on 2026-09-28; its PC05 candidate is implemented. Reconciled release and an ordinary authorized first-action walkthrough remain open.",
       "evidenceIds": "E-AUDIT-590",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -22005,7 +22005,7 @@
         "acceptance": "one complete checklist tracks both printed responsibilities, room/components, chart, casting, loyalties, automatic setup math, and readiness without mutating gameplay; optional additional-GM lane assignments remain collaborative and nonblocking.",
         "title": "Build the single-facilitator setup checklist."
       },
-      "description": "PC02 candidate adds one read-only GM checklist for both printed facilitator lanes, room and components, chart, casting, private loyalties, and aggregate setup receipt. Assistant duties are optional and local checklist marks do not mutate gameplay; only Start Production server validation confirms readiness. The P589 exact-copy prerequisite and ordinary production-path proof remain open.",
+      "description": "PC02 candidate adds one read-only GM checklist for both printed facilitator lanes, room and components, chart, casting, private loyalties, and aggregate setup receipt. Assistant duties are optional and local checklist marks do not mutate gameplay; only Start Production server validation confirms readiness. The owner approved the P589 exact-copy prerequisite on 2026-09-28. Ordinary production-path proof remains open.",
       "evidenceIds": "E-AUDIT-599",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -22030,7 +22030,7 @@
         "acceptance": "a new player acknowledges safety, joins, receives private assignments, learns the loop, enters the right route, completes one real action, and returns.",
         "title": "Run the onboarding-to-first-action scenario."
       },
-      "description": "PC02 candidate connects the private brief guide to the assigned console route and a reversible solo first-action sample. The prepared scene uses synthetic state; one ordinary authorized join, private assignment, real first action, and return has not yet been observed. P590 and P599 remain partial while P589 exact copy is unresolved.",
+      "description": "PC02 candidate connects the private brief guide to the assigned console route and a reversible solo first-action sample. The prepared scene uses synthetic state; one ordinary authorized join, private assignment, real first action, and return has not yet been observed. P589 exact copy was approved on 2026-09-28 and is implemented in the PC05 candidate. P590 and P599 remain partial pending reconciled release and ordinary production-path proof.",
       "evidenceIds": "E-AUDIT-600",
       "hardContract": "none",
       "hardMilestone": "none",

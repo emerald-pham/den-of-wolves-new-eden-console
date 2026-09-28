@@ -3,7 +3,9 @@
 New source-backed decisions: **PC05-A1** uses the printed full-die option for an
 explicit GM failed-jump adjudication; **PC05-A2** spends the available fuel on
 that exception when fuel is insufficient. The latter is a documented product
-inference. Both cite Facilitator Guide v1.1, printed p. 16; see the
+inference. Both cite Facilitator Guide v1.1, printed p. 16. **PC05-A3** records
+a private acting-captain appointment when the confirmed roster has no Captain
+seat, preserving its existing station and craft entitlements (printed p. 17). See the
 [assumption log](PRODUCT_MILESTONE_ASSUMPTIONS.md).
 
 ## State and fixed scope
@@ -176,3 +178,17 @@ loyalties bound to player identity and uses a private, authenticated GM action.
 The maintenance owner is completing the remaining denial inventory and exact
 population-dependent ration cards. No maintenance prompt closure, rendered
 acceptance, or release is claimed by this intermediate integration.
+
+### Integrated ration tables and broader regression run
+
+Parent `550339ab`/`d4f74ea5` integrates test-first population-dependent ration
+tables from A4 Paper Duplex v1.1, physical pp. 41–44. The maintenance owner
+verified the printed overlapping 50,000 boundary against Dione's component;
+focused boundary coverage is recorded in the maintenance evidence. The worker
+reported 165 focused tests and both app and Functions typechecks passing.
+
+The preceding integrated broad run passed 5,926 tests and failed one GM-console
+assertion because the new mutiny panel adds a second status region. Test-only
+`38e6ad65` selects the intended retry message and retains its status-role
+assertion; that focused test now passes. This is not a final passing broad run.
+No prompt closure or deployed gameplay credit follows from these local checks.
