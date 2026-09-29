@@ -137,10 +137,7 @@ export function stationRoleFromPath(pathname: string): string | undefined {
 }
 
 function playerHasStationRouteAuthority(player: Player | null | undefined, routeRoleId: string): boolean {
-  if (
-    !player || player.role !== 'player' || player.escapeState ||
-    player.replacementStatus != null || player.replacementRoleId != null
-  ) return false;
+  if (!playerCanUseCoreStationRoute(player)) return false;
   if (player.activeConsoleRoleId != null) return player.activeConsoleRoleId === routeRoleId;
   const assignedRoleId = player.assignedRoleId && player.assignedRoleId !== 'press-officer'
     ? player.assignedRoleId
@@ -151,6 +148,13 @@ function playerHasStationRouteAuthority(player: Player | null | undefined, route
   const pointersAgree = !assignedRoleId || !seatRoleId || assignedRoleId === seatRoleId;
   const boundRoleId = pointersAgree ? assignedRoleId ?? seatRoleId : undefined;
   return boundRoleId === routeRoleId;
+}
+
+function playerCanUseCoreStationRoute(player: Player | null | undefined): player is Player {
+  return Boolean(
+    player && player.role === 'player' && !player.escapeState &&
+    player.replacementStatus == null && player.replacementRoleId == null,
+  );
 }
 
 function AppRoutes() {
@@ -178,6 +182,12 @@ function AppRoutes() {
   const playerListenerIdentity = useRef('');
   const appRoutesMounted = useRef(false);
   const currentPath = useRef(location.pathname);
+  const pendingStationRelease = useRef<{
+    readonly sessionId: string;
+    readonly playerUid: string;
+    readonly routeRoleId: string;
+    readonly playerProjectionFresh: boolean;
+  } | null>(null);
   currentPath.current = location.pathname;
   const gmAccessAuthenticatedAt = useSessionStore((state) => state.gmAccessAuthenticatedAt);
   const lastRoute = useSessionStore((state) => state.lastRoute);
@@ -221,6 +231,11 @@ function AppRoutes() {
     if (!sessionId || !playerUid) return;
     let active = true;
     const identity = `${sessionId}:${playerUid}`;
+    if (
+      pendingStationRelease.current &&
+      (pendingStationRelease.current.sessionId !== sessionId ||
+        pendingStationRelease.current.playerUid !== playerUid)
+    ) pendingStationRelease.current = null;
     const listenerGeneration = playerListenerIdentity.current === identity
       ? playerListenerGeneration.current
       : ++playerListenerGeneration.current;
@@ -246,11 +261,6 @@ function AppRoutes() {
     let censusSubscribed = false;
     let censusGeneration = 0;
     let playerProjectionFresh = false;
-    let pendingStationRelease: {
-      readonly sessionId: string;
-      readonly playerUid: string;
-      readonly routeRoleId: string;
-    } | null = null;
     let pendingPlayerDiscovery: PlayerDiscoveryProjection | null | undefined;
     let retainedGroupCandidateProjection: CurrentGroupCandidateRevealProjection | undefined;
     const hideCurrentGroupCandidateReveals = () => {
@@ -413,8 +423,8 @@ function AppRoutes() {
       });
     };
     const reconcileStationRelease = () => {
-      const pending = pendingStationRelease;
-      if (!pending || !playerProjectionFresh) return;
+      const pending = pendingStationRelease.current;
+      if (!pending?.playerProjectionFresh) return;
       const store = useSessionStore.getState();
       if (
         store.session?.id !== pending.sessionId ||
@@ -422,11 +432,11 @@ function AppRoutes() {
         stationRoleFromPath(currentPath.current) !== pending.routeRoleId ||
         playerHasStationRouteAuthority(store.me, pending.routeRoleId)
       ) {
-        pendingStationRelease = null;
+        pendingStationRelease.current = null;
         return;
       }
       if (store.connection !== 'live' || store.sessionSnapshotFreshness !== 'server') return;
-      if (requireStationReselectionForCurrentSession()) pendingStationRelease = null;
+      if (requireStationReselectionForCurrentSession()) pendingStationRelease.current = null;
     };
     void import('@/lib/firestore').then(({
       sessionSnapshotAuthorityFor,
@@ -555,21 +565,29 @@ function AppRoutes() {
           const store = useSessionStore.getState();
           const previousPlayer = store.me;
           const routeRoleId = stationRoleFromPath(currentPath.current);
+          const pending = pendingStationRelease.current;
           const pendingStillApplies = Boolean(
-            pendingStationRelease && routeRoleId === pendingStationRelease.routeRoleId &&
-            next.sessionId === pendingStationRelease.sessionId &&
-            next.uid === pendingStationRelease.playerUid &&
-            !playerHasStationRouteAuthority(next, pendingStationRelease.routeRoleId),
+            pending && playerCanUseCoreStationRoute(next) &&
+            routeRoleId === pending.routeRoleId && next.sessionId === pending.sessionId &&
+            next.uid === pending.playerUid &&
+            !playerHasStationRouteAuthority(next, pending.routeRoleId),
           );
           if (
             routeRoleId && previousPlayer?.sessionId === next.sessionId &&
-            previousPlayer.uid === next.uid &&
+            previousPlayer.uid === next.uid && playerCanUseCoreStationRoute(next) &&
             playerHasStationRouteAuthority(previousPlayer, routeRoleId) &&
             !playerHasStationRouteAuthority(next, routeRoleId)
           ) {
-            pendingStationRelease = { sessionId: next.sessionId, playerUid: next.uid, routeRoleId };
-          } else if (!pendingStillApplies) {
-            pendingStationRelease = null;
+            pendingStationRelease.current = {
+              sessionId: next.sessionId,
+              playerUid: next.uid,
+              routeRoleId,
+              playerProjectionFresh: false,
+            };
+          } else if (pendingStillApplies && pending) {
+            pendingStationRelease.current = { ...pending, playerProjectionFresh: false };
+          } else {
+            pendingStationRelease.current = null;
           }
           const previousEntitlement = playerEntitlementKey(store.me);
           const previousFleetGroupId = store.me?.fleetGroupId;
@@ -682,8 +700,11 @@ function AppRoutes() {
         onPlayerFreshness: (fresh) => {
           if (!callbackCurrent()) return;
           playerProjectionFresh = fresh;
+          const pending = pendingStationRelease.current;
+          if (
+            pending && pending.sessionId === sessionId && pending.playerUid === playerUid
+          ) pendingStationRelease.current = { ...pending, playerProjectionFresh: fresh };
           if (!fresh) {
-            pendingStationRelease = null;
             clearCurrentGroupCandidateReveals();
           }
           else {
