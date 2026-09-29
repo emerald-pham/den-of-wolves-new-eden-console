@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 import * as jumpCallables from './index';
 import { jumpFuelCost, jumpLengthBetween } from './jumpDrive';
@@ -25,6 +25,7 @@ const mock = vi.hoisted(() => ({
   dioneCharges: ['jump-drive'] as string[],
   grantedShipId: 'aegis',
   activeRoleIds: [] as string[],
+  activeVesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'] as string[],
   activeConsoleRoleId: undefined as string | undefined,
   jumpStates: {} as Record<string, unknown>,
   systemHistory: {} as Record<string, unknown>,
@@ -49,6 +50,7 @@ const mock = vi.hoisted(() => ({
   missionOpportunityRecordPath: undefined as string | undefined,
   commandReceiptRecord: undefined as Record<string, unknown> | undefined,
   jumpFailures: {} as Record<string, Record<string, unknown>>,
+  pursuitEmergencyWindow: undefined as Record<string, unknown> | undefined,
   transactionRetries: 0,
   randomInt: vi.fn(() => 6),
   randomUUID: vi.fn(() => 'jump-event'),
@@ -90,7 +92,9 @@ vi.mock('firebase-admin/firestore', () => ({
   Timestamp: { now: () => ({ toMillis: () => Date.now() }) },
 }));
 
-import { adjudicateFailedJump, jumpShip, listUnresolvedJumpFailures, moveShipToLocation } from './index';
+import {
+  adjudicateFailedJump, advanceTurn, jumpShip, listUnresolvedJumpFailures, moveShipToLocation,
+} from './index';
 
 function request(data: Record<string, unknown>, uid = 'u1') {
   return { data: data.requestId === undefined ? { ...data, requestId: 'test-jump' } : data, auth: { uid } } as CallableRequest<Record<string, unknown>>;
@@ -120,6 +124,7 @@ beforeEach(() => {
   mock.dioneCharges = ['jump-drive'];
   mock.grantedShipId = 'aegis';
   mock.activeRoleIds = [];
+  mock.activeVesselIds = ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'];
   mock.activeConsoleRoleId = undefined;
   mock.jumpStates = {};
   mock.systemHistory = {};
@@ -142,6 +147,7 @@ beforeEach(() => {
   mock.missionOpportunityRecordPath = undefined;
   mock.commandReceiptRecord = undefined;
   mock.jumpFailures = {};
+  mock.pursuitEmergencyWindow = undefined;
   mock.transactionRetries = 0;
   mock.randomInt.mockReset();
   mock.randomInt.mockReturnValue(6);
@@ -174,6 +180,12 @@ beforeEach(() => {
       exists: mock.commandReceiptRecord !== undefined,
       get: (key: string) => mock.commandReceiptRecord?.[key],
     };
+    if (path.startsWith('sessionStartRequests/') ||
+        /\/(setupMutationRequests|gmResponsibilityRequests|seatMutationRequests|loyaltyAssignmentRequests)\//.test(path) ||
+        /\/events\/(setup-confirm-|gm-responsibility-|start-|seat-claim-|seat-release-|press-availability-)/.test(path) ||
+        /\/events\/[^/]+$/.test(path)) {
+      return { exists: false, id: path.split('/').at(-1), ref: { path }, data: () => undefined, get: () => undefined };
+    }
     if (path === 'sessions/s1/wolfAttackState/current') {
       const fields = mock.wolfAttackState;
       return {
@@ -231,8 +243,9 @@ beforeEach(() => {
         : {
           phase: mock.phase,
           ...(mock.gameOutcome ? { gameOutcome: mock.gameOutcome } : {}),
+          ...(mock.pursuitEmergencyWindow ? { pursuitEmergencyWindow: mock.pursuitEmergencyWindow } : {}),
           activeRoleIds: mock.activeRoleIds,
-          activeVesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
+          activeVesselIds: mock.activeVesselIds,
           currentTurn: mock.currentTurn,
           turnPhase: {
             turn: mock.currentTurn,
@@ -291,6 +304,10 @@ beforeEach(() => {
       get: (key: string) => fields[key],
     };
   });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 it('rejects malformed coordinates before reading or changing any authoritative state', async () => {
@@ -1604,6 +1621,190 @@ it('records jump-damage mutiny atomically and still replays the exact receipt af
   await expect(jumpShip.run(request(command))).resolves.toEqual(reply);
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('opens a nonterminal GM decision window when cycle advancement reaches pursuit 10', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-06T12:10:07.000Z'));
+  mock.currentTurn = 2;
+  mock.navigationRevision = 8;
+  mock.activeVesselIds = ['aegis', 'shepherd'];
+  mock.activeRoleIds = ['admiral', 'shepherd-captain'];
+  mock.pursuitGroups = { 'fleet-1': 8, 'fleet-2': 4 };
+  mock.fleetGroups = [
+    { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1'] },
+    { id: 'fleet-2', vesselIds: ['shepherd'], memberUids: ['u2'] },
+  ];
+  mock.players = [
+    { id: 'u1', fields: { role: 'gm', connected: true, fleetGroupId: 'fleet-1' } },
+    { id: 'u2', fields: { role: 'player', connected: true, fleetGroupId: 'fleet-2' } },
+  ];
+
+  const result = await advanceTurn.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'pursuit-ten-window', expectedTurn: 2,
+    overridePhaseTimer: true,
+  }));
+
+  expect(result).toMatchObject({
+    currentTurn: 3,
+    pursuitEmergencyWindow: {
+      type: 'pursuit-emergency-window',
+      status: 'awaiting-gm-decision',
+      cycle: 3,
+      navigationRevision: 9,
+      groupIds: ['fleet-1'],
+    },
+  });
+  expect(result).not.toHaveProperty('phase', 'failure');
+  expect(result).not.toHaveProperty('gameOutcome');
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    currentTurn: 3,
+    phase: 'active',
+    pursuitEmergencyWindow: expect.objectContaining({ status: 'awaiting-gm-decision' }),
+  }));
+  expect(mock.update.mock.calls.find(([path]) => path === 'sessions/s1')?.[1])
+    .not.toHaveProperty('gameOutcome');
+});
+
+it('requires a current GM offer or decline, and exactly replays both pursuit-window decisions', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-06T12:10:07.000Z'));
+  mock.currentTurn = 3;
+  mock.navigationRevision = 9;
+  mock.pursuitGroups = { 'fleet-1': 10 };
+  mock.activeRoleIds = [
+    'admiral', 'dione-captain', 'icebreaker-captain',
+    'shepherd-captain', 'quellon-captain', 'refinery-124-captain',
+  ];
+  mock.pursuitEmergencyWindow = {
+    type: 'pursuit-emergency-window', status: 'awaiting-gm-decision',
+    cycle: 3, navigationRevision: 9, groupIds: ['fleet-1'], openedAt: '2026-09-28T12:20:07.000Z',
+  };
+
+  const offerRequest = {
+    sessionId: 's1', instanceId: 'bridge', requestId: 'offer-pursuit-emergency', expectedTurn: 3,
+    overridePhaseTimer: true, pursuitEmergencyDecision: 'offer', expectedPursuitNavigationRevision: 9,
+  };
+  const offer = await advanceTurn.run(request(offerRequest));
+  expect(offer).toMatchObject({
+    currentTurn: 3,
+    pursuitEmergencyWindow: { status: 'offered', navigationRevision: 9, groupIds: ['fleet-1'] },
+  });
+  const offerReceipt = mock.set.mock.calls.find(([path]) => String(path).endsWith('/commandReceipts/offer-pursuit-emergency'))?.[1];
+  expect(offerReceipt).toMatchObject({ result: offer });
+  mock.commandReceiptRecord = offerReceipt;
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(advanceTurn.run(request(offerRequest))).resolves.toEqual(offer);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+
+  mock.commandReceiptRecord = undefined;
+  const declineRequest = {
+    sessionId: 's1', instanceId: 'bridge', requestId: 'decline-pursuit-emergency', expectedTurn: 3,
+    overridePhaseTimer: true, pursuitEmergencyDecision: 'decline', expectedPursuitNavigationRevision: 9,
+  };
+  const decline = await advanceTurn.run(request(declineRequest));
+  expect(decline).toMatchObject({
+    currentTurn: 3,
+    phase: 'failure',
+    gameOutcome: { type: 'game-outcome', result: 'failure', cause: 'pursuit-limit', cycle: 3, navigationRevision: 9 },
+  });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    phase: 'failure', gameOutcome: decline.gameOutcome, pursuitEmergencyWindow: 'delete-field',
+  }));
+  const declineReceipt = mock.set.mock.calls.find(([path]) => String(path).endsWith('/commandReceipts/decline-pursuit-emergency'))?.[1];
+  expect(declineReceipt).toMatchObject({ result: decline });
+  mock.commandReceiptRecord = declineReceipt;
+  mock.phase = 'failure';
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(advanceTurn.run(request(declineRequest))).resolves.toEqual(decline);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('rejects stale and non-GM pursuit-window choices without changing the window', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-06T12:10:07.000Z'));
+  mock.currentTurn = 3;
+  mock.navigationRevision = 9;
+  mock.activeRoleIds = [
+    'admiral', 'dione-captain', 'icebreaker-captain',
+    'shepherd-captain', 'quellon-captain', 'refinery-124-captain',
+  ];
+  mock.pursuitEmergencyWindow = {
+    type: 'pursuit-emergency-window', status: 'awaiting-gm-decision',
+    cycle: 3, navigationRevision: 9, groupIds: ['fleet-1'], openedAt: '2026-09-28T12:20:07.000Z',
+  };
+  await expect(advanceTurn.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'stale-window-offer', expectedTurn: 3,
+    overridePhaseTimer: true,
+    pursuitEmergencyDecision: 'offer', expectedPursuitNavigationRevision: 8,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', details: { commandError: 'stale-revision' },
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+
+  mock.role = 'player';
+  mock.players = [{ id: 'u1', fields: {
+    role: 'player', connected: true, fleetGroupId: 'fleet-1', activeConsoleRoleId: 'admiral',
+  } }];
+  await expect(advanceTurn.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'player-window-offer', expectedTurn: 3,
+    overridePhaseTimer: true,
+    pursuitEmergencyDecision: 'offer', expectedPursuitNavigationRevision: 9,
+  }))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('does not strand pursuit 10 when every active vessel has already spent its emergency jump', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-06T12:10:07.000Z'));
+  mock.currentTurn = 2;
+  mock.navigationRevision = 8;
+  mock.activeVesselIds = ['aegis', 'shepherd'];
+  mock.activeRoleIds = ['admiral', 'shepherd-captain'];
+  mock.pursuitGroups = { 'fleet-1': 8, 'fleet-2': 4 };
+  mock.fleetGroups = [
+    { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1'] },
+    { id: 'fleet-2', vesselIds: ['shepherd'], memberUids: ['u2'] },
+  ];
+  mock.players = [
+    { id: 'u1', fields: { role: 'gm', connected: true, fleetGroupId: 'fleet-1' } },
+    { id: 'u2', fields: { role: 'player', connected: true, fleetGroupId: 'fleet-2' } },
+  ];
+  mock.jumpStates = Object.fromEntries(
+    ['aegis', 'shepherd']
+      .map((shipId) => [shipId, { emergencyJumpUsed: true }]),
+  );
+
+  const result = await advanceTurn.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'no-emergency-vessels', expectedTurn: 2,
+    overridePhaseTimer: true,
+  }));
+
+  expect(result).toMatchObject({
+    currentTurn: 3,
+    phase: 'failure',
+    gameOutcome: { cause: 'pursuit-limit', cycle: 3, navigationRevision: 9 },
+  });
+  expect(result).not.toHaveProperty('pursuitEmergencyWindow');
+});
+
+it('blocks stale ordinary jump requests while the GM is deciding about pursuit emergency', async () => {
+  mock.pursuitEmergencyWindow = {
+    type: 'pursuit-emergency-window', status: 'awaiting-gm-decision',
+    cycle: 1, navigationRevision: 0, groupIds: ['fleet-1'], openedAt: '2026-09-28T12:20:07.000Z',
+  };
+  await expect(jumpShip.run(request({
+    ...data, requestId: 'ordinary-jump-during-pursuit-decision', destination: '5143',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.randomInt).not.toHaveBeenCalled();
 });
 
 it('exposes only active-GM jump-failure adjudication and read callables', () => {

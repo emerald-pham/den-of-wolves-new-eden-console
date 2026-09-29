@@ -105,6 +105,27 @@ it('hydrates only canonical shuttle-control entries from the member session proj
   });
 });
 
+it('hydrates only a validated public pursuit-emergency decision window', () => {
+  const valid = sessionFrom('pursuit-window', {
+    ...sessionData(8),
+    pursuitEmergencyWindow: {
+      type: 'pursuit-emergency-window', status: 'offered', cycle: 3,
+      navigationRevision: 42, groupIds: ['fleet-1'], openedAt: '2026-09-28T12:00:00.000Z',
+    },
+  });
+  expect(valid.pursuitEmergencyWindow).toEqual({
+    type: 'pursuit-emergency-window', status: 'offered', cycle: 3,
+    navigationRevision: 42, groupIds: ['fleet-1'], openedAt: '2026-09-28T12:00:00.000Z',
+  });
+  expect(sessionFrom('malformed-pursuit-window', {
+    ...sessionData(8),
+    pursuitEmergencyWindow: {
+      type: 'pursuit-emergency-window', status: 'completed', cycle: 3,
+      navigationRevision: 42, groupIds: ['fleet-1'], openedAt: '2026-09-28T12:00:00.000Z',
+    },
+  })).not.toHaveProperty('pursuitEmergencyWindow');
+});
+
 it('hydrates only a safe Boa recycling cycle ledger', () => {
   expect(sessionFrom('boa-recycling', {
     ...sessionData(20), boaRecycling: { cycle: 3, revision: 4, exchangesThisCycle: 2 },

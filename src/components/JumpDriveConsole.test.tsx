@@ -323,3 +323,23 @@ it('shows the server-owned one-hour integrity lockout and disables the drive', (
   expect(screen.getByRole('button', { name: /lock destination coordinates/i })).toBeDisabled();
   expect(screen.getByRole('slider', { name: /jump drive power/i })).toBeDisabled();
 });
+
+it('keeps players waiting until the facilitator offers the pursuit emergency jump', () => {
+  renderConsole({
+    pursuitValue: 10,
+    pursuitEmergencyWindowStatus: 'awaiting-gm-decision',
+  } as Partial<ComponentProps<typeof JumpDriveConsole>>);
+
+  expect(screen.getByRole('status', { name: /pursuit emergency/i }))
+    .toHaveTextContent(/waiting for the facilitator to offer an emergency jump/i);
+  expect(screen.queryByRole('button', { name: /emergency jump to/i })).not.toBeInTheDocument();
+});
+
+it('offers the emergency drive only after the facilitator decision is live', () => {
+  renderConsole({
+    pursuitValue: 10,
+    pursuitEmergencyWindowStatus: 'offered',
+  } as Partial<ComponentProps<typeof JumpDriveConsole>>);
+
+  expect(screen.getByRole('button', { name: /emergency jump to/i })).toBeInTheDocument();
+});
