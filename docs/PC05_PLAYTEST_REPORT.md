@@ -674,5 +674,16 @@ requiring every preserved seat to remain canonical, unclaimed and locked. The
 focused client, setup and full callable-composition run passes **286/286**,
 including a real 18-to-eight empty-roster composition with zero private loyalty
 records. Build `0.5.56` batches these fixes with the final PC05 evidence and
-release metadata. Exact review, full local release gates, the single replacement
-CI/deployment run and renewed ordinary production play remain required.
+release metadata.
+
+The first exact Sol review of `bb263e47` held the candidate because malformed
+preserved seat documents could be filtered out before readiness validation,
+and because Prompt 654 did not yet name `0.5.56`. Failing-first callable and
+pure-policy tests reproduce the malformed-extra and stale-claim-timestamp
+cases. The server now requires every queried seat to parse before readiness can
+pass, and locked preserved seats require a null holder and null claim timestamp.
+The canonical catalog now names both PC05 builds and its generated view is
+refreshed. The repaired start/setup plus release/UI set passes **186/186**.
+
+Exact review, full local release gates, the single replacement CI/deployment
+run and renewed ordinary production play remain required.

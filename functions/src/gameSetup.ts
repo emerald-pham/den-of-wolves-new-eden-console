@@ -554,6 +554,8 @@ export interface SetupReadinessInput {
   readonly facilitatorPlayerUids?: readonly PlayerId[];
   /** Canonical role-keyed seat documents provisioned by the server. */
   readonly seatDocuments?: readonly SetupSeatDocument[];
+  /** False when any queried seat document failed server-side shape parsing. */
+  readonly seatDocumentsComplete?: boolean;
   /** Exact reciprocal player -> seat pointers from the same read. */
   readonly playerSeatPointers?: readonly SetupPlayerSeatPointer[];
   /** Live normalized GM instances; one instance covers both printed lanes. */
@@ -657,10 +659,11 @@ export function readinessForSetup(input: SetupReadinessInput): {
       const metadata = ROLE_SEAT_METADATA[seat.roleId];
       return metadata !== undefined && seat.id === seat.roleId &&
         seat.label === metadata.label && seat.factionId === metadata.factionId &&
-        seat.status === 'locked' && seat.holderUid === null &&
+        seat.status === 'locked' && seat.holderUid === null && seat.claimedAt === null &&
         !coreAssignments.some((assignment) => assignment.roleId === seat.roleId);
     });
-    const validSeatDocuments = configuredSeatDocuments.length === printedRoleIds.length &&
+    const validSeatDocuments = input.seatDocumentsComplete !== false &&
+      configuredSeatDocuments.length === printedRoleIds.length &&
       seatByRole.size === configuredSeatDocuments.length &&
       uniqueSeatIds.size === seatDocuments.length && validPreservedSeats &&
       printedRoleIds.every((roleId) => {
