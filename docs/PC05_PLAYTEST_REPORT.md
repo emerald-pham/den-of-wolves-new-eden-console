@@ -455,3 +455,27 @@ source receipts and no omitted live external-module consumer. Its independent
 selector run passes **84/84**. The fetched main remains `7782840d` and is an
 ancestor of this branch. This review does not approve future jump changes;
 their source receipts and changed consumers require reconciliation.
+
+### Pending-role follow-up and emergency-window regressions
+
+A4 follow-up found three remaining cases: private Scout result/index access
+while awaiting a role, malformed pending records retaining client authority
+and accepting late replies, and expired-presence GM recovery candidates.
+Tests `16cccd68` reproduce **11 failures / 429 passes**; separate `0fc7aa62`
+makes new candidate fixtures explicitly connected so the test measures lease
+expiry. Production `9ea5dfd5` repairs these cases. The integrated parent passes
+**285 tests across nine files**, plus the targeted contradictory-pointer parser
+case. The worker reports **6,017/6,017** full tests, typecheck, both builds and
+lint with no errors. No rules changed, so the earlier 143 rules checks still
+cover the unchanged rules. Existing named mapping already includes the changed
+Scout module; actual-baseline deployment classification passes. Independent
+follow-up of these three findings remains pending.
+
+Jump test-only `bd055676` reproduces **18 server failures / 48 passes** and
+**four client/projection failures / 213 passes** before repair. Separate
+`ca663d12` adds pursuit-window transaction, projection, waiting and facilitator
+decision tests. The owner's expanded red run has **22 server failures / 49
+passes**, three client assertion failures, and the expected missing-component
+failure before implementation. PC05-A6 records the source-backed optional
+emergency decision before permanent pursuit failure. Both test tranches remain
+separate from the pending implementation; no failing assertion was waived.
