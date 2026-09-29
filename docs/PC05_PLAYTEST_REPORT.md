@@ -546,3 +546,30 @@ typecheck passes. The exact actual-baseline selector again reports Hosting,
 Firestore, **138 unique named Functions**, no unknown files, current tip and
 both ancestry checks true. This repaired commit still needs the reviewer's
 exact follow-up and refreshed full release gates before release.
+
+### Release-candidate validation
+
+Independent GPT-5.6 Sol xhigh follow-up is **clear** on exact `5d1117a1` for
+the pursuit listener race, public/private authority matching, the 138-Function
+receipt, and the previously cleared server jump/authority findings. No
+actionable findings remain.
+
+The exact candidate passes **6,095/6,095 tests across 442 files**, **143/143**
+Firestore rules checks, typecheck, production build and bundle budget, and
+**87/87** deployment-selector tests. Lint has zero errors and seven recorded
+warnings: three test-only dynamic type imports and four pre-existing hook
+dependency warnings. The 751-prompt generated views, 915 dependency-evidence
+records across 11 sequences, repository guidance, **61/61** font checks and
+the two typography release-policy tests all pass.
+
+Rendered proof passes 56 typography cases across seven surfaces and four
+viewports in normal and reduced motion; the full ticker matrix passes every
+responsive pending/ready state plus normal and reduced lifecycle captures.
+DRADIS label/contact timing passes desktop, phone and short landscape in both
+motion modes. Jump emergency/failure controls fit 320x844, 390x844, 844x390 and
+1440x900 in both motion modes, and mutiny recovery fits phone, short landscape
+and desktop. The real Firestore emulator passes both overlapping two-vessel
+jump races with transaction retries, exact self-arrival selection, monotonic
+shared revision and side-effect-free receipt replay. Emulator reservations are
+released. These establish a reviewed local release candidate; deployment and
+ordinary production gameplay remain separate gates.
