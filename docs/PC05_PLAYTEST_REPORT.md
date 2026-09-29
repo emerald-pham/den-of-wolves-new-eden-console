@@ -573,3 +573,16 @@ jump races with transaction retries, exact self-arrival selection, monotonic
 shared revision and side-effect-free receipt replay. Emulator reservations are
 released. These establish a reviewed local release candidate; deployment and
 ordinary production gameplay remain separate gates.
+
+PR CI on exact `7a513258` passed the full ticker browser matrix but then caught
+a deterministic landing-graph regression: **1,874,127 raw bytes** exceeded the
+unchanged **1,850,458-byte** budget. The same runner sample also exceeded the
+DRADIS and mobile-frame timing caps, while the exact local reproduction measured
+37.7 ms DRADIS p95 and zero long frames but confirmed the byte failure. The
+repair lazy-loads the shuttle-only route and its template instead of including
+them in the landing module graph. The unchanged P637 gate now passes locally at
+**1,655,179 raw / 444,667 gzip bytes**, 40 ms DRADIS p95 and zero long frames;
+the largest chunk remains **497,246 bytes** under its 512,000-byte cap. The App,
+shuttle-route and shuttle-template suites pass **166/166**, with typecheck, lint
+and the separate production bundle gate also passing. Refreshed exact review,
+PR CI, deployment and ordinary production gameplay remain separate gates.

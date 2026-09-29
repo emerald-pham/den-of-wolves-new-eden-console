@@ -8,7 +8,6 @@ import ShipConsole from '@/routes/ShipConsole';
 import GmConsole from '@/routes/GmConsole';
 import ShipRoleSelect from '@/routes/ShipRoleSelect';
 import JointEngineeringConsole from '@/routes/JointEngineeringConsole';
-import ShuttleConsole from '@/routes/ShuttleConsole';
 import {
   CONNECT_RETRY_INTERVAL_MS,
   connectAutomatically,
@@ -60,6 +59,7 @@ const GM_RECONCILE_INTERVAL_MS = 5_000;
 const PRESENCE_HEARTBEAT_INTERVAL_MS = 10_000;
 const RoleBrief = lazy(() => import('@/routes/RoleBrief'));
 const SessionMode = lazy(() => import('@/routes/SessionMode'));
+const ShuttleConsole = lazy(() => import('@/routes/ShuttleConsole'));
 const AwayMissionDiscardPanel = lazy(() => import('@/components/AwayMissionDiscardPanel'));
 const hasConsoleDradis = (path: string): boolean =>
   path === '/press' || path.startsWith('/ships/') || path.startsWith('/union/') ||
@@ -952,7 +952,11 @@ function AppRoutes() {
                   <SessionMode mode="press" />
                 </Suspense>
               )} />
-              <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+              <Route path="/shuttles/:shuttleId" element={(
+                <Suspense fallback={<main className="session-mode"><p role="status">Opening shuttle console…</p></main>}>
+                  <ShuttleConsole />
+                </Suspense>
+              )} />
               <Route path="/ships/:shipId/roles" element={<ShipRoleSelect />} />
               <Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} />
               <Route path="/ships/:shipId/observer" element={<ShipConsole observer />} />
