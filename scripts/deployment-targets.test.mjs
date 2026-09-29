@@ -455,9 +455,9 @@ function functionTargets(names) {
   return names.map((name) => `functions:${name}`).sort();
 }
 
-test('maps jump resolution changes to the production jump callable', () => {
+test('maps jump resolution changes to both authoritative jump paths', () => {
   const selected = selectorFor(['functions/src/jumpDrive.ts']);
-  assert.deepEqual(selectedFunctions(selected), functionTargets(['jumpShip']));
+  assert.deepEqual(selectedFunctions(selected), functionTargets(['jumpShip', 'adjudicateFailedJump']));
 });
 
 test('maps Command and Control helpers without relying on index changes', () => {
@@ -1485,4 +1485,32 @@ test('maps only the reviewed pending-rerole navigation exclusion to its runtime 
   });
   assert.deepEqual(selectedFunctions(select(source)), functionTargets(["activateEndeavourEcmDevice", "readEndeavourEcmDeviceWorkspace", "resolvePendingScoutRequest", "createSession", "confirmSetup", "startGame", "dealPrivateInitialCards", "assignReplacementRole", "setCandidatePlanCheckpoint", "joinSession", "resumeSession", "moveShipToLocation", "jumpShip", "advanceTurn", "startSinglePlayerDemo", "declareWolfAttack", "submitWolfHomingBeacon", "requestScout", "runMaintenance"]));
   assert.throws(() => select(source + '// unrelated runtime edit\n'), /Cannot safely map navigation projection changes/);
+});
+
+
+test('maps the exact PC05 jump request contract and rejects an unrelated guard edit', () => {
+  const beforeSource = execFileSync('git', ['show', '7782840d:functions/src/requestGuards.ts'], { encoding: 'utf8' });
+  const afterSource = readFileSync('functions/src/requestGuards.ts', 'utf8');
+  const select = (source) => deploymentSelector({ before: 'base', after: 'candidate',
+    files: ['functions/src/requestGuards.ts'], targets: ['functions'], isAncestor: () => false,
+    sourceAtRevision: (revision) => revision === 'base' ? beforeSource : source,
+  });
+  assert.deepEqual(selectedFunctions(select(afterSource)), functionTargets(['jumpShip', 'listUnresolvedJumpFailures', 'adjudicateFailedJump']));
+  assert.throws(() => select(afterSource + '// unrelated guard change\n'), /Cannot safely map request-guard changes/);
+});
+
+test('maps only the audited member jump event fields to their writers', () => {
+  const source = readFileSync('functions/src/eventRedaction.ts', 'utf8');
+  const addition = "  'ship-jump': ['shipId', 'outcome', 'length', 'failureRoll', 'failureThreshold', 'fuelSpent', 'damageCount', 'emergency'],\n";
+  const select = (afterSource) => deploymentSelector({ before: 'base', after: 'candidate',
+    files: ['functions/src/eventRedaction.ts'], targets: ['functions'], isAncestor: () => false,
+    sourceAtRevision: (revision) => revision === 'base' ? source.replace(addition, '') : afterSource,
+  });
+  assert.deepEqual(selectedFunctions(select(source)), functionTargets(['jumpShip', 'adjudicateFailedJump']));
+  assert.throws(() => select(source.replace("'fuelSpent', 'damageCount'", "'destination', 'fuelSpent', 'damageCount'")), /Cannot safely map event redaction changes/);
+});
+
+test('maps ship damage helpers to all audited runtime consumers', () => {
+  const selected = selectorFor(['functions/src/shipDamage.ts']);
+  assert.deepEqual(selectedFunctions(selected), functionTargets(["repairConsolesFromAlly", "repairGorgoneionWithDrones", "repairWarriorWithDrones", "transferBaseCapybaraCargo", "readEndeavourResearchWorkspace", "repairMaliades", "createSession", "startGame", "rechargeHostConsoleFromShuttle", "repairConsolesFromBlacksmith", "repairConsolesFromPhilia", "repairConsolesFromMacaw", "repairConsolesFromChacau", "upgradeEndeavourFieldTargets", "joinSession", "resumeSession", "moveShipToLocation", "jumpShip", "adjudicateFailedJump", "advanceTurn", "startSinglePlayerDemo", "getAegisCommandAndControl", "applyAegisCommandAndControl", "getDioneMaliadesLaunch", "launchDioneMaliades", "getPdfEscortWingLaunch", "launchPdfEscortWing", "startWolfConsoleVisit", "resolveWolfConsoleSabotage", "submitWolfSupplySabotage", "acknowledgeWolfHackingAlert", "fleeDestroyedShip", "scavengeDestroyedShipStores", "addShipDamage", "buildFighter", "runVulcanAdditionalLabour", "runMaintenance", "drawVipCard", "repairAllShipDamage"]));
 });
