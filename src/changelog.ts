@@ -27,7 +27,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 507, partial: 35, active: 0, missing: 209, blocked: 0,
     },
     changes: [
-      'PC05 is complete: setup and onboarding, turn and Coordination gates, rationing and mutiny recovery, private scouting and ship-specific map knowledge, DRADIS, station recovery, and jump handling passed their release checks.',
+      'PC05 is complete: setup and onboarding, cycle and Coordination gates, rationing and mutiny recovery, private scouting and ship-specific map knowledge, DRADIS, station recovery, and jump handling passed their release checks.',
       'The changelog now shows the current build catalog total above the release history and labels older totals as historical build snapshots.',
       '507 of 751 planned items are complete in the catalog snapshot used to build this release (67.51%).',
     ],
