@@ -127,8 +127,12 @@ A player jump map reveals a system's jump coordinates only when that particular 
 
 an authenticated active facilitator with a valid confirmed canonical setup can authoritatively start exactly once with zero, partial, or full role occupancy; unfilled roles are never blockers. Reject only genuine missing or invalid tuple, lifecycle/revision/closed/authority/malformed/unavailable server-result blockers with a stable nonsecret reason; never fabricate a role, player, or loyalty and never accept client randomness. Define an owner-approved server outcome for zero eligible Wolf/private-loyalty holders. After confirmation the existing start control is enabled and accessible, and role status names the actual blocker rather than stale `Start blocked // confirm...` copy. Preserve focus, 44px targets, reduced motion, and mobile CIC behavior. This repair supersedes the retired Prompt 071 acceptance and depends on Milestone 1; later server, client, UI, and security tests must replace the old missing-role blockers.
 
-- Implementation and risk evidence: reconcile final repaired candidate.
-- Deployment and ordinary gameplay: pending.
+- Implementation and risk evidence: test-first `9bcc6933`; `e01cab80` accepts
+  an 18-to-eight confirmed empty roster while rejecting any preserved seat that
+  is still claimed or noncanonical. Focused client/setup/composition run:
+  286/286.
+- Deployment and ordinary gameplay: `0.5.55` reproduced the preserved-seat
+  blocker; repaired `0.5.56` deployment and renewed empty-roster start pending.
 - Closure: unproven.
 
 ### P662 — Resolve ordinary-start Wolf designation policy.

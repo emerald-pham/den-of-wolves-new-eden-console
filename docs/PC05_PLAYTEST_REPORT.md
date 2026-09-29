@@ -652,3 +652,27 @@ last-successful-deploy/last-verified baseline selector chooses Hosting,
 Firestore and **138 named Functions**, includes the repaired private worker,
 reports no unknown files, and confirms both ancestry guards. Refreshed exact
 review remains required before the single batched CI/deployment run.
+
+### Deployed PC05 verification and batched closeout repair
+
+Exact main run `36592851654` passed verification and deployment for merge
+`f8c93980`; Hosting reports build `0.5.55`. The deployed compact DRADIS control
+says **Zoom**. An ordinary GM stale-seat release also returned the affected
+Scientist browser to station selection while preserving session membership.
+
+That production check exposed two release defects before PC05 closeout. The
+reselection explanation was cleared by the abandoned station route before the
+player could read it. A fresh session also reproduced an empty-roster start
+failure after changing the configured roster from 18 to eight roles: the
+server correctly preserved removed seat records as locked, but readiness
+incorrectly counted those records as active seats.
+
+Test-first `9bcc6933` pins both failures. Repair `e01cab80` prevents a stale
+route from reclaiming the released station until the player dismisses the
+persistent reselect notice, and validates the configured seat set while
+requiring every preserved seat to remain canonical, unclaimed and locked. The
+focused client, setup and full callable-composition run passes **286/286**,
+including a real 18-to-eight empty-roster composition with zero private loyalty
+records. Build `0.5.56` batches these fixes with the final PC05 evidence and
+release metadata. Exact review, full local release gates, the single replacement
+CI/deployment run and renewed ordinary production play remain required.

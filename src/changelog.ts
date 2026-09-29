@@ -26,6 +26,20 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 458, partial: 84, active: 0, missing: 209,
     },
     changes: [
+      'When a released station rejects a reconnect, station selection keeps the request to reselect your role visible until you dismiss it.',
+      'A confirmed roster can start after reducing its configured size. Preserved inactive seats stay safely locked, and an empty roster assigns zero Wolves.',
+      '458 of 751 planned items are complete (60.99%). PC05 production gameplay verification continues.',
+    ],
+    implementationPrompts: [654],
+  },
+
+  {
+    version: '0.5.55',
+    implementationProgress: {
+      completed: 458, total: 751, percentage: '60.99%',
+      done: 458, partial: 84, active: 0, missing: 209,
+    },
+    changes: [
       'An expired station assignment returns you to station selection with a clear request to reselect your role, while preserving your session.',
       'DRADIS names appear with their visible contacts, including after a rename and with reduced motion. The compact control now says Zoom.',
       'Confirmed games can start with fewer real players than the configured roster, including an empty roster. Wolf assignments use only eligible real players.',
