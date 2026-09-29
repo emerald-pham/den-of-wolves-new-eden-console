@@ -1522,3 +1522,22 @@ test('includes failed-jump adjudication in its shared authority and consequence 
     assert.ok(selectorFor([`functions/src/${moduleName}.ts`]).split(',').includes('functions:adjudicateFailedJump'), moduleName);
   }
 });
+
+test('includes unchanged callable bodies affected by PC05 index-local authority helpers', () => {
+  const before = '7782840d';
+  const after = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  const selected = deploymentSelector({ before, after, files: ['functions/src/index.ts'], targets: ['functions'] }).split(',');
+  for (const name of ['transferShuttleCargoCommand', 'recycleWithBoa', 'requestShuttleDeparture',
+    'beginShuttleTransit', 'retargetShuttleTransit', 'publishPressDispatch', 'dismissPressDispatch']) {
+    assert.ok(selected.includes(`functions:${name}`), `${name} consumes a changed shared authority helper`);
+  }
+});
+
+test('fails closed when PC05 shared index code changes beyond the audited candidate', () => {
+  const beforeSource = execFileSync('git', ['show', '7782840d:functions/src/index.ts'], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+  const afterSource = readFileSync('functions/src/index.ts', 'utf8') + '\n// unaudited shared helper change\n';
+  assert.throws(() => deploymentSelector({ before: 'base', after: 'candidate',
+    files: ['functions/src/index.ts'], targets: ['functions'], isAncestor: () => false,
+    sourceAtRevision: (revision) => revision === 'base' ? beforeSource : afterSource,
+  }), /Cannot safely map PC05 shared index changes/);
+});
