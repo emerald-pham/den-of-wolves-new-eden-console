@@ -604,3 +604,10 @@ passes **57/57**, App/ShipPlot passes **92/92**, and deployed-shape DRADIS
 rendering still passes every initial, sweep, refresh, renamed-track, fade and
 reduced-motion check on desktop, phone and short landscape. Refreshed exact
 review and main deployment remain open.
+
+The follow-up candidate's duplicate CI runs exposed an ambiguous typography
+sample: the `gm-section-title` probe matched either the global lazy-loaded away
+mission panel or the GM route, depending on which subtree settled first. The
+probe is now scoped to the GM console route. This preserves the PC01 comparison
+and production styles while making the gate measure the named surface
+deterministically; the exact browser gate must pass before the repair advances.
