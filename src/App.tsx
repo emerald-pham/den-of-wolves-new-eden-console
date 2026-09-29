@@ -406,6 +406,15 @@ function AppRoutes() {
             currentCandidateProjection && store.me.fleetGroupId === currentCandidateProjection.groupId
             ? currentCandidateProjection : undefined;
           if (candidateProjection) retainedGroupCandidateProjection = candidateProjection;
+          if (!next.pursuitEmergencyWindow && current.pursuitEmergencyWindowAuthority &&
+              pendingGmDiscovery?.pursuitEmergencyWindowAuthority) {
+            const {
+              pursuitEmergencyWindowAuthority: clearedEmergencyAuthority,
+              ...pendingWithoutEmergencyAuthority
+            } = pendingGmDiscovery;
+            void clearedEmergencyAuthority;
+            pendingGmDiscovery = pendingWithoutEmergencyAuthority;
+          }
           const emergencyAuthority = pendingGmDiscovery?.pursuitEmergencyWindowAuthority ??
             current.pursuitEmergencyWindowAuthority;
           const composed = {
@@ -469,7 +478,8 @@ function AppRoutes() {
           if (store.me?.role === 'gm') {
             const next = { ...current, ...projection };
             if (!projection.candidatePlanCheckpoint) delete next.candidatePlanCheckpoint;
-            if (!pursuitEmergencyAuthorityMatches(next)) {
+            if (!projection.pursuitEmergencyWindowAuthority ||
+                !pursuitEmergencyAuthorityMatches(next)) {
               delete next.pursuitEmergencyWindowAuthority;
             }
             store.setSession(next);
@@ -589,7 +599,8 @@ function AppRoutes() {
             if (current?.id === sessionId) {
               const next = { ...current, ...pendingGmDiscovery };
               if (!pendingGmDiscovery.candidatePlanCheckpoint) delete next.candidatePlanCheckpoint;
-              if (!pursuitEmergencyAuthorityMatches(next)) {
+              if (!pendingGmDiscovery.pursuitEmergencyWindowAuthority ||
+                  !pursuitEmergencyAuthorityMatches(next)) {
                 delete next.pursuitEmergencyWindowAuthority;
               }
               store.setSession(next);

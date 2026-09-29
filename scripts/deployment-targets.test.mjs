@@ -1484,7 +1484,7 @@ test('maps only the reviewed pending-rerole navigation exclusion to its runtime 
     targets: ['functions'], isAncestor: () => false,
     sourceAtRevision: (revision) => revision === 'before' ? source.replace(addition, '') : afterSource,
   });
-  assert.deepEqual(selectedFunctions(select(source)), functionTargets(["activateEndeavourEcmDevice", "readEndeavourEcmDeviceWorkspace", "resolvePendingScoutRequest", "createSession", "confirmSetup", "startGame", "dealPrivateInitialCards", "assignReplacementRole", "setCandidatePlanCheckpoint", "joinSession", "resumeSession", "moveShipToLocation", "jumpShip", "listUnresolvedJumpFailures", "adjudicateFailedJump", "advanceTurn", "startSinglePlayerDemo", "declareWolfAttack", "submitWolfHomingBeacon", "requestScout", "runMaintenance"]));
+  assert.deepEqual(selectedFunctions(select(source)), functionTargets(["activateEndeavourEcmDevice", "resolvePendingScoutRequest", "createSession", "confirmSetup", "startGame", "dealPrivateInitialCards", "assignReplacementRole", "setCandidatePlanCheckpoint", "joinSession", "resumeSession", "moveShipToLocation", "jumpShip", "listUnresolvedJumpFailures", "adjudicateFailedJump", "advanceTurn", "startSinglePlayerDemo", "declareWolfAttack", "submitWolfHomingBeacon", "requestScout", "runMaintenance"]));
   assert.throws(() => select(source + '// unrelated runtime edit\n'), /Cannot safely map navigation projection changes/);
 });
 

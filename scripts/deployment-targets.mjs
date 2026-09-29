@@ -870,6 +870,32 @@ const P541_NAVIGATION_WRITER_AFTER = [
   '  tx.set(ref, projection);\n',
 ].join('');
 
+function endeavourEcmDeviceWriterImpacts(before, after, cwd, sourceAtRevision = null) {
+  const file = 'functions/src/endeavourEcmDeviceWriter.ts';
+  const readAt = (revision) => {
+    if (sourceAtRevision) return sourceAtRevision(revision, file);
+    try {
+      return execFileSync('git', ['show', `${revision}:${file}`], {
+        encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd, maxBuffer: 16 * 1024 * 1024,
+      });
+    } catch {
+      if (revision === before) return '';
+      throw new Error(`Cannot safely determine callable changes at ${revision}:${file}.`);
+    }
+  };
+  const previous = readAt(before);
+  const current = readAt(after);
+  const pauseImport = "import { requirePursuitEmergencyWindowAbsent } from './pursuitEmergencyWindow';\n";
+  const pauseGuard = '      requirePursuitEmergencyWindowAbsent(session);\n';
+  const count = (source, snippet) => source.split(snippet).length - 1;
+  if (count(previous, pauseImport) === 0 && count(current, pauseImport) === 1 &&
+      count(previous, pauseGuard) === 0 && count(current, pauseGuard) === 1 &&
+      current.replace(pauseImport, '').replace(pauseGuard, '') === previous) {
+    return ['activateEndeavourEcmDevice'];
+  }
+  return ['activateEndeavourEcmDevice', 'readEndeavourEcmDeviceWorkspace'];
+}
+
 function eventRedactionImpacts(before, after, cwd, sourceAtRevision = null) {
   const file = 'functions/src/eventRedaction.ts';
   const readAt = (revision) => {
@@ -930,7 +956,7 @@ function candidateRevealNavigationProjectionImpacts(before, after, cwd, sourceAt
   const reroleExclusion = "  if (player.get('replacementStatus') != null) return undefined;\n";
   if (!previous.includes(reroleExclusion) && current.split(reroleExclusion).length === 2 &&
       current.replace(reroleExclusion, '') === previous) {
-    return ["activateEndeavourEcmDevice", "readEndeavourEcmDeviceWorkspace", "resolvePendingScoutRequest", "createSession", "confirmSetup", "startGame", "dealPrivateInitialCards", "assignReplacementRole", "setCandidatePlanCheckpoint", "joinSession", "resumeSession", "moveShipToLocation", "jumpShip", "listUnresolvedJumpFailures", "adjudicateFailedJump", "advanceTurn", "startSinglePlayerDemo", "declareWolfAttack", "submitWolfHomingBeacon", "requestScout", "runMaintenance"];
+    return ["activateEndeavourEcmDevice", "resolvePendingScoutRequest", "createSession", "confirmSetup", "startGame", "dealPrivateInitialCards", "assignReplacementRole", "setCandidatePlanCheckpoint", "joinSession", "resumeSession", "moveShipToLocation", "jumpShip", "listUnresolvedJumpFailures", "adjudicateFailedJump", "advanceTurn", "startSinglePlayerDemo", "declareWolfAttack", "submitWolfHomingBeacon", "requestScout", "runMaintenance"];
   }
   // Exact reviewed PC01 file transition. An additional navigation change must
   // receive its own audited consumer mapping before Functions deployment.
@@ -1300,6 +1326,10 @@ function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }
     }
     if (file === 'functions/src/eventRedaction.ts') {
       for (const name of eventRedactionImpacts(before, after, cwd, sourceAtRevision)) selected.add(name);
+      continue;
+    }
+    if (file === 'functions/src/endeavourEcmDeviceWriter.ts') {
+      for (const name of endeavourEcmDeviceWriterImpacts(before, after, cwd, sourceAtRevision)) selected.add(name);
       continue;
     }
     if (file === 'functions/src/navigationProjection.ts') {
