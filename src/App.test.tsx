@@ -456,6 +456,50 @@ describe('App', () => {
   });
 
   it.each([
+    ['a cache-backed session callback', (handlers: Parameters<typeof subscribeSessionState>[2]) => {
+      handlers.onSessionFreshness?.(false);
+    }],
+    ['a listener error', (handlers: Parameters<typeof subscribeSessionState>[2]) => {
+      handlers.onError();
+    }],
+  ])('requires a renewed player snapshot after %s', async (_name, loseAuthority) => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    window.location.hash = '#/ships/shepherd/roles/shepherd-scientist';
+    const assigned: Player = {
+      ...player, role: 'player', assignedRoleId: 'shepherd-scientist',
+      seatId: 'shepherd-scientist', activeConsoleRoleId: 'shepherd-scientist',
+    };
+    useSessionStore.getState().setIdentity({ ...session, phase: 'casting' }, assigned);
+    useSessionStore.getState().setMode('console');
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    const released = {
+      ...assigned, assignedRoleId: null, seatId: null, activeConsoleRoleId: null,
+    };
+    act(() => {
+      handlers?.onPlayer?.(released);
+      handlers?.onPlayerFreshness?.(true);
+    });
+    expect(useSessionStore.getState().communicationError).toBeNull();
+
+    act(() => loseAuthority(handlers!));
+    act(() => handlers?.onSessionFreshness?.(true));
+
+    expect(useSessionStore.getState().communicationError).toBeNull();
+    expect(window.location.hash).toBe('#/ships/shepherd/roles/shepherd-scientist');
+
+    act(() => {
+      handlers?.onPlayer?.(assigned);
+      handlers?.onPlayerFreshness?.(true);
+    });
+    expect(useSessionStore.getState().communicationError).toBeNull();
+  });
+
+  it.each([
     ['escape', {
       escapeState: {
         status: 'pending' as const,
