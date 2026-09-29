@@ -311,16 +311,16 @@ it('rejects an old ordinary deadline task while a Wolf attack owns the restricte
   expect(mock.queue.enqueue).not.toHaveBeenCalled();
 });
 
-it('keeps failed server deadline tasks retryable through Cloud Tasks retention', () => {
-  expect((parkShuttlesAtAirspaceClosure as {
+it('keeps the task private by default while retaining failed server deadlines for retry', () => {
+  const options = (parkShuttlesAtAirspaceClosure as {
     options: {
-      invoker: string;
+      invoker?: string;
       retryConfig: { maxAttempts: number; maxRetrySeconds: number };
     };
-  }).options).toMatchObject({
-    invoker: 'private',
-    retryConfig: { maxAttempts: -1, maxRetrySeconds: 0 },
-  });
+  }).options;
+
+  expect(options).not.toHaveProperty('invoker');
+  expect(options.retryConfig).toEqual({ maxAttempts: -1, maxRetrySeconds: 0 });
 });
 
 it('reconciles extension and resume writes while invalidating pause, attack, and cycle tasks', async () => {

@@ -455,6 +455,43 @@ it('verifies Hosting and public Functions through injected production adapters',
   ]));
 });
 
+it('rejects public invoker access on a selected private Cloud Tasks worker', async () => {
+  const functionNames = [
+    'triggerDradisContact',
+    'startSinglePlayerDemo',
+    'repairConsolesFromBlacksmith',
+    'upgradeEndeavourFieldTargets',
+    'parkShuttlesAtAirspaceClosure',
+  ];
+  const runCommand = async (_command: string, args: readonly string[]) => {
+    if (args[0] === 'functions' && args[1] === 'list') {
+      return JSON.stringify(functionNames.map((name) => ({
+        name: `projects/dow-new-eden-console/locations/us-central1/functions/${name}`,
+        state: 'ACTIVE',
+        serviceConfig: {
+          service: `projects/dow-new-eden-console/locations/us-central1/services/${name}`,
+        },
+      })));
+    }
+    if (args[0] === 'run' && args[1] === 'services' && args[2] === 'describe') {
+      return JSON.stringify({ status: { latestReadyRevisionName: `${args[3]}-rev-2` } });
+    }
+    if (args[0] === 'run' && args[1] === 'services' && args[2] === 'get-iam-policy') {
+      return JSON.stringify({ bindings: [{ role: 'roles/run.invoker', members: ['allUsers'] }] });
+    }
+    throw new Error(`Unexpected command: ${args.join(' ')}`);
+  };
+
+  await expect(verifyDeployment({
+    targets: 'functions',
+    projectId: 'dow-new-eden-console',
+    expectedVersion: '0.5.55',
+    functionNames: 'parkShuttlesAtAirspaceClosure',
+    previousFunctionRevisions: { parkShuttlesAtAirspaceClosure: 'parkShuttlesAtAirspaceClosure-rev-1' },
+    runCommand,
+  })).rejects.toThrow('parkShuttlesAtAirspaceClosure must remain private');
+});
+
 it('proves every selected Function published a different ready Cloud Run revision', async () => {
   const commands: string[][] = [];
   const runCommand = async (_command: string, args: readonly string[]) => {
