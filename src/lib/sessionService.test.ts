@@ -31,6 +31,7 @@ const {
   logoutGmAccess,
   popShipConfetti,
   refreshPresence,
+  requireStationReselectionForCurrentSession,
   refreshCommissarPurgeAuthority,
   releaseConsoleRole,
   reconcileGmAuthority,
@@ -3096,6 +3097,30 @@ describe('client authority boundaries', () => {
         kind: 'station-selection-required',
         message: 'Your previous station is no longer available. Return to station select and reselect your role.',
       },
+    });
+  });
+
+  it('applies an immediate station release only with live server session authority', () => {
+    const activeSession = { ...session, phase: 'active' as const, activeRoleIds: ['admiral'] };
+    const assignedPlayer = {
+      ...player, role: 'player' as const, assignedRoleId: 'admiral',
+      seatId: 'admiral', activeConsoleRoleId: 'admiral',
+    };
+    useSessionStore.getState().setIdentity(activeSession, assignedPlayer);
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('cache');
+
+    expect(requireStationReselectionForCurrentSession()).toBe(false);
+    expect(useSessionStore.getState()).toMatchObject({
+      me: { activeConsoleRoleId: 'admiral' }, communicationError: null,
+    });
+
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    expect(requireStationReselectionForCurrentSession()).toBe(true);
+    expect(useSessionStore.getState()).toMatchObject({
+      session: { id: 's1' },
+      me: { uid: 'u1', activeConsoleRoleId: null },
+      communicationError: { kind: 'station-selection-required' },
     });
   });
 
