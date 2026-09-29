@@ -415,3 +415,22 @@ regressions and repairs in its preserved checkout. No release claim follows
 from the earlier passing tests. The independent reviewer found no additional
 private jump-record leak and confirmed retry-stable random draws by source
 inspection; actual concurrent emulator evidence remains to be gathered.
+
+### Captain-authority repair integration
+
+Test-only `b3f8ec55` reproduces **15 failures / 431 passes** across 14 files
+before implementation. Production `dfc8ca78` integrates the four repairs;
+the same parent suite then passes **446/446**. The worker also reports
+**143/143** rules checks and **6,007/6,007** unit/Functions tests, both builds,
+typecheck, lint with no errors, and rendered phone/landscape/desktop recovery.
+Independent follow-up remains pending. The parent deployment audit now traces
+28 changed index-local helpers to 68 callable consumers, with none omitted.
+Test-first `f1fad4b8` and mapping `4427ee13` include the three otherwise unchanged
+Wolf Commander callables; **84/84** selector tests pass. No deployment or
+production gameplay completion is claimed by these results.
+
+The real two-vessel emulator test has additionally reproduced a same-origin
+jump failure: after one ship commits, the other retries against its observer
+log and reads the wrong arrival entry. The jump owner is repairing this with
+the ten review findings. Concurrent gameplay remains unproven until the
+actual transaction test succeeds on the repaired candidate.
