@@ -91,7 +91,7 @@ it('edits four digits, locks the destination, powers the rail, and submits the j
 
 it('offers an emergency jump at pursuit 10 without requiring the drive power rail', async () => {
   const user = userEvent.setup();
-  renderConsole({ pursuitValue: 10 } as unknown as Partial<ComponentProps<typeof JumpDriveConsole>>);
+  renderConsole({ pursuitValue: 10, pursuitEmergencyWindowStatus: 'offered' });
 
   await user.click(screen.getByRole('button', { name: 'Increase coordinate digit 1' }));
   await user.click(screen.getByRole('button', { name: /lock destination coordinates/i }));
@@ -107,7 +107,7 @@ it('keeps an uncertain emergency request on its emergency retry control', async 
   const user = userEvent.setup();
   vi.mocked(createJumpShipAttempt).mockReturnValue({ ...jumpAttempt, emergency: true });
   vi.mocked(jumpShip).mockRejectedValueOnce({ code: 'functions/unavailable' });
-  renderConsole({ pursuitValue: 10 });
+  renderConsole({ pursuitValue: 10, pursuitEmergencyWindowStatus: 'offered' });
 
   await user.click(screen.getByRole('button', { name: 'Increase coordinate digit 1' }));
   await user.click(screen.getByRole('button', { name: /lock destination coordinates/i }));
@@ -124,7 +124,7 @@ it('keeps an uncertain emergency retry available after the fresh projection mark
   const user = userEvent.setup();
   vi.mocked(createJumpShipAttempt).mockReturnValue({ ...jumpAttempt, emergency: true });
   vi.mocked(jumpShip).mockRejectedValueOnce({ code: 'functions/unavailable' });
-  const view = renderConsole({ pursuitValue: 10 });
+  const view = renderConsole({ pursuitValue: 10, pursuitEmergencyWindowStatus: 'offered' });
 
   await user.click(screen.getByRole('button', { name: 'Increase coordinate digit 1' }));
   await user.click(screen.getByRole('button', { name: /lock destination coordinates/i }));
@@ -136,6 +136,7 @@ it('keeps an uncertain emergency retry available after the fresh projection mark
         shipId="aegis" shipName="AEGIS" currentCoordinate="0000" fuel={0}
         jumpCosts={[2, 3, 6]} charged={false} damaged={false} upgraded={false}
         pursuitValue={10} emergencyJumpUsed lastFailureRequestId="jump-failure"
+        pursuitEmergencyWindowStatus="offered"
       />
     </ConsoleAccessContext.Provider>,
   );
@@ -145,6 +146,20 @@ it('keeps an uncertain emergency retry available after the fresh projection mark
   expect(jumpShip).toHaveBeenNthCalledWith(2, expect.objectContaining({
     requestId: jumpAttempt.requestId, emergency: true,
   }));
+});
+
+it('waits for the facilitator offer before enabling pursuit-10 emergency jump', () => {
+  renderConsole({ pursuitValue: 10, pursuitEmergencyWindowStatus: 'awaiting-gm-decision' });
+
+  expect(screen.getByRole('status', { name: 'Pursuit emergency decision' }))
+    .toHaveTextContent(/waiting for the facilitator to offer/i);
+  expect(screen.queryByRole('button', { name: /emergency jump to/i })).not.toBeInTheDocument();
+});
+
+it('does not show a pursuit-10 emergency action before a facilitator offer exists', () => {
+  renderConsole({ pursuitValue: 10 });
+
+  expect(screen.queryByRole('button', { name: /emergency jump to/i })).not.toBeInTheDocument();
 });
 
 it('shows the effective fuel bands after the Jump Drive upgrade', () => {
