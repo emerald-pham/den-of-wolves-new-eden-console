@@ -1069,6 +1069,12 @@ function replaceMaliadesScope(source, startMarker, endMarker, normalize, label) 
 
 function canonicalMaliadesRepairPrefix(prefix) {
   let current = prefix;
+  const pursuitPauseImport = "import { requirePursuitEmergencyWindowAbsent } from './pursuitEmergencyWindow';\n";
+  const pursuitPauseImportCount = current.split(pursuitPauseImport).length - 1;
+  if (pursuitPauseImportCount > 1) {
+    throw new Error('Cannot safely map Maliades callable changes with duplicate pursuit-pause imports.');
+  }
+  if (pursuitPauseImportCount === 1) current = current.replace(pursuitPauseImport, '');
   const staleReplyBlock = `\n\n${MALIADE_REPAIR_STALE_REPLY_TYPE}\n`;
   const staleReplyCount = current.split(staleReplyBlock).length - 1;
   if (staleReplyCount > 1) throw new Error('Cannot safely map Maliades callable changes with duplicate stale reply types.');
