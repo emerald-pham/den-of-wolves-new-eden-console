@@ -1300,6 +1300,21 @@ it.each([
   expect(mock.randomInt).not.toHaveBeenCalled();
 });
 
+it.each([
+  ['the Jump Drive map', 'malformed-map' as unknown as Record<string, unknown>],
+  ['the AEGIS Jump Drive state', { aegis: null }],
+])('fails closed when %s is present but malformed', async (_label, state) => {
+  mock.jumpStates = state;
+
+  await expect(jumpShip.run(request({ ...data, destination: '5143' }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    details: expect.objectContaining({ commandError: 'malformed-input' }),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.randomInt).not.toHaveBeenCalled();
+});
+
 it('retains the current adjudicable failure when a later jump is not charged', async () => {
   mock.charges = [];
   mock.jumpStates = { aegis: { lastFailureRequestId: 'fuel-failure' } };
@@ -1352,6 +1367,10 @@ it('accepts a pursuit-10 emergency jump without a charge or fuel and damages the
   mock.charges = [];
   mock.fuel = 0;
   mock.pursuitGroups = { 'fleet-1': 10 };
+  mock.pursuitEmergencyWindow = {
+    type: 'pursuit-emergency-window', status: 'offered', cycle: 1,
+    navigationRevision: 0, groupIds: ['fleet-1'], openedAt: '2026-09-06T12:10:07.000Z',
+  };
   mock.update.mockClear();
   mock.set.mockClear();
 
@@ -1380,6 +1399,10 @@ it('keeps an emergency jump subject to the ship one-jump-per-cycle guard', async
   mock.charges = [];
   mock.fuel = 0;
   mock.pursuitGroups = { 'fleet-1': 10 };
+  mock.pursuitEmergencyWindow = {
+    type: 'pursuit-emergency-window', status: 'offered', cycle: 1,
+    navigationRevision: 0, groupIds: ['fleet-1'], openedAt: '2026-09-06T12:10:07.000Z',
+  };
   mock.jumpStates = { aegis: { lastJumpTurn: 1 } };
 
   await expect(jumpShip.run(request({
@@ -1389,6 +1412,21 @@ it('keeps an emergency jump subject to the ship one-jump-per-cycle guard', async
     message: expect.stringMatching(/already jumped this cycle/i),
   });
   expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.randomInt).not.toHaveBeenCalled();
+});
+
+it('requires the active facilitator offer before a pursuit-10 emergency jump', async () => {
+  mock.charges = [];
+  mock.fuel = 0;
+  mock.pursuitGroups = { 'fleet-1': 10 };
+
+  await expect(jumpShip.run(request({
+    ...data, requestId: 'emergency-before-facilitator-offer', destination: '5143', emergency: true,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/facilitator.*offer/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
   expect(mock.randomInt).not.toHaveBeenCalled();
 });
 
@@ -1463,6 +1501,10 @@ it.each(['ordinary', 'emergency', 'adjudication'] as const)(
     mock.navigationRevision = 41;
     if (kind === 'emergency') {
       mock.pursuitGroups = { 'fleet-1': 10 };
+      mock.pursuitEmergencyWindow = {
+        type: 'pursuit-emergency-window', status: 'offered', cycle: 1,
+        navigationRevision: 41, groupIds: ['fleet-1'], openedAt: '2026-09-06T12:10:07.000Z',
+      };
     }
     if (kind === 'adjudication') {
       mock.jumpStates = { aegis: { lastFailureRequestId: 'revision-failure' } };
@@ -1573,6 +1615,10 @@ it('rejects facilitator adjudication when the failure record request id differs 
 it('does not double-count a Jump Drive that was already damaged before an emergency jump', async () => {
   mock.fuel = 2;
   mock.pursuitGroups = { 'fleet-1': 10 };
+  mock.pursuitEmergencyWindow = {
+    type: 'pursuit-emergency-window', status: 'offered', cycle: 1,
+    navigationRevision: 0, groupIds: ['fleet-1'], openedAt: '2026-09-06T12:10:07.000Z',
+  };
   mock.damage = { aegis: { damagedSystemIds: ['jump-drive'], destroyed: false } };
   mock.survivors = { aegis: 2_500 };
 
@@ -1598,6 +1644,10 @@ it('records jump-damage mutiny atomically and still replays the exact receipt af
     role: 'player', connected: true, fleetGroupId: 'fleet-1', activeConsoleRoleId: 'admiral',
   } }];
   mock.pursuitGroups = { 'fleet-1': 10 };
+  mock.pursuitEmergencyWindow = {
+    type: 'pursuit-emergency-window', status: 'offered', cycle: 1,
+    navigationRevision: 0, groupIds: ['fleet-1'], openedAt: '2026-09-06T12:10:07.000Z',
+  };
   mock.unrest = { aegis: 6 };
   mock.survivors = { aegis: 750 };
   const command = {
