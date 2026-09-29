@@ -1,107 +1,107 @@
 # PC05 jump tranche evidence
 
-This is a local implementation candidate for the PC05 jump prompts assigned to
-the jump owner. The parent owns integration, release metadata, independent
-callable review, deployment, and production gameplay evidence. No deployment or
-ordinary production jump was performed by this worker.
+This lane covers the assigned jump prompts. The parent owns integration,
+release metadata, exact-candidate independent review, deployment, and live
+gameplay evidence. This worker did not deploy or perform an ordinary
+production jump.
 
-## Source audit and bounded readings
+## Source and bounded assumptions
 
-- The *Facilitator Guide v1.1*, printed page 16 (physical PDF page 18),
-  “Jump Failures” and “Emergency Jump,” was visually checked against the
-  original Deluxe Components PDF on 2026-09-28. It offers the facilitator a
-  stationary failure or an optional completed jump whose damage count comes
-  from one d6 roll. It also says an emergency jump may be offered at pursuit 10
-  or after a failure, once per ship per game, consumes all fuel, damages the
-  drive, and damages half the remaining consoles rounded up. PC05-A1 records
-  the authorized full-d6 adjudication reading. PC05-A2 records the conservative
-  under-fueled inference: spend the available fuel up to the normal cost, never
-  make fuel negative or replenish it, and bind adjudication to the exact
-  failure and current fuel.
-- Full-ship fuel costs and damaged-drive thresholds were checked on the
+- The *Facilitator Guide v1.1*, printed page 16 (physical PDF page 18), was
+  visually checked in the original Deluxe Components PDF. It authorizes a
+  facilitator to keep a failed jump stationary or complete it with the full
+  common damage draw, and permits an optional emergency jump at pursuit 10 or
+  after a jump failure. The emergency is once per ship per game, consumes all
+  fuel, damages the drive, and damages half the remaining consoles rounded up.
+  PC05-A1 records the full-d6 adjudication. PC05-A2 records the conservative
+  under-fueled reading: consume all fuel currently available to that ship,
+  even if a facilitator selects a cheaper reachable route; never make fuel
+  negative or create fuel.
+- PC05-A6 implements the pursuit-10 option as a server-owned facilitator
+  offer/decline window bound to the current cycle and shared navigation
+  revision. A pending decision blocks unrelated fresh gameplay. Declining
+  records the existing pursuit-limit failure; a successful emergency uses the
+  normal navigation and pursuit-arrival rules. No pursuit reduction is
+  invented. If no eligible group remains, the window resolves deterministically
+  to the existing terminal failure.
+- Full-ship fuel bands and damaged-drive thresholds were checked against the
   original *DoWNE - A3 Encapsulated v1.1* sheets, PDF pages 1–6: AEGIS 2/3/6;
   Dione 2/4/8; Icebreaker 3/6/12; Shepherd 3/6/12; Quellon 2/4/8; Refinery
-  124 2/4/8. The full Capybara expansion sheet, *Capybara [Deluxe] - A3
-  Encapsulated 300gsm v1.1*, page 1, specifies 3/6/12. Their printed upgrade
-  reduces each jump cost by one, and the upgraded damaged-drive failure
-  threshold is a 1; otherwise it is 1–3.
+  124 2/4/8. The original Capybara expansion sheet specifies 3/6/12. Its
+  printed upgrade reduces each jump cost by one, and the upgraded damaged-drive
+  failure threshold is 1; otherwise it is 1–3.
 - The small-ship Jump Drive cards were checked in the original *DoWNE - A4
   Card Duplex v1.1*, PDF pages 23 (Gorgoneion), 25 (base-small Capybara), 27
-  (Warrior), 29 (Vulcan), and 31 (Voyage 33-0). Each card specifies 1 fuel for
-  Short or Medium and 2 for Long, drawn from its docked host. These values are
-  represented in the pure cost helper only. The small-ship records have no
-  independent resource ledger or player launch seat, so this tranche does not
-  expose a small-ship jump action.
-- No primary printed source was found that assigns numeric Short/Medium/Long
-  cutoffs to shortest-path edge counts. The current 1-edge / 2-edge / 3+-edge
-  mapping remains the existing compatibility behavior under PC05-A5; it is an
-  unverified assumption, not a printed rule.
-- The PC01-A2 server-only Deep Nebula scan markers remain unchanged and are not
-  returned to the client or consumed here. P551 owns any special Deep Nebula
-  jump modifier or resolver. The current ordinary `jumpShip` path treats a
-  printed reachable destination as an ordinary jump; its request has no
-  special-attempt discriminator, so it does not claim to resolve a P551 attempt.
+  (Warrior), 29 (Vulcan), and 31 (Voyage 33-0). Each uses one host fuel for a
+  Short or Medium jump and two for Long. This tranche does not expose small-ship
+  jumping because those records have no independent fuel ledger or player
+  launch seat.
+- No primary printed component verified numeric Short/Medium/Long cutoffs by
+  route edges. The existing 1-edge / 2-edge / 3+-edge mapping remains the
+  explicitly unverified compatibility assumption in PC05-A5, not printed-rule
+  proof.
+- PC01-A2's server-private exact-once Deep Nebula scan markers remain intact
+  and are not projected to clients or consumed here. P551 owns any special
+  Nebula jump modifier/resolver; this tranche does not claim to resolve a P551
+  attempt.
 
-The original source PDFs remain in the owner's private reference folders; no
-source pages or extracted source text were copied into this repository.
+The original source PDFs remain in private reference folders. No source pages
+or extracted source text were copied into the repository.
 
 ## Implemented behavior
 
-- `jumpShip` validates the active vessel, current role/session authority,
-  Coordination phase, printed route, charge, fuel, current turn, revision, and
-  exact command receipt inside the authoritative Firestore transaction.
-  Damaged-drive randomness and emergency/adjudication draw entropy remain
-  stable if Firestore retries the transaction. Independent vessel actions write
-  through the session transaction and vessel-specific state/revision.
-- A normal failure leaves navigation and fuel unchanged. The server records a
-  private failure receipt, and the member-safe event exposes only allowlisted
-  outcome fields. The GM read returns only each active vessel's exact current
-  unresolved failure after matching its revision, turn, origin, and fuel; old
-  unresolved history cannot crowd a current result out of a query limit.
-- An active facilitator can deliberately complete a listed failure to a
-  reachable printed destination. The server rolls one d6, applies that many
-  common damage draws, spends available fuel up to the route cost, consumes a
-  current jump charge when present, moves the vessel, writes damage and
-  destruction consequences, and resolves the exact failure atomically. A stale
-  failure or changed fuel requires a fresh facilitator decision. A captured
-  request id preserves the exact adjudication across an uncertain response.
-- The emergency action is once per ship per game, available at pursuit 10 or
-  against the exact current adjudicable failure, even with no fuel or charged
-  drive. It consumes current fuel, records drive damage and the rounded-up
-  half of remaining undamaged non-hull consoles, uses a stable request receipt,
-  and shares the ordinary population/destruction consequences.
-- The facilitator panel is active-session and GM-instance scoped, loads its
-  private failure list only on request, limits destinations to printed chart
-  coordinates, and retains the exact request after an uncertain reply. A list
-  response that arrives after facilitator authority changes is discarded.
-  The Jump Drive readout explains the damaged-drive condition and roll threshold.
+- Ordinary jumps validate the active vessel, session and role authority, phase,
+  printed route, charge, fuel, cycle, revision, mutiny lock, and exact command
+  receipt inside the authoritative transaction. A normal failed jump leaves
+  navigation and fuel unchanged. Private failure records and member-safe
+  events keep facilitator-only details private.
+- Facilitator adjudication is tied to the exact unresolved failure, its
+  canonical record identity, current revision, cycle, origin, and fuel. One
+  stable d6 draw determines common damage. A fuel-short adjudication consumes
+  all currently available fuel per PC05-A2, consumes a charge if present, and
+  resolves movement, damage, destruction consequences, and failure atomically.
+- Emergency jumps require the exact current failure or an active pursuit-10
+  offer. They consume all current fuel, apply the drive and rounded-up
+  half-console damage, preserve stable retries, and update navigation,
+  casualties, damage, and once-per-game state atomically. Previously damaged
+  systems do not cause duplicate damage records or casualties.
+- Pursuit-10 offers and declines are authenticated facilitator decisions bound
+  to a cycle/navigation revision and exact retry receipt. Stale client calls
+  are blocked while the window is pending. Receipt replay still works after a
+  new mutiny lock, after live identity and role checks. Emergency-window state
+  is validated on read and projected to the GM/player UI; pursuit-10 controls
+  appear only after the facilitator offers the jump.
+- Shared navigation revision advances from the stored navigation revision,
+  independently of per-vessel revisions. A retried arrival is located by its
+  exact request event, so another vessel's concurrent observer log cannot make
+  the retry appear missing. Delayed local jump replies cannot overwrite a
+  newer vessel revision.
 
-## Verification and remaining evidence
+## Verification
 
-Test-first commits on this branch are `631fcc3b`, `dea45193`, and
-`e824aea7`. The rendered regression commit `b5fd29a6` was also observed red at
-320 px before the coordinate-control sizing fix. The edge-regression test
-commit `e824aea7` was observed red before its fixes:
-the old list read a collection query instead of the current failure document,
-the multi-draw case reported the final population rather than the crossed
-threshold value, and a delayed private list response survived a facilitator
-authority change. The latest focused results are:
+- The authority regression test commit `2b97c92b` was observed red with three
+  failures before repair: malformed present jump state was accepted, and a
+  pursuit-10 emergency could commit without the facilitator's offer. The UI
+  gating test commit `3177c0fb` was observed red when it exposed the pursuit-10
+  button without an offer. Render commit `04a6171a` first failed because the
+  new facilitator offer button rendered at 21 px; the component was styled to
+  provide the required 44 px touch target.
+- After the UI changes, the focused unit run passed **225 tests across four
+  files**: `JumpDriveConsole`, `PursuitEmergencyWindowPanel`, `sessionService`,
+  and `shipStateProjection`. The focused callable run passed **121 tests across
+  three files**: `jumpCallable`, `jumpDrive`, and `eventRedaction`.
+  `npm run typecheck`, `npm run build`, and `git diff --check` passed. Targeted
+  ESLint reported no errors and two pre-existing `GmConsole.tsx` hook warnings.
+- `node scripts/test-pc05-jump-layout.mjs` rendered the production Jump Drive,
+  pursuit decision panel, and failure panel at 320×844, 390×844, 844×390, and
+  1440×900 in both normal and reduced-motion modes. All eight configurations
+  passed; panel bounds and button targets fit the viewport, all failure types
+  rendered, and short-landscape spacing remained correct.
+- The parent reports **74/74** focused jump callable tests and **2/2** real
+  Firestore emulator concurrency checks green on integrated server candidate
+  `9ffa5f41`. The emulator covered same-origin retry selecting the exact
+  self-arrival and two-vessel concurrent moves preserving state, serialized
+  navigation revisions, and exact replay without duplicate side effects.
 
-- `npx vitest run --project functions functions/src/jumpCallable.test.ts functions/src/jumpDrive.test.ts functions/src/eventRedaction.test.ts --reporter=dot`: 95 tests passed, including the emergency one-jump-per-cycle guard.
-- `npx vitest run --project unit src/lib/sessionService.test.ts src/components/JumpDriveConsole.test.tsx src/components/JumpFailureAdjudicationPanel.test.tsx src/components/JumpFailureReadout.test.tsx src/components/FleetSystemsWorkspace.test.tsx src/routes/ShipConsole.test.tsx --reporter=dot`: 357 tests passed.
-- `npm run typecheck`, `npm run build`, and `npm run build --prefix functions` completed successfully. `npm run lint` reported no errors and eight warnings. `npm run test:copy-consistency` passed.
-- `node scripts/test-pc05-jump-layout.mjs` rendered the production Jump Drive console and facilitator failed-jump panel at 320x844, 390x844, 844x390, and 1440x900 in normal and reduced-motion modes. The pursuit-10 emergency control enabled after the destination lock, all three failure types appeared, buttons/selects stayed within the viewport and at least 36 px high, and the short-landscape spacing assertion passed.
-- After updating the request-guard fixture to expect the normalized `emergency: false` field (`4f2b2cbc`), `npm test -- --reporter=dot` passed all 5,932 tests across 437 files.
-
-The callable uses Firestore transactions over shared session/navigation state
-and writes vessel-specific fuel, charge, jump state, transition, and revision
-fields in one transaction; document conflicts cause Firestore to retry against
-the latest state. The callable mock suite covers transaction callback retry
-for a damaged-drive roll, but does not simulate two different ships jumping
-concurrently against a Firestore emulator. Treat concurrent-vessel atomicity
-as code-path-reviewed here and include it in the parent's independent callable
-review.
-
-Local tests, the synthetic rendered harness, and server callable tests do not
-prove ordinary production gameplay or a deployed release. The parent must
-complete the independent exact-candidate authority review and release gates.
+These checks establish local implementation and rendered behavior, not a
+deployed release or ordinary production gameplay. The parent owns those gates.
