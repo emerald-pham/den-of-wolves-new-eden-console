@@ -434,3 +434,15 @@ jump failure: after one ship commits, the other retries against its observer
 log and reads the wrong arrival entry. The jump owner is repairing this with
 the ten review findings. Concurrent gameplay remains unproven until the
 actual transaction test succeeds on the repaired candidate.
+
+Test-only `bd988886` adds the actual Firestore concurrency harness
+`scripts/test-pc05-jump-concurrency.emulator.mjs`. Its worker run produced two
+intentional failures: same-origin arrival selection after a real transaction
+retry, and different-origin shared navigation revision **1 instead of 42**.
+The latter first passed independent position, fuel, charge, vessel revision,
+event, receipt, group, discovery and exact-replay assertions. The harness
+overlaps real transaction callbacks and invokes the compiled jump callable;
+it does not replace Firestore transactions with mocks. Run it again after
+jump repair using the configured isolated emulator slot. Its original slot 3
+reservation and configuration have been released. A4 independent follow-up
+is now checking `dfc8ca78` while the jump owner repairs the failing cases.
