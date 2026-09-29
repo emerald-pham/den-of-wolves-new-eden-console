@@ -2423,14 +2423,20 @@ it('opens one pursuit emergency decision when pursuit reaches 10 and blocks late
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     currentTurn: 3,
     phase: 'active',
-    pursuitEmergencyWindow: result.pursuitEmergencyWindow,
+    pursuitEmergencyWindow: {
+      type: 'pursuit-emergency-window', status: 'awaiting-gm-decision', cycle: 3,
+      openedAt: '2026-09-06T12:20:07.000Z',
+    },
   }));
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.not.objectContaining({
     gameOutcome: expect.anything(),
   }));
   expect(mock.set).toHaveBeenCalledWith(
     'sessions/s1/serverState/navigation',
-    expect.objectContaining({ pursuitGroups: { 'fleet-1': 10, 'fleet-2': 4 }, revision: 9 }),
+    expect.objectContaining({
+      pursuitGroups: { 'fleet-1': 10, 'fleet-2': 4 }, revision: 9,
+      pursuitEmergencyWindow: result.pursuitEmergencyWindow,
+    }),
     { mergeFields: expect.arrayContaining(['pursuitGroups', 'revision']) },
   );
   expect(mock.set).toHaveBeenCalledWith(

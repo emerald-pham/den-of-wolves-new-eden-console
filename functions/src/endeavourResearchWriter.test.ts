@@ -500,11 +500,32 @@ describe('Endeavour Team research writer', () => {
       openAirspaceEndsAt: '2099-09-23T12:15:00.000Z',
       airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
     };
+    session.pursuitEmergencyWindow = {
+      type: 'pursuit-emergency-window', status: 'awaiting-gm-decision', cycle: 3,
+      openedAt: '2026-09-28T12:00:00.000Z',
+    };
     const replay = await advanceEndeavourResearchTrack.run(request(oreCommand));
     expect(replay).toEqual({ ...first, status: 'replayed' });
     expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
     expect(mock.documents.get('sessions/s1/serverState/endeavourResearch')).toEqual({ reactor: 1 });
     expect(mock.documents.get('sessions/s1')).toMatchObject({ shipResources: { shepherd: { ore: 5 } } });
+  });
+
+  it.each([
+    ['pending', {
+      type: 'pursuit-emergency-window', status: 'awaiting-gm-decision', cycle: 3,
+      openedAt: '2026-09-28T12:00:00.000Z',
+    }],
+    ['malformed', { type: 'pursuit-emergency-window', status: 'offered', cycle: 3 }],
+  ])('blocks a fresh research choice while the pursuit decision is %s', async (_label, pursuitEmergencyWindow) => {
+    mock.documents.get('sessions/s1')!.pursuitEmergencyWindow = pursuitEmergencyWindow;
+
+    await expect(advanceEndeavourResearchTrack.run(request(command)))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.documents.has('sessions/s1/commandReceipts/research-1')).toBe(false);
   });
 
   it('rejects request-id collisions instead of exposing another research result', async () => {

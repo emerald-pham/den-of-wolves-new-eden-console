@@ -231,6 +231,10 @@ describe('Endeavour ECM Device writer', () => {
   it('replays the same actor and command without reducing pursuit or writing another event', async () => {
     await activateEndeavourEcmDevice.run(request(command));
     const writesBeforeReplay = mock.set.mock.calls.length + mock.create.mock.calls.length + mock.update.mock.calls.length;
+    mock.documents.get('sessions/s1')!.pursuitEmergencyWindow = {
+      type: 'pursuit-emergency-window', status: 'awaiting-gm-decision', cycle: 3,
+      openedAt: '2026-09-28T12:00:00.000Z',
+    };
 
     await expect(activateEndeavourEcmDevice.run(request(command))).resolves.toMatchObject({ status: 'replayed' });
 
@@ -239,6 +243,27 @@ describe('Endeavour ECM Device writer', () => {
     expect(mock.set.mock.calls.length + mock.create.mock.calls.length + mock.update.mock.calls.length)
       .toBe(writesBeforeReplay);
     expect([...mock.documents.keys()].filter((path) => path.includes('/fleetGroupEvents/'))).toHaveLength(1);
+  });
+
+  it.each([
+    ['pending', {
+      type: 'pursuit-emergency-window', status: 'awaiting-gm-decision', cycle: 3,
+      openedAt: '2026-09-28T12:00:00.000Z',
+    }],
+    ['malformed', { type: 'pursuit-emergency-window', status: 'offered', cycle: 3 }],
+  ])('blocks a fresh activation while the pursuit decision is %s', async (_label, pursuitEmergencyWindow) => {
+    mock.documents.get('sessions/s1')!.pursuitEmergencyWindow = pursuitEmergencyWindow;
+
+    await expect(activateEndeavourEcmDevice.run(request(command)))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+
+    expect(mock.documents.get('sessions/s1/serverState/navigation'))
+      .toMatchObject({ pursuitGroups: { 'fleet-1': 8, 'fleet-2': 9 }, revision: 11 });
+    expect(mock.documents.has('sessions/s1/serverState/endeavourEcmDevice')).toBe(false);
+    expect(mock.documents.has('sessions/s1/commandReceipts/ecm-use-1')).toBe(false);
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.create).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
   });
 
   it.each([

@@ -116,7 +116,7 @@ it('hydrates only canonical shuttle-control entries from the member session proj
   });
 });
 
-it('hydrates only a validated public pursuit-emergency decision window', () => {
+it('hydrates only the privacy-safe pursuit-emergency marker from the member-readable session', () => {
   const valid = sessionFrom('pursuit-window', {
     ...sessionData(8),
     pursuitEmergencyWindow: {
@@ -126,8 +126,10 @@ it('hydrates only a validated public pursuit-emergency decision window', () => {
   });
   expect(valid.pursuitEmergencyWindow).toEqual({
     type: 'pursuit-emergency-window', status: 'offered', cycle: 3,
-    navigationRevision: 42, groupIds: ['fleet-1'], openedAt: '2026-09-28T12:00:00.000Z',
+    openedAt: '2026-09-28T12:00:00.000Z',
   });
+  expect(valid.pursuitEmergencyWindow).not.toHaveProperty('navigationRevision');
+  expect(valid.pursuitEmergencyWindow).not.toHaveProperty('groupIds');
   expect(sessionFrom('malformed-pursuit-window', {
     ...sessionData(8),
     pursuitEmergencyWindow: {
