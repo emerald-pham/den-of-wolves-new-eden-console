@@ -92,6 +92,9 @@ const MALIADE_REPAIR_REQUEST_ADDITIONS = Object.freeze([
 // callable known to consume it; unknown production modules fail closed below.
 const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
   // PC05 source audit includes transitive helper consumers and re-exported callables.
+  'functions/src/airspaceClosureTaskHandlers.ts': [
+    'parkShuttlesAtAirspaceClosure',
+  ],
   'functions/src/gameSetup.ts': [
     'transferBaseCapybaraCargo', 'readPrivateScoutResult', 'listPendingScoutRequests',
     'resolvePendingScoutRequest', 'createSession', 'confirmSetup',
