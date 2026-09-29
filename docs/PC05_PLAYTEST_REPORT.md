@@ -527,3 +527,22 @@ selector tests pass. From actual deployed `0ba386f5` with verification baseline
 Functions**, reports no unknown files, and confirms both baselines are
 ancestors. These are candidate checks. Exact final review, the full release
 gates, deployment and ordinary gameplay proof remain pending.
+
+Follow-up review of `13888388` found that a GM-private deletion arriving before
+the public marker deletion could retain the cached authority until the second
+listener fired. It also reproduced 139 selected Functions and required the
+receipt to distinguish the ECM activation change from the unaffected workspace
+reader. Test-first `62764dee` reproduces the protected-first clearing race,
+both attach and clear orders, the exact ECM writer mapping, and the release
+count. Production `824b04a3` removes omitted private authority before matching,
+invalidates a previously joined buffered authority when its public marker
+clears, and narrows the exact pending-rerole navigation transition to its real
+projection consumers. The ECM workspace reader does not import or call the
+changed `playerShipId` projection path, so it is correctly excluded; activation
+remains selected through its own pause-guard change.
+
+The focused App run now passes **77/77**, the selector passes **87/87**, and
+typecheck passes. The exact actual-baseline selector again reports Hosting,
+Firestore, **138 unique named Functions**, no unknown files, current tip and
+both ancestry checks true. This repaired commit still needs the reviewer's
+exact follow-up and refreshed full release gates before release.
