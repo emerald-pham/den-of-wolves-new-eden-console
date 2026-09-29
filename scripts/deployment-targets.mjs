@@ -549,7 +549,7 @@ function functionExports(source) {
 // must be reconciled if the candidate changes before its first deployment.
 const PC05_INDEX_HELPER_TRANSITION = Object.freeze({
   before: 'c3e2411d0784be6acdd7402325475bcbd78d410984e86261476b0010730eed64',
-  after: '9349834cecdf4211b6162c858746da6b99b54287563023048771fff684063999',
+  after: '1ff0b26cd7910c0d441783af701386d606ef92a859473308676c758c27747cfc',
   consumers: [
     'createSession', 'confirmSetup', 'transferShuttleControlCommand',
     'transferShuttleCargoCommand', 'rechargeHostConsoleFromShuttle', 'repairConsolesFromBlacksmith',
@@ -573,6 +573,7 @@ const PC05_INDEX_HELPER_TRANSITION = Object.freeze({
     'publishAdmiralDirectiveCommand', 'recordPresidentActionCommand', 'updatePoliticalCapital',
     'setFleetRedAlert', 'publishPressDispatch', 'dismissPressDispatch',
     'repairAllShipDamage', 'rollbackMaintenance',
+    'getWolfCommanderTargeting', 'applyWolfCommanderTargetRerolls', 'finishWolfCommanderTargetingRerolls',
   ],
 });
 
