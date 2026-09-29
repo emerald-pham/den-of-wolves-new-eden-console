@@ -38,6 +38,7 @@ export function createJumpShipAttempt(shipId, destination, options = {}) {
 }
 export async function jumpShip() { return { status: 'jumped' }; }
 export function isJumpShipOutcomeUncertain() { return false; }
+export async function advanceTurn() { return {}; }
 `;
 
 const server = await createServer({
@@ -88,6 +89,9 @@ try {
         await page.getByRole('button', { name: 'Emergency jump to 5143' }).waitFor();
         assert.equal(await page.getByRole('button', { name: 'Emergency jump to 5143' }).isEnabled(), true,
           `${name}/${motion}: pursuit-10 emergency action should be available after destination lock`);
+        await page.getByRole('button', { name: 'Offer emergency jump' }).click();
+        await page.locator('.pursuit-emergency-window [role="status"]')
+          .getByText('Emergency jump offered to the at-risk fleet groups.').waitFor();
         await page.getByRole('button', { name: 'Check failed jumps' }).click();
         try {
           await page.getByText('UNPRINTED DESTINATION').waitFor({ timeout: 5_000 });
@@ -102,8 +106,11 @@ try {
           const drive = document.querySelector('.jump-drive');
           if (!drive) throw new Error('The production Jump Drive console did not render.');
           const driveBounds = drive.getBoundingClientRect();
+          const pursuit = document.querySelector('.pursuit-emergency-window');
+          if (!pursuit) throw new Error('The production pursuit emergency decision panel did not render.');
+          const pursuitBounds = pursuit.getBoundingClientRect();
           const controls = [...document.querySelectorAll(
-            '.jump-failure-panel button, .jump-failure-panel select, .jump-drive button',
+            '.jump-failure-panel button, .jump-failure-panel select, .jump-drive button, .pursuit-emergency-window button',
           )].map((control) => {
             const bounds = control.getBoundingClientRect();
             return {
@@ -118,6 +125,7 @@ try {
             motion: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'reduce' : 'full',
             panel: { left: panelBounds.left, right: panelBounds.right, width: panelBounds.width },
             drive: { left: driveBounds.left, right: driveBounds.right, width: driveBounds.width },
+            pursuit: { left: pursuitBounds.left, right: pursuitBounds.right, width: pursuitBounds.width },
             failures: panel.querySelectorAll('.jump-failure-panel__item').length,
             controls,
             landscapeGap: getComputedStyle(panel).rowGap,
@@ -131,6 +139,8 @@ try {
           `${name}/${motion}: panel crosses viewport bounds ${JSON.stringify(layout.panel)}`);
         assert.ok(layout.drive.left >= 0 && layout.drive.right <= width,
           `${name}/${motion}: Jump Drive console crosses viewport bounds ${JSON.stringify(layout.drive)}`);
+        assert.ok(layout.pursuit.left >= 0 && layout.pursuit.right <= width,
+          `${name}/${motion}: pursuit emergency panel crosses viewport bounds ${JSON.stringify(layout.pursuit)}`);
         for (const control of layout.controls) {
           assert.ok(control.left >= 0 && control.right <= width,
             `${name}/${motion}: control crosses viewport bounds ${JSON.stringify(control)}`);
@@ -138,7 +148,7 @@ try {
         }
         if (name === 'short-landscape') assert.equal(layout.landscapeGap, '6.4px');
         assert.deepEqual(pageErrors, [], `${name}/${motion}: browser errors`);
-        console.log(`PASS ${name} ${width}x${height} ${motion}: current failures and all controls fit`);
+        console.log(`PASS ${name} ${width}x${height} ${motion}: emergency decision, failures, and all controls fit`);
       } finally {
         await context.close();
       }
