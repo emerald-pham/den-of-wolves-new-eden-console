@@ -401,3 +401,17 @@ normal and reduced motion for both ContactPlot and ShipPlot. The checks verify
 hidden initial names, acquisition at the sweep, refresh and changed tracks,
 and paired name/contact opacity through and after fading. These are local
 production-component checks, not ordinary deployed gameplay evidence.
+
+### Jump review repair boundary
+
+Independent review of `a6885240` is **not clear**. Ten uncovered cases require
+repair: pursuit-10 emergency access before terminalization; malformed stored
+jump authority; exact failure identity; full available-fuel consumption under
+A2; emergency projection and uncertain-result retry; atomic mutiny and receipt
+replay; duplicate already-damaged drive consequences; shared navigation revision
+monotonicity; stale callable replies; and preservation of an adjudicable failure
+after an uncharged denial. The original jump owner is implementing focused
+regressions and repairs in its preserved checkout. No release claim follows
+from the earlier passing tests. The independent reviewer found no additional
+private jump-record leak and confirmed retry-stable random draws by source
+inspection; actual concurrent emulator evidence remains to be gathered.
