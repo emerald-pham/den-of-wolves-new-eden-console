@@ -92,9 +92,6 @@ const MALIADE_REPAIR_REQUEST_ADDITIONS = Object.freeze([
 // callable known to consume it; unknown production modules fail closed below.
 const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
   // PC05 source audit includes transitive helper consumers and re-exported callables.
-  'functions/src/airspaceClosureTaskHandlers.ts': [
-    'parkShuttlesAtAirspaceClosure',
-  ],
   'functions/src/gameSetup.ts': [
     'transferBaseCapybaraCargo', 'readPrivateScoutResult', 'listPendingScoutRequests',
     'resolvePendingScoutRequest', 'createSession', 'confirmSetup',
@@ -1306,11 +1303,35 @@ function reconnectCommandErrorImpacts(before, after, cwd, sourceAtRevision) {
   return ['joinSession', 'resumeSession', 'refreshPresence'];
 }
 
+function airspaceClosureTaskHandlerImpacts(before, after, cwd, sourceAtRevision) {
+  const file = 'functions/src/airspaceClosureTaskHandlers.ts';
+  const readAt = (revision) => sourceAtRevision ? sourceAtRevision(revision, file)
+    : execFileSync('git', ['show', `${revision}:${file}`], {
+      encoding: 'utf8', cwd, stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  const previous = readAt(before);
+  const current = readAt(after);
+  const explicitPrivateInvoker = "    invoker: 'private',\n";
+  const privateDefaultComment =
+    '    // Task Queue functions are private when invoker is omitted. Keeping the\n' +
+    '    // default also avoids an unnecessary IAM rewrite during deployment.\n';
+  if (previous.split(explicitPrivateInvoker).length !== 2 ||
+      current.split(privateDefaultComment).length !== 2 ||
+      previous.replace(explicitPrivateInvoker, privateDefaultComment) !== current) {
+    throw new Error('Cannot safely map airspace closure task-handler changes outside the exact private-invoker deployment repair.');
+  }
+  return ['parkShuttlesAtAirspaceClosure'];
+}
+
 function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }) {
   const runtimeFiles = files.map(normalizeFile).filter((file) =>
     file.startsWith('functions/src/') && !isTestFile(file) && /\.(?:ts|js|mjs|cjs)$/.test(file));
   const selected = new Set();
   for (const file of runtimeFiles) {
+    if (file === 'functions/src/airspaceClosureTaskHandlers.ts') {
+      for (const name of airspaceClosureTaskHandlerImpacts(before, after, cwd, sourceAtRevision)) selected.add(name);
+      continue;
+    }
     if (file === 'functions/src/commandErrors.ts') {
       for (const name of reconnectCommandErrorImpacts(before, after, cwd, sourceAtRevision)) selected.add(name);
       continue;
