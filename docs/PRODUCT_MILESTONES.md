@@ -77,6 +77,19 @@ At a completed checkpoint boundary, record its evidence and continue to the
 next assigned checkpoint under this authorization; do not wait for UI review.
 Later owner feedback enters the normal bounded cooldown process.
 
+### PC05 released — 2026-09-29
+
+PC05 is complete in build **0.5.57** at exact main commit
+`4f2cd9a8c03e8970eae5dd9ad284c855cdb2d2b7`. Its 49 assigned prompts move the
+catalog to **507/751 done and 49/293 baseline closures**. The single reconciled
+candidate CI run `36636882417`, exact-main deployment `36639176688`, independent
+exact-candidate review, responsive release gates and ordinary authorized
+production play passed. Standing authorization accepts the checkpoint; the
+[PC05 report](PC05_PLAYTEST_REPORT.md) and [acceptance
+matrix](PC05_ACCEPTANCE_MATRIX.md) preserve the technical and gameplay proof.
+Optional later feedback follows the cooldown process while PC06 proceeds under
+the same autonomous execution policy.
+
 ## How the campaign runs
 
 This is a trimmed Shape Up loop. **Scope is the limit, not a six-week clock.**

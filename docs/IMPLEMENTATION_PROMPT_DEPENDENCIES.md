@@ -195,7 +195,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 097 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Audit the emergency timer pause slice. |
 | 098 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Make phase expiry idempotent. |
 | 099 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Gate Team actions. |
-| 100 | PRESERVE | partial | 113;321;212 | none | none | none | none | none | none | none | E-100-COORDINATION-METADATA;E-AUDIT-100;E-100-COORDINATION-GATE-MATRIX | M2 | Gate Coordination actions. |
+| 100 | PRESERVE | done | 113;321;212 | none | none | none | none | none | none | none | E-100-COORDINATION-METADATA;E-AUDIT-100;E-100-COORDINATION-GATE-MATRIX;E-PC05-FINAL-RELEASE-20260929 | M2 | Gate Coordination actions. |
 | 101 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Announce Team completion. |
 | 102 | PRESERVE | done | none | none | none | none | none | none | none | none | E-102-COORDINATION-COMPLETION | M2 | Announce Coordination completion. |
 | 103 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Initialize the next turn. |
@@ -215,12 +215,12 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 113 | NEW | done | 111;361 | none | none | none | none | none | none | 164 | E-AUDIT-113;E-164-TRANSFER-RELATED | M2 | Resolve shuttle-mediated transfers. |
 | 114 | PRESERVE | done | 161;162;234;249 | none | none | none | none | none | none | 121;235;241;242;246;250;571;591 | E-AUDIT-114;E-AUDIT-114-ORDER;E-AUDIT-114-RELATED | M2 | Register vessel-specific maintenance order. |
 | 115 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Resolve damaged Storage. |
-| 116 | PRESERVE | partial | 117;162 | none | none | none | none | none | none | none | E-AUDIT-116;E-PC05-MAINTENANCE-CANDIDATE | M2 | Select food and water rations independently. |
-| 117 | DECISION | partial | none | none | none | none | none | none | none | none | E-117-OWNER-DECISION-PENDING;E-PC05-RATIONS-JUMP-SOURCE-DECISIONS;E-PC05-MAINTENANCE-CANDIDATE | M2 | Resolve the ration-table wording conflict. |
-| 118 | PRESERVE | partial | 116;162 | none | none | none | none | none | none | none | E-AUDIT-118;E-PC05-RATIONS-JUMP-SOURCE-DECISIONS;E-PC05-MAINTENANCE-CANDIDATE | M2 | Swap population-dependent ration tables. |
-| 119 | PRESERVE | partial | 111;116;117 | none | none | none | none | none | none | none | E-AUDIT-119;E-PC05-MAINTENANCE-CANDIDATE | M2 | Resolve the two-dice unrest check. |
-| 120 | PRESERVE | partial | 119;130 | none | none | none | none | none | none | none | E-AUDIT-120;E-PC05-MAINTENANCE-CANDIDATE | M2 | Resolve a riot. |
-| 121 | EXTEND | partial | 114;120 | none | none | none | none | none | none | none | E-AUDIT-121;E-PC05-MAINTENANCE-CANDIDATE | M2 | Resolve small-ship maintenance loss. |
+| 116 | PRESERVE | done | 117;162 | none | none | none | none | none | none | none | E-AUDIT-116;E-PC05-MAINTENANCE-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M2 | Select food and water rations independently. |
+| 117 | DECISION | done | none | none | none | none | none | none | none | none | E-117-OWNER-DECISION-PENDING;E-PC05-RATIONS-JUMP-SOURCE-DECISIONS;E-PC05-MAINTENANCE-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M2 | Resolve the ration-table wording conflict. |
+| 118 | PRESERVE | done | 116;162 | none | none | none | none | none | none | none | E-AUDIT-118;E-PC05-RATIONS-JUMP-SOURCE-DECISIONS;E-PC05-MAINTENANCE-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M2 | Swap population-dependent ration tables. |
+| 119 | PRESERVE | done | 111;116;117 | none | none | none | none | none | none | none | E-AUDIT-119;E-PC05-MAINTENANCE-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M2 | Resolve the two-dice unrest check. |
+| 120 | PRESERVE | done | 119;130 | none | none | none | none | none | none | none | E-AUDIT-120;E-PC05-MAINTENANCE-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M2 | Resolve a riot. |
+| 121 | EXTEND | done | 114;120 | none | none | none | none | none | none | none | E-AUDIT-121;E-PC05-MAINTENANCE-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M2 | Resolve small-ship maintenance loss. |
 | 122 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Enforce Reactor capacity. |
 | 122a | REPAIR | done | 122-125;128;138 | none | none | none | none | REACTOR-REPAIR | none | none | E-122A;E-REACTOR;E-122A-VERIFIED | M2 | Confirm Reactor power-up before authoritative mutation. |
 | 123 | EXTEND | done | 122;162 | none | none | none | none | none | none | none | E-AUDIT-123;E-123-VERIFIED | M2 | Apply vessel-specific damaged-Reactor penalties. |
@@ -234,10 +234,10 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 131 | PRESERVE | done | 130 | none | none | none | none | none | none | none | E-AUDIT-131;E-131-VERIFIED | M2 | Destroy a ship on empty-deck draw. |
 | 132 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Recycle AEGIS Armoured Hull. |
 | 133 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Step discrete population tracks. |
-| 134 | REPAIR | partial | 118 | none | none | none | none | none | none | none | E-AUDIT-134;E-PC05-MAINTENANCE-CANDIDATE | M2 | Alert starred population thresholds without a multi-GM deadlock. |
-| 135 | PRESERVE | partial | 119;120 | none | none | none | none | none | none | none | E-AUDIT-135;E-PC05-MAINTENANCE-CANDIDATE | M2 | Add two unrest at population zero. |
-| 136 | NEW | partial | 119 | none | none | none | none | none | none | none | E-AUDIT-136;E-PC05-MAINTENANCE-CANDIDATE | M2 | Enter mutiny at unrest 8. |
-| 137 | NEW | partial | 136 | none | none | none | none | none | none | none | E-AUDIT-137;E-PC05-MAINTENANCE-CANDIDATE | M2 | Resolve replacement-captain mutiny recovery. |
+| 134 | REPAIR | done | 118 | none | none | none | none | none | none | none | E-AUDIT-134;E-PC05-MAINTENANCE-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M2 | Alert starred population thresholds without a multi-GM deadlock. |
+| 135 | PRESERVE | done | 119;120 | none | none | none | none | none | none | none | E-AUDIT-135;E-PC05-MAINTENANCE-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M2 | Add two unrest at population zero. |
+| 136 | NEW | done | 119 | none | none | none | none | none | none | none | E-AUDIT-136;E-PC05-MAINTENANCE-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M2 | Enter mutiny at unrest 8. |
+| 137 | NEW | done | 136 | none | none | none | none | none | none | none | E-AUDIT-137;E-PC05-MAINTENANCE-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M2 | Resolve replacement-captain mutiny recovery. |
 | 138 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Make maintenance atomic and retry-safe. |
 | 138a | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Bound maintenance rollback. |
 | 139 | EXTEND | done | none | none | none | none | none | none | none | none | none | M2 | Publish maintenance results by audience. |
@@ -292,14 +292,14 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 181 | NEW | missing | 166;178;260;262;321;322;323;328;392;396;422;449;450;451;452 | none | none | none | none | none | none | none | E-AUDIT-181 | M3;M5 | Create the Wing Commander workspace. |
 | 182 | EXTEND | done | 165 | none | none | none | none | none | none | none | E-AUDIT-182;E-182-FAIL-CLOSED-COMBAT-CONSOLES | M3;M5 | Complete AEGIS combat-console registration. |
 | 183 | PRESERVE | done | 161;162 | none | none | none | none | none | none | none | E-AUDIT-183;E-183-VERIFIED | M3;M5 | Gate Dione by roster. |
-| 184 | PRESERVE | partial | 116;118 | none | none | none | none | none | none | none | E-AUDIT-184;E-PC05-RATIONS-JUMP-SOURCE-DECISIONS;E-PC05-MAINTENANCE-CANDIDATE | M3;M5 | Resolve Dione rations and thresholds. |
+| 184 | PRESERVE | done | 116;118 | none | none | none | none | none | none | none | E-AUDIT-184;E-PC05-RATIONS-JUMP-SOURCE-DECISIONS;E-PC05-MAINTENANCE-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M3;M5 | Resolve Dione rations and thresholds. |
 | 185 | PRESERVE | done | 115;183 | none | none | none | none | none | none | none | E-AUDIT-185;E-VESSEL-STORAGE-VERIFIED | M3;M5 | Resolve Dione Storage. |
 | 186 | PRESERVE | done | 122;125 | none | none | none | none | none | none | none | E-AUDIT-186;E-VESSEL-REACTORS-VERIFIED | M3;M5 | Resolve the Dione Reactor. |
 | 187 | PRESERVE | done | 127;361 | none | none | none | none | none | none | none | E-AUDIT-187;E-187-VERIFIED | M3;M5 | Resolve the Dione Shuttle Bay. |
 | 188 | NEW | done | 122;125;183 | none | none | none | none | none | none | none | E-AUDIT-188 | M3;M5 | Resolve Dione Hydroponics. |
 | 189 | NEW | done | 122;125;183 | none | none | none | none | none | none | none | E-AUDIT-189 | M3;M5 | Resolve Dione Water Reclamation. |
 | 190 | NEW | done | 167 | none | none | none | none | none | none | none | E-AUDIT-190 | M3;M5 | Draw and own Dione VIP cards. |
-| 191 | NEW | partial | 119;190 | none | none | none | none | none | none | none | E-AUDIT-191;E-PC05-MAINTENANCE-CANDIDATE | M3;M5 | Spend a VIP unrest reroll. |
+| 191 | NEW | done | 119;190 | none | none | none | none | none | none | none | E-AUDIT-191;E-PC05-MAINTENANCE-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M3;M5 | Spend a VIP unrest reroll. |
 | 192 | NEW | done | 182;264 | none | none | none | none | none | none | none | E-AUDIT-192;E-192-MALIADES-LAUNCH | M3;M5 | Gate Dione's Fighter Bay and Maliades. |
 | 193 | NEW | done | 166 | none | none | none | none | none | none | none | E-AUDIT-193;E-FLEET-CAPTAIN-WORKSPACES-VERIFIED | M3;M5 | Complete the Dione Captain workspace. |
 | 193a | NEW | done | 166;183 | none | none | none | none | none | none | none | E-AUDIT-193A;E-193A-DIONE-ENGINEER-WORKSPACE | M3;M5 | Complete the Dione Engineer workspace. |
@@ -311,7 +311,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 198 | NEW | done | 114;122;125;194 | none | none | none | none | none | none | none | E-AUDIT-198;E-198-230-PRODUCTION | M3;M5 | Resolve Icebreaker Hydroponics. |
 | 199 | NEW | done | 114;122;125;194 | none | none | none | none | none | none | none | E-AUDIT-199;E-198-230-PRODUCTION | M3;M5 | Resolve Icebreaker Water Reclamation. |
 | 200 | NEW | done | 114;122;125;194 | none | none | none | none | none | none | none | E-AUDIT-200;E-198-230-PRODUCTION | M3;M5 | Resolve Mining Drone Control. |
-| 201 | PRESERVE | partial | 177;287-304 | none | none | none | none | none | none | none | E-AUDIT-201;E-PC05-JUMP-CANDIDATE | M3;M5 | Audit the Icebreaker Jump Drive. |
+| 201 | PRESERVE | done | 177;287-304 | none | none | none | none | none | none | none | E-AUDIT-201;E-PC05-JUMP-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M3;M5 | Audit the Icebreaker Jump Drive. |
 | 202 | NEW | missing | 201 | none | none | none | none | none | none | none | E-AUDIT-202 | M3;M5 | Resolve the Ram Scoop. |
 | 203 | NEW | done | 166 | none | none | none | none | none | none | none | E-AUDIT-203;E-FLEET-CAPTAIN-WORKSPACES-VERIFIED | M3;M5 | Complete the Icebreaker Captain workspace. |
 | 203a | NEW | done | 166;194;361 | none | none | none | none | none | none | none | E-AUDIT-203A | M3;M5 | Complete the Icebreaker Engineer workspace. |
@@ -323,9 +323,9 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 208 | NEW | done | 122;125;204 | none | none | none | none | none | none | none | E-AUDIT-208;E-198-230-PRODUCTION | M3;M5 | Resolve Shepherd Water Reclamation. |
 | 209 | NEW | done | 122;125;204 | none | none | none | none | none | none | none | E-AUDIT-209;E-198-230-PRODUCTION | M3;M5 | Resolve both Shepherd Advanced Hydroponics consoles. |
 | 210 | PRESERVE | missing | 177;287-304 | none | none | none | none | none | none | none | E-AUDIT-210 | M3;M5 | Audit the Shepherd Jump Drive. |
-| 211 | NEW | partial | 165;204;267 | none | none | none | none | none | none | none | E-AUDIT-211;E-211-ENDEAVOUR-RESEARCH-TRACKS;E-211-ENDEAVOUR-RESEARCH-WRITER | M3;M5 | Encode Endeavour console-upgrade research tracks. |
-| 212 | NEW | partial | 211 | none | none | none | none | none | none | none | E-AUDIT-212;E-212-ENDEAVOUR-RESEARCH-CADENCE;E-212-ENDEAVOUR-RESEARCH-WRITER | M3;M5 | Enforce Endeavour research cadence. |
-| 213 | NEW | partial | 211 | none | none | none | none | none | none | none | E-AUDIT-213;E-213-ECM-DEVICE;E-PC01-CANDIDATE | M3;M5 | Build and use the ECM Device. |
+| 211 | NEW | done | 165;204;267 | none | none | none | none | none | none | none | E-AUDIT-211;E-211-ENDEAVOUR-RESEARCH-TRACKS;E-211-ENDEAVOUR-RESEARCH-WRITER;E-PC05-FINAL-RELEASE-20260929 | M3;M5 | Encode Endeavour console-upgrade research tracks. |
+| 212 | NEW | done | 211 | none | none | none | none | none | none | none | E-AUDIT-212;E-212-ENDEAVOUR-RESEARCH-CADENCE;E-212-ENDEAVOUR-RESEARCH-WRITER;E-PC05-FINAL-RELEASE-20260929 | M3;M5 | Enforce Endeavour research cadence. |
+| 213 | NEW | done | 211 | none | none | none | none | none | none | none | E-AUDIT-213;E-213-ECM-DEVICE;E-PC01-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M3;M5 | Build and use the ECM Device. |
 | 214 | NEW | partial | 211 | none | none | none | none | none | none | none | E-AUDIT-214;E-214-WOLF-DETECTOR-ALLOWANCE | M3;M5 | Build and use the Wolf Agent Detector. |
 | 215 | NEW | done | 166 | none | none | none | none | none | none | none | E-AUDIT-215;E-FLEET-CAPTAIN-WORKSPACES-VERIFIED | M3;M5 | Complete the Shepherd Captain workspace. |
 | 215a | NEW | done | 166;204;361 | none | none | none | none | none | none | none | E-AUDIT-215A;E-215A-SHEPHERD-ENGINEER-WORKSPACE | M3;M5 | Complete the Shepherd Engineer workspace. |
@@ -414,24 +414,24 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 284 | NEW | done | 283;006;286 | none | none | none | none | none | none | none | E-AUDIT-284;E-284-GROUP-PRODUCER;E-284-DISCOVERY-BOUNDARY | M4;M5 | Redact unknown systems. |
 | 285 | NEW | done | 281 | none | none | none | none | none | none | none | E-AUDIT-285;E-285-POSITION | M4;M5 | Model per-ship position. |
 | 286 | NEW | done | 285 | none | none | none | none | none | none | none | E-AUDIT-286;E-286-FLEET-GROUP | M4;M5 | Model fleet-group identity. |
-| 287 | PRESERVE | partial | 281;285 | none | none | OWNER-JUMP-DISTANCE-BAND-CUTOFFS | none | none | none | none | E-AUDIT-287;E-287-GRAPH-CONSOLIDATION;E-287-JUMP-DISTANCE-OWNER;E-PC05-JUMP-CANDIDATE | M4;M5 | Calculate jump distance. |
-| 288 | PRESERVE | partial | 162;287 | none | none | none | none | none | none | none | E-AUDIT-288;E-PC05-JUMP-CANDIDATE | M4;M5 | Resolve per-ship jump costs. |
-| 289 | PRESERVE | partial | 177;287 | none | none | none | none | none | none | none | E-AUDIT-289;E-PC05-JUMP-CANDIDATE | M4;M5 | Validate Jump Drive readiness. |
-| 290 | PRESERVE | partial | 287;103 | none | none | none | none | none | none | none | E-AUDIT-290;E-PC05-JUMP-CANDIDATE | M4;M5 | Enforce one jump per ship per turn. |
-| 291 | PRESERVE | partial | 288;167 | none | none | none | none | none | none | none | E-AUDIT-291;E-PC05-JUMP-CANDIDATE | M4;M5 | Reserve jump fuel atomically. |
+| 287 | PRESERVE | done | 281;285 | none | none | OWNER-JUMP-DISTANCE-BAND-CUTOFFS | none | none | none | none | E-AUDIT-287;E-287-GRAPH-CONSOLIDATION;E-287-JUMP-DISTANCE-OWNER;E-PC05-JUMP-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M4;M5 | Calculate jump distance. |
+| 288 | PRESERVE | done | 162;287 | none | none | none | none | none | none | none | E-AUDIT-288;E-PC05-JUMP-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M4;M5 | Resolve per-ship jump costs. |
+| 289 | PRESERVE | done | 177;287 | none | none | none | none | none | none | none | E-AUDIT-289;E-PC05-JUMP-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M4;M5 | Validate Jump Drive readiness. |
+| 290 | PRESERVE | done | 287;103 | none | none | none | none | none | none | none | E-AUDIT-290;E-PC05-JUMP-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M4;M5 | Enforce one jump per ship per turn. |
+| 291 | PRESERVE | done | 288;167 | none | none | none | none | none | none | none | E-AUDIT-291;E-PC05-JUMP-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M4;M5 | Reserve jump fuel atomically. |
 | 292 | PRESERVE | done | none | none | none | none | none | none | none | none | E-292-VERIFIED | M4;M5 | Validate coordinate shape. |
 | 293 | PRESERVE | done | 281;282;285 | none | none | none | none | none | none | none | E-AUDIT-293;E-293-REACHABILITY | M4;M5 | Validate printed reachability. |
-| 294 | PRESERVE | partial | 287-293 | none | none | none | none | none | none | none | E-AUDIT-294;E-PC05-JUMP-CANDIDATE | M4;M5 | Complete an independent ship jump. |
+| 294 | PRESERVE | done | 287-293 | none | none | none | none | none | none | none | E-AUDIT-294;E-PC05-JUMP-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M4;M5 | Complete an independent ship jump. |
 | 295 | PRESERVE | done | none | none | none | none | none | none | none | none | E-295-VERIFIED | M4;M5 | Resolve unprinted coordinates. |
-| 296 | PRESERVE | partial | 289;291 | none | none | none | none | none | none | none | E-AUDIT-296;E-PC05-JUMP-CANDIDATE | M4;M5 | Resolve uncharged and fuel-starved attempts. |
-| 297 | EXTEND | partial | 289;294;130 | none | none | none | none | none | none | none | E-AUDIT-297;E-PC05-JUMP-CANDIDATE | M4;M5 | Resolve damaged-drive randomness. |
-| 298 | EXTEND | partial | 289;124 | none | none | none | none | none | none | none | E-AUDIT-298;E-PC05-JUMP-CANDIDATE | M4;M5 | Apply upgraded-drive behavior. |
-| 299 | DECISION | partial | none | none | none | none | none | none | none | none | E-299-FAILED-JUMP-DAMAGE-OWNER;E-PC05-RATIONS-JUMP-SOURCE-DECISIONS;E-PC05-JUMP-CANDIDATE | M4;M5 | Apply failed-jump damage. |
-| 300 | EXTEND | partial | 289;291 | none | none | none | none | none | none | none | E-AUDIT-300;E-PC05-JUMP-CANDIDATE | M4;M5 | Execute one emergency jump per ship. |
-| 301 | EXTEND | partial | 291;294 | none | none | none | none | none | none | none | E-AUDIT-301;E-PC05-JUMP-CANDIDATE | M4;M5 | Resolve concurrent fleet jumps. |
-| 302 | EXTEND | partial | 294;167 | none | none | none | none | none | none | none | E-AUDIT-302;E-PC05-JUMP-CANDIDATE | M4;M5 | Record every jump transition. |
-| 303 | PRESERVE | partial | 289;294 | none | none | none | none | none | none | none | E-AUDIT-303;E-PC05-JUMP-CANDIDATE | M4;M5 | Audit jump-button truthfulness. |
-| 304 | EXTEND | partial | 294;291;302 | none | none | none | none | none | none | none | E-AUDIT-304;E-PC05-JUMP-CANDIDATE | M4;M5 | Reconcile jump retries. |
+| 296 | PRESERVE | done | 289;291 | none | none | none | none | none | none | none | E-AUDIT-296;E-PC05-JUMP-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M4;M5 | Resolve uncharged and fuel-starved attempts. |
+| 297 | EXTEND | done | 289;294;130 | none | none | none | none | none | none | none | E-AUDIT-297;E-PC05-JUMP-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M4;M5 | Resolve damaged-drive randomness. |
+| 298 | EXTEND | done | 289;124 | none | none | none | none | none | none | none | E-AUDIT-298;E-PC05-JUMP-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M4;M5 | Apply upgraded-drive behavior. |
+| 299 | DECISION | done | none | none | none | none | none | none | none | none | E-299-FAILED-JUMP-DAMAGE-OWNER;E-PC05-RATIONS-JUMP-SOURCE-DECISIONS;E-PC05-JUMP-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M4;M5 | Apply failed-jump damage. |
+| 300 | EXTEND | done | 289;291 | none | none | none | none | none | none | none | E-AUDIT-300;E-PC05-JUMP-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M4;M5 | Execute one emergency jump per ship. |
+| 301 | EXTEND | done | 291;294 | none | none | none | none | none | none | none | E-AUDIT-301;E-PC05-JUMP-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M4;M5 | Resolve concurrent fleet jumps. |
+| 302 | EXTEND | done | 294;167 | none | none | none | none | none | none | none | E-AUDIT-302;E-PC05-JUMP-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M4;M5 | Record every jump transition. |
+| 303 | PRESERVE | done | 289;294 | none | none | none | none | none | none | none | E-AUDIT-303;E-PC05-JUMP-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M4;M5 | Audit jump-button truthfulness. |
+| 304 | EXTEND | done | 294;291;302 | none | none | none | none | none | none | none | E-AUDIT-304;E-PC05-JUMP-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M4;M5 | Reconcile jump retries. |
 | 305 | NEW | done | 103;485 | none | none | none | none | none | none | none | E-AUDIT-305;E-305-GROUP-FOUNDATION;E-305-CYCLE-PURSUIT | M4;M5 | Advance pursuit each cycle. |
 | 306 | NEW | done | 281;285;305 | none | none | none | none | none | none | none | E-AUDIT-306;E-306-CHART-DEPTH-PURSUIT | M4;M5 | Reduce pursuit by chart depth. |
 | 307 | NEW | partial | 286;305 | none | none | none | none | none | none | none | E-AUDIT-307;E-307-SPLIT-PURSUIT-ISOLATION | M4;M5 | Isolate pursuit by fleet group. |
@@ -448,19 +448,19 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 318 | NEW | done | 313 | none | none | none | none | none | none | none | E-AUDIT-318;E-318-CANDIDATE-DISCOVERY | M4;M5 | Track candidate discovery. |
 | 319 | NEW | done | 318 | none | none | none | none | none | none | none | E-AUDIT-319;E-319-CANDIDATE-PLAN-VERIFIED | M4;M5 | Surface the Cycle 6 planning checkpoint. |
 | 320 | PROVE | missing | 281;282;294;313;316 | none | none | none | none | none | none | none | E-AUDIT-320 | M4;M5 | Run the jump-and-system scenario. |
-| 321 | NEW | partial | 260;267;269;280 | none | none | none | none | none | none | none | E-AUDIT-321;E-321-SCOUT-ENTITLEMENTS;E-PC01-CANDIDATE | M4;M5;M8 | Define scout entitlements. |
+| 321 | NEW | done | 260;267;269;280 | none | none | none | none | none | none | none | E-AUDIT-321;E-321-SCOUT-ENTITLEMENTS;E-PC01-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M4;M5;M8 | Define scout entitlements. |
 | 322 | NEW | partial | 321;177 | none | none | none | none | none | none | none | E-AUDIT-322;E-322-STARLIGHT-FIRST-SCAN;E-CHECKPOINT-RECORDING-AUDIT-20260928 | M4;M5;M8 | Resolve Starlight's first scan. |
 | 323 | NEW | partial | 321;322 | none | none | none | none | none | none | none | E-AUDIT-323;E-323-STARLIGHT-FUELLED-SECOND-SCAN;E-CHECKPOINT-RECORDING-AUDIT-20260928 | M4;M5;M8 | Resolve Starlight's fuelled second scan. |
 | 324 | NEW | partial | 321;216 | none | none | none | none | none | none | none | E-AUDIT-324;E-324-HUMMINGBIRD-SCAN;E-CHECKPOINT-RECORDING-AUDIT-20260928 | M4;M5;M8 | Resolve Hummingbird scouting. |
-| 325 | NEW | partial | 321;267 | none | none | none | none | none | none | none | E-AUDIT-325;E-325-ENDEAVOUR-SCAN;E-PC01-CANDIDATE | M4;M5;M8 | Resolve Endeavour scouting. |
+| 325 | NEW | done | 321;267 | none | none | none | none | none | none | none | E-AUDIT-325;E-325-ENDEAVOUR-SCAN;E-PC01-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M4;M5;M8 | Resolve Endeavour scouting. |
 | 326 | NEW | partial | 321;280;177 | none | none | none | none | none | none | none | E-AUDIT-326;E-326-COMMS-SCAN;E-CHECKPOINT-RECORDING-AUDIT-20260928 | M4;M5;M8 | Resolve Comms Officer scouting. |
-| 327 | PROVE | partial | 321;285 | none | none | none | none | none | none | none | E-AUDIT-327;E-327-CURRENT-SCOUT-AUTHORITY;E-PC01-CANDIDATE | M4;M5;M8 | Measure scout range from current authority. |
-| 328 | NEW | partial | 321;327;006 | none | none | none | none | none | none | none | E-AUDIT-328;E-328-PRIVATE-SCOUT-RESULT;E-PC01-CANDIDATE | M4;M5;M8 | Deliver scout results privately. |
-| 329 | NEW | partial | 283;328 | none | none | none | none | none | none | none | E-AUDIT-329;E-329-FACILITATOR-SCOUT-REVEAL;E-PC01-CANDIDATE | M4;M5;M8 | Reveal a chart result as facilitator. |
-| 330 | NEW | partial | 313;328 | none | none | none | none | none | none | none | E-AUDIT-330;E-PC01-CANDIDATE | M4;M5;M8 | Persist player discovery notes safely. |
-| 331 | PROVE | partial | 167;328;330 | none | none | none | none | none | none | none | E-AUDIT-331;E-PC01-CANDIDATE | M4;M5;M8 | Audit scouting events. |
-| 332 | NEW | partial | 313;328 | none | none | none | none | none | none | none | E-AUDIT-332;E-PC01-CANDIDATE | M4;M5;M8 | Accumulate Deep Nebula scans privately. |
-| 333 | NEW | partial | 332 | none | none | none | none | none | none | none | E-AUDIT-333;E-PC01-CANDIDATE | M4;M5;M8 | Hide the Deep Nebula total. |
+| 327 | PROVE | done | 321;285 | none | none | none | none | none | none | none | E-AUDIT-327;E-327-CURRENT-SCOUT-AUTHORITY;E-PC01-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M4;M5;M8 | Measure scout range from current authority. |
+| 328 | NEW | done | 321;327;006 | none | none | none | none | none | none | none | E-AUDIT-328;E-328-PRIVATE-SCOUT-RESULT;E-PC01-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M4;M5;M8 | Deliver scout results privately. |
+| 329 | NEW | done | 283;328 | none | none | none | none | none | none | none | E-AUDIT-329;E-329-FACILITATOR-SCOUT-REVEAL;E-PC01-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M4;M5;M8 | Reveal a chart result as facilitator. |
+| 330 | NEW | done | 313;328 | none | none | none | none | none | none | none | E-AUDIT-330;E-PC01-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M4;M5;M8 | Persist player discovery notes safely. |
+| 331 | PROVE | done | 167;328;330 | none | none | none | none | none | none | none | E-AUDIT-331;E-PC01-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M4;M5;M8 | Audit scouting events. |
+| 332 | NEW | done | 313;328 | none | none | none | none | none | none | none | E-AUDIT-332;E-PC01-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M4;M5;M8 | Accumulate Deep Nebula scans privately. |
+| 333 | NEW | done | 332 | none | none | none | none | none | none | none | E-AUDIT-333;E-PC01-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M4;M5;M8 | Hide the Deep Nebula total. |
 | 334 | NEW | missing | 315;313;412 | none | none | none | none | none | none | none | E-AUDIT-334 | M4;M5;M8 | Apply two-system exploration rewards. |
 | 335 | NEW | missing | 315;313;334;412 | none | none | none | none | none | none | none | E-AUDIT-335 | M4;M5;M8 | Constrain Athena's Wolf-system reveal. |
 | 336 | NEW | missing | 285;286;294 | none | none | none | none | none | none | none | E-AUDIT-336 | M4;M5;M8 | Create a split after partial arrival. |
@@ -518,7 +518,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 388 | NEW | done | 265;111 | none | none | none | none | none | none | none | E-AUDIT-388;E-388-HIGHWALL-MINING | M7 | Resolve Highwall mining. |
 | 389 | NEW | missing | 265;426;433;439;440 | none | none | none | none | none | none | none | E-AUDIT-389 | M7 | Resolve Highwall combat. |
 | 390 | NEW | done | 269;111 | none | none | none | none | none | none | none | E-AUDIT-390;E-390-IMPLEMENTED | M7 | Resolve Hummingbird harvesting. |
-| 391 | NEW | partial | 267;165;124 | none | none | none | none | none | none | none | E-AUDIT-391;E-391-ENDEAVOUR-RESEARCH-LINK;E-391-FIELD-UPGRADE-INTEGRATION | M7 | Resolve Endeavour field upgrades. |
+| 391 | NEW | done | 267;165;124 | none | none | none | none | none | none | none | E-AUDIT-391;E-391-ENDEAVOUR-RESEARCH-LINK;E-391-FIELD-UPGRADE-INTEGRATION;E-PC05-FINAL-RELEASE-20260929 | M7 | Resolve Endeavour field upgrades. |
 | 392 | NEW | missing | 401 | none | none | none | none | none | none | none | E-AUDIT-392 | M7 | Apply Starlight mission bonuses. |
 | 393 | NEW | missing | 401 | none | none | none | none | none | none | none | E-AUDIT-393 | M7 | Apply Hummingbird mission bonuses. |
 | 394 | NEW | missing | 261;466 | none | none | none | none | none | none | none | E-AUDIT-394 | M7 | Resolve Pallas boarding support. |
@@ -743,10 +743,10 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 586 | EXTEND | done | none | none | none | none | none | none | none | none | E-586-VERIFIED | X | Build the roster configuration flow. |
 | 587 | EXTEND | done | none | none | none | none | none | none | none | none | E-587-VERIFIED | X | Present private casting assignments. |
 | 588 | EXTEND | done | none | none | none | none | none | none | none | none | E-588-VERIFIED | X | Present private loyalty assignment. |
-| 589 | EXTEND | partial | 586 | none | none | none | none | none | none | none | E-AUDIT-589;E-PC05-OWNER-SETUP-AND-COPY | X | Teach the table ground rules. |
+| 589 | EXTEND | done | 586 | none | none | none | none | none | none | none | E-AUDIT-589;E-PC05-OWNER-SETUP-AND-COPY;E-PC05-FINAL-RELEASE-20260929 | X | Teach the table ground rules. |
 | 589a | PRESERVE | done | none | none | none | none | none | none | none | none | E-589A-MOTION-VERIFIED | X | Audit the motion-safety gate. |
 | 589b | REPAIR | done | none | none | none | none | none | PRESENTATION-INDEPENDENT | none | none | E-589B-VERIFIED;E-PRESENTATION | X | Simplify the authenticated-session waiver's human-first copy. |
-| 590 | EXTEND | partial | 589 | none | none | none | none | none | none | none | E-AUDIT-590 | X | Teach the core game loop. |
+| 590 | EXTEND | done | 589 | none | none | none | none | none | none | none | E-AUDIT-590;E-PC05-FINAL-RELEASE-20260929 | X | Teach the core game loop. |
 | 591 | EXTEND | done | 161;162;114 | none | none | none | none | none | none | none | E-AUDIT-591 | X | Show vessel-specific maintenance help. |
 | 592 | EXTEND | done | 361 | none | none | none | none | none | none | none | E-AUDIT-592;E-592-CRAFT-HELP | X | Show craft-specific help. |
 | 593 | EXTEND | missing | 541 | none | none | none | none | none | none | none | E-AUDIT-593 | X | Show candidate preparation help. |
@@ -755,8 +755,8 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 596 | PRESERVE | done | none | none | none | none | none | none | none | none | E-596-VERIFIED | X | Display bounded changelog history. |
 | 597 | PRESERVE | done | none | none | none | none | none | none | none | none | E-597-VERIFIED | X | Complete exact disconnect confirmation. |
 | 598 | REPAIR | done | 041;042 | none | none | none | none | none | none | none | E-AUDIT-598 | X | Explain connectivity truthfully. |
-| 599 | EXTEND | partial | 586;589 | none | none | none | none | none | none | none | E-AUDIT-599 | X | Build the single-facilitator setup checklist. |
-| 600 | PROVE | partial | 590;599 | none | none | none | none | none | none | none | E-AUDIT-600 | X | Run the onboarding-to-first-action scenario. |
+| 599 | EXTEND | done | 586;589 | none | none | none | none | none | none | none | E-AUDIT-599;E-PC05-FINAL-RELEASE-20260929 | X | Build the single-facilitator setup checklist. |
+| 600 | PROVE | done | 590;599 | none | none | none | none | none | none | none | E-AUDIT-600;E-PC05-FINAL-RELEASE-20260929 | X | Run the onboarding-to-first-action scenario. |
 | 601 | EXTEND | done | none | none | none | none | none | none | none | none | E-601-UNIVERSAL-PRIMARY-STATUS | X | Keep primary status with the authenticated GM. |
 | 602 | PROVE | done | none | none | none | none | 602a:green | RETURN-REPAIR | none | none | E-602-CLOSURE;E-RETURN-REPAIR-SEQUENCE;E-602-UNIVERSAL-RETURN-PROOF | X | Prove return navigation everywhere. |
 | 602a | REPAIR | done | none | none | AUTHORITATIVE-SHUTTLE-ASSOCIATION;CONSOLE-ROUTE-ENTITLEMENT | none | none | RETURN-REPAIR | none | none | E-602A;E-RETURN-REPAIR-SEQUENCE | X | Restore shuttle-to-associated-ship return navigation. |
@@ -818,7 +818,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 652b | NEW | done | 106c;603a;652;652a | none | none | none | none | TICKER-LIFECYCLE | none | none | E-TICKER;E-AUDIT-652B | none | Keep the mobile Press ticker pinned with reversible hiding and alert expansion. |
 | 652c | EXTEND | done | 652b | none | none | none | none | TICKER-LIFECYCLE | none | 106c;603a;652;652a | E-652C-OWNER;E-652C-DEPENDENCY;E-652C-RELATED;E-652C-VERIFIED | none | Remove the ticker Hide button. |
 | 653 | EXTEND | done | none | none | none | none | none | none | none | none | none | none | Remove the ICN/Iris fleet-wide console lock. |
-| 654 | REPAIR | partial | none | M1 | none | none | none | M1-REPAIR | none | none | E-M1-REPAIR;E-M1-REPAIR-SEQUENCE;E-PC05-OWNER-SETUP-AND-COPY | M1 | Start production after a confirmed roster without treating unfilled roles as a blocker. |
+| 654 | REPAIR | done | none | M1 | none | none | none | M1-REPAIR | none | none | E-M1-REPAIR;E-M1-REPAIR-SEQUENCE;E-PC05-OWNER-SETUP-AND-COPY;E-PC05-FINAL-RELEASE-20260929 | M1 | Start production after a confirmed roster without treating unfilled roles as a blocker. |
 | 655 | REPAIR | done | none | none | none | none | none | none | none | none | none | none | Restore the Press evidence-shredder docked-cockpit warning. |
 | 656 | REPAIR | done | 034;050 | none | none | none | none | none | none | none | E-AUDIT-656 | none | Route an already-connected launcher to its current session. |
 | 657 | REPAIR | done | none | none | none | none | none | none | none | none | E-657-VERIFIED | none | Remove roadmap jargon from player-facing changelog history and future entries. |
@@ -826,7 +826,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 659 | PRESERVE | done | none | none | none | none | none | none | none | none | E-659-COPY-CONTRACT | none | Enforce in-universe player-facing copy app-wide. |
 | 660 | REPAIR | done | none | none | none | none | none | none | none | none | none | none | Make exact validation self-prepare a collision-safe emulator slot. |
 | 661 | POLISH | done | none | none | none | none | none | none | none | none | none | none | Add a safe copy-only validation fast path. |
-| 662 | DECISION | partial | none | none | none | none | none | none | none | 054;075;496;586-588 | E-662;E-PC05-OWNER-SETUP-AND-COPY | none | Resolve ordinary-start Wolf designation policy. |
+| 662 | DECISION | done | none | none | none | none | none | none | none | 054;075;496;586-588 | E-662;E-PC05-OWNER-SETUP-AND-COPY;E-PC05-FINAL-RELEASE-20260929 | none | Resolve ordinary-start Wolf designation policy. |
 | 663 | REPAIR | done | 106c | none | none | none | none | none | none | none | E-AUDIT-663;E-663-VERIFIED | X | Make the AEGIS Fleetwide Red Alert button visible across layouts. |
 | 664 | REPAIR | done | 660;661 | none | none | none | none | none | none | none | E-664 | none | Enforce universal roadmap registration before non-documentation commits. |
 | 665 | EXTEND | done | 664 | none | none | none | none | none | none | none | E-665 | none | Make session goals durable and machine-checked across coordination lifecycle. |
@@ -841,7 +841,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 674 | REPAIR | done | 048;049;170;628 | none | none | none | none | none | none | none | E-674;E-674-DEPENDENCIES;E-674-IMPLEMENTED | none | Replace ship Observer roles with unobtrusive GM viewing and confirmed write access. |
 | 675 | POLISH | done | 034;038;040;097;108 | none | none | none | none | none | none | 098 | E-675;E-675-DEPENDENCIES;E-675-PRESENCE-CLOCK | none | Pause an empty session timer and resume when someone rejoins. |
 | 676 | POLISH | done | none | none | none | none | none | none | none | none | E-676-SHIP-SCANLINE | none | Render the jump-map scanline beneath map content. |
-| 677 | NEW | partial | 084;284;313;330 | none | none | none | none | none | none | 328 | E-677;E-677-DEPENDENCIES;E-PC01-CANDIDATE | none | Gate jump-map coordinates by ship knowledge and hide location details. |
+| 677 | NEW | done | 084;284;313;330 | none | none | none | none | none | none | 328 | E-677;E-677-DEPENDENCIES;E-PC01-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | none | Gate jump-map coordinates by ship knowledge and hide location details. |
 | 678 | NEW | missing | 328;339;340;677 | none | none | none | none | none | none | 330;331 | E-678;E-678-DEPENDENCIES | none | Transmit scanned system details to all fleet ships or selected ships. |
 | 679 | NEW | missing | 281;282;285;294;304;677 | none | none | none | none | none | none | 283;313 | E-679;E-679-DEPENDENCIES | none | Allow blind jumps to a random adjacent system. |
 | 680 | POLISH | done | none | none | none | none | none | none | none | 178;262;396;449 | E-680-RELATED | none | Show authoritative live Alpha and Bravo fighter status. |
@@ -1782,6 +1782,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-PC05-RATIONS-JUMP-SOURCE-DECISIONS | source-decision / candidate / production-proof-pending | 117;118;184;299 -> PC05 | docs/PC05_MAINTENANCE_EVIDENCE.md; docs/PRODUCT_MILESTONE_ASSUMPTIONS.md; docs/PC05_PLAYTEST_REPORT.md; functions/src/maintenance.ts; functions/src/shipPopulation.ts; src/data/shipPopulation.ts | Source reconciliation replaces obsolete owner-decision waits with documented printed evidence and bounded product inferences. Integrated ration candidates have focused tests; failed-jump implementation is in progress. No deployment or ordinary gameplay acceptance is established by this record. |
 | E-PC05-MAINTENANCE-CANDIDATE | source / integrated-candidate / production-proof-pending | 116;117;118;119;120;121;134;135;136;137;184;191 -> PC05 | docs/PC05_MAINTENANCE_EVIDENCE.md; docs/PC05_PLAYTEST_REPORT.md; docs/PRODUCT_MILESTONE_ASSUMPTIONS.md; functions/src/maintenance.ts; functions/src/mutiny.ts; functions/src/smallShip.ts; functions/src/voyage33Maintenance.ts; functions/src/index.ts; src/components/GmMutinyRecovery.tsx | Integrated maintenance and supplemental-craft candidates at eff0ed30 have source-routed rations, authoritative maintenance, single-GM acknowledgement, private VIP reroll, mutiny locks and captain recovery. At f4df6ba4 all 5,995 unit/Functions tests pass; the supplemental worker also records 142 rules tests and responsive rendering. Independent review is in progress and deployment/ordinary gameplay proof remain pending. Status is partial, not done. |
 | E-PC05-JUMP-CANDIDATE | source-assumptions / integrated-candidate / production-proof-pending | 201;287;288;289;290;291;294;296;297;298;299;300;301;302;303;304 -> PC05 | docs/PC05_JUMP_EVIDENCE.md; docs/PC05_PLAYTEST_REPORT.md; docs/PRODUCT_MILESTONE_ASSUMPTIONS.md; functions/src/jumpDrive.ts; functions/src/index.ts; src/components/JumpDriveConsole.tsx; src/components/JumpFailureAdjudicationPanel.tsx | Worker bf3c38d1 integrated as a6885240 after separate test-first commits. Nine integrated focused files pass 458 tests; worker follow-up records 5,932 full tests and responsive normal/reduced rendering. Full-die GM failure adjudication and available-fuel spending follow documented A1/A2; numeric distance bands retain the explicitly unverified compatibility assumption A5. Independent authority/concurrency review and ordinary released gameplay remain pending. P551 is outside this fixed scope and hidden Nebula markers remain unconsumed by generic jumps. |
+| E-PC05-FINAL-RELEASE-20260929 | evidence / complete / exact-candidate / independent-review / exact-main-deployment / ordinary-production-gameplay / responsive / authority / privacy / replay | 100;116;117;118;119;120;121;134;135;136;137;184;191;201;211;212;213;287;288;289;290;291;294;296;297;298;299;300;301;302;303;304;321;325;327;328;329;330;331;332;333;391;589;590;599;600;654;662;677 -> PC05 | docs/PC05_PLAYTEST_REPORT.md; docs/PC05_ACCEPTANCE_MATRIX.md; docs/PRODUCT_MILESTONE_FEEDBACK.md; d45b1266462ca74eecd39d23db1612b3e5346098; 4f2cd9a8c03e8970eae5dd9ad284c855cdb2d2b7; PR #5; workflow 36636882417; deployment 36639176688 | PC05 final candidate d45b1266462ca74eecd39d23db1612b3e5346098 passed 6,122 tests, 143 Firestore rules checks, typecheck, both builds, exact deployment selection, bundle, font, typography, ticker, responsive DRADIS/jump/mutiny, roadmap, dependency and documentation gates. Independent GPT-5.6 Sol xhigh review was clear. PR CI 36636882417 passed without retry; merge 4f2cd9a8c03e8970eae5dd9ad284c855cdb2d2b7 deployed build 0.5.57 through exact-main run 36639176688. Authorized production play verified confirmed empty-roster start with zero fabricated Wolves, the approved Wolf-humanity onboarding copy, Zoom-only compact DRADIS with contact-anchored names and no orphan name, and immediate station-select recovery with the persistent reselect-role notice after a live role release. Prompt-specific authority, privacy, replay, concurrency, resource and responsive edges not each repeated live are covered by deterministic tests and real Firestore emulator evidence on the exact deployed production tree. |
 <!-- END GENERATED PROMPT CATALOG: dependency -->
 
 ## Shared integrity gate

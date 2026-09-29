@@ -115,12 +115,16 @@ credits toward the fixed 49 assigned closures.
 
 | Note | Intended behavior | Disposition |
 |---|---|---|
-| PC05-F01 | A reconnect rejected because the station is no longer authorized returns to station selection and tells the player to reselect their role. | Required before full PC05 release; implementation and proof underway. Preserve valid session membership and transient-network recovery. |
-| PC05-F02 | A DRADIS name appears on its visible contact, never before the contact appears. | Required before full PC05 release; add timing-boundary regression coverage, including changing contacts and reduced motion. |
-| PC05-F03 | Minimized DRADIS says Zoom or uses a magnifying-glass-plus icon, never Read names. | Required before full PC05 release; use Zoom and verify accessible control and rendered layouts. |
+| PC05-F01 | A reconnect rejected because the station is no longer authorized returns to station selection and tells the player to reselect their role. | Released in 0.5.57. Exact-candidate route/authority tests cover ship and Union stations, listener ordering, rebinds, read-only visitors and fail-closed freshness. Ordinary production play returned a reloaded Scientist to station selection with session membership preserved and the exact persistent instruction to reselect a role. |
+| PC05-F02 | A DRADIS name appears on its visible contact, never before the contact appears. | Released in the PC05 train and retained in 0.5.57. Test-first timing coverage and the desktop/phone/short-landscape normal/reduced-motion render matrix bind every name to the visible contact through reveal, acquisition, rename and fade. Production DRADIS showed contact-anchored names and no orphan name for an unknown contact. |
+| PC05-F03 | Minimized DRADIS says Zoom or uses a magnifying-glass-plus icon, never Read names. | Released in the PC05 train and retained in 0.5.57. The rendered and production compact control says **Zoom**, with accessible text “Zoom into DRADIS panel”; it never reads names. |
 
-The explicit request to complete PC05 authorizes the checkpoint work. It does
-not waive the 507/751 overall completion target or ordinary gameplay evidence.
+PC05 is accepted under the explicit completion request and standing autonomous
+authorization. Build 0.5.57 at exact main
+`4f2cd9a8c03e8970eae5dd9ad284c855cdb2d2b7` closes its fixed 49-prompt target,
+for **507/751 done and 49/293 baseline closures**. PR CI `36636882417`, exact-main
+deploy `36639176688`, and the ordinary production observations above passed.
+Optional later UI feedback remains welcome through the bounded cooldown path.
 
 ## Standing authorization for remaining checkpoints — 2026-09-28
 
