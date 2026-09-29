@@ -480,6 +480,18 @@ failure before implementation. PC05-A6 records the source-backed optional
 emergency decision before permanent pursuit failure. Both test tranches remain
 separate from the pending implementation; no failing assertion was waived.
 
+Server repair `9ffa5f41` now passes **74/74** integrated jump callable tests.
+The real Firestore harness at `bd988886` also passes both cases against that
+combined candidate: concurrent same-origin transactions retry against each
+vessel's exact self-arrival, while different-origin transactions preserve
+independent movement/resources/events and advance the shared navigation
+revision monotonically with side-effect-free exact replay. The isolated
+emulator reservation was released after the run. The exact deployment selector
+currently rejects this changed index source as unaudited, which is the intended
+fail-closed state until the final client/server candidate and transitive
+consumer receipt are reconciled. Client, rendered and independent review gates
+remain open.
+
 Independent `9ea5dfd5` follow-up clears Scout and pending-role privacy but
 identified one remaining GM presence type mismatch. Test-only `bb4a98c9`
 reproduces **five failures / 281 passes** for malformed values versus truly
