@@ -28,6 +28,7 @@ describe('catalog-backed implementation progress', () => {
       version: inputs.applicationVersion,
       completed: result.summary?.complete,
       total: result.summary?.total,
+      blocked: result.summary?.blocked,
     });
   });
 

@@ -6,7 +6,10 @@ describe('changelog display projection', () => {
   it('separates current catalog progress from historical release entries', () => {
     const projected = projectChangelogForDisplay(CHANGELOG);
 
-    expect(projected.currentProgress).toEqual(CHANGELOG[0]?.implementationProgress);
+    expect(projected.currentProgress).toEqual({
+      ...CHANGELOG[0]?.implementationProgress,
+      blocked: 0,
+    });
     expect(projected.entries).toEqual(CHANGELOG.map(({ version, changes }) => ({
       version,
       changes: [...changes],

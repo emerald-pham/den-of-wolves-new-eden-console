@@ -632,7 +632,7 @@ it('loads only the display changelog when the player opens it in Settings', asyn
   const display = {
     currentProgress: {
       completed: 507, total: 751, percentage: '67.51%',
-      done: 507, partial: 35, active: 0, missing: 209,
+      done: 507, partial: 35, active: 0, missing: 209, blocked: 0,
     },
     entries: [
       { version: APP_VERSION, changes: ['Current display copy.'] },
@@ -660,7 +660,7 @@ it('lets the player retry the changelog after a temporary asset failure', async 
   const display = {
     currentProgress: {
       completed: 507, total: 751, percentage: '67.51%',
-      done: 507, partial: 35, active: 0, missing: 209,
+      done: 507, partial: 35, active: 0, missing: 209, blocked: 0,
     },
     entries: [{ version: APP_VERSION, changes: ['Recovered display copy.'] }],
   };

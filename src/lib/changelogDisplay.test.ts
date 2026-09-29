@@ -14,6 +14,7 @@ const sample: ChangelogDisplayPayload = {
     partial: 35,
     active: 0,
     missing: 209,
+    blocked: 0,
   },
   entries: [
     { version: '0.5.58', changes: ['Current release copy.'] },
