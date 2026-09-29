@@ -1496,6 +1496,34 @@ test('maps the shared pursuit decision pause to every indexed action and externa
   ]) assert.ok(selected.includes(`functions:${name}`), name);
 });
 
+test('maps the exact PC05 ECM pause addition only to the activation writer', () => {
+  const before = '7782840da0defcf64428877cf6d37249d49b5ffa';
+  const after = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  const selected = deploymentSelector({
+    before, after, files: ['functions/src/endeavourEcmDeviceWriter.ts'], targets: ['functions'],
+  });
+  assert.deepEqual(selectedFunctions(selected), functionTargets(['activateEndeavourEcmDevice']));
+});
+
+test('selects exactly 138 named Functions for the exact PC05 release range', () => {
+  const before = '0ba386f50689b375153ceee3b2eb11a9ecd19435';
+  const verificationBefore = '7782840da0defcf64428877cf6d37249d49b5ffa';
+  const after = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  const files = execFileSync('git', ['diff', '--name-only', `${before}..${after}`], {
+    encoding: 'utf8',
+  }).trim().split('\n').filter(Boolean);
+  const filesSinceBaseline = execFileSync(
+    'git', ['diff', '--name-only', `${verificationBefore}..${after}`], { encoding: 'utf8' },
+  ).trim().split('\n').filter(Boolean);
+  const classification = classifyChangedFiles(files);
+  assert.deepEqual(classification.unknownFiles, []);
+  const selected = selectedFunctions(deploymentSelector({
+    before, after, files, filesSinceBaseline, targets: classification.targets,
+  }));
+  assert.equal(new Set(selected).size, 138);
+  assert.equal(selected.length, 138);
+});
+
 
 test('maps the exact PC05 jump request contract and rejects an unrelated guard edit', () => {
   const beforeSource = execFileSync('git', ['show', '7782840d:functions/src/requestGuards.ts'], { encoding: 'utf8' });

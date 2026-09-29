@@ -860,7 +860,7 @@ describe('App', () => {
     unmount();
   });
 
-  it('joins the public pursuit marker to protected GM authority in either listener order and clears it promptly', async () => {
+  it('joins the public pursuit marker to protected GM authority in either listener order and clears it in either order', async () => {
     let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
     vi.mocked(subscribeSessionState).mockImplementation((_id, _uid, next) => {
       handlers = next;
@@ -882,8 +882,21 @@ describe('App', () => {
     act(() => handlers?.onSession({ ...session, phase: 'active', currentTurn: 3,
       pursuitEmergencyWindow: marker }));
     expect(useSessionStore.getState().session?.pursuitEmergencyWindowAuthority).toEqual(authority);
+
+    act(() => handlers?.onGmDiscovery?.({}));
+    expect(useSessionStore.getState().session?.pursuitEmergencyWindow).toEqual(marker);
+    expect(useSessionStore.getState().session?.pursuitEmergencyWindowAuthority).toBeUndefined();
+
+    act(() => handlers?.onGmDiscovery?.({ pursuitEmergencyWindowAuthority: authority }));
+    expect(useSessionStore.getState().session?.pursuitEmergencyWindowAuthority).toEqual(authority);
     act(() => handlers?.onSession({ ...session, phase: 'active', currentTurn: 3 }));
     expect(useSessionStore.getState().session?.pursuitEmergencyWindowAuthority).toBeUndefined();
+
+    act(() => handlers?.onSession({ ...session, phase: 'active', currentTurn: 3,
+      pursuitEmergencyWindow: marker }));
+    expect(useSessionStore.getState().session?.pursuitEmergencyWindowAuthority).toBeUndefined();
+    act(() => handlers?.onGmDiscovery?.({ pursuitEmergencyWindowAuthority: authority }));
+    expect(useSessionStore.getState().session?.pursuitEmergencyWindowAuthority).toEqual(authority);
     unmount();
   });
 
