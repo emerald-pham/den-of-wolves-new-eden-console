@@ -1153,7 +1153,7 @@ test('maps the exact PC04 shared sign-in and mission guard transition to every a
     'git', ['show', `${baseSha}:functions/src/requestGuards.ts`], { encoding: 'utf8' },
   );
   const requestGuardsAfter = execFileSync('git', ['show', '7782840d:functions/src/requestGuards.ts'], { encoding: 'utf8' });
-  const indexSource = execFileSync('git', ['show', '7782840d:functions/src/index.ts'], { encoding: 'utf8' });
+  const indexSource = execFileSync('git', ['show', '7782840d:functions/src/index.ts'], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
   const boundaries = [...indexSource.matchAll(/^export const ([A-Za-z_$][\w$]*)\s*=/gm)];
   const expected = boundaries.flatMap((match, index) => {
     const block = indexSource.slice(match.index, boundaries[index + 1]?.index ?? indexSource.length);
