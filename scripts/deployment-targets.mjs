@@ -93,32 +93,41 @@ const MALIADE_REPAIR_REQUEST_ADDITIONS = Object.freeze([
 const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
   // PC05 source audit includes transitive helper consumers and re-exported callables.
   'functions/src/gameSetup.ts': [
-    'transferBaseCapybaraCargo', 'readPrivateScoutResult', 'listPendingScoutRequests', 'resolvePendingScoutRequest',
-    'createSession', 'confirmSetup', 'setFacilitatorResponsibility', 'startGame',
-    'transferShuttleControlCommand', 'dealPrivateInitialCards', 'openPrivateMissionDiscards', 'setShipPreference',
-    'assignRole', 'releaseRole', 'setReplacementEligibility', 'assignReplacementRole',
-    'setFacilitatorCensusNote', 'calculateArrestPosse', 'deliverWolfCultIntelligence', 'transitionCrisis',
-    'setDiseaseQuarantine', 'admitVoyage33', 'recordZealotryResponse', 'recordCivilUnrestResolution',
-    'submitCivilUnrestGrievance', 'authorArbourVision', 'authorFacilitatorRuleCall', 'setCandidatePlanCheckpoint',
-    'assignLoyalty', 'joinSession', 'resumeSession', 'claimGmInstance',
-    'setGmShipConsoleWriteGrant', 'listGmInstances', 'kickGmInstance', 'releaseGmInstance',
-    'kickPlayer', 'triggerDradisContact', 'setPressEnabled', 'moveShipToLocation',
-    'jumpShip', 'setShipConsoleLock', 'setGmControlsLocked', 'setDebriefMode',
-    'advanceTurn', 'parkShuttlesAtAirspaceClosure', 'startSinglePlayerDemo', 'replayTurnStartAnnouncement',
-    'extendAirspaceWindow', 'setEmergencyTimerPaused', 'setWolfAttackWindow', 'stageWolfAttackPreparation',
-    'declareWolfAttack', 'advanceWolfAttackToLongRange', 'getPdfEscortWingLaunch', 'launchPdfEscortWing',
-    'startWolfConsoleVisit', 'resolveWolfConsoleSabotage', 'submitWolfSupplySabotage', 'acknowledgeWolfHackingAlert',
-    'submitWolfHomingBeacon', 'submitWolfIntelligence', 'investigateAsIntelligenceAgent', 'unlockPressAirspace',
-    'popShipConfetti', 'refreshPresence', 'disconnectFromSession', 'expireStalePlayers',
-    'releaseSeat', 'elevateToGm', 'scavengeDestroyedShipStores', 'adjustShipResource',
-    'adjustShipUnrest', 'consentCommissarPurge', 'applyCommissarPurge', 'getCommissarPurgeAuthority',
-    'dismissUnrestAlert', 'resolveShipMutiny', 'addShipDamage', 'adjustShipPopulation',
-    'applyShipCounterSteps', 'setFighterWingCount', 'buildFighter', 'dismissPopulationAlert',
-    'runHighwallMining', 'requestScout', 'rollHummingbirdHarvest', 'allocateHummingbirdHarvest',
-    'setSmallShipDocking', 'runSmallShipMaintenance', 'runVoyage33Maintenance', 'runVulcanAdditionalLabour',
-    'runMaintenance', 'drawVipCard', 'transferVipCard', 'rerollVipUnrest',
-    'publishAdmiralDirectiveCommand', 'recordPresidentActionCommand', 'updatePoliticalCapital', 'setFleetRedAlert',
-    'repairAllShipDamage', 'rollbackMaintenance',
+    'transferBaseCapybaraCargo', 'readPrivateScoutResult', 'listPendingScoutRequests',
+    'resolvePendingScoutRequest', 'createSession', 'confirmSetup',
+    'setFacilitatorResponsibility', 'startGame', 'transferShuttleControlCommand',
+    'dealPrivateInitialCards', 'openPrivateMissionDiscards', 'setShipPreference',
+    'assignRole', 'releaseRole', 'setReplacementEligibility',
+    'assignReplacementRole', 'setFacilitatorCensusNote', 'calculateArrestPosse',
+    'deliverWolfCultIntelligence', 'transitionCrisis', 'setDiseaseQuarantine',
+    'admitVoyage33', 'recordZealotryResponse', 'recordCivilUnrestResolution',
+    'submitCivilUnrestGrievance', 'authorArbourVision', 'authorFacilitatorRuleCall',
+    'setCandidatePlanCheckpoint', 'assignLoyalty', 'joinSession',
+    'resumeSession', 'claimGmInstance', 'setGmShipConsoleWriteGrant',
+    'listGmInstances', 'kickGmInstance', 'releaseGmInstance',
+    'kickPlayer', 'triggerDradisContact', 'setPressEnabled',
+    'moveShipToLocation', 'jumpShip', 'setShipConsoleLock',
+    'setGmControlsLocked', 'setDebriefMode', 'advanceTurn',
+    'parkShuttlesAtAirspaceClosure', 'startSinglePlayerDemo', 'replayTurnStartAnnouncement',
+    'extendAirspaceWindow', 'setEmergencyTimerPaused', 'setWolfAttackWindow',
+    'stageWolfAttackPreparation', 'declareWolfAttack', 'advanceWolfAttackToLongRange',
+    'getPdfEscortWingLaunch', 'launchPdfEscortWing', 'startWolfConsoleVisit',
+    'resolveWolfConsoleSabotage', 'submitWolfSupplySabotage', 'acknowledgeWolfHackingAlert',
+    'submitWolfHomingBeacon', 'submitWolfIntelligence', 'investigateAsIntelligenceAgent',
+    'unlockPressAirspace', 'popShipConfetti', 'refreshPresence',
+    'disconnectFromSession', 'expireStalePlayers', 'releaseSeat',
+    'elevateToGm', 'scavengeDestroyedShipStores', 'adjustShipResource',
+    'adjustShipUnrest', 'consentCommissarPurge', 'applyCommissarPurge',
+    'getCommissarPurgeAuthority', 'dismissUnrestAlert', 'resolveShipMutiny',
+    'addShipDamage', 'adjustShipPopulation', 'applyShipCounterSteps',
+    'setFighterWingCount', 'buildFighter', 'dismissPopulationAlert',
+    'runHighwallMining', 'requestScout', 'rollHummingbirdHarvest',
+    'allocateHummingbirdHarvest', 'setSmallShipDocking', 'runSmallShipMaintenance',
+    'runVoyage33Maintenance', 'runVulcanAdditionalLabour', 'runMaintenance',
+    'drawVipCard', 'transferVipCard', 'rerollVipUnrest',
+    'publishAdmiralDirectiveCommand', 'recordPresidentActionCommand', 'updatePoliticalCapital',
+    'setFleetRedAlert', 'repairAllShipDamage', 'rollbackMaintenance',
+    'listUnresolvedJumpFailures', 'adjudicateFailedJump',
   ],
   'functions/src/wolfAssignment.ts': [
     'startGame',
@@ -131,10 +140,12 @@ const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
     'rollbackMaintenance',
   ],
   'functions/src/shipPopulation.ts': [
-    'createSession', 'confirmSetup', 'startGame', 'rechargeHostConsoleFromShuttle',
-    'evacuateShuttleSurvivorsCommand', 'joinSession', 'resumeSession', 'advanceTurn',
-    'startSinglePlayerDemo', 'applyCommissarPurge', 'addShipDamage', 'adjustShipPopulation',
+    'createSession', 'confirmSetup', 'startGame',
+    'rechargeHostConsoleFromShuttle', 'evacuateShuttleSurvivorsCommand', 'joinSession',
+    'resumeSession', 'advanceTurn', 'startSinglePlayerDemo',
+    'applyCommissarPurge', 'addShipDamage', 'adjustShipPopulation',
     'applyShipCounterSteps', 'runVulcanAdditionalLabour', 'runMaintenance',
+    'jumpShip', 'adjudicateFailedJump',
   ],
   'functions/src/mutiny.ts': [
     'joinSession', 'resumeSession', 'moveShipToLocation',
@@ -153,7 +164,7 @@ const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
     'repairGorgoneionWithDrones', 'repairWarriorWithDrones', 'transferBaseCapybaraCargo',
     'startGame', 'assignReplacementRole', 'advanceTurn',
     'startSinglePlayerDemo', 'setWolfAttackWindow', 'declareWolfAttack',
-    'runVulcanAdditionalLabour',
+    'runVulcanAdditionalLabour', 'adjudicateFailedJump',
   ],
   'functions/src/voyage33Maintenance.ts': [
     'startGame', 'joinSession', 'resumeSession',
@@ -183,7 +194,24 @@ const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
   'functions/src/shuttleDepartureCallable.ts': ['requestShuttleDeparture'],
   'functions/src/shuttleTransitCallable.ts': ['beginShuttleTransit', 'retargetShuttleTransit'],
   'functions/src/shuttleArrivalCallable.ts': ['completeShuttleArrival'],
-  'functions/src/jumpDrive.ts': ['jumpShip'],
+  'functions/src/shipDamage.ts': [
+    'repairConsolesFromAlly', 'repairGorgoneionWithDrones', 'repairWarriorWithDrones',
+    'transferBaseCapybaraCargo', 'readEndeavourResearchWorkspace', 'repairMaliades',
+    'createSession', 'startGame', 'rechargeHostConsoleFromShuttle',
+    'repairConsolesFromBlacksmith', 'repairConsolesFromPhilia', 'repairConsolesFromMacaw',
+    'repairConsolesFromChacau', 'upgradeEndeavourFieldTargets', 'joinSession',
+    'resumeSession', 'moveShipToLocation', 'jumpShip',
+    'adjudicateFailedJump', 'advanceTurn', 'startSinglePlayerDemo',
+    'getAegisCommandAndControl', 'applyAegisCommandAndControl', 'getDioneMaliadesLaunch',
+    'launchDioneMaliades', 'getPdfEscortWingLaunch', 'launchPdfEscortWing',
+    'startWolfConsoleVisit', 'resolveWolfConsoleSabotage', 'submitWolfSupplySabotage',
+    'acknowledgeWolfHackingAlert', 'fleeDestroyedShip', 'scavengeDestroyedShipStores',
+    'addShipDamage', 'buildFighter', 'runVulcanAdditionalLabour',
+    'runMaintenance', 'drawVipCard', 'repairAllShipDamage',
+  ],
+  'functions/src/jumpDrive.ts': [
+    'jumpShip', 'adjudicateFailedJump',
+  ],
   'functions/src/endeavourFieldUpgrades.ts': ['upgradeEndeavourFieldTargets'],
   'functions/src/endeavourResearch.ts': [
     'advanceEndeavourResearchTrack', 'readEndeavourResearchWorkspace', 'upgradeEndeavourFieldTargets',
@@ -237,7 +265,7 @@ const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
     'runMaintenance', 'drawVipCard', 'transferVipCard',
     'rerollVipUnrest', 'publishAdmiralDirectiveCommand', 'recordPresidentActionCommand',
     'updatePoliticalCapital', 'setFleetRedAlert', 'repairAllShipDamage',
-    'rollbackMaintenance',
+    'rollbackMaintenance', 'adjudicateFailedJump',
   ],
   'functions/src/baseCapybaraCargoTransfer.ts': ['transferBaseCapybaraCargo'],
   'functions/src/baseCapybaraCargoTransferCallable.ts': ['transferBaseCapybaraCargo'],
@@ -268,6 +296,7 @@ const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
     'startSinglePlayerDemo', 'setWolfAttackWindow', 'declareWolfAttack',
     'resolveShipMutiny', 'addShipDamage', 'setSmallShipDocking',
     'runVoyage33Maintenance', 'runVulcanAdditionalLabour', 'runMaintenance',
+    'jumpShip', 'adjudicateFailedJump',
   ],
   'functions/src/wolfCommandAndControl.ts': [
     'applyAegisCommandAndControl', 'applyWolfCommanderTargetRerolls',
@@ -639,6 +668,10 @@ const MALIADE_REPAIR_ENVELOPE_FIELD_ENTRY =
   "  'maliades-repair': MEMBER_ENVELOPE_FIELDS.filter((field) =>\n    field !== 'actorUid' && field !== 'actorRoleId'),\n";
 const EVENT_REDACTION_ADDITIONS = Object.freeze([
   {
+    entries: ["  'ship-jump': ['shipId', 'outcome', 'length', 'failureRoll', 'failureThreshold', 'fuelSpent', 'damageCount', 'emergency'],\n"],
+    callables: ['jumpShip', 'adjudicateFailedJump'],
+  },
+  {
     entries: [ENDEAVOUR_EVENT_FIELD_ENTRY, ENDEAVOUR_ENVELOPE_FIELD_ENTRY],
     callables: ['upgradeEndeavourFieldTargets'],
   },
@@ -847,7 +880,7 @@ function candidateRevealNavigationProjectionImpacts(before, after, cwd, sourceAt
   const reroleExclusion = "  if (player.get('replacementStatus') != null) return undefined;\n";
   if (!previous.includes(reroleExclusion) && current.split(reroleExclusion).length === 2 &&
       current.replace(reroleExclusion, '') === previous) {
-    return ["activateEndeavourEcmDevice", "readEndeavourEcmDeviceWorkspace", "resolvePendingScoutRequest", "createSession", "confirmSetup", "startGame", "dealPrivateInitialCards", "assignReplacementRole", "setCandidatePlanCheckpoint", "joinSession", "resumeSession", "moveShipToLocation", "jumpShip", "advanceTurn", "startSinglePlayerDemo", "declareWolfAttack", "submitWolfHomingBeacon", "requestScout", "runMaintenance"];
+    return ["activateEndeavourEcmDevice", "readEndeavourEcmDeviceWorkspace", "resolvePendingScoutRequest", "createSession", "confirmSetup", "startGame", "dealPrivateInitialCards", "assignReplacementRole", "setCandidatePlanCheckpoint", "joinSession", "resumeSession", "moveShipToLocation", "jumpShip", "listUnresolvedJumpFailures", "adjudicateFailedJump", "advanceTurn", "startSinglePlayerDemo", "declareWolfAttack", "submitWolfHomingBeacon", "requestScout", "runMaintenance"];
   }
   // Exact reviewed PC01 file transition. An additional navigation change must
   // receive its own audited consumer mapping before Functions deployment.
@@ -1117,6 +1150,12 @@ function requestGuardCallableImpacts(before, after, cwd, sourceAtRevision = null
   const previous = readAt(before);
   const current = readAt(after);
   const digest = (source) => createHash('sha256').update(source).digest('hex');
+  // Exact reviewed PC05 jump parser, failure-list and adjudication contracts.
+  // Unrelated guard changes still require their own audited transition.
+  if (digest(previous) === 'ded4d4f080ab07c3669c12891673cf60db7d899be484d3bbf4ce4578a6693288' &&
+      digest(current) === '6730954492593af7ff7e60be7abc11ab0fafc11ff728ccce47a56dfb10d22687') {
+    return ['jumpShip', 'listUnresolvedJumpFailures', 'adjudicateFailedJump'];
+  }
   if (digest(previous) === PC04_REQUEST_GUARD_TRANSITION.before &&
       digest(current) === PC04_REQUEST_GUARD_TRANSITION.after) {
     let indexSource;
