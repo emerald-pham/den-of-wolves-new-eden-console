@@ -795,6 +795,7 @@ test('maps replacementRoles changes to its audited runtime consumers', () => {
     "resumeSession",
     "moveShipToLocation",
     "jumpShip",
+    "adjudicateFailedJump",
     "setShipConsoleLock",
     "advanceTurn",
     "startSinglePlayerDemo",
@@ -842,6 +843,8 @@ test('maps smallShip changes to its audited runtime consumers', () => {
     "assignReplacementRole",
     "joinSession",
     "resumeSession",
+    "jumpShip",
+    "adjudicateFailedJump",
     "advanceTurn",
     "startSinglePlayerDemo",
     "setWolfAttackWindow",
@@ -1149,10 +1152,8 @@ test('maps the exact PC04 shared sign-in and mission guard transition to every a
   const requestGuardsBefore = execFileSync(
     'git', ['show', `${baseSha}:functions/src/requestGuards.ts`], { encoding: 'utf8' },
   );
-  const requestGuardsAfter = readFileSync(
-    new URL('../functions/src/requestGuards.ts', import.meta.url), 'utf8',
-  );
-  const indexSource = readFileSync(new URL('../functions/src/index.ts', import.meta.url), 'utf8');
+  const requestGuardsAfter = execFileSync('git', ['show', '7782840d:functions/src/requestGuards.ts'], { encoding: 'utf8' });
+  const indexSource = execFileSync('git', ['show', '7782840d:functions/src/index.ts'], { encoding: 'utf8' });
   const boundaries = [...indexSource.matchAll(/^export const ([A-Za-z_$][\w$]*)\s*=/gm)];
   const expected = boundaries.flatMap((match, index) => {
     const block = indexSource.slice(match.index, boundaries[index + 1]?.index ?? indexSource.length);
@@ -1483,7 +1484,7 @@ test('maps only the reviewed pending-rerole navigation exclusion to its runtime 
     targets: ['functions'], isAncestor: () => false,
     sourceAtRevision: (revision) => revision === 'before' ? source.replace(addition, '') : afterSource,
   });
-  assert.deepEqual(selectedFunctions(select(source)), functionTargets(["activateEndeavourEcmDevice", "readEndeavourEcmDeviceWorkspace", "resolvePendingScoutRequest", "createSession", "confirmSetup", "startGame", "dealPrivateInitialCards", "assignReplacementRole", "setCandidatePlanCheckpoint", "joinSession", "resumeSession", "moveShipToLocation", "jumpShip", "advanceTurn", "startSinglePlayerDemo", "declareWolfAttack", "submitWolfHomingBeacon", "requestScout", "runMaintenance"]));
+  assert.deepEqual(selectedFunctions(select(source)), functionTargets(["activateEndeavourEcmDevice", "readEndeavourEcmDeviceWorkspace", "resolvePendingScoutRequest", "createSession", "confirmSetup", "startGame", "dealPrivateInitialCards", "assignReplacementRole", "setCandidatePlanCheckpoint", "joinSession", "resumeSession", "moveShipToLocation", "jumpShip", "listUnresolvedJumpFailures", "adjudicateFailedJump", "advanceTurn", "startSinglePlayerDemo", "declareWolfAttack", "submitWolfHomingBeacon", "requestScout", "runMaintenance"]));
   assert.throws(() => select(source + '// unrelated runtime edit\n'), /Cannot safely map navigation projection changes/);
 });
 
@@ -1513,4 +1514,11 @@ test('maps only the audited member jump event fields to their writers', () => {
 test('maps ship damage helpers to all audited runtime consumers', () => {
   const selected = selectorFor(['functions/src/shipDamage.ts']);
   assert.deepEqual(selectedFunctions(selected), functionTargets(["repairConsolesFromAlly", "repairGorgoneionWithDrones", "repairWarriorWithDrones", "transferBaseCapybaraCargo", "readEndeavourResearchWorkspace", "repairMaliades", "createSession", "startGame", "rechargeHostConsoleFromShuttle", "repairConsolesFromBlacksmith", "repairConsolesFromPhilia", "repairConsolesFromMacaw", "repairConsolesFromChacau", "upgradeEndeavourFieldTargets", "joinSession", "resumeSession", "moveShipToLocation", "jumpShip", "adjudicateFailedJump", "advanceTurn", "startSinglePlayerDemo", "getAegisCommandAndControl", "applyAegisCommandAndControl", "getDioneMaliadesLaunch", "launchDioneMaliades", "getPdfEscortWingLaunch", "launchPdfEscortWing", "startWolfConsoleVisit", "resolveWolfConsoleSabotage", "submitWolfSupplySabotage", "acknowledgeWolfHackingAlert", "fleeDestroyedShip", "scavengeDestroyedShipStores", "addShipDamage", "buildFighter", "runVulcanAdditionalLabour", "runMaintenance", "drawVipCard", "repairAllShipDamage"]));
+});
+
+
+test('includes failed-jump adjudication in its shared authority and consequence helpers', () => {
+  for (const moduleName of ['mutiny', 'replacementRoles', 'smallShip', 'gameSetup', 'shipPopulation']) {
+    assert.ok(selectorFor([`functions/src/${moduleName}.ts`]).split(',').includes('functions:adjudicateFailedJump'), moduleName);
+  }
 });
