@@ -652,3 +652,43 @@ last-successful-deploy/last-verified baseline selector chooses Hosting,
 Firestore and **138 named Functions**, includes the repaired private worker,
 reports no unknown files, and confirms both ancestry guards. Refreshed exact
 review remains required before the single batched CI/deployment run.
+
+### Deployed PC05 verification and batched closeout repair
+
+Exact main run `36592851654` passed verification and deployment for merge
+`f8c93980`; Hosting reports build `0.5.55`. The deployed compact DRADIS control
+says **Zoom**. An ordinary GM stale-seat release also returned the affected
+Scientist browser to station selection while preserving session membership.
+
+That production check exposed two release defects before PC05 closeout. The
+reselection explanation was cleared by the abandoned station route before the
+player could read it. A fresh session also reproduced an empty-roster start
+failure after changing the configured roster from 18 to eight roles: the
+server correctly preserved removed seat records as locked, but readiness
+incorrectly counted those records as active seats.
+
+Test-first `9bcc6933` pins both failures. Repair `e01cab80` prevents a stale
+route from reclaiming the released station until the player dismisses the
+persistent reselect notice, and validates the configured seat set while
+requiring every preserved seat to remain canonical, unclaimed and locked. The
+focused client, setup and full callable-composition run passes **286/286**,
+including a real 18-to-eight empty-roster composition with zero private loyalty
+records. Build `0.5.56` batches these fixes with the final PC05 evidence and
+release metadata.
+
+The first exact Sol review of `bb263e47` held the candidate because malformed
+preserved seat documents could be filtered out before readiness validation,
+and because Prompt 654 did not yet name `0.5.56`. Failing-first callable and
+pure-policy tests reproduce the malformed-extra and stale-claim-timestamp
+cases. The server now requires every queried seat to parse before readiness can
+pass, and locked preserved seats require a null holder and null claim timestamp.
+The canonical catalog now names both PC05 builds and its generated view is
+refreshed. The repaired start/setup plus release/UI set passes **186/186**.
+Local deployment preflight also correctly rejected the changed Functions
+entrypoint until its bounded PC05 source receipt included the reviewed start
+repair. The refreshed receipt still fails closed on any additional entrypoint
+change, selects the same exact 138-Function cumulative PC05 set, and passes all
+**89/89** deployment-selector and typography-policy tests.
+
+Exact review, full local release gates, the single replacement CI/deployment
+run and renewed ordinary production play remain required.

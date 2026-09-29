@@ -23615,7 +23615,8 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.5.55"
+        "0.5.55",
+        "0.5.56"
       ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "M1-REPAIR",

@@ -2708,7 +2708,12 @@ export async function selectConsoleRole(roleId: string): Promise<void> {
     : undefined;
   if (before.communicationError?.kind === 'station-selection-required' &&
       authorityCheckpointIsCurrent(checkpoint)) {
-    before.setCommunicationError(null);
+    // A stale route can finish mounting while App redirects this browser back
+    // to the station catalog. Do not let that abandoned route immediately
+    // reclaim the released seat and erase the explanation. The persistent
+    // notice has its own dismiss control; only a deliberate selection after
+    // dismissal may request fresh station authority.
+    return;
   }
   try {
     // A console route is only an intent.  For the canonical setup roster, the

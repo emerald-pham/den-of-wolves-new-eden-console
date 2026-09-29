@@ -1637,12 +1637,12 @@ describe('PC05 ordinary automatic setup composition', () => {
   });
 });
 
-it('starts a newly created confirmed empty roster through ordinary callable composition', async () => {
+it('starts a newly created empty roster after reducing and preserving its prior seats', async () => {
   mock.reset();
   const ownerUid = 'empty-roster-gm';
   const created = await createSession.run(request({
     requestId: 'empty-create', name: 'Empty confirmed roster', displayName: 'GM',
-    playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 8,
+    playerCount: 18, chartId: 'A', expansion: 'base', turnLimit: 8,
   }, ownerUid));
   const sessionId = (created.session as StoredDocument).id as string;
   await loginGmAccess.run(request({ password: 'bananasplit' }, ownerUid));
@@ -1653,6 +1653,15 @@ it('starts a newly created confirmed empty roster through ordinary callable comp
     dioneEnabled: false, capybaraEnabled: true, activeRoleIds: EXPECTED_ROSTERS[8],
   }, ownerUid)) as { setupRevision: number };
   expect(read(`sessions/${sessionId}`)?.setupConfirmed).toBe(true);
+  const configuredRoles = new Set(EXPECTED_ROSTERS[8]);
+  const preservedSeats = [...mock.documents.entries()]
+    .filter(([path]) => path.startsWith(`sessions/${sessionId}/seats/`))
+    .map(([, seat]) => seat)
+    .filter((seat) => !configuredRoles.has(seat.roleId as string));
+  expect(preservedSeats.length).toBeGreaterThan(0);
+  expect(preservedSeats).toEqual(expect.arrayContaining([
+    expect.objectContaining({ status: 'locked', holderUid: null }),
+  ]));
   await expect(startGame.run(request({
     sessionId, instanceId: 'empty-bridge', requestId: 'empty-start', expectedSetupRevision: confirmed.setupRevision,
   }, ownerUid))).resolves.toMatchObject({ currentTurn: 1 });

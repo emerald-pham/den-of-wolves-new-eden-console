@@ -711,7 +711,7 @@ it('renders current and retained repair history with progress and keyboard stop 
     'A stale recharge does not spend resources or add a charge.',
   )).toBeVisible();
   expect(within(newestEntry).getByText(
-    '458 of 751 planned items are complete (60.99%). Gameplay verification for the PC05 additions is in progress.',
+    '458 of 751 planned items are complete (60.99%). PC05 production gameplay verification continues.',
   )).toBeVisible();
   const previousHummingbirdEntry = within(region).getByRole('heading', { name: 'Build 0.5.49' }).closest('article');
   if (!previousHummingbirdEntry) throw new Error('Expected the preserved 0.5.49 Hummingbird release entry.');

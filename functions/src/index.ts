@@ -5934,7 +5934,7 @@ export const startGame = onCall<{
     const holders = [...holderByUid.entries()].map(([holderUid, roleId]) => ({ uid: holderUid, roleId }));
     const loyaltySecrets = secrets.docs.filter((secret) => secret.id.startsWith('loyalty-'));
     const loyaltyUids = loyaltySecrets.map((secret) => secret.id.slice('loyalty-'.length));
-    const seatDocuments = (seats.docs ?? []).map((seat) => ({
+    const rawSeatDocuments = (seats.docs ?? []).map((seat) => ({
       id: seat.id,
       roleId: seat.get('roleId'),
       label: seat.get('label'),
@@ -5942,7 +5942,8 @@ export const startGame = onCall<{
       status: seat.get('status'),
       holderUid: seat.get('holderUid'),
       claimedAt: seat.get('claimedAt'),
-    })).filter((seat): seat is {
+    }));
+    const seatDocuments = rawSeatDocuments.filter((seat): seat is {
       id: string; roleId: string; label: string; factionId: string;
       status: 'open' | 'claimed' | 'locked'; holderUid: string | null;
       claimedAt: string | number | Date | null | undefined;
@@ -6001,6 +6002,7 @@ export const startGame = onCall<{
       pressHolderUid: typeof storedPressHolderUid === 'string' ? storedPressHolderUid : null,
       facilitatorPlayerUids,
       seatDocuments,
+      seatDocumentsComplete: seatDocuments.length === rawSeatDocuments.length,
       playerSeatPointers,
       gmInstances: liveGmInstances,
       nowMs: setupNowMs,

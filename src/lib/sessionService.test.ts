@@ -3072,6 +3072,33 @@ describe('client authority boundaries', () => {
     });
   });
 
+  it('keeps station reselection guidance until the player dismisses it before choosing a new console', async () => {
+    const activeSession = { ...session, phase: 'active' as const, activeRoleIds: ['admiral'] };
+    const assignedPlayer = {
+      ...player, assignedRoleId: 'admiral', seatId: 'admiral', activeConsoleRoleId: null,
+    };
+    useSessionStore.getState().setIdentity(activeSession, assignedPlayer);
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    useSessionStore.getState().setCommunicationError({
+      kind: 'station-selection-required',
+      code: 'permission-denied',
+      message: 'Your previous station is no longer available. Return to station select and reselect your role.',
+    });
+
+    await selectConsoleRole('admiral');
+
+    expect(httpsCallable).not.toHaveBeenCalled();
+    expect(useSessionStore.getState()).toMatchObject({
+      session: { id: 's1' },
+      me: { uid: 'u1', activeConsoleRoleId: null },
+      communicationError: {
+        kind: 'station-selection-required',
+        message: 'Your previous station is no longer available. Return to station select and reselect your role.',
+      },
+    });
+  });
+
   it('applies a server presence invalidation without dropping session membership', async () => {
     const activeSession = { ...session, phase: 'active' as const, activeRoleIds: ['admiral'] };
     const assignedPlayer = {

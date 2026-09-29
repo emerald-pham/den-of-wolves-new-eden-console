@@ -549,7 +549,7 @@ function functionExports(source) {
 // must be reconciled if the candidate changes before its first deployment.
 const PC05_INDEX_HELPER_TRANSITION = Object.freeze({
   before: 'c3e2411d0784be6acdd7402325475bcbd78d410984e86261476b0010730eed64',
-  after: 'c427c62aaec5e782ed308f6d087bbd2e9e37521664c53b139e927c9def642901',
+  after: '51eec3ab6fe1a97c7df6fddcda474ede2a9abfaacac2581a52866e5fc12d00d0',
   consumers: [
     'createSession', 'confirmSetup', 'transferShuttleControlCommand',
     'transferShuttleCargoCommand', 'rechargeHostConsoleFromShuttle', 'repairConsolesFromBlacksmith',
