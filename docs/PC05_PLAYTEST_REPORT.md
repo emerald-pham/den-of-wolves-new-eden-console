@@ -479,3 +479,14 @@ passes**, three client assertion failures, and the expected missing-component
 failure before implementation. PC05-A6 records the source-backed optional
 emergency decision before permanent pursuit failure. Both test tranches remain
 separate from the pending implementation; no failing assertion was waived.
+
+Independent `9ea5dfd5` follow-up clears Scout and pending-role privacy but
+identified one remaining GM presence type mismatch. Test-only `bb4a98c9`
+reproduces **five failures / 281 passes** for malformed values versus truly
+absent legacy data. Production `23e9ca17` preserves that distinction using a
+GM-only validation marker and actual Firestore Timestamp validation. The
+worker's **286 focused tests** and typecheck pass; the parent passes all **six
+targeted projection/candidate checks**. Independent exact `23e9ca17` follow-up
+is **clear**, confirming matching server type/45-second lease semantics and
+no heartbeat or validity-marker exposure to non-GM members. This closes the
+A4 review findings; deployment and ordinary gameplay proof remain separate.
