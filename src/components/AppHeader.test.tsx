@@ -728,6 +728,11 @@ it('renders current and retained repair history with progress and keyboard stop 
     'A stale recharge does not spend resources or add a charge.',
   )).toBeVisible();
   expect(within(newestEntry).getByText(
+    '507 of 751 planned items are complete in the catalog snapshot used to build this release (67.51%).',
+  )).toBeVisible();
+  const historicalPc05Entry = within(region).getByRole('heading', { name: 'Build 0.5.57' }).closest('article');
+  if (!historicalPc05Entry) throw new Error('Expected the historical 0.5.57 PC05 release entry.');
+  expect(within(historicalPc05Entry).getByText(
     '458 of 751 planned items were complete in the catalog snapshot used to build this release (60.99%).',
   )).toBeVisible();
   const previousPc05Entry = within(region).getByRole('heading', { name: 'Build 0.5.56' }).closest('article');
