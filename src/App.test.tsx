@@ -860,6 +860,33 @@ describe('App', () => {
     unmount();
   });
 
+  it('joins the public pursuit marker to protected GM authority in either listener order and clears it promptly', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_id, _uid, next) => {
+      handlers = next;
+      return vi.fn();
+    });
+    useSessionStore.getState().setIdentity({ ...session, phase: 'active', currentTurn: 3 }, player);
+    const { unmount } = render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    const marker = {
+      type: 'pursuit-emergency-window' as const, status: 'awaiting-gm-decision' as const,
+      cycle: 3, openedAt: '2026-09-28T12:00:00.000Z',
+    };
+    const authority = {
+      ...marker, navigationRevision: 42, groupIds: ['fleet-1'],
+    };
+
+    act(() => handlers?.onGmDiscovery?.({ pursuitEmergencyWindowAuthority: authority }));
+    expect(useSessionStore.getState().session?.pursuitEmergencyWindowAuthority).toBeUndefined();
+    act(() => handlers?.onSession({ ...session, phase: 'active', currentTurn: 3,
+      pursuitEmergencyWindow: marker }));
+    expect(useSessionStore.getState().session?.pursuitEmergencyWindowAuthority).toEqual(authority);
+    act(() => handlers?.onSession({ ...session, phase: 'active', currentTurn: 3 }));
+    expect(useSessionStore.getState().session?.pursuitEmergencyWindowAuthority).toBeUndefined();
+    unmount();
+  });
+
   it('keeps the GM fleet projection through own-discovery and public-header updates', async () => {
     let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
     vi.mocked(subscribeSessionState).mockImplementation((_id, _uid, next) => {

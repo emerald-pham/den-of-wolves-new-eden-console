@@ -5158,7 +5158,7 @@ export default function GmConsole() {
           <PursuitEmergencyWindowPanel active={Boolean(
             isGm && local && session?.phase === 'active' &&
             sessionSnapshotFreshness === 'server' && connection === 'live',
-          )} window={session?.pursuitEmergencyWindow} />
+          )} window={session?.pursuitEmergencyWindowAuthority} />
 
       </aside>
       {pendingCapybaraEnabled !== null && (

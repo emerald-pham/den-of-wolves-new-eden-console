@@ -121,7 +121,7 @@ it('hydrates only the privacy-safe pursuit-emergency marker from the member-read
     ...sessionData(8),
     pursuitEmergencyWindow: {
       type: 'pursuit-emergency-window', status: 'offered', cycle: 3,
-      navigationRevision: 42, groupIds: ['fleet-1'], openedAt: '2026-09-28T12:00:00.000Z',
+      openedAt: '2026-09-28T12:00:00.000Z',
     },
   });
   expect(valid.pursuitEmergencyWindow).toEqual({
@@ -130,6 +130,13 @@ it('hydrates only the privacy-safe pursuit-emergency marker from the member-read
   });
   expect(valid.pursuitEmergencyWindow).not.toHaveProperty('navigationRevision');
   expect(valid.pursuitEmergencyWindow).not.toHaveProperty('groupIds');
+  expect(sessionFrom('private-fields-on-public-window', {
+    ...sessionData(8),
+    pursuitEmergencyWindow: {
+      type: 'pursuit-emergency-window', status: 'offered', cycle: 3,
+      navigationRevision: 42, groupIds: ['fleet-1'], openedAt: '2026-09-28T12:00:00.000Z',
+    },
+  })).not.toHaveProperty('pursuitEmergencyWindow');
   expect(sessionFrom('malformed-pursuit-window', {
     ...sessionData(8),
     pursuitEmergencyWindow: {
@@ -3903,13 +3910,23 @@ it('does not hydrate the organiser map from cache or a callback after read autho
   });
   const snapshot = (fromCache: boolean) => ({
     metadata: { fromCache }, exists: () => true,
-    data: () => ({ knownSystems: { 'system-17': '8378' } }),
+    data: () => ({
+      knownSystems: { 'system-17': '8378' },
+      pursuitEmergencyWindow: {
+        type: 'pursuit-emergency-window', status: 'offered', cycle: 3,
+        navigationRevision: 42, groupIds: ['fleet-1'], openedAt: '2026-09-28T12:00:00.000Z',
+      },
+    }),
   });
   callbacks[2]?.(snapshot(true));
   expect(onGmDiscovery).not.toHaveBeenCalled();
   callbacks[2]?.(snapshot(false));
   expect(onGmDiscovery).toHaveBeenCalledWith(expect.objectContaining({
     organiserSystems: { 'system-17': '8378' },
+    pursuitEmergencyWindowAuthority: {
+      type: 'pursuit-emergency-window', status: 'offered', cycle: 3,
+      navigationRevision: 42, groupIds: ['fleet-1'], openedAt: '2026-09-28T12:00:00.000Z',
+    },
   }));
   errors[2]?.({ code: 'permission-denied' });
   expect(onGmDiscovery).toHaveBeenLastCalledWith(null);

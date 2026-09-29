@@ -228,6 +228,17 @@ beforeEach(() => {
     if (path === 'sessions/s1/gmInstances') {
       return { docs: [{ id: 'bridge' }] };
     }
+    const protectedPursuitWindow = mock.pursuitEmergencyWindow;
+    const memberPursuitWindow = protectedPursuitWindow &&
+      Object.hasOwn(protectedPursuitWindow, 'navigationRevision') &&
+      Object.hasOwn(protectedPursuitWindow, 'groupIds')
+      ? {
+        type: protectedPursuitWindow.type,
+        status: protectedPursuitWindow.status,
+        cycle: protectedPursuitWindow.cycle,
+        openedAt: protectedPursuitWindow.openedAt,
+      }
+      : protectedPursuitWindow;
     const fields: Record<string, unknown> = path.includes('/players/')
       ? {
         role: mock.role, connected: mock.connected, activeConsoleRoleId: mock.activeConsoleRoleId,
@@ -243,7 +254,7 @@ beforeEach(() => {
         : {
           phase: mock.phase,
           ...(mock.gameOutcome ? { gameOutcome: mock.gameOutcome } : {}),
-          ...(mock.pursuitEmergencyWindow ? { pursuitEmergencyWindow: mock.pursuitEmergencyWindow } : {}),
+          ...(memberPursuitWindow ? { pursuitEmergencyWindow: memberPursuitWindow } : {}),
           activeRoleIds: mock.activeRoleIds,
           activeVesselIds: mock.activeVesselIds,
           currentTurn: mock.currentTurn,
@@ -289,10 +300,15 @@ beforeEach(() => {
           },
     };
     if (path === 'sessions/s1/serverState/navigation') {
+      const protectedFields = {
+        ...fields,
+        ...(protectedPursuitWindow ? { pursuitEmergencyWindow: protectedPursuitWindow } : {}),
+        revision: mock.navigationRevision,
+      };
       return {
         exists: true, id: 'navigation', ref: { path },
-        data: () => ({ ...fields, revision: mock.navigationRevision }),
-        get: (key: string) => key === 'revision' ? mock.navigationRevision : fields[key],
+        data: () => protectedFields,
+        get: (key: string) => protectedFields[key],
       };
     }
     const pathId = path.split('/').at(-1) ?? '';
@@ -1701,12 +1717,12 @@ it('opens a nonterminal GM decision window when cycle advancement reaches pursui
       type: 'pursuit-emergency-window',
       status: 'awaiting-gm-decision',
       cycle: 3,
-      navigationRevision: 9,
-      groupIds: ['fleet-1'],
     },
   });
   expect(result).not.toHaveProperty('phase', 'failure');
   expect(result).not.toHaveProperty('gameOutcome');
+  expect(result.pursuitEmergencyWindow).not.toHaveProperty('navigationRevision');
+  expect(result.pursuitEmergencyWindow).not.toHaveProperty('groupIds');
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     currentTurn: 3,
     phase: 'active',
@@ -1738,8 +1754,10 @@ it('requires a current GM offer or decline, and exactly replays both pursuit-win
   const offer = await advanceTurn.run(request(offerRequest));
   expect(offer).toMatchObject({
     currentTurn: 3,
-    pursuitEmergencyWindow: { status: 'offered', navigationRevision: 9, groupIds: ['fleet-1'] },
+    pursuitEmergencyWindow: { status: 'offered', cycle: 3 },
   });
+  expect(offer.pursuitEmergencyWindow).not.toHaveProperty('navigationRevision');
+  expect(offer.pursuitEmergencyWindow).not.toHaveProperty('groupIds');
   const offerReceipt = mock.set.mock.calls.find(([path]) => String(path).endsWith('/commandReceipts/offer-pursuit-emergency'))?.[1];
   expect(offerReceipt).toMatchObject({ result: offer });
   mock.commandReceiptRecord = offerReceipt;

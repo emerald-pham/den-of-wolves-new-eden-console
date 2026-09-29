@@ -2412,8 +2412,6 @@ it('opens one pursuit emergency decision when pursuit reaches 10 and blocks late
       type: 'pursuit-emergency-window',
       status: 'awaiting-gm-decision',
       cycle: 3,
-      navigationRevision: 9,
-      groupIds: ['fleet-1'],
       openedAt: '2026-09-06T12:20:07.000Z',
     },
     maintenanceCycles: {},
@@ -2435,9 +2433,23 @@ it('opens one pursuit emergency decision when pursuit reaches 10 and blocks late
     'sessions/s1/serverState/navigation',
     expect.objectContaining({
       pursuitGroups: { 'fleet-1': 10, 'fleet-2': 4 }, revision: 9,
-      pursuitEmergencyWindow: result.pursuitEmergencyWindow,
     }),
     { mergeFields: expect.arrayContaining(['pursuitGroups', 'revision']) },
+  );
+  const protectedWindow = {
+    ...result.pursuitEmergencyWindow,
+    navigationRevision: 9,
+    groupIds: ['fleet-1'],
+  };
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/serverState/navigation',
+    { pursuitEmergencyWindow: protectedWindow },
+    { mergeFields: ['pursuitEmergencyWindow'] },
+  );
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/gmDiscovery/current',
+    { pursuitEmergencyWindow: protectedWindow },
+    { mergeFields: ['pursuitEmergencyWindow'] },
   );
   expect(mock.set).toHaveBeenCalledWith(
     'sessions/s1/commandReceipts/advance-test-pursuit-failure',

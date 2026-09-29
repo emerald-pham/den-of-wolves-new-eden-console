@@ -814,14 +814,18 @@ export interface PursuitFailureOutcome {
   readonly occurredAt: Timestamp;
 }
 
-/** Server-owned pause while the facilitator decides whether to offer a pursuit emergency. */
+/** Member-safe pause marker while the facilitator decides whether to offer a pursuit emergency. */
 export interface PursuitEmergencyWindow {
   readonly type: 'pursuit-emergency-window';
   readonly status: 'awaiting-gm-decision' | 'offered';
   readonly cycle: number;
+  readonly openedAt: Timestamp;
+}
+
+/** Facilitator-only authority for the current pursuit emergency decision. */
+export interface PursuitEmergencyWindowAuthority extends PursuitEmergencyWindow {
   readonly navigationRevision: number;
   readonly groupIds: readonly GroupId[];
-  readonly openedAt: Timestamp;
 }
 
 export interface TotalFleetLossOutcome {
@@ -1177,6 +1181,8 @@ export interface GameSession {
   readonly pursuitGroups?: Readonly<Record<string, number>>;
   /** Active-GM decision gate for the printed optional pursuit emergency jump. */
   readonly pursuitEmergencyWindow?: PursuitEmergencyWindow;
+  /** Facilitator-only decision authority received from the protected organiser projection. */
+  readonly pursuitEmergencyWindowAuthority?: PursuitEmergencyWindowAuthority;
   /** Facilitator-only server mapping from each plotted ship to its fleet group. */
   readonly shipFleetGroupIds?: Readonly<Record<string, GroupId>>;
   /** Facilitator-only pursuit depth by plotted ship. */

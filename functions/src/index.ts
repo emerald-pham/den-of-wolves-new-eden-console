@@ -38,6 +38,15 @@ import { setGlobalOptions } from 'firebase-functions/v2';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { commandError } from './commandErrors';
+import {
+  isPursuitEmergencyWindowMarker,
+  publicPursuitEmergencyWindow,
+  pursuitEmergencyWindowAuthority,
+  pursuitEmergencyWindowMarker,
+  requirePursuitEmergencyWindowAbsent,
+  type PursuitEmergencyWindowAuthority,
+  type PursuitEmergencyWindowMarker,
+} from './pursuitEmergencyWindow';
 import { enforceExpensiveCallableRateLimit } from './callableRateLimitFirestore';
 import {
   ADMIRAL_DIRECTIVE_KINDS,
@@ -3381,13 +3390,7 @@ function requireLiveAirspaceWindow(phase: ActiveTurnPhase): void {
  * exact committed replays are checked by each caller before reaching here.
  */
 function requireActiveGameplayPhase(session: DocumentSnapshot, allowPursuitEmergencyWindow = false): void {
-  if (!allowPursuitEmergencyWindow && session.get('pursuitEmergencyWindow') !== undefined) {
-    throw commandError(
-      'failed-precondition',
-      'Gameplay is paused while the facilitator decides whether to offer an emergency jump.',
-      'invalid-phase',
-    );
-  }
+  if (!allowPursuitEmergencyWindow) requirePursuitEmergencyWindowAbsent(session);
   const lifecyclePhase = session.get('phase');
   if (lifecyclePhase === 'closed' || lifecyclePhase === 'retained-empty') {
     throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
@@ -3424,34 +3427,24 @@ function requireActionPhase(
   );
 }
 
-type PursuitEmergencyWindow = {
-  readonly type: 'pursuit-emergency-window';
-  readonly status: 'awaiting-gm-decision' | 'offered';
-  readonly cycle: number;
-  readonly navigationRevision: number;
-  readonly groupIds: readonly string[];
-  readonly openedAt: string;
-};
+type PursuitEmergencyWindow = PursuitEmergencyWindowAuthority;
 
-function isPursuitEmergencyWindow(value: unknown): value is PursuitEmergencyWindow {
-  if (!isRecord(value)) return false;
-  return value.type === 'pursuit-emergency-window' &&
-    (value.status === 'awaiting-gm-decision' || value.status === 'offered') &&
-    Number.isSafeInteger(value.cycle) && (value.cycle as number) >= 1 &&
-    Number.isSafeInteger(value.navigationRevision) && (value.navigationRevision as number) >= 0 &&
-    Array.isArray(value.groupIds) && value.groupIds.length > 0 &&
-    value.groupIds.every((id) => typeof id === 'string' && id.length > 0) &&
-    new Set(value.groupIds).size === value.groupIds.length &&
-    typeof value.openedAt === 'string' && Number.isFinite(Date.parse(value.openedAt));
-}
-
-function pursuitEmergencyWindow(session: Pick<DocumentSnapshot, 'get'>): PursuitEmergencyWindow | undefined {
-  const value = session.get('pursuitEmergencyWindow');
-  if (value === undefined) return undefined;
-  if (!isPursuitEmergencyWindow(value)) {
-    throw commandError('failed-precondition', 'The stored pursuit emergency decision is malformed.', 'malformed-input');
+function pursuitEmergencyWindowState(
+  session: Pick<DocumentSnapshot, 'get'>,
+  navigation: Pick<DocumentSnapshot, 'get'>,
+): PursuitEmergencyWindow | undefined {
+  const marker = pursuitEmergencyWindowMarker(session);
+  const authority = pursuitEmergencyWindowAuthority(navigation);
+  if (!marker && !authority) return undefined;
+  if (!marker || !authority || marker.type !== authority.type || marker.status !== authority.status ||
+      marker.cycle !== authority.cycle || marker.openedAt !== authority.openedAt) {
+    throw commandError(
+      'failed-precondition',
+      'The public and protected pursuit emergency decisions do not match.',
+      'malformed-input',
+    );
   }
-  return value;
+  return authority;
 }
 
 function pursuitEmergencyGroupIds(
@@ -3526,7 +3519,7 @@ type TurnAdvanceResult = {
   readonly turnPhase?: ReturnType<typeof startTurnPhase>;
   readonly maintenanceCycles?: Record<string, MaintenanceCycle>;
   readonly shuttleFuelled?: Record<string, boolean>;
-  readonly pursuitEmergencyWindow?: PursuitEmergencyWindow;
+  readonly pursuitEmergencyWindow?: PursuitEmergencyWindowMarker;
 };
 
 type PursuitFailureOutcome = {
@@ -3551,7 +3544,8 @@ function isTurnAdvanceResult(value: unknown): value is TurnAdvanceResult {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const result = value as Record<string, unknown>;
   if (!Number.isSafeInteger(result.currentTurn) || (result.currentTurn as number) < 0) return false;
-  if (result.pursuitEmergencyWindow !== undefined && !isPursuitEmergencyWindow(result.pursuitEmergencyWindow)) return false;
+  if (result.pursuitEmergencyWindow !== undefined &&
+      !isPursuitEmergencyWindowMarker(result.pursuitEmergencyWindow)) return false;
   if (result.phase === 'debrief') return result.turnPhase === undefined;
   if (result.phase === 'failure') {
     return result.turnPhase === undefined && isPursuitFailureOutcome(result.gameOutcome);
@@ -3744,6 +3738,11 @@ function advanceTurnInTransaction(
       openedAt: transition?.transitionServerTime ?? new Date().toISOString(),
     }
     : undefined;
+  if (pendingEmergencyWindow) {
+    const protectedWindow = { pursuitEmergencyWindow: pendingEmergencyWindow };
+    tx.set(navigationStateRef(sessionId), protectedWindow, { mergeFields: ['pursuitEmergencyWindow'] });
+    tx.set(gmDiscoveryProjectionRef(sessionId), protectedWindow, { mergeFields: ['pursuitEmergencyWindow'] });
+  }
   if (pursuitFailed && !pendingEmergencyWindow) {
     const gameOutcome: PursuitFailureOutcome = {
       type: 'game-outcome',
@@ -3799,7 +3798,9 @@ function advanceTurnInTransaction(
       : announcement,
     fleetSurvivorPopulationAdjustment: nextFleetPopulation - fleetShipSurvivorPopulation(session),
     turnPhase,
-    ...(pendingEmergencyWindow ? { phase: 'active', pursuitEmergencyWindow: pendingEmergencyWindow } : {}),
+    ...(pendingEmergencyWindow ? {
+      phase: 'active', pursuitEmergencyWindow: publicPursuitEmergencyWindow(pendingEmergencyWindow),
+    } : {}),
     ...(turnState ? { turnState } : {}),
     fleetTicker,
     ...(expiredTurnResources
@@ -3822,7 +3823,9 @@ function advanceTurnInTransaction(
     ...(turnState ? { turnState } : {}),
     ...(skipTurnStartAnnouncement ? {} : { turnStartAnnouncement: announcement }),
     turnPhase,
-    ...(pendingEmergencyWindow ? { pursuitEmergencyWindow: pendingEmergencyWindow } : {}),
+    ...(pendingEmergencyWindow ? {
+      pursuitEmergencyWindow: publicPursuitEmergencyWindow(pendingEmergencyWindow),
+    } : {}),
     ...(expiredTurnResources
       ? {
         maintenanceCycles: expiredTurnResources.maintenanceCycles,
@@ -15900,7 +15903,7 @@ export const jumpShip = onCall<{
     const replay = vesselActionReceiptReply(prior, fingerprint, 'ship jump');
     if (replay) return replay;
     requireWolfAttackMovementReleased(attackState);
-    const emergencyWindow = pursuitEmergencyWindow(session);
+    const emergencyWindow = pursuitEmergencyWindowState(session, storedNavigation);
     if (emergencyWindow) {
       if (!change.emergency || emergencyWindow.status !== 'offered') {
         throw commandError('failed-precondition',
@@ -16136,10 +16139,14 @@ export const jumpShip = onCall<{
         );
         writeMissionOpportunity(tx, change.sessionId, missionOpportunity);
         tx.set(navigationStateRef(change.sessionId), {
-          ...navigationProjectionFields(nextNavigation), revision: navigationRevision, updatedAt: FieldValue.serverTimestamp(),
+          ...navigationProjectionFields(nextNavigation), revision: navigationRevision,
+          ...(emergencyDecision.window ? { pursuitEmergencyWindow: emergencyDecision.window } : {}),
+          updatedAt: FieldValue.serverTimestamp(),
         });
         tx.set(gmDiscoveryProjectionRef(change.sessionId), {
-          ...navigationProjectionFields(nextNavigation), revision: navigationRevision, updatedAt: FieldValue.serverTimestamp(),
+          ...navigationProjectionFields(nextNavigation), revision: navigationRevision,
+          ...(emergencyDecision.window ? { pursuitEmergencyWindow: emergencyDecision.window } : {}),
+          updatedAt: FieldValue.serverTimestamp(),
         });
         publishDiscoveryProjections(
           tx, change.sessionId, Array.isArray(players?.docs) ? players.docs : [player],
@@ -16155,7 +16162,8 @@ export const jumpShip = onCall<{
           shipNavigationLogs: removeLegacyNavigationField(), pursuitGroups: removeLegacyNavigationField(),
           ...damageConsequences,
           ...(emergencyDecision.window ? {
-            phase: 'active', pursuitEmergencyWindow: emergencyDecision.window,
+            phase: 'active',
+            pursuitEmergencyWindow: publicPursuitEmergencyWindow(emergencyDecision.window),
           } : emergencyDecision.cleared ? { pursuitEmergencyWindow: FieldValue.delete() } : {}),
           ...terminalWindowPatch,
           ...vesselActionRevisionPatch(change.shipId, revision), updatedAt: FieldValue.serverTimestamp(),
@@ -16190,7 +16198,9 @@ export const jumpShip = onCall<{
         const reply = {
           ...emergency, fuelCost: inventory.fuel, fuelSpent: inventory.fuel,
           damage: emergencyDamage, damageDraws, shipId: change.shipId,
-          ...(emergencyDecision.window ? { pursuitEmergencyWindow: emergencyDecision.window } : {}),
+          ...(emergencyDecision.window ? {
+            pursuitEmergencyWindow: publicPursuitEmergencyWindow(emergencyDecision.window),
+          } : {}),
           ...(emergencyDecision.cleared ? { pursuitEmergencyWindowCleared: true } : {}),
           ...(pursuitFailure ? { phase: 'failure', gameOutcome: pursuitFailure } : {}),
           ...(missionOpportunity ? { missionOpportunityId: missionOpportunity.id } : {}),
@@ -16440,10 +16450,12 @@ export const jumpShip = onCall<{
     writeMissionOpportunity(tx, change.sessionId, missionOpportunity);
     tx.set(navigationStateRef(change.sessionId), {
       ...navigationProjectionFields(nextNavigation), revision: navigationRevision,
+      ...(movementDecision.window ? { pursuitEmergencyWindow: movementDecision.window } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
     tx.set(gmDiscoveryProjectionRef(change.sessionId), {
       ...navigationProjectionFields(nextNavigation), revision: navigationRevision,
+      ...(movementDecision.window ? { pursuitEmergencyWindow: movementDecision.window } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
     publishDiscoveryProjections(
@@ -16466,7 +16478,7 @@ export const jumpShip = onCall<{
       shipNavigationLogs: removeLegacyNavigationField(),
       pursuitGroups: removeLegacyNavigationField(),
       ...(movementDecision.window ? {
-        pursuitEmergencyWindow: movementDecision.window,
+        pursuitEmergencyWindow: publicPursuitEmergencyWindow(movementDecision.window),
       } : movementDecision.cleared ? { pursuitEmergencyWindow: FieldValue.delete() } : {}),
       ...terminalWindowPatch,
       ...vesselActionRevisionPatch(change.shipId, revision),
@@ -16476,7 +16488,9 @@ export const jumpShip = onCall<{
       ...result,
       shipId: change.shipId,
       ...(missionOpportunity ? { missionOpportunityId: missionOpportunity.id } : {}),
-      ...(movementDecision.window ? { pursuitEmergencyWindow: movementDecision.window } : {}),
+      ...(movementDecision.window ? {
+        pursuitEmergencyWindow: publicPursuitEmergencyWindow(movementDecision.window),
+      } : {}),
       ...(movementDecision.cleared ? { pursuitEmergencyWindowCleared: true } : {}),
       ...(pursuitFailure ? { phase: 'failure', gameOutcome: pursuitFailure } : {}),
       ...vesselActionEnvelope(session, player, uid, change.shipId, revision,
@@ -16732,10 +16746,16 @@ export const adjudicateFailedJump = onCall<{
     );
     writeMissionOpportunity(tx, change.sessionId, missionOpportunity);
     tx.set(navigationStateRef(change.sessionId), {
-      ...navigationProjectionFields(nextNavigation), revision: navigationRevision, updatedAt: FieldValue.serverTimestamp(),
+      ...navigationProjectionFields(nextNavigation), revision: navigationRevision,
+      ...(!damageTerminal && movementDecision.window
+        ? { pursuitEmergencyWindow: movementDecision.window } : {}),
+      updatedAt: FieldValue.serverTimestamp(),
     });
     tx.set(gmDiscoveryProjectionRef(change.sessionId), {
-      ...navigationProjectionFields(nextNavigation), revision: navigationRevision, updatedAt: FieldValue.serverTimestamp(),
+      ...navigationProjectionFields(nextNavigation), revision: navigationRevision,
+      ...(!damageTerminal && movementDecision.window
+        ? { pursuitEmergencyWindow: movementDecision.window } : {}),
+      updatedAt: FieldValue.serverTimestamp(),
     });
     publishDiscoveryProjections(
       tx, change.sessionId, Array.isArray(players?.docs) ? players.docs : [player],
@@ -16763,7 +16783,8 @@ export const adjudicateFailedJump = onCall<{
       shipNavigationLogs: removeLegacyNavigationField(), pursuitGroups: removeLegacyNavigationField(),
       ...damageConsequences,
       ...(movementDecision.window && !damageTerminal ? {
-        phase: 'active', pursuitEmergencyWindow: movementDecision.window,
+        phase: 'active',
+        pursuitEmergencyWindow: publicPursuitEmergencyWindow(movementDecision.window),
       } : movementDecision.cleared || damageTerminal ? { pursuitEmergencyWindow: FieldValue.delete() } : {}),
       ...terminalWindowPatch,
       ...vesselActionRevisionPatch(shipId, revision), updatedAt: FieldValue.serverTimestamp(),
@@ -16790,7 +16811,7 @@ export const adjudicateFailedJump = onCall<{
       state: jumpState, transition: jumpTransition,
       ...(missionOpportunity ? { missionOpportunityId: missionOpportunity.id } : {}),
       ...(!damageTerminal && movementDecision.window
-        ? { pursuitEmergencyWindow: movementDecision.window } : {}),
+        ? { pursuitEmergencyWindow: publicPursuitEmergencyWindow(movementDecision.window) } : {}),
       ...(movementDecision.cleared || damageTerminal ? { pursuitEmergencyWindowCleared: true } : {}),
       ...(pursuitFailure ? { phase: 'failure', gameOutcome: pursuitFailure } : {}),
       ...vesselActionEnvelope(session, player, uid, shipId, revision,
@@ -16997,20 +17018,27 @@ export const advanceTurn = onCall<{
     );
     const replay = replayBoundCommand(receipt, fingerprint, isTurnAdvanceResult, 'cycle advance');
     if (replay) return replay;
-    const existingEmergencyWindow = pursuitEmergencyWindow(session);
+    const emergencyMarker = pursuitEmergencyWindowMarker(session);
     if (advance.pursuitEmergencyDecision !== undefined) {
-      if (!existingEmergencyWindow) {
+      if (!emergencyMarker) {
         throw commandError('failed-precondition', 'There is no current pursuit emergency decision to resolve.', 'conflict');
       }
       if (session.get('phase') !== undefined && session.get('phase') !== 'active') {
         throw commandError('failed-precondition', 'The pursuit emergency decision is no longer active.', 'invalid-phase');
       }
       if (sessionTurn(session.get('currentTurn')) !== advance.expectedTurn ||
-          existingEmergencyWindow.cycle !== advance.expectedTurn) {
+          emergencyMarker.cycle !== advance.expectedTurn) {
         throw commandError('failed-precondition', 'The pursuit emergency cycle changed; refresh before deciding.', 'stale-revision');
       }
       const authority = await readTurnPursuitAuthority(tx, advance.sessionId, session);
-      if (!authority || advance.expectedPursuitNavigationRevision !== existingEmergencyWindow.navigationRevision ||
+      if (!authority) {
+        throw commandError('failed-precondition', 'Pursuit changed; refresh before deciding.', 'stale-revision');
+      }
+      const existingEmergencyWindow = pursuitEmergencyWindowState(session, authority.navigationSnapshot);
+      if (!existingEmergencyWindow) {
+        throw commandError('failed-precondition', 'There is no current pursuit emergency decision to resolve.', 'conflict');
+      }
+      if (advance.expectedPursuitNavigationRevision !== existingEmergencyWindow.navigationRevision ||
           authority.navigationRevision !== existingEmergencyWindow.navigationRevision) {
         throw commandError('failed-precondition', 'Pursuit changed; refresh before deciding.', 'stale-revision');
       }
@@ -17038,6 +17066,9 @@ export const advanceTurn = onCall<{
           pursuitEmergencyWindow: FieldValue.delete(),
           updatedAt: FieldValue.serverTimestamp(),
         });
+        const clearedWindow = { pursuitEmergencyWindow: FieldValue.delete() };
+        tx.set(navigationStateRef(advance.sessionId), clearedWindow, { mergeFields: ['pursuitEmergencyWindow'] });
+        tx.set(gmDiscoveryProjectionRef(advance.sessionId), clearedWindow, { mergeFields: ['pursuitEmergencyWindow'] });
         const result: TurnAdvanceResult = {
           currentTurn: existingEmergencyWindow.cycle, phase: 'failure', gameOutcome,
         };
@@ -17052,14 +17083,21 @@ export const advanceTurn = onCall<{
         session, authority.navigation, authority.fleetGroups, existingEmergencyWindow.cycle,
       ).length === 0) return finishAsFailure();
       const offeredWindow: PursuitEmergencyWindow = { ...existingEmergencyWindow, status: 'offered' };
-      tx.update(sessionRef, { pursuitEmergencyWindow: offeredWindow, updatedAt: FieldValue.serverTimestamp() });
+      const publicOfferedWindow = publicPursuitEmergencyWindow(offeredWindow);
+      tx.update(sessionRef, {
+        pursuitEmergencyWindow: publicOfferedWindow,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      const protectedWindow = { pursuitEmergencyWindow: offeredWindow };
+      tx.set(navigationStateRef(advance.sessionId), protectedWindow, { mergeFields: ['pursuitEmergencyWindow'] });
+      tx.set(gmDiscoveryProjectionRef(advance.sessionId), protectedWindow, { mergeFields: ['pursuitEmergencyWindow'] });
       const activePhase = turnPhaseState(session.get('turnPhase'));
       if (!activePhase || activePhase.turn !== existingEmergencyWindow.cycle) {
         throw commandError('failed-precondition', 'No valid current server phase is available for the emergency decision.', 'invalid-phase');
       }
       const result: TurnAdvanceResult = {
         currentTurn: existingEmergencyWindow.cycle, turnPhase: activePhase,
-        pursuitEmergencyWindow: offeredWindow,
+        pursuitEmergencyWindow: publicOfferedWindow,
       };
       tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
       return result;

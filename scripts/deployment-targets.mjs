@@ -549,7 +549,7 @@ function functionExports(source) {
 // must be reconciled if the candidate changes before its first deployment.
 const PC05_INDEX_HELPER_TRANSITION = Object.freeze({
   before: 'c3e2411d0784be6acdd7402325475bcbd78d410984e86261476b0010730eed64',
-  after: '4c7957de86c9a7f0c03ff8ba6802f042c416eb5efa6f38f728fdabb71942515a',
+  after: 'c427c62aaec5e782ed308f6d087bbd2e9e37521664c53b139e927c9def642901',
   consumers: [
     'createSession', 'confirmSetup', 'transferShuttleControlCommand',
     'transferShuttleCargoCommand', 'rechargeHostConsoleFromShuttle', 'repairConsolesFromBlacksmith',
@@ -1312,7 +1312,10 @@ function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }
       for (const name of maliadesCallableImpacts(before, after, cwd, sourceAtRevision)) selected.add(name);
       continue;
     }
-    let consumers = CALLABLES_BY_CHANGED_MODULE[file];
+    let consumers = file === 'functions/src/pursuitEmergencyWindow.ts'
+      ? [...PC05_INDEX_HELPER_TRANSITION.consumers,
+        'activateEndeavourEcmDevice', 'advanceEndeavourResearchTrack', 'repairMaliades']
+      : CALLABLES_BY_CHANGED_MODULE[file];
     if (file === 'functions/src/smallShip.ts') {
       const source = sourceAtRevision ? sourceAtRevision(after, file)
         : execFileSync('git', ['show', `${after}:${file}`], { cwd, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });

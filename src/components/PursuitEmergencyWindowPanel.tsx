@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { advanceTurn } from '@/lib/sessionService';
-import type { PursuitEmergencyWindow } from '@/types/game';
+import type { PursuitEmergencyWindowAuthority } from '@/types/game';
 
 interface Props {
   readonly active: boolean;
-  readonly window?: PursuitEmergencyWindow | undefined;
+  readonly window?: PursuitEmergencyWindowAuthority | undefined;
 }
 
 interface DecisionAttempt {

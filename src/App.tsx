@@ -65,6 +65,14 @@ const hasConsoleDradis = (path: string): boolean =>
   path === '/press' || path.startsWith('/ships/') || path.startsWith('/union/') ||
   path.startsWith('/shuttles/') || path.startsWith('/replacement/');
 
+function pursuitEmergencyAuthorityMatches(session: GameSession): boolean {
+  const marker = session.pursuitEmergencyWindow;
+  const authority = session.pursuitEmergencyWindowAuthority;
+  return Boolean(marker && authority && marker.type === authority.type &&
+    marker.status === authority.status && marker.cycle === authority.cycle &&
+    marker.openedAt === authority.openedAt);
+}
+
 function stripNavigationProjection(session: GameSession): GameSession {
   const next = { ...session };
   delete next.playerDiscovery;
@@ -199,7 +207,8 @@ function AppRoutes() {
     let arbourVisionRevisionFloor = 0;
     let pendingGmDiscovery: Pick<GameSession, 'shipGalacticCoordinates' | 'shipNavigationLogs' |
       'organiserSites' | 'organiserSystems' | 'organiserSystemHistory' | 'pursuitDistances' |
-      'candidatePlanCheckpoint'> | null = null;
+      'pursuitGroups' | 'shipFleetGroupIds' | 'candidatePlanCheckpoint' |
+      'pursuitEmergencyWindowAuthority'> | null = null;
     let unsubscribe: () => void = () => undefined;
     let unsubscribeLoyaltyCensus: () => void = () => undefined;
     let censusSubscribed = false;
@@ -397,6 +406,8 @@ function AppRoutes() {
             currentCandidateProjection && store.me.fleetGroupId === currentCandidateProjection.groupId
             ? currentCandidateProjection : undefined;
           if (candidateProjection) retainedGroupCandidateProjection = candidateProjection;
+          const emergencyAuthority = pendingGmDiscovery?.pursuitEmergencyWindowAuthority ??
+            current.pursuitEmergencyWindowAuthority;
           const composed = {
             ...next,
             ...(current.playerDiscovery ? { playerDiscovery: current.playerDiscovery } : {}),
@@ -409,6 +420,10 @@ function AppRoutes() {
             ...(current.pursuitGroups ? { pursuitGroups: current.pursuitGroups } : {}),
             ...(current.shipFleetGroupIds ? { shipFleetGroupIds: current.shipFleetGroupIds } : {}),
             ...(current.candidatePlanCheckpoint ? { candidatePlanCheckpoint: current.candidatePlanCheckpoint } : {}),
+            ...(emergencyAuthority && pursuitEmergencyAuthorityMatches({
+              ...next,
+              pursuitEmergencyWindowAuthority: emergencyAuthority,
+            }) ? { pursuitEmergencyWindowAuthority: emergencyAuthority } : {}),
             ...(candidateProjection ? { currentGroupCandidateReveals: candidateProjection } : {}),
           };
           store.setSession(store.me?.role === 'gm' ? composed : stripGmNavigationProjection(composed));
@@ -454,6 +469,9 @@ function AppRoutes() {
           if (store.me?.role === 'gm') {
             const next = { ...current, ...projection };
             if (!projection.candidatePlanCheckpoint) delete next.candidatePlanCheckpoint;
+            if (!pursuitEmergencyAuthorityMatches(next)) {
+              delete next.pursuitEmergencyWindowAuthority;
+            }
             store.setSession(next);
           }
         },
@@ -571,6 +589,9 @@ function AppRoutes() {
             if (current?.id === sessionId) {
               const next = { ...current, ...pendingGmDiscovery };
               if (!pendingGmDiscovery.candidatePlanCheckpoint) delete next.candidatePlanCheckpoint;
+              if (!pursuitEmergencyAuthorityMatches(next)) {
+                delete next.pursuitEmergencyWindowAuthority;
+              }
               store.setSession(next);
             }
           }

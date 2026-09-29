@@ -1679,13 +1679,14 @@ function organiserSiteProjection(value: unknown): OrganiserSiteProjection | unde
 type GmDiscoveryProjection = Pick<GameSession,
   'shipGalacticCoordinates' | 'shipNavigationLogs' | 'organiserSites' | 'organiserSystems' |
   'organiserSystemHistory' | 'pursuitDistances' | 'pursuitGroups' | 'shipFleetGroupIds' |
-  'candidatePlanCheckpoint'>;
+  'candidatePlanCheckpoint' | 'pursuitEmergencyWindowAuthority'>;
 
 function gmDiscoveryProjection(value: unknown): GmDiscoveryProjection | undefined {
   const raw = recordValue(value);
   if (!raw) return undefined;
   const parsedSystemHistory = systemHistory(raw.systemHistory);
   const parsedCandidatePlanCheckpoint = candidatePlanCheckpoint(raw.candidatePlanCheckpoint);
+  const emergencyWindowAuthority = pursuitEmergencyWindowAuthority(raw.pursuitEmergencyWindow);
   const sitesRaw = recordValue(raw.organiserSites);
   const organiserSites = Object.fromEntries(Object.entries(sitesRaw ?? {}).flatMap(([coordinate, site]) => {
     const parsed = organiserSiteProjection(site);
@@ -1712,6 +1713,9 @@ function gmDiscoveryProjection(value: unknown): GmDiscoveryProjection | undefine
     pursuitGroups: pursuitGroups(raw.pursuitGroups),
     shipFleetGroupIds,
     ...(parsedCandidatePlanCheckpoint ? { candidatePlanCheckpoint: parsedCandidatePlanCheckpoint } : {}),
+    ...(emergencyWindowAuthority ? {
+      pursuitEmergencyWindowAuthority: emergencyWindowAuthority,
+    } : {}),
   };
 }
 
@@ -2546,24 +2550,42 @@ function pursuitGroups(value: unknown): Readonly<Record<string, number>> {
 function pursuitEmergencyWindow(value: unknown): GameSession['pursuitEmergencyWindow'] {
   const raw = recordValue(value);
   const cycle = nonNegativeInteger(raw?.cycle);
+  if (!raw || Object.keys(raw).length !== 4 ||
+      !Object.keys(raw).every((key) => [
+        'type', 'status', 'cycle', 'openedAt',
+      ].includes(key)) || raw.type !== 'pursuit-emergency-window' ||
+      (raw.status !== 'awaiting-gm-decision' && raw.status !== 'offered') ||
+      cycle === undefined || cycle < 1 ||
+      typeof raw.openedAt !== 'string' || !Number.isFinite(Date.parse(raw.openedAt))) return undefined;
+  return {
+    type: 'pursuit-emergency-window',
+    status: raw.status,
+    cycle,
+    openedAt: raw.openedAt,
+  };
+}
+
+function pursuitEmergencyWindowAuthority(
+  value: unknown,
+): GameSession['pursuitEmergencyWindowAuthority'] {
+  const raw = recordValue(value);
+  const cycle = nonNegativeInteger(raw?.cycle);
   const navigationRevision = nonNegativeInteger(raw?.navigationRevision);
+  const groupIds = Array.isArray(raw?.groupIds)
+    ? raw.groupIds.map((groupId) => parseEntityId('group', groupId))
+    : [];
   if (!raw || Object.keys(raw).length !== 6 ||
       !Object.keys(raw).every((key) => [
         'type', 'status', 'cycle', 'navigationRevision', 'groupIds', 'openedAt',
       ].includes(key)) || raw.type !== 'pursuit-emergency-window' ||
       (raw.status !== 'awaiting-gm-decision' && raw.status !== 'offered') ||
       cycle === undefined || cycle < 1 || navigationRevision === undefined ||
-      !Array.isArray(raw.groupIds) || raw.groupIds.length === 0 ||
-      !raw.groupIds.every((groupId) => typeof groupId === 'string' &&
-        parseEntityId('group', groupId) !== undefined) ||
-      new Set(raw.groupIds).size !== raw.groupIds.length ||
+      groupIds.length === 0 || groupIds.some((groupId) => groupId === undefined) ||
+      new Set(groupIds).size !== groupIds.length ||
       typeof raw.openedAt !== 'string' || !Number.isFinite(Date.parse(raw.openedAt))) return undefined;
   return {
-    type: 'pursuit-emergency-window',
-    status: raw.status,
-    cycle,
-    navigationRevision,
-    groupIds: raw.groupIds as NonNullable<GameSession['pursuitEmergencyWindow']>['groupIds'],
+    type: 'pursuit-emergency-window', status: raw.status, cycle, navigationRevision,
+    groupIds: groupIds as NonNullable<GameSession['pursuitEmergencyWindowAuthority']>['groupIds'],
     openedAt: raw.openedAt,
   };
 }

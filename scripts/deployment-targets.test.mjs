@@ -1488,6 +1488,14 @@ test('maps only the reviewed pending-rerole navigation exclusion to its runtime 
   assert.throws(() => select(source + '// unrelated runtime edit\n'), /Cannot safely map navigation projection changes/);
 });
 
+test('maps the shared pursuit decision pause to every indexed action and external writer', () => {
+  const selected = selectorFor(['functions/src/pursuitEmergencyWindow.ts']).split(',');
+  for (const name of [
+    'advanceTurn', 'jumpShip', 'runMaintenance', 'activateEndeavourEcmDevice',
+    'advanceEndeavourResearchTrack', 'repairMaliades',
+  ]) assert.ok(selected.includes(`functions:${name}`), name);
+});
+
 
 test('maps the exact PC05 jump request contract and rejects an unrelated guard edit', () => {
   const beforeSource = execFileSync('git', ['show', '7782840d:functions/src/requestGuards.ts'], { encoding: 'utf8' });
