@@ -168,6 +168,17 @@ it('rejects stale recovery when the actor changes fleet group while pending', as
   await expect(pending).rejects.toThrow(/authority changed while the request was pending/i);
 });
 
+it('rejects a delayed cargo reply after pending re-role keeps stale holder pointers', async () => {
+  let resolve!: (value: { data: Record<string, unknown> }) => void;
+  mocks.call.mockReturnValue(new Promise((finish) => { resolve = finish; }));
+  const pending = transferShuttleCargo('hummingbird', 'food', 'load', 2, 3);
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, replacementStatus: 'awaiting-re-role',
+  });
+  resolve({ data: staleReply() });
+  await expect(pending).rejects.toThrow(/authority changed while the request was pending/i);
+});
+
 it('waits for live control authority before dispatch and rejects malformed replies', async () => {
   useSessionStore.getState().setSession({
     ...useSessionStore.getState().session!,

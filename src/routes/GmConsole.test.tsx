@@ -1604,19 +1604,26 @@ it('offers mutiny recovery only to players with a current server eligibility rev
     replacementStatus: null, activeConsoleRoleId: 'admiral',
     joinedAt: '2026-01-01T00:02:00.000Z',
   };
+  const expired = {
+    uid: 'expired', sessionId: 's1', displayName: 'Expired Player', role: 'player' as const,
+    seatId: 'admiral', assignedRoleId: 'admiral', replacementRoleId: null,
+    replacementStatus: null, activeConsoleRoleId: 'admiral', connected: true,
+    lastSeenAt: new Date(Date.now() - 45_001).toISOString(),
+    joinedAt: '2026-01-01T00:03:00.000Z',
+  };
   vi.mocked(subscribeSessionPlayers).mockImplementation((_sessionId, onPlayers) => {
     onPlayers([captain, eligible, unconfirmed]);
     return vi.fn();
   });
   vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
-    onPlayers([captain, eligible, unconfirmed]);
+    onPlayers([captain, eligible, unconfirmed, expired]);
     return vi.fn();
   });
   vi.mocked(subscribeReplacementEligibility).mockImplementation((_sessionId, onEntries) => {
-    onEntries([{
-      sessionId: 's1', targetUid: 'eligible', eligible: true,
-      reason: 'dead', revision: 4,
-    }]);
+    onEntries([
+      { sessionId: 's1', targetUid: 'eligible', eligible: true, reason: 'dead', revision: 4 },
+      { sessionId: 's1', targetUid: 'expired', eligible: true, reason: 'dead', revision: 5 },
+    ]);
     return vi.fn();
   });
 
@@ -1625,6 +1632,7 @@ it('offers mutiny recovery only to players with a current server eligibility rev
   const recovery = await screen.findByRole('region', { name: /Gorgoneion mutiny recovery/i });
   expect(within(recovery).getByRole('option', { name: /Eligible Player/i })).toBeInTheDocument();
   expect(within(recovery).queryByRole('option', { name: /Unconfirmed Player/i })).not.toBeInTheDocument();
+  expect(within(recovery).queryByRole('option', { name: /Expired Player/i })).not.toBeInTheDocument();
 });
 
 it('gives the facilitator an authoritative release and reassignment path during casting', async () => {

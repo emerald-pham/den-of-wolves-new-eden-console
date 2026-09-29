@@ -1152,6 +1152,40 @@ describe('App', () => {
     expect(useSessionStore.getState().roleBrief).toEqual(nextBrief);
   });
 
+  it('rejects role briefs and Commissar authority while pending re-role retains stale pointers', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    const pendingCaptain: Player = {
+      ...player, role: 'player', assignedRoleId: 'icebreaker-captain',
+      activeConsoleRoleId: 'icebreaker-captain', replacementRoleId: null,
+      replacementStatus: 'awaiting-re-role',
+    };
+    const brief: RoleBrief = {
+      assignmentUid: 'u1', roleId: 'icebreaker-captain', roleName: 'Captain',
+      vesselName: 'Icebreaker', text: 'Command Icebreaker.', commonRules: 'Follow the common rules.',
+      setupRevision: 2,
+    };
+    const authority: CommissarPurgeAuthority = {
+      sessionId: 's1', role: 'captain', revision: 1,
+      captainRoleId: 'icebreaker-captain', shipId: 'icebreaker', consented: true,
+      consentTurn: 1, consentVesselRevision: 0, usedThisTurn: false,
+    };
+    useSessionStore.getState().setIdentity({
+      ...session, phase: 'active', activeVesselIds: ['icebreaker'],
+      activeRoleIds: ['icebreaker-captain'],
+    }, pendingCaptain);
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+
+    act(() => handlers?.onRoleBrief?.(brief));
+    act(() => handlers?.onCommissarPurgeAuthority?.(authority));
+    expect(useSessionStore.getState().roleBrief).toBeNull();
+    expect(useSessionStore.getState().commissarPurgeAuthority).toBeNull();
+  });
+
   it('rejects late Commissar authority callbacks across captain and replacement transitions', async () => {
     const subscriptions: Array<Parameters<typeof subscribeSessionState>[2]> = [];
     vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {

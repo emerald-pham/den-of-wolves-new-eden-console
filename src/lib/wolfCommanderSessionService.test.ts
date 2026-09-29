@@ -114,6 +114,22 @@ it('rejects a delayed reroll after Commander authority is removed', async () => 
   await expect(rerolling).rejects.toThrow(/session or authority changed/i);
 });
 
+it('rejects a delayed Commander reply after pending re-role keeps stale role pointers', async () => {
+  const { session, player } = setFreshIdentity();
+  let finish!: (value: { data: unknown }) => void;
+  const call = Object.assign(vi.fn(() => new Promise<{ data: unknown }>((resolve) => { finish = resolve; })), { stream: vi.fn() });
+  vi.mocked(httpsCallable).mockReturnValue(call as never);
+
+  const reading = getWolfCommanderTargeting();
+  await vi.waitFor(() => expect(call).toHaveBeenCalledWith({ sessionId: session.id }));
+  useSessionStore.getState().setMe({
+    ...player, replacementStatus: 'awaiting-re-role',
+  });
+  finish({ data: currentView(session.id) });
+
+  await expect(reading).rejects.toThrow(/session or authority changed/i);
+});
+
 it('commits explicit no-dice finish through the fresh Commander authority checkpoint', async () => {
   const { session } = setFreshIdentity();
   const view = {

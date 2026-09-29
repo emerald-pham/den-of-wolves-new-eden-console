@@ -108,6 +108,9 @@ it.each([
   ['replacement', () => useSessionStore.getState().setMe({
     ...useSessionStore.getState().me!, replacementRoleId: 'doctor',
   })],
+  ['pending re-role status', () => useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, replacementStatus: 'awaiting-re-role',
+  })],
   ['docking loss', () => useSessionStore.getState().setSession({
     ...useSessionStore.getState().session!, shuttleDockings: [],
   })],

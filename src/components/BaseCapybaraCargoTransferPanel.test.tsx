@@ -248,6 +248,7 @@ it.each([
 it.each([
   ['replacement role', { replacementRoleId: null }],
   ['seat', { seatId: 'admiral' }],
+  ['pending re-role status', { replacementStatus: 'awaiting-re-role' as const }],
 ] as const)('ignores a delayed result after the Captain %s authority changes', async (_label, patch) => {
   const response = deferred<BaseCapybaraCargoTransferResult>();
   mocks.transfer.mockReturnValueOnce(response.promise);

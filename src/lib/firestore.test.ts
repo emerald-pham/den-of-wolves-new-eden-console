@@ -4424,6 +4424,31 @@ it('publishes an unchanged GM roster when reconnect changes only snapshot metada
   ]);
 });
 
+it('keeps pending re-role history but strips every stale active authority pointer', () => {
+  const callbacks: Array<(snapshot: unknown) => void> = [];
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, _options: unknown, callback: unknown) => {
+    callbacks.push(callback as (snapshot: unknown) => void);
+    return vi.fn();
+  }) as never);
+  const onPlayers = vi.fn();
+  subscribeSessionPlayers('pending-projection', onPlayers, vi.fn());
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    docs: [{ id: 'former-captain', data: () => ({
+      role: 'player', displayName: 'Former Captain', connected: true,
+      assignedRoleId: 'shepherd-captain', replacementRoleId: 'wolf-commander',
+      replacementStatus: 'awaiting-re-role', seatId: 'shepherd-captain',
+      activeConsoleRoleId: 'shepherd-captain', lastSeenAt: '2026-09-28T22:00:00.000Z',
+      joinedAt: '2026-09-28T20:00:00.000Z',
+    }) }],
+  });
+  expect(onPlayers).toHaveBeenLastCalledWith([expect.objectContaining({
+    uid: 'former-captain', assignedRoleId: 'shepherd-captain',
+    replacementStatus: 'awaiting-re-role', seatId: null, replacementRoleId: null,
+    activeConsoleRoleId: null, lastSeenAt: '2026-09-28T22:00:00.000Z',
+  })]);
+});
+
 it('fails closed after GM roster revocation or unsubscribe', () => {
   const callbacks: Array<(snapshot: unknown) => void> = [];
   const errors: Array<(error: unknown) => void> = [];

@@ -148,6 +148,25 @@ describe('private scout result callables', () => {
       .rejects.toMatchObject({ code: 'permission-denied' });
   });
 
+  it('denies a pending re-role requester both the private fact and report index', async () => {
+    await resolvePendingScoutRequest.run(callableRequest({
+      sessionId: 'session-1', requestId: 'scan-1', instanceId: 'gm-browser',
+    }, 'gm-1'));
+    put('sessions/session-1/players/scientist-1', {
+      role: 'player', connected: true, lastSeenAt: now - 1_000,
+      assignedRoleId: 'shepherd-scientist', replacementRoleId: 'endeavour',
+      replacementStatus: 'awaiting-re-role', seatId: 'shepherd-scientist',
+      activeConsoleRoleId: 'shepherd-scientist',
+    });
+
+    await expect(readPrivateScoutResult.run(callableRequest({
+      sessionId: 'session-1', requestId: 'scan-1',
+    }, 'scientist-1'))).rejects.toMatchObject({ code: 'permission-denied' });
+    await expect(listMyScoutReports.run(callableRequest({
+      sessionId: 'session-1',
+    }, 'scientist-1'))).rejects.toMatchObject({ code: 'permission-denied' });
+  });
+
   it('lists only unresolved requests for an active GM and never includes chart facts', async () => {
     const list = await listPendingScoutRequests.run(callableRequest({
       sessionId: 'session-1', instanceId: 'gm-browser',
