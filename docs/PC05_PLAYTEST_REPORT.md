@@ -684,6 +684,11 @@ cases. The server now requires every queried seat to parse before readiness can
 pass, and locked preserved seats require a null holder and null claim timestamp.
 The canonical catalog now names both PC05 builds and its generated view is
 refreshed. The repaired start/setup plus release/UI set passes **186/186**.
+Local deployment preflight also correctly rejected the changed Functions
+entrypoint until its bounded PC05 source receipt included the reviewed start
+repair. The refreshed receipt still fails closed on any additional entrypoint
+change, selects the same exact 138-Function cumulative PC05 set, and passes all
+**89/89** deployment-selector and typography-policy tests.
 
 Exact review, full local release gates, the single replacement CI/deployment
 run and renewed ordinary production play remain required.
