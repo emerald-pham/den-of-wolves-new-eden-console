@@ -641,9 +641,14 @@ the changed task-handler module lacked an audited named-Function selector and
 the private-IAM regression covered `allUsers` but not
 `allAuthenticatedUsers`. Test-first `6bb4c66f` adds both boundaries; the
 selector test reproduced the fail-closed unmapped-module error. Production
-`2467700e` maps that module only to `parkShuttlesAtAirspaceClosure`. The focused
-release suite now passes **61/61**, including both public-principal cases. The
-real last-successful-deploy/last-verified baseline selector chooses Hosting,
-Firestore and **139 named Functions**, includes the repaired private worker,
+`2467700e` initially mapped that module to `parkShuttlesAtAirspaceClosure`.
+Follow-up review correctly rejected that path-wide mapping because the same
+module also feeds the scheduler and `advanceTurn`. Test-first `905f6f02`
+reproduces the unsafe future under-selection. Production `8247422d` recognizes
+only the exact invoker-removal transition and fails closed on any other module
+change. The focused release suite passes **61/61**, including both
+public-principal cases and the future-change rejection. The real
+last-successful-deploy/last-verified baseline selector chooses Hosting,
+Firestore and **138 named Functions**, includes the repaired private worker,
 reports no unknown files, and confirms both ancestry guards. Refreshed exact
 review remains required before the single batched CI/deployment run.
