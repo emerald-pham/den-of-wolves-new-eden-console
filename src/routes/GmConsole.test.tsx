@@ -1590,18 +1590,21 @@ it('offers mutiny recovery only to players with a current server eligibility rev
     uid: 'captain', sessionId: 's1', displayName: 'Current Captain', role: 'player' as const,
     seatId: null, assignedRoleId: 'admiral', replacementRoleId: 'gorgoneion-captain',
     replacementStatus: null, activeConsoleRoleId: null,
+    connected: true,
     joinedAt: '2026-01-01T00:00:00.000Z',
   };
   const eligible = {
     uid: 'eligible', sessionId: 's1', displayName: 'Eligible Player', role: 'player' as const,
     seatId: 'aegis-engineer', assignedRoleId: 'aegis-engineer', replacementRoleId: null,
     replacementStatus: null, activeConsoleRoleId: 'aegis-engineer',
+    connected: true,
     joinedAt: '2026-01-01T00:01:00.000Z',
   };
   const unconfirmed = {
     uid: 'unconfirmed', sessionId: 's1', displayName: 'Unconfirmed Player', role: 'player' as const,
     seatId: 'admiral', assignedRoleId: 'admiral', replacementRoleId: null,
     replacementStatus: null, activeConsoleRoleId: 'admiral',
+    connected: true,
     joinedAt: '2026-01-01T00:02:00.000Z',
   };
   const expired = {
