@@ -635,3 +635,15 @@ repository guidance, roadmap/dependency validation, **61/61** font checks and
 the two typography release-policy tests. No PC05 deployment or gameplay
 completion is claimed until a fresh reviewed commit passes deployment and
 ordinary production checks.
+
+Independent GPT-5.6 Sol xhigh review held exact `fbeb7267` before CI because
+the changed task-handler module lacked an audited named-Function selector and
+the private-IAM regression covered `allUsers` but not
+`allAuthenticatedUsers`. Test-first `6bb4c66f` adds both boundaries; the
+selector test reproduced the fail-closed unmapped-module error. Production
+`2467700e` maps that module only to `parkShuttlesAtAirspaceClosure`. The focused
+release suite now passes **61/61**, including both public-principal cases. The
+real last-successful-deploy/last-verified baseline selector chooses Hosting,
+Firestore and **139 named Functions**, includes the repaired private worker,
+reports no unknown files, and confirms both ancestry guards. Refreshed exact
+review remains required before the single batched CI/deployment run.
