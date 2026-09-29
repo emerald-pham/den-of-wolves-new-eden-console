@@ -8,11 +8,15 @@ export const PUBLIC_FUNCTIONS = Object.freeze([
   'repairConsolesFromBlacksmith',
   'upgradeEndeavourFieldTargets',
 ]);
+export const PRIVATE_FUNCTIONS = Object.freeze([
+  'parkShuttlesAtAirspaceClosure',
+]);
 // Gen 2 IAM is backed by Cloud Run; only its Cloud Run invoker role proves the
 // deployed callable is publicly reachable.
 export const PUBLIC_INVOKER_ROLES = Object.freeze([
   'roles/run.invoker',
 ]);
+const PUBLIC_MEMBERS = Object.freeze(['allUsers', 'allAuthenticatedUsers']);
 
 function targetList(targets) {
   return [...new Set(String(targets).split(',').map((target) => target.trim()).filter(Boolean))];
@@ -81,7 +85,7 @@ async function verifyHosting({ hostingUrl, expectedVersion, fetchImpl }) {
   }
 }
 
-async function verifyFunctions({ projectId, region, runCommand }) {
+async function verifyFunctions({ functionNames, projectId, region, runCommand }) {
   const listOutput = await runCommand('gcloud', [
     'functions', 'list', '--v2', `--project=${projectId}`, `--regions=${region}`, '--format=json',
   ]);
@@ -112,6 +116,23 @@ async function verifyFunctions({ projectId, region, runCommand }) {
       PUBLIC_INVOKER_ROLES.includes(binding?.role) && Array.isArray(binding.members) &&
       binding.members.includes('allUsers'));
     if (!publicInvoker) throw new Error(`Function ${name} is missing its public invoker policy.`);
+  }
+
+  const selectedNames = new Set(String(functionNames ?? '').split(',').map((name) => name.trim()).filter(Boolean));
+  for (const name of PRIVATE_FUNCTIONS) {
+    if (!selectedNames.has(name)) continue;
+    const record = byName.get(name);
+    if (!record) throw new Error(`Required private Function ${name} is not deployed.`);
+    const service = cloudRunService(record, name, region, projectId);
+    const policyOutput = await runCommand('gcloud', [
+      'run', 'services', 'get-iam-policy', service, `--project=${projectId}`,
+      `--region=${region}`, '--format=json',
+    ]);
+    const policy = parseJson(policyOutput, `IAM policy for ${name}`);
+    const publicInvoker = Array.isArray(policy?.bindings) && policy.bindings.some((binding) =>
+      PUBLIC_INVOKER_ROLES.includes(binding?.role) && Array.isArray(binding.members) &&
+      binding.members.some((member) => PUBLIC_MEMBERS.includes(member)));
+    if (publicInvoker) throw new Error(`Function ${name} must remain private.`);
   }
 }
 
@@ -215,7 +236,7 @@ export async function verifyDeployment({
     result.hosting = true;
   }
   if (selectedTargets.includes('functions')) {
-    await verifyFunctions({ projectId, region, runCommand });
+    await verifyFunctions({ functionNames, projectId, region, runCommand });
     await verifySelectedFunctionRevisions({ functionNames, previousRevisions: previousFunctionRevisions, projectId, region, runCommand });
     result.functions = true;
   }

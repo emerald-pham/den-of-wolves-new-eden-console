@@ -168,6 +168,43 @@ it('maps Firestore adapter changes to every callable that imports its authority 
   expect(selected).toContain('functions:startGame');
 });
 
+it('deploys only the private closure worker when its task handler changes', () => {
+  const before = `export function createAirspaceClosureParkingTask() {
+  return onTaskDispatched<AirspaceClosureTask>({
+    region: 'us-central1',
+    invoker: 'private',
+    retryConfig: TASK_RETRY_CONFIG,
+  }, async request => {
+    return park(request);
+  });
+}
+`;
+  const after = before.replace(
+    "    invoker: 'private',\n",
+    '    // Task Queue functions are private when invoker is omitted. Keeping the\n' +
+    '    // default also avoids an unnecessary IAM rewrite during deployment.\n',
+  );
+  expect(deploymentSelector({
+    before: 'base',
+    after: 'candidate',
+    targets: ['functions'],
+    files: ['functions/src/airspaceClosureTaskHandlers.ts'],
+    sourceAtRevision: (revision) => revision === 'base' ? before : after,
+    isAncestor: () => false,
+  })).toBe('hosting,functions:parkShuttlesAtAirspaceClosure');
+
+  expect(() => deploymentSelector({
+    before: 'base',
+    after: 'candidate',
+    targets: ['functions'],
+    files: ['functions/src/airspaceClosureTaskHandlers.ts'],
+    sourceAtRevision: (revision) => revision === 'base'
+      ? before
+      : after.replace('return park(request);', 'return changedPark(request);'),
+    isAncestor: () => false,
+  })).toThrow('outside the exact private-invoker deployment repair');
+});
+
 it('fails closed when named callable scope or deployment baseline is unknown', () => {
   expect(() => deploymentSelector({
     before: 'base', after: 'candidate', targets: ['functions'],
@@ -454,6 +491,49 @@ it('verifies Hosting and public Functions through injected production adapters',
     expect.arrayContaining(['firestore', 'databases', 'describe', '--database=(default)']),
   ]));
 });
+
+it.each(['allUsers', 'allAuthenticatedUsers'])(
+  'rejects %s invoker access on a selected private Cloud Tasks worker',
+  async (publicMember) => {
+  const functionNames = [
+    'triggerDradisContact',
+    'startSinglePlayerDemo',
+    'repairConsolesFromBlacksmith',
+    'upgradeEndeavourFieldTargets',
+    'parkShuttlesAtAirspaceClosure',
+  ];
+  const runCommand = async (_command: string, args: readonly string[]) => {
+    if (args[0] === 'functions' && args[1] === 'list') {
+      return JSON.stringify(functionNames.map((name) => ({
+        name: `projects/dow-new-eden-console/locations/us-central1/functions/${name}`,
+        state: 'ACTIVE',
+        serviceConfig: {
+          service: `projects/dow-new-eden-console/locations/us-central1/services/${name}`,
+        },
+      })));
+    }
+    if (args[0] === 'run' && args[1] === 'services' && args[2] === 'describe') {
+      return JSON.stringify({ status: { latestReadyRevisionName: `${args[3]}-rev-2` } });
+    }
+    if (args[0] === 'run' && args[1] === 'services' && args[2] === 'get-iam-policy') {
+      const member = String(args[3]).endsWith('/parkShuttlesAtAirspaceClosure')
+        ? publicMember
+        : 'allUsers';
+      return JSON.stringify({ bindings: [{ role: 'roles/run.invoker', members: [member] }] });
+    }
+    throw new Error(`Unexpected command: ${args.join(' ')}`);
+  };
+
+  await expect(verifyDeployment({
+    targets: 'functions',
+    projectId: 'dow-new-eden-console',
+    expectedVersion: '0.5.55',
+    functionNames: 'parkShuttlesAtAirspaceClosure',
+    previousFunctionRevisions: { parkShuttlesAtAirspaceClosure: 'parkShuttlesAtAirspaceClosure-rev-1' },
+    runCommand,
+  })).rejects.toThrow('parkShuttlesAtAirspaceClosure must remain private');
+  },
+);
 
 it('proves every selected Function published a different ready Cloud Run revision', async () => {
   const commands: string[][] = [];

@@ -20,6 +20,11 @@ count: **458/751 done; 0/293 baseline closures**. PC05 requires its 49 assigned
 IDs in the [recovery plan](CHECKPOINT_COMPLETION_PLAN.md), for **507/751 done**
 and **49/293 baseline closures**. No completion credit is claimed by this shape.
 The three owner regressions PC05-F01–F03 are required before full release.
+The active release goal batches every remaining locally verifiable PC05 change,
+repair, release note, gate and exact review into one candidate before the next
+CI/deployment run. A later run is allowed only for a failed gate, a
+production-only finding, or the final evidence/catalog closeout that cannot be
+truthfully written before deployment.
 
 ## Problem and boundaries
 
@@ -611,3 +616,39 @@ mission panel or the GM route, depending on which subtree settled first. The
 probe is now scoped to the GM console route. This preserves the PC01 comparison
 and production styles while making the gate measure the named surface
 deterministically; the exact browser gate must pass before the repair advances.
+
+Main exact-SHA run `36568303547` passed every verification job for merge
+`b88090cb`, including the repaired DRADIS performance boundary. Firebase then
+updated Firestore and the selected Function revisions, but stopped before
+Hosting release while setting IAM for the private Cloud Tasks worker
+`parkShuttlesAtAirspaceClosure`; production therefore correctly remains on
+`0.5.54`. The task provider already keeps an omitted invoker private, so
+test-first `e29b5c3c` requires that default and requires release verification to
+reject public invoker access on the selected worker. Production repair
+`a78819cb` removes the redundant IAM rewrite while preserving unlimited deadline
+retry, and extends the verifier to reject either `allUsers` or
+`allAuthenticatedUsers` on that worker. Focused task and release-pipeline tests
+pass **72/72**. The refreshed candidate passes **6,097/6,097 tests across 442
+files**, **143/143** Firestore rules checks, both TypeScript builds, production
+bundle limits, lint with zero errors and the same seven recorded warnings,
+repository guidance, roadmap/dependency validation, **61/61** font checks and
+the two typography release-policy tests. No PC05 deployment or gameplay
+completion is claimed until a fresh reviewed commit passes deployment and
+ordinary production checks.
+
+Independent GPT-5.6 Sol xhigh review held exact `fbeb7267` before CI because
+the changed task-handler module lacked an audited named-Function selector and
+the private-IAM regression covered `allUsers` but not
+`allAuthenticatedUsers`. Test-first `6bb4c66f` adds both boundaries; the
+selector test reproduced the fail-closed unmapped-module error. Production
+`2467700e` initially mapped that module to `parkShuttlesAtAirspaceClosure`.
+Follow-up review correctly rejected that path-wide mapping because the same
+module also feeds the scheduler and `advanceTurn`. Test-first `905f6f02`
+reproduces the unsafe future under-selection. Production `8247422d` recognizes
+only the exact invoker-removal transition and fails closed on any other module
+change. The focused release suite passes **61/61**, including both
+public-principal cases and the future-change rejection. The real
+last-successful-deploy/last-verified baseline selector chooses Hosting,
+Firestore and **138 named Functions**, includes the repaired private worker,
+reports no unknown files, and confirms both ancestry guards. Refreshed exact
+review remains required before the single batched CI/deployment run.
