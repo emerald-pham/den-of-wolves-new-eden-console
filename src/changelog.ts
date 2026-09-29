@@ -26,9 +26,22 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 458, partial: 84, active: 0, missing: 209,
     },
     changes: [
-      'When a released station rejects a reconnect, station selection keeps the request to reselect your role visible until you dismiss it.',
+      'A released station now returns to station selection after both live session snapshots agree, including Joint Engineering, while players inspecting another occupied station remain in read-only mode.',
+      '458 of 751 planned items were complete in the catalog snapshot used to build this release (60.99%).',
+    ],
+  },
+
+  {
+    version: '0.5.56',
+    implementationProgress: {
+      completed: 458, total: 751, percentage: '60.99%',
+      done: 458, partial: 84, active: 0, missing: 209,
+    },
+    changes: [
+      'When the facilitator releases your current role, the console returns you to station selection as soon as the live assignment update arrives and keeps the request to reselect visible until you dismiss it.',
+      'Station recovery no longer depends on an unavailable command firing first, so a released station cannot leave you stranded on its old console.',
       'A confirmed roster can start after reducing its configured size. Preserved inactive seats stay safely locked, and an empty roster assigns zero Wolves.',
-      '458 of 751 planned items are complete (60.99%). PC05 production gameplay verification continues.',
+      '458 of 751 planned items were complete in the catalog snapshot used to build this release (60.99%).',
     ],
     implementationPrompts: [654],
   },

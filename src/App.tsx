@@ -14,6 +14,7 @@ import {
   logoutGmAccess,
   reconcileGmAuthority,
   refreshPresence,
+  requireStationReselectionForCurrentSession,
 } from '@/lib/sessionService';
 import AppHeader from '@/components/AppHeader';
 import WolfHackingRuntime from '@/components/WolfHackingRuntime';
@@ -123,6 +124,39 @@ function playerAuthorityKey(player: Player | null | undefined): string | undefin
   return undefined;
 }
 
+export function stationRoleFromPath(pathname: string): string | undefined {
+  const shipMatch = /^\/ships\/([^/]+)\/roles\/([^/]+)$/.exec(pathname);
+  if (shipMatch) {
+    const [, shipId, roleId] = shipMatch;
+    const role = findConsoleRole(roleId);
+    return role && role.shipId === shipId ? role.id : undefined;
+  }
+  const unionMatch = /^\/union\/roles\/([^/]+)$/.exec(pathname);
+  const unionRole = findConsoleRole(unionMatch?.[1]);
+  return unionRole?.shipId === 'joint-engineering-union' ? unionRole.id : undefined;
+}
+
+function playerHasStationRouteAuthority(player: Player | null | undefined, routeRoleId: string): boolean {
+  if (!playerCanUseCoreStationRoute(player)) return false;
+  if (player.activeConsoleRoleId != null) return player.activeConsoleRoleId === routeRoleId;
+  const assignedRoleId = player.assignedRoleId && player.assignedRoleId !== 'press-officer'
+    ? player.assignedRoleId
+    : undefined;
+  const seatRoleId = player.seatId && player.seatId !== 'press-officer'
+    ? player.seatId
+    : undefined;
+  const pointersAgree = !assignedRoleId || !seatRoleId || assignedRoleId === seatRoleId;
+  const boundRoleId = pointersAgree ? assignedRoleId ?? seatRoleId : undefined;
+  return boundRoleId === routeRoleId;
+}
+
+function playerCanUseCoreStationRoute(player: Player | null | undefined): player is Player {
+  return Boolean(
+    player && player.role === 'player' && !player.escapeState &&
+    player.replacementStatus == null && player.replacementRoleId == null,
+  );
+}
+
 function AppRoutes() {
   const { reducedMotion } = useMotionPreference();
   const location = useLocation();
@@ -147,6 +181,14 @@ function AppRoutes() {
   const playerListenerGeneration = useRef(0);
   const playerListenerIdentity = useRef('');
   const appRoutesMounted = useRef(false);
+  const currentPath = useRef(location.pathname);
+  const pendingStationRelease = useRef<{
+    readonly sessionId: string;
+    readonly playerUid: string;
+    readonly routeRoleId: string;
+    readonly playerProjectionFresh: boolean;
+  } | null>(null);
+  currentPath.current = location.pathname;
   const gmAccessAuthenticatedAt = useSessionStore((state) => state.gmAccessAuthenticatedAt);
   const lastRoute = useSessionStore((state) => state.lastRoute);
   const setLastRoute = useSessionStore((state) => state.setLastRoute);
@@ -189,6 +231,11 @@ function AppRoutes() {
     if (!sessionId || !playerUid) return;
     let active = true;
     const identity = `${sessionId}:${playerUid}`;
+    if (
+      pendingStationRelease.current &&
+      (pendingStationRelease.current.sessionId !== sessionId ||
+        pendingStationRelease.current.playerUid !== playerUid)
+    ) pendingStationRelease.current = null;
     const listenerGeneration = playerListenerIdentity.current === identity
       ? playerListenerGeneration.current
       : ++playerListenerGeneration.current;
@@ -216,6 +263,12 @@ function AppRoutes() {
     let playerProjectionFresh = false;
     let pendingPlayerDiscovery: PlayerDiscoveryProjection | null | undefined;
     let retainedGroupCandidateProjection: CurrentGroupCandidateRevealProjection | undefined;
+    const invalidatePendingStationReleaseFreshness = () => {
+      const pending = pendingStationRelease.current;
+      if (pending?.sessionId === sessionId && pending.playerUid === playerUid) {
+        pendingStationRelease.current = { ...pending, playerProjectionFresh: false };
+      }
+    };
     const hideCurrentGroupCandidateReveals = () => {
       const store = useSessionStore.getState();
       const current = store.session;
@@ -313,6 +366,7 @@ function AppRoutes() {
       const isFresh = state.connection === 'live' && state.sessionSnapshotFreshness === 'server';
       if (!wasFresh || isFresh) return;
       playerProjectionFresh = false;
+      invalidatePendingStationReleaseFreshness();
       clearCurrentGroupCandidateReveals();
     });
     let subscribeLoyaltyCensusFn: (
@@ -374,6 +428,22 @@ function AppRoutes() {
         if (generation !== censusGeneration || !currentPlayerMayReadCensus()) return;
         useSessionStore.getState().setGmLoyaltyCensus(next);
       });
+    };
+    const reconcileStationRelease = () => {
+      const pending = pendingStationRelease.current;
+      if (!pending?.playerProjectionFresh) return;
+      const store = useSessionStore.getState();
+      if (
+        store.session?.id !== pending.sessionId ||
+        store.me?.uid !== pending.playerUid ||
+        stationRoleFromPath(currentPath.current) !== pending.routeRoleId ||
+        playerHasStationRouteAuthority(store.me, pending.routeRoleId)
+      ) {
+        pendingStationRelease.current = null;
+        return;
+      }
+      if (store.connection !== 'live' || store.sessionSnapshotFreshness !== 'server') return;
+      if (requireStationReselectionForCurrentSession()) pendingStationRelease.current = null;
     };
     void import('@/lib/firestore').then(({
       sessionSnapshotAuthorityFor,
@@ -490,15 +560,45 @@ function AppRoutes() {
           const store = useSessionStore.getState();
           store.setConnection(fresh ? 'live' : 'offline');
           store.setSessionSnapshotFreshness(fresh ? 'server' : 'cache');
-          if (!fresh) clearCurrentGroupCandidateReveals();
+          if (!fresh) {
+            invalidatePendingStationReleaseFreshness();
+            clearCurrentGroupCandidateReveals();
+          }
           else {
             applyPendingPlayerDiscovery();
             restoreRetainedGroupCandidateProjection();
+            reconcileStationRelease();
           }
         },
         onPlayer: (next) => {
           if (!callbackCurrent()) return;
           const store = useSessionStore.getState();
+          const previousPlayer = store.me;
+          const routeRoleId = stationRoleFromPath(currentPath.current);
+          const pending = pendingStationRelease.current;
+          const pendingStillApplies = Boolean(
+            pending && playerCanUseCoreStationRoute(next) &&
+            routeRoleId === pending.routeRoleId && next.sessionId === pending.sessionId &&
+            next.uid === pending.playerUid &&
+            !playerHasStationRouteAuthority(next, pending.routeRoleId),
+          );
+          if (
+            routeRoleId && previousPlayer?.sessionId === next.sessionId &&
+            previousPlayer.uid === next.uid && playerCanUseCoreStationRoute(next) &&
+            playerHasStationRouteAuthority(previousPlayer, routeRoleId) &&
+            !playerHasStationRouteAuthority(next, routeRoleId)
+          ) {
+            pendingStationRelease.current = {
+              sessionId: next.sessionId,
+              playerUid: next.uid,
+              routeRoleId,
+              playerProjectionFresh: false,
+            };
+          } else if (pendingStillApplies && pending) {
+            pendingStationRelease.current = { ...pending, playerProjectionFresh: false };
+          } else {
+            pendingStationRelease.current = null;
+          }
           const previousEntitlement = playerEntitlementKey(store.me);
           const previousFleetGroupId = store.me?.fleetGroupId;
           const previousWolfCultIdentity = store.me
@@ -610,10 +710,17 @@ function AppRoutes() {
         onPlayerFreshness: (fresh) => {
           if (!callbackCurrent()) return;
           playerProjectionFresh = fresh;
-          if (!fresh) clearCurrentGroupCandidateReveals();
+          const pending = pendingStationRelease.current;
+          if (
+            pending && pending.sessionId === sessionId && pending.playerUid === playerUid
+          ) pendingStationRelease.current = { ...pending, playerProjectionFresh: fresh };
+          if (!fresh) {
+            clearCurrentGroupCandidateReveals();
+          }
           else {
             applyPendingPlayerDiscovery();
             restoreRetainedGroupCandidateProjection();
+            reconcileStationRelease();
           }
           reconcileLoyaltyCensus();
         },
@@ -832,6 +939,7 @@ function AppRoutes() {
         onError: () => {
           if (!callbackCurrent()) return;
           playerProjectionFresh = false;
+          invalidatePendingStationReleaseFreshness();
           clearCurrentGroupCandidateReveals();
           const store = useSessionStore.getState();
           store.setSessionSnapshotFreshness('cache');

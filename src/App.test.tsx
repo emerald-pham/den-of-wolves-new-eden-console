@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import App from './App';
+import App, { stationRoleFromPath } from './App';
 import {
   GM_ACCESS_TIMEOUT_MS,
   SESSION_STORAGE_KEY,
@@ -30,6 +30,7 @@ vi.mock('@/lib/sessionService', () => ({
   reconcileGmAuthority: vi.fn().mockResolvedValue(undefined),
   refreshPresence: vi.fn().mockResolvedValue(undefined),
   refreshCommissarPurgeAuthority: vi.fn().mockResolvedValue(null),
+  requireStationReselectionForCurrentSession: vi.fn(),
   releaseConsoleRole: vi.fn().mockResolvedValue(undefined),
   releaseGmInstance: vi.fn(),
   selectConsoleRole: vi.fn().mockResolvedValue(undefined),
@@ -76,6 +77,7 @@ const {
   logoutGmAccess,
   reconcileGmAuthority,
   refreshPresence,
+  requireStationReselectionForCurrentSession,
   releaseConsoleRole,
   selectConsoleRole,
 } =
@@ -118,6 +120,21 @@ describe('App', () => {
     vi.mocked(startVersionUpgradeMonitor).mockClear();
     vi.mocked(subscribeSessionState).mockReset().mockReturnValue(vi.fn());
     vi.mocked(subscribeLoyaltyCensus).mockReset().mockReturnValue(vi.fn());
+    vi.mocked(requireStationReselectionForCurrentSession).mockReset().mockImplementation(() => {
+      const store = useSessionStore.getState();
+      if (
+        store.connection !== 'live' ||
+        store.sessionSnapshotFreshness !== 'server' ||
+        !store.session ||
+        !store.me
+      ) return false;
+      store.setMe({ ...store.me, activeConsoleRoleId: null });
+      store.setCommunicationError(normalizeCommandError({
+        code: 'functions/permission-denied',
+        details: { commandError: 'station-selection-required' },
+      }));
+      return true;
+    });
     vi.mocked(disconnectFromSession).mockImplementation(async () => {
       useSessionStore.getState().disconnect();
       return 'applied';
@@ -198,6 +215,340 @@ describe('App', () => {
     );
     expect(useSessionStore.getState().session?.id).toBe('s1');
     expect(useSessionStore.getState().me?.uid).toBe('u1');
+  });
+
+  it('returns a player whose live casting assignment was released from the former station route', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    window.location.hash = '#/ships/shepherd/roles/shepherd-scientist';
+    const castingSession: GameSession = {
+      ...session,
+      phase: 'casting',
+      activeRoleIds: ['shepherd-scientist'],
+      activeVesselIds: ['shepherd'],
+    };
+    const assigned: Player = {
+      ...player,
+      role: 'player',
+      assignedRoleId: 'shepherd-scientist',
+      seatId: 'shepherd-scientist',
+      activeConsoleRoleId: 'shepherd-scientist',
+    };
+    useSessionStore.getState().setIdentity(castingSession, assigned);
+    useSessionStore.getState().setMode('console');
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+
+    act(() => {
+      handlers?.onPlayer?.({
+        ...assigned,
+        assignedRoleId: null,
+        seatId: null,
+        activeConsoleRoleId: null,
+      });
+      handlers?.onPlayerFreshness?.(true);
+    });
+    expect(useSessionStore.getState().communicationError).toBeNull();
+
+    act(() => handlers?.onSessionFreshness?.(true));
+
+    expect(await screen.findByRole('heading', { name: 'Stations and consoles' })).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Your previous station is no longer available. Return to station select and reselect your role.',
+    );
+    expect(useSessionStore.getState().session?.id).toBe('s1');
+    expect(useSessionStore.getState().me?.uid).toBe('u1');
+  });
+
+  it('returns a released player when session freshness arrives before the player projection', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    window.location.hash = '#/ships/shepherd/roles/shepherd-scientist';
+    const castingSession: GameSession = {
+      ...session, phase: 'casting', activeRoleIds: ['shepherd-scientist'],
+      activeVesselIds: ['shepherd'],
+    };
+    const assigned: Player = {
+      ...player, role: 'player', assignedRoleId: 'shepherd-scientist',
+      seatId: 'shepherd-scientist', activeConsoleRoleId: 'shepherd-scientist',
+    };
+    useSessionStore.getState().setIdentity(castingSession, assigned);
+    useSessionStore.getState().setMode('console');
+
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    act(() => {
+      handlers?.onSessionFreshness?.(true);
+      handlers?.onPlayer?.({
+        ...assigned, assignedRoleId: null, seatId: null, activeConsoleRoleId: null,
+      });
+      handlers?.onPlayerFreshness?.(true);
+    });
+
+    expect(await screen.findByRole('heading', { name: 'Stations and consoles' })).toBeInTheDocument();
+    expect(useSessionStore.getState().communicationError?.kind).toBe('station-selection-required');
+  });
+
+  it('keeps an unassigned read-only visitor on an occupied station route', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    window.location.hash = '#/ships/aegis/roles/admiral';
+    const activeSession: GameSession = {
+      ...session, phase: 'active', activeRoleIds: ['admiral'], activeVesselIds: ['aegis'],
+    };
+    const visitor: Player = {
+      ...player, role: 'player', assignedRoleId: null, seatId: null, activeConsoleRoleId: null,
+    };
+    useSessionStore.getState().setIdentity(activeSession, visitor);
+    useSessionStore.getState().setMode('console');
+
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    vi.mocked(requireStationReselectionForCurrentSession).mockClear();
+    act(() => {
+      handlers?.onSessionFreshness?.(true);
+      handlers?.onPlayer?.(visitor);
+      handlers?.onPlayerFreshness?.(true);
+    });
+
+    expect(requireStationReselectionForCurrentSession).not.toHaveBeenCalled();
+    expect(window.location.hash).toBe('#/ships/aegis/roles/admiral');
+    expect(useSessionStore.getState().communicationError).toBeNull();
+  });
+
+  it('keeps a player holding another station on a foreign read-only route', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    window.location.hash = '#/ships/aegis/roles/admiral';
+    const activeSession: GameSession = {
+      ...session, phase: 'active', activeRoleIds: ['admiral', 'dione-engineer'],
+      activeVesselIds: ['aegis', 'dione'],
+    };
+    const visitor: Player = {
+      ...player, role: 'player', assignedRoleId: 'dione-engineer', seatId: 'dione-engineer',
+      activeConsoleRoleId: 'dione-engineer',
+    };
+    useSessionStore.getState().setIdentity(activeSession, visitor);
+    useSessionStore.getState().setMode('console');
+
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    vi.mocked(requireStationReselectionForCurrentSession).mockClear();
+    act(() => {
+      handlers?.onSessionFreshness?.(true);
+      handlers?.onPlayer?.(visitor);
+      handlers?.onPlayerFreshness?.(true);
+    });
+
+    expect(requireStationReselectionForCurrentSession).not.toHaveBeenCalled();
+    expect(window.location.hash).toBe('#/ships/aegis/roles/admiral');
+  });
+
+  it('returns a released Joint Engineering player from the former union route', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    const roleId = 'joint-engineering-shepherd-icebreaker';
+    window.location.hash = `#/union/roles/${roleId}`;
+    const activeSession: GameSession = {
+      ...session, phase: 'casting', activeRoleIds: [roleId],
+      activeVesselIds: ['shepherd', 'icebreaker'],
+    };
+    const assigned: Player = {
+      ...player, role: 'player', assignedRoleId: roleId, seatId: roleId,
+      activeConsoleRoleId: roleId,
+    };
+    useSessionStore.getState().setIdentity(activeSession, assigned);
+    useSessionStore.getState().setMode('console');
+
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    act(() => {
+      handlers?.onSessionFreshness?.(true);
+      handlers?.onPlayer?.({
+        ...assigned, assignedRoleId: null, seatId: null, activeConsoleRoleId: null,
+      });
+      handlers?.onPlayerFreshness?.(true);
+    });
+
+    expect(await screen.findByRole('heading', { name: 'Stations and consoles' })).toBeInTheDocument();
+    expect(useSessionStore.getState().communicationError?.kind).toBe('station-selection-required');
+  });
+
+  it('drops a pending station release when the listener identity changes', async () => {
+    const subscriptions: Parameters<typeof subscribeSessionState>[2][] = [];
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      subscriptions.push(nextHandlers);
+      return vi.fn();
+    });
+    window.location.hash = '#/ships/shepherd/roles/shepherd-scientist';
+    const assigned: Player = {
+      ...player, role: 'player', assignedRoleId: 'shepherd-scientist',
+      seatId: 'shepherd-scientist', activeConsoleRoleId: 'shepherd-scientist',
+    };
+    useSessionStore.getState().setIdentity({ ...session, phase: 'casting' }, assigned);
+    useSessionStore.getState().setMode('console');
+    render(<App />);
+    await waitFor(() => expect(subscriptions).toHaveLength(1));
+    const former = subscriptions[0]!;
+    act(() => {
+      former.onPlayer?.({
+        ...assigned, assignedRoleId: null, seatId: null, activeConsoleRoleId: null,
+      });
+      former.onPlayerFreshness?.(true);
+    });
+    expect(useSessionStore.getState().communicationError).toBeNull();
+
+    const nextSession = { ...session, id: 's2', joinCode: '5932' };
+    const nextPlayer = { ...assigned, uid: 'u2', sessionId: 's2' };
+    act(() => useSessionStore.getState().setIdentity(nextSession, nextPlayer));
+    await waitFor(() => expect(subscriptions).toHaveLength(2));
+    act(() => former.onSessionFreshness?.(true));
+
+    expect(useSessionStore.getState()).toMatchObject({
+      session: { id: 's2' }, me: { uid: 'u2' }, communicationError: null,
+    });
+    expect(window.location.hash).toBe('#/ships/shepherd/roles/shepherd-scientist');
+  });
+
+  it('retains a fresh captain release across the authority-listener rebind', async () => {
+    const subscriptions: Parameters<typeof subscribeSessionState>[2][] = [];
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      subscriptions.push(nextHandlers);
+      return vi.fn();
+    });
+    window.location.hash = '#/ships/aegis/roles/admiral';
+    const assigned: Player = {
+      ...player, role: 'player', assignedRoleId: 'admiral', seatId: 'admiral',
+      activeConsoleRoleId: 'admiral',
+    };
+    useSessionStore.getState().setIdentity({ ...session, phase: 'casting' }, assigned);
+    useSessionStore.getState().setMode('console');
+    render(<App />);
+    await waitFor(() => expect(subscriptions).toHaveLength(1));
+
+    act(() => {
+      subscriptions[0]?.onPlayer?.({
+        ...assigned, assignedRoleId: null, seatId: null, activeConsoleRoleId: null,
+      });
+      subscriptions[0]?.onPlayerFreshness?.(true);
+    });
+    await waitFor(() => expect(subscriptions).toHaveLength(2));
+    expect(useSessionStore.getState().communicationError).toBeNull();
+    act(() => subscriptions[1]?.onSessionFreshness?.(true));
+
+    expect(await screen.findByRole('heading', { name: 'Stations and consoles' })).toBeInTheDocument();
+    expect(useSessionStore.getState().communicationError?.kind).toBe('station-selection-required');
+  });
+
+  it.each([
+    ['a cache-backed session callback', (handlers: Parameters<typeof subscribeSessionState>[2]) => {
+      handlers.onSessionFreshness?.(false);
+    }],
+    ['a listener error', (handlers: Parameters<typeof subscribeSessionState>[2]) => {
+      handlers.onError();
+    }],
+  ])('requires a renewed player snapshot after %s', async (_name, loseAuthority) => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    window.location.hash = '#/ships/shepherd/roles/shepherd-scientist';
+    const assigned: Player = {
+      ...player, role: 'player', assignedRoleId: 'shepherd-scientist',
+      seatId: 'shepherd-scientist', activeConsoleRoleId: 'shepherd-scientist',
+    };
+    useSessionStore.getState().setIdentity({ ...session, phase: 'casting' }, assigned);
+    useSessionStore.getState().setMode('console');
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    const released = {
+      ...assigned, assignedRoleId: null, seatId: null, activeConsoleRoleId: null,
+    };
+    act(() => {
+      handlers?.onPlayer?.(released);
+      handlers?.onPlayerFreshness?.(true);
+    });
+    expect(useSessionStore.getState().communicationError).toBeNull();
+
+    act(() => loseAuthority(handlers!));
+    act(() => handlers?.onSessionFreshness?.(true));
+
+    expect(useSessionStore.getState().communicationError).toBeNull();
+    expect(window.location.hash).toBe('#/ships/shepherd/roles/shepherd-scientist');
+
+    act(() => {
+      handlers?.onPlayer?.(assigned);
+      handlers?.onPlayerFreshness?.(true);
+    });
+    expect(useSessionStore.getState().communicationError).toBeNull();
+  });
+
+  it.each([
+    ['escape', {
+      escapeState: {
+        status: 'pending' as const,
+        shipId: 'shepherd',
+        destructionEventId: 'destroyed-shepherd',
+        revision: 1,
+      },
+    }],
+    ['replacement', {
+      replacementStatus: 'awaiting-re-role' as const,
+      assignedRoleId: null,
+      seatId: null,
+      activeConsoleRoleId: null,
+    }],
+  ])('does not turn a live %s transition into a station-release error', async (_name, change) => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    window.location.hash = '#/ships/shepherd/roles/shepherd-scientist';
+    const assigned: Player = {
+      ...player, role: 'player', assignedRoleId: 'shepherd-scientist',
+      seatId: 'shepherd-scientist', activeConsoleRoleId: 'shepherd-scientist',
+    };
+    useSessionStore.getState().setIdentity({ ...session, phase: 'active' }, assigned);
+    useSessionStore.getState().setMode('console');
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    vi.mocked(requireStationReselectionForCurrentSession).mockClear();
+    act(() => {
+      handlers?.onSessionFreshness?.(true);
+      handlers?.onPlayer?.({ ...assigned, ...change });
+      handlers?.onPlayerFreshness?.(true);
+    });
+
+    expect(requireStationReselectionForCurrentSession).not.toHaveBeenCalled();
+    expect(useSessionStore.getState().communicationError).toBeNull();
+  });
+
+  it.each([
+    ['GM', '/gm'],
+    ['Press', '/press'],
+    ['replacement', '/replacement/commissar'],
+    ['escape', '/escape'],
+    ['observer', '/ships/aegis/observer'],
+    ['shuttle', '/shuttles/snn-press-shuttle'],
+  ])('does not classify the %s workspace as a core station route', (_name, path) => {
+    expect(stationRoleFromPath(path)).toBeUndefined();
   });
 
   it('requires a motion choice before exposing the game interface', async () => {

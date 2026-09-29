@@ -232,6 +232,15 @@ function requireStationReselection(checkpoint: SessionAuthorityCheckpoint | unde
   return true;
 }
 
+/** Apply the typed station-reset notice after a fresh player projection invalidates the current route. */
+export function requireStationReselectionForCurrentSession(): boolean {
+  const store = useSessionStore.getState();
+  const checkpoint = store.session
+    ? sessionAuthorityCheckpoint(store.session.id, sessionAuthorityUid(store))
+    : undefined;
+  return requireStationReselection(checkpoint);
+}
+
 export const COMMAND_RECONNECT_WINDOW_MS = 15_000;
 export type CommandDisposition = 'applied' | 'queued' | 'stale' | 'awaiting-officer';
 export type TurnStartReplayAudience = 'gm' | 'everyone';
