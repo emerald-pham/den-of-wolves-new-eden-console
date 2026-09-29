@@ -124,18 +124,24 @@ function playerAuthorityKey(player: Player | null | undefined): string | undefin
   return undefined;
 }
 
-function stationRoleFromPath(pathname: string): string | undefined {
-  const match = /^\/ships\/[^/]+\/roles\/([^/]+)$/.exec(pathname);
-  const roleId = match?.[1];
-  return roleId && findConsoleRole(roleId) ? roleId : undefined;
+export function stationRoleFromPath(pathname: string): string | undefined {
+  const shipMatch = /^\/ships\/([^/]+)\/roles\/([^/]+)$/.exec(pathname);
+  if (shipMatch) {
+    const [, shipId, roleId] = shipMatch;
+    const role = findConsoleRole(roleId);
+    return role && role.shipId === shipId ? role.id : undefined;
+  }
+  const unionMatch = /^\/union\/roles\/([^/]+)$/.exec(pathname);
+  const unionRole = findConsoleRole(unionMatch?.[1]);
+  return unionRole?.shipId === 'joint-engineering-union' ? unionRole.id : undefined;
 }
 
-function freshPlayerLostStationRoute(player: Player, routeRoleId: string): boolean {
+function playerHasStationRouteAuthority(player: Player | null | undefined, routeRoleId: string): boolean {
   if (
-    player.role !== 'player' || player.escapeState || player.replacementStatus != null ||
-    player.replacementRoleId != null ||
-    (player.activeConsoleRoleId != null && player.activeConsoleRoleId !== routeRoleId)
+    !player || player.role !== 'player' || player.escapeState ||
+    player.replacementStatus != null || player.replacementRoleId != null
   ) return false;
+  if (player.activeConsoleRoleId != null) return player.activeConsoleRoleId === routeRoleId;
   const assignedRoleId = player.assignedRoleId && player.assignedRoleId !== 'press-officer'
     ? player.assignedRoleId
     : undefined;
@@ -144,7 +150,7 @@ function freshPlayerLostStationRoute(player: Player, routeRoleId: string): boole
     : undefined;
   const pointersAgree = !assignedRoleId || !seatRoleId || assignedRoleId === seatRoleId;
   const boundRoleId = pointersAgree ? assignedRoleId ?? seatRoleId : undefined;
-  return boundRoleId !== routeRoleId;
+  return boundRoleId === routeRoleId;
 }
 
 function AppRoutes() {
@@ -240,6 +246,11 @@ function AppRoutes() {
     let censusSubscribed = false;
     let censusGeneration = 0;
     let playerProjectionFresh = false;
+    let pendingStationRelease: {
+      readonly sessionId: string;
+      readonly playerUid: string;
+      readonly routeRoleId: string;
+    } | null = null;
     let pendingPlayerDiscovery: PlayerDiscoveryProjection | null | undefined;
     let retainedGroupCandidateProjection: CurrentGroupCandidateRevealProjection | undefined;
     const hideCurrentGroupCandidateReveals = () => {
@@ -401,6 +412,22 @@ function AppRoutes() {
         useSessionStore.getState().setGmLoyaltyCensus(next);
       });
     };
+    const reconcileStationRelease = () => {
+      const pending = pendingStationRelease;
+      if (!pending || !playerProjectionFresh) return;
+      const store = useSessionStore.getState();
+      if (
+        store.session?.id !== pending.sessionId ||
+        store.me?.uid !== pending.playerUid ||
+        stationRoleFromPath(currentPath.current) !== pending.routeRoleId ||
+        playerHasStationRouteAuthority(store.me, pending.routeRoleId)
+      ) {
+        pendingStationRelease = null;
+        return;
+      }
+      if (store.connection !== 'live' || store.sessionSnapshotFreshness !== 'server') return;
+      if (requireStationReselectionForCurrentSession()) pendingStationRelease = null;
+    };
     void import('@/lib/firestore').then(({
       sessionSnapshotAuthorityFor,
       subscribeSessionState,
@@ -520,11 +547,30 @@ function AppRoutes() {
           else {
             applyPendingPlayerDiscovery();
             restoreRetainedGroupCandidateProjection();
+            reconcileStationRelease();
           }
         },
         onPlayer: (next) => {
           if (!callbackCurrent()) return;
           const store = useSessionStore.getState();
+          const previousPlayer = store.me;
+          const routeRoleId = stationRoleFromPath(currentPath.current);
+          const pendingStillApplies = Boolean(
+            pendingStationRelease && routeRoleId === pendingStationRelease.routeRoleId &&
+            next.sessionId === pendingStationRelease.sessionId &&
+            next.uid === pendingStationRelease.playerUid &&
+            !playerHasStationRouteAuthority(next, pendingStationRelease.routeRoleId),
+          );
+          if (
+            routeRoleId && previousPlayer?.sessionId === next.sessionId &&
+            previousPlayer.uid === next.uid &&
+            playerHasStationRouteAuthority(previousPlayer, routeRoleId) &&
+            !playerHasStationRouteAuthority(next, routeRoleId)
+          ) {
+            pendingStationRelease = { sessionId: next.sessionId, playerUid: next.uid, routeRoleId };
+          } else if (!pendingStillApplies) {
+            pendingStationRelease = null;
+          }
           const previousEntitlement = playerEntitlementKey(store.me);
           const previousFleetGroupId = store.me?.fleetGroupId;
           const previousWolfCultIdentity = store.me
@@ -636,15 +682,14 @@ function AppRoutes() {
         onPlayerFreshness: (fresh) => {
           if (!callbackCurrent()) return;
           playerProjectionFresh = fresh;
-          if (!fresh) clearCurrentGroupCandidateReveals();
+          if (!fresh) {
+            pendingStationRelease = null;
+            clearCurrentGroupCandidateReveals();
+          }
           else {
             applyPendingPlayerDiscovery();
             restoreRetainedGroupCandidateProjection();
-            const currentPlayer = useSessionStore.getState().me;
-            const routeRoleId = stationRoleFromPath(currentPath.current);
-            if (currentPlayer && routeRoleId && freshPlayerLostStationRoute(currentPlayer, routeRoleId)) {
-              requireStationReselectionForCurrentSession();
-            }
+            reconcileStationRelease();
           }
           reconcileLoyaltyCensus();
         },
