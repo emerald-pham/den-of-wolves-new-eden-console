@@ -1634,6 +1634,16 @@ export interface Player {
   readonly joinedAt: Timestamp;
 }
 
+/** Facilitator-only server decision that may be consumed by one replacement assignment. */
+export interface ReplacementEligibilityProjection {
+  readonly sessionId: SessionId;
+  readonly targetUid: PlayerId;
+  readonly eligible: boolean;
+  readonly reason: 'dead' | 'arrested' | 'removed' | 'late';
+  readonly revision: number;
+  readonly recordedAt?: Timestamp;
+}
+
 /** One browser/device that has independently claimed GM authority. */
 export interface GmInstance {
   readonly id: Id;

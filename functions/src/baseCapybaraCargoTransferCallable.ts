@@ -158,6 +158,7 @@ function requireCaptainAuthority(
   uid: string,
 ): string {
   if (!isActivePlayer(player) || player.get('replacementRoleId') !== ROLE_ID ||
+      player.get('replacementStatus') != null ||
       player.get('activeConsoleRoleId') !== null ||
       player.get('seatId') !== null ||
       (player.get('escapeState') !== undefined && player.get('escapeState') !== null)) {

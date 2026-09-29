@@ -101,6 +101,7 @@ import type {
   GameSession,
   GmInstance,
   Player,
+  ReplacementEligibilityProjection,
   SessionEvent,
   SmallShipId,
   WolfAttackPreparation,
@@ -441,6 +442,9 @@ export default function GmConsole() {
   const [instances, setInstances] = useState<readonly GmInstance[]>([]);
   const [connectedPlayers, setConnectedPlayers] = useState<readonly Player[]>([]);
   const [allPlayers, setAllPlayers] = useState<readonly Player[]>([]);
+  const [replacementEligibility, setReplacementEligibilityEntries] = useState<
+    readonly ReplacementEligibilityProjection[]
+  >([]);
   const [replacementTargetUid, setReplacementTargetUid] = useState('');
   const [replacementReason, setReplacementReason] = useState<typeof REPLACEMENT_ELIGIBILITY_REASONS[number]>('dead');
   const [replacementRoleId, setReplacementRoleId] = useState('wolf-commander');
@@ -824,6 +828,11 @@ export default function GmConsole() {
     .filter((player) => player.role === 'player' &&
       (!player.replacementRoleId || player.escapeState !== undefined))
     .sort((left, right) => normalizeDisplayName(left.displayName).localeCompare(normalizeDisplayName(right.displayName)));
+  const replacementEligibilityByUid = new Map(
+    replacementEligibility
+      .filter((entry) => entry.eligible && entry.revision >= 1)
+      .map((entry) => [entry.targetUid, entry] as const),
+  );
   const persistedReplacementVesselIds = session?.activeVesselIds;
   const replacementVesselIds = new Set(
     Array.isArray(persistedReplacementVesselIds) &&
@@ -923,6 +932,9 @@ export default function GmConsole() {
       stopInstances();
       stopInstances = () => undefined;
       setInstances([]);
+      setConnectedPlayers([]);
+      setAllPlayers([]);
+      setReplacementEligibilityEntries([]);
       setLoading(false);
       setCrisisMutationState(null);
       setCrisisMessage(null);
@@ -944,6 +956,7 @@ export default function GmConsole() {
     void import('@/lib/firestore').then(({
       subscribeConnectedPlayers,
       subscribeSessionPlayers,
+      subscribeReplacementEligibility,
       subscribeDamageDraws,
       subscribeGmInstances,
       subscribeGmWolfAttackPreparation,
@@ -1218,6 +1231,16 @@ export default function GmConsole() {
           }),
         )
         : () => undefined;
+      const stopReplacementEligibility = typeof subscribeReplacementEligibility === 'function'
+        ? subscribeReplacementEligibility(
+          sessionId,
+          setReplacementEligibilityEntries,
+          () => useSessionStore.getState().setCommunicationError({
+            code: 'gm-replacement-eligibility-link',
+            message: 'Current replacement eligibility could not be refreshed.',
+          }),
+        )
+        : () => undefined;
       unsubscribe = () => {
         stopInstances();
         stopWolfAttackWindow();
@@ -1238,6 +1261,7 @@ export default function GmConsole() {
         stopDamageDraws();
         stopPlayers();
         stopAllPlayers();
+        stopReplacementEligibility();
       };
     });
     return () => {
@@ -1270,6 +1294,7 @@ export default function GmConsole() {
       setWolfAttackPreparationState(null);
       setWolfAttackState(null);
       setAllPlayers([]);
+      setReplacementEligibilityEntries([]);
     };
   }, [
     advanceArrestPosseCalculationGeneration,
@@ -3770,15 +3795,19 @@ export default function GmConsole() {
                   candidate.role === 'player' && candidate.replacementRoleId === captainRoleId &&
                   candidate.replacementStatus == null);
                 const currentCaptain = captainHolders.length === 1 ? captainHolders[0] : undefined;
-                const candidates = connectedPlayers.filter((candidate) =>
-                  candidate.role === 'player' && candidate.uid !== currentCaptain?.uid &&
-                  candidate.replacementRoleId == null && candidate.replacementStatus == null &&
-                  !candidate.escapeState,
-                ).map((candidate) => ({
-                  uid: candidate.uid,
-                  displayName: candidate.displayName,
-                  roleId: candidate.assignedRoleId ?? 'awaiting new role',
-                }));
+                const candidates = connectedPlayers.flatMap((candidate) => {
+                  const eligibility = replacementEligibilityByUid.get(candidate.uid);
+                  return candidate.role === 'player' && candidate.uid !== currentCaptain?.uid &&
+                    candidate.replacementRoleId == null && candidate.replacementStatus == null &&
+                    !candidate.escapeState && eligibility
+                    ? [{
+                      uid: candidate.uid,
+                      displayName: candidate.displayName,
+                      roleId: candidate.assignedRoleId ?? 'awaiting new role',
+                      eligibilityRevision: eligibility.revision,
+                    }]
+                    : [];
+                });
                 return [<section className="gm-fleet-resource-ship" role="group"
                   aria-label={`${smallShip.name} mutiny controls`} key={`mutiny-${id}`}>
                   <GmMutinyRecovery

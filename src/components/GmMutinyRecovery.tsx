@@ -7,6 +7,7 @@ export interface MutinyCaptainCandidate {
   readonly uid: string;
   readonly displayName: string;
   readonly roleId: string;
+  readonly eligibilityRevision?: number;
 }
 
 export type MutinyRecoveryMode = 'captain-swap' | 'replacement-transfer' | 'crew-attestation';
@@ -34,15 +35,22 @@ export default function GmMutinyRecovery({
   const crewAttestation = mode === 'crew-attestation';
 
   const submit = async () => {
+    const selectedCandidate = candidates.find(candidate => candidate.uid === newCaptainUid);
     if (!writable || pending ||
-        (!crewAttestation && !candidates.some(candidate => candidate.uid === newCaptainUid))) return;
+        (!crewAttestation && !selectedCandidate) ||
+        (mode === 'replacement-transfer' &&
+          (!selectedCandidate || !Number.isSafeInteger(selectedCandidate.eligibilityRevision) ||
+            Number(selectedCandidate.eligibilityRevision) < 1))) return;
     setPending(true); setMessage('');
     try {
       const result = mode === 'captain-swap'
         ? await resolveShipMutiny(shipId, newCaptainUid, reduction, expectedRevision)
-        : await resolveShipMutiny(
-          shipId, crewAttestation ? null : newCaptainUid, reduction, expectedRevision, mode,
-        );
+        : mode === 'replacement-transfer'
+          ? await resolveShipMutiny(
+            shipId, newCaptainUid, reduction, expectedRevision, mode,
+            selectedCandidate?.eligibilityRevision,
+          )
+          : await resolveShipMutiny(shipId, null, reduction, expectedRevision, mode);
       setMessage(result.status === 'stale'
         ? 'The ship changed. Refresh before installing the new captain.'
         : crewAttestation

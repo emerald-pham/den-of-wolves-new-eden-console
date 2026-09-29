@@ -113,6 +113,7 @@ function currentCaptainReplacementRole(player: DocumentSnapshot): void {
   // seat. Replacement assignment is the current server-owned entitlement;
   // assignedRoleId may retain the player's historical printed core role.
   if (player.get('replacementRoleId') !== ROLE_ID ||
+      player.get('replacementStatus') != null ||
       player.get('activeConsoleRoleId') !== null || player.get('seatId') !== null) {
     throw new HttpsError('permission-denied', 'Only the current Gorgoneion Captain may use Repair Drones.');
   }

@@ -82,11 +82,13 @@ service cloud.firestore {
     function isCurrentIntelligenceAgentHolder(sessionId, investigationUid) {
       let secretId = 'loyalty-' + uid();
       let secretPath = /databases/$(database)/documents/sessions/$(sessionId)/secrets/$(secretId);
+      let player = get(
+        /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+      ).data;
       return isMember(sessionId)
         && investigationUid == uid()
-        && get(
-          /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
-        ).data.role == 'player'
+        && player.role == 'player'
+        && playerHasCurrentRoleAuthority(player)
         && exists(secretPath)
         && get(secretPath).data.visibleToUids.size() == 1
         && get(secretPath).data.visibleToUids[0] == uid()
@@ -224,7 +226,11 @@ service cloud.firestore {
     }
 
     function hasCurrentWolfCultAuthority(sessionId) {
+      let player = get(
+        /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+      ).data;
       return isMember(sessionId)
+        && playerHasCurrentRoleAuthority(player)
         && exists(
           /databases/$(database)/documents/sessions/$(sessionId)/wolfCultIntelligenceAuthority/current
         )
@@ -249,14 +255,14 @@ service cloud.firestore {
     // callers use the strict authority check above.
     function isLegacyWolfCultHolder(sessionId, intelligenceUid) {
       let secretId = 'loyalty-' + uid();
+      let player = get(
+        /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+      ).data;
       return isMember(sessionId)
         && intelligenceUid == uid()
-        && get(
-          /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
-        ).data.role == 'player'
-        && get(
-          /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
-        ).data.connected == true
+        && player.role == 'player'
+        && player.connected == true
+        && playerHasCurrentRoleAuthority(player)
         && exists(
           /databases/$(database)/documents/sessions/$(sessionId)/secrets/$(secretId)
         )
@@ -310,7 +316,11 @@ service cloud.firestore {
     }
 
     function hasCurrentArbourAuthority(sessionId) {
+      let player = get(
+        /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+      ).data;
       return isMember(sessionId)
+        && playerHasCurrentRoleAuthority(player)
         && exists(
           /databases/$(database)/documents/sessions/$(sessionId)/arbourVisionAuthority/current
         )
@@ -329,14 +339,14 @@ service cloud.firestore {
 
     function isLegacyArbourHolder(sessionId, visionUid) {
       let secretId = 'loyalty-' + uid();
+      let player = get(
+        /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+      ).data;
       return isMember(sessionId)
         && visionUid == uid()
-        && get(
-          /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
-        ).data.role == 'player'
-        && get(
-          /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
-        ).data.connected == true
+        && player.role == 'player'
+        && player.connected == true
+        && playerHasCurrentRoleAuthority(player)
         && exists(
           /databases/$(database)/documents/sessions/$(sessionId)/secrets/$(secretId)
         )
@@ -564,6 +574,9 @@ service cloud.firestore {
       match /secrets/{secretId} {
         allow get, list: if isMember(sessionId)
           && uid() in resource.data.visibleToUids
+          && (!secretId.matches('loyalty-.*') || playerHasCurrentRoleAuthority(get(
+            /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+          ).data))
           && (!isGmPrivateSecret(secretId) || isGm(sessionId));
         allow write: if false;
       }

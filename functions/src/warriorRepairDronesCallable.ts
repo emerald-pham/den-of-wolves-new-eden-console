@@ -116,6 +116,7 @@ function currentCaptainRoleId(
 ): typeof ROLE_ID {
   if (player.id !== uid || player.get('role') !== 'player' ||
       player.get('replacementRoleId') !== ROLE_ID ||
+      player.get('replacementStatus') != null ||
       player.get('seatId') !== null || player.get('activeConsoleRoleId') !== null) {
     throw new HttpsError('permission-denied', 'Only the current Warrior Captain may use Repair Drones.');
   }

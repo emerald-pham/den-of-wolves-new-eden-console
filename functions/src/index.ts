@@ -185,6 +185,7 @@ import {
   replacementRoleFor,
   replacementRoleAvailable,
   replacementAuthorityAllowsRole,
+  isReplacementEligibilityReason,
   type ReplacementRoleDefinition,
 } from './replacementRoles';
 import { publicSmallShipStatesForSession } from './extraShipAdmission';
@@ -11629,8 +11630,12 @@ export const deliverWolfCultIntelligence = onCall<{
     const canonicalSecrets = secrets.docs
       .map((secret) => canonicalLoyaltySecret(secret, players.docs, activeRoleIds))
       .filter((secret): secret is CanonicalLoyaltySecret => secret !== null);
-    const cultHolders = canonicalSecrets.filter((secret) => secret.kind === 'wolf-cult');
-    const wolfAgents = canonicalSecrets.filter((secret) => secret.kind === 'wolf-agent');
+    const currentlyAuthorized = (secret: CanonicalLoyaltySecret) => players.docs.some((candidate) =>
+      candidate.id === secret.uid && candidate.get('replacementStatus') == null);
+    const cultHolders = canonicalSecrets.filter((secret) =>
+      secret.kind === 'wolf-cult' && currentlyAuthorized(secret));
+    const wolfAgents = canonicalSecrets.filter((secret) =>
+      secret.kind === 'wolf-agent' && currentlyAuthorized(secret));
     if (authority.session.get('wolfCultEnabled') !== true || cultHolders.length !== 1 || wolfAgents.length !== 1) {
       throw commandError(
         'failed-precondition',
@@ -13049,6 +13054,7 @@ export const authorArbourVision = onCall<{
     const censusEntries = storedLoyaltyCensusEntries(census);
     const targetRoleId = target.get('assignedRoleId');
     if (!target.exists || isKickedPlayer(target) || target.get('role') !== 'player' ||
+        target.get('replacementStatus') != null ||
         typeof targetRoleId !== 'string' || !activeRoleIds.includes(targetRoleId) ||
         !censusEntries?.some((entry) => entry.uid === vision.targetUid && entry.kind === 'universal-arbour')) {
       throw commandError(
@@ -13911,7 +13917,8 @@ export const revealAndroidProof = onCall<{
     const [session, player, secret, receipt, legacyEvent] = await Promise.all([
       tx.get(sessionRef), tx.get(playerRef), tx.get(secretRef), tx.get(receiptRef), tx.get(eventRef),
     ]);
-    if (!session.exists || !isActivePlayer(player) || player.get('role') !== 'player') {
+    if (!session.exists || !isActivePlayer(player) || player.get('role') !== 'player' ||
+        player.get('replacementStatus') != null) {
       throw new HttpsError('permission-denied', 'Only the active Android holder may disclose Android proof.');
     }
     requireActiveGameplayPhase(session);
@@ -18268,7 +18275,8 @@ function wolfCommanderTargetingInputs(
 }
 
 function requireWolfCommanderPlayer(player: DocumentSnapshot, uid: string): void {
-  if (!player.exists || player.id !== uid || !isActivePlayer(player) || player.get('role') !== 'player') {
+  if (!player.exists || player.id !== uid || !isActivePlayer(player) || player.get('role') !== 'player' ||
+      player.get('replacementStatus') != null) {
     throw new HttpsError('permission-denied', 'Only the active Wolf Commander player may use this action.');
   }
   if (player.get('replacementRoleId') !== 'wolf-commander') {
@@ -21635,6 +21643,7 @@ export const investigateAsIntelligenceAgent = onCall<{
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     const actorCard = privateLoyaltyPayload(actorLoyalty, uid);
     if (!isActivePlayer(actor) || actor.get('role') !== 'player' ||
+        actor.get('replacementStatus') != null ||
         actorCard?.kind !== 'intelligence-agent') {
       throw commandError(
         'permission-denied',
@@ -23277,7 +23286,8 @@ function captainRoleForShip(shipId: string): string | undefined {
 }
 
 function requireCommissarActor(player: DocumentSnapshot): void {
-  if (!isActivePlayer(player) || player.get('role') !== 'player') {
+  if (!isActivePlayer(player) || player.get('role') !== 'player' ||
+      player.get('replacementStatus') != null) {
     throw new HttpsError('permission-denied', 'Join the session first.');
   }
   if (player.get('replacementRoleId') !== 'commissar' || player.get('activeConsoleRoleId') !== null) {
@@ -23341,7 +23351,8 @@ function commissarPurgeAuthorityProjection(
   state: StoredCommissarPurgeState,
   revisions?: Readonly<Record<string, number>>,
 ): Record<string, unknown> | null {
-  if (!isActivePlayer(player) || player.get('role') !== 'player') return null;
+  if (!isActivePlayer(player) || player.get('role') !== 'player' ||
+      player.get('replacementStatus') != null) return null;
   const revision = commissarPurgeProjectionRevision(session, revisions);
   if (player.get('replacementRoleId') === 'commissar' && player.get('activeConsoleRoleId') === null) {
     return {
@@ -24187,7 +24198,9 @@ export const getCommissarPurgeAuthority = onCall<{
       tx.get(commissarPurgeStateRef(authorityRequest.sessionId)),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
+    if (!isActivePlayer(player) || player.get('replacementStatus') != null) {
+      throw new HttpsError('permission-denied', 'Join the session first.');
+    }
     const state = commissarPurgeState(purgeStateSnapshot.get('state') ?? purgeStateSnapshot.data());
     const projection = commissarPurgeAuthorityProjection(session, player, state);
     if (!projection) throw new HttpsError('permission-denied', 'The current Commissar or captain role is required.');
@@ -24259,13 +24272,13 @@ type MutinyRecoveryMode = 'captain-swap' | 'replacement-transfer' | 'crew-attest
 export const resolveShipMutiny = onCall<{
   sessionId?: unknown; instanceId?: unknown; requestId?: unknown;
   shipId?: unknown; newCaptainUid?: unknown; reduction?: unknown; expectedRevision?: unknown;
-  recoveryMode?: unknown;
+  recoveryMode?: unknown; expectedEligibilityRevision?: unknown;
 }>(async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = [
     'sessionId', 'instanceId', 'requestId', 'shipId', 'newCaptainUid',
-    'reduction', 'expectedRevision', 'recoveryMode',
+    'reduction', 'expectedRevision', 'recoveryMode', 'expectedEligibilityRevision',
   ];
   const requestedMode = raw && typeof raw === 'object' && !Array.isArray(raw) &&
     typeof raw.recoveryMode === 'string'
@@ -24284,12 +24297,20 @@ export const resolveShipMutiny = onCall<{
     ? raw && typeof raw === 'object' && !Array.isArray(raw) && raw.newCaptainUid === null
     : raw && typeof raw === 'object' && !Array.isArray(raw) &&
       typeof raw.newCaptainUid === 'string' && isCanonicalRequestId(raw.newCaptainUid);
+  const hasValidEligibilityRevision = requestedMode === 'replacement-transfer'
+    ? raw && typeof raw === 'object' && !Array.isArray(raw) &&
+      Number.isSafeInteger(raw.expectedEligibilityRevision) &&
+      Number(raw.expectedEligibilityRevision) >= 1 &&
+      Number(raw.expectedEligibilityRevision) < Number.MAX_SAFE_INTEGER
+    : raw && typeof raw === 'object' && !Array.isArray(raw) &&
+      raw.expectedEligibilityRevision === undefined;
   if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
       Object.keys(raw).some((key) => !allowed.includes(key)) ||
       typeof raw.sessionId !== 'string' || !isCanonicalRequestId(raw.sessionId) ||
       typeof raw.instanceId !== 'string' || !isCanonicalRequestId(raw.instanceId) ||
       typeof raw.requestId !== 'string' || !isCanonicalRequestId(raw.requestId) ||
       typeof raw.shipId !== 'string' || !hasValidShipMode || !hasValidCaptainIdentity ||
+      !hasValidEligibilityRevision ||
       !Number.isSafeInteger(raw.reduction) || Number(raw.reduction) < 1 || Number(raw.reduction) > 3 ||
       !Number.isSafeInteger(raw.expectedRevision) || Number(raw.expectedRevision) < 0) {
     throw new HttpsError('invalid-argument', 'Invalid mutiny recovery request.');
@@ -24299,6 +24320,9 @@ export const resolveShipMutiny = onCall<{
     shipId: raw.shipId, newCaptainUid: raw.newCaptainUid as string | null,
     reduction: raw.reduction as number, expectedRevision: raw.expectedRevision as number,
     recoveryMode: requestedMode,
+    expectedEligibilityRevision: requestedMode === 'replacement-transfer'
+      ? raw.expectedEligibilityRevision as number
+      : null,
   };
   const captainRoleId = captainRoleForShip(data.shipId);
   const sessionRef = db.doc(`sessions/${data.sessionId}`);
@@ -24311,6 +24335,7 @@ export const resolveShipMutiny = onCall<{
     {
       shipId: data.shipId, newCaptainUid: data.newCaptainUid,
       reduction: data.reduction, recoveryMode: data.recoveryMode,
+      expectedEligibilityRevision: data.expectedEligibilityRevision,
     },
   );
   const serverTime = new Date().toISOString();
@@ -24393,7 +24418,12 @@ export const resolveShipMutiny = onCall<{
         newSeatRef ? tx.get(newSeatRef) : Promise.resolve(undefined),
       ]);
       const eligibilityRevision = replacementRevision(eligibility);
-      if (eligibility.get('eligible') !== true || eligibilityRevision >= Number.MAX_SAFE_INTEGER) {
+      if (!eligibility.exists || eligibility.get('eligible') !== true ||
+          eligibilityRevision < 1 || eligibilityRevision >= Number.MAX_SAFE_INTEGER ||
+          eligibilityRevision !== data.expectedEligibilityRevision ||
+          eligibility.get('sessionId') !== data.sessionId ||
+          eligibility.get('targetUid') !== newCaptain.id ||
+          !isReplacementEligibilityReason(eligibility.get('reason'))) {
         throw commandError(
           'failed-precondition',
           'The replacement Captain needs a current unconsumed eligibility decision.',

@@ -474,9 +474,9 @@ function AppRoutes() {
           const previousEntitlement = playerEntitlementKey(store.me);
           const previousFleetGroupId = store.me?.fleetGroupId;
           const previousWolfCultIdentity = store.me
-            ? `${store.me.uid}:${store.me.role}:${store.me.assignedRoleId ?? ''}:${store.me.replacementRoleId ?? ''}`
+            ? `${store.me.uid}:${store.me.role}:${store.me.assignedRoleId ?? ''}:${store.me.replacementRoleId ?? ''}:${store.me.replacementStatus ?? ''}`
             : '';
-          const nextWolfCultIdentity = `${next.uid}:${next.role}:${next.assignedRoleId ?? ''}:${next.replacementRoleId ?? ''}`;
+          const nextWolfCultIdentity = `${next.uid}:${next.role}:${next.assignedRoleId ?? ''}:${next.replacementRoleId ?? ''}:${next.replacementStatus ?? ''}`;
           const nextEntitlement = playerEntitlementKey(next);
           if (playerAuthorityKey(next) !== listenerAuthorityKey) {
             store.setFacilitatorRuleCall(null);
@@ -496,6 +496,11 @@ function AppRoutes() {
           }
           if (previousEntitlement !== nextEntitlement) {
             retainArbourVisionForEntitlementChange();
+          }
+          if (next.replacementStatus != null) {
+            store.setPrivateLoyalty(null);
+            clearWolfCultIntelligence();
+            invalidateArbourVision();
           }
           if (previousFleetGroupId !== next.fleetGroupId) {
             const current = useSessionStore.getState().session;
@@ -595,6 +600,12 @@ function AppRoutes() {
         onPrivateLoyalty: (next) => {
           if (!callbackCurrent()) return;
           const store = useSessionStore.getState();
+          if (store.me?.replacementStatus != null) {
+            store.setPrivateLoyalty(null);
+            clearWolfCultIntelligence();
+            invalidateArbourVision();
+            return;
+          }
           store.setPrivateLoyalty(next);
           if (store.me?.role !== 'player' || next?.kind !== 'wolf-cult') {
             clearWolfCultIntelligence();
@@ -643,7 +654,8 @@ function AppRoutes() {
             store.setWolfCultIntelligence(null);
             return;
           }
-          if (wolfCultBlocked || store.me?.role !== 'player') {
+          if (wolfCultBlocked || store.me?.role !== 'player' ||
+              store.me.replacementStatus != null) {
             pendingWolfCultIntelligence = null;
             store.setWolfCultIntelligence(null);
             return;
@@ -659,6 +671,11 @@ function AppRoutes() {
         onArbourVision: (next) => {
           if (!callbackCurrent()) return;
           const store = useSessionStore.getState();
+          if (store.me?.replacementStatus != null) {
+            pendingArbourVision = null;
+            store.setArbourVision(null);
+            return;
+          }
           if (!next) {
             pendingArbourVision = null;
             store.setArbourVision(null);

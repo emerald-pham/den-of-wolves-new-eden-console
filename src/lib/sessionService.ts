@@ -1462,6 +1462,7 @@ export async function resolveShipMutiny(
   reduction: 1 | 2 | 3,
   expectedRevision: number,
   recoveryMode?: 'replacement-transfer' | 'crew-attestation',
+  expectedEligibilityRevision?: number,
 ): Promise<{ status: 'committed' | 'replayed' | 'stale'; unrest?: number }> {
   const store = useSessionStore.getState();
   if (!store.session || !store.me || store.me.role !== 'gm' || !store.gmInstance ||
@@ -1473,6 +1474,7 @@ export async function resolveShipMutiny(
     sessionId: store.session.id, instanceId: store.gmInstance.id,
     requestId: commandId(), shipId, newCaptainUid, reduction, expectedRevision,
     ...(recoveryMode ? { recoveryMode } : {}),
+    ...(expectedEligibilityRevision === undefined ? {} : { expectedEligibilityRevision }),
   };
   await ensureSignedIn();
   const result = (await httpsCallable<typeof payload, unknown>(functions(), 'resolveShipMutiny')(payload)).data;

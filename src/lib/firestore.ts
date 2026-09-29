@@ -31,6 +31,7 @@ import type {
   PopulationAlert,
   Player,
   PrivateLoyalty,
+  ReplacementEligibilityProjection,
   RoleBrief,
   RoleOwnedCraftRecord,
   Seat,
@@ -91,7 +92,11 @@ import type {
 import { parseDiseaseOutbreak, isCrisisKind, ZEALOTRY_RESPONSE_ACTIONS, CIVIL_UNREST_SHIP_IDS, type CrisisReport, type CrisisStateProjection, type CrisisStateName, type ZealotryResponse, type CivilUnrestGrievance, type CivilUnrestPublicProjection, type CivilUnrestResolution } from '@/types/crisis';
 import { isWireSafeEntityId, type EntityId, type EntityKind } from '@/types/identifiers';
 import { DEFAULT_ACTIVE_ROLE_IDS, findConsoleRole } from '@/data/roles';
-import { isPresentedSmallShipStateMapValid, replacementRoleFor } from '@/data/replacementRoles';
+import {
+  isPresentedSmallShipStateMapValid,
+  REPLACEMENT_ELIGIBILITY_REASONS,
+  replacementRoleFor,
+} from '@/data/replacementRoles';
 import { FIGHTER_WING_IDS } from '@/data/aegisConsoles';
 import { STAR_CHART_SYSTEMS } from '@/data/starChart';
 import { ROLE_SEAT_METADATA } from '@/data/seatMetadata';
@@ -2968,6 +2973,28 @@ function playerFrom(sessionId: string, uid: string, data: DocumentData): Player 
   };
 }
 
+function replacementEligibilityFrom(
+  sessionId: string,
+  targetUid: string,
+  data: DocumentData,
+): ReplacementEligibilityProjection | undefined {
+  const parsedSessionId = parseEntityId('session', data.sessionId);
+  const parsedTargetUid = parseEntityId('player', data.targetUid);
+  const reason = REPLACEMENT_ELIGIBILITY_REASONS.find((value) => value === data.reason);
+  if (parsedSessionId !== sessionId || parsedTargetUid !== targetUid ||
+      typeof data.eligible !== 'boolean' || !reason ||
+      !Number.isSafeInteger(data.revision) || data.revision < 1 ||
+      data.revision >= Number.MAX_SAFE_INTEGER) return undefined;
+  return {
+    sessionId: parsedSessionId,
+    targetUid: parsedTargetUid,
+    eligible: data.eligible,
+    reason,
+    revision: data.revision,
+    ...(data.recordedAt ? { recordedAt: iso(data.recordedAt) } : {}),
+  };
+}
+
 function seatFrom(sessionId: string, id: string, data: DocumentData): Seat {
   const roleId = parseEntityId('role', data.roleId) ?? entityId('role', id);
   const seatId = entityId('seat', id);
@@ -4530,6 +4557,37 @@ export function subscribeSessionPlayers(
       if (!subscribed) return;
       subscribed = false;
       onPlayers([]);
+      onError();
+    },
+  );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+  };
+}
+
+/** Facilitator-only current replacement decisions used to build actionable candidate lists. */
+export function subscribeReplacementEligibility(
+  sessionId: string,
+  onEntries: (entries: readonly ReplacementEligibilityProjection[]) => void,
+  onError: () => void = () => undefined,
+): Unsubscribe {
+  let subscribed = true;
+  onEntries([]);
+  const unsubscribe = onSnapshot(
+    collection(db(), `sessions/${sessionId}/replacementEligibility`),
+    { includeMetadataChanges: true },
+    (snapshot) => {
+      if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      onEntries(snapshot.docs.flatMap((entry) => {
+        const parsed = replacementEligibilityFrom(sessionId, entry.id, entry.data());
+        return parsed ? [parsed] : [];
+      }));
+    },
+    () => {
+      if (!subscribed) return;
+      subscribed = false;
+      onEntries([]);
       onError();
     },
   );

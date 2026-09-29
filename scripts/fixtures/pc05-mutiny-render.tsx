@@ -26,6 +26,7 @@ export function mountPc05MutinyFixture(container: HTMLElement) {
           uid: 'captain-two',
           displayName: 'Lieutenant Reyes',
           roleId: 'aegis-engineer',
+          eligibilityRevision: 4,
         }]}
       />
       <GmMutinyRecovery
