@@ -1293,7 +1293,7 @@ it.each([
 
   await expect(jumpShip.run(request({ ...data, destination: '5143' }))).rejects.toMatchObject({
     code: 'failed-precondition',
-    details: expect.objectContaining({ reason: 'malformed-input' }),
+    details: expect.objectContaining({ commandError: 'malformed-input' }),
   });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
@@ -1451,7 +1451,7 @@ it('uses the new ship self-arrival when an older observer event follows it in th
     systemHistory: expect.objectContaining({
       dione: expect.objectContaining({
         '5143': expect.objectContaining({
-          discovery: { id: 'dione-retry-after-observer-0', occurredAt: expect.any(String) },
+          discovery: { id: 'jump-dione-retry-after-observer-0', occurredAt: expect.any(String) },
         }),
       }),
     }),
@@ -1599,7 +1599,7 @@ it('records jump-damage mutiny atomically and still replays the exact receipt af
   } }];
   mock.pursuitGroups = { 'fleet-1': 10 };
   mock.unrest = { aegis: 6 };
-  mock.survivors = { aegis: 2_500 };
+  mock.survivors = { aegis: 750 };
   const command = {
     ...data, requestId: 'jump-causes-mutiny', destination: '5143', emergency: true,
   };
