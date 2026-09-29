@@ -615,10 +615,12 @@ describe('start readiness', () => {
   it('accepts a reduced roster while previously configured seats remain safely locked', () => {
     const activeRoleIds = [...recommendedRoleIds(8)];
     const activeRoleSet = new Set(activeRoleIds);
-    const seatDocuments = stableSeatsForRoles(recommendedRoleIds(18)).map((seat) =>
-      activeRoleSet.has(seat.roleId)
-        ? seat
-        : { ...seat, status: 'locked' as const, holderUid: null, claimedAt: null });
+    const seatDocuments = [
+      ...stableSeatsForRoles(activeRoleIds),
+      ...stableSeatsForRoles(recommendedRoleIds(18))
+        .filter((seat) => !activeRoleSet.has(seat.roleId))
+        .map((seat) => ({ ...seat, status: 'locked' as const, holderUid: null, claimedAt: null })),
+    ];
 
     expect(readinessForSetup({
       phase: 'casting',
@@ -640,14 +642,16 @@ describe('start readiness', () => {
     const activeRoleIds = [...recommendedRoleIds(8)];
     const activeRoleSet = new Set(activeRoleIds);
     let preservedClaimAdded = false;
-    const seatDocuments = stableSeatsForRoles(recommendedRoleIds(18)).map((seat) => {
-      if (activeRoleSet.has(seat.roleId)) return seat;
+    const seatDocuments = [
+      ...stableSeatsForRoles(activeRoleIds),
+      ...stableSeatsForRoles(recommendedRoleIds(18)).filter((seat) => !activeRoleSet.has(seat.roleId)).map((seat) => {
       if (!preservedClaimAdded) {
         preservedClaimAdded = true;
         return { ...seat, status: 'claimed' as const, holderUid: 'stale-holder' };
       }
       return { ...seat, status: 'locked' as const, holderUid: null, claimedAt: null };
-    });
+      }),
+    ];
 
     const result = readinessForSetup({
       phase: 'casting',

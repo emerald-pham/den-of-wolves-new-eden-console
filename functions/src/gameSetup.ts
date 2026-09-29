@@ -646,9 +646,23 @@ export function readinessForSetup(input: SetupReadinessInput): {
 
   if (strictSeatBackedReadiness) {
     const seatDocuments = input.seatDocuments ?? [];
-    const seatByRole = new Map(seatDocuments.map((seat) => [seat.roleId, seat]));
-    const validSeatDocuments = seatDocuments.length === printedRoleIds.length &&
-      seatByRole.size === seatDocuments.length &&
+    const configuredSeatDocuments = seatDocuments.filter((seat) => configuredRoleSet.has(seat.roleId));
+    const preservedSeatDocuments = seatDocuments.filter((seat) => !configuredRoleSet.has(seat.roleId));
+    const seatByRole = new Map(configuredSeatDocuments.map((seat) => [seat.roleId, seat]));
+    const uniqueSeatIds = new Set(seatDocuments.map((seat) => seat.id));
+    // Roster changes preserve removed role documents as locked records so a
+    // later setup can re-enable the same canonical seats. They are safe input
+    // to start readiness only while they remain unclaimed and canonical.
+    const validPreservedSeats = preservedSeatDocuments.every((seat) => {
+      const metadata = ROLE_SEAT_METADATA[seat.roleId];
+      return metadata !== undefined && seat.id === seat.roleId &&
+        seat.label === metadata.label && seat.factionId === metadata.factionId &&
+        seat.status === 'locked' && seat.holderUid === null &&
+        !coreAssignments.some((assignment) => assignment.roleId === seat.roleId);
+    });
+    const validSeatDocuments = configuredSeatDocuments.length === printedRoleIds.length &&
+      seatByRole.size === configuredSeatDocuments.length &&
+      uniqueSeatIds.size === seatDocuments.length && validPreservedSeats &&
       printedRoleIds.every((roleId) => {
         const seat = seatByRole.get(roleId);
         const metadata = ROLE_SEAT_METADATA[roleId];
