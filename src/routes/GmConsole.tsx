@@ -11,6 +11,7 @@ import GmMutinyRecovery from '@/components/GmMutinyRecovery';
 import SmallShipOperations from '@/components/SmallShipOperations';
 import { GmSetupChecklist } from '@/components/GmSetupChecklist';
 import PursuitTracker from '@/components/PursuitTracker';
+import JumpFailureAdjudicationPanel from '@/components/JumpFailureAdjudicationPanel';
 import LiveChangeRegion from '@/components/LiveChangeRegion';
 import DecisionAttribution from '@/components/DecisionAttribution';
 import RoleConsoleTemplate from '@/components/RoleConsoleTemplate';
@@ -5100,6 +5101,10 @@ export default function GmConsole() {
               </div>
             </div>
           </section>
+          <JumpFailureAdjudicationPanel key={session?.id} active={Boolean(
+            isGm && local && session?.phase === 'active' &&
+            sessionSnapshotFreshness === 'server' && connection === 'live',
+          )} />
 
       </aside>
       {pendingCapybaraEnabled !== null && (

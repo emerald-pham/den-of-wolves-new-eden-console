@@ -85,7 +85,7 @@ export default function FleetSystemsWorkspace({
       data-damaged={String(damaged)}
     >
       <h3>{system.name}</h3>{baseline && <p>{baseline}</p>}
-      {system.id === 'jump-drive' && <JumpFailureReadout />}
+      {system.id === 'jump-drive' && <JumpFailureReadout upgraded={upgrades.includes('jump-drive')} />}
       {system.id === 'jump-drive' && <JumpDriveConsole
         shipId={ship.id}
         shipName={ship.name}
@@ -97,6 +97,16 @@ export default function FleetSystemsWorkspace({
         upgraded={upgrades.includes('jump-drive')}
         consoleLocked={consoleLocked}
         integrityLockedUntil={jumpState?.integrityLockedUntil}
+        emergencyJumpUsed={jumpState?.emergencyJumpUsed ?? false}
+        {...(jumpState?.lastFailureRequestId
+          ? { lastFailureRequestId: jumpState.lastFailureRequestId } : {})}
+        {...((session?.playerDiscovery?.shipId === ship.id
+          ? session.playerDiscovery.pursuitValue
+          : session?.pursuitGroups?.[session.shipFleetGroupIds?.[ship.id] ?? '']) !== undefined
+          ? { pursuitValue: session?.playerDiscovery?.shipId === ship.id
+            ? session.playerDiscovery.pursuitValue
+            : session?.pursuitGroups?.[session.shipFleetGroupIds?.[ship.id] ?? ''] }
+          : {})}
       />}
       <dl><div className="aegis-system__condition">
         <dt>Condition</dt><dd>{damaged ? 'Damaged' : 'Operational'}</dd>

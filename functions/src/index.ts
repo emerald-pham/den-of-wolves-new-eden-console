@@ -134,6 +134,8 @@ import {
   requireShipDamageRequest,
   requireMaintenanceRollbackRequest,
   requireShipJumpRequest,
+  requireFailedJumpAdjudicationRequest,
+  requireJumpFailureListRequest,
   requireShipNavigationMoveRequest,
   requireShipConsoleLockRequest,
   requireShipUnrestRequest,
@@ -204,6 +206,9 @@ import {
   type NavigationState,
 } from './navigationProjection';
 import {
+  jumpFuelCost,
+  jumpLengthBetween,
+  resolveEmergencyJump,
   resolveJumpAttempt,
   type JumpAttemptResult,
   type JumpDriveState,
@@ -2497,8 +2502,21 @@ function shipJumpStates(value: unknown): Record<string, JumpDriveState> {
       ...(typeof state.integrityLockedUntil === 'string'
         ? { integrityLockedUntil: state.integrityLockedUntil }
         : {}),
+      ...(state.emergencyJumpUsed === true ? { emergencyJumpUsed: true } : {}),
+      ...(typeof state.lastFailureRequestId === 'string' && state.lastFailureRequestId.length > 0
+        ? { lastFailureRequestId: state.lastFailureRequestId }
+        : {}),
     }];
   }));
+}
+
+function jumpStateWithoutFields(
+  state: JumpDriveState,
+  fields: readonly (keyof JumpDriveState)[],
+): JumpDriveState {
+  return Object.fromEntries(
+    Object.entries(state).filter(([field]) => !fields.includes(field as keyof JumpDriveState)),
+  ) as JumpDriveState;
 }
 
 function shipJumpTransitions(value: unknown): Record<string, JumpTransition> {
@@ -15500,6 +15518,186 @@ export const moveShipToLocation = onCall<{
   });
 });
 
+function shipJumpFailureRef(sessionId: string, requestId: string) {
+  return db.doc(`sessions/${sessionId}/jumpFailures/${requestId}`);
+}
+
+function writeShipJumpEvent(
+  tx: Transaction,
+  input: {
+    readonly sessionId: string;
+    readonly actorUid: string;
+    readonly actorRoleId: string | null;
+    readonly shipId: string;
+    readonly requestId: string;
+    readonly turn: number;
+    readonly phase: string;
+    readonly revision: number;
+    readonly outcome: string;
+    readonly payload?: Record<string, unknown>;
+    readonly occurredAt: string;
+  },
+): void {
+  tx.set(db.doc(`sessions/${input.sessionId}/events/ship-jump-${input.requestId}`),
+    buildPrivacySafeEventRecord({
+      type: 'ship-jump',
+      envelope: {
+        sessionId: input.sessionId,
+        actorUid: input.actorUid,
+        actorRoleId: input.actorRoleId,
+        turn: input.turn,
+        phase: input.phase,
+        type: 'ship-jump',
+        requestId: input.requestId,
+        revision: input.revision,
+        serverTime: input.occurredAt,
+        visibility: EventVisibility.Member,
+      },
+      payload: { shipId: input.shipId, outcome: input.outcome, ...(input.payload ?? {}) },
+      createdAt: FieldValue.serverTimestamp(),
+    }));
+}
+
+function jumpFailureRecord(input: {
+  readonly requestId: string;
+  readonly shipId: string;
+  readonly origin: string;
+  readonly destination: string;
+  readonly failureStatus: string;
+  readonly failureRevision: number;
+  readonly currentTurn: number;
+  readonly fuelAtFailure: number;
+  readonly requiredFuel?: number;
+  readonly failureRoll?: number;
+  readonly failureThreshold?: number;
+  readonly adjudicable: boolean;
+  readonly actorUid: string;
+  readonly occurredAt: string;
+}): Record<string, unknown> {
+  return {
+    type: 'ship-jump-failure',
+    status: 'unresolved',
+    requestId: input.requestId,
+    shipId: input.shipId,
+    origin: input.origin,
+    destination: input.destination,
+    failureStatus: input.failureStatus,
+    failureRevision: input.failureRevision,
+    currentTurn: input.currentTurn,
+    fuelAtFailure: input.fuelAtFailure,
+    ...(input.requiredFuel === undefined ? {} : { requiredFuel: input.requiredFuel }),
+    ...(input.failureRoll === undefined ? {} : { failureRoll: input.failureRoll }),
+    ...(input.failureThreshold === undefined ? {} : { failureThreshold: input.failureThreshold }),
+    adjudicable: input.adjudicable,
+    actorUid: input.actorUid,
+    createdAt: FieldValue.serverTimestamp(),
+    occurredAt: input.occurredAt,
+  };
+}
+
+/** Apply the shared population, alert, and destruction consequences of jump damage. */
+async function jumpDamageConsequences(input: {
+  readonly tx: Transaction;
+  readonly sessionId: string;
+  readonly session: DocumentSnapshot;
+  readonly shipId: string;
+  readonly requestId: string;
+  readonly occurredAt: string;
+  readonly previousDamage: ShipDamageState;
+  readonly nextDamage: ShipDamageState;
+  readonly damagedSystemIds: readonly string[];
+  readonly affectedPlayers: readonly DocumentSnapshot[];
+  readonly revision: number;
+}): Promise<Record<string, unknown>> {
+  const {
+    tx, sessionId, session, shipId, requestId, occurredAt,
+    previousDamage, nextDamage, damagedSystemIds, affectedPlayers, revision,
+  } = input;
+  const beforePopulation = populationForShip(shipId, session.get('shipSurvivors'))!;
+  let nextPopulation = beforePopulation;
+  let populationAlertValue: number | undefined;
+  for (const systemId of damagedSystemIds) {
+    if (systemId.startsWith('armoured-hull-') || nextPopulation <= 0) continue;
+    const populationResult = populationChange(shipId, nextPopulation, -1, false);
+    nextPopulation = populationResult.amount;
+    if (populationResult.alertRaised) populationAlertValue = populationResult.amount;
+  }
+  const currentUnrest = shipUnrest(session.get('shipUnrest'))[shipId] ?? 0;
+  const nextUnrest = beforePopulation > 0 && nextPopulation === 0
+    ? Math.min(10, currentUnrest + 2)
+    : currentUnrest;
+  const crossedUnrestThreshold = currentUnrest < 8 && nextUnrest >= 8;
+  const populationAlerts = isRecord(session.get('populationAlerts'))
+    ? { ...session.get('populationAlerts') as Record<string, StoredPopulationAlert> }
+    : {};
+  const unrestAlerts = isRecord(session.get('unrestAlerts'))
+    ? { ...session.get('unrestAlerts') as Record<string, StoredUnrestAlert> }
+    : {};
+  if (populationAlertValue !== undefined || crossedUnrestThreshold) {
+    const instances = await tx.get(db.collection(`sessions/${sessionId}/gmInstances`));
+    const targetGmInstanceIds = instances.docs.map((instance) => instance.id);
+    if (targetGmInstanceIds.length > 0) {
+      const alert = {
+        shipId,
+        shipName: (FLEET_SHIP_NAMES as Readonly<Record<string, string>>)[shipId] ?? shipId,
+        targetGmInstanceIds,
+        createdAt: occurredAt,
+      };
+      if (populationAlertValue !== undefined) {
+        populationAlerts[shipId] = { ...alert, population: populationAlertValue };
+      }
+      if (crossedUnrestThreshold) unrestAlerts[shipId] = alert;
+    }
+  }
+  if (nextPopulation !== beforePopulation) {
+    writePressLogEvent(tx, sessionId, buildSurvivorChangePressLogEntry({
+      sourceId: `ship-damage:${requestId}`,
+      cause: 'ship-damage',
+      vesselId: shipId,
+      cycle: sessionTurn(session.get('currentTurn')),
+      recordedAt: occurredAt,
+      fromPopulation: beforePopulation,
+      toPopulation: nextPopulation,
+    }));
+  }
+
+  const newlyDestroyed = !previousDamage.destroyed && nextDamage.destroyed;
+  const destruction = newlyDestroyed ? destructionTransition(shipId, previousDamage.destroyed, false) : undefined;
+  const retainedShuttleTransition = newlyDestroyed
+    ? retainedShuttleTransitionForDestruction(session, affectedPlayers, shipId, occurredAt)
+    : undefined;
+  if (newlyDestroyed && destruction) {
+    markPlayersForShipEscape(tx, affectedPlayers, shipId, destruction.eventId, revision);
+    for (const shuttleId of retainedShuttleTransition?.retainedShuttleIds ?? []) {
+      tx.delete(db.doc(`sessions/${sessionId}/shuttleDepartures/${shuttleId}`));
+      tx.delete(db.doc(`sessions/${sessionId}/shuttleTransitChains/${shuttleId}`));
+    }
+    if (destruction.createEvent) {
+      tx.set(db.doc(`sessions/${sessionId}/damageDraws/${destruction.eventId}`), {
+        type: 'ship-destroyed', shipId,
+        podCapacity: destruction.capacity.podCapacity,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    }
+  }
+  const terminalPatch = newlyDestroyed
+    ? totalFleetLossTerminalPatch(sessionId, session, shipId, nextDamage, occurredAt)
+    : {};
+  return {
+    [`shipDamage.${shipId}`]: nextDamage,
+    [`shipSurvivors.${shipId}`]: nextPopulation,
+    [`shipUnrest.${shipId}`]: nextUnrest,
+    populationAlerts,
+    unrestAlerts,
+    ...(retainedShuttleTransition ? {
+      shuttleDockings: retainedShuttleTransition.dockings,
+      shuttleControl: retainedShuttleTransition.control,
+      retainedShuttles: retainedShuttleTransition.retained,
+    } : {}),
+    ...terminalPatch,
+  };
+}
+
 /** Resolve one shipboard, coordinate-locked FTL jump. */
 export const jumpShip = onCall<{
   sessionId?: string;
@@ -15508,6 +15706,8 @@ export const jumpShip = onCall<{
   destination?: string;
   requestId?: string;
   expectedRevision?: number;
+  emergency?: boolean;
+  failureRequestId?: string;
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const change = requireShipJumpRequest(request.data ?? {});
@@ -15518,7 +15718,10 @@ export const jumpShip = onCall<{
   const receiptRef = commandReceiptRef(change.sessionId, identity.requestId);
   const fingerprint = vesselActionFingerprint(
     'jump-ship', change.sessionId, identity.requestId, uid, change.instanceId ?? null,
-    identity.expectedRevision ?? null, { shipId: change.shipId, destination: change.destination },
+    identity.expectedRevision ?? null, {
+      shipId: change.shipId, destination: change.destination, emergency: change.emergency,
+      failureRequestId: change.failureRequestId ?? null,
+    },
   );
   const now = new Date();
   const transitionId = `jump-${identity.requestId}`;
@@ -15526,6 +15729,7 @@ export const jumpShip = onCall<{
   // the authoritative reads confirm a damaged drive, then reuse it so
   // contention cannot reroll the same departure.
   let integrityRoll: number | undefined;
+  const emergencyDamageEntropy: number[] = [];
 
   return db.runTransaction(async (tx) => {
     await requireShipCounterAuthority(
@@ -15572,9 +15776,6 @@ export const jumpShip = onCall<{
     const charges = Array.isArray(currentCycle.charges)
       ? currentCycle.charges.filter((charge): charge is string => typeof charge === 'string')
       : [];
-    if (currentCycle.turn !== currentTurn || !charges.includes('jump-drive')) {
-      throw commandError('failed-precondition', 'Charge the Jump Drive during this cycle before departure.', 'invalid-phase');
-    }
 
     const inventories = shipResources(session.get('shipResources'));
     const inventory = inventories[change.shipId];
@@ -15589,6 +15790,247 @@ export const jumpShip = onCall<{
     const upgradeList = upgrades[change.shipId];
     const upgraded = Array.isArray(upgradeList) && upgradeList.some((upgrade) => upgrade === 'jump-drive');
     const state = shipJumpStates(session.get('shipJumpStates'))[change.shipId] ?? {};
+    const currentFailureId = change.failureRequestId ?? state.lastFailureRequestId;
+    if (change.emergency && change.failureRequestId &&
+        change.failureRequestId !== state.lastFailureRequestId) {
+      throw commandError('failed-precondition', 'That failed jump is no longer the current ship failure.', 'conflict');
+    }
+    const currentFailureSnapshot = currentFailureId
+      ? await tx.get(shipJumpFailureRef(change.sessionId, currentFailureId))
+      : undefined;
+
+    const supersedeEarlierFailure = (replacementRequestId: string): void => {
+      if (!currentFailureId || currentFailureId === replacementRequestId || !currentFailureSnapshot?.exists) return;
+      const priorFailure = currentFailureSnapshot.data();
+      if (isRecord(priorFailure) && priorFailure.status === 'unresolved') {
+        tx.update(shipJumpFailureRef(change.sessionId, currentFailureId), {
+          status: 'resolved', resolution: 'superseded-by-new-attempt',
+          resolvedAt: FieldValue.serverTimestamp(),
+        });
+      }
+    };
+
+    if (!change.emergency && state.lastJumpTurn === currentTurn) {
+      throw commandError('failed-precondition', 'This ship has already jumped this cycle.', 'conflict');
+    }
+
+    if (!change.emergency && (currentCycle.turn !== currentTurn || !charges.includes('jump-drive'))) {
+      supersedeEarlierFailure(identity.requestId);
+      const failureState = jumpStateWithoutFields(state, ['lastFailureRequestId']);
+      const reply = {
+        status: 'not-charged' as const,
+        shipId: change.shipId,
+        origin: currentCoordinate,
+        destination: change.destination,
+        failureRequestId: identity.requestId,
+        state: failureState,
+        ...vesselActionEnvelope(session, player, uid, change.shipId, currentRevision,
+          identity.requestId, 'jump-ship'),
+      };
+      tx.set(shipJumpFailureRef(change.sessionId, identity.requestId), jumpFailureRecord({
+        requestId: identity.requestId, shipId: change.shipId, origin: currentCoordinate,
+        destination: change.destination, failureStatus: 'not-charged', failureRevision: currentRevision,
+        currentTurn, fuelAtFailure: inventory.fuel, adjudicable: false, actorUid: uid,
+        occurredAt: now.toISOString(),
+      }));
+      tx.update(sessionRef, { [`shipJumpStates.${change.shipId}`]: failureState,
+        updatedAt: FieldValue.serverTimestamp() });
+      writeShipJumpEvent(tx, {
+        sessionId: change.sessionId, actorUid: uid, actorRoleId: vesselActorRoleId(player),
+        shipId: change.shipId, requestId: identity.requestId, turn: currentTurn,
+        phase: vesselActionPhase(session), revision: currentRevision, outcome: 'not-charged',
+        occurredAt: now.toISOString(),
+      });
+      txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
+      return reply;
+    }
+
+    if (change.emergency) {
+      const failureData = currentFailureSnapshot?.exists ? currentFailureSnapshot.data() : undefined;
+      const sameFailure = currentFailureId !== undefined &&
+        currentFailureSnapshot?.exists === true && isRecord(failureData) &&
+        failureData.status === 'unresolved' && failureData.shipId === change.shipId &&
+        failureData.adjudicable === true &&
+        failureData.failureRevision === currentRevision && failureData.fuelAtFailure === inventory.fuel &&
+        failureData.currentTurn === currentTurn && failureData.origin === currentCoordinate;
+      if (change.failureRequestId && !sameFailure) {
+        throw commandError('failed-precondition', 'The failed jump changed; refresh before using emergency drive.', 'conflict');
+      }
+      const emergencyGroups = movementPursuitFleetGroups(activeVesselIds, fleetGroups, players);
+      requireMovementPursuitAuthority(storedNavigation, session);
+      const currentGroup = emergencyGroups.find((group) => group.vesselIds.includes(change.shipId));
+      const pursuitValue = currentGroup ? currentNavigation.pursuitGroups[currentGroup.id] : undefined;
+      try {
+        const emergency = resolveEmergencyJump({
+          shipId: change.shipId, origin: currentCoordinate, destination: change.destination,
+          currentTurn, fuel: inventory.fuel,
+          eligible: pursuitValue !== undefined && pursuitValue >= 10 || sameFailure,
+          now, transitionId, state,
+        });
+        const remainingConsoleIds = new Set((SHIP_DAMAGE_DECKS[change.shipId] ?? [])
+          .filter(({ systemId }) => systemId !== 'jump-drive' && !systemId.startsWith('armoured-hull-') &&
+            !damage.damagedSystemIds.includes(systemId))
+          .map(({ systemId }) => systemId));
+        const systemsToDamage = Math.ceil(remainingConsoleIds.size / 2);
+        let emergencyDamage: ShipDamageState = {
+          damagedSystemIds: [...new Set([...damage.damagedSystemIds, 'jump-drive'])],
+          destroyed: damage.destroyed,
+        };
+        const damageDraws: Array<{ card: string; systemId: string; systemName: string; recycled: boolean }> = [];
+        let damageDrawIndex = 0;
+        for (let index = 0; index < systemsToDamage; index += 1) {
+          const draw = drawShipDamage(change.shipId, emergencyDamage,
+            (upperBound) => {
+              const entropy = emergencyDamageEntropy[damageDrawIndex] ??= randomInt(0, 0x1_0000_0000);
+              damageDrawIndex += 1;
+              return Math.floor((entropy / 0x1_0000_0000) * upperBound);
+            },
+            remainingConsoleIds);
+          emergencyDamage = draw.state;
+          if (!draw.destroyed) {
+            remainingConsoleIds.delete(draw.card.systemId);
+            damageDraws.push({ ...draw.card, recycled: draw.recycled });
+          }
+        }
+        const move = applyShipNavigationMove({
+          shipId: change.shipId, destination: change.destination, now,
+          eventIdPrefix: transitionId, navigationalError: false,
+          coordinates: currentNavigation.shipGalacticCoordinates,
+          logs: currentNavigation.shipNavigationLogs, shipNames: FLEET_SHIP_NAMES,
+        });
+        const missionOpportunity = await missionOpportunityForMovement(
+          tx, change.sessionId, emergencyGroups, currentNavigation,
+          change.shipId, move.destination, chart, currentTurn, transitionId,
+        );
+        const damageConsequences = await jumpDamageConsequences({
+          tx, sessionId: change.sessionId, session, shipId: change.shipId,
+          requestId: identity.requestId, occurredAt: now.toISOString(),
+          previousDamage: damage, nextDamage: emergencyDamage,
+          damagedSystemIds: ['jump-drive', ...damageDraws.map((draw) => draw.systemId)],
+          affectedPlayers: Array.isArray(players?.docs) ? players.docs : [player], revision: currentRevision + 1,
+        });
+        const nextCycle = {
+          ...currentCycle,
+          charges: currentCycle.turn === currentTurn ? charges.filter((charge) => charge !== 'jump-drive') : charges,
+          results: {
+            ...(isRecord(currentCycle.results) ? currentCycle.results : {}),
+            ftl: `EMERGENCY FTL jump // ${emergency.origin} → ${emergency.destination} // ${emergency.length.toUpperCase()} // all fuel consumed.`,
+          },
+        };
+        const revision = currentRevision + 1;
+        const movedNavigation = navigationState({
+          shipGalacticCoordinates: move.coordinates, shipNavigationLogs: move.logs,
+          scoutedCoordinatesByShip: currentNavigation.scoutedCoordinatesByShip,
+          systemHistory: currentNavigation.systemHistory, pursuitGroups: currentNavigation.pursuitGroups,
+        }, activeVesselIds);
+        const nextNavigation = movementPursuitNavigation(
+          withCandidateArrival(movedNavigation, change.shipId, move.destination, chart),
+          emergencyGroups, change.shipId, move.destination, chart,
+        );
+        await writeWolfArrivalPressureForMovement(
+          tx, change.sessionId, emergencyGroups, nextNavigation, change.shipId,
+          move.destination, chart, currentTurn, transitionId,
+        );
+        writeMissionOpportunity(tx, change.sessionId, missionOpportunity);
+        tx.set(navigationStateRef(change.sessionId), {
+          ...navigationProjectionFields(nextNavigation), revision, updatedAt: FieldValue.serverTimestamp(),
+        });
+        tx.set(gmDiscoveryProjectionRef(change.sessionId), {
+          ...navigationProjectionFields(nextNavigation), revision, updatedAt: FieldValue.serverTimestamp(),
+        });
+        publishDiscoveryProjections(
+          tx, change.sessionId, Array.isArray(players?.docs) ? players.docs : [player],
+          nextNavigation, revision, chart, emergencyGroups, false,
+          { sessionSnapshot: session, navigationSnapshot: storedNavigation, fleetGroupSnapshots: fleetGroups.docs },
+        );
+        tx.update(sessionRef, {
+          shipGalacticCoordinates: removeLegacyNavigationField(),
+          [`shipResources.${change.shipId}.fuel`]: 0,
+          [`maintenanceCycles.${change.shipId}`]: nextCycle,
+          [`shipJumpStates.${change.shipId}`]: emergency.state,
+          [`shipJumpTransitions.${change.shipId}`]: emergency.transition,
+          shipNavigationLogs: removeLegacyNavigationField(), pursuitGroups: removeLegacyNavigationField(),
+          ...damageConsequences,
+          ...vesselActionRevisionPatch(change.shipId, revision), updatedAt: FieldValue.serverTimestamp(),
+        });
+        tx.set(db.doc(`sessions/${change.sessionId}/damageDraws/emergency-${identity.requestId}-jump-drive`), {
+          type: 'ship-damage', shipId: change.shipId, systemId: 'jump-drive',
+          systemName: 'Jump Drive', source: 'emergency-jump', createdAt: FieldValue.serverTimestamp(),
+        });
+        damageDraws.forEach((draw, index) => tx.set(
+          db.doc(`sessions/${change.sessionId}/damageDraws/emergency-${identity.requestId}-${index + 1}`),
+          { type: 'ship-damage', shipId: change.shipId, ...draw,
+            source: 'emergency-jump', createdAt: FieldValue.serverTimestamp() },
+        ));
+        if (currentFailureId && currentFailureSnapshot?.exists) {
+          const priorFailure = currentFailureSnapshot.data();
+          if (isRecord(priorFailure) && priorFailure.status === 'unresolved') {
+            tx.update(shipJumpFailureRef(change.sessionId, currentFailureId), {
+              status: 'resolved', resolution: sameFailure ? 'emergency-jump' : 'superseded-by-emergency',
+              resolvedAt: FieldValue.serverTimestamp(),
+            });
+          }
+        }
+        writeShipJumpEvent(tx, {
+          sessionId: change.sessionId, actorUid: uid, actorRoleId: vesselActorRoleId(player),
+          shipId: change.shipId, requestId: identity.requestId, turn: currentTurn,
+          phase: vesselActionPhase(session), revision, outcome: 'emergency', occurredAt: now.toISOString(),
+          payload: { length: emergency.length, fuelSpent: inventory.fuel,
+            damageCount: 1 + damageDraws.length, emergency: true },
+        });
+        const reply = {
+          ...emergency, fuelCost: inventory.fuel, fuelSpent: inventory.fuel,
+          damage: emergencyDamage, damageDraws, shipId: change.shipId,
+          ...(missionOpportunity ? { missionOpportunityId: missionOpportunity.id } : {}),
+          ...vesselActionEnvelope(session, player, uid, change.shipId, revision,
+            identity.requestId, 'jump-ship'),
+        };
+        txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
+        return reply;
+      } catch (cause) {
+        if (cause instanceof HttpsError) throw cause;
+        throw commandError('failed-precondition', cause instanceof Error ? cause.message : 'Emergency jump failed.', 'conflict');
+      }
+    }
+
+    const attemptedLength = jumpLengthBetween(currentCoordinate, change.destination);
+    if (attemptedLength) {
+      const requiredFuel = jumpFuelCost(change.shipId, attemptedLength, upgraded);
+      if (inventory.fuel < requiredFuel) {
+        supersedeEarlierFailure(identity.requestId);
+        const failureState = { ...state, lastFailureRequestId: identity.requestId };
+        const reply = {
+          status: 'fuel-shortage' as const,
+          shipId: change.shipId,
+          origin: currentCoordinate,
+          destination: change.destination,
+          availableFuel: inventory.fuel,
+          requiredFuel,
+          failureRequestId: identity.requestId,
+          state: failureState,
+          ...vesselActionEnvelope(session, player, uid, change.shipId, currentRevision,
+            identity.requestId, 'jump-ship'),
+        };
+        tx.set(shipJumpFailureRef(change.sessionId, identity.requestId), jumpFailureRecord({
+          requestId: identity.requestId, shipId: change.shipId, origin: currentCoordinate,
+          destination: change.destination, failureStatus: 'fuel-shortage', failureRevision: currentRevision,
+          currentTurn, fuelAtFailure: inventory.fuel, requiredFuel, adjudicable: true,
+          actorUid: uid, occurredAt: now.toISOString(),
+        }));
+        tx.update(sessionRef, {
+          [`shipJumpStates.${change.shipId}`]: failureState, updatedAt: FieldValue.serverTimestamp(),
+        });
+        writeShipJumpEvent(tx, {
+          sessionId: change.sessionId, actorUid: uid, actorRoleId: vesselActorRoleId(player),
+          shipId: change.shipId, requestId: identity.requestId, turn: currentTurn,
+          phase: vesselActionPhase(session), revision: currentRevision, outcome: 'fuel-shortage',
+          occurredAt: now.toISOString(), payload: { length: attemptedLength },
+        });
+        txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
+        return reply;
+      }
+    }
+
     let result: JumpAttemptResult;
     try {
       const attempt = {
@@ -15627,35 +16069,84 @@ export const jumpShip = onCall<{
         ...vesselActionEnvelope(session, player, uid, change.shipId, currentRevision,
           identity.requestId, 'jump-ship'),
       };
+      writeShipJumpEvent(tx, {
+        sessionId: change.sessionId, actorUid: uid, actorRoleId: vesselActorRoleId(player),
+        shipId: change.shipId, requestId: identity.requestId, turn: currentTurn,
+        phase: vesselActionPhase(session), revision: currentRevision, outcome: 'integrity-locked',
+        occurredAt: now.toISOString(),
+      });
       txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
       return reply;
     }
     if (result.status === 'integrity-lockout') {
       const revision = currentRevision + 1;
+      supersedeEarlierFailure(identity.requestId);
+      const failureState = { ...result.state, lastFailureRequestId: identity.requestId };
+      const failureReply = { ...result, state: failureState };
+      tx.set(shipJumpFailureRef(change.sessionId, identity.requestId), jumpFailureRecord({
+        requestId: identity.requestId, shipId: change.shipId, origin: currentCoordinate,
+        destination: change.destination, failureStatus: 'wrong-destination', failureRevision: revision,
+        currentTurn, fuelAtFailure: inventory.fuel, adjudicable: true,
+        actorUid: uid, occurredAt: now.toISOString(),
+      }));
       tx.update(sessionRef, {
-        [`shipJumpStates.${change.shipId}`]: result.state,
+        [`shipJumpStates.${change.shipId}`]: failureState,
         ...vesselActionRevisionPatch(change.shipId, revision),
         updatedAt: FieldValue.serverTimestamp(),
       });
       const reply = {
-        ...result,
+        ...failureReply,
         shipId: change.shipId,
+        failureRequestId: identity.requestId,
         ...vesselActionEnvelope(session, player, uid, change.shipId, revision,
           identity.requestId, 'jump-ship'),
       };
+      writeShipJumpEvent(tx, {
+        sessionId: change.sessionId, actorUid: uid, actorRoleId: vesselActorRoleId(player),
+        shipId: change.shipId, requestId: identity.requestId, turn: currentTurn,
+        phase: vesselActionPhase(session), revision, outcome: 'wrong-destination',
+        occurredAt: now.toISOString(),
+      });
       txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
       return reply;
     }
     if (result.status === 'drive-failure') {
+      supersedeEarlierFailure(identity.requestId);
+      const failureState = { ...result.state, lastFailureRequestId: identity.requestId };
+      tx.set(shipJumpFailureRef(change.sessionId, identity.requestId), jumpFailureRecord({
+        requestId: identity.requestId, shipId: change.shipId, origin: currentCoordinate,
+        destination: change.destination, failureStatus: 'drive-failure', failureRevision: currentRevision,
+        currentTurn, fuelAtFailure: inventory.fuel,
+        requiredFuel: attemptedLength ? jumpFuelCost(change.shipId, attemptedLength, upgraded) : undefined,
+        failureRoll: integrityRoll, failureThreshold: upgraded ? 1 : 3, adjudicable: true,
+        actorUid: uid, occurredAt: now.toISOString(),
+      }));
+      tx.update(sessionRef, { [`shipJumpStates.${change.shipId}`]: failureState,
+        updatedAt: FieldValue.serverTimestamp() });
       const reply = {
         ...result,
         shipId: change.shipId,
+        failureRequestId: identity.requestId,
+        failureRoll: integrityRoll,
+        failureThreshold: upgraded ? 1 : 3,
+        state: failureState,
         ...vesselActionEnvelope(session, player, uid, change.shipId, currentRevision,
           identity.requestId, 'jump-ship'),
       };
+      writeShipJumpEvent(tx, {
+        sessionId: change.sessionId, actorUid: uid, actorRoleId: vesselActorRoleId(player),
+        shipId: change.shipId, requestId: identity.requestId, turn: currentTurn,
+        phase: vesselActionPhase(session), revision: currentRevision, outcome: 'drive-failure',
+        occurredAt: now.toISOString(), payload: {
+          length: attemptedLength ?? undefined, failureRoll: integrityRoll,
+          failureThreshold: upgraded ? 1 : 3,
+        },
+      });
       txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
       return reply;
     }
+
+    supersedeEarlierFailure(identity.requestId);
 
     const move = applyShipNavigationMove({
       shipId: change.shipId,
@@ -15753,6 +16244,288 @@ export const jumpShip = onCall<{
       ...(missionOpportunity ? { missionOpportunityId: missionOpportunity.id } : {}),
       ...vesselActionEnvelope(session, player, uid, change.shipId, revision,
         identity.requestId, 'jump-ship'),
+    };
+    writeShipJumpEvent(tx, {
+      sessionId: change.sessionId, actorUid: uid, actorRoleId: vesselActorRoleId(player),
+      shipId: change.shipId, requestId: identity.requestId, turn: currentTurn,
+      phase: vesselActionPhase(session), revision, outcome: 'completed',
+      occurredAt: now.toISOString(), payload: { length: result.length, fuelSpent: result.fuelCost },
+    });
+    txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
+    return reply;
+  });
+});
+
+/** Active-GM view of only still-current, unresolved failed jumps. */
+export const listUnresolvedJumpFailures = onCall<{
+  sessionId?: string;
+  instanceId?: string;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const query = requireJumpFailureListRequest(request.data ?? {});
+  return db.runTransaction(async (tx) => {
+    const authority = await requireFacilitatorInstance(tx, query.sessionId, uid, query.instanceId);
+    const session = authority.session;
+    requireActiveGameplayPhase(session);
+    const activeVesselIds = activeVesselIdsForSession(session);
+    const navigation = navigationStateForSession(
+      await tx.get(navigationStateRef(query.sessionId)), session, activeVesselIds,
+    );
+    const inventories = shipResources(session.get('shipResources'));
+    const jumpStates = shipJumpStates(session.get('shipJumpStates'));
+    const currentPointers = activeVesselIds.flatMap((shipId) => {
+      const requestId = jumpStates[shipId]?.lastFailureRequestId;
+      return requestId ? [{ shipId, requestId }] : [];
+    });
+    // The session points to at most one current failure per active vessel.
+    // Read those exact records so old unresolved history cannot crowd a new
+    // failure out of a collection query's limit.
+    const failures = await Promise.all(currentPointers.map(({ requestId }) =>
+      tx.get(shipJumpFailureRef(query.sessionId, requestId))));
+    const rows = failures.flatMap((snapshot, index) => {
+      const pointer = currentPointers[index];
+      if (!pointer) return [];
+      const failure = snapshot.data();
+      if (!isRecord(failure) || failure.type !== 'ship-jump-failure' || failure.adjudicable !== true ||
+          failure.status !== 'unresolved' || failure.requestId !== pointer.requestId ||
+          failure.shipId !== pointer.shipId ||
+          typeof failure.origin !== 'string' || typeof failure.destination !== 'string' ||
+          !['fuel-shortage', 'drive-failure', 'wrong-destination'].includes(String(failure.failureStatus)) ||
+          !Number.isSafeInteger(failure.failureRevision) ||
+          !Number.isSafeInteger(failure.currentTurn) || !Number.isSafeInteger(failure.fuelAtFailure)) return [];
+      const revision = vesselActionRevision(session, failure.shipId);
+      const jumpState = jumpStates[failure.shipId] ?? {};
+      if (failure.failureRevision !== revision || failure.currentTurn !== sessionTurn(session.get('currentTurn')) ||
+          failure.origin !== (navigation.shipGalacticCoordinates[failure.shipId] ?? '0000') ||
+          inventories[failure.shipId]?.fuel !== failure.fuelAtFailure ||
+          jumpState.lastFailureRequestId !== failure.requestId) return [];
+      return [{
+        requestId: failure.requestId,
+        shipId: failure.shipId,
+        origin: failure.origin,
+        destination: failure.destination,
+        failureStatus: failure.failureStatus,
+        failureRevision: failure.failureRevision as number,
+        currentTurn: failure.currentTurn as number,
+        fuelAtFailure: failure.fuelAtFailure as number,
+        ...(Number.isSafeInteger(failure.requiredFuel) ? { requiredFuel: failure.requiredFuel as number } : {}),
+        ...(Number.isSafeInteger(failure.failureRoll) ? { failureRoll: failure.failureRoll as number } : {}),
+        ...(Number.isSafeInteger(failure.failureThreshold)
+          ? { failureThreshold: failure.failureThreshold as number } : {}),
+      }];
+    });
+    return { failures: rows };
+  });
+});
+
+/** A facilitator may complete one exact failed jump with full d6 common damage draws. */
+export const adjudicateFailedJump = onCall<{
+  sessionId?: string;
+  instanceId?: string;
+  requestId?: string;
+  expectedRevision?: number;
+  failureRequestId?: string;
+  destination?: string;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const change = requireFailedJumpAdjudicationRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${change.sessionId}`);
+  const failureRef = shipJumpFailureRef(change.sessionId, change.failureRequestId);
+  const receiptRef = commandReceiptRef(change.sessionId, change.requestId);
+  const fingerprint = vesselActionFingerprint(
+    'adjudicate-failed-jump', change.sessionId, change.requestId, uid, change.instanceId,
+    change.expectedRevision,
+    { failureRequestId: change.failureRequestId, destination: change.destination },
+  );
+  let stableDamageRoll: number | undefined;
+  const stableDamageEntropy: number[] = [];
+  const occurredAt = new Date().toISOString();
+
+  return db.runTransaction(async (tx) => {
+    const authority = await requireFacilitatorInstance(tx, change.sessionId, uid, change.instanceId);
+    const session = authority.session;
+    const player = authority.player;
+    const [attackState, storedNavigation, players, fleetGroups, prior, failureSnapshot] = await Promise.all([
+      tx.get(db.doc(`sessions/${change.sessionId}/wolfAttackState/current`)),
+      tx.get(navigationStateRef(change.sessionId)),
+      tx.get(db.collection(`sessions/${change.sessionId}/players`)),
+      tx.get(db.collection(`sessions/${change.sessionId}/fleetGroups`)),
+      tx.get(receiptRef),
+      tx.get(failureRef),
+    ]);
+    const replay = vesselActionReceiptReply(prior, fingerprint, 'failed jump adjudication');
+    if (replay) return replay;
+    requireWolfAttackMovementReleased(attackState);
+    requireActionPhase(session, 'jump', 'facilitator');
+    const failure = failureSnapshot.data();
+    if (!failureSnapshot.exists || !isRecord(failure) || failure.type !== 'ship-jump-failure' ||
+        failure.status !== 'unresolved' || failure.adjudicable !== true ||
+        typeof failure.shipId !== 'string' || !isResourceShipId(failure.shipId) ||
+        typeof failure.origin !== 'string' ||
+        typeof failure.destination !== 'string' || typeof failure.failureStatus !== 'string' ||
+        !['fuel-shortage', 'drive-failure', 'wrong-destination'].includes(failure.failureStatus) ||
+        typeof failure.failureRevision !== 'number' || !Number.isSafeInteger(failure.failureRevision) ||
+        typeof failure.currentTurn !== 'number' || !Number.isSafeInteger(failure.currentTurn) ||
+        typeof failure.fuelAtFailure !== 'number' || !Number.isSafeInteger(failure.fuelAtFailure)) {
+      throw commandError('failed-precondition', 'That failed jump is no longer available for adjudication.', 'conflict');
+    }
+    const shipId = failure.shipId;
+    const currentRevision = vesselActionRevision(session, shipId);
+    if (change.expectedRevision !== currentRevision || failure.failureRevision !== currentRevision) {
+      const stale = {
+        status: 'stale' as const, shipId, currentRevision,
+        ...vesselActionEnvelope(session, player, uid, shipId, currentRevision,
+          change.requestId, 'adjudicate-failed-jump'),
+      };
+      txSetIfSupported(tx, receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
+    requireNavigableShip(session, shipId);
+    const activeVesselIds = activeVesselIdsForSession(session);
+    const currentNavigation = navigationStateForSession(storedNavigation, session, activeVesselIds);
+    const currentTurn = sessionTurn(session.get('currentTurn'));
+    const origin = currentNavigation.shipGalacticCoordinates[shipId] ?? '0000';
+    const inventory = shipResources(session.get('shipResources'))[shipId];
+    if (!inventory) throw new HttpsError('invalid-argument', 'Unknown fleet ship.');
+    const currentCycleMap = isRecord(session.get('maintenanceCycles'))
+      ? session.get('maintenanceCycles') as Record<string, unknown> : {};
+    const currentCycle = isRecord(currentCycleMap[shipId]) ? currentCycleMap[shipId] as Record<string, unknown> : {};
+    const charges = Array.isArray(currentCycle.charges)
+      ? currentCycle.charges.filter((charge): charge is string => typeof charge === 'string') : [];
+    const currentJumpState = shipJumpStates(session.get('shipJumpStates'))[shipId] ?? {};
+    const exactFailureStillCurrent = currentJumpState.lastFailureRequestId === change.failureRequestId &&
+      failure.currentTurn === currentTurn && failure.origin === origin &&
+      failure.fuelAtFailure === inventory.fuel;
+    if (!exactFailureStillCurrent) {
+      const stale = {
+        status: 'stale' as const, shipId, currentRevision,
+        ...vesselActionEnvelope(session, player, uid, shipId, currentRevision,
+          change.requestId, 'adjudicate-failed-jump'),
+      };
+      txSetIfSupported(tx, receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
+    if (currentJumpState.lastJumpTurn === currentTurn) {
+      throw commandError('failed-precondition', 'This ship has already jumped this cycle.', 'conflict');
+    }
+    const length = jumpLengthBetween(origin, change.destination);
+    if (!length) {
+      throw commandError('failed-precondition', 'Choose a reachable printed destination for the adjudication.', 'conflict');
+    }
+    const damage = shipDamage(session.get('shipDamage'))[shipId] ?? { damagedSystemIds: [], destroyed: false };
+    const upgrades = isRecord(session.get('shipUpgrades')) ? session.get('shipUpgrades') : {};
+    const upgradeList = upgrades[shipId];
+    const upgraded = Array.isArray(upgradeList) && upgradeList.includes('jump-drive');
+    const requiredFuel = jumpFuelCost(shipId, length, upgraded);
+    const fuelSpent = Math.min(inventory.fuel, requiredFuel);
+    const remainingFuel = inventory.fuel - fuelSpent;
+    stableDamageRoll ??= randomInt(1, 7);
+    let nextDamage: ShipDamageState = damage;
+    const damageDraws: Array<{ card: string; systemId: string; systemName: string; recycled: boolean }> = [];
+    for (let index = 0; index < stableDamageRoll; index += 1) {
+      const draw = drawShipDamage(shipId, nextDamage, (upperBound) => {
+        const entropy = stableDamageEntropy[index] ??= randomInt(0, 0x1_0000_0000);
+        return Math.floor((entropy / 0x1_0000_0000) * upperBound);
+      });
+      nextDamage = draw.state;
+      if (draw.destroyed) break;
+      damageDraws.push({ ...draw.card, recycled: draw.recycled });
+    }
+    const transitionId = `jump-adjudication-${change.requestId}`;
+    const move = applyShipNavigationMove({
+      shipId, destination: change.destination, now: new Date(occurredAt),
+      eventIdPrefix: transitionId, navigationalError: false,
+      coordinates: currentNavigation.shipGalacticCoordinates,
+      logs: currentNavigation.shipNavigationLogs, shipNames: FLEET_SHIP_NAMES,
+    });
+    const jumpTransition: JumpTransition = {
+      id: transitionId, shipId, origin, destination: move.destination, occurredAt,
+    };
+    requireMovementPursuitAuthority(storedNavigation, session);
+    const pursuitFleetGroups = movementPursuitFleetGroups(activeVesselIds, fleetGroups, players);
+    const missionOpportunity = await missionOpportunityForMovement(
+      tx, change.sessionId, pursuitFleetGroups, currentNavigation, shipId,
+      move.destination, lockedNavigationChart(session), currentTurn, transitionId,
+    );
+    const chart = lockedNavigationChart(session);
+    const revision = currentRevision + 1;
+    const damageConsequences = await jumpDamageConsequences({
+      tx, sessionId: change.sessionId, session, shipId,
+      requestId: change.requestId, occurredAt,
+      previousDamage: damage, nextDamage,
+      damagedSystemIds: damageDraws.map((draw) => draw.systemId),
+      affectedPlayers: Array.isArray(players?.docs) ? players.docs : [player], revision,
+    });
+    const movedNavigation = navigationState({
+      shipGalacticCoordinates: move.coordinates, shipNavigationLogs: move.logs,
+      scoutedCoordinatesByShip: currentNavigation.scoutedCoordinatesByShip,
+      systemHistory: currentNavigation.systemHistory, pursuitGroups: currentNavigation.pursuitGroups,
+    }, activeVesselIds);
+    const nextNavigation = movementPursuitNavigation(
+      withCandidateArrival(movedNavigation, shipId, move.destination, chart),
+      pursuitFleetGroups, shipId, move.destination, chart,
+    );
+    await writeWolfArrivalPressureForMovement(
+      tx, change.sessionId, pursuitFleetGroups, nextNavigation, shipId,
+      move.destination, chart, currentTurn, transitionId,
+    );
+    writeMissionOpportunity(tx, change.sessionId, missionOpportunity);
+    tx.set(navigationStateRef(change.sessionId), {
+      ...navigationProjectionFields(nextNavigation), revision, updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(gmDiscoveryProjectionRef(change.sessionId), {
+      ...navigationProjectionFields(nextNavigation), revision, updatedAt: FieldValue.serverTimestamp(),
+    });
+    publishDiscoveryProjections(
+      tx, change.sessionId, Array.isArray(players?.docs) ? players.docs : [player],
+      nextNavigation, revision, chart, pursuitFleetGroups, false,
+      { sessionSnapshot: session, navigationSnapshot: storedNavigation, fleetGroupSnapshots: fleetGroups.docs },
+    );
+    const nextCycle = {
+      ...currentCycle,
+      ...(currentCycle.turn === currentTurn ? { charges: charges.filter((charge) => charge !== 'jump-drive') } : {}),
+      results: {
+        ...(isRecord(currentCycle.results) ? currentCycle.results : {}),
+        ftl: `GM failed-jump adjudication // ${origin} → ${move.destination} // ${length.toUpperCase()} // ${fuelSpent} fuel and ${stableDamageRoll} damage draws.`,
+      },
+    };
+    const retainedJumpState = jumpStateWithoutFields(
+      currentJumpState, ['lastFailureRequestId', 'integrityLockedUntil'],
+    );
+    const jumpState = { ...retainedJumpState, lastJumpTurn: currentTurn };
+    tx.update(sessionRef, {
+      shipGalacticCoordinates: removeLegacyNavigationField(),
+      [`shipResources.${shipId}.fuel`]: remainingFuel,
+      [`maintenanceCycles.${shipId}`]: nextCycle,
+      [`shipJumpStates.${shipId}`]: jumpState,
+      [`shipJumpTransitions.${shipId}`]: jumpTransition,
+      shipNavigationLogs: removeLegacyNavigationField(), pursuitGroups: removeLegacyNavigationField(),
+      ...damageConsequences,
+      ...vesselActionRevisionPatch(shipId, revision), updatedAt: FieldValue.serverTimestamp(),
+    });
+    damageDraws.forEach((draw, index) => tx.set(
+      db.doc(`sessions/${change.sessionId}/damageDraws/jump-adjudication-${change.requestId}-${index + 1}`),
+      { type: 'ship-damage', shipId, ...draw, source: 'failed-jump-adjudication', createdAt: FieldValue.serverTimestamp() },
+    ));
+    tx.update(failureRef, {
+      status: 'resolved', resolution: 'full-d6-damage-facilitator-jump',
+      resolvedBy: uid, resolvedAt: FieldValue.serverTimestamp(), adjudicationRequestId: change.requestId,
+    });
+    writeShipJumpEvent(tx, {
+      sessionId: change.sessionId, actorUid: uid, actorRoleId: null,
+      shipId, requestId: change.requestId, turn: currentTurn,
+      phase: vesselActionPhase(session), revision, outcome: 'facilitator-adjudication',
+      occurredAt, payload: { length, failureRoll: stableDamageRoll, fuelSpent, damageCount: damageDraws.length },
+    });
+    const reply = {
+      status: 'jumped' as const, outcome: 'facilitator-adjudication', shipId,
+      origin, destination: move.destination, length, fuelCost: fuelSpent,
+      fuelSpent, remainingFuel, failureRequestId: change.failureRequestId,
+      failureRoll: stableDamageRoll, damageDraws, damage: nextDamage,
+      state: jumpState, transition: jumpTransition,
+      ...(missionOpportunity ? { missionOpportunityId: missionOpportunity.id } : {}),
+      ...vesselActionEnvelope(session, player, uid, shipId, revision,
+        change.requestId, 'adjudicate-failed-jump', undefined, null),
     };
     txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;

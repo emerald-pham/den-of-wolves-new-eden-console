@@ -199,6 +199,8 @@ export interface ShipJumpState {
   readonly lastJumpTurn?: number;
   /** Server expiry for a bad-coordinate integrity lockout. */
   readonly integrityLockedUntil?: Timestamp;
+  readonly emergencyJumpUsed?: boolean;
+  readonly lastFailureRequestId?: string;
 }
 
 export type ShipJumpStates = Readonly<Record<string, ShipJumpState>>;

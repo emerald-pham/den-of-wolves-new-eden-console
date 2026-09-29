@@ -2488,6 +2488,10 @@ function shipJumpStates(value: unknown): ShipJumpStates {
         ? { lastJumpTurn: raw.lastJumpTurn }
         : {}),
       ...(integrityLockedUntil ? { integrityLockedUntil } : {}),
+      ...(raw.emergencyJumpUsed === true ? { emergencyJumpUsed: true } : {}),
+      ...(typeof raw.lastFailureRequestId === 'string' && raw.lastFailureRequestId.length > 0
+        ? { lastFailureRequestId: raw.lastFailureRequestId }
+        : {}),
     }];
   })) as ShipJumpStates;
 }

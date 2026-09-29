@@ -10,6 +10,7 @@ import type {
   GmInstance,
   Player,
   SetupReceipt,
+  ShipDamageState,
   ShipJumpState,
   ShipJumpTransition,
   WolfAttackPreparation,
@@ -3224,7 +3225,8 @@ export async function setShipConsoleLock(
 }
 
 export interface JumpShipReply extends Partial<VesselActionEnvelope> {
-  readonly status: 'integrity-locked' | 'integrity-lockout' | 'drive-failure' | 'jumped' | 'stale';
+  readonly status: 'integrity-locked' | 'integrity-lockout' | 'drive-failure' | 'fuel-shortage' |
+    'not-charged' | 'jumped' | 'stale';
   readonly shipId: string;
   readonly origin?: string;
   readonly destination?: string;
@@ -3232,6 +3234,15 @@ export interface JumpShipReply extends Partial<VesselActionEnvelope> {
   readonly length?: 'short' | 'medium' | 'long';
   readonly fuelCost?: number;
   readonly remainingFuel?: number;
+  readonly fuelSpent?: number;
+  readonly requiredFuel?: number;
+  readonly availableFuel?: number;
+  readonly failureRequestId?: string;
+  readonly failureRoll?: number;
+  readonly failureThreshold?: number;
+  readonly emergency?: boolean;
+  readonly damage?: ShipDamageState;
+  readonly damageDraws?: readonly { readonly card: string; readonly systemId: string; readonly systemName: string }[];
   readonly currentRevision?: number;
   readonly state?: ShipJumpState;
   readonly transition?: ShipJumpTransition;
@@ -3244,10 +3255,16 @@ export interface JumpShipAttempt {
   readonly requestId: string;
   readonly expectedRevision: number;
   readonly instanceId?: string;
+  readonly emergency?: boolean;
+  readonly failureRequestId?: string;
 }
 
 /** Capture one immutable request identity so a lost acknowledgement can be retried exactly. */
-export function createJumpShipAttempt(shipId: string, destination: string): JumpShipAttempt {
+export function createJumpShipAttempt(
+  shipId: string,
+  destination: string,
+  options: { readonly emergency?: boolean; readonly failureRequestId?: string } = {},
+): JumpShipAttempt {
   const store = useSessionStore.getState();
   if (!store.session || !store.me) throw new Error('Join a session before jumping.');
   requireFreshSessionAuthority();
@@ -3258,6 +3275,8 @@ export function createJumpShipAttempt(shipId: string, destination: string): Jump
     requestId: commandId(),
     expectedRevision: store.session.vesselActionRevisions?.[shipId] ?? 0,
     ...(store.gmInstance ? { instanceId: store.gmInstance.id } : {}),
+    ...(options.emergency ? { emergency: true } : {}),
+    ...(options.failureRequestId ? { failureRequestId: options.failureRequestId } : {}),
   };
 }
 
@@ -3266,6 +3285,190 @@ export function isJumpShipOutcomeUncertain(cause: unknown): boolean {
   const confirmedRejection = CONFIRMED_JUMP_REJECTION_ERRORS.has(code) ||
     (code === 'resource-exhausted' && isRateLimitedCommandError(cause));
   return !confirmedRejection;
+}
+
+export interface FailedJumpSummary {
+  readonly requestId: string;
+  readonly shipId: string;
+  readonly origin: string;
+  readonly destination: string;
+  readonly failureStatus: 'fuel-shortage' | 'drive-failure' | 'wrong-destination';
+  readonly failureRevision: number;
+  readonly currentTurn: number;
+  readonly fuelAtFailure: number;
+  readonly requiredFuel?: number;
+  readonly failureRoll?: number;
+  readonly failureThreshold?: number;
+}
+
+export interface UnresolvedJumpFailuresReply {
+  readonly failures: readonly FailedJumpSummary[];
+  /** The authority changed during the read, so no old-session data is exposed. */
+  readonly stale?: boolean;
+}
+
+export interface FailedJumpAdjudicationAttempt {
+  readonly sessionId: string;
+  readonly instanceId: string;
+  readonly requestId: string;
+  readonly expectedRevision: number;
+  readonly failureRequestId: string;
+  readonly shipId: string;
+  readonly destination: string;
+}
+
+export interface FailedJumpAdjudicationReply extends Partial<VesselActionEnvelope> {
+  readonly status: 'jumped' | 'stale';
+  readonly shipId: string;
+  readonly origin?: string;
+  readonly destination?: string;
+  readonly remainingFuel?: number;
+  readonly fuelSpent?: number;
+  readonly failureRoll?: number;
+  readonly damage?: ShipDamageState;
+  readonly damageDraws?: readonly { readonly card: string; readonly systemId: string; readonly systemName: string }[];
+  readonly state?: ShipJumpState;
+  readonly transition?: ShipJumpTransition;
+  readonly currentRevision?: number;
+}
+
+function requireFailedJumpSummary(value: unknown): FailedJumpSummary {
+  if (!isPlainRecord(value) || typeof value.requestId !== 'string' ||
+      typeof value.shipId !== 'string' || typeof value.origin !== 'string' ||
+      typeof value.destination !== 'string' ||
+      !['fuel-shortage', 'drive-failure', 'wrong-destination'].includes(String(value.failureStatus)) ||
+      !isSafeLedgerAmount(value.failureRevision) || !isSafeLedgerAmount(value.currentTurn) ||
+      !isSafeLedgerAmount(value.fuelAtFailure) ||
+      (value.requiredFuel !== undefined && !isSafeLedgerAmount(value.requiredFuel)) ||
+      (value.failureRoll !== undefined && (!isSafeLedgerAmount(value.failureRoll) || value.failureRoll < 1 || value.failureRoll > 6)) ||
+      (value.failureThreshold !== undefined && (!isSafeLedgerAmount(value.failureThreshold) || value.failureThreshold < 1 || value.failureThreshold > 6))) {
+    throw new Error('The server returned an invalid unresolved jump failure.');
+  }
+  return value as unknown as FailedJumpSummary;
+}
+
+/** Read the current private failure list through the active facilitator instance only. */
+export async function listUnresolvedJumpFailures(): Promise<UnresolvedJumpFailuresReply> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance || store.me?.role !== 'gm') {
+    throw new Error('Claim GM before reviewing failed jumps.');
+  }
+  requireFreshSessionAuthority();
+  const payload = { sessionId: store.session.id, instanceId: store.gmInstance.id };
+  const checkpoint = sessionAuthorityCheckpoint(payload.sessionId, sessionAuthorityUid(store));
+  try {
+    await ensureSignedIn();
+    const call = httpsCallable<typeof payload, unknown>(functions(), 'listUnresolvedJumpFailures');
+    const reply = (await call(payload)).data;
+    if (!isPlainRecord(reply) || !Array.isArray(reply.failures)) {
+      throw new Error('The server returned an invalid failed-jump list.');
+    }
+    const failures = reply.failures.map(requireFailedJumpSummary);
+    if (!authorityCheckpointIsCurrent(checkpoint)) return { failures: [], stale: true };
+    return { failures };
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+export function createFailedJumpAdjudicationAttempt(
+  failure: FailedJumpSummary,
+  destination: string,
+): FailedJumpAdjudicationAttempt {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance || store.me?.role !== 'gm') {
+    throw new Error('Claim GM before adjudicating a failed jump.');
+  }
+  requireFreshSessionAuthority();
+  return {
+    sessionId: store.session.id,
+    instanceId: store.gmInstance.id,
+    requestId: commandId(),
+    expectedRevision: failure.failureRevision,
+    failureRequestId: failure.requestId,
+    shipId: failure.shipId,
+    destination,
+  };
+}
+
+export function isFailedJumpOutcomeUncertain(cause: unknown): boolean {
+  return isJumpShipOutcomeUncertain(cause);
+}
+
+/** Submit or exactly retry one facilitator adjudication against a captured failure. */
+export async function adjudicateFailedJump(
+  attempt: FailedJumpAdjudicationAttempt,
+): Promise<FailedJumpAdjudicationReply> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance || store.me?.role !== 'gm') {
+    throw new Error('Claim GM before adjudicating a failed jump.');
+  }
+  requireFreshSessionAuthority();
+  if (store.session.id !== attempt.sessionId || store.gmInstance.id !== attempt.instanceId) {
+    throw new Error('Reconnect to the original facilitator session before retrying this adjudication.');
+  }
+  const payload = {
+    sessionId: attempt.sessionId,
+    instanceId: attempt.instanceId,
+    requestId: attempt.requestId,
+    expectedRevision: attempt.expectedRevision,
+    failureRequestId: attempt.failureRequestId,
+    destination: attempt.destination,
+  };
+  const checkpoint = sessionAuthorityCheckpoint(payload.sessionId, sessionAuthorityUid(store));
+  try {
+    await ensureSignedIn();
+    const call = httpsCallable<typeof payload, FailedJumpAdjudicationReply>(functions(), 'adjudicateFailedJump');
+    const reply = (await call(payload)).data;
+    const current = useSessionStore.getState().session;
+    if (current?.id === payload.sessionId && authorityCheckpointIsCurrent(checkpoint)) {
+      if (reply.status === 'stale') {
+        const localRevision = current.vesselActionRevisions?.[attempt.shipId] ?? 0;
+        const currentRevision = reply.currentRevision ?? reply.revision;
+        if (currentRevision !== undefined && currentRevision >= localRevision) {
+          useSessionStore.getState().setSession({
+            ...current,
+            vesselActionRevisions: {
+              ...(current.vesselActionRevisions ?? {}),
+              [attempt.shipId]: currentRevision,
+            },
+          });
+        }
+        recordStaleAuthorityReply();
+        return reply;
+      }
+      if (reply.shipId !== attempt.shipId || reply.destination !== attempt.destination) {
+        throw new Error('The server returned an adjudication for a different jump.');
+      }
+      const resource = current.shipResources?.[attempt.shipId];
+      const normalizedResource = resource ? resourcesForShip(attempt.shipId, current.shipResources) : undefined;
+      useSessionStore.getState().setSession({
+        ...current,
+        shipGalacticCoordinates: {
+          ...current.shipGalacticCoordinates,
+          [attempt.shipId]: reply.destination,
+        },
+        ...(current.shipResources && normalizedResource && reply.remainingFuel !== undefined ? {
+          shipResources: {
+            ...current.shipResources,
+            [attempt.shipId]: { ...normalizedResource, fuel: reply.remainingFuel },
+          },
+        } : {}),
+        ...(reply.damage ? { shipDamage: { ...(current.shipDamage ?? {}), [attempt.shipId]: reply.damage } } : {}),
+        ...(reply.state ? { shipJumpStates: { ...current.shipJumpStates, [attempt.shipId]: reply.state } } : {}),
+        ...(reply.transition ? { shipJumpTransitions: { ...current.shipJumpTransitions, [attempt.shipId]: reply.transition } } : {}),
+        vesselActionRevisions: {
+          ...(current.vesselActionRevisions ?? {}),
+          ...(reply.revision === undefined ? {} : { [attempt.shipId]: reply.revision }),
+        },
+      });
+    }
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
 }
 
 /** Submit one captured, powered, coordinate-locked jump request to the authoritative drive. */
@@ -3281,6 +3484,8 @@ export async function jumpShip(attempt: JumpShipAttempt): Promise<JumpShipReply>
     requestId: attempt.requestId,
     expectedRevision: attempt.expectedRevision,
     ...(attempt.instanceId === undefined ? {} : { instanceId: attempt.instanceId }),
+    ...(attempt.emergency ? { emergency: true } : {}),
+    ...(attempt.failureRequestId === undefined ? {} : { failureRequestId: attempt.failureRequestId }),
   };
   const checkpoint = sessionAuthorityCheckpoint(payload.sessionId, sessionAuthorityUid(store));
   try {
@@ -3315,6 +3520,9 @@ export async function jumpShip(attempt: JumpShipAttempt): Promise<JumpShipReply>
             ...current.shipGalacticCoordinates,
             [attempt.shipId]: reply.destination ?? current.shipGalacticCoordinates?.[attempt.shipId] ?? '0000',
           },
+          ...(reply.damage ? {
+            shipDamage: { ...(current.shipDamage ?? {}), [attempt.shipId]: reply.damage },
+          } : {}),
           ...(current.shipResources && reply.remainingFuel !== undefined && normalizedResource
             ? { shipResources: {
               ...current.shipResources,

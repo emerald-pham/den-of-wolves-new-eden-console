@@ -24,6 +24,9 @@ interface Props {
   readonly upgraded: boolean;
   readonly consoleLocked?: boolean | undefined;
   readonly integrityLockedUntil?: string | undefined;
+  readonly emergencyJumpUsed?: boolean | undefined;
+  readonly lastFailureRequestId?: string | undefined;
+  readonly pursuitValue?: number | undefined;
   readonly presentationOnly?: boolean | undefined;
 }
 
@@ -38,6 +41,15 @@ function replyNotice(reply: JumpShipReply): string {
   }
   if (reply.status === 'integrity-locked') {
     return 'JUMP DRIVE INTEGRITY LOCKED // WAIT FOR REESTABLISHMENT';
+  }
+  if (reply.status === 'fuel-shortage') {
+    return `JUMP FAILED // STATIONARY // ${reply.availableFuel ?? 0} FUEL AVAILABLE; ${reply.requiredFuel ?? 0} REQUIRED`;
+  }
+  if (reply.status === 'not-charged') {
+    return 'JUMP DENIED // CHARGE THE JUMP DRIVE DURING THIS CYCLE';
+  }
+  if (reply.status === 'drive-failure') {
+    return 'JUMP FAILED // SHIP REMAINS IN PLACE // FACILITATOR ADJUDICATION AVAILABLE';
   }
   if (reply.status === 'stale') {
     return 'JUMP NOT COMMITTED // LIVE SHIP STATE CHANGED; RECONNECT BEFORE A NEW ATTEMPT';
@@ -56,6 +68,9 @@ export default function JumpDriveConsole({
   upgraded,
   consoleLocked = false,
   integrityLockedUntil,
+  emergencyJumpUsed = false,
+  lastFailureRequestId,
+  pursuitValue,
   presentationOnly = false,
 }: Props) {
   const access = useConsoleAccess();
@@ -103,8 +118,11 @@ export default function JumpDriveConsole({
   }, [effectiveLockout, lockoutActive, clock]);
 
   const blocked = !presentationOnly && (!access.writable || consoleLocked);
+  const emergencyAvailable = !emergencyJumpUsed &&
+    ((pursuitValue ?? 0) >= 10 || Boolean(lastFailureRequestId));
   const disabled = blocked || pending || (lockoutActive && !attempt);
-  const editingDisabled = presentationOnly ? pending : disabled || attempt !== null;
+  const editingDisabled = presentationOnly ? pending : blocked || pending || attempt !== null ||
+    (lockoutActive && !emergencyAvailable);
   const powerDisabled = presentationOnly || disabled || attempt !== null || !locked || !charged;
   const [printedShort = 0, printedMedium = 0, printedLong = 0] = jumpCosts;
   const upgradeReduction = upgraded ? 1 : 0;
@@ -118,12 +136,15 @@ export default function JumpDriveConsole({
     setNotice('');
   }
 
-  async function submitJump(): Promise<void> {
-    if (presentationOnly || disabled || !locked || (!attempt && (power < 100 || !charged))) return;
+  async function submitJump(emergency = false): Promise<void> {
+    if (presentationOnly || blocked || pending || !locked ||
+        (emergency ? !emergencyAvailable : disabled || (!attempt && (power < 100 || !charged)))) return;
     let request = attempt;
     if (!request) {
       try {
-        request = createJumpShipAttempt(shipId, destination);
+        request = createJumpShipAttempt(shipId, destination, emergency
+          ? { emergency: true, ...(lastFailureRequestId ? { failureRequestId: lastFailureRequestId } : {}) }
+          : {});
         updateAttempt(request);
       } catch {
         setNotice('JUMP REQUEST REJECTED // RECONNECT TO THE LIVE SHIP STATE');
@@ -160,7 +181,7 @@ export default function JumpDriveConsole({
           <p className="jump-drive__eyebrow">FTL navigation // coordinate lock</p>
           <h4>Jump Drive control</h4>
         </div>
-        <strong className="jump-drive__mode">{lockoutActive ? 'INTEGRITY LOCK' : pending ? 'JUMPING' : locked ? 'DESTINATION LOCKED' : 'STANDBY'}</strong>
+        <strong className="jump-drive__mode">{pending ? 'JUMPING' : lockoutActive && !emergencyAvailable ? 'INTEGRITY LOCK' : locked ? 'DESTINATION LOCKED' : 'STANDBY'}</strong>
       </header>
 
       {presentationOnly && (
@@ -241,19 +262,26 @@ export default function JumpDriveConsole({
         <span>Condition // {damaged ? 'DAMAGED' : 'NOMINAL'}{upgraded ? ' // UPGRADED' : ''}</span>
       </div>
 
-      {lockoutActive && (
+      {lockoutActive && !emergencyAvailable && (
         <p className="jump-drive__lockout" role="status" aria-label="Jump Drive integrity locked">
           JUMP DRIVE INTEGRITY LOCKED // {lockoutReadout}
         </p>
       )}
-      {notice && !lockoutActive && <p className="jump-drive__notice" role="status">{notice}</p>}
+      {notice && (!lockoutActive || emergencyAvailable) && <p className="jump-drive__notice" role="status">{notice}</p>}
 
       <button
         className="cic-action-button jump-drive__launch"
         type="button"
-        disabled={presentationOnly || disabled || !locked || (!attempt && (power < 100 || !charged))}
+        disabled={presentationOnly || disabled || !locked || attempt?.emergency === true ||
+          (!attempt && (power < 100 || !charged))}
         onClick={() => void submitJump()}
-      >{pending ? 'Jumping…' : attempt ? 'Retry jump confirmation' : `Jump to ${destination}`}</button>
+      >{pending ? 'Jumping…' : attempt?.emergency ? 'Emergency jump pending' : attempt ? 'Retry jump confirmation' : `Jump to ${destination}`}</button>
+      {emergencyAvailable && <button
+        className="cic-action-button jump-drive__launch jump-drive__emergency"
+        type="button"
+        disabled={presentationOnly || blocked || pending || !locked || (attempt !== null && !attempt.emergency)}
+        onClick={() => void submitJump(true)}
+      >{attempt?.emergency ? 'Retry emergency jump confirmation' : `Emergency jump to ${destination}`}</button>}
     </section>
   );
 }

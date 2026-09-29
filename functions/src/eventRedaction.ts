@@ -59,6 +59,7 @@ const MEMBER_EVENT_FIELDS: Readonly<Record<string, readonly string[]>> = {
   'maliades-short': ['craftId', 'cycle', 'revision'],
   'maliades-repair': ['craftId', 'hostShipId', 'damageRepaired', 'materialsSpent', 'damage', 'destroyed'],
   'highwall-mining': ['shuttleId', 'resource', 'rolls', 'amount', 'operation'],
+  'ship-jump': ['shipId', 'outcome', 'length', 'failureRoll', 'failureThreshold', 'fuelSpent', 'damageCount', 'emergency'],
 };
 
 /**
