@@ -549,7 +549,7 @@ function functionExports(source) {
 // must be reconciled if the candidate changes before its first deployment.
 const PC05_INDEX_HELPER_TRANSITION = Object.freeze({
   before: 'c3e2411d0784be6acdd7402325475bcbd78d410984e86261476b0010730eed64',
-  after: '1ff0b26cd7910c0d441783af701386d606ef92a859473308676c758c27747cfc',
+  after: '4c7957de86c9a7f0c03ff8ba6802f042c416eb5efa6f38f728fdabb71942515a',
   consumers: [
     'createSession', 'confirmSetup', 'transferShuttleControlCommand',
     'transferShuttleCargoCommand', 'rechargeHostConsoleFromShuttle', 'repairConsolesFromBlacksmith',
@@ -574,6 +574,16 @@ const PC05_INDEX_HELPER_TRANSITION = Object.freeze({
     'setFleetRedAlert', 'publishPressDispatch', 'dismissPressDispatch',
     'repairAllShipDamage', 'rollbackMaintenance',
     'getWolfCommanderTargeting', 'applyWolfCommanderTargetRerolls', 'finishWolfCommanderTargetingRerolls',
+    'startGame', 'setReplacementEligibility', 'assignReplacementRole', 'setFacilitatorCensusNote',
+    'calculateArrestPosse', 'deliverWolfCultIntelligence', 'transitionCrisis', 'setDiseaseQuarantine',
+    'recordZealotryResponse', 'recordCivilUnrestResolution', 'submitCivilUnrestGrievance',
+    'authorArbourVision', 'authorFacilitatorRuleCall', 'setCandidatePlanCheckpoint', 'revealAndroidProof',
+    'triggerDradisContact', 'setPressEnabled', 'setGmControlsLocked', 'advanceTurn',
+    'startSinglePlayerDemo', 'replayTurnStartAnnouncement', 'beginOpenAirspacePhase',
+    'extendAirspaceWindow', 'setEmergencyTimerPaused', 'declareWolfAttack',
+    'advanceWolfAttackToLongRange', 'startWolfConsoleVisit', 'resolveWolfConsoleSabotage',
+    'submitWolfSupplySabotage', 'submitWolfHomingBeacon', 'submitWolfIntelligence',
+    'investigateAsIntelligenceAgent', 'fleeDestroyedShip', 'rollDice',
   ],
 });
 
@@ -1193,8 +1203,8 @@ function requestGuardCallableImpacts(before, after, cwd, sourceAtRevision = null
   // Exact reviewed PC05 jump parser, failure-list and adjudication contracts.
   // Unrelated guard changes still require their own audited transition.
   if (digest(previous) === 'ded4d4f080ab07c3669c12891673cf60db7d899be484d3bbf4ce4578a6693288' &&
-      digest(current) === '6730954492593af7ff7e60be7abc11ab0fafc11ff728ccce47a56dfb10d22687') {
-    return ['jumpShip', 'listUnresolvedJumpFailures', 'adjudicateFailedJump'];
+      digest(current) === 'a878e1b151ce3bc8deb496f1f7ef836f59eb5d430f4764f370addc3541d650bd') {
+    return ['advanceTurn', 'jumpShip', 'listUnresolvedJumpFailures', 'adjudicateFailedJump'];
   }
   if (digest(previous) === PC04_REQUEST_GUARD_TRANSITION.before &&
       digest(current) === PC04_REQUEST_GUARD_TRANSITION.after) {
