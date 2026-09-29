@@ -394,3 +394,10 @@ baselines. The named-target preflight from that actual deployed revision to
 The baseline's index and request guards match the current-main versions used
 by the transition audit. This is release preparation only; the candidate has
 not been deployed, and the receipt must be refreshed after authority repairs.
+
+Integrated candidate `2d3a65de` also passes the real-browser DRADIS regression
+matrix: desktop 1440×900, phone 390×844 and short landscape 844×390, each with
+normal and reduced motion for both ContactPlot and ShipPlot. The checks verify
+hidden initial names, acquisition at the sweep, refresh and changed tracks,
+and paired name/contact opacity through and after fading. These are local
+production-component checks, not ordinary deployed gameplay evidence.
