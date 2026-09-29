@@ -169,13 +169,40 @@ it('maps Firestore adapter changes to every callable that imports its authority 
 });
 
 it('deploys only the private closure worker when its task handler changes', () => {
+  const before = `export function createAirspaceClosureParkingTask() {
+  return onTaskDispatched<AirspaceClosureTask>({
+    region: 'us-central1',
+    invoker: 'private',
+    retryConfig: TASK_RETRY_CONFIG,
+  }, async request => {
+    return park(request);
+  });
+}
+`;
+  const after = before.replace(
+    "    invoker: 'private',\n",
+    '    // Task Queue functions are private when invoker is omitted. Keeping the\n' +
+    '    // default also avoids an unnecessary IAM rewrite during deployment.\n',
+  );
   expect(deploymentSelector({
     before: 'base',
     after: 'candidate',
     targets: ['functions'],
     files: ['functions/src/airspaceClosureTaskHandlers.ts'],
+    sourceAtRevision: (revision) => revision === 'base' ? before : after,
     isAncestor: () => false,
   })).toBe('hosting,functions:parkShuttlesAtAirspaceClosure');
+
+  expect(() => deploymentSelector({
+    before: 'base',
+    after: 'candidate',
+    targets: ['functions'],
+    files: ['functions/src/airspaceClosureTaskHandlers.ts'],
+    sourceAtRevision: (revision) => revision === 'base'
+      ? before
+      : after.replace('return park(request);', 'return changedPark(request);'),
+    isAncestor: () => false,
+  })).toThrow('outside the exact private-invoker deployment repair');
 });
 
 it('fails closed when named callable scope or deployment baseline is unknown', () => {
