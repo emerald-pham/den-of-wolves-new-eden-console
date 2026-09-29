@@ -1,6 +1,8 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 import * as jumpCallables from './index';
+import { jumpFuelCost, jumpLengthBetween } from './jumpDrive';
+import { populationChange } from './shipPopulation';
 
 const mock = vi.hoisted(() => ({
   get: vi.fn(),
@@ -10,12 +12,20 @@ const mock = vi.hoisted(() => ({
   owner: 'u1',
   connected: true,
   currentTurn: 1,
+  phase: 'active',
+  gameOutcome: undefined as Record<string, unknown> | undefined,
   chartId: 'A',
   chartLocked: true,
   coordinate: '0000',
+  navigationRevision: 0,
+  navigationLogs: {} as Record<string, unknown>,
   fuel: 4,
   dioneFuel: 8,
   charges: ['jump-drive'] as string[],
+  dioneCharges: ['jump-drive'] as string[],
+  grantedShipId: 'aegis',
+  activeRoleIds: [] as string[],
+  activeConsoleRoleId: undefined as string | undefined,
   jumpStates: {} as Record<string, unknown>,
   systemHistory: {} as Record<string, unknown>,
   scoutedCoordinatesByShip: {} as Record<string, string[]>,
@@ -31,6 +41,8 @@ const mock = vi.hoisted(() => ({
   upgrades: {} as Record<string, unknown>,
   damage: {} as Record<string, unknown>,
   survivors: {} as Record<string, number>,
+  unrest: {} as Record<string, number>,
+  mutinies: {} as Record<string, unknown>,
   wolfAttackState: undefined as Record<string, unknown> | undefined,
   arrivalPressureState: undefined as Record<string, unknown> | undefined,
   missionOpportunityRecord: undefined as Record<string, unknown> | undefined,
@@ -95,12 +107,20 @@ beforeEach(() => {
   mock.owner = 'u1';
   mock.connected = true;
   mock.currentTurn = 1;
+  mock.phase = 'active';
+  mock.gameOutcome = undefined;
   mock.chartId = 'A';
   mock.chartLocked = true;
   mock.coordinate = '0000';
+  mock.navigationRevision = 0;
+  mock.navigationLogs = {};
   mock.fuel = 4;
   mock.dioneFuel = 8;
   mock.charges = ['jump-drive'];
+  mock.dioneCharges = ['jump-drive'];
+  mock.grantedShipId = 'aegis';
+  mock.activeRoleIds = [];
+  mock.activeConsoleRoleId = undefined;
   mock.jumpStates = {};
   mock.systemHistory = {};
   mock.scoutedCoordinatesByShip = {};
@@ -114,6 +134,8 @@ beforeEach(() => {
   mock.upgrades = {};
   mock.damage = {};
   mock.survivors = {};
+  mock.unrest = {};
+  mock.mutinies = {};
   mock.wolfAttackState = undefined;
   mock.arrivalPressureState = undefined;
   mock.missionOpportunityRecord = undefined;
@@ -143,6 +165,7 @@ beforeEach(() => {
       return {
         exists: failure !== undefined,
         id: path.split('/').at(-1),
+        ref: { path },
         data: () => failure,
         get: (key: string) => failure?.[key],
       };
@@ -195,18 +218,20 @@ beforeEach(() => {
     }
     const fields: Record<string, unknown> = path.includes('/players/')
       ? {
-        role: mock.role, connected: mock.connected, activeConsoleRoleId: undefined,
+        role: mock.role, connected: mock.connected, activeConsoleRoleId: mock.activeConsoleRoleId,
         fleetGroupId: 'fleet-1',
       }
       : path.includes('/private/shipConsoleWriteGrant')
         ? {
           type: 'gm-ship-console-write-grant', sessionId: 's1', instanceId: 'bridge', uid: mock.owner,
-          shipId: 'aegis', grantedAt: new Date(),
+          shipId: mock.grantedShipId, grantedAt: new Date(),
         }
       : path.includes('/gmInstances/')
         ? { uid: mock.owner, connected: mock.connected, lastSeenAt: new Date() }
         : {
-          phase: 'active',
+          phase: mock.phase,
+          ...(mock.gameOutcome ? { gameOutcome: mock.gameOutcome } : {}),
+          activeRoleIds: mock.activeRoleIds,
           activeVesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
           currentTurn: mock.currentTurn,
           turnPhase: {
@@ -230,7 +255,10 @@ beforeEach(() => {
           },
           shipNavigationLogs: {
             aegis: [], dione: [], icebreaker: [], capybara: [], shepherd: [], quellon: [], 'refinery-124': [],
+            ...mock.navigationLogs,
           },
+          shipUnrest: mock.unrest,
+          shipMutinies: mock.mutinies,
           shipResources: {
             aegis: { ore: 0, fuel: mock.fuel, food: 8, water: 6, materials: 1, securityTeams: 9 },
             dione: { ore: 0, fuel: mock.dioneFuel, food: 8, water: 6, materials: 1, securityTeams: 9 },
@@ -244,12 +272,14 @@ beforeEach(() => {
           pursuitGroups: mock.pursuitGroups,
           maintenanceCycles: {
             aegis: { turn: mock.currentTurn, charges: mock.charges, results: {} },
+            dione: { turn: mock.currentTurn, charges: mock.dioneCharges, results: {} },
           },
     };
     if (path === 'sessions/s1/serverState/navigation') {
       return {
-        exists: true, id: 'navigation', ref: { path }, data: () => fields,
-        get: (key: string) => fields[key],
+        exists: true, id: 'navigation', ref: { path },
+        data: () => ({ ...fields, revision: mock.navigationRevision }),
+        get: (key: string) => key === 'revision' ? mock.navigationRevision : fields[key],
       };
     }
     const pathId = path.split('/').at(-1) ?? '';
@@ -1236,6 +1266,44 @@ it('honours an existing integrity lock without changing authoritative state', as
   expect(mock.randomInt).not.toHaveBeenCalled();
 });
 
+it.each([
+  ['lastJumpTurn', { lastJumpTurn: '1' }],
+  ['integrityLockedUntil', { integrityLockedUntil: 'not-a-timestamp' }],
+  ['emergencyJumpUsed', { emergencyJumpUsed: 'true' }],
+  ['lastFailureRequestId', { lastFailureRequestId: 17 }],
+])('fails closed when stored Jump Drive %s is malformed', async (_field, state) => {
+  mock.jumpStates = { aegis: state };
+
+  await expect(jumpShip.run(request({ ...data, destination: '5143' }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    details: expect.objectContaining({ reason: 'malformed-input' }),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.randomInt).not.toHaveBeenCalled();
+});
+
+it('retains the current adjudicable failure when a later jump is not charged', async () => {
+  mock.charges = [];
+  mock.jumpStates = { aegis: { lastFailureRequestId: 'fuel-failure' } };
+  mock.jumpFailures = {
+    'fuel-failure': {
+      type: 'ship-jump-failure', status: 'unresolved', adjudicable: true,
+      requestId: 'fuel-failure', shipId: 'aegis', origin: '0000', destination: '9997',
+      failureStatus: 'fuel-shortage', failureRevision: 0, currentTurn: 1, fuelAtFailure: 4,
+    },
+  };
+
+  await expect(jumpShip.run(request({
+    ...data, requestId: 'later-not-charged', destination: '5143',
+  }))).resolves.toMatchObject({ status: 'not-charged' });
+
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'shipJumpStates.aegis': { lastFailureRequestId: 'fuel-failure' },
+  }));
+  expect(mock.update).not.toHaveBeenCalledWith('sessions/s1/jumpFailures/fuel-failure', expect.anything());
+});
+
 it('records an under-fuel attempt without spending resources so an exact GM adjudication can follow', async () => {
   mock.fuel = 1;
   mock.update.mockClear();
@@ -1305,6 +1373,237 @@ it('keeps an emergency jump subject to the ship one-jump-per-cycle guard', async
   });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.randomInt).not.toHaveBeenCalled();
+});
+
+it('requires an exact failure id before offering a failure-based emergency jump', async () => {
+  mock.jumpStates = { aegis: { lastFailureRequestId: 'current-failure' } };
+  mock.jumpFailures = {
+    'current-failure': {
+      type: 'ship-jump-failure', status: 'unresolved', adjudicable: true,
+      requestId: 'current-failure', shipId: 'aegis', origin: '0000', destination: '9997',
+      failureStatus: 'fuel-shortage', failureRevision: 0, currentTurn: 1, fuelAtFailure: 4,
+    },
+  };
+
+  await expect(jumpShip.run(request({
+    ...data, requestId: 'failure-emergency-no-id', destination: '5143', emergency: true,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['wrong record type', { type: 'other-record' }],
+  ['mismatched document request id', { requestId: 'different-failure' }],
+  ['unknown failure status', { failureStatus: 'forged' }],
+])('rejects a failure-based emergency with %s', async (_label, override) => {
+  mock.jumpStates = { aegis: { lastFailureRequestId: 'current-failure' } };
+  mock.jumpFailures = {
+    'current-failure': {
+      type: 'ship-jump-failure', status: 'unresolved', adjudicable: true,
+      requestId: 'current-failure', shipId: 'aegis', origin: '0000', destination: '9997',
+      failureStatus: 'fuel-shortage', failureRevision: 0, currentTurn: 1, fuelAtFailure: 4,
+      ...override,
+    },
+  };
+
+  await expect(jumpShip.run(request({
+    ...data, requestId: 'failure-emergency-exact-id', destination: '5143', emergency: true,
+    failureRequestId: 'current-failure',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('uses the new ship self-arrival when an older observer event follows it in the log', async () => {
+  mock.grantedShipId = 'dione';
+  mock.navigationLogs = {
+    dione: [{
+      id: 'older-observer-arrival', shipId: 'dione', type: 'ship-jump-away',
+      origin: '0000', destination: '5143', subjectShipId: 'aegis', subjectShipName: 'AEGIS',
+      occurredAt: '2026-09-20T12:00:00.000Z', stardate: '2026.263.120000',
+    }],
+  };
+
+  await expect(jumpShip.run(request({
+    ...data, shipId: 'dione', requestId: 'dione-retry-after-observer', destination: '5143',
+  }))).resolves.toMatchObject({
+    status: 'jumped', shipId: 'dione', origin: '0000', destination: '5143', revision: 1,
+  });
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/serverState/navigation', expect.objectContaining({
+    systemHistory: expect.objectContaining({
+      dione: expect.objectContaining({
+        '5143': expect.objectContaining({
+          discovery: { id: 'dione-retry-after-observer-0', occurredAt: expect.any(String) },
+        }),
+      }),
+    }),
+  }));
+});
+
+it.each(['ordinary', 'emergency', 'adjudication'] as const)(
+  'increments shared navigation revision from its stored value for %s moves', async (kind) => {
+    mock.navigationRevision = 41;
+    if (kind === 'emergency') {
+      mock.pursuitGroups = { 'fleet-1': 10 };
+    }
+    if (kind === 'adjudication') {
+      mock.jumpStates = { aegis: { lastFailureRequestId: 'revision-failure' } };
+      mock.jumpFailures = {
+        'revision-failure': {
+          type: 'ship-jump-failure', status: 'unresolved', adjudicable: true,
+          requestId: 'revision-failure', shipId: 'aegis', origin: '0000', destination: '9997',
+          failureStatus: 'fuel-shortage', failureRevision: 0, currentTurn: 1, fuelAtFailure: 4,
+        },
+      };
+    }
+
+    const reply = kind === 'adjudication'
+      ? await adjudicateFailedJump.run(request({
+        sessionId: 's1', instanceId: 'bridge', requestId: `revision-${kind}`,
+        expectedRevision: 0, failureRequestId: 'revision-failure', destination: '5143',
+      }))
+      : await jumpShip.run(request({
+        ...data, requestId: `revision-${kind}`, destination: '5143',
+        ...(kind === 'emergency' ? { emergency: true } : {}),
+      }));
+
+    expect(reply).toMatchObject({ status: 'jumped', revision: 1 });
+    expect(mock.set).toHaveBeenCalledWith('sessions/s1/serverState/navigation', expect.objectContaining({
+      revision: 42,
+    }));
+    expect(mock.set).toHaveBeenCalledWith('sessions/s1/gmDiscovery/current', expect.objectContaining({
+      revision: 42,
+    }));
+  },
+);
+
+it('spends all failure-bound fuel when the facilitator selects a cheaper under-fueled route', async () => {
+  const longDestination = Array.from({ length: 10_000 }, (_, value) => String(value).padStart(4, '0'))
+    .find((coordinate) => jumpLengthBetween('0000', coordinate) === 'long');
+  expect(longDestination).toBeDefined();
+  const requiredFuel = jumpFuelCost('aegis', 'long', false);
+  mock.fuel = requiredFuel - 2;
+  mock.jumpStates = { aegis: { lastFailureRequestId: 'long-route-failure' } };
+  mock.jumpFailures = {
+    'long-route-failure': {
+      type: 'ship-jump-failure', status: 'unresolved', adjudicable: true,
+      requestId: 'long-route-failure', shipId: 'aegis', origin: '0000', destination: longDestination,
+      failureStatus: 'fuel-shortage', failureRevision: 0, currentTurn: 1,
+      fuelAtFailure: mock.fuel, requiredFuel,
+    },
+  };
+
+  await expect(adjudicateFailedJump.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'cheaper-route-adjudication',
+    expectedRevision: 0, failureRequestId: 'long-route-failure', destination: '5143',
+  }))).resolves.toMatchObject({
+    status: 'jumped', destination: '5143', fuelSpent: mock.fuel, remainingFuel: 0,
+  });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'shipResources.aegis.fuel': 0,
+  }));
+});
+
+it('rejects emergency and GM adjudication records whose document identity does not match the requested failure', async () => {
+  const failureId = 'identity-failure';
+  const failure = {
+    type: 'ship-jump-failure', status: 'unresolved', adjudicable: true,
+    requestId: failureId, shipId: 'aegis', origin: '0000', destination: '9997',
+    failureStatus: 'fuel-shortage', failureRevision: 0, currentTurn: 1, fuelAtFailure: 4,
+  };
+  mock.jumpStates = { aegis: { lastFailureRequestId: failureId } };
+  mock.jumpFailures = { [failureId]: failure };
+  const originalGet = mock.get.getMockImplementation();
+  expect(originalGet).toBeDefined();
+  mock.get.mockImplementation(async (rawRef: unknown) => {
+    const snapshot = await originalGet!(rawRef);
+    const path = typeof rawRef === 'string' ? rawRef :
+      typeof rawRef === 'object' && rawRef !== null && 'path' in rawRef
+        ? String((rawRef as { path: unknown }).path) : '';
+    return path === `sessions/s1/jumpFailures/${failureId}`
+      ? { ...snapshot, id: 'different-id', ref: { path: 'sessions/s1/jumpFailures/different-id' } }
+      : snapshot;
+  });
+
+  await expect(jumpShip.run(request({
+    ...data, requestId: 'emergency-wrong-path', destination: '5143', emergency: true,
+    failureRequestId: failureId,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('rejects facilitator adjudication when the failure record request id differs from its document path', async () => {
+  mock.jumpStates = { aegis: { lastFailureRequestId: 'identity-failure' } };
+  mock.jumpFailures = {
+    'identity-failure': {
+      type: 'ship-jump-failure', status: 'unresolved', adjudicable: true,
+      requestId: 'some-other-failure', shipId: 'aegis', origin: '0000', destination: '9997',
+      failureStatus: 'fuel-shortage', failureRevision: 0, currentTurn: 1, fuelAtFailure: 4,
+    },
+  };
+
+  await expect(adjudicateFailedJump.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'bad-record-identity',
+    expectedRevision: 0, failureRequestId: 'identity-failure', destination: '5143',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.randomInt).not.toHaveBeenCalled();
+});
+
+it('does not double-count a Jump Drive that was already damaged before an emergency jump', async () => {
+  mock.fuel = 2;
+  mock.pursuitGroups = { 'fleet-1': 10 };
+  mock.damage = { aegis: { damagedSystemIds: ['jump-drive'], destroyed: false } };
+  mock.survivors = { aegis: 2_500 };
+
+  const reply = await jumpShip.run(request({
+    ...data, requestId: 'emergency-pre-damaged-drive', destination: '5143', emergency: true,
+  }));
+  expect(reply).toMatchObject({ status: 'jumped', emergency: true });
+  const damageUpdate = mock.update.mock.calls.find(([path]) => path === 'sessions/s1')?.[1];
+  const damagedSystems = (reply as { damageDraws: Array<{ systemId: string }> }).damageDraws
+    .map((draw) => draw.systemId);
+  const expectedPopulation = damagedSystems.reduce((population) =>
+    populationChange('aegis', population, -1, false).amount, 2_500);
+  expect(damageUpdate).toMatchObject({ 'shipSurvivors.aegis': expectedPopulation });
+  expect(mock.set.mock.calls.some(([path]) => String(path).endsWith('/emergency-emergency-pre-damaged-drive-jump-drive')))
+    .toBe(false);
+});
+
+it('records jump-damage mutiny atomically and still replays the exact receipt after the ship becomes unusable', async () => {
+  mock.role = 'player';
+  mock.activeRoleIds = ['admiral'];
+  mock.activeConsoleRoleId = 'admiral';
+  mock.players = [{ id: 'u1', fields: {
+    role: 'player', connected: true, fleetGroupId: 'fleet-1', activeConsoleRoleId: 'admiral',
+  } }];
+  mock.pursuitGroups = { 'fleet-1': 10 };
+  mock.unrest = { aegis: 6 };
+  mock.survivors = { aegis: 2_500 };
+  const command = {
+    ...data, requestId: 'jump-causes-mutiny', destination: '5143', emergency: true,
+  };
+
+  const reply = await jumpShip.run(request(command));
+  const sessionUpdate = mock.update.mock.calls.find(([path]) => path === 'sessions/s1')?.[1];
+  expect(sessionUpdate).toHaveProperty('shipMutinies.aegis', expect.objectContaining({
+    status: 'active', triggerUnrest: 8,
+  }));
+
+  const receipt = mock.set.mock.calls.find(([path]) => String(path).includes('/commandReceipts/'))?.[1];
+  expect(receipt).toBeDefined();
+  mock.commandReceiptRecord = receipt;
+  mock.unrest = { aegis: 8 };
+  mock.mutinies = { aegis: (sessionUpdate as Record<string, unknown>)['shipMutinies.aegis'] };
+  mock.update.mockClear();
+  mock.set.mockClear();
+
+  await expect(jumpShip.run(request(command))).resolves.toEqual(reply);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it('exposes only active-GM jump-failure adjudication and read callables', () => {

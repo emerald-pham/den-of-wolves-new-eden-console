@@ -120,6 +120,33 @@ it('keeps an uncertain emergency request on its emergency retry control', async 
   expect(jumpShip).toHaveBeenNthCalledWith(2, expect.objectContaining({ emergency: true }));
 });
 
+it('keeps an uncertain emergency retry available after the fresh projection marks it used', async () => {
+  const user = userEvent.setup();
+  vi.mocked(createJumpShipAttempt).mockReturnValue({ ...jumpAttempt, emergency: true });
+  vi.mocked(jumpShip).mockRejectedValueOnce({ code: 'functions/unavailable' });
+  const view = renderConsole({ pursuitValue: 10 });
+
+  await user.click(screen.getByRole('button', { name: 'Increase coordinate digit 1' }));
+  await user.click(screen.getByRole('button', { name: /lock destination coordinates/i }));
+  await user.click(screen.getByRole('button', { name: /emergency jump to 1000/i }));
+
+  view.rerender(
+    <ConsoleAccessContext.Provider value={{ writable: true, roleId: 'aegis' }}>
+      <JumpDriveConsole
+        shipId="aegis" shipName="AEGIS" currentCoordinate="0000" fuel={0}
+        jumpCosts={[2, 3, 6]} charged={false} damaged={false} upgraded={false}
+        pursuitValue={10} emergencyJumpUsed lastFailureRequestId="jump-failure"
+      />
+    </ConsoleAccessContext.Provider>,
+  );
+
+  expect(screen.getByRole('button', { name: /retry emergency jump confirmation/i })).toBeEnabled();
+  await user.click(screen.getByRole('button', { name: /retry emergency jump confirmation/i }));
+  expect(jumpShip).toHaveBeenNthCalledWith(2, expect.objectContaining({
+    requestId: jumpAttempt.requestId, emergency: true,
+  }));
+});
+
 it('shows the effective fuel bands after the Jump Drive upgrade', () => {
   renderConsole({ upgraded: true });
 

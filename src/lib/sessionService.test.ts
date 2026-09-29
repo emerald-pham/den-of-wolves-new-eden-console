@@ -4191,6 +4191,55 @@ it('retries a transport-uncertain Jump Drive request with the same receipt ident
   expect(callable.mock.calls[1]?.[0]).toEqual(callable.mock.calls[0]?.[0]);
 });
 
+it('does not apply a delayed jump success over a newer ship projection', async () => {
+  const initialSession = {
+    ...session, phase: 'active' as const, currentTurn: 1,
+    shipGalacticCoordinates: { aegis: '0000' },
+    shipResources: { aegis: { ...INITIAL_SHIP_RESOURCES.aegis!, fuel: 4 } },
+    vesselActionRevisions: { aegis: 7 },
+  };
+  useSessionStore.getState().setIdentity(initialSession, { ...player, role: 'gm' });
+  useSessionStore.getState().setGmInstance({
+    id: 'bridge', sessionId: 's1', uid: 'u1', name: 'Bridge',
+    deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+  });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  let finish!: (value: { data: Record<string, unknown> }) => void;
+  const callable = Object.assign(vi.fn(() => new Promise<{ data: Record<string, unknown> }>((resolve) => {
+    finish = resolve;
+  })), { stream: vi.fn() });
+  vi.mocked(httpsCallable).mockReturnValue(callable as never);
+
+  const pending = jumpShip(createJumpShipAttempt('aegis', '5143'));
+  await vi.waitFor(() => expect(callable).toHaveBeenCalled());
+  const newerSession = {
+    ...initialSession,
+    shipGalacticCoordinates: { aegis: '1096' },
+    shipResources: { aegis: { ...INITIAL_SHIP_RESOURCES.aegis!, fuel: 1 } },
+    shipDamage: { aegis: { damagedSystemIds: ['reactor'], destroyed: false } },
+    shipJumpStates: { aegis: { lastJumpTurn: 2, emergencyJumpUsed: true } },
+    vesselActionRevisions: { aegis: 9 },
+  };
+  useSessionStore.getState().setSession(newerSession);
+  finish({ data: {
+    status: 'jumped', shipId: 'aegis', origin: '0000', destination: '5143',
+    remainingFuel: 2, damage: { damagedSystemIds: ['storage'], destroyed: false },
+    state: { lastJumpTurn: 1 },
+    transition: { id: 'older-jump', shipId: 'aegis', origin: '0000', destination: '5143', occurredAt: 'now' },
+    revision: 8,
+  } });
+
+  await expect(pending).resolves.toMatchObject({ status: 'jumped' });
+  expect(useSessionStore.getState().session).toMatchObject({
+    shipGalacticCoordinates: { aegis: '1096' },
+    shipResources: { aegis: { fuel: 1 } },
+    shipDamage: { aegis: { damagedSystemIds: ['reactor'] } },
+    shipJumpStates: { aegis: { lastJumpTurn: 2, emergencyJumpUsed: true } },
+    vesselActionRevisions: { aegis: 9 },
+  });
+});
+
 it.each([
   ['cancelled callable responses', { code: 'functions/cancelled', message: 'Request cancelled.' }],
   ['errors without a callable code', new Error('Connection closed before acknowledgement.')],
@@ -4306,6 +4355,61 @@ it('captures and exactly retries one GM adjudication while applying its authorit
     shipGalacticCoordinates: { aegis: '5143' },
     shipDamage: { aegis: { damagedSystemIds: ['reactor'], destroyed: false } },
     vesselActionRevisions: { aegis: 8 },
+  });
+});
+
+it('does not apply a delayed adjudication over a newer ship projection', async () => {
+  const initialSession = {
+    ...session, phase: 'active' as const, currentTurn: 1,
+    shipGalacticCoordinates: { aegis: '0000' },
+    shipResources: { aegis: { ...INITIAL_SHIP_RESOURCES.aegis!, fuel: 4 } },
+    vesselActionRevisions: { aegis: 7 },
+  };
+  useSessionStore.getState().setIdentity(initialSession, { ...player, role: 'gm' });
+  useSessionStore.getState().setGmInstance({
+    id: 'bridge', sessionId: 's1', uid: 'u1', name: 'Bridge',
+    deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+  });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  const failure = {
+    requestId: 'delayed-failure', shipId: 'aegis', origin: '0000', destination: '5143',
+    failureStatus: 'drive-failure' as const, failureRevision: 7, currentTurn: 1, fuelAtFailure: 4,
+  };
+  const attempt = createFailedJumpAdjudicationAttempt(failure, '5143');
+  let finish!: (value: { data: Record<string, unknown> }) => void;
+  const callable = Object.assign(vi.fn(() => new Promise<{ data: Record<string, unknown> }>((resolve) => {
+    finish = resolve;
+  })), { stream: vi.fn() });
+  vi.mocked(httpsCallable).mockReturnValue(callable as never);
+
+  const pending = adjudicateFailedJump(attempt);
+  await vi.waitFor(() => expect(callable).toHaveBeenCalled());
+  const newerSession = {
+    ...initialSession,
+    shipGalacticCoordinates: { aegis: '1096' },
+    shipResources: { aegis: { ...INITIAL_SHIP_RESOURCES.aegis!, fuel: 1 } },
+    shipDamage: { aegis: { damagedSystemIds: ['reactor'], destroyed: false } },
+    shipJumpStates: { aegis: { lastJumpTurn: 2, emergencyJumpUsed: true } },
+    vesselActionRevisions: { aegis: 9 },
+  };
+  useSessionStore.getState().setSession(newerSession);
+  finish({ data: {
+    status: 'jumped', shipId: 'aegis', origin: '0000', destination: '5143',
+    remainingFuel: 2, fuelSpent: 2,
+    damage: { damagedSystemIds: ['storage'], destroyed: false },
+    state: { lastJumpTurn: 1 },
+    transition: { id: 'older-adjudication', shipId: 'aegis', origin: '0000', destination: '5143', occurredAt: 'now' },
+    revision: 8,
+  } });
+
+  await expect(pending).resolves.toMatchObject({ status: 'jumped' });
+  expect(useSessionStore.getState().session).toMatchObject({
+    shipGalacticCoordinates: { aegis: '1096' },
+    shipResources: { aegis: { fuel: 1 } },
+    shipDamage: { aegis: { damagedSystemIds: ['reactor'] } },
+    shipJumpStates: { aegis: { lastJumpTurn: 2, emergencyJumpUsed: true } },
+    vesselActionRevisions: { aegis: 9 },
   });
 });
 

@@ -72,7 +72,10 @@ describe('projectShipState', () => {
         'fighter-wing-bravo': { count: 2, revision: 3 },
       },
       shipJumpStates: {
-        aegis: { lastJumpTurn: 2, integrityLockedUntil: '2026-09-12T00:05:00.000Z', privateNote: 'hidden' },
+        aegis: {
+          lastJumpTurn: 2, integrityLockedUntil: '2026-09-12T00:05:00.000Z',
+          emergencyJumpUsed: true, lastFailureRequestId: 'current-failure', privateNote: 'hidden',
+        },
         capybara: { lastJumpTurn: 1 },
       },
       shipJumpTransitions: {
@@ -120,6 +123,7 @@ describe('projectShipState', () => {
     });
     expect(projection.jumpState).toEqual({
       lastJumpTurn: 2, integrityLockedUntil: '2026-09-12T00:05:00.000Z',
+      emergencyJumpUsed: true, lastFailureRequestId: 'current-failure',
     });
     expect(projection.jumpTransition).toEqual({
       id: 'event:jump-1', shipId: 'aegis', origin: '0000', destination: '0102',
