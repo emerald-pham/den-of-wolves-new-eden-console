@@ -14,6 +14,7 @@ import {
   logoutGmAccess,
   reconcileGmAuthority,
   refreshPresence,
+  requireStationReselectionForCurrentSession,
 } from '@/lib/sessionService';
 import AppHeader from '@/components/AppHeader';
 import WolfHackingRuntime from '@/components/WolfHackingRuntime';
@@ -123,6 +124,29 @@ function playerAuthorityKey(player: Player | null | undefined): string | undefin
   return undefined;
 }
 
+function stationRoleFromPath(pathname: string): string | undefined {
+  const match = /^\/ships\/[^/]+\/roles\/([^/]+)$/.exec(pathname);
+  const roleId = match?.[1];
+  return roleId && findConsoleRole(roleId) ? roleId : undefined;
+}
+
+function freshPlayerLostStationRoute(player: Player, routeRoleId: string): boolean {
+  if (
+    player.role !== 'player' || player.escapeState || player.replacementStatus != null ||
+    player.replacementRoleId != null ||
+    (player.activeConsoleRoleId != null && player.activeConsoleRoleId !== routeRoleId)
+  ) return false;
+  const assignedRoleId = player.assignedRoleId && player.assignedRoleId !== 'press-officer'
+    ? player.assignedRoleId
+    : undefined;
+  const seatRoleId = player.seatId && player.seatId !== 'press-officer'
+    ? player.seatId
+    : undefined;
+  const pointersAgree = !assignedRoleId || !seatRoleId || assignedRoleId === seatRoleId;
+  const boundRoleId = pointersAgree ? assignedRoleId ?? seatRoleId : undefined;
+  return boundRoleId !== routeRoleId;
+}
+
 function AppRoutes() {
   const { reducedMotion } = useMotionPreference();
   const location = useLocation();
@@ -147,6 +171,8 @@ function AppRoutes() {
   const playerListenerGeneration = useRef(0);
   const playerListenerIdentity = useRef('');
   const appRoutesMounted = useRef(false);
+  const currentPath = useRef(location.pathname);
+  currentPath.current = location.pathname;
   const gmAccessAuthenticatedAt = useSessionStore((state) => state.gmAccessAuthenticatedAt);
   const lastRoute = useSessionStore((state) => state.lastRoute);
   const setLastRoute = useSessionStore((state) => state.setLastRoute);
@@ -614,6 +640,11 @@ function AppRoutes() {
           else {
             applyPendingPlayerDiscovery();
             restoreRetainedGroupCandidateProjection();
+            const currentPlayer = useSessionStore.getState().me;
+            const routeRoleId = stationRoleFromPath(currentPath.current);
+            if (currentPlayer && routeRoleId && freshPlayerLostStationRoute(currentPlayer, routeRoleId)) {
+              requireStationReselectionForCurrentSession();
+            }
           }
           reconcileLoyaltyCensus();
         },

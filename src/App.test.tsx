@@ -30,6 +30,7 @@ vi.mock('@/lib/sessionService', () => ({
   reconcileGmAuthority: vi.fn().mockResolvedValue(undefined),
   refreshPresence: vi.fn().mockResolvedValue(undefined),
   refreshCommissarPurgeAuthority: vi.fn().mockResolvedValue(null),
+  requireStationReselectionForCurrentSession: vi.fn(),
   releaseConsoleRole: vi.fn().mockResolvedValue(undefined),
   releaseGmInstance: vi.fn(),
   selectConsoleRole: vi.fn().mockResolvedValue(undefined),
@@ -76,6 +77,7 @@ const {
   logoutGmAccess,
   reconcileGmAuthority,
   refreshPresence,
+  requireStationReselectionForCurrentSession,
   releaseConsoleRole,
   selectConsoleRole,
 } =
@@ -222,6 +224,13 @@ describe('App', () => {
     };
     useSessionStore.getState().setIdentity(castingSession, assigned);
     useSessionStore.getState().setMode('console');
+    vi.mocked(requireStationReselectionForCurrentSession).mockImplementation(() => {
+      useSessionStore.getState().setCommunicationError(normalizeCommandError({
+        code: 'functions/permission-denied',
+        details: { commandError: 'station-selection-required' },
+      }));
+      return true;
+    });
 
     render(<App />);
     await waitFor(() => expect(handlers).toBeDefined());
