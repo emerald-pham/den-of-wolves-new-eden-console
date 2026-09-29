@@ -200,6 +200,50 @@ describe('App', () => {
     expect(useSessionStore.getState().me?.uid).toBe('u1');
   });
 
+  it('returns a player whose live casting assignment was released from the former station route', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    window.location.hash = '#/ships/shepherd/roles/shepherd-scientist';
+    const castingSession: GameSession = {
+      ...session,
+      phase: 'casting',
+      activeRoleIds: ['shepherd-scientist'],
+      activeVesselIds: ['shepherd'],
+    };
+    const assigned: Player = {
+      ...player,
+      role: 'player',
+      assignedRoleId: 'shepherd-scientist',
+      seatId: 'shepherd-scientist',
+      activeConsoleRoleId: 'shepherd-scientist',
+    };
+    useSessionStore.getState().setIdentity(castingSession, assigned);
+    useSessionStore.getState().setMode('console');
+
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+
+    act(() => {
+      handlers?.onPlayer?.({
+        ...assigned,
+        assignedRoleId: null,
+        seatId: null,
+        activeConsoleRoleId: null,
+      });
+      handlers?.onPlayerFreshness?.(true);
+    });
+
+    expect(await screen.findByRole('heading', { name: 'Stations and consoles' })).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Your previous station is no longer available. Return to station select and reselect your role.',
+    );
+    expect(useSessionStore.getState().session?.id).toBe('s1');
+    expect(useSessionStore.getState().me?.uid).toBe('u1');
+  });
+
   it('requires a motion choice before exposing the game interface', async () => {
     localStorage.removeItem(MOTION_SAFETY_STORAGE_KEY);
     render(<App />);
