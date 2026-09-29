@@ -544,6 +544,38 @@ function functionExports(source) {
   return exports;
 }
 
+// PC05 changes index-local authority helpers used by unchanged callable bodies.
+// This bounded source receipt supplements direct callable-body selection and
+// must be reconciled if the candidate changes before its first deployment.
+const PC05_INDEX_HELPER_TRANSITION = Object.freeze({
+  before: 'c3e2411d0784be6acdd7402325475bcbd78d410984e86261476b0010730eed64',
+  after: '9349834cecdf4211b6162c858746da6b99b54287563023048771fff684063999',
+  consumers: [
+    'createSession', 'confirmSetup', 'transferShuttleControlCommand',
+    'transferShuttleCargoCommand', 'rechargeHostConsoleFromShuttle', 'repairConsolesFromBlacksmith',
+    'repairConsolesFromPhilia', 'repairConsolesFromMacaw', 'recycleWithBoa',
+    'repairConsolesFromChacau', 'upgradeEndeavourFieldTargets', 'evacuateShuttleSurvivorsCommand',
+    'requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit',
+    'admitVoyage33', 'joinSession', 'resumeSession',
+    'moveShipToLocation', 'jumpShip', 'listUnresolvedJumpFailures',
+    'adjudicateFailedJump', 'setShipConsoleLock', 'getAegisCommandAndControl',
+    'applyAegisCommandAndControl', 'getDioneMaliadesLaunch', 'launchDioneMaliades',
+    'getPdfEscortWingLaunch', 'launchPdfEscortWing', 'unlockPressAirspace',
+    'popShipConfetti', 'scavengeDestroyedShipStores', 'adjustShipResource',
+    'adjustShipUnrest', 'consentCommissarPurge', 'applyCommissarPurge',
+    'getCommissarPurgeAuthority', 'dismissUnrestAlert', 'resolveShipMutiny',
+    'addShipDamage', 'adjustShipPopulation', 'applyShipCounterSteps',
+    'setFighterWingCount', 'buildFighter', 'dismissPopulationAlert',
+    'runHighwallMining', 'requestScout', 'rollHummingbirdHarvest',
+    'allocateHummingbirdHarvest', 'setSmallShipDocking', 'runSmallShipMaintenance',
+    'runVoyage33Maintenance', 'runVulcanAdditionalLabour', 'runMaintenance',
+    'drawVipCard', 'transferVipCard', 'rerollVipUnrest',
+    'publishAdmiralDirectiveCommand', 'recordPresidentActionCommand', 'updatePoliticalCapital',
+    'setFleetRedAlert', 'publishPressDispatch', 'dismissPressDispatch',
+    'repairAllShipDamage', 'rollbackMaintenance',
+  ],
+});
+
 function changedIndexCallables(before, after, cwd, sourceAtRevision = null) {
   const readAt = (revision) => {
     if (sourceAtRevision) return sourceAtRevision(revision, 'functions/src/index.ts');
@@ -590,6 +622,13 @@ function changedIndexCallables(before, after, cwd, sourceAtRevision = null) {
         'Cannot safely map an Endeavour field-upgrade index change mixed with another callable or untracked source edit.',
       );
     }
+  }
+  const digest = (source) => createHash('sha256').update(source).digest('hex');
+  if (previousSource !== currentSource && digest(previousSource) === PC05_INDEX_HELPER_TRANSITION.before) {
+    if (digest(currentSource) !== PC05_INDEX_HELPER_TRANSITION.after) {
+      throw new Error('Cannot safely map PC05 shared index changes outside the audited candidate.');
+    }
+    return [...new Set([...changed, ...PC05_INDEX_HELPER_TRANSITION.consumers])];
   }
   return changed;
 }
