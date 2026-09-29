@@ -711,7 +711,12 @@ it('renders current and retained repair history with progress and keyboard stop 
     'A stale recharge does not spend resources or add a charge.',
   )).toBeVisible();
   expect(within(newestEntry).getByText(
-    '458 of 751 planned items are complete (60.99%). PC05 production gameplay verification continues.',
+    '458 of 751 planned items were complete in the catalog snapshot used to build this release (60.99%).',
+  )).toBeVisible();
+  const previousPc05Entry = within(region).getByRole('heading', { name: 'Build 0.5.56' }).closest('article');
+  if (!previousPc05Entry) throw new Error('Expected the preserved 0.5.56 PC05 repair entry.');
+  expect(within(previousPc05Entry).getByText(
+    'When the facilitator releases your current role, the console returns you to station selection as soon as the live assignment update arrives and keeps the request to reselect visible until you dismiss it.',
   )).toBeVisible();
   const previousHummingbirdEntry = within(region).getByRole('heading', { name: 'Build 0.5.49' }).closest('article');
   if (!previousHummingbirdEntry) throw new Error('Expected the preserved 0.5.49 Hummingbird release entry.');
