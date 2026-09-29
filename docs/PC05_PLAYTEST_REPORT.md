@@ -611,3 +611,22 @@ mission panel or the GM route, depending on which subtree settled first. The
 probe is now scoped to the GM console route. This preserves the PC01 comparison
 and production styles while making the gate measure the named surface
 deterministically; the exact browser gate must pass before the repair advances.
+
+Main exact-SHA run `36568303547` passed every verification job for merge
+`b88090cb`, including the repaired DRADIS performance boundary. Firebase then
+updated Firestore and the selected Function revisions, but stopped before
+Hosting release while setting IAM for the private Cloud Tasks worker
+`parkShuttlesAtAirspaceClosure`; production therefore correctly remains on
+`0.5.54`. The task provider already keeps an omitted invoker private, so
+test-first `e29b5c3c` requires that default and requires release verification to
+reject public invoker access on the selected worker. Production repair
+`a78819cb` removes the redundant IAM rewrite while preserving unlimited deadline
+retry, and extends the verifier to reject either `allUsers` or
+`allAuthenticatedUsers` on that worker. Focused task and release-pipeline tests
+pass **72/72**. The refreshed candidate passes **6,097/6,097 tests across 442
+files**, **143/143** Firestore rules checks, both TypeScript builds, production
+bundle limits, lint with zero errors and the same seven recorded warnings,
+repository guidance, roadmap/dependency validation, **61/61** font checks and
+the two typography release-policy tests. No PC05 deployment or gameplay
+completion is claimed until a fresh reviewed commit passes deployment and
+ordinary production checks.
