@@ -187,6 +187,7 @@ it.each([
   ['non-player', { role: 'gm' }],
   ['disconnected player', { connected: false }],
   ['historical Captain', { replacementRoleId: 'gorgoneion-captain' }],
+  ['pending replacement Captain', { replacementStatus: 'awaiting-re-role' }],
   ['conflicting active console', { activeConsoleRoleId: 'admiral' }],
   ['replacement Captain with a core seat', { seatId: 'admiral' }],
   ['replacement Captain with missing seat authority', { seatId: undefined }],

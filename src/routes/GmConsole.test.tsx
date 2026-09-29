@@ -70,6 +70,7 @@ vi.mock('@/lib/sessionService', () => ({
 vi.mock('@/lib/firestore', () => ({
   subscribeConnectedPlayers: vi.fn(),
   subscribeSessionPlayers: vi.fn(),
+  subscribeReplacementEligibility: vi.fn(),
   subscribeGmInstances: vi.fn(),
   subscribeGmWolfAttackWindow: vi.fn(),
   subscribeGmWolfAttackPreparation: vi.fn(),
@@ -102,7 +103,7 @@ const { kickGmInstance, kickPlayer, assignRole, releaseRole, setReplacementEligi
   confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, deliverWolfCultIntelligence, authorUniversalArbourVision, authorFacilitatorRuleCall, setCandidatePlanCheckpoint, transitionCrisis, setDiseaseQuarantine, admitVoyage33, recordZealotryResponse, recordCivilUnrestResolution, applyShipCounterSteps, scavengeDestroyedShipStores, triggerDradisContact,
   setFighterWingCount } =
   await import('@/lib/sessionService');
-const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeGmWolfAssignment, subscribeGmWolfActionReceipt, subscribeGmWolfSuspicionHistory, subscribeGmWolfClueDisclosure, subscribeGmWolfCultIntelligence, subscribeGmArbourVision, subscribeGmFacilitatorRuleCall, subscribeGmCrisisState, subscribeGmZealotryResponse, subscribeGmCivilUnrestResolution, subscribeGmArrestPosseCalculation, subscribeSessionEvents, subscribeDamageDraws } =
+const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeReplacementEligibility, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeGmWolfAssignment, subscribeGmWolfActionReceipt, subscribeGmWolfSuspicionHistory, subscribeGmWolfClueDisclosure, subscribeGmWolfCultIntelligence, subscribeGmArbourVision, subscribeGmFacilitatorRuleCall, subscribeGmCrisisState, subscribeGmZealotryResponse, subscribeGmCivilUnrestResolution, subscribeGmArrestPosseCalculation, subscribeSessionEvents, subscribeDamageDraws } =
   await import('@/lib/firestore');
 const { runSmallShipMaintenance } = await import('@/lib/smallShipService');
 
@@ -153,6 +154,10 @@ beforeEach(() => {
   });
   vi.mocked(subscribeSessionPlayers).mockImplementation((_sessionId, onPlayers) => {
     onPlayers([]);
+    return vi.fn();
+  });
+  vi.mocked(subscribeReplacementEligibility).mockImplementation((_sessionId, onEntries) => {
+    onEntries([]);
     return vi.fn();
   });
   vi.mocked(subscribeDamageDraws).mockImplementation((_sessionId, onDraws) => {
@@ -1561,6 +1566,65 @@ it('offers the Gorgoneion Captain after GM docking while preserving the core ves
   const panel = await screen.findByRole('region', { name: 'Facilitator replacement roles' });
   expect(within(panel).getByRole('option', { name: /Gorgoneion Captain/i })).toBeInTheDocument();
   expect(useSessionStore.getState().session?.activeVesselIds).toEqual(['aegis']);
+});
+
+it('offers mutiny recovery only to players with a current server eligibility revision', async () => {
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    phase: 'active', currentTurn: 1, activeVesselIds: ['aegis'],
+    activeRoleIds: ['admiral', 'aegis-engineer'], expansion: 'base', capybaraEnabled: true,
+    smallShipStates: {
+      gorgoneion: {
+        id: 'gorgoneion', hostShipId: 'aegis', dockingRevision: 1,
+        population: 1_000, unrest: 8,
+        cycle: { step: 0, revision: 4, results: {}, charges: [] },
+        mutiny: { status: 'active', revision: 1, triggerUnrest: 8, triggeredAt: 'now' },
+      },
+    },
+  });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  const captain = {
+    uid: 'captain', sessionId: 's1', displayName: 'Current Captain', role: 'player' as const,
+    seatId: null, assignedRoleId: 'admiral', replacementRoleId: 'gorgoneion-captain',
+    replacementStatus: null, activeConsoleRoleId: null,
+    joinedAt: '2026-01-01T00:00:00.000Z',
+  };
+  const eligible = {
+    uid: 'eligible', sessionId: 's1', displayName: 'Eligible Player', role: 'player' as const,
+    seatId: 'aegis-engineer', assignedRoleId: 'aegis-engineer', replacementRoleId: null,
+    replacementStatus: null, activeConsoleRoleId: 'aegis-engineer',
+    joinedAt: '2026-01-01T00:01:00.000Z',
+  };
+  const unconfirmed = {
+    uid: 'unconfirmed', sessionId: 's1', displayName: 'Unconfirmed Player', role: 'player' as const,
+    seatId: 'admiral', assignedRoleId: 'admiral', replacementRoleId: null,
+    replacementStatus: null, activeConsoleRoleId: 'admiral',
+    joinedAt: '2026-01-01T00:02:00.000Z',
+  };
+  vi.mocked(subscribeSessionPlayers).mockImplementation((_sessionId, onPlayers) => {
+    onPlayers([captain, eligible, unconfirmed]);
+    return vi.fn();
+  });
+  vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
+    onPlayers([captain, eligible, unconfirmed]);
+    return vi.fn();
+  });
+  vi.mocked(subscribeReplacementEligibility).mockImplementation((_sessionId, onEntries) => {
+    onEntries([{
+      sessionId: 's1', targetUid: 'eligible', eligible: true,
+      reason: 'dead', revision: 4,
+    }]);
+    return vi.fn();
+  });
+
+  renderConsole();
+
+  const recovery = await screen.findByRole('region', { name: /Gorgoneion mutiny recovery/i });
+  expect(within(recovery).getByRole('option', { name: /Eligible Player/i })).toBeInTheDocument();
+  expect(within(recovery).queryByRole('option', { name: /Unconfirmed Player/i })).not.toBeInTheDocument();
 });
 
 it('gives the facilitator an authoritative release and reassignment path during casting', async () => {

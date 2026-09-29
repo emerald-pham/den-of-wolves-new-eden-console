@@ -214,6 +214,21 @@ it('denies the GM and historical role, and never exposes the view to another pla
   expect(mock.documents.get('sessions/s1/wolfAttackState/current')?.commanderRerollIndexes).toEqual([]);
 });
 
+it('denies a contradictory pending player that still carries the Wolf Commander replacement role', async () => {
+  await declare();
+  Object.assign(mock.documents.get('sessions/s1/players/wolf-1')!, {
+    replacementStatus: 'awaiting-re-role',
+  });
+
+  await expect(getWolfCommanderTargeting.run(request({ sessionId: 's1' }, 'wolf-1')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  await expect(applyWolfCommanderTargetRerolls.run(request({
+    sessionId: 's1', requestId: 'pending-wolf-reroll', expectedTurn: 1,
+    expectedRevision: 1, rosterIndexes: [0],
+  }, 'wolf-1'))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current')?.commanderRerollIndexes).toEqual([]);
+});
+
 it('keeps the targeting action closed after the targeting stage', async () => {
   await declare();
   mock.documents.set('sessions/s1/wolfAttackState/current', {

@@ -219,12 +219,12 @@ it('transfers a base-craft Captain replacement role and leaves the former holder
   });
   mock.documents.set('sessions/s1/replacementEligibility/new', {
     sessionId: 's1', targetUid: 'new', eligible: true, revision: 2,
-    reason: 'facilitator-confirmed',
+    reason: 'dead',
   });
   mock.documents.set('sessions/s1/roleBriefs/old', { visibleToUids: ['old'], payload: { roleId: 'gorgoneion-captain' } });
   const craftCommand = {
     ...command, shipId: 'gorgoneion', newCaptainUid: 'new', expectedRevision: 4,
-    recoveryMode: 'replacement-transfer',
+    recoveryMode: 'replacement-transfer', expectedEligibilityRevision: 2,
   };
 
   await expect(resolveShipMutiny.run(request(craftCommand))).resolves.toMatchObject({
@@ -262,6 +262,47 @@ it('transfers a base-craft Captain replacement role and leaves the former holder
   expect(mock.set).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.delete).not.toHaveBeenCalled();
+});
+
+it('binds a base-craft transfer to one positive current eligibility revision', async () => {
+  const craft = emptySmallShipState('gorgoneion', 'aegis');
+  mock.documents.set('sessions/s1', {
+    phase: 'active', currentTurn: 1, setupRevision: 4,
+    activeVesselIds: ['aegis'], expansion: 'base', capybaraEnabled: true,
+    smallShipStates: {
+      gorgoneion: {
+        ...craft, dockingRevision: 1, unrest: 8, cycle: { ...craft.cycle, revision: 4 },
+        mutiny: { status: 'active', revision: 1, triggerUnrest: 8, triggeredAt: 'first' },
+      },
+    },
+  });
+  mock.documents.set('sessions/s1/players/old', {
+    role: 'player', connected: true, assignedRoleId: 'aegis-admiral',
+    replacementRoleId: 'gorgoneion-captain', activeConsoleRoleId: null, seatId: null,
+  });
+  mock.documents.set('sessions/s1/players/new', {
+    role: 'player', connected: true, assignedRoleId: 'aegis-engineer',
+    replacementRoleId: null, activeConsoleRoleId: null, seatId: null,
+  });
+  const recovery = {
+    ...command, shipId: 'gorgoneion', newCaptainUid: 'new', expectedRevision: 4,
+    recoveryMode: 'replacement-transfer', expectedEligibilityRevision: 2,
+  };
+
+  mock.documents.set('sessions/s1/replacementEligibility/new', {
+    sessionId: 's1', targetUid: 'new', eligible: true, reason: 'dead',
+  });
+  await expect(resolveShipMutiny.run(request(recovery)))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+
+  mock.documents.set('sessions/s1/replacementEligibility/new', {
+    sessionId: 's1', targetUid: 'new', eligible: true, revision: 3,
+    reason: 'dead',
+  });
+  await expect(resolveShipMutiny.run(request({ ...recovery, requestId: 'mutiny-stale-eligibility' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
 });
 
 it('records Voyage 33-0 crew-captain attestation without granting a player role', async () => {

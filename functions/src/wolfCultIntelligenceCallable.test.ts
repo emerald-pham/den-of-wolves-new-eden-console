@@ -182,6 +182,24 @@ it('rejects non-facilitators, stale revisions, wrong agents, and malformed loyal
   expect(mock.set).not.toHaveBeenCalled();
 });
 
+it.each([
+  ['Wolf Cult recipient', 'u2'],
+  ['Wolf Agent contact', 'u3'],
+] as const)('denies delivery while the historical %s awaits a new role', async (_label, targetUid) => {
+  put(`sessions/s1/players/${targetUid}`, {
+    uid: targetUid, role: 'player', connected: true,
+    assignedRoleId: targetUid === 'u2' ? 'admiral' : 'icebreaker-miner',
+    replacementRoleId: null, replacementStatus: 'awaiting-re-role',
+    activeConsoleRoleId: null, seatId: null,
+  });
+
+  await expect(deliverWolfCultIntelligence.run(request({
+    ...baseData, requestId: `cult-awaiting-${targetUid}`,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
 
 it('clears private Wolf projections when the agent changes or the census loses a unique pair', () => {
   const tx = { set: vi.fn(), delete: vi.fn() };

@@ -141,6 +141,20 @@ it('withholds a private loyalty card and private result surface outside the curr
   expect(screen.queryByRole('dialog', { name: 'Private result' })).not.toBeInTheDocument();
 });
 
+it('withholds historical loyalty UI and subscriptions while the former captain awaits a new role', () => {
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'intelligence-agent', suspicion: 6 });
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, replacementRoleId: null,
+    replacementStatus: 'awaiting-re-role', activeConsoleRoleId: null, seatId: null,
+  });
+
+  render(<PrivateLoyaltyPanel />);
+
+  expect(screen.queryByRole('region', { name: 'Private loyalty card' })).not.toBeInTheDocument();
+  expect(subscribeConnectedPlayers).not.toHaveBeenCalled();
+  expect(subscribeIntelligenceInvestigation).not.toHaveBeenCalled();
+});
+
 it('does not offer live Wolf intelligence outside an active cycle', () => {
   prepareLivePlayer();
   useSessionStore.getState().setSession({ id: 's1', phase: 'briefing', currentTurn: 0 } as never);

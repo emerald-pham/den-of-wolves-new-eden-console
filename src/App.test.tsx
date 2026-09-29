@@ -976,6 +976,51 @@ describe('App', () => {
     unmount();
   });
 
+  it('clears historical loyalty projections and rejects late private callbacks while awaiting a new role', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    const member: Player = {
+      ...player, role: 'player', assignedRoleId: 'admiral', replacementRoleId: null,
+    };
+    const intelligence: WolfCultIntelligence = {
+      sessionId: 's1', recipientUid: 'u1', revision: 1,
+      fortressCoordinate: '4454', suppliesCoordinate: '1964',
+      agentUid: 'u3', codeWord: 'NIGHTFALL', label: 'WOLF INTEL',
+    };
+    const vision: ArbourVision = {
+      sessionId: 's1', recipientUid: 'u1', revision: 1,
+      kind: 'danger', text: 'Stored vision', label: 'FACILITATOR CALL',
+    };
+    useSessionStore.getState().setIdentity(session, member);
+    useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-cult', suspicion: 15 });
+    useSessionStore.getState().setWolfCultIntelligence(intelligence);
+    useSessionStore.getState().setArbourVision(vision);
+
+    const { unmount } = render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    act(() => handlers?.onPlayer?.({
+      ...member, replacementStatus: 'awaiting-re-role',
+      activeConsoleRoleId: null, seatId: null,
+    }));
+
+    expect(useSessionStore.getState().privateLoyalty).toBeNull();
+    expect(useSessionStore.getState().wolfCultIntelligence).toBeNull();
+    expect(useSessionStore.getState().arbourVision).toBeNull();
+
+    act(() => {
+      handlers?.onPrivateLoyalty?.({ kind: 'wolf-cult', suspicion: 15 });
+      handlers?.onWolfCultIntelligence?.(intelligence);
+      handlers?.onArbourVision?.(vision);
+    });
+    expect(useSessionStore.getState().privateLoyalty).toBeNull();
+    expect(useSessionStore.getState().wolfCultIntelligence).toBeNull();
+    expect(useSessionStore.getState().arbourVision).toBeNull();
+    unmount();
+  });
+
   it('starts and tears down the census at authoritative GM promotion and demotion', async () => {
     let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
     const censusCallbacks: Array<(next: LoyaltyCensus | null) => void> = [];

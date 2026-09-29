@@ -294,6 +294,7 @@ it.each([
   ['replaced identity with another current role', {
     player: { assignedRoleId: 'warrior-captain', replacementRoleId: 'commissar' },
   }],
+  ['pending replacement Captain', { player: { replacementStatus: 'awaiting-re-role' } }],
   ['stale seat pointer', { player: { seatId: 'warrior-captain' } }],
   ['stale core-console pointer', { player: { activeConsoleRoleId: 'warrior-captain' } }],
   ['disconnected Captain', { player: { connected: false } }],

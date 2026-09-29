@@ -10,6 +10,9 @@ const candidates = [
   { uid: 'engineer', displayName: 'Engineer', roleId: 'dione-engineer' },
   { uid: 'president', displayName: 'President', roleId: 'dione-president' },
 ];
+const replacementCandidates = [
+  { uid: 'engineer', displayName: 'Engineer', roleId: 'dione-engineer', eligibilityRevision: 4 },
+];
 
 it('keeps mutiny visible and requires a chosen new captain before GM recovery', async () => {
   render(<GmMutinyRecovery shipId="dione" shipName="Dione" unrest={8}
@@ -36,13 +39,15 @@ it('shows the current base-craft holder and transfers command only to a selected
     mode="replacement-transfer"
     currentCaptain={{ uid: 'old', displayName: 'Old Captain', roleId: 'gorgoneion-captain' }}
     mutiny={{ status: 'active', revision: 2, triggerUnrest: 8, triggeredAt: 'now' }}
-    candidates={candidates} expectedRevision={2} writable />);
+    candidates={replacementCandidates} expectedRevision={2} writable />);
 
   expect(screen.getByText(/Current captain.*Old Captain.*gorgoneion-captain/i)).toBeVisible();
   expect(screen.getByText(/replacement eligibility/i)).toBeVisible();
   await userEvent.selectOptions(screen.getByRole('combobox', { name: 'New captain' }), 'engineer');
   await userEvent.click(screen.getByRole('button', { name: 'Install replacement captain' }));
-  expect(resolve).toHaveBeenCalledWith('gorgoneion', 'engineer', 2, 2, 'replacement-transfer');
+  expect(resolve).toHaveBeenCalledWith(
+    'gorgoneion', 'engineer', 2, 2, 'replacement-transfer', 4,
+  );
 });
 
 it('records explicit Voyage 33-0 crew replacement without selecting or granting a player identity', async () => {

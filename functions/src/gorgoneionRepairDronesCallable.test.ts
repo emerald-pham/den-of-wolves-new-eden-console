@@ -235,6 +235,7 @@ it.each([
     player: { assignedRoleId: 'gorgoneion-captain', replacementRoleId: null },
   }],
   ['wrong active replacement role', { player: { replacementRoleId: 'commissar' } }],
+  ['pending replacement Captain', { player: { replacementStatus: 'awaiting-re-role' } }],
   ['replacement with an active console role', { player: { activeConsoleRoleId: 'gorgoneion-captain' } }],
   ['replacement retaining a core seat', { player: { seatId: 'warrior-captain' } }],
   ['disconnected Captain', { player: { connected: false } }],
