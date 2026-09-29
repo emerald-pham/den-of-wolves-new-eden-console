@@ -19,6 +19,16 @@ vi.mock('firebase/firestore', () => ({
   limit: vi.fn(),
   query: vi.fn(),
   where: vi.fn(),
+  Timestamp: class MockTimestamp {
+    constructor(
+      private readonly seconds: number,
+      private readonly nanoseconds: number,
+    ) {}
+
+    toDate() {
+      return new Date(this.seconds * 1_000 + this.nanoseconds / 1_000_000);
+    }
+  },
 }));
 vi.mock('firebase/functions', () => ({ httpsCallable: vi.fn() }));
 vi.mock('./firebase', () => ({ app: vi.fn(), functions: vi.fn() }));
@@ -58,7 +68,8 @@ const {
   subscribeSessionEvents,
   subscribeSessionState,
 } = await import('./firestore');
-const { doc, getDocFromServer, onSnapshot, where } = await import('firebase/firestore');
+const { doc, getDocFromServer, onSnapshot, Timestamp: FirestoreTimestamp, where } =
+  await import('firebase/firestore');
 const { httpsCallable } = await import('firebase/functions');
 
 function mockGmInstanceProjection(instances: readonly Record<string, unknown>[]) {
@@ -4459,15 +4470,63 @@ it('keeps pending re-role history but strips every stale active authority pointe
       role: 'player', displayName: 'Former Captain', connected: true,
       assignedRoleId: 'shepherd-captain', replacementRoleId: 'wolf-commander',
       replacementStatus: 'awaiting-re-role', seatId: 'shepherd-captain',
-      activeConsoleRoleId: 'shepherd-captain', lastSeenAt: '2026-09-28T22:00:00.000Z',
+      activeConsoleRoleId: 'shepherd-captain',
+      lastSeenAt: new FirestoreTimestamp(Date.parse('2026-09-28T22:00:00.000Z') / 1_000, 0),
       joinedAt: '2026-09-28T20:00:00.000Z',
     }) }],
   });
   expect(onPlayers).toHaveBeenLastCalledWith([expect.objectContaining({
     uid: 'former-captain', assignedRoleId: 'shepherd-captain',
     replacementStatus: 'awaiting-re-role', seatId: null, replacementRoleId: null,
-    activeConsoleRoleId: null, lastSeenAt: '2026-09-28T22:00:00.000Z',
+    activeConsoleRoleId: null, lastSeenAt: '2026-09-28T22:00:00.000Z', lastSeenAtValid: true,
   })]);
+});
+
+it.each([
+  ['an invalid object', { seconds: 1_800_000_000 }],
+  ['an invalid string', 'recently'],
+  ['a valid ISO string stored with the wrong type', '2026-09-28T22:00:00.000Z'],
+])('marks present GM presence %s invalid instead of treating it as legacy', (_label, lastSeenAt) => {
+  const callbacks: Array<(snapshot: unknown) => void> = [];
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, _options: unknown, callback: unknown) => {
+    callbacks.push(callback as (snapshot: unknown) => void);
+    return vi.fn();
+  }) as never);
+  const onPlayers = vi.fn();
+  subscribeSessionPlayers('gm-presence-invalid', onPlayers, vi.fn());
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    docs: [{ id: 'invalid-player', data: () => ({
+      role: 'player', displayName: 'Invalid Player', connected: true, lastSeenAt,
+    }) }],
+  });
+
+  const projected = onPlayers.mock.calls.at(-1)?.[0]?.[0];
+  expect(projected).toEqual(expect.objectContaining({
+    uid: 'invalid-player', connected: true, lastSeenAtValid: false,
+  }));
+  expect(projected).not.toHaveProperty('lastSeenAt');
+});
+
+it('keeps a truly absent GM presence timestamp eligible for legacy compatibility', () => {
+  const callbacks: Array<(snapshot: unknown) => void> = [];
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, _options: unknown, callback: unknown) => {
+    callbacks.push(callback as (snapshot: unknown) => void);
+    return vi.fn();
+  }) as never);
+  const onPlayers = vi.fn();
+  subscribeSessionPlayers('gm-presence-legacy', onPlayers, vi.fn());
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    docs: [{ id: 'legacy-player', data: () => ({
+      role: 'player', displayName: 'Legacy Player', connected: true,
+    }) }],
+  });
+
+  const projected = onPlayers.mock.calls.at(-1)?.[0]?.[0];
+  expect(projected).toEqual(expect.objectContaining({ uid: 'legacy-player', connected: true }));
+  expect(projected).not.toHaveProperty('lastSeenAt');
+  expect(projected).not.toHaveProperty('lastSeenAtValid');
 });
 
 it('fails closed after GM roster revocation or unsubscribe', () => {

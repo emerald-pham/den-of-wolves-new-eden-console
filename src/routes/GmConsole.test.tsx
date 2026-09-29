@@ -1611,21 +1611,29 @@ it('offers mutiny recovery only to players with a current server eligibility rev
     uid: 'expired', sessionId: 's1', displayName: 'Expired Player', role: 'player' as const,
     seatId: 'admiral', assignedRoleId: 'admiral', replacementRoleId: null,
     replacementStatus: null, activeConsoleRoleId: 'admiral', connected: true,
-    lastSeenAt: new Date(Date.now() - 45_001).toISOString(),
+    lastSeenAt: new Date(Date.now() - 45_001).toISOString(), lastSeenAtValid: true,
     joinedAt: '2026-01-01T00:03:00.000Z',
+  };
+  const invalidPresence = {
+    uid: 'invalid-presence', sessionId: 's1', displayName: 'Invalid Presence', role: 'player' as const,
+    seatId: 'admiral', assignedRoleId: 'admiral', replacementRoleId: null,
+    replacementStatus: null, activeConsoleRoleId: 'admiral', connected: true,
+    lastSeenAtValid: false,
+    joinedAt: '2026-01-01T00:04:00.000Z',
   };
   vi.mocked(subscribeSessionPlayers).mockImplementation((_sessionId, onPlayers) => {
     onPlayers([captain, eligible, unconfirmed]);
     return vi.fn();
   });
   vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
-    onPlayers([captain, eligible, unconfirmed, expired]);
+    onPlayers([captain, eligible, unconfirmed, expired, invalidPresence]);
     return vi.fn();
   });
   vi.mocked(subscribeReplacementEligibility).mockImplementation((_sessionId, onEntries) => {
     onEntries([
       { sessionId: 's1', targetUid: 'eligible', eligible: true, reason: 'dead', revision: 4 },
       { sessionId: 's1', targetUid: 'expired', eligible: true, reason: 'dead', revision: 5 },
+      { sessionId: 's1', targetUid: 'invalid-presence', eligible: true, reason: 'dead', revision: 6 },
     ]);
     return vi.fn();
   });
@@ -1636,6 +1644,7 @@ it('offers mutiny recovery only to players with a current server eligibility rev
   expect(within(recovery).getByRole('option', { name: /Eligible Player/i })).toBeInTheDocument();
   expect(within(recovery).queryByRole('option', { name: /Unconfirmed Player/i })).not.toBeInTheDocument();
   expect(within(recovery).queryByRole('option', { name: /Expired Player/i })).not.toBeInTheDocument();
+  expect(within(recovery).queryByRole('option', { name: /Invalid Presence/i })).not.toBeInTheDocument();
 });
 
 it('gives the facilitator an authoritative release and reassignment path during casting', async () => {
