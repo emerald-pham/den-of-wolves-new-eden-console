@@ -1448,3 +1448,29 @@ it('starts with connected unassigned observers without fabricating their role or
   expect(mock.set.mock.calls.filter(([ref]) => /\/secrets\/loyalty-/.test(ref.path))).toHaveLength(0);
   expect(mock.set.mock.calls.some(([ref]) => /\/players\//.test(ref.path))).toBe(false);
 });
+
+it('rejects a malformed preserved seat instead of dropping it from start readiness', async () => {
+  provisionProductionRoster(8);
+  const activeRoleSet = new Set(mock.session.activeRoleIds as string[]);
+  const preservedSeat = stableSeatsForRoles(recommendedRoleIds(18))
+    .find((seat) => !activeRoleSet.has(seat.roleId));
+  if (!preservedSeat) throw new Error('Expected an inactive seat fixture.');
+  mock.seatDocs.push({
+    id: preservedSeat.id,
+    fields: {
+      ...preservedSeat,
+      status: 'locked',
+      holderUid: { malformed: true },
+      claimedAt: null,
+    },
+  });
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-malformed-preserved-seat', expectedSetupRevision: 0,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/seat-documents/i),
+  });
+  expect(mock.randomInt).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});

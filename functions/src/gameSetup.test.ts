@@ -672,6 +672,37 @@ describe('start readiness', () => {
     expect(result.reasons).toContain('seat-documents');
   });
 
+  it('rejects a locked preserved seat that retains a claim timestamp', () => {
+    const activeRoleIds = [...recommendedRoleIds(8)];
+    const activeRoleSet = new Set(activeRoleIds);
+    const preservedSeats = stableSeatsForRoles(recommendedRoleIds(18))
+      .filter((seat) => !activeRoleSet.has(seat.roleId))
+      .map((seat, index) => ({
+        ...seat,
+        status: 'locked' as const,
+        holderUid: null,
+        claimedAt: index === 0 ? 'stale-claim' : null,
+      }));
+
+    const result = readinessForSetup({
+      phase: 'casting',
+      playerCount: 8,
+      connectedPlayers: [],
+      assignments: [],
+      loyaltyUids: [],
+      facilitatorResponsibilities: { main: false, assistant: false },
+      activeRoleIds,
+      activeVesselIds: activeVesselIdsForRoles(activeRoleIds),
+      seatDocuments: [...stableSeatsForRoles(activeRoleIds), ...preservedSeats],
+      playerSeatPointers: [],
+      gmInstances: [{ id: 'bridge', uid: 'gm-1', connected: true }],
+      facilitatorPlayerUids: ['gm-1'],
+    });
+
+    expect(result.ready).toBe(false);
+    expect(result.reasons).toContain('seat-documents');
+  });
+
   it('rejects a seat with corrupt canonical label or faction metadata', () => {
     const activeRoleIds = [...recommendedRoleIds(8)];
     const corePlayers = activeRoleIds.map((_roleId, index) => `u${index + 1}`);
