@@ -125,3 +125,14 @@ the original assumption; append the resolution so the decision is traceable.
 | Chosen reading | Preserve those existing one/two/three-plus distance bands as a bounded compatibility assumption. This is not a claim that the printed rules specify those numbers. Keep the server and displayed cost on the same policy; correct both together if primary evidence or owner feedback establishes another boundary. |
 | Product effect | Prompt 287 uses one authoritative classification for ordinary jumps and their fuel readout. Tests cover each boundary and the actual route; source uncertainty remains visible in the checkpoint report. This does not alter the separate Deep Nebula procedure in P551. |
 | Review state | New under standing autonomous PC05 authorization; subject to optional owner correction/cooldown. Implementation and ordinary gameplay proof remain required. |
+
+### PC05-A6 — Resolve the optional pursuit-ten emergency before final failure
+
+| Field | Record |
+|---|---|
+| ID and milestone | PC05-A6; gameplay completion, Prompt 300 and pursuit lifecycle. |
+| Source passage | Facilitator Guide v1.1, printed p. 16, Emergency Jump: reaching pursuit ten permits an optional facilitator offer of an emergency jump, once per game per ship, regardless of fuel or drive charge. |
+| Ambiguity and alternatives | The paper procedure leaves the timing of the optional offer to the facilitator. Immediate irreversible digital failure prevents that choice; letting a ship move after final failure without resolving the outcome does not provide a useful escape. |
+| Chosen reading | At the pursuit-ten transition, persist a server-owned decision window before final failure. Suspend unrelated fresh gameplay. An active facilitator explicitly offers the emergency opportunity or declines it; decline commits the existing pursuit-limit outcome. Offered emergency moves retain all printed costs and once-per-game limits. Existing navigation and pursuit rules determine whether any groups remain at the limit and whether play can resume; add no special pursuit reduction. Provide a deterministic terminal path when no eligible vessel remains. This decision-window representation is a digital product inference. |
+| Product effect | The GM decision and each ship operation need exact authority, revision and replay binding, visible waiting/decision controls, and no stranded window. Successful escape must be evaluated before a permanent outcome, rather than preserving failure regardless of movement. |
+| Review state | New under standing autonomous PC05 authorization; implementation, independent review and ordinary gameplay proof remain required. Subject to optional owner correction/cooldown. |
