@@ -385,3 +385,12 @@ selector tests pass**. The receipt must be re-audited after the outstanding
 captain-authority repairs; local selector success is not deployment evidence.
 All 49 assigned IDs now have partial implementation records. None is marked
 done; the global catalog remains **458/751 done**, with 84 partial and 209 missing.
+
+The last successful deployment job is GitHub Actions run `36466514603`,
+at `0ba386f50689b375153ceee3b2eb11a9ecd19435`. Later successful workflow runs
+through `7782840d` skipped their deployment jobs, so they are not deployment
+baselines. The named-target preflight from that actual deployed revision to
+`bb1f524c` passes and selects Hosting, Firestore and the audited Functions.
+The baseline's index and request guards match the current-main versions used
+by the transition audit. This is release preparation only; the candidate has
+not been deployed, and the receipt must be refreshed after authority repairs.
