@@ -140,7 +140,9 @@ const ACTIVE_PLAYER_PRESENCE_LEASE_MS = 45_000;
 /** Mirrors Functions isActivePlayer for the server-backed GM roster projection. */
 function isCurrentActivePlayer(player: Player, now = Date.now()): boolean {
   if (player.connected !== true) return false;
+  if (player.lastSeenAtValid === false) return false;
   if (player.lastSeenAt === undefined) return true;
+  if (player.lastSeenAtValid !== true) return false;
   const seenAt = Date.parse(player.lastSeenAt);
   return Number.isFinite(seenAt) && now - seenAt < ACTIVE_PLAYER_PRESENCE_LEASE_MS;
 }
@@ -779,7 +781,7 @@ export default function GmConsole() {
   const wolfConsoleEligibleAt = Date.parse(wolfConsoleVisit?.eligibleAt ?? '');
   const wolfConsoleExpiresAt = Date.parse(wolfConsoleVisit?.expiresAt ?? '');
   const activePlayerExpiryUpdates = connectedPlayers.flatMap((player) => {
-    if (player.lastSeenAt === undefined) return [];
+    if (player.lastSeenAt === undefined || player.lastSeenAtValid !== true) return [];
     const seenAt = Date.parse(player.lastSeenAt);
     return Number.isFinite(seenAt) ? [seenAt + ACTIVE_PLAYER_PRESENCE_LEASE_MS] : [];
   });

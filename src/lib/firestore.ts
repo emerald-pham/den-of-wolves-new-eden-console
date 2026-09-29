@@ -8,6 +8,7 @@ import {
   orderBy,
   limit,
   query,
+  Timestamp as FirestoreTimestamp,
   where,
   type DocumentData,
   type Unsubscribe,
@@ -2942,7 +2943,11 @@ function playerFrom(
     (data.connectionGeneration as number) >= 1
     ? data.connectionGeneration as number
     : undefined;
-  const parsedLastSeenAt = optionalIso(data.lastSeenAt);
+  const lastSeenAtPresent = data.lastSeenAt !== undefined;
+  const parsedLastSeenAt = data.lastSeenAt instanceof FirestoreTimestamp
+    ? optionalIso(data.lastSeenAt)
+    : undefined;
+  const parsedLastSeenAtValid = lastSeenAtPresent && parsedLastSeenAt !== undefined;
   const parsedEscapeState = data.escapeState && typeof data.escapeState === 'object' &&
     !Array.isArray(data.escapeState) &&
     (data.escapeState.status === 'pending' || data.escapeState.status === 'fled') &&
@@ -2976,7 +2981,12 @@ function playerFrom(
     ...(parsedEscapeState?.shipId && parsedEscapeState.destructionEventId
       ? { escapeState: parsedEscapeState as PlayerEscapeState } : {}),
     ...(typeof data.connected === 'boolean' ? { connected: data.connected } : {}),
-    ...(includeLastSeenAt && parsedLastSeenAt !== undefined ? { lastSeenAt: parsedLastSeenAt } : {}),
+    ...(includeLastSeenAt && lastSeenAtPresent
+      ? { lastSeenAtValid: parsedLastSeenAtValid }
+      : {}),
+    ...(includeLastSeenAt && parsedLastSeenAtValid
+      ? { lastSeenAt: parsedLastSeenAt }
+      : {}),
     ...(parsedConnectionGeneration === undefined ? {} : {
       connectionGeneration: parsedConnectionGeneration,
     }),

@@ -1624,6 +1624,8 @@ export interface Player {
   readonly connected?: boolean;
   /** Current server heartbeat used by GM-only active-player choices. */
   readonly lastSeenAt?: Timestamp;
+  /** True only when the GM roster parsed lastSeenAt from a Firestore Timestamp. */
+  readonly lastSeenAtValid?: boolean;
   /** Monotonic server-owned connection identity used to reject stale cleanup. */
   readonly connectionGeneration?: number;
   /** Nonbinding casting preference; it never grants a role or vessel. */
