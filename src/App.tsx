@@ -263,6 +263,12 @@ function AppRoutes() {
     let playerProjectionFresh = false;
     let pendingPlayerDiscovery: PlayerDiscoveryProjection | null | undefined;
     let retainedGroupCandidateProjection: CurrentGroupCandidateRevealProjection | undefined;
+    const invalidatePendingStationReleaseFreshness = () => {
+      const pending = pendingStationRelease.current;
+      if (pending?.sessionId === sessionId && pending.playerUid === playerUid) {
+        pendingStationRelease.current = { ...pending, playerProjectionFresh: false };
+      }
+    };
     const hideCurrentGroupCandidateReveals = () => {
       const store = useSessionStore.getState();
       const current = store.session;
@@ -360,6 +366,7 @@ function AppRoutes() {
       const isFresh = state.connection === 'live' && state.sessionSnapshotFreshness === 'server';
       if (!wasFresh || isFresh) return;
       playerProjectionFresh = false;
+      invalidatePendingStationReleaseFreshness();
       clearCurrentGroupCandidateReveals();
     });
     let subscribeLoyaltyCensusFn: (
@@ -553,7 +560,10 @@ function AppRoutes() {
           const store = useSessionStore.getState();
           store.setConnection(fresh ? 'live' : 'offline');
           store.setSessionSnapshotFreshness(fresh ? 'server' : 'cache');
-          if (!fresh) clearCurrentGroupCandidateReveals();
+          if (!fresh) {
+            invalidatePendingStationReleaseFreshness();
+            clearCurrentGroupCandidateReveals();
+          }
           else {
             applyPendingPlayerDiscovery();
             restoreRetainedGroupCandidateProjection();
@@ -929,6 +939,7 @@ function AppRoutes() {
         onError: () => {
           if (!callbackCurrent()) return;
           playerProjectionFresh = false;
+          invalidatePendingStationReleaseFreshness();
           clearCurrentGroupCandidateReveals();
           const store = useSessionStore.getState();
           store.setSessionSnapshotFreshness('cache');
