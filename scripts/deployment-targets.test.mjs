@@ -1496,7 +1496,9 @@ test('maps the exact PC05 jump request contract and rejects an unrelated guard e
     files: ['functions/src/requestGuards.ts'], targets: ['functions'], isAncestor: () => false,
     sourceAtRevision: (revision) => revision === 'base' ? beforeSource : source,
   });
-  assert.deepEqual(selectedFunctions(select(afterSource)), functionTargets(['jumpShip', 'listUnresolvedJumpFailures', 'adjudicateFailedJump']));
+  assert.deepEqual(selectedFunctions(select(afterSource)), functionTargets([
+    'advanceTurn', 'jumpShip', 'listUnresolvedJumpFailures', 'adjudicateFailedJump',
+  ]));
   assert.throws(() => select(afterSource + '// unrelated guard change\n'), /Cannot safely map request-guard changes/);
 });
 
@@ -1529,7 +1531,17 @@ test('includes unchanged callable bodies affected by PC05 index-local authority 
   const selected = deploymentSelector({ before, after, files: ['functions/src/index.ts'], targets: ['functions'] }).split(',');
   for (const name of ['transferShuttleCargoCommand', 'recycleWithBoa', 'requestShuttleDeparture',
     'beginShuttleTransit', 'retargetShuttleTransit', 'publishPressDispatch', 'dismissPressDispatch',
-    'getWolfCommanderTargeting', 'applyWolfCommanderTargetRerolls', 'finishWolfCommanderTargetingRerolls']) {
+    'getWolfCommanderTargeting', 'applyWolfCommanderTargetRerolls', 'finishWolfCommanderTargetingRerolls',
+    'startGame', 'setReplacementEligibility', 'assignReplacementRole', 'setFacilitatorCensusNote',
+    'calculateArrestPosse', 'deliverWolfCultIntelligence', 'transitionCrisis', 'setDiseaseQuarantine',
+    'recordZealotryResponse', 'recordCivilUnrestResolution', 'submitCivilUnrestGrievance',
+    'authorArbourVision', 'authorFacilitatorRuleCall', 'setCandidatePlanCheckpoint', 'revealAndroidProof',
+    'triggerDradisContact', 'setPressEnabled', 'setGmControlsLocked', 'advanceTurn',
+    'startSinglePlayerDemo', 'replayTurnStartAnnouncement', 'beginOpenAirspacePhase',
+    'extendAirspaceWindow', 'setEmergencyTimerPaused', 'declareWolfAttack',
+    'advanceWolfAttackToLongRange', 'startWolfConsoleVisit', 'resolveWolfConsoleSabotage',
+    'submitWolfSupplySabotage', 'submitWolfHomingBeacon', 'submitWolfIntelligence',
+    'investigateAsIntelligenceAgent', 'fleeDestroyedShip', 'rollDice']) {
     assert.ok(selected.includes(`functions:${name}`), `${name} consumes a changed shared authority helper`);
   }
 });
