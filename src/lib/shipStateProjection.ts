@@ -126,10 +126,16 @@ function jumpState(value: unknown): ShipJumpState | undefined {
   if (!raw) return undefined;
   const lastJumpTurn = nonNegativeInteger(raw.lastJumpTurn);
   const integrityLockedUntil = optionalString(raw.integrityLockedUntil);
-  if (lastJumpTurn === undefined && integrityLockedUntil === undefined) return undefined;
+  const emergencyJumpUsed = typeof raw.emergencyJumpUsed === 'boolean' ? raw.emergencyJumpUsed : undefined;
+  const lastFailureRequestId = typeof raw.lastFailureRequestId === 'string' && raw.lastFailureRequestId.length > 0
+    ? raw.lastFailureRequestId : undefined;
+  if (lastJumpTurn === undefined && integrityLockedUntil === undefined &&
+      emergencyJumpUsed === undefined && lastFailureRequestId === undefined) return undefined;
   return {
     ...(lastJumpTurn === undefined ? {} : { lastJumpTurn }),
     ...(integrityLockedUntil === undefined ? {} : { integrityLockedUntil }),
+    ...(emergencyJumpUsed === undefined ? {} : { emergencyJumpUsed }),
+    ...(lastFailureRequestId === undefined ? {} : { lastFailureRequestId }),
   };
 }
 

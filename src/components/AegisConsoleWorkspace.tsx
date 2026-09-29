@@ -54,6 +54,11 @@ function SystemCard({
   readonly consoleLocked: boolean;
   readonly integrityLockedUntil?: string | undefined;
 }) {
+  const session = useSessionStore((state) => state.session);
+  const jumpState = session?.shipJumpStates?.aegis;
+  const pursuitValue = session?.playerDiscovery?.shipId === 'aegis'
+    ? session.playerDiscovery.pursuitValue
+    : session?.pursuitGroups?.[session.shipFleetGroupIds?.aegis ?? ''];
   return (
     <article
       className="aegis-system cic-frame"
@@ -81,6 +86,11 @@ function SystemCard({
         upgraded={upgraded}
         consoleLocked={consoleLocked}
         integrityLockedUntil={integrityLockedUntil}
+        emergencyJumpUsed={jumpState?.emergencyJumpUsed ?? false}
+        {...(jumpState?.lastFailureRequestId
+          ? { lastFailureRequestId: jumpState.lastFailureRequestId } : {})}
+        {...(pursuitValue === undefined ? {} : { pursuitValue })}
+        pursuitEmergencyWindowStatus={session?.pursuitEmergencyWindow?.status}
       />}
       <dl>
         <div className="aegis-system__condition">

@@ -34,6 +34,7 @@ import type {
   ArbourVision,
   SessionPhase,
   CommissarPurgeAuthority,
+  PursuitEmergencyWindow,
 } from '@/types/game';
 import { parseEntityId } from '@/types/identifiers';
 import { AEGIS_FIGHTER_WING_CAPACITY } from '@/data/aegisConsoles';
@@ -3250,6 +3251,16 @@ export interface JumpShipReply extends Partial<VesselActionEnvelope> {
   readonly currentRevision?: number;
   readonly state?: ShipJumpState;
   readonly transition?: ShipJumpTransition;
+  readonly pursuitEmergencyWindow?: PursuitEmergencyWindow;
+  readonly pursuitEmergencyWindowCleared?: boolean;
+  readonly phase?: GameSession['phase'];
+  readonly gameOutcome?: GameSession['gameOutcome'];
+}
+
+function withoutPursuitEmergencyWindow<T extends object>(session: T): Omit<T, 'pursuitEmergencyWindow'> {
+  const projected = { ...session } as T & { pursuitEmergencyWindow?: PursuitEmergencyWindow };
+  delete projected.pursuitEmergencyWindow;
+  return projected as Omit<T, 'pursuitEmergencyWindow'>;
 }
 
 export interface JumpShipAttempt {
@@ -3334,6 +3345,10 @@ export interface FailedJumpAdjudicationReply extends Partial<VesselActionEnvelop
   readonly state?: ShipJumpState;
   readonly transition?: ShipJumpTransition;
   readonly currentRevision?: number;
+  readonly pursuitEmergencyWindow?: PursuitEmergencyWindow;
+  readonly pursuitEmergencyWindowCleared?: boolean;
+  readonly phase?: GameSession['phase'];
+  readonly gameOutcome?: GameSession['gameOutcome'];
 }
 
 function requireFailedJumpSummary(value: unknown): FailedJumpSummary {
@@ -3445,9 +3460,13 @@ export async function adjudicateFailedJump(
       if (reply.shipId !== attempt.shipId || reply.destination !== attempt.destination) {
         throw new Error('The server returned an adjudication for a different jump.');
       }
+      const localRevision = current.vesselActionRevisions?.[attempt.shipId] ?? 0;
+      if (!Number.isSafeInteger(reply.revision) || (reply.revision as number) < localRevision) {
+        return reply;
+      }
       const resource = current.shipResources?.[attempt.shipId];
       const normalizedResource = resource ? resourcesForShip(attempt.shipId, current.shipResources) : undefined;
-      useSessionStore.getState().setSession({
+      const nextSession: GameSession = {
         ...current,
         shipGalacticCoordinates: {
           ...current.shipGalacticCoordinates,
@@ -3462,11 +3481,27 @@ export async function adjudicateFailedJump(
         ...(reply.damage ? { shipDamage: { ...(current.shipDamage ?? {}), [attempt.shipId]: reply.damage } } : {}),
         ...(reply.state ? { shipJumpStates: { ...current.shipJumpStates, [attempt.shipId]: reply.state } } : {}),
         ...(reply.transition ? { shipJumpTransitions: { ...current.shipJumpTransitions, [attempt.shipId]: reply.transition } } : {}),
+        ...(reply.pursuitEmergencyWindow ? { pursuitEmergencyWindow: reply.pursuitEmergencyWindow } : {}),
         vesselActionRevisions: {
           ...(current.vesselActionRevisions ?? {}),
           ...(reply.revision === undefined ? {} : { [attempt.shipId]: reply.revision }),
         },
-      });
+      };
+      const projectedSession: GameSession = reply.pursuitEmergencyWindowCleared
+        ? withoutPursuitEmergencyWindow(nextSession) as GameSession
+        : nextSession;
+      if (reply.phase === 'failure') {
+        const terminalSession = {
+          ...withoutPursuitEmergencyWindow(projectedSession), phase: 'failure' as const,
+          ...(reply.gameOutcome ? { gameOutcome: reply.gameOutcome } : {}),
+        };
+        delete terminalSession.turnPhase;
+        delete terminalSession.turnState;
+        delete terminalSession.turnStartAnnouncement;
+        useSessionStore.getState().setSession(terminalSession);
+      } else {
+        useSessionStore.getState().setSession(projectedSession);
+      }
     }
     return reply;
   } catch (cause) {
@@ -3513,6 +3548,10 @@ export async function jumpShip(attempt: JumpShipAttempt): Promise<JumpShipReply>
         recordStaleAuthorityReply();
         return reply;
       }
+      const localRevision = current.vesselActionRevisions?.[attempt.shipId] ?? 0;
+      if (!Number.isSafeInteger(reply.revision) || (reply.revision as number) < localRevision) {
+        return reply;
+      }
       const currentResource = current.shipResources?.[attempt.shipId];
       const normalizedResource = currentResource
         ? resourcesForShip(attempt.shipId, current.shipResources)
@@ -3540,12 +3579,27 @@ export async function jumpShip(attempt: JumpShipAttempt): Promise<JumpShipReply>
         ...(reply.transition ? {
           shipJumpTransitions: { ...current.shipJumpTransitions, [attempt.shipId]: reply.transition },
         } : {}),
+        ...(reply.pursuitEmergencyWindow ? { pursuitEmergencyWindow: reply.pursuitEmergencyWindow } : {}),
         vesselActionRevisions: {
           ...(current.vesselActionRevisions ?? {}),
           ...(reply.revision === undefined ? {} : { [attempt.shipId]: reply.revision }),
         },
       };
-      useSessionStore.getState().setSession(nextSession);
+      const projectedSession: GameSession = reply.pursuitEmergencyWindowCleared
+        ? withoutPursuitEmergencyWindow(nextSession) as GameSession
+        : nextSession;
+      if (reply.phase === 'failure') {
+        const terminalSession = {
+          ...withoutPursuitEmergencyWindow(projectedSession), phase: 'failure' as const,
+          ...(reply.gameOutcome ? { gameOutcome: reply.gameOutcome } : {}),
+        };
+        delete terminalSession.turnPhase;
+        delete terminalSession.turnState;
+        delete terminalSession.turnStartAnnouncement;
+        useSessionStore.getState().setSession(terminalSession);
+      } else {
+        useSessionStore.getState().setSession(projectedSession);
+      }
     }
     return reply;
   } catch (cause) {
@@ -3597,6 +3651,8 @@ interface TurnAdvanceReply {
   readonly turnPhase?: unknown;
   readonly maintenanceCycles?: GameSession['maintenanceCycles'];
   readonly shuttleFuelled?: GameSession['shuttleFuelled'];
+  readonly pursuitEmergencyWindow?: PursuitEmergencyWindow;
+  readonly pursuitEmergencyWindowCleared?: boolean;
 }
 
 export interface StartGameReceiptReply extends TurnAdvanceReply {
@@ -3979,7 +4035,7 @@ function applyTurnAdvanceReply(
     delete terminalSession.turnPhase;
     delete terminalSession.turnState;
     delete terminalSession.turnStartAnnouncement;
-    useSessionStore.getState().setSession(terminalSession);
+    useSessionStore.getState().setSession(withoutPursuitEmergencyWindow(terminalSession) as GameSession);
     return;
   }
   const turnState = turnStateForPhaseContext(
@@ -3998,24 +4054,34 @@ function applyTurnAdvanceReply(
     ...(reply.shuttleFuelled
       ? { shuttleFuelled: reply.shuttleFuelled }
       : {}),
+    ...(reply.pursuitEmergencyWindow ? { pursuitEmergencyWindow: reply.pursuitEmergencyWindow } : {}),
   };
+  const projectedSession: GameSession = reply.pursuitEmergencyWindowCleared
+    ? withoutPursuitEmergencyWindow(nextSession) as GameSession
+    : nextSession;
   if (skipTurnStartAnnouncement) delete nextSession.turnStartAnnouncement;
   // An accepted transition with no valid phase must not carry an entity from
   // the previous turn forward. A valid phase below replaces this projection
   // with the context-checked reply entity when one is present.
   delete nextSession.turnState;
   useSessionStore.getState().setSession(
-    phaseClock ? replaceTurnStateOnPhase(nextSession, phaseClock, turnState) : nextSession,
+    phaseClock ? replaceTurnStateOnPhase(projectedSession, phaseClock, turnState) : projectedSession,
   );
 }
 
 export async function advanceTurn({
   overridePhaseTimer = false,
   skipTurnStartAnnouncement = false,
+  expectedTurn: expectedTurnOverride,
+  pursuitEmergencyDecision,
+  expectedPursuitNavigationRevision,
   requestId = commandId(),
 }: {
   readonly overridePhaseTimer?: boolean;
   readonly skipTurnStartAnnouncement?: boolean;
+  readonly expectedTurn?: number;
+  readonly pursuitEmergencyDecision?: 'offer' | 'decline';
+  readonly expectedPursuitNavigationRevision?: number;
   /** Reuse the same id after an ambiguous transport failure. */
   readonly requestId?: string;
 } = {}): Promise<void> {
@@ -4023,7 +4089,7 @@ export async function advanceTurn({
   if (!store.session || !store.gmInstance) throw new Error('Claim GM before advancing the cycle.');
   requireFreshSessionAuthority();
   await ensureSignedIn();
-  const expectedTurn = store.session.currentTurn ?? 1;
+  const expectedTurn = expectedTurnOverride ?? store.session.currentTurn ?? 1;
   const checkpoint = sessionAuthorityCheckpoint(
     store.session.id,
     sessionAuthorityUid(store),
@@ -4036,6 +4102,8 @@ export async function advanceTurn({
       expectedTurn: number;
       overridePhaseTimer?: boolean;
       skipTurnStartAnnouncement?: boolean;
+      pursuitEmergencyDecision?: 'offer' | 'decline';
+      expectedPursuitNavigationRevision?: number;
     },
     TurnAdvanceReply
   >(functions(), 'advanceTurn');
@@ -4047,6 +4115,8 @@ export async function advanceTurn({
       expectedTurn,
       ...(overridePhaseTimer ? { overridePhaseTimer: true } : {}),
       ...(skipTurnStartAnnouncement ? { skipTurnStartAnnouncement: true } : {}),
+      ...(pursuitEmergencyDecision ? { pursuitEmergencyDecision } : {}),
+      ...(expectedPursuitNavigationRevision === undefined ? {} : { expectedPursuitNavigationRevision }),
     });
     applyTurnAdvanceReply(store.session.id, reply.data, skipTurnStartAnnouncement, checkpoint);
   } catch (cause) {

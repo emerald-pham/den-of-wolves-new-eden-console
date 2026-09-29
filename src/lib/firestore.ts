@@ -2494,10 +2494,9 @@ function shipJumpStates(value: unknown): ShipJumpStates {
         ? { lastJumpTurn: raw.lastJumpTurn }
         : {}),
       ...(integrityLockedUntil ? { integrityLockedUntil } : {}),
-      ...(raw.emergencyJumpUsed === true ? { emergencyJumpUsed: true } : {}),
+      ...(typeof raw.emergencyJumpUsed === 'boolean' ? { emergencyJumpUsed: raw.emergencyJumpUsed } : {}),
       ...(typeof raw.lastFailureRequestId === 'string' && raw.lastFailureRequestId.length > 0
-        ? { lastFailureRequestId: raw.lastFailureRequestId }
-        : {}),
+        ? { lastFailureRequestId: raw.lastFailureRequestId } : {}),
     }];
   })) as ShipJumpStates;
 }
@@ -2542,6 +2541,31 @@ function pursuitGroups(value: unknown): Readonly<Record<string, number>> {
     }
   }
   return result;
+}
+
+function pursuitEmergencyWindow(value: unknown): GameSession['pursuitEmergencyWindow'] {
+  const raw = recordValue(value);
+  const cycle = nonNegativeInteger(raw?.cycle);
+  const navigationRevision = nonNegativeInteger(raw?.navigationRevision);
+  if (!raw || Object.keys(raw).length !== 6 ||
+      !Object.keys(raw).every((key) => [
+        'type', 'status', 'cycle', 'navigationRevision', 'groupIds', 'openedAt',
+      ].includes(key)) || raw.type !== 'pursuit-emergency-window' ||
+      (raw.status !== 'awaiting-gm-decision' && raw.status !== 'offered') ||
+      cycle === undefined || cycle < 1 || navigationRevision === undefined ||
+      !Array.isArray(raw.groupIds) || raw.groupIds.length === 0 ||
+      !raw.groupIds.every((groupId) => typeof groupId === 'string' &&
+        parseEntityId('group', groupId) !== undefined) ||
+      new Set(raw.groupIds).size !== raw.groupIds.length ||
+      typeof raw.openedAt !== 'string' || !Number.isFinite(Date.parse(raw.openedAt))) return undefined;
+  return {
+    type: 'pursuit-emergency-window',
+    status: raw.status,
+    cycle,
+    navigationRevision,
+    groupIds: raw.groupIds as NonNullable<GameSession['pursuitEmergencyWindow']>['groupIds'],
+    openedAt: raw.openedAt,
+  };
 }
 
 function sessionSetup(value: unknown): SessionSetup | undefined {
@@ -2800,6 +2824,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     playerCount,
     Object.keys(retained),
   );
+  const emergencyWindow = pursuitEmergencyWindow(data.pursuitEmergencyWindow);
   return {
     id: sessionId,
     name: data.name as string,
@@ -2828,6 +2853,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     ...(announcement ? { turnStartAnnouncement: announcement } : {}),
     ...(phaseClock ? { turnPhase: phaseClock } : {}),
     ...(turnState ? { turnState } : {}),
+    ...(emergencyWindow ? { pursuitEmergencyWindow: emergencyWindow } : {}),
     ...(gameOutcome ? { gameOutcome } : {}),
     ...(survivorOutcome ? { survivorOutcome } : {}),
     capybaraEnabled: data.capybaraEnabled !== false,

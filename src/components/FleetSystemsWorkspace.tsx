@@ -107,6 +107,7 @@ export default function FleetSystemsWorkspace({
             ? session.playerDiscovery.pursuitValue
             : session?.pursuitGroups?.[session.shipFleetGroupIds?.[ship.id] ?? ''] }
           : {})}
+        pursuitEmergencyWindowStatus={session?.pursuitEmergencyWindow?.status}
       />}
       <dl><div className="aegis-system__condition">
         <dt>Condition</dt><dd>{damaged ? 'Damaged' : 'Operational'}</dd>

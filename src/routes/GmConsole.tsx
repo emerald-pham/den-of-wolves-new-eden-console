@@ -12,6 +12,7 @@ import SmallShipOperations from '@/components/SmallShipOperations';
 import { GmSetupChecklist } from '@/components/GmSetupChecklist';
 import PursuitTracker from '@/components/PursuitTracker';
 import JumpFailureAdjudicationPanel from '@/components/JumpFailureAdjudicationPanel';
+import PursuitEmergencyWindowPanel from '@/components/PursuitEmergencyWindowPanel';
 import LiveChangeRegion from '@/components/LiveChangeRegion';
 import DecisionAttribution from '@/components/DecisionAttribution';
 import RoleConsoleTemplate from '@/components/RoleConsoleTemplate';
@@ -5154,6 +5155,10 @@ export default function GmConsole() {
             isGm && local && session?.phase === 'active' &&
             sessionSnapshotFreshness === 'server' && connection === 'live',
           )} />
+          <PursuitEmergencyWindowPanel active={Boolean(
+            isGm && local && session?.phase === 'active' &&
+            sessionSnapshotFreshness === 'server' && connection === 'live',
+          )} window={session?.pursuitEmergencyWindow} />
 
       </aside>
       {pendingCapybaraEnabled !== null && (

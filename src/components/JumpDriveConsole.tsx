@@ -27,6 +27,7 @@ interface Props {
   readonly emergencyJumpUsed?: boolean | undefined;
   readonly lastFailureRequestId?: string | undefined;
   readonly pursuitValue?: number | undefined;
+  readonly pursuitEmergencyWindowStatus?: 'awaiting-gm-decision' | 'offered' | undefined;
   readonly presentationOnly?: boolean | undefined;
 }
 
@@ -71,6 +72,7 @@ export default function JumpDriveConsole({
   emergencyJumpUsed = false,
   lastFailureRequestId,
   pursuitValue,
+  pursuitEmergencyWindowStatus,
   presentationOnly = false,
 }: Props) {
   const access = useConsoleAccess();
@@ -118,8 +120,10 @@ export default function JumpDriveConsole({
   }, [effectiveLockout, lockoutActive, clock]);
 
   const blocked = !presentationOnly && (!access.writable || consoleLocked);
-  const emergencyAvailable = !emergencyJumpUsed &&
-    ((pursuitValue ?? 0) >= 10 || Boolean(lastFailureRequestId));
+  const exactEmergencyRetry = attempt?.emergency === true;
+  const emergencyAvailable = exactEmergencyRetry || (!emergencyJumpUsed &&
+    ((pursuitValue !== undefined && pursuitValue >= 10 && pursuitEmergencyWindowStatus === 'offered') ||
+      Boolean(lastFailureRequestId)));
   const disabled = blocked || pending || (lockoutActive && !attempt);
   const editingDisabled = presentationOnly ? pending : blocked || pending || attempt !== null ||
     (lockoutActive && !emergencyAvailable);
@@ -187,6 +191,12 @@ export default function JumpDriveConsole({
       {presentationOnly && (
         <p className="jump-drive__notice" role="status">
           PRESENTATION PREVIEW // LOCAL CONTROLS ONLY // JUMP COMMANDS ARE DISABLED
+        </p>
+      )}
+
+      {pursuitEmergencyWindowStatus === 'awaiting-gm-decision' && !exactEmergencyRetry && (
+        <p className="jump-drive__notice" role="status" aria-label="Pursuit emergency decision">
+          Pursuit emergency // waiting for the facilitator to offer an emergency jump.
         </p>
       )}
 
