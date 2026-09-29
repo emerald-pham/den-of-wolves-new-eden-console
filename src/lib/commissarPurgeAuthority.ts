@@ -5,7 +5,8 @@ export function commissarPurgeAuthorityIsCurrent(
   session: GameSession | null,
   player: Player | null,
 ): boolean {
-  if (!session || !player || authority.sessionId !== session.id || player.role !== 'player') return false;
+  if (!session || !player || authority.sessionId !== session.id || player.role !== 'player' ||
+      player.replacementStatus != null) return false;
   if (authority.role === 'commissar') {
     return player.replacementRoleId === 'commissar' && player.activeConsoleRoleId === null;
   }

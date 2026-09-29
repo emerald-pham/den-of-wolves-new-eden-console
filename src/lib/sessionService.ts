@@ -380,7 +380,8 @@ function wolfCommanderAuthorityCheckpointIsCurrent(
 ): boolean {
   const store = useSessionStore.getState();
   return store.session?.id === sessionId && store.me?.sessionId === sessionId &&
-    store.me?.replacementRoleId === 'wolf-commander' && authorityCheckpointIsCurrent(checkpoint);
+    store.me?.replacementRoleId === 'wolf-commander' && store.me.replacementStatus == null &&
+    authorityCheckpointIsCurrent(checkpoint);
 }
 
 function aegisExecutiveOfficerAuthorityCheckpointIsCurrent(
@@ -1813,7 +1814,8 @@ function commissarPurgeAuthorityReply(
 
 export async function refreshCommissarPurgeAuthority(): Promise<CommissarPurgeAuthority | null> {
   const before = useSessionStore.getState();
-  if (!before.session || !before.me || before.me.role !== 'player') return null;
+  if (!before.session || !before.me || before.me.role !== 'player' ||
+      before.me.replacementStatus != null) return null;
   requireFreshSessionAuthority();
   const sessionId = before.session.id;
   const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(before));
@@ -5025,7 +5027,8 @@ export async function launchPdfEscortWing(
 /** Read the server-filtered targeting projection for the active Wolf Commander. */
 export async function getWolfCommanderTargeting(): Promise<WolfCommanderTargetingReadResult> {
   const store = useSessionStore.getState();
-  if (!store.session || !store.me || store.me.replacementRoleId !== 'wolf-commander') {
+  if (!store.session || !store.me || store.me.replacementRoleId !== 'wolf-commander' ||
+      store.me.replacementStatus != null) {
     throw new Error('Only the active Wolf Commander may read targeting dice.');
   }
   requireFreshSessionAuthority('Reconnect before reading Wolf targeting dice.');
@@ -5057,7 +5060,8 @@ export async function applyWolfCommanderTargetRerolls(
   rosterIndexes: readonly number[],
 ): Promise<WolfCommanderTargetRerollResult> {
   const store = useSessionStore.getState();
-  if (!store.session || !store.me || store.me.replacementRoleId !== 'wolf-commander') {
+  if (!store.session || !store.me || store.me.replacementRoleId !== 'wolf-commander' ||
+      store.me.replacementStatus != null) {
     throw new Error('Only the active Wolf Commander may reroll targeting dice.');
   }
   requireFreshSessionAuthority('Reconnect before rerolling Wolf targeting dice.');
@@ -5094,7 +5098,8 @@ export async function finishWolfCommanderTargetingRerolls(
   expectedRevision: number,
 ): Promise<WolfCommanderTargetingFinishResult> {
   const store = useSessionStore.getState();
-  if (!store.session || !store.me || store.me.replacementRoleId !== 'wolf-commander') {
+  if (!store.session || !store.me || store.me.replacementRoleId !== 'wolf-commander' ||
+      store.me.replacementStatus != null) {
     throw new Error('Only the active Wolf Commander may finish targeting rerolls.');
   }
   requireFreshSessionAuthority('Reconnect before finishing Wolf targeting rerolls.');

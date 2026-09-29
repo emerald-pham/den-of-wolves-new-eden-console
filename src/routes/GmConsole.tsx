@@ -117,6 +117,7 @@ import type {
   ArbourVision,
   FacilitatorRuleCall,
 } from '@/types/game';
+
 import {
   CRISIS_KINDS,
   CRISIS_KIND_LABELS,
@@ -133,6 +134,16 @@ import {
   REPLACEMENT_ROLE_CATALOG,
   replacementRoleAvailableForSession,
 } from '@/data/replacementRoles';
+
+const ACTIVE_PLAYER_PRESENCE_LEASE_MS = 45_000;
+
+/** Mirrors Functions isActivePlayer for the server-backed GM roster projection. */
+function isCurrentActivePlayer(player: Player, now = Date.now()): boolean {
+  if (player.connected !== true) return false;
+  if (player.lastSeenAt === undefined) return true;
+  const seenAt = Date.parse(player.lastSeenAt);
+  return Number.isFinite(seenAt) && now - seenAt < ACTIVE_PLAYER_PRESENCE_LEASE_MS;
+}
 
 const AwayMissionStartPanel = lazy(() => import('@/components/AwayMissionStartPanel'));
 
@@ -767,9 +778,15 @@ export default function GmConsole() {
   const latestAlert = events.find((event) => event.type === 'fullscreen-alert');
   const wolfConsoleEligibleAt = Date.parse(wolfConsoleVisit?.eligibleAt ?? '');
   const wolfConsoleExpiresAt = Date.parse(wolfConsoleVisit?.expiresAt ?? '');
+  const activePlayerExpiryUpdates = connectedPlayers.flatMap((player) => {
+    if (player.lastSeenAt === undefined) return [];
+    const seenAt = Date.parse(player.lastSeenAt);
+    return Number.isFinite(seenAt) ? [seenAt + ACTIVE_PLAYER_PRESENCE_LEASE_MS] : [];
+  });
   const nextClockUpdate = nextGmClockUpdate(session, clock, [
     wolfConsoleEligibleAt,
     Number.isFinite(wolfConsoleExpiresAt) ? wolfConsoleExpiresAt + 1 : Number.NaN,
+    ...activePlayerExpiryUpdates,
   ]);
   const overdueMaintenance = Object.entries(session?.maintenanceCycles ?? {}).flatMap(([shipId, cycle]) => {
     const startedAt = cycle.startedAt ? Date.parse(cycle.startedAt) : Number.NaN;
@@ -3798,6 +3815,7 @@ export default function GmConsole() {
                 const candidates = connectedPlayers.flatMap((candidate) => {
                   const eligibility = replacementEligibilityByUid.get(candidate.uid);
                   return candidate.role === 'player' && candidate.uid !== currentCaptain?.uid &&
+                    isCurrentActivePlayer(candidate, clock) &&
                     candidate.replacementRoleId == null && candidate.replacementStatus == null &&
                     !candidate.escapeState && eligibility
                     ? [{

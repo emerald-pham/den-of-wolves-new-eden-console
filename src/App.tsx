@@ -727,7 +727,7 @@ function AppRoutes() {
             store.setRoleBrief(null);
             return;
           }
-          if (store.me?.uid !== next.assignmentUid) {
+          if (store.me?.uid !== next.assignmentUid || store.me.replacementStatus != null) {
             pendingRoleBrief = null;
             store.setRoleBrief(null);
             return;

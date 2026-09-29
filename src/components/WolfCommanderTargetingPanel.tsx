@@ -34,7 +34,8 @@ export default function WolfCommanderTargetingPanel({
   finishTargeting = finishWolfCommanderTargetingRerolls,
 }: WolfCommanderTargetingPanelProps = {}) {
   const storeSessionId = useSessionStore((state) => state.session?.id);
-  const storeIsCommander = useSessionStore((state) => state.me?.replacementRoleId === 'wolf-commander');
+  const storeIsCommander = useSessionStore((state) =>
+    state.me?.replacementRoleId === 'wolf-commander' && state.me.replacementStatus == null);
   const sessionId = suppliedSessionId ?? storeSessionId;
   const isCommander = enabled ?? storeIsCommander;
   const [view, setView] = useState<WolfCommanderTargetingView | null>(null);

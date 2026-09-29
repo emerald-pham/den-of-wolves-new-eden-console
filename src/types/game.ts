@@ -1622,6 +1622,8 @@ export interface Player {
   readonly replacementStatus?: 'awaiting-re-role' | null;
   /** Presence is included in the GM roster projection. */
   readonly connected?: boolean;
+  /** Current server heartbeat used by GM-only active-player choices. */
+  readonly lastSeenAt?: Timestamp;
   /** Monotonic server-owned connection identity used to reject stale cleanup. */
   readonly connectionGeneration?: number;
   /** Nonbinding casting preference; it never grants a role or vessel. */

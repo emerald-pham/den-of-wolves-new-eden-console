@@ -30,7 +30,7 @@ function repairCommandAuthorityIsCurrent(
   const deadline = phase ? Date.parse(phase.openAirspaceEndsAt) : Number.NaN;
   return session?.id === checkpoint.sessionId && me?.sessionId === checkpoint.sessionId &&
     me?.uid === checkpoint.uid && me.role === 'player' && me.replacementRoleId === ROLE_ID &&
-    me.activeConsoleRoleId === null && me.seatId === null &&
+    me.replacementStatus == null && me.activeConsoleRoleId === null && me.seatId === null &&
     current.connection === 'live' && current.sessionSnapshotFreshness === 'server' &&
     window.navigator.onLine && session.phase === 'active' && session.currentTurn === command.expectedCycle &&
     phase?.airspace.state === 'lifted' && phase.timerPause === undefined &&
@@ -64,7 +64,8 @@ export default function GorgoneionRepairDronesPanel() {
   const retryRef = useRef(retry);
   retryRef.current = retry;
   const identity = JSON.stringify([
-    session?.id, me?.uid, me?.role, me?.replacementRoleId, me?.activeConsoleRoleId, me?.seatId,
+    session?.id, me?.uid, me?.role, me?.replacementRoleId, me?.replacementStatus,
+    me?.activeConsoleRoleId, me?.seatId,
   ]);
 
   const currentCycle = session?.currentTurn ?? 0;
@@ -99,7 +100,7 @@ export default function GorgoneionRepairDronesPanel() {
     maintenance.charges.includes('repair-drones'));
   const usedThisCycle = (repairHistoryValid && ledger!.cycle === currentCycle) || completedCycle === currentCycle;
   const isCaptain = me?.role === 'player' && me.replacementRoleId === 'gorgoneion-captain' &&
-    me.activeConsoleRoleId === null && me.seatId === null;
+    me.replacementStatus == null && me.activeConsoleRoleId === null && me.seatId === null;
   const canSubmit = isCaptain && repairHistoryValid && hostIsActive && maintenanceReady &&
     coordinationOpen && !usedThisCycle && !hostDamage?.destroyed && materials >= 3 &&
     eligibleSystemIds.includes(systemId);

@@ -70,7 +70,7 @@ function activeAuthority(): HummingbirdAuthority {
     throw new Error('Reconnect before operating Hummingbird harvesting.');
   }
   if (me.role !== 'player' || me.activeConsoleRoleId !== QUELLON_EXPLORER ||
-      typeof me.replacementRoleId === 'string' ||
+      typeof me.replacementRoleId === 'string' || me.replacementStatus != null ||
       session.activeRoleIds?.includes(QUELLON_EXPLORER) !== true) {
     throw new Error('The active Quellon Explorer console is required.');
   }

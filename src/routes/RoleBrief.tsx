@@ -114,6 +114,7 @@ export default function RoleBrief() {
   if (
     !session || !me || !brief ||
     me.role !== 'player' ||
+    me.replacementStatus != null ||
     brief.assignmentUid !== me.uid ||
     me.replacementRoleId !== brief.roleId && me.assignedRoleId !== brief.roleId
   ) {
@@ -208,11 +209,13 @@ export default function RoleBrief() {
           )}
         />
 
-        {me.replacementRoleId === 'wolf-commander' && <WolfCommanderTargetingPanel />}
+        {me.replacementStatus == null && me.replacementRoleId === 'wolf-commander' &&
+          <WolfCommanderTargetingPanel />}
 
         <ExtraShipCaptainWorkspace roleId={brief.roleId} />
 
-        {me.replacementRoleId === 'vulcan-captain' && <VulcanAdditionalLabourPanel />}
+        {me.replacementStatus == null && me.replacementRoleId === 'vulcan-captain' &&
+          <VulcanAdditionalLabourPanel />}
 
         <Link className="cic-action-button role-brief__return" to="/console">
           Return to station catalog

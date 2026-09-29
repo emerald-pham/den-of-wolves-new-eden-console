@@ -49,6 +49,7 @@ function scoutAuthorityKey(
     me.assignedRoleId ?? null,
     me.seatId ?? null,
     me.replacementRoleId ?? null,
+    me.replacementStatus ?? null,
     me.activeConsoleRoleId ?? null,
   ]);
 }

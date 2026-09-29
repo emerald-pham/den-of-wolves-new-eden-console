@@ -137,6 +137,8 @@ function authorityLabel(context: PrimaryStatusContext): string {
       ? `FACILITATOR // ${facilitator?.name ?? 'LAST REPORTED'}`
       : player?.role === 'observer'
         ? 'OBSERVER'
+        : player?.replacementStatus != null
+          ? 'PLAYER // AWAITING NEW ROLE'
         : activeRole
           ? `PLAYER // ${activeRole.name}`
           : replacement
@@ -164,6 +166,7 @@ function authorityLabel(context: PrimaryStatusContext): string {
   if (player.role === 'gm') return 'FACILITATOR // AUTHORITY NOT VERIFIED';
   if (player.role === 'observer') return 'OBSERVER // READ ONLY';
   if (observerShipId) return 'OBSERVER // FACILITATOR AUTHORITY REQUIRED';
+  if (player.replacementStatus != null) return 'PLAYER // AWAITING NEW ROLE';
 
   const activeRole = findConsoleRole(player.activeConsoleRoleId ?? undefined);
   if (activeRole) return `PLAYER // ${activeRole.name} // ACTIVE COMMAND POST`;

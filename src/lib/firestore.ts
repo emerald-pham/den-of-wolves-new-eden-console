@@ -2911,7 +2911,12 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
   };
 }
 
-function playerFrom(sessionId: string, uid: string, data: DocumentData): Player {
+function playerFrom(
+  sessionId: string,
+  uid: string,
+  data: DocumentData,
+  includeLastSeenAt = false,
+): Player {
   const parsedSeatId = data.seatId === null || data.seatId === undefined
     ? null
     : parseEntityId('seat', data.seatId) ?? null;
@@ -2937,6 +2942,7 @@ function playerFrom(sessionId: string, uid: string, data: DocumentData): Player 
     (data.connectionGeneration as number) >= 1
     ? data.connectionGeneration as number
     : undefined;
+  const parsedLastSeenAt = optionalIso(data.lastSeenAt);
   const parsedEscapeState = data.escapeState && typeof data.escapeState === 'object' &&
     !Array.isArray(data.escapeState) &&
     (data.escapeState.status === 'pending' || data.escapeState.status === 'fled') &&
@@ -2956,16 +2962,21 @@ function playerFrom(sessionId: string, uid: string, data: DocumentData): Player 
     sessionId: entityId('session', sessionId),
     displayName: normalizeDisplayName(data.displayName),
     role: data.role as Player['role'],
-    seatId: parsedSeatId,
+    seatId: parsedReplacementStatus === null ? parsedSeatId : null,
     ...(parsedRoleId !== undefined ? { assignedRoleId: parsedRoleId } : {}),
-    ...(parsedReplacementRoleId !== undefined ? { replacementRoleId: parsedReplacementRoleId } : {}),
+    ...(parsedReplacementRoleId !== undefined
+      ? { replacementRoleId: parsedReplacementStatus === null ? parsedReplacementRoleId : null }
+      : {}),
     ...(data.replacementStatus !== undefined ? { replacementStatus: parsedReplacementStatus } : {}),
     ...(parsedVesselId !== undefined ? { shipPreferenceId: parsedVesselId } : {}),
-    ...(parsedConsoleId !== undefined ? { activeConsoleRoleId: parsedConsoleId } : {}),
+    ...(parsedConsoleId !== undefined
+      ? { activeConsoleRoleId: parsedReplacementStatus === null ? parsedConsoleId : null }
+      : {}),
     ...(parsedFleetGroupId !== undefined ? { fleetGroupId: parsedFleetGroupId } : {}),
     ...(parsedEscapeState?.shipId && parsedEscapeState.destructionEventId
       ? { escapeState: parsedEscapeState as PlayerEscapeState } : {}),
     ...(typeof data.connected === 'boolean' ? { connected: data.connected } : {}),
+    ...(includeLastSeenAt && parsedLastSeenAt !== undefined ? { lastSeenAt: parsedLastSeenAt } : {}),
     ...(parsedConnectionGeneration === undefined ? {} : {
       connectionGeneration: parsedConnectionGeneration,
     }),
@@ -4444,7 +4455,7 @@ export function subscribeConnectedPlayers(
       // roster only from the query's own server snapshot.
       if (fromCache) return;
       onPlayers(snapshot.docs.map((player) =>
-        playerFrom(sessionId, player.id, player.data())));
+        playerFrom(sessionId, player.id, player.data(), facilitator)));
     },
     () => {
       if (!subscribed) return;
@@ -4551,7 +4562,7 @@ export function subscribeSessionPlayers(
     (snapshot) => {
       if (!subscribed) return;
       if (snapshot.metadata?.fromCache === true) return;
-      onPlayers(snapshot.docs.map((player) => playerFrom(sessionId, player.id, player.data())));
+      onPlayers(snapshot.docs.map((player) => playerFrom(sessionId, player.id, player.data(), true)));
     },
     () => {
       if (!subscribed) return;

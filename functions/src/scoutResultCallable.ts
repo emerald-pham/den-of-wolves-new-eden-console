@@ -92,7 +92,8 @@ function playerViewer(
 ): ScoutResultViewerAuthority {
   return {
     sessionId, uid: memberUid, role: player.get('role'),
-    active: activeMember(player, nowMs), connected: player.get('connected') === true,
+    active: activeMember(player, nowMs) && player.get('replacementStatus') == null,
+    connected: player.get('connected') === true,
     nowMs,
   };
 }
@@ -301,7 +302,8 @@ export const listMyScoutReports = onCall(CALLABLE_RUNTIME_OPTIONS, async (reques
       tx.get(db.collection(`sessions/${sessionId}/scoutRequests`)),
     ]);
     if (!session.exists || session.get('phase') !== 'active' ||
-        !activeMember(player, nowMs) || player.get('role') !== 'player') {
+        !activeMember(player, nowMs) || player.get('role') !== 'player' ||
+        player.get('replacementStatus') != null) {
       throw new HttpsError('permission-denied', 'A connected requester is required.');
     }
     const own = requests.docs.filter((doc) => doc.get('type') === 'scout-request' &&

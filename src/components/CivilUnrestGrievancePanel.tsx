@@ -53,11 +53,15 @@ export default function CivilUnrestGrievancePanel({
   const activeVesselIds = session?.activeVesselIds;
   const identity = JSON.stringify([
     sessionId, me?.uid, me?.role, me?.activeConsoleRoleId, me?.assignedRoleId, me?.replacementRoleId,
-    activeVesselIds,
+    me?.replacementStatus, activeVesselIds,
   ]);
   const ships = useMemo(() => teamShips(
-    me?.activeConsoleRoleId, me?.assignedRoleId, me?.replacementRoleId, activeVesselIds,
-  ), [me?.activeConsoleRoleId, me?.assignedRoleId, me?.replacementRoleId, activeVesselIds]);
+    me?.replacementStatus == null ? me?.activeConsoleRoleId : null,
+    me?.replacementStatus == null ? me?.assignedRoleId : null,
+    me?.replacementStatus == null ? me?.replacementRoleId : null,
+    activeVesselIds,
+  ), [me?.activeConsoleRoleId, me?.assignedRoleId, me?.replacementRoleId,
+    me?.replacementStatus, activeVesselIds]);
   const teamShipKey = ships.join('|');
   const affectedShips = useMemo(() => (activeVesselIds ?? AFFECTED_SHIP_IDS)
     .filter((shipId) => shipId in SHIP_NAMES), [activeVesselIds]);
@@ -66,7 +70,8 @@ export default function CivilUnrestGrievancePanel({
   const readShipKey = readShipIds.join('|');
   const crisisAcceptingGrievances = ['delivered', 'debated', 'escalated'].includes(crisisState);
   const teamPhase = session?.turnState?.phase === 'team' || phaseForSession(session)?.airspace.state === 'restricted';
-  const canEdit = me?.role === 'player' && ships.length > 0 && crisisAcceptingGrievances && teamPhase;
+  const canEdit = me?.role === 'player' && me.replacementStatus == null && ships.length > 0 &&
+    crisisAcceptingGrievances && teamPhase;
   const [publicProjection, setPublicProjection] = useState<CivilUnrestPublicProjection | null>(null);
   const [teamGrievances, setTeamGrievances] = useState<Readonly<Record<string, CivilUnrestGrievance | null>>>({});
   const [visibility, setVisibility] = useState<'private' | 'public'>('private');

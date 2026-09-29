@@ -57,6 +57,7 @@ export function isScoutEntitlementHolder(
 ): boolean {
   const entitlement = scoutEntitlementDefinition(entitlementId);
   if (!entitlement || !session || !me || me.role !== 'player' || me.sessionId !== session.id ||
+      me.replacementStatus != null ||
       !session.activeVesselIds?.includes(entitlement.anchorShipId)) return false;
 
   if (entitlement.source === 'replacement-role') {

@@ -12,7 +12,8 @@ export default function ExtraShipCaptainWorkspace({ roleId }: { readonly roleId:
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
   const workspace = extraShipCaptainWorkspaceFor(roleId);
-  if (!workspace || me?.replacementRoleId !== workspace.roleId) return null;
+  if (!workspace || !me || me.replacementStatus != null ||
+      me.replacementRoleId !== workspace.roleId) return null;
 
   const vessel = SMALL_SHIPS.find((entry) => entry.id === workspace.vesselId);
   if (!vessel) return null;
