@@ -357,3 +357,31 @@ The prepared session now has real Scientist and Admiral holders plus its GM,
 which supports post-deployment cross-ship privacy and normal action checks.
 The accompanying screenshot still shows the old Read names control; it is
 preparation evidence, not evidence that the required DRADIS release fix is live.
+
+
+### Jump integration and deployment audit
+
+Parent `a6885240` integrates the jump implementation after its four red-test
+commits and separate test-only `da4f53c6`. That final test split verifies private
+member event fields, denial of a second jump without writes/randomness,
+emergency retry identity, and the corrected conditional damaged-drive readout;
+the two placed-workspace assertions now follow the same readout. The observed
+parent red run had **13 failures and 65 passes**. After integration, **458
+focused tests across nine files pass**, with app typecheck and Functions build.
+The normalized default `emergency:false` guard fixture is separately integrated
+as `ee6e07e3`. The worker reports **5,932 tests across 437 files** and its full
+responsive normal/reduced-motion matrix; independent integrated jump review is
+active against `a6885240`.
+
+Deployment tests `fa16f9ac`/`8b52b719` and implementation `7cf9ba57` cover the
+exact jump guard transition, private member-event allowlist, damage helper and
+new adjudication consumers. The historical PC04 test now reads its actual
+historical source, using a sufficiently large buffer; it does not pretend that
+today's expanded guard module is the old transition. A further transitive audit
+found seven unchanged callable bodies consuming changed index-local authority
+helpers. Test-first `d49402be`/`3ed5dc02` adds an exact source receipt for those
+shared-helper consumers and rejects an unreviewed candidate delta. **84
+selector tests pass**. The receipt must be re-audited after the outstanding
+captain-authority repairs; local selector success is not deployment evidence.
+All 49 assigned IDs now have partial implementation records. None is marked
+done; the global catalog remains **458/751 done**, with 84 partial and 209 missing.
