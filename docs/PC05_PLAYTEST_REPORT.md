@@ -20,6 +20,11 @@ count: **458/751 done; 0/293 baseline closures**. PC05 requires its 49 assigned
 IDs in the [recovery plan](CHECKPOINT_COMPLETION_PLAN.md), for **507/751 done**
 and **49/293 baseline closures**. No completion credit is claimed by this shape.
 The three owner regressions PC05-F01–F03 are required before full release.
+The active release goal batches every remaining locally verifiable PC05 change,
+repair, release note, gate and exact review into one candidate before the next
+CI/deployment run. A later run is allowed only for a failed gate, a
+production-only finding, or the final evidence/catalog closeout that cannot be
+truthfully written before deployment.
 
 ## Problem and boundaries
 

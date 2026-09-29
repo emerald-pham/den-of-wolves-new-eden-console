@@ -31,6 +31,14 @@ subagents when parallel execution is likely to shorten the release. Give each
 owner a bounded scope, separate checkout, shared-file boundary, and explicit
 integration handoff. Keep one owner for the reconciled release.
 
+For each PC release, finish and reconcile all scoped implementation, regression
+repairs, release metadata, local risk gates, and required independent review
+before starting CI. Prefer one exact-candidate CI and deployment run for the
+whole checkpoint; rerun CI only when a failed gate, a production-only finding,
+or a materially changed final candidate requires it. Do not open a separate
+PR/CI cycle for each subchange. Evidence that can exist only after deployment
+may use one final closeout documentation candidate.
+
 While an owner or CI run is active, wait for a meaningful completion, blocker,
 or requested checkpoint. Use a long interruptible wait or yield with a clear
 owner and resume path. Do not loop through short status polls or send updates
