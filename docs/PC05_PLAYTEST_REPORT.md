@@ -449,12 +449,14 @@ is now checking `dfc8ca78` while the jump owner repairs the failing cases.
 
 Independent read-only deployment review of exact `523b1fcf`, from actual
 deployed `0ba386f5`, is **clear** for named targets, fail-closed transitions and
-transitive consumers. It verifies Hosting, Firestore and **136 unique valid
-Functions**, all 68 consumers of the 28 changed index-local helpers, matching
-source receipts and no omitted live external-module consumer. Its independent
-selector run passes **84/84**. The fetched main remains `7782840d` and is an
-ancestor of this branch. This review does not approve future jump changes;
-their source receipts and changed consumers require reconciliation.
+transitive consumers. It originally reported 136 unique Functions; that
+intermediate count is superseded by the actual-baseline receipt below, which
+includes the later Ally and Maliades repair consumers. The review covered all
+68 consumers of the 28 then-changed index-local helpers, matching source
+receipts and no omitted live external-module consumer. Its independent selector
+run passed **84/84**. The fetched main remains `7782840d` and is an ancestor of
+this branch. This review does not approve future jump changes; their source
+receipts and changed consumers require reconciliation.
 
 ### Pending-role follow-up and emergency-window regressions
 
@@ -502,3 +504,26 @@ targeted projection/candidate checks**. Independent exact `23e9ca17` follow-up
 is **clear**, confirming matching server type/45-second lease semantics and
 no heartbeat or validity-marker exposure to non-GM members. This closes the
 A4 review findings; deployment and ordinary gameplay proof remain separate.
+
+### Pursuit-window authority and privacy repair
+
+Independent exact-candidate review of `5a03cf8d` found three remaining release
+issues. Fresh Endeavour ECM/research and Maliades repair writes could bypass a
+pending pursuit emergency decision; the member-readable session exposed the
+private split-group identifiers; and the deployment receipt undercounted the
+actual named Functions. Test-first `428ce7b5` reproduces valid and malformed
+pause bypasses, preserves exact committed replay, and requires a safe public
+marker. Production `4e7d49ad` centralizes the pause guard across index-owned and
+external writers, moves full authority to server-only and GM-only documents,
+and joins the public marker to GM authority only when their type, status, cycle
+and opening time match. The client tests cover either listener order and prompt
+authority removal when the marker clears.
+
+The repaired focused run passes **496/496 across seven files** and typecheck.
+Deployment-audit repair `6d3f7466` accounts for the shared guard in the
+Maliades prefix without weakening its fail-closed comparison; all **85/85**
+selector tests pass. From actual deployed `0ba386f5` with verification baseline
+`7782840d`, the exact selector chooses Hosting, Firestore and **138 unique named
+Functions**, reports no unknown files, and confirms both baselines are
+ancestors. These are candidate checks. Exact final review, the full release
+gates, deployment and ordinary gameplay proof remain pending.
