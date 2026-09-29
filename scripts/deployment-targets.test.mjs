@@ -1528,7 +1528,8 @@ test('includes unchanged callable bodies affected by PC05 index-local authority 
   const after = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
   const selected = deploymentSelector({ before, after, files: ['functions/src/index.ts'], targets: ['functions'] }).split(',');
   for (const name of ['transferShuttleCargoCommand', 'recycleWithBoa', 'requestShuttleDeparture',
-    'beginShuttleTransit', 'retargetShuttleTransit', 'publishPressDispatch', 'dismissPressDispatch']) {
+    'beginShuttleTransit', 'retargetShuttleTransit', 'publishPressDispatch', 'dismissPressDispatch',
+    'getWolfCommanderTargeting', 'applyWolfCommanderTargetRerolls', 'finishWolfCommanderTargetingRerolls']) {
     assert.ok(selected.includes(`functions:${name}`), `${name} consumes a changed shared authority helper`);
   }
 });
