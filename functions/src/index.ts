@@ -1591,10 +1591,12 @@ function withCandidateArrival(
   shipId: string,
   coordinate: string,
   chart: 'A' | 'B' | 'C',
+  transitionId: string,
 ): NavigationState {
   const logs = navigation.shipNavigationLogs[shipId] ?? [];
-  const arrival = logs[logs.length - 1];
-  if (!arrival || arrival.type !== 'self-jump' || arrival.destination !== coordinate) {
+  const arrival = logs.find((entry) => entry.id === `${transitionId}-0` &&
+    entry.shipId === shipId && entry.type === 'self-jump' && entry.destination === coordinate);
+  if (!arrival) {
     throw new Error('Authoritative candidate arrival event is unavailable.');
   }
   const systemHistory = candidateDiscoveryFromArrival(navigation.systemHistory, {
@@ -2489,13 +2491,26 @@ function shipConsoleLocks(value: unknown): Record<string, boolean> {
 }
 
 function shipJumpStates(value: unknown): Record<string, JumpDriveState> {
-  const stored = typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : {};
+  if (value !== undefined && !isRecord(value)) {
+    throw commandError('failed-precondition', 'The stored Jump Drive map is malformed.', 'malformed-input');
+  }
+  const stored = isRecord(value) ? value : {};
   return Object.fromEntries(Object.keys(INITIAL_SHIP_JUMP_STATES).map((shipId) => {
     const raw = stored[shipId];
-    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return [shipId, {}];
-    const state = raw as Record<string, unknown>;
+    if (raw === undefined) return [shipId, {}];
+    if (!isRecord(raw)) {
+      throw commandError('failed-precondition', 'The stored Jump Drive state is malformed.', 'malformed-input');
+    }
+    const state = raw;
+    if ((Object.hasOwn(state, 'lastJumpTurn') &&
+          !(typeof state.lastJumpTurn === 'number' && Number.isSafeInteger(state.lastJumpTurn) && state.lastJumpTurn >= 1)) ||
+        (Object.hasOwn(state, 'integrityLockedUntil') &&
+          !(typeof state.integrityLockedUntil === 'string' && Number.isFinite(Date.parse(state.integrityLockedUntil)))) ||
+        (Object.hasOwn(state, 'emergencyJumpUsed') && typeof state.emergencyJumpUsed !== 'boolean') ||
+        (Object.hasOwn(state, 'lastFailureRequestId') &&
+          !(typeof state.lastFailureRequestId === 'string' && state.lastFailureRequestId.length > 0))) {
+      throw commandError('failed-precondition', 'The stored Jump Drive state is malformed.', 'malformed-input');
+    }
     return [shipId, {
       ...(typeof state.lastJumpTurn === 'number' && Number.isSafeInteger(state.lastJumpTurn) && state.lastJumpTurn >= 1
         ? { lastJumpTurn: state.lastJumpTurn }
@@ -2509,6 +2524,15 @@ function shipJumpStates(value: unknown): Record<string, JumpDriveState> {
         : {}),
     }];
   }));
+}
+
+function nextNavigationRevision(snapshot: DocumentSnapshot): number {
+  const stored = snapshot.get('revision');
+  if (stored === undefined) return 1;
+  if (!Number.isSafeInteger(stored) || (stored as number) < 0) {
+    throw commandError('failed-precondition', 'The shared navigation revision is malformed.', 'malformed-input');
+  }
+  return (stored as number) + 1;
 }
 
 function jumpStateWithoutFields(
@@ -3356,7 +3380,14 @@ function requireLiveAirspaceWindow(phase: ActiveTurnPhase): void {
  * clock. Fresh actions fail closed when that clock is absent or malformed;
  * exact committed replays are checked by each caller before reaching here.
  */
-function requireActiveGameplayPhase(session: DocumentSnapshot): void {
+function requireActiveGameplayPhase(session: DocumentSnapshot, allowPursuitEmergencyWindow = false): void {
+  if (!allowPursuitEmergencyWindow && session.get('pursuitEmergencyWindow') !== undefined) {
+    throw commandError(
+      'failed-precondition',
+      'Gameplay is paused while the facilitator decides whether to offer an emergency jump.',
+      'invalid-phase',
+    );
+  }
   const lifecyclePhase = session.get('phase');
   if (lifecyclePhase === 'closed' || lifecyclePhase === 'retained-empty') {
     throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
@@ -3393,6 +3424,99 @@ function requireActionPhase(
   );
 }
 
+type PursuitEmergencyWindow = {
+  readonly type: 'pursuit-emergency-window';
+  readonly status: 'awaiting-gm-decision' | 'offered';
+  readonly cycle: number;
+  readonly navigationRevision: number;
+  readonly groupIds: readonly string[];
+  readonly openedAt: string;
+};
+
+function isPursuitEmergencyWindow(value: unknown): value is PursuitEmergencyWindow {
+  if (!isRecord(value)) return false;
+  return value.type === 'pursuit-emergency-window' &&
+    (value.status === 'awaiting-gm-decision' || value.status === 'offered') &&
+    Number.isSafeInteger(value.cycle) && (value.cycle as number) >= 1 &&
+    Number.isSafeInteger(value.navigationRevision) && (value.navigationRevision as number) >= 0 &&
+    Array.isArray(value.groupIds) && value.groupIds.length > 0 &&
+    value.groupIds.every((id) => typeof id === 'string' && id.length > 0) &&
+    new Set(value.groupIds).size === value.groupIds.length &&
+    typeof value.openedAt === 'string' && Number.isFinite(Date.parse(value.openedAt));
+}
+
+function pursuitEmergencyWindow(session: Pick<DocumentSnapshot, 'get'>): PursuitEmergencyWindow | undefined {
+  const value = session.get('pursuitEmergencyWindow');
+  if (value === undefined) return undefined;
+  if (!isPursuitEmergencyWindow(value)) {
+    throw commandError('failed-precondition', 'The stored pursuit emergency decision is malformed.', 'malformed-input');
+  }
+  return value;
+}
+
+function pursuitEmergencyGroupIds(
+  navigation: NavigationState,
+  fleetGroups: readonly FleetGroupRecord[],
+): string[] {
+  return fleetGroups
+    .filter((group) => (navigation.pursuitGroups[group.id] ?? 0) >= 10)
+    .map((group) => group.id)
+    .sort();
+}
+
+function pursuitEmergencyEligibleVessels(
+  session: DocumentSnapshot,
+  navigation: NavigationState,
+  fleetGroups: readonly FleetGroupRecord[],
+  cycle: number,
+  newlyMovedShipId?: string,
+): string[] {
+  const atRiskGroups = new Set(pursuitEmergencyGroupIds(navigation, fleetGroups));
+  const vesselGroups = new Map(fleetGroups.flatMap((group) =>
+    group.vesselIds.map((shipId) => [shipId, group.id] as const)));
+  const jumpStates = shipJumpStates(session.get('shipJumpStates'));
+  const damage = shipDamage(session.get('shipDamage'));
+  const unrest = shipUnrest(session.get('shipUnrest'));
+  return activeVesselIdsForSession(session).filter((shipId) => {
+    if (shipId === newlyMovedShipId || !atRiskGroups.has(vesselGroups.get(shipId) ?? '')) return false;
+    const state = jumpStates[shipId] ?? {};
+    if (state.emergencyJumpUsed === true || state.lastJumpTurn === cycle || damage[shipId]?.destroyed === true) {
+      return false;
+    }
+    return !isShipInMutiny(shipMutinyForSession(session, shipId), unrest[shipId] ?? 0);
+  });
+}
+
+function pursuitEmergencyDecisionAfterMovement(
+  session: DocumentSnapshot,
+  navigation: NavigationState,
+  fleetGroups: readonly FleetGroupRecord[],
+  cycle: number,
+  navigationRevision: number,
+  occurredAt: string,
+  movedShipId: string,
+  existingWindow?: PursuitEmergencyWindow,
+): { readonly window?: PursuitEmergencyWindow; readonly terminal: boolean; readonly cleared: boolean } {
+  const groupIds = pursuitEmergencyGroupIds(navigation, fleetGroups);
+  if (groupIds.length === 0) return { terminal: false, cleared: existingWindow !== undefined };
+  const eligible = pursuitEmergencyEligibleVessels(
+    session, navigation, fleetGroups, cycle, movedShipId,
+  );
+  if (eligible.length === 0) return { terminal: true, cleared: existingWindow !== undefined };
+  return {
+    terminal: false,
+    cleared: false,
+    window: {
+      type: 'pursuit-emergency-window',
+      status: existingWindow?.status ?? 'awaiting-gm-decision',
+      cycle,
+      navigationRevision,
+      groupIds,
+      openedAt: existingWindow?.openedAt ?? occurredAt,
+    },
+  };
+}
+
 type TurnAdvanceResult = {
   readonly currentTurn: number;
   readonly phase?: 'debrief' | 'failure';
@@ -3402,6 +3526,7 @@ type TurnAdvanceResult = {
   readonly turnPhase?: ReturnType<typeof startTurnPhase>;
   readonly maintenanceCycles?: Record<string, MaintenanceCycle>;
   readonly shuttleFuelled?: Record<string, boolean>;
+  readonly pursuitEmergencyWindow?: PursuitEmergencyWindow;
 };
 
 type PursuitFailureOutcome = {
@@ -3426,6 +3551,7 @@ function isTurnAdvanceResult(value: unknown): value is TurnAdvanceResult {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const result = value as Record<string, unknown>;
   if (!Number.isSafeInteger(result.currentTurn) || (result.currentTurn as number) < 0) return false;
+  if (result.pursuitEmergencyWindow !== undefined && !isPursuitEmergencyWindow(result.pursuitEmergencyWindow)) return false;
   if (result.phase === 'debrief') return result.turnPhase === undefined;
   if (result.phase === 'failure') {
     return result.turnPhase === undefined && isPursuitFailureOutcome(result.gameOutcome);
@@ -3605,7 +3731,20 @@ function advanceTurnInTransaction(
   const pursuitWrite = writeTurnPursuitState(tx, sessionId, pursuitAuthority, true);
   const pursuitFailed = pursuitWrite !== undefined &&
     Object.values(pursuitWrite.navigation.pursuitGroups).some((value) => value >= 10);
-  if (pursuitFailed) {
+  const atRiskGroupIds = pursuitWrite && pursuitAuthority
+    ? pursuitEmergencyGroupIds(pursuitWrite.navigation, pursuitAuthority.fleetGroups)
+    : [];
+  const hasEmergencyEligibleVessel = pursuitFailed && pursuitWrite !== undefined &&
+    pursuitEmergencyEligibleVessels(session, pursuitWrite.navigation,
+      pursuitAuthority?.fleetGroups ?? [], nextTurn).length > 0;
+  const pendingEmergencyWindow: PursuitEmergencyWindow | undefined = hasEmergencyEligibleVessel && pursuitWrite
+    ? {
+      type: 'pursuit-emergency-window', status: 'awaiting-gm-decision', cycle: nextTurn,
+      navigationRevision: pursuitWrite.revision, groupIds: atRiskGroupIds,
+      openedAt: transition?.transitionServerTime ?? new Date().toISOString(),
+    }
+    : undefined;
+  if (pursuitFailed && !pendingEmergencyWindow) {
     const gameOutcome: PursuitFailureOutcome = {
       type: 'game-outcome',
       result: 'failure',
@@ -3628,6 +3767,7 @@ function advanceTurnInTransaction(
       turnPhase: FieldValue.delete(),
       turnState: FieldValue.delete(),
       turnStartAnnouncement: FieldValue.delete(),
+      pursuitEmergencyWindow: FieldValue.delete(),
       ...(expiredTurnResources
         ? {
           maintenanceCycles: expiredTurnResources.maintenanceCycles,
@@ -3659,6 +3799,7 @@ function advanceTurnInTransaction(
       : announcement,
     fleetSurvivorPopulationAdjustment: nextFleetPopulation - fleetShipSurvivorPopulation(session),
     turnPhase,
+    ...(pendingEmergencyWindow ? { phase: 'active', pursuitEmergencyWindow: pendingEmergencyWindow } : {}),
     ...(turnState ? { turnState } : {}),
     fleetTicker,
     ...(expiredTurnResources
@@ -3681,6 +3822,7 @@ function advanceTurnInTransaction(
     ...(turnState ? { turnState } : {}),
     ...(skipTurnStartAnnouncement ? {} : { turnStartAnnouncement: announcement }),
     turnPhase,
+    ...(pendingEmergencyWindow ? { pursuitEmergencyWindow: pendingEmergencyWindow } : {}),
     ...(expiredTurnResources
       ? {
         maintenanceCycles: expiredTurnResources.maintenanceCycles,
@@ -15466,7 +15608,7 @@ export const moveShipToLocation = onCall<{
       pursuitGroups: currentNavigation.pursuitGroups,
     }, activeVesselIds);
     const nextNavigation = movementPursuitNavigation(
-      withCandidateArrival(movedNavigation, change.shipId, move.destination, chart),
+      withCandidateArrival(movedNavigation, change.shipId, move.destination, chart, eventIdPrefix),
       pursuitFleetGroups,
       change.shipId,
       move.destination,
@@ -15526,7 +15668,11 @@ export const moveShipToLocation = onCall<{
 });
 
 function shipJumpFailureRef(sessionId: string, requestId: string) {
-  return db.doc(`sessions/${sessionId}/jumpFailures/${requestId}`);
+  return db.doc(shipJumpFailurePath(sessionId, requestId));
+}
+
+function shipJumpFailurePath(sessionId: string, requestId: string): string {
+  return `sessions/${sessionId}/jumpFailures/${requestId}`;
 }
 
 function writeShipJumpEvent(
@@ -15694,6 +15840,7 @@ async function jumpDamageConsequences(input: {
     [`shipDamage.${shipId}`]: nextDamage,
     [`shipSurvivors.${shipId}`]: nextPopulation,
     [`shipUnrest.${shipId}`]: nextUnrest,
+    ...shipMutinyTransitionPatch(session, shipId, currentUnrest, nextUnrest, occurredAt),
     populationAlerts,
     unrestAlerts,
     ...(retainedShuttleTransition ? {
@@ -15740,7 +15887,7 @@ export const jumpShip = onCall<{
 
   return db.runTransaction(async (tx) => {
     await requireShipCounterAuthority(
-      tx, change.sessionId, uid, change.shipId, change.instanceId, false, true,
+      tx, change.sessionId, uid, change.shipId, change.instanceId, false, true, true,
     );
     const session = await tx.get(sessionRef);
     const attackState = await tx.get(attackStateRef);
@@ -15753,7 +15900,16 @@ export const jumpShip = onCall<{
     const replay = vesselActionReceiptReply(prior, fingerprint, 'ship jump');
     if (replay) return replay;
     requireWolfAttackMovementReleased(attackState);
-    requireActionPhase(session, 'jump', player.get('role') === 'gm' ? 'facilitator' : 'player');
+    const emergencyWindow = pursuitEmergencyWindow(session);
+    if (emergencyWindow) {
+      if (!change.emergency || emergencyWindow.status !== 'offered') {
+        throw commandError('failed-precondition',
+          'Jump actions are paused until the facilitator resolves the pursuit emergency decision.', 'invalid-phase');
+      }
+      requireActiveGameplayPhase(session, true);
+    } else {
+      requireActionPhase(session, 'jump', player.get('role') === 'gm' ? 'facilitator' : 'player');
+    }
     requireNavigableShip(session, change.shipId);
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
@@ -15797,7 +15953,24 @@ export const jumpShip = onCall<{
     const upgradeList = upgrades[change.shipId];
     const upgraded = Array.isArray(upgradeList) && upgradeList.some((upgrade) => upgrade === 'jump-drive');
     const state = shipJumpStates(session.get('shipJumpStates'))[change.shipId] ?? {};
-    const currentFailureId = change.failureRequestId ?? state.lastFailureRequestId;
+    const emergencyGroups = change.emergency
+      ? movementPursuitFleetGroups(activeVesselIds, fleetGroups, players)
+      : [];
+    if (change.emergency) requireMovementPursuitAuthority(storedNavigation, session);
+    const currentGroup = emergencyGroups.find((group) => group.vesselIds.includes(change.shipId));
+    const pursuitValue = currentGroup ? currentNavigation.pursuitGroups[currentGroup.id] : undefined;
+    const pursuitEmergencyEligible = pursuitValue !== undefined && pursuitValue >= 10;
+    if (change.emergency && !change.failureRequestId &&
+        (!pursuitEmergencyEligible || emergencyWindow?.status !== 'offered')) {
+      throw commandError('failed-precondition',
+        'A pursuit emergency jump requires an active facilitator offer.', 'conflict');
+    }
+    if (emergencyWindow && (emergencyWindow.cycle !== currentTurn ||
+        emergencyWindow.navigationRevision !== storedNavigation.get('revision') ||
+        !emergencyWindow.groupIds.includes(currentGroup?.id ?? '') || !pursuitEmergencyEligible)) {
+      throw commandError('failed-precondition', 'The pursuit emergency window changed; refresh before jumping.', 'stale-revision');
+    }
+    const currentFailureId = change.emergency ? change.failureRequestId : state.lastFailureRequestId;
     if (change.emergency && change.failureRequestId &&
         change.failureRequestId !== state.lastFailureRequestId) {
       throw commandError('failed-precondition', 'That failed jump is no longer the current ship failure.', 'conflict');
@@ -15822,8 +15995,7 @@ export const jumpShip = onCall<{
     }
 
     if (!change.emergency && (currentCycle.turn !== currentTurn || !charges.includes('jump-drive'))) {
-      supersedeEarlierFailure(identity.requestId);
-      const failureState = jumpStateWithoutFields(state, ['lastFailureRequestId']);
+      const failureState = state;
       const reply = {
         status: 'not-charged' as const,
         shipId: change.shipId,
@@ -15855,23 +16027,23 @@ export const jumpShip = onCall<{
     if (change.emergency) {
       const failureData = currentFailureSnapshot?.exists ? currentFailureSnapshot.data() : undefined;
       const sameFailure = currentFailureId !== undefined &&
-        currentFailureSnapshot?.exists === true && isRecord(failureData) &&
+        currentFailureSnapshot?.exists === true && currentFailureSnapshot.id === currentFailureId &&
+        currentFailureSnapshot.ref.path === shipJumpFailurePath(change.sessionId, currentFailureId) &&
+        isRecord(failureData) && failureData.type === 'ship-jump-failure' &&
+        failureData.requestId === currentFailureId &&
         failureData.status === 'unresolved' && failureData.shipId === change.shipId &&
+        ['fuel-shortage', 'drive-failure', 'wrong-destination'].includes(String(failureData.failureStatus)) &&
         failureData.adjudicable === true &&
         failureData.failureRevision === currentRevision && failureData.fuelAtFailure === inventory.fuel &&
         failureData.currentTurn === currentTurn && failureData.origin === currentCoordinate;
       if (change.failureRequestId && !sameFailure) {
         throw commandError('failed-precondition', 'The failed jump changed; refresh before using emergency drive.', 'conflict');
       }
-      const emergencyGroups = movementPursuitFleetGroups(activeVesselIds, fleetGroups, players);
-      requireMovementPursuitAuthority(storedNavigation, session);
-      const currentGroup = emergencyGroups.find((group) => group.vesselIds.includes(change.shipId));
-      const pursuitValue = currentGroup ? currentNavigation.pursuitGroups[currentGroup.id] : undefined;
       try {
         const emergency = resolveEmergencyJump({
           shipId: change.shipId, origin: currentCoordinate, destination: change.destination,
           currentTurn, fuel: inventory.fuel,
-          eligible: pursuitValue !== undefined && pursuitValue >= 10 || sameFailure,
+          eligible: pursuitEmergencyEligible || sameFailure,
           now, transitionId, state,
         });
         const remainingConsoleIds = new Set((SHIP_DAMAGE_DECKS[change.shipId] ?? [])
@@ -15913,7 +16085,10 @@ export const jumpShip = onCall<{
           tx, sessionId: change.sessionId, session, shipId: change.shipId,
           requestId: identity.requestId, occurredAt: now.toISOString(),
           previousDamage: damage, nextDamage: emergencyDamage,
-          damagedSystemIds: ['jump-drive', ...damageDraws.map((draw) => draw.systemId)],
+          damagedSystemIds: [
+            ...(damage.damagedSystemIds.includes('jump-drive') ? [] : ['jump-drive']),
+            ...damageDraws.map((draw) => draw.systemId),
+          ],
           affectedPlayers: Array.isArray(players?.docs) ? players.docs : [player], revision: currentRevision + 1,
         });
         const nextCycle = {
@@ -15925,29 +16100,50 @@ export const jumpShip = onCall<{
           },
         };
         const revision = currentRevision + 1;
+        const navigationRevision = nextNavigationRevision(storedNavigation);
         const movedNavigation = navigationState({
           shipGalacticCoordinates: move.coordinates, shipNavigationLogs: move.logs,
           scoutedCoordinatesByShip: currentNavigation.scoutedCoordinatesByShip,
           systemHistory: currentNavigation.systemHistory, pursuitGroups: currentNavigation.pursuitGroups,
         }, activeVesselIds);
         const nextNavigation = movementPursuitNavigation(
-          withCandidateArrival(movedNavigation, change.shipId, move.destination, chart),
+          withCandidateArrival(movedNavigation, change.shipId, move.destination, chart, transitionId),
           emergencyGroups, change.shipId, move.destination, chart,
         );
+        const emergencyDecision = pursuitEmergencyDecisionAfterMovement(
+          session, nextNavigation, emergencyGroups, currentTurn, navigationRevision,
+          now.toISOString(), change.shipId, emergencyWindow,
+        );
+        const pursuitFailure = emergencyDecision.terminal && damageConsequences.gameOutcome === undefined
+          ? {
+            type: 'game-outcome' as const, result: 'failure' as const, cause: 'pursuit-limit' as const,
+            cycle: currentTurn, navigationRevision, occurredAt: now.toISOString(),
+          }
+          : undefined;
+        const terminalWindowPatch = pursuitFailure ? {
+          phase: 'failure', gameOutcome: pursuitFailure,
+          survivorOutcome: survivorOutcomeForSession(
+            change.sessionId, session,
+            { ...shipDamage(session.get('shipDamage')), [change.shipId]: emergencyDamage },
+            currentTurn, now.toISOString(),
+          ),
+          turnPhase: FieldValue.delete(), turnState: FieldValue.delete(),
+          turnStartAnnouncement: FieldValue.delete(), pursuitEmergencyWindow: FieldValue.delete(),
+        } : {};
         await writeWolfArrivalPressureForMovement(
           tx, change.sessionId, emergencyGroups, nextNavigation, change.shipId,
           move.destination, chart, currentTurn, transitionId,
         );
         writeMissionOpportunity(tx, change.sessionId, missionOpportunity);
         tx.set(navigationStateRef(change.sessionId), {
-          ...navigationProjectionFields(nextNavigation), revision, updatedAt: FieldValue.serverTimestamp(),
+          ...navigationProjectionFields(nextNavigation), revision: navigationRevision, updatedAt: FieldValue.serverTimestamp(),
         });
         tx.set(gmDiscoveryProjectionRef(change.sessionId), {
-          ...navigationProjectionFields(nextNavigation), revision, updatedAt: FieldValue.serverTimestamp(),
+          ...navigationProjectionFields(nextNavigation), revision: navigationRevision, updatedAt: FieldValue.serverTimestamp(),
         });
         publishDiscoveryProjections(
           tx, change.sessionId, Array.isArray(players?.docs) ? players.docs : [player],
-          nextNavigation, revision, chart, emergencyGroups, false,
+          nextNavigation, navigationRevision, chart, emergencyGroups, false,
           { sessionSnapshot: session, navigationSnapshot: storedNavigation, fleetGroupSnapshots: fleetGroups.docs },
         );
         tx.update(sessionRef, {
@@ -15958,12 +16154,18 @@ export const jumpShip = onCall<{
           [`shipJumpTransitions.${change.shipId}`]: emergency.transition,
           shipNavigationLogs: removeLegacyNavigationField(), pursuitGroups: removeLegacyNavigationField(),
           ...damageConsequences,
+          ...(emergencyDecision.window ? {
+            phase: 'active', pursuitEmergencyWindow: emergencyDecision.window,
+          } : emergencyDecision.cleared ? { pursuitEmergencyWindow: FieldValue.delete() } : {}),
+          ...terminalWindowPatch,
           ...vesselActionRevisionPatch(change.shipId, revision), updatedAt: FieldValue.serverTimestamp(),
         });
-        tx.set(db.doc(`sessions/${change.sessionId}/damageDraws/emergency-${identity.requestId}-jump-drive`), {
-          type: 'ship-damage', shipId: change.shipId, systemId: 'jump-drive',
-          systemName: 'Jump Drive', source: 'emergency-jump', createdAt: FieldValue.serverTimestamp(),
-        });
+        if (!damage.damagedSystemIds.includes('jump-drive')) {
+          tx.set(db.doc(`sessions/${change.sessionId}/damageDraws/emergency-${identity.requestId}-jump-drive`), {
+            type: 'ship-damage', shipId: change.shipId, systemId: 'jump-drive',
+            systemName: 'Jump Drive', source: 'emergency-jump', createdAt: FieldValue.serverTimestamp(),
+          });
+        }
         damageDraws.forEach((draw, index) => tx.set(
           db.doc(`sessions/${change.sessionId}/damageDraws/emergency-${identity.requestId}-${index + 1}`),
           { type: 'ship-damage', shipId: change.shipId, ...draw,
@@ -15983,11 +16185,14 @@ export const jumpShip = onCall<{
           shipId: change.shipId, requestId: identity.requestId, turn: currentTurn,
           phase: vesselActionPhase(session), revision, outcome: 'emergency', occurredAt: now.toISOString(),
           payload: { length: emergency.length, fuelSpent: inventory.fuel,
-            damageCount: 1 + damageDraws.length, emergency: true },
+            damageCount: damageDraws.length + (damage.damagedSystemIds.includes('jump-drive') ? 0 : 1), emergency: true },
         });
         const reply = {
           ...emergency, fuelCost: inventory.fuel, fuelSpent: inventory.fuel,
           damage: emergencyDamage, damageDraws, shipId: change.shipId,
+          ...(emergencyDecision.window ? { pursuitEmergencyWindow: emergencyDecision.window } : {}),
+          ...(emergencyDecision.cleared ? { pursuitEmergencyWindowCleared: true } : {}),
+          ...(pursuitFailure ? { phase: 'failure', gameOutcome: pursuitFailure } : {}),
           ...(missionOpportunity ? { missionOpportunityId: missionOpportunity.id } : {}),
           ...vesselActionEnvelope(session, player, uid, change.shipId, revision,
             identity.requestId, 'jump-ship'),
@@ -16189,6 +16394,7 @@ export const jumpShip = onCall<{
       },
     };
     const revision = currentRevision + 1;
+    const navigationRevision = nextNavigationRevision(storedNavigation);
     const movedNavigation = navigationState({
       shipGalacticCoordinates: move.coordinates,
       shipNavigationLogs: move.logs,
@@ -16197,12 +16403,29 @@ export const jumpShip = onCall<{
       pursuitGroups: currentNavigation.pursuitGroups,
     }, activeVesselIds);
     const nextNavigation = movementPursuitNavigation(
-      withCandidateArrival(movedNavigation, change.shipId, move.destination, chart),
+      withCandidateArrival(movedNavigation, change.shipId, move.destination, chart, transitionId),
       pursuitFleetGroups,
       change.shipId,
       move.destination,
       chart,
     );
+    const movementDecision = pursuitEmergencyDecisionAfterMovement(
+      session, nextNavigation, pursuitFleetGroups, currentTurn, navigationRevision,
+      now.toISOString(), change.shipId,
+    );
+    const pursuitFailure = movementDecision.terminal ? {
+      type: 'game-outcome' as const, result: 'failure' as const, cause: 'pursuit-limit' as const,
+      cycle: currentTurn, navigationRevision, occurredAt: now.toISOString(),
+    } : undefined;
+    const terminalWindowPatch = pursuitFailure ? {
+      phase: 'failure', gameOutcome: pursuitFailure,
+      survivorOutcome: survivorOutcomeForSession(
+        change.sessionId, session, shipDamage(session.get('shipDamage')),
+        currentTurn, now.toISOString(),
+      ),
+      turnPhase: FieldValue.delete(), turnState: FieldValue.delete(),
+      turnStartAnnouncement: FieldValue.delete(), pursuitEmergencyWindow: FieldValue.delete(),
+    } : {};
     await writeWolfArrivalPressureForMovement(
       tx,
       change.sessionId,
@@ -16216,11 +16439,11 @@ export const jumpShip = onCall<{
     );
     writeMissionOpportunity(tx, change.sessionId, missionOpportunity);
     tx.set(navigationStateRef(change.sessionId), {
-      ...navigationProjectionFields(nextNavigation), revision,
+      ...navigationProjectionFields(nextNavigation), revision: navigationRevision,
       updatedAt: FieldValue.serverTimestamp(),
     });
     tx.set(gmDiscoveryProjectionRef(change.sessionId), {
-      ...navigationProjectionFields(nextNavigation), revision,
+      ...navigationProjectionFields(nextNavigation), revision: navigationRevision,
       updatedAt: FieldValue.serverTimestamp(),
     });
     publishDiscoveryProjections(
@@ -16228,7 +16451,7 @@ export const jumpShip = onCall<{
       change.sessionId,
       Array.isArray(players?.docs) ? players.docs : [player],
       nextNavigation,
-      revision,
+      navigationRevision,
       chart,
       pursuitFleetGroups,
       false,
@@ -16242,6 +16465,10 @@ export const jumpShip = onCall<{
       [`shipJumpTransitions.${change.shipId}`]: result.transition,
       shipNavigationLogs: removeLegacyNavigationField(),
       pursuitGroups: removeLegacyNavigationField(),
+      ...(movementDecision.window ? {
+        pursuitEmergencyWindow: movementDecision.window,
+      } : movementDecision.cleared ? { pursuitEmergencyWindow: FieldValue.delete() } : {}),
+      ...terminalWindowPatch,
       ...vesselActionRevisionPatch(change.shipId, revision),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -16249,6 +16476,9 @@ export const jumpShip = onCall<{
       ...result,
       shipId: change.shipId,
       ...(missionOpportunity ? { missionOpportunityId: missionOpportunity.id } : {}),
+      ...(movementDecision.window ? { pursuitEmergencyWindow: movementDecision.window } : {}),
+      ...(movementDecision.cleared ? { pursuitEmergencyWindowCleared: true } : {}),
+      ...(pursuitFailure ? { phase: 'failure', gameOutcome: pursuitFailure } : {}),
       ...vesselActionEnvelope(session, player, uid, change.shipId, revision,
         identity.requestId, 'jump-ship'),
     };
@@ -16365,7 +16595,9 @@ export const adjudicateFailedJump = onCall<{
     requireWolfAttackMovementReleased(attackState);
     requireActionPhase(session, 'jump', 'facilitator');
     const failure = failureSnapshot.data();
-    if (!failureSnapshot.exists || !isRecord(failure) || failure.type !== 'ship-jump-failure' ||
+    if (!failureSnapshot.exists || failureSnapshot.id !== change.failureRequestId ||
+        failureSnapshot.ref.path !== shipJumpFailurePath(change.sessionId, change.failureRequestId) || !isRecord(failure) ||
+        failure.type !== 'ship-jump-failure' || failure.requestId !== change.failureRequestId ||
         failure.status !== 'unresolved' || failure.adjudicable !== true ||
         typeof failure.shipId !== 'string' || !isResourceShipId(failure.shipId) ||
         typeof failure.origin !== 'string' ||
@@ -16424,7 +16656,9 @@ export const adjudicateFailedJump = onCall<{
     const upgradeList = upgrades[shipId];
     const upgraded = Array.isArray(upgradeList) && upgradeList.includes('jump-drive');
     const requiredFuel = jumpFuelCost(shipId, length, upgraded);
-    const fuelSpent = Math.min(inventory.fuel, requiredFuel);
+    const fuelSpent = failure.failureStatus === 'fuel-shortage'
+      ? inventory.fuel
+      : Math.min(inventory.fuel, requiredFuel);
     const remainingFuel = inventory.fuel - fuelSpent;
     stableDamageRoll ??= randomInt(1, 7);
     let nextDamage: ShipDamageState = damage;
@@ -16456,6 +16690,7 @@ export const adjudicateFailedJump = onCall<{
     );
     const chart = lockedNavigationChart(session);
     const revision = currentRevision + 1;
+    const navigationRevision = nextNavigationRevision(storedNavigation);
     const damageConsequences = await jumpDamageConsequences({
       tx, sessionId: change.sessionId, session, shipId,
       requestId: change.requestId, occurredAt,
@@ -16469,23 +16704,42 @@ export const adjudicateFailedJump = onCall<{
       systemHistory: currentNavigation.systemHistory, pursuitGroups: currentNavigation.pursuitGroups,
     }, activeVesselIds);
     const nextNavigation = movementPursuitNavigation(
-      withCandidateArrival(movedNavigation, shipId, move.destination, chart),
+      withCandidateArrival(movedNavigation, shipId, move.destination, chart, transitionId),
       pursuitFleetGroups, shipId, move.destination, chart,
     );
+    const movementDecision = pursuitEmergencyDecisionAfterMovement(
+      session, nextNavigation, pursuitFleetGroups, currentTurn, navigationRevision,
+      occurredAt, shipId,
+    );
+    const damageTerminal = damageConsequences.phase === 'failure';
+    const pursuitFailure = movementDecision.terminal && !damageTerminal ? {
+      type: 'game-outcome' as const, result: 'failure' as const, cause: 'pursuit-limit' as const,
+      cycle: currentTurn, navigationRevision, occurredAt,
+    } : undefined;
+    const terminalWindowPatch = pursuitFailure ? {
+      phase: 'failure', gameOutcome: pursuitFailure,
+      survivorOutcome: survivorOutcomeForSession(
+        change.sessionId, session,
+        { ...shipDamage(session.get('shipDamage')), [shipId]: nextDamage },
+        currentTurn, occurredAt,
+      ),
+      turnPhase: FieldValue.delete(), turnState: FieldValue.delete(),
+      turnStartAnnouncement: FieldValue.delete(), pursuitEmergencyWindow: FieldValue.delete(),
+    } : {};
     await writeWolfArrivalPressureForMovement(
       tx, change.sessionId, pursuitFleetGroups, nextNavigation, shipId,
       move.destination, chart, currentTurn, transitionId,
     );
     writeMissionOpportunity(tx, change.sessionId, missionOpportunity);
     tx.set(navigationStateRef(change.sessionId), {
-      ...navigationProjectionFields(nextNavigation), revision, updatedAt: FieldValue.serverTimestamp(),
+      ...navigationProjectionFields(nextNavigation), revision: navigationRevision, updatedAt: FieldValue.serverTimestamp(),
     });
     tx.set(gmDiscoveryProjectionRef(change.sessionId), {
-      ...navigationProjectionFields(nextNavigation), revision, updatedAt: FieldValue.serverTimestamp(),
+      ...navigationProjectionFields(nextNavigation), revision: navigationRevision, updatedAt: FieldValue.serverTimestamp(),
     });
     publishDiscoveryProjections(
       tx, change.sessionId, Array.isArray(players?.docs) ? players.docs : [player],
-      nextNavigation, revision, chart, pursuitFleetGroups, false,
+      nextNavigation, navigationRevision, chart, pursuitFleetGroups, false,
       { sessionSnapshot: session, navigationSnapshot: storedNavigation, fleetGroupSnapshots: fleetGroups.docs },
     );
     const nextCycle = {
@@ -16508,6 +16762,10 @@ export const adjudicateFailedJump = onCall<{
       [`shipJumpTransitions.${shipId}`]: jumpTransition,
       shipNavigationLogs: removeLegacyNavigationField(), pursuitGroups: removeLegacyNavigationField(),
       ...damageConsequences,
+      ...(movementDecision.window && !damageTerminal ? {
+        phase: 'active', pursuitEmergencyWindow: movementDecision.window,
+      } : movementDecision.cleared || damageTerminal ? { pursuitEmergencyWindow: FieldValue.delete() } : {}),
+      ...terminalWindowPatch,
       ...vesselActionRevisionPatch(shipId, revision), updatedAt: FieldValue.serverTimestamp(),
     });
     damageDraws.forEach((draw, index) => tx.set(
@@ -16531,6 +16789,10 @@ export const adjudicateFailedJump = onCall<{
       failureRoll: stableDamageRoll, damageDraws, damage: nextDamage,
       state: jumpState, transition: jumpTransition,
       ...(missionOpportunity ? { missionOpportunityId: missionOpportunity.id } : {}),
+      ...(!damageTerminal && movementDecision.window
+        ? { pursuitEmergencyWindow: movementDecision.window } : {}),
+      ...(movementDecision.cleared || damageTerminal ? { pursuitEmergencyWindowCleared: true } : {}),
+      ...(pursuitFailure ? { phase: 'failure', gameOutcome: pursuitFailure } : {}),
       ...vesselActionEnvelope(session, player, uid, shipId, revision,
         change.requestId, 'adjudicate-failed-jump', undefined, null),
     };
@@ -16695,6 +16957,8 @@ export const advanceTurn = onCall<{
   expectedTurn?: number;
   overridePhaseTimer?: boolean;
   skipTurnStartAnnouncement?: boolean;
+  pursuitEmergencyDecision?: 'offer' | 'decline';
+  expectedPursuitNavigationRevision?: number;
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const advance = requireTurnAdvanceRequest(request.data ?? {});
@@ -16713,6 +16977,8 @@ export const advanceTurn = onCall<{
     payload: {
       overridePhaseTimer: advance.overridePhaseTimer,
       skipTurnStartAnnouncement: advance.skipTurnStartAnnouncement,
+      pursuitEmergencyDecision: advance.pursuitEmergencyDecision ?? null,
+      expectedPursuitNavigationRevision: advance.expectedPursuitNavigationRevision ?? null,
     },
   };
   const transitionServerTime = new Date().toISOString();
@@ -16731,6 +16997,73 @@ export const advanceTurn = onCall<{
     );
     const replay = replayBoundCommand(receipt, fingerprint, isTurnAdvanceResult, 'cycle advance');
     if (replay) return replay;
+    const existingEmergencyWindow = pursuitEmergencyWindow(session);
+    if (advance.pursuitEmergencyDecision !== undefined) {
+      if (!existingEmergencyWindow) {
+        throw commandError('failed-precondition', 'There is no current pursuit emergency decision to resolve.', 'conflict');
+      }
+      if (session.get('phase') !== undefined && session.get('phase') !== 'active') {
+        throw commandError('failed-precondition', 'The pursuit emergency decision is no longer active.', 'invalid-phase');
+      }
+      if (sessionTurn(session.get('currentTurn')) !== advance.expectedTurn ||
+          existingEmergencyWindow.cycle !== advance.expectedTurn) {
+        throw commandError('failed-precondition', 'The pursuit emergency cycle changed; refresh before deciding.', 'stale-revision');
+      }
+      const authority = await readTurnPursuitAuthority(tx, advance.sessionId, session);
+      if (!authority || advance.expectedPursuitNavigationRevision !== existingEmergencyWindow.navigationRevision ||
+          authority.navigationRevision !== existingEmergencyWindow.navigationRevision) {
+        throw commandError('failed-precondition', 'Pursuit changed; refresh before deciding.', 'stale-revision');
+      }
+      const currentGroupIds = pursuitEmergencyGroupIds(authority.navigation, authority.fleetGroups);
+      if (currentGroupIds.length === 0 ||
+          currentGroupIds.join('\u0000') !== [...existingEmergencyWindow.groupIds].sort().join('\u0000')) {
+        throw commandError('failed-precondition', 'The pursuit emergency window no longer matches the live groups.', 'stale-revision');
+      }
+      const occurredAt = transitionServerTime;
+      const finishAsFailure = (): TurnAdvanceResult => {
+        const gameOutcome: PursuitFailureOutcome = {
+          type: 'game-outcome', result: 'failure', cause: 'pursuit-limit',
+          cycle: existingEmergencyWindow.cycle,
+          navigationRevision: existingEmergencyWindow.navigationRevision,
+          occurredAt,
+        };
+        tx.update(sessionRef, {
+          phase: 'failure', gameOutcome,
+          survivorOutcome: survivorOutcomeForSession(
+            advance.sessionId, session, shipDamage(session.get('shipDamage')),
+            gameOutcome.cycle, occurredAt,
+          ),
+          turnPhase: FieldValue.delete(), turnState: FieldValue.delete(),
+          turnStartAnnouncement: FieldValue.delete(),
+          pursuitEmergencyWindow: FieldValue.delete(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        const result: TurnAdvanceResult = {
+          currentTurn: existingEmergencyWindow.cycle, phase: 'failure', gameOutcome,
+        };
+        tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+        return result;
+      };
+      if (advance.pursuitEmergencyDecision === 'decline') return finishAsFailure();
+      if (existingEmergencyWindow.status !== 'awaiting-gm-decision') {
+        throw commandError('failed-precondition', 'The facilitator has already resolved this pursuit emergency offer.', 'conflict');
+      }
+      if (pursuitEmergencyEligibleVessels(
+        session, authority.navigation, authority.fleetGroups, existingEmergencyWindow.cycle,
+      ).length === 0) return finishAsFailure();
+      const offeredWindow: PursuitEmergencyWindow = { ...existingEmergencyWindow, status: 'offered' };
+      tx.update(sessionRef, { pursuitEmergencyWindow: offeredWindow, updatedAt: FieldValue.serverTimestamp() });
+      const activePhase = turnPhaseState(session.get('turnPhase'));
+      if (!activePhase || activePhase.turn !== existingEmergencyWindow.cycle) {
+        throw commandError('failed-precondition', 'No valid current server phase is available for the emergency decision.', 'invalid-phase');
+      }
+      const result: TurnAdvanceResult = {
+        currentTurn: existingEmergencyWindow.cycle, turnPhase: activePhase,
+        pursuitEmergencyWindow: offeredWindow,
+      };
+      tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+      return result;
+    }
     requireActiveGameplayPhase(session);
     if (session.get('phase') !== undefined && session.get('phase') !== 'active') {
       throw commandError(
@@ -16803,7 +17136,7 @@ export const advanceTurn = onCall<{
       pursuitAuthority,
       ordinaryAirspaceClosed,
     );
-    if (result.phase === 'debrief' || result.phase === 'failure') {
+    if (result.phase === 'debrief' || result.phase === 'failure' || result.pursuitEmergencyWindow) {
       tx.set(receiptRef, {
         fingerprint,
         result,

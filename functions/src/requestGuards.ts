@@ -961,6 +961,8 @@ export function requireTurnAdvanceRequest(data: {
   expectedTurn?: unknown;
   overridePhaseTimer?: unknown;
   skipTurnStartAnnouncement?: unknown;
+  pursuitEmergencyDecision?: unknown;
+  expectedPursuitNavigationRevision?: unknown;
 }): {
   sessionId: string;
   instanceId: string;
@@ -968,6 +970,8 @@ export function requireTurnAdvanceRequest(data: {
   expectedTurn: number;
   overridePhaseTimer: boolean;
   skipTurnStartAnnouncement: boolean;
+  pursuitEmergencyDecision?: 'offer' | 'decline';
+  expectedPursuitNavigationRevision?: number;
 } {
   if (!Number.isSafeInteger(data.expectedTurn) || (data.expectedTurn as number) < 0) {
     throw new HttpsError('invalid-argument', 'expectedTurn must be a non-negative integer.');
@@ -982,12 +986,28 @@ export function requireTurnAdvanceRequest(data: {
   ) {
     throw new HttpsError('invalid-argument', 'skipTurnStartAnnouncement must be boolean.');
   }
+  if (data.pursuitEmergencyDecision !== undefined &&
+      data.pursuitEmergencyDecision !== 'offer' && data.pursuitEmergencyDecision !== 'decline') {
+    throw new HttpsError('invalid-argument', 'pursuitEmergencyDecision must be offer or decline.');
+  }
+  if (data.pursuitEmergencyDecision !== undefined &&
+      (!Number.isSafeInteger(data.expectedPursuitNavigationRevision) ||
+       (data.expectedPursuitNavigationRevision as number) < 0)) {
+    throw new HttpsError('invalid-argument', 'Emergency decisions require a non-negative navigation revision.');
+  }
+  if (data.pursuitEmergencyDecision === undefined && data.expectedPursuitNavigationRevision !== undefined) {
+    throw new HttpsError('invalid-argument', 'A pursuit navigation revision requires an emergency decision.');
+  }
   return {
     ...requireGmInstanceRequest(data),
     requestId,
     expectedTurn: data.expectedTurn as number,
     overridePhaseTimer: data.overridePhaseTimer === true,
     skipTurnStartAnnouncement: data.skipTurnStartAnnouncement === true,
+    ...(data.pursuitEmergencyDecision === undefined ? {} : {
+      pursuitEmergencyDecision: data.pursuitEmergencyDecision,
+      expectedPursuitNavigationRevision: data.expectedPursuitNavigationRevision as number,
+    }),
   };
 }
 
