@@ -15,16 +15,15 @@ assumption because no primary numeric legend was found. See the
 
 ## State and fixed scope
 
-Work authorized on 2026-09-28; implementation and proof in progress. Opening
-count: **458/751 done; 0/293 baseline closures**. PC05 requires its 49 assigned
-IDs in the [recovery plan](CHECKPOINT_COMPLETION_PLAN.md), for **507/751 done**
-and **49/293 baseline closures**. No completion credit is claimed by this shape.
-The three owner regressions PC05-F01–F03 are required before full release.
-The active release goal batches every remaining locally verifiable PC05 change,
-repair, release note, gate and exact review into one candidate before the next
-CI/deployment run. A later run is allowed only for a failed gate, a
-production-only finding, or the final evidence/catalog closeout that cannot be
-truthfully written before deployment.
+Work was authorized on 2026-09-28 and full PC05 released on 2026-09-29 as
+build **0.5.57** from exact main commit
+`4f2cd9a8c03e8970eae5dd9ad284c855cdb2d2b7`. The checkpoint closes all 49
+assigned IDs in the [recovery plan](CHECKPOINT_COMPLETION_PLAN.md), moving the
+catalog from **458/751 done; 0/293 baseline closures** to **507/751 done; 49/293
+baseline closures**. The three owner regressions PC05-F01–F03 are released and
+verified. The release reconciled the scoped behavior, repairs, metadata, local
+gates and exact review before one replacement candidate CI/deployment run; the
+post-deployment catalog and evidence update is documentation-only.
 
 ## Problem and boundaries
 
@@ -38,14 +37,14 @@ no fixed assigned ID may be silently deferred or replaced.
 
 ## Source and proof decisions
 
-The current private source index and provenance inventory are available.
-Specific rules decisions require their routed component/guide evidence before
-implementation. Existing decision holds for rations, jump distance, failed-jump
-damage, Wolf assignment and onboarding copy are being re-evaluated under the
+The current private source index and provenance inventory were used for the
+release. Specific rules decisions were routed through their component/guide
+evidence before implementation. The prior holds for rations, jump distance,
+failed-jump damage, Wolf assignment and onboarding copy were resolved under the
 standing source-backed assumption policy. Failed-jump decisions are recorded
-as PC05-A1/A2. The replacement ration tables have been located in the original
-A4 Paper Duplex component PDF and are being implemented from its printed rows.
-Ordinary authenticated facilitator access has been verified.
+as PC05-A1/A2. The replacement ration tables were located in the original A4
+Paper Duplex component PDF and implemented from its printed rows. Ordinary
+authenticated facilitator access was verified.
 Cached screens, emulator tests, and synthetic review scenes do not establish
 ordinary production gameplay.
 
@@ -73,22 +72,24 @@ is optional and cannot waive those checks or the numeric target.
 
 ## Internal delivery and known risks
 
-Reconnect and DRADIS repairs have separate owners/checkouts; one parent owns
-integration and release. Behavior tests are committed failing before code.
-Shared-state/callable/rules changes receive independent Sol review. Rendered
-phone, desktop, short-landscape and reduced-motion checks cover changed UI;
-font and ticker release gates remain required where applicable. Reconcile the
-49 acceptance records against exact source/test/live evidence, complete missing
-implementation, then update catalog facts and regenerate views. Full PC05
-release requires all three repairs plus all 49 assigned closures. Interim
-releases, if necessary, must be labeled interim.
+Reconnect and DRADIS repairs had separate owners/checkouts; one parent owned
+integration and release. Behavior tests were committed failing before code.
+Shared-state/callable/rules changes received independent Sol review. Rendered
+phone, desktop, short-landscape and reduced-motion checks covered changed UI;
+font and ticker release gates ran where applicable. The 49 acceptance records
+are reconciled against exact source/test/live evidence, their catalog facts are
+updated, and generated views are current. Full PC05 release includes all three
+repairs and all 49 assigned closures. Earlier interim builds remain labeled in
+the evidence history and received no checkpoint completion credit.
 
 ## Evidence and test inventory
 
-Pending. No new done statuses, deployment, or ordinary gameplay proof claimed.
-Every changed test and its reason, exact release commit/build, new versus
-recovered closures, remaining shortfall, and cleanup disposition will be
-recorded here as work reaches those boundaries.
+The sections below preserve the implementation and repair history, including
+failed gates that stopped earlier candidates. The final release boundary and
+ordinary production observations are recorded in **PC05 final release and
+ordinary production proof** at the end of this report. Completion credit is
+based on the reconciled exact candidate, exact-main deployment and that recorded
+production play, rather than any intermediate candidate.
 
 ### Setup and onboarding candidate evidence
 
@@ -692,3 +693,56 @@ change, selects the same exact 138-Function cumulative PC05 set, and passes all
 
 Exact review, full local release gates, the single replacement CI/deployment
 run and renewed ordinary production play remain required.
+
+### PC05 final release and ordinary production proof
+
+The final production candidate is
+`d45b1266462ca74eecd39d23db1612b3e5346098`. Independent GPT-5.6 Sol xhigh
+review is **clear**: the candidate is the direct test-only child of reviewed
+production candidate `212da9b26814b00da9bd8b0b72db16408c2d1079`, the
+production tree is identical, the 0.5.56 history boundary remains covered, and
+the changed AppHeader suite passes **44/44**. The complete exact-candidate run
+passes **6,122 tests**, **143/143 Firestore rules checks**, typecheck, both
+builds, the bundle and deployment-selection gates, **61/61** font checks, the
+56-case rendered typography matrix, the complete ticker matrix, responsive
+DRADIS/jump/mutiny checks, roadmap/dependency/documentation validation, and
+lint with zero errors and eight recorded warnings.
+
+[PR #5](https://github.com/emerald-pham/den-of-wolves-new-eden-console/pull/5)
+ran the single reconciled candidate CI as workflow `36636882417`; it passed
+without a retry. The PR merged as exact main commit
+`4f2cd9a8c03e8970eae5dd9ad284c855cdb2d2b7`. Exact-main deployment workflow
+`36639176688` passed its verification and browser shards, deployed Hosting,
+and published build **0.5.57**.
+
+Ordinary authorized production play then established the required visible
+boundaries:
+
+- A confirmed empty roster started Cycle 1 with no fabricated holder. Its
+  private-loyalty receipt reported target one and assigned zero Wolves, and the
+  approved onboarding copy read: “Wolf agents are humans, just like the other
+  survivors.”
+- Compact DRADIS presented **Zoom** with accessible text “Zoom into DRADIS
+  panel”; it never used player names as the minimized control label. Visible
+  names remained attached to their visible contacts through reveal, update and
+  fade, and an unknown contact produced no orphan name.
+- A player reloaded build 0.5.57 while assigned as Shepherd Scientist. After
+  the facilitator released that role, the player was immediately returned from
+  the station route to station selection while session membership remained
+  connected. The persistent notice read: “Your previous station is no longer
+  available. Return to station select and reselect your role.” The facilitator
+  projection simultaneously showed the player as Unassigned.
+
+These observations exercise the owner-reported regressions and representative
+start/onboarding paths on the deployed build. The remaining prompt-specific
+rule, privacy, authority, exact-replay, concurrency, responsive and resource
+edges were proved by deterministic tests and real Firestore emulator races on
+the exact deployed production tree; they were not each manually repeated as a
+separate production game. Together those gates close the 49 assigned PC05
+acceptances and establish **507/751 done; 49/293 baseline closures**.
+
+No executable test was skipped or deleted to release PC05. New and corrected
+tests were committed separately from the production changes they cover. The
+failed bundle, DRADIS performance, deployment IAM, empty-roster and reconnect
+attempts above remain in this report because they explain why earlier builds
+and candidates received no completion credit.
