@@ -1405,6 +1405,50 @@ it('keeps crowded 20-contact label layout within the per-update geometry-read bu
   expect(labelLayoutReads).toBeLessThanOrEqual(20 * contacts.length);
 });
 
+it('measures a spread 20-contact DRADIS anchor batch twice per label', () => {
+  const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
+    x: left, y: top, left, top, width, height,
+    right: left + width, bottom: top + height,
+  }) as DOMRect;
+  const markers = Array.from({ length: 20 }, (_, index) => ({
+    x: 90 + (index % 5) * 140,
+    y: 60 + Math.floor(index / 5) * 140,
+  }));
+  let labelLayoutReads = 0;
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    if (this.classList.contains('contact-plot')) return bounds(0, 0, 760, 620);
+    const contact = this.closest<HTMLElement>('.contact-plot__contact');
+    const index = contact ? [...document.querySelectorAll('.contact-plot__contact')].indexOf(contact) : -1;
+    const marker = markers[index];
+    if (this.classList.contains('contact-plot__blip') && marker) return bounds(marker.x, marker.y, 8, 8);
+    if (this.classList.contains('contact-plot__tag') && marker) {
+      labelLayoutReads += 1;
+      const anchor = contact?.dataset.labelAnchor ?? 'north-east';
+      const left = anchor.endsWith('east') ? marker.x - 11 - 80 : marker.x + 8 + 11;
+      const top = anchor.startsWith('north') ? marker.y - 8 - 18 : marker.y + 8 + 8;
+      const style = this as HTMLElement;
+      const x = Number.parseFloat(style.style.getPropertyValue('--label-clamp-x')) || 0;
+      const y = Number.parseFloat(style.style.getPropertyValue('--label-clamp-y')) || 0;
+      return bounds(left + x, top + y, 80, 18);
+    }
+    return bounds(0, 0, 0, 0);
+  });
+  const contacts = markers.map((_, index) => ({
+    id: `spread-${index}`, tag: `CONTACT ${String(index + 1).padStart(2, '0')}`,
+    x: (index % 5 - 2) * 0.3, y: (Math.floor(index / 5) - 1.5) * 0.3,
+    z: 0.1, color: 'white',
+  }));
+
+  const { rerender } = render(<ContactPlot contacts={contacts} />);
+  expect(labelLayoutReads).toBeLessThanOrEqual(2 * contacts.length);
+
+  labelLayoutReads = 0;
+  rerender(<ContactPlot contacts={contacts.map((contact) => ({
+    ...contact, x: contact.x + 0.01,
+  }))} />);
+  expect(labelLayoutReads).toBeLessThanOrEqual(2 * contacts.length);
+});
+
 it('keeps 20 readable DRADIS returns within 12 label reads per contact', () => {
   const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
     x: left, y: top, left, top, width, height,
