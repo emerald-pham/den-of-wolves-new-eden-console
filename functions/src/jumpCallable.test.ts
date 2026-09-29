@@ -1291,6 +1291,22 @@ it('accepts a pursuit-10 emergency jump without a charge or fuel and damages the
   );
 });
 
+it('keeps an emergency jump subject to the ship one-jump-per-cycle guard', async () => {
+  mock.charges = [];
+  mock.fuel = 0;
+  mock.pursuitGroups = { 'fleet-1': 10 };
+  mock.jumpStates = { aegis: { lastJumpTurn: 1 } };
+
+  await expect(jumpShip.run(request({
+    ...data, requestId: 'second-jump-same-cycle', destination: '5143', emergency: true,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/already jumped this cycle/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.randomInt).not.toHaveBeenCalled();
+});
+
 it('exposes only active-GM jump-failure adjudication and read callables', () => {
   const exports = jumpCallables as unknown as Record<string, unknown>;
   expect(exports.adjudicateFailedJump).toBeTypeOf('function');

@@ -3,6 +3,23 @@ import { EventVisibility } from './eventEnvelope';
 import { buildPrivacySafeEventRecord, memberEventFieldsFor } from './eventRedaction';
 
 describe('buildPrivacySafeEventRecord', () => {
+  it('publishes jump outcomes and dice without exposing navigation coordinates or command internals', () => {
+    expect(buildPrivacySafeEventRecord({
+      type: 'ship-jump',
+      envelope: { sessionId: 's1', requestId: 'jump-1', revision: 2, visibility: EventVisibility.Member },
+      payload: {
+        shipId: 'aegis', outcome: 'drive-failure', failureRoll: 2, failureThreshold: 3,
+        origin: '0000', destination: '5143', fingerprint: 'private', availableFuel: 4,
+      },
+      createdAt: 'server-time',
+    })).toEqual({
+      sessionId: 's1', requestId: 'jump-1', revision: 2, visibility: EventVisibility.Member,
+      type: 'ship-jump', createdAt: 'server-time', shipId: 'aegis', outcome: 'drive-failure',
+      failureRoll: 2, failureThreshold: 3,
+    });
+    expect(memberEventFieldsFor('ship-jump')).not.toContain('destination');
+  });
+
   it('publishes only the Highwall mining outcome', () => {
     expect(buildPrivacySafeEventRecord({
       type: 'highwall-mining',

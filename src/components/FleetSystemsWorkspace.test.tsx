@@ -238,12 +238,14 @@ it.each(SHIPS.filter(ship => ship.maintenance))('keeps the complete $name mainte
 
   const jump = within(screen.getByRole('article', { name: 'Jump Drive system // operational' }));
   const baseline = jump.getByText(/charged:|airspace open|short \/\//i, { selector: 'p' });
-  const normalFailure = jump.getByText('A jump fails on a roll of 1–2.', { selector: 'p' });
+  const damagedFailure = jump.getByText(
+    'If the Jump Drive is damaged, a jump fails on a roll of 1–3.', { selector: 'p' },
+  );
   const condition = jump.getByText('Condition', { selector: 'dt' });
 
   expect(jump.queryByText('Normal', { selector: 'dt' })).not.toBeInTheDocument();
-  expect(baseline.compareDocumentPosition(normalFailure) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  expect(normalFailure.compareDocumentPosition(condition) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(baseline.compareDocumentPosition(damagedFailure) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(damagedFailure.compareDocumentPosition(condition) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
   const steps = screen.getByRole('list', { name: `${ship.name} maintenance sequence` });
   const entries = Array.from(steps.children);

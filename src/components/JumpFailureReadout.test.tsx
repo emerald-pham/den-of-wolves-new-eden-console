@@ -7,9 +7,7 @@ it('shows the printed damaged-drive thresholds, including the upgraded threshold
   const Readout = JumpFailureReadout as unknown as ComponentType<{ upgraded: boolean }>;
   const { rerender } = render(<Readout upgraded={false} />);
 
-  expect(screen.getByText(/damaged drive.*1–3/i)).toBeInTheDocument();
-  expect(screen.getByText(/upgraded.*damaged.*1 only/i)).toBeInTheDocument();
-
+  expect(screen.getByText(/if the jump drive is damaged.*1–3/i)).toBeInTheDocument();
   rerender(<Readout upgraded />);
-  expect(screen.getByText(/damaged drive.*1 only/i)).toBeInTheDocument();
+  expect(screen.getByText(/if the jump drive is damaged.*1 when upgraded/i)).toBeInTheDocument();
 });
