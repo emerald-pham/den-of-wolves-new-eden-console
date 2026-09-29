@@ -6,13 +6,30 @@ import { chromium } from 'playwright';
 const root = process.cwd();
 const outputDirectory = resolve(root, 'dist');
 const packageJson = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
+const catalog = JSON.parse(await readFile(resolve(root, 'docs/implementation-prompts.json'), 'utf8'));
+const catalogCounts = catalog.prompts.reduce((counts, prompt) => ({
+  ...counts,
+  [prompt.status]: (counts[prompt.status] ?? 0) + 1,
+}), {});
+const expectedProgress = {
+  completed: catalogCounts.done ?? 0,
+  total: catalog.prompts.length,
+  percentage: `${(((catalogCounts.done ?? 0) / catalog.prompts.length) * 100).toFixed(2)}%`,
+};
 const workerSource = await readFile(resolve(outputDirectory, 'sw.js'), 'utf8');
 const assetPath = workerSource.match(/"(\/assets\/changelog-display-[^"]+\.json)"/)?.[1];
 if (!assetPath) throw new Error('The generated service worker does not precache the changelog display asset.');
 
 const asset = JSON.parse(await readFile(resolve(outputDirectory, assetPath.slice(1)), 'utf8'));
-if (!Array.isArray(asset) || asset[0]?.version !== packageJson.version) {
+if (!Array.isArray(asset.entries) || asset.entries[0]?.version !== packageJson.version) {
   throw new Error('The emitted changelog display asset does not match the application version.');
+}
+if (
+  asset.currentProgress?.completed !== expectedProgress.completed
+  || asset.currentProgress?.total !== expectedProgress.total
+  || asset.currentProgress?.percentage !== expectedProgress.percentage
+) {
+  throw new Error('The emitted changelog display asset does not contain the current catalog progress.');
 }
 
 const contentTypes = new Map([
@@ -78,6 +95,9 @@ try {
   await page.getByRole('button', { name: 'Settings' }).click();
   await page.getByRole('button', { name: 'View changelog' }).click();
   await page.getByRole('heading', { name: `Build ${packageJson.version}` }).waitFor({ state: 'visible' });
+  await page.getByText(
+    `Current build catalog: ${expectedProgress.completed} of ${expectedProgress.total} complete (${expectedProgress.percentage})`,
+  ).waitFor({ state: 'visible' });
   const assertSettingsLayout = async (label) => {
     await page.locator('.settings-changelog__entries').scrollIntoViewIfNeeded();
     const layout = await page.evaluate(() => {
@@ -148,15 +168,20 @@ try {
   await page.getByRole('button', { name: 'View changelog' }).click();
   await page.getByRole('heading', { name: `Build ${packageJson.version}` }).waitFor({ state: 'visible' });
   const renderedReleaseCount = await page.locator('.settings-changelog__entry').count();
-  if (renderedReleaseCount !== asset.length) {
-    throw new Error(`Offline Settings rendered ${renderedReleaseCount} of ${asset.length} changelog releases.`);
+  if (renderedReleaseCount !== asset.entries.length) {
+    throw new Error(`Offline Settings rendered ${renderedReleaseCount} of ${asset.entries.length} changelog releases.`);
   }
   const latestEntry = await page.locator('.settings-changelog__entry').first().innerText();
-  if (!latestEntry.includes('Macaw repairs keep your selected consoles')) {
+  if (!latestEntry.includes('PC05 is complete')) {
     throw new Error('Offline Settings loaded the asset but did not render the current changelog copy.');
   }
+  const historicalPc05Entry = await page.getByRole('heading', { name: 'Build 0.5.57' })
+    .locator('..').innerText();
+  if (!historicalPc05Entry.includes('458 of 751 planned items were complete')) {
+    throw new Error('Offline Settings did not preserve the historical 0.5.57 catalog snapshot.');
+  }
   if (pageErrors.length > 0) throw new Error(`Offline changelog caused page errors: ${pageErrors.join('; ')}`);
-  console.log(`Offline Settings loaded ${asset.length} releases from precached ${assetPath}.`);
+  console.log(`Offline Settings loaded ${asset.entries.length} releases from precached ${assetPath}.`);
   await context.close();
 } finally {
   await browser?.close();
