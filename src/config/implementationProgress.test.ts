@@ -16,7 +16,7 @@ const catalog = JSON.parse(inputs.catalogSource) as {
 };
 
 describe('catalog-backed implementation progress', () => {
-  it('derives the current summary from the catalog without changelog totals', () => {
+  it('derives the current summary from the catalog and requires the current changelog totals to match', () => {
     const result = validateImplementationProgress(inputs);
 
     expect(result.errors).toEqual([]);
@@ -24,7 +24,11 @@ describe('catalog-backed implementation progress', () => {
     expect(formatImplementationProgress(result.summary)).toContain(
       `${result.summary?.complete}/${result.summary?.total} complete`,
     );
-    expect(result.releaseProgress).toBeNull();
+    expect(result.releaseProgress).toMatchObject({
+      version: inputs.applicationVersion,
+      completed: result.summary?.complete,
+      total: result.summary?.total,
+    });
   });
 
   it('accepts a one-field status edit and derives all lifecycle metadata from it', () => {
@@ -38,7 +42,8 @@ describe('catalog-backed implementation progress', () => {
     const after = validateImplementationProgress({ ...inputs, catalogSource: JSON.stringify(edited) });
 
     expect(before.errors).toEqual([]);
-    expect(after.errors).toEqual([]);
+    expect(after.errors.join('\n')).toContain('changelog');
+    expect(after.errors.join('\n')).toContain('but the ledger has');
     expect(after.summary?.complete).toBe(
       before.summary!.complete + (target.status === 'done' ? 1 : -1),
     );
