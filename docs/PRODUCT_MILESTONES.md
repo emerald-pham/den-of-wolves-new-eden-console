@@ -48,6 +48,35 @@ unstarted prompt after feedback or a changed dependency. Update this route and
 the catalog when that happens. Completed prompts and existing evidence remain
 available as prerequisites without being assigned again.
 
+## Autonomous execution for PC05–PC10
+
+**Owner instruction, 2026-09-28:** the owner will be away; complete this work
+without requiring their presence. This is standing authorization to shape,
+implement, validate, repair, merge, push, deploy, and verify each remaining
+checkpoint within its assigned scope. Do not insert another routine approval,
+walkthrough, feedback, rules-ruling, or checkpoint-transition pause. Provide
+solo review access and concise evidence for optional later review.
+
+Resolve routine product and rules ambiguity from the current owner decisions
+and precise authorized sources, record the chosen interpretation and its
+limits, and continue. Re-evaluate historical owner-decision holds against this
+standing instruction; do not perpetuate an obsolete question. Never invent
+source authority or claim an unavailable gameplay path was verified. Use
+supported authenticated access for live proof; do not bypass security or
+copy credentials into repository files, reports, fixtures, or logs.
+
+If a genuine access, missing-source, or higher-priority permission requirement
+blocks one path, keep working on independent assigned scope. Escalate only
+after useful independent work is exhausted, with the exact missing capability
+and preserved resume path. An unavailable owner does not waive completion
+counts, tests, independent risk review, privacy, ordinary gameplay proof,
+explicit feature exclusions, or the separate 0.9.x/1.0.0 version restriction.
+A blocked or interim release is never a completed checkpoint.
+
+At a completed checkpoint boundary, record its evidence and continue to the
+next assigned checkpoint under this authorization; do not wait for UI review.
+Later owner feedback enters the normal bounded cooldown process.
+
 ## How the campaign runs
 
 This is a trimmed Shape Up loop. **Scope is the limit, not a six-week clock.**

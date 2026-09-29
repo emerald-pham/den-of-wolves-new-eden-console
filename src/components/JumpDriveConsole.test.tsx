@@ -11,10 +11,11 @@ vi.mock('@/lib/sessionService', async (importOriginal) => {
   return {
     ...actual,
     jumpShip: vi.fn(),
-    createJumpShipAttempt: vi.fn((shipId: string, destination: string) => ({
+    createJumpShipAttempt: vi.fn((shipId: string, destination: string, options?: Record<string, unknown>) => ({
       sessionId: 's1', shipId, destination,
       requestId: '30400000-0000-4000-8000-000000000001', expectedRevision: 3,
       instanceId: 'bridge',
+      ...options,
     })),
   };
 });
@@ -60,10 +61,11 @@ beforeEach(() => {
     fuelCost: 2,
     remainingFuel: 2,
   });
-  vi.mocked(createJumpShipAttempt).mockReset().mockImplementation((shipId, destination) => ({
+  vi.mocked(createJumpShipAttempt).mockReset().mockImplementation((shipId, destination, options) => ({
     sessionId: 's1', shipId, destination,
     requestId: '30400000-0000-4000-8000-000000000001', expectedRevision: 3,
     instanceId: 'bridge',
+    ...options,
   }));
 });
 
@@ -85,6 +87,79 @@ it('edits four digits, locks the destination, powers the rail, and submits the j
 
   await user.click(screen.getByRole('button', { name: /jump to 2000/i }));
   expect(jumpShip).toHaveBeenCalledWith(expect.objectContaining({ shipId: 'aegis', destination: '2000' }));
+});
+
+it('offers an emergency jump at pursuit 10 without requiring the drive power rail', async () => {
+  const user = userEvent.setup();
+  renderConsole({ pursuitValue: 10, pursuitEmergencyWindowStatus: 'offered' });
+
+  await user.click(screen.getByRole('button', { name: 'Increase coordinate digit 1' }));
+  await user.click(screen.getByRole('button', { name: /lock destination coordinates/i }));
+  expect(screen.getByRole('slider', { name: /jump drive power/i })).toHaveValue('0');
+
+  await user.click(screen.getByRole('button', { name: /emergency jump to 1000/i }));
+  expect(jumpShip).toHaveBeenCalledWith(expect.objectContaining({
+    shipId: 'aegis', destination: '1000', emergency: true,
+  }));
+});
+
+it('keeps an uncertain emergency request on its emergency retry control', async () => {
+  const user = userEvent.setup();
+  vi.mocked(createJumpShipAttempt).mockReturnValue({ ...jumpAttempt, emergency: true });
+  vi.mocked(jumpShip).mockRejectedValueOnce({ code: 'functions/unavailable' });
+  renderConsole({ pursuitValue: 10, pursuitEmergencyWindowStatus: 'offered' });
+
+  await user.click(screen.getByRole('button', { name: 'Increase coordinate digit 1' }));
+  await user.click(screen.getByRole('button', { name: /lock destination coordinates/i }));
+  fireEvent.change(screen.getByRole('slider', { name: /jump drive power/i }), { target: { value: '100' } });
+  await user.click(screen.getByRole('button', { name: /emergency jump to 1000/i }));
+
+  expect(screen.getByRole('button', { name: /emergency jump pending/i })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /retry emergency jump confirmation/i })).toBeEnabled();
+  await user.click(screen.getByRole('button', { name: /retry emergency jump confirmation/i }));
+  expect(jumpShip).toHaveBeenNthCalledWith(2, expect.objectContaining({ emergency: true }));
+});
+
+it('keeps an uncertain emergency retry available after the fresh projection marks it used', async () => {
+  const user = userEvent.setup();
+  vi.mocked(createJumpShipAttempt).mockReturnValue({ ...jumpAttempt, emergency: true });
+  vi.mocked(jumpShip).mockRejectedValueOnce({ code: 'functions/unavailable' });
+  const view = renderConsole({ pursuitValue: 10, pursuitEmergencyWindowStatus: 'offered' });
+
+  await user.click(screen.getByRole('button', { name: 'Increase coordinate digit 1' }));
+  await user.click(screen.getByRole('button', { name: /lock destination coordinates/i }));
+  await user.click(screen.getByRole('button', { name: /emergency jump to 1000/i }));
+
+  view.rerender(
+    <ConsoleAccessContext.Provider value={{ writable: true, roleId: 'aegis' }}>
+      <JumpDriveConsole
+        shipId="aegis" shipName="AEGIS" currentCoordinate="0000" fuel={0}
+        jumpCosts={[2, 3, 6]} charged={false} damaged={false} upgraded={false}
+        pursuitValue={10} emergencyJumpUsed lastFailureRequestId="jump-failure"
+        pursuitEmergencyWindowStatus="offered"
+      />
+    </ConsoleAccessContext.Provider>,
+  );
+
+  expect(screen.getByRole('button', { name: /retry emergency jump confirmation/i })).toBeEnabled();
+  await user.click(screen.getByRole('button', { name: /retry emergency jump confirmation/i }));
+  expect(jumpShip).toHaveBeenNthCalledWith(2, expect.objectContaining({
+    requestId: jumpAttempt.requestId, emergency: true,
+  }));
+});
+
+it('waits for the facilitator offer before enabling pursuit-10 emergency jump', () => {
+  renderConsole({ pursuitValue: 10, pursuitEmergencyWindowStatus: 'awaiting-gm-decision' });
+
+  expect(screen.getByRole('status', { name: 'Pursuit emergency decision' }))
+    .toHaveTextContent(/waiting for the facilitator to offer/i);
+  expect(screen.queryByRole('button', { name: /emergency jump to/i })).not.toBeInTheDocument();
+});
+
+it('does not show a pursuit-10 emergency action before a facilitator offer exists', () => {
+  renderConsole({ pursuitValue: 10 });
+
+  expect(screen.queryByRole('button', { name: /emergency jump to/i })).not.toBeInTheDocument();
 });
 
 it('shows the effective fuel bands after the Jump Drive upgrade', () => {
@@ -262,4 +337,24 @@ it('shows the server-owned one-hour integrity lockout and disables the drive', (
   );
   expect(screen.getByRole('button', { name: /lock destination coordinates/i })).toBeDisabled();
   expect(screen.getByRole('slider', { name: /jump drive power/i })).toBeDisabled();
+});
+
+it('keeps players waiting until the facilitator offers the pursuit emergency jump', () => {
+  renderConsole({
+    pursuitValue: 10,
+    pursuitEmergencyWindowStatus: 'awaiting-gm-decision',
+  } as Partial<ComponentProps<typeof JumpDriveConsole>>);
+
+  expect(screen.getByRole('status', { name: /pursuit emergency/i }))
+    .toHaveTextContent(/waiting for the facilitator to offer an emergency jump/i);
+  expect(screen.queryByRole('button', { name: /emergency jump to/i })).not.toBeInTheDocument();
+});
+
+it('offers the emergency drive only after the facilitator decision is live', () => {
+  renderConsole({
+    pursuitValue: 10,
+    pursuitEmergencyWindowStatus: 'offered',
+  } as Partial<ComponentProps<typeof JumpDriveConsole>>);
+
+  expect(screen.getByRole('button', { name: /emergency jump to/i })).toBeInTheDocument();
 });

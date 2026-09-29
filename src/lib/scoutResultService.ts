@@ -108,7 +108,7 @@ function authority(gm: boolean): { sessionId: string; uid: string; instanceId?: 
   const { session, me, gmInstance } = useSessionStore.getState();
   if (!session || !me?.uid || me.sessionId !== session.id ||
       (gm ? me.role !== 'gm' || gmInstance?.sessionId !== session.id ||
-        gmInstance.uid !== me.uid : me.role !== 'player')) {
+        gmInstance.uid !== me.uid : me.role !== 'player' || me.replacementStatus != null)) {
     throw new Error('Reconnect to your scouting station.');
   }
   requireFreshSessionAuthority();
@@ -124,7 +124,8 @@ async function invoke(name: string, payload: RecordValue, gm: boolean): Promise<
   const current = useSessionStore.getState();
   if (!isCurrentSessionAuthority(checkpoint) ||
       (gm && current.gmInstance?.id !== owner.instanceId) ||
-      current.me?.role !== (gm ? 'gm' : 'player')) {
+      current.me?.role !== (gm ? 'gm' : 'player') ||
+      (!gm && current.me.replacementStatus != null)) {
     throw new Error('Scouting authority changed. Reconnect and refresh the station.');
   }
   return response.data;

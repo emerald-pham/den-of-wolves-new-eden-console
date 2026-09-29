@@ -10,6 +10,7 @@ import type {
   GmInstance,
   Player,
   SetupReceipt,
+  ShipDamageState,
   ShipJumpState,
   ShipJumpTransition,
   WolfAttackPreparation,
@@ -33,6 +34,7 @@ import type {
   ArbourVision,
   SessionPhase,
   CommissarPurgeAuthority,
+  PursuitEmergencyWindow,
 } from '@/types/game';
 import { parseEntityId } from '@/types/identifiers';
 import { AEGIS_FIGHTER_WING_CAPACITY } from '@/data/aegisConsoles';
@@ -79,6 +81,7 @@ import {
 interface SessionReply {
   readonly session: GameSession;
   readonly player: Player;
+  readonly stationSelectionRequired?: boolean;
 }
 
 const SESSION_PHASES: ReadonlySet<SessionPhase> = new Set([
@@ -199,6 +202,34 @@ function setConnectRateLimitWait(seconds: number): void {
     code: 'functions/resource-exhausted',
     details: { commandError: 'rate-limited', retryAfterSeconds: seconds },
   }));
+}
+
+function stationSelectionNotice() {
+  return normalizeCommandError({
+    code: 'functions/permission-denied',
+    details: { commandError: 'station-selection-required' },
+  });
+}
+
+/** Drop identity-scoped private projections after the server rejects station authority. */
+function clearPrivateStationState(): void {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me) return;
+  store.setIdentity(store.session, store.me);
+  // setIdentity intentionally retains UID-bound loyalty during ordinary
+  // reconnects. A lost station requires a fresh private projection before it
+  // can be shown again.
+  useSessionStore.getState().setPrivateLoyalty(null);
+}
+
+function requireStationReselection(checkpoint: SessionAuthorityCheckpoint | undefined): boolean {
+  if (!authorityCheckpointIsCurrent(checkpoint)) return false;
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me) return false;
+  store.setMe({ ...store.me, activeConsoleRoleId: null });
+  clearPrivateStationState();
+  useSessionStore.getState().setCommunicationError(stationSelectionNotice());
+  return true;
 }
 
 export const COMMAND_RECONNECT_WINDOW_MS = 15_000;
@@ -350,7 +381,8 @@ function wolfCommanderAuthorityCheckpointIsCurrent(
 ): boolean {
   const store = useSessionStore.getState();
   return store.session?.id === sessionId && store.me?.sessionId === sessionId &&
-    store.me?.replacementRoleId === 'wolf-commander' && authorityCheckpointIsCurrent(checkpoint);
+    store.me?.replacementRoleId === 'wolf-commander' && store.me.replacementStatus == null &&
+    authorityCheckpointIsCurrent(checkpoint);
 }
 
 function aegisExecutiveOfficerAuthorityCheckpointIsCurrent(
@@ -551,6 +583,7 @@ function applyCommandResult(
     );
     const nextSession = {
       ...store.session,
+      ...(reply.setupConfirmed === true ? { setupConfirmed: true } : {}),
       ...(typeof reply.chartSelectionLocked === 'boolean'
         ? { chartSelectionLocked: reply.chartSelectionLocked } : {}),
       ...(typeof reply.setupRevision === 'number' && Number.isSafeInteger(reply.setupRevision) && reply.setupRevision >= 0
@@ -1074,6 +1107,10 @@ function applySession(reply: SessionReply, expectedDisplayedSessionId: string | 
     // replaces. A reply rejected by the shared authority cursor must not
     // promote cached state or make an older queued mutation eligible.
     store.setSessionSnapshotFreshness('server');
+    if (reply.stationSelectionRequired === true) {
+      clearPrivateStationState();
+      useSessionStore.getState().setCommunicationError(stationSelectionNotice());
+    }
   }
   return true;
 }
@@ -1420,6 +1457,40 @@ export async function applyShipCounterSteps(
   }
 }
 
+/** GM-only active-game captain swap that resolves one ship's mutiny. */
+export async function resolveShipMutiny(
+  shipId: string,
+  newCaptainUid: string | null,
+  reduction: 1 | 2 | 3,
+  expectedRevision: number,
+  recoveryMode?: 'replacement-transfer' | 'crew-attestation',
+  expectedEligibilityRevision?: number,
+): Promise<{ status: 'committed' | 'replayed' | 'stale'; unrest?: number }> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.role !== 'gm' || !store.gmInstance ||
+      store.gmInstance.sessionId !== store.session.id || store.gmInstance.uid !== store.me.uid) {
+    throw new Error('An active GM instance is required.');
+  }
+  requireFreshSessionAuthority();
+  const payload = {
+    sessionId: store.session.id, instanceId: store.gmInstance.id,
+    requestId: commandId(), shipId, newCaptainUid, reduction, expectedRevision,
+    ...(recoveryMode ? { recoveryMode } : {}),
+    ...(expectedEligibilityRevision === undefined ? {} : { expectedEligibilityRevision }),
+  };
+  await ensureSignedIn();
+  const result = (await httpsCallable<typeof payload, unknown>(functions(), 'resolveShipMutiny')(payload)).data;
+  if (!result || typeof result !== 'object' || Array.isArray(result) ||
+      !['committed', 'replayed', 'stale'].includes(String((result as Record<string, unknown>).status))) {
+    throw new Error('The server returned an invalid mutiny recovery result.');
+  }
+  const reply = result as Record<string, unknown>;
+  return {
+    status: reply.status as 'committed' | 'replayed' | 'stale',
+    ...(typeof reply.unrest === 'number' ? { unrest: reply.unrest } : {}),
+  };
+}
+
 export interface FighterWingCountResult extends Partial<VesselActionEnvelope> {
   readonly status: 'committed' | 'replayed' | 'stale';
   readonly wingId: string;
@@ -1744,7 +1815,8 @@ function commissarPurgeAuthorityReply(
 
 export async function refreshCommissarPurgeAuthority(): Promise<CommissarPurgeAuthority | null> {
   const before = useSessionStore.getState();
-  if (!before.session || !before.me || before.me.role !== 'player') return null;
+  if (!before.session || !before.me || before.me.role !== 'player' ||
+      before.me.replacementStatus != null) return null;
   requireFreshSessionAuthority();
   const sessionId = before.session.id;
   const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(before));
@@ -2598,7 +2670,8 @@ export async function getSessionPresence(): Promise<{ connectedPlayers: number }
 export async function refreshPresence(activeConsoleRoleId?: string | null): Promise<void> {
   const store = useSessionStore.getState();
   const session = store.session;
-  if (!session) return;
+  if (!session || !store.me) return;
+  const checkpoint = sessionAuthorityCheckpoint(session.id, sessionAuthorityUid(store));
   const instanceId = store.gmInstance?.sessionId === session.id
     ? store.gmInstance.id
     : undefined;
@@ -2613,15 +2686,19 @@ export async function refreshPresence(activeConsoleRoleId?: string | null): Prom
   await ensureSignedIn();
   const call = httpsCallable<{
     sessionId: string; activeConsoleRoleId?: string | null; instanceId?: string;
-  }, { sessionId: string }>(
+  }, { sessionId: string; stationSelectionRequired?: boolean }>(
     functions(),
     'refreshPresence',
   );
-  await call({
+  const reply = await call({
     sessionId: session.id,
     ...(instanceId ? { instanceId } : {}),
     ...(activeConsoleRoleId === undefined ? {} : { activeConsoleRoleId }),
   });
+  const stationSelectionRequired = reply.data.stationSelectionRequired === true;
+  if (stationSelectionRequired && useSessionStore.getState().session?.id === session.id) {
+    requireStationReselection(checkpoint);
+  }
 }
 
 export async function selectConsoleRole(roleId: string): Promise<void> {
@@ -2629,6 +2706,10 @@ export async function selectConsoleRole(roleId: string): Promise<void> {
   const checkpoint = before.session
     ? sessionAuthorityCheckpoint(before.session.id, sessionAuthorityUid(before))
     : undefined;
+  if (before.communicationError?.kind === 'station-selection-required' &&
+      authorityCheckpointIsCurrent(checkpoint)) {
+    before.setCommunicationError(null);
+  }
   try {
     // A console route is only an intent.  For the canonical setup roster, the
     // first entry into an open core role must win the same server CAS used by
@@ -2641,22 +2722,31 @@ export async function selectConsoleRole(roleId: string): Promise<void> {
     const isGm = before.me?.role === 'gm';
     if (!isGm && targetSeat?.status === 'open') {
       const disposition = await claimSeat(targetSeat.id);
-      if (disposition !== 'applied') return;
+      if (disposition !== 'applied') {
+        if (disposition === 'stale') requireStationReselection(checkpoint);
+        return;
+      }
     } else if (!isGm && (
       targetSeat && targetSeat.holderUid !== before.me?.uid
     )) {
       // A claimed or locked seat is already read-only for this browser.  Do
       // not let the presence callable turn a route visit into role authority
       // while a seat projection is ahead of the presence projection.
+      requireStationReselection(checkpoint);
       return;
     }
     await refreshPresence(roleId);
+    if (useSessionStore.getState().communicationError?.kind === 'station-selection-required') return;
     const store = useSessionStore.getState();
     if (store.me && authorityCheckpointIsCurrent(checkpoint)) {
       store.setMe({ ...store.me, activeConsoleRoleId: roleId });
     }
   } catch (cause) {
-    useSessionStore.getState().setCommunicationError(interception(cause));
+    if (authorityCheckpointIsCurrent(checkpoint)) {
+      const error = interception(cause);
+      if (error.kind === 'station-selection-required') requireStationReselection(checkpoint);
+      else useSessionStore.getState().setCommunicationError(error);
+    }
     throw cause;
   }
 }
@@ -3140,7 +3230,8 @@ export async function setShipConsoleLock(
 }
 
 export interface JumpShipReply extends Partial<VesselActionEnvelope> {
-  readonly status: 'integrity-locked' | 'integrity-lockout' | 'drive-failure' | 'jumped' | 'stale';
+  readonly status: 'integrity-locked' | 'integrity-lockout' | 'drive-failure' | 'fuel-shortage' |
+    'not-charged' | 'jumped' | 'stale';
   readonly shipId: string;
   readonly origin?: string;
   readonly destination?: string;
@@ -3148,9 +3239,28 @@ export interface JumpShipReply extends Partial<VesselActionEnvelope> {
   readonly length?: 'short' | 'medium' | 'long';
   readonly fuelCost?: number;
   readonly remainingFuel?: number;
+  readonly fuelSpent?: number;
+  readonly requiredFuel?: number;
+  readonly availableFuel?: number;
+  readonly failureRequestId?: string;
+  readonly failureRoll?: number;
+  readonly failureThreshold?: number;
+  readonly emergency?: boolean;
+  readonly damage?: ShipDamageState;
+  readonly damageDraws?: readonly { readonly card: string; readonly systemId: string; readonly systemName: string }[];
   readonly currentRevision?: number;
   readonly state?: ShipJumpState;
   readonly transition?: ShipJumpTransition;
+  readonly pursuitEmergencyWindow?: PursuitEmergencyWindow;
+  readonly pursuitEmergencyWindowCleared?: boolean;
+  readonly phase?: GameSession['phase'];
+  readonly gameOutcome?: GameSession['gameOutcome'];
+}
+
+function withoutPursuitEmergencyWindow<T extends object>(session: T): Omit<T, 'pursuitEmergencyWindow'> {
+  const projected = { ...session } as T & { pursuitEmergencyWindow?: PursuitEmergencyWindow };
+  delete projected.pursuitEmergencyWindow;
+  return projected as Omit<T, 'pursuitEmergencyWindow'>;
 }
 
 export interface JumpShipAttempt {
@@ -3160,10 +3270,16 @@ export interface JumpShipAttempt {
   readonly requestId: string;
   readonly expectedRevision: number;
   readonly instanceId?: string;
+  readonly emergency?: boolean;
+  readonly failureRequestId?: string;
 }
 
 /** Capture one immutable request identity so a lost acknowledgement can be retried exactly. */
-export function createJumpShipAttempt(shipId: string, destination: string): JumpShipAttempt {
+export function createJumpShipAttempt(
+  shipId: string,
+  destination: string,
+  options: { readonly emergency?: boolean; readonly failureRequestId?: string } = {},
+): JumpShipAttempt {
   const store = useSessionStore.getState();
   if (!store.session || !store.me) throw new Error('Join a session before jumping.');
   requireFreshSessionAuthority();
@@ -3174,6 +3290,8 @@ export function createJumpShipAttempt(shipId: string, destination: string): Jump
     requestId: commandId(),
     expectedRevision: store.session.vesselActionRevisions?.[shipId] ?? 0,
     ...(store.gmInstance ? { instanceId: store.gmInstance.id } : {}),
+    ...(options.emergency ? { emergency: true } : {}),
+    ...(options.failureRequestId ? { failureRequestId: options.failureRequestId } : {}),
   };
 }
 
@@ -3182,6 +3300,214 @@ export function isJumpShipOutcomeUncertain(cause: unknown): boolean {
   const confirmedRejection = CONFIRMED_JUMP_REJECTION_ERRORS.has(code) ||
     (code === 'resource-exhausted' && isRateLimitedCommandError(cause));
   return !confirmedRejection;
+}
+
+export interface FailedJumpSummary {
+  readonly requestId: string;
+  readonly shipId: string;
+  readonly origin: string;
+  readonly destination: string;
+  readonly failureStatus: 'fuel-shortage' | 'drive-failure' | 'wrong-destination';
+  readonly failureRevision: number;
+  readonly currentTurn: number;
+  readonly fuelAtFailure: number;
+  readonly requiredFuel?: number;
+  readonly failureRoll?: number;
+  readonly failureThreshold?: number;
+}
+
+export interface UnresolvedJumpFailuresReply {
+  readonly failures: readonly FailedJumpSummary[];
+  /** The authority changed during the read, so no old-session data is exposed. */
+  readonly stale?: boolean;
+}
+
+export interface FailedJumpAdjudicationAttempt {
+  readonly sessionId: string;
+  readonly instanceId: string;
+  readonly requestId: string;
+  readonly expectedRevision: number;
+  readonly failureRequestId: string;
+  readonly shipId: string;
+  readonly destination: string;
+}
+
+export interface FailedJumpAdjudicationReply extends Partial<VesselActionEnvelope> {
+  readonly status: 'jumped' | 'stale';
+  readonly shipId: string;
+  readonly origin?: string;
+  readonly destination?: string;
+  readonly remainingFuel?: number;
+  readonly fuelSpent?: number;
+  readonly failureRoll?: number;
+  readonly damage?: ShipDamageState;
+  readonly damageDraws?: readonly { readonly card: string; readonly systemId: string; readonly systemName: string }[];
+  readonly state?: ShipJumpState;
+  readonly transition?: ShipJumpTransition;
+  readonly currentRevision?: number;
+  readonly pursuitEmergencyWindow?: PursuitEmergencyWindow;
+  readonly pursuitEmergencyWindowCleared?: boolean;
+  readonly phase?: GameSession['phase'];
+  readonly gameOutcome?: GameSession['gameOutcome'];
+}
+
+function requireFailedJumpSummary(value: unknown): FailedJumpSummary {
+  if (!isPlainRecord(value) || typeof value.requestId !== 'string' ||
+      typeof value.shipId !== 'string' || typeof value.origin !== 'string' ||
+      typeof value.destination !== 'string' ||
+      !['fuel-shortage', 'drive-failure', 'wrong-destination'].includes(String(value.failureStatus)) ||
+      !isSafeLedgerAmount(value.failureRevision) || !isSafeLedgerAmount(value.currentTurn) ||
+      !isSafeLedgerAmount(value.fuelAtFailure) ||
+      (value.requiredFuel !== undefined && !isSafeLedgerAmount(value.requiredFuel)) ||
+      (value.failureRoll !== undefined && (!isSafeLedgerAmount(value.failureRoll) || value.failureRoll < 1 || value.failureRoll > 6)) ||
+      (value.failureThreshold !== undefined && (!isSafeLedgerAmount(value.failureThreshold) || value.failureThreshold < 1 || value.failureThreshold > 6))) {
+    throw new Error('The server returned an invalid unresolved jump failure.');
+  }
+  return value as unknown as FailedJumpSummary;
+}
+
+/** Read the current private failure list through the active facilitator instance only. */
+export async function listUnresolvedJumpFailures(): Promise<UnresolvedJumpFailuresReply> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance || store.me?.role !== 'gm') {
+    throw new Error('Claim GM before reviewing failed jumps.');
+  }
+  requireFreshSessionAuthority();
+  const payload = { sessionId: store.session.id, instanceId: store.gmInstance.id };
+  const checkpoint = sessionAuthorityCheckpoint(payload.sessionId, sessionAuthorityUid(store));
+  try {
+    await ensureSignedIn();
+    const call = httpsCallable<typeof payload, unknown>(functions(), 'listUnresolvedJumpFailures');
+    const reply = (await call(payload)).data;
+    if (!isPlainRecord(reply) || !Array.isArray(reply.failures)) {
+      throw new Error('The server returned an invalid failed-jump list.');
+    }
+    const failures = reply.failures.map(requireFailedJumpSummary);
+    if (!authorityCheckpointIsCurrent(checkpoint)) return { failures: [], stale: true };
+    return { failures };
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+export function createFailedJumpAdjudicationAttempt(
+  failure: FailedJumpSummary,
+  destination: string,
+): FailedJumpAdjudicationAttempt {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance || store.me?.role !== 'gm') {
+    throw new Error('Claim GM before adjudicating a failed jump.');
+  }
+  requireFreshSessionAuthority();
+  return {
+    sessionId: store.session.id,
+    instanceId: store.gmInstance.id,
+    requestId: commandId(),
+    expectedRevision: failure.failureRevision,
+    failureRequestId: failure.requestId,
+    shipId: failure.shipId,
+    destination,
+  };
+}
+
+export function isFailedJumpOutcomeUncertain(cause: unknown): boolean {
+  return isJumpShipOutcomeUncertain(cause);
+}
+
+/** Submit or exactly retry one facilitator adjudication against a captured failure. */
+export async function adjudicateFailedJump(
+  attempt: FailedJumpAdjudicationAttempt,
+): Promise<FailedJumpAdjudicationReply> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance || store.me?.role !== 'gm') {
+    throw new Error('Claim GM before adjudicating a failed jump.');
+  }
+  requireFreshSessionAuthority();
+  if (store.session.id !== attempt.sessionId || store.gmInstance.id !== attempt.instanceId) {
+    throw new Error('Reconnect to the original facilitator session before retrying this adjudication.');
+  }
+  const payload = {
+    sessionId: attempt.sessionId,
+    instanceId: attempt.instanceId,
+    requestId: attempt.requestId,
+    expectedRevision: attempt.expectedRevision,
+    failureRequestId: attempt.failureRequestId,
+    destination: attempt.destination,
+  };
+  const checkpoint = sessionAuthorityCheckpoint(payload.sessionId, sessionAuthorityUid(store));
+  try {
+    await ensureSignedIn();
+    const call = httpsCallable<typeof payload, FailedJumpAdjudicationReply>(functions(), 'adjudicateFailedJump');
+    const reply = (await call(payload)).data;
+    const current = useSessionStore.getState().session;
+    if (current?.id === payload.sessionId && authorityCheckpointIsCurrent(checkpoint)) {
+      if (reply.status === 'stale') {
+        const localRevision = current.vesselActionRevisions?.[attempt.shipId] ?? 0;
+        const currentRevision = reply.currentRevision ?? reply.revision;
+        if (currentRevision !== undefined && currentRevision >= localRevision) {
+          useSessionStore.getState().setSession({
+            ...current,
+            vesselActionRevisions: {
+              ...(current.vesselActionRevisions ?? {}),
+              [attempt.shipId]: currentRevision,
+            },
+          });
+        }
+        recordStaleAuthorityReply();
+        return reply;
+      }
+      if (reply.shipId !== attempt.shipId || reply.destination !== attempt.destination) {
+        throw new Error('The server returned an adjudication for a different jump.');
+      }
+      const localRevision = current.vesselActionRevisions?.[attempt.shipId] ?? 0;
+      if (!Number.isSafeInteger(reply.revision) || (reply.revision as number) < localRevision) {
+        return reply;
+      }
+      const resource = current.shipResources?.[attempt.shipId];
+      const normalizedResource = resource ? resourcesForShip(attempt.shipId, current.shipResources) : undefined;
+      const nextSession: GameSession = {
+        ...current,
+        shipGalacticCoordinates: {
+          ...current.shipGalacticCoordinates,
+          [attempt.shipId]: reply.destination,
+        },
+        ...(current.shipResources && normalizedResource && reply.remainingFuel !== undefined ? {
+          shipResources: {
+            ...current.shipResources,
+            [attempt.shipId]: { ...normalizedResource, fuel: reply.remainingFuel },
+          },
+        } : {}),
+        ...(reply.damage ? { shipDamage: { ...(current.shipDamage ?? {}), [attempt.shipId]: reply.damage } } : {}),
+        ...(reply.state ? { shipJumpStates: { ...current.shipJumpStates, [attempt.shipId]: reply.state } } : {}),
+        ...(reply.transition ? { shipJumpTransitions: { ...current.shipJumpTransitions, [attempt.shipId]: reply.transition } } : {}),
+        ...(reply.pursuitEmergencyWindow ? { pursuitEmergencyWindow: reply.pursuitEmergencyWindow } : {}),
+        vesselActionRevisions: {
+          ...(current.vesselActionRevisions ?? {}),
+          ...(reply.revision === undefined ? {} : { [attempt.shipId]: reply.revision }),
+        },
+      };
+      const projectedSession: GameSession = reply.pursuitEmergencyWindowCleared
+        ? withoutPursuitEmergencyWindow(nextSession) as GameSession
+        : nextSession;
+      if (reply.phase === 'failure') {
+        const terminalSession = {
+          ...withoutPursuitEmergencyWindow(projectedSession), phase: 'failure' as const,
+          ...(reply.gameOutcome ? { gameOutcome: reply.gameOutcome } : {}),
+        };
+        delete terminalSession.turnPhase;
+        delete terminalSession.turnState;
+        delete terminalSession.turnStartAnnouncement;
+        useSessionStore.getState().setSession(terminalSession);
+      } else {
+        useSessionStore.getState().setSession(projectedSession);
+      }
+    }
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
 }
 
 /** Submit one captured, powered, coordinate-locked jump request to the authoritative drive. */
@@ -3197,6 +3523,8 @@ export async function jumpShip(attempt: JumpShipAttempt): Promise<JumpShipReply>
     requestId: attempt.requestId,
     expectedRevision: attempt.expectedRevision,
     ...(attempt.instanceId === undefined ? {} : { instanceId: attempt.instanceId }),
+    ...(attempt.emergency ? { emergency: true } : {}),
+    ...(attempt.failureRequestId === undefined ? {} : { failureRequestId: attempt.failureRequestId }),
   };
   const checkpoint = sessionAuthorityCheckpoint(payload.sessionId, sessionAuthorityUid(store));
   try {
@@ -3220,6 +3548,10 @@ export async function jumpShip(attempt: JumpShipAttempt): Promise<JumpShipReply>
         recordStaleAuthorityReply();
         return reply;
       }
+      const localRevision = current.vesselActionRevisions?.[attempt.shipId] ?? 0;
+      if (!Number.isSafeInteger(reply.revision) || (reply.revision as number) < localRevision) {
+        return reply;
+      }
       const currentResource = current.shipResources?.[attempt.shipId];
       const normalizedResource = currentResource
         ? resourcesForShip(attempt.shipId, current.shipResources)
@@ -3231,6 +3563,9 @@ export async function jumpShip(attempt: JumpShipAttempt): Promise<JumpShipReply>
             ...current.shipGalacticCoordinates,
             [attempt.shipId]: reply.destination ?? current.shipGalacticCoordinates?.[attempt.shipId] ?? '0000',
           },
+          ...(reply.damage ? {
+            shipDamage: { ...(current.shipDamage ?? {}), [attempt.shipId]: reply.damage },
+          } : {}),
           ...(current.shipResources && reply.remainingFuel !== undefined && normalizedResource
             ? { shipResources: {
               ...current.shipResources,
@@ -3244,12 +3579,27 @@ export async function jumpShip(attempt: JumpShipAttempt): Promise<JumpShipReply>
         ...(reply.transition ? {
           shipJumpTransitions: { ...current.shipJumpTransitions, [attempt.shipId]: reply.transition },
         } : {}),
+        ...(reply.pursuitEmergencyWindow ? { pursuitEmergencyWindow: reply.pursuitEmergencyWindow } : {}),
         vesselActionRevisions: {
           ...(current.vesselActionRevisions ?? {}),
           ...(reply.revision === undefined ? {} : { [attempt.shipId]: reply.revision }),
         },
       };
-      useSessionStore.getState().setSession(nextSession);
+      const projectedSession: GameSession = reply.pursuitEmergencyWindowCleared
+        ? withoutPursuitEmergencyWindow(nextSession) as GameSession
+        : nextSession;
+      if (reply.phase === 'failure') {
+        const terminalSession = {
+          ...withoutPursuitEmergencyWindow(projectedSession), phase: 'failure' as const,
+          ...(reply.gameOutcome ? { gameOutcome: reply.gameOutcome } : {}),
+        };
+        delete terminalSession.turnPhase;
+        delete terminalSession.turnState;
+        delete terminalSession.turnStartAnnouncement;
+        useSessionStore.getState().setSession(terminalSession);
+      } else {
+        useSessionStore.getState().setSession(projectedSession);
+      }
     }
     return reply;
   } catch (cause) {
@@ -3301,6 +3651,8 @@ interface TurnAdvanceReply {
   readonly turnPhase?: unknown;
   readonly maintenanceCycles?: GameSession['maintenanceCycles'];
   readonly shuttleFuelled?: GameSession['shuttleFuelled'];
+  readonly pursuitEmergencyWindow?: PursuitEmergencyWindow;
+  readonly pursuitEmergencyWindowCleared?: boolean;
 }
 
 export interface StartGameReceiptReply extends TurnAdvanceReply {
@@ -3683,7 +4035,7 @@ function applyTurnAdvanceReply(
     delete terminalSession.turnPhase;
     delete terminalSession.turnState;
     delete terminalSession.turnStartAnnouncement;
-    useSessionStore.getState().setSession(terminalSession);
+    useSessionStore.getState().setSession(withoutPursuitEmergencyWindow(terminalSession) as GameSession);
     return;
   }
   const turnState = turnStateForPhaseContext(
@@ -3702,24 +4054,34 @@ function applyTurnAdvanceReply(
     ...(reply.shuttleFuelled
       ? { shuttleFuelled: reply.shuttleFuelled }
       : {}),
+    ...(reply.pursuitEmergencyWindow ? { pursuitEmergencyWindow: reply.pursuitEmergencyWindow } : {}),
   };
+  const projectedSession: GameSession = reply.pursuitEmergencyWindowCleared
+    ? withoutPursuitEmergencyWindow(nextSession) as GameSession
+    : nextSession;
   if (skipTurnStartAnnouncement) delete nextSession.turnStartAnnouncement;
   // An accepted transition with no valid phase must not carry an entity from
   // the previous turn forward. A valid phase below replaces this projection
   // with the context-checked reply entity when one is present.
   delete nextSession.turnState;
   useSessionStore.getState().setSession(
-    phaseClock ? replaceTurnStateOnPhase(nextSession, phaseClock, turnState) : nextSession,
+    phaseClock ? replaceTurnStateOnPhase(projectedSession, phaseClock, turnState) : projectedSession,
   );
 }
 
 export async function advanceTurn({
   overridePhaseTimer = false,
   skipTurnStartAnnouncement = false,
+  expectedTurn: expectedTurnOverride,
+  pursuitEmergencyDecision,
+  expectedPursuitNavigationRevision,
   requestId = commandId(),
 }: {
   readonly overridePhaseTimer?: boolean;
   readonly skipTurnStartAnnouncement?: boolean;
+  readonly expectedTurn?: number;
+  readonly pursuitEmergencyDecision?: 'offer' | 'decline';
+  readonly expectedPursuitNavigationRevision?: number;
   /** Reuse the same id after an ambiguous transport failure. */
   readonly requestId?: string;
 } = {}): Promise<void> {
@@ -3727,7 +4089,7 @@ export async function advanceTurn({
   if (!store.session || !store.gmInstance) throw new Error('Claim GM before advancing the cycle.');
   requireFreshSessionAuthority();
   await ensureSignedIn();
-  const expectedTurn = store.session.currentTurn ?? 1;
+  const expectedTurn = expectedTurnOverride ?? store.session.currentTurn ?? 1;
   const checkpoint = sessionAuthorityCheckpoint(
     store.session.id,
     sessionAuthorityUid(store),
@@ -3740,6 +4102,8 @@ export async function advanceTurn({
       expectedTurn: number;
       overridePhaseTimer?: boolean;
       skipTurnStartAnnouncement?: boolean;
+      pursuitEmergencyDecision?: 'offer' | 'decline';
+      expectedPursuitNavigationRevision?: number;
     },
     TurnAdvanceReply
   >(functions(), 'advanceTurn');
@@ -3751,6 +4115,8 @@ export async function advanceTurn({
       expectedTurn,
       ...(overridePhaseTimer ? { overridePhaseTimer: true } : {}),
       ...(skipTurnStartAnnouncement ? { skipTurnStartAnnouncement: true } : {}),
+      ...(pursuitEmergencyDecision ? { pursuitEmergencyDecision } : {}),
+      ...(expectedPursuitNavigationRevision === undefined ? {} : { expectedPursuitNavigationRevision }),
     });
     applyTurnAdvanceReply(store.session.id, reply.data, skipTurnStartAnnouncement, checkpoint);
   } catch (cause) {
@@ -4731,7 +5097,8 @@ export async function launchPdfEscortWing(
 /** Read the server-filtered targeting projection for the active Wolf Commander. */
 export async function getWolfCommanderTargeting(): Promise<WolfCommanderTargetingReadResult> {
   const store = useSessionStore.getState();
-  if (!store.session || !store.me || store.me.replacementRoleId !== 'wolf-commander') {
+  if (!store.session || !store.me || store.me.replacementRoleId !== 'wolf-commander' ||
+      store.me.replacementStatus != null) {
     throw new Error('Only the active Wolf Commander may read targeting dice.');
   }
   requireFreshSessionAuthority('Reconnect before reading Wolf targeting dice.');
@@ -4763,7 +5130,8 @@ export async function applyWolfCommanderTargetRerolls(
   rosterIndexes: readonly number[],
 ): Promise<WolfCommanderTargetRerollResult> {
   const store = useSessionStore.getState();
-  if (!store.session || !store.me || store.me.replacementRoleId !== 'wolf-commander') {
+  if (!store.session || !store.me || store.me.replacementRoleId !== 'wolf-commander' ||
+      store.me.replacementStatus != null) {
     throw new Error('Only the active Wolf Commander may reroll targeting dice.');
   }
   requireFreshSessionAuthority('Reconnect before rerolling Wolf targeting dice.');
@@ -4800,7 +5168,8 @@ export async function finishWolfCommanderTargetingRerolls(
   expectedRevision: number,
 ): Promise<WolfCommanderTargetingFinishResult> {
   const store = useSessionStore.getState();
-  if (!store.session || !store.me || store.me.replacementRoleId !== 'wolf-commander') {
+  if (!store.session || !store.me || store.me.replacementRoleId !== 'wolf-commander' ||
+      store.me.replacementStatus != null) {
     throw new Error('Only the active Wolf Commander may finish targeting rerolls.');
   }
   requireFreshSessionAuthority('Reconnect before finishing Wolf targeting rerolls.');

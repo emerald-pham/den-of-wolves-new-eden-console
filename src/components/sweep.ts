@@ -37,6 +37,7 @@ type ReturnState = {
   readonly actual: HTMLElement;
   readonly apparent: HTMLElement;
   readonly blip: HTMLElement;
+  readonly tag: HTMLElement;
   readonly drop: HTMLElement | null;
   fix: Vector;
   /** The static return's projected position, valid for this plot geometry. */
@@ -162,7 +163,8 @@ export function followSweeps(plot: HTMLElement): () => void {
       const actual = existing?.actual ?? element.querySelector<HTMLElement>('.contact-plot__actual');
       const apparent = existing?.apparent ?? element.querySelector<HTMLElement>('.contact-plot__apparent');
       const blip = existing?.blip ?? element.querySelector<HTMLElement>('.contact-plot__blip');
-      if (!actual || !apparent || !blip) continue;
+      const tag = existing?.tag ?? element.querySelector<HTMLElement>('.contact-plot__tag');
+      if (!actual || !apparent || !blip || !tag) continue;
       const canonical = {
         x: Number(element.style.getPropertyValue('--x')),
         y: Number(element.style.getPropertyValue('--y')),
@@ -172,6 +174,7 @@ export function followSweeps(plot: HTMLElement): () => void {
         actual,
         apparent,
         blip,
+        tag,
         drop: element.querySelector<HTMLElement>('.contact-plot__drop'),
         fix: canonical,
         displayed: null,
@@ -268,6 +271,7 @@ export function followSweeps(plot: HTMLElement): () => void {
       ];
       state.paint = [
         blip.animate?.(fade, { duration: 7000, fill: 'forwards' }),
+        tag.animate?.(fade, { duration: 7000, fill: 'forwards' }),
         state.drop?.animate?.(fade, { duration: 7000, fill: 'forwards' }),
       ].filter((animation): animation is Animation => animation !== undefined);
       element.dispatchEvent(new CustomEvent(CONTACT_SCAN_EVENT, {

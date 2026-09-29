@@ -4,6 +4,7 @@ import {
   jumpLengthBetween,
   resolveJumpAttempt,
 } from './jumpDrive';
+import * as jumpDrive from './jumpDrive';
 
 const now = new Date('2026-09-07T13:04:09.000Z');
 
@@ -27,6 +28,48 @@ describe('authoritative jump-drive resolution', () => {
       jumpFuelCost(shipId, 'medium', true),
       jumpFuelCost(shipId, 'long', true),
     ]).toEqual([Math.max(0, short - 1), Math.max(0, medium - 1), Math.max(0, long - 1)]);
+  });
+
+  it.each(['gorgoneion', 'capybara-small', 'warrior', 'vulcan', 'voyage-33-0'] as const)(
+    'uses the server catalog 1/1/2 fuel bands for the supplemental %s vessel',
+    (shipId) => {
+      expect([
+        jumpFuelCost(shipId, 'short', false),
+        jumpFuelCost(shipId, 'medium', false),
+        jumpFuelCost(shipId, 'long', false),
+      ]).toEqual([1, 1, 2]);
+      expect([
+        jumpFuelCost(shipId, 'short', true),
+        jumpFuelCost(shipId, 'medium', true),
+        jumpFuelCost(shipId, 'long', true),
+      ]).toEqual([0, 0, 1]);
+    },
+  );
+
+  it('allows one legal emergency jump without charge or fuel and persists the once-per-game marker', () => {
+    const resolveEmergencyJump = (jumpDrive as unknown as Record<string, (
+      input: Record<string, unknown>,
+    ) => unknown>).resolveEmergencyJump;
+    expect(resolveEmergencyJump).toBeTypeOf('function');
+    const result = resolveEmergencyJump!({
+      shipId: 'aegis', origin: '0000', destination: '5143', currentTurn: 1,
+      fuel: 0, eligible: true, now, transitionId: 'emergency-jump-1',
+    });
+    expect(result).toMatchObject({
+      status: 'jumped', emergency: true, length: 'short', fuelSpent: 0,
+      remainingFuel: 0,
+      state: { lastJumpTurn: 1, emergencyJumpUsed: true },
+      transition: { id: 'emergency-jump-1', origin: '0000', destination: '5143' },
+    });
+    expect(() => resolveEmergencyJump!({
+      shipId: 'aegis', origin: '0000', destination: '5143', currentTurn: 1,
+      fuel: 4, eligible: true, now, transitionId: 'emergency-jump-2',
+      state: { emergencyJumpUsed: true },
+    })).toThrow(/already used/i);
+    expect(() => resolveEmergencyJump!({
+      shipId: 'aegis', origin: '0000', destination: '5143', currentTurn: 1,
+      fuel: 4, eligible: false, now, transitionId: 'emergency-jump-3',
+    })).toThrow(/not available/i);
   });
 
   it('derives the printed short, medium, and long fuel bands from chart distance', () => {
@@ -150,6 +193,19 @@ describe('authoritative jump-drive resolution', () => {
         destination: '5143',
         occurredAt: now.toISOString(),
       },
+    });
+  });
+
+  it('preserves the once-per-game emergency marker across an ordinary later jump', () => {
+    const result = resolveJumpAttempt({
+      shipId: 'aegis', origin: '5143', destination: '0000', currentTurn: 2,
+      fuel: 4, charged: true, damaged: false, upgraded: false, now,
+      transitionId: 'jump-after-emergency', state: { emergencyJumpUsed: true, lastJumpTurn: 1 },
+    });
+
+    expect(result).toMatchObject({
+      status: 'jumped',
+      state: { lastJumpTurn: 2, emergencyJumpUsed: true },
     });
   });
 

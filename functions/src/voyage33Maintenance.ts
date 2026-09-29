@@ -1,6 +1,12 @@
 import { VOYAGE_33_ID, VOYAGE_33_POPULATION } from './voyageAdmission';
 import type { ShipResourceInventory } from './resources';
 import { maintenanceActionForStep } from './maintenanceOrder';
+import {
+  isShipInMutiny,
+  mutinyAfterUnrestChange,
+  parseShipMutiny,
+  type ShipMutiny,
+} from './mutiny';
 
 /**
  * Voyage 33-0 uses the shared docked-vessel maintenance lane, but remains a
@@ -32,6 +38,7 @@ export interface Voyage33MaintenanceState {
   dockingRevision: number;
   population: number;
   unrest: number;
+  mutiny?: ShipMutiny;
   cycle: Voyage33MaintenanceCycle;
 }
 
@@ -110,18 +117,27 @@ export function parseVoyage33MaintenanceState(value: unknown): Voyage33Maintenan
   const population = safeNonNegative(raw?.population);
   const unrest = safeNonNegative(raw?.unrest);
   const cycle = parseCycle(raw?.cycle);
+  const mutiny = raw?.mutiny === undefined ? undefined : parseShipMutiny(raw.mutiny);
   if (!raw || raw.id !== VOYAGE_33_ID ||
       (raw.hostShipId !== null && typeof raw.hostShipId !== 'string') ||
       dockingRevision === undefined || population === undefined || population > VOYAGE_33_POPULATION ||
-      unrest === undefined || unrest > 10 || !cycle) return undefined;
+      unrest === undefined || unrest > 10 || !cycle || (raw.mutiny !== undefined && !mutiny)) return undefined;
   return {
     id: VOYAGE_33_ID,
     hostShipId: raw.hostShipId as string | null,
     dockingRevision,
     population,
     unrest,
+    ...(mutiny ? { mutiny } : {}),
     cycle,
   };
+}
+
+/** Legacy Voyage state at unrest eight or more also fails closed. */
+export function isVoyage33InMutiny(
+  state: Pick<Voyage33MaintenanceState, 'unrest' | 'mutiny'>,
+): boolean {
+  return isShipInMutiny(state.mutiny, state.unrest);
 }
 
 function requireRolls(rolls: readonly number[], count: number): void {
@@ -138,6 +154,9 @@ export function advanceVoyage33Maintenance(input: Voyage33MaintenanceInput): {
   const { state, action } = input;
   const cycleInput = parseVoyage33MaintenanceState(state)?.cycle;
   if (!cycleInput) throw new Error('Malformed Voyage 33-0 maintenance state.');
+  if (isVoyage33InMutiny(state)) {
+    throw new Error('Voyage 33-0 is in mutiny; crew captain replacement is required.');
+  }
   if (!state.hostShipId) throw new Error('Voyage 33-0 must be docked with a host ship.');
   if (input.expectedRevision !== cycleInput.revision) throw new Error('Voyage 33-0 maintenance changed. Refresh before proceeding.');
   const expectedAction = maintenanceActionForStep(VOYAGE_33_ID, cycleInput.step);
@@ -185,7 +204,7 @@ export function advanceVoyage33Maintenance(input: Voyage33MaintenanceInput): {
     cycle.chargingSkipped = roll < unrest;
     if (cycle.chargingSkipped) {
       population = Math.max(0, population - roll);
-      if (population === 0) unrest = Math.min(10, unrest + 2);
+      if (state.population > 0 && population === 0) unrest = Math.min(10, unrest + 2);
       cycle.results['3'] = `Rolled ${roll} against unrest ${unrestBefore}. Population loss ${roll}; population ${population}${population === 0 ? `; unrest ${unrest}` : ''}. Voyage 33-0 charging is skipped.`;
     } else {
       cycle.results['3'] = `Rolled ${roll} against unrest ${unrestBefore}. No population loss.`;
@@ -211,8 +230,9 @@ export function advanceVoyage33Maintenance(input: Voyage33MaintenanceInput): {
     cycle.charges = [];
   }
   cycle.step = action === 'end' ? 0 : cycle.step + 1;
+  const mutiny = mutinyAfterUnrestChange(state.mutiny, state.unrest, unrest, input.now);
   return {
-    state: { ...state, population, unrest, cycle },
+    state: { ...state, population, unrest, ...(mutiny ? { mutiny } : {}), cycle },
     hostResources,
   };
 }

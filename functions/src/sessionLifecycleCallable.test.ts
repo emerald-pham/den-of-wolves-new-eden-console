@@ -210,7 +210,7 @@ vi.mock('firebase-admin/firestore', () => ({
 vi.mock('firebase-functions/v2', () => ({ setGlobalOptions: vi.fn() }));
 vi.mock('firebase-functions/v2/https', () => ({
   HttpsError: class HttpsError extends Error {
-    constructor(readonly code: string, message: string) {
+    constructor(readonly code: string, message: string, readonly details?: unknown) {
       super(message);
     }
   },
@@ -414,7 +414,7 @@ describe('presence lease', () => {
     })))
       .rejects.toMatchObject({ code: 'permission-denied' });
     await expect(refreshPresence.run(request({ sessionId: 's1' })))
-      .rejects.toMatchObject({ code: 'permission-denied' });
+      .rejects.toMatchObject({ code: 'permission-denied', details: undefined });
 
     expect(read('sessions/s1/seats/seat-1')).toEqual({ status: 'open', holderUid: null });
     expect(read('sessions/s1/players/u1')?.lastSeenAt)
@@ -549,6 +549,7 @@ describe('presence lease', () => {
       sessionId: 's1', activeConsoleRoleId: 'admiral',
     }))).rejects.toMatchObject({
       code: 'permission-denied',
+      details: { commandError: 'station-selection-required' },
       message: expect.stringMatching(/assigned role|claimed seat/i),
     });
     expect(read('sessions/s1/players/u1')?.activeConsoleRoleId).toBeNull();
@@ -559,16 +560,61 @@ describe('presence lease', () => {
     expect(read('sessions/s1/players/u1')?.activeConsoleRoleId).toBe('dione-captain');
   });
 
+  it('does not grant console presence when another UID holds the canonical seat', async () => {
+    session({ phase: 'active', activeRoleIds: ['admiral'] });
+    player({ assignedRoleId: 'admiral', seatId: 'admiral', activeConsoleRoleId: null });
+    livePlayer('u2');
+    put('sessions/s1/seats/admiral', {
+      roleId: 'admiral', status: 'claimed', holderUid: 'u2',
+    });
+
+    await expect(refreshPresence.run(request({
+      sessionId: 's1', activeConsoleRoleId: 'admiral',
+    }))).rejects.toMatchObject({
+      code: 'permission-denied',
+      details: { commandError: 'station-selection-required' },
+    });
+
+    expect(read('sessions/s1/players/u1')).toMatchObject({ activeConsoleRoleId: null });
+    expect(read('sessions/s1/seats/admiral')).toMatchObject({
+      status: 'claimed', holderUid: 'u2',
+    });
+  });
+
+  it('returns an occupied current station to selection during a passive heartbeat', async () => {
+    session({ phase: 'active', activeRoleIds: ['admiral'] });
+    player({ assignedRoleId: 'admiral', seatId: 'admiral', activeConsoleRoleId: 'admiral' });
+    livePlayer('u2');
+    put('sessions/s1/seats/admiral', {
+      roleId: 'admiral', status: 'claimed', holderUid: 'u2',
+    });
+
+    await expect(refreshPresence.run(request({ sessionId: 's1' }))).resolves.toEqual({
+      sessionId: 's1', stationSelectionRequired: true,
+    });
+
+    expect(read('sessions/s1/players/u1')).toMatchObject({ activeConsoleRoleId: null });
+    expect(read('sessions/s1/seats/admiral')).toMatchObject({
+      status: 'claimed', holderUid: 'u2',
+    });
+  });
+
   it('fails closed when assignment and seat pointers disagree', async () => {
     session({ phase: 'active', activeRoleIds: ['admiral', 'dione-captain'] });
     player({ assignedRoleId: 'dione-captain', seatId: 'admiral' });
 
     await expect(refreshPresence.run(request({
       sessionId: 's1', activeConsoleRoleId: 'dione-captain',
-    }))).rejects.toMatchObject({ code: 'permission-denied' });
+    }))).rejects.toMatchObject({
+      code: 'permission-denied',
+      details: { commandError: 'station-selection-required' },
+    });
     await expect(refreshPresence.run(request({
       sessionId: 's1', activeConsoleRoleId: 'admiral',
-    }))).rejects.toMatchObject({ code: 'permission-denied' });
+    }))).rejects.toMatchObject({
+      code: 'permission-denied',
+      details: { commandError: 'station-selection-required' },
+    });
     expect(read('sessions/s1/players/u1')?.activeConsoleRoleId).toBeNull();
   });
 
@@ -594,7 +640,7 @@ describe('presence lease', () => {
     });
 
     await expect(refreshPresence.run(request({ sessionId: 's1' })))
-      .resolves.toEqual({ sessionId: 's1' });
+      .resolves.toEqual({ sessionId: 's1', stationSelectionRequired: true });
 
     expect(readPaths()).toContain('sessions/s1/players');
     expect(read('sessions/s1/players/u1')).toMatchObject({ activeConsoleRoleId: null });
@@ -651,7 +697,7 @@ describe('presence lease', () => {
     player({ assignedRoleId: null, seatId: 'admiral', activeConsoleRoleId: 'press-officer' });
 
     await expect(refreshPresence.run(request({ sessionId: 's1' })))
-      .resolves.toEqual({ sessionId: 's1' });
+      .resolves.toEqual({ sessionId: 's1', stationSelectionRequired: true });
 
     expect(read('sessions/s1/players/u1')).toMatchObject({
       seatId: 'admiral', activeConsoleRoleId: null,
@@ -881,7 +927,7 @@ describe('presence lease', () => {
     player({ activeConsoleRoleId: 'press-officer' });
 
     await expect(refreshPresence.run(request({ sessionId: 's1' }))).resolves.toEqual({
-      sessionId: 's1',
+      sessionId: 's1', stationSelectionRequired: true,
     });
 
     expect(read('sessions/s1/players/u1')).toMatchObject({
@@ -957,7 +1003,7 @@ describe('disconnect and retention', () => {
     expect(read('sessions/s1/players/u1')).toMatchObject({
       connected: true, connectionGeneration: 2, role: 'gm',
     });
-    expect(read('activeMemberships/u1')).toEqual({ sessionId: 's1' });
+    expect(read('activeMemberships/u1')).toMatchObject({ sessionId: 's1' });
     expect(read('sessions/s1/gmInstances/bridge')).toBeDefined();
   });
 
@@ -1287,6 +1333,39 @@ describe('midgame departure and recovery', () => {
       });
     },
   );
+
+  it('keeps membership but returns a stale station holder to role selection without taking the seat', async () => {
+    session({
+      phase: 'active', currentTurn: 2, playerCount: 8,
+      activeRoleIds: [...recommendedRoleIds(8)], turnPhase: ACTIVE_TURN_PHASE,
+    });
+    player({
+      assignedRoleId: 'admiral', seatId: 'admiral', activeConsoleRoleId: 'admiral',
+      lastSeenAt: mock.Timestamp.fromMillis(NOW.getTime() - PRESENCE_LEASE_MS),
+    });
+    livePlayer('u2');
+    put('activeMemberships/u1', { sessionId: 's1' });
+    put('sessions/s1/seats/admiral', {
+      roleId: 'admiral', status: 'claimed', holderUid: 'u2',
+      claimedAt: mock.Timestamp.fromDate(NOW),
+    });
+
+    const resumed = await resumeSession.run(request({ sessionId: 's1' }));
+
+    expect(resumed).toMatchObject({ stationSelectionRequired: true });
+    expect(resumed.player).toMatchObject({
+      role: 'player', assignedRoleId: 'admiral', seatId: null,
+      activeConsoleRoleId: null,
+    });
+    expect(read('sessions/s1/players/u1')).toMatchObject({
+      connected: true, assignedRoleId: 'admiral', seatId: null,
+      activeConsoleRoleId: null,
+    });
+    expect(read('sessions/s1/seats/admiral')).toMatchObject({
+      status: 'claimed', holderUid: 'u2',
+    });
+    expect(read('activeMemberships/u1')).toMatchObject({ sessionId: 's1' });
+  });
 
   it('preserves a transient Press holder and private loyalty through reconnect', async () => {
     const privateMarker = 'press-private-loyalty';

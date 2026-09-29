@@ -1124,14 +1124,14 @@ it('rejects a third explicit Wolf even with optional Press as the twenty-first p
   expect(mock.set).not.toHaveBeenCalled();
 });
 
-it('blocks incomplete readiness without writing and replays a completed start request', async () => {
+it('blocks a stale claimed seat without writing and replays a completed start request', async () => {
   mock.playerDocs[7] = {
     id: 'u8', fields: { connected: true, role: 'player', assignedRoleId: null },
   };
   await expect(startGame.run(request({
     sessionId: 's1', instanceId: 'bridge', requestId: 'start-1', expectedSetupRevision: 0,
   }))).rejects.toMatchObject({
-    code: 'failed-precondition', message: expect.stringMatching(/roles|loyalties|vessels/i),
+    code: 'failed-precondition', message: expect.stringMatching(/seat-documents/i),
   });
   expect(mock.update).not.toHaveBeenCalled();
 
@@ -1416,4 +1416,35 @@ it('lets one same-revision GM start commit and rejects the racing stale revision
     expect.objectContaining({ path: 'sessionStartRequests/s1_race-b' }),
     expect.objectContaining({ reply: expect.objectContaining({ status: 'stale' }) }),
   );
+});
+
+it.each([[8, 0], [8, 1], [8, 3], [8, 8], [20, 0], [20, 1], [20, 3]] as const)('starts a confirmed %i-player roster with %i occupied core seats without fabricating players or loyalties', async (playerCount, occupiedCount) => {
+  provisionProductionRoster(playerCount);
+  const retained = new Set(['u1', ...Array.from({ length: occupiedCount }, (_, index) => `core-${index + 1}`)]);
+  mock.playerDocs = mock.playerDocs.filter(player => retained.has(player.id));
+  mock.seatDocs = mock.seatDocs.map(seat => retained.has(String(seat.fields.holderUid))
+    ? seat
+    : { ...seat, fields: { ...seat.fields, status: 'open', holderUid: null, claimedAt: null } });
+
+  const result = await startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: `start-partial-${occupiedCount}`, expectedSetupRevision: 0,
+  }));
+  expect(result).toMatchObject({ currentTurn: 1 });
+  const loyaltyWrites = mock.set.mock.calls.filter(([ref]) => /\/secrets\/loyalty-/.test(ref.path));
+  expect(loyaltyWrites).toHaveLength(occupiedCount);
+  expect(loyaltyWrites.every(([ref]) => retained.has(ref.path.split('loyalty-')[1]))).toBe(true);
+  expect(loyaltyWrites.filter(([, value]) => value.payload.kind === 'wolf-agent'))
+    .toHaveLength(Math.min(playerCount < 14 ? 1 : 2, occupiedCount));
+  expect(mock.set.mock.calls.some(([ref]) => /\/players\//.test(ref.path))).toBe(false);
+});
+
+it('starts with connected unassigned observers without fabricating their role or private loyalty', async () => {
+  provisionProductionRoster(8);
+  mock.playerDocs = mock.playerDocs.filter(player => player.id === 'u1');
+  mock.playerDocs.push({ id: 'unassigned-observer', fields: { connected: true, role: 'unassigned', seatId: null } });
+  mock.seatDocs = mock.seatDocs.map(seat => ({ ...seat, fields: { ...seat.fields, status: 'open', holderUid: null, claimedAt: null } }));
+  await expect(startGame.run(request({ sessionId: 's1', instanceId: 'bridge', requestId: 'start-observer', expectedSetupRevision: 0 })))
+    .resolves.toMatchObject({ currentTurn: 1 });
+  expect(mock.set.mock.calls.filter(([ref]) => /\/secrets\/loyalty-/.test(ref.path))).toHaveLength(0);
+  expect(mock.set.mock.calls.some(([ref]) => /\/players\//.test(ref.path))).toBe(false);
 });

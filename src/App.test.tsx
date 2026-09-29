@@ -12,6 +12,7 @@ import { SHIP_PLOT_RESIZE_MS } from '@/components/ShipPlot';
 import { SESSION_WAIVER_STORAGE_KEY } from '@/lib/sessionWaiver';
 import { MOTION_SAFETY_STORAGE_KEY } from '@/lib/motionSafety';
 import { recommendedRoleIds } from '@/data/rolePresets';
+import { normalizeCommandError } from '@/lib/commandErrors';
 
 vi.mock('@/lib/sessionService', () => ({
   CONNECT_RETRY_INTERVAL_MS: 2_000,
@@ -166,6 +167,37 @@ describe('App', () => {
     expect(screen.getByText('Opening Press…')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Back to stations' })).toHaveAttribute('href', '#/console');
     expect(await screen.findByRole('heading', { name: /SNN Press Shuttle/i })).toBeInTheDocument();
+  });
+
+  it('returns a player from a stale station route to station selection with reselect guidance', async () => {
+    window.location.hash = '#/ships/aegis/roles/admiral';
+    const activeSession: GameSession = {
+      ...session, phase: 'active', activeRoleIds: ['admiral'], activeVesselIds: ['aegis'],
+    };
+    const member: Player = {
+      ...player, role: 'player', assignedRoleId: 'admiral', seatId: 'admiral',
+      activeConsoleRoleId: null,
+    };
+    useSessionStore.getState().setIdentity(activeSession, member);
+    useSessionStore.getState().setMode('console');
+    vi.mocked(selectConsoleRole).mockImplementationOnce(async () => {
+      useSessionStore.getState().setCommunicationError(normalizeCommandError({
+        code: 'functions/permission-denied',
+        details: { commandError: 'station-selection-required' },
+        message: 'private station detail',
+      }));
+      throw { code: 'functions/permission-denied' };
+    });
+
+    render(<App />);
+
+    await waitFor(() => expect(selectConsoleRole).toHaveBeenCalledWith('admiral'));
+    expect(await screen.findByRole('heading', { name: 'Stations and consoles' })).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Your previous station is no longer available. Return to station select and reselect your role.',
+    );
+    expect(useSessionStore.getState().session?.id).toBe('s1');
+    expect(useSessionStore.getState().me?.uid).toBe('u1');
   });
 
   it('requires a motion choice before exposing the game interface', async () => {
@@ -828,6 +860,46 @@ describe('App', () => {
     unmount();
   });
 
+  it('joins the public pursuit marker to protected GM authority in either listener order and clears it in either order', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_id, _uid, next) => {
+      handlers = next;
+      return vi.fn();
+    });
+    useSessionStore.getState().setIdentity({ ...session, phase: 'active', currentTurn: 3 }, player);
+    const { unmount } = render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    const marker = {
+      type: 'pursuit-emergency-window' as const, status: 'awaiting-gm-decision' as const,
+      cycle: 3, openedAt: '2026-09-28T12:00:00.000Z',
+    };
+    const authority = {
+      ...marker, navigationRevision: 42, groupIds: ['fleet-1'],
+    };
+
+    act(() => handlers?.onGmDiscovery?.({ pursuitEmergencyWindowAuthority: authority }));
+    expect(useSessionStore.getState().session?.pursuitEmergencyWindowAuthority).toBeUndefined();
+    act(() => handlers?.onSession({ ...session, phase: 'active', currentTurn: 3,
+      pursuitEmergencyWindow: marker }));
+    expect(useSessionStore.getState().session?.pursuitEmergencyWindowAuthority).toEqual(authority);
+
+    act(() => handlers?.onGmDiscovery?.({}));
+    expect(useSessionStore.getState().session?.pursuitEmergencyWindow).toEqual(marker);
+    expect(useSessionStore.getState().session?.pursuitEmergencyWindowAuthority).toBeUndefined();
+
+    act(() => handlers?.onGmDiscovery?.({ pursuitEmergencyWindowAuthority: authority }));
+    expect(useSessionStore.getState().session?.pursuitEmergencyWindowAuthority).toEqual(authority);
+    act(() => handlers?.onSession({ ...session, phase: 'active', currentTurn: 3 }));
+    expect(useSessionStore.getState().session?.pursuitEmergencyWindowAuthority).toBeUndefined();
+
+    act(() => handlers?.onSession({ ...session, phase: 'active', currentTurn: 3,
+      pursuitEmergencyWindow: marker }));
+    expect(useSessionStore.getState().session?.pursuitEmergencyWindowAuthority).toBeUndefined();
+    act(() => handlers?.onGmDiscovery?.({ pursuitEmergencyWindowAuthority: authority }));
+    expect(useSessionStore.getState().session?.pursuitEmergencyWindowAuthority).toEqual(authority);
+    unmount();
+  });
+
   it('keeps the GM fleet projection through own-discovery and public-header updates', async () => {
     let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
     vi.mocked(subscribeSessionState).mockImplementation((_id, _uid, next) => {
@@ -929,6 +1001,63 @@ describe('App', () => {
     act(() => handlers[0]?.onPlayerDiscovery?.(shepherdProjection));
     expect(useSessionStore.getState().session?.playerDiscovery?.shipId).toBe('shepherd');
     expect(useSessionStore.getState().session?.shipGalacticCoordinates).toEqual({ shepherd: '1413' });
+
+    act(() => handlers.at(-1)?.onPlayer?.({
+      ...shepherdPlayer,
+      replacementRoleId: null,
+      replacementStatus: 'awaiting-re-role',
+      seatId: null,
+      activeConsoleRoleId: null,
+    }));
+    expect(useSessionStore.getState().session?.playerDiscovery).toBeUndefined();
+    expect(useSessionStore.getState().session?.shipGalacticCoordinates).toBeUndefined();
+    act(() => handlers.at(-1)?.onPlayerDiscovery?.(dioneProjection));
+    expect(useSessionStore.getState().session?.playerDiscovery).toBeUndefined();
+    unmount();
+  });
+
+  it('clears historical loyalty projections and rejects late private callbacks while awaiting a new role', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    const member: Player = {
+      ...player, role: 'player', assignedRoleId: 'admiral', replacementRoleId: null,
+    };
+    const intelligence: WolfCultIntelligence = {
+      sessionId: 's1', recipientUid: 'u1', revision: 1,
+      fortressCoordinate: '4454', suppliesCoordinate: '1964',
+      agentUid: 'u3', codeWord: 'NIGHTFALL', label: 'WOLF INTEL',
+    };
+    const vision: ArbourVision = {
+      sessionId: 's1', recipientUid: 'u1', revision: 1,
+      kind: 'danger', text: 'Stored vision', label: 'FACILITATOR CALL',
+    };
+    useSessionStore.getState().setIdentity(session, member);
+    useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-cult', suspicion: 15 });
+    useSessionStore.getState().setWolfCultIntelligence(intelligence);
+    useSessionStore.getState().setArbourVision(vision);
+
+    const { unmount } = render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    act(() => handlers?.onPlayer?.({
+      ...member, replacementStatus: 'awaiting-re-role',
+      activeConsoleRoleId: null, seatId: null,
+    }));
+
+    expect(useSessionStore.getState().privateLoyalty).toBeNull();
+    expect(useSessionStore.getState().wolfCultIntelligence).toBeNull();
+    expect(useSessionStore.getState().arbourVision).toBeNull();
+
+    act(() => {
+      handlers?.onPrivateLoyalty?.({ kind: 'wolf-cult', suspicion: 15 });
+      handlers?.onWolfCultIntelligence?.(intelligence);
+      handlers?.onArbourVision?.(vision);
+    });
+    expect(useSessionStore.getState().privateLoyalty).toBeNull();
+    expect(useSessionStore.getState().wolfCultIntelligence).toBeNull();
+    expect(useSessionStore.getState().arbourVision).toBeNull();
     unmount();
   });
 
@@ -1061,6 +1190,40 @@ describe('App', () => {
 
     act(() => handlers?.onPlayer(nextPlayer));
     expect(useSessionStore.getState().roleBrief).toEqual(nextBrief);
+  });
+
+  it('rejects role briefs and Commissar authority while pending re-role retains stale pointers', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    const pendingCaptain: Player = {
+      ...player, role: 'player', assignedRoleId: 'icebreaker-captain',
+      activeConsoleRoleId: 'icebreaker-captain', replacementRoleId: null,
+      replacementStatus: 'awaiting-re-role',
+    };
+    const brief: RoleBrief = {
+      assignmentUid: 'u1', roleId: 'icebreaker-captain', roleName: 'Captain',
+      vesselName: 'Icebreaker', text: 'Command Icebreaker.', commonRules: 'Follow the common rules.',
+      setupRevision: 2,
+    };
+    const authority: CommissarPurgeAuthority = {
+      sessionId: 's1', role: 'captain', revision: 1,
+      captainRoleId: 'icebreaker-captain', shipId: 'icebreaker', consented: true,
+      consentTurn: 1, consentVesselRevision: 0, usedThisTurn: false,
+    };
+    useSessionStore.getState().setIdentity({
+      ...session, phase: 'active', activeVesselIds: ['icebreaker'],
+      activeRoleIds: ['icebreaker-captain'],
+    }, pendingCaptain);
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+
+    act(() => handlers?.onRoleBrief?.(brief));
+    act(() => handlers?.onCommissarPurgeAuthority?.(authority));
+    expect(useSessionStore.getState().roleBrief).toBeNull();
+    expect(useSessionStore.getState().commissarPurgeAuthority).toBeNull();
   });
 
   it('rejects late Commissar authority callbacks across captain and replacement transitions', async () => {

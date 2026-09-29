@@ -6377,6 +6377,34 @@
       "language": "The checkpoint accounting audit found stale no-production-integration descriptions for four scout policies and stale no-producer wording for private discovery notes. Current requestScout calls authorizeCurrentScoutScan and persists requests, cadence and receipts; scoutResultCallable produces and privately reads discovery notes. These are documentation corrections for existing implementation, not newly verified gameplay or prompt closure. Historical release catalogs retain 458 done throughout PC01-PC04. The latest owner instruction redistributes the same 293 remaining IDs evenly across PC05-PC10: 49 closures each for PC05-PC09, then 48 for PC10. Cumulative overall targets are 507, 556, 605, 654, 703, and 751 done. This supersedes the PC05-half catch-up and PC15 extension proposals.",
       "source": "functions/src/index.ts requestScout; functions/src/scoutRequestCadence.ts; functions/src/scoutRequestCallable.test.ts; functions/src/scoutResultCallable.ts; functions/src/scoutResultCallable.test.ts; docs/CHECKPOINT_COMPLETION_PLAN.md; docs/CHECKPOINT_ACCOUNTING_AUDIT.md",
       "type": "evidence / documentation reconciliation"
+    },
+    {
+      "direction": "654;662;589 -> PC05",
+      "id": "E-PC05-OWNER-SETUP-AND-COPY",
+      "language": "On 2026-09-28 the owner approved automatic Wolf assignment, confirmed starts with only available real players including zero eligible Wolves, and exact Wolf-humanity copy. PC05 source and focused tests implement the bounded changes; no deployment or ordinary production acceptance is claimed by this evidence.",
+      "source": "docs/PRODUCT_MILESTONE_FEEDBACK.md; docs/PC05_PLAYTEST_REPORT.md; functions/src/gameSetup.ts; functions/src/wolfAssignment.ts; functions/src/startCallable.test.ts; functions/src/loyaltyCallable.test.ts; src/components/PlayerOnboardingGuide.tsx; src/routes/RoleBrief.test.tsx",
+      "type": "owner-decision / candidate / production-proof-pending"
+    },
+    {
+      "direction": "117;118;184;299 -> PC05",
+      "id": "E-PC05-RATIONS-JUMP-SOURCE-DECISIONS",
+      "language": "Source reconciliation replaces obsolete owner-decision waits with documented printed evidence and bounded product inferences. Integrated ration candidates have focused tests; failed-jump implementation is in progress. No deployment or ordinary gameplay acceptance is established by this record.",
+      "source": "docs/PC05_MAINTENANCE_EVIDENCE.md; docs/PRODUCT_MILESTONE_ASSUMPTIONS.md; docs/PC05_PLAYTEST_REPORT.md; functions/src/maintenance.ts; functions/src/shipPopulation.ts; src/data/shipPopulation.ts",
+      "type": "source-decision / candidate / production-proof-pending"
+    },
+    {
+      "direction": "116;117;118;119;120;121;134;135;136;137;184;191 -> PC05",
+      "id": "E-PC05-MAINTENANCE-CANDIDATE",
+      "language": "Integrated maintenance and supplemental-craft candidates at eff0ed30 have source-routed rations, authoritative maintenance, single-GM acknowledgement, private VIP reroll, mutiny locks and captain recovery. At f4df6ba4 all 5,995 unit/Functions tests pass; the supplemental worker also records 142 rules tests and responsive rendering. Independent review is in progress and deployment/ordinary gameplay proof remain pending. Status is partial, not done.",
+      "source": "docs/PC05_MAINTENANCE_EVIDENCE.md; docs/PC05_PLAYTEST_REPORT.md; docs/PRODUCT_MILESTONE_ASSUMPTIONS.md; functions/src/maintenance.ts; functions/src/mutiny.ts; functions/src/smallShip.ts; functions/src/voyage33Maintenance.ts; functions/src/index.ts; src/components/GmMutinyRecovery.tsx",
+      "type": "source / integrated-candidate / production-proof-pending"
+    },
+    {
+      "direction": "201;287;288;289;290;291;294;296;297;298;299;300;301;302;303;304 -> PC05",
+      "id": "E-PC05-JUMP-CANDIDATE",
+      "language": "Worker bf3c38d1 integrated as a6885240 after separate test-first commits. Nine integrated focused files pass 458 tests; worker follow-up records 5,932 full tests and responsive normal/reduced rendering. Full-die GM failure adjudication and available-fuel spending follow documented A1/A2; numeric distance bands retain the explicitly unverified compatibility assumption A5. Independent authority/concurrency review and ordinary released gameplay remain pending. P551 is outside this fixed scope and hidden Nebula markers remain unconsumed by generic jumps.",
+      "source": "docs/PC05_JUMP_EVIDENCE.md; docs/PC05_PLAYTEST_REPORT.md; docs/PRODUCT_MILESTONE_ASSUMPTIONS.md; functions/src/jumpDrive.ts; functions/src/index.ts; src/components/JumpDriveConsole.tsx; src/components/JumpFailureAdjudicationPanel.tsx",
+      "type": "source-assumptions / integrated-candidate / production-proof-pending"
     }
   ],
   "plan": {
@@ -9257,8 +9285,8 @@
         "acceptance": "only levels and spends on the vessel's current printed table are accepted.",
         "title": "Select food and water rations independently."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-116",
+      "description": "Independent food and water choices debit the server-owned printed costs and apply separate ration-level effects. The integrated PC05 candidate passes focused and broad tests. Independent authority review, deployment and ordinary authorized gameplay acceptance remain required; no done credit is claimed.",
+      "evidenceIds": "E-AUDIT-116;E-PC05-MAINTENANCE-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "117;162",
@@ -9266,22 +9294,24 @@
       "milestoneHints": "M2",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.55"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "PRESERVE"
     },
     {
       "changeClass": "non-feature",
       "closureEvidenceGates": "none",
-      "decisionOwner": "OWNER-RATION-SPEND-BONUS-INTERPRETATION",
+      "decisionOwner": "none",
       "definition": {
         "acceptance": "the chosen interpretation distinguishes spend from bonus, is source-linked, and is fixed before product controls ship.",
         "title": "Resolve the ration-table wording conflict."
       },
-      "description": "Awaiting the owner decision required by the existing foundation matrix. Current maintenance code separately spends the vessel-table food/water amounts and adds the two selected level bonuses to the unrest roll; the authorized rules summaries support that distinction. The owner has been asked to confirm this interpretation. Keep the prompt and its dependent ration work unresolved until that answer is recorded; existing runtime behavior is not evidence of owner approval.",
-      "evidenceIds": "E-117-OWNER-DECISION-PENDING",
+      "description": "PC05 source reconciliation resolves the old owner hold under standing autonomous authorization. Player's Guide v1.1 printed p. 7 (physical p. 9) separates the vessel-table food/water debit from the two selected ration-level bonuses added to unrest dice. The existing server arithmetic follows that distinction; source and focused evidence are recorded in PC05_MAINTENANCE_EVIDENCE.md. Reconciled release and ordinary authorized gameplay proof remain pending.",
+      "evidenceIds": "E-117-OWNER-DECISION-PENDING;E-PC05-RATIONS-JUMP-SOURCE-DECISIONS;E-PC05-MAINTENANCE-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -9289,10 +9319,12 @@
       "milestoneHints": "M2",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.55"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "DECISION"
     },
     {
@@ -9303,8 +9335,8 @@
         "acceptance": "crossing a starred vessel threshold changes only that vessel's allowed table.",
         "title": "Swap population-dependent ration tables."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-118",
+      "description": "The PC05 candidate integrates the printed replacement ration schedules from A4 Paper Duplex v1.1 physical pp. 41–44 into server population-dependent spending and the player table. The overlapping printed 50,000 boundary is resolved against Dione's starred change step, as documented in PC05_MAINTENANCE_EVIDENCE.md. The integrated population, maintenance and UI suites pass 272 focused tests. Independent review, reconciled release and ordinary authorized gameplay proof remain pending.",
+      "evidenceIds": "E-AUDIT-118;E-PC05-RATIONS-JUMP-SOURCE-DECISIONS;E-PC05-MAINTENANCE-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "116;162",
@@ -9312,10 +9344,12 @@
       "milestoneHints": "M2",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.55"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "PRESERVE"
     },
     {
@@ -9326,8 +9360,8 @@
         "acceptance": "server dice and both ration bonuses produce the printed below-12, below-20, and 20-plus result.",
         "title": "Resolve the two-dice unrest check."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-119",
+      "description": "The maintenance transaction rolls the server-owned two-die unrest result and preserves exact receipt replay. The integrated PC05 candidate passes focused and broad tests. Independent authority review, deployment and ordinary authorized gameplay acceptance remain required; no done credit is claimed.",
+      "evidenceIds": "E-AUDIT-119;E-PC05-MAINTENANCE-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "111;116;117",
@@ -9335,10 +9369,12 @@
       "milestoneHints": "M2",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.55"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "PRESERVE"
     },
     {
@@ -9349,8 +9385,8 @@
         "acceptance": "rolling below current unrest applies the correct unrest/population consequence and authoritative damage path once.",
         "title": "Resolve a riot."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-120",
+      "description": "Riot damage uses the server-owned single-die and common damage path with replay protection. The integrated PC05 candidate passes focused and broad tests. Independent authority review, deployment and ordinary authorized gameplay acceptance remain required; no done credit is claimed.",
+      "evidenceIds": "E-AUDIT-120;E-PC05-MAINTENANCE-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "119;130",
@@ -9358,10 +9394,12 @@
       "milestoneHints": "M2",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.55"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "PRESERVE"
     },
     {
@@ -9372,8 +9410,8 @@
         "acceptance": "base small ships and Voyage 33-0 use their printed population-loss/skip-charge exception, not full-ship riot behavior.",
         "title": "Resolve small-ship maintenance loss."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-121",
+      "description": "The base small-ship and Voyage 33-0 maintenance paths apply their printed population-loss and skip-charge exception separately from full-ship riot resolution. The integrated PC05 candidate passes focused and broad tests. Independent authority review, deployment and ordinary authorized gameplay acceptance remain required; no done credit is claimed.",
+      "evidenceIds": "E-AUDIT-121;E-PC05-MAINTENANCE-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "114;120",
@@ -9381,10 +9419,12 @@
       "milestoneHints": "M2",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.55"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "EXTEND"
     },
     {
@@ -9700,8 +9740,8 @@
         "acceptance": "the smaller ration table becomes authoritative and one active facilitator can acknowledge/own the blocking consequence; additional or stale GM instances may retain informational alerts but cannot prevent maintenance or movement. Competing acknowledgements commit once and return a safe stale/idempotent result.",
         "title": "Alert starred population thresholds without a multi-GM deadlock."
       },
-      "description": "Planned [REPAIR] prompt: current alerts can require every GM instance and let a stale optional GM deadlock maintenance. One-GM ownership/unblock, informational additional-GM delivery, stale-instance expiry, and one-winner acknowledgement remain open.",
-      "evidenceIds": "E-AUDIT-134",
+      "description": "One active GM acknowledgement can release a maintenance alert; optional or stale additional GM instances cannot deadlock the cycle. The integrated PC05 candidate passes focused and broad tests. Independent authority review, deployment and ordinary authorized gameplay acceptance remain required; no done credit is claimed.",
+      "evidenceIds": "E-AUDIT-134;E-PC05-MAINTENANCE-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "118",
@@ -9709,10 +9749,12 @@
       "milestoneHints": "M2",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.55"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "REPAIR"
     },
     {
@@ -9723,8 +9765,8 @@
         "acceptance": "the transition applies once and replayed snapshots cannot add it again.",
         "title": "Add two unrest at population zero."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-135",
+      "description": "The zero-population unrest increase applies once through the authoritative population/maintenance boundary. The integrated PC05 candidate passes focused and broad tests. Independent authority review, deployment and ordinary authorized gameplay acceptance remain required; no done credit is claimed.",
+      "evidenceIds": "E-AUDIT-135;E-PC05-MAINTENANCE-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "119;120",
@@ -9732,10 +9774,12 @@
       "milestoneHints": "M2",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.55"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "PRESERVE"
     },
     {
@@ -9746,8 +9790,8 @@
         "acceptance": "the ship becomes unusable, its actions deny, and facilitators receive a named recovery requirement.",
         "title": "Enter mutiny at unrest 8."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-136",
+      "description": "Full ships, four base small craft and Voyage 33-0 have durable unrest-eight mutiny locks that deny fresh operations before spending or randomness. The integrated PC05 candidate passes focused and broad tests. Independent authority review, deployment and ordinary authorized gameplay acceptance remain required; no done credit is claimed.",
+      "evidenceIds": "E-AUDIT-136;E-PC05-MAINTENANCE-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "119",
@@ -9755,10 +9799,12 @@
       "milestoneHints": "M2",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.55"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "NEW"
     },
     {
@@ -9769,8 +9815,8 @@
         "acceptance": "an authorized facilitator records the permitted unrest reduction rather than an invented automatic value.",
         "title": "Resolve replacement-captain mutiny recovery."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-137",
+      "description": "GM recovery installs an actual replacement captain, a bounded sparse-roster appointment, or the documented Voyage crew attestation, with a one-to-three unrest reduction and exact replay protection. The integrated PC05 candidate passes focused and broad tests. Independent authority review, deployment and ordinary authorized gameplay acceptance remain required; no done credit is claimed.",
+      "evidenceIds": "E-AUDIT-137;E-PC05-MAINTENANCE-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "136",
@@ -9778,10 +9824,12 @@
       "milestoneHints": "M2",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.55"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "NEW"
     },
     {
@@ -11072,8 +11120,8 @@
         "acceptance": "its discrete population track selects the correct progressively smaller table.",
         "title": "Resolve Dione rations and thresholds."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-184",
+      "description": "The PC05 candidate integrates the printed replacement ration schedules from A4 Paper Duplex v1.1 physical pp. 41–44 into server population-dependent spending and the player table. The overlapping printed 50,000 boundary is resolved against Dione's starred change step, as documented in PC05_MAINTENANCE_EVIDENCE.md. The integrated population, maintenance and UI suites pass 272 focused tests. Independent review, reconciled release and ordinary authorized gameplay proof remain pending.",
+      "evidenceIds": "E-AUDIT-184;E-PC05-RATIONS-JUMP-SOURCE-DECISIONS;E-PC05-MAINTENANCE-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "116;118",
@@ -11081,10 +11129,12 @@
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.55"
+      ],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "PRESERVE"
     },
     {
@@ -11237,8 +11287,8 @@
         "acceptance": "one owned card rerolls one maintenance die, consumes once, and cannot be replayed.",
         "title": "Spend a VIP unrest reroll."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-191",
+      "description": "The VIP unrest reroll consumes its private card atomically with the server-owned reroll and protects replay and private data. The integrated PC05 candidate passes focused and broad tests. Independent authority review, deployment and ordinary authorized gameplay acceptance remain required; no done credit is claimed.",
+      "evidenceIds": "E-AUDIT-191;E-PC05-MAINTENANCE-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "119;190",
@@ -11246,10 +11296,12 @@
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.55"
+      ],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "NEW"
     },
     {
@@ -11523,8 +11575,8 @@
         "acceptance": "successful jumps use 3/6/12 fuel and preserve all landed jump authority/denial behavior.",
         "title": "Audit the Icebreaker Jump Drive."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-201",
+      "description": "The integrated PC05 jump candidate covers this contract through the authoritative jump path, durable failure receipts, emergency resolution, facilitator adjudication and reachable player/GM controls as applicable. The lane evidence records each assigned acceptance boundary and source assumptions PC05-A1, A2 and A5. Parent a6885240 passes 458 focused integrated tests; independent authority/concurrency review, deployment and ordinary gameplay proof remain open. No done credit is claimed.",
+      "evidenceIds": "E-AUDIT-201;E-PC05-JUMP-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "177;287-304",
@@ -11532,10 +11584,12 @@
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.55"
+      ],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "PRESERVE"
     },
     {
@@ -13947,8 +14001,8 @@
         "acceptance": "the server classifies legal routes as short, medium, or long using the selected printed topology.",
         "title": "Calculate jump distance."
       },
-      "description": "The server jump classifier now uses the canonical immutable star-chart graph and validates shortest paths for all 22 printed coordinates from 0000 in both directions, while preserving the existing one-edge-short, two-edge-medium, three-or-more-edge-long product policy. The routed CORE_RULES source confirms edge-based measurement but gives no numeric short/medium/long boundaries, so Prompt 287 remains partial pending that owner decision. Unknown 0101 remains outside the printed graph; no jump authorization, fuel profile, fleet-group state, or combat behavior changed.",
-      "evidenceIds": "E-AUDIT-287;E-287-GRAPH-CONSOLIDATION;E-287-JUMP-DISTANCE-OWNER",
+      "description": "The integrated PC05 jump candidate covers this contract through the authoritative jump path, durable failure receipts, emergency resolution, facilitator adjudication and reachable player/GM controls as applicable. The lane evidence records each assigned acceptance boundary and source assumptions PC05-A1, A2 and A5. Parent a6885240 passes 458 focused integrated tests; independent authority/concurrency review, deployment and ordinary gameplay proof remain open. No done credit is claimed.",
+      "evidenceIds": "E-AUDIT-287;E-287-GRAPH-CONSOLIDATION;E-287-JUMP-DISTANCE-OWNER;E-PC05-JUMP-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "281;285",
@@ -13956,7 +14010,9 @@
       "milestoneHints": "M4;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.55"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
       "status": "partial",
@@ -13970,8 +14026,8 @@
         "acceptance": "each core/full ship and small-ship variant receives its exact S/M/L cost from server catalogs.",
         "title": "Resolve per-ship jump costs."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-288",
+      "description": "The integrated PC05 jump candidate covers this contract through the authoritative jump path, durable failure receipts, emergency resolution, facilitator adjudication and reachable player/GM controls as applicable. The lane evidence records each assigned acceptance boundary and source assumptions PC05-A1, A2 and A5. Parent a6885240 passes 458 focused integrated tests; independent authority/concurrency review, deployment and ordinary gameplay proof remain open. No done credit is claimed.",
+      "evidenceIds": "E-AUDIT-288;E-PC05-JUMP-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "162;287",
@@ -13979,10 +14035,12 @@
       "milestoneHints": "M4;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.55"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "PRESERVE"
     },
     {
@@ -13993,8 +14051,8 @@
         "acceptance": "uncharged, damaged beyond use, destroyed, wrong-role, or wrong-phase requests fail without spending fuel.",
         "title": "Validate Jump Drive readiness."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-289",
+      "description": "The integrated PC05 jump candidate covers this contract through the authoritative jump path, durable failure receipts, emergency resolution, facilitator adjudication and reachable player/GM controls as applicable. The lane evidence records each assigned acceptance boundary and source assumptions PC05-A1, A2 and A5. Parent a6885240 passes 458 focused integrated tests; independent authority/concurrency review, deployment and ordinary gameplay proof remain open. No done credit is claimed.",
+      "evidenceIds": "E-AUDIT-289;E-PC05-JUMP-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "177;287",
@@ -14002,10 +14060,12 @@
       "milestoneHints": "M4;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.55"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "PRESERVE"
     },
     {
@@ -14016,8 +14076,8 @@
         "acceptance": "refresh, reconnect, concurrency, and retry cannot produce a second completed jump.",
         "title": "Enforce one jump per ship per turn."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-290",
+      "description": "The integrated PC05 jump candidate covers this contract through the authoritative jump path, durable failure receipts, emergency resolution, facilitator adjudication and reachable player/GM controls as applicable. The lane evidence records each assigned acceptance boundary and source assumptions PC05-A1, A2 and A5. Parent a6885240 passes 458 focused integrated tests; independent authority/concurrency review, deployment and ordinary gameplay proof remain open. No done credit is claimed.",
+      "evidenceIds": "E-AUDIT-290;E-PC05-JUMP-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "287;103",
@@ -14025,10 +14085,12 @@
       "milestoneHints": "M4;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.55"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "PRESERVE"
     },
     {
@@ -14039,8 +14101,8 @@
         "acceptance": "concurrent requests cannot overdraw a ship or host and a failed transaction spends nothing.",
         "title": "Reserve jump fuel atomically."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-291",
+      "description": "The integrated PC05 jump candidate covers this contract through the authoritative jump path, durable failure receipts, emergency resolution, facilitator adjudication and reachable player/GM controls as applicable. The lane evidence records each assigned acceptance boundary and source assumptions PC05-A1, A2 and A5. Parent a6885240 passes 458 focused integrated tests; independent authority/concurrency review, deployment and ordinary gameplay proof remain open. No done credit is claimed.",
+      "evidenceIds": "E-AUDIT-291;E-PC05-JUMP-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "288;167",
@@ -14048,10 +14110,12 @@
       "milestoneHints": "M4;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.55"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "PRESERVE"
     },
     {
@@ -14108,8 +14172,8 @@
         "acceptance": "one ship reaches its legal destination while all other ships retain their own states.",
         "title": "Complete an independent ship jump."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-294",
+      "description": "The integrated PC05 jump candidate covers this contract through the authoritative jump path, durable failure receipts, emergency resolution, facilitator adjudication and reachable player/GM controls as applicable. The lane evidence records each assigned acceptance boundary and source assumptions PC05-A1, A2 and A5. Parent a6885240 passes 458 focused integrated tests; independent authority/concurrency review, deployment and ordinary gameplay proof remain open. No done credit is claimed.",
+      "evidenceIds": "E-AUDIT-294;E-PC05-JUMP-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "287-293",
@@ -14117,10 +14181,12 @@
       "milestoneHints": "M4;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.55"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "PRESERVE"
     },
     {
@@ -14154,8 +14220,8 @@
         "acceptance": "the ship stays put, reports the exact denial, and preserves all resources.",
         "title": "Resolve uncharged and fuel-starved attempts."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-296",
+      "description": "The integrated PC05 jump candidate covers this contract through the authoritative jump path, durable failure receipts, emergency resolution, facilitator adjudication and reachable player/GM controls as applicable. The lane evidence records each assigned acceptance boundary and source assumptions PC05-A1, A2 and A5. Parent a6885240 passes 458 focused integrated tests; independent authority/concurrency review, deployment and ordinary gameplay proof remain open. No done credit is claimed.",
+      "evidenceIds": "E-AUDIT-296;E-PC05-JUMP-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "289;291",
@@ -14163,10 +14229,12 @@
       "milestoneHints": "M4;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.55"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "PRESERVE"
     },
     {
@@ -14177,8 +14245,8 @@
         "acceptance": "the server owns the printed 1–3 failure roll and its auditable outcome.",
         "title": "Resolve damaged-drive randomness."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-297",
+      "description": "The integrated PC05 jump candidate covers this contract through the authoritative jump path, durable failure receipts, emergency resolution, facilitator adjudication and reachable player/GM controls as applicable. The lane evidence records each assigned acceptance boundary and source assumptions PC05-A1, A2 and A5. Parent a6885240 passes 458 focused integrated tests; independent authority/concurrency review, deployment and ordinary gameplay proof remain open. No done credit is claimed.",
+      "evidenceIds": "E-AUDIT-297;E-PC05-JUMP-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "289;294;130",
@@ -14186,10 +14254,12 @@
       "milestoneHints": "M4;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.55"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "EXTEND"
     },
     {
@@ -14200,8 +14270,8 @@
         "acceptance": "cost drops by one and the damaged failure threshold changes exactly as printed.",
         "title": "Apply upgraded-drive behavior."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-298",
+      "description": "The integrated PC05 jump candidate covers this contract through the authoritative jump path, durable failure receipts, emergency resolution, facilitator adjudication and reachable player/GM controls as applicable. The lane evidence records each assigned acceptance boundary and source assumptions PC05-A1, A2 and A5. Parent a6885240 passes 458 focused integrated tests; independent authority/concurrency review, deployment and ordinary gameplay proof remain open. No done credit is claimed.",
+      "evidenceIds": "E-AUDIT-298;E-PC05-JUMP-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "289;124",
@@ -14209,22 +14279,24 @@
       "milestoneHints": "M4;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.55"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "EXTEND"
     },
     {
       "changeClass": "non-feature",
       "closureEvidenceGates": "none",
-      "decisionOwner": "OWNER-FAILED-JUMP-DAMAGE-POLICY",
+      "decisionOwner": "none",
       "definition": {
         "acceptance": "the chosen facilitator policy routes damage through the common draw path and labels the adjudication.",
         "title": "Apply failed-jump damage."
       },
-      "description": "The source review confirms that failed-jump damage is a facilitator adjudication without a defined trigger or number of common damage draws. A product-owner policy is required before implementation; the existing damaged-drive failure leaves the ship in place and does not invent damage.",
-      "evidenceIds": "E-299-FAILED-JUMP-DAMAGE-OWNER",
+      "description": "The integrated PC05 jump candidate covers this contract through the authoritative jump path, durable failure receipts, emergency resolution, facilitator adjudication and reachable player/GM controls as applicable. The lane evidence records each assigned acceptance boundary and source assumptions PC05-A1, A2 and A5. Parent a6885240 passes 458 focused integrated tests; independent authority/concurrency review, deployment and ordinary gameplay proof remain open. No done credit is claimed.",
+      "evidenceIds": "E-299-FAILED-JUMP-DAMAGE-OWNER;E-PC05-RATIONS-JUMP-SOURCE-DECISIONS;E-PC05-JUMP-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -14232,10 +14304,12 @@
       "milestoneHints": "M4;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.55"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "DECISION"
     },
     {
@@ -14246,8 +14320,8 @@
         "acceptance": "all fuel is consumed, the drive and half remaining consoles are damaged as specified, and repeats fail.",
         "title": "Execute one emergency jump per ship."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-300",
+      "description": "The integrated PC05 jump candidate covers this contract through the authoritative jump path, durable failure receipts, emergency resolution, facilitator adjudication and reachable player/GM controls as applicable. The lane evidence records each assigned acceptance boundary and source assumptions PC05-A1, A2 and A5. Parent a6885240 passes 458 focused integrated tests; independent authority/concurrency review, deployment and ordinary gameplay proof remain open. No done credit is claimed.",
+      "evidenceIds": "E-AUDIT-300;E-PC05-JUMP-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "289;291",
@@ -14255,10 +14329,12 @@
       "milestoneHints": "M4;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.55"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "EXTEND"
     },
     {
@@ -14269,8 +14345,8 @@
         "acceptance": "simultaneous legal jumps update independent fuel, position, event, and group state without lost writes.",
         "title": "Resolve concurrent fleet jumps."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-301",
+      "description": "The integrated PC05 jump candidate covers this contract through the authoritative jump path, durable failure receipts, emergency resolution, facilitator adjudication and reachable player/GM controls as applicable. The lane evidence records each assigned acceptance boundary and source assumptions PC05-A1, A2 and A5. Parent a6885240 passes 458 focused integrated tests; independent authority/concurrency review, deployment and ordinary gameplay proof remain open. No done credit is claimed.",
+      "evidenceIds": "E-AUDIT-301;E-PC05-JUMP-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "291;294",
@@ -14278,10 +14354,12 @@
       "milestoneHints": "M4;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.55"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "EXTEND"
     },
     {
@@ -14292,8 +14370,8 @@
         "acceptance": "completed, failed, integrity, wrong-destination, and emergency results each create one audience-safe event.",
         "title": "Record every jump transition."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-302",
+      "description": "The integrated PC05 jump candidate covers this contract through the authoritative jump path, durable failure receipts, emergency resolution, facilitator adjudication and reachable player/GM controls as applicable. The lane evidence records each assigned acceptance boundary and source assumptions PC05-A1, A2 and A5. Parent a6885240 passes 458 focused integrated tests; independent authority/concurrency review, deployment and ordinary gameplay proof remain open. No done credit is claimed.",
+      "evidenceIds": "E-AUDIT-302;E-PC05-JUMP-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "294;167",
@@ -14301,10 +14379,12 @@
       "milestoneHints": "M4;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.55"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "EXTEND"
     },
     {
@@ -14315,8 +14395,8 @@
         "acceptance": "digits, lock, power rail, pending, success, failure, and cooldown reflect server authority and remain keyboard/touch usable.",
         "title": "Audit jump-button truthfulness."
       },
-      "description": "PC03 preserves the production coordinate digit, lock, and power controls while correcting the displayed installed-upgrade cost and distinguishing stale, uncertain, committed, and integrity-lockout replies. Focused client tests and the synthetic owner review scene cover these states; ordinary authorized jump play and the upstream distance policy remain open, so this prompt is partial.",
-      "evidenceIds": "E-AUDIT-303",
+      "description": "The integrated PC05 jump candidate covers this contract through the authoritative jump path, durable failure receipts, emergency resolution, facilitator adjudication and reachable player/GM controls as applicable. The lane evidence records each assigned acceptance boundary and source assumptions PC05-A1, A2 and A5. Parent a6885240 passes 458 focused integrated tests; independent authority/concurrency review, deployment and ordinary gameplay proof remain open. No done credit is claimed.",
+      "evidenceIds": "E-AUDIT-303;E-PC05-JUMP-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "289;294",
@@ -14325,7 +14405,8 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.5.53"
+        "0.5.53",
+        "0.5.55"
       ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
@@ -14340,8 +14421,8 @@
         "acceptance": "a timeout retry returns the committed result or fresh denial without spending or moving twice.",
         "title": "Reconcile jump retries."
       },
-      "description": "PC03 captures one jump request ID, expected revision, and instance before submission, retains them after an uncertain transport outcome, and retries the same server receipt without creating a second request. Focused service, UI, and callable replay tests pass. Ordinary authorized timeout-and-reconnect proof and the upstream jump-chain decisions remain open, so this prompt is partial.",
-      "evidenceIds": "E-AUDIT-304",
+      "description": "The integrated PC05 jump candidate covers this contract through the authoritative jump path, durable failure receipts, emergency resolution, facilitator adjudication and reachable player/GM controls as applicable. The lane evidence records each assigned acceptance boundary and source assumptions PC05-A1, A2 and A5. Parent a6885240 passes 458 focused integrated tests; independent authority/concurrency review, deployment and ordinary gameplay proof remain open. No done credit is claimed.",
+      "evidenceIds": "E-AUDIT-304;E-PC05-JUMP-CANDIDATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "294;291;302",
@@ -14350,7 +14431,8 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.5.53"
+        "0.5.53",
+        "0.5.55"
       ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
@@ -21704,8 +21786,8 @@
         "acceptance": "onboarding covers private briefs, no out-of-game communication/photos, Wolf humanity, and resource components with exact approved copy.",
         "title": "Teach the table ground rules."
       },
-      "description": "PC02 candidate adds source-backed table ground rules to the authenticated private role brief and prepared review scene. Private briefs, out-of-game messages and photos, resource components, and the Code of Conduct are covered. The Facilitator Guide directs facilitators to emphasize Wolf humanity but supplies no approved player-facing sentence; that exact copy and ordinary production-path proof remain open.",
-      "evidenceIds": "E-AUDIT-589",
+      "description": "The owner approved the exact Wolf-humanity onboarding sentence on 2026-09-28. The PC05 candidate adds it to the authenticated private role brief alongside private-brief, communication/photo, resource-component, and Code of Conduct guidance. The route test first failed on the absent sentence and now passes. Exact-copy approval is resolved; reconciled deployment and ordinary onboarding gameplay proof remain pending.",
+      "evidenceIds": "E-AUDIT-589;E-PC05-OWNER-SETUP-AND-COPY",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "586",
@@ -21714,7 +21796,8 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.5.52"
+        "0.5.52",
+        "0.5.55"
       ],
       "section": "Onboarding, help, settings, and operational truth (Prompts 586–600)",
       "sequenceRules": "none",
@@ -21778,7 +21861,7 @@
         "acceptance": "help explains Team, Coordination, pursuit failure, jump announcements, attack docking, and away missions without unsupported mechanics.",
         "title": "Teach the core game loop."
       },
-      "description": "PC02 candidate adds a source-backed core-loop guide to the authenticated private role brief and prepared review scene. It covers Team and Coordination phases, pursuit failure, jump announcements, attack docking, and away missions. P589 exact approved Wolf-humanity wording and an ordinary authorized first-action walkthrough remain open.",
+      "description": "PC02 candidate adds a source-backed core-loop guide to the authenticated private role brief and prepared review scene. It covers Team and Coordination phases, pursuit failure, jump announcements, attack docking, and away missions. The owner approved P589 Wolf-humanity wording on 2026-09-28; its PC05 candidate is implemented. Reconciled release and an ordinary authorized first-action walkthrough remain open.",
       "evidenceIds": "E-AUDIT-590",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -21998,7 +22081,7 @@
         "acceptance": "one complete checklist tracks both printed responsibilities, room/components, chart, casting, loyalties, automatic setup math, and readiness without mutating gameplay; optional additional-GM lane assignments remain collaborative and nonblocking.",
         "title": "Build the single-facilitator setup checklist."
       },
-      "description": "PC02 candidate adds one read-only GM checklist for both printed facilitator lanes, room and components, chart, casting, private loyalties, and aggregate setup receipt. Assistant duties are optional and local checklist marks do not mutate gameplay; only Start Production server validation confirms readiness. The P589 exact-copy prerequisite and ordinary production-path proof remain open.",
+      "description": "PC02 candidate adds one read-only GM checklist for both printed facilitator lanes, room and components, chart, casting, private loyalties, and aggregate setup receipt. Assistant duties are optional and local checklist marks do not mutate gameplay; only Start Production server validation confirms readiness. The owner approved the P589 exact-copy prerequisite on 2026-09-28. Ordinary production-path proof remains open.",
       "evidenceIds": "E-AUDIT-599",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -22023,7 +22106,7 @@
         "acceptance": "a new player acknowledges safety, joins, receives private assignments, learns the loop, enters the right route, completes one real action, and returns.",
         "title": "Run the onboarding-to-first-action scenario."
       },
-      "description": "PC02 candidate connects the private brief guide to the assigned console route and a reversible solo first-action sample. The prepared scene uses synthetic state; one ordinary authorized join, private assignment, real first action, and return has not yet been observed. P590 and P599 remain partial while P589 exact copy is unresolved.",
+      "description": "PC02 candidate connects the private brief guide to the assigned console route and a reversible solo first-action sample. The prepared scene uses synthetic state; one ordinary authorized join, private assignment, real first action, and return has not yet been observed. P589 exact copy was approved on 2026-09-28 and is implemented in the PC05 candidate. P590 and P599 remain partial pending reconciled release and ordinary production-path proof.",
       "evidenceIds": "E-AUDIT-600",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -23517,13 +23600,13 @@
     {
       "changeClass": "non-feature",
       "closureEvidenceGates": "none",
-      "decisionOwner": "OWNER-APPROVED-ZERO-ELIGIBLE-WOLF-OUTCOME",
+      "decisionOwner": "none",
       "definition": {
         "acceptance": "an authenticated active facilitator with a valid confirmed canonical setup can authoritatively start exactly once with zero, partial, or full role occupancy; unfilled roles are never blockers. Reject only genuine missing or invalid tuple, lifecycle/revision/closed/authority/malformed/unavailable server-result blockers with a stable nonsecret reason; never fabricate a role, player, or loyalty and never accept client randomness. Define an owner-approved server outcome for zero eligible Wolf/private-loyalty holders. After confirmation the existing start control is enabled and accessible, and role status names the actual blocker rather than stale `Start blocked // confirm...` copy. Preserve focus, 44px targets, reduced motion, and mobile CIC behavior. This repair supersedes the retired Prompt 071 acceptance and depends on Milestone 1; later server, client, UI, and security tests must replace the old missing-role blockers.",
         "title": "Start production after a confirmed roster without treating unfilled roles as a blocker."
       },
-      "description": "Planned [REPAIR] prompt: after a confirmed canonical roster, zero, partial, or full role occupancy must not block an authoritative one-time production start; preserve real blocker reasons, authority, private setup, client-RNG denial, accessible start status, and mobile/reduced-motion CIC behavior. Supersedes retired Prompt 071 and depends on Milestone 1.",
-      "evidenceIds": "E-M1-REPAIR;E-M1-REPAIR-SEQUENCE",
+      "description": "The owner approved automatic assignment and confirmed-roster start with zero, partial, or full real-player occupancy on 2026-09-28. The PC05 candidate accepts canonical open seats without fabricating holders, retains reciprocal occupied-seat and tuple checks, and limits automatic Wolves to available eligible players while retaining the configured target. Callable tests cover 0/1/3/full occupancy and both Wolf-count bands; replay and invalid-authority checks remain. The UI distinguishes target and assigned counts and explains that vacant stations do not block start. Reconciled release and ordinary authorized empty/partial/full start proof remain pending.",
+      "evidenceIds": "E-M1-REPAIR;E-M1-REPAIR-SEQUENCE;E-PC05-OWNER-SETUP-AND-COPY",
       "hardContract": "none",
       "hardMilestone": "M1",
       "hardPromptPrerequisites": "none",
@@ -23531,10 +23614,12 @@
       "milestoneHints": "M1",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.55"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "M1-REPAIR",
-      "status": "missing",
+      "status": "partial",
       "tag": "REPAIR"
     },
     {
@@ -23707,13 +23792,13 @@
     {
       "changeClass": "non-feature",
       "closureEvidenceGates": "none",
-      "decisionOwner": "OWNER-APPROVED-WOLF-DESIGNATION-POLICY",
+      "decisionOwner": "none",
       "definition": {
         "acceptance": "current ordinary Setup intentionally has no manual designation under Prompts 054/075, but residual exported caller-controlled `assignWolves`, `assignWolfRoles`, `resetWolves`, and manual-assignment guards require an explicit owner-approved policy. Audit printed references, current UI, callables, guards, secrets, tests, and history. If automatic server assignment is retained, retire or strictly constrain residual manual/random endpoints and stale guards, clarify in-universe copy explaining when the server assigns Wolves, and prove locked-roster-derived count, private audience, replay/CAS, and unauthorized denial. If manual designation is chosen, require a separate bounded GM-only pre-start flow with roster-derived count/candidates, authoritative validation, audit/replay/CAS, secrecy, a11y, and rules denial. Do not silently choose between policies. Note overlaps/dependencies 054, 071, 075, 496, and 586–588. This is low priority/deferred and remains missing until the owner-approved policy and bounded acceptance are recorded.",
         "title": "Resolve ordinary-start Wolf designation policy."
       },
-      "description": "Low-priority/deferred [DECISION]: current ordinary Setup intentionally has no manual Wolf designation under Prompts 054/075, but residual exported caller-controlled `assignWolves`, `assignWolfRoles`, and `resetWolves` plus manual-assignment guards require an owner-approved policy. Audit printed references, current UI, callables, guards, secrets, tests, and history. Do not choose automatic versus bounded manual policy here; record the locked-roster/private-audience/replay-CAS/authorization or GM-only roster-derived/a11y/rules-denial acceptance and overlaps/dependencies 054, 071, 075, 496, and 586–588. Remains missing.",
-      "evidenceIds": "E-662",
+      "description": "The owner approved retaining automatic server Wolf assignment on 2026-09-28. Source audit found no assignWolves, assignWolfRoles, or resetWolves exports; those prior catalog names were stale. The remaining assignLoyalty endpoint now rejects fresh ordinary caller-chosen Wolf designation and replacement of an existing ordinary Wolf, while exact authorized receipt replay and separately validated explicit optional-loyalty modes remain compatible. The start transaction derives the target from the canonical roster and selects only available real holders. Focused callable tests pass; independent review, release, and ordinary authorized production proof remain pending.",
+      "evidenceIds": "E-662;E-PC05-OWNER-SETUP-AND-COPY",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -23721,10 +23806,12 @@
       "milestoneHints": "none",
       "relatedConsumes": "054;075;496;586-588",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.55"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "DECISION"
     },
     {

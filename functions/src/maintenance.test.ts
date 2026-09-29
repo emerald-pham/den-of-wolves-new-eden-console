@@ -253,6 +253,24 @@ it('spends food and water separately and retains both ration bonuses', () => {
   expect(() => advanceMaintenance(input({ action: 'rations', cycle: { ...result.cycle, step: 2, revision: 0 }, foodLevel: 3, waterLevel: 3, resources: { ...result.resources, food: 1 } }))).toThrow(/food/i);
 });
 it.each([
+  ['dione', 90_000, 16, 13],
+  ['dione', 70_000, 14, 12],
+  ['dione', 50_000, 13, 10],
+  ['icebreaker', 34_000, 12, 9],
+  ['shepherd', 24_000, 11, 8],
+  ['quellon', 15_000, 10, 7],
+  ['refinery-124', 5_000, 8, 6],
+] as const)('debits the printed replacement table for %s at %i survivors', (shipId, population, food, water) => {
+  const result = advanceMaintenance(input({
+    shipId, population, action: 'rations',
+    cycle: { step: 2, revision: 0, results: {}, charges: [], refuelled: [] },
+    foodLevel: 3, waterLevel: 3,
+    resources: { ore: 0, fuel: 3, food: 30, water: 30, materials: 0, securityTeams: 2 },
+  }));
+  expect(result.resources).toMatchObject({ food: 30 - food, water: 30 - water });
+  expect(result.cycle.rationBonus).toBe(18);
+});
+it.each([
   [16_000, 11, 8],
   [15_000, 10, 7],
   [6_000, 10, 7],

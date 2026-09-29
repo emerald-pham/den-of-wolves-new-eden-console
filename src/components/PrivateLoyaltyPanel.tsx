@@ -62,7 +62,8 @@ export default function PrivateLoyaltyPanel() {
     isEndgameEvaluationPhase(state.session?.phase));
   const me = useSessionStore((state) => state.me);
   const identity = JSON.stringify([
-    sessionId, me?.uid, me?.role, me?.activeConsoleRoleId, me?.replacementRoleId, me?.fleetGroupId,
+    sessionId, me?.uid, me?.role, me?.activeConsoleRoleId, me?.replacementRoleId,
+    me?.replacementStatus, me?.fleetGroupId,
   ]);
   const [feedback, setFeedback] = useState<{
     identity: string; card: PrivateLoyalty; pending: boolean; error: string;
@@ -83,7 +84,8 @@ export default function PrivateLoyaltyPanel() {
   const currentFeedback = feedback?.identity === identity && feedback.card === loyalty ? feedback : null;
   const pending = currentFeedback?.pending ?? false;
   const error = currentFeedback?.error ?? '';
-  const privateReader = Boolean(sessionId && me?.role === 'player' && me.uid && me.sessionId === sessionId);
+  const privateReader = Boolean(sessionId && me?.role === 'player' && me.uid &&
+    me.sessionId === sessionId && me.replacementStatus == null);
   const currentWolfResult = privateReader && wolfResult?.identity === identity &&
     wolfResult.loyaltyKind === loyalty?.kind ? wolfResult : null;
   const currentInvestigation = privateReader && investigation && investigation.sessionId === sessionId &&
@@ -116,7 +118,7 @@ export default function PrivateLoyaltyPanel() {
     setInvestigationPending(false);
     setInvestigationError('');
     if (loyalty?.kind !== 'intelligence-agent' || !sessionId || !me?.uid ||
-        me.role !== 'player' || me.sessionId !== sessionId) return;
+        me.role !== 'player' || me.sessionId !== sessionId || me.replacementStatus != null) return;
     const stopInvestigation = subscribeIntelligenceInvestigation(
       sessionId, me.uid, setInvestigation,
     );
@@ -132,7 +134,7 @@ export default function PrivateLoyaltyPanel() {
       stopTargets();
       stopInvestigation();
     };
-  }, [loyalty?.kind, me?.fleetGroupId, me?.role, me?.sessionId, me?.uid, sessionId]);
+  }, [loyalty?.kind, me?.fleetGroupId, me?.replacementStatus, me?.role, me?.sessionId, me?.uid, sessionId]);
   if (!loyalty || !privateReader) return null;
 
   const discloseAndroidProof = async () => {

@@ -166,10 +166,20 @@ it('unloads only held cargo to the current host and replays without a second wri
 
   const writes = mock.update.mock.calls.length + mock.set.mock.calls.length;
   const currentSession = mock.documents.get('sessions/s1')!;
-  currentSession.phase = 'debrief';
-  currentSession.turnPhase = undefined;
-  currentSession.smallShipStates = {};
+  currentSession.smallShipStates = {
+    'capybara-small': {
+      ...emptySmallShipState('capybara-small', 'aegis'), dockingRevision: 2, unrest: 8,
+      mutiny: { status: 'active', revision: 1, triggerUnrest: 8, triggeredAt: 'now' },
+    },
+  };
   await expect(transferBaseCapybaraCargo.run(request(unload))).resolves.toMatchObject({ status: 'replayed' });
+  expect(mock.update.mock.calls.length + mock.set.mock.calls.length).toBe(writes);
+
+  await expect(transferBaseCapybaraCargo.run(request({
+    ...unload, requestId: 'cargo-locked', expectedRevision: 9, amount: 1,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/mutiny.*new captain/i),
+  });
   expect(mock.update.mock.calls.length + mock.set.mock.calls.length).toBe(writes);
 });
 
@@ -177,6 +187,7 @@ it.each([
   ['non-player', { role: 'gm' }],
   ['disconnected player', { connected: false }],
   ['historical Captain', { replacementRoleId: 'gorgoneion-captain' }],
+  ['pending replacement Captain', { replacementStatus: 'awaiting-re-role' }],
   ['conflicting active console', { activeConsoleRoleId: 'admiral' }],
   ['replacement Captain with a core seat', { seatId: 'admiral' }],
   ['replacement Captain with missing seat authority', { seatId: undefined }],

@@ -961,6 +961,8 @@ export function requireTurnAdvanceRequest(data: {
   expectedTurn?: unknown;
   overridePhaseTimer?: unknown;
   skipTurnStartAnnouncement?: unknown;
+  pursuitEmergencyDecision?: unknown;
+  expectedPursuitNavigationRevision?: unknown;
 }): {
   sessionId: string;
   instanceId: string;
@@ -968,6 +970,8 @@ export function requireTurnAdvanceRequest(data: {
   expectedTurn: number;
   overridePhaseTimer: boolean;
   skipTurnStartAnnouncement: boolean;
+  pursuitEmergencyDecision?: 'offer' | 'decline';
+  expectedPursuitNavigationRevision?: number;
 } {
   if (!Number.isSafeInteger(data.expectedTurn) || (data.expectedTurn as number) < 0) {
     throw new HttpsError('invalid-argument', 'expectedTurn must be a non-negative integer.');
@@ -982,12 +986,28 @@ export function requireTurnAdvanceRequest(data: {
   ) {
     throw new HttpsError('invalid-argument', 'skipTurnStartAnnouncement must be boolean.');
   }
+  if (data.pursuitEmergencyDecision !== undefined &&
+      data.pursuitEmergencyDecision !== 'offer' && data.pursuitEmergencyDecision !== 'decline') {
+    throw new HttpsError('invalid-argument', 'pursuitEmergencyDecision must be offer or decline.');
+  }
+  if (data.pursuitEmergencyDecision !== undefined &&
+      (!Number.isSafeInteger(data.expectedPursuitNavigationRevision) ||
+       (data.expectedPursuitNavigationRevision as number) < 0)) {
+    throw new HttpsError('invalid-argument', 'Emergency decisions require a non-negative navigation revision.');
+  }
+  if (data.pursuitEmergencyDecision === undefined && data.expectedPursuitNavigationRevision !== undefined) {
+    throw new HttpsError('invalid-argument', 'A pursuit navigation revision requires an emergency decision.');
+  }
   return {
     ...requireGmInstanceRequest(data),
     requestId,
     expectedTurn: data.expectedTurn as number,
     overridePhaseTimer: data.overridePhaseTimer === true,
     skipTurnStartAnnouncement: data.skipTurnStartAnnouncement === true,
+    ...(data.pursuitEmergencyDecision === undefined ? {} : {
+      pursuitEmergencyDecision: data.pursuitEmergencyDecision,
+      expectedPursuitNavigationRevision: data.expectedPursuitNavigationRevision as number,
+    }),
   };
 }
 
@@ -2093,18 +2113,66 @@ export function requireShipJumpRequest(data: {
   instanceId?: unknown;
   shipId?: unknown;
   destination?: unknown;
-}): { sessionId: string; instanceId?: string; shipId: string; destination: string } {
+  emergency?: unknown;
+  failureRequestId?: unknown;
+}): { sessionId: string; instanceId?: string; shipId: string; destination: string; emergency: boolean; failureRequestId?: string } {
   const destination = requiredText(data.destination, 'destination', 4);
   if (!/^\d{4}$/.test(destination)) {
     throw new HttpsError('invalid-argument', 'destination must be exactly four digits.');
   }
-  const result: { sessionId: string; instanceId?: string; shipId: string; destination: string } = {
+  if (data.emergency !== undefined && typeof data.emergency !== 'boolean') {
+    throw new HttpsError('invalid-argument', 'emergency must be boolean.');
+  }
+  const result: { sessionId: string; instanceId?: string; shipId: string; destination: string; emergency: boolean; failureRequestId?: string } = {
     sessionId: requiredId(data.sessionId, 'sessionId'),
     shipId: requiredId(data.shipId, 'shipId'),
     destination,
+    emergency: data.emergency === true,
   };
   if (data.instanceId !== undefined) result.instanceId = requiredId(data.instanceId, 'instanceId');
+  if (data.failureRequestId !== undefined) result.failureRequestId = requiredId(data.failureRequestId, 'failureRequestId');
+  if (result.failureRequestId && !result.emergency) {
+    throw new HttpsError('invalid-argument', 'failureRequestId is only valid for an emergency jump.');
+  }
   return result;
+}
+
+export function requireFailedJumpAdjudicationRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+  failureRequestId?: unknown;
+  destination?: unknown;
+}): {
+  sessionId: string; instanceId: string; requestId: string; expectedRevision: number;
+  failureRequestId: string; destination: string;
+} {
+  const destination = requiredText(data.destination, 'destination', 4);
+  if (!/^\d{4}$/.test(destination)) {
+    throw new HttpsError('invalid-argument', 'destination must be exactly four digits.');
+  }
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    instanceId: requiredId(data.instanceId, 'instanceId'),
+    requestId: requiredId(data.requestId, 'requestId'),
+    expectedRevision: data.expectedRevision as number,
+    failureRequestId: requiredId(data.failureRequestId, 'failureRequestId'),
+    destination,
+  };
+}
+
+export function requireJumpFailureListRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+}): { sessionId: string; instanceId: string } {
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    instanceId: requiredId(data.instanceId, 'instanceId'),
+  };
 }
 
 export function requireShipConsoleLockRequest(data: {

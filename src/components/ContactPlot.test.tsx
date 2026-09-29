@@ -296,6 +296,11 @@ it('starts still when reduced motion is requested', () => {
   const { container } = render(<ContactPlot />);
 
   expect(plotIn(container)).toHaveAttribute('data-still', 'true');
+  for (const contact of contactsIn(container)) {
+    const apparent = contact.querySelector('.contact-plot__apparent');
+    expect(apparent).toContainElement(contact.querySelector('.contact-plot__blip'));
+    expect(apparent).toContainElement(contact.querySelector('.contact-plot__tag'));
+  }
 });
 
 it('stills a running plot when the reduced-motion preference arrives late', () => {
@@ -376,6 +381,31 @@ it('separates a moving contact true position from its sampled visible fix', () =
   expect(actual).not.toContainElement(apparent as HTMLElement);
 });
 
+it('reacquires a renamed contact before revealing its new DRADIS name', () => {
+  const original = {
+    id: 'ship-1', tag: 'OLD CONTACT', x: 0.8, y: 0.1, z: 0.2, color: 'white',
+  };
+  const { container, rerender } = render(<ContactPlot contacts={[original]} />);
+  const previousContact = contactsIn(container)[0]!;
+  const previousReturn = previousContact.querySelector<HTMLElement>('.contact-plot__apparent')!;
+
+  // Model a return that a prior sweep acquired, then reuse its stable ship id
+  // when the current contact name changes.
+  previousReturn.dataset.acquired = 'true';
+  rerender(<ContactPlot contacts={[{ ...original, tag: 'NEW CONTACT', x: -0.7, y: -0.1 }]} />);
+
+  const contact = contactsIn(container)[0]!;
+  const apparent = contact.querySelector<HTMLElement>('.contact-plot__apparent')!;
+  const blip = contact.querySelector<HTMLElement>('.contact-plot__blip');
+  const label = contact.querySelector<HTMLElement>('.contact-plot__tag');
+  expect(contact).not.toBe(previousContact);
+  expect(previousContact).not.toBeInTheDocument();
+  expect(apparent).not.toHaveAttribute('data-acquired', 'true');
+  expect(label).toHaveTextContent('NEW CONTACT');
+  expect(apparent).toContainElement(blip);
+  expect(apparent).toContainElement(label);
+});
+
 it('holds a moving return at its sampled fix until another sweep crosses its true position', () => {
   vi.useFakeTimers();
   let frame: FrameRequestCallback = () => undefined;
@@ -437,8 +467,9 @@ it('holds a moving return at its sampled fix until another sweep crosses its tru
   expect(firstFix).toContain('--fix-y: 0.1');
   expect(firstFix).toContain('--fix-z: 0.2');
   expect(pinged).toHaveBeenCalledTimes(1);
-  expect(painted).toHaveLength(3);
+  expect(painted).toHaveLength(4);
   expect(painted[0]?.keyframes[0]?.transform).toBe('scale(2)');
+  expect(painted[2]?.element).toHaveClass('contact-plot__tag');
 
   actualPosition = { x: 40, y: -30, z: 60 };
   act(() => frame(32));
@@ -448,7 +479,7 @@ it('holds a moving return at its sampled fix until another sweep crosses its tru
   act(() => frame(48));
   expect(apparent?.style.cssText).toBe(firstFix);
   expect(pinged).toHaveBeenCalledTimes(2);
-  expect(painted).toHaveLength(5);
+  expect(painted).toHaveLength(7);
   expect(firstSizeCancel).not.toHaveBeenCalled();
   normal = { x: 0.996, y: 0, z: 0.087 };
   act(() => frame(64));
@@ -456,7 +487,8 @@ it('holds a moving return at its sampled fix until another sweep crosses its tru
   // original size animation keeps its own deadline and is not restarted.
   expect(apparent?.style.cssText).toBe(firstFix);
   expect(pinged).toHaveBeenCalledTimes(3);
-  expect(painted).toHaveLength(7);
+  expect(painted).toHaveLength(10);
+  expect(painted[5]?.element).toHaveClass('contact-plot__tag');
   expect(painted[5]?.keyframes[0]).toMatchObject({ opacity: 1 });
   expect(firstSizeCancel).not.toHaveBeenCalled();
 
@@ -470,8 +502,9 @@ it('holds a moving return at its sampled fix until another sweep crosses its tru
   expect(apparent?.style.cssText).toContain('--fix-y: -0.3');
   expect(apparent?.style.cssText).toContain('--fix-z: 0.6');
   expect(pinged).toHaveBeenCalledTimes(4);
-  expect(painted).toHaveLength(9);
-  expect(painted[7]?.keyframes[0]).toMatchObject({ opacity: 1 });
+  expect(painted).toHaveLength(13);
+  expect(painted[11]?.element).toHaveClass('contact-plot__tag');
+  expect(painted[11]?.keyframes[0]).toMatchObject({ opacity: 1 });
   expect(painted.filter(({ keyframes }) => keyframes[0]?.transform === 'scale(2)')).toHaveLength(1);
   unmount();
   expect(firstSizeCancel).toHaveBeenCalledOnce();
@@ -963,6 +996,8 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
     scanFixChanges.push((event as CustomEvent<{ fixChanged: boolean }>).detail?.fixChanged ?? false);
   });
   const apparent = () => container.querySelector<HTMLElement>('.contact-plot__apparent');
+  const name = () => container.querySelector<HTMLElement>('.contact-plot__tag');
+  const blip = () => container.querySelector<HTMLElement>('.contact-plot__blip');
   const findMany = vi.spyOn(plotIn(container)!, 'querySelectorAll');
   const firstContact = contactsIn(container)[0]!;
   const findParts = vi.spyOn(firstContact, 'querySelector');
@@ -970,6 +1005,8 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
   findMany.mockClear();
   findParts.mockClear();
   expect(apparent()).not.toHaveAttribute('data-acquired', 'true');
+  expect(apparent()).toContainElement(name());
+  expect(apparent()).toContainElement(blip());
   normal = { x: 0.5, y: 0, z: 0.866 };
   act(() => frame(16));
   // Stable tracks reuse their DOM handles instead of allocating query results
@@ -977,9 +1014,13 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
   expect(findMany).not.toHaveBeenCalled();
   expect(findParts).not.toHaveBeenCalled();
   expect(apparent()).not.toHaveAttribute('data-acquired', 'true');
+  expect(apparent()).toContainElement(name());
+  expect(apparent()).toContainElement(blip());
   normal = { x: 0.996, y: 0, z: 0.087 };
   act(() => frame(32));
   expect(apparent()).toHaveAttribute('data-acquired', 'true');
+  expect(apparent()).toContainElement(name());
+  expect(apparent()).toContainElement(blip());
   expect(scanFixChanges).toEqual([true]);
   expect(apparent()?.parentElement).toHaveAttribute('data-scan-fresh', 'true');
   // A second sweep can reach the same return during its first enlargement.
@@ -990,8 +1031,11 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
   act(() => frame(64));
   expect(scanFixChanges.slice(1).length).toBeGreaterThan(0);
   expect(scanFixChanges.slice(1).every((changed) => changed === false)).toBe(true);
-  expect(painted).toHaveLength(7);
+  expect(painted).toHaveLength(1 + scanFixChanges.length * 3);
   expect(painted.filter(({ keyframes }) => keyframes[0]?.transform === 'scale(2)')).toHaveLength(1);
+  expect(painted.filter(({ element }) => element === name())).toHaveLength(scanFixChanges.length);
+  expect(painted.filter(({ element, keyframes }) => element === blip() &&
+    typeof keyframes[0]?.opacity === 'number').length).toBe(scanFixChanges.length);
   act(() => vi.advanceTimersByTime(SCAN_FRESH_MS - 1));
   expect(apparent()?.parentElement).toHaveAttribute('data-scan-fresh', 'true');
   act(() => vi.advanceTimersByTime(1));
@@ -1026,7 +1070,7 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
   rerender(<ContactPlot contacts={[]} />);
   cancel.mockClear();
   act(() => frame(112 + SCAN_FRESH_MS));
-  expect(cancel).toHaveBeenCalledTimes(6);
+  expect(cancel).toHaveBeenCalledTimes(8);
   expect(vi.getTimerCount()).toBe(0);
   rerender(<ContactPlot contacts={[contact]} />);
   act(() => frame(128 + SCAN_FRESH_MS));

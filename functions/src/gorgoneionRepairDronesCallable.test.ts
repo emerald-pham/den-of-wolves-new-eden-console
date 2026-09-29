@@ -200,9 +200,21 @@ it('replays a completed request after Coordination closes without spending or re
   await repairGorgoneionWithDrones.run(request(command));
   const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
   const session = mock.documents.get('sessions/s1')!;
-  session.phase = 'debrief';
+  session.smallShipStates = {
+    gorgoneion: {
+      ...gorgoneionState(), unrest: 8,
+      mutiny: { status: 'active', revision: 1, triggerUnrest: 8, triggeredAt: 'now' },
+    },
+  };
   await expect(repairGorgoneionWithDrones.run(request(command))).resolves.toMatchObject({
     status: 'replayed', materialsRemaining: 2, repairRevision: 1,
+  });
+  expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
+
+  await expect(repairGorgoneionWithDrones.run(request({
+    ...command, requestId: 'repair-drones-locked', expectedRepairRevision: 1, systemId: 'storage',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/mutiny.*new captain/i),
   });
   expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
 });
@@ -223,6 +235,7 @@ it.each([
     player: { assignedRoleId: 'gorgoneion-captain', replacementRoleId: null },
   }],
   ['wrong active replacement role', { player: { replacementRoleId: 'commissar' } }],
+  ['pending replacement Captain', { player: { replacementStatus: 'awaiting-re-role' } }],
   ['replacement with an active console role', { player: { activeConsoleRoleId: 'gorgoneion-captain' } }],
   ['replacement retaining a core seat', { player: { seatId: 'warrior-captain' } }],
   ['disconnected Captain', { player: { connected: false } }],

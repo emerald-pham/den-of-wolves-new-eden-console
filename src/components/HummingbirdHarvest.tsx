@@ -40,7 +40,7 @@ function uniqueHummingbirdHost(session: GameSession | null): string | undefined 
 
 function explorerIsEntitled(me: Player | null): boolean {
   return me?.role === 'player' && me.activeConsoleRoleId === 'quellon-explorer' &&
-    typeof me.replacementRoleId !== 'string';
+    typeof me.replacementRoleId !== 'string' && me.replacementStatus == null;
 }
 
 function authorityForCurrentStore(expectedHostShipId?: string): HarvestAuthority | undefined {
@@ -160,6 +160,7 @@ export default function HummingbirdHarvest({ docking, fuelled }: Props) {
     fuelled,
     me?.activeConsoleRoleId,
     me?.replacementRoleId,
+    me?.replacementStatus,
     me?.uid,
     session?.currentTurn,
     session?.phase,

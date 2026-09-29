@@ -8,6 +8,7 @@ export function PlayerOnboardingGuide() {
         <p className="onboarding-eyebrow">Before the first cycle</p>
         <h2>Session ground rules</h2>
         <ul>
+          <li>Wolf agents are humans, just like the other survivors.</li>
           <li>Keep your own role and loyalty information private. Do not show another player your brief or read theirs.</li>
           <li>Do not use phones to message other players during play. Do not photograph game components to share with other players.</li>
           <li>Resources are tracked with tokens or resource sheets: strytium ore, strytium fuel, food, water, and material.</li>

@@ -1,6 +1,6 @@
 import { commissarPurgeAuthorityIsCurrent } from '@/lib/commissarPurgeAuthority';
 import { lazy, Suspense, useEffect, useRef } from 'react';
-import { HashRouter, Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { HashRouter, Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import Landing from '@/routes/Landing';
 import RoleSelect from '@/routes/RoleSelect';
 import NotFound from '@/routes/NotFound';
@@ -8,7 +8,6 @@ import ShipConsole from '@/routes/ShipConsole';
 import GmConsole from '@/routes/GmConsole';
 import ShipRoleSelect from '@/routes/ShipRoleSelect';
 import JointEngineeringConsole from '@/routes/JointEngineeringConsole';
-import ShuttleConsole from '@/routes/ShuttleConsole';
 import {
   CONNECT_RETRY_INTERVAL_MS,
   connectAutomatically,
@@ -60,10 +59,19 @@ const GM_RECONCILE_INTERVAL_MS = 5_000;
 const PRESENCE_HEARTBEAT_INTERVAL_MS = 10_000;
 const RoleBrief = lazy(() => import('@/routes/RoleBrief'));
 const SessionMode = lazy(() => import('@/routes/SessionMode'));
+const ShuttleConsole = lazy(() => import('@/routes/ShuttleConsole'));
 const AwayMissionDiscardPanel = lazy(() => import('@/components/AwayMissionDiscardPanel'));
 const hasConsoleDradis = (path: string): boolean =>
   path === '/press' || path.startsWith('/ships/') || path.startsWith('/union/') ||
   path.startsWith('/shuttles/') || path.startsWith('/replacement/');
+
+function pursuitEmergencyAuthorityMatches(session: GameSession): boolean {
+  const marker = session.pursuitEmergencyWindow;
+  const authority = session.pursuitEmergencyWindowAuthority;
+  return Boolean(marker && authority && marker.type === authority.type &&
+    marker.status === authority.status && marker.cycle === authority.cycle &&
+    marker.openedAt === authority.openedAt);
+}
 
 function stripNavigationProjection(session: GameSession): GameSession {
   const next = { ...session };
@@ -77,6 +85,7 @@ function stripNavigationProjection(session: GameSession): GameSession {
 
 function effectivePlayerShip(player: Player | null | undefined): Player['shipPreferenceId'] {
   if (!player) return undefined;
+  if (player.replacementStatus === 'awaiting-re-role') return undefined;
   if (player.replacementRoleId) {
     const replacement = replacementRoleFor(player.replacementRoleId);
     const replacementShip = replacement?.vesselId ? findShip(replacement.vesselId) : undefined;
@@ -88,12 +97,14 @@ function effectivePlayerShip(player: Player | null | undefined): Player['shipPre
 
 function playerEntitlementKey(player: Player | null | undefined): string | undefined {
   if (!player) return undefined;
+  if (player.replacementStatus === 'awaiting-re-role') return undefined;
   if (player.replacementRoleId) return `replacement:${player.replacementRoleId}`;
   return player.assignedRoleId ? `assigned:${player.assignedRoleId}` : undefined;
 }
 
 function playerAuthorityKey(player: Player | null | undefined): string | undefined {
   if (!player || player.role !== 'player') return undefined;
+  if (player.replacementStatus === 'awaiting-re-role') return undefined;
   if (player.replacementRoleId === 'commissar' && player.activeConsoleRoleId === null) {
     return `commissar:${player.uid}`;
   }
@@ -115,8 +126,10 @@ function playerAuthorityKey(player: Player | null | undefined): string | undefin
 function AppRoutes() {
   const { reducedMotion } = useMotionPreference();
   const location = useLocation();
+  const navigate = useNavigate();
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
+  const communicationError = useSessionStore((state) => state.communicationError);
   const sessionId = session?.id;
   const playerUid = me?.uid;
   const playerRole = me?.role;
@@ -168,6 +181,11 @@ function AppRoutes() {
   }, [location.pathname, session, setLastRoute]);
 
   useEffect(() => {
+    if (communicationError?.kind !== 'station-selection-required' || location.pathname === '/console') return;
+    navigate('/console', { replace: true });
+  }, [communicationError?.kind, location.pathname, navigate]);
+
+  useEffect(() => {
     if (!sessionId || !playerUid) return;
     let active = true;
     const identity = `${sessionId}:${playerUid}`;
@@ -189,7 +207,8 @@ function AppRoutes() {
     let arbourVisionRevisionFloor = 0;
     let pendingGmDiscovery: Pick<GameSession, 'shipGalacticCoordinates' | 'shipNavigationLogs' |
       'organiserSites' | 'organiserSystems' | 'organiserSystemHistory' | 'pursuitDistances' |
-      'candidatePlanCheckpoint'> | null = null;
+      'pursuitGroups' | 'shipFleetGroupIds' | 'candidatePlanCheckpoint' |
+      'pursuitEmergencyWindowAuthority'> | null = null;
     let unsubscribe: () => void = () => undefined;
     let unsubscribeLoyaltyCensus: () => void = () => undefined;
     let censusSubscribed = false;
@@ -387,6 +406,17 @@ function AppRoutes() {
             currentCandidateProjection && store.me.fleetGroupId === currentCandidateProjection.groupId
             ? currentCandidateProjection : undefined;
           if (candidateProjection) retainedGroupCandidateProjection = candidateProjection;
+          if (!next.pursuitEmergencyWindow && current.pursuitEmergencyWindowAuthority &&
+              pendingGmDiscovery?.pursuitEmergencyWindowAuthority) {
+            const {
+              pursuitEmergencyWindowAuthority: clearedEmergencyAuthority,
+              ...pendingWithoutEmergencyAuthority
+            } = pendingGmDiscovery;
+            void clearedEmergencyAuthority;
+            pendingGmDiscovery = pendingWithoutEmergencyAuthority;
+          }
+          const emergencyAuthority = pendingGmDiscovery?.pursuitEmergencyWindowAuthority ??
+            current.pursuitEmergencyWindowAuthority;
           const composed = {
             ...next,
             ...(current.playerDiscovery ? { playerDiscovery: current.playerDiscovery } : {}),
@@ -399,6 +429,10 @@ function AppRoutes() {
             ...(current.pursuitGroups ? { pursuitGroups: current.pursuitGroups } : {}),
             ...(current.shipFleetGroupIds ? { shipFleetGroupIds: current.shipFleetGroupIds } : {}),
             ...(current.candidatePlanCheckpoint ? { candidatePlanCheckpoint: current.candidatePlanCheckpoint } : {}),
+            ...(emergencyAuthority && pursuitEmergencyAuthorityMatches({
+              ...next,
+              pursuitEmergencyWindowAuthority: emergencyAuthority,
+            }) ? { pursuitEmergencyWindowAuthority: emergencyAuthority } : {}),
             ...(candidateProjection ? { currentGroupCandidateReveals: candidateProjection } : {}),
           };
           store.setSession(store.me?.role === 'gm' ? composed : stripGmNavigationProjection(composed));
@@ -444,6 +478,10 @@ function AppRoutes() {
           if (store.me?.role === 'gm') {
             const next = { ...current, ...projection };
             if (!projection.candidatePlanCheckpoint) delete next.candidatePlanCheckpoint;
+            if (!projection.pursuitEmergencyWindowAuthority ||
+                !pursuitEmergencyAuthorityMatches(next)) {
+              delete next.pursuitEmergencyWindowAuthority;
+            }
             store.setSession(next);
           }
         },
@@ -464,9 +502,9 @@ function AppRoutes() {
           const previousEntitlement = playerEntitlementKey(store.me);
           const previousFleetGroupId = store.me?.fleetGroupId;
           const previousWolfCultIdentity = store.me
-            ? `${store.me.uid}:${store.me.role}:${store.me.assignedRoleId ?? ''}:${store.me.replacementRoleId ?? ''}`
+            ? `${store.me.uid}:${store.me.role}:${store.me.assignedRoleId ?? ''}:${store.me.replacementRoleId ?? ''}:${store.me.replacementStatus ?? ''}`
             : '';
-          const nextWolfCultIdentity = `${next.uid}:${next.role}:${next.assignedRoleId ?? ''}:${next.replacementRoleId ?? ''}`;
+          const nextWolfCultIdentity = `${next.uid}:${next.role}:${next.assignedRoleId ?? ''}:${next.replacementRoleId ?? ''}:${next.replacementStatus ?? ''}`;
           const nextEntitlement = playerEntitlementKey(next);
           if (playerAuthorityKey(next) !== listenerAuthorityKey) {
             store.setFacilitatorRuleCall(null);
@@ -486,6 +524,11 @@ function AppRoutes() {
           }
           if (previousEntitlement !== nextEntitlement) {
             retainArbourVisionForEntitlementChange();
+          }
+          if (next.replacementStatus != null) {
+            store.setPrivateLoyalty(null);
+            clearWolfCultIntelligence();
+            invalidateArbourVision();
           }
           if (previousFleetGroupId !== next.fleetGroupId) {
             const current = useSessionStore.getState().session;
@@ -520,7 +563,9 @@ function AppRoutes() {
               useSessionStore.getState().setSession(stripNavigationProjection(current));
             }
           }
-          const effectiveBriefRoleId = next.replacementRoleId ?? next.assignedRoleId;
+          const effectiveBriefRoleId = next.replacementStatus === 'awaiting-re-role'
+            ? undefined
+            : next.replacementRoleId ?? next.assignedRoleId;
           if (!effectiveBriefRoleId) {
             pendingRoleBrief = null;
             store.setRoleBrief(null);
@@ -554,6 +599,10 @@ function AppRoutes() {
             if (current?.id === sessionId) {
               const next = { ...current, ...pendingGmDiscovery };
               if (!pendingGmDiscovery.candidatePlanCheckpoint) delete next.candidatePlanCheckpoint;
+              if (!pendingGmDiscovery.pursuitEmergencyWindowAuthority ||
+                  !pursuitEmergencyAuthorityMatches(next)) {
+                delete next.pursuitEmergencyWindowAuthority;
+              }
               store.setSession(next);
             }
           }
@@ -583,6 +632,12 @@ function AppRoutes() {
         onPrivateLoyalty: (next) => {
           if (!callbackCurrent()) return;
           const store = useSessionStore.getState();
+          if (store.me?.replacementStatus != null) {
+            store.setPrivateLoyalty(null);
+            clearWolfCultIntelligence();
+            invalidateArbourVision();
+            return;
+          }
           store.setPrivateLoyalty(next);
           if (store.me?.role !== 'player' || next?.kind !== 'wolf-cult') {
             clearWolfCultIntelligence();
@@ -631,7 +686,8 @@ function AppRoutes() {
             store.setWolfCultIntelligence(null);
             return;
           }
-          if (wolfCultBlocked || store.me?.role !== 'player') {
+          if (wolfCultBlocked || store.me?.role !== 'player' ||
+              store.me.replacementStatus != null) {
             pendingWolfCultIntelligence = null;
             store.setWolfCultIntelligence(null);
             return;
@@ -647,6 +703,11 @@ function AppRoutes() {
         onArbourVision: (next) => {
           if (!callbackCurrent()) return;
           const store = useSessionStore.getState();
+          if (store.me?.replacementStatus != null) {
+            pendingArbourVision = null;
+            store.setArbourVision(null);
+            return;
+          }
           if (!next) {
             pendingArbourVision = null;
             store.setArbourVision(null);
@@ -698,7 +759,7 @@ function AppRoutes() {
             store.setRoleBrief(null);
             return;
           }
-          if (store.me?.uid !== next.assignmentUid) {
+          if (store.me?.uid !== next.assignmentUid || store.me.replacementStatus != null) {
             pendingRoleBrief = null;
             store.setRoleBrief(null);
             return;
@@ -891,7 +952,11 @@ function AppRoutes() {
                   <SessionMode mode="press" />
                 </Suspense>
               )} />
-              <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+              <Route path="/shuttles/:shuttleId" element={(
+                <Suspense fallback={<main className="session-mode"><p role="status">Opening shuttle console…</p></main>}>
+                  <ShuttleConsole />
+                </Suspense>
+              )} />
               <Route path="/ships/:shipId/roles" element={<ShipRoleSelect />} />
               <Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} />
               <Route path="/ships/:shipId/observer" element={<ShipConsole observer />} />

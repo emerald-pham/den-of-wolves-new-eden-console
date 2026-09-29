@@ -21,6 +21,7 @@ import { isPresenceStale } from './sessionLifecycle';
 import { ROLE_IDS } from './roleConfiguration';
 import { parseShuttleControl } from './shuttleControl';
 import { isResourceShipId } from './resources';
+import { requirePursuitEmergencyWindowAbsent } from './pursuitEmergencyWindow';
 
 type RecordValue = Record<string, unknown>;
 
@@ -431,6 +432,7 @@ export const activateEndeavourEcmDevice = onCall<{
       }
       const replay = await replayReply(tx, receipt, fingerprint);
       if (replay) return replay;
+      requirePursuitEmergencyWindowAbsent(session);
       if (session.get('phase') !== 'active') {
         throw new HttpsError('failed-precondition', 'The ECM Device is available only during active gameplay.');
       }

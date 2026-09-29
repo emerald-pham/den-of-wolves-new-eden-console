@@ -137,13 +137,15 @@ export function drawShipDamage(
   shipId: string,
   state: ShipDamageState,
   randomIndex: (upperBound: number) => number,
+  eligibleSystemIds?: ReadonlySet<string>,
 ): DamageDrawResult {
   const deck = SHIP_DAMAGE_DECKS[shipId];
   if (!deck) throw new Error('This ship has no implemented damage deck.');
   if (state.destroyed) return { state, destroyed: true };
 
   const damaged = new Set(state.damagedSystemIds);
-  const remaining = deck.filter(({ systemId }) => !damaged.has(systemId));
+  const remaining = deck.filter(({ systemId }) =>
+    !damaged.has(systemId) && (!eligibleSystemIds || eligibleSystemIds.has(systemId)));
   if (remaining.length === 0) {
     // The expansion does not define an outcome for Capybara's exhausted deck.
     // Leave the authoritative state untouched until that ruling is recorded.

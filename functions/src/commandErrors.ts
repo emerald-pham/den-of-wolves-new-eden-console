@@ -9,6 +9,7 @@ export const COMMAND_ERROR_KINDS = [
   'malformed-input',
   'unavailable-service',
   'terminal-session',
+  'station-selection-required',
 ] as const;
 
 export type CommandErrorKind = (typeof COMMAND_ERROR_KINDS)[number];

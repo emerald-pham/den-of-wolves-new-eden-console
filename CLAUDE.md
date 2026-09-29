@@ -81,10 +81,10 @@ prevented; fixes to broken existing tools remain allowed. For the first five
 prompts, use the existing task timestamps for a lightweight check; do not add a
 new telemetry system.
 
-The top-level coordinator defaults to `gpt-6-astra` with medium reasoning. It owns priorities, complete bounded task
+New top-level coordinators default to `gpt-5.6-sol` with medium reasoning. The coordinator owns priorities, complete bounded task
 briefs, architecture decisions, and difficult blockers, and intervenes at meaningful boundaries rather than
 requesting repeated status, duplicating investigation, or reviewing every tool result. Do not create expensive child
-coordinators or a mandatory review stage. Only `gpt-6-luna` and `gpt-6-sol` may be delegated as subagents.
+coordinators or a mandatory review stage. Only `gpt-6-luna` and `gpt-5.6-sol` may be delegated as subagents. Existing agents may finish their current assignments without interruption; apply this model policy to new agents and subsequent assignments.
 
 Workers own task-specific documentation reading and code investigation. Beyond required agent instructions, the
 coordinator relies on concise worker findings, decisions needed, and evidence pointers; it does not duplicate their
@@ -96,14 +96,12 @@ One task owner carries a change through implementation, repairs, appropriate sel
 and deployment verification when applicable. A sidecar is optional and there is no minimum-agent count. For shaped
 checkpoints, delegate independent critical-path work when it shortens release time; fill useful slots with bounded
 owners in isolated worktrees and reconcile at one release boundary. Delegated workers default to `gpt-6-luna`. Use `max` for every `gpt-6-luna`
-subagent. `gpt-6-sol` may use only `medium`, `high`, `xhigh`, or `max`, selected for the bounded task. Use `max` when
-the task's complexity warrants it.
+subagent. `gpt-5.6-sol` may use only `low`, `medium`, `high`, or `xhigh`, selected for the bounded task. Never use `max` or a higher effort for Sol.
 
-Use `gpt-6-sol` for independent review of shared session state, callable behavior
+Use `gpt-5.6-sol` for independent review of shared session state, callable behavior
 (including authorization and rules), Firestore rules, deployment/auth
 infrastructure, or release and capacity evidence. Use `medium` or `high` for a
-narrow, well-tested review, `xhigh` for complex authority or privacy risk, and
-`max` when that bounded review needs more depth. Exact threat-model receipts still require `xhigh`.
+narrow, well-tested review and `xhigh` for complex authority or privacy risk. Exact threat-model receipts still require `xhigh`.
 Editing comments or copy and routinely deploying an ordinary feature do not by
 themselves trigger review. Keep meaningful security and authority tests and final validation. Send all
 actionable findings together; the owner repairs them, with follow-up limited to
@@ -114,7 +112,7 @@ Escalate only after actual lack of progress or a material failure: substantive
 diagnosis and an attempted repair must fail and the owner cannot identify a
 credible next step. A failed test with an obvious fix is progress. Sol may
 diagnose or take over a justified blocker when the reason and ownership
-transfer are explicit; the existing Astra coordinator handles difficult
+transfer are explicit; the task coordinator handles difficult
 decisions without a mandatory extra stage.
 
 The normal path is:
@@ -123,7 +121,7 @@ The normal path is:
 2. Implement the smallest useful change with focused, meaningful tests.
 3. For a behavior change to shared session state, callable behavior (including
    authorization and rules), Firestore rules, deployment/authentication
-   infrastructure, or release/capacity evidence, obtain an independent Sol 6
+   infrastructure, or release/capacity evidence, obtain an independent Sol 5.6
    risk review and receive all
    actionable findings in one pass. The owner repairs findings in a bounded
    follow-up. Ordinary feature deployment and documentation or copy edits do
@@ -437,7 +435,7 @@ server-only.
 - [ ] Focused meaningful checks cover changed behavior; behavior changes to
   shared session state, callable behavior (including authorization and rules),
   Firestore rules, or deployment/authentication infrastructure received one
-  independent Sol 6 review.
+  independent Sol 5.6 review.
 - [ ] Rendered UI, fonts, responsive states, and visible navigation were
   inspected when applicable.
 - [ ] The final appropriate validation ran after reconciliation; any rerun had

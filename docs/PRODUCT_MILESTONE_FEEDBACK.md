@@ -106,3 +106,34 @@ to count partial work as done.
 |---|---|---|---|
 | CAMPAIGN-F01 | Distribute the 293 remaining prompts evenly across PC05–PC10. | Applied: 49 closures each for PC05–PC09 and 48 for PC10; literal total-done targets 507, 556, 605, 654, 703, 751. Earlier PC05-half and PC15 proposals superseded. | [Recovery plan](CHECKPOINT_COMPLETION_PLAN.md); task owner carries each assigned tranche through implementation and gameplay proof. |
 | CAMPAIGN-F02 | Check whether earlier checkpoints completed prompts without recording them. | Audited historical catalog snapshots and current descriptions; five stale implementation descriptions corrected, no unsupported done promotions. | [Accounting audit](CHECKPOINT_ACCOUNTING_AUDIT.md); recover completion credit only against full acceptance evidence. |
+
+## PC05 required pre-release repairs — 2026-09-28
+
+The owner requested completion of PC05 and explicitly required these fixes
+before its full release. They are additional regression obligations, not
+credits toward the fixed 49 assigned closures.
+
+| Note | Intended behavior | Disposition |
+|---|---|---|
+| PC05-F01 | A reconnect rejected because the station is no longer authorized returns to station selection and tells the player to reselect their role. | Required before full PC05 release; implementation and proof underway. Preserve valid session membership and transient-network recovery. |
+| PC05-F02 | A DRADIS name appears on its visible contact, never before the contact appears. | Required before full PC05 release; add timing-boundary regression coverage, including changing contacts and reduced motion. |
+| PC05-F03 | Minimized DRADIS says Zoom or uses a magnifying-glass-plus icon, never Read names. | Required before full PC05 release; use Zoom and verify accessible control and rendered layouts. |
+
+The explicit request to complete PC05 authorizes the checkpoint work. It does
+not waive the 507/751 overall completion target or ordinary gameplay evidence.
+
+## Standing authorization for remaining checkpoints — 2026-09-28
+
+The owner stated they will be away and instructed agents to finish without
+them, then explicitly requested that future checkpoints reflect this policy.
+PC05–PC10 therefore use the autonomous execution section in the milestone
+guide. Optional UI review and later feedback remain available; routine owner
+approval and checkpoint-transition waits are removed. Fixed closure targets
+and ordinary authorized gameplay proof remain required.
+
+The owner also explicitly approved automatic server Wolf assignment and
+confirmed-roster start with only available real players, including zero Wolves
+when nobody is eligible; the configured roster's normal Wolf count remains the
+target. They approved the exact onboarding sentence: “Wolf agents are humans,
+just like the other survivors.” These decisions resolve the P654/P662 policy
+choice and P589 copy question; implementation and gameplay proof still apply.

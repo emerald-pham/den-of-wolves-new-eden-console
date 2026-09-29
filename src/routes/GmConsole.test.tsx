@@ -70,6 +70,7 @@ vi.mock('@/lib/sessionService', () => ({
 vi.mock('@/lib/firestore', () => ({
   subscribeConnectedPlayers: vi.fn(),
   subscribeSessionPlayers: vi.fn(),
+  subscribeReplacementEligibility: vi.fn(),
   subscribeGmInstances: vi.fn(),
   subscribeGmWolfAttackWindow: vi.fn(),
   subscribeGmWolfAttackPreparation: vi.fn(),
@@ -102,7 +103,7 @@ const { kickGmInstance, kickPlayer, assignRole, releaseRole, setReplacementEligi
   confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, deliverWolfCultIntelligence, authorUniversalArbourVision, authorFacilitatorRuleCall, setCandidatePlanCheckpoint, transitionCrisis, setDiseaseQuarantine, admitVoyage33, recordZealotryResponse, recordCivilUnrestResolution, applyShipCounterSteps, scavengeDestroyedShipStores, triggerDradisContact,
   setFighterWingCount } =
   await import('@/lib/sessionService');
-const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeGmWolfAssignment, subscribeGmWolfActionReceipt, subscribeGmWolfSuspicionHistory, subscribeGmWolfClueDisclosure, subscribeGmWolfCultIntelligence, subscribeGmArbourVision, subscribeGmFacilitatorRuleCall, subscribeGmCrisisState, subscribeGmZealotryResponse, subscribeGmCivilUnrestResolution, subscribeGmArrestPosseCalculation, subscribeSessionEvents, subscribeDamageDraws } =
+const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeReplacementEligibility, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeGmWolfAssignment, subscribeGmWolfActionReceipt, subscribeGmWolfSuspicionHistory, subscribeGmWolfClueDisclosure, subscribeGmWolfCultIntelligence, subscribeGmArbourVision, subscribeGmFacilitatorRuleCall, subscribeGmCrisisState, subscribeGmZealotryResponse, subscribeGmCivilUnrestResolution, subscribeGmArrestPosseCalculation, subscribeSessionEvents, subscribeDamageDraws } =
   await import('@/lib/firestore');
 const { runSmallShipMaintenance } = await import('@/lib/smallShipService');
 
@@ -153,6 +154,10 @@ beforeEach(() => {
   });
   vi.mocked(subscribeSessionPlayers).mockImplementation((_sessionId, onPlayers) => {
     onPlayers([]);
+    return vi.fn();
+  });
+  vi.mocked(subscribeReplacementEligibility).mockImplementation((_sessionId, onEntries) => {
+    onEntries([]);
     return vi.fn();
   });
   vi.mocked(subscribeDamageDraws).mockImplementation((_sessionId, onDraws) => {
@@ -1563,6 +1568,85 @@ it('offers the Gorgoneion Captain after GM docking while preserving the core ves
   expect(useSessionStore.getState().session?.activeVesselIds).toEqual(['aegis']);
 });
 
+it('offers mutiny recovery only to players with a current server eligibility revision', async () => {
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    phase: 'active', currentTurn: 1, activeVesselIds: ['aegis'],
+    activeRoleIds: ['admiral', 'aegis-engineer'], expansion: 'base', capybaraEnabled: true,
+    smallShipStates: {
+      gorgoneion: {
+        id: 'gorgoneion', hostShipId: 'aegis', dockingRevision: 1,
+        population: 1_000, unrest: 8,
+        cycle: { step: 0, revision: 4, results: {}, charges: [] },
+        mutiny: { status: 'active', revision: 1, triggerUnrest: 8, triggeredAt: 'now' },
+      },
+    },
+  });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  const captain = {
+    uid: 'captain', sessionId: 's1', displayName: 'Current Captain', role: 'player' as const,
+    seatId: null, assignedRoleId: 'admiral', replacementRoleId: 'gorgoneion-captain',
+    replacementStatus: null, activeConsoleRoleId: null,
+    connected: true,
+    joinedAt: '2026-01-01T00:00:00.000Z',
+  };
+  const eligible = {
+    uid: 'eligible', sessionId: 's1', displayName: 'Eligible Player', role: 'player' as const,
+    seatId: 'aegis-engineer', assignedRoleId: 'aegis-engineer', replacementRoleId: null,
+    replacementStatus: null, activeConsoleRoleId: 'aegis-engineer',
+    connected: true,
+    joinedAt: '2026-01-01T00:01:00.000Z',
+  };
+  const unconfirmed = {
+    uid: 'unconfirmed', sessionId: 's1', displayName: 'Unconfirmed Player', role: 'player' as const,
+    seatId: 'admiral', assignedRoleId: 'admiral', replacementRoleId: null,
+    replacementStatus: null, activeConsoleRoleId: 'admiral',
+    connected: true,
+    joinedAt: '2026-01-01T00:02:00.000Z',
+  };
+  const expired = {
+    uid: 'expired', sessionId: 's1', displayName: 'Expired Player', role: 'player' as const,
+    seatId: 'admiral', assignedRoleId: 'admiral', replacementRoleId: null,
+    replacementStatus: null, activeConsoleRoleId: 'admiral', connected: true,
+    lastSeenAt: new Date(Date.now() - 45_001).toISOString(), lastSeenAtValid: true,
+    joinedAt: '2026-01-01T00:03:00.000Z',
+  };
+  const invalidPresence = {
+    uid: 'invalid-presence', sessionId: 's1', displayName: 'Invalid Presence', role: 'player' as const,
+    seatId: 'admiral', assignedRoleId: 'admiral', replacementRoleId: null,
+    replacementStatus: null, activeConsoleRoleId: 'admiral', connected: true,
+    lastSeenAtValid: false,
+    joinedAt: '2026-01-01T00:04:00.000Z',
+  };
+  vi.mocked(subscribeSessionPlayers).mockImplementation((_sessionId, onPlayers) => {
+    onPlayers([captain, eligible, unconfirmed]);
+    return vi.fn();
+  });
+  vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
+    onPlayers([captain, eligible, unconfirmed, expired, invalidPresence]);
+    return vi.fn();
+  });
+  vi.mocked(subscribeReplacementEligibility).mockImplementation((_sessionId, onEntries) => {
+    onEntries([
+      { sessionId: 's1', targetUid: 'eligible', eligible: true, reason: 'dead', revision: 4 },
+      { sessionId: 's1', targetUid: 'expired', eligible: true, reason: 'dead', revision: 5 },
+      { sessionId: 's1', targetUid: 'invalid-presence', eligible: true, reason: 'dead', revision: 6 },
+    ]);
+    return vi.fn();
+  });
+
+  renderConsole();
+
+  const recovery = await screen.findByRole('region', { name: /Gorgoneion mutiny recovery/i });
+  expect(within(recovery).getByRole('option', { name: /Eligible Player/i })).toBeInTheDocument();
+  expect(within(recovery).queryByRole('option', { name: /Unconfirmed Player/i })).not.toBeInTheDocument();
+  expect(within(recovery).queryByRole('option', { name: /Expired Player/i })).not.toBeInTheDocument();
+  expect(within(recovery).queryByRole('option', { name: /Invalid Presence/i })).not.toBeInTheDocument();
+});
+
 it('gives the facilitator an authoritative release and reassignment path during casting', async () => {
   const user = userEvent.setup();
   const activeSession = useSessionStore.getState().session;
@@ -2179,7 +2263,7 @@ it('keeps stale counter input when an alert blocks retry until a fresh snapshot'
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(within(dione).getByRole('status')).toHaveTextContent(/retry is paused/i);
+    expect(within(dione).getByText(/retry is paused/i)).toHaveAttribute('role', 'status');
     expect(within(dione).getByRole('button', { name: /retry.*unrest/i })).toBeDisabled();
     expect(applyShipCounterSteps).toHaveBeenCalledTimes(2);
 
@@ -2898,6 +2982,7 @@ it('exposes ordinary production start and retires caller-controlled Wolf assignm
   expect(screen.queryByRole('button', { name: /randomly assign/i })).not.toBeInTheDocument();
   expect(screen.queryByRole('checkbox', { name: /manual wolf assignment/i })).not.toBeInTheDocument();
   const start = screen.getByRole('button', { name: /start production/i });
+  expect(screen.getByRole('group', { name: 'Ordinary production start' })).toHaveTextContent('Unfilled stations do not block start.');
   expect(start).toBeEnabled();
   await user.click(start);
   expect(screen.getByRole('button', { name: 'ARE YOU SURE? // ADVANCE TO CYCLE 1' })).toBeInTheDocument();
@@ -2925,7 +3010,7 @@ it('commits ordinary production only on the second click and renders the private
   expect(receipt).toHaveTextContent(/Source/);
   expect(receipt).toHaveTextContent(/routine-start/);
   expect(receipt).toHaveTextContent(/base \/\/ 8 core/);
-  expect(receipt).toHaveTextContent(/one-wolf-at-8-13 \/\/ 1 \/\/ 8 private cards/);
+  expect(receipt).toHaveTextContent(/one-wolf-at-8-13 \/\/ target 1 \/\/ assigned 1 \/\/ 8 private cards/);
   expect(receipt).toHaveTextContent(/Press input/);
   expect(receipt).toHaveTextContent(/Setup revisions/);
   expect(screen.getByRole('button', { name: /skip to cycle 1/i })).toBeInTheDocument();
@@ -4027,4 +4112,15 @@ it('keeps the facilitator checklist local and read-only inside Setup', async () 
   expect(startGame).not.toHaveBeenCalled();
   expect(setFacilitatorResponsibility).not.toHaveBeenCalled();
   expect(useSessionStore.getState().session?.phase).toBe('lobby');
+});
+
+it('enables production start for a confirmed empty roster still in the lobby', async () => {
+  const session = useSessionStore.getState().session!;
+  useSessionStore.getState().setSession({ ...session, phase: 'lobby', currentTurn: 0, setupConfirmed: true });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+  await userEvent.setup().click(await screen.findByRole('button', { name: /^setup$/i }));
+  expect(screen.getByRole('button', { name: /start production/i })).toBeEnabled();
+  expect(screen.getByRole('group', { name: 'Ordinary production start' })).toHaveTextContent('Ready // confirmed roster');
 });

@@ -18,7 +18,7 @@ import type {
   AwayMissionHand,
   AwayMissionHandPointer,
 } from '@/types/game';
-import type { DiseaseOutbreakDetails, CrisisKind, CrisisStateProjection, ZealotryResponse, ZealotryResponseAction, CivilUnrestResolution } from '@/types/crisis';
+import type { DiseaseOutbreakDetails, CrisisKind, CrisisStateName, CrisisStateProjection, ZealotryResponse, ZealotryResponseAction, CivilUnrestResolution } from '@/types/crisis';
 import { normalizeShuttleManifest } from '@/data/shuttles';
 import { stripPersistedNavigationProjection } from '@/lib/navigationPrivacy';
 import type { CommandErrorKind } from '@/lib/commandErrors';
@@ -291,7 +291,7 @@ export type PendingCommand = (
         readonly requestId: string;
         readonly expectedRevision: number;
         readonly crisisId: string;
-        readonly state: import('@/types/crisis').CrisisStateName;
+        readonly state: CrisisStateName;
         readonly title: string;
         readonly details: string;
         readonly crisisKind?: CrisisKind;
@@ -584,7 +584,8 @@ function samePrivateAssignment(previous: Player | null, next: Player | null): bo
     previous.uid === next.uid && previous.sessionId === next.sessionId &&
     previous.role === next.role &&
     (previous.assignedRoleId ?? null) === (next.assignedRoleId ?? null) &&
-    (previous.replacementRoleId ?? null) === (next.replacementRoleId ?? null);
+    (previous.replacementRoleId ?? null) === (next.replacementRoleId ?? null) &&
+    (previous.replacementStatus ?? null) === (next.replacementStatus ?? null);
 }
 
 export const useSessionStore = create<SessionState>()(

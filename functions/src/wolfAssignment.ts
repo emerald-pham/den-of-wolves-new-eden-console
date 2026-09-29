@@ -55,7 +55,12 @@ export function deriveRoutineWolfAssignment(
   if (input.pressEnabled && input.claimedPressRoleId === 'press-officer') {
     eligibleRoleIds.push('press-officer');
   }
-  const selectedRoleIds = chooseWolfRoles(eligibleRoleIds, wolfCount, input.randomIndex);
+  // Owner policy: an unfilled confirmed roster may start. Never invent a holder
+  // to meet the configured target; only select among real eligible players.
+  const availableCount = Math.min(wolfCount, eligibleRoleIds.length);
+  const selectedRoleIds = availableCount === 0
+    ? []
+    : chooseWolfRoles(eligibleRoleIds, availableCount, input.randomIndex);
   return {
     wolfCount,
     eligibleRoleIds,

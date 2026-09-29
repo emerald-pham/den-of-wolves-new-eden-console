@@ -249,6 +249,20 @@ it('denies non-agents, self targets, and a foreign receipt actor', async () => {
     .rejects.toMatchObject({ code: 'permission-denied' });
 });
 
+it('denies the historical Intelligence Agent card while its holder awaits a new role', async () => {
+  put('sessions/s1/players/u2', {
+    role: 'player', connected: true, displayName: 'Agent', fleetGroupId: 'fleet-1',
+    assignedRoleId: 'admiral', replacementRoleId: null,
+    replacementStatus: 'awaiting-re-role', activeConsoleRoleId: null, seatId: null,
+  });
+
+  await expect(investigateAsIntelligenceAgent.run(request()))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+});
+
 it('rejects disconnected and cross-group targets', async () => {
   put('sessions/s1/players/u3', {
     role: 'player', connected: false, displayName: 'Target', fleetGroupId: 'fleet-1',

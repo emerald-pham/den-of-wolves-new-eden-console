@@ -94,12 +94,32 @@ it.each([
   ['replacement cannot reuse historical core role', 'starlight', { replacementRoleId: 'comms-officer', activeConsoleRoleId: null }],
   ['different replacement', 'comms-officer', { replacementRoleId: 'doctor', activeConsoleRoleId: null }],
   ['replacement with active core console', 'comms-officer', { replacementRoleId: 'comms-officer', activeConsoleRoleId: 'wing-commander' }],
+  ['pending re-role with stale pointers', 'starlight', { replacementStatus: 'awaiting-re-role', replacementRoleId: null, activeConsoleRoleId: 'wing-commander' }],
 ] as const)('hides %s request authority from the wrong player', (_label, entitlementId, patch) => {
   setEntitlement(entitlementId);
   useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, ...patch });
 
   expect(isScoutEntitlementHolder(entitlementId, useSessionStore.getState().session, useSessionStore.getState().me))
     .toBe(false);
+});
+
+it('rejects a delayed scouting receipt after the holder becomes pending re-role', async () => {
+  let finish!: (value: unknown) => void;
+  const call = vi.fn().mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+  vi.mocked(httpsCallable).mockReturnValue(call as never);
+  const pending = requestScout({
+    entitlementId: 'starlight', targetCoordinate: '5143', requestId: 'scout-pending-role',
+  });
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, replacementStatus: 'awaiting-re-role',
+  });
+  finish({ data: {
+    status: 'requested', resolution: 'pending', requestId: 'scout-pending-role',
+    sessionId: 's1', cycle: 2, entitlementId: 'starlight', source: 'craft',
+    ownerRoleId: 'wing-commander', anchorShipId: 'aegis', receivingShipId: 'aegis',
+    targetCoordinate: '5143',
+  } });
+  await expect(pending).rejects.toThrow(/authority changed|reconnect|refresh/i);
 });
 
 it.each([

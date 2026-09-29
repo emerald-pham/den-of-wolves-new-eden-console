@@ -104,6 +104,15 @@ function resetFixture(): void {
 
 beforeEach(resetFixture);
 
+it('denies a new Hummingbird scout request while its home ship is in mutiny', async () => {
+  mock.documents.get('sessions/s1')!.shipUnrest = { quellon: 8 };
+  await expect(requestScout.run(request({
+    sessionId: 's1', requestId: 'scout-mutiny', entitlementId: 'hummingbird',
+    targetCoordinate: '5143',
+  }, 'explorer'))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.has('sessions/s1/scoutRequests/scout-mutiny')).toBe(false);
+});
+
 it.each([
   ['wing', 'starlight', 'wing-commander', 'aegis'],
   ['explorer', 'hummingbird', 'quellon-explorer', 'quellon'],

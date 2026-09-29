@@ -59,7 +59,8 @@ vi.mock('firebase-admin/firestore', () => ({
   },
 }));
 
-import { drawVipCard, transferVipCard } from './index';
+import { drawVipCard, rerollVipUnrest, transferVipCard } from './index';
+import { emptyVipDeckState } from './vipCards';
 
 function snapshot(fields: Record<string, unknown>, path: string, exists = true) {
   return {
@@ -113,6 +114,9 @@ beforeEach(() => {
     turn: 1, airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
   };
   sessionFields.shipDamage = {};
+  sessionFields.shipUnrest = { dione: 0 };
+  sessionFields.shipMutinies = {};
+  sessionFields.unrestAlerts = {};
   sessionFields.maintenanceCycles = {
     dione: { turn: 1, step: 5, revision: 0, charges: ['vip-lounge'], results: {}, refuelled: [] },
   };
@@ -122,7 +126,91 @@ beforeEach(() => {
   };
 });
 
+describe('rerollVipUnrest', () => {
+  function setupReroll(ownerUid = 'alice') {
+    sessionFields.maintenanceCycles = {
+      dione: {
+        turn: 1, step: 4, revision: 4, charges: [], refuelled: [],
+        results: { '3': 'Rolled 1 + 1 + 15 = 17. Added 1 unrest; unrest 8.' },
+        rationBonus: 15, unrestRolls: [1, 1], unrestBeforeCheck: 7,
+      },
+    };
+    sessionFields.shipUnrest = { dione: 8 };
+    sessionFields.unrestAlerts = { dione: {
+      shipId: 'dione', shipName: 'Dione', targetGmInstanceIds: ['bridge'], createdAt: 'now',
+    } };
+    const state = emptyVipDeckState();
+    mock.documents.set('sessions/s1/serverState/vipCards', {
+      ...state, revision: 1,
+      cards: state.cards.map((card) => card.id === 'party-deck'
+        ? { ...card, ownerUid } : card),
+    });
+  }
+
+  const command = {
+    sessionId: 's1', shipId: 'dione', requestId: 'reroll-1',
+    expectedRevision: 4, cardId: 'party-deck', dieIndex: 0,
+  };
+
+  it('spends the owner card and changes only one die, with exact replay and a private hand', async () => {
+    setupReroll();
+    mock.randomInt.mockReturnValue(6);
+    const committed = await rerollVipUnrest.run(request(command, 'alice'));
+    expect(committed).toMatchObject({ status: 'committed', unrest: 7, committedRevision: 5 });
+    expect(sessionFields.shipUnrest).toEqual({ dione: 7 });
+    expect(sessionFields.unrestAlerts).toEqual({});
+    expect(mock.documents.get('sessions/s1/serverState/vipCards')).toMatchObject({ revision: 2 });
+    expect((mock.documents.get('sessions/s1/serverState/vipCards')?.cards as unknown[])[0]).toMatchObject({
+      id: 'party-deck', status: 'spent', ownerUid: 'alice',
+    });
+    expect(mock.documents.get('sessions/s1/vipHands/alice')).toMatchObject({
+      ownerUid: 'alice', cards: [expect.objectContaining({ id: 'party-deck', status: 'spent' })],
+    });
+    expect(mock.randomInt).toHaveBeenCalledTimes(1);
+    mock.set.mockClear(); mock.update.mockClear();
+    await expect(rerollVipUnrest.run(request(command, 'alice'))).resolves.toMatchObject({ status: 'replayed' });
+    expect(mock.randomInt).toHaveBeenCalledTimes(1);
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+  });
+
+  it('denies a foreign card and a stale cycle before randomness or writes', async () => {
+    setupReroll('bob');
+    await expect(rerollVipUnrest.run(request(command, 'alice'))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.randomInt).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled();
+    setupReroll();
+    await expect(rerollVipUnrest.run(request({ ...command, expectedRevision: 3 }, 'alice')))
+      .resolves.toMatchObject({ status: 'stale' });
+    expect(mock.randomInt).not.toHaveBeenCalled();
+  });
+
+  it('denies an invalid phase, prior riot, and an ungranted GM before randomness', async () => {
+    setupReroll();
+    sessionFields.turnPhase = { turn: 1, airspace: { state: 'lifted', tickerActive: true } };
+    await expect(rerollVipUnrest.run(request(command, 'alice'))).rejects.toMatchObject({ code: 'failed-precondition' });
+    setupReroll();
+    sessionFields.turnPhase = { turn: 1, airspace: { state: 'restricted', tickerActive: true } };
+    (sessionFields.maintenanceCycles as Record<string, Record<string, unknown>>).dione!.results = { '4': 'Riot resolved' };
+    await expect(rerollVipUnrest.run(request(command, 'alice'))).rejects.toMatchObject({ code: 'failed-precondition' });
+    setupReroll('gm1');
+    gmGrantFields = undefined;
+    await expect(rerollVipUnrest.run(request({ ...command, instanceId: 'bridge' }, 'gm1')))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    expect(mock.randomInt).not.toHaveBeenCalled();
+  });
+});
+
 describe('drawVipCard', () => {
+  it('denies use of the Dione Lounge while its ship is in mutiny', async () => {
+    sessionFields.shipUnrest = { dione: 8 };
+    sessionFields.shipMutinies = { dione: {
+      status: 'active', revision: 1, triggerUnrest: 8, triggeredAt: 'now',
+    } };
+    await expect(drawVipCard.run(request(drawCommand))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.randomInt).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled();
+  });
   it('draws privately after the charge and authority checks, and replays without rerolling', async () => {
     const committed = await drawVipCard.run(request(drawCommand));
     expect(committed).toMatchObject({ status: 'committed', deckRevision: 1 });

@@ -153,6 +153,19 @@ it('refreshes only the caller private view for the current captain or Commissar'
     .rejects.toMatchObject({ code: 'permission-denied' });
 });
 
+it('denies a contradictory pending player that still carries the Commissar replacement role', async () => {
+  Object.assign(mock.documents.get(`sessions/${sessionId}/players/${commissarUid}`)!, {
+    replacementStatus: 'awaiting-re-role',
+  });
+
+  await expect(getCommissarPurgeAuthority.run(request({ sessionId }, commissarUid)))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  await expect(applyCommissarPurge.run(request(purgeRequest, commissarUid)))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
 it('requires current captain consent, applies one printed population step and one unrest point atomically', async () => {
   await expect(consentCommissarPurge.run(request(consentRequest, captainUid))).resolves.toMatchObject({
     status: 'committed', consented: true, shipId: 'icebreaker', captainRoleId: 'icebreaker-captain',

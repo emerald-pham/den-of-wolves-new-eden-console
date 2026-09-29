@@ -566,19 +566,69 @@ it('rejects a kicked browser before restoring its session', async () => {
   expect(nonRateLimitSetCalls()).toEqual([]);
 });
 
+it('returns a replacement awaiting re-role to station selection without reviving historical assignment', async () => {
+  prepareResume({ status: 'open', holderUid: null }, {
+    assignedRoleId: 'admiral', replacementRoleId: null, replacementStatus: 'awaiting-re-role',
+    seatId: null, activeConsoleRoleId: null,
+  });
+
+  const response = await resumeSession.run(request('s1')) as {
+    stationSelectionRequired?: boolean;
+    player: {
+      assignedRoleId?: string | null;
+      replacementRoleId?: string | null;
+      seatId: string | null;
+      activeConsoleRoleId: string | null;
+    };
+  };
+
+  expect(response).toMatchObject({
+    stationSelectionRequired: true,
+    player: {
+      assignedRoleId: 'admiral', replacementRoleId: null,
+      seatId: null, activeConsoleRoleId: null,
+    },
+  });
+  expect(mock.update).not.toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/seats/admiral' }),
+    expect.objectContaining({ holderUid: 'u1' }),
+  );
+});
+
+it('does not reclaim a historical open seat for a replacement awaiting re-role', async () => {
+  prepareResume({ status: 'open', holderUid: null }, {
+    assignedRoleId: 'admiral', replacementRoleId: null, replacementStatus: 'awaiting-re-role',
+    seatId: 'admiral', activeConsoleRoleId: 'admiral',
+  });
+
+  const response = await resumeSession.run(request('s1')) as {
+    stationSelectionRequired?: boolean;
+    player: { seatId: string | null; activeConsoleRoleId: string | null };
+  };
+
+  expect(response).toMatchObject({
+    stationSelectionRequired: true,
+    player: { seatId: null, activeConsoleRoleId: null },
+  });
+  expect(mock.update).not.toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/seats/admiral' }),
+    expect.objectContaining({ holderUid: 'u1' }),
+  );
+});
+
 it('keeps the old seat when the returning player still holds it', async () => {
   prepareResume({ status: 'claimed', holderUid: 'u1' }, {
-    assignedRoleId: 'admiral', replacementRoleId: 'wolf-commander',
+    assignedRoleId: 'admiral', seatId: 'admiral', replacementRoleId: 'wolf-commander',
   });
 
   const response = await resumeSession.run(request('s1')) as {
     player: { seatId: string | null; replacementRoleId?: string | null };
   };
 
-  expect(response.player.seatId).toBe('seat-1');
+  expect(response.player.seatId).toBe('admiral');
   expect(response.player.replacementRoleId).toBe('wolf-commander');
   expect(mock.get).toHaveBeenCalledWith(
-    expect.objectContaining({ path: 'sessions/s1/seats/seat-1' }),
+    expect.objectContaining({ path: 'sessions/s1/seats/admiral' }),
   );
   expect(mock.update).toHaveBeenCalledWith(
     expect.objectContaining({ path: 'sessions/s1/players/u1' }),
@@ -891,4 +941,18 @@ it('does not release a deliberate emergency hold during reconnect', async () => 
   };
   prepareResume({}, { seatId: null }, { phase: 'active', currentTurn: 2, turnPhase: held });
   expect((await resumeSession.run(request('s1'))).session.turnPhase).toEqual(held);
+});
+
+it('never takes a foreign holder from an inconsistent open seat', async () => {
+  prepareResume({ status: 'open', holderUid: 'u2' }, {
+    seatId: 'admiral', assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral',
+  });
+  await expect(resumeSession.run(request('s1'))).resolves.toMatchObject({
+    stationSelectionRequired: true,
+    player: { seatId: null, activeConsoleRoleId: null },
+  });
+  expect(mock.update).not.toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/seats/admiral' }),
+    expect.objectContaining({ holderUid: 'u1' }),
+  );
 });

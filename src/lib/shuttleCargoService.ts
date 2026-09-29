@@ -33,6 +33,7 @@ export interface ShuttleCargoTransferAuthorityBinding {
   readonly assignedRoleId: string | null | undefined;
   readonly activeConsoleRoleId: string | null | undefined;
   readonly replacementRoleId: string | null | undefined;
+  readonly replacementStatus: 'awaiting-re-role' | null | undefined;
   readonly seatId: string | null | undefined;
   readonly fleetGroupId: string;
   readonly shuttleId: string;
@@ -81,7 +82,9 @@ function currentAuthorityMatches(attempt: ShuttleCargoTransferAuthorityBinding):
     me?.sessionId === attempt.sessionId && me.uid === attempt.uid &&
     me.role === attempt.role && me.assignedRoleId === attempt.assignedRoleId &&
     me.activeConsoleRoleId === attempt.activeConsoleRoleId &&
-    me.replacementRoleId === attempt.replacementRoleId && me.seatId === attempt.seatId &&
+    me.replacementRoleId === attempt.replacementRoleId &&
+    me.replacementStatus === attempt.replacementStatus && me.replacementStatus == null &&
+    me.seatId === attempt.seatId &&
     me.fleetGroupId === attempt.fleetGroupId &&
     control?.shuttleId === attempt.shuttleId && control.ownerRoleId === attempt.ownerRoleId &&
     control.ownerUid === attempt.ownerUid && control.holderUid === attempt.holderUid &&
@@ -96,7 +99,7 @@ function captureAttemptAuthority(
 ): ShuttleCargoTransferAuthorityBinding {
   const { session, me } = useSessionStore.getState();
   if (!session || !me || me.role !== 'player' || me.sessionId !== session.id || !me.uid ||
-      typeof me.fleetGroupId !== 'string' || !me.fleetGroupId.trim()) {
+      me.replacementStatus != null || typeof me.fleetGroupId !== 'string' || !me.fleetGroupId.trim()) {
     throw new Error('Only the current shuttle holder may transfer cargo.');
   }
   const control = session.shuttleControl?.[shuttleId];
@@ -114,6 +117,7 @@ function captureAttemptAuthority(
     assignedRoleId: me.assignedRoleId,
     activeConsoleRoleId: me.activeConsoleRoleId,
     replacementRoleId: me.replacementRoleId,
+    replacementStatus: me.replacementStatus,
     seatId: me.seatId,
     fleetGroupId: me.fleetGroupId,
     shuttleId,
@@ -183,6 +187,7 @@ function validAttempt(attempt: ShuttleCargoTransferAttempt): boolean {
     Number.isSafeInteger(command.expectedControlRevision) && command.expectedControlRevision >= 0 &&
     typeof authority.sessionId === 'string' && authority.sessionId === command.sessionId &&
     typeof authority.uid === 'string' && authority.uid.length > 0 && authority.role === 'player' &&
+    authority.replacementStatus == null &&
     typeof authority.fleetGroupId === 'string' && authority.fleetGroupId.trim().length > 0 &&
     typeof authority.ownerRoleId === 'string' && typeof authority.ownerUid === 'string' &&
     authority.holderUid === authority.uid && typeof authority.hostShipId === 'string' &&

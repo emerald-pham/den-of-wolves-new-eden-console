@@ -7,9 +7,12 @@ import EmergencyTimerPauseControl from '@/components/EmergencyTimerPauseControl'
 import ShipPlot from '@/components/ShipPlot';
 import GmStarmapModule from '@/components/GmStarmapModule';
 import GmScoutRevealController from '@/components/GmScoutRevealController';
+import GmMutinyRecovery from '@/components/GmMutinyRecovery';
 import SmallShipOperations from '@/components/SmallShipOperations';
 import { GmSetupChecklist } from '@/components/GmSetupChecklist';
 import PursuitTracker from '@/components/PursuitTracker';
+import JumpFailureAdjudicationPanel from '@/components/JumpFailureAdjudicationPanel';
+import PursuitEmergencyWindowPanel from '@/components/PursuitEmergencyWindowPanel';
 import LiveChangeRegion from '@/components/LiveChangeRegion';
 import DecisionAttribution from '@/components/DecisionAttribution';
 import RoleConsoleTemplate from '@/components/RoleConsoleTemplate';
@@ -21,7 +24,7 @@ import { sessionSnapshotAuthorityFor, sessionSnapshotAuthorityVersion } from '@/
 import { RESOURCE_DEFINITIONS, resourcesForShip, type ResourceId } from '@/data/resources';
 import { AEGIS_FIGHTER_WING_CAPACITY, FIGHTER_WING_IDS } from '@/data/aegisConsoles';
 import { consoleSabotageTargetsForShip } from '@/data/consoleSabotageTargets';
-import { SHIPS } from '@/data/ships';
+import { SHIPS, SMALL_SHIPS } from '@/data/ships';
 import { ORIGIN_GALACTIC_COORDINATE } from '@/data/ships';
 import { activeFleetShipIds, CONSOLE_ROLES, DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
 import {
@@ -99,7 +102,9 @@ import type {
   GameSession,
   GmInstance,
   Player,
+  ReplacementEligibilityProjection,
   SessionEvent,
+  SmallShipId,
   WolfAttackPreparation,
   WolfAttackDeclarationState,
   WolfAttackPreparationModifierId,
@@ -113,6 +118,7 @@ import type {
   ArbourVision,
   FacilitatorRuleCall,
 } from '@/types/game';
+
 import {
   CRISIS_KINDS,
   CRISIS_KIND_LABELS,
@@ -130,7 +136,26 @@ import {
   replacementRoleAvailableForSession,
 } from '@/data/replacementRoles';
 
+const ACTIVE_PLAYER_PRESENCE_LEASE_MS = 45_000;
+
+/** Mirrors Functions isActivePlayer for the server-backed GM roster projection. */
+function isCurrentActivePlayer(player: Player, now = Date.now()): boolean {
+  if (player.connected !== true) return false;
+  if (player.lastSeenAtValid === false) return false;
+  if (player.lastSeenAt === undefined) return true;
+  if (player.lastSeenAtValid !== true) return false;
+  const seenAt = Date.parse(player.lastSeenAt);
+  return Number.isFinite(seenAt) && now - seenAt < ACTIVE_PLAYER_PRESENCE_LEASE_MS;
+}
+
 const AwayMissionStartPanel = lazy(() => import('@/components/AwayMissionStartPanel'));
+
+const SMALL_SHIP_CAPTAIN_ROLE_IDS: Readonly<Record<SmallShipId, string>> = {
+  gorgoneion: 'gorgoneion-captain',
+  'capybara-small': 'capybara-small-captain',
+  warrior: 'warrior-captain',
+  vulcan: 'vulcan-captain',
+};
 
 const WOLF_PREPARATION_CARD_TYPES = [
   { id: 'wolf-fighter-wing', label: 'Fighter Wing' },
@@ -431,6 +456,9 @@ export default function GmConsole() {
   const [instances, setInstances] = useState<readonly GmInstance[]>([]);
   const [connectedPlayers, setConnectedPlayers] = useState<readonly Player[]>([]);
   const [allPlayers, setAllPlayers] = useState<readonly Player[]>([]);
+  const [replacementEligibility, setReplacementEligibilityEntries] = useState<
+    readonly ReplacementEligibilityProjection[]
+  >([]);
   const [replacementTargetUid, setReplacementTargetUid] = useState('');
   const [replacementReason, setReplacementReason] = useState<typeof REPLACEMENT_ELIGIBILITY_REASONS[number]>('dead');
   const [replacementRoleId, setReplacementRoleId] = useState('wolf-commander');
@@ -753,9 +781,15 @@ export default function GmConsole() {
   const latestAlert = events.find((event) => event.type === 'fullscreen-alert');
   const wolfConsoleEligibleAt = Date.parse(wolfConsoleVisit?.eligibleAt ?? '');
   const wolfConsoleExpiresAt = Date.parse(wolfConsoleVisit?.expiresAt ?? '');
+  const activePlayerExpiryUpdates = connectedPlayers.flatMap((player) => {
+    if (player.lastSeenAt === undefined || player.lastSeenAtValid !== true) return [];
+    const seenAt = Date.parse(player.lastSeenAt);
+    return Number.isFinite(seenAt) ? [seenAt + ACTIVE_PLAYER_PRESENCE_LEASE_MS] : [];
+  });
   const nextClockUpdate = nextGmClockUpdate(session, clock, [
     wolfConsoleEligibleAt,
     Number.isFinite(wolfConsoleExpiresAt) ? wolfConsoleExpiresAt + 1 : Number.NaN,
+    ...activePlayerExpiryUpdates,
   ]);
   const overdueMaintenance = Object.entries(session?.maintenanceCycles ?? {}).flatMap(([shipId, cycle]) => {
     const startedAt = cycle.startedAt ? Date.parse(cycle.startedAt) : Number.NaN;
@@ -791,7 +825,7 @@ export default function GmConsole() {
     currentTurn,
     maxTurn: session?.turnState?.maxTurn ?? session?.turnLimit ?? session?.setup?.turnLimit ?? 6,
     setupSynchronized: session?.setup !== undefined && !hasUnconfirmedRosterChanges,
-    productionStartAvailable: currentTurn === 0 && session?.phase === 'casting',
+    productionStartAvailable: currentTurn === 0 && (session?.phase === 'casting' || (session?.phase === 'lobby' && session.setupConfirmed === true)),
     turnPhase: phaseReadout?.kind,
     timerPaused: Boolean(currentPhase?.timerPause && currentPhase.timerPause.reason !== 'empty-session'),
     wolfAttackStatus: wolfWindowStatus,
@@ -814,6 +848,11 @@ export default function GmConsole() {
     .filter((player) => player.role === 'player' &&
       (!player.replacementRoleId || player.escapeState !== undefined))
     .sort((left, right) => normalizeDisplayName(left.displayName).localeCompare(normalizeDisplayName(right.displayName)));
+  const replacementEligibilityByUid = new Map(
+    replacementEligibility
+      .filter((entry) => entry.eligible && entry.revision >= 1)
+      .map((entry) => [entry.targetUid, entry] as const),
+  );
   const persistedReplacementVesselIds = session?.activeVesselIds;
   const replacementVesselIds = new Set(
     Array.isArray(persistedReplacementVesselIds) &&
@@ -913,6 +952,9 @@ export default function GmConsole() {
       stopInstances();
       stopInstances = () => undefined;
       setInstances([]);
+      setConnectedPlayers([]);
+      setAllPlayers([]);
+      setReplacementEligibilityEntries([]);
       setLoading(false);
       setCrisisMutationState(null);
       setCrisisMessage(null);
@@ -934,6 +976,7 @@ export default function GmConsole() {
     void import('@/lib/firestore').then(({
       subscribeConnectedPlayers,
       subscribeSessionPlayers,
+      subscribeReplacementEligibility,
       subscribeDamageDraws,
       subscribeGmInstances,
       subscribeGmWolfAttackPreparation,
@@ -1208,6 +1251,16 @@ export default function GmConsole() {
           }),
         )
         : () => undefined;
+      const stopReplacementEligibility = typeof subscribeReplacementEligibility === 'function'
+        ? subscribeReplacementEligibility(
+          sessionId,
+          setReplacementEligibilityEntries,
+          () => useSessionStore.getState().setCommunicationError({
+            code: 'gm-replacement-eligibility-link',
+            message: 'Current replacement eligibility could not be refreshed.',
+          }),
+        )
+        : () => undefined;
       unsubscribe = () => {
         stopInstances();
         stopWolfAttackWindow();
@@ -1228,6 +1281,7 @@ export default function GmConsole() {
         stopDamageDraws();
         stopPlayers();
         stopAllPlayers();
+        stopReplacementEligibility();
       };
     });
     return () => {
@@ -1260,6 +1314,7 @@ export default function GmConsole() {
       setWolfAttackPreparationState(null);
       setWolfAttackState(null);
       setAllPlayers([]);
+      setReplacementEligibilityEntries([]);
     };
   }, [
     advanceArrestPosseCalculationGeneration,
@@ -3663,6 +3718,25 @@ export default function GmConsole() {
                         )}
                       </li>
                     </ul>
+                    <GmMutinyRecovery
+                      shipId={ship.id}
+                      shipName={ship.name}
+                      unrest={unrestAmount}
+                      mutiny={session.shipMutinies?.[ship.id]}
+                      expectedRevision={session.vesselActionRevisions?.[ship.id] ?? 0}
+                      writable={shipNumberWrite && isGm && connection === 'live'}
+                      candidates={connectedPlayers.filter(player =>
+                        player.role === 'player' &&
+                        typeof player.assignedRoleId === 'string' &&
+                        player.assignedRoleId === player.seatId &&
+                        player.assignedRoleId !== (ship.id === 'aegis' ? 'admiral' : `${ship.id}-captain`) &&
+                        player.replacementRoleId == null && !player.escapeState &&
+                        CONSOLE_ROLES.some(role => role.id === player.assignedRoleId && role.shipId === ship.id),
+                      ).map(player => ({
+                        uid: player.uid, displayName: player.displayName,
+                        roleId: player.assignedRoleId!,
+                      }))}
+                    />
                     {ship.id === 'aegis' && (
                       <>
                         <h4 className="gm-fleet-resource-ship__category">Fighter wings</h4>
@@ -3728,6 +3802,74 @@ export default function GmConsole() {
                   </section>
                 );
               })}
+              {SMALL_SHIPS.flatMap((smallShip) => {
+                const id = smallShip.id as SmallShipId;
+                const state = session.smallShipStates?.[id];
+                const activeMutiny = state && (
+                  state.mutiny?.status === 'active' ||
+                  (state.unrest >= 8 && state.mutiny?.status !== 'resolved')
+                );
+                if (!state || !activeMutiny) return [];
+                const captainRoleId = SMALL_SHIP_CAPTAIN_ROLE_IDS[id];
+                const captainHolders = allPlayers.filter((candidate) =>
+                  candidate.role === 'player' && candidate.replacementRoleId === captainRoleId &&
+                  candidate.replacementStatus == null);
+                const currentCaptain = captainHolders.length === 1 ? captainHolders[0] : undefined;
+                const candidates = connectedPlayers.flatMap((candidate) => {
+                  const eligibility = replacementEligibilityByUid.get(candidate.uid);
+                  return candidate.role === 'player' && candidate.uid !== currentCaptain?.uid &&
+                    isCurrentActivePlayer(candidate, clock) &&
+                    candidate.replacementRoleId == null && candidate.replacementStatus == null &&
+                    !candidate.escapeState && eligibility
+                    ? [{
+                      uid: candidate.uid,
+                      displayName: candidate.displayName,
+                      roleId: candidate.assignedRoleId ?? 'awaiting new role',
+                      eligibilityRevision: eligibility.revision,
+                    }]
+                    : [];
+                });
+                return [<section className="gm-fleet-resource-ship" role="group"
+                  aria-label={`${smallShip.name} mutiny controls`} key={`mutiny-${id}`}>
+                  <GmMutinyRecovery
+                    shipId={id}
+                    shipName={smallShip.name}
+                    unrest={state.unrest}
+                    mutiny={state.mutiny}
+                    mode="replacement-transfer"
+                    {...(currentCaptain ? { currentCaptain: {
+                      uid: currentCaptain.uid,
+                      displayName: currentCaptain.displayName,
+                      roleId: captainRoleId,
+                    } } : {})}
+                    expectedRevision={state.cycle.revision}
+                    writable={Boolean(currentCaptain) && isGm && connection === 'live'}
+                    candidates={candidates}
+                  />
+                  {!currentCaptain && (
+                    <p role="status">Recovery blocked // no single current Captain assignment is available.</p>
+                  )}
+                </section>];
+              })}
+              {session.voyage33Maintenance && (
+                session.voyage33Maintenance.mutiny?.status === 'active' ||
+                (session.voyage33Maintenance.unrest >= 8 &&
+                  session.voyage33Maintenance.mutiny?.status !== 'resolved')
+              ) && (
+                <section className="gm-fleet-resource-ship" role="group"
+                  aria-label="Voyage 33-0 mutiny controls">
+                  <GmMutinyRecovery
+                    shipId="voyage-33-0"
+                    shipName="Voyage 33-0"
+                    unrest={session.voyage33Maintenance.unrest}
+                    mutiny={session.voyage33Maintenance.mutiny}
+                    mode="crew-attestation"
+                    expectedRevision={session.voyage33Maintenance.cycle.revision}
+                    writable={isGm && connection === 'live'}
+                    candidates={[]}
+                  />
+                </section>
+              )}
             </div>
           </section>
 
@@ -4005,7 +4147,7 @@ export default function GmConsole() {
                   <legend>Ordinary production start</legend>
                   <p className="gm-role-setup__note">
                     The server derives the routine Wolf count and private loyalty cards from the locked roster.
-                    Wolf selection is not a caller-controlled setup step.
+                    Wolf selection is automatic among available players. Unfilled stations do not block start.
                   </p>
                   <p
                     className="gm-role-setup__note"
@@ -4017,15 +4159,15 @@ export default function GmConsole() {
                     {startMutationMessage ?? (
                       currentTurn !== 0
                         ? 'Start unavailable // this session has already left Cycle 0.'
-                        : session.phase !== 'casting'
+                        : !(session.phase === 'casting' || (session.phase === 'lobby' && session.setupConfirmed === true))
                           ? 'Start blocked // confirm the locked roster before production start.'
-                          : 'Ready // validate the live roster, reciprocal seats, vessels, loyalty, and GM staffing.'
+                          : 'Ready // confirmed roster. The server checks current authority, occupied seats, vessels, and private setup.'
                     )}
                   </p>
                   <button
                     className={`cic-action-button${confirmGameStart ? ' cic-action-button--confirm' : ''}`}
                     type="button"
-                    disabled={startingGame || currentTurn !== 0 || session.phase !== 'casting'}
+                    disabled={startingGame || currentTurn !== 0 || !(session.phase === 'casting' || (session.phase === 'lobby' && session.setupConfirmed === true))}
                     onClick={requestProductionStart}
                   >
                     {startingGame
@@ -4041,7 +4183,7 @@ export default function GmConsole() {
                         <div><dt>Disposition</dt><dd>{startMutationState}</dd></div>
                         <div><dt>Source</dt><dd>{setupReceipt.source}</dd></div>
                         <div><dt>Locked configuration</dt><dd>{setupReceipt.mode} // {setupReceipt.playerCount} core</dd></div>
-                        <div><dt>Wolf rule / result</dt><dd>{setupReceipt.wolfRule} // {setupReceipt.wolfCount} // {setupReceipt.resultCount} private cards</dd></div>
+                        <div><dt>Wolf rule / result</dt><dd>{setupReceipt.wolfRule} // target {setupReceipt.wolfCount} // assigned {setupReceipt.selectedWolfRoleIds.length} // {setupReceipt.resultCount} private cards</dd></div>
                         <div><dt>Press input</dt><dd>
                           {setupReceipt.pressEligibility.enabled === false ? 'disabled' : 'enabled'} // {
                             typeof setupReceipt.pressEligibility.activeClaimCount === 'number'
@@ -5009,6 +5151,14 @@ export default function GmConsole() {
               </div>
             </div>
           </section>
+          <JumpFailureAdjudicationPanel key={session?.id} active={Boolean(
+            isGm && local && session?.phase === 'active' &&
+            sessionSnapshotFreshness === 'server' && connection === 'live',
+          )} />
+          <PursuitEmergencyWindowPanel active={Boolean(
+            isGm && local && session?.phase === 'active' &&
+            sessionSnapshotFreshness === 'server' && connection === 'live',
+          )} window={session?.pursuitEmergencyWindowAuthority} />
 
       </aside>
       {pendingCapybaraEnabled !== null && (

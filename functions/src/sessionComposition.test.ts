@@ -357,6 +357,7 @@ function stateSnapshot(excludedPaths: readonly string[] = []) {
 async function composeProductionSession(
   playerCount: CompositionCount,
   options: {
+    readonly automaticLoyalties?: boolean;
     readonly afterSetup?: (context: {
       readonly sessionId: string;
       readonly ownerUid: string;
@@ -446,6 +447,10 @@ async function composeProductionSession(
     dioneEnabled: playerCount >= 12,
     capybaraEnabled: true,
     activeRoleIds,
+    // The 8-player fixture exercises explicit loyalty composition and IA races.
+    // Ordinary setups now assign Wolves automatically; use the supported
+    // optional Arbour configuration for this explicit-assignment scenario.
+    universalArbourEnabled: playerCount === 8 && !options.automaticLoyalties,
   };
   const confirmed = await confirmSetup.run(request(configuration, ownerUid)) as {
     setupRevision: number;
@@ -490,7 +495,7 @@ async function composeProductionSession(
   let iaRaceResults: PromiseSettledResult<unknown>[] = [];
   let iaRaceRequests: Array<Record<string, unknown>> = [];
   let iaRaceWinner: { request: Record<string, unknown>; result: Record<string, unknown> } | null = null;
-  if (playerCount === 8) {
+  if (playerCount === 8 && !options.automaticLoyalties) {
     await expect(assignLoyalty.run(request({
       sessionId,
       instanceId: `bridge-${playerCount}`,
@@ -564,8 +569,8 @@ async function composeProductionSession(
         instanceId: `bridge-${playerCount}`,
         requestId: `loyalty-${playerCount}-${index}`,
         targetUid: uid,
-        kind: 'fleet-loyalist',
-        suspicion: 0,
+        kind: index === coreUids.length - 1 ? 'universal-arbour' : 'fleet-loyalist',
+        suspicion: index === coreUids.length - 1 ? 10 : 0,
       }, ownerUid));
       setupRevision = (assignment as { setupRevision: number }).setupRevision;
     }
@@ -1611,4 +1616,45 @@ describe('Prompt 055 private loyalty reassignment composition', () => {
     expect(read(`sessions/${sessionId}/secrets/loyalty-${firstPartnerUid}`)).toBeUndefined();
     expect(read(`sessions/${sessionId}/secrets/loyalty-${secondPartnerUid}`)).toBeUndefined();
   });
+});
+
+
+describe('PC05 ordinary automatic setup composition', () => {
+  beforeEach(() => mock.reset());
+
+  it('starts the eight-player ordinary roster with automatic private Wolves and exact replay', async () => {
+    const { sessionId, ownerUid, coreUids, started, startRequest } =
+      await composeProductionSession(8, { automaticLoyalties: true });
+    expect(started.setupReceipt.loyaltySource).toBe('automatic-default');
+    const cards = coreUids.map(uid => read(`sessions/${sessionId}/secrets/loyalty-${uid}`)!);
+    expect(cards.filter(card => (card.payload as StoredDocument).kind === 'wolf-agent')).toHaveLength(1);
+    cards.forEach((card, index) => expect(card.visibleToUids).toEqual([coreUids[index]]));
+    const priorCards = JSON.stringify(cards);
+    await expect(startGame.run(request(startRequest, ownerUid)))
+      .resolves.toMatchObject({ status: 'replayed', currentTurn: 1 });
+    expect(JSON.stringify(coreUids.map(uid => read(`sessions/${sessionId}/secrets/loyalty-${uid}`))))
+      .toBe(priorCards);
+  });
+});
+
+it('starts a newly created confirmed empty roster through ordinary callable composition', async () => {
+  mock.reset();
+  const ownerUid = 'empty-roster-gm';
+  const created = await createSession.run(request({
+    requestId: 'empty-create', name: 'Empty confirmed roster', displayName: 'GM',
+    playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 8,
+  }, ownerUid));
+  const sessionId = (created.session as StoredDocument).id as string;
+  await loginGmAccess.run(request({ password: 'bananasplit' }, ownerUid));
+  await claimGmInstance.run(request({ sessionId, instanceId: 'empty-bridge', name: 'GM', deviceLabel: 'Composition test' }, ownerUid));
+  const confirmed = await confirmSetup.run(request({
+    sessionId, instanceId: 'empty-bridge', requestId: 'empty-confirm', expectedSetupRevision: 0,
+    playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 8,
+    dioneEnabled: false, capybaraEnabled: true, activeRoleIds: EXPECTED_ROSTERS[8],
+  }, ownerUid)) as { setupRevision: number };
+  expect(read(`sessions/${sessionId}`)?.setupConfirmed).toBe(true);
+  await expect(startGame.run(request({
+    sessionId, instanceId: 'empty-bridge', requestId: 'empty-start', expectedSetupRevision: confirmed.setupRevision,
+  }, ownerUid))).resolves.toMatchObject({ currentTurn: 1 });
+  expect([...mock.documents.keys()].filter(path => path.startsWith(`sessions/${sessionId}/secrets/loyalty-`))).toHaveLength(0);
 });

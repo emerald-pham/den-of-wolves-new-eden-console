@@ -41,6 +41,27 @@ it('shows the registered Missile Array rule while withholding its future firing 
   expect(within(missileArray).queryByRole('button')).not.toBeInTheDocument();
 });
 
+it('keeps a mutinous craft visible while disabling its ordinary operations', () => {
+  const session = useSessionStore.getState().session!;
+  useSessionStore.getState().setSession({
+    ...session,
+    smallShipStates: {
+      ...session.smallShipStates,
+      gorgoneion: {
+        ...session.smallShipStates!.gorgoneion!,
+        unrest: 8,
+        mutiny: { status: 'active', revision: 1, triggerUnrest: 8, triggeredAt: 'now' },
+      },
+    },
+  });
+
+  render(<SmallShipOperations />);
+  const gorgoneion = screen.getByRole('region', { name: 'Gorgoneion small-ship operations' });
+  expect(within(gorgoneion).getByText(/mutiny.*new captain/i)).toBeVisible();
+  expect(within(gorgoneion).getByRole('button', { name: /Begin small-ship cycle/i })).toBeDisabled();
+  expect(within(gorgoneion).getByRole('button', { name: /Undock after cycle/i })).toBeDisabled();
+});
+
 it('shows the Force Field before-targeting deadline without offering retroactive selection', () => {
   render(<SmallShipOperations />);
 

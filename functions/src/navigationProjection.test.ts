@@ -177,6 +177,25 @@ describe('server discovery projections', () => {
       revision: 4,
     });
   });
+
+  it('does not revive a former captain historical ship while they await a new role', () => {
+    expect(playerDiscoveryProjection(
+      player({
+        fleetGroupId: 'fleet-1', assignedRoleId: 'dione-captain',
+        replacementRoleId: null, replacementStatus: 'awaiting-re-role',
+      }),
+      navigation,
+      5,
+    )).toEqual({
+      groupId: 'fleet-1',
+      fleetGroupVesselIds: [],
+      knownCoordinates: ['0000'],
+      knownSystems: { 'system-01': '0000' },
+      pursuitDistance: 0,
+      navigationLogs: [],
+      revision: 5,
+    });
+  });
 });
 
 it('migrates legacy pursuit without allowing aliases to overwrite canonical state', () => {

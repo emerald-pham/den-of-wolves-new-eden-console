@@ -24,6 +24,7 @@ import { isResourceShipId } from './resources';
 import { ROLE_IDS } from './roleConfiguration';
 import { parsePlayerEscapeState } from './escapeState';
 import { parseEndeavourFieldUpgradeState } from './endeavourFieldUpgrades';
+import { requirePursuitEmergencyWindowAbsent } from './pursuitEmergencyWindow';
 
 type RecordValue = Record<string, unknown>;
 
@@ -396,6 +397,7 @@ export const advanceEndeavourResearchTrack = onCall<{
       }
       const replay = replayReply(receipt, fingerprint);
       if (replay) return replay;
+      requirePursuitEmergencyWindowAbsent(session);
       if (session.get('phase') !== 'active') {
         throw new HttpsError('failed-precondition', 'Endeavour research is available only during active gameplay.');
       }

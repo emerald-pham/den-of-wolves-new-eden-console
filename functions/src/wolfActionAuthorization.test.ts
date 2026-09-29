@@ -40,6 +40,7 @@ describe('Wolf action authorization', () => {
     ['numeric replacement role', { replacementRoleId: 0 }, 'replaced'],
     ['array replacement role', { replacementRoleId: [] }, 'replaced'],
     ['object replacement role', { replacementRoleId: {} }, 'replaced'],
+    ['awaiting replacement role', { replacementStatus: 'awaiting-re-role' }, 'replaced'],
     ['destroyed-ship escape', { escapeState: { status: 'pending' } }, 'displaced'],
     ['public loyalty', { loyaltyAudience: ['u2', 'u3'] }, 'not-wolf'],
     ['another loyalty', { loyaltyPayload: { type: 'loyalty', kind: 'fleet-loyalist', suspicion: 0 } }, 'not-wolf'],

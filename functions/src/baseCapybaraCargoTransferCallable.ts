@@ -13,6 +13,7 @@ import { isResourceShipId } from './resources';
 import { replacementRoleAvailable, replacementRoleFor } from './replacementRoles';
 import { vesselModeForConfiguration } from './gameSetup';
 import { turnPhaseState } from './turnZero';
+import { isSmallShipInMutiny, parseSmallShipState } from './smallShip';
 
 type RecordValue = Record<string, unknown>;
 
@@ -157,6 +158,7 @@ function requireCaptainAuthority(
   uid: string,
 ): string {
   if (!isActivePlayer(player) || player.get('replacementRoleId') !== ROLE_ID ||
+      player.get('replacementStatus') != null ||
       player.get('activeConsoleRoleId') !== null ||
       player.get('seatId') !== null ||
       (player.get('escapeState') !== undefined && player.get('escapeState') !== null)) {
@@ -266,10 +268,13 @@ export const transferBaseCapybaraCargo = onCall<{
     const storedSmallShips = isRecord(session.get('smallShipStates'))
       ? session.get('smallShipStates') as RecordValue : undefined;
     const smallShipState = storedSmallShips?.[SMALL_SHIP_ID];
-    const smallShipRecord = isRecord(smallShipState) ? smallShipState : undefined;
+    const smallShipRecord = parseSmallShipState(smallShipState, SMALL_SHIP_ID);
     if (!smallShipRecord || smallShipRecord.hostShipId !== command.expectedHostShipId ||
         smallShipRecord.dockingRevision !== command.expectedDockingRevision) {
       failClosed('The Capybara dock changed. Refresh before transferring.');
+    }
+    if (isSmallShipInMutiny(smallShipRecord)) {
+      failClosed('Base Capybara is in mutiny and cannot be used until a new captain is installed.');
     }
     const storedResources = isRecord(session.get('shipResources'))
       ? session.get('shipResources') as RecordValue : undefined;

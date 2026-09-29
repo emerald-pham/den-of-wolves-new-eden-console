@@ -20,6 +20,7 @@ import type {
   VesselId,
 } from './identifiers';
 import type { ResourceId } from '@/data/resources';
+import type { CrisisStateName } from './crisis';
 
 export type {
   AnyEntityId,
@@ -198,6 +199,8 @@ export interface ShipJumpState {
   readonly lastJumpTurn?: number;
   /** Server expiry for a bad-coordinate integrity lockout. */
   readonly integrityLockedUntil?: Timestamp;
+  readonly emergencyJumpUsed?: boolean;
+  readonly lastFailureRequestId?: string;
 }
 
 export type ShipJumpStates = Readonly<Record<string, ShipJumpState>>;
@@ -396,6 +399,8 @@ export interface MaintenanceCycle {
   readonly refuelled: readonly string[];
   readonly turn?: number;
   readonly rationBonus?: number;
+  readonly unrestRolls?: readonly [number, number];
+  readonly unrestBeforeCheck?: number;
   readonly startedAt?: Timestamp;
   readonly completedAt?: Timestamp;
   /** Links a damage-causing step to the shared record for the card that was drawn. */
@@ -417,12 +422,23 @@ export interface SmallShipMaintenanceCycle {
 
 export type SmallShipId = 'gorgoneion' | 'capybara-small' | 'warrior' | 'vulcan';
 
+export interface ShipMutinyState {
+  readonly status: 'active' | 'resolved';
+  readonly revision: number;
+  readonly triggerUnrest: number;
+  readonly triggeredAt: string;
+  readonly reduction?: number;
+  readonly recoveryRequestId?: string;
+  readonly recoveredAt?: string;
+}
+
 export interface SmallShipState {
   readonly id: SmallShipId;
   readonly hostShipId: VesselId | null;
   readonly dockingRevision: number;
   readonly population: number;
   readonly unrest: number;
+  readonly mutiny?: ShipMutinyState;
   readonly cycle: SmallShipMaintenanceCycle;
 }
 
@@ -446,6 +462,7 @@ export interface Voyage33MaintenanceState {
   readonly dockingRevision: number;
   readonly population: number;
   readonly unrest: number;
+  readonly mutiny?: ShipMutinyState;
   readonly cycle: SmallShipMaintenanceCycle;
 }
 
@@ -797,6 +814,20 @@ export interface PursuitFailureOutcome {
   readonly occurredAt: Timestamp;
 }
 
+/** Member-safe pause marker while the facilitator decides whether to offer a pursuit emergency. */
+export interface PursuitEmergencyWindow {
+  readonly type: 'pursuit-emergency-window';
+  readonly status: 'awaiting-gm-decision' | 'offered';
+  readonly cycle: number;
+  readonly openedAt: Timestamp;
+}
+
+/** Facilitator-only authority for the current pursuit emergency decision. */
+export interface PursuitEmergencyWindowAuthority extends PursuitEmergencyWindow {
+  readonly navigationRevision: number;
+  readonly groupIds: readonly GroupId[];
+}
+
 export interface TotalFleetLossOutcome {
   readonly type: 'game-outcome';
   readonly result: 'failure';
@@ -1095,6 +1126,7 @@ export interface GameSession {
   readonly turnLimit?: 6 | 7 | 8;
   readonly configurationLocked?: boolean;
   /** GM-confirmed chart-only lock; roster setup remains editable before start. */
+  readonly setupConfirmed?: boolean;
   readonly chartSelectionLocked?: boolean;
   readonly setupRevision?: number;
   /** One canonical server-validated configuration tuple. */
@@ -1147,6 +1179,10 @@ export interface GameSession {
   readonly shipJumpTransitions?: ShipJumpTransitions;
   /** Server-owned pursuit value per initial fleet group. */
   readonly pursuitGroups?: Readonly<Record<string, number>>;
+  /** Active-GM decision gate for the printed optional pursuit emergency jump. */
+  readonly pursuitEmergencyWindow?: PursuitEmergencyWindow;
+  /** Facilitator-only decision authority received from the protected organiser projection. */
+  readonly pursuitEmergencyWindowAuthority?: PursuitEmergencyWindowAuthority;
   /** Facilitator-only server mapping from each plotted ship to its fleet group. */
   readonly shipFleetGroupIds?: Readonly<Record<string, GroupId>>;
   /** Facilitator-only pursuit depth by plotted ship. */
@@ -1161,6 +1197,7 @@ export interface GameSession {
   readonly pdfEscortWing?: PdfEscortWingMemberView;
   /** Per-ship unrest ranges from 0–10; the physical-style dial fails above 7. */
   readonly shipUnrest?: Readonly<Record<string, number>>;
+  readonly shipMutinies?: Readonly<Record<string, ShipMutinyState>>;
   /** Threshold alerts awaiting acknowledgement by the GM instances active when triggered. */
   readonly unrestAlerts?: Readonly<Record<string, UnrestAlert>>;
   /** Locks subsequent GM claims while at least one GM remains present. */
@@ -1599,8 +1636,14 @@ export interface Player {
   readonly assignedRoleId?: RoleId | null;
   /** Historical printed role retained after an in-game replacement. */
   readonly replacementRoleId?: RoleId | null;
+  /** Former command holder is deliberately unassigned until the GM gives a new role. */
+  readonly replacementStatus?: 'awaiting-re-role' | null;
   /** Presence is included in the GM roster projection. */
   readonly connected?: boolean;
+  /** Current server heartbeat used by GM-only active-player choices. */
+  readonly lastSeenAt?: Timestamp;
+  /** True only when the GM roster parsed lastSeenAt from a Firestore Timestamp. */
+  readonly lastSeenAtValid?: boolean;
   /** Monotonic server-owned connection identity used to reject stale cleanup. */
   readonly connectionGeneration?: number;
   /** Nonbinding casting preference; it never grants a role or vessel. */
@@ -1611,6 +1654,16 @@ export interface Player {
   readonly fleetGroupId?: GroupId | null;
   readonly escapeState?: PlayerEscapeState;
   readonly joinedAt: Timestamp;
+}
+
+/** Facilitator-only server decision that may be consumed by one replacement assignment. */
+export interface ReplacementEligibilityProjection {
+  readonly sessionId: SessionId;
+  readonly targetUid: PlayerId;
+  readonly eligible: boolean;
+  readonly reason: 'dead' | 'arrested' | 'removed' | 'late';
+  readonly revision: number;
+  readonly recordedAt?: Timestamp;
 }
 
 /** One browser/device that has independently claimed GM authority. */
@@ -1695,7 +1748,7 @@ export interface CrisisStateEvent {
   readonly sessionId: SessionId;
   readonly type: 'crisis-state';
   readonly crisisId: string;
-  readonly state: import('./crisis').CrisisStateName;
+  readonly state: CrisisStateName;
   readonly title: string;
   readonly createdAt: Timestamp;
 }

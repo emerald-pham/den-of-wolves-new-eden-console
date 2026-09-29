@@ -79,6 +79,10 @@ const {
   setFighterWingCount,
   createJumpShipAttempt,
   isJumpShipOutcomeUncertain,
+  adjudicateFailedJump,
+  createFailedJumpAdjudicationAttempt,
+  isFailedJumpOutcomeUncertain,
+  listUnresolvedJumpFailures,
 } = await import('./sessionService');
 const { httpsCallable } = await import('firebase/functions');
 const { acceptCallableSessionAuthority, sessionSnapshotAuthorityFor } = await import('./firestore');
@@ -324,6 +328,109 @@ describe('connect', () => {
     expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'resumeSession');
     expect(callable).toHaveBeenCalledWith({ sessionId: 's1' });
     expect(useSessionStore.getState().connection).toBe('live');
+  });
+
+  it('keeps membership, clears cached private authority, and signals role selection after server station invalidation', async () => {
+    const recoverySessionId = 'station-recovery-s1';
+    const assignedPlayer = {
+      ...player, sessionId: recoverySessionId,
+      assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral', seatId: 'admiral',
+    };
+    const activeSession = { ...session, id: recoverySessionId, activeRoleIds: ['admiral'] };
+    useSessionStore.getState().setIdentity(activeSession, assignedPlayer);
+    useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
+    useSessionStore.getState().setRoleBrief({
+      assignmentUid: player.uid, roleId: 'admiral', roleName: 'Admiral',
+      vesselName: 'AEGIS', text: 'Private brief', commonRules: '', setupRevision: 1,
+    });
+    const resumedPlayer = { ...assignedPlayer, seatId: null, activeConsoleRoleId: null };
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({
+      data: {
+        session: { ...activeSession, updatedAt: '2026-01-02T00:00:00.000Z' },
+        player: resumedPlayer,
+        stationSelectionRequired: true,
+      },
+    }));
+
+    await connect();
+
+    expect(useSessionStore.getState()).toMatchObject({
+      session: { id: recoverySessionId },
+      me: { uid: 'u1', assignedRoleId: 'admiral', seatId: null, activeConsoleRoleId: null },
+      connection: 'live',
+      communicationError: {
+        kind: 'station-selection-required',
+        message: 'Your previous station is no longer available. Return to station select and reselect your role.',
+      },
+      privateLoyalty: null,
+      roleBrief: null,
+    });
+  });
+
+  it('does not reinterpret a transient reconnect failure as invalid station authority', async () => {
+    const transientSessionId = 'transient-resume-s1';
+    const assignedPlayer = {
+      ...player, sessionId: transientSessionId,
+      assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral', seatId: 'admiral',
+    };
+    const transientSession = { ...session, id: transientSessionId };
+    useSessionStore.getState().setIdentity(transientSession, assignedPlayer);
+    useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
+    const resume = Object.assign(vi.fn()
+      .mockRejectedValueOnce({ code: 'functions/unavailable', message: 'temporary network outage' })
+      .mockResolvedValue({
+        data: {
+          session: { ...transientSession, updatedAt: '2026-01-02T00:00:00.000Z' },
+          player: assignedPlayer,
+        },
+      }), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockImplementation((_, name) => name === 'resumeSession'
+      ? resume : callableReturning({ data: {} }));
+
+    await connect();
+
+    expect(useSessionStore.getState()).toMatchObject({
+      session: { id: transientSessionId }, me: assignedPlayer, connection: 'offline',
+      communicationError: null,
+      privateLoyalty: { kind: 'wolf-agent', suspicion: 0 },
+    });
+
+    await connect();
+
+    expect(useSessionStore.getState()).toMatchObject({
+      session: { id: transientSessionId }, me: assignedPlayer, connection: 'live',
+      communicationError: null,
+    });
+    expect(resume).toHaveBeenCalledTimes(2);
+  });
+
+  it('ignores a delayed station invalidation from a superseded reconnect response', async () => {
+    const staleResponseSessionId = 'stale-station-response-s1';
+    const currentSession = {
+      ...session, id: staleResponseSessionId, updatedAt: '2026-01-02T00:00:00.000Z',
+    };
+    const staleSession = { ...currentSession, updatedAt: '2026-01-01T00:00:00.000Z' };
+    const assignedPlayer = {
+      ...player, sessionId: staleResponseSessionId,
+      assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral', seatId: 'admiral',
+    };
+    useSessionStore.getState().setIdentity(currentSession, assignedPlayer);
+    useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
+    expect(acceptCallableSessionAuthority(currentSession, player.uid)).toBe(true);
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({
+      data: {
+        session: staleSession, player: { ...assignedPlayer, activeConsoleRoleId: null, seatId: null },
+        stationSelectionRequired: true,
+      },
+    }));
+
+    await connect();
+
+    expect(useSessionStore.getState()).toMatchObject({
+      session: currentSession, me: assignedPlayer, connection: 'offline',
+      communicationError: null,
+      privateLoyalty: { kind: 'wolf-agent', suspicion: 0 },
+    });
   });
 
   it('shows the limiter wait and keeps explicit manual recovery available after the interval', async () => {
@@ -2655,7 +2762,10 @@ describe('command role presence', () => {
     await selectConsoleRole('admiral');
 
     expect(httpsCallable).not.toHaveBeenCalled();
-    expect(useSessionStore.getState().me?.activeConsoleRoleId).toBeUndefined();
+    expect(useSessionStore.getState().me?.activeConsoleRoleId).toBeNull();
+    expect(useSessionStore.getState().communicationError).toMatchObject({
+      kind: 'station-selection-required',
+    });
   });
 
   it('renews the exact GM browser lease with a presence heartbeat', async () => {
@@ -2929,6 +3039,88 @@ describe('client authority boundaries', () => {
     await refreshPresence();
 
     expect(httpsCallable).not.toHaveBeenCalled();
+  });
+
+  it('surfaces a structured stale station denial without dropping session membership', async () => {
+    const activeSession = { ...session, phase: 'active' as const, activeRoleIds: ['admiral'] };
+    const assignedPlayer = { ...player, assignedRoleId: 'admiral', seatId: 'admiral' };
+    useSessionStore.getState().setIdentity(activeSession, assignedPlayer);
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
+    useSessionStore.getState().setRoleBrief({
+      assignmentUid: player.uid, roleId: 'admiral', roleName: 'Admiral',
+      vesselName: 'AEGIS', text: 'Private brief', commonRules: '', setupRevision: 1,
+    });
+    vi.mocked(httpsCallable).mockReturnValue(callableRejecting({
+      code: 'functions/permission-denied',
+      details: { commandError: 'station-selection-required' },
+      message: 'private station detail',
+    }));
+
+    await expect(selectConsoleRole('admiral')).rejects.toMatchObject({
+      code: 'functions/permission-denied',
+    });
+
+    expect(useSessionStore.getState()).toMatchObject({
+      session: { id: 's1' }, me: assignedPlayer,
+      communicationError: {
+        kind: 'station-selection-required',
+        message: 'Your previous station is no longer available. Return to station select and reselect your role.',
+      },
+      privateLoyalty: null,
+      roleBrief: null,
+    });
+  });
+
+  it('applies a server presence invalidation without dropping session membership', async () => {
+    const activeSession = { ...session, phase: 'active' as const, activeRoleIds: ['admiral'] };
+    const assignedPlayer = {
+      ...player, assignedRoleId: 'admiral', seatId: 'admiral', activeConsoleRoleId: 'admiral',
+    };
+    useSessionStore.getState().setIdentity(activeSession, assignedPlayer);
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
+    useSessionStore.getState().setRoleBrief({
+      assignmentUid: player.uid, roleId: 'admiral', roleName: 'Admiral',
+      vesselName: 'AEGIS', text: 'Private brief', commonRules: '', setupRevision: 1,
+    });
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({
+      data: { sessionId: 's1', stationSelectionRequired: true },
+    }));
+
+    await refreshPresence();
+
+    expect(useSessionStore.getState()).toMatchObject({
+      session: { id: 's1' },
+      me: { uid: 'u1', sessionId: 's1', activeConsoleRoleId: null },
+      communicationError: { kind: 'station-selection-required' },
+      privateLoyalty: null,
+      roleBrief: null,
+    });
+  });
+
+  it('ignores a station denial that arrives after the requesting session changed', async () => {
+    const activeSession = { ...session, phase: 'active' as const, activeRoleIds: ['admiral'] };
+    const assignedPlayer = { ...player, assignedRoleId: 'admiral', seatId: 'admiral' };
+    useSessionStore.getState().setIdentity(activeSession, assignedPlayer);
+    useSessionStore.getState().setConnection('live');
+    let rejectPresence!: (cause: unknown) => void;
+    const pendingPromise = new Promise((_, reject) => { rejectPresence = reject; });
+    const pendingPresence = Object.assign(vi.fn(() => pendingPromise), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockReturnValue(pendingPresence as never);
+
+    const selection = selectConsoleRole('admiral');
+    await vi.waitFor(() => expect(pendingPresence).toHaveBeenCalled());
+    const otherSession = { ...session, id: 's2', updatedAt: '2026-01-02T00:00:00.000Z' };
+    useSessionStore.getState().setIdentity(otherSession, { ...player, uid: 'u2', sessionId: 's2' });
+    rejectPresence({
+      code: 'functions/permission-denied',
+      details: { commandError: 'station-selection-required' },
+    });
+    await expect(selection).rejects.toMatchObject({ code: 'functions/permission-denied' });
+
+    expect(useSessionStore.getState()).toMatchObject({ session: { id: 's2' }, communicationError: null });
   });
 });
 
@@ -3834,7 +4026,7 @@ describe('authoritative setup and seating wrappers', () => {
     };
     vi.mocked(httpsCallable).mockReturnValue(callableReturning({
       data: {
-        status: 'committed', requestId: 'setup-projection', setupRevision: 5, chartSelectionLocked: true,
+        status: 'committed', requestId: 'setup-projection', setupRevision: 5, chartSelectionLocked: true, setupConfirmed: true,
         setup: canonicalSetup, activeRoleIds, activeVesselIds,
       },
     }));
@@ -3847,6 +4039,7 @@ describe('authoritative setup and seating wrappers', () => {
 
     expect(useSessionStore.getState().session).toMatchObject({
       setupRevision: 5,
+      setupConfirmed: true,
       chartSelectionLocked: true,
       playerCount: 19,
       chartId: 'B',
@@ -3998,6 +4191,55 @@ it('retries a transport-uncertain Jump Drive request with the same receipt ident
   expect(callable.mock.calls[1]?.[0]).toEqual(callable.mock.calls[0]?.[0]);
 });
 
+it('does not apply a delayed jump success over a newer ship projection', async () => {
+  const initialSession = {
+    ...session, phase: 'active' as const, currentTurn: 1,
+    shipGalacticCoordinates: { aegis: '0000' },
+    shipResources: { aegis: { ...INITIAL_SHIP_RESOURCES.aegis!, fuel: 4 } },
+    vesselActionRevisions: { aegis: 7 },
+  };
+  useSessionStore.getState().setIdentity(initialSession, { ...player, role: 'gm' });
+  useSessionStore.getState().setGmInstance({
+    id: 'bridge', sessionId: 's1', uid: 'u1', name: 'Bridge',
+    deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+  });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  let finish!: (value: { data: Record<string, unknown> }) => void;
+  const callable = Object.assign(vi.fn(() => new Promise<{ data: Record<string, unknown> }>((resolve) => {
+    finish = resolve;
+  })), { stream: vi.fn() });
+  vi.mocked(httpsCallable).mockReturnValue(callable as never);
+
+  const pending = jumpShip(createJumpShipAttempt('aegis', '5143'));
+  await vi.waitFor(() => expect(callable).toHaveBeenCalled());
+  const newerSession = {
+    ...initialSession,
+    shipGalacticCoordinates: { aegis: '1096' },
+    shipResources: { aegis: { ...INITIAL_SHIP_RESOURCES.aegis!, fuel: 1 } },
+    shipDamage: { aegis: { damagedSystemIds: ['reactor'], destroyed: false } },
+    shipJumpStates: { aegis: { lastJumpTurn: 2, emergencyJumpUsed: true } },
+    vesselActionRevisions: { aegis: 9 },
+  };
+  useSessionStore.getState().setSession(newerSession);
+  finish({ data: {
+    status: 'jumped', shipId: 'aegis', origin: '0000', destination: '5143',
+    remainingFuel: 2, damage: { damagedSystemIds: ['storage'], destroyed: false },
+    state: { lastJumpTurn: 1 },
+    transition: { id: 'older-jump', shipId: 'aegis', origin: '0000', destination: '5143', occurredAt: 'now' },
+    revision: 8,
+  } });
+
+  await expect(pending).resolves.toMatchObject({ status: 'jumped' });
+  expect(useSessionStore.getState().session).toMatchObject({
+    shipGalacticCoordinates: { aegis: '1096' },
+    shipResources: { aegis: { fuel: 1 } },
+    shipDamage: { aegis: { damagedSystemIds: ['reactor'] } },
+    shipJumpStates: { aegis: { lastJumpTurn: 2, emergencyJumpUsed: true } },
+    vesselActionRevisions: { aegis: 9 },
+  });
+});
+
 it.each([
   ['cancelled callable responses', { code: 'functions/cancelled', message: 'Request cancelled.' }],
   ['errors without a callable code', new Error('Connection closed before acknowledgement.')],
@@ -4014,6 +4256,161 @@ it.each([
   ['missing session', { code: 'functions/not-found', message: 'No such session.' }],
 ])('treats a structured %s reply as a confirmed Jump Drive denial', (_label, cause) => {
   expect(isJumpShipOutcomeUncertain(cause)).toBe(false);
+});
+
+it('reads private failed jumps only through the current facilitator instance', async () => {
+  useSessionStore.getState().reset();
+  useSessionStore.getState().setIdentity({ ...session, phase: 'active' }, { ...player, role: 'gm' });
+  useSessionStore.getState().setGmInstance({
+    id: 'bridge', sessionId: 's1', uid: 'u1', name: 'Bridge',
+    deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+  });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  const failure = {
+    requestId: 'failure-1', shipId: 'aegis', origin: '0000', destination: '5143',
+    failureStatus: 'drive-failure', failureRevision: 7, currentTurn: 2, fuelAtFailure: 3,
+    failureRoll: 2, failureThreshold: 3,
+  };
+  const callable = callableReturning({ data: { failures: [failure] } });
+  vi.mocked(httpsCallable).mockReturnValue(callable as never);
+
+  await expect(listUnresolvedJumpFailures()).resolves.toEqual({ failures: [failure] });
+  expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'listUnresolvedJumpFailures');
+  expect(callable).toHaveBeenCalledWith({ sessionId: 's1', instanceId: 'bridge' });
+});
+
+it('drops a private failed-jump response if facilitator authority changes during the read', async () => {
+  useSessionStore.getState().reset();
+  useSessionStore.getState().setIdentity({ ...session, phase: 'active' }, { ...player, role: 'gm' });
+  useSessionStore.getState().setGmInstance({
+    id: 'bridge', sessionId: 's1', uid: 'u1', name: 'Bridge',
+    deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+  });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  let finishRead!: (reply: { data: unknown }) => void;
+  const callable = Object.assign(
+    vi.fn(() => new Promise<{ data: unknown }>((resolve) => { finishRead = resolve; })),
+    { stream: vi.fn() },
+  );
+  vi.mocked(httpsCallable).mockReturnValue(callable as never);
+
+  const reading = listUnresolvedJumpFailures();
+  await vi.waitFor(() => expect(callable).toHaveBeenCalled());
+  useSessionStore.getState().reset();
+  finishRead({ data: { failures: [{
+    requestId: 'private-failure', shipId: 'aegis', origin: '0000', destination: '5143',
+    failureStatus: 'drive-failure', failureRevision: 0, currentTurn: 1, fuelAtFailure: 0,
+  }] } });
+
+  await expect(reading).resolves.toEqual({ failures: [], stale: true });
+});
+
+it('captures and exactly retries one GM adjudication while applying its authoritative projection', async () => {
+  const requestId = '30400000-0000-4000-8000-000000000099';
+  vi.spyOn(window.crypto, 'randomUUID').mockReturnValue(requestId);
+  useSessionStore.getState().reset();
+  useSessionStore.getState().setIdentity({
+    ...session, phase: 'active', vesselActionRevisions: { aegis: 7 },
+  }, { ...player, role: 'gm' });
+  useSessionStore.getState().setGmInstance({
+    id: 'bridge', sessionId: 's1', uid: 'u1', name: 'Bridge',
+    deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+  });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  const failure = {
+    requestId: 'failure-1', shipId: 'aegis', origin: '0000', destination: '5143',
+    failureStatus: 'drive-failure' as const, failureRevision: 7, currentTurn: 2, fuelAtFailure: 3,
+  };
+  const attempt = createFailedJumpAdjudicationAttempt(failure, '5143');
+  const callable = Object.assign(
+    vi.fn()
+      .mockRejectedValueOnce({ code: 'functions/unavailable', message: 'Transport interrupted.' })
+      .mockResolvedValueOnce({ data: {
+        status: 'jumped', shipId: 'aegis', origin: '0000', destination: '5143',
+        remainingFuel: 1, fuelSpent: 2, damage: { damagedSystemIds: ['reactor'], destroyed: false },
+        state: { lastJumpTurn: 2 }, transition: { id: 'jump-1', shipId: 'aegis', origin: '0000', destination: '5143' },
+        revision: 8,
+      } }),
+    { stream: vi.fn() },
+  );
+  vi.mocked(httpsCallable).mockReturnValue(callable as never);
+
+  expect(attempt).toEqual({
+    sessionId: 's1', instanceId: 'bridge', requestId, expectedRevision: 7,
+    failureRequestId: 'failure-1', shipId: 'aegis', destination: '5143',
+  });
+  await expect(adjudicateFailedJump(attempt)).rejects.toMatchObject({ code: 'functions/unavailable' });
+  await expect(adjudicateFailedJump(attempt)).resolves.toMatchObject({ status: 'jumped', destination: '5143' });
+  expect(isFailedJumpOutcomeUncertain({ code: 'functions/unavailable' })).toBe(true);
+  expect(callable).toHaveBeenCalledTimes(2);
+  expect(callable.mock.calls[0]?.[0]).toEqual({
+    sessionId: 's1', instanceId: 'bridge', requestId,
+    expectedRevision: 7, failureRequestId: 'failure-1', destination: '5143',
+  });
+  expect(callable.mock.calls[1]?.[0]).toEqual(callable.mock.calls[0]?.[0]);
+  expect(useSessionStore.getState().session).toMatchObject({
+    shipGalacticCoordinates: { aegis: '5143' },
+    shipDamage: { aegis: { damagedSystemIds: ['reactor'], destroyed: false } },
+    vesselActionRevisions: { aegis: 8 },
+  });
+});
+
+it('does not apply a delayed adjudication over a newer ship projection', async () => {
+  const initialSession = {
+    ...session, phase: 'active' as const, currentTurn: 1,
+    shipGalacticCoordinates: { aegis: '0000' },
+    shipResources: { aegis: { ...INITIAL_SHIP_RESOURCES.aegis!, fuel: 4 } },
+    vesselActionRevisions: { aegis: 7 },
+  };
+  useSessionStore.getState().setIdentity(initialSession, { ...player, role: 'gm' });
+  useSessionStore.getState().setGmInstance({
+    id: 'bridge', sessionId: 's1', uid: 'u1', name: 'Bridge',
+    deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+  });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  const failure = {
+    requestId: 'delayed-failure', shipId: 'aegis', origin: '0000', destination: '5143',
+    failureStatus: 'drive-failure' as const, failureRevision: 7, currentTurn: 1, fuelAtFailure: 4,
+  };
+  const attempt = createFailedJumpAdjudicationAttempt(failure, '5143');
+  let finish!: (value: { data: Record<string, unknown> }) => void;
+  const callable = Object.assign(vi.fn(() => new Promise<{ data: Record<string, unknown> }>((resolve) => {
+    finish = resolve;
+  })), { stream: vi.fn() });
+  vi.mocked(httpsCallable).mockReturnValue(callable as never);
+
+  const pending = adjudicateFailedJump(attempt);
+  await vi.waitFor(() => expect(callable).toHaveBeenCalled());
+  const newerSession = {
+    ...initialSession,
+    shipGalacticCoordinates: { aegis: '1096' },
+    shipResources: { aegis: { ...INITIAL_SHIP_RESOURCES.aegis!, fuel: 1 } },
+    shipDamage: { aegis: { damagedSystemIds: ['reactor'], destroyed: false } },
+    shipJumpStates: { aegis: { lastJumpTurn: 2, emergencyJumpUsed: true } },
+    vesselActionRevisions: { aegis: 9 },
+  };
+  useSessionStore.getState().setSession(newerSession);
+  finish({ data: {
+    status: 'jumped', shipId: 'aegis', origin: '0000', destination: '5143',
+    remainingFuel: 2, fuelSpent: 2,
+    damage: { damagedSystemIds: ['storage'], destroyed: false },
+    state: { lastJumpTurn: 1 },
+    transition: { id: 'older-adjudication', shipId: 'aegis', origin: '0000', destination: '5143', occurredAt: 'now' },
+    revision: 8,
+  } });
+
+  await expect(pending).resolves.toMatchObject({ status: 'jumped' });
+  expect(useSessionStore.getState().session).toMatchObject({
+    shipGalacticCoordinates: { aegis: '1096' },
+    shipResources: { aegis: { fuel: 1 } },
+    shipDamage: { aegis: { damagedSystemIds: ['reactor'] } },
+    shipJumpStates: { aegis: { lastJumpTurn: 2, emergencyJumpUsed: true } },
+    vesselActionRevisions: { aegis: 9 },
+  });
 });
 
 describe('Commissar authority refresh ownership', () => {

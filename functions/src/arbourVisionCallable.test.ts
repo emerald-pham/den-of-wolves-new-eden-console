@@ -120,6 +120,19 @@ it('rejects wrong actor, stale revision, and a non-Arbour holder before writes',
     .rejects.toMatchObject({ code: 'failed-precondition' });
 });
 
+it('denies facilitator delivery while the historical Arbour holder awaits a new role', async () => {
+  put('sessions/s1/players/u2', {
+    uid: 'u2', role: 'player', connected: true, assignedRoleId: 'admiral',
+    replacementRoleId: null, replacementStatus: 'awaiting-re-role',
+    activeConsoleRoleId: null, seatId: null,
+  });
+
+  await expect(authorArbourVision.run(request({
+    ...baseData, requestId: 'vision-awaiting-role',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('rejects malformed text, unknown recipients, and closed sessions', async () => {
   await expect(authorArbourVision.run(request({ ...baseData, requestId: 'blank', text: ' ' })))
     .rejects.toMatchObject({ code: 'invalid-argument' });

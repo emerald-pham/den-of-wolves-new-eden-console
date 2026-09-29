@@ -389,10 +389,10 @@ describe('callable request guards', () => {
 
   it('accepts four-digit jump input, including a coordinate that the server must reject as unprinted', () => {
     expect(requireShipJumpRequest({ sessionId: 's1', shipId: 'aegis', destination: '0101' }))
-      .toEqual({ sessionId: 's1', shipId: 'aegis', destination: '0101' });
+      .toEqual({ sessionId: 's1', shipId: 'aegis', destination: '0101', emergency: false });
     expect(requireShipJumpRequest({
       sessionId: 's1', shipId: 'aegis', instanceId: 'bridge', destination: '5143',
-    })).toEqual({ sessionId: 's1', shipId: 'aegis', instanceId: 'bridge', destination: '5143' });
+    })).toEqual({ sessionId: 's1', shipId: 'aegis', instanceId: 'bridge', destination: '5143', emergency: false });
     expectHttpsError(
       () => requireShipJumpRequest({ sessionId: 's1', shipId: 'aegis', destination: '513' }),
       'invalid-argument',

@@ -56,6 +56,28 @@ it('reads exactly one private result and discards a stale reply after account sw
   await expect(pending).rejects.toThrow(/changed|refresh|reconnect/i);
 });
 
+it('rejects pending re-role report reads before dispatch and after a delayed private reply', async () => {
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, replacementStatus: 'awaiting-re-role',
+    replacementRoleId: 'endeavour', activeConsoleRoleId: 'shepherd-scientist',
+  });
+  await expect(listMyScoutReports()).rejects.toThrow(/scouting station|reconnect/i);
+  expect(httpsCallable).not.toHaveBeenCalled();
+
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, replacementStatus: null,
+  });
+  let finish!: (value: unknown) => void;
+  const call = vi.fn().mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+  vi.mocked(httpsCallable).mockReturnValue(call as never);
+  const pending = readPrivateScoutResult('r1');
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, replacementStatus: 'awaiting-re-role',
+  });
+  finish({ data: result });
+  await expect(pending).rejects.toThrow(/changed|refresh|reconnect/i);
+});
+
 it('sends GM reveal with the current instance and rejects chart-bearing replies', async () => {
   useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, uid: 'gm1', role: 'gm' });
   useSessionStore.getState().setGmInstance({

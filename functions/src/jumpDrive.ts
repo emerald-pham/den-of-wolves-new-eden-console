@@ -7,6 +7,8 @@ export type JumpLength = 'short' | 'medium' | 'long';
 export interface JumpDriveState {
   readonly lastJumpTurn?: number;
   readonly integrityLockedUntil?: string;
+  readonly emergencyJumpUsed?: boolean;
+  readonly lastFailureRequestId?: string;
 }
 
 export interface JumpTransition {
@@ -73,6 +75,11 @@ const JUMP_COSTS: Readonly<Record<string, readonly [number, number, number]>> = 
   shepherd: [3, 6, 12],
   quellon: [2, 4, 8],
   'refinery-124': [2, 4, 8],
+  gorgoneion: [1, 1, 2],
+  'capybara-small': [1, 1, 2],
+  warrior: [1, 1, 2],
+  vulcan: [1, 1, 2],
+  'voyage-33-0': [1, 1, 2],
 };
 
 export function jumpLengthBetween(origin: string, destination: string): JumpLength | null {
@@ -150,7 +157,62 @@ export function resolveJumpAttempt(input: JumpAttemptInput): JumpAttemptResult {
     length,
     fuelCost,
     remainingFuel: input.fuel - fuelCost,
-    state: { lastJumpTurn: input.currentTurn },
+    state: {
+      lastJumpTurn: input.currentTurn,
+      ...(input.state?.emergencyJumpUsed ? { emergencyJumpUsed: true } : {}),
+    },
+    transition: {
+      id: input.transitionId,
+      shipId: input.shipId,
+      origin: input.origin,
+      destination: input.destination,
+      occurredAt,
+    },
+  };
+}
+
+export interface EmergencyJumpInput {
+  readonly shipId: string;
+  readonly origin: string;
+  readonly destination: string;
+  readonly currentTurn: number;
+  readonly fuel: number;
+  readonly eligible: boolean;
+  readonly now: Date;
+  readonly transitionId: string;
+  readonly state?: JumpDriveState;
+}
+
+export type EmergencyJumpResult = Extract<JumpAttemptResult, { status: 'jumped' }> & {
+  readonly emergency: true;
+  readonly fuelSpent: number;
+  readonly remainingFuel: 0;
+  readonly state: JumpDriveState & { readonly emergencyJumpUsed: true };
+};
+
+/** Resolve the printed once-per-ship emergency jump using server-owned state. */
+export function resolveEmergencyJump(input: EmergencyJumpInput): EmergencyJumpResult {
+  if (!input.eligible) throw new Error('An emergency jump is not available yet.');
+  if (input.state?.emergencyJumpUsed) throw new Error('This ship has already used its emergency jump.');
+  if (input.state?.lastJumpTurn === input.currentTurn) {
+    throw new Error('This ship has already jumped this cycle.');
+  }
+  if (!Number.isSafeInteger(input.fuel) || input.fuel < 0) {
+    throw new Error('The ship fuel inventory is invalid.');
+  }
+  const length = jumpLengthBetween(input.origin, input.destination);
+  if (!length) throw new Error('Emergency jump destination must be a printed reachable system.');
+  const occurredAt = input.now.toISOString();
+  return {
+    status: 'jumped',
+    emergency: true,
+    origin: input.origin,
+    destination: input.destination,
+    length,
+    fuelCost: input.fuel,
+    fuelSpent: input.fuel,
+    remainingFuel: 0,
+    state: { lastJumpTurn: input.currentTurn, emergencyJumpUsed: true },
     transition: {
       id: input.transitionId,
       shipId: input.shipId,

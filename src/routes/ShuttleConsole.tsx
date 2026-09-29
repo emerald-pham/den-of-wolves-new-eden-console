@@ -27,10 +27,12 @@ export default function ShuttleConsole({ shuttleId: providedShuttleId }: { shutt
     ? isPressShuttle ? session?.pressEnabled !== false : isShuttleEnabled(shuttle, activeRoles)
     : false;
   const control = session?.shuttleControl?.[shuttleId];
-  const isControlHolder = control?.holderUid === me?.uid;
-  const isPrintedOwner = control?.ownerUid === me?.uid;
+  const hasPlayerAuthority = isGm || me?.replacementStatus == null;
+  const isControlHolder = hasPlayerAuthority && control?.holderUid === me?.uid;
+  const isPrintedOwner = hasPlayerAuthority && control?.ownerUid === me?.uid;
   const canClaimCaptainRole = Boolean(
     session && me && shuttle && (mode === 'console' || mode === 'press') &&
+    hasPlayerAuthority &&
     shuttleEnabled &&
     (!isPressShuttle || !isGm) && !isControlHolder &&
     (isGm || !me.activeConsoleRoleId || me.activeConsoleRoleId === shuttle.captainRoleId),
@@ -42,6 +44,7 @@ export default function ShuttleConsole({ shuttleId: providedShuttleId }: { shutt
   }, [canClaimCaptainRole, shuttle]);
 
   if (!session || !me) return <Navigate to="/" replace />;
+  if (!isGm && me.replacementStatus != null) return <Navigate to="/console" replace />;
   if (!isGm && me.activeConsoleRoleId && me.activeConsoleRoleId !== shuttle?.captainRoleId &&
       !isControlHolder && !isPrintedOwner) {
     return <Navigate to={consoleRoleRoute(me.activeConsoleRoleId)} replace />;

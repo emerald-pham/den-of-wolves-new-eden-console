@@ -19,6 +19,16 @@ vi.mock('firebase/firestore', () => ({
   limit: vi.fn(),
   query: vi.fn(),
   where: vi.fn(),
+  Timestamp: class MockTimestamp {
+    constructor(
+      private readonly seconds: number,
+      private readonly nanoseconds: number,
+    ) {}
+
+    toDate() {
+      return new Date(this.seconds * 1_000 + this.nanoseconds / 1_000_000);
+    }
+  },
 }));
 vi.mock('firebase/functions', () => ({ httpsCallable: vi.fn() }));
 vi.mock('./firebase', () => ({ app: vi.fn(), functions: vi.fn() }));
@@ -58,7 +68,8 @@ const {
   subscribeSessionEvents,
   subscribeSessionState,
 } = await import('./firestore');
-const { doc, getDocFromServer, onSnapshot, where } = await import('firebase/firestore');
+const { doc, getDocFromServer, onSnapshot, Timestamp: FirestoreTimestamp, where } =
+  await import('firebase/firestore');
 const { httpsCallable } = await import('firebase/functions');
 
 function mockGmInstanceProjection(instances: readonly Record<string, unknown>[]) {
@@ -103,6 +114,36 @@ it('hydrates only canonical shuttle-control entries from the member session proj
       holderUid: 'holder', revision: 2,
     },
   });
+});
+
+it('hydrates only the privacy-safe pursuit-emergency marker from the member-readable session', () => {
+  const valid = sessionFrom('pursuit-window', {
+    ...sessionData(8),
+    pursuitEmergencyWindow: {
+      type: 'pursuit-emergency-window', status: 'offered', cycle: 3,
+      openedAt: '2026-09-28T12:00:00.000Z',
+    },
+  });
+  expect(valid.pursuitEmergencyWindow).toEqual({
+    type: 'pursuit-emergency-window', status: 'offered', cycle: 3,
+    openedAt: '2026-09-28T12:00:00.000Z',
+  });
+  expect(valid.pursuitEmergencyWindow).not.toHaveProperty('navigationRevision');
+  expect(valid.pursuitEmergencyWindow).not.toHaveProperty('groupIds');
+  expect(sessionFrom('private-fields-on-public-window', {
+    ...sessionData(8),
+    pursuitEmergencyWindow: {
+      type: 'pursuit-emergency-window', status: 'offered', cycle: 3,
+      navigationRevision: 42, groupIds: ['fleet-1'], openedAt: '2026-09-28T12:00:00.000Z',
+    },
+  })).not.toHaveProperty('pursuitEmergencyWindow');
+  expect(sessionFrom('malformed-pursuit-window', {
+    ...sessionData(8),
+    pursuitEmergencyWindow: {
+      type: 'pursuit-emergency-window', status: 'completed', cycle: 3,
+      navigationRevision: 42, groupIds: ['fleet-1'], openedAt: '2026-09-28T12:00:00.000Z',
+    },
+  })).not.toHaveProperty('pursuitEmergencyWindow');
 });
 
 it('hydrates only a safe Boa recycling cycle ledger', () => {
@@ -869,6 +910,10 @@ it('removes hidden state nested in public and crew projections while preserving 
       aegis: ['storage', { candidateBonus: 2 }],
     },
     shipSurvivors: { aegis: 2_000, notes: 4 },
+    shipMutinies: { aegis: {
+      status: 'active', revision: 1, triggerUnrest: 8, triggeredAt: 'TURN 1',
+      oldCaptainUid: 'private-former-cover', facilitatorNote: 'hidden',
+    } },
     unrestAlerts: {
       aegis: {
         shipId: 'aegis', shipName: 'AEGIS', targetGmInstanceIds: ['bridge'],
@@ -892,6 +937,9 @@ it('removes hidden state nested in public and crew projections while preserving 
   expect(session.shuttleCargo?.starlight).toEqual({ food: 3 });
   expect(session.shipDamage?.aegis).toEqual({ damagedSystemIds: ['storage'], destroyed: false });
   expect(session.shipUpgrades?.aegis).toEqual(['storage']);
+  expect(session.shipMutinies?.aegis).toEqual({
+    status: 'active', revision: 1, triggerUnrest: 8, triggeredAt: 'TURN 1',
+  });
   expect(session.shipGalacticCoordinates).toBeUndefined();
   expect(session.pursuitGroups).toBeUndefined();
   expect(session.confettiUsedShipIds).toEqual(['aegis']);
@@ -3862,13 +3910,23 @@ it('does not hydrate the organiser map from cache or a callback after read autho
   });
   const snapshot = (fromCache: boolean) => ({
     metadata: { fromCache }, exists: () => true,
-    data: () => ({ knownSystems: { 'system-17': '8378' } }),
+    data: () => ({
+      knownSystems: { 'system-17': '8378' },
+      pursuitEmergencyWindow: {
+        type: 'pursuit-emergency-window', status: 'offered', cycle: 3,
+        navigationRevision: 42, groupIds: ['fleet-1'], openedAt: '2026-09-28T12:00:00.000Z',
+      },
+    }),
   });
   callbacks[2]?.(snapshot(true));
   expect(onGmDiscovery).not.toHaveBeenCalled();
   callbacks[2]?.(snapshot(false));
   expect(onGmDiscovery).toHaveBeenCalledWith(expect.objectContaining({
     organiserSystems: { 'system-17': '8378' },
+    pursuitEmergencyWindowAuthority: {
+      type: 'pursuit-emergency-window', status: 'offered', cycle: 3,
+      navigationRevision: 42, groupIds: ['fleet-1'], openedAt: '2026-09-28T12:00:00.000Z',
+    },
   }));
   errors[2]?.({ code: 'permission-denied' });
   expect(onGmDiscovery).toHaveBeenLastCalledWith(null);
@@ -4417,6 +4475,79 @@ it('publishes an unchanged GM roster when reconnect changes only snapshot metada
   ]);
 });
 
+it('keeps pending re-role history but strips every stale active authority pointer', () => {
+  const callbacks: Array<(snapshot: unknown) => void> = [];
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, _options: unknown, callback: unknown) => {
+    callbacks.push(callback as (snapshot: unknown) => void);
+    return vi.fn();
+  }) as never);
+  const onPlayers = vi.fn();
+  subscribeSessionPlayers('pending-projection', onPlayers, vi.fn());
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    docs: [{ id: 'former-captain', data: () => ({
+      role: 'player', displayName: 'Former Captain', connected: true,
+      assignedRoleId: 'shepherd-captain', replacementRoleId: 'wolf-commander',
+      replacementStatus: 'awaiting-re-role', seatId: 'shepherd-captain',
+      activeConsoleRoleId: 'shepherd-captain',
+      lastSeenAt: new FirestoreTimestamp(Date.parse('2026-09-28T22:00:00.000Z') / 1_000, 0),
+      joinedAt: '2026-09-28T20:00:00.000Z',
+    }) }],
+  });
+  expect(onPlayers).toHaveBeenLastCalledWith([expect.objectContaining({
+    uid: 'former-captain', assignedRoleId: 'shepherd-captain',
+    replacementStatus: 'awaiting-re-role', seatId: null, replacementRoleId: null,
+    activeConsoleRoleId: null, lastSeenAt: '2026-09-28T22:00:00.000Z', lastSeenAtValid: true,
+  })]);
+});
+
+it.each([
+  ['an invalid object', { seconds: 1_800_000_000 }],
+  ['an invalid string', 'recently'],
+  ['a valid ISO string stored with the wrong type', '2026-09-28T22:00:00.000Z'],
+])('marks present GM presence %s invalid instead of treating it as legacy', (_label, lastSeenAt) => {
+  const callbacks: Array<(snapshot: unknown) => void> = [];
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, _options: unknown, callback: unknown) => {
+    callbacks.push(callback as (snapshot: unknown) => void);
+    return vi.fn();
+  }) as never);
+  const onPlayers = vi.fn();
+  subscribeSessionPlayers('gm-presence-invalid', onPlayers, vi.fn());
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    docs: [{ id: 'invalid-player', data: () => ({
+      role: 'player', displayName: 'Invalid Player', connected: true, lastSeenAt,
+    }) }],
+  });
+
+  const projected = onPlayers.mock.calls.at(-1)?.[0]?.[0];
+  expect(projected).toEqual(expect.objectContaining({
+    uid: 'invalid-player', connected: true, lastSeenAtValid: false,
+  }));
+  expect(projected).not.toHaveProperty('lastSeenAt');
+});
+
+it('keeps a truly absent GM presence timestamp eligible for legacy compatibility', () => {
+  const callbacks: Array<(snapshot: unknown) => void> = [];
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, _options: unknown, callback: unknown) => {
+    callbacks.push(callback as (snapshot: unknown) => void);
+    return vi.fn();
+  }) as never);
+  const onPlayers = vi.fn();
+  subscribeSessionPlayers('gm-presence-legacy', onPlayers, vi.fn());
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    docs: [{ id: 'legacy-player', data: () => ({
+      role: 'player', displayName: 'Legacy Player', connected: true,
+    }) }],
+  });
+
+  const projected = onPlayers.mock.calls.at(-1)?.[0]?.[0];
+  expect(projected).toEqual(expect.objectContaining({ uid: 'legacy-player', connected: true }));
+  expect(projected).not.toHaveProperty('lastSeenAt');
+  expect(projected).not.toHaveProperty('lastSeenAtValid');
+});
+
 it('fails closed after GM roster revocation or unsubscribe', () => {
   const callbacks: Array<(snapshot: unknown) => void> = [];
   const errors: Array<(error: unknown) => void> = [];
@@ -4871,4 +5002,16 @@ it('restores valid outbreak details and rejects malformed private projections', 
     expect(onState).toHaveBeenLastCalledWith(null);
   }
   stop();
+});
+
+
+it.each([true, false, 'true', undefined])('projects only an explicit server setup confirmation: %s', (setupConfirmed) => {
+  const { callbacks } = captureSessionListener();
+  const onSession = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+  });
+  callbacks[0]?.(sessionSnapshot(liveTurnData(0, 'restricted', { setupConfirmed })));
+  expect(onSession).toHaveBeenCalledTimes(1);
+  expect(onSession.mock.lastCall?.[0].setupConfirmed).toBe(setupConfirmed === true ? true : undefined);
 });

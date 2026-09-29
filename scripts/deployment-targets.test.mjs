@@ -455,9 +455,9 @@ function functionTargets(names) {
   return names.map((name) => `functions:${name}`).sort();
 }
 
-test('maps jump resolution changes to the production jump callable', () => {
+test('maps jump resolution changes to both authoritative jump paths', () => {
   const selected = selectorFor(['functions/src/jumpDrive.ts']);
-  assert.deepEqual(selectedFunctions(selected), functionTargets(['jumpShip']));
+  assert.deepEqual(selectedFunctions(selected), functionTargets(['jumpShip', 'adjudicateFailedJump']));
 });
 
 test('maps Command and Control helpers without relying on index changes', () => {
@@ -764,29 +764,99 @@ test('fails closed when a Philia export change is mixed with an untracked index 
   }), /cannot safely map a Philia repair index change mixed with another callable or untracked source edit/i);
 });
 
-test('maps strict extra-ship admission to its assignment, projection, and repair consumers', () => {
+test('maps extraShipAdmission changes to its audited runtime consumers', () => {
   const selected = selectorFor(['functions/src/extraShipAdmission.ts']);
   assert.deepEqual(selectedFunctions(selected), functionTargets([
-    'assignReplacementRole', 'joinSession', 'resumeSession',
-    'repairGorgoneionWithDrones', 'repairWarriorWithDrones', ...BASE_CAPYBARA_CARGO_CALLABLES,
-  ]));
+    "repairGorgoneionWithDrones",
+    "repairWarriorWithDrones",
+    "transferBaseCapybaraCargo",
+    "assignReplacementRole",
+    "joinSession",
+    "resumeSession",
+    "resolveShipMutiny"
+]));
 });
 
-test('maps replacement-role admission changes to assignment and cargo transfer consumers', () => {
+test('maps replacementRoles changes to its audited runtime consumers', () => {
   const selected = selectorFor(['functions/src/replacementRoles.ts']);
   assert.deepEqual(selectedFunctions(selected), functionTargets([
-    'assignReplacementRole', ...BASE_CAPYBARA_CARGO_CALLABLES,
-  ]));
+    "repairGorgoneionWithDrones",
+    "repairWarriorWithDrones",
+    "transferBaseCapybaraCargo",
+    "readMyScoutDiscoveryNote",
+    "resolvePendingScoutRequest",
+    "confirmSetup",
+    "startGame",
+    "transferShuttleControlCommand",
+    "setReplacementEligibility",
+    "assignReplacementRole",
+    "submitCivilUnrestGrievance",
+    "joinSession",
+    "resumeSession",
+    "moveShipToLocation",
+    "jumpShip",
+    "adjudicateFailedJump",
+    "setShipConsoleLock",
+    "advanceTurn",
+    "startSinglePlayerDemo",
+    "unlockPressAirspace",
+    "popShipConfetti",
+    "adjustShipResource",
+    "adjustShipUnrest",
+    "consentCommissarPurge",
+    "applyCommissarPurge",
+    "getCommissarPurgeAuthority",
+    "dismissUnrestAlert",
+    "resolveShipMutiny",
+    "addShipDamage",
+    "adjustShipPopulation",
+    "applyShipCounterSteps",
+    "setFighterWingCount",
+    "buildFighter",
+    "dismissPopulationAlert",
+    "requestScout",
+    "rollHummingbirdHarvest",
+    "allocateHummingbirdHarvest",
+    "setSmallShipDocking",
+    "runSmallShipMaintenance",
+    "runVoyage33Maintenance",
+    "runMaintenance",
+    "drawVipCard",
+    "transferVipCard",
+    "rerollVipUnrest",
+    "publishAdmiralDirectiveCommand",
+    "recordPresidentActionCommand",
+    "updatePoliticalCapital",
+    "setFleetRedAlert",
+    "repairAllShipDamage",
+    "rollbackMaintenance"
+]));
 });
 
-test('maps small-ship maintenance changes only to the callables that execute the changed resolver', () => {
+test('maps smallShip changes to its audited runtime consumers', () => {
   const selected = selectorFor(['functions/src/smallShip.ts']);
   assert.deepEqual(selectedFunctions(selected), functionTargets([
-    ...GORGONEION_REPAIR_CALLABLES,
-    ...WARRIOR_REPAIR_CALLABLES,
-    ...BASE_CAPYBARA_CARGO_CALLABLES,
-    'runSmallShipMaintenance',
-  ]));
+    "repairGorgoneionWithDrones",
+    "repairWarriorWithDrones",
+    "transferBaseCapybaraCargo",
+    "startGame",
+    "assignReplacementRole",
+    "joinSession",
+    "resumeSession",
+    "jumpShip",
+    "adjudicateFailedJump",
+    "advanceTurn",
+    "startSinglePlayerDemo",
+    "setWolfAttackWindow",
+    "declareWolfAttack",
+    "resolveShipMutiny",
+    "addShipDamage",
+    "setSmallShipDocking",
+    "runSmallShipMaintenance",
+    "runVoyage33Maintenance",
+    "runVulcanAdditionalLabour",
+    "runMaintenance"
+]));
 });
 
 test('selects only the three changed P503a callables from exact export and request-guard additions', () => {
@@ -1082,10 +1152,8 @@ test('maps the exact PC04 shared sign-in and mission guard transition to every a
   const requestGuardsBefore = execFileSync(
     'git', ['show', `${baseSha}:functions/src/requestGuards.ts`], { encoding: 'utf8' },
   );
-  const requestGuardsAfter = readFileSync(
-    new URL('../functions/src/requestGuards.ts', import.meta.url), 'utf8',
-  );
-  const indexSource = readFileSync(new URL('../functions/src/index.ts', import.meta.url), 'utf8');
+  const requestGuardsAfter = execFileSync('git', ['show', '7782840d:functions/src/requestGuards.ts'], { encoding: 'utf8' });
+  const indexSource = execFileSync('git', ['show', '7782840d:functions/src/index.ts'], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
   const boundaries = [...indexSource.matchAll(/^export const ([A-Za-z_$][\w$]*)\s*=/gm)];
   const expected = boundaries.flatMap((match, index) => {
     const block = indexSource.slice(match.index, boundaries[index + 1]?.index ?? indexSource.length);
@@ -1279,4 +1347,246 @@ test('keeps mixed known and unknown Functions helper paths fail-closed', () => {
     ]),
     /No audited callable consumer map exists for changed Functions module functions\/src\/unmappedPrivateHelper\.ts/,
   );
+});
+
+test('PC05 setup and maintenance candidate selects runtime consumers before release', () => {
+  const before = '7782840d';
+  const after = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  const files = execFileSync('git', ['diff', '--name-only', `${before}..${after}`], {
+    encoding: 'utf8',
+  }).trim().split('\n');
+  const selected = deploymentSelector({ before, after, files, targets: ['hosting', 'functions'] });
+  for (const name of [
+    'startGame', 'confirmSetup', 'joinSession', 'resumeSession', 'assignLoyalty',
+    'runMaintenance', 'rerollVipUnrest', 'resolveShipMutiny',
+    'runSmallShipMaintenance', 'runVoyage33Maintenance', 'jumpShip',
+  ]) {
+    assert.ok(selected.split(',').includes(`functions:${name}`), `${name} must receive the PC05 contract`);
+  }
+});
+
+
+test('maps every reviewed mutiny authority consumer in isolation', () => {
+  const selected = selectorFor(['functions/src/mutiny.ts']);
+  for (const name of ['getAegisCommandAndControl', 'applyAegisCommandAndControl',
+    'getDioneMaliadesLaunch', 'launchDioneMaliades', 'getPdfEscortWingLaunch',
+    'launchPdfEscortWing', 'runHighwallMining', 'requestScout',
+    'rollHummingbirdHarvest', 'allocateHummingbirdHarvest']) {
+    assert.ok(selected.split(',').includes(`functions:${name}`), name);
+  }
+});
+
+test('maps factory-created setup consumers in isolation', () => {
+  const selected = selectorFor(['functions/src/gameSetup.ts']);
+  for (const name of ['resolvePendingScoutRequest', 'parkShuttlesAtAirspaceClosure']) {
+    assert.ok(selected.split(',').includes(`functions:${name}`), name);
+  }
+});
+
+test('maps only the additive reconnect taxonomy change and rejects unrelated error changes', () => {
+  const source = readFileSync('functions/src/commandErrors.ts', 'utf8');
+  const addition = "  'station-selection-required',\n";
+  const select = (afterSource) => deploymentSelector({
+    before: 'before', after: 'after', files: ['functions/src/commandErrors.ts'],
+    targets: ['functions'], isAncestor: () => false,
+    sourceAtRevision: (revision) => revision === 'before' ? source.replace(addition, '') : afterSource,
+  });
+  assert.deepEqual(selectedFunctions(select(source)), functionTargets(['joinSession', 'resumeSession', 'refreshPresence']));
+  assert.throws(() => select(source + '// unrelated runtime edit\n'), /Cannot safely map command error changes/);
+});
+
+
+const PC05_ADDITIONAL_AUTHORITY_CONSUMERS = {
+  "shuttleDocking": [
+    "transferShuttleControlCommand"
+  ],
+  "wolfActionAuthorization": [
+    "startWolfConsoleVisit",
+    "resolveWolfConsoleSabotage",
+    "submitWolfSupplySabotage",
+    "submitWolfHomingBeacon",
+    "submitWolfIntelligence"
+  ],
+  "mutiny": [
+    "repairGorgoneionWithDrones",
+    "repairWarriorWithDrones",
+    "transferBaseCapybaraCargo",
+    "startGame",
+    "assignReplacementRole",
+    "joinSession",
+    "resumeSession",
+    "moveShipToLocation",
+    "jumpShip",
+    "setShipConsoleLock",
+    "advanceTurn",
+    "startSinglePlayerDemo",
+    "setWolfAttackWindow",
+    "declareWolfAttack",
+    "getAegisCommandAndControl",
+    "applyAegisCommandAndControl",
+    "getDioneMaliadesLaunch",
+    "launchDioneMaliades",
+    "getPdfEscortWingLaunch",
+    "launchPdfEscortWing",
+    "unlockPressAirspace",
+    "adjustShipResource",
+    "adjustShipUnrest",
+    "dismissUnrestAlert",
+    "resolveShipMutiny",
+    "addShipDamage",
+    "adjustShipPopulation",
+    "applyShipCounterSteps",
+    "setFighterWingCount",
+    "buildFighter",
+    "dismissPopulationAlert",
+    "runHighwallMining",
+    "requestScout",
+    "rollHummingbirdHarvest",
+    "setSmallShipDocking",
+    "runSmallShipMaintenance",
+    "runVoyage33Maintenance",
+    "runVulcanAdditionalLabour",
+    "runMaintenance",
+    "drawVipCard",
+    "transferVipCard",
+    "rerollVipUnrest",
+    "publishAdmiralDirectiveCommand",
+    "recordPresidentActionCommand",
+    "updatePoliticalCapital",
+    "setFleetRedAlert",
+    "repairAllShipDamage",
+    "rollbackMaintenance"
+  ],
+  "voyage33Maintenance": [
+    "startGame",
+    "joinSession",
+    "resumeSession",
+    "advanceTurn",
+    "startSinglePlayerDemo",
+    "resolveShipMutiny",
+    "addShipDamage",
+    "runVoyage33Maintenance",
+    "runMaintenance"
+  ]
+};
+for (const [moduleName, consumers] of Object.entries(PC05_ADDITIONAL_AUTHORITY_CONSUMERS)) {
+  test(`maps isolated PC05 ${moduleName} authority changes`, () => {
+    const selected = selectorFor([`functions/src/${moduleName}.ts`]).split(',');
+    for (const name of consumers) assert.ok(selected.includes(`functions:${name}`), name);
+  });
+}
+
+test('maps only the reviewed pending-rerole navigation exclusion to its runtime consumers', () => {
+  const source = readFileSync('functions/src/navigationProjection.ts', 'utf8');
+  const addition = "  if (player.get('replacementStatus') != null) return undefined;\n";
+  const select = (afterSource) => deploymentSelector({
+    before: 'before', after: 'after', files: ['functions/src/navigationProjection.ts'],
+    targets: ['functions'], isAncestor: () => false,
+    sourceAtRevision: (revision) => revision === 'before' ? source.replace(addition, '') : afterSource,
+  });
+  assert.deepEqual(selectedFunctions(select(source)), functionTargets(["activateEndeavourEcmDevice", "resolvePendingScoutRequest", "createSession", "confirmSetup", "startGame", "dealPrivateInitialCards", "assignReplacementRole", "setCandidatePlanCheckpoint", "joinSession", "resumeSession", "moveShipToLocation", "jumpShip", "listUnresolvedJumpFailures", "adjudicateFailedJump", "advanceTurn", "startSinglePlayerDemo", "declareWolfAttack", "submitWolfHomingBeacon", "requestScout", "runMaintenance"]));
+  assert.throws(() => select(source + '// unrelated runtime edit\n'), /Cannot safely map navigation projection changes/);
+});
+
+test('maps the shared pursuit decision pause to every indexed action and external writer', () => {
+  const selected = selectorFor(['functions/src/pursuitEmergencyWindow.ts']).split(',');
+  for (const name of [
+    'advanceTurn', 'jumpShip', 'runMaintenance', 'activateEndeavourEcmDevice',
+    'advanceEndeavourResearchTrack', 'repairMaliades',
+  ]) assert.ok(selected.includes(`functions:${name}`), name);
+});
+
+test('maps the exact PC05 ECM pause addition only to the activation writer', () => {
+  const before = '7782840da0defcf64428877cf6d37249d49b5ffa';
+  const after = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  const selected = deploymentSelector({
+    before, after, files: ['functions/src/endeavourEcmDeviceWriter.ts'], targets: ['functions'],
+  });
+  assert.deepEqual(selectedFunctions(selected), functionTargets(['activateEndeavourEcmDevice']));
+});
+
+test('selects exactly 138 named Functions for the exact PC05 release range', () => {
+  const before = '0ba386f50689b375153ceee3b2eb11a9ecd19435';
+  const verificationBefore = '7782840da0defcf64428877cf6d37249d49b5ffa';
+  const after = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  const files = execFileSync('git', ['diff', '--name-only', `${before}..${after}`], {
+    encoding: 'utf8',
+  }).trim().split('\n').filter(Boolean);
+  const filesSinceBaseline = execFileSync(
+    'git', ['diff', '--name-only', `${verificationBefore}..${after}`], { encoding: 'utf8' },
+  ).trim().split('\n').filter(Boolean);
+  const classification = classifyChangedFiles(files);
+  assert.deepEqual(classification.unknownFiles, []);
+  const selected = selectedFunctions(deploymentSelector({
+    before, after, files, filesSinceBaseline, targets: classification.targets,
+  }));
+  assert.equal(new Set(selected).size, 138);
+  assert.equal(selected.length, 138);
+});
+
+
+test('maps the exact PC05 jump request contract and rejects an unrelated guard edit', () => {
+  const beforeSource = execFileSync('git', ['show', '7782840d:functions/src/requestGuards.ts'], { encoding: 'utf8' });
+  const afterSource = readFileSync('functions/src/requestGuards.ts', 'utf8');
+  const select = (source) => deploymentSelector({ before: 'base', after: 'candidate',
+    files: ['functions/src/requestGuards.ts'], targets: ['functions'], isAncestor: () => false,
+    sourceAtRevision: (revision) => revision === 'base' ? beforeSource : source,
+  });
+  assert.deepEqual(selectedFunctions(select(afterSource)), functionTargets([
+    'advanceTurn', 'jumpShip', 'listUnresolvedJumpFailures', 'adjudicateFailedJump',
+  ]));
+  assert.throws(() => select(afterSource + '// unrelated guard change\n'), /Cannot safely map request-guard changes/);
+});
+
+test('maps only the audited member jump event fields to their writers', () => {
+  const source = readFileSync('functions/src/eventRedaction.ts', 'utf8');
+  const addition = "  'ship-jump': ['shipId', 'outcome', 'length', 'failureRoll', 'failureThreshold', 'fuelSpent', 'damageCount', 'emergency'],\n";
+  const select = (afterSource) => deploymentSelector({ before: 'base', after: 'candidate',
+    files: ['functions/src/eventRedaction.ts'], targets: ['functions'], isAncestor: () => false,
+    sourceAtRevision: (revision) => revision === 'base' ? source.replace(addition, '') : afterSource,
+  });
+  assert.deepEqual(selectedFunctions(select(source)), functionTargets(['jumpShip', 'adjudicateFailedJump']));
+  assert.throws(() => select(source.replace("'fuelSpent', 'damageCount'", "'destination', 'fuelSpent', 'damageCount'")), /Cannot safely map event redaction changes/);
+});
+
+test('maps ship damage helpers to all audited runtime consumers', () => {
+  const selected = selectorFor(['functions/src/shipDamage.ts']);
+  assert.deepEqual(selectedFunctions(selected), functionTargets(["repairConsolesFromAlly", "repairGorgoneionWithDrones", "repairWarriorWithDrones", "transferBaseCapybaraCargo", "readEndeavourResearchWorkspace", "repairMaliades", "createSession", "startGame", "rechargeHostConsoleFromShuttle", "repairConsolesFromBlacksmith", "repairConsolesFromPhilia", "repairConsolesFromMacaw", "repairConsolesFromChacau", "upgradeEndeavourFieldTargets", "joinSession", "resumeSession", "moveShipToLocation", "jumpShip", "adjudicateFailedJump", "advanceTurn", "startSinglePlayerDemo", "getAegisCommandAndControl", "applyAegisCommandAndControl", "getDioneMaliadesLaunch", "launchDioneMaliades", "getPdfEscortWingLaunch", "launchPdfEscortWing", "startWolfConsoleVisit", "resolveWolfConsoleSabotage", "submitWolfSupplySabotage", "acknowledgeWolfHackingAlert", "fleeDestroyedShip", "scavengeDestroyedShipStores", "addShipDamage", "buildFighter", "runVulcanAdditionalLabour", "runMaintenance", "drawVipCard", "repairAllShipDamage"]));
+});
+
+
+test('includes failed-jump adjudication in its shared authority and consequence helpers', () => {
+  for (const moduleName of ['mutiny', 'replacementRoles', 'smallShip', 'gameSetup', 'shipPopulation']) {
+    assert.ok(selectorFor([`functions/src/${moduleName}.ts`]).split(',').includes('functions:adjudicateFailedJump'), moduleName);
+  }
+});
+
+test('includes unchanged callable bodies affected by PC05 index-local authority helpers', () => {
+  const before = '7782840d';
+  const after = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  const selected = deploymentSelector({ before, after, files: ['functions/src/index.ts'], targets: ['functions'] }).split(',');
+  for (const name of ['transferShuttleCargoCommand', 'recycleWithBoa', 'requestShuttleDeparture',
+    'beginShuttleTransit', 'retargetShuttleTransit', 'publishPressDispatch', 'dismissPressDispatch',
+    'getWolfCommanderTargeting', 'applyWolfCommanderTargetRerolls', 'finishWolfCommanderTargetingRerolls',
+    'startGame', 'setReplacementEligibility', 'assignReplacementRole', 'setFacilitatorCensusNote',
+    'calculateArrestPosse', 'deliverWolfCultIntelligence', 'transitionCrisis', 'setDiseaseQuarantine',
+    'recordZealotryResponse', 'recordCivilUnrestResolution', 'submitCivilUnrestGrievance',
+    'authorArbourVision', 'authorFacilitatorRuleCall', 'setCandidatePlanCheckpoint', 'revealAndroidProof',
+    'triggerDradisContact', 'setPressEnabled', 'setGmControlsLocked', 'advanceTurn',
+    'startSinglePlayerDemo', 'replayTurnStartAnnouncement', 'beginOpenAirspacePhase',
+    'extendAirspaceWindow', 'setEmergencyTimerPaused', 'declareWolfAttack',
+    'advanceWolfAttackToLongRange', 'startWolfConsoleVisit', 'resolveWolfConsoleSabotage',
+    'submitWolfSupplySabotage', 'submitWolfHomingBeacon', 'submitWolfIntelligence',
+    'investigateAsIntelligenceAgent', 'fleeDestroyedShip', 'rollDice']) {
+    assert.ok(selected.includes(`functions:${name}`), `${name} consumes a changed shared authority helper`);
+  }
+});
+
+test('fails closed when PC05 shared index code changes beyond the audited candidate', () => {
+  const beforeSource = execFileSync('git', ['show', '7782840d:functions/src/index.ts'], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+  const afterSource = readFileSync('functions/src/index.ts', 'utf8') + '\n// unaudited shared helper change\n';
+  assert.throws(() => deploymentSelector({ before: 'base', after: 'candidate',
+    files: ['functions/src/index.ts'], targets: ['functions'], isAncestor: () => false,
+    sourceAtRevision: (revision) => revision === 'base' ? beforeSource : afterSource,
+  }), /Cannot safely map PC05 shared index changes/);
 });

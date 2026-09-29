@@ -8,6 +8,7 @@ import {
   orderBy,
   limit,
   query,
+  Timestamp as FirestoreTimestamp,
   where,
   type DocumentData,
   type Unsubscribe,
@@ -31,6 +32,7 @@ import type {
   PopulationAlert,
   Player,
   PrivateLoyalty,
+  ReplacementEligibilityProjection,
   RoleBrief,
   RoleOwnedCraftRecord,
   Seat,
@@ -54,6 +56,7 @@ import type {
   OrganiserSiteProjection,
   ShipJumpStates,
   ShipJumpTransitions,
+  ShipMutinyState,
   ShipNavigationLogs,
   SetupReceipt,
   UnrestAlert,
@@ -90,7 +93,11 @@ import type {
 import { parseDiseaseOutbreak, isCrisisKind, ZEALOTRY_RESPONSE_ACTIONS, CIVIL_UNREST_SHIP_IDS, type CrisisReport, type CrisisStateProjection, type CrisisStateName, type ZealotryResponse, type CivilUnrestGrievance, type CivilUnrestPublicProjection, type CivilUnrestResolution } from '@/types/crisis';
 import { isWireSafeEntityId, type EntityId, type EntityKind } from '@/types/identifiers';
 import { DEFAULT_ACTIVE_ROLE_IDS, findConsoleRole } from '@/data/roles';
-import { isPresentedSmallShipStateMapValid, replacementRoleFor } from '@/data/replacementRoles';
+import {
+  isPresentedSmallShipStateMapValid,
+  REPLACEMENT_ELIGIBILITY_REASONS,
+  replacementRoleFor,
+} from '@/data/replacementRoles';
 import { FIGHTER_WING_IDS } from '@/data/aegisConsoles';
 import { STAR_CHART_SYSTEMS } from '@/data/starChart';
 import { ROLE_SEAT_METADATA } from '@/data/seatMetadata';
@@ -1672,13 +1679,14 @@ function organiserSiteProjection(value: unknown): OrganiserSiteProjection | unde
 type GmDiscoveryProjection = Pick<GameSession,
   'shipGalacticCoordinates' | 'shipNavigationLogs' | 'organiserSites' | 'organiserSystems' |
   'organiserSystemHistory' | 'pursuitDistances' | 'pursuitGroups' | 'shipFleetGroupIds' |
-  'candidatePlanCheckpoint'>;
+  'candidatePlanCheckpoint' | 'pursuitEmergencyWindowAuthority'>;
 
 function gmDiscoveryProjection(value: unknown): GmDiscoveryProjection | undefined {
   const raw = recordValue(value);
   if (!raw) return undefined;
   const parsedSystemHistory = systemHistory(raw.systemHistory);
   const parsedCandidatePlanCheckpoint = candidatePlanCheckpoint(raw.candidatePlanCheckpoint);
+  const emergencyWindowAuthority = pursuitEmergencyWindowAuthority(raw.pursuitEmergencyWindow);
   const sitesRaw = recordValue(raw.organiserSites);
   const organiserSites = Object.fromEntries(Object.entries(sitesRaw ?? {}).flatMap(([coordinate, site]) => {
     const parsed = organiserSiteProjection(site);
@@ -1705,6 +1713,9 @@ function gmDiscoveryProjection(value: unknown): GmDiscoveryProjection | undefine
     pursuitGroups: pursuitGroups(raw.pursuitGroups),
     shipFleetGroupIds,
     ...(parsedCandidatePlanCheckpoint ? { candidatePlanCheckpoint: parsedCandidatePlanCheckpoint } : {}),
+    ...(emergencyWindowAuthority ? {
+      pursuitEmergencyWindowAuthority: emergencyWindowAuthority,
+    } : {}),
   };
 }
 
@@ -1864,6 +1875,29 @@ function timestampString(value: unknown): string | undefined {
   return undefined;
 }
 
+function shipMutinyState(value: unknown): ShipMutinyState | undefined {
+  const raw = recordValue(value);
+  if (!raw || (raw.status !== 'active' && raw.status !== 'resolved') ||
+      !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
+      !Number.isSafeInteger(raw.triggerUnrest) || (raw.triggerUnrest as number) < 8 ||
+      (raw.triggerUnrest as number) > 10 || typeof raw.triggeredAt !== 'string') return undefined;
+  if (raw.status === 'resolved' && (
+    !Number.isSafeInteger(raw.reduction) || (raw.reduction as number) < 1 ||
+    (raw.reduction as number) > 3 || typeof raw.recoveryRequestId !== 'string' ||
+    typeof raw.recoveredAt !== 'string')) return undefined;
+  return {
+    status: raw.status,
+    revision: raw.revision as number,
+    triggerUnrest: raw.triggerUnrest as number,
+    triggeredAt: raw.triggeredAt,
+    ...(raw.status === 'resolved' ? {
+      reduction: raw.reduction as number,
+      recoveryRequestId: raw.recoveryRequestId as string,
+      recoveredAt: raw.recoveredAt as string,
+    } : {}),
+  };
+}
+
 function maintenanceCycles(value: unknown): NonNullable<GameSession['maintenanceCycles']> {
   const stored = recordValue(value);
   if (!stored) return {};
@@ -1902,13 +1936,15 @@ function smallShipStates(
     const parsedUnrest = nonNegativeInteger(unrest);
     const parsedStep = nonNegativeInteger(cycle?.step);
     const parsedRevision = nonNegativeInteger(cycle?.revision);
+    const mutiny = raw?.mutiny === undefined ? undefined : shipMutinyState(raw.mutiny);
     if (!raw || (raw.hostShipId !== null && typeof raw.hostShipId !== 'string') ||
         (raw.hostShipId !== null && hostShipId === undefined) ||
         dockingRevision === undefined || parsedPopulation === undefined ||
         parsedPopulation > (SMALL_SHIPS.find((ship) => ship.id === id)?.printedStatistics.population ?? 0) ||
         parsedUnrest === undefined || parsedUnrest > 10 || !cycle ||
         parsedStep === undefined || parsedStep > 5 || parsedRevision === undefined ||
-        !results || !Array.isArray(charges) || charges.some((charge) => typeof charge !== 'string')) return [];
+        !results || !Array.isArray(charges) || charges.some((charge) => typeof charge !== 'string') ||
+        (raw.mutiny !== undefined && !mutiny)) return [];
     if (cycle.turn !== undefined && !nonNegativeInteger(cycle.turn)) return [];
     if (cycle.rationBonus !== undefined && (typeof cycle.rationBonus !== 'number' || !Number.isFinite(cycle.rationBonus))) return [];
     if (cycle.chargingSkipped !== undefined && typeof cycle.chargingSkipped !== 'boolean') return [];
@@ -1923,6 +1959,7 @@ function smallShipStates(
       dockingRevision,
       population: parsedPopulation,
       unrest: parsedUnrest,
+      ...(mutiny ? { mutiny } : {}),
       cycle: {
         step: parsedStep,
         revision: parsedRevision,
@@ -1950,12 +1987,14 @@ function voyage33Maintenance(value: unknown, sessionId: string): Voyage33Mainten
   const unrest = nonNegativeInteger(raw?.unrest);
   const step = nonNegativeInteger(cycle?.step);
   const revision = nonNegativeInteger(cycle?.revision);
+  const mutiny = raw?.mutiny === undefined ? undefined : shipMutinyState(raw.mutiny);
   if (!raw || raw.id !== 'voyage-33-0' || raw.sessionId !== undefined && raw.sessionId !== sessionId ||
       (raw.hostShipId !== null && typeof raw.hostShipId !== 'string') ||
       (raw.hostShipId !== null && hostShipId === undefined) || dockingRevision === undefined ||
       population === undefined || population > 40_000 || unrest === undefined || unrest > 10 ||
       !cycle || step === undefined || step > 5 || revision === undefined || !results ||
-      !Array.isArray(charges) || charges.some((charge) => typeof charge !== 'string')) return undefined;
+      !Array.isArray(charges) || charges.some((charge) => typeof charge !== 'string') ||
+      (raw.mutiny !== undefined && !mutiny)) return undefined;
   if (cycle.turn !== undefined && !nonNegativeInteger(cycle.turn)) return undefined;
   if (cycle.rationBonus !== undefined && (typeof cycle.rationBonus !== 'number' || !Number.isFinite(cycle.rationBonus))) return undefined;
   if (cycle.chargingSkipped !== undefined && typeof cycle.chargingSkipped !== 'boolean') return undefined;
@@ -1966,7 +2005,7 @@ function voyage33Maintenance(value: unknown, sessionId: string): Voyage33Mainten
   if ((cycle.startedAt !== undefined && !startedAt) || (cycle.completedAt !== undefined && !completedAt)) return undefined;
   return {
     id: 'voyage-33-0', hostShipId: hostShipId ?? null,
-    dockingRevision, population, unrest,
+    dockingRevision, population, unrest, ...(mutiny ? { mutiny } : {}),
     cycle: {
       step, revision, results: parsedResults, charges: charges as string[],
       ...(cycle.turn === undefined ? {} : { turn: cycle.turn as number }),
@@ -2433,6 +2472,15 @@ function vesselActionRevisions(value: unknown): NonNullable<GameSession['vesselA
       ? [[vesselId, revision]] : []));
 }
 
+function shipMutinies(value: unknown): NonNullable<GameSession['shipMutinies']> {
+  const stored = recordValue(value);
+  if (!stored) return {};
+  return Object.fromEntries(Object.keys(INITIAL_SHIP_CONSOLE_LOCKS).flatMap(shipId => {
+    const mutiny = shipMutinyState(stored[shipId]);
+    return mutiny ? [[shipId, mutiny]] : [];
+  }));
+}
+
 function shipJumpStates(value: unknown): ShipJumpStates {
   const stored = typeof value === 'object' && value !== null && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -2450,6 +2498,9 @@ function shipJumpStates(value: unknown): ShipJumpStates {
         ? { lastJumpTurn: raw.lastJumpTurn }
         : {}),
       ...(integrityLockedUntil ? { integrityLockedUntil } : {}),
+      ...(typeof raw.emergencyJumpUsed === 'boolean' ? { emergencyJumpUsed: raw.emergencyJumpUsed } : {}),
+      ...(typeof raw.lastFailureRequestId === 'string' && raw.lastFailureRequestId.length > 0
+        ? { lastFailureRequestId: raw.lastFailureRequestId } : {}),
     }];
   })) as ShipJumpStates;
 }
@@ -2494,6 +2545,49 @@ function pursuitGroups(value: unknown): Readonly<Record<string, number>> {
     }
   }
   return result;
+}
+
+function pursuitEmergencyWindow(value: unknown): GameSession['pursuitEmergencyWindow'] {
+  const raw = recordValue(value);
+  const cycle = nonNegativeInteger(raw?.cycle);
+  if (!raw || Object.keys(raw).length !== 4 ||
+      !Object.keys(raw).every((key) => [
+        'type', 'status', 'cycle', 'openedAt',
+      ].includes(key)) || raw.type !== 'pursuit-emergency-window' ||
+      (raw.status !== 'awaiting-gm-decision' && raw.status !== 'offered') ||
+      cycle === undefined || cycle < 1 ||
+      typeof raw.openedAt !== 'string' || !Number.isFinite(Date.parse(raw.openedAt))) return undefined;
+  return {
+    type: 'pursuit-emergency-window',
+    status: raw.status,
+    cycle,
+    openedAt: raw.openedAt,
+  };
+}
+
+function pursuitEmergencyWindowAuthority(
+  value: unknown,
+): GameSession['pursuitEmergencyWindowAuthority'] {
+  const raw = recordValue(value);
+  const cycle = nonNegativeInteger(raw?.cycle);
+  const navigationRevision = nonNegativeInteger(raw?.navigationRevision);
+  const groupIds = Array.isArray(raw?.groupIds)
+    ? raw.groupIds.map((groupId) => parseEntityId('group', groupId))
+    : [];
+  if (!raw || Object.keys(raw).length !== 6 ||
+      !Object.keys(raw).every((key) => [
+        'type', 'status', 'cycle', 'navigationRevision', 'groupIds', 'openedAt',
+      ].includes(key)) || raw.type !== 'pursuit-emergency-window' ||
+      (raw.status !== 'awaiting-gm-decision' && raw.status !== 'offered') ||
+      cycle === undefined || cycle < 1 || navigationRevision === undefined ||
+      groupIds.length === 0 || groupIds.some((groupId) => groupId === undefined) ||
+      new Set(groupIds).size !== groupIds.length ||
+      typeof raw.openedAt !== 'string' || !Number.isFinite(Date.parse(raw.openedAt))) return undefined;
+  return {
+    type: 'pursuit-emergency-window', status: raw.status, cycle, navigationRevision,
+    groupIds: groupIds as NonNullable<GameSession['pursuitEmergencyWindowAuthority']>['groupIds'],
+    openedAt: raw.openedAt,
+  };
 }
 
 function sessionSetup(value: unknown): SessionSetup | undefined {
@@ -2752,6 +2846,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     playerCount,
     Object.keys(retained),
   );
+  const emergencyWindow = pursuitEmergencyWindow(data.pursuitEmergencyWindow);
   return {
     id: sessionId,
     name: data.name as string,
@@ -2765,6 +2860,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
       ? { expansion: data.expansion } : {}),
     ...(data.turnLimit === 6 || data.turnLimit === 7 || data.turnLimit === 8
       ? { turnLimit: data.turnLimit } : {}),
+    ...(data.setupConfirmed === true ? { setupConfirmed: true } : {}),
     ...(typeof data.chartSelectionLocked === 'boolean'
       ? { chartSelectionLocked: data.chartSelectionLocked } : {}),
     ...(typeof data.configurationLocked === 'boolean'
@@ -2779,6 +2875,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     ...(announcement ? { turnStartAnnouncement: announcement } : {}),
     ...(phaseClock ? { turnPhase: phaseClock } : {}),
     ...(turnState ? { turnState } : {}),
+    ...(emergencyWindow ? { pursuitEmergencyWindow: emergencyWindow } : {}),
     ...(gameOutcome ? { gameOutcome } : {}),
     ...(survivorOutcome ? { survivorOutcome } : {}),
     capybaraEnabled: data.capybaraEnabled !== false,
@@ -2840,6 +2937,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     fighterWingCounts: fighterWingCounts(data.fighterWingCounts),
     ...(pdfEscortWing === undefined ? {} : { pdfEscortWing }),
     shipUnrest: shipUnrest(data.shipUnrest),
+    shipMutinies: shipMutinies(data.shipMutinies),
     shipSurvivors: shipSurvivors(data.shipSurvivors),
     populationAlerts: alertMap<PopulationAlert>(data.populationAlerts, true),
     unrestAlerts: alertMap<UnrestAlert>(data.unrestAlerts, false),
@@ -2862,7 +2960,12 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
   };
 }
 
-function playerFrom(sessionId: string, uid: string, data: DocumentData): Player {
+function playerFrom(
+  sessionId: string,
+  uid: string,
+  data: DocumentData,
+  includeLastSeenAt = false,
+): Player {
   const parsedSeatId = data.seatId === null || data.seatId === undefined
     ? null
     : parseEntityId('seat', data.seatId) ?? null;
@@ -2872,6 +2975,9 @@ function playerFrom(sessionId: string, uid: string, data: DocumentData): Player 
   const parsedReplacementRoleId = data.replacementRoleId === null || data.replacementRoleId === undefined
     ? null
     : parseEntityId('role', data.replacementRoleId);
+  const parsedReplacementStatus = data.replacementStatus == null
+    ? null
+    : 'awaiting-re-role' as const;
   const parsedVesselId = data.shipPreferenceId === null || data.shipPreferenceId === undefined
     ? null
     : parseEntityId('vessel', data.shipPreferenceId);
@@ -2885,6 +2991,11 @@ function playerFrom(sessionId: string, uid: string, data: DocumentData): Player 
     (data.connectionGeneration as number) >= 1
     ? data.connectionGeneration as number
     : undefined;
+  const lastSeenAtPresent = data.lastSeenAt !== undefined;
+  const parsedLastSeenAt = data.lastSeenAt instanceof FirestoreTimestamp
+    ? optionalIso(data.lastSeenAt)
+    : undefined;
+  const parsedLastSeenAtValid = lastSeenAtPresent && parsedLastSeenAt !== undefined;
   const parsedEscapeState = data.escapeState && typeof data.escapeState === 'object' &&
     !Array.isArray(data.escapeState) &&
     (data.escapeState.status === 'pending' || data.escapeState.status === 'fled') &&
@@ -2904,19 +3015,52 @@ function playerFrom(sessionId: string, uid: string, data: DocumentData): Player 
     sessionId: entityId('session', sessionId),
     displayName: normalizeDisplayName(data.displayName),
     role: data.role as Player['role'],
-    seatId: parsedSeatId,
+    seatId: parsedReplacementStatus === null ? parsedSeatId : null,
     ...(parsedRoleId !== undefined ? { assignedRoleId: parsedRoleId } : {}),
-    ...(parsedReplacementRoleId !== undefined ? { replacementRoleId: parsedReplacementRoleId } : {}),
+    ...(parsedReplacementRoleId !== undefined
+      ? { replacementRoleId: parsedReplacementStatus === null ? parsedReplacementRoleId : null }
+      : {}),
+    ...(data.replacementStatus !== undefined ? { replacementStatus: parsedReplacementStatus } : {}),
     ...(parsedVesselId !== undefined ? { shipPreferenceId: parsedVesselId } : {}),
-    ...(parsedConsoleId !== undefined ? { activeConsoleRoleId: parsedConsoleId } : {}),
+    ...(parsedConsoleId !== undefined
+      ? { activeConsoleRoleId: parsedReplacementStatus === null ? parsedConsoleId : null }
+      : {}),
     ...(parsedFleetGroupId !== undefined ? { fleetGroupId: parsedFleetGroupId } : {}),
     ...(parsedEscapeState?.shipId && parsedEscapeState.destructionEventId
       ? { escapeState: parsedEscapeState as PlayerEscapeState } : {}),
     ...(typeof data.connected === 'boolean' ? { connected: data.connected } : {}),
+    ...(includeLastSeenAt && lastSeenAtPresent
+      ? { lastSeenAtValid: parsedLastSeenAtValid }
+      : {}),
+    ...(includeLastSeenAt && parsedLastSeenAtValid
+      ? { lastSeenAt: parsedLastSeenAt }
+      : {}),
     ...(parsedConnectionGeneration === undefined ? {} : {
       connectionGeneration: parsedConnectionGeneration,
     }),
     joinedAt: iso(data.joinedAt),
+  };
+}
+
+function replacementEligibilityFrom(
+  sessionId: string,
+  targetUid: string,
+  data: DocumentData,
+): ReplacementEligibilityProjection | undefined {
+  const parsedSessionId = parseEntityId('session', data.sessionId);
+  const parsedTargetUid = parseEntityId('player', data.targetUid);
+  const reason = REPLACEMENT_ELIGIBILITY_REASONS.find((value) => value === data.reason);
+  if (parsedSessionId !== sessionId || parsedTargetUid !== targetUid ||
+      typeof data.eligible !== 'boolean' || !reason ||
+      !Number.isSafeInteger(data.revision) || data.revision < 1 ||
+      data.revision >= Number.MAX_SAFE_INTEGER) return undefined;
+  return {
+    sessionId: parsedSessionId,
+    targetUid: parsedTargetUid,
+    eligible: data.eligible,
+    reason,
+    revision: data.revision,
+    ...(data.recordedAt ? { recordedAt: iso(data.recordedAt) } : {}),
   };
 }
 
@@ -4369,7 +4513,7 @@ export function subscribeConnectedPlayers(
       // roster only from the query's own server snapshot.
       if (fromCache) return;
       onPlayers(snapshot.docs.map((player) =>
-        playerFrom(sessionId, player.id, player.data())));
+        playerFrom(sessionId, player.id, player.data(), facilitator)));
     },
     () => {
       if (!subscribed) return;
@@ -4476,12 +4620,43 @@ export function subscribeSessionPlayers(
     (snapshot) => {
       if (!subscribed) return;
       if (snapshot.metadata?.fromCache === true) return;
-      onPlayers(snapshot.docs.map((player) => playerFrom(sessionId, player.id, player.data())));
+      onPlayers(snapshot.docs.map((player) => playerFrom(sessionId, player.id, player.data(), true)));
     },
     () => {
       if (!subscribed) return;
       subscribed = false;
       onPlayers([]);
+      onError();
+    },
+  );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+  };
+}
+
+/** Facilitator-only current replacement decisions used to build actionable candidate lists. */
+export function subscribeReplacementEligibility(
+  sessionId: string,
+  onEntries: (entries: readonly ReplacementEligibilityProjection[]) => void,
+  onError: () => void = () => undefined,
+): Unsubscribe {
+  let subscribed = true;
+  onEntries([]);
+  const unsubscribe = onSnapshot(
+    collection(db(), `sessions/${sessionId}/replacementEligibility`),
+    { includeMetadataChanges: true },
+    (snapshot) => {
+      if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      onEntries(snapshot.docs.flatMap((entry) => {
+        const parsed = replacementEligibilityFrom(sessionId, entry.id, entry.data());
+        return parsed ? [parsed] : [];
+      }));
+    },
+    () => {
+      if (!subscribed) return;
+      subscribed = false;
+      onEntries([]);
       onError();
     },
   );

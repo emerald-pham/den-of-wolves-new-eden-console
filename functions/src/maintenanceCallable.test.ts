@@ -17,6 +17,7 @@ const mock = vi.hoisted(() => ({
   turnLimit: 6 as 6 | 7 | 8, pressDispatch: undefined as unknown,
   fleetTicker: undefined as unknown,
   wolfAttackState: undefined as Record<string, unknown> | undefined,
+  pursuitEmergencyWindow: undefined as Record<string, unknown> | undefined,
   navigation: undefined as Record<string, unknown> | undefined,
   chartId: 'A' as 'A' | 'B' | 'C' | string,
   chartSelectionLocked: true,
@@ -259,6 +260,7 @@ vi.mock('firebase-admin/firestore', () => ({
             smallShipStates: mock.smallShipStates,
             activeRoleIds: mock.activeRoleIds,
             activeVesselIds: mock.activeVesselIds,
+            pursuitEmergencyWindow: mock.pursuitEmergencyWindow,
             shuttleDockings: mock.shuttleDockings,
             pursuitGroups: mock.legacyPursuitGroups,
           };
@@ -503,6 +505,7 @@ beforeEach(() => {
   mock.replacementRoleId = undefined;
   mock.escapeState = undefined;
   mock.activeRoleIds = undefined;
+  mock.pursuitEmergencyWindow = undefined;
   mock.phase = 'active';
   mock.commandReceipts = {};
   mock.retry = false;
@@ -631,6 +634,7 @@ beforeEach(() => {
           pressEnabled: mock.pressEnabled,
           activeRoleIds: mock.activeRoleIds,
           activeVesselIds: mock.activeVesselIds,
+          pursuitEmergencyWindow: mock.pursuitEmergencyWindow,
           chartId: mock.chartId,
           chartSelectionLocked: mock.chartSelectionLocked,
           shuttleDockings: mock.shuttleDockings,
@@ -1038,7 +1042,7 @@ it('creates the stable pod-capacity catastrophe from a riot destruction', async 
       maintenanceCycles: { aegis: { step: 4, revision: 4, results: {}, charges: [], refuelled: [] } },
       shipDamage: { aegis: { damagedSystemIds: exhaustedAegis, destroyed: false } },
       shipResources: { aegis: { ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 9 } },
-      shipUnrest: { aegis: 10 }, shipSurvivors: { aegis: 2500 },
+      shipUnrest: { aegis: 7 }, shipSurvivors: { aegis: 2500 },
       shuttleDockings: [
         { shuttleId: 'starlight', shipId: 'aegis', dockedAt: 'SESSION START' },
         { shuttleId: 'pallas', shipId: 'aegis', dockedAt: 'SESSION START' },
@@ -1144,7 +1148,7 @@ it('holds an exhausted Capybara riot draw without maintenance or audit writes', 
       maintenanceCycles: { capybara: { step: 4, revision: 4, results: {}, charges: [], refuelled: [] } },
       shipDamage: { capybara: damage },
       shipResources: { capybara: { ore: 0, fuel: 3, food: 8, water: 6, materials: 0, securityTeams: 2, scrap: 0 } },
-      shipUnrest: { capybara: 10 }, shipSurvivors: { capybara: 20_000 },
+      shipUnrest: { capybara: 7 }, shipSurvivors: { capybara: 20_000 },
       shuttleDockings: [], shuttleCargo: {}, shuttleFuelled: {},
       unrestAlerts: {}, populationAlerts: {}, capybaraEnabled: true, dioneEnabled: true,
     } as Record<string, unknown>,
@@ -2370,7 +2374,7 @@ it('advances private group pursuit once with the cycle transition and republishe
   }));
 });
 
-it('creates one terminal failure when authoritative pursuit reaches 10 and blocks later gameplay', async () => {
+it('opens one pursuit emergency decision when pursuit reaches 10 and blocks later gameplay', async () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-09-06T12:20:07.000Z'));
   mock.currentTurn = 2;
@@ -2402,48 +2406,64 @@ it('creates one terminal failure when authoritative pursuit reaches 10 and block
 
   const result = await advanceTurn.run(request(terminalRequest));
 
-  expect(result).toEqual({
+  expect(result).toMatchObject({
     currentTurn: 3,
-    phase: 'failure',
-    gameOutcome: {
-      type: 'game-outcome',
-      result: 'failure',
-      cause: 'pursuit-limit',
+    pursuitEmergencyWindow: {
+      type: 'pursuit-emergency-window',
+      status: 'awaiting-gm-decision',
       cycle: 3,
-      navigationRevision: 9,
-      occurredAt: '2026-09-06T12:20:07.000Z',
+      openedAt: '2026-09-06T12:20:07.000Z',
     },
     maintenanceCycles: {},
     shuttleFuelled: {},
   });
+  expect(result).not.toHaveProperty('gameOutcome');
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     currentTurn: 3,
-    phase: 'failure',
-    gameOutcome: result.gameOutcome,
-    survivorOutcome: expect.objectContaining({
-      type: 'survivor-outcome', cycle: 3,
-      fleetShipPopulation: 32_500,
-      survivingShipPopulation: 32_500,
-      evacuatedPopulation: 0,
-      lostPopulation: 0,
-      finalSurvivors: 32_500,
-      survivingShipIds: ['aegis', 'shepherd'],
-      lostOrDestroyedShipIds: [],
-    }),
-    turnPhase: 'delete-field',
-    turnState: 'delete-field',
-    turnStartAnnouncement: 'delete-field',
+    phase: 'active',
+    pursuitEmergencyWindow: {
+      type: 'pursuit-emergency-window', status: 'awaiting-gm-decision', cycle: 3,
+      openedAt: '2026-09-06T12:20:07.000Z',
+    },
+  }));
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.not.objectContaining({
+    gameOutcome: expect.anything(),
   }));
   expect(mock.set).toHaveBeenCalledWith(
     'sessions/s1/serverState/navigation',
-    expect.objectContaining({ pursuitGroups: { 'fleet-1': 10, 'fleet-2': 4 }, revision: 9 }),
+    expect.objectContaining({
+      pursuitGroups: { 'fleet-1': 10, 'fleet-2': 4 }, revision: 9,
+    }),
     { mergeFields: expect.arrayContaining(['pursuitGroups', 'revision']) },
+  );
+  const protectedWindow = {
+    ...result.pursuitEmergencyWindow,
+    navigationRevision: 9,
+    groupIds: ['fleet-1'],
+  };
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/serverState/navigation',
+    { pursuitEmergencyWindow: protectedWindow },
+    { mergeFields: ['pursuitEmergencyWindow'] },
+  );
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/gmDiscovery/current',
+    { pursuitEmergencyWindow: protectedWindow },
+    { mergeFields: ['pursuitEmergencyWindow'] },
   );
   expect(mock.set).toHaveBeenCalledWith(
     'sessions/s1/commandReceipts/advance-test-pursuit-failure',
     expect.objectContaining({ result }),
   );
-  expect(mock.set.mock.calls.some(([path]) => String(path).includes('/events/'))).toBe(false);
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/events/turn-advanced-2',
+    expect.objectContaining({
+      type: 'turn-advanced',
+      fromTurn: 2,
+      toTurn: 3,
+      reason: 'expiry',
+    }),
+  );
 
   mock.phase = 'failure';
   mock.update.mockClear();
@@ -2452,12 +2472,14 @@ it('creates one terminal failure when authoritative pursuit reaches 10 and block
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
 
+  mock.phase = 'active';
+  mock.pursuitEmergencyWindow = result.pursuitEmergencyWindow as Record<string, unknown>;
   await expect(runMaintenance.run(request({
     ...data,
     requestId: 'maintenance-after-pursuit-failure',
   }))).rejects.toMatchObject({
     code: 'failed-precondition',
-    message: expect.stringMatching(/endgame evaluation/i),
+    message: expect.stringMatching(/facilitator.*emergency jump/i),
   });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();

@@ -84,16 +84,19 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const boundCoreRoleId = coreRolePointersAgree
     ? assignedCoreRoleId ?? seatedCoreRoleId
     : undefined;
-  const confirmedCoreRoleId = me?.activeConsoleRoleId === boundCoreRoleId
+  const confirmedCoreRoleId = me?.replacementStatus == null &&
+    me?.activeConsoleRoleId === boundCoreRoleId
     ? boundCoreRoleId
     : undefined;
   const ownShip = findConsoleRole(confirmedCoreRoleId)?.shipId;
   const replacementVipHost = Boolean(
-    !isGm && me?.replacementRoleId === 'vip-host' && me?.activeConsoleRoleId === null &&
+    !isGm && me && me.replacementStatus == null && me.replacementRoleId === 'vip-host' &&
+    me.activeConsoleRoleId === null &&
     ship?.id === 'dione' && roleId === 'vip-host',
   );
   const replacementCommissar = Boolean(
-    !isGm && me?.replacementRoleId === 'commissar' && me?.activeConsoleRoleId === null &&
+    !isGm && me && me.replacementStatus == null && me.replacementRoleId === 'commissar' &&
+    me.activeConsoleRoleId === null &&
     ship?.id === 'icebreaker' && roleId === 'commissar',
   );
   const visiting = Boolean(!isGm && me?.activeConsoleRoleId && me.activeConsoleRoleId !== roleId);
@@ -160,7 +163,8 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const hasConsoleWorkspace = Boolean(ship && consoleRole && ship.roles.some(role => role.id === consoleRole.id));
   const canClaimConsoleRole = Boolean(
     session && me && mode === 'console' && ship && consoleRole && validRole && roleEnabled &&
-    !isGm && !me.replacementRoleId && coreRolePointersAgree && boundCoreRoleId === consoleRole.id &&
+    !isGm && me.replacementStatus == null && !me.replacementRoleId && coreRolePointersAgree &&
+    boundCoreRoleId === consoleRole.id &&
     activeShipIds.includes(ship.id) &&
     !(ship.id === 'capybara' && session.capybaraEnabled === false) &&
     !(ship.id === 'dione' && session.dioneEnabled === false),
@@ -340,6 +344,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
 
   if (!session || !me) return <Navigate to="/" replace />;
   if (observer && !isGm) return <Navigate to="/console" replace />;
+  if (!isGm && me.replacementStatus != null) return <Navigate to="/console" replace />;
   if (
     mode !== 'console' || !ship || !validRole ||
     (!roleEnabled && me.activeConsoleRoleId !== roleId && ownShip !== ship.id) ||
@@ -518,10 +523,10 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
             shipState={shipState}
           />
           {ship.id === 'dione' && effectiveRoleId === 'dione-engineer' &&
-            me.activeConsoleRoleId === 'dione-engineer' && (
+            me.replacementStatus == null && me.activeConsoleRoleId === 'dione-engineer' && (
             <DioneMaliadesLaunch writable={effectiveWritable} />
           )}
-          {(replacementCommissar || (me.replacementRoleId == null &&
+          {(replacementCommissar || (me.replacementStatus == null && me.replacementRoleId == null &&
             me.activeConsoleRoleId === (ship.id === 'aegis' ? 'admiral' : `${ship.id}-captain`))) && (
             <CommissarPurgePanel shipId={ship.id} />
           )}
@@ -529,7 +534,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
         )}
         <DioneVipCards
           shipId={ship.id}
-          cycle={ship.id === 'dione' ? shipState?.maintenanceCycle : undefined}
+          cycle={shipState?.maintenanceCycle}
           damaged={ship.id === 'dione' && (shipState?.damage?.damagedSystemIds.includes('vip-lounge') ?? false)}
         />
         {damageDraws.some((draw) => draw.shipId === ship.id) && (

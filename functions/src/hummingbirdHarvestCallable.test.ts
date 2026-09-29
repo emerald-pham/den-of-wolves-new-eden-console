@@ -100,6 +100,14 @@ function resetFixture(): void {
 
 beforeEach(resetFixture);
 
+it('denies a fresh Hummingbird harvest roll before RNG when Quellon is in mutiny', async () => {
+  mock.documents.get('sessions/s1')!.shipUnrest = { quellon: 8 };
+  await expect(rollHummingbirdHarvest.run(request(rollRequest)))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+  expect(mock.documents.has('sessions/s1/hummingbirdHarvests/u1')).toBe(false);
+});
+
 it('rolls private server dice once and replays the exact roll without new randomness', async () => {
   const first = await rollHummingbirdHarvest.run(request(rollRequest));
   expect(first).toMatchObject({

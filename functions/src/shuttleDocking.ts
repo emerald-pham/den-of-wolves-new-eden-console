@@ -15,6 +15,7 @@ export interface ShuttleHolderLocation {
   readonly assignedRoleId?: string | null;
   readonly activeConsoleRoleId?: string | null;
   readonly replacementRoleId?: string | null;
+  readonly replacementStatus?: 'awaiting-re-role' | null;
   readonly escapeState?: unknown;
 }
 
@@ -47,7 +48,8 @@ export function authoritativeHolderShip(
   dockings: readonly AuthoritativeShuttleDocking[],
   activeVesselIds: readonly string[],
 ): string {
-  if (holder.role !== 'player' || holder.escapeState !== undefined && holder.escapeState !== null) {
+  if (holder.role !== 'player' || holder.replacementStatus != null ||
+      (holder.escapeState !== undefined && holder.escapeState !== null)) {
     throw new Error('The shuttle holder has no legal ship location.');
   }
   const roleId = holderRoleId(holder);

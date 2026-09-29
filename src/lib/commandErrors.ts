@@ -15,6 +15,7 @@ export const COMMAND_ERROR_KINDS = [
   'rate-limited',
   'unavailable-service',
   'terminal-session',
+  'station-selection-required',
   'unknown',
 ] as const;
 
@@ -49,6 +50,7 @@ const GUIDANCE: Readonly<Record<CommandErrorKind, string>> = {
   'rate-limited': 'This session is receiving too many requests. Wait for the displayed interval, then retry.',
   'unavailable-service': 'The fleet service is temporarily unavailable. Reconnect and retry.',
   'terminal-session': 'This session is no longer available. Return to the landing screen to join another session.',
+  'station-selection-required': 'Your previous station is no longer available. Return to station select and reselect your role.',
   unknown: 'The command could not be completed. Refresh the live state and try again.',
 };
 

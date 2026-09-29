@@ -357,6 +357,55 @@ describe('role-private brief boundary', () => {
       targetUid: 'alice', replacementRoleId: 'admiral',
     }));
   });
+
+  it('denies a historical assigned brief while the former captain awaits a new role', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/alice`), {
+        assignedRoleId: 'admiral', replacementRoleId: null,
+        replacementStatus: 'awaiting-re-role', activeConsoleRoleId: null, seatId: null,
+      });
+    });
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/roleBriefs/alice`)));
+  });
+
+  it('keeps historical loyalty documents stored but denies every pending-holder private projection', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await updateDoc(doc(db, `${SESSION}/players/alice`), {
+        assignedRoleId: 'admiral', replacementRoleId: null,
+        replacementStatus: 'awaiting-re-role', activeConsoleRoleId: null, seatId: null,
+      });
+      await setDoc(doc(db, `${SESSION}/secrets/loyalty-alice`), {
+        visibleToUids: ['alice'],
+        payload: { type: 'loyalty', kind: 'intelligence-agent', suspicion: 6 },
+      });
+      await setDoc(doc(db, `${SESSION}/intelligenceInvestigations/alice`), {
+        type: 'intelligence-investigation', sessionId: 's1',
+        investigatorUid: 'alice', visibleToUids: ['alice'], requestId: 'investigate-awaiting',
+        cycle: 2, revision: 1, targetUid: 'press', targetDisplayName: 'Press Officer',
+        reportedWolf: false,
+      });
+      await setDoc(doc(db, `${SESSION}/arbourVisionAuthority/current`), {
+        type: 'arbour-vision-authority', sessionId: 's1', recipientUid: 'alice', revision: 1,
+      });
+      await setDoc(doc(db, `${SESSION}/arbourVisions/alice`), {
+        type: 'arbour-vision', sessionId: 's1', recipientUid: 'alice',
+        visibleToUids: ['alice'], revision: 1, kind: 'danger', text: 'Stored vision',
+        label: 'FACILITATOR CALL',
+      });
+    });
+
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/secrets/loyalty-alice`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/secrets/loyalty-alice-friend`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/intelligenceInvestigations/alice`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/wolfCultIntelligence/alice`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/arbourVisions/alice`)));
+    await assertSucceeds(getDoc(doc(as('alice'), `${SESSION}/secrets/sec1`)));
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      expect((await getDoc(doc(ctx.firestore(), `${SESSION}/secrets/loyalty-alice`))).exists()).toBe(true);
+    });
+  });
 });
 
 describe('private projection listener bootstrap', () => {
@@ -904,6 +953,14 @@ describe('crisis state boundary', () => {
 
     await env.withSecurityRulesDisabled(async (ctx) => {
       await updateDoc(doc(ctx.firestore(), `${SESSION}/players/captain`), {
+        replacementRoleId: null, replacementStatus: 'awaiting-re-role',
+        activeConsoleRoleId: null, seatId: null,
+      });
+    });
+    await assertFails(getDoc(doc(as('captain'), `${SESSION}/civilUnrestGrievances/icebreaker`)));
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/captain`), {
         assignedRoleId: 'shepherd-captain', activeConsoleRoleId: 'shepherd-captain',
       });
     });
@@ -945,6 +1002,14 @@ describe('Hummingbird harvest boundary', () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       await updateDoc(doc(ctx.firestore(), `${SESSION}/players/alice`), {
         activeConsoleRoleId: 'quellon-explorer', replacementRoleId: 'wolf-commander',
+      });
+    });
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/hummingbirdHarvests/alice`)));
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/alice`), {
+        activeConsoleRoleId: 'quellon-explorer', replacementRoleId: null,
+        replacementStatus: 'awaiting-re-role',
       });
     });
     await assertFails(getDoc(doc(as('alice'), `${SESSION}/hummingbirdHarvests/alice`)));

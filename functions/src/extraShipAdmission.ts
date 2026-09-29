@@ -2,7 +2,7 @@ import { isResourceShipId } from './resources';
 import { parseSmallShipState, SMALL_SHIP_IDS, type SmallShipId, type SmallShipState } from './smallShip';
 
 const SMALL_SHIP_ROOT_KEYS = new Set([
-  'id', 'hostShipId', 'dockingRevision', 'population', 'unrest', 'cycle',
+  'id', 'hostShipId', 'dockingRevision', 'population', 'unrest', 'mutiny', 'cycle',
 ]);
 const SMALL_SHIP_CYCLE_KEYS = new Set([
   'step', 'revision', 'results', 'charges', 'turn', 'rationBonus',

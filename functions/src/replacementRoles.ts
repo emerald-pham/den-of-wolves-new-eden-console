@@ -75,6 +75,8 @@ export function replacementRoleAvailable(
 export function replacementAuthorityAllowsRole(
   replacementRoleId: unknown,
   requestedRoleId: string,
+  replacementStatus?: unknown,
 ): boolean {
+  if (replacementStatus != null) return false;
   return typeof replacementRoleId !== 'string' || replacementRoleId === requestedRoleId;
 }

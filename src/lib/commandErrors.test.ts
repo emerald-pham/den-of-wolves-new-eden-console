@@ -35,6 +35,18 @@ describe('normalizeCommandError', () => {
     }
   });
 
+  it('directs a member with an invalid station binding back to role selection', () => {
+    expect(normalizeCommandError({
+      code: 'functions/permission-denied',
+      details: { commandError: 'station-selection-required' },
+      message: 'private station detail',
+    })).toMatchObject({
+      kind: 'station-selection-required',
+      code: 'permission-denied',
+      message: 'Your previous station is no longer available. Return to station select and reselect your role.',
+    });
+  });
+
   it('classifies a structured stale reply without reading its message', () => {
     const result = normalizeCommandError({ status: 'stale', message: 'revision 3' });
     expect(result.kind).toBe('stale-revision');

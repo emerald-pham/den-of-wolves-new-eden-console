@@ -9,6 +9,7 @@ const rollback = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const run = vi.hoisted(() => vi.fn());
 const assign = vi.hoisted(() => vi.fn());
 const repair = vi.hoisted(() => vi.fn());
+const vipReroll = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const vipHandSubscription = vi.hoisted(() => vi.fn((_sessionId: string, _uid: string, onCards: (value: unknown) => void) => {
   onCards({ sessionId: 's1', ownerUid: 'u1', revision: 0, cards: [] });
   return () => undefined;
@@ -19,6 +20,9 @@ const connectedPlayersSubscription = vi.hoisted(() => vi.fn((_sessionId: string,
 }));
 vi.mock('@/lib/shipDamageService', () => ({ assignShipDamage: assign, repairAllShipDamage: repair }));
 vi.mock('@/lib/maintenanceService', () => ({ runMaintenance: run, rollbackMaintenance: rollback }));
+vi.mock('@/lib/vipCardService', () => ({
+  drawVipCard: vi.fn(), transferVipCard: vi.fn(), rerollVipUnrest: vipReroll,
+}));
 vi.mock('@/lib/firestore', () => ({
   subscribeVipCards: vipHandSubscription,
   subscribeConnectedPlayers: connectedPlayersSubscription,
@@ -139,6 +143,23 @@ it('keeps malformed Capybara survivor state rendered and locks ration submission
   expect(screen.getByRole('alert')).toHaveTextContent(/rations locked.*off the printed track/i);
   expect(screen.getByRole('button', { name: 'Proceed with rations' })).toBeDisabled();
 });
+it('shows Dione replacement costs at the crossed starred population and locks malformed state', () => {
+  useSessionStore.setState({ session: {
+    ...session,
+    shipSurvivors: { dione: 90_000 },
+    maintenanceCycles: { dione: { step: 2, revision: 2, results: {}, charges: [], refuelled: [] } },
+  } });
+  const view = render(<MaintenanceSystems name="Dione" shipId="dione" systems={[]}
+    renderSystem={() => null} rations={null} />);
+  expect(screen.getByText(/Food 0 \/ 5 \/ 11 \/ 16 \/\/ Water 0 \/ 5 \/ 10 \/ 13/)).toBeVisible();
+  expect(screen.getByText(/70001-90000 survivors/)).toBeVisible();
+  view.unmount();
+  useSessionStore.setState({ session: { ...session, shipSurvivors: { dione: 89_999 },
+    maintenanceCycles: { dione: { step: 2, revision: 2, results: {}, charges: [], refuelled: [] } } } });
+  render(<MaintenanceSystems name="Dione" shipId="dione" systems={[]} renderSystem={() => null} rations={null} />);
+  expect(screen.getByRole('alert')).toHaveTextContent(/rations locked.*off the printed track/i);
+  expect(screen.getByRole('button', { name: 'Proceed with rations' })).toBeDisabled();
+});
 
 it('renders Dione production controls from live charges and resource state', async () => {
   useSessionStore.setState({ session: {
@@ -182,7 +203,7 @@ it('renders Dione production controls from live charges and resource state', asy
   expect(screen.getByRole('button', { name: 'Skip Hydroponics' })).toBeDisabled();
 });
 
-it('renders the Dione VIP Lounge as a private step-5 action with a later-use boundary', async () => {
+it('renders the Dione VIP Lounge as a private step-5 action', async () => {
   useSessionStore.setState({ session: {
     ...session,
     currentTurn: 1,
@@ -194,8 +215,30 @@ it('renders the Dione VIP Lounge as a private step-5 action with a later-use bou
     damaged={false} />);
 
   expect(await screen.findByRole('button', { name: 'Draw private VIP card' })).toBeEnabled();
-  expect(screen.getByText(/Prompt 191 owns the printed effect/i)).toBeVisible();
-  expect(screen.getByText(/That use action is not available yet/i)).toBeVisible();
+});
+
+it('offers an owned VIP card on the open unrest check, showing dice and spending only by explicit action', async () => {
+  vipHandSubscription.mockImplementationOnce((_sessionId: string, _uid: string, onCards: (value: unknown) => void) => {
+    onCards({ sessionId: 's1', ownerUid: 'u1', revision: 3,
+      cards: [{ id: 'party-deck', name: 'Party Deck', status: 'available' }] });
+    return () => undefined;
+  });
+  useSessionStore.setState({ session: {
+    ...session, currentTurn: 1,
+    turnPhase: { turn: 1, teamPhaseEndsAt: '2026-09-13T00:00:00.000Z', openAirspaceEndsAt: '2026-09-14T00:00:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false } },
+    maintenanceCycles: { aegis: { step: 4, revision: 4, results: { '3': 'Rolled 1 + 1 + 15 = 17.' },
+      charges: [], refuelled: [], rationBonus: 15, unrestRolls: [1, 1], unrestBeforeCheck: 7 } },
+  } });
+  render(<DioneVipCards shipId="aegis"
+    cycle={{ step: 4, revision: 4, charges: [], unrestRolls: [1, 1], unrestBeforeCheck: 7 }}
+    damaged={false} />);
+  expect(await screen.findByText(/Die 1: 1.*Die 2: 1/)).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Discard card and reroll one die' })).toBeDisabled();
+  await userEvent.selectOptions(screen.getByRole('combobox', { name: 'VIP card to discard' }), 'party-deck');
+  await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Unrest die to reroll' }), '1');
+  await userEvent.click(screen.getByRole('button', { name: 'Discard card and reroll one die' }));
+  expect(vipReroll).toHaveBeenCalledWith('aegis', 'party-deck', 1, 4, undefined);
 });
 
 it('keeps an owned card available for Coordination transfer after maintenance advances', async () => {

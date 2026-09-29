@@ -26,13 +26,14 @@ const LABELS: Readonly<Record<(typeof BASE_CAPYBARA_CARGO_TYPES)[number], string
 
 function captainAuthorityIdentity(session: GameSession | null | undefined, me: Player | null | undefined): string {
   return JSON.stringify([
-    session?.id, me?.uid, me?.role, me?.replacementRoleId, me?.activeConsoleRoleId, me?.seatId,
+    session?.id, me?.uid, me?.role, me?.replacementRoleId, me?.replacementStatus,
+    me?.activeConsoleRoleId, me?.seatId,
   ]);
 }
 
 function isBaseCapybaraCaptain(me: Player | null | undefined): boolean {
   return me?.role === 'player' && me.replacementRoleId === 'capybara-small-captain' &&
-    me.activeConsoleRoleId === null && me.seatId === null;
+    me.replacementStatus == null && me.activeConsoleRoleId === null && me.seatId === null;
 }
 
 function isCurrentCaptainAuthority(

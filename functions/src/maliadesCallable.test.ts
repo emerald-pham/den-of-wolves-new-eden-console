@@ -166,6 +166,37 @@ it('repairs one damage only with fuelled Team Phase docking', async () => {
   expect(mock.documents.get('sessions/s1')).toMatchObject({
     maliadesState: { revision: 3, damage: 0 }, shipResources: { dione: { materials: 3 } },
   });
+
+  const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
+  mock.documents.get('sessions/s1')!.pursuitEmergencyWindow = {
+    type: 'pursuit-emergency-window', status: 'awaiting-gm-decision', cycle: 2,
+    openedAt: '2026-09-28T12:00:00.000Z',
+  };
+  await expect(repairMaliades.run(request(repairRequest({
+    requestId: 'repair-1', expectedRevision: 2,
+  })))).resolves.toMatchObject({ status: 'replayed', revision: 3 });
+  expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
+});
+
+it.each([
+  ['pending', {
+    type: 'pursuit-emergency-window', status: 'awaiting-gm-decision', cycle: 2,
+    openedAt: '2026-09-28T12:00:00.000Z',
+  }],
+  ['malformed', { type: 'pursuit-emergency-window', status: 'offered', cycle: 2 }],
+])('blocks a fresh Maliades repair while the pursuit decision is %s', async (_label, pursuitEmergencyWindow) => {
+  Object.assign(mock.documents.get('sessions/s1')!, {
+    pursuitEmergencyWindow,
+    maliadesState: {
+      revision: 2, attackId: 'attack-2', attackCycle: 2, launched: true,
+      damage: 1, destroyed: false, medium: null, short: null,
+    },
+  });
+
+  await expect(repairMaliades.run(request(repairRequest({ expectedRevision: 2 }))))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+
+  expectNoRepairWrites('repair-stale-1');
 });
 
 it.each([

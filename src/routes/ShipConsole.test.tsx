@@ -922,11 +922,13 @@ it('shows Admiral ship systems alongside the maintenance cycle', () => {
   expect(within(workspace).getAllByText(/short.*2.*medium.*3.*long.*6/i)).toHaveLength(2);
   const jump = within(within(workspace).getByRole('article', { name: 'Jump Drive system // operational' }));
   const baseline = jump.getByText(/short \/\/ 2 fuel/i, { selector: 'p' });
-  const normalFailure = jump.getByText('A jump fails on a roll of 1–2.', { selector: 'p' });
+  const damagedFailure = jump.getByText(
+    'If the Jump Drive is damaged, a jump fails on a roll of 1–3.', { selector: 'p' },
+  );
   const condition = jump.getByText('Condition', { selector: 'dt' });
   expect(jump.queryByText('Normal', { selector: 'dt' })).not.toBeInTheDocument();
-  expect(baseline.compareDocumentPosition(normalFailure) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  expect(normalFailure.compareDocumentPosition(condition) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(baseline.compareDocumentPosition(damagedFailure) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(damagedFailure.compareDocumentPosition(condition) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
   expect(within(workspace).getByRole('heading', { name: 'Maintenance cycle' })).toBeVisible();
   expect(within(workspace).getByRole('list', { name: 'AEGIS maintenance sequence' }))

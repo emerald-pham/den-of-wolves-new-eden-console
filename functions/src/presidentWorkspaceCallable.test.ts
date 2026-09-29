@@ -8,6 +8,7 @@ const mock = vi.hoisted(() => ({
   role: 'player', post: 'dione-president', connected: true, sessionExists: true,
   assignedRole: 'dione-president', seat: 'dione-president',
   phase: 'active', currentTurn: 2, revision: 0,
+  shipUnrest: undefined as unknown,
   entries: [] as Record<string, unknown>[],
   rawState: undefined as unknown,
   politicalCapital: undefined as unknown,
@@ -44,6 +45,7 @@ beforeEach(() => {
     role: 'player', post: 'dione-president', connected: true, sessionExists: true,
     assignedRole: 'dione-president', seat: 'dione-president',
     phase: 'active', currentTurn: 2, revision: 0, entries: [], rawState: undefined,
+    shipUnrest: undefined,
     politicalCapital: undefined, outcomeExists: true, outcomeId: 'crisis-1', outcomeRevision: 4,
     outcomeCapitalGranted: false,
   });
@@ -100,6 +102,7 @@ beforeEach(() => {
       activeVesselIds: ['dione'],
       presidentWorkspace: mock.rawState ?? { revision: mock.revision, entries: mock.entries },
       politicalCapital: mock.politicalCapital,
+      shipUnrest: mock.shipUnrest,
     };
     return { id: 's1', exists: mock.sessionExists, get: (key: string) => fields[key] };
   });
@@ -225,6 +228,12 @@ it('replays the same request without a second publication', async () => {
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
   expect(pressWrites).toBe(1);
+});
+
+it('denies a new President action while Dione is in mutiny', async () => {
+  mock.shipUnrest = { dione: 8 };
+  await expect(recordPresidentActionCommand.run(request())).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
 });
 
 it('denies other roles and a GM without scoped ship-console authority', async () => {

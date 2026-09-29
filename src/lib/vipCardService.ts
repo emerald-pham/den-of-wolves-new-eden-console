@@ -43,3 +43,22 @@ export async function transferVipCard(
   };
   return (await httpsCallable<typeof payload, unknown>(functions(), 'transferVipCard')(payload)).data;
 }
+
+export async function rerollVipUnrest(
+  shipId: string,
+  cardId: string,
+  dieIndex: 0 | 1,
+  expectedRevision: number,
+  consoleRoleId?: string,
+): Promise<unknown> {
+  const { session, gmInstance } = useSessionStore.getState();
+  if (!session) throw new Error('Reconnect before rerolling unrest.');
+  requireFreshSessionAuthority();
+  const payload = {
+    sessionId: session.id, shipId, cardId, dieIndex,
+    requestId: commandId(), expectedRevision,
+    ...(gmInstance ? { instanceId: gmInstance.id } : {}),
+    ...(consoleRoleId ? { consoleRoleId } : {}),
+  };
+  return (await httpsCallable<typeof payload, unknown>(functions(), 'rerollVipUnrest')(payload)).data;
+}

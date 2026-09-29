@@ -67,6 +67,7 @@ it('teaches source-backed session ground rules and the core cycle loop from the 
   );
 
   const groundRules = screen.getByRole('region', { name: 'Session ground rules' });
+  expect(groundRules).toHaveTextContent('Wolf agents are humans, just like the other survivors.');
   expect(groundRules).toHaveTextContent(
     'Keep your own role and loyalty information private. Do not show another player your brief or read theirs.',
   );

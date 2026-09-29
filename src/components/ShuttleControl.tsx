@@ -162,7 +162,8 @@ function captureCargoAttemptAuthority(
   const authority = session?.shuttleControl?.[shuttleId];
   const docking = session ? dockingForShuttle(session, shuttleId) : undefined;
   if ((requireFreshSnapshot && !hasFreshSessionAuthority()) || !session || !me || me.role !== 'player' ||
-      me.sessionId !== session.id || !me.uid || typeof me.fleetGroupId !== 'string' ||
+      me.sessionId !== session.id || !me.uid || me.replacementStatus != null ||
+      typeof me.fleetGroupId !== 'string' ||
       !me.fleetGroupId.trim() || !authority || authority.shuttleId !== shuttleId ||
       authority.holderUid !== me.uid || authority.revision !== expectedControlRevision || !docking?.shipId) {
     return undefined;
@@ -174,6 +175,7 @@ function captureCargoAttemptAuthority(
     assignedRoleId: me.assignedRoleId,
     activeConsoleRoleId: me.activeConsoleRoleId,
     replacementRoleId: me.replacementRoleId,
+    replacementStatus: me.replacementStatus,
     seatId: me.seatId,
     fleetGroupId: me.fleetGroupId,
     shuttleId,
@@ -193,6 +195,7 @@ function cargoAuthorityScopeKey(authority: CargoAttemptAuthority): string {
     assignedRoleId: authority.assignedRoleId,
     activeConsoleRoleId: authority.activeConsoleRoleId,
     replacementRoleId: authority.replacementRoleId,
+    replacementStatus: authority.replacementStatus,
     seatId: authority.seatId,
     fleetGroupId: authority.fleetGroupId,
     shuttleId: authority.shuttleId,
@@ -215,7 +218,9 @@ function cargoAttemptAuthorityIsCurrent(
   return hasFreshSessionAuthority() && session?.id === attempt.sessionId &&
     me?.sessionId === attempt.sessionId && me.uid === attempt.uid && me.role === attempt.role &&
     me.assignedRoleId === attempt.assignedRoleId && me.activeConsoleRoleId === attempt.activeConsoleRoleId &&
-    me.replacementRoleId === attempt.replacementRoleId && me.seatId === attempt.seatId &&
+    me.replacementRoleId === attempt.replacementRoleId &&
+    me.replacementStatus === attempt.replacementStatus && me.replacementStatus == null &&
+    me.seatId === attempt.seatId &&
     me.fleetGroupId === attempt.fleetGroupId &&
     authority?.shuttleId === attempt.shuttleId && authority.ownerRoleId === attempt.ownerRoleId &&
     authority.ownerUid === attempt.ownerUid && authority.holderUid === attempt.holderUid &&

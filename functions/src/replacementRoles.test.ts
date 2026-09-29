@@ -40,5 +40,7 @@ describe('replacement role authority', () => {
     expect(replacementAuthorityAllowsRole('wolf-commander', 'admiral')).toBe(false);
     expect(replacementAuthorityAllowsRole('wolf-commander', 'wolf-commander')).toBe(true);
     expect(replacementAuthorityAllowsRole(null, 'admiral')).toBe(true);
+    expect(replacementAuthorityAllowsRole(null, 'admiral', 'awaiting-re-role')).toBe(false);
+    expect(replacementAuthorityAllowsRole('gorgoneion-captain', 'gorgoneion-captain', 'awaiting-re-role')).toBe(false);
   });
 });
