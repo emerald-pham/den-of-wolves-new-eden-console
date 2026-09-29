@@ -206,7 +206,7 @@ const SURFACES = [
     id: 'gm-console', route: '/gm', fixture: () => gmState('pc04-gm', '/gm'),
     targets: [
       ['gm-heading', '.gm-console h1'],
-      ['gm-section-title', '.gm-console__section-title'],
+      ['gm-section-title', '.gm-console .gm-console__section-title'],
       ['gm-map-control', '.gm-starmap__controls label'],
     ],
   },

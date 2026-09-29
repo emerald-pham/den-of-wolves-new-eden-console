@@ -586,3 +586,28 @@ the largest chunk remains **497,246 bytes** under its 512,000-byte cap. The App,
 shuttle-route and shuttle-template suites pass **166/166**, with typecheck, lint
 and the separate production bundle gate also passing. Refreshed exact review,
 PR CI, deployment and ordinary production gameplay remain separate gates.
+
+PR CI `36557497311` subsequently passed the exact `639217d1` candidate, including
+the full unit, Functions, rules, typography, ticker, P637 and bundle gates. The
+first main exact-SHA render runner for merge `8d836602` reproduced a narrower
+runner-sensitive DRADIS breach at **158.8 ms p95** against 150 ms, with **7,838**
+counted label geometry reads and 91 mobile long frames. A new deterministic
+20-contact test recorded **68** label reads before the repair and now enforces
+two exact reads per label. The follow-up batches those natural-fit anchor
+measurements across the plot
+and reserves the existing exact measured fallback for crowded or width-capped
+labels, keeping names in the same synchronous render as their contacts. The
+test now passes within **40** reads. Refreshed local P637 and render evidence is
+green at **1,656,541 raw / 445,037 gzip bytes**, **33.7 ms** DRADIS p95,
+**4,785** label reads and zero mobile long frames. The full ContactPlot suite
+passes **57/57**, App/ShipPlot passes **92/92**, and deployed-shape DRADIS
+rendering still passes every initial, sweep, refresh, renamed-track, fade and
+reduced-motion check on desktop, phone and short landscape. Refreshed exact
+review and main deployment remain open.
+
+The follow-up candidate's duplicate CI runs exposed an ambiguous typography
+sample: the `gm-section-title` probe matched either the global lazy-loaded away
+mission panel or the GM route, depending on which subtree settled first. The
+probe is now scoped to the GM console route. This preserves the PC01 comparison
+and production styles while making the gate measure the named surface
+deterministically; the exact browser gate must pass before the repair advances.

@@ -102,6 +102,7 @@ export const SPASM_MS = 3300;
 const AMBIENT_RANGE_UPDATE_MS = 1_000;
 const ZERO_ORIGIN: Vector = { x: 0, y: 0, z: 0 };
 const LABEL_VIEWPORT_GUTTER_PX = 8;
+const LABEL_HORIZONTAL_GAP_PX = 11;
 const LABEL_LANE_OFFSETS = [0, -1, 1, -2, 2, -3, 3, -4, 4, -5, 5, -6, 6, -7, 7, -8, 8] as const;
 const intrinsicLabelWidths = new WeakMap<HTMLElement, { context: string; width: number }>();
 const handledFontEvents = new WeakSet<Event>();
@@ -266,16 +267,19 @@ function clampContactLabels(plot: HTMLElement, styleScope: string): void {
       label.style.setProperty('--label-clamp-y', `${round(previous + y)}px`);
     }
   };
-  labels.forEach((label, index) => {
-    // Measurable returns use the anchored pass below, which resets these
-    // styles before scoring. Avoid a full throwaway sizing pass for each one.
-    if (marks[index] && marks[index].width > 0 && marks[index].height > 0) return;
+  const resetLabelLayout = (label: HTMLElement) => {
     label.style.removeProperty('--label-clamp-x');
     label.style.removeProperty('--label-clamp-y');
     label.style.removeProperty('max-width');
     label.style.removeProperty('min-inline-size');
     label.style.removeProperty('white-space');
     label.style.removeProperty('overflow-wrap');
+  };
+  labels.forEach((label, index) => {
+    // Measurable returns use the anchored pass below, which resets these
+    // styles before scoring. Avoid a full throwaway sizing pass for each one.
+    if (marks[index] && marks[index].width > 0 && marks[index].height > 0) return;
+    resetLabelLayout(label);
     const visibleWidth = Math.max(1, plotBounds.width - 2 * LABEL_VIEWPORT_GUTTER_PX);
     if (label.getBoundingClientRect().width > visibleWidth) {
       label.style.maxWidth = `${visibleWidth}px`;
@@ -329,22 +333,114 @@ function clampContactLabels(plot: HTMLElement, styleScope: string): void {
     const y = Math.max(0, b.top - a.bottom, a.top - b.bottom);
     return Math.hypot(x, y);
   };
+
+  // Reset every measurable label first, then read the two adjacent anchor
+  // choices in batches. Reading and writing one contact at a time forces the
+  // browser to repeat a full plot layout for every label. Most contacts fit
+  // naturally on one of these exact rendered anchors. Crowded or
+  // width-constrained labels continue through the measured fallback below.
+  const preferredAnchors = labels.map((label) => (
+    label.closest<HTMLElement>('.contact-plot__contact')?.dataset.labelAnchor as LabelAnchor | undefined
+  ));
+  const oppositeAnchors = preferredAnchors.map((anchor): LabelAnchor | undefined => {
+    if (!anchor) return undefined;
+    const vertical = anchor.startsWith('north') ? 'north' : 'south';
+    const side = anchor.endsWith('east') ? 'west' : 'east';
+    return `${vertical}-${side}`;
+  });
+  const measureAnchorBatch = (anchors: Array<LabelAnchor | undefined>) => {
+    const styles = labels.map((label, index) => {
+      const marker = marks[index];
+      const contact = label.closest<HTMLElement>('.contact-plot__contact');
+      const anchor = anchors[index];
+      if (!marker || marker.width <= 0 || marker.height <= 0 || !contact || !anchor) return null;
+      resetLabelLayout(label);
+      contact.dataset.labelAnchor = anchor;
+      return label.style.cssText;
+    });
+    return labels.map((label, index) => {
+      const anchor = anchors[index];
+      if (styles[index] === null || !anchor) return null;
+      return { anchor, bounds: label.getBoundingClientRect(), style: styles[index]! };
+    });
+  };
+  const preferredLayouts = measureAnchorBatch(preferredAnchors);
+  const oppositeLayouts = measureAnchorBatch(oppositeAnchors);
   for (const [index, label] of labels.entries()) {
     const marker = marks[index];
     const contact = label.closest<HTMLElement>('.contact-plot__contact');
+    const preferredLayout = preferredLayouts[index];
+    const oppositeLayout = oppositeLayouts[index];
     if (marker && marker.width > 0 && marker.height > 0 && contact &&
-      label.getBoundingClientRect().width > 0) {
+      preferredLayout && oppositeLayout && preferredLayout.bounds.width > 0) {
       const nearby = [
         ...obstacles,
         ...marks.filter((mark, markIndex): mark is DOMRect =>
           markIndex !== index && mark !== null && mark.width > 0 && mark.height > 0),
       ];
-      const preferred = contact.dataset.labelAnchor as LabelAnchor;
+      const preferred = preferredAnchors[index]!;
+      const minX = plotBounds.left + LABEL_VIEWPORT_GUTTER_PX;
+      const maxX = plotBounds.right - LABEL_VIEWPORT_GUTTER_PX;
+      const minY = plotBounds.top + LABEL_VIEWPORT_GUTTER_PX;
+      const maxY = plotBounds.bottom - LABEL_VIEWPORT_GUTTER_PX;
+      const directCandidates: {
+        anchor: LabelAnchor;
+        bounds: DOMRect;
+        clearance: number;
+      }[] = [];
+      for (const { anchor, bounds } of [preferredLayout, oppositeLayout]) {
+        const sideWidth = anchor.endsWith('east')
+          ? marker.left - plotBounds.left - LABEL_VIEWPORT_GUTTER_PX - LABEL_HORIZONTAL_GAP_PX
+          : plotBounds.right - LABEL_VIEWPORT_GUTTER_PX - marker.right - LABEL_HORIZONTAL_GAP_PX;
+        const anchorGap = anchor.endsWith('east')
+          ? marker.left - bounds.right : bounds.left - marker.right;
+        const fits = sideWidth > 0 && bounds.width <= sideWidth && bounds.height > 0 &&
+          bounds.left >= minX && bounds.right <= maxX &&
+          bounds.top >= minY && bounds.bottom <= maxY &&
+          anchorGap >= 4;
+        if (!fits) continue;
+        let clearance = Number.POSITIVE_INFINITY;
+        let collides = false;
+        for (const rect of nearby) {
+          if (overlaps(bounds, rect)) {
+            collides = true;
+            break;
+          }
+          const x = Math.max(0, rect.left - bounds.right, bounds.left - rect.right);
+          const y = Math.max(0, rect.top - bounds.bottom, bounds.top - rect.bottom);
+          clearance = Math.min(clearance, x * x + y * y);
+        }
+        if (!collides) directCandidates.push({
+          anchor,
+          bounds,
+          clearance: Number.isFinite(clearance) ? clearance : 0,
+        });
+      }
+      if (directCandidates.length > 0) {
+        const bestDirect = directCandidates.reduce((best, candidate) =>
+          candidate.clearance > best.clearance ? candidate : best);
+        contact.dataset.labelAnchor = bestDirect.anchor;
+        label.style.cssText = bestDirect.anchor === preferredLayout.anchor
+          ? preferredLayout.style : oppositeLayout.style;
+        finalBounds[index] = bestDirect.bounds;
+        obstacles.push(bestDirect.bounds);
+        continue;
+      }
       const preparedByAnchor = new Map<LabelAnchor, {
         original: DOMRect;
         sideWidth: number;
         style: string;
       }>();
+      for (const layout of [preferredLayout, oppositeLayout]) {
+        const sideWidth = layout.anchor.endsWith('east')
+          ? marker.left - plotBounds.left - LABEL_VIEWPORT_GUTTER_PX - LABEL_HORIZONTAL_GAP_PX
+          : plotBounds.right - LABEL_VIEWPORT_GUTTER_PX - marker.right - LABEL_HORIZONTAL_GAP_PX;
+        preparedByAnchor.set(layout.anchor, {
+          original: layout.bounds,
+          sideWidth,
+          style: layout.style,
+        });
+      }
       const prepareAnchor = (anchor: LabelAnchor) => {
         const prepared = preparedByAnchor.get(anchor);
         if (prepared) {
@@ -353,15 +449,10 @@ function clampContactLabels(plot: HTMLElement, styleScope: string): void {
           return prepared;
         }
         contact.dataset.labelAnchor = anchor;
-        label.style.removeProperty('--label-clamp-x');
-        label.style.removeProperty('--label-clamp-y');
-        label.style.removeProperty('max-width');
-        label.style.removeProperty('min-inline-size');
-        label.style.removeProperty('white-space');
-        label.style.removeProperty('overflow-wrap');
+        resetLabelLayout(label);
         const sideWidth = anchor.endsWith('east')
-          ? marker.left - plotBounds.left - LABEL_VIEWPORT_GUTTER_PX - 11
-          : plotBounds.right - LABEL_VIEWPORT_GUTTER_PX - marker.right - 11;
+          ? marker.left - plotBounds.left - LABEL_VIEWPORT_GUTTER_PX - LABEL_HORIZONTAL_GAP_PX
+          : plotBounds.right - LABEL_VIEWPORT_GUTTER_PX - marker.right - LABEL_HORIZONTAL_GAP_PX;
         let original = label.getBoundingClientRect();
         if (original.width > sideWidth && sideWidth > 0) {
           // Read the untransformed width before changing the cap. This shares
@@ -401,10 +492,6 @@ function clampContactLabels(plot: HTMLElement, styleScope: string): void {
         const bounds = candidate.original;
         const anchorGap = anchor.endsWith('east')
           ? marker.left - bounds.right : bounds.left - marker.right;
-        const minX = plotBounds.left + LABEL_VIEWPORT_GUTTER_PX;
-        const maxX = plotBounds.right - LABEL_VIEWPORT_GUTTER_PX;
-        const minY = plotBounds.top + LABEL_VIEWPORT_GUTTER_PX;
-        const maxY = plotBounds.bottom - LABEL_VIEWPORT_GUTTER_PX;
         const fits = bounds.width > 0 && bounds.height > 0 &&
           bounds.left >= minX && bounds.right <= maxX &&
           bounds.top >= minY && bounds.bottom <= maxY &&
@@ -481,10 +568,6 @@ function clampContactLabels(plot: HTMLElement, styleScope: string): void {
           top: original.top + cssX * projection.x.top + cssY * projection.y.top,
           bottom: original.bottom + cssX * projection.x.bottom + cssY * projection.y.bottom,
         });
-        const minX = plotBounds.left + LABEL_VIEWPORT_GUTTER_PX;
-        const maxX = plotBounds.right - LABEL_VIEWPORT_GUTTER_PX;
-        const minY = plotBounds.top + LABEL_VIEWPORT_GUTTER_PX;
-        const maxY = plotBounds.bottom - LABEL_VIEWPORT_GUTTER_PX;
         const x = original.left < minX ? minX - original.left
           : original.right > maxX ? maxX - original.right : 0;
         const y = original.top < minY ? minY - original.top

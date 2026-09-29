@@ -37,6 +37,10 @@ test('exact-SHA Hosting verification always runs both typography gates', () => {
   ]) {
     assert.ok(browserGate.includes(`id: '${surface}'`), `the browser gate must capture ${surface}`);
   }
+  assert.ok(
+    browserGate.includes("['gm-section-title', '.gm-console .gm-console__section-title']"),
+    'the GM section-title sample must stay inside the GM route instead of racing a global lazy panel',
+  );
   assert.ok(browserGate.includes('page.screenshot'), 'the browser gate must save rendered screenshots');
 });
 
