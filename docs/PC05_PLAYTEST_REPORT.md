@@ -446,3 +446,12 @@ it does not replace Firestore transactions with mocks. Run it again after
 jump repair using the configured isolated emulator slot. Its original slot 3
 reservation and configuration have been released. A4 independent follow-up
 is now checking `dfc8ca78` while the jump owner repairs the failing cases.
+
+Independent read-only deployment review of exact `523b1fcf`, from actual
+deployed `0ba386f5`, is **clear** for named targets, fail-closed transitions and
+transitive consumers. It verifies Hosting, Firestore and **136 unique valid
+Functions**, all 68 consumers of the 28 changed index-local helpers, matching
+source receipts and no omitted live external-module consumer. Its independent
+selector run passes **84/84**. The fetched main remains `7782840d` and is an
+ancestor of this branch. This review does not approve future jump changes;
+their source receipts and changed consumers require reconciliation.
