@@ -88,7 +88,8 @@ export function createAirspaceClosureTaskScheduler() {
 export function createAirspaceClosureParkingTask() {
   return onTaskDispatched<AirspaceClosureTask>({
     region: 'us-central1',
-    invoker: 'private',
+    // Task Queue functions are private when invoker is omitted. Keeping the
+    // default also avoids an unnecessary IAM rewrite during deployment.
     retryConfig: TASK_RETRY_CONFIG,
   }, async request => {
     const task = parseAirspaceClosureTask(request.data);

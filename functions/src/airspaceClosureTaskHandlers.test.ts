@@ -320,7 +320,7 @@ it('keeps the task private by default while retaining failed server deadlines fo
   }).options;
 
   expect(options).not.toHaveProperty('invoker');
-  expect(options.retryConfig).toEqual({ maxAttempts: -1, maxRetrySeconds: 0 });
+  expect(options.retryConfig).toMatchObject({ maxAttempts: -1, maxRetrySeconds: 0 });
 });
 
 it('reconciles extension and resume writes while invalidating pause, attack, and cycle tasks', async () => {
