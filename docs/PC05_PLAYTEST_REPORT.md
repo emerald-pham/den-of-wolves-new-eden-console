@@ -349,3 +349,11 @@ The passing local suites above do not waive these findings. Candidate 0.5.55
 metadata is prepared at `b3edfd2b`, but no push, deployment or full PC05 release
 is authorized by this evidence; implementation, exact review and live proof
 remain required.
+
+
+The released 0.5.54 facilitator casting service subsequently assigned the
+second real player to Admiral and returned `CASTING ASSIGNMENT APPLIED`.
+The prepared session now has real Scientist and Admiral holders plus its GM,
+which supports post-deployment cross-ship privacy and normal action checks.
+The accompanying screenshot still shows the old Read names control; it is
+preparation evidence, not evidence that the required DRADIS release fix is live.
