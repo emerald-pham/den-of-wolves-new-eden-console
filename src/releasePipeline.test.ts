@@ -168,6 +168,16 @@ it('maps Firestore adapter changes to every callable that imports its authority 
   expect(selected).toContain('functions:startGame');
 });
 
+it('deploys only the private closure worker when its task handler changes', () => {
+  expect(deploymentSelector({
+    before: 'base',
+    after: 'candidate',
+    targets: ['functions'],
+    files: ['functions/src/airspaceClosureTaskHandlers.ts'],
+    isAncestor: () => false,
+  })).toBe('hosting,functions:parkShuttlesAtAirspaceClosure');
+});
+
 it('fails closed when named callable scope or deployment baseline is unknown', () => {
   expect(() => deploymentSelector({
     before: 'base', after: 'candidate', targets: ['functions'],
@@ -455,7 +465,9 @@ it('verifies Hosting and public Functions through injected production adapters',
   ]));
 });
 
-it('rejects public invoker access on a selected private Cloud Tasks worker', async () => {
+it.each(['allUsers', 'allAuthenticatedUsers'])(
+  'rejects %s invoker access on a selected private Cloud Tasks worker',
+  async (publicMember) => {
   const functionNames = [
     'triggerDradisContact',
     'startSinglePlayerDemo',
@@ -477,7 +489,10 @@ it('rejects public invoker access on a selected private Cloud Tasks worker', asy
       return JSON.stringify({ status: { latestReadyRevisionName: `${args[3]}-rev-2` } });
     }
     if (args[0] === 'run' && args[1] === 'services' && args[2] === 'get-iam-policy') {
-      return JSON.stringify({ bindings: [{ role: 'roles/run.invoker', members: ['allUsers'] }] });
+      const member = String(args[3]).endsWith('/parkShuttlesAtAirspaceClosure')
+        ? publicMember
+        : 'allUsers';
+      return JSON.stringify({ bindings: [{ role: 'roles/run.invoker', members: [member] }] });
     }
     throw new Error(`Unexpected command: ${args.join(' ')}`);
   };
@@ -490,7 +505,8 @@ it('rejects public invoker access on a selected private Cloud Tasks worker', asy
     previousFunctionRevisions: { parkShuttlesAtAirspaceClosure: 'parkShuttlesAtAirspaceClosure-rev-1' },
     runCommand,
   })).rejects.toThrow('parkShuttlesAtAirspaceClosure must remain private');
-});
+  },
+);
 
 it('proves every selected Function published a different ready Cloud Run revision', async () => {
   const commands: string[][] = [];
