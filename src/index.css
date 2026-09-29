@@ -5560,6 +5560,21 @@ body {
   outline-offset: 2px;
 }
 
+.settings-changelog__progress {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0 -0.75rem;
+  padding: 0.8rem 0.75rem;
+  border-bottom: 1px solid var(--cic-rule);
+  color: var(--cic-muted);
+  font: 0.75rem/1.45 var(--cic-mono);
+}
+
+.settings-changelog__progress strong {
+  color: var(--cic-green);
+  letter-spacing: 0.04em;
+}
+
 .settings-changelog__entry {
   padding: 0.9rem 0;
 }

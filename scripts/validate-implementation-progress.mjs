@@ -198,6 +198,7 @@ function parseChangelogEntries(source, applicationVersion, errors) {
           partial: progressNumber('partial'),
           active: progressNumber('active'),
           missing: progressNumber('missing'),
+          blocked: progressNumber('blocked'),
         }
         : null,
     };
@@ -229,6 +230,7 @@ function validateReleaseProgressMetadata({
     partial: statusCounts.partial,
     active: statusCounts['in-progress'],
     missing: statusCounts.missing,
+    blocked: statusCounts.blocked,
   };
   for (const [field, expected] of Object.entries(expectedCounts)) {
     const actual = progress[field];
@@ -599,6 +601,7 @@ export function validateReleaseFragment({
 
 function validateCatalogBackedProgress({
   catalogSource,
+  changelogSource,
   applicationVersion,
   requiredPrompt = null,
   validatedFragment = null,
@@ -608,6 +611,14 @@ function validateCatalogBackedProgress({
   const inputs = catalogProgressInputs(catalogSource, errors);
   if (!inputs) return { errors, summary: null };
   const { catalog, summary } = inputs;
+  const changelogEntries = parseChangelogEntries(changelogSource, applicationVersion, errors);
+  const releaseProgress = validateReleaseProgressMetadata({
+    entries: changelogEntries,
+    applicationVersion,
+    headline: { total: summary.total },
+    statusCounts: summary.counts,
+    errors,
+  });
   if (requiredPrompt !== null && requiredPrompt !== undefined) {
     const prompt = normalizePromptId(requiredPrompt);
     if (!prompt || !catalog.prompts.some((candidate) => candidate.id === prompt)) {
@@ -631,7 +642,7 @@ function validateCatalogBackedProgress({
   }
   return {
     errors,
-    releaseProgress: null,
+    releaseProgress,
     ...(fragmentValidation ? { validatedFragment: fragmentValidation.fragment } : {}),
     summary: {
       complete: summary.complete,
@@ -659,6 +670,7 @@ export function validateImplementationProgress({
   if (typeof catalogSource === 'string' && catalogSource.trim()) {
     return validateCatalogBackedProgress({
       catalogSource,
+      changelogSource,
       applicationVersion,
       requiredPrompt,
       validatedFragment,

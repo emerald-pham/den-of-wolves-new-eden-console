@@ -14,6 +14,7 @@ export interface ChangelogEntry {
     readonly partial: number;
     readonly active: number;
     readonly missing: number;
+    readonly blocked?: number;
   };
 }
 
@@ -21,6 +22,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationProgress: {
+      completed: 507, total: 751, percentage: '67.51%',
+      done: 507, partial: 35, active: 0, missing: 209, blocked: 0,
+    },
+    changes: [
+      'PC05 is complete: setup and onboarding, turn and Coordination gates, rationing and mutiny recovery, private scouting and ship-specific map knowledge, DRADIS, station recovery, and jump handling passed their release checks.',
+      'The changelog now shows the current build catalog total above the release history and labels older totals as historical build snapshots.',
+      '507 of 751 planned items are complete in the catalog snapshot used to build this release (67.51%).',
+    ],
+  },
+
+  {
+    version: '0.5.57',
     implementationProgress: {
       completed: 458, total: 751, percentage: '60.99%',
       done: 458, partial: 84, active: 0, missing: 209,
