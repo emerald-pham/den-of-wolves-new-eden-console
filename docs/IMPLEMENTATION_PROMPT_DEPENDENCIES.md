@@ -311,7 +311,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 198 | NEW | done | 114;122;125;194 | none | none | none | none | none | none | none | E-AUDIT-198;E-198-230-PRODUCTION | M3;M5 | Resolve Icebreaker Hydroponics. |
 | 199 | NEW | done | 114;122;125;194 | none | none | none | none | none | none | none | E-AUDIT-199;E-198-230-PRODUCTION | M3;M5 | Resolve Icebreaker Water Reclamation. |
 | 200 | NEW | done | 114;122;125;194 | none | none | none | none | none | none | none | E-AUDIT-200;E-198-230-PRODUCTION | M3;M5 | Resolve Mining Drone Control. |
-| 201 | PRESERVE | missing | 177;287-304 | none | none | none | none | none | none | none | E-AUDIT-201 | M3;M5 | Audit the Icebreaker Jump Drive. |
+| 201 | PRESERVE | partial | 177;287-304 | none | none | none | none | none | none | none | E-AUDIT-201;E-PC05-JUMP-CANDIDATE | M3;M5 | Audit the Icebreaker Jump Drive. |
 | 202 | NEW | missing | 201 | none | none | none | none | none | none | none | E-AUDIT-202 | M3;M5 | Resolve the Ram Scoop. |
 | 203 | NEW | done | 166 | none | none | none | none | none | none | none | E-AUDIT-203;E-FLEET-CAPTAIN-WORKSPACES-VERIFIED | M3;M5 | Complete the Icebreaker Captain workspace. |
 | 203a | NEW | done | 166;194;361 | none | none | none | none | none | none | none | E-AUDIT-203A | M3;M5 | Complete the Icebreaker Engineer workspace. |
@@ -414,24 +414,24 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 284 | NEW | done | 283;006;286 | none | none | none | none | none | none | none | E-AUDIT-284;E-284-GROUP-PRODUCER;E-284-DISCOVERY-BOUNDARY | M4;M5 | Redact unknown systems. |
 | 285 | NEW | done | 281 | none | none | none | none | none | none | none | E-AUDIT-285;E-285-POSITION | M4;M5 | Model per-ship position. |
 | 286 | NEW | done | 285 | none | none | none | none | none | none | none | E-AUDIT-286;E-286-FLEET-GROUP | M4;M5 | Model fleet-group identity. |
-| 287 | PRESERVE | partial | 281;285 | none | none | OWNER-JUMP-DISTANCE-BAND-CUTOFFS | none | none | none | none | E-AUDIT-287;E-287-GRAPH-CONSOLIDATION;E-287-JUMP-DISTANCE-OWNER | M4;M5 | Calculate jump distance. |
-| 288 | PRESERVE | missing | 162;287 | none | none | none | none | none | none | none | E-AUDIT-288 | M4;M5 | Resolve per-ship jump costs. |
-| 289 | PRESERVE | missing | 177;287 | none | none | none | none | none | none | none | E-AUDIT-289 | M4;M5 | Validate Jump Drive readiness. |
-| 290 | PRESERVE | missing | 287;103 | none | none | none | none | none | none | none | E-AUDIT-290 | M4;M5 | Enforce one jump per ship per turn. |
-| 291 | PRESERVE | missing | 288;167 | none | none | none | none | none | none | none | E-AUDIT-291 | M4;M5 | Reserve jump fuel atomically. |
+| 287 | PRESERVE | partial | 281;285 | none | none | OWNER-JUMP-DISTANCE-BAND-CUTOFFS | none | none | none | none | E-AUDIT-287;E-287-GRAPH-CONSOLIDATION;E-287-JUMP-DISTANCE-OWNER;E-PC05-JUMP-CANDIDATE | M4;M5 | Calculate jump distance. |
+| 288 | PRESERVE | partial | 162;287 | none | none | none | none | none | none | none | E-AUDIT-288;E-PC05-JUMP-CANDIDATE | M4;M5 | Resolve per-ship jump costs. |
+| 289 | PRESERVE | partial | 177;287 | none | none | none | none | none | none | none | E-AUDIT-289;E-PC05-JUMP-CANDIDATE | M4;M5 | Validate Jump Drive readiness. |
+| 290 | PRESERVE | partial | 287;103 | none | none | none | none | none | none | none | E-AUDIT-290;E-PC05-JUMP-CANDIDATE | M4;M5 | Enforce one jump per ship per turn. |
+| 291 | PRESERVE | partial | 288;167 | none | none | none | none | none | none | none | E-AUDIT-291;E-PC05-JUMP-CANDIDATE | M4;M5 | Reserve jump fuel atomically. |
 | 292 | PRESERVE | done | none | none | none | none | none | none | none | none | E-292-VERIFIED | M4;M5 | Validate coordinate shape. |
 | 293 | PRESERVE | done | 281;282;285 | none | none | none | none | none | none | none | E-AUDIT-293;E-293-REACHABILITY | M4;M5 | Validate printed reachability. |
-| 294 | PRESERVE | missing | 287-293 | none | none | none | none | none | none | none | E-AUDIT-294 | M4;M5 | Complete an independent ship jump. |
+| 294 | PRESERVE | partial | 287-293 | none | none | none | none | none | none | none | E-AUDIT-294;E-PC05-JUMP-CANDIDATE | M4;M5 | Complete an independent ship jump. |
 | 295 | PRESERVE | done | none | none | none | none | none | none | none | none | E-295-VERIFIED | M4;M5 | Resolve unprinted coordinates. |
-| 296 | PRESERVE | missing | 289;291 | none | none | none | none | none | none | none | E-AUDIT-296 | M4;M5 | Resolve uncharged and fuel-starved attempts. |
-| 297 | EXTEND | missing | 289;294;130 | none | none | none | none | none | none | none | E-AUDIT-297 | M4;M5 | Resolve damaged-drive randomness. |
-| 298 | EXTEND | missing | 289;124 | none | none | none | none | none | none | none | E-AUDIT-298 | M4;M5 | Apply upgraded-drive behavior. |
-| 299 | DECISION | missing | none | none | none | none | none | none | none | none | E-299-FAILED-JUMP-DAMAGE-OWNER;E-PC05-RATIONS-JUMP-SOURCE-DECISIONS | M4;M5 | Apply failed-jump damage. |
-| 300 | EXTEND | missing | 289;291 | none | none | none | none | none | none | none | E-AUDIT-300 | M4;M5 | Execute one emergency jump per ship. |
-| 301 | EXTEND | missing | 291;294 | none | none | none | none | none | none | none | E-AUDIT-301 | M4;M5 | Resolve concurrent fleet jumps. |
-| 302 | EXTEND | missing | 294;167 | none | none | none | none | none | none | none | E-AUDIT-302 | M4;M5 | Record every jump transition. |
-| 303 | PRESERVE | partial | 289;294 | none | none | none | none | none | none | none | E-AUDIT-303 | M4;M5 | Audit jump-button truthfulness. |
-| 304 | EXTEND | partial | 294;291;302 | none | none | none | none | none | none | none | E-AUDIT-304 | M4;M5 | Reconcile jump retries. |
+| 296 | PRESERVE | partial | 289;291 | none | none | none | none | none | none | none | E-AUDIT-296;E-PC05-JUMP-CANDIDATE | M4;M5 | Resolve uncharged and fuel-starved attempts. |
+| 297 | EXTEND | partial | 289;294;130 | none | none | none | none | none | none | none | E-AUDIT-297;E-PC05-JUMP-CANDIDATE | M4;M5 | Resolve damaged-drive randomness. |
+| 298 | EXTEND | partial | 289;124 | none | none | none | none | none | none | none | E-AUDIT-298;E-PC05-JUMP-CANDIDATE | M4;M5 | Apply upgraded-drive behavior. |
+| 299 | DECISION | partial | none | none | none | none | none | none | none | none | E-299-FAILED-JUMP-DAMAGE-OWNER;E-PC05-RATIONS-JUMP-SOURCE-DECISIONS;E-PC05-JUMP-CANDIDATE | M4;M5 | Apply failed-jump damage. |
+| 300 | EXTEND | partial | 289;291 | none | none | none | none | none | none | none | E-AUDIT-300;E-PC05-JUMP-CANDIDATE | M4;M5 | Execute one emergency jump per ship. |
+| 301 | EXTEND | partial | 291;294 | none | none | none | none | none | none | none | E-AUDIT-301;E-PC05-JUMP-CANDIDATE | M4;M5 | Resolve concurrent fleet jumps. |
+| 302 | EXTEND | partial | 294;167 | none | none | none | none | none | none | none | E-AUDIT-302;E-PC05-JUMP-CANDIDATE | M4;M5 | Record every jump transition. |
+| 303 | PRESERVE | partial | 289;294 | none | none | none | none | none | none | none | E-AUDIT-303;E-PC05-JUMP-CANDIDATE | M4;M5 | Audit jump-button truthfulness. |
+| 304 | EXTEND | partial | 294;291;302 | none | none | none | none | none | none | none | E-AUDIT-304;E-PC05-JUMP-CANDIDATE | M4;M5 | Reconcile jump retries. |
 | 305 | NEW | done | 103;485 | none | none | none | none | none | none | none | E-AUDIT-305;E-305-GROUP-FOUNDATION;E-305-CYCLE-PURSUIT | M4;M5 | Advance pursuit each cycle. |
 | 306 | NEW | done | 281;285;305 | none | none | none | none | none | none | none | E-AUDIT-306;E-306-CHART-DEPTH-PURSUIT | M4;M5 | Reduce pursuit by chart depth. |
 | 307 | NEW | partial | 286;305 | none | none | none | none | none | none | none | E-AUDIT-307;E-307-SPLIT-PURSUIT-ISOLATION | M4;M5 | Isolate pursuit by fleet group. |
@@ -1781,6 +1781,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-PC05-OWNER-SETUP-AND-COPY | owner-decision / candidate / production-proof-pending | 654;662;589 -> PC05 | docs/PRODUCT_MILESTONE_FEEDBACK.md; docs/PC05_PLAYTEST_REPORT.md; functions/src/gameSetup.ts; functions/src/wolfAssignment.ts; functions/src/startCallable.test.ts; functions/src/loyaltyCallable.test.ts; src/components/PlayerOnboardingGuide.tsx; src/routes/RoleBrief.test.tsx | On 2026-09-28 the owner approved automatic Wolf assignment, confirmed starts with only available real players including zero eligible Wolves, and exact Wolf-humanity copy. PC05 source and focused tests implement the bounded changes; no deployment or ordinary production acceptance is claimed by this evidence. |
 | E-PC05-RATIONS-JUMP-SOURCE-DECISIONS | source-decision / candidate / production-proof-pending | 117;118;184;299 -> PC05 | docs/PC05_MAINTENANCE_EVIDENCE.md; docs/PRODUCT_MILESTONE_ASSUMPTIONS.md; docs/PC05_PLAYTEST_REPORT.md; functions/src/maintenance.ts; functions/src/shipPopulation.ts; src/data/shipPopulation.ts | Source reconciliation replaces obsolete owner-decision waits with documented printed evidence and bounded product inferences. Integrated ration candidates have focused tests; failed-jump implementation is in progress. No deployment or ordinary gameplay acceptance is established by this record. |
 | E-PC05-MAINTENANCE-CANDIDATE | source / integrated-candidate / production-proof-pending | 116;117;118;119;120;121;134;135;136;137;184;191 -> PC05 | docs/PC05_MAINTENANCE_EVIDENCE.md; docs/PC05_PLAYTEST_REPORT.md; docs/PRODUCT_MILESTONE_ASSUMPTIONS.md; functions/src/maintenance.ts; functions/src/mutiny.ts; functions/src/smallShip.ts; functions/src/voyage33Maintenance.ts; functions/src/index.ts; src/components/GmMutinyRecovery.tsx | Integrated maintenance and supplemental-craft candidates at eff0ed30 have source-routed rations, authoritative maintenance, single-GM acknowledgement, private VIP reroll, mutiny locks and captain recovery. At f4df6ba4 all 5,995 unit/Functions tests pass; the supplemental worker also records 142 rules tests and responsive rendering. Independent review is in progress and deployment/ordinary gameplay proof remain pending. Status is partial, not done. |
+| E-PC05-JUMP-CANDIDATE | source-assumptions / integrated-candidate / production-proof-pending | 201;287;288;289;290;291;294;296;297;298;299;300;301;302;303;304 -> PC05 | docs/PC05_JUMP_EVIDENCE.md; docs/PC05_PLAYTEST_REPORT.md; docs/PRODUCT_MILESTONE_ASSUMPTIONS.md; functions/src/jumpDrive.ts; functions/src/index.ts; src/components/JumpDriveConsole.tsx; src/components/JumpFailureAdjudicationPanel.tsx | Worker bf3c38d1 integrated as a6885240 after separate test-first commits. Nine integrated focused files pass 458 tests; worker follow-up records 5,932 full tests and responsive normal/reduced rendering. Full-die GM failure adjudication and available-fuel spending follow documented A1/A2; numeric distance bands retain the explicitly unverified compatibility assumption A5. Independent authority/concurrency review and ordinary released gameplay remain pending. P551 is outside this fixed scope and hidden Nebula markers remain unconsumed by generic jumps. |
 <!-- END GENERATED PROMPT CATALOG: dependency -->
 
 ## Shared integrity gate
