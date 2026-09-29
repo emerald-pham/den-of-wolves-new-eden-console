@@ -78,8 +78,10 @@ source pages or extracted source text were copied into this repository.
 
 ## Verification and remaining evidence
 
-Test-first commits on this branch are `631fcc3b` and `dea45193`. The additional
-edge-regression test commit `e824aea7` was observed red before its fixes:
+Test-first commits on this branch are `631fcc3b`, `dea45193`, and
+`e824aea7`. The rendered regression commit `b5fd29a6` was also observed red at
+320 px before the coordinate-control sizing fix. The edge-regression test
+commit `e824aea7` was observed red before its fixes:
 the old list read a collection query instead of the current failure document,
 the multi-draw case reported the final population rather than the crossed
 threshold value, and a delayed private list response survived a facilitator
@@ -89,6 +91,7 @@ authority change. The latest focused results are:
 - `npx vitest run --project unit src/lib/sessionService.test.ts src/components/JumpDriveConsole.test.tsx src/components/JumpFailureAdjudicationPanel.test.tsx src/components/JumpFailureReadout.test.tsx src/components/FleetSystemsWorkspace.test.tsx src/routes/ShipConsole.test.tsx --reporter=dot`: 357 tests passed.
 - `npm run typecheck`, `npm run build`, and `npm run build --prefix functions` completed successfully. `npm run lint` reported no errors and eight warnings. `npm run test:copy-consistency` passed.
 - `node scripts/test-pc05-jump-layout.mjs` rendered the production Jump Drive console and facilitator failed-jump panel at 320x844, 390x844, 844x390, and 1440x900 in normal and reduced-motion modes. The pursuit-10 emergency control enabled after the destination lock, all three failure types appeared, buttons/selects stayed within the viewport and at least 36 px high, and the short-landscape spacing assertion passed.
+- After updating the request-guard fixture to expect the normalized `emergency: false` field (`4f2b2cbc`), `npm test -- --reporter=dot` passed all 5,932 tests across 437 files.
 
 The callable uses Firestore transactions over shared session/navigation state
 and writes vessel-specific fuel, charge, jump state, transition, and revision
