@@ -3,7 +3,7 @@ import { httpsCallable } from 'firebase/functions';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { GameSession, Player } from '@/types/game';
 import { runSmallShipMaintenance } from './smallShipService';
-import { getSmallShipJumpWorkspace, jumpSmallShip } from './smallShipJumpService';
+import { chargeSmallShipJumpDrive, getSmallShipJumpWorkspace, jumpSmallShip } from './smallShipJumpService';
 
 vi.mock('firebase/functions', () => ({ httpsCallable: vi.fn() }));
 vi.mock('@/lib/firebase', () => ({ functions: vi.fn(() => ({ name: 'test-functions' })) }));
@@ -11,6 +11,7 @@ vi.mock('./smallShipService', () => ({ runSmallShipMaintenance: vi.fn() }));
 
 const session = {
   id: 'small-jump-session', name: 'Jump test', joinCode: '4821', phase: 'active', currentTurn: 4,
+  createdAt: '2026-09-30T18:00:00.000Z', updatedAt: '2026-09-30T18:00:00.000Z',
   expansion: 'base', capybaraEnabled: true,
   smallShipStates: {
     gorgoneion: {
@@ -66,15 +67,60 @@ describe('authenticated small-craft jump service', () => {
 
     await expect(jumpSmallShip({
       smallShipId: 'gorgoneion', hostShipId: 'aegis', destination: '5143',
+      expectedOrigin: '0000',
       expectedMovementRevision: 2, expectedDockingRevision: 3, expectedCycleRevision: 8,
       requestId: 'jump-stable',
     })).resolves.toEqual(reply);
     expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'jumpSmallShip');
     expect(call).toHaveBeenCalledWith({
       sessionId: session.id, smallShipId: 'gorgoneion', hostShipId: 'aegis',
-      destination: '5143', expectedMovementRevision: 2, expectedDockingRevision: 3,
+      destination: '5143', expectedOrigin: '0000', expectedMovementRevision: 2, expectedDockingRevision: 3,
       expectedCycleRevision: 8, requestId: 'jump-stable',
     });
+  });
+
+  it('charges Jump Drive only during Team Phase and preserves the other selected reactor console', async () => {
+    useSessionStore.getState().setSession({
+      ...session,
+      turnPhase: {
+        turn: 4,
+        teamPhaseEndsAt: new Date(Date.now() + 60_000).toISOString(),
+        openAirspaceEndsAt: new Date(Date.now() + 120_000).toISOString(),
+        airspace: { state: 'restricted', tickerActive: false, pressAccess: false },
+      },
+      smallShipStates: {
+        gorgoneion: {
+          ...session.smallShipStates!.gorgoneion!,
+          cycle: { step: 4, revision: 9, results: {}, charges: ['missile-array'], turn: 4 },
+        },
+      },
+    } as GameSession);
+    vi.mocked(runSmallShipMaintenance).mockResolvedValue({ status: 'committed' } as never);
+
+    const command = {
+      expectedCycleRevision: 9, requestId: 'charge-stable', consoles: ['missile-array', 'jump-drive'],
+    };
+    await expect(chargeSmallShipJumpDrive('gorgoneion', command)).resolves.toMatchObject({
+      status: 'committed',
+    });
+    expect(runSmallShipMaintenance).toHaveBeenCalledWith('gorgoneion', 'reactor', 9, {
+      consoles: ['missile-array', 'jump-drive'],
+    }, 'charge-stable');
+
+    vi.mocked(runSmallShipMaintenance).mockClear();
+    useSessionStore.getState().setSession({
+      ...useSessionStore.getState().session!,
+      turnPhase: {
+        turn: 4,
+        teamPhaseEndsAt: new Date(Date.now() - 120_000).toISOString(),
+        openAirspaceEndsAt: new Date(Date.now() + 60_000).toISOString(),
+        airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+      },
+    } as GameSession);
+    await expect(chargeSmallShipJumpDrive('gorgoneion', {
+      expectedCycleRevision: 9, requestId: 'charge-too-late', consoles: ['missile-array', 'jump-drive'],
+    })).rejects.toThrow(/Team Phase/i);
+    expect(runSmallShipMaintenance).not.toHaveBeenCalled();
   });
 
   it('fails before a callable when the Captain role is pending, host projection is absent, or session is cached', async () => {
@@ -86,6 +132,7 @@ describe('authenticated small-craft jump service', () => {
     useSessionStore.getState().setSession({ ...session, smallShipStates: {} });
     await expect(jumpSmallShip({
       smallShipId: 'gorgoneion', hostShipId: 'aegis', destination: '5143',
+      expectedOrigin: '0000',
       expectedMovementRevision: 2, expectedDockingRevision: 3, expectedCycleRevision: 8,
       requestId: 'jump-no-host',
     })).rejects.toThrow(/dock/i);
@@ -93,7 +140,7 @@ describe('authenticated small-craft jump service', () => {
 
     installCaptain();
     useSessionStore.getState().setSessionSnapshotFreshness('cache');
-    await expect(getSmallShipJumpWorkspace('gorgoneion')).rejects.toThrow(/refresh/i);
+    await expect(getSmallShipJumpWorkspace('gorgoneion')).rejects.toThrow(/reconnect/i);
     expect(httpsCallable).not.toHaveBeenCalled();
   });
 });

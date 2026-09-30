@@ -15,6 +15,7 @@ const movementService = await import('@/lib/smallShipJumpService');
 
 const session = {
   id: 'small-jump-workspace', name: 'Jump review', joinCode: '4821', phase: 'active', currentTurn: 4,
+  createdAt: '2026-09-30T18:00:00.000Z', updatedAt: '2026-09-30T18:00:00.000Z',
   expansion: 'base', capybaraEnabled: true,
   turnPhase: {
     turn: 4, teamPhaseEndsAt: new Date(Date.now() + 60_000).toISOString(),
@@ -32,7 +33,7 @@ const session = {
 const projection = {
   viewer: 'captain', sessionId: session.id, smallShipId: 'gorgoneion', actorUid: 'captain-1',
   hostShipId: 'aegis', currentCoordinate: '0000', movementRevision: 2, dockingRevision: 3,
-  cycleRevision: 8, currentTurn: 4, charged: true, hostFuel: 5,
+  cycleRevision: 8, currentTurn: 4, phase: 'coordination', charged: true, hostFuel: 5,
   knownDestinations: [
     { coordinate: '5143', length: 'short', fuelCost: 1 },
     { coordinate: '1413', length: 'short', fuelCost: 1 },
@@ -89,10 +90,26 @@ describe('Small Ship Jump Drive workspace', () => {
 
     expect(movementService.jumpSmallShip).toHaveBeenCalledWith(expect.objectContaining({
       smallShipId: 'gorgoneion', hostShipId: 'aegis', destination: '5143',
-      expectedMovementRevision: 2, expectedDockingRevision: 3, expectedCycleRevision: 8,
+      expectedOrigin: '0000', expectedMovementRevision: 2, expectedDockingRevision: 3, expectedCycleRevision: 8,
       requestId: expect.stringMatching(/^[A-Za-z0-9_-]{1,128}$/),
-    }));
+    }), false);
     expect(await within(workspace).findByText(/committed.*5143.*host fuel 4/i)).toBeInTheDocument();
+  });
+
+  it('exposes a Team Phase charge control and records its successful result', async () => {
+    const user = userEvent.setup();
+    vi.mocked(movementService.getSmallShipJumpWorkspace).mockResolvedValue({
+      ...projection, phase: 'team', cycleStep: 4, cycleTurn: 4, cycleCharges: ['missile-array'], charged: false,
+    } as never);
+    vi.mocked(movementService.chargeSmallShipJumpDrive).mockResolvedValue({ status: 'committed' } as never);
+    render(<SmallShipJumpWorkspace smallShipId="gorgoneion" />);
+
+    const workspace = await screen.findByRole('region', { name: 'Small-craft Jump Drive workspace' });
+    await user.click(within(workspace).getByRole('button', { name: 'Charge Jump Drive' }));
+    expect(movementService.chargeSmallShipJumpDrive).toHaveBeenCalledWith('gorgoneion', {
+      expectedCycleRevision: 8, requestId: expect.any(String), consoles: ['missile-array', 'jump-drive'],
+    }, false);
+    expect(await within(workspace).findByText(/charge recorded for this cycle/i)).toBeInTheDocument();
   });
 
   it('keeps the same request identity when the first jump response is uncertain', async () => {

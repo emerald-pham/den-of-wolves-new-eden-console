@@ -33,7 +33,7 @@ function request(data: Record<string, unknown>, uid = 'u1') {
 }
 
 function snapshot(fields: Record<string, unknown>, exists = true) {
-  return { exists, get: (key: string) => fields[key] };
+  return { exists, get: (key: string) => fields[key], data: () => fields };
 }
 
 const dockingBase = {
@@ -104,6 +104,45 @@ it('atomically docks a known small ship with an active core host', async () => {
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     'smallShipStates.gorgoneion': expect.objectContaining({ hostShipId: 'aegis', dockingRevision: 1 }),
   }));
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/smallShipMovements/gorgoneion', expect.objectContaining({
+    type: 'small-ship-movement', coordinate: '0000', revision: 0,
+  }));
+});
+
+it('records the live host coordinate and invalidates movement context when a docked craft undocks', async () => {
+  mock.session.activeVesselIds = ['aegis', 'dione'];
+  mock.session.smallShipStates = {
+    gorgoneion: { ...emptySmallShipState('gorgoneion', 'aegis'), dockingRevision: 1 },
+  };
+  (mock.navigation.shipGalacticCoordinates as Record<string, string>).aegis = '5143';
+  mock.smallMovements['sessions/s1/smallShipMovements/gorgoneion'] = {
+    type: 'small-ship-movement', sessionId: 's1', smallShipId: 'gorgoneion',
+    coordinate: '0000', revision: 0, lastJumpTurn: null, captainArrivalsByUid: {},
+  };
+
+  await expect(setSmallShipDocking.run(request({
+    ...dockingBase, docked: false, hostShipId: null, expectedRevision: 1, requestId: 'dock-undock-current-fix',
+  }))).resolves.toMatchObject({ status: 'committed', docked: false, committedRevision: 2 });
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/smallShipMovements/gorgoneion', expect.objectContaining({
+    coordinate: '5143', revision: 1,
+  }));
+});
+
+it('allows re-docking only at the craft’s current coordinate without moving its authority', async () => {
+  mock.session.activeVesselIds = ['aegis', 'dione'];
+  mock.session.smallShipStates = {
+    gorgoneion: { ...emptySmallShipState('gorgoneion'), dockingRevision: 2 },
+  };
+  (mock.navigation.shipGalacticCoordinates as Record<string, string>).aegis = '5143';
+  mock.smallMovements['sessions/s1/smallShipMovements/gorgoneion'] = {
+    type: 'small-ship-movement', sessionId: 's1', smallShipId: 'gorgoneion',
+    coordinate: '5143', revision: 1, lastJumpTurn: 2, captainArrivalsByUid: { u1: ['0000', '5143'] },
+  };
+
+  await expect(setSmallShipDocking.run(request({
+    ...dockingBase, hostShipId: 'aegis', expectedRevision: 2, requestId: 'dock-same-coordinate',
+  }))).resolves.toMatchObject({ status: 'committed', hostShipId: 'aegis', committedRevision: 3 });
+  expect(mock.set).not.toHaveBeenCalledWith('sessions/s1/smallShipMovements/gorgoneion', expect.anything());
 });
 
 it('keeps legacy sessions on the base Capybara mode when expansion is absent', async () => {
