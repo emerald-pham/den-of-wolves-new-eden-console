@@ -2495,6 +2495,82 @@ it('keeps away-mission hands private to the participant and current GMs', async 
   await assertSucceeds(getDoc(doc(as('gm2'), handPath)));
 });
 
+it('exposes the Gorgoneion pre-deal face projection only to the current docked Captain', async () => {
+  const projectionPath = `${SESSION}/gorgoneionMissionSupportViews/gorg`;
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, `${SESSION}/players/gorg`), {
+      uid: 'gorg', role: 'player', connected: true,
+      assignedRoleId: 'admiral', replacementRoleId: 'gorgoneion-captain',
+      replacementStatus: null, activeConsoleRoleId: null, seatId: null,
+    });
+    await updateDoc(doc(db, SESSION), {
+      activeVesselIds: ['aegis'],
+      smallShipStates: { gorgoneion: { hostShipId: 'aegis', dockingRevision: 2 } },
+    });
+    await setDoc(doc(db, `${SESSION}/serverState/missionDeck`), {
+      schemaVersion: 1, deckId: 'away-mission-v1', order: ['A♥'], dealtCount: 0,
+    });
+    await setDoc(doc(db, projectionPath), {
+      sessionId: 's1', actorUid: 'gorg', hostShipId: 'aegis',
+      dockingRevision: 2, dealtCount: 0, cardIds: ['A♥', '4♥', '5♦', 'Q♣', 'K♥'],
+    });
+  });
+
+  await assertSucceeds(getDoc(doc(as('gorg'), projectionPath)));
+  for (const uid of ['alice', 'gm1', 'observer', 'stranger']) {
+    await assertFails(getDoc(doc(as(uid), projectionPath)));
+  }
+  await assertFails(getDocs(collection(as('gorg'), `${SESSION}/gorgoneionMissionSupportViews`)));
+
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await updateDoc(doc(ctx.firestore(), `${SESSION}/players/gorg`), {
+      replacementRoleId: null,
+    });
+  });
+  await assertFails(getDoc(doc(as('gorg'), projectionPath)));
+});
+
+it('revokes the Gorgoneion face projection when docking changes or the first card is dealt', async () => {
+  const projectionPath = `${SESSION}/gorgoneionMissionSupportViews/gorg`;
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, `${SESSION}/players/gorg`), {
+      uid: 'gorg', role: 'player', connected: true,
+      replacementRoleId: 'gorgoneion-captain', replacementStatus: null,
+      activeConsoleRoleId: null, seatId: null,
+    });
+    await updateDoc(doc(db, SESSION), {
+      activeVesselIds: ['aegis'],
+      smallShipStates: { gorgoneion: { hostShipId: 'aegis', dockingRevision: 2 } },
+    });
+    await setDoc(doc(db, `${SESSION}/serverState/missionDeck`), {
+      schemaVersion: 1, deckId: 'away-mission-v1', order: ['A♥'], dealtCount: 0,
+    });
+    await setDoc(doc(db, projectionPath), {
+      sessionId: 's1', actorUid: 'gorg', hostShipId: 'aegis',
+      dockingRevision: 2, dealtCount: 0, cardIds: ['A♥', '4♥', '5♦', 'Q♣', 'K♥'],
+    });
+  });
+
+  await assertSucceeds(getDoc(doc(as('gorg'), projectionPath)));
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await updateDoc(doc(ctx.firestore(), SESSION), {
+      'smallShipStates.gorgoneion.dockingRevision': 3,
+    });
+  });
+  await assertFails(getDoc(doc(as('gorg'), projectionPath)));
+
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await updateDoc(doc(db, SESSION), {
+      'smallShipStates.gorgoneion.dockingRevision': 2,
+    });
+    await updateDoc(doc(db, `${SESSION}/serverState/missionDeck`), { dealtCount: 1 });
+  });
+  await assertFails(getDoc(doc(as('gorg'), projectionPath)));
+});
+
 it('keeps overlapping away-mission pointers private and revokes stale GM access', async () => {
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
