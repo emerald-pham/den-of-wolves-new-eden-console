@@ -319,11 +319,19 @@ it('lets only the consenting target player revoke, and never applies a revoked o
   await callables.proposePermissionedDismantling(proposeRequest());
   await callables.consentToPermissionedDismantling(consentRequest());
   const beforeUnauthorizedRevoke = store.committedWrites.length;
-  await expect(callables.revokePermissionedDismantlingConsent(consentRequest('other-ship-player')))
+  await expect(callables.revokePermissionedDismantlingConsent(request('other-ship-player', {
+    sessionId: SESSION_ID,
+    proposalId: PROPOSAL_ID,
+    consentId: CONSENT_ID,
+  })))
     .rejects.toMatchObject({ code: 'permission-denied' });
   expect(store.committedWrites).toHaveLength(beforeUnauthorizedRevoke);
 
-  await callables.revokePermissionedDismantlingConsent(consentRequest());
+  await callables.revokePermissionedDismantlingConsent(request('target-player', {
+    sessionId: SESSION_ID,
+    proposalId: PROPOSAL_ID,
+    consentId: CONSENT_ID,
+  }));
   const beforeApply = store.committedWrites.length;
   await expect(callables.applyPermissionedDismantling(applyRequest()))
     .rejects.toMatchObject({ code: 'failed-precondition' });
@@ -387,4 +395,3 @@ it('rejects an inactive target, changed docking, an already-damaged console, and
   await expect(overflow.applyPermissionedDismantling(applyRequest())).resolves.toMatchObject({ status: 'stale' });
   expect(overflowStore.committedWrites).toHaveLength(beforeOverflow);
 });
-
