@@ -2022,6 +2022,17 @@ it('chooses a blind-jump destination from the authoritative current node and bin
   expect(mock.set).not.toHaveBeenCalled();
 });
 
+it('reuses the same blind destination when Firestore retries the transaction callback', async () => {
+  mock.transactionRetries = 1;
+  mock.randomInt.mockReset().mockReturnValueOnce(0).mockReturnValueOnce(1);
+
+  const reply = await jumpShip.run(request({ ...data, requestId: 'blind-transaction-retry', blind: true }));
+
+  expect(reply).toMatchObject({ status: 'jumped', origin: '0000', destination: '5143' });
+  expect(mock.randomInt).toHaveBeenCalledTimes(1);
+  expect(mock.randomInt).toHaveBeenCalledWith(0, 2);
+});
+
 it('rejects a blind jump when the authoritative current node is absent from the locked graph without mutation', async () => {
   mock.coordinate = '7777';
 
