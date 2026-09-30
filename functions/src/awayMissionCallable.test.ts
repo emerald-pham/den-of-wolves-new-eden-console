@@ -3,6 +3,7 @@ import type { CallableRequest } from 'firebase-functions/v2/https';
 import { Timestamp } from 'firebase-admin/firestore';
 
 const mock = vi.hoisted(() => ({
+  documents: {} as Record<string, Record<string, unknown>>,
   get: vi.fn(),
   set: vi.fn(),
   create: vi.fn(),
@@ -67,6 +68,8 @@ import { recommendedRoleIds } from './roleConfiguration';
 import { activeVesselIdsForRoles } from './gameSetup';
 import { initialPdfEscortWingState } from './pdfEscortWingState';
 import { emptySmallShipState } from './smallShip';
+import { awayMissionHandId } from './awayMissionCards';
+import { applyAwayMissionLifecycleCommand, createAwayMissionLifecycleBootstrap, projectAwayMissionPrivateState, projectAwayMissionPublicState, type AwayMissionLifecycleCommand } from './awayMissionLifecycleAdapter';
 
 const activeRoleIds = [...recommendedRoleIds(8)];
 const activeVesselIds = [...activeVesselIdsForRoles(activeRoleIds)];
@@ -161,6 +164,7 @@ describe('away-mission lifecycle callable export', () => {
 });
 
 beforeEach(() => {
+  mock.documents = {};
   mock.get.mockReset();
   mock.set.mockReset();
   mock.set.mockImplementation((ref: { path: string }, value: Record<string, unknown>) => {
@@ -226,6 +230,7 @@ beforeEach(() => {
     fields: { id: 'fleet-1', vesselIds: activeVesselIds, memberUids: players.map(({ id }) => id) },
   }];
   mock.get.mockImplementation(async (ref: { path: string }) => {
+    if (mock.documents[ref.path]) return snapshot(mock.documents[ref.path]!, ref.path);
     if (ref.path === 'sessions/s1') return snapshot({
       ...sessionFields,
       ...(mock.gorgoneionCaptain ? {
@@ -1154,5 +1159,102 @@ describe('dealPrivateInitialCards', () => {
       `sessions/s1/awayMissionHandPointers/m${`mission-${second.opportunityId}`.length}_mission-${second.opportunityId}u5_alice`,
     ]));
     expect(new Set(pointerPaths).size).toBe(2);
+  });
+});
+
+
+describe('production mission exploration application', () => {
+  function seedResolvedExploration() {
+    const missionId = 'mission-arrival-exploration';
+    const opportunityId = 'arrival-exploration';
+    const allCards = missionDeck();
+    const prefix = ['A♥', '4♥', '10♦', 'A♦'];
+    const deckState = missionDeckStateFromCards([
+      ...prefix.map(id => allCards.find(card => card.id === id)!),
+      ...allCards.filter(card => !prefix.includes(card.id)),
+    ]);
+    const participants = [{ uid: 'alice', roleId: 'wing-commander' }, { uid: 'bob', roleId: 'icebreaker-miner' }];
+    const participantCrafts = [{ participantUid: 'alice', craftIds: ['starlight'] }, { participantUid: 'bob', craftIds: ['highwall'] }];
+    const bootstrap = createAwayMissionLifecycleBootstrap({ sessionId: 's1', groupId: 'fleet-1', sourceCycle: 2,
+      participantCrafts, lifecycle: { missionId, siteCode: 'D', leaderUid: 'alice', participants,
+        availableCarrierCraftIds: ['starlight', 'highwall'], deckState, dealtCount: 2,
+        initialCards: [{ participantUid: 'alice', cardId: 'A♥' }, { participantUid: 'bob', cardId: '4♥' }] } });
+    if (!bootstrap) throw new Error('Invalid exploration bootstrap fixture');
+    let record = bootstrap.record;
+    const advance = (uid: string, command: Record<string, unknown>) => {
+      const result = applyAwayMissionLifecycleCommand(record,
+        { ...command, requestId: `fixture-${record.revision}`, expectedRevision: record.revision } as AwayMissionLifecycleCommand,
+        { actorUid: uid, isActiveGm: uid === 'gm1', teamPhase: false, currentCycle: 2,
+          legalDropOffShipIds: ['aegis'], randomIndex: () => 0, secretD6Rolls: {} });
+      if (!result.record) throw new Error(`Invalid fixture transition ${command.type}`);
+      record = result.record;
+    };
+    advance('bob', { type: 'requestExtraCards', count: 1 });
+    advance('alice', { type: 'requestExtraCards', count: 1 });
+    advance('alice', { type: 'distributeExtraCard', participantUid: 'bob', opportunityId: 'D-3' });
+    advance('alice', { type: 'distributeExtraCard', participantUid: 'alice', opportunityId: 'D-3' });
+    advance('gm1', { type: 'openDiscards' });
+    advance('alice', { type: 'discardCard', cardId: 'A♥' });
+    advance('bob', { type: 'discardCard', cardId: '4♥' });
+    advance('alice', { type: 'assignCards', placements: [{ cardId: 'A♦', opportunityId: 'D-3' }] });
+    advance('bob', { type: 'assignCards', placements: [{ cardId: '10♦', opportunityId: 'D-3' }] });
+    advance('gm1', { type: 'addFacilitatorCards' });
+    advance('gm1', { type: 'resolve' });
+    expect(record.rewards?.find(reward => reward.opportunityId === 'D-3')?.effects).toContainEqual(
+      { kind: 'exploreStarSystems', amount: 2, scope: 'any', allowedCodes: null });
+    mock.discardMissionId = missionId;
+    mock.discardMission = { schemaVersion: 1, missionId, requestId: 'start-exploration', actorUid: 'gm1',
+      groupId: 'fleet-1', opportunityId, chart: 'A', coordinate: '1234', siteCode: 'D', sourceCycle: 2,
+      missionLeaderUid: 'alice', missionLeaderRoleId: 'wing-commander', participantSnapshots: participants,
+      participantCrafts, availableCarrierCraftIds: ['starlight', 'highwall'],
+      handIds: participants.map(({ uid }) => awayMissionHandId(missionId, uid)), cardIds: prefix.slice(0, 2),
+      dealtFrom: 0, dealtThrough: 2, phase: record.lifecycle.phase, revision: record.revision,
+      status: record.status, overrun: record.overrun, lifecycleRecord: record,
+      discardedParticipantUids: record.lifecycle.discardedParticipantUids, discardedCardIds: record.lifecycle.discardedCardIds };
+    mock.missionStartSnapshots[opportunityId] = { type: 'away-mission-start-snapshot', schemaVersion: 1,
+      sessionId: 's1', missionId, requestId: 'start-exploration', opportunityId, groupId: 'fleet-1',
+      chart: 'A', coordinate: '1234', siteCode: 'D', sourceCycle: 2,
+      missionLeader: { uid: 'alice', roleId: 'wing-commander' },
+      stateDelta: { missionDeckDealtCountBefore: 0, missionDeckDealtCountAfter: 2 },
+      revisions: { missionDeck: { before: 0, after: 2 } },
+      inputs: { participantSnapshots: participants, participantCrafts,
+        availableCarrierCraftIds: ['starlight', 'highwall'], missionLeaderUid: 'alice' } };
+    mock.documents['sessions/s1/serverState/missionDeck'] = { ...deckState, dealtCount: record.lifecycle.dealtCount };
+    for (const [index, participant] of participants.entries()) {
+      const handId = awayMissionHandId(missionId, participant.uid);
+      const card = allCards.find(({ id }) => id === prefix[index])!;
+      mock.documents[`sessions/s1/awayMissionHands/${handId}`] = { type: 'away-mission-hand', sessionId: 's1',
+        missionId, handId, participantUid: participant.uid, cardId: card.id, rank: card.rank, suit: card.suit,
+        value: card.value, phase: projectAwayMissionPrivateState(record, participant.uid)!.phase, revision: record.revision, discarded: true,
+        lifecyclePrivateState: projectAwayMissionPrivateState(record, participant.uid) };
+      mock.pointerDocuments[handId] = { type: 'away-mission-hand-pointer', sessionId: 's1', missionId, handId,
+        participantUid: participant.uid, groupId: 'fleet-1', chart: 'A', coordinate: '1234', siteCode: 'D', sourceCycle: 2,
+        participantCount: 2, missionLeaderUid: 'alice', missionLeaderRoleId: 'wing-commander',
+        phase: projectAwayMissionPublicState(record, participant.uid)!.phase, revision: record.revision, discarded: true,
+        lifecyclePublicState: projectAwayMissionPublicState(record, participant.uid) };
+    }
+    mock.set.mockClear(); mock.update.mockClear(); mock.create.mockClear();
+    return request({ sessionId: 's1', missionId, instanceId: 'bridge', type: 'exploreSystems',
+      requestId: 'reveal-exploration', expectedRevision: record.revision, opportunityId: 'D-3',
+      targetCoordinates: ['4454', '5143'] });
+  }
+
+  it('publishes only the immutable participant discovery audience without moving any ship', async () => {
+    const command = seedResolvedExploration();
+    await expect(commitAwayMissionLifecycleCommand.run(command)).resolves.toMatchObject({ status: 'committed' });
+    const write = mock.set.mock.calls.find(([ref]) => ref.path === 'sessions/s1/serverState/navigation')?.[1];
+    expect(write).toMatchObject({ revision: 5, shipGalacticCoordinates: mock.navigationState.shipGalacticCoordinates,
+      missionExploredCoordinatesByUid: { alice: ['4454', '5143'], bob: ['4454', '5143'] } });
+    expect(write.missionExploredCoordinatesByUid).not.toHaveProperty('admiral');
+    expect(mock.create).toHaveBeenCalledWith(expect.objectContaining({ path:
+      'sessions/s1/serverState/missionExploration/receipts/mission-arrival-exploration-D-3' }), expect.any(Object));
+  });
+
+  it.each(['missing-vessel', 'wrong-player-pointer'])('fails closed before any reveal writes for %s authority', async kind => {
+    const command = seedResolvedExploration();
+    if (kind === 'missing-vessel') mock.fleetGroups[0]!.fields.vesselIds = activeVesselIds.slice(1);
+    else players.find(({ id }) => id === 'bob')!.fields.fleetGroupId = 'fleet-2';
+    await expect(commitAwayMissionLifecycleCommand.run(command)).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled(); expect(mock.create).not.toHaveBeenCalled();
   });
 });
