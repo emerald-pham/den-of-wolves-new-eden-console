@@ -445,6 +445,24 @@ it('lets only the consenting target player revoke, and never applies a revoked o
   });
 });
 
+it('requires a new proposal after the target player revokes the exact request', async () => {
+  const store = seededStore();
+  const callables = createPermissionedDismantlingCallables(dependencies(store));
+  await callables.proposePermissionedDismantling(proposeRequest());
+  await callables.consentToPermissionedDismantling(consentRequest());
+  await callables.revokePermissionedDismantlingConsent(request('target-player', {
+    sessionId: SESSION_ID, proposalId: PROPOSAL_ID, consentId: CONSENT_ID,
+  }));
+  const writesBeforeReconsent = store.committedWrites.length;
+
+  await expect(callables.consentToPermissionedDismantling(consentRequest('target-player', {
+    consentId: 'consent-new',
+  }))).rejects.toThrow(/new request|pending/i);
+
+  expect(store.committedWrites).toHaveLength(writesBeforeReconsent);
+  expect(store.records.get(paths().inbox)).toMatchObject({ status: 'revoked', consentId: CONSENT_ID });
+});
+
 it('rejects an inactive target, changed docking, an already-damaged console, and material overflow atomically', async () => {
   const inactiveStore = seededStore();
   const inactive = createPermissionedDismantlingCallables(dependencies(inactiveStore));
