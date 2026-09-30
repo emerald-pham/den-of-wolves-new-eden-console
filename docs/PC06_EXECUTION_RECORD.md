@@ -99,6 +99,17 @@ worker completed, then was dispatched successfully. Reserve a slot for
 independent Sol review at the review boundary. The checkpoint owner remains
 accountable for integration and release in either case.
 
+The continuation also prepared a fresh P334/P335 exploration-reward checkout
+from `5157d417` after storage reported 63.9 GiB available. The existing parked
+P334 branch was inspected read-only and preserved; it did not contain the
+exploration-reward implementation. The nested dispatch attempt returned
+`collab spawn failed: agent thread limit reached`, so no worker was created.
+That bounded policy group remains queued until an actual worker reaches a
+terminal state and frees shared agent capacity. The prepared checkout is
+`/Users/emeraldpham/.codex/worktrees/pc06-exploration-rewards/den-of-wolves-new-eden-console`,
+branch `feat/pc06-exploration-rewards`; its proposed files are
+`functions/src/explorationRewards.ts` and `functions/src/explorationRewards.test.ts`.
+
 The live-access probe reached the production console at
 `dow-new-eden-console.web.app/#/console`, running build `0.5.58`. Reduce Motion
 was unchecked, so normal motion was already selected; no preference change was
