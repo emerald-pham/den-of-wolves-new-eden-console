@@ -430,6 +430,11 @@ it.each([
     const repair = await within(workspace).findByRole('region', { name: 'Gorgoneion Repair Drones' });
     expect(within(repair).getByRole('combobox', { name: 'Gorgoneion repair console' })).toBeVisible();
     expect(within(repair).getByRole('button', { name: 'Repair one console' })).toBeDisabled();
+    const missionSupport = await within(workspace).findByRole('region', { name: 'Gorgoneion mission support' });
+    expect(within(missionSupport).getByRole('button', { name: 'Apply deck support' })).toBeDisabled();
+  }
+  if (roleId !== 'gorgoneion-captain') {
+    expect(within(workspace).queryByRole('region', { name: 'Gorgoneion mission support' })).not.toBeInTheDocument();
   }
   if (roleId === 'warrior-captain') {
     const repair = await within(workspace).findByRole('region', { name: 'Warrior Repair Drones' });
