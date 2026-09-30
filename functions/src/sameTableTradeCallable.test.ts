@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { requireNonterminalSessionPhase } from './requestGuards';
 import { createSameTableTradeCallables } from './sameTableTradeCallable';
 
 const SESSION_ID = 'session-1';
@@ -234,13 +235,7 @@ function dependencies(store: FakeStore) {
       }
       return { session: snapshot(paths().session, store.records.get(paths().session)), player: snapshot('facilitator', store.records.get(`${paths().players}/facilitator`)) };
     },
-    requireNonterminalSessionPhase: (phase: unknown) => {
-      if (['closed', 'retained-empty', 'debrief', 'success', 'failure'].includes(String(phase))) {
-        throw Object.assign(new Error('Gameplay actions are unavailable after the session ends.'), {
-          code: 'failed-precondition',
-        });
-      }
-    },
+    requireNonterminalSessionPhase,
     isActivePlayer: (record: Snapshot) => record.exists && record.get('connected') === true && !record.get('kickedAt'),
     shipForRole: (roleId: unknown) => typeof roleId === 'string' && roleId.includes('-')
       ? roleId.split('-')[0]

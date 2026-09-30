@@ -29,6 +29,20 @@ export function requireUid(auth: { uid: string } | undefined): string {
   return auth.uid;
 }
 
+/** Reject gameplay writes after a session has reached its terminal phase. */
+export function requireNonterminalSessionPhase(phase: unknown): void {
+  if (phase === 'closed' || phase === 'retained-empty') {
+    throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
+  }
+  if (phase === 'debrief' || phase === 'success' || phase === 'failure') {
+    throw commandError(
+      'failed-precondition',
+      'Gameplay actions are unavailable during endgame evaluation.',
+      'invalid-phase',
+    );
+  }
+}
+
 export function requireSessionRequest(data: {
   sessionId?: unknown;
 }): { sessionId: string } {

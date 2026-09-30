@@ -51,6 +51,7 @@ interface InventoryRecord {
 export interface SameTableTradeCallableDependencies {
   readonly db: TradeDatabase;
   readonly requireUid: (auth: { readonly uid: string } | undefined) => string;
+  readonly requireNonterminalSessionPhase: (phase: unknown) => void;
   readonly requireFacilitatorInstance: (
     tx: Transaction,
     sessionId: string,
@@ -475,6 +476,8 @@ export function createSameTableTradeCallables(dependencies: SameTableTradeCallab
         };
       }
 
+      dependencies.requireNonterminalSessionPhase(sessionSnapshot.get('phase'));
+
       const baseline = {
         attestationId,
         attestedByUid: uid,
@@ -522,6 +525,8 @@ export function createSameTableTradeCallables(dependencies: SameTableTradeCallab
         }
         return { status: 'replayed' as const, sessionId, offer: publicOffer(existingOffer) };
       }
+
+      dependencies.requireNonterminalSessionPhase(sessionSnapshot.get('phase'));
 
       const playersSnapshot = await tx.get(db.collection(`sessions/${sessionId}/players`)) as QuerySnapshot;
       const senderInventoryRef = db.doc(inventoryDocPath(sessionId, uid));
@@ -634,6 +639,7 @@ export function createSameTableTradeCallables(dependencies: SameTableTradeCallab
       if (storedOffer.status !== 'pending') {
         precondition('This offer is no longer pending and has no matching receipt.');
       }
+      dependencies.requireNonterminalSessionPhase(sessionSnapshot.get('phase'));
       const playersSnapshot = await tx.get(db.collection(`sessions/${sessionId}/players`)) as QuerySnapshot;
       const roster = readRoster(playersSnapshot, dependencies.isActivePlayer, dependencies.shipForRole);
       const sender = requireActivePlayer(roster, storedOffer.fromUid, 'sender');

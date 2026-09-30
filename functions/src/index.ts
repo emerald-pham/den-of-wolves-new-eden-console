@@ -191,6 +191,7 @@ import {
   requireVesselActionRequest,
   requireHummingbirdHarvestRequest,
   requireCommissarPurgeRequest,
+  requireNonterminalSessionPhase,
 } from './requestGuards';
 import {
   CIVIL_UNREST_SHIP_IDS,
@@ -690,6 +691,7 @@ const db = getFirestore();
 const sameTableTradeCallables = createSameTableTradeCallables({
   db,
   requireUid,
+  requireNonterminalSessionPhase,
   requireFacilitatorInstance,
   isActivePlayer,
   shipForRole,
@@ -3439,17 +3441,7 @@ function requireLiveAirspaceWindow(phase: ActiveTurnPhase): void {
  */
 function requireActiveGameplayPhase(session: DocumentSnapshot, allowPursuitEmergencyWindow = false): void {
   if (!allowPursuitEmergencyWindow) requirePursuitEmergencyWindowAbsent(session);
-  const lifecyclePhase = session.get('phase');
-  if (lifecyclePhase === 'closed' || lifecyclePhase === 'retained-empty') {
-    throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
-  }
-  if (lifecyclePhase === 'debrief' || lifecyclePhase === 'success' || lifecyclePhase === 'failure') {
-    throw commandError(
-      'failed-precondition',
-      'Gameplay actions are unavailable during endgame evaluation.',
-      'invalid-phase',
-    );
-  }
+  requireNonterminalSessionPhase(session.get('phase'));
 }
 
 function requireActionPhase(
