@@ -48,6 +48,20 @@ describe('extra-ship Captain workspace catalog', () => {
       });
   });
 
+  it('connects Jump Drive only for the Gorgoneion and base small-ship Capybara Captains', () => {
+    for (const roleId of ['gorgoneion-captain', 'capybara-small-captain'] as const) {
+      expect(extraShipCaptainWorkspaceFor(roleId)?.actions.find(({ id }) => id === 'jump-drive'))
+        .toMatchObject({
+          phase: 'Coordination', charge: 'reactor', control: 'live-below',
+          effect: expect.stringMatching(/1 \/ 1 \/ 2 fuel.*host/i),
+        });
+    }
+    for (const roleId of ['warrior-captain', 'vulcan-captain'] as const) {
+      expect(extraShipCaptainWorkspaceFor(roleId)?.actions.find(({ id }) => id === 'jump-drive'))
+        .toMatchObject({ control: 'unavailable' });
+    }
+  });
+
   it('connects Warrior Repair Drones to its current charged repair control', () => {
     expect(extraShipCaptainWorkspaceFor('warrior-captain')?.actions.find(({ id }) => id === 'repair-drones'))
       .toMatchObject({
