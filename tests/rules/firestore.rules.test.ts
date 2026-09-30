@@ -2631,6 +2631,7 @@ describe('same-table player-held token privacy', () => {
     const offers = collection(as('alice'), `${SESSION}/sameTableTradeOffers`);
     const incoming = await assertSucceeds(getDocs(query(
       offers,
+      where('type', '==', 'same-table-trade-offer'),
       where('sessionId', '==', 's1'),
       where('fleetGroupId', '==', 'fleet-1'),
       where('toUid', '==', 'alice'),
@@ -2638,6 +2639,7 @@ describe('same-table player-held token privacy', () => {
     expect(incoming.docs.map((entry) => entry.id)).toEqual(['to-alice']);
     const outgoing = await assertSucceeds(getDocs(query(
       offers,
+      where('type', '==', 'same-table-trade-offer'),
       where('sessionId', '==', 's1'),
       where('fleetGroupId', '==', 'fleet-1'),
       where('fromUid', '==', 'alice'),
@@ -2669,6 +2671,7 @@ describe('same-table player-held token privacy', () => {
     await assertFails(getDoc(doc(as('alice'), `${SESSION}/sameTableTradeOffers/to-alice`)));
     await assertFails(getDocs(query(
       collection(as('alice'), `${SESSION}/sameTableTradeOffers`),
+      where('type', '==', 'same-table-trade-offer'),
       where('sessionId', '==', 's1'),
       where('fleetGroupId', '==', 'fleet-1'),
       where('toUid', '==', 'alice'),
