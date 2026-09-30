@@ -1,0 +1,10 @@
+.fleet-group-workspace { font-family: var(--cic-mono); color: var(--cic-ink); border: 1px solid var(--cic-rule); padding: 1rem; min-width: 0; overflow-wrap: anywhere; }
+.fleet-group-workspace h2 { font-family: var(--cic-display); font-weight: 400; text-transform: uppercase; }
+.fleet-group-workspace textarea { display: block; width: 100%; max-width: 100%; box-sizing: border-box; background: var(--cic-void); color: var(--cic-ink); border: 1px solid var(--cic-amber); border-radius: 0; padding: 0.75rem; font: inherit; }
+.fleet-group-workspace__actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 0.75rem; }
+.fleet-group-workspace button { border: 1px solid var(--cic-amber); border-radius: 0; background: var(--cic-void); color: var(--cic-cyan); padding: 0.75rem; font: inherit; max-width: 100%; white-space: normal; }
+.fleet-group-workspace :is(button, textarea):focus-visible { outline: 2px solid var(--cic-cyan); outline-offset: 2px; }
+.fleet-group-workspace button:disabled { opacity: 0.5; }
+.fleet-group-workspace li { margin-bottom: 0.75rem; }
+@media (max-width: 480px) { .fleet-group-workspace__actions button { width: 100%; } }
+@media (prefers-reduced-motion: reduce) { .fleet-group-workspace * { animation: none; transition: none; } }

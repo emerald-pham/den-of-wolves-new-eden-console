@@ -62,6 +62,7 @@ const RoleBrief = lazy(() => import('@/routes/RoleBrief'));
 const SessionMode = lazy(() => import('@/routes/SessionMode'));
 const ShuttleConsole = lazy(() => import('@/routes/ShuttleConsole'));
 const AwayMissionDiscardPanel = lazy(() => import('@/components/AwayMissionDiscardPanel'));
+const FleetGroupWorkspace = lazy(() => import('@/components/FleetGroupWorkspace'));
 const hasConsoleDradis = (path: string): boolean =>
   path === '/press' || path.startsWith('/ships/') || path.startsWith('/union/') ||
   path.startsWith('/shuttles/') || path.startsWith('/replacement/');
@@ -1017,6 +1018,7 @@ function AppRoutes() {
           <>
             <PrivateLoyaltyPanel />
             <CrisisReportPanel />
+            <Suspense fallback={null}><FleetGroupWorkspace /></Suspense>
             {showAwayMissionDiscardPanel && (
               <Suspense fallback={null}>
                 <AwayMissionDiscardPanel />

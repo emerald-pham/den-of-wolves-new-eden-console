@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import FleetGroupWorkspace from './FleetGroupWorkspace';
 import { useSessionStore } from '@/store/useSessionStore';
@@ -29,7 +29,7 @@ it('mounts the facilitator partition confirmation but hides notes when context g
   seed('gm'); const result = render(<FleetGroupWorkspace />);
   fireEvent.click(screen.getByRole('button', { name: 'Confirm separated fleet groups' }));
   await waitFor(() => expect(mocks.confirm).toHaveBeenCalledOnce());
-  useSessionStore.setState({ connection: 'offline' }); result.rerender(<FleetGroupWorkspace />);
+  act(() => { useSessionStore.setState({ connection: 'offline' }); }); result.rerender(<FleetGroupWorkspace />);
   expect(screen.queryByText('Hold here.')).toBeNull();
   expect(screen.queryByRole('button', { name: 'Send group note' })).toBeNull();
 });
