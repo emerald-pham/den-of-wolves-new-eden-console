@@ -1068,6 +1068,20 @@ describe('GM instance ownership', () => {
     expect(read('sessions/s1/players/u2')).toMatchObject({ fleetGroupId: null });
   });
 
+  it('removes a kicked member only from its current partition without collapsing vessel groups', async () => {
+    session({ activeVesselIds: ['aegis', 'dione'], fleetPartitionRevision: 1 });
+    player('u1', { role: 'gm', fleetGroupId: 'fleet-1' });
+    player('u2', { fleetGroupId: 'fleet-2' });
+    player('u3', { fleetGroupId: 'fleet-2' });
+    put('sessions/s1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1'] });
+    put('sessions/s1/fleetGroups/fleet-2', { id: 'fleet-2', vesselIds: ['dione'], memberUids: ['u2', 'u3'] });
+    instance('bridge', 'u1');
+    await kickPlayer.run(request({ sessionId: 's1', instanceId: 'bridge', targetUid: 'u2' }));
+    expect(read('sessions/s1/fleetGroups/fleet-1')).toEqual({ id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1'] });
+    expect(read('sessions/s1/fleetGroups/fleet-2')).toMatchObject({ id: 'fleet-2', vesselIds: ['dione'], memberUids: ['u3'] });
+    expect(read('sessions/s1/players/u3')).toMatchObject({ fleetGroupId: 'fleet-2' });
+  });
+
   it('replays a player kick receipt without applying the irreversible mutation twice', async () => {
     session({ activeVesselIds: ['aegis'] });
     player('u1', { role: 'gm', fleetGroupId: 'fleet-1' });
