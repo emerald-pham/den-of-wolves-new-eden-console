@@ -227,7 +227,7 @@ function seededStore(options: { readonly warrior?: boolean; readonly siteCode?: 
   return store;
 }
 
-function dependencies(store: FakeStore, options: { readonly d6?: number; readonly prepareRewardDelivery?: (context: unknown) => Promise<() => void> } = {}) {
+function dependencies(store: FakeStore, options: { readonly d6?: number; readonly prepareRewardDelivery?: (context: unknown) => Promise<() => void>; readonly prepareExplorationApplication?: (context: unknown) => Promise<() => void> } = {}) {
   let randomCalls = 0;
   let d6Calls = 0;
   const db = store;
@@ -261,6 +261,7 @@ function dependencies(store: FakeStore, options: { readonly d6?: number; readonl
         craftIds: roleId === 'wing-commander' ? ['starlight'] :
           roleId === 'warrior-captain' ? ['warrior'] : [],
       })),
+    prepareExplorationApplication: options.prepareExplorationApplication ?? (async () => () => undefined),
     prepareRewardDelivery: options.prepareRewardDelivery ?? (async () => () => undefined),
     deriveContext: async ({ session }) => {
       const turnPhase = session.get('turnPhase') as Fields | undefined;
@@ -604,5 +605,45 @@ it('commits destination rewards with custody atomically and never reapplies them
   await expect(commit(request)).resolves.toMatchObject({ status: 'replayed' });
   expect(preparations).toBe(2);
   expect(store.records.get(paths().session)?.deliveredFood).toBe(1);
+  expect(store.committedWrites).toHaveLength(writes);
+});
+
+it('binds exploration to the successful mission, current GM lease and one atomic recovery receipt', async () => {
+  const store = seededStore({ siteCode: 'D' });
+  let applications = 0;
+  const commit = dependencies(store, { prepareExplorationApplication: async (raw) => {
+    const context = raw as { transaction: Transaction; targetCoordinates: readonly string[]; opportunityId: string };
+    expect(context.targetCoordinates).toEqual(['4454', '5143']);
+    expect(context.opportunityId).toBe('D-3');
+    return () => {
+      applications += 1;
+      context.transaction.update(store.doc(paths().session), { appliedKnowledge: ['alice', 'bob'] });
+    };
+  } }).commitAwayMissionLifecycleCommand;
+  const send = (uid: string, type: string, fields: Fields = {}) => commit(commandRequest(uid, {
+    type, requestId: `${type}-${currentRevision(store)}`, expectedRevision: currentRevision(store), ...fields,
+    ...(uid === 'gm' ? { instanceId: 'gm-instance' } : {}),
+  }));
+  await send('bob', 'requestExtraCards', { count: 1 });
+  await send('alice', 'requestExtraCards', { count: 1 });
+  await send('alice', 'distributeExtraCard', { participantUid: 'bob', opportunityId: 'D-3' });
+  await send('alice', 'distributeExtraCard', { participantUid: 'alice', opportunityId: 'D-3' });
+  await send('gm', 'openDiscards');
+  await send('alice', 'discardCard', { cardId: ALICE_CARD });
+  await send('bob', 'discardCard', { cardId: BOB_CARD });
+  await send('alice', 'assignCards', { placements: [{ cardId: 'A♦', opportunityId: 'D-3' }] });
+  await send('bob', 'assignCards', { placements: [{ cardId: EXTRA_CARD, opportunityId: 'D-3' }] });
+  const request = commandRequest('gm', { type: 'exploreSystems', requestId: 'exploration-once',
+    instanceId: 'gm-instance', expectedRevision: currentRevision(store),
+    opportunityId: 'D-3', targetCoordinates: ['4454', '5143'] });
+  await expect(commit({ ...request, auth: { uid: 'alice' } })).rejects.toMatchObject({ code: 'permission-denied' });
+  store.loseNextAcknowledgement = true;
+  await expect(commit(request)).rejects.toThrow('simulated lost acknowledgement');
+  expect(applications).toBe(1);
+  const writes = store.committedWrites.length;
+  const reply = await commit(request);
+  expect(reply).toMatchObject({ status: 'replayed', publicState: { explorationAppliedOpportunityIds: ['D-3'] } });
+  expect(JSON.stringify(reply)).not.toMatch(/4454|5143/);
+  expect(applications).toBe(1);
   expect(store.committedWrites).toHaveLength(writes);
 });
