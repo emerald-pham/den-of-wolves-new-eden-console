@@ -331,7 +331,9 @@ export function playerDiscoveryProjection(
   candidateReveals?: readonly CandidateReveal[],
   actorUid?: string,
 ): PlayerDiscoveryProjection {
-  const missionCoordinates = actorUid ? navigation.missionExploredCoordinatesByUid?.[actorUid] ?? [] : [];
+  const missionKnowledge = navigation.missionExploredCoordinatesByUid;
+  const missionCoordinates = actorUid && missionKnowledge && Object.hasOwn(missionKnowledge, actorUid)
+    ? missionKnowledge[actorUid] ?? [] : [];
   const groupId = typeof player.get('fleetGroupId') === 'string' ? player.get('fleetGroupId') as string : '';
   const shipId = playerShipId(player);
   if (!shipId || !groupId) {
