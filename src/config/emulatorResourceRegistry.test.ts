@@ -401,7 +401,7 @@ describe('simplified coordination registry', () => {
         release,
         'independent-review': JSON.stringify({ ...receipt, reviewerModel: 'gpt-5.6-terra' }),
         commandRunner: async () => undefined,
-      })).rejects.toThrow(/GPT-5.6 Sol xhigh/);
+      })).rejects.toThrow(/GPT-6.1 Sol xhigh/);
 
       const completed = await validateCoordinationEntry(filePath, {
         id: started.id,
