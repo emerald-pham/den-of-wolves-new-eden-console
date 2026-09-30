@@ -191,3 +191,17 @@ cycle 0, and Casting phase, while the status strip continued to report
 authorization pending. No turn or gameplay action followed, so this confirms
 the GM join path but not ordinary active-game authorization or gameplay. No
 session code, email address, or credential was recorded.
+
+In this continuation, the nested dispatcher created two real Luna Max
+implementation workers, verified by their running task states and separate
+managed checkout identities. `/root/pc06_release_owner/pc06_away_client` owns
+the client service/workspace slice in
+`/Users/emeraldpham/.codex/worktrees/pc06-away-missions/den-of-wolves-new-eden-console`
+(`feat/pc06-away-missions`); the owner retains callable exports, shared
+session/rules, and acceptance. `/root/pc06_release_owner/pc06_bulk_haulage`
+owns the bounded P241b contribution-binding investigation in
+`/Users/emeraldpham/.codex/worktrees/pc06-exploration-rewards/den-of-wolves-new-eden-console`
+(`feat/pc06-exploration-rewards`); the owner retains P403 snapshot capture and
+production integration. These are observed child creations, not merely tool
+availability, and do not imply capacity beyond the available slots in this
+session.
