@@ -92,8 +92,8 @@ describe('Voyage33MovementPanel', () => {
   });
 
   it('disables actions while disconnected or outside their valid phase', () => {
-    const jump = { coordinate: '0102', label: 'Pallas', length: 'short' };
-    const host = { shipId: 'dione', name: 'Dione', coordinate: '0101', fuel: 8, status: 'operational' };
+    const jump = { coordinate: '0102', label: 'Pallas', length: 'short' } as const;
+    const host = { shipId: 'dione', name: 'Dione', coordinate: '0101', fuel: 8, status: 'operational' } as const;
     const { rerender } = render(<Voyage33MovementPanel {...makeProps({ connection: 'offline' })} />);
     expect(screen.getByRole('button', { name: 'Dock with Dione' })).toBeDisabled();
 
