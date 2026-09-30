@@ -32,7 +32,8 @@ exact interface needs to the owner rather than editing shared release seams.
 | Voyage 33-0 movement UI leaf, Luna Max task `/root/pc06_release_owner/pc06_voyage33_ui` | 251 (player-facing leaf) | `/Users/emeraldpham/.codex/worktrees/pc06-voyage-movement/den-of-wolves-new-eden-console`, `feat/pc06-voyage33-ui`, start `1f56d244` | `src/components/Voyage33MovementPanel.tsx` and its focused tests. Implement only the stateless GM-facing dock/jump controls through explicit props and callbacks; owner retains server transaction, session/rules wiring, and full Prompt 251 acceptance. |
 | Voyage 33-0 movement transaction adapter, Luna Max task `/root/pc06_release_owner/pc06_voyage33_movement_callable` | 251 (isolated transaction adapter) | `/Users/emeraldpham/.codex/worktrees/pc06-voyage-movement-callable/den-of-wolves-new-eden-console`, `feat/pc06-voyage-movement-callable`, start `14f133e5` | `functions/src/voyage33MovementCallable.ts` and focused tests. Implement an injectable authoritative transaction adapter using the existing pure movement policy; the owner composes it with the common jump path, exports, session/rules, UI, and full Prompt 251 acceptance. |
 | Permissioned-dismantling callable adapter, Luna Max task `/root/pc06_release_owner/pc06_dismantle_callable` | 385 (isolated transaction adapter) | `/Users/emeraldpham/.codex/worktrees/pc06-dismantle-callable/den-of-wolves-new-eden-console`, `feat/pc06-dismantle-callable`, start `1f56d244` | `functions/src/permissionedDismantlingCallable.ts` and its focused tests, using the existing exact-proposal policy. Owner retains callable exports, shared session/rules, client consent UI, and full Prompt 385 acceptance. |
-| Jump, split-fleet messages/pursuit/scouts, mission admission/rewards, P112 integration, checkpoint integration and release, checkpoint owner | 202, 210, 222, 232, 236, 241a, 259, 320, 607, 679, 112, 401, 237, 334, 335, 151, 307 | `/Users/emeraldpham/.codex/worktrees/0ce4/den-of-wolves-new-eden-console`, branch `feat/pc06-execution` | Jump authority and UI, demo policy integration, group-local messaging/pursuit/scouting policy and production integration, mission admission and special rewards, P112 authenticated inventory/consent integration, shared entrypoints/schema/rules, integration and release files. The owner retains closure accountability for all 49 prompts, including delegated leaf work. |
+| Common jump-cost behavior, Luna Max task `/root/pc06_release_owner/pc06_jump_costs` | 202, 210, 222, 232, 236, 259 | `/Users/emeraldpham/.codex/worktrees/pc06-jump-costs/den-of-wolves-new-eden-console`, `feat/pc06-jump-costs`, start `f8304e93` | Authoritative shared jump resolver/policy and focused tests for the source-backed ship-specific costs and Ram Scoop reward. The owner retains `functions/src/index.ts`, shared schema/rules, blind-jump P679, scenario proof P320, and full prompt acceptance. |
+| Split-fleet messaging/pursuit/scouting, mission admission/rewards, P112 integration, checkpoint integration and release, checkpoint owner | 241a, 320, 607, 679, 112, 401, 237, 334, 335, 151, 307 | `/Users/emeraldpham/.codex/worktrees/0ce4/den-of-wolves-new-eden-console`, branch `feat/pc06-execution` | Blind-jump authority and UI, demo policy integration, group-local messaging/pursuit/scouting policy and production integration, mission admission and special rewards, P112 authenticated inventory/consent integration, shared entrypoints/schema/rules, integration and release files. The owner retains closure accountability for all 49 prompts, including delegated leaf work. |
 
 The owner reserves `functions/src/index.ts`, `src/types/game.ts`,
 `src/lib/firestore.ts`, `src/store/useSessionStore.ts`,
@@ -109,6 +110,17 @@ terminal state and frees shared agent capacity. The prepared checkout is
 `/Users/emeraldpham/.codex/worktrees/pc06-exploration-rewards/den-of-wolves-new-eden-console`,
 branch `feat/pc06-exploration-rewards`; its proposed files are
 `functions/src/explorationRewards.ts` and `functions/src/explorationRewards.test.ts`.
+
+After storage reported 63.7 GiB available, a separate managed checkout at
+`/Users/emeraldpham/.codex/worktrees/pc06-jump-costs/den-of-wolves-new-eden-console`,
+branch `feat/pc06-jump-costs`, was created from `f8304e93`. Nested
+`collaboration.spawn_agent` successfully created the real Luna Max task
+`/root/pc06_release_owner/pc06_jump_costs` for the six-prompt common
+jump-cost/reward group. This worker owns only the authoritative jump
+resolver/policy and focused tests; `functions/src/index.ts`, shared
+schema/rules, P679, P320, and release acceptance remain with the checkpoint
+owner. This is another observed successful dispatch and does not establish a
+permanent capacity limit.
 
 The live-access probe reached the production console at
 `dow-new-eden-console.web.app/#/console`, running build `0.5.58`. Reduce Motion
