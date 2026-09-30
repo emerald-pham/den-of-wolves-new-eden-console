@@ -1,5 +1,6 @@
 import { HttpsError } from 'firebase-functions/v2/https';
 import type { Firestore, Transaction } from 'firebase-admin/firestore';
+import { commandReceiptDisposition, type CommandFingerprint } from './commandIdempotency';
 import { decideActionAuthorization, phaseFromTurnPhase } from './actionMetadata';
 import { resolveJumpAttempt, type JumpAttemptResult } from './jumpDrive';
 import { navigationState, navigationStateDocumentPath } from './navigationProjection';
@@ -334,6 +335,10 @@ function requestDocument(dependencies: Voyage33MovementCallableDependencies, ses
   return dependencies.db.doc(`sessions/${sessionId}/voyage33MovementRequests/${requestId}`);
 }
 
+function commandReceiptDocument(dependencies: Voyage33MovementCallableDependencies, sessionId: string, requestId: string) {
+  return dependencies.db.doc(`sessions/${sessionId}/commandReceipts/${requestId}`);
+}
+
 function fingerprint(
   kind: Action,
   sessionId: string,
@@ -356,6 +361,59 @@ function fingerprint(
     hostShipId,
     destination,
   };
+}
+
+function commandFingerprint(expected: MovementFingerprint): CommandFingerprint {
+  return {
+    action: expected.kind === 'dock' ? 'dock-voyage-33-0' : 'jump-voyage-33-0',
+    sessionId: expected.sessionId,
+    requestId: expected.requestId,
+    actorUid: expected.actorUid,
+    instanceId: expected.instanceId,
+    expectedRevision: expected.expectedMovementRevision,
+    payload: {
+      shipId: VOYAGE_33_ID,
+      expectedDockingRevision: expected.expectedDockingRevision,
+      hostShipId: expected.hostShipId,
+      destination: expected.destination,
+    },
+  };
+}
+
+function sameCommandValue(left: unknown, right: unknown): boolean {
+  if (left === right) return true;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return Array.isArray(left) && Array.isArray(right) && left.length === right.length &&
+      left.every((value, index) => sameCommandValue(value, right[index]));
+  }
+  if (!isRecord(left) || !isRecord(right)) return false;
+  const leftKeys = Object.keys(left).sort();
+  const rightKeys = Object.keys(right).sort();
+  return leftKeys.length === rightKeys.length && leftKeys.every((key, index) =>
+    key === rightKeys[index] && sameCommandValue(left[key], right[key]));
+}
+
+function validateSharedReceipt(
+  marker: { readonly exists: boolean; get(field: string): unknown },
+  prior: { readonly exists: boolean; get(field: string): unknown },
+  expected: CommandFingerprint,
+): void {
+  if (!marker.exists) {
+    if (prior.exists) precondition('This Voyage 33-0 request has a domain receipt without its shared command marker.');
+    return;
+  }
+  const disposition = commandReceiptDisposition(marker.get('fingerprint'), expected);
+  if (disposition.kind === 'foreign-actor') {
+    throw new HttpsError('permission-denied', 'This Voyage 33-0 request belongs to a different actor.');
+  }
+  if (disposition.kind === 'collision') {
+    precondition('This request id is already bound to a different command.');
+  }
+  const markerResult = marker.get('result');
+  if (!prior.exists || !validStoredReply(markerResult, expected.action === 'dock-voyage-33-0' ? 'dock' : 'jump',
+    expected.sessionId ?? '', expected.requestId) || !sameCommandValue(markerResult, prior.get('reply'))) {
+    precondition('This Voyage 33-0 request has a shared marker without a matching replay result.');
+  }
 }
 
 function sameFingerprint(value: unknown, expected: MovementFingerprint): boolean {
@@ -436,6 +494,20 @@ function writeReceipt(
     hostShipId,
     fingerprint: expected,
     reply,
+    createdAt: serverTimestamp(),
+  });
+}
+
+function writeSharedReceipt(
+  tx: Transaction,
+  ref: ReturnType<MovementDatabase['doc']>,
+  expected: CommandFingerprint,
+  reply: Data,
+  serverTimestamp: () => unknown,
+): void {
+  tx.set(ref, {
+    fingerprint: expected,
+    result: reply,
     createdAt: serverTimestamp(),
   });
 }
@@ -526,11 +598,16 @@ export function createVoyage33MovementCallables(dependencies: Voyage33MovementCa
       'dock', parsed.sessionId, parsed.requestId, uid, parsed.instanceId,
       parsed.expectedMovementRevision, parsed.expectedDockingRevision, parsed.hostShipId, null,
     );
+    const sharedExpected = commandFingerprint(expected);
     const sessionRef = sessionDocument(dependencies, parsed.sessionId);
     const receiptRef = requestDocument(dependencies, parsed.sessionId, parsed.requestId);
+    const sharedReceiptRef = commandReceiptDocument(dependencies, parsed.sessionId, parsed.requestId);
     return dependencies.db.runTransaction(async (tx) => {
-      const [session, prior] = await Promise.all([tx.get(sessionRef), tx.get(receiptRef)]);
+      const [session, prior, marker] = await Promise.all([
+        tx.get(sessionRef), tx.get(receiptRef), tx.get(sharedReceiptRef),
+      ]);
       requireSessionExists(session);
+      validateSharedReceipt(marker, prior, sharedExpected);
       const replay = receiptReply(prior, expected);
       if (replay) {
         await requireMovementActor(dependencies, tx, parsed.sessionId, uid, parsed.hostShipId, parsed.instanceId);
@@ -554,6 +631,7 @@ export function createVoyage33MovementCallables(dependencies: Voyage33MovementCa
           parsed.expectedDockingRevision, currentDockingRevision,
         );
         writeReceipt(tx, receiptRef, expected, stale, parsed.hostShipId, dependencies.serverTimestamp);
+        writeSharedReceipt(tx, sharedReceiptRef, sharedExpected, stale, dependencies.serverTimestamp);
         return stale;
       }
       const coordinate = await hostCoordinate(
@@ -596,6 +674,7 @@ export function createVoyage33MovementCallables(dependencies: Voyage33MovementCa
         updatedAt: dependencies.serverTimestamp(),
       });
       writeReceipt(tx, receiptRef, expected, reply, parsed.hostShipId, dependencies.serverTimestamp);
+      writeSharedReceipt(tx, sharedReceiptRef, sharedExpected, reply, dependencies.serverTimestamp);
       return reply;
     });
   });
@@ -607,13 +686,18 @@ export function createVoyage33MovementCallables(dependencies: Voyage33MovementCa
       'jump', parsed.sessionId, parsed.requestId, uid, parsed.instanceId,
       parsed.expectedMovementRevision, parsed.expectedDockingRevision, parsed.hostShipId, parsed.destination,
     );
+    const sharedExpected = commandFingerprint(expected);
     const sessionRef = sessionDocument(dependencies, parsed.sessionId);
     const receiptRef = requestDocument(dependencies, parsed.sessionId, parsed.requestId);
+    const sharedReceiptRef = commandReceiptDocument(dependencies, parsed.sessionId, parsed.requestId);
     const operationTime = dependencies.now();
     if (!Number.isFinite(operationTime.getTime())) precondition('The server clock is unavailable.');
     return dependencies.db.runTransaction(async (tx) => {
-      const [session, prior] = await Promise.all([tx.get(sessionRef), tx.get(receiptRef)]);
+      const [session, prior, marker] = await Promise.all([
+        tx.get(sessionRef), tx.get(receiptRef), tx.get(sharedReceiptRef),
+      ]);
       requireSessionExists(session);
+      validateSharedReceipt(marker, prior, sharedExpected);
       const replay = receiptReply(prior, expected);
       if (replay) {
         const storedHost = prior.get('hostShipId');
@@ -638,6 +722,7 @@ export function createVoyage33MovementCallables(dependencies: Voyage33MovementCa
           parsed.expectedDockingRevision, currentDockingRevision,
         );
         writeReceipt(tx, receiptRef, expected, stale, hostShipId, dependencies.serverTimestamp);
+        writeSharedReceipt(tx, sharedReceiptRef, sharedExpected, stale, dependencies.serverTimestamp);
         return stale;
       }
       if (maintenance.hostShipId !== hostShipId) {
@@ -721,6 +806,7 @@ export function createVoyage33MovementCallables(dependencies: Voyage33MovementCa
       if (jumped) patch[`shipResources.${hostShipId}`] = result.hostResources;
       tx.update(sessionRef, patch);
       writeReceipt(tx, receiptRef, expected, reply, hostShipId, dependencies.serverTimestamp);
+      writeSharedReceipt(tx, sharedReceiptRef, sharedExpected, reply, dependencies.serverTimestamp);
       return reply;
     });
   });
