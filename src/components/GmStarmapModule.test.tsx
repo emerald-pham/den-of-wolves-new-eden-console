@@ -93,6 +93,22 @@ it.each(['debrief', 'failure'] as const)('freezes ship movement during %s endgam
   expect(moveShipToLocation).not.toHaveBeenCalled();
 });
 
+it('disables GM starmap relocation controls during the single-player Demo', async () => {
+  const user = userEvent.setup();
+  vi.mocked(moveShipToLocation).mockClear();
+  render(<GmStarmapModule session={{
+    ...session,
+    singlePlayerDemo: { status: 'active', finalCycle: 1 },
+  } as unknown as GameSession} />);
+
+  const module = screen.getByRole('region', { name: 'GM starmap' });
+  await user.click(within(module).getByRole('button', { name: /system 5143/i }));
+
+  expect(within(module).getByRole('button', { name: /move ship to location/i })).toBeDisabled();
+  expect(within(module).getByRole('status')).toHaveTextContent(/demo mode.*ship relocation is unavailable/i);
+  expect(moveShipToLocation).not.toHaveBeenCalled();
+});
+
 it('keeps an enabled toggle from plotting Capybara outside the canonical expansion roster', () => {
   render(<GmStarmapModule session={{
     ...session,
