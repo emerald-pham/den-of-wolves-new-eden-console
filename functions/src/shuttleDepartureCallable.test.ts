@@ -327,3 +327,13 @@ it('rejects a current-cycle and phase-cycle mismatch without writes', async () =
   expect(mock.set).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();
 });
+
+it('blocks a mission-committed craft at the ordinary departure endpoint without writes', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  mock.documents.set('sessions/s1', { ...session, missionCraftCommitments: {
+    starlight: { missionId: 'mission-1', sourceCycle: 1 },
+  } });
+  await expect(requestShuttleDeparture.run(request(command))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});

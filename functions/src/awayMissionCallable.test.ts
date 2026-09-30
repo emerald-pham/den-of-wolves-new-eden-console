@@ -704,6 +704,11 @@ describe('dealPrivateInitialCards', () => {
     expect(JSON.stringify(pointers.map(([, pointer]) => pointer.lifecyclePublicState)))
       .not.toMatch(/A♥|4♥|cardId|value/);
     expect(mission?.lifecycleRecord?.participantCrafts).toEqual(mission?.participantCrafts);
+    expect(mock.update).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1' }),
+      expect.objectContaining({ missionCraftCommitments: {
+        starlight: { missionId: mission.missionId, sourceCycle: 2 },
+        highwall: { missionId: mission.missionId, sourceCycle: 2 },
+      } }));
   });
 
   it('admits a current base Capybara Captain and snapshots its participant craft separately from carriers', async () => {
