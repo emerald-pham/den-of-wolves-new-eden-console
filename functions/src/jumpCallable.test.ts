@@ -3,6 +3,7 @@ import type { CallableRequest } from 'firebase-functions/v2/https';
 import * as jumpCallables from './index';
 import { jumpFuelCost, jumpLengthBetween } from './jumpDrive';
 import { populationChange } from './shipPopulation';
+import { emptySmallShipState } from './smallShip';
 
 const mock = vi.hoisted(() => ({
   get: vi.fn(),
@@ -50,6 +51,8 @@ const mock = vi.hoisted(() => ({
   mutinies: {} as Record<string, unknown>,
   wolfAttackState: undefined as Record<string, unknown> | undefined,
   arrivalPressureState: undefined as Record<string, unknown> | undefined,
+  missionCraftCommitments: {} as Record<string, unknown>,
+  smallShipStates: {} as Record<string, unknown>,
   missionOpportunityRecord: undefined as Record<string, unknown> | undefined,
   missionOpportunityRecordPath: undefined as string | undefined,
   commandReceiptRecord: undefined as Record<string, unknown> | undefined,
@@ -153,6 +156,8 @@ beforeEach(() => {
   mock.mutinies = {};
   mock.wolfAttackState = undefined;
   mock.arrivalPressureState = undefined;
+  mock.missionCraftCommitments = {};
+  mock.smallShipStates = {};
   mock.missionOpportunityRecord = undefined;
   mock.missionOpportunityRecordPath = undefined;
   mock.commandReceiptRecord = undefined;
@@ -267,6 +272,8 @@ beforeEach(() => {
           ...(mock.singlePlayerDemo ? { singlePlayerDemo: mock.singlePlayerDemo } : {}),
           ...(mock.gameOutcome ? { gameOutcome: mock.gameOutcome } : {}),
           ...(memberPursuitWindow ? { pursuitEmergencyWindow: memberPursuitWindow } : {}),
+          missionCraftCommitments: mock.missionCraftCommitments,
+          smallShipStates: mock.smallShipStates,
           activeRoleIds: mock.activeRoleIds,
           activeVesselIds: mock.activeVesselIds,
           currentTurn: mock.currentTurn,
@@ -2352,3 +2359,14 @@ it('denies a player operating a different ship even with a valid printed destina
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.randomInt).not.toHaveBeenCalled();
 });
+
+for (const craftId of ['warrior', 'capybara-small'] as const) {
+  it(`blocks a core host from carrying mission-bound ${craftId} through a jump`, async () => {
+    mock.smallShipStates = { [craftId]: emptySmallShipState(craftId, 'aegis') };
+    mock.missionCraftCommitments = { [craftId]: { missionId: 'mission-1', sourceCycle: 1 } };
+    await expect(jumpShip.run(request({ ...data, destination: '1413' }))).rejects.toThrow(/committed.*away mission/i);
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.randomInt).not.toHaveBeenCalled();
+  });
+}
