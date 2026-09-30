@@ -7,7 +7,7 @@ const basePublicMission = {
   groupId: 'fleet-1',
   siteCode: 'D',
   revision: 3,
-  phase: 'discarding' as const,
+  phase: 'assignment-ready' as const,
   status: 'active' as const,
   overrun: false,
   missionLeaderUid: 'alice',
@@ -27,7 +27,7 @@ const privateHand = {
   missionId: 'mission-1',
   participantUid: 'bob',
   revision: 3,
-  phase: 'discarding' as const,
+  phase: 'assignment-ready' as const,
   cards: [
     { id: '10♦', value: 10, status: 'discarded' as const, opportunityId: null },
     { id: 'A♥', value: 10, status: 'remaining' as const, opportunityId: null },
@@ -71,6 +71,19 @@ describe('AwayMissionLifecyclePanel', () => {
     expect(actions.assignCards).toHaveBeenCalledWith([
       { cardId: 'A♥', opportunityId: 'D-1' },
     ]);
+  });
+
+  it('lets a participant privately discard one of their own cards during the discard phase', () => {
+    const actions = renderPanel({
+      publicState: { ...basePublicMission, phase: 'discarding' },
+      privateState: {
+        ...privateHand,
+        phase: 'discarding',
+        cards: [{ id: 'A♥', value: 10, status: 'remaining', opportunityId: null }],
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Discard A♥ secretly' }));
+    expect(actions.discardCard).toHaveBeenCalledWith('A♥');
   });
 
   it('shows a leader request count without a reason or another participant card value', () => {
