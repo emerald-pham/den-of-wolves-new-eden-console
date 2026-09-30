@@ -396,7 +396,10 @@ describe('same-table trade authoritative callables', () => {
     expect(result).toMatchObject({
       status: 'committed', sessionId: SESSION_ID, offerId: OFFER_ID, revision: 5,
       receipt: { receiptId: OFFER_ID, revision: 4 },
-      inventory: { ...RECIPIENT_BASELINE, ore: 4, fuel: 3 },
+      inventory: {
+        playerUid: 'recipient', revision: 5,
+        balances: { ...RECIPIENT_BASELINE, ore: 4, fuel: 3 },
+      },
     });
     expect(result).not.toHaveProperty('sourceInventory');
     expect(result).not.toHaveProperty('recipientInventory');
@@ -475,6 +478,7 @@ describe('same-table trade authoritative callables', () => {
     store.records.set(`${path.players}/recipient`, player('recipient', 'dione-engineer'));
     const sourceBeforeReplay = structuredClone(store.records.get(path.senderInventory)?.balances);
     const recipientBeforeReplay = structuredClone(store.records.get(path.recipientInventory)?.balances);
+    const recipientRevisionBeforeReplay = store.records.get(path.recipientInventory)?.revision;
     store.committedWrites.length = 0;
 
     const replay = await callables.acceptSameTableTradeOffer(acceptRequest());
@@ -482,7 +486,10 @@ describe('same-table trade authoritative callables', () => {
     expect(replay).toMatchObject({
       status: 'replayed', sessionId: SESSION_ID, offerId: OFFER_ID,
       revision: 99, receipt: committed.receipt,
-      inventory: recipientBeforeReplay,
+      inventory: {
+        playerUid: 'recipient', revision: recipientRevisionBeforeReplay,
+        balances: recipientBeforeReplay,
+      },
     });
     expect(replay).not.toHaveProperty('sourceInventory');
     expect(replay).not.toHaveProperty('recipientInventory');

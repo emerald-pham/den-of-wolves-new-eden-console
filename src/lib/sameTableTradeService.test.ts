@@ -22,6 +22,7 @@ vi.mock('firebase/firestore', () => ({
 }));
 vi.mock('firebase/functions', () => ({ httpsCallable: mocks.callable }));
 vi.mock('./firebase', () => ({ db: () => 'db', functions: () => 'functions' }));
+vi.mock('./firestore', () => ({ db: () => 'db' }));
 vi.mock('./sessionMutationAuthority', () => ({ requireFreshSessionAuthority: mocks.requireFresh }));
 
 import {
@@ -35,6 +36,20 @@ import {
 const balances = {
   ore: 4, fuel: 2, food: 3, water: 1, materials: 5, securityTeams: 2,
 } as const;
+const attestedInventory = (playerUid: string, revision: number) => ({
+  type: 'player-held-resource-inventory',
+  sessionId: 's1',
+  playerUid,
+  revision,
+  balances,
+  baseline: {
+    attestationId: '1f23b456-789a-4abc-8def-0123456789ab',
+    attestedByUid: 'gm',
+    balances,
+    revision: 0,
+    attestedAt: 'server-time',
+  },
+});
 
 function playerSession() {
   useSessionStore.getState().setIdentity({
@@ -74,21 +89,29 @@ it('reads only the current player inventory by exact UID and ignores cache or ma
   onInventory.mockClear();
 
   const listener = mocks.listeners[0]!;
-  listener.next({ metadata: { fromCache: true }, exists: () => true, data: () => ({
-    type: 'player-held-resource-inventory', sessionId: 's1', playerUid: 'alice', revision: 1, balances,
-  }) });
+  listener.next({ metadata: { fromCache: true }, exists: () => true, data: () => attestedInventory('alice', 1) });
   expect(onInventory).not.toHaveBeenCalled();
-  listener.next({ metadata: { fromCache: false }, exists: () => true, data: () => ({
-    type: 'player-held-resource-inventory', sessionId: 's1', playerUid: 'bob', revision: 1, balances,
-  }) });
+  listener.next({ metadata: { fromCache: false }, exists: () => true, data: () => attestedInventory('bob', 1) });
   expect(onInventory).toHaveBeenCalledExactlyOnceWith(null);
 
   onInventory.mockClear();
-  listener.next({ metadata: { fromCache: false }, exists: () => true, data: () => ({
-    type: 'player-held-resource-inventory', sessionId: 's1', playerUid: 'alice', revision: 1, balances,
-  }) });
+  listener.next({ metadata: { fromCache: false }, exists: () => true, data: () => attestedInventory('alice', 1) });
   expect(onInventory).toHaveBeenCalledExactlyOnceWith({ revision: 1, balances });
   stop();
+});
+
+it('accepts the facilitator-attested baseline at the initial revision zero', () => {
+  const onInventory = vi.fn();
+  subscribeSameTableTradeInventory('s1', 'alice', onInventory);
+  onInventory.mockClear();
+
+  mocks.listeners[0]!.next({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => attestedInventory('alice', 0),
+  });
+
+  expect(onInventory).toHaveBeenCalledExactlyOnceWith({ revision: 0, balances });
 });
 
 it('queries offers only addressed to this UID in its current fleet group and joins both private directions', () => {
@@ -156,16 +179,13 @@ it('sends baseline, offer, and acceptance commands using their stable request id
     sessionId: 's1', offerId, recipientUid: 'bob', quantities: { ore: 1 },
   });
 
-  const ownInventory = {
-    type: 'player-held-resource-inventory', sessionId: 's1', playerUid: 'alice', revision: 2, balances,
-  };
   const receipt = {
     receiptId: incomingOfferId, offerId: incomingOfferId, fromUid: 'bob', toUid: 'alice',
     tableId: 'aegis', revision: 2, quantities: { ore: 1, fuel: 0, food: 0, water: 0, materials: 0, securityTeams: 0 },
   };
   mocks.call.mockResolvedValue({ data: {
     status: 'committed', sessionId: 's1', offerId: incomingOfferId, revision: 2,
-    inventory: ownInventory, receipt,
+    inventory: { playerUid: 'alice', revision: 2, balances }, receipt,
   } });
   const accepted = await acceptSameTableTradeOffer(incomingOfferId);
   expect(accepted.inventory).toEqual({ revision: 2, balances });
@@ -182,5 +202,5 @@ it('rejects a malformed or bilateral balance reply from trade acceptance', async
     sourceInventory: balances, recipientInventory: balances,
   } });
 
-  await expect(acceptSameTableTradeOffer(incomingOfferId)).rejects.toThrow(/invalid same-table trade result/i);
+  await expect(acceptSameTableTradeOffer(incomingOfferId)).rejects.toThrow(/private balances/i);
 });
