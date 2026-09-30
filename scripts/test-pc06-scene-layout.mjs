@@ -27,6 +27,24 @@ test('PC06 solo scene fits phone, short landscape and desktop in both motion mod
               return rect.width > 0 && (rect.left < -1 || rect.right > document.documentElement.clientWidth + 1);
             }).map(element => element.textContent));
             assert.deepEqual(inaccessibleControls, [], `${width}x${height} ${name}: offscreen controls`);
+            if (name === '2 Cargo and trade') {
+              await page.getByRole('button', {name:'Load 1 food onto Capybara',exact:true}).click();
+              await page.getByRole('button', {name:'Accept exact offer from Juno Reyes',exact:true}).click();
+              assert.match(await page.getByRole('region',{name:'Your held tokens'}).textContent(), /Fuel 3/);
+            } else if (name === '3 Scouting') {
+              await page.getByRole('button',{name:'Reveal Hummingbird scout at 6798',exact:true}).click();
+              assert.match(await page.getByRole('region',{name:'Hummingbird scout report'}).textContent(), /Site L/);
+              assert.doesNotMatch(await page.getByRole('region',{name:'Fleet 1 sample view'}).textContent(), /Site L/);
+            } else if (name === '4 Away mission') {
+              await page.getByLabel('Opportunity for A♥').selectOption('explore');
+              await page.getByLabel('Opportunity for 4♣').selectOption('recover');
+              await page.getByRole('button',{name:'Submit mission assignments',exact:true}).click();
+              assert.match(await page.getByRole('region',{name:'Away mission sample path'}).textContent(), /critical success.*total 17/i);
+              await page.getByRole('button',{name:'Drop mission rewards at selected ship',exact:true}).click();
+              await page.getByRole('button',{name:'Reconnect sample',exact:true}).click();
+              assert.match(await page.getByRole('status',{name:'Mission sample result'}).textContent(), /reconnected view/i);
+            }
+            await page.screenshot({path:`/tmp/pc06-review-${width}x${height}-${reducedMotion}-step${name[0]}.png`,fullPage:true});
           }
           await steps.getByRole('button', { name:'1 Movement', exact:true }).click();
           await page.getByRole('region',{name:'Voyage 33-0 movement'}).getByRole('button',{name:'Dock with Dione',exact:true}).click();
