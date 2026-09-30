@@ -57,7 +57,7 @@ import { enforceExpensiveCallableRateLimit } from './callableRateLimitFirestore'
 import { createSameTableTradeCallables } from './sameTableTradeCallable';
 import { createGorgoneionMissionSupportCallables } from './gorgoneionMissionSupportCallable';
 import { applyAwayMissionLifecycleCommand, createAwayMissionLifecycleBootstrap, markAwayMissionOverrun, projectAwayMissionPrivateState, projectAwayMissionPublicState, type AwayMissionLifecycleRecord, type AwayMissionLifecycleCommand } from './awayMissionLifecycleAdapter';
-import { nextMissionCraftCommitments, requireMissionCraftMovementAvailable } from './missionCraftCommitment';
+import { missionCraftIdsCarriedByShip, nextMissionCraftCommitments, requireMissionCraftMovementAvailable } from './missionCraftCommitment';
 import { planMissionRewardDelivery } from './missionRewardDelivery';
 import { createAwayMissionLifecycleCallables } from './awayMissionLifecycleCallable';
 import { deriveAwayMissionParticipantCraftSnapshots } from './awayMissionCraftSnapshot';
@@ -16383,10 +16383,15 @@ export const jumpShip = onCall<{
     } else {
       requireActionPhase(session, 'jump', player.get('role') === 'gm' ? 'facilitator' : 'player');
     }
-    const dockedMissionCraftIds = Array.isArray(session.get('shuttleDockings'))
-      ? (session.get('shuttleDockings') as { shuttleId: string; shipId: string }[])
-        .filter(docking => docking.shipId === change.shipId).map(docking => docking.shuttleId) : [];
-    requireMissionMovementAvailable(session, [change.shipId, ...dockedMissionCraftIds]);
+    let carriedCraftIds: readonly string[];
+    try {
+      carriedCraftIds = missionCraftIdsCarriedByShip({ shipId: change.shipId,
+        activeRoleIds: session.get('activeRoleIds'), shuttleDockings: session.get('shuttleDockings'),
+        smallShipStates: session.get('smallShipStates') });
+    } catch (error) {
+      throw commandError('failed-precondition', error instanceof Error ? error.message : 'Carried craft authority is malformed.', 'conflict');
+    }
+    requireMissionMovementAvailable(session, carriedCraftIds);
     requireNavigableShip(session, change.shipId);
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {

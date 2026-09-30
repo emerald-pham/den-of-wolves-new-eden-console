@@ -1,3 +1,5 @@
+import { craftStartingManifestForSetup } from './craftOwnership';
+import { parseSmallShipState, SMALL_SHIP_IDS } from './smallShip';
 import type { AwayMissionParticipantCrafts } from './awayMissionLifecycleAdapter';
 
 export interface MissionCraftCommitment {
@@ -56,4 +58,36 @@ export function requireMissionCraftMovementAvailable(value: unknown, craftIds: r
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Every physically carried mission craft must serialize with its host's jump. */
+export function missionCraftIdsCarriedByShip(input: {
+  shipId: string; activeRoleIds: unknown; shuttleDockings: unknown; smallShipStates: unknown;
+}): readonly string[] {
+  const malformed = () => { throw new Error('Carried mission craft authority is malformed.'); };
+  const roles = input.activeRoleIds === undefined ? [] : input.activeRoleIds;
+  const dockings = input.shuttleDockings === undefined ? [] : input.shuttleDockings;
+  const states = input.smallShipStates === undefined ? {} : input.smallShipStates;
+  if (!Array.isArray(roles) || roles.some(role => typeof role !== 'string') ||
+      !Array.isArray(dockings) || !record(states)) return malformed();
+  const typedDockings: { shuttleId: string; shipId: string }[] = [];
+  const seen = new Set<string>();
+  for (const docking of dockings) {
+    if (!record(docking) || typeof docking.shuttleId !== 'string' || typeof docking.shipId !== 'string' ||
+        seen.has(docking.shuttleId)) return malformed();
+    seen.add(docking.shuttleId);
+    typedDockings.push({ shuttleId: docking.shuttleId, shipId: docking.shipId });
+  }
+  const craftIds = new Set([input.shipId, ...typedDockings
+    .filter(docking => docking.shipId === input.shipId).map(docking => docking.shuttleId)]);
+  for (const craft of craftStartingManifestForSetup(roles as string[], 'core', typedDockings).entries) {
+    if (craft.kind === 'fighter-wing' && craft.startingHostId === input.shipId) craftIds.add(craft.id);
+  }
+  for (const id of SMALL_SHIP_IDS) {
+    if (!Object.hasOwn(states, id)) continue;
+    const state = parseSmallShipState(states[id], id);
+    if (!state) return malformed();
+    if (state.hostShipId === input.shipId) craftIds.add(id);
+  }
+  return [...craftIds];
 }
