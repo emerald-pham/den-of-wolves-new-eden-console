@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ComponentProps } from 'react';
 import { beforeEach, expect, it, vi } from 'vitest';
@@ -11,11 +11,15 @@ vi.mock('@/lib/sessionService', async (importOriginal) => {
   return {
     ...actual,
     jumpShip: vi.fn(),
-    createJumpShipAttempt: vi.fn((shipId: string, destination: string, options?: Record<string, unknown>) => ({
-      sessionId: 's1', shipId, destination,
+    createJumpShipAttempt: vi.fn((shipId: string, destination: string | undefined, options?: {
+      readonly emergency?: boolean; readonly failureRequestId?: string; readonly blind?: true;
+    }) => ({
+      sessionId: 's1', shipId, ...(destination === undefined ? {} : { destination }),
       requestId: '30400000-0000-4000-8000-000000000001', expectedRevision: 3,
       instanceId: 'bridge',
-      ...options,
+      ...(options?.emergency ? { emergency: true } : {}),
+      ...(options?.failureRequestId ? { failureRequestId: options.failureRequestId } : {}),
+      ...(options?.blind ? { blind: true as const } : {}),
     })),
   };
 });
@@ -61,11 +65,13 @@ beforeEach(() => {
     fuelCost: 2,
     remainingFuel: 2,
   });
-  vi.mocked(createJumpShipAttempt).mockReset().mockImplementation((shipId, destination, options) => ({
-    sessionId: 's1', shipId, destination,
+vi.mocked(createJumpShipAttempt).mockReset().mockImplementation((shipId, destination, options) => ({
+    sessionId: 's1', shipId, ...(destination === undefined ? {} : { destination }),
     requestId: '30400000-0000-4000-8000-000000000001', expectedRevision: 3,
     instanceId: 'bridge',
-    ...options,
+    ...(options?.emergency ? { emergency: true } : {}),
+    ...(options?.failureRequestId ? { failureRequestId: options.failureRequestId } : {}),
+    ...(options?.blind ? { blind: true as const } : {}),
   }));
 });
 
@@ -87,6 +93,129 @@ it('edits four digits, locks the destination, powers the rail, and submits the j
 
   await user.click(screen.getByRole('button', { name: /jump to 2000/i }));
   expect(jumpShip).toHaveBeenCalledWith(expect.objectContaining({ shipId: 'aegis', destination: '2000' }));
+});
+
+it('submits blind travel without a candidate and retries the same request until the server reveals arrival', async () => {
+  const user = userEvent.setup();
+  const blindAttempt = {
+    sessionId: 's1', shipId: 'aegis', blind: true as const,
+    requestId: '30400000-0000-4000-8000-000000000007', expectedRevision: 3, instanceId: 'bridge',
+  };
+  vi.mocked(createJumpShipAttempt).mockReturnValue(blindAttempt);
+  vi.mocked(jumpShip)
+    .mockRejectedValueOnce({ code: 'functions/unavailable' })
+    .mockResolvedValueOnce({
+      status: 'jumped', shipId: 'aegis', origin: '0000', destination: '1413',
+      length: 'short', fuelCost: 2, remainingFuel: 2,
+    });
+  renderConsole();
+
+  await user.click(screen.getByRole('button', { name: 'Enable blind jump' }));
+  expect(screen.getByLabelText('Blind destination hidden until server resolution')).toHaveTextContent('BLIND');
+  await user.click(screen.getByRole('button', { name: 'Arm blind jump' }));
+  fireEvent.change(screen.getByRole('slider', { name: /jump drive power/i }), { target: { value: '100' } });
+  await user.click(screen.getByRole('button', { name: 'Blind jump' }));
+
+  expect(createJumpShipAttempt).toHaveBeenCalledWith('aegis', undefined, { blind: true });
+  expect(jumpShip).toHaveBeenNthCalledWith(1, blindAttempt);
+  expect(await screen.findByRole('button', { name: 'Retry blind-jump confirmation' })).toBeEnabled();
+  await user.click(screen.getByRole('button', { name: 'Retry blind-jump confirmation' }));
+
+  expect(createJumpShipAttempt).toHaveBeenCalledTimes(1);
+  expect(jumpShip).toHaveBeenNthCalledWith(2, blindAttempt);
+  expect(await screen.findByText(/blind jump complete.*0000 → 1413/i)).toBeInTheDocument();
+  expect(screen.getByLabelText('Locked destination coordinates')).toHaveTextContent('1413');
+});
+
+it('scrambles blind digits in four staggered updates every 500 ms and clears timers on resolution', async () => {
+  vi.useFakeTimers();
+  const random = vi.spyOn(Math, 'random').mockReturnValue(0.51);
+  let resolveJump!: (reply: {
+    status: 'jumped'; shipId: string; origin: string; destination: string;
+    length: 'short'; fuelCost: number; remainingFuel: number;
+  }) => void;
+  vi.mocked(jumpShip).mockReturnValueOnce(new Promise((resolve) => { resolveJump = resolve; }));
+  const { container, unmount } = renderConsole();
+  try {
+    fireEvent.click(screen.getByRole('button', { name: 'Enable blind jump' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Arm blind jump' }));
+    fireEvent.change(screen.getByRole('slider', { name: /jump drive power/i }), { target: { value: '100' } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Blind jump' }));
+      await Promise.resolve();
+    });
+
+    const readout = () => container.querySelector('[data-blind-digit-readout]');
+    expect(readout()?.getAttribute('aria-hidden')).toBe('true');
+    expect(screen.getByLabelText('Blind destination pending server selection')).toHaveTextContent('BLIND');
+    expect(readout()?.textContent).toBe('0000');
+    await act(async () => { vi.advanceTimersByTime(24); });
+    expect(readout()?.textContent).toBe('0000');
+    await act(async () => { vi.advanceTimersByTime(1); });
+    expect(readout()?.textContent).toBe('5000');
+    await act(async () => { vi.advanceTimersByTime(75); });
+    expect(readout()?.textContent).toBe('5500');
+    await act(async () => { vi.advanceTimersByTime(75); });
+    expect(readout()?.textContent).toBe('5550');
+    await act(async () => { vi.advanceTimersByTime(75); });
+    expect(readout()?.textContent).toBe('5555');
+    expect(readout()?.textContent).toMatch(/^[0-9]{4}$/);
+    expect(random).toHaveBeenCalledTimes(8);
+    await act(async () => { vi.advanceTimersByTime(1); });
+    expect(random).toHaveBeenCalledTimes(12);
+    await act(async () => { vi.advanceTimersByTime(25); });
+    expect(random).toHaveBeenCalledTimes(13);
+
+    await act(async () => {
+      resolveJump({
+        status: 'jumped', shipId: 'aegis', origin: '0000', destination: '1413',
+        length: 'short', fuelCost: 2, remainingFuel: 2,
+      });
+      await Promise.resolve();
+    });
+    expect(screen.getByLabelText('Locked destination coordinates')).toHaveTextContent('1413');
+    expect(vi.getTimerCount()).toBe(0);
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
+  } finally {
+    random.mockRestore();
+    vi.useRealTimers();
+  }
+});
+
+it('uses a stable readable blind-jump display when reduced motion is enabled', async () => {
+  const originalMatchMedia = window.matchMedia;
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: vi.fn().mockReturnValue({
+      matches: true, media: '(prefers-reduced-motion: reduce)', onchange: null,
+      addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(),
+      removeEventListener: vi.fn(), dispatchEvent: vi.fn(),
+    }),
+  });
+  vi.useFakeTimers();
+  const random = vi.spyOn(Math, 'random');
+  vi.mocked(jumpShip).mockReturnValueOnce(new Promise(() => undefined));
+  try {
+    renderConsole();
+    fireEvent.click(screen.getByRole('button', { name: 'Enable blind jump' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Arm blind jump' }));
+    fireEvent.change(screen.getByRole('slider', { name: /jump drive power/i }), { target: { value: '100' } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Blind jump' }));
+      await Promise.resolve();
+    });
+    const readout = screen.getByLabelText('Blind destination pending server selection');
+    expect(readout).toHaveTextContent('BLIND');
+    expect(document.querySelector('[data-blind-digit-readout]')).toBeNull();
+    await act(async () => { vi.advanceTimersByTime(1_000); });
+    expect(random).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+  } finally {
+    random.mockRestore();
+    vi.useRealTimers();
+    Object.defineProperty(window, 'matchMedia', { configurable: true, value: originalMatchMedia });
+  }
 });
 
 it('offers an emergency jump at pursuit 10 without requiring the drive power rail', async () => {
