@@ -269,6 +269,21 @@ it('rejects malformed requests, ineligible craft actors, self-consent, and a pla
   expect(wrongShipStore.records.has(paths().consent)).toBe(false);
 });
 
+it('uses the current vessel-bound replacement role to identify a target-ship player', async () => {
+  const store = seededStore();
+  const target = store.records.get(paths().targetPlayer)!;
+  target.assignedRoleId = 'admiral';
+  target.replacementRoleId = 'vip-host';
+  target.replacementStatus = null;
+  const callables = createPermissionedDismantlingCallables(dependencies(store));
+
+  await callables.proposePermissionedDismantling(proposeRequest());
+  await expect(callables.consentToPermissionedDismantling(consentRequest())).resolves.toMatchObject({
+    status: 'consented',
+    consentId: CONSENT_ID,
+  });
+});
+
 it('returns a stale revision without writes when the target changes after consent', async () => {
   const store = seededStore();
   const callables = createPermissionedDismantlingCallables(dependencies(store));
