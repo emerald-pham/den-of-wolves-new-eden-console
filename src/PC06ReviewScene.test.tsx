@@ -78,7 +78,7 @@ it('follows private mission cards through local assignment, results, rewards, an
   render(<PC06ReviewScene />);
   await user.click(screen.getByRole('button', { name: '4 Away mission' }));
 
-  const mission = screen.getByRole('region', { name: 'Away mission // mission-pc06-fleet-2' });
+  const mission = screen.getByRole('region', { name: 'Away mission sample path' });
   expect(mission).toHaveTextContent(/fleet group fleet-2.*system 6798/i);
   const hand = within(mission).getByRole('region', { name: 'Your private mission cards' });
   expect(within(hand).getByRole('article', { name: 'Private card A♥' })).toBeVisible();
