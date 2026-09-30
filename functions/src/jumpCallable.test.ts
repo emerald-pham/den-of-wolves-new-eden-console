@@ -68,7 +68,8 @@ vi.mock('node:crypto', async (importOriginal) => {
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => ({
-    doc: (path: string) => path,
+    doc: (path: string) => path.includes('/playerDiscoveries/')
+      ? { path, id: path.split('/').at(-1)! } : path,
     collection: (path: string) => {
       if (!path.endsWith('/jumpFailures')) return path;
       const query = { path, where: () => query, limit: () => query };
@@ -82,7 +83,7 @@ vi.mock('firebase-admin/firestore', () => ({
         const sets: Array<[string, Record<string, unknown>]> = [];
         result = await callback({
           get: mock.get,
-          set: (path: string, fields: Record<string, unknown>) => sets.push([path, fields]),
+          set: (ref: string | { path: string }, fields: Record<string, unknown>) => sets.push([typeof ref === 'string' ? ref : ref.path, fields]),
           update: (path: string, fields: Record<string, unknown>) => writes.push([path, fields]),
         });
         if (attempt === attempts - 1) {
