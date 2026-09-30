@@ -269,6 +269,9 @@ describe('Gorgoneion mission-support callable', () => {
 
   it.each([
     ['missing docking record', (session: Fields) => { session.smallShipStates = {}; }],
+    ['unadvanced docking record', (session: Fields) => {
+      ((session.smallShipStates as Fields).gorgoneion as Fields).dockingRevision = 0;
+    }],
     ['host outside the active core fleet', (session: Fields) => {
       session.activeVesselIds = ['dione'];
     }],
@@ -300,6 +303,19 @@ describe('Gorgoneion mission-support callable', () => {
     const order = [...initialDeck.order];
     [order[0], order[5]] = [order[5]!, order[0]!];
     db.records.get(DECK_PATH)!.order = order;
+    const priorWriteCount = db.writesByTransaction.flat().length;
+
+    await expect(apply(db, CAPTAIN_UID, applyCommand(projection))).rejects.toMatchObject({
+      code: 'failed-precondition',
+    });
+    expect(db.writesByTransaction.flat()).toHaveLength(priorWriteCount);
+  });
+
+  it('rejects a dock revision that changes after the projection was issued', async () => {
+    const db = seededDatabase();
+    const projection = await availableProjection(db);
+    const smallShipStates = db.records.get(`sessions/${SESSION_ID}`)!.smallShipStates as Fields;
+    (smallShipStates.gorgoneion as Fields).dockingRevision = 4;
     const priorWriteCount = db.writesByTransaction.flat().length;
 
     await expect(apply(db, CAPTAIN_UID, applyCommand(projection))).rejects.toMatchObject({
