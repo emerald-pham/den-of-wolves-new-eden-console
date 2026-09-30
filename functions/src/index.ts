@@ -15880,14 +15880,19 @@ async function removePlayer(
     const seat = seatRef ? await tx.get(seatRef) : null;
 
     const survivingPlayers = playersSnapshot.docs.filter((player) => player.id !== action.targetUid);
-    ensureInitialFleetGroup(
-      tx,
-      action.sessionId,
-      activeVesselIdsForSession(session),
-      activeFleetGroupMemberUids(survivingPlayers),
-      storedGroup,
-      survivingPlayers,
-    );
+    if (hasFleetPartition(session)) {
+      const partitions = await tx.get(db.collection(`sessions/${action.sessionId}/fleetGroups`));
+      const groups = movementPursuitFleetGroups(activeVesselIdsForSession(session), partitions, playersSnapshot);
+      for (const group of groups) if (group.memberUids.includes(action.targetUid)) {
+        tx.update(db.doc(`sessions/${action.sessionId}/fleetGroups/${group.id}`), {
+          memberUids: group.memberUids.filter(memberUid => memberUid !== action.targetUid),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+    } else {
+      ensureInitialFleetGroup(tx, action.sessionId, activeVesselIdsForSession(session),
+        activeFleetGroupMemberUids(survivingPlayers), storedGroup, survivingPlayers);
+    }
     tx.update(targetRef, {
       connected: false,
       ...disconnectedRoleState(),
