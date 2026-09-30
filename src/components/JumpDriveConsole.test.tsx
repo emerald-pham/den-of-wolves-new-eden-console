@@ -95,6 +95,85 @@ it('edits four digits, locks the destination, powers the rail, and submits the j
   expect(jumpShip).toHaveBeenCalledWith(expect.objectContaining({ shipId: 'aegis', destination: '2000' }));
 });
 
+it('completes denial, uncertain retry, and success through the keyboard with stable recovery focus', async () => {
+  const user = userEvent.setup();
+  const deniedAttempt = { ...jumpAttempt, requestId: '30400000-0000-4000-8000-000000000011' };
+  const uncertainAttempt = { ...jumpAttempt, requestId: '30400000-0000-4000-8000-000000000012' };
+  vi.mocked(createJumpShipAttempt)
+    .mockReturnValueOnce(deniedAttempt)
+    .mockReturnValueOnce(uncertainAttempt);
+  let rejectFirstAttempt!: (reason: { code: string; message: string }) => void;
+  vi.mocked(jumpShip)
+    .mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectFirstAttempt = reject; }))
+    .mockRejectedValueOnce({ code: 'functions/unavailable', message: 'Connection unavailable.' })
+    .mockResolvedValueOnce({
+      status: 'jumped', shipId: 'aegis', origin: '0000', destination: '2000',
+      length: 'short', fuelCost: 2, remainingFuel: 2,
+    });
+  renderConsole();
+
+  expect(screen.getByRole('group', { name: 'Coordinate digit controls' })).toBeInTheDocument();
+  expect(screen.getByLabelText('Locked destination coordinates'))
+    .toHaveAttribute('aria-live', 'polite');
+  expect(screen.getByLabelText('Locked destination coordinates'))
+    .toHaveAttribute('aria-atomic', 'true');
+
+  const tabStops = [
+    screen.getByRole('button', { name: 'Increase coordinate digit 1' }),
+    screen.getByRole('button', { name: 'Decrease coordinate digit 1' }),
+    screen.getByRole('button', { name: 'Increase coordinate digit 2' }),
+    screen.getByRole('button', { name: 'Decrease coordinate digit 2' }),
+    screen.getByRole('button', { name: 'Increase coordinate digit 3' }),
+    screen.getByRole('button', { name: 'Decrease coordinate digit 3' }),
+    screen.getByRole('button', { name: 'Increase coordinate digit 4' }),
+    screen.getByRole('button', { name: 'Decrease coordinate digit 4' }),
+    screen.getByRole('button', { name: 'Enable blind jump' }),
+    screen.getByRole('button', { name: 'Lock destination coordinates' }),
+  ];
+  await user.tab();
+  expect(tabStops[0]).toHaveFocus();
+  await user.keyboard('{Enter}{Enter}');
+  expect(screen.getByLabelText('Locked destination coordinates')).toHaveTextContent('2000');
+  for (const stop of tabStops.slice(1)) {
+    await user.tab();
+    expect(stop).toHaveFocus();
+  }
+  await user.keyboard('{Enter}');
+  expect(screen.getByRole('button', { name: 'Unlock destination coordinates' })).toHaveFocus();
+
+  await user.tab();
+  const powerRail = screen.getByRole('slider', { name: 'Jump drive power' });
+  expect(powerRail).toHaveFocus();
+  fireEvent.change(powerRail, { target: { value: '100' } });
+  expect(powerRail).toHaveValue('100');
+  await user.tab();
+  const launch = screen.getByRole('button', { name: 'Jump to 2000' });
+  expect(launch).toHaveFocus();
+  await user.keyboard('{Enter}');
+
+  const pending = screen.getByRole('button', { name: 'Jumping…' });
+  expect(pending).toBeDisabled();
+  expect(jumpShip).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    rejectFirstAttempt({ code: 'functions/permission-denied', message: 'Not authorized.' });
+  });
+  expect(await screen.findByText(/jump request rejected.*authority or drive conditions changed/i)).toBeInTheDocument();
+
+  const afterDenial = screen.getByRole('button', { name: 'Jump to 2000' });
+  expect(afterDenial).toHaveFocus();
+  await user.keyboard('{Enter}');
+  expect(await screen.findByText(/jump status unconfirmed.*retry.*same request/i)).toBeInTheDocument();
+
+  const retry = screen.getByRole('button', { name: 'Retry jump confirmation' });
+  expect(retry).toHaveFocus();
+  await user.keyboard('{Enter}');
+  expect(await screen.findByText(/jump complete.*0000 → 2000/i)).toBeInTheDocument();
+  expect(createJumpShipAttempt).toHaveBeenCalledTimes(2);
+  expect(jumpShip).toHaveBeenNthCalledWith(1, deniedAttempt);
+  expect(jumpShip).toHaveBeenNthCalledWith(2, uncertainAttempt);
+  expect(jumpShip).toHaveBeenNthCalledWith(3, uncertainAttempt);
+});
+
 it('shows the Demo boundary without exposing any executable jump control', () => {
   renderConsole({ demoMode: true } as unknown as Partial<ComponentProps<typeof JumpDriveConsole>>);
 
