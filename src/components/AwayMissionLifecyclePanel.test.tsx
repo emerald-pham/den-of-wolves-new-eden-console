@@ -40,6 +40,7 @@ function renderPanel(overrides: Record<string, unknown> = {}) {
     distributeExtraCard: vi.fn().mockResolvedValue(undefined),
     openDiscards: vi.fn().mockResolvedValue(undefined),
     discardCard: vi.fn().mockResolvedValue(undefined),
+    reclamatorSalvage: vi.fn().mockResolvedValue(undefined),
     assignCards: vi.fn().mockResolvedValue(undefined),
     addFacilitatorCards: vi.fn().mockResolvedValue(undefined),
     resolve: vi.fn().mockResolvedValue(undefined),
@@ -92,6 +93,32 @@ describe('AwayMissionLifecyclePanel', () => {
     expect(actions.discardCard).toHaveBeenCalledWith('A♥');
   });
 
+  it('lets an admitted Warrior choose one private resource for every card in one salvage opportunity', async () => {
+    const actions = renderPanel({
+      canUseReclamator: true,
+      publicState: { ...basePublicMission, phase: 'discarding' },
+      privateState: {
+        ...privateHand,
+        phase: 'discarding',
+        cards: [
+          { id: 'A♥', value: 10, status: 'remaining', opportunityId: null },
+          { id: '4♦', value: 4, status: 'remaining', opportunityId: null },
+        ],
+      },
+    });
+    fireEvent.change(screen.getByLabelText('Reclamator salvage opportunity'), { target: { value: 'D-1' } });
+    fireEvent.change(screen.getByLabelText('Resource for A♥'), { target: { value: 'food' } });
+    fireEvent.change(screen.getByLabelText('Resource for 4♦'), { target: { value: 'water' } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Salvage entire hand with Warrior Reclamator' }));
+      await Promise.resolve();
+    });
+    expect(actions.reclamatorSalvage).toHaveBeenCalledWith('D-1', [
+      { cardId: 'A♥', resource: 'food' },
+      { cardId: '4♦', resource: 'water' },
+    ]);
+  });
+
   it('shows a leader request count without a reason or another participant card value', () => {
     renderPanel({
       actorUid: 'alice', isMissionLeader: true, privateState: null,
@@ -129,7 +156,7 @@ describe('AwayMissionLifecyclePanel', () => {
     expect(within(panel).getByText(/critical success/i)).toBeInTheDocument();
     expect(within(panel).getByRole('button', { name: 'Drop mission rewards at selected ship' })).toBeInTheDocument();
     expect(within(panel).getByRole('option', { name: 'AEGIS' })).toBeInTheDocument();
-    expect(within(panel).getByText(/Reclamator salvage \/\/ food 2 \/\/ materials 1/i)).toBeInTheDocument();
+    expect(within(panel).getByText(/Reclamator salvage \/\/ D-1 \/\/ food 2 \/\/ materials 1/i)).toBeInTheDocument();
 
     const css = document.querySelector('style[data-away-mission-lifecycle]')?.textContent ?? '';
     expect(css).toMatch(/prefers-reduced-motion/);
