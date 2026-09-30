@@ -2898,3 +2898,61 @@ describe('Press log audience', () => {
     await assertFails(getDoc(doc(as('press'), pressEntry)));
   });
 });
+
+describe('permissioned dismantling target inbox', () => {
+  const inboxPath = `${SESSION}/permissionedDismantlingInboxes/dione`;
+
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await updateDoc(doc(db, SESSION), {
+        activeRoleIds: ['dione-captain', 'icebreaker-captain'],
+        activeVesselIds: ['dione', 'icebreaker'],
+      });
+      await setDoc(doc(db, `${SESSION}/players/targetDione`), {
+        uid: 'targetDione', role: 'player', connected: true,
+        assignedRoleId: 'dione-captain', replacementRoleId: null,
+        replacementStatus: null, escapeState: null,
+      });
+      await setDoc(doc(db, inboxPath), {
+        type: 'permissioned-dismantling-inbox', sessionId: 's1', targetShipId: 'dione',
+        proposalId: 'proposal-1', craftId: 'philia', targetConsoleId: 'reactor',
+        targetRevision: 0, materialGain: 3, status: 'pending', consentId: null,
+        materialsAfter: null, updatedAt: new Date('2026-09-30T17:00:00.000Z'),
+      });
+    });
+  });
+
+  it('allows only the current target-ship player to read the exact safe inbox', async () => {
+    await assertSucceeds(getDoc(doc(as('targetDione'), inboxPath)));
+    await assertFails(getDoc(doc(as('captain'), inboxPath)));
+    await assertFails(getDoc(doc(as('commissar'), inboxPath)));
+    await assertFails(getDoc(doc(as('gm1'), inboxPath)));
+    await assertFails(getDoc(doc(as('observer'), inboxPath)));
+    await assertFails(getDocs(collection(as('targetDione'), `${SESSION}/permissionedDismantlingInboxes`)));
+    await assertFails(setDoc(doc(as('targetDione'), inboxPath), { forged: true }));
+  });
+
+  it('follows the live replacement role and rejects a replacement whose authority expired', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/targetDione`), {
+        assignedRoleId: 'admiral', replacementRoleId: 'vip-host', replacementStatus: null,
+      });
+    });
+    await assertSucceeds(getDoc(doc(as('targetDione'), inboxPath)));
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/targetDione`), {
+        replacementStatus: 'removed',
+      });
+    });
+    await assertFails(getDoc(doc(as('targetDione'), inboxPath)));
+  });
+
+  it('fails closed for malformed server inbox projection fields', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), inboxPath), { proposerUid: 'private-proposer' });
+    });
+    await assertFails(getDoc(doc(as('targetDione'), inboxPath)));
+  });
+});
