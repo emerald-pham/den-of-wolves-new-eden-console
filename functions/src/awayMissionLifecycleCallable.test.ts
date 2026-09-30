@@ -125,6 +125,10 @@ function seededStore(options: { readonly warrior?: boolean } = {}): FakeStore {
     { uid: 'alice', roleId: 'wing-commander' },
     { uid: 'bob', roleId: options.warrior ? 'warrior-captain' : 'capybara-small-captain' },
   ];
+  const participantCrafts = [
+    { participantUid: 'alice', craftIds: ['starlight'] },
+    { participantUid: 'bob', craftIds: [options.warrior ? 'warrior' : 'capybara-small'] },
+  ];
   const initialCards = [ALICE_CARD, BOB_CARD];
   const mission = {
     schemaVersion: 1,
@@ -144,6 +148,7 @@ function seededStore(options: { readonly warrior?: boolean } = {}): FakeStore {
     missionLeaderUid: 'alice',
     missionLeaderRoleId: 'wing-commander',
     participantSnapshots: participants,
+    participantCrafts,
     availableCarrierCraftIds: ['starlight'],
     handIds: participants.map(({ uid }) => awayMissionHandId(MISSION_ID, uid)),
     cardIds: initialCards,
@@ -175,6 +180,7 @@ function seededStore(options: { readonly warrior?: boolean } = {}): FakeStore {
     inputs: {
       availableCarrierCraftIds: ['starlight'],
       participantSnapshots: participants,
+      participantCrafts,
       missionLeaderUid: 'alice',
     },
   });
@@ -249,11 +255,12 @@ function dependencies(store: FakeStore, options: { readonly d6?: number } = {}) 
         throw new HttpsError('permission-denied', 'An active facilitator instance is required.');
       }
     },
-    deriveParticipantCrafts: async ({ participantSnapshots }) => participantSnapshots.map(({ uid, roleId }) => ({
-      participantUid: uid,
-      craftIds: roleId === 'wing-commander' ? ['starlight'] :
-        roleId === 'warrior-captain' ? ['warrior'] : [],
-    })),
+    deriveParticipantCrafts: async ({ participantSnapshots, participantCrafts }) => participantCrafts ??
+      participantSnapshots.map(({ uid, roleId }) => ({
+        participantUid: uid,
+        craftIds: roleId === 'wing-commander' ? ['starlight'] :
+          roleId === 'warrior-captain' ? ['warrior'] : [],
+      })),
     deriveContext: async ({ session }) => {
       const turnPhase = session.get('turnPhase') as Fields | undefined;
       return {
@@ -304,6 +311,10 @@ it('bootstraps only from the exact P403 record, atomically projects a participan
     sessionId: SESSION_ID,
     groupId: 'fleet-1',
     revision: 1,
+    participantCrafts: [
+      { participantUid: 'alice', craftIds: ['starlight'] },
+      { participantUid: 'bob', craftIds: ['capybara-small'] },
+    ],
     lifecycle: { requestsByParticipant: [{ participantUid: 'bob', count: 1 }] },
   });
   expect(store.records.get(`sessions/${SESSION_ID}/commandReceipts/request-bob-1`)).toMatchObject({

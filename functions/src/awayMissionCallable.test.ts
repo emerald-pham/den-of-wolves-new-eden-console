@@ -209,6 +209,12 @@ beforeEach(() => {
   for (const player of players) {
     player.fields.connected = true;
     player.fields.fleetGroupId = 'fleet-1';
+    if (player.id !== 'capybara') {
+      delete player.fields.replacementRoleId;
+      delete player.fields.replacementStatus;
+      delete player.fields.activeConsoleRoleId;
+      delete player.fields.seatId;
+    }
     if (player.id === 'alice') player.fields.assignedRoleId = 'wing-commander';
     if (player.id === 'bob') player.fields.assignedRoleId = 'icebreaker-miner';
   }
@@ -674,6 +680,10 @@ describe('dealPrivateInitialCards', () => {
 
   it('admits a current base Capybara Captain and snapshots its participant craft separately from carriers', async () => {
     mock.capybaraAdmitted = true;
+    mock.pdfEscortWingState = {
+      ...initialPdfEscortWingState(), revision: 1, attackId: 'attack-1', attackCycle: 1,
+      fighters: 0, launched: true, losses: 4,
+    };
     const capybaraCommand = {
       sessionId: 's1', instanceId: 'bridge', requestId: 'deal-capybara',
       expectedSetupRevision: 1, expectedPhaseRevision: 3, expectedCycle: 2,
