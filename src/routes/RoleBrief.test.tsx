@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
+import type { GameSession } from '@/types/game';
 import RoleBrief from './RoleBrief';
 
 const awayMissionMocks = vi.hoisted(() => ({
@@ -12,10 +13,24 @@ const awayMissionMocks = vi.hoisted(() => ({
   readContext: vi.fn(),
 }));
 
+const missionSupportMocks = vi.hoisted(() => ({
+  get: vi.fn(),
+  apply: vi.fn(),
+  subscribe: vi.fn(),
+  hasAuthority: vi.fn(),
+}));
+
 vi.mock('@/lib/awayMissionLifecycleService', () => ({
   subscribeToOwnAwayMissionLifecycles: awayMissionMocks.subscribe,
   createAwayMissionLifecycleActions: awayMissionMocks.makeActions,
   createCurrentAwayMissionLifecycleContext: awayMissionMocks.readContext,
+}));
+
+vi.mock('@/lib/gorgoneionMissionSupportService', () => ({
+  getGorgoneionMissionSupportProjection: missionSupportMocks.get,
+  applyGorgoneionMissionSupport: missionSupportMocks.apply,
+  hasCurrentGorgoneionMissionSupportAuthority: missionSupportMocks.hasAuthority,
+  subscribeGorgoneionMissionSupportProjection: missionSupportMocks.subscribe,
 }));
 
 vi.mock('@/lib/vulcanLabourService', () => ({
@@ -25,6 +40,13 @@ const { runVulcanAdditionalLabour } = await import('@/lib/vulcanLabourService');
 
 beforeEach(() => {
   useSessionStore.getState().reset();
+  missionSupportMocks.get.mockReset().mockResolvedValue({
+    sessionId: 's1', actorUid: 'u1', hostShipId: 'aegis', dockingRevision: 2,
+    dealtCount: 0, cardIds: ['Q♣', 'A♥', '5♦', 'K♥', '4♥'],
+  });
+  missionSupportMocks.apply.mockReset();
+  missionSupportMocks.subscribe.mockReset().mockReturnValue(() => {});
+  missionSupportMocks.hasAuthority.mockReset().mockReturnValue(true);
   useSessionStore.getState().setIdentity(
     {
       id: 's1', name: 'Table one', joinCode: '4821', phase: 'casting', ownerUid: 'gm1',
@@ -41,6 +63,48 @@ beforeEach(() => {
     ownedCraftIds: ['fighter-wing-alpha'], setupRevision: 1,
   });
 });
+
+function setGorgMissionRouteFixture({
+  phase = 'active',
+  connection = 'live',
+  currentCaptain = true,
+  freshness,
+}: {
+  readonly phase?: 'casting' | 'active';
+  readonly connection?: 'idle' | 'live';
+  readonly currentCaptain?: boolean;
+  readonly freshness?: 'unknown' | 'cache' | 'server';
+} = {}): void {
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!,
+    phase,
+    activeVesselIds: ['aegis'],
+    smallShipStates: {
+      gorgoneion: {
+        id: 'gorgoneion', hostShipId: 'aegis', dockingRevision: 2,
+        population: 1_000, unrest: 0,
+        cycle: { step: 0, revision: 1, results: {}, charges: [], turn: 1,
+          chargingSkipped: false, startedAt: '' },
+      },
+    },
+  } as GameSession);
+  if (currentCaptain) {
+    const current = useSessionStore.getState();
+    current.setMe({
+      ...current.me!, assignedRoleId: null, replacementRoleId: 'gorgoneion-captain',
+      replacementStatus: null, activeConsoleRoleId: null, seatId: null, connected: connection === 'live',
+    });
+    current.setRoleBrief({
+      ...current.roleBrief!, roleId: 'gorgoneion-captain',
+      roleName: 'Gorgoneion Captain', vesselName: 'Gorgoneion',
+    });
+  }
+  useSessionStore.getState().setConnection(connection);
+  useSessionStore.getState().setSessionSnapshotFreshness(
+    freshness ?? (connection === 'live' ? 'server' : 'unknown'),
+  );
+}
 
 it('renders the assigned role brief, common rules, and visible return control', async () => {
   const user = userEvent.setup();
@@ -88,6 +152,54 @@ it('mounts the away-mission workspace for the assigned player without changing t
   });
   await user.click(screen.getByRole('link', { name: /return to station catalog/i }));
   expect(screen.getByText('Station catalog')).toBeInTheDocument();
+});
+
+it('keeps Gorgoneion mission support out of the brief until its Captain is active and connected', () => {
+  setGorgMissionRouteFixture({ phase: 'casting', connection: 'idle' });
+  render(
+    <MemoryRouter initialEntries={['/brief']}>
+      <Routes>
+        <Route path="/brief" element={<RoleBrief />} />
+        <Route path="/console" element={<p>Station catalog</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('heading', { name: 'Gorgoneion Captain' })).toBeVisible();
+  expect(screen.queryByRole('region', { name: 'Gorgoneion Captain workspace' })).not.toBeInTheDocument();
+  expect(missionSupportMocks.get).not.toHaveBeenCalled();
+});
+
+it('loads the private Gorgoneion projection for the active connected current Captain', async () => {
+  setGorgMissionRouteFixture();
+  render(
+    <MemoryRouter initialEntries={['/brief']}>
+      <Routes>
+        <Route path="/brief" element={<RoleBrief />} />
+        <Route path="/console" element={<p>Station catalog</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  const support = await screen.findByRole('region', { name: 'Gorgoneion mission support' });
+  expect(support).toBeVisible();
+  await waitFor(() => expect(missionSupportMocks.get).toHaveBeenCalledTimes(1));
+  expect(within(support).getByRole('group', { name: 'Card 1 — Queen of clubs' })).toBeVisible();
+});
+
+it('does not read the private Gorgoneion projection for an unrelated active role', () => {
+  setGorgMissionRouteFixture({ currentCaptain: false });
+  render(
+    <MemoryRouter initialEntries={['/brief']}>
+      <Routes>
+        <Route path="/brief" element={<RoleBrief />} />
+        <Route path="/console" element={<p>Station catalog</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('heading', { name: 'Admiral' })).toBeVisible();
+  expect(missionSupportMocks.get).not.toHaveBeenCalled();
 });
 
 it('teaches source-backed session ground rules and the core cycle loop from the assigned brief', () => {
@@ -443,6 +555,7 @@ it.each([
   useSessionStore.getState().setRoleBrief({
     ...useSessionStore.getState().roleBrief!, roleId, roleName: `${vesselName} Captain`, vesselName,
   });
+  if (roleId === 'gorgoneion-captain') setGorgMissionRouteFixture({ freshness: 'cache' });
 
   render(
     <MemoryRouter initialEntries={['/brief']}>
