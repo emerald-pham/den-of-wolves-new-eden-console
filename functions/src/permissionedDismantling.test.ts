@@ -74,10 +74,11 @@ describe('permissioned dismantling', () => {
       targetDamage: { ...base.targetDamage, damagedSystemIds: [...base.targetDamage.damagedSystemIds] },
       targetResources: { ...base.targetResources },
     };
+    const before = structuredClone(input);
     const result = resolvePermissionedDismantling(input);
     expect(result.targetDamage).not.toBe(input.targetDamage);
     expect(result.targetDamage.damagedSystemIds).not.toBe(input.targetDamage.damagedSystemIds);
     expect(result.targetResources).not.toBe(input.targetResources);
-    expect(input).toEqual({ ...base, ...input });
+    expect(input).toEqual(before);
   });
 });
