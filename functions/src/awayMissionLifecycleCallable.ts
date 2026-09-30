@@ -461,7 +461,35 @@ export function createAwayMissionLifecycleCallables(
           fail('failed-precondition', 'The away-mission command is not valid for its current state.');
         }
 
-        const nextRecord = result.record;
+        // The last participant submission owns one atomic command. The server
+        // performs the printed draw and arithmetic before publishing that result;
+        // its internal transitions neither reserve client request IDs nor expose rolls.
+        let nextRecord = result.record;
+        if (nextRecord.lifecycle.phase === 'assignments-complete' && nextRecord.status === 'active') {
+          const systemAuthority = { ...authority, isActiveGm: true, randomIndex: random.next };
+          const dealt = applyAwayMissionLifecycleCommand(nextRecord, {
+            type: 'addFacilitatorCards', requestId: `${parsed.requestId}:server-deal`,
+            expectedRevision: nextRecord.revision,
+          }, systemAuthority);
+          if (dealt.status !== 'committed' || !dealt.record) {
+            fail('failed-precondition', 'The automatic mission-card draw could not be completed.');
+          }
+          const resolved = applyAwayMissionLifecycleCommand(dealt.record, {
+            type: 'resolve', requestId: `${parsed.requestId}:server-resolution`,
+            expectedRevision: dealt.record.revision,
+          }, {
+            ...systemAuthority,
+            secretD6Rolls: createRequiredD6Rolls(dealt.record, rollD6, d6Rolls),
+          });
+          if (resolved.status !== 'committed' || !resolved.record) {
+            fail('failed-precondition', 'The automatic mission outcome could not be completed.');
+          }
+          nextRecord = {
+            ...resolved.record,
+            revision: result.record.revision,
+            commandReceipts: result.record.commandReceipts,
+          };
+        }
         const publicProjections = projectPublicProjections(nextRecord);
         const privateProjections = projectPrivateProjections(nextRecord);
         if (!publicProjections || !privateProjections) {

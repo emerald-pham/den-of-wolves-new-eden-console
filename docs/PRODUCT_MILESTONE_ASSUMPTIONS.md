@@ -257,3 +257,14 @@ the original assumption; append the resolution so the decision is traceable.
 | Chosen reading | At the pursuit-ten transition, persist a server-owned decision window before final failure. Suspend unrelated fresh gameplay. An active facilitator explicitly offers the emergency opportunity or declines it; decline commits the existing pursuit-limit outcome. Offered emergency moves retain all printed costs and once-per-game limits. Existing navigation and pursuit rules determine whether any groups remain at the limit and whether play can resume; add no special pursuit reduction. Provide a deterministic terminal path when no eligible vessel remains. This decision-window representation is a digital product inference. |
 | Product effect | The GM decision and each ship operation need exact authority, revision and replay binding, visible waiting/decision controls, and no stranded window. Successful escape must be evaluated before a permanent outcome, rather than preserving failure regardless of movement. |
 | Review state | New under standing autonomous PC05 authorization; implementation, independent review and ordinary gameplay proof remain required. Subject to optional owner correction/cooldown. |
+
+### PC06-A12 — Preserve Warrior's material reward and salvage restriction
+
+| Field | Record |
+|---|---|
+| ID and milestone | PC06-A12; Prompt 243, Warrior Reclamator. |
+| Source passage | Base A4 duplex card pack v1.1, Warrior card, physical PDF page 27; SHA-256 checked against the private provenance index and the rendered page read on 2026-09-30. The ability replaces the whole hand's assignment to one salvage opportunity and grants material plus food or water for each discarded card. |
+| Ambiguity and alternatives | The printed wording does not specify a digital choice control or whether one food/water choice must cover the whole hand. The previous implementation incorrectly offered material as an alternative and permitted other opportunity types. |
+| Chosen reading | Require the admitted Warrior participant and a salvage opportunity. Discard every remaining owned card, granting one material for each plus that card's food or water selection. Per-card choices are the digital representation; a material-only choice is invalid. Preserve the hidden card-to-choice association on the server and participant's private projection. |
+| Product effect | The player sees the material component explicitly; server validation and authoritative reward custody retain both components. The same source pass binds Endeavour, Highwall and PDF printed contribution bonuses alongside Starlight and Hummingbird. No source card or extracted private text is stored in Git. |
+| Review state | Implementation correction under standing PC06 authorization; local tests pass. Independent review, deployment and ordinary gameplay proof remain required. |

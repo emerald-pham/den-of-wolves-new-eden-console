@@ -7,7 +7,7 @@ their acceptance criteria.
 
 ## Owner and implementation groups
 
-The accountable checkpoint owner is `/root/pc06_release_owner` in
+The accountable checkpoint owner is `/root/pc06_sol_owner` in
 `/Users/emeraldpham/.codex/worktrees/0ce4/den-of-wolves-new-eden-console`,
 branch `feat/pc06-execution`. The owner integrates every group, maintains the
 49-prompt acceptance ledger, resolves shared contracts, obtains the required
@@ -207,3 +207,22 @@ owns the bounded P241b contribution-binding investigation in
 production integration. These are observed child creations, not merely tool
 availability, and do not imply capacity beyond the available slots in this
 session.
+
+## Owner transfer on 2026-09-30
+
+Sol 6.1 takes accountable implementation, integration and release ownership at c4c6a3cb under the [owner audit](PC06_OWNER_AUDIT.md). The outgoing owner is parked. The [current acceptance matrix](PC06_ACCEPTANCE_MATRIX.md) records all49 assigned IDs without changing catalog credit. The old worker scopes and unique branches remain preserved. A coherent Voyage33 client integration group is queued in the existing clean checkout on `feat/pc06-voyage-connected`; dispatch returned the thread limit while the prior review-scene task remained active, so no new worker was created.
+
+### Owner integration corrections after the audit
+
+- `18a1b3f5` observed the required red when the last participant assignment left
+  the mission active. The existing full lifecycle/recovery test now triggers the
+  printed draw and outcome through that last assignment instead of asking the GM
+  to perform deterministic work. It retains the atomic deck/projection,
+  transaction retry, lost acknowledgement, private roll, wrong-leader and drop-off
+  assertions; the pure lifecycle tests retain explicit transition coverage.
+- `ae51bfa3` observed five source-contract failures for Warrior rewards and
+  omitted printed craft bonuses. `10555097` changes the Warrior privacy fixture
+  to a salvage opportunity, preserving the privacy assertions. The original
+  search-and-rescue fixture was not a legal use of the printed ability.
+  `d7df0ed7` repairs the production rules. Focused checks are local evidence;
+  deployment and ordinary gameplay acceptance remain outstanding.

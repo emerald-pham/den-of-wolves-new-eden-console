@@ -761,7 +761,7 @@ const awayMissionLifecycleCallables = createAwayMissionLifecycleCallables({
     }
 
     let legalDropOffShipIds: string[] = [];
-    if (commandType === 'resolve' || commandType === 'dropOff') {
+    if (commandType === 'resolve' || commandType === 'dropOff' || commandType === 'assignCards') {
       const missionCoordinate = mission.get('coordinate');
       const activeVesselIds = activeVesselIdsForSession(session);
       const tx = transaction as Transaction;
