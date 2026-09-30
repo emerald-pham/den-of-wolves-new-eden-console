@@ -114,33 +114,32 @@ describe('repository guidance', () => {
     expect(errors, errors.join('\n')).toEqual([]);
 
     const weak = new Map(sources);
-    weak.set('AGENTS.md', readGuidance('AGENTS.md').replaceAll('gpt-5.6-sol', 'gpt-5.6-terra'));
-    weak.set('CLAUDE.md', readGuidance('CLAUDE.md').replaceAll('gpt-5.6-sol', 'gpt-5.6-terra'));
-    weak.set('docs/AGENT_CAMPAIGN_PLAYBOOK.md', readGuidance('docs/AGENT_CAMPAIGN_PLAYBOOK.md').replaceAll('gpt-5.6-sol', 'gpt-5.6-terra'));
+    for (const surface of ['AGENTS.md', 'CLAUDE.md', 'docs/AGENT_CAMPAIGN_PLAYBOOK.md']) {
+      weak.set(surface, readGuidance(surface).replaceAll('gpt-6.1-sol', 'gpt-5.6-sol'));
+    }
     const weakErrors: string[] = [];
     validateAgentModelEscalation({ sources: weak, errors: weakErrors });
     expect(weakErrors).toEqual(expect.arrayContaining([
-      expect.stringContaining('must not authorize models outside GPT-5.6 Sol and GPT-6 Luna'),
+      expect.stringContaining('must not authorize models outside GPT-6.1 Sol and GPT-6 Luna'),
     ]));
 
     const wrongEffort = new Map(sources);
     wrongEffort.set('CLAUDE.md', readGuidance('CLAUDE.md')
-      .replace('Use `max` for every `gpt-6-luna`', 'Use `high` for every `gpt-6-luna`')
-      .replace('may use only `low`, `medium`, `high`, or `xhigh`', 'may use any effort'));
+      .replace('Luna effort is discretionary; `max` is almost always preferred.', 'Use max for every Luna subagent.')
+      .replace('Sol may use all supported effort levels.', 'Sol may use only medium or high.'));
     const effortErrors: string[] = [];
     validateAgentModelEscalation({ sources: wrongEffort, errors: effortErrors });
     expect(effortErrors).toEqual(expect.arrayContaining([
-      expect.stringContaining('must require max effort for every GPT-6 Luna subagent'),
-      expect.stringContaining('must limit GPT-5.6 Sol effort to low, medium, high, or xhigh'),
+      expect.stringContaining('must make Luna effort discretionary with max almost always preferred'),
+      expect.stringContaining('must allow all supported Sol effort levels'),
     ]));
 
-    const oldCeiling = new Map(sources);
-    oldCeiling.set('CLAUDE.md', readGuidance('CLAUDE.md')
-      .replace('may use only `low`, `medium`, `high`, or `xhigh`', 'may use only `low`, `medium`, `high`, `xhigh`, or `max`'));
-    const ceilingErrors: string[] = [];
-    validateAgentModelEscalation({ sources: oldCeiling, errors: ceilingErrors });
-    expect(ceilingErrors).toEqual(expect.arrayContaining([
-      expect.stringContaining('must limit GPT-5.6 Sol effort to low, medium, high, or xhigh'),
+    const stale = new Map(sources);
+    stale.set('CLAUDE.md', readGuidance('CLAUDE.md') + '\nUse max for every gpt-6-luna subagent. Never use max for Sol.');
+    const staleErrors: string[] = [];
+    validateAgentModelEscalation({ sources: stale, errors: staleErrors });
+    expect(staleErrors).toEqual(expect.arrayContaining([
+      expect.stringContaining('must not retain a mandatory Luna effort or general Sol effort ceiling'),
     ]));
   });
 
