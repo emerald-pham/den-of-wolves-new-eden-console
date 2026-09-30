@@ -591,7 +591,7 @@ it('commits destination rewards with custody atomically and never reapplies them
   await send('alice', 'discardCard', { cardId: ALICE_CARD });
   await send('bob', 'reclamatorSalvage', { opportunityId: 'D-1', choices: [{ cardId: BOB_CARD, resource: 'food' }] });
   await send('alice', 'assignCards', { placements: [] });
-  await send('bob', 'assignCards', { placements: [] });
+  // Reclamator's whole-hand discard already commits its assignment.
   const request = commandRequest('alice', {
     type: 'dropOff', requestId: 'deliver-once', expectedRevision: currentRevision(store), shipId: 'aegis',
   });
