@@ -110,8 +110,12 @@ it.each([
 
     const label = entitlementId === 'starlight' ? 'Starlight' : 'Hummingbird';
     const controls = screen.getByRole('region', { name: `${label} scouting request` });
-    expect(within(controls).getByText(rangeGuidance)).toBeVisible();
+    const rangeCopy = within(controls).getByText(rangeGuidance);
+    expect(rangeCopy).toBeVisible();
     expect(within(controls).getByText(cycleGuidance)).toBeVisible();
+    expect(rangeCopy.id).toMatch(/\S/);
+    const coordinate = within(controls).getByLabelText('Printed system coordinate');
+    expect(coordinate.getAttribute('aria-describedby')?.split(/\s+/)).toContain(rangeCopy.id);
     expect(within(controls).getByRole('button', { name: 'Record request' })).toBeVisible();
     expect(request).not.toHaveBeenCalled();
   },
