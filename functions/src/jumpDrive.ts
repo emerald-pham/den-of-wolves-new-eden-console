@@ -82,6 +82,9 @@ const JUMP_COSTS: Readonly<Record<string, readonly [number, number, number]>> = 
   'voyage-33-0': [1, 1, 2],
 };
 
+// The printed Gorgoneion card gives host-fuel costs but no Jump Drive upgrade discount.
+const JUMP_DRIVES_WITHOUT_UPGRADE_DISCOUNT = new Set(['gorgoneion']);
+
 export function jumpLengthBetween(origin: string, destination: string): JumpLength | null {
   const distance = jumpDistanceBetween(origin, destination);
   if (distance === null || distance === 0) return null;
@@ -94,7 +97,28 @@ export function jumpFuelCost(shipId: string, length: JumpLength, upgraded: boole
   const costs = JUMP_COSTS[shipId];
   if (!costs) throw new Error('This ship has no jump-drive profile.');
   const index = length === 'short' ? 0 : length === 'medium' ? 1 : 2;
-  return Math.max(0, (costs[index] ?? 0) - (upgraded ? 1 : 0));
+  const upgradeReduction = upgraded && !JUMP_DRIVES_WITHOUT_UPGRADE_DISCOUNT.has(shipId) ? 1 : 0;
+  return Math.max(0, (costs[index] ?? 0) - upgradeReduction);
+}
+
+export interface RamScoopJumpContext {
+  readonly charged: boolean;
+  readonly damaged: boolean;
+  readonly upgraded: boolean;
+}
+
+/** Resolve the source-printed Icebreaker Ram Scoop award for a completed jump. */
+export function resolveRamScoopOreGain(
+  result: JumpAttemptResult,
+  context: RamScoopJumpContext,
+): number {
+  if (result.status !== 'jumped' || result.transition.shipId !== 'icebreaker' ||
+      !context.charged || context.damaged) {
+    return 0;
+  }
+
+  const baseOre = result.length === 'short' ? 10 : result.length === 'medium' ? 15 : 20;
+  return baseOre + (context.upgraded ? 5 : 0);
 }
 
 function activeLockout(state: JumpDriveState | undefined, now: Date): string | undefined {
