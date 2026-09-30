@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import AwayMissionLifecyclePanel from './AwayMissionLifecyclePanel';
+import AwayMissionLifecyclePanel, { type AwayMissionLifecyclePanelProps } from './AwayMissionLifecyclePanel';
 
 const basePublicMission = {
   missionId: 'mission-1',
@@ -54,26 +54,29 @@ function renderPanel(overrides: Record<string, unknown> = {}) {
     actions,
     ...overrides,
   };
-  render(<AwayMissionLifecyclePanel {...props as never} />);
+  render(<AwayMissionLifecyclePanel {...props as unknown as AwayMissionLifecyclePanelProps} />);
   return actions;
 }
 
 describe('AwayMissionLifecyclePanel', () => {
-  it('lets a participant see and discard only their own hand and submit every remaining placement', () => {
+  it('lets a participant see and discard only their own hand and submit every remaining placement', async () => {
     const actions = renderPanel();
     const panel = screen.getByRole('region', { name: 'Away mission // mission-1' });
     expect(within(panel).getByText('A♥')).toBeInTheDocument();
     expect(within(panel).queryByText('10♥')).not.toBeInTheDocument();
-    expect(within(panel).getByRole('status')).toHaveTextContent(/private discard recorded/i);
+    expect(within(panel).getAllByRole('status').some((status) => /private discard recorded/i.test(status.textContent ?? ''))).toBe(true);
 
-    fireEvent.change(within(panel).getByLabelText('Opportunity for A♥'), { target: { value: 'D-1' } });
-    fireEvent.click(within(panel).getByRole('button', { name: 'Submit mission assignments' }));
+    await act(async () => {
+      fireEvent.change(within(panel).getByLabelText('Opportunity for A♥'), { target: { value: 'D-1' } });
+      fireEvent.click(within(panel).getByRole('button', { name: 'Submit mission assignments' }));
+      await Promise.resolve();
+    });
     expect(actions.assignCards).toHaveBeenCalledWith([
       { cardId: 'A♥', opportunityId: 'D-1' },
     ]);
   });
 
-  it('lets a participant privately discard one of their own cards during the discard phase', () => {
+  it('lets a participant privately discard one of their own cards during the discard phase', async () => {
     const actions = renderPanel({
       publicState: { ...basePublicMission, phase: 'discarding' },
       privateState: {
@@ -82,12 +85,18 @@ describe('AwayMissionLifecyclePanel', () => {
         cards: [{ id: 'A♥', value: 10, status: 'remaining', opportunityId: null }],
       },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Discard A♥ secretly' }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Discard A♥ secretly' }));
+      await Promise.resolve();
+    });
     expect(actions.discardCard).toHaveBeenCalledWith('A♥');
   });
 
   it('shows a leader request count without a reason or another participant card value', () => {
-    renderPanel({ actorUid: 'alice', isMissionLeader: true, privateState: null });
+    renderPanel({
+      actorUid: 'alice', isMissionLeader: true, privateState: null,
+      publicState: { ...basePublicMission, phase: 'awaiting-card-selection' },
+    });
     const panel = screen.getByRole('region', { name: 'Away mission // mission-1' });
     expect(within(panel).getByText('bob // requested 1 extra card')).toBeInTheDocument();
     expect(within(panel).queryByText(/reason|10♦|A♥/i)).not.toBeInTheDocument();
@@ -113,12 +122,14 @@ describe('AwayMissionLifecyclePanel', () => {
         status: 'resolved', phase: 'resolved',
         outcomes: [{ opportunityId: 'D-1', total: 20, outcome: 'critical-success' }],
         rewards: [{ opportunityId: 'D-1', resources: { food: 11, water: 9 } }],
+        specialRewards: [{ opportunityId: 'D-1', resources: { food: 2, materials: 1 } }],
       },
     });
     const panel = screen.getByRole('region', { name: 'Away mission // mission-1' });
     expect(within(panel).getByText(/critical success/i)).toBeInTheDocument();
     expect(within(panel).getByRole('button', { name: 'Drop mission rewards at selected ship' })).toBeInTheDocument();
     expect(within(panel).getByRole('option', { name: 'AEGIS' })).toBeInTheDocument();
+    expect(within(panel).getByText(/Reclamator salvage \/\/ food 2 \/\/ materials 1/i)).toBeInTheDocument();
 
     const css = document.querySelector('style[data-away-mission-lifecycle]')?.textContent ?? '';
     expect(css).toMatch(/prefers-reduced-motion/);
