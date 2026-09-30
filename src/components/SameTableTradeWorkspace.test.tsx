@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 const mocks = vi.hoisted(() => ({
@@ -77,9 +77,9 @@ it('waits for its own live inventory and explains when no physical baseline has 
   renderWorkspace();
   expect(screen.getByRole('status')).toHaveTextContent(/checking your private held-token counts/i);
 
-  emitInventory?.(null);
+  act(() => emitInventory?.(null));
   expect(screen.getByText(/ask your facilitator to record the exact tokens already in your possession/i)).toBeVisible();
-  expect(screen.queryByRole('heading', { name: 'Same-table trade' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Send exact offer' })).not.toBeInTheDocument();
 });
 
 it('reuses one offer ID after a retry and submits only the exact player-entered quantity', async () => {
@@ -87,8 +87,10 @@ it('reuses one offer ID after a retry and submits only the exact player-entered 
   mocks.createOffer.mockRejectedValueOnce(new Error('temporary network failure'))
     .mockResolvedValueOnce({ status: 'created', sessionId: 's1' });
   renderWorkspace();
-  emitInventory?.({ revision: 1, balances });
-  emitOffers?.({ incoming: [], outgoing: [] });
+  act(() => {
+    emitInventory?.({ revision: 1, balances });
+    emitOffers?.({ incoming: [], outgoing: [] });
+  });
 
   await user.selectOptions(screen.getByRole('combobox', { name: 'Recipient' }), 'bob');
   await user.type(screen.getByRole('spinbutton', { name: 'Ore amount' }), '1');
@@ -109,22 +111,23 @@ it('reuses one offer ID after a retry and submits only the exact player-entered 
 it('accepts the exact incoming offer and refreshes only this player’s returned balance', async () => {
   const user = userEvent.setup();
   renderWorkspace();
-  publishLiveData();
+  act(() => publishLiveData());
 
   await user.click(screen.getByRole('button', { name: 'Accept exact offer from Bob' }));
   await waitFor(() => expect(mocks.acceptOffer).toHaveBeenCalledWith(offer.id));
   expect(await screen.findByRole('status')).toHaveTextContent(/trade confirmed/i);
-  expect(screen.getByLabelText('Your held tokens')).toHaveTextContent('3');
-  expect(screen.getByLabelText('Your held tokens')).toHaveTextContent('3');
-  expect(screen.getByText(/resource stores are tracked separately/i)).toBeVisible();
+  const holdings = screen.getByLabelText('Your held tokens');
+  expect(holdings).toHaveTextContent(/Ore\s+3/);
+  expect(holdings).toHaveTextContent(/Fuel\s+3/);
+  expect(screen.getByText(/only existing tabletop counts belong here/i)).toBeVisible();
 });
 
 it('clears private inventory when a listener loses live authority', () => {
   renderWorkspace();
-  emitInventory?.({ revision: 1, balances });
+  act(() => emitInventory?.({ revision: 1, balances }));
   expect(screen.getByRole('heading', { name: 'Same-table trade' })).toBeVisible();
 
-  failInventory?.();
+  act(() => failInventory?.());
   expect(screen.getByRole('alert')).toHaveTextContent(/private counts are unavailable/i);
   expect(screen.queryByRole('heading', { name: 'Same-table trade' })).not.toBeInTheDocument();
 });
