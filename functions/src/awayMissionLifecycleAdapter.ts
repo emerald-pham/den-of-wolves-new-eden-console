@@ -1,5 +1,7 @@
 import {
   addFacilitatorCardsFromTopDeck,
+  createMissionLifecycleState,
+  type MissionLifecycleStateInput,
   allocateBlindExtraMissionCard,
   assignRemainingMissionCards,
   calculateMissionOpportunityTotals,
@@ -204,6 +206,39 @@ export function createAwayMissionLifecycleRecord(
     legalDropOffShipIds: [],
     commandReceipts: [],
   };
+}
+
+/** Seed the lifecycle and its two entitled views in the initial deal transaction. */
+export function createAwayMissionLifecycleBootstrap(input: Readonly<{
+  sessionId: string;
+  groupId: string;
+  sourceCycle: number;
+  revision?: number;
+  lifecycle: MissionLifecycleStateInput;
+  participantCrafts: readonly AwayMissionParticipantCrafts[];
+}>): Readonly<{
+  record: AwayMissionLifecycleRecord;
+  participantStates: readonly Readonly<{
+    participantUid: string;
+    privateState: AwayMissionPrivateState;
+    publicState: AwayMissionPublicState;
+  }>[];
+}> | null {
+  if (!isRecord(input) || (input.revision !== undefined &&
+      (!Number.isSafeInteger(input.revision) || input.revision < 0))) return null;
+  const lifecycle = createMissionLifecycleState(input.lifecycle);
+  if (!lifecycle) return null;
+  const initialRecord = createAwayMissionLifecycleRecord({ ...input, lifecycle });
+  if (!initialRecord) return null;
+  const record = { ...initialRecord, revision: input.revision ?? 0 };
+  const participantStates = [];
+  for (const { uid: participantUid } of lifecycle.participants) {
+    const privateState = projectAwayMissionPrivateState(record, participantUid);
+    const publicState = projectAwayMissionPublicState(record, participantUid);
+    if (!privateState || !publicState) return null;
+    participantStates.push({ participantUid, privateState, publicState });
+  }
+  return { record, participantStates };
 }
 
 /** Apply one authenticated server command to the private authoritative mission record. */

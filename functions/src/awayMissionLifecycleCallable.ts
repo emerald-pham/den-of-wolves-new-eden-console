@@ -11,7 +11,7 @@ import {
 } from './awayMissionCards';
 import {
   applyAwayMissionLifecycleCommand,
-  createAwayMissionLifecycleRecord,
+  createAwayMissionLifecycleBootstrap,
   markAwayMissionOverrun,
   projectAwayMissionPrivateState,
   projectAwayMissionPublicState,
@@ -31,7 +31,7 @@ import {
   type MissionDeckState,
 } from './missionDeck';
 import {
-  createMissionLifecycleState,
+  type MissionLifecycleStateInput,
   type MissionBonusSourceInput,
 } from './missionLifecycle';
 
@@ -749,9 +749,9 @@ async function bootstrapLifecycleRecord(
   }
   validateLegacyDiscardProjections(p403, participants);
 
-  const lifecycle = createMissionLifecycleState({
+  const lifecycleInput = {
     missionId: p403.missionId,
-    siteCode: p403.siteCode as Parameters<typeof createMissionLifecycleState>[0]['siteCode'],
+    siteCode: p403.siteCode as MissionLifecycleStateInput['siteCode'],
     leaderUid: p403.missionLeaderUid,
     participants: p403.participantSnapshots,
     availableCarrierCraftIds: p403.availableCarrierCraftIds,
@@ -761,8 +761,7 @@ async function bootstrapLifecycleRecord(
     phase: p403.phase as 'awaiting-card-selection' | 'discarding' | 'assignment-ready',
     discardedParticipantUids: p403.discardedParticipantUids,
     discardedCardIds: p403.discardedCardIds,
-  });
-  if (!lifecycle) fail('failed-precondition', 'The P403 mission state cannot initialize a lifecycle record.');
+  };
   const participantCrafts = await dependencies.deriveParticipantCrafts({
     transaction,
     sessionId,
@@ -774,15 +773,16 @@ async function bootstrapLifecycleRecord(
     availableCarrierCraftIds: p403.availableCarrierCraftIds,
     ...(p403.participantCrafts === undefined ? {} : { participantCrafts: p403.participantCrafts }),
   });
-  const record = createAwayMissionLifecycleRecord({
+  const bootstrap = createAwayMissionLifecycleBootstrap({
     sessionId,
     groupId: p403.groupId,
     sourceCycle: p403.sourceCycle,
-    lifecycle,
+    lifecycle: lifecycleInput,
+    revision: p403.revision,
     participantCrafts,
   });
-  if (!record) fail('failed-precondition', 'The server-derived participant craft snapshot is malformed.');
-  return { ...record, revision: p403.revision };
+  if (!bootstrap) fail('failed-precondition', 'The server-derived participant craft snapshot is malformed.');
+  return bootstrap.record;
 }
 
 function requireStoredLifecycleRecord(

@@ -55,6 +55,7 @@ import {
 import { enforceExpensiveCallableRateLimit } from './callableRateLimitFirestore';
 import { createSameTableTradeCallables } from './sameTableTradeCallable';
 import { createGorgoneionMissionSupportCallables } from './gorgoneionMissionSupportCallable';
+import { createAwayMissionLifecycleBootstrap } from './awayMissionLifecycleAdapter';
 import { createAwayMissionLifecycleCallables } from './awayMissionLifecycleCallable';
 import { deriveAwayMissionParticipantCraftSnapshots } from './awayMissionCraftSnapshot';
 import { createPermissionedDismantlingCallables } from './permissionedDismantlingCallable';
@@ -9970,6 +9971,27 @@ export const dealPrivateInitialCards = onCall<{
     }
 
     const missionLeader = participants.find((participant) => participant.uid === command.missionLeaderUid)!;
+    const lifecycleBootstrap = createAwayMissionLifecycleBootstrap({
+      sessionId: command.sessionId,
+      groupId: missionGroupId,
+      sourceCycle: opportunity.sourceCycle,
+      participantCrafts,
+      lifecycle: {
+        missionId,
+        siteCode: missionDefinition.code,
+        leaderUid: missionLeader.uid,
+        participants,
+        availableCarrierCraftIds: carrierCraftIds,
+        deckState: persistedDeck,
+        dealtCount: dealtCount + allocations.length,
+        initialCards: allocations.map(({ participant, card }) => ({ participantUid: participant.uid, cardId: card.id })),
+      },
+    });
+    if (!lifecycleBootstrap) {
+      throw commandError('failed-precondition', 'The initial mission lifecycle could not be validated.', 'conflict');
+    }
+    const initialLifecycleStates = new Map(lifecycleBootstrap.participantStates.map((state) => [state.participantUid, state]));
+
     const reply: AwayMissionDealReply = {
       status: 'committed', sessionId: command.sessionId, requestId: command.requestId,
       opportunityId: opportunity.id, snapshotId: opportunity.id, missionId,
@@ -10029,6 +10051,9 @@ export const dealPrivateInitialCards = onCall<{
     };
     tx.set(missionRef, {
       schemaVersion: 1,
+      lifecycleRecord: lifecycleBootstrap.record,
+      status: 'active',
+      overrun: false,
       phase: 'awaiting-card-selection',
       revision: 0,
       discardedParticipantUids: [],
@@ -10069,6 +10094,9 @@ export const dealPrivateInitialCards = onCall<{
         rank: allocation.card.rank,
         suit: allocation.card.suit,
         value: allocation.card.value,
+        revision: 0,
+        phase: 'awaiting-card-selection',
+        lifecyclePrivateState: initialLifecycleStates.get(allocation.participant.uid)!.privateState,
         createdAt: FieldValue.serverTimestamp(),
       });
       tx.set(db.doc(`sessions/${command.sessionId}/awayMissionHandPointers/${handId}`), {
@@ -10088,6 +10116,7 @@ export const dealPrivateInitialCards = onCall<{
         phase: 'awaiting-card-selection',
         revision: 0,
         discarded: false,
+        lifecyclePublicState: initialLifecycleStates.get(allocation.participant.uid)!.publicState,
         updatedAt: FieldValue.serverTimestamp(),
       });
     }
