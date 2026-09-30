@@ -94,6 +94,27 @@ describe('AwayMissionLifecyclePanel', () => {
     expect(actions.discardCard).toHaveBeenCalledWith('A♥');
   });
 
+  it('keeps remaining participant assignments available after another participant commits theirs', async () => {
+    const actions = renderPanel({
+      publicState: { ...basePublicMission, phase: 'assigning', revision: 4 },
+      privateState: { ...privateHand, phase: 'assigning', revision: 4 },
+    });
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Opportunity for A♥'), { target: { value: 'D-1' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Submit mission assignments' }));
+    });
+    expect(actions.assignCards).toHaveBeenCalledWith([{ cardId: 'A♥', opportunityId: 'D-1' }]);
+  });
+
+  it('shows the committed reward destination after custody has completed without offering another drop', () => {
+    renderPanel({
+      publicState: { ...basePublicMission, status: 'complete', phase: 'complete',
+        custody: { status: 'with-ship', holderUid: 'alice', shipId: 'aegis' } },
+    });
+    expect(screen.getByRole('status', { name: 'Mission reward delivery' })).toHaveTextContent(/delivered.*AEGIS/i);
+    expect(screen.queryByRole('button', { name: 'Drop mission rewards at selected ship' })).not.toBeInTheDocument();
+  });
+
   it('does not offer a second discard after the participant has used their one standard discard', () => {
     renderPanel({
       publicState: { ...basePublicMission, phase: 'discarding' },
