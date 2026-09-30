@@ -10,6 +10,27 @@ UI review and owner authorization do not waive these completion targets.
 The old cluster route and PC01–PC04 shapes below are historical context, not
 permission to advance the campaign on presentation-only releases.
 
+## Current PC05–PC10 allocation summaries
+
+The fixed allocation completes **all 751 prompts by PC10**: PC05–PC09 each
+close 49 assigned IDs, and PC10 closes the final 48. These scope summaries
+follow the current ID allocation in the [recovery plan](CHECKPOINT_COMPLETION_PLAN.md)
+and the prompt definitions in the catalog; they do not add acceptance criteria
+or change prompt status. The original UI-tour titles and dated allocations
+below are historical only. In particular, the old “PC06 — Weapons and boarding
+stations” title is superseded: **PC08** contains the weapons, fighter, and
+opening boarding work; **PC09** completes the downstream battle results and
+aftermath. PC10 carries the campaign to **751/751**.
+
+| Checkpoint | Current assigned prompt scope | Assigned IDs | Overall done target |
+|---|---|---:|---:|
+| PC05 | Station readiness and onboarding; rations, maintenance, and mutiny; core jump/scouting paths; research and ECM. | 49 | 507/751 |
+| PC06 | Supplemental vessel movement, repair, and cargo; jump and split-fleet mechanics; scouting, away-mission resolution, rewards, and recovery. | 49 | 556/751 |
+| PC07 | Airspace and shuttle boundaries; split-fleet privacy, taxi, and rejoin; local DRADIS; Wolf-attack engine, targeting, and range foundations. | 49 | 605/751 |
+| PC08 | DRADIS and shuttle presentation; weapon, missile, and fighter actions; the opening boarding path through support, deployment, defense, and damage. | 49 | 654/751 |
+| PC09 | Remaining battle results and boarding aftermath, including casualties, salvage, repairs, and fighter rebuild; Wolf threats, investigation and arrest, specialist and President actions, and crisis flows. | 49 | 703/751 |
+| PC10 | Specialist workspaces; Ring, Nebula, and Station outcomes; endings and debrief; Capybara integration; cross-path recovery and full-game proof. | 48 | 751/751 |
+
 This is the owner-facing route through the unfinished Den of Wolves prompts.
 The word for an owner-facing milestone is **playtest checkpoint**. Each one is
 defined by **yes/no questions about the UI that the product owner may answer
@@ -38,15 +59,17 @@ before claiming the affected gameplay prompts complete.
 The final game-completion gate includes the full-table twenty-player proof;
 the owner is never responsible for recruiting or operating that table.
 
-The historical initial prompt allocation below covered the **293 partial or missing
-prompts in the 751-prompt catalog on 2026-09-27**. It is a routing snapshot,
-not a second status ledger or a promise that every row is ready to build.
-[`implementation-prompts.json`](implementation-prompts.json) remains the
-authority for current prompt definitions, dependencies, decisions, and status.
-Every prompt appears in one initial playtest slice; a later shape may move an
-unstarted prompt after feedback or a changed dependency. Update this route and
-the catalog when that happens. Completed prompts and existing evidence remain
-available as prerequisites without being assigned again.
+The historical initial prompt allocation below covered the **293 partial or
+missing prompts in the 751-prompt catalog on 2026-09-27**. It is a routing
+snapshot, not a second status ledger or a promise that every row is ready to
+build. Its PC05–PC10 membership and titles have been superseded by the fixed
+allocation summarized above and listed in the [recovery
+plan](CHECKPOINT_COMPLETION_PLAN.md). The catalog remains the authority for
+current prompt definitions, dependencies, decisions, and status; the recovery
+plan fixes current campaign membership and targets. Any PC05–PC10 labels in
+the older PC01–PC04 shape text record the plan at that time, not current tranche
+membership. Completed prompts and existing evidence remain available as
+prerequisites without being assigned again.
 
 ## Autonomous execution for PC05–PC10
 
@@ -170,11 +193,12 @@ authorize the checkpoint. This process
 changes no existing task's accepted scope and creates no Git, CI, or
 deployment approval gate.
 
-## Historical UI-cluster playtest route — superseded allocation
+## Superseded original UI-cluster route (historical titles only)
 
 These **ten original candidate UI clusters** grouped screens from the same player
-workflow. The recovery plan now controls scope and completion targets; retain
-these themes only as presentation references.
+workflow. The current scope summaries and fixed IDs above and in the recovery
+plan control PC05–PC10. Retain these titles and questions only as historical
+presentation references; they do not define today's prompt allocation.
 The owner may review presentation and usability in a solo review scene or
 explicitly authorize the checkpoint without completing that review. Agents
 complete the gameplay and technical proof, including multi-client tests. The
@@ -219,8 +243,10 @@ reclassify completed IDs between them. A numeric range includes unfinished
 lettered IDs with a stem inside it: `431–442` includes `432a`, `433a`, `433b`,
 and `434a`. The 2026-09-27 allocation audit found 293 unfinished IDs assigned
 once each, with no gaps or duplicates; none of 547 unfinished hard-prompt
-prerequisite edges points to a later checkpoint. PC06 includes owner-deferred
-Prompt 605a as a **conditional candidate**. Full-game, rules,
+prerequisite edges points to a later checkpoint. In that original allocation,
+PC06 included owner-deferred Prompt 605a as a **conditional candidate**; the
+fixed recovery allocation assigns 605a to PC09, where its existing deferral
+must be resolved before closure. Full-game, rules,
 privacy, security, accessibility, and capacity proofs are agent gates, not
 extra owner playtest steps.
 
@@ -229,9 +255,10 @@ extra owner playtest steps.
 **State:** build 0.5.51 released; explicit PC01 checkpoint authorization has
 not been recorded, while its solo UI walkthrough remains optional. Ordinary
 authorized facilitator/Scientist gameplay proof remains a separate agent-owned
-gap. PC02–PC10 remain provisional candidates. The deployed synthetic review
-scene supports an optional owner UI tour; it does not establish live gameplay
-proof.
+gap. At the time of this PC01 report, PC02–PC10 remained provisional
+candidates; the later fixed allocation and current PC05 release are summarized
+at the top of this document. The deployed synthetic review scene supports an
+optional owner UI tour; it does not establish live gameplay proof.
 
 **Execution note (2026-09-27).** The earlier optional-sidecar wording left
 independent PC01 work easy to run serially. Assign bounded, separate owners

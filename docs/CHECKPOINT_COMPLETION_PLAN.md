@@ -27,14 +27,22 @@ when evidence supports it and label it recovered credit; do not claim it was
 newly built. Such recovered credit counts once in its assigned tranche.
 Historical changelog snapshots remain unchanged.
 
-| Checkpoint | Assigned newly closed IDs | Cumulative closures from the fixed 293 | Remaining from that set | Overall done target* |
-|---|---:|---:|---:|---:|
-| PC05 | 49 | 49 | 244 | 507/751 |
-| PC06 | 49 | 98 | 195 | 556/751 |
-| PC07 | 49 | 147 | 146 | 605/751 |
-| PC08 | 49 | 196 | 97 | 654/751 |
-| PC09 | 49 | 245 | 48 | 703/751 |
-| PC10 | 48 | 293 | 0 | 751/751 |
+The old PC05–PC10 UI-tour titles are historical and superseded by these fixed
+ID tranches. The old PC06 “Weapons and boarding stations” theme does not define
+the current PC06 work: PC08 contains weapons, fighters, and the opening boarding
+path; PC09 carries the downstream battle results and aftermath. **All 751
+prompts are assigned by PC10.** These short scope descriptions summarize the
+catalog IDs below; the catalog remains authoritative for each prompt's
+definition and current status.
+
+| Checkpoint | Current assigned prompt scope | Assigned newly closed IDs | Cumulative closures from the fixed 293 | Remaining from that set | Overall done target* |
+|---|---|---:|---:|---:|---:|
+| PC05 | Station readiness and onboarding; rations, maintenance, and mutiny; core jump/scouting paths; research and ECM. | 49 | 49 | 244 | 507/751 |
+| PC06 | Supplemental vessel movement, repair, and cargo; jump and split-fleet mechanics; scouting, away-mission resolution, rewards, and recovery. | 49 | 98 | 195 | 556/751 |
+| PC07 | Airspace and shuttle boundaries; split-fleet privacy, taxi, and rejoin; local DRADIS; Wolf-attack engine, targeting, and range foundations. | 49 | 147 | 146 | 605/751 |
+| PC08 | DRADIS and shuttle presentation; weapon, missile, and fighter actions; the opening boarding path through support, deployment, defense, and damage. | 49 | 196 | 97 | 654/751 |
+| PC09 | Remaining battle results and boarding aftermath, including casualties, salvage, repairs, and fighter rebuild; Wolf threats, investigation and arrest, specialist and President actions, and crisis flows. | 49 | 245 | 48 | 703/751 |
+| PC10 | Specialist workspaces; Ring, Nebula, and Station outcomes; endings and debrief; Capybara integration; cross-path recovery and full-game proof. | 48 | 293 | 0 | 751/751 |
 
 *Overall targets assume the original 458 stay done. Regressions must be repaired
 and reported separately, never hidden by newly completed work. The fixed ID
@@ -119,10 +127,9 @@ already ready. Read every catalog row when shaping its work.
 
 The backlog is distributed evenly by prompt count, not estimated effort.
 Prompt complexity varies; implementation and proof remain part of each ID.
-Later UI themes can span multiple owner tours;
-the former PC06–PC10 titles are no longer numerical scope limits. The PC05
-allocation is the next scope; later tranches are candidates until
-shaped. A documented same-count substitution may move an unstarted ID only
+Later UI themes can span multiple owner tours. PC05 is released; PC06 is the
+next scope to shape, and PC07–PC10 remain candidates until shaped. A documented
+same-count substitution may move an unstarted ID only
 with its dependencies satisfied and another baseline ID replacing it; it
 cannot change any cumulative target or lose any baseline ID. P605a's existing
 owner deferral must be resolved explicitly before closure; it remains in the
