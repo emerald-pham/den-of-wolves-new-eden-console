@@ -79,7 +79,6 @@ it('records only a coordinate request and leaves follow-up with a facilitator', 
 
   const controls = screen.getByRole('region', { name: 'Starlight scouting request' });
   expect(controls).toHaveTextContent('Coordination');
-  expect(controls).not.toHaveTextContent(/jump|fuel|range|per cycle/i);
   expect(within(controls).getByLabelText('Printed system coordinate')).toHaveAttribute('inputmode', 'numeric');
   expect(controls).not.toHaveTextContent(/chart fact|organiser reveal|system name/i);
 
@@ -91,6 +90,51 @@ it('records only a coordinate request and leaves follow-up with a facilitator', 
   })));
   expect(await within(controls).findByRole('status')).toHaveTextContent(/request recorded.*facilitator/i);
 });
+
+it.each([
+  [
+    'starlight',
+    /within two jumps of AEGIS's current position on the printed chart/i,
+    /second, distinct request in the same cycle requires Starlight to be fuelled in AEGIS's shuttle bay during that cycle/i,
+  ],
+  [
+    'hummingbird',
+    /within three jumps of Quellon's current position on the printed chart/i,
+    /one request per cycle/i,
+  ],
+] as const)(
+  'shows the %s printed-chart range and cycle procedure before submission',
+  (entitlementId, rangeGuidance, cycleGuidance) => {
+    setOwner(entitlementId);
+    render(<ScoutRequestControls entitlementId={entitlementId} />);
+
+    const label = entitlementId === 'starlight' ? 'Starlight' : 'Hummingbird';
+    const controls = screen.getByRole('region', { name: `${label} scouting request` });
+    const rangeCopy = within(controls).getByText(rangeGuidance);
+    expect(rangeCopy).toBeVisible();
+    expect(within(controls).getByText(cycleGuidance)).toBeVisible();
+    expect(rangeCopy.id).toMatch(/\S/);
+    const coordinate = within(controls).getByLabelText('Printed system coordinate');
+    expect(coordinate.getAttribute('aria-describedby')?.split(/\s+/)).toContain(rangeCopy.id);
+    expect(within(controls).getByRole('button', { name: 'Record request' })).toBeVisible();
+    expect(request).not.toHaveBeenCalled();
+  },
+);
+
+it.each(['endeavour', 'comms-officer'] as const)(
+  'keeps the existing generic guidance for %s',
+  (entitlementId) => {
+    setOwner(entitlementId);
+    render(<ScoutRequestControls entitlementId={entitlementId} />);
+
+    const label = entitlementId === 'endeavour' ? 'Endeavour' : 'Comms Officer';
+    const controls = screen.getByRole('region', { name: `${label} scouting request` });
+    expect(controls).toHaveTextContent('Enter a printed four-digit system coordinate to record a request.');
+    expect(controls).not.toHaveTextContent(
+      /within (?:two|three) jumps|second, distinct request|one request per cycle/i,
+    );
+  },
+);
 
 it('keeps the exact command identity and coordinate when the caller retries', async () => {
   const user = userEvent.setup();
