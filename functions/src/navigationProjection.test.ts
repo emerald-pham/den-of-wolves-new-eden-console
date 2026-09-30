@@ -429,3 +429,16 @@ it('keeps mission exploration knowledge bound to a UID across navigation refresh
     player({ fleetGroupId: 'fleet-2' }) as never, state, 5);
   expect(tx.set.mock.calls[0]?.[1].knownCoordinates).toEqual(expect.arrayContaining(['4454', '5143']));
 });
+
+it.each(['__proto__', 'constructor', 'toString'])('projects reserved-name UID %s using only its own mission knowledge', uid => {
+  const foreignState = navigationState({ ...navigation, missionExploredCoordinatesByUid: { alice: ['4454'] } }, ['dione', 'shepherd']);
+  const subject = player({ assignedRoleId: 'shepherd-captain', fleetGroupId: 'fleet-2' });
+  const foreign = playerDiscoveryProjection(subject, foreignState, 5, ['shepherd'], undefined, uid);
+  expect(foreign.knownCoordinates).toEqual(['0000', '1413']);
+  const ownState = navigationState({ ...navigation, missionExploredCoordinatesByUid: Object.fromEntries([
+    ['alice', ['5143']], [uid, ['4454']],
+  ]) }, ['dione', 'shepherd']);
+  const own = playerDiscoveryProjection(subject, ownState, 6, ['shepherd'], undefined, uid);
+  expect(own.knownCoordinates).toContain('4454');
+  expect(own.knownCoordinates).not.toContain('5143');
+});
