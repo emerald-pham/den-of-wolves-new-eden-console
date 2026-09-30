@@ -161,6 +161,7 @@ function seededStore(options: { readonly warrior?: boolean } = {}): FakeStore {
     type: 'away-mission-start-snapshot',
     schemaVersion: 1,
     sessionId: SESSION_ID,
+    requestId: 'mission-start-1',
     opportunityId: OPPORTUNITY_ID,
     missionId: MISSION_ID,
     groupId: 'fleet-1',
@@ -169,6 +170,8 @@ function seededStore(options: { readonly warrior?: boolean } = {}): FakeStore {
     siteCode: 'K',
     sourceCycle: 3,
     missionLeader: { uid: 'alice', roleId: 'wing-commander' },
+    stateDelta: { missionDeckDealtCountBefore: 0, missionDeckDealtCountAfter: 2 },
+    revisions: { missionDeck: { before: 0, after: 2 } },
     inputs: {
       availableCarrierCraftIds: ['starlight'],
       participantSnapshots: participants,
@@ -224,6 +227,16 @@ function dependencies(store: FakeStore, options: { readonly d6?: number } = {}) 
   const db = store;
   const callables = createAwayMissionLifecycleCallables({
     db,
+    commandMarkers: {
+      read: (transaction, sessionId, requestId) =>
+        (transaction as Transaction).get(db.doc(`sessions/${sessionId}/commandReceipts/${requestId}`)),
+      create: (transaction, fingerprint, result) => {
+        (transaction as Transaction).create(
+          db.doc(`sessions/${SESSION_ID}/commandReceipts/${fingerprint.requestId}`),
+          { fingerprint, result, createdAt: 'server-time' },
+        );
+      },
+    },
     serverTimestamp: () => 'server-time',
     isActivePlayer: (player) => player.exists && player.get('role') === 'player' &&
       player.get('connected') === true && player.get('kickedAt') == null,
@@ -372,7 +385,7 @@ it('fails closed when a committed lifecycle record has lost its atomic event rec
 
   await expect(commitAwayMissionLifecycleCommand(request)).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(currentRevision(store)).toBe(1);
-  expect(store.committedWrites).toHaveLength(6);
+  expect(store.committedWrites).toHaveLength(7);
 });
 
 it('rejects nonparticipants, nonleaders, and requests without a live GM instance before writing', async () => {
@@ -380,6 +393,10 @@ it('rejects nonparticipants, nonleaders, and requests without a live GM instance
   store.records.set(`sessions/${SESSION_ID}/players/eve`, { role: 'player', connected: true });
   const { commitAwayMissionLifecycleCommand } = dependencies(store);
 
+  await expect(commitAwayMissionLifecycleCommand({
+    auth: null,
+    data: { sessionId: SESSION_ID, missionId: MISSION_ID, type: 'requestExtraCards', requestId: 'unauth', expectedRevision: 0, count: 1 },
+  })).rejects.toMatchObject({ code: 'unauthenticated' });
   await expect(commitAwayMissionLifecycleCommand(commandRequest('eve', {
     type: 'requestExtraCards', requestId: 'outsider', expectedRevision: 0, count: 1,
   }))).rejects.toMatchObject({ code: 'permission-denied' });
@@ -390,6 +407,24 @@ it('rejects nonparticipants, nonleaders, and requests without a live GM instance
   await expect(commitAwayMissionLifecycleCommand(commandRequest('bob', {
     type: 'openDiscards', requestId: 'not-gm', instanceId: 'gm-instance', expectedRevision: 0,
   }))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(store.committedWrites).toHaveLength(0);
+});
+
+it('rejects request identifiers already reserved by a different callable action', async () => {
+  const store = seededStore();
+  const requestId = 'belongs-to-other-action';
+  store.records.set(`sessions/${SESSION_ID}/commandReceipts/${requestId}`, {
+    fingerprint: {
+      action: 'start-away-mission', sessionId: SESSION_ID, requestId, actorUid: 'bob',
+      instanceId: 'gm-instance', expectedRevision: 0, payload: { missionId: MISSION_ID },
+    },
+    result: { status: 'committed' },
+  });
+  const { commitAwayMissionLifecycleCommand } = dependencies(store);
+
+  await expect(commitAwayMissionLifecycleCommand(commandRequest('bob', {
+    type: 'requestExtraCards', requestId, expectedRevision: 0, count: 1,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(store.committedWrites).toHaveLength(0);
 });
 
@@ -454,11 +489,15 @@ it('executes every lifecycle command, keeps the deck cursor and projections atom
   expect(committedResolution).toMatchObject({ status: 'resolved' });
   expect(JSON.stringify(committedResolution)).not.toContain('secretD6Rolls');
   expect(callables.d6Calls).toBe(1);
+  let replayedResolution!: Awaited<ReturnType<typeof commit>>;
   for (let retry = 0; retry < 3; retry += 1) {
-    await expect(commit(resolveRequest)).resolves.toMatchObject({ status: 'replayed', publicState: {
+    const reply = await commit(resolveRequest);
+    if (retry === 0) replayedResolution = reply;
+    expect(reply).toMatchObject({ status: 'replayed', publicState: {
       status: 'resolved', outcomes: [expect.objectContaining({ opportunityId: 'K-1', difficulty: 30 })],
     } });
   }
+  expect(JSON.stringify(replayedResolution)).not.toMatch(/secretD6Rolls|d6Rolls/);
   expect(callables.d6Calls).toBe(1);
   expect(store.committedWrites).toHaveLength(writesAfterResolve);
   const writesBeforeWrongLeaderDropoff = store.committedWrites.length;
