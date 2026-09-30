@@ -54,6 +54,7 @@ vi.mock('node:crypto', () => ({ randomInt: vi.fn(() => 0), randomUUID: vi.fn(() 
 
 import {
   applyGorgoneionMissionSupport,
+  commitAwayMissionLifecycleCommand,
   dealPrivateInitialCards,
   discardPrivateMissionCard,
   getGorgoneionMissionSupportProjection,
@@ -136,6 +137,22 @@ function snapshot(fields: Record<string, unknown>, path: string, exists = true) 
 function request(data: Record<string, unknown>, uid = 'gm1') {
   return { data, auth: { uid } } as CallableRequest<Record<string, unknown>>;
 }
+
+describe('away-mission lifecycle callable export', () => {
+  it('rejects unauthenticated lifecycle commands at the production endpoint', async () => {
+    await expect(commitAwayMissionLifecycleCommand.run({
+      data: {
+        sessionId: 's1',
+        missionId: 'mission-1',
+        requestId: 'unauthenticated-lifecycle',
+        expectedRevision: 0,
+        type: 'requestExtraCards',
+        count: 1,
+      },
+      auth: null,
+    } as CallableRequest<Record<string, unknown>>)).rejects.toMatchObject({ code: 'unauthenticated' });
+  });
+});
 
 beforeEach(() => {
   mock.get.mockReset();
