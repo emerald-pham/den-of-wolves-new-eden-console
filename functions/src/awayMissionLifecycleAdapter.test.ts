@@ -48,6 +48,37 @@ function fixture() {
   });
 }
 
+function warriorFixture() {
+  const base = fixture();
+  const lifecycle = createMissionLifecycleState({
+    missionId: 'mission-warrior',
+    siteCode: 'D',
+    leaderUid: 'alice',
+    participants: [
+      { uid: 'alice', roleId: 'wing-commander' },
+      { uid: 'bob', roleId: 'warrior-captain' },
+    ],
+    availableCarrierCraftIds: ['starlight', 'highwall'],
+    deckState: missionDeckStateFromCards(missionDeck()),
+    dealtCount: 2,
+    initialCards: [
+      { participantUid: 'alice', cardId: 'A♥' },
+      { participantUid: 'bob', cardId: '4♥' },
+    ],
+  });
+  if (!lifecycle) throw new Error('Expected valid Warrior mission fixture.');
+  return createAwayMissionLifecycleRecord({
+    sessionId: 'session-1',
+    groupId: 'fleet-1',
+    sourceCycle: 3,
+    lifecycle,
+    participantCrafts: [
+      { participantUid: 'alice', craftIds: ['starlight'] },
+      { participantUid: 'bob', craftIds: ['warrior'] },
+    ],
+  });
+}
+
 function act(
   record: ReturnType<typeof fixture>,
   type: string,
@@ -141,6 +172,42 @@ describe('away-mission lifecycle adapter', () => {
       legalDropOffShipIds: [],
     });
     expect(forgedCommand.status).toBe('denied');
+  });
+
+  it('consumes the Warrior hand privately and keeps its per-card salvage award in leader custody', () => {
+    let record = warriorFixture()!;
+    const opened = act(record, 'openDiscards', {}, 'gm', { isActiveGm: true });
+    expect(opened.status).toBe('committed');
+    record = opened.record!;
+
+    const salvage = act(record, 'reclamatorSalvage', {
+      opportunityId: 'D-1', choices: [{ cardId: '4♥', resource: 'food' }],
+    }, 'bob');
+    expect(salvage.status).toBe('committed');
+    record = salvage.record!;
+    expect(projectAwayMissionPrivateState(record, 'bob')).toMatchObject({
+      reclamatorSalvage: { opportunityId: 'D-1', choices: [{ cardId: '4♥', resource: 'food' }] },
+    });
+    expect(JSON.stringify(projectAwayMissionPublicState(record, 'alice'))).not.toMatch(/4♥|cardId|choices/);
+
+    const aliceDiscard = act(record, 'discardCard', { cardId: 'A♥' }, 'alice');
+    expect(aliceDiscard.status).toBe('committed');
+    record = aliceDiscard.record!;
+    expect(record.lifecycle.phase).toBe('assignment-ready');
+    const aliceAssignment = act(record, 'assignCards', { placements: [] }, 'alice');
+    expect(aliceAssignment.status).toBe('committed');
+    record = aliceAssignment.record!;
+    const dealt = act(record, 'addFacilitatorCards', {}, 'gm', {
+      isActiveGm: true, randomIndex: () => 0,
+    });
+    expect(dealt.status).toBe('committed');
+    record = dealt.record!;
+    const resolved = act(record, 'resolve', {}, 'gm', {
+      isActiveGm: true, bonusSources: [], secretD6Rolls: {},
+    });
+    expect(resolved.status).toBe('committed');
+    expect(resolved.record?.specialRewards).toEqual([{ opportunityId: 'D-1', resources: { food: 1 } }]);
+    expect(resolved.record?.custody).toMatchObject({ status: 'mission-leader', holderUid: 'alice' });
   });
 
   it('keeps committed participant craft movement-locked through a Team Phase overrun until resolution', () => {
