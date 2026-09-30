@@ -10265,6 +10265,7 @@ export const dealPrivateInitialCards = onCall<{
         value: allocation.card.value,
         revision: 0,
         phase: 'awaiting-card-selection',
+        discarded: false,
         lifecyclePrivateState: initialLifecycleStates.get(allocation.participant.uid)!.privateState,
         createdAt: FieldValue.serverTimestamp(),
       });
