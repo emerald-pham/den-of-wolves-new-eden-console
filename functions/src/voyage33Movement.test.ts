@@ -132,7 +132,7 @@ describe('Voyage 33-0 movement', () => {
     ['short', '5143', 1],
     ['medium', '9997', 1],
     ['long', '4888', 2],
-  ] as const)('spends %i host fuel on a committed %s jump', (_length, destination, cost) => {
+  ] as const)('%s jump to %s spends %i host fuel', (_length, destination, cost) => {
     const attempt = jumpedAttempt({ destination });
     const result = resolveVoyage33JumpCommit(commitInput({ jumpResult: attempt }));
     expect(result).toMatchObject({
@@ -224,7 +224,7 @@ describe('Voyage 33-0 movement', () => {
       ['remaining fuel', { ...attempt, remainingFuel: 99 }],
       ['transition destination', { ...attempt, transition: { ...attempt.transition, destination: '9997' } }],
     ];
-    for (const [_label, jumpResult] of changes) {
+    for (const [, jumpResult] of changes) {
       expect(() => resolveVoyage33JumpCommit(commitInput({ jumpResult }))).toThrow();
     }
   });
