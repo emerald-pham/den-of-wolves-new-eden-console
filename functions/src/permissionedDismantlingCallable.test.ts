@@ -252,6 +252,19 @@ it('proposes, grants one exact target-ship consent, and atomically applies damag
   expect(store.committedWrites).toHaveLength(applyWrites);
 });
 
+it('binds an omitted private target revision to the server-observed proposal state and replays safely', async () => {
+  const store = seededStore();
+  const callables = createPermissionedDismantlingCallables(dependencies(store));
+  const data = { ...proposeRequest().data };
+  delete data.expectedTargetRevision;
+
+  await expect(callables.proposePermissionedDismantling(request('engineer', data)))
+    .resolves.toMatchObject({ status: 'proposed', targetRevision: 0 });
+  await expect(callables.proposePermissionedDismantling(request('engineer', data)))
+    .resolves.toMatchObject({ status: 'replayed', targetRevision: 0 });
+  expect(store.committedWrites.filter(({ path }) => path === paths().proposal)).toHaveLength(1);
+});
+
 it('keeps one active consent request visible per target ship', async () => {
   const store = seededStore();
   const callables = createPermissionedDismantlingCallables(dependencies(store));
