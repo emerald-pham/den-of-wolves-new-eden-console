@@ -26,6 +26,94 @@ the original assumption; append the resolution so the decision is traceable.
 
 ## Entries
 
+### PC06-A1 — Keep vessel rules bound to the printed craft
+
+| Field | Record |
+|---|---|
+| ID and milestone | PC06-A1; vessel movement and away missions, Prompts 202, 210, 222, 232, 236, 241a, 251, and 259. |
+| Source passage | Player's Guide v1.1, printed pp. 9–10; base A3 ship sheets v1.1, printed pp. 3–6; base A4 duplex card pack v1.1, PDF pp. 23 and 25; base A4 single-sided pack v1.1, PDF p. 38 (Voyage 33-0); Capybara expansion v1.1, complementary A3 ship sheet and A4 rules. The sheets give each craft's own jump cost, charge/damage behavior, and fuel source. The base small-ship Capybara draws fuel from its current host; Voyage 33-0 uses fuel from its docked host at 1/1/2; the separate expansion ship has its own drive and 3/6/12 costs. The Icebreaker's charged Ram Scoop yields 10/15/20 ore by jump length and the upgrade adds five. |
+| Ambiguity and alternatives | The same Capybara name refers to two different craft. A generic jump-cost fallback or merging the two states would contradict the printed sheets. A transit animation must also not imply arrival before the server commits it. |
+| Chosen reading | Dispatch by the server-validated craft and explicit mode. Apply the exact sheet cost and source of fuel; preserve the existing common charge, damage, authorization, and retry contract. A committed jump alone changes arrival state. The base small craft and full expansion ship never share one behavior or inventory. |
+| Product effect | Vessel jump audits, host-fuel movement, Ram Scoop yield, and transition UI use one authoritative result; invalid mode or malformed host state fails closed. Tests distinguish every assigned craft and both Capybara modes. |
+| Review state | New under explicit PC06 authorization; source pages and derivatives were visually checked while shaping. |
+
+### PC06-A2 — Keep blind-jump selection private and server-owned
+
+| Field | Record |
+|---|---|
+| ID and milestone | PC06-A2; blind jump, Prompt 679. |
+| Source passage | No blind-jump procedure is printed in the v1.1 rulebooks. The deliberate product extension is explicitly required by the assigned Prompt 679 acceptance and evidence `E-679`. |
+| Ambiguity and alternatives | A client-selected neighbor, leaked candidate list, or UI scramble coupled to gameplay randomness could reveal or influence hidden chart state. Omitting the feature would fail the assigned prompt. |
+| Chosen reading | The authenticated server reads the current node and locked chart, selects one directly adjacent destination, and passes that destination through ordinary jump authority once. Bind it to the request receipt so retries cannot redraw. The animated digits are cosmetic, never announce a preview, and stop on commit, denial, or cancellation; reduced motion displays a stable, readable pending state. |
+| Product effect | Prompt 679 tests prove adjacency, no neighbor/chart leak, normal fuel and consequence handling, exact replay, arrival knowledge, timer cleanup, cadence, and separation between cosmetic digits and the server's draw. |
+| Review state | New product extension under explicit PC06 authorization; never represented as printed source authority. |
+
+### PC06-A3 — Preserve the printed away-mission card sequence and privacy
+
+| Field | Record |
+|---|---|
+| ID and milestone | PC06-A3; Prompts 237, 401, 404, 405, and 407–408. |
+| Source passage | Player's Guide v1.1, printed pp. 14–15, Away Missions; Facilitator's Guide v1.1, printed p. 13; base A4 card pack v1.1, Gorgoneion Captain sheet on printed p. 23. The participant team chooses one leader; each player receives a secret initial card; the leader assigns extra cards face down without learning their values; players may request a count without revealing why; each secretly discards one card and places every remaining card face down at no more than one per opportunity. The Gorgoneion Captain's support rearranges the top five deck cards before the deal. |
+| Ambiguity and alternatives | The printed procedure does not authorize a facilitator or leader to view participant hands or card values before reveal. It does not state a numeric passenger capacity from the recommendation to send several shuttles. A pre-deal support action cannot be replayed after the deal. |
+| Chosen reading | Reuse the source-bound participant and leader selection already recorded by PC04-A1; bind all hands and choices to that immutable mission, participant, and revision. Only the entitled participant reads their hand; the leader can see request counts, not reasons or values. Apply Gorgoneion support only for an already admitted craft with its current entitled Captain, before the first card is dealt. Do not turn the source's shuttle recommendation into a capacity rule. |
+| Product effect | Private deal, blind distribution, request, discard, placement, support, and retry tests keep cards and request reasons private and reject stale or duplicate actions. |
+| Review state | New under explicit PC06 authorization; earlier PC04-A1 remains the authority for recording the team's roster and leader choice. |
+
+### PC06-A4 — Use each opportunity's printed outcome threshold
+
+| Field | Record |
+|---|---|
+| ID and milestone | PC06-A4; Prompts 409–413, 243, 334, and 335. |
+| Source passage | Player's Guide v1.1, printed p. 14; Facilitator's Guide v1.1, printed p. 14, Away Mission Rewards; selected chart's printed mission card. Card values are rank-based, shuttle/role bonuses apply only after a participant contributes, and mission cards may give distinct success and critical-success numbers and rewards. The Facilitator's Guide says an empty opportunity receives no extra card and automatically fails. |
+| Ambiguity and alternatives | Treating every critical success as an invented fixed margin, adding a facilitator card to an empty pile, or applying a shuttle bonus without its participant's contribution can create an outcome the source does not permit. |
+| Chosen reading | The server calculates from the committed assignments and the selected chart's exact success and critical thresholds, applies only a qualifying contribution bonus, and resolves success and critical reward branches separately. It deals/shuffles an extra card only for nonempty opportunities; an empty opportunity fails without a draw. Exact source outcomes update authoritative state once and are logged with inputs, modifiers, outcome, delta, revision, replay identity, and recovery. |
+| Product effect | Prompts 409–413 and 243 cover deterministic totals, special Warrior salvage, empty failure, critical reward, and Mission Leader custody; 334 records only the D reward's two valid chart targets, while 335 restricts the Athena Wolf reveal to valid L/M systems. Reward knowledge does not create a ship arrival or duplicate visit event. |
+| Review state | New under explicit PC06 authorization; source outcome branches and printed reward page were visually checked while shaping. |
+
+### PC06-A5 — Keep mission play active through an overrun
+
+| Field | Record |
+|---|---|
+| ID and milestone | PC06-A5; Prompts 414, 415, and 622. |
+| Source passage | Facilitator's Guide v1.1, printed pp. 13–14, Away Missions: if a mission crosses into Team Phase, the mission continues with its shuttles and players until complete; rewards are given to the Mission Leader, who may drop them at one ship when their shuttle cannot carry them. |
+| Ambiguity and alternatives | A digital phase change must not silently release mission participants or their craft for incompatible movement, duplicate the reward, or let a retry redirect its recipient. |
+| Chosen reading | Keep the same mission, participants, and committed craft in the overrun state until its source-deterministic resolution completes. The Mission Leader retains the reward; if a source-limited drop is needed, bind the chosen legal ship and exact reward to a single revision-checked action. |
+| Product effect | Prompt 414 blocks conflicting movement during the overrun; Prompt 415 verifies one legal drop-off and no duplication; Prompt 622 hydrates only each participant's private hand/choices plus the current public mission state. |
+| Review state | New under explicit PC06 authorization; exact overrun and custody procedure is printed, with the receipt as its digital product representation. |
+
+### PC06-A6 — Preserve independent split-fleet state
+
+| Field | Record |
+|---|---|
+| ID and milestone | PC06-A6; Prompts 151 and 307. |
+| Source passage | Facilitator's Guide v1.1, printed p. 16, Split Fleet: each separated part maintains its own pursuit score and players are restricted from communicating between fleets. |
+| Ambiguity and alternatives | A shared fleet-level pursuit value or general cross-group messaging would erase the printed split boundary. The scout-taxi exception is separate and is not part of these two assigned prompts. |
+| Chosen reading | Key pursuit changes and ordinary message authorization by the current server-owned group identity. A group's action cannot update another group's pursuit or audience. Keep taxi transport on its distinct authorization path and leave taxi/rejoin implementation to its assigned later tranche. |
+| Product effect | Prompts 151 and 307 test group-local messages and pursuit, malformed or stale group denial, and the separate taxi-path discriminator without claiming PC07 work complete. |
+| Review state | New under explicit PC06 authorization; the source page was rendered and visually checked. |
+
+### PC06-A7 — Limit dismantling permission to the printed target-ship consent
+
+| Field | Record |
+|---|---|
+| ID and milestone | PC06-A7; permissioned dismantling, Prompt 385. |
+| Source passage | Base A4 card pack v1.1, printed engineering-shuttle sheets, including the Gorgoneion/Warrior and other engineering-craft rules: an engineering craft may damage a target console for its printed materials/scrap benefit only with permission from at least one player on that target ship. |
+| Ambiguity and alternatives | The paper rule says whose permission is needed but does not define a digital consent lifetime or replay binding. A self-approved dismantle or general ship-wide standing permission would be broader than the printed action. |
+| Chosen reading | Require one active player currently assigned to the target ship to affirm the exact proposed craft, target ship, console, and source cost. The server consumes that actor-bound, one-use consent against the current target revision in the same transaction as damage and resource changes; stale, reused, or changed proposals do nothing. |
+| Product effect | Prompt 385's accepted action is source-limited to an eligible console and exact printed cost; tests cover wrong ship, missing/revoked or stale consent, duplicate/replay, insufficient resources, and atomic no-change failures. |
+| Review state | New under explicit PC06 authorization. The exact transaction lifetime is a conservative product extension recorded here, not a printed timing rule. |
+
+### PC06-A8 — Limit two-system mission rewards to knowledge, not travel
+
+| Field | Record |
+|---|---|
+| ID and milestone | PC06-A8; mission map rewards, Prompts 334–335. |
+| Source passage | Facilitator's Guide v1.1, printed p. 14: the D mission can reward exploring two star systems, and the Athena mission's Wolf-system reward names systems L or M. Prompt 334/335 acceptance further requires chart-valid reveals without arrival-only effects or duplicate discoveries. |
+| Ambiguity and alternatives | “Explore” does not identify a digital viewer, disclose private map state, or say that the ship physically arrives. Recording an arrival would silently trigger unrelated travel and new mission eligibility. |
+| Chosen reading | Record only chart-valid knowledge in the mission's entitled audience, never a ship position, jump receipt, arrival event, or a second discovery of a known coordinate. Athena's list is restricted to systems labeled L/M by the selected chart. |
+| Product effect | Prompt 334 tests two distinct eligible reveals without travel or duplicate discoveries; Prompt 335 rejects non-L/M and chart-mismatched targets. |
+| Review state | New under explicit PC06 authorization; the catalog acceptance supplies the digital limit beyond the printed reward. |
+
 ### PC04-A1 — Mission Leader selection is recorded, not decided, by the GM
 
 | Field | Record |

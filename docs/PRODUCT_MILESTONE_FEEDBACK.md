@@ -141,3 +141,12 @@ when nobody is eligible; the configured roster's normal Wolf count remains the
 target. They approved the exact onboarding sentence: “Wolf agents are humans,
 just like the other survivors.” These decisions resolve the P654/P662 policy
 choice and P589 copy question; implementation and gameplay proof still apply.
+
+## PC06 authorization — 2026-09-30
+
+The owner explicitly instructed: “execute PC06 please to completion.” This
+continues the standing PC05–PC10 authorization through the fixed PC06 scope.
+No PC06 walkthrough answers or new UI observations accompanied the
+authorization; the one-sitting review scene remains optional. Product scope and
+the unresolved Prompt 112 inventory-contract boundary are recorded in the
+[PC06 shape](PRODUCT_MILESTONES.md#pc06-shape--vessel-movement-and-away-missions).

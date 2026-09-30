@@ -113,6 +113,108 @@ matrix](PC05_ACCEPTANCE_MATRIX.md) preserve the technical and gameplay proof.
 Optional later feedback follows the cooldown process while PC06 proceeds under
 the same autonomous execution policy.
 
+### PC06 shape — Vessel movement and away missions
+
+**Authorization and target.** On 2026-09-30 the owner explicitly instructed
+execution of PC06 to completion under the standing PC05–PC10 authorization.
+PC05 starts this tranche at **507/751 done and 49/293 baseline closures**;
+PC06 must close its fixed 49 IDs to reach **556/751 and 98/293**. Its exact
+membership is the PC06 row in the [recovery plan](CHECKPOINT_COMPLETION_PLAN.md),
+not the historical weapons-and-boarding title. No new PC06-specific UI
+feedback or walkthrough answers were available at shaping; the allocation and
+title correction in the current owner request are recorded in the docs
+clarification commit.
+
+**Problem.** The app needs one understandable route from vessel-specific
+movement and resource use into group-local exploration and a complete away
+mission. A successful or failed action must keep fuel, cargo, craft, chart
+knowledge, private cards, mission results, and recovery tied to current server
+authority. Presenting a screen or reusing an existing resolver does not prove
+that the ordinary production path performs the whole operation.
+
+**Frozen scope.** Work exactly the 49 assigned IDs, grouped here for review:
+
+| Product path | Fixed prompt IDs |
+|---|---|
+| Jump costs, transitions, blind-jump privacy, demo boundary, keyboard control, and composed scenario | 202, 210, 222, 232, 236, 241a, 259, 320, 607, 679, 020a |
+| Same-table trades; optional craft repair, cargo, movement, maintenance, transit, closure, conflict, dismantling, and security-team location | 112, 238, 244, 241c, 251, 250, 352, 371, 380, 385, 378 |
+| Mission eligibility, private distribution and choices, card placement, automated resolution, bonuses, results, custody, recovery, special rewards, and full playthroughs | 401, 237, 241b, 392, 393, 404, 405, 407, 408, 409, 410, 411, 412, 413, 243, 414, 415, 622, 422, 646, 334, 335 |
+| Group-isolated messages/pursuit and the existing Starlight/Hummingbird scan receipts | 151, 307, 322, 323, 324 |
+
+The source audit found a real boundary on Prompt 112: the printed same-table
+trade rule does not define persistent per-player inventories, the two digital
+counterparties, or the trade authority. Its catalog decision owner and parked
+record still require a source- or owner-authorized contract, and explicitly
+reject substituting the shared ship-resource ledger. Keep Prompt 112 inside the
+fixed PC06 accounting, continue its contract audit independently, and do not
+claim its closure from a UI, receipt, or unrelated cargo transfer. If no
+authorized inventory contract is established, preserve this exact shortfall
+and resume point rather than manufacture resource ownership.
+
+The other optional-vessel actions operate only through the existing explicit
+server-owned admission, docking, mode, and replacement-role authority. Preserve
+the distinction between the base Capybara small craft and the full-ship
+Capybara expansion. A permissioned dismantle needs one explicit target-ship
+player consent bound to the exact current target/action; it never becomes a
+client-authored resource or damage write. Away missions keep participant hands
+private, accept only server-recorded choices, use each printed opportunity's
+own success/critical threshold, fail empty opportunities without adding a
+facilitator card, and automatically log deterministic calculation and state
+changes. Prompt 334's D reward records chart-valid knowledge without creating
+an arrival; Prompt 335 restricts the Athena reveal to valid L/M systems on the
+selected chart. Read the full chosen limits in the new
+[PC06 assumptions](PRODUCT_MILESTONE_ASSUMPTIONS.md#pc06-a1--keep-vessel-rules-bound-to-the-printed-craft).
+
+**Sources checked.** The seven-file v1.1 source inventory matches the
+private provenance checksums. The relevant primary pages were rendered and
+visually reviewed: Player's Guide pp. 5, 9–10, and 14–15; Facilitator's Guide
+pp. 13–17; base A3 ship sheets pp. 3–6; base A4 small-craft sheets pp. 23,
+25, and 27; base A4 engineering-shuttle sheets pp. 73, 75, 79, and 83; base
+A4 single-sided ship sheet PDF p. 38 (Voyage 33-0); and both complementary
+Capybara expansion files. The routed
+derivatives are `REFERENCE_ONLY_CORE_RULES.md`,
+`REFERENCE_ONLY_SHIPS.md`, `REFERENCE_ONLY_SHUTTLES.md`,
+`REFERENCE_ONLY_FACILITATION.md`,
+`REFERENCE_ONLY_EXPLORATION_AND_AWAY_MISSIONS.md`, and
+`REFERENCE_ONLY_CAPYBARA_EXPANSION.md`. PC06's blind-jump behavior and digital
+mission receipts are product extensions specified by their assigned prompt
+acceptance, not printed rules. The source material stays in the private
+reference archive and is not copied into the repository.
+
+**Owner-playable checks.** A labeled PC06 solo review scene will use the real
+components with synthetic state and no production mutations. The owner can
+answer these five yes/no questions in one sitting; all rules, authority,
+privacy, replay, and ordinary multiplayer proof remains agent-owned:
+
+1. Can I choose a legal destination or blind jump, understand each vessel's
+   fuel cost and result, and see the keyboard path through ready, pending,
+   denied, and recovered states?
+2. Can I tell which admitted craft is moving, docked, repaired, or using cargo,
+   and what changed after a refresh or a competing action?
+3. Can I follow one away mission from its group and location through my own
+   private cards, the leader's choices, resolved opportunities, and rewards
+   without exposing another participant's hand?
+4. Can I understand failures, critical results, overrun continuation,
+   reward custody/drop-off, and reconnect recovery from the visible mission
+   state?
+5. When the fleet is split, can I identify my group's location, pursuit,
+   messages, and scout results without seeing another group's private state?
+
+**Internal exit and release gates.** Implement changed behavior test-first in
+small focused commits. Reconcile existing parked code before replacing any
+integration. Exercise callable authority, transaction atomicity, replay,
+stale revisions, hidden-data projections, direct-write denial, group isolation,
+and all assigned production consumers. Review changed UI at 320×844,
+390×844, 844×390, and 1440×900, including keyboard, focus, navigation,
+reduced motion, and actual typography. The candidate must pass the focused
+server/client/rules checks, `npm run test:font-consistency`, and
+`npm run test:ticker:browser` because it changes joined routes and session
+projection. Obtain one independent exact-candidate Sol authority/privacy
+review, repair every finding, then run one reconciled CI/release candidate and
+deployment. Verify normal authorized gameplay separately from tests, the
+synthetic PC06 scene, and deployment; report any unavailable production path
+without crediting its prompt. Do not start PC07 during this checkpoint.
+
 ## How the campaign runs
 
 This is a trimmed Shape Up loop. **Scope is the limit, not a six-week clock.**
