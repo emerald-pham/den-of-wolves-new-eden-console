@@ -282,7 +282,7 @@ it('bootstraps only from the exact P403 record, atomically projects a participan
     missionId: MISSION_ID,
     requestId: 'request-bob-1',
     revision: 1,
-    publicState: { missionId: MISSION_ID, phase: 'awaiting-card-selection', requestCounts: [{ participantUid: 'bob', count: 1 }] },
+    publicState: { missionId: MISSION_ID, phase: 'awaiting-card-selection', requestCounts: [] },
     privateState: { missionId: MISSION_ID, participantUid: 'bob', cards: [{ id: BOB_CARD, value: 4, status: 'remaining' }] },
   });
   expect(JSON.stringify(reply)).not.toContain(ALICE_CARD);
@@ -298,6 +298,9 @@ it('bootstraps only from the exact P403 record, atomically projects a participan
   expect(store.records.get(paths().bobPointer)?.lifecyclePublicState).toMatchObject({
     missionId: MISSION_ID,
     revision: 1,
+    requestCounts: [],
+  });
+  expect(store.records.get(paths().alicePointer)?.lifecyclePublicState).toMatchObject({
     requestCounts: [{ participantUid: 'bob', count: 1 }],
   });
   expect(JSON.stringify(store.records.get(paths().bobPointer)?.lifecyclePublicState)).not.toContain(ALICE_CARD);
@@ -333,6 +336,20 @@ it('binds exact replays to both authenticated actor and unchanged command, and r
   }))).resolves.toMatchObject({ status: 'stale', expectedRevision: 0, currentRevision: 1 });
   expect(store.committedWrites).toHaveLength(writesAfterCommit);
   expect(currentRevision(store)).toBe(1);
+});
+
+it('fails closed when a committed lifecycle record has lost its atomic event receipt', async () => {
+  const store = seededStore();
+  const { commitAwayMissionLifecycleCommand } = dependencies(store);
+  const request = commandRequest('bob', {
+    type: 'requestExtraCards', requestId: 'lost-event-receipt', expectedRevision: 0, count: 1,
+  });
+  await commitAwayMissionLifecycleCommand(request);
+  store.records.delete(`sessions/${SESSION_ID}/events/away-mission-lifecycle-lost-event-receipt`);
+
+  await expect(commitAwayMissionLifecycleCommand(request)).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(currentRevision(store)).toBe(1);
+  expect(store.committedWrites).toHaveLength(6);
 });
 
 it('rejects nonparticipants, nonleaders, and requests without a live GM instance before writing', async () => {
@@ -387,7 +404,7 @@ it('executes every lifecycle command, keeps the deck cursor and projections atom
   const beforeDealWrites = store.committedWrites.length;
   await expect(commit(facilitatorRequest)).resolves.toMatchObject({
     status: 'committed',
-    revision: currentRevision(store),
+    revision: currentRevision(store) + 1,
     publicState: { phase: 'facilitator-cards-added' },
   });
   expect(callables.randomCalls).toBe(1);
