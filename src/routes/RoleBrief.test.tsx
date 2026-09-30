@@ -9,11 +9,13 @@ import RoleBrief from './RoleBrief';
 const awayMissionMocks = vi.hoisted(() => ({
   subscribe: vi.fn(),
   makeActions: vi.fn(),
+  readContext: vi.fn(),
 }));
 
 vi.mock('@/lib/awayMissionLifecycleService', () => ({
   subscribeToOwnAwayMissionLifecycles: awayMissionMocks.subscribe,
   createAwayMissionLifecycleActions: awayMissionMocks.makeActions,
+  createCurrentAwayMissionLifecycleContext: awayMissionMocks.readContext,
 }));
 
 vi.mock('@/lib/vulcanLabourService', () => ({
@@ -67,7 +69,10 @@ it('renders the assigned role brief, common rules, and visible return control', 
 });
 
 it('mounts the away-mission workspace for the assigned player without changing the role-brief return route', async () => {
+  awayMissionMocks.subscribe.mockClear();
   awayMissionMocks.subscribe.mockImplementation(() => vi.fn());
+  const currentSession = useSessionStore.getState().session;
+  useSessionStore.getState().setSession({ ...currentSession!, phase: 'active' });
   const user = userEvent.setup();
   render(
     <MemoryRouter initialEntries={['/brief']}>

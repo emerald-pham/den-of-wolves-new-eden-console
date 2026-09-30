@@ -6,6 +6,7 @@ import AwayMissionLifecycleWorkspace from './AwayMissionLifecycleWorkspace';
 const mocks = vi.hoisted(() => ({
   subscribe: vi.fn(),
   makeActions: vi.fn(),
+  readContext: vi.fn(),
   actions: {
     requestExtraCards: vi.fn(),
     distributeExtraCard: vi.fn(),
@@ -22,6 +23,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/awayMissionLifecycleService', () => ({
   subscribeToOwnAwayMissionLifecycles: mocks.subscribe,
   createAwayMissionLifecycleActions: mocks.makeActions,
+  createCurrentAwayMissionLifecycleContext: mocks.readContext,
 }));
 
 const publicState = {
@@ -68,6 +70,17 @@ describe('AwayMissionLifecycleWorkspace', () => {
     vi.clearAllMocks();
     Object.values(mocks.actions).forEach((action) => action.mockResolvedValue(undefined));
     mocks.makeActions.mockReturnValue(mocks.actions);
+    mocks.readContext.mockImplementation((mission, sessionId, actorUid) => ({
+      sessionId,
+      actorUid,
+      authenticatedUid: actorUid,
+      actorRole: 'player',
+      missionId: mission.missionId,
+      missionLeaderUid: 'alice',
+      revision: mission.revision,
+      sessionIsActive: true,
+      hasFreshServerAuthority: true,
+    }));
   });
 
   it('loads the signed-in participant’s own hand beside the public mission state', async () => {
@@ -80,8 +93,7 @@ describe('AwayMissionLifecycleWorkspace', () => {
     expect(within(panel).getByText('D-1')).toBeVisible();
     expect(mocks.subscribe).toHaveBeenCalledWith('s1', 'bob', expect.any(Function));
 
-    await user.click(within(panel).getByLabelText('Opportunity for A♥'));
-    await user.keyboard('{ArrowDown}{Enter}');
+    await user.selectOptions(within(panel).getByLabelText('Opportunity for A♥'), 'D-1');
     await user.click(within(panel).getByRole('button', { name: 'Submit mission assignments' }));
     expect(mocks.actions.assignCards).toHaveBeenCalledWith([
       { cardId: 'A♥', opportunityId: 'D-1' },
@@ -92,7 +104,7 @@ describe('AwayMissionLifecycleWorkspace', () => {
     publishReadyState({ ...ownPrivateState, participantUid: 'alice' });
     render(<AwayMissionLifecycleWorkspace sessionId="s1" actorUid="bob" />);
 
-    expect(screen.getByRole('region', { name: 'Away mission // mission-1' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Away mission // mission-1' })).not.toBeInTheDocument();
     expect(screen.queryByText('A♥')).not.toBeInTheDocument();
     expect(mocks.makeActions).not.toHaveBeenCalled();
   });
