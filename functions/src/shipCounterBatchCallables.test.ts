@@ -245,7 +245,7 @@ it.each([
 
 it('fails closed when a stale population reply cannot project a value on the printed track', async () => {
   mock.revision = 3;
-  mock.population = 15_500;
+  mock.population = 100_001;
 
   await expect(applyShipCounterSteps.run({
     data: {

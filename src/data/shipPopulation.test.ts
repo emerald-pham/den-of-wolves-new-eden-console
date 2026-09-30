@@ -22,9 +22,10 @@ describe('Capybara ration replacement schedules', () => {
     (population, populationBand, food, water) => {
       expect(capybaraRationSchedule(population)).toEqual({ populationBand, food, water });
     });
-  it('rejects a persisted population that is not on the printed track', () => {
+  it('distinguishes printed markers from exact rescue counts and rejects capacity overflow', () => {
     expect(isPopulationOnPrintedTrack('capybara', 15_000)).toBe(true);
     expect(isPopulationOnPrintedTrack('capybara', 14_999)).toBe(false);
-    expect(() => capybaraRationSchedule(14_999)).toThrow(/printed track/i);
+    expect(capybaraRationSchedule(14_999).populationBand).toBe('5001-15000');
+    expect(() => capybaraRationSchedule(20_001)).toThrow(/printed track/i);
   });
 });

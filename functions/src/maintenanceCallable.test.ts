@@ -1393,7 +1393,7 @@ it('rejects off-track Capybara population before spending rations or advancing m
       },
       shipResources: { capybara: { ore: 0, fuel: 3, food: 20, water: 20, materials: 0, securityTeams: 2, scrap: 2 } },
       shipDamage: { capybara: { damagedSystemIds: [], destroyed: false } },
-      shipUnrest: { capybara: 0 }, shipSurvivors: { capybara: 14_999 },
+      shipUnrest: { capybara: 0 }, shipSurvivors: { capybara: 20_001 },
       shuttleDockings: [], shuttleCargo: {}, shuttleFuelled: {},
       unrestAlerts: {}, populationAlerts: {}, capybaraEnabled: true, dioneEnabled: true,
     } as Record<string, unknown>,

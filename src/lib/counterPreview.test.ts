@@ -35,3 +35,8 @@ describe('counter command previews', () => {
     });
   });
 });
+
+it('previews the next printed marker from an exact rescued-survivor count', () => {
+  expect(previewPopulationChange('aegis', 1750, [-1])).toMatchObject({ amount: 1500, appliedSteps: [-1] });
+  expect(previewPopulationChange('aegis', 1750, [1])).toMatchObject({ amount: 2000, appliedSteps: [1] });
+});
