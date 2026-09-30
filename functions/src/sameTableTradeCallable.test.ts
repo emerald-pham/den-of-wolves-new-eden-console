@@ -181,7 +181,10 @@ function seededStore(options: { revision?: number; sameTable?: boolean; accepted
       quantities: QUANTITIES,
     };
     store.records.set(path.offer, {
+      type: 'same-table-trade-offer',
+      sessionId: SESSION_ID,
       ...offer,
+      fleetGroupId: 'fleet-1',
       status: 'accepted',
       createdAt: 'server-time',
       acceptedByUid: 'recipient',
@@ -204,6 +207,8 @@ function seededStore(options: { revision?: number; sameTable?: boolean; accepted
       updatedAt: 'server-time',
     });
     store.records.set(path.receipt, {
+      type: 'same-table-trade-receipt',
+      sessionId: SESSION_ID,
       receiptId: OFFER_ID,
       offerId: OFFER_ID,
       fromUid: 'sender',
@@ -320,6 +325,12 @@ describe('same-table trade authoritative callables', () => {
       auth: { uid: 'sender' },
     })).rejects.toMatchObject({ code: 'permission-denied' });
     expect(store.committedWrites).toHaveLength(0);
+
+    const acceptedStore = seededStore({ accepted: true });
+    const acceptedCallables = createSameTableTradeCallables(dependencies(acceptedStore));
+    await expect(acceptedCallables.acceptSameTableTradeOffer(acceptRequest('sender')))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    expect(acceptedStore.committedWrites).toHaveLength(0);
   });
 
   it('creates an offer once, returns matching request-ID retries, and rejects collisions', async () => {
@@ -341,6 +352,28 @@ describe('same-table trade authoritative callables', () => {
     await expect(callables.createSameTableTradeOffer(createRequest({ quantities: { ore: 2 } })))
       .rejects.toMatchObject({ code: 'failed-precondition' });
     expect(store.committedWrites).toHaveLength(writeCount);
+  });
+
+  it('rejects offer creation when current server roster tables differ', async () => {
+    const store = seededStore();
+    store.records.set(`${paths().players}/recipient`, player('recipient', 'dione-engineer'));
+    const callables = createSameTableTradeCallables(dependencies(store));
+    const before = structuredClone([...store.records.entries()]);
+
+    await expect(callables.createSameTableTradeOffer(createRequest()))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(store.committedWrites).toHaveLength(0);
+    expect([...store.records.entries()]).toEqual(before);
+  });
+
+  it('fails closed when either participant has no attested private inventory', async () => {
+    const store = seededStore();
+    store.records.delete(paths().recipientInventory);
+    const callables = createSameTableTradeCallables(dependencies(store));
+
+    await expect(callables.createSameTableTradeOffer(createRequest()))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(store.committedWrites).toHaveLength(0);
   });
 
   it('commits one bilateral transfer, advances global revision, and creates its stable receipt', async () => {
@@ -386,12 +419,19 @@ describe('same-table trade authoritative callables', () => {
     expect([...store.records.entries()]).toEqual(before);
   });
 
-  it('rejects an overdraw without changing balances, offer state, revision, or receipt', async () => {
+  it.each(['overdraw', 'recipient overflow'])('rejects %s without changing balances or receipt', async (failureCase) => {
     const store = seededStore();
     const path = paths();
     const callables = createSameTableTradeCallables(dependencies(store));
     await callables.createSameTableTradeOffer(createRequest());
-    store.records.set(path.senderInventory, inventory({ ...BASELINE, ore: 2 }));
+    if (failureCase === 'overdraw') {
+      store.records.set(path.senderInventory, inventory({ ...BASELINE, ore: 2 }));
+    } else {
+      store.records.set(path.recipientInventory, {
+        ...store.records.get(path.recipientInventory),
+        balances: { ...RECIPIENT_BASELINE, ore: Number.MAX_SAFE_INTEGER },
+      });
+    }
     const before = structuredClone([...store.records.entries()]);
     store.committedWrites.length = 0;
 
