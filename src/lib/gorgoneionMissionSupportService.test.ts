@@ -113,7 +113,7 @@ it('does not accept cached face documents and clears the listener on server revo
     metadata: { fromCache }, exists: () => true, data: () => view,
   });
   mocks.onNext?.(snapshot(true));
-  expect(receive).toHaveBeenLastCalledWith(null);
+  expect(receive).not.toHaveBeenCalled();
   mocks.onNext?.(snapshot(false));
   expect(receive).toHaveBeenLastCalledWith(view);
   mocks.onError?.(new Error('permission-denied'));
