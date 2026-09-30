@@ -99,6 +99,7 @@ describe('authoritative away-mission rewards', () => {
   it('turns every Warrior Reclamator hand card into exactly one chosen food, water, or material', () => {
     expect(resolveWarriorReclamatorHand({
       participantUid: 'warrior',
+      roleId: 'warrior-captain',
       siteCode: 'G',
       opportunityId: 'G-3',
       handCardIds: ['A♥', '4♦', '5♣'],
@@ -118,6 +119,7 @@ describe('authoritative away-mission rewards', () => {
   it('rejects a partial or duplicated Reclamator hand choice without consuming any card', () => {
     const input = {
       participantUid: 'warrior',
+      roleId: 'warrior-captain',
       siteCode: 'G',
       opportunityId: 'G-3',
       handCardIds: ['A♥', '4♦'],
@@ -130,6 +132,10 @@ describe('authoritative away-mission rewards', () => {
     expect(resolveWarriorReclamatorHand({
       ...input,
       choices: [{ cardId: 'A♥', resource: 'food' }],
+    })).toBeNull();
+    expect(resolveWarriorReclamatorHand({
+      ...input,
+      roleId: 'gorgoneion-captain',
     })).toBeNull();
   });
 });
