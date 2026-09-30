@@ -26,6 +26,7 @@ const mock = vi.hoisted(() => ({
   shuttleDockings: [] as Array<{ shuttleId: string; shipId: string; dockedAt: string }>,
   shuttleMovements: {} as Record<string, Record<string, unknown>>,
   pdfEscortWingState: undefined as Record<string, unknown> | undefined,
+  capybaraAdmitted: false,
   navigationState: {} as Record<string, unknown>,
   fleetGroups: [] as Array<{ id: string; fields: Record<string, unknown> }>,
 }));
@@ -107,6 +108,11 @@ const players = [
   { id: 'bob', fields: { connected: true, role: 'player', assignedRoleId: 'icebreaker-miner', fleetGroupId: 'fleet-1' } },
   { id: 'admiral', fields: { connected: true, role: 'player', assignedRoleId: 'admiral', fleetGroupId: 'fleet-1' } },
   { id: 'colonel', fields: { connected: true, role: 'player', assignedRoleId: 'refinery-124-pdf-colonel', fleetGroupId: 'fleet-1' } },
+  { id: 'capybara', fields: {
+    connected: true, role: 'player', assignedRoleId: null,
+    replacementRoleId: 'capybara-small-captain', replacementStatus: null,
+    activeConsoleRoleId: null, seatId: null, fleetGroupId: 'fleet-1',
+  } },
 ];
 const deck = missionDeckStateFromCards(missionDeck());
 const manifest = roleOwnedCraftManifestForSetup(activeRoleIds, 'none');
@@ -195,6 +201,7 @@ beforeEach(() => {
   ];
   mock.shuttleMovements = {};
   mock.pdfEscortWingState = undefined;
+  mock.capybaraAdmitted = false;
   mock.navigationState = {
     revision: 4,
     shipGalacticCoordinates: Object.fromEntries(activeVesselIds.map((vesselId) => [vesselId, '5143'])),
@@ -215,6 +222,12 @@ beforeEach(() => {
       ...(mock.gorgoneionCaptain ? {
         smallShipStates: {
           gorgoneion: { ...emptySmallShipState('gorgoneion', 'aegis'), dockingRevision: 1 },
+        },
+      } : {}),
+      ...(mock.capybaraAdmitted ? {
+        capybaraEnabled: true,
+        smallShipStates: {
+          'capybara-small': { ...emptySmallShipState('capybara-small', 'aegis'), dockingRevision: 1 },
         },
       } : {}),
       shuttleDockings: mock.shuttleDockings,
@@ -255,7 +268,10 @@ beforeEach(() => {
       const now = new Date();
       return snapshot({ uid: 'gm1', connected: true, claimedAt: Timestamp.fromDate(now), lastSeenAt: Timestamp.fromDate(now) }, ref.path);
     }
-    if (ref.path === 'sessions/s1/craftOwnership/manifest') return snapshot(manifest, ref.path);
+    if (ref.path === 'sessions/s1/craftOwnership/manifest') return snapshot(
+      mock.capybaraAdmitted ? { ...manifest, vesselMode: 'base-capybara' } : manifest,
+      ref.path,
+    );
     if (ref.path === 'sessions/s1/serverState/missionDeck') return snapshot(deck, ref.path);
     if (ref.path === 'sessions/s1/serverState/navigation') return snapshot(mock.navigationState, ref.path);
     if (ref.path === 'sessions/s1/serverState/pdfEscortWing') {
@@ -654,6 +670,41 @@ describe('dealPrivateInitialCards', () => {
       expect.objectContaining({ path: 'sessions/s1/serverState/missionDeck' }),
       expect.objectContaining({ dealtCount: 2 }),
     );
+  });
+
+  it('admits a current base Capybara Captain and snapshots its participant craft separately from carriers', async () => {
+    mock.capybaraAdmitted = true;
+    const capybaraCommand = {
+      sessionId: 's1', instanceId: 'bridge', requestId: 'deal-capybara',
+      expectedSetupRevision: 1, expectedPhaseRevision: 3, expectedCycle: 2,
+      opportunityId: defaultOpportunity.id, groupId: 'fleet-1', chart: 'A',
+      coordinate: '5143', sourceCycle: 2, missionLeaderUid: 'alice',
+      participantUids: ['alice', 'bob', 'capybara'],
+    };
+
+    await expect(dealPrivateInitialCards.run(request(capybaraCommand))).resolves.toMatchObject({
+      status: 'committed', participantCount: 3, missionLeaderUid: 'alice',
+    });
+    const missionWrite = mock.set.mock.calls.find(([ref]) =>
+      ref.path === `sessions/s1/serverState/awayMissions/instances/mission-${defaultOpportunity.id}`);
+    const startWrite = mock.create.mock.calls.find(([ref]) =>
+      ref.path === `sessions/s1/missionStartSnapshots/${defaultOpportunity.id}`);
+    expect(missionWrite?.[1]).toMatchObject({
+      availableCarrierCraftIds: ['starlight', 'highwall'],
+      participantCrafts: [
+        { participantUid: 'alice', craftIds: ['starlight'] },
+        { participantUid: 'bob', craftIds: ['highwall'] },
+        { participantUid: 'capybara', craftIds: ['capybara-small'] },
+      ],
+    });
+    expect(startWrite?.[1].inputs).toMatchObject({
+      availableCarrierCraftIds: ['starlight', 'highwall'],
+      participantCrafts: [
+        { participantUid: 'alice', craftIds: ['starlight'] },
+        { participantUid: 'bob', craftIds: ['highwall'] },
+        { participantUid: 'capybara', craftIds: ['capybara-small'] },
+      ],
+    });
   });
 
   it('clears private Gorgoneion projections in the same committed card-deal transaction', async () => {
