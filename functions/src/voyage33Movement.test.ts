@@ -190,6 +190,31 @@ describe('Voyage 33-0 movement', () => {
     });
   });
 
+  it('persists the common resolver lockout without moving or undocking Voyage', () => {
+    const locked = resolveJumpAttempt({
+      shipId: VOYAGE_33_ID,
+      origin: '0000',
+      destination: '9999',
+      currentTurn,
+      fuel: resources.fuel,
+      charged: true,
+      damaged: false,
+      upgraded: false,
+      now,
+      transitionId: 'voyage-jump-invalid-route',
+    });
+    const result = resolveVoyage33JumpCommit(commitInput({ jumpResult: locked }));
+    expect(result).toMatchObject({
+      status: 'integrity-lockout',
+      movementState: {
+        ...movement,
+        jumpState: { integrityLockedUntil: '2026-09-30T13:00:00.000Z' },
+      },
+      maintenanceState: { hostShipId, dockingRevision: 3 },
+      hostResources: resources,
+    });
+  });
+
   it('rejects forged jump results that change the vessel, origin, distance, or host debit', () => {
     const attempt = jumpedAttempt();
     const changes: Array<[string, JumpAttemptResult]> = [
