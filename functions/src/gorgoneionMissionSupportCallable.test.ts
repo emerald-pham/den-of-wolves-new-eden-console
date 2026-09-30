@@ -17,14 +17,18 @@ type Snapshot = Readonly<{
 type QuerySnapshot = Readonly<{ docs: readonly Snapshot[] }>;
 type Transaction = {
   get(ref: Ref): Promise<Snapshot | QuerySnapshot>;
+  set(ref: DocumentRef, value: Fields): void;
   update(ref: DocumentRef, value: Fields): void;
   create(ref: DocumentRef, value: Fields): void;
+  delete(ref: DocumentRef): void;
 };
-type Write = Readonly<{ kind: 'create' | 'update'; path: string; data: Fields }>;
+type Write = Readonly<{ kind: 'create' | 'set' | 'update'; path: string; data: Fields }> |
+  Readonly<{ kind: 'delete'; path: string }>;
 
 const SESSION_ID = 'session-1';
 const CAPTAIN_UID = 'captain';
 const DECK_PATH = `sessions/${SESSION_ID}/serverState/missionDeck`;
+const VIEW_PATH = `sessions/${SESSION_ID}/gorgoneionMissionSupportViews/${CAPTAIN_UID}`;
 const PLAYER_PATH = `sessions/${SESSION_ID}/players/${CAPTAIN_UID}`;
 const cards = missionDeck();
 const initialDeck = missionDeckStateFromCards(cards);
@@ -58,10 +62,12 @@ class MemoryDatabase {
           return { docs };
         }
         const value = this.records.get(ref.path);
-        return makeSnapshot(ref.path, value);
-      },
+          return makeSnapshot(ref.path, value);
+        },
+      set: (ref, value) => staged.push({ kind: 'set', path: ref.path, data: structuredClone(value) }),
       update: (ref, value) => staged.push({ kind: 'update', path: ref.path, data: structuredClone(value) }),
       create: (ref, value) => staged.push({ kind: 'create', path: ref.path, data: structuredClone(value) }),
+      delete: (ref) => staged.push({ kind: 'delete', path: ref.path }),
     };
 
     const result = await work(transaction);
@@ -70,7 +76,9 @@ class MemoryDatabase {
     }
     const next = new Map([...this.records.entries()].map(([path, value]) => [path, structuredClone(value)]));
     for (const write of staged) {
-      if (write.kind === 'create') {
+      if (write.kind === 'delete') {
+        next.delete(write.path);
+      } else if (write.kind === 'create' || write.kind === 'set') {
         next.set(write.path, structuredClone(write.data));
       } else {
         next.set(write.path, { ...(next.get(write.path) ?? {}), ...structuredClone(write.data) });
@@ -192,6 +200,18 @@ describe('Gorgoneion mission-support callable', () => {
     ]);
     expect(reply.cardIds).toHaveLength(5);
     expect(reply).not.toHaveProperty('order');
+    expect(db.records.get(VIEW_PATH)).toEqual({
+      sessionId: SESSION_ID,
+      actorUid: CAPTAIN_UID,
+      hostShipId: 'aegis',
+      dockingRevision: 3,
+      dealtCount: 0,
+      cardIds: originalTopFive,
+    });
+    expect(db.readsByTransaction[0]).toContain(DECK_PATH);
+    expect(db.writesByTransaction[0]).toEqual([
+      expect.objectContaining({ kind: 'set', path: VIEW_PATH }),
+    ]);
   });
 
   it.each([
@@ -221,6 +241,15 @@ describe('Gorgoneion mission-support callable', () => {
     db.records.get(`sessions/${SESSION_ID}`)!.phase = 'debrief';
 
     await expect(availableProjection(db)).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(db.writesByTransaction.flat()).toEqual([]);
+  });
+
+  it('fails closed when the server-only one-use marker is already set', async () => {
+    const db = seededDatabase();
+    db.records.get(DECK_PATH)!.gorgoneionSupportApplied = true;
+
+    await expect(availableProjection(db)).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(db.records.has(VIEW_PATH)).toBe(false);
     expect(db.writesByTransaction.flat()).toEqual([]);
   });
 
@@ -260,9 +289,10 @@ describe('Gorgoneion mission-support callable', () => {
     const db = seededDatabase();
     const projection = await availableProjection(db);
     const command = applyCommand(projection, projectionPatch);
+    const priorWriteCount = db.writesByTransaction.flat().length;
 
     await expect(apply(db, CAPTAIN_UID, command)).rejects.toMatchObject({ code: 'failed-precondition' });
-    expect(db.writesByTransaction.flat()).toEqual([]);
+    expect(db.writesByTransaction.flat()).toHaveLength(priorWriteCount);
   });
 
   it('rejects an inspected top five that changed after projection', async () => {
@@ -271,11 +301,12 @@ describe('Gorgoneion mission-support callable', () => {
     const order = [...initialDeck.order];
     [order[0], order[5]] = [order[5]!, order[0]!];
     db.records.get(DECK_PATH)!.order = order;
+    const priorWriteCount = db.writesByTransaction.flat().length;
 
     await expect(apply(db, CAPTAIN_UID, applyCommand(projection))).rejects.toMatchObject({
       code: 'failed-precondition',
     });
-    expect(db.writesByTransaction.flat()).toEqual([]);
+    expect(db.writesByTransaction.flat()).toHaveLength(priorWriteCount);
   });
 
   it('applies one exact partition, preserves destination order and deck tail, and writes one atomic receipt', async () => {
@@ -298,6 +329,7 @@ describe('Gorgoneion mission-support callable', () => {
       originalTopFive[1], originalTopFive[3],
     ]);
     expect(deck.dealtCount).toBe(0);
+    expect(deck.gorgoneionSupportApplied).toBe(true);
     expect(deck.gorgoneionMissionSupport).toMatchObject({
       action: 'gorgoneion-mission-support',
       requestId: 'support-1',
@@ -312,11 +344,13 @@ describe('Gorgoneion mission-support callable', () => {
     expect(db.records.get(`sessions/${SESSION_ID}`)!.activeVesselIds).not.toContain('gorgoneion');
 
     expect(db.readsByTransaction.at(-1)).toContain(DECK_PATH);
+    expect(db.records.has(VIEW_PATH)).toBe(false);
     expect(db.writesByTransaction.at(-1)).toEqual(expect.arrayContaining([
       expect.objectContaining({ kind: 'update', path: DECK_PATH }),
+      expect.objectContaining({ kind: 'delete', path: VIEW_PATH }),
       expect.objectContaining({ kind: 'create', path: `sessions/${SESSION_ID}/commandReceipts/support-1` }),
     ]));
-    expect(db.writesByTransaction.at(-1)).toHaveLength(2);
+    expect(db.writesByTransaction.at(-1)).toHaveLength(3);
     expect(db.records.get(`sessions/${SESSION_ID}/commandReceipts/support-1`)).toMatchObject({
       fingerprint: { action: 'gorgoneion-mission-support', actorUid: CAPTAIN_UID },
       result: { status: 'committed', sessionId: SESSION_ID, requestId: 'support-1', cardCount: 5 },
@@ -330,12 +364,13 @@ describe('Gorgoneion mission-support callable', () => {
   ] as const)('rejects a partition with a %s', async (_label, partition) => {
     const db = seededDatabase();
     const projection = await availableProjection(db);
+    const priorWriteCount = db.writesByTransaction.flat().length;
 
     await expect(apply(db, CAPTAIN_UID, applyCommand(projection, partition))).rejects.toMatchObject({
       code: 'invalid-argument',
     });
     expect(db.records.get(DECK_PATH)!.order).toEqual(initialDeck.order);
-    expect(db.writesByTransaction.flat()).toEqual([]);
+    expect(db.writesByTransaction.flat()).toHaveLength(priorWriteCount);
   });
 
   it('rejects a changed command with the same request id as a collision', async () => {
@@ -343,13 +378,14 @@ describe('Gorgoneion mission-support callable', () => {
     const projection = await availableProjection(db);
     const command = applyCommand(projection);
     await apply(db, CAPTAIN_UID, command);
+    const priorWriteCount = db.writesByTransaction.flat().length;
 
     await expect(apply(db, CAPTAIN_UID, {
       ...command,
       topCardIds: [originalTopFive[0], originalTopFive[1], originalTopFive[2]],
       bottomCardIds: [originalTopFive[3], originalTopFive[4]],
     })).rejects.toMatchObject({ code: 'failed-precondition' });
-    expect(db.writesByTransaction.flat()).toHaveLength(2);
+    expect(db.writesByTransaction.flat()).toHaveLength(priorWriteCount);
   });
 
   it('replays the exact command without a second deck or receipt write', async () => {
@@ -370,6 +406,7 @@ describe('Gorgoneion mission-support callable', () => {
     const projection = await availableProjection(db);
     const command = applyCommand(projection);
     await apply(db, CAPTAIN_UID, command);
+    const priorWriteCount = db.writesByTransaction.flat().length;
 
     db.records.get(PLAYER_PATH)!.replacementRoleId = null;
     db.records.set(`sessions/${SESSION_ID}/players/next-captain`, {
@@ -389,17 +426,18 @@ describe('Gorgoneion mission-support callable', () => {
     };
     await expect(apply(db, 'next-captain', applyCommand(nextProjection, { requestId: 'support-2' })))
       .rejects.toMatchObject({ code: 'failed-precondition' });
-    expect(db.writesByTransaction.flat()).toHaveLength(2);
+    expect(db.writesByTransaction.flat()).toHaveLength(priorWriteCount);
   });
 
   it('fails closed when the deal cursor advances after projection and before apply', async () => {
     const db = seededDatabase();
     const projection = await availableProjection(db);
+    const priorWriteCount = db.writesByTransaction.flat().length;
     db.records.get(DECK_PATH)!.dealtCount = 2;
 
     await expect(apply(db, CAPTAIN_UID, applyCommand(projection))).rejects.toMatchObject({
       code: 'failed-precondition',
     });
-    expect(db.writesByTransaction.flat()).toEqual([]);
+    expect(db.writesByTransaction.flat()).toHaveLength(priorWriteCount);
   });
 });
