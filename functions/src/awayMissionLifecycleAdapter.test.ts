@@ -123,6 +123,15 @@ function act(
 }
 
 describe('away-mission lifecycle adapter', () => {
+  it('projects a private assignment commitment even when the participant had no remaining cards', () => {
+    let record = act(fixture(), 'openDiscards', {}, 'gm', { isActiveGm: true }).record!;
+    record = act(record, 'discardCard', { cardId: '10♥' }, 'alice').record!;
+    record = act(record, 'discardCard', { cardId: '10♦' }, 'bob').record!;
+    record = act(record, 'assignCards', { assignments: [] }, 'alice').record!;
+    expect(projectAwayMissionPrivateState(record, 'alice')).toMatchObject({ assignmentCommitted: true });
+    expect(projectAwayMissionPrivateState(record, 'bob')).toMatchObject({ assignmentCommitted: false });
+    expect(projectAwayMissionPublicState(record)).not.toHaveProperty('assignmentCommitted');
+  });
   it('projects only the current participant hand and withholds all unrevealed card identities from the public state', () => {
     const record = fixture();
     const publicState = projectAwayMissionPublicState(record);

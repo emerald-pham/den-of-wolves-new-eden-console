@@ -61,6 +61,13 @@ function renderPanel(overrides: Record<string, unknown> = {}) {
 }
 
 describe('AwayMissionLifecyclePanel', () => {
+  it('does not offer an already committed empty assignment again while others finish', () => {
+    renderPanel({ publicState: { ...basePublicMission, phase: 'assigning' },
+      privateState: { ...privateHand, phase: 'assigning', assignmentCommitted: true,
+        cards: [{ id: '10♦', value: 10, status: 'discarded', opportunityId: null }] } });
+    expect(screen.queryByRole('button', { name: 'Submit mission assignments' })).not.toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Your mission assignment' })).toHaveTextContent(/committed.*waiting/i);
+  });
   it('lets a participant see and discard only their own hand and submit every remaining placement', async () => {
     const actions = renderPanel();
     const panel = screen.getByRole('region', { name: 'Away mission // mission-1' });

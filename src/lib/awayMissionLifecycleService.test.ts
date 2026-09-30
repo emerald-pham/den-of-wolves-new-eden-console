@@ -48,6 +48,13 @@ const playerContext: AwayMissionLifecycleClientContext = {
 };
 
 describe('away mission lifecycle client service', () => {
+  it('accepts only a boolean private assignment commitment and preserves legacy projections', () => {
+    const expected = { missionId: 'mission-1', participantUid: 'bob', revision: 3 };
+    expect(parseAwayMissionLifecyclePrivateState({ ...privateState, assignmentCommitted: true }, expected))
+      .toMatchObject({ assignmentCommitted: true });
+    expect(parseAwayMissionLifecyclePrivateState({ ...privateState, assignmentCommitted: 'true' }, expected)).toBeNull();
+    expect(parseAwayMissionLifecyclePrivateState(privateState, expected)).toEqual(privateState);
+  });
   it('accepts only the public mission projection and rejects any private fields mixed into it', () => {
     expect(parseAwayMissionLifecyclePublicState(publicState, 'mission-1')).toEqual(publicState);
     expect(parseAwayMissionLifecyclePublicState({
