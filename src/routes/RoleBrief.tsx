@@ -91,6 +91,7 @@ export default function RoleBrief() {
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
   const brief = useSessionStore((state) => state.roleBrief);
+  const connection = useSessionStore((state) => state.connection);
   const privateLoyalty = useSessionStore((state) => state.privateLoyalty);
   const arbourVision = useSessionStore((state) => state.arbourVision);
   const facilitatorRuleCall = useSessionStore((state) => state.facilitatorRuleCall);
@@ -122,6 +123,11 @@ export default function RoleBrief() {
   ) {
     return <Navigate to="/console" replace />;
   }
+
+  const canMountGorgoneionCaptainWorkspace = brief.roleId === 'gorgoneion-captain' &&
+    session.phase === 'active' && connection === 'live' && me.sessionId === session.id &&
+    me.replacementRoleId === 'gorgoneion-captain' && me.replacementStatus == null &&
+    me.activeConsoleRoleId == null && me.seatId == null;
 
   return (
     <main className="role-brief-screen">
@@ -214,7 +220,9 @@ export default function RoleBrief() {
         {me.replacementStatus == null && me.replacementRoleId === 'wolf-commander' &&
           <WolfCommanderTargetingPanel />}
 
-        <ExtraShipCaptainWorkspace roleId={brief.roleId} />
+        {brief.roleId !== 'gorgoneion-captain' || canMountGorgoneionCaptainWorkspace
+          ? <ExtraShipCaptainWorkspace roleId={brief.roleId} />
+          : null}
 
         {me.replacementStatus == null && me.replacementRoleId === 'vulcan-captain' &&
           <VulcanAdditionalLabourPanel />}
