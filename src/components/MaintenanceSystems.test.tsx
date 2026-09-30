@@ -134,7 +134,7 @@ it('sends separate ration choices and displays server results across remounts', 
 it('keeps malformed Capybara survivor state rendered and locks ration submission', () => {
   useSessionStore.setState({ session: {
     ...session,
-    shipSurvivors: { capybara: 14_999 },
+    shipSurvivors: { capybara: 20_001 },
     maintenanceCycles: { capybara: { step: 2, revision: 2, results: {}, charges: [], refuelled: [] } },
   } });
   render(<MaintenanceSystems name="Capybara" shipId="capybara" systems={[]}
@@ -154,7 +154,7 @@ it('shows Dione replacement costs at the crossed starred population and locks ma
   expect(screen.getByText(/Food 0 \/ 5 \/ 11 \/ 16 \/\/ Water 0 \/ 5 \/ 10 \/ 13/)).toBeVisible();
   expect(screen.getByText(/70001-90000 survivors/)).toBeVisible();
   view.unmount();
-  useSessionStore.setState({ session: { ...session, shipSurvivors: { dione: 89_999 },
+  useSessionStore.setState({ session: { ...session, shipSurvivors: { dione: 100_001 },
     maintenanceCycles: { dione: { step: 2, revision: 2, results: {}, charges: [], refuelled: [] } } } });
   render(<MaintenanceSystems name="Dione" shipId="dione" systems={[]} renderSystem={() => null} rations={null} />);
   expect(screen.getByRole('alert')).toHaveTextContent(/rations locked.*off the printed track/i);
@@ -727,4 +727,12 @@ it('resets start confirmation when the ship or turn changes and on blur', async 
   await userEvent.tab();
   expect(screen.queryByRole('button', { name: 'ARE YOU SURE?' })).not.toBeInTheDocument();
   expect(run).not.toHaveBeenCalled();
+});
+
+it('keeps rations available for exact rescued-survivor counts between printed markers', () => {
+  useSessionStore.setState({ session: { ...session, shipSurvivors: { aegis: 1750 },
+    maintenanceCycles: { aegis: { step: 2, revision: 2, results: {}, charges: [], refuelled: [] } } } });
+  render(<MaintenanceSystems name="AEGIS" shipId="aegis" systems={[]} renderSystem={() => null} rations={null} />);
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Proceed with rations' })).toBeEnabled();
 });

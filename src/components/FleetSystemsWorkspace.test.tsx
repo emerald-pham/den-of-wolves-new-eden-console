@@ -170,7 +170,7 @@ describe('fleet system reference workspaces', () => {
   it('keeps the Capybara console rendered when survivor state is off the printed track', () => {
     const ship = SHIPS.find(candidate => candidate.id === 'capybara')!;
     const shipState: ShipConsoleProjection = {
-      shipId: 'capybara', galacticCoordinate: '0000', population: 14_999, unrest: 0,
+      shipId: 'capybara', galacticCoordinate: '0000', population: 20_001, unrest: 0,
       navigationLogs: { capybara: [] }, upgrades: [], consoleLocked: false,
     };
     renderWorkspace(<FleetSystemsWorkspace ship={ship} role={ship.roles[0]!} fuel={3}

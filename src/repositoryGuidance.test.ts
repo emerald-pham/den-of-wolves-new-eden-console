@@ -114,7 +114,7 @@ describe('repository guidance', () => {
     expect(errors, errors.join('\n')).toEqual([]);
 
     const weak = new Map(sources);
-    for (const surface of ['AGENTS.md', 'CLAUDE.md', 'docs/AGENT_CAMPAIGN_PLAYBOOK.md']) {
+    for (const surface of ['AGENTS.md', 'CLAUDE.md', 'docs/AGENT_CAMPAIGN_PLAYBOOK.md'] as const) {
       weak.set(surface, readGuidance(surface).replaceAll('gpt-6.1-sol', 'gpt-5.6-sol'));
     }
     const weakErrors: string[] = [];
