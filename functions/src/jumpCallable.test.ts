@@ -33,6 +33,7 @@ const mock = vi.hoisted(() => ({
   jumpStates: {} as Record<string, unknown>,
   systemHistory: {} as Record<string, unknown>,
   scoutedCoordinatesByShip: {} as Record<string, string[]>,
+  missionExploredCoordinatesByUid: {} as Record<string, string[]>,
   pursuitGroups: { 'fleet-1': 2 } as Record<string, number>,
   fleetGroups: [{
     id: 'fleet-1',
@@ -136,6 +137,7 @@ beforeEach(() => {
   mock.jumpStates = {};
   mock.systemHistory = {};
   mock.scoutedCoordinatesByShip = {};
+  mock.missionExploredCoordinatesByUid = {};
   mock.pursuitGroups = { 'fleet-1': 2 };
   mock.fleetGroups = [{
     id: 'fleet-1',
@@ -315,6 +317,7 @@ beforeEach(() => {
         ...fields,
         ...(protectedPursuitWindow ? { pursuitEmergencyWindow: protectedPursuitWindow } : {}),
         revision: mock.navigationRevision,
+        missionExploredCoordinatesByUid: mock.missionExploredCoordinatesByUid,
       };
       return {
         exists: true, id: 'navigation', ref: { path },
@@ -540,6 +543,26 @@ it('adjusts protected pursuit from the server chart depth through facilitator mo
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     pursuitGroups: 'delete-field',
   }));
+});
+
+it.each(['move', 'jump'] as const)('keeps immutable mission reward knowledge after %s and does not grant it to another UID', async transition => {
+  mock.missionExploredCoordinatesByUid = { u1: ['6798'], parkedParticipant: ['0102'] };
+  mock.fleetGroups[0]!.memberUids = ['u1', 'u2'];
+  mock.players = [
+    { id: 'u1', fields: { role: 'player', connected: true, fleetGroupId: 'fleet-1', assignedRoleId: 'admiral' } },
+    { id: 'u2', fields: { role: 'player', connected: true, fleetGroupId: 'fleet-1', assignedRoleId: 'dione-captain' } },
+  ];
+  const reply = transition === 'move'
+    ? moveShipToLocation.run(request({ ...data, destination: '5143' }))
+    : jumpShip.run(request({ ...data, destination: '5143' }));
+  await expect(reply).resolves.toMatchObject({ destination: '5143' });
+  expect(mock.set.mock.calls.find(([path]) => path === 'sessions/s1/serverState/navigation')?.[1])
+    .toMatchObject({ missionExploredCoordinatesByUid: mock.missionExploredCoordinatesByUid });
+  const owner = mock.set.mock.calls.find(([path]) => path === 'sessions/s1/playerDiscoveries/u1')?.[1];
+  const other = mock.set.mock.calls.find(([path]) => path === 'sessions/s1/playerDiscoveries/u2')?.[1];
+  expect(owner?.knownCoordinates).toContain('6798');
+  expect(other?.knownCoordinates).not.toContain('6798');
+  expect(JSON.stringify(other)).not.toContain('parkedParticipant');
 });
 
 it.each(['move', 'jump'] as const)(
