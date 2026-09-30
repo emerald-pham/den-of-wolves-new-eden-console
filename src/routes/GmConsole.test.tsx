@@ -271,7 +271,7 @@ it('keeps the Voyage 33-0 workspace hidden until the session has an admission pr
   expect(screen.queryByRole('region', { name: 'Voyage 33-0 movement workspace' })).not.toBeInTheDocument();
 });
 
-it('mounts the Voyage 33-0 movement workspace inside the admitted GM console', () => {
+it('mounts the Voyage 33-0 movement workspace inside the admitted GM console', async () => {
   const session = useSessionStore.getState().session;
   if (!session) throw new Error('GM test session fixture is missing.');
   useSessionStore.getState().setSession({
@@ -299,7 +299,7 @@ it('mounts the Voyage 33-0 movement workspace inside the admitted GM console', (
   streamInstances([local]);
   renderConsole();
 
-  expect(screen.getByRole('region', { name: 'Voyage 33-0 movement workspace' })).toBeInTheDocument();
+  expect(await screen.findByRole('region', { name: 'Voyage 33-0 movement workspace' })).toBeInTheDocument();
 });
 
 it('shows the held-token baseline to the GM using only the active player roster', async () => {

@@ -5,12 +5,7 @@ import { Link, Navigate } from 'react-router-dom';
 import ArrestPosseCalculator from '@/components/ArrestPosseCalculator';
 import EmergencyTimerPauseControl from '@/components/EmergencyTimerPauseControl';
 import ShipPlot from '@/components/ShipPlot';
-import GmStarmapModule from '@/components/GmStarmapModule';
-import GmScoutRevealController from '@/components/GmScoutRevealController';
 import GmMutinyRecovery from '@/components/GmMutinyRecovery';
-import SmallShipOperations from '@/components/SmallShipOperations';
-import Voyage33MovementWorkspace from '@/components/Voyage33MovementWorkspace';
-import SameTableTradeBaselineWorkspace from '@/components/SameTableTradeBaselineWorkspace';
 import { GmSetupChecklist } from '@/components/GmSetupChecklist';
 import PursuitTracker from '@/components/PursuitTracker';
 import JumpFailureAdjudicationPanel from '@/components/JumpFailureAdjudicationPanel';
@@ -150,6 +145,11 @@ function isCurrentActivePlayer(player: Player, now = Date.now()): boolean {
   return Number.isFinite(seenAt) && now - seenAt < ACTIVE_PLAYER_PRESENCE_LEASE_MS;
 }
 
+const Voyage33MovementWorkspace = lazy(() => import('@/components/Voyage33MovementWorkspace'));
+const SameTableTradeBaselineWorkspace = lazy(() => import('@/components/SameTableTradeBaselineWorkspace'));
+const GmStarmapModule = lazy(() => import('@/components/GmStarmapModule'));
+const GmScoutRevealController = lazy(() => import('@/components/GmScoutRevealController'));
+const SmallShipOperations = lazy(() => import('@/components/SmallShipOperations'));
 const AwayMissionStartPanel = lazy(() => import('@/components/AwayMissionStartPanel'));
 
 const SMALL_SHIP_CAPTAIN_ROLE_IDS: Readonly<Record<SmallShipId, string>> = {
@@ -3433,6 +3433,7 @@ export default function GmConsole() {
               Reset code of conduct checklist
             </button>
           </section>
+          <Suspense fallback={<p role="status">Opening fleet operations…</p>}>
           <SmallShipOperations />
           {session?.voyage33Admission?.status === 'admitted' && <Voyage33MovementWorkspace />}
           <GmStarmapModule session={session} />
@@ -3450,6 +3451,7 @@ export default function GmConsole() {
           </Suspense>
           <GmScoutRevealController />
           <SameTableTradeBaselineWorkspace players={allPlayers} />
+          </Suspense>
           <section
             className="gm-console__module gm-fleet-resources cic-frame"
             aria-label="Fleet resource controls"
