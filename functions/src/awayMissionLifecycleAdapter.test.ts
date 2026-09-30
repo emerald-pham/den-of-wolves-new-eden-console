@@ -127,7 +127,7 @@ describe('away-mission lifecycle adapter', () => {
     let record = act(fixture(), 'openDiscards', {}, 'gm', { isActiveGm: true }).record!;
     record = act(record, 'discardCard', { cardId: '10♥' }, 'alice').record!;
     record = act(record, 'discardCard', { cardId: '10♦' }, 'bob').record!;
-    record = act(record, 'assignCards', { assignments: [] }, 'alice').record!;
+    record = act(record, 'assignCards', { placements: [] }, 'alice').record!;
     expect(projectAwayMissionPrivateState(record, 'alice')).toMatchObject({ assignmentCommitted: true });
     expect(projectAwayMissionPrivateState(record, 'bob')).toMatchObject({ assignmentCommitted: false });
     expect(projectAwayMissionPublicState(record)).not.toHaveProperty('assignmentCommitted');
