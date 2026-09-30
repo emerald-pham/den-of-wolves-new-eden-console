@@ -97,7 +97,7 @@ describe('Voyage33MovementPanel', () => {
     const { rerender } = render(<Voyage33MovementPanel {...makeProps({ connection: 'offline' })} />);
     expect(screen.getByRole('button', { name: 'Dock with Dione' })).toBeDisabled();
 
-    rerender(<Voyage33MovementPanel {...makeProps({ phase: 'coordination', host, legalDestinations: [jump] })} />);
+    rerender(<Voyage33MovementPanel {...makeProps({ host, legalDestinations: [jump] })} />);
     expect(screen.getByRole('button', { name: /jump to Pallas/i })).toBeDisabled();
 
     rerender(<Voyage33MovementPanel {...makeProps({ admitted: false })} />);
