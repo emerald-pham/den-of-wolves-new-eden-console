@@ -450,8 +450,15 @@ it('returns an explicit Cycle 1 Demo completion without advancing the session', 
   expect(mock.set.mock.calls.some(([path]) => String(path).includes('/events/turn-advanced-'))).toBe(false);
 
   mock.singlePlayerDemo = { status: 'complete', finalCycle: 1 };
+  mock.commandReceiptRecord = mock.set.mock.calls.find(([path]) =>
+    path === 'sessions/s1/commandReceipts/demo-cycle-one-complete')?.[1];
   mock.update.mockClear();
   mock.set.mockClear();
+  await expect(advanceTurn.run(request(requestData))).resolves.toEqual(result);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+
+  mock.commandReceiptRecord = undefined;
   await expect(advanceTurn.run(request({
     ...requestData,
     requestId: 'demo-cycle-one-complete-retry',
