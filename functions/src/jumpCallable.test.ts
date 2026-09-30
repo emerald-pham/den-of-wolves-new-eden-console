@@ -449,6 +449,7 @@ it('returns an explicit Cycle 1 Demo completion without advancing the session', 
   expect(sessionUpdate).not.toHaveProperty('currentTurn');
   expect(mock.set.mock.calls.some(([path]) => String(path).includes('/events/turn-advanced-'))).toBe(false);
 
+  mock.singlePlayerDemo = { status: 'complete', finalCycle: 1 };
   mock.update.mockClear();
   mock.set.mockClear();
   await expect(advanceTurn.run(request({
@@ -456,7 +457,11 @@ it('returns an explicit Cycle 1 Demo completion without advancing the session', 
     requestId: 'demo-cycle-one-complete-retry',
   }))).resolves.toMatchObject({ status: 'complete', currentTurn: 1 });
   expect(mock.update).not.toHaveBeenCalled();
-  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/commandReceipts/demo-cycle-one-complete-retry',
+    expect.objectContaining({ result: expect.objectContaining({ status: 'complete', mode: 'demo' }) }),
+  );
+  expect(mock.set.mock.calls.some(([path]) => String(path).includes('/events/turn-advanced-'))).toBe(false);
 });
 
 it.each([
