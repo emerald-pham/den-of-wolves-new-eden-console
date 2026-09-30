@@ -707,6 +707,9 @@ export const proposePermissionedDismantling = onCall((request) =>
 export const consentToPermissionedDismantling = onCall((request) =>
   permissionedDismantlingCallables.consentToPermissionedDismantling(request));
 
+export const declinePermissionedDismantling = onCall((request) =>
+  permissionedDismantlingCallables.declinePermissionedDismantling(request));
+
 export const revokePermissionedDismantlingConsent = onCall((request) =>
   permissionedDismantlingCallables.revokePermissionedDismantlingConsent(request));
 

@@ -40,6 +40,8 @@ type Data = Record<string, unknown>;
  *     expectedTargetRevision, expectedControlRevision }
  * - consentToPermissionedDismantling:
  *   { sessionId, proposalId, consentId, expectedTargetRevision }
+ * - declinePermissionedDismantling:
+ *   { sessionId, proposalId }
  * - revokePermissionedDismantlingConsent:
  *   { sessionId, proposalId, consentId }
  * - applyPermissionedDismantling:
@@ -105,6 +107,12 @@ export interface PermissionedDismantlingRevokeReply {
   readonly consentId: string;
 }
 
+export interface PermissionedDismantlingDeclineReply {
+  readonly status: 'declined' | 'replayed';
+  readonly sessionId: string;
+  readonly proposalId: string;
+}
+
 export interface PermissionedDismantlingApplyReply {
   readonly status: 'applied' | 'replayed';
   readonly sessionId: string;
@@ -151,6 +159,11 @@ interface RevokeCommand {
   readonly consentId: string;
 }
 
+interface DeclineCommand {
+  readonly sessionId: string;
+  readonly proposalId: string;
+}
+
 interface ApplyCommand {
   readonly sessionId: string;
   readonly requestId: string;
@@ -166,8 +179,10 @@ interface StoredProposal extends PermissionedDismantlingProposal {
   readonly proposerUid: string;
   readonly controlRevision: number;
   readonly targetFingerprint: string;
-  readonly status: 'pending' | 'applied';
+  readonly status: 'pending' | 'declined' | 'applied';
   readonly createdAt: unknown;
+  readonly declinedAt?: unknown;
+  readonly declinedByUid?: string;
   readonly appliedAt?: unknown;
   readonly appliedByUid?: string;
   readonly consumedConsentId?: string;
@@ -226,7 +241,7 @@ interface StoredApplyReceipt {
   readonly createdAt: unknown;
 }
 
-type PermissionedDismantlingInboxStatus = 'pending' | 'consented' | 'revoked' | 'applied';
+type PermissionedDismantlingInboxStatus = 'pending' | 'consented' | 'declined' | 'revoked' | 'applied';
 
 interface StoredPermissionedDismantlingInbox {
   readonly type: 'permissioned-dismantling-inbox';
@@ -254,6 +269,7 @@ const PROPOSAL_BASE_KEYS = [
 const PROPOSAL_APPLIED_KEYS = [
   ...PROPOSAL_BASE_KEYS, 'appliedAt', 'appliedByUid', 'consumedConsentId',
 ] as const;
+const PROPOSAL_DECLINED_KEYS = [...PROPOSAL_BASE_KEYS, 'declinedAt', 'declinedByUid'] as const;
 const CONSENT_BASE_KEYS = [
   'type', 'sessionId', 'proposalId', 'consentId', 'actorUid', 'craftId',
   'targetShipId', 'targetConsoleId', 'targetRevision', 'materialGain',
@@ -376,6 +392,14 @@ function requireRevokeCommand(value: unknown): RevokeCommand {
     sessionId: requireId(data.sessionId, 'sessionId'),
     proposalId: requireId(data.proposalId, 'proposalId'),
     consentId: requireId(data.consentId, 'consentId'),
+  };
+}
+
+function requireDeclineCommand(value: unknown): DeclineCommand {
+  const data = requireRequest(value, ['sessionId', 'proposalId']);
+  return {
+    sessionId: requireId(data.sessionId, 'sessionId'),
+    proposalId: requireId(data.proposalId, 'proposalId'),
   };
 }
 
@@ -617,7 +641,8 @@ function syncTargetState(
 function proposalRecord(value: Data): StoredProposal {
   const status = value.status;
   const keys = status === 'pending' ? PROPOSAL_BASE_KEYS :
-    status === 'applied' ? PROPOSAL_APPLIED_KEYS : [];
+    status === 'applied' ? PROPOSAL_APPLIED_KEYS :
+    status === 'declined' ? PROPOSAL_DECLINED_KEYS : [];
   if (keys.length === 0 || !exactKeys(value, keys) ||
       value.type !== 'permissioned-dismantling-proposal' ||
       typeof value.sessionId !== 'string' || !ID_PATTERN.test(value.sessionId) ||
@@ -631,7 +656,9 @@ function proposalRecord(value: Data): StoredProposal {
       value.materialGain !== PERMISSIONED_DISMANTLING_MATERIAL_GAIN ||
       !Number.isSafeInteger(value.controlRevision) || (value.controlRevision as number) < 0 ||
       !isHash(value.targetFingerprint) ||
-      status !== 'pending' && status !== 'applied' ||
+      status !== 'pending' && status !== 'declined' && status !== 'applied' ||
+      status === 'declined' && (typeof value.declinedByUid !== 'string' ||
+        value.declinedByUid.length === 0) ||
       status === 'applied' && (typeof value.appliedByUid !== 'string' ||
         value.appliedByUid.length === 0 || typeof value.consumedConsentId !== 'string' ||
         !ID_PATTERN.test(value.consumedConsentId))) {
@@ -792,7 +819,7 @@ function parseDismantlingInbox(
       typeof value.targetConsoleId !== 'string' || !ID_PATTERN.test(value.targetConsoleId) ||
       !Number.isSafeInteger(value.targetRevision) || (value.targetRevision as number) < 0 ||
       value.materialGain !== PERMISSIONED_DISMANTLING_MATERIAL_GAIN ||
-      !['pending', 'consented', 'revoked', 'applied'].includes(String(value.status)) ||
+      !['pending', 'consented', 'declined', 'revoked', 'applied'].includes(String(value.status)) ||
       (value.consentId !== null &&
         (typeof value.consentId !== 'string' || !ID_PATTERN.test(value.consentId))) ||
       (value.materialsAfter !== null &&
@@ -1074,8 +1101,8 @@ export function createPermissionedDismantlingCallables(
           targetRevision: proposal.targetRevision,
         };
       }
-      if (inbox.status !== 'pending' && inbox.status !== 'revoked') {
-        precondition('The target ship already has a different active consent decision.');
+      if (inbox.status !== 'pending') {
+        precondition('A revoked dismantling request is closed; the craft holder must submit a new request.');
       }
       const consent: StoredConsent = {
         type: 'permissioned-dismantling-consent',
@@ -1105,6 +1132,72 @@ export function createPermissionedDismantlingCallables(
         proposalId: command.proposalId,
         consentId: command.consentId,
         targetRevision: proposal.targetRevision,
+      };
+    });
+  };
+
+  const declinePermissionedDismantling = async (
+    request: PermissionedDismantlingCallableRequest,
+  ): Promise<PermissionedDismantlingDeclineReply> => {
+    const actorUid = requireUid(request.auth);
+    const command = requireDeclineCommand(request.data);
+    const sessionRef = doc(db, 'sessions/' + command.sessionId);
+    const actorRef = doc(db, 'sessions/' + command.sessionId + '/players/' + actorUid);
+    const proposalRef = doc(db, proposalPath(command.sessionId, command.proposalId));
+    return db.runTransaction(async (rawTx) => {
+      const tx = rawTx as Transaction;
+      const [session, actor, proposalSnapshot] = await Promise.all([
+        tx.get(sessionRef), tx.get(actorRef), tx.get(proposalRef),
+      ]);
+      requireActiveSession(session);
+      const timestamp = now();
+      if (!(timestamp instanceof Date) || !Number.isFinite(timestamp.getTime())) {
+        precondition('The server clock is unavailable.');
+      }
+      const proposal = proposalRecord(proposalSnapshot.data() ?? {});
+      if (proposal.sessionId !== command.sessionId || proposal.proposalId !== command.proposalId) {
+        precondition('The requested dismantling proposal is unavailable.');
+      }
+      const inboxRef = doc(db, dismantlingInboxPath(command.sessionId, proposal.targetShipId));
+      const inboxSnapshot = await tx.get(inboxRef);
+      const inbox = parseDismantlingInbox(
+        inboxSnapshot.data(), command.sessionId, proposal.targetShipId,
+      );
+      if (inbox.proposalId !== command.proposalId) {
+        precondition('The dismantling request has been replaced by a newer target-ship request.');
+      }
+      const activeRoleIds = requireActiveRoleList(session);
+      if (actorUid === proposal.proposerUid ||
+          !currentTargetPlayer(actor, proposal.targetShipId, activeRoleIds, timestamp)) {
+        denied('Only a different active player currently assigned to the target ship may decline.');
+      }
+      if (proposal.status === 'declined') {
+        if (proposal.declinedByUid !== actorUid || inbox.status !== 'declined') {
+          precondition('This dismantling request has already been declined.');
+        }
+        return {
+          status: 'replayed',
+          sessionId: command.sessionId,
+          proposalId: command.proposalId,
+        };
+      }
+      if (proposal.status !== 'pending' || inbox.status !== 'pending') {
+        precondition('Only a pending dismantling request can be declined.');
+      }
+      tx.update(proposalRef, {
+        status: 'declined',
+        declinedAt: serverTimestamp(),
+        declinedByUid: actorUid,
+      });
+      tx.update(inboxRef, {
+        status: 'declined',
+        consentId: null,
+        updatedAt: serverTimestamp(),
+      });
+      return {
+        status: 'declined',
+        sessionId: command.sessionId,
+        proposalId: command.proposalId,
       };
     });
   };
@@ -1355,6 +1448,7 @@ export function createPermissionedDismantlingCallables(
   return {
     proposePermissionedDismantling,
     consentToPermissionedDismantling,
+    declinePermissionedDismantling,
     revokePermissionedDismantlingConsent,
     applyPermissionedDismantling,
   };

@@ -20,6 +20,8 @@ import type { ShuttleDocking } from '@/types/game';
 import type { ShuttleControlEntry } from '@/types/game';
 import ShuttleControl from './ShuttleControl';
 import ShuttleControlReview, { type ShuttleControlPreviewSnapshot } from './ShuttleControlReview';
+import PermissionedDismantlingPanel from './PermissionedDismantlingPanel';
+import type { DismantlingProposalCommand } from '@/lib/permissionedDismantlingService';
 
 const SHUTTLE_CAPABILITIES: Record<ShuttleCapability, { component: ComponentType<{ shuttle: Shuttlecraft }>; placement: 'workspace' | 'instruments' }> = {
   'newspaper-confetti': { component: PressConfetti, placement: 'instruments' },
@@ -49,6 +51,16 @@ interface Props {
   readonly control?: ShuttleControlEntry | undefined;
   /** Static UI review data. When set, all live shuttle tools stay unmounted. */
   readonly controlPreview?: ShuttleControlPreviewSnapshot | undefined;
+  readonly permissionedDismantling?: {
+    readonly sessionId: string;
+    readonly currentPlayerUid: string;
+    readonly craftId: DismantlingProposalCommand['craftId'];
+    readonly targetShipId?: string;
+    readonly targetSystems: readonly { readonly id: string; readonly name: string }[];
+    readonly damagedSystemIds: readonly string[];
+    readonly connection: 'live' | 'connecting' | 'offline';
+    readonly canAct: boolean;
+  } | undefined;
   readonly returnTo?: {
     readonly to: string;
     readonly label: string;
@@ -66,6 +78,7 @@ export default function ShuttleConsoleTemplate({
   fuelled = false,
   control,
   controlPreview,
+  permissionedDismantling,
   returnTo,
 }: Props) {
   const host = SHIPS.find((ship) => ship.id === docking?.shipId);
@@ -138,6 +151,9 @@ export default function ShuttleConsoleTemplate({
             control && <ShuttleControl control={control} />}
           {!controlPreview && shuttle.id === 'philia' && control &&
             <PhiliaRepairPanel control={control} docking={docking} fuelled={fuelled} />}
+          {!controlPreview && permissionedDismantling && (
+            <PermissionedDismantlingPanel mode="proposer" {...permissionedDismantling} />
+          )}
           {!controlPreview && shuttle.id === 'macaw' && control &&
             <MacawRepairPanel control={control} docking={docking} fuelled={fuelled}
               hostName={host?.name} hostSystems={host?.systems} />}

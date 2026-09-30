@@ -6,6 +6,14 @@ import { useSessionStore } from '@/store/useSessionStore';
 import ShipConsole from './ShipConsole';
 import type { Player } from '@/types/game';
 
+const dismantlingPanelMock = vi.hoisted(() => ({ render: vi.fn() }));
+vi.mock('@/components/PermissionedDismantlingPanel', () => ({
+  default: (props: unknown) => {
+    dismantlingPanelMock.render(props);
+    return null;
+  },
+}));
+
 vi.mock('@/lib/sessionService', () => ({
   refreshCommissarPurgeAuthority: vi.fn(async () => null),
   adjustShipResource: vi.fn(),
@@ -62,6 +70,7 @@ const { subscribeVipCards } = await import('@/lib/firestore');
 const { drawVipCard, transferVipCard } = await import('@/lib/vipCardService');
 
 beforeEach(() => {
+  dismantlingPanelMock.render.mockClear();
   vi.mocked(popShipConfetti).mockReset();
   vi.mocked(adjustShipResource).mockReset();
   vi.mocked(adjustShipResource).mockResolvedValue(undefined);
@@ -113,6 +122,85 @@ beforeEach(() => {
     },
   );
   useSessionStore.getState().setMode('console');
+});
+
+it('shows the permissioned dismantling inbox only to the current target-ship player', () => {
+  const state = useSessionStore.getState();
+  const session = state.session;
+  const player = state.me;
+  if (!session || !player) throw new Error('Expected the live session and player.');
+  state.setSession({
+    ...session,
+    phase: 'active',
+    activeRoleIds: ['dione-captain', 'dione-engineer'],
+    activeVesselIds: ['dione'],
+  });
+  state.setMe({
+    ...player,
+    role: 'player',
+    assignedRoleId: 'dione-captain',
+    activeConsoleRoleId: 'dione-captain',
+    replacementStatus: null,
+  });
+  state.setConnection('live');
+  state.setSessionSnapshotFreshness('server');
+
+  const targetView = render(<MemoryRouter initialEntries={['/ships/dione/roles/dione-captain']}><Routes>
+    <Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} />
+    <Route path="/console" element={<p>Fleet roster</p>} />
+  </Routes></MemoryRouter>);
+
+  expect(dismantlingPanelMock.render).toHaveBeenCalledWith(expect.objectContaining({
+    mode: 'target',
+    sessionId: 's1',
+    targetShipId: 'dione',
+    connection: 'live',
+    canAct: true,
+  }));
+
+  targetView.unmount();
+  dismantlingPanelMock.render.mockClear();
+  render(<MemoryRouter initialEntries={['/ships/dione/roles/dione-captain']}><Routes>
+    <Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole observer />} />
+    <Route path="/console" element={<p>Fleet roster</p>} />
+  </Routes></MemoryRouter>);
+  expect(dismantlingPanelMock.render).not.toHaveBeenCalled();
+});
+
+it('does not expose a target-ship dismantling inbox to a GM or player visiting another ship', () => {
+  const state = useSessionStore.getState();
+  const session = state.session;
+  const player = state.me;
+  if (!session || !player) throw new Error('Expected the live session and player.');
+  state.setSession({
+    ...session,
+    phase: 'active',
+    activeRoleIds: ['dione-captain', 'dione-engineer', 'icebreaker-captain'],
+    activeVesselIds: ['dione', 'icebreaker'],
+  });
+  state.setMe({
+    ...player,
+    role: 'player',
+    assignedRoleId: 'dione-captain',
+    activeConsoleRoleId: 'dione-captain',
+    replacementStatus: null,
+  });
+  state.setConnection('live');
+  state.setSessionSnapshotFreshness('server');
+
+  const foreignView = render(<MemoryRouter initialEntries={['/ships/icebreaker']}><Routes>
+    <Route path="/ships/:shipId" element={<ShipConsole />} />
+    <Route path="/console" element={<p>Fleet roster</p>} />
+  </Routes></MemoryRouter>);
+  expect(dismantlingPanelMock.render).not.toHaveBeenCalled();
+
+  foreignView.unmount();
+  act(() => state.setMe({ ...state.me!, role: 'gm' }));
+  render(<MemoryRouter initialEntries={['/ships/dione']}><Routes>
+    <Route path="/ships/:shipId" element={<ShipConsole />} />
+    <Route path="/console" element={<p>Fleet roster</p>} />
+  </Routes></MemoryRouter>);
+  expect(dismantlingPanelMock.render).not.toHaveBeenCalled();
 });
 
 afterEach(() => vi.useRealTimers());

@@ -17,6 +17,13 @@ import ShuttleConsole from './ShuttleConsole';
 const endeavourResearchMocks = vi.hoisted(() => ({ read: vi.fn(), advance: vi.fn() }));
 const endeavourEcmMocks = vi.hoisted(() => ({ read: vi.fn(), activate: vi.fn() }));
 const scoutRequestMock = vi.hoisted(() => ({ request: vi.fn() }));
+const dismantlingPanelMock = vi.hoisted(() => ({ render: vi.fn() }));
+vi.mock('@/components/PermissionedDismantlingPanel', () => ({
+  default: (props: unknown) => {
+    dismantlingPanelMock.render(props);
+    return null;
+  },
+}));
 vi.mock('@/lib/scoutRequestService', async (importOriginal) => ({
   ...(await importOriginal<typeof ScoutRequestServiceModule>()),
   requestScout: scoutRequestMock.request,
@@ -176,6 +183,7 @@ function staleBlacksmithReply(requestId: string) {
 }
 
 beforeEach(() => {
+  dismantlingPanelMock.render.mockClear();
   endeavourResearchMocks.read.mockReset();
   endeavourResearchMocks.advance.mockReset();
   endeavourEcmMocks.read.mockReset();
@@ -265,6 +273,78 @@ beforeEach(() => {
     joinedAt: '2026-01-01T00:00:00.000Z',
   });
   useSessionStore.getState().setMode('console');
+});
+
+it('shows permissioned dismantling to the active Philia holder with a live target-ship projection', () => {
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!,
+    phase: 'active',
+    activeRoleIds: ['dione-engineer', 'dione-captain'],
+    activeVesselIds: ['dione'],
+    shuttleDockings: [{ shuttleId: 'philia', shipId: 'dione', dockedAt: 'SESSION START' }],
+    shuttleControl: {
+      philia: { shuttleId: 'philia', ownerRoleId: 'dione-engineer',
+        ownerUid: 'u1', holderUid: 'u1', revision: 2 },
+    },
+    shipDamage: { dione: { damagedSystemIds: ['reactor'], destroyed: false } },
+  });
+  state.setMe({
+    ...state.me!, role: 'player', assignedRoleId: 'dione-engineer',
+    activeConsoleRoleId: 'dione-engineer', replacementStatus: null,
+  });
+  state.setConnection('live');
+  state.setSessionSnapshotFreshness('server');
+
+  render(<MemoryRouter initialEntries={['/shuttles/philia']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+
+  expect(dismantlingPanelMock.render).toHaveBeenCalledWith(expect.objectContaining({
+    mode: 'proposer',
+    sessionId: 's1',
+    currentPlayerUid: 'u1',
+    craftId: 'philia',
+    targetShipId: 'dione',
+    damagedSystemIds: ['reactor'],
+    connection: 'live',
+    canAct: true,
+  }));
+});
+
+it('keeps permissioned dismantling inactive for stale snapshots and out of GM consoles', () => {
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!,
+    phase: 'active',
+    activeRoleIds: ['dione-engineer', 'dione-captain'],
+    activeVesselIds: ['dione'],
+    shuttleDockings: [{ shuttleId: 'philia', shipId: 'dione', dockedAt: 'SESSION START' }],
+    shuttleControl: {
+      philia: { shuttleId: 'philia', ownerRoleId: 'dione-engineer',
+        ownerUid: 'u1', holderUid: 'u1', revision: 2 },
+    },
+  });
+  state.setMe({
+    ...state.me!, role: 'player', assignedRoleId: 'dione-engineer',
+    activeConsoleRoleId: 'dione-engineer', replacementStatus: null,
+  });
+  state.setConnection('live');
+  state.setSessionSnapshotFreshness('cache');
+  const staleView = render(<MemoryRouter initialEntries={['/shuttles/philia']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+  expect(dismantlingPanelMock.render).toHaveBeenCalledWith(expect.objectContaining({
+    connection: 'connecting', canAct: false,
+  }));
+
+  staleView.unmount();
+  dismantlingPanelMock.render.mockClear();
+  act(() => state.setMe({ ...state.me!, role: 'gm' }));
+  render(<MemoryRouter initialEntries={['/shuttles/philia']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+  expect(dismantlingPanelMock.render).not.toHaveBeenCalled();
 });
 
 it('keeps a rejected Press claim locked and provides a keyboard return to Independent Stations', async () => {

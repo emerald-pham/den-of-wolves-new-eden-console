@@ -1,0 +1,122 @@
+.permissioned-dismantling {
+  display: grid;
+  gap: 0.8rem;
+  min-width: 0;
+  padding: clamp(1rem, 2vw, 1.5rem);
+  color: var(--cic-ink);
+  background: linear-gradient(135deg, rgb(17 29 31 / 94%), rgb(12 20 23 / 96%));
+}
+
+.permissioned-dismantling h3,
+.permissioned-dismantling p {
+  margin: 0;
+}
+
+.permissioned-dismantling h3 {
+  font-family: var(--font-display, inherit);
+  font-size: clamp(1.05rem, 2vw, 1.35rem);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.permissioned-dismantling__eyebrow,
+.permissioned-dismantling__connection {
+  color: var(--cic-muted, #9daaa8);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.permissioned-dismantling__rule,
+.permissioned-dismantling__request,
+.permissioned-dismantling__status,
+.permissioned-dismantling__feedback,
+.permissioned-dismantling__guidance {
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.permissioned-dismantling__request {
+  padding: 0.8rem;
+  border: 1px solid rgb(163 196 176 / 35%);
+  background: rgb(163 196 176 / 8%);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.permissioned-dismantling__field {
+  display: grid;
+  gap: 0.45rem;
+  max-width: 34rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.permissioned-dismantling__field select {
+  width: 100%;
+  min-height: 2.8rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid rgb(163 196 176 / 42%);
+  border-radius: 0.2rem;
+  color: var(--cic-ink);
+  background: #10191b;
+  font: inherit;
+}
+
+.permissioned-dismantling__field option:disabled {
+  color: #a49b8a;
+}
+
+.permissioned-dismantling__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.permissioned-dismantling__status {
+  color: #d7e6d6;
+}
+
+.permissioned-dismantling__feedback[role='alert'],
+.permissioned-dismantling__guidance {
+  color: #ffd3a0;
+}
+
+.permissioned-dismantling :is(button, select):focus-visible {
+  outline: 3px solid #f2bf69;
+  outline-offset: 3px;
+}
+
+@media (max-width: 38rem) {
+  .permissioned-dismantling__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .permissioned-dismantling__actions > button,
+  .permissioned-dismantling--target > button {
+    width: 100%;
+    min-height: 2.9rem;
+  }
+}
+
+@media (max-height: 30rem) and (orientation: landscape) {
+  .permissioned-dismantling {
+    gap: 0.45rem;
+    padding: 0.7rem;
+  }
+
+  .permissioned-dismantling__actions {
+    flex-direction: row;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .permissioned-dismantling,
+  .permissioned-dismantling * {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

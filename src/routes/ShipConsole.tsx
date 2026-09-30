@@ -31,6 +31,7 @@ import DioneVipCards from '@/components/DioneVipCards';
 import CommissarPurgePanel from '@/components/CommissarPurgePanel';
 import DioneMaliadesLaunch from '@/components/DioneMaliadesLaunch';
 import SameTableTradeWorkspace from '@/components/SameTableTradeWorkspace';
+import PermissionedDismantlingPanel from '@/components/PermissionedDismantlingPanel';
 import { useDialogFocus } from '@/hooks/useDialogFocus';
 
 type ConfettiStyle = CSSProperties & Record<`--${string}`, string | number>;
@@ -72,6 +73,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const fleetGroupId = useSessionStore((state) => state.me?.fleetGroupId);
   const playerRole = useSessionStore((state) => state.me?.role);
   const sessionSnapshotFreshness = useSessionStore((state) => state.sessionSnapshotFreshness);
+  const connection = useSessionStore((state) => state.connection);
   const gmInstanceId = useSessionStore((state) => state.gmInstance?.id);
   const gmInstanceClaimedAt = useSessionStore((state) => state.gmInstance?.claimedAt);
   const mode = useSessionStore((state) => state.mode);
@@ -164,6 +166,22 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const gameplayFrozen = ['success', 'failure', 'debrief', 'closed'].includes(session?.phase ?? '');
   const effectiveWritable = writable && !consoleLocked && !gameplayFrozen;
   const validRole = !roleId || consoleRole?.shipId === ship?.id || replacementVipHost || replacementCommissar || replacementTableRoute;
+  const canShowPermissionedDismantlingTarget = Boolean(
+    !observer && !isGm && mode === 'console' && session?.phase === 'active' &&
+    playerRole === 'player' && me && me.sessionId === session?.id && me.replacementStatus == null &&
+    ship && validRole && !visiting &&
+    (hasConfirmedRole || replacementTableRoute || replacementVipHost || replacementCommissar) &&
+    ownShip === ship.id && currentTableShipForPlayer(me) === ship.id &&
+    activeShipIds.includes(ship.id),
+  );
+  const permissionedDismantlingConnection =
+    connection === 'live' && sessionSnapshotFreshness === 'server'
+      ? 'live'
+      : connection === 'connecting' || connection === 'live' ? 'connecting' : 'offline';
+  const canActOnPermissionedDismantling = Boolean(
+    canShowPermissionedDismantlingTarget && connection === 'live' &&
+    sessionSnapshotFreshness === 'server',
+  );
   const [coverOpen, setCoverOpen] = useState(false);
   const [activating, setActivating] = useState(false);
   const [hideResources, setHideResources] = useState(false);
@@ -511,6 +529,15 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
           <RoleAssignment value={replacementVipHost
               ? 'VIP Host'
               : replacementCommissar ? 'Commissar' : consoleRole?.name ?? ''} />
+        )}
+        {canShowPermissionedDismantlingTarget && session && ship && (
+          <PermissionedDismantlingPanel
+            mode="target"
+            sessionId={session.id}
+            targetShipId={ship.id}
+            connection={permissionedDismantlingConnection}
+            canAct={canActOnPermissionedDismantling}
+          />
         )}
         {canShowSameTableTrade && session && me && fleetGroupId && (
           <SameTableTradeWorkspace

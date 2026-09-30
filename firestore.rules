@@ -238,7 +238,7 @@ service cloud.firestore {
         && resource.data.targetRevision is int
         && resource.data.targetRevision >= 0
         && resource.data.materialGain == 3
-        && resource.data.status in ['pending', 'consented', 'revoked', 'applied']
+        && resource.data.status in ['pending', 'consented', 'declined', 'revoked', 'applied']
         && (resource.data.consentId == null || (resource.data.consentId is string
           && resource.data.consentId.matches('^[A-Za-z0-9_-]{1,128}$')))
         && (resource.data.materialsAfter == null || (resource.data.materialsAfter is int

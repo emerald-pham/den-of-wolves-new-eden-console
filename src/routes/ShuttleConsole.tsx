@@ -8,6 +8,20 @@ import { isJointEngineeringRoleId } from '@/data/rolePresets';
 import { consoleRoleRoute } from '@/lib/consoleRole';
 import { releaseConsoleRole, selectConsoleRole } from '@/lib/sessionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
+import type { DismantlingProposalCommand } from '@/lib/permissionedDismantlingService';
+
+const PERMISSIONED_DISMANTLING_CRAFTS: readonly DismantlingProposalCommand['craftId'][] = [
+  'philia', 'blacksmith', 'chacau', 'ally',
+];
+
+function dismantlingConnection(
+  connection: 'idle' | 'connecting' | 'live' | 'offline',
+  freshness: 'unknown' | 'cache' | 'server',
+): 'live' | 'connecting' | 'offline' {
+  if (connection === 'live' && freshness === 'server') return 'live';
+  if (connection === 'connecting' || connection === 'live') return 'connecting';
+  return 'offline';
+}
 
 export default function ShuttleConsole({ shuttleId: providedShuttleId }: { shuttleId?: string }) {
   const navigate = useNavigate();
@@ -16,6 +30,8 @@ export default function ShuttleConsole({ shuttleId: providedShuttleId }: { shutt
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
   const mode = useSessionStore((state) => state.mode);
+  const connection = useSessionStore((state) => state.connection);
+  const sessionSnapshotFreshness = useSessionStore((state) => state.sessionSnapshotFreshness);
   const isGm = useSessionStore(selectIsGm);
   const [returningToStations, setReturningToStations] = useState(false);
   const shuttle = SHUTTLECRAFT.find((item) => item.id === shuttleId);
@@ -27,6 +43,32 @@ export default function ShuttleConsole({ shuttleId: providedShuttleId }: { shutt
     ? isPressShuttle ? session?.pressEnabled !== false : isShuttleEnabled(shuttle, activeRoles)
     : false;
   const control = session?.shuttleControl?.[shuttleId];
+  const permissionedDismantlingCraftId = PERMISSIONED_DISMANTLING_CRAFTS
+    .find((craftId) => craftId === shuttleId);
+  const permissionedDismantlingHost = docking?.shipId ? findShip(docking.shipId) : undefined;
+  const permissionedDismantlingConnection = dismantlingConnection(connection, sessionSnapshotFreshness);
+  const permissionedDismantlingCanAct = Boolean(
+    !isGm && permissionedDismantlingCraftId && shuttleEnabled && mode === 'console' &&
+    session?.phase === 'active' && me?.role === 'player' && me.sessionId === session.id &&
+    me.replacementStatus == null &&
+    connection === 'live' && sessionSnapshotFreshness === 'server' &&
+    control?.holderUid === me.uid && docking?.shipId && permissionedDismantlingHost,
+  );
+  const permissionedDismantling = permissionedDismantlingCraftId && mode === 'console' &&
+    !isGm && me?.role === 'player'
+    ? {
+        sessionId: session?.id ?? '',
+        currentPlayerUid: me.uid,
+        craftId: permissionedDismantlingCraftId,
+        ...(docking?.shipId ? { targetShipId: docking.shipId } : {}),
+        targetSystems: permissionedDismantlingHost?.systems ?? [],
+        damagedSystemIds: permissionedDismantlingHost
+          ? session?.shipDamage?.[permissionedDismantlingHost.id]?.damagedSystemIds ?? []
+          : [],
+        connection: permissionedDismantlingConnection,
+        canAct: permissionedDismantlingCanAct,
+      }
+    : undefined;
   const hasPlayerAuthority = isGm || me?.replacementStatus == null;
   const isControlHolder = hasPlayerAuthority && control?.holderUid === me?.uid;
   const isPrintedOwner = hasPlayerAuthority && control?.ownerUid === me?.uid;
@@ -107,5 +149,5 @@ export default function ShuttleConsole({ shuttleId: providedShuttleId }: { shutt
     : ownerParent;
   return <ShuttleConsoleTemplate shuttle={shuttle} captainName={captainRole?.name ?? 'Captain'}
     canLeave={isGm} docking={docking} fuelled={session.shuttleFuelled?.[shuttle.id] === true}
-    returnTo={returnTo} control={control} />;
+    returnTo={returnTo} control={control} permissionedDismantling={permissionedDismantling} />;
 }
