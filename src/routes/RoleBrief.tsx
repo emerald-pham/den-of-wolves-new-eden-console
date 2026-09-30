@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { lazy, Suspense, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
 import { AEGIS_ROLE_CONSOLES } from '@/data/aegisConsoles';
@@ -13,6 +13,8 @@ import FocusDialog from '@/components/FocusDialog';
 import { OnboardingFirstAction } from '@/components/OnboardingFirstAction';
 import { PlayerOnboardingGuide } from '@/components/PlayerOnboardingGuide';
 import { consoleRoleRoute } from '@/lib/consoleRole';
+
+const AwayMissionLifecycleWorkspace = lazy(() => import('@/components/AwayMissionLifecycleWorkspace'));
 
 const CRAFT_NAMES = new Map([
   ...SHUTTLECRAFT.map((craft) => [craft.id, craft.name] as const),
@@ -216,6 +218,12 @@ export default function RoleBrief() {
 
         {me.replacementStatus == null && me.replacementRoleId === 'vulcan-captain' &&
           <VulcanAdditionalLabourPanel />}
+
+        {session.phase === 'active' && me.replacementStatus == null && (
+          <Suspense fallback={null}>
+            <AwayMissionLifecycleWorkspace sessionId={session.id} actorUid={me.uid} />
+          </Suspense>
+        )}
 
         <Link className="cic-action-button role-brief__return" to="/console">
           Return to station catalog
