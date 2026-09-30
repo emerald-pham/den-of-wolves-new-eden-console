@@ -35,7 +35,9 @@ exact interface needs to the owner rather than editing shared release seams.
 | Common jump-cost behavior, Luna Max task `/root/pc06_release_owner/pc06_jump_costs` | 202, 210, 222, 232, 236, 259 | `/Users/emeraldpham/.codex/worktrees/pc06-jump-costs/den-of-wolves-new-eden-console`, `feat/pc06-jump-costs`, start `f8304e93` | Authoritative shared jump resolver/policy and focused tests for the source-backed ship-specific costs and Ram Scoop reward. The owner retains `functions/src/index.ts`, shared schema/rules, blind-jump P679, scenario proof P320, and full prompt acceptance. |
 | Away-mission lifecycle callable leaf, Luna Max task `/root/pc06_release_owner/pc06_mission_callable` | 392, 393, 404–415, 422, 622, 646 (authoritative callable slice) | `/Users/emeraldpham/.codex/worktrees/pc06-away-lifecycle-callable/den-of-wolves-new-eden-console`, `feat/pc06-away-lifecycle-callable`, start `bd50d141` | `functions/src/awayMissionLifecycleCallable.ts` and its focused tests, composed around the existing mission lifecycle adapter and policy. Preserve P401/P403 start/deal and private-hand contracts. The owner retains `functions/src/index.ts`, shared schema/session/rules, client service/UI, full mission acceptance, and release. |
 | Gorgoneion mission-support policy leaf, Luna Max task `/root/pc06_release_owner/pc06_gorgoneion_support` | 237 (pure pre-deal support slice) | `/Users/emeraldpham/.codex/worktrees/pc06-gorgoneion-support/den-of-wolves-new-eden-console`, `feat/pc06-gorgoneion-support`, start `bd00b968` | New `functions/src/gorgoneionMissionSupport.ts` and focused tests only. Validate the source-backed top-five reorder policy as a pure leaf; do not edit the mission lifecycle adapter/callable, mission admission, client, shared state, rules, or release metadata. The owner retains P401 admission, the P237 authenticated Captain/pre-deal integration, privacy, and full prompt acceptance. |
-| Split-fleet messaging/pursuit/scouting, mission admission/rewards, P112 integration, checkpoint integration and release, checkpoint owner | 241a, 320, 607, 679, 112, 401, 237, 334, 335, 151, 307 | `/Users/emeraldpham/.codex/worktrees/0ce4/den-of-wolves-new-eden-console`, branch `feat/pc06-execution` | Blind-jump authority and UI, demo policy integration, group-local messaging/pursuit/scouting policy and production integration, mission admission and special rewards, P112 authenticated inventory/consent integration, shared entrypoints/schema/rules, integration and release files. For P237, the owner composes the pure helper only after reconciling the P401 admission prerequisite. The owner retains closure accountability for all 49 prompts, including delegated leaf work. |
+| Gorgoneion mission-support UI leaf, Luna Max task `/root/pc06_release_owner/pc06_gorgoneion_ui` | 237 (player-facing support controls) | `/Users/emeraldpham/.codex/worktrees/pc06-gorgoneion-ui/den-of-wolves-new-eden-console`, `feat/pc06-gorgoneion-ui`, start `02cbf7ae` | `src/components/GorgoneionMissionSupportPanel.tsx`, `.css`, and `.test.tsx` only. Present controls for classifying the already-authorized top-five cards before deal; owner retains P401 admission, Captain/phase/revision authorization, private-hand projections, callable integration, and full prompt acceptance. |
+| Gorgoneion pre-deal authority transaction, Luna Max task `/root/pc06_release_owner/pc06_gorg_mission_callable` | 237 (isolated callable factory) | `/Users/emeraldpham/.codex/worktrees/pc06-gorg-mission-callable/den-of-wolves-new-eden-console`, `feat/pc06-gorg-mission-callable`, start `0922e6a1` | Only `functions/src/gorgoneionMissionSupportCallable.ts` and its focused tests. Enforce connected current Gorgoneion Captain authority and existing server docking admission; return the inspected top five only to that Captain; commit the exact partition once before the first mission card, with common request receipts and transaction serialization on the shared `missionDeck` document. The owner retains exported callable composition, client service/role workspace, face labels, P403/deal reconciliation, schema/rules, and end-to-end acceptance. |
+| Split-fleet messaging/pursuit/scouting, mission admission/rewards, P112 integration, checkpoint integration and release, checkpoint owner | 241a, 320, 607, 679, 112, 401, 237, 334, 335, 151, 307 | `/Users/emeraldpham/.codex/worktrees/0ce4/den-of-wolves-new-eden-console`, branch `feat/pc06-execution` | Blind-jump authority and UI, demo policy integration, group-local messaging/pursuit/scouting policy and production integration, mission admission and special rewards, P112 authenticated inventory/consent integration, shared entrypoints/schema/rules, integration and release files. For P237, the owner composes the pure reorder policy only for an already dock-admitted Gorgoneion with its current Captain, before the first mission card. The owner retains closure accountability for all 49 prompts, including delegated leaf work. |
 
 The owner reserves `functions/src/index.ts`, `src/types/game.ts`,
 `src/lib/firestore.ts`, `src/store/useSessionStore.ts`,
@@ -138,6 +140,33 @@ leaf adds only the away-mission lifecycle transaction/callable adapter and
 its tests; P401/P403 start/deal, shared entrypoint/schema/rules, and client
 integration remain owner responsibilities. This records an observed
 successful dispatch in this session, not a permanent capacity limit.
+
+The checkpoint owner also created the real nested Luna Max task
+`/root/pc06_release_owner/pc06_gorgoneion_ui` in its separate managed checkout
+listed above, starting at `02cbf7ae`. That worker owns only the stateless
+player-facing P237 card-support controls and focused tests. Admission, Captain
+and phase authority, private projections, callable integration, and acceptance
+remain with the checkpoint owner. This records a successful nested dispatch
+without inferring a permanent concurrency limit.
+
+After storage reported 61.9 GiB available and the current attached artifacts
+were inspected, the owner created a separate checkout from `0922e6a1` for the
+P237 transaction adapter. Nested `collaboration.spawn_agent` successfully
+created the real Luna Max task `/root/pc06_release_owner/pc06_gorg_mission_callable`
+for the callable leaf at
+`/Users/emeraldpham/.codex/worktrees/pc06-gorg-mission-callable/den-of-wolves-new-eden-console`,
+branch `feat/pc06-gorg-mission-callable`. The worker owns only the isolated
+callable factory and focused tests; export, UI, rules, mission-deal composition,
+and full acceptance remain with the checkpoint owner.
+
+The away-mission lifecycle callable worker completed at
+`accc7f4f1c649f676539753f809c94ea3dff2d4f`, changing only its callable adapter
+and focused tests. Its test-first history was preserved during reconciliation;
+owner integration is in the current branch commits. The broad worker Functions
+run had one terminal-freeze classification failure, reproduced against its
+exact assigned base files with the same seven names, so that failure predates
+its leaf. The owner separately classified the P251 movement callables and
+confirmed the current terminal-freeze suite passes.
 
 During reconciliation, the owner integrated the source-backed exploration
 reward leaf (`80ca2044`, test; `0b3b334b`, implementation), Voyage 33-0 movement

@@ -890,9 +890,14 @@ intervention. Audit and repair the initially allocated PC04
 prompts where their current prerequisites and source contracts are ready; a
 review scene or attractive panel does not close held gameplay.
 
-**Held parts of the initial allocation.** Prompt 237 stays held until the
-optional Gorgoneion admission, Captain entitlement, and pre-deal support
-lifecycle are defined. Prompts 241b and 243 cannot wire their special outcomes
+**Held parts of the initial allocation.** Prompt 237's owner interpretation is
+recorded in PC06-A10: use the existing server docking admission and current
+Gorgoneion Captain authority, with one private support action before the first
+mission card is dealt. This resolves the product decision without silently
+adding Gorgoneion to the core active-vessel roster. Prompt 237 remains open
+until the authorized projection, serialized deck update, replay behavior, and
+ordinary released-session path are implemented and proven. Prompts 241b and
+243 cannot wire their special outcomes
 until the mission instance, contribution, result, and custody paths they
 consume exist. Prompts 334 and 335 remain held where “explore two systems” or
 “two Wolf systems” lacks a production recipient/history transaction; do not

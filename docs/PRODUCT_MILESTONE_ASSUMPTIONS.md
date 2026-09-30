@@ -59,6 +59,17 @@ the original assumption; append the resolution so the decision is traceable.
 | Product effect | Private deal, blind distribution, request, discard, placement, support, and retry tests keep cards and request reasons private and reject stale or duplicate actions. |
 | Review state | New under explicit PC06 authorization; earlier PC04-A1 remains the authority for recording the team's roster and leader choice. |
 
+### PC06-A10 — Use existing Gorgoneion admission for one private pre-deal support action
+
+| Field | Record |
+|---|---|
+| ID and milestone | PC06-A10; Gorgoneion mission support, Prompt 237. |
+| Source passage | Player's Guide v1.1, printed pp. 14–15, Away Missions; base A4 card pack v1.1, Gorgoneion Captain sheet on printed p. 23. The inspected rule lets the Gorgoneion Captain rearrange the top five mission cards before the deal. |
+| Ambiguity and alternatives | The rule does not define a digital admission record, who may submit the action, how the Captain inspects a shuffled deck, how retries work, or whether the command mutates only the top five or can reorder the whole deck. Treating Gorgoneion as a normal active core vessel would broaden its printed status. |
+| Chosen reading | Use the existing server-owned small-craft docking state as admission: Gorgoneion must be docked to a current active core host, and the connected actor must hold the current `gorgoneion-captain` replacement role with no pending replacement. Do not add Gorgoneion to `activeVesselIds` or make it an away-mission carrier. Before the first mission card in a session is dealt, the entitled Captain may submit one exact partition of the inspected top five into top and bottom groups. Preserve relative order inside each group and leave the deck tail between them. Return the rank/suit faces only to that Captain; other members and the GM receive no projection. The support transaction and first-deal transaction serialize on the same private mission-deck document. A stable command receipt replays only the exact accepted action; a second action, post-deal action, stale projection, or lost admission fails without changing the deck. |
+| Product effect | Prompt 237 exercises the already-existing optional-craft docking and replacement-role authority without silently enabling a vessel. Tests cover private projection, actor/admission changes, exact partition, one-use/dealt-state guards, stable replay/collision, and concurrency with the initial deal. The UI may display the five authorized card faces to the entitled Captain; deck order, other hands, and card faces remain private from other readers. |
+| Review state | Owner interpretation under the standing PC06 authorization and the user's direction to use judgment for unresolved digital mechanics. Source provenance was already verified in the PC06 audit; this record does not copy private source material. |
+
 ### PC06-A4 — Use each opportunity's printed outcome threshold
 
 | Field | Record |

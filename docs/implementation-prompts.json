@@ -1521,11 +1521,11 @@
       "type": "hard_prompt"
     },
     {
-      "direction": "237 -> 234;401;402;166;278; OWNER-GORGONEION-ADMISSION-PREDEAL-LIFECYCLE",
+      "direction": "237 -> 234;401;402;166;278",
       "id": "E-AUDIT-237",
-      "language": "Mission support consumes small-ship identity and the server-only mission deck, but its production authority is incomplete: canonical active-vessel setup excludes Gorgoneion while the replacement Captain role requires persisted Gorgoneion admission, and the facilitator-only deal callable creates the mission instance at deal time without a pre-deal Captain projection or UI lifecycle. Prompt 401 supplies the authoritative newly reached mission instance/Mission Leader lifecycle; optional-vessel/Captain admission and the pre-deal owner decision remain open.",
-      "source": "functions/src/roleConfiguration.ts; functions/src/gameSetup.ts; functions/src/replacementRoles.ts; functions/src/index.ts; functions/src/awayMissionCallable.test.ts; docs/IMPLEMENTATION_PLAN.md",
-      "type": "hard_prompt / decision_owner / related/consumes"
+      "language": "The server-owned small-craft docking state already admits Gorgoneion on an active core host, and the replacement-role system already gates its current Captain. PC06-A10 resolves the digital support contract without adding Gorgoneion to activeVesselIds or making it a mission carrier. Implement one Captain-only top-five projection and one exact support transaction before the first mission card, serialized with dealPrivateInitialCards on the private missionDeck document. Prompt 401 remains a hard deal-path prerequisite. Keep Prompt 237 missing until the callable, client privacy path, rules, and ordinary released-session evidence are complete.",
+      "source": "functions/src/extraShipAdmission.ts; functions/src/replacementRoles.ts; functions/src/index.ts; docs/PRODUCT_MILESTONE_ASSUMPTIONS.md#pc06-a10",
+      "type": "hard_prompt / related/consumes"
     },
     {
       "direction": "238 -> 234;361",
@@ -12658,12 +12658,12 @@
     {
       "changeClass": "non-feature",
       "closureEvidenceGates": "none",
-      "decisionOwner": "OWNER-GORGONEION-ADMISSION-PREDEAL-LIFECYCLE",
+      "decisionOwner": "none",
       "definition": {
         "acceptance": "its Captain privately moves each of the top five mission cards to top or bottom before dealing.",
         "title": "Resolve Gorgoneion Mission Support."
       },
-      "description": "Blocked pending owner decisions that make this behavior reachable and authoritative: define how an optional Gorgoneion enters the canonical active-vessel setup and how its Captain is entitled, then define the pre-deal mission lifecycle/caller that binds one private support action to the mission before dealPrivateInitialCards consumes the server deck. Current replacement-role authority requires persisted Gorgoneion admission that canonical setup never creates, and the current facilitator-only deal callable creates the mission instance at deal time with no Captain projection or UI seam. Prompt 401 supplies the newly reached mission instance and Mission Leader lifecycle, so it is a hard prerequisite; Prompts 166 and 278 remain related role/action and workspace work. Do not implement until the owner decisions and private projection/CAS/deal integration are explicit.",
+      "description": "PC06-A10 resolves the digital product contract from the existing server-owned small-craft docking and replacement-role authorities: Gorgoneion must be docked to a current active core host, and its connected current Captain may inspect the top five and submit one exact top/bottom partition before the first mission card in the session is dealt. The action preserves order within each destination, leaves the deck tail between the groups, and serializes on the same private mission-deck document as dealPrivateInitialCards. The server returns the inspected faces only to that entitled Captain and uses a stable shared command receipt. This does not add Gorgoneion to activeVesselIds or make it a mission carrier. Production still needs the callable, member privacy, responsive role workspace, and ordinary authorized play evidence; keep missing until the complete path is proven. The admission, identity, face projection, and retry details are recorded digital choices, not printed rules.",
       "evidenceIds": "E-AUDIT-237",
       "hardContract": "none",
       "hardMilestone": "none",
