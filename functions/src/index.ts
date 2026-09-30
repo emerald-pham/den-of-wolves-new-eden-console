@@ -9584,6 +9584,7 @@ export const retargetShuttleTransit = onCall<{
       payload: { shuttleId: data.shuttleId },
       createdAt: FieldValue.serverTimestamp(),
     });
+    requireMissionMovementAvailable(session, [data.shuttleId]);
     tx.update(sessionRef, { updatedAt: FieldValue.serverTimestamp() });
     tx.set(transitRef, toPublicShuttleTransit(result));
     tx.set(transitChainRef, toShuttleTransitChain(result));
@@ -16194,6 +16195,7 @@ export const moveShipToLocation = onCall<{
     if (replay) return replay;
     requireWolfAttackMovementReleased(attackState);
     requireActionPhase(session, 'movement', 'facilitator');
+    requireHostMissionMovementAvailable(session, change.shipId);
     requireNavigableShip(session, change.shipId);
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
@@ -16577,15 +16579,7 @@ export const jumpShip = onCall<{
     } else {
       requireActionPhase(session, 'jump', player.get('role') === 'gm' ? 'facilitator' : 'player');
     }
-    let carriedCraftIds: readonly string[];
-    try {
-      carriedCraftIds = missionCraftIdsCarriedByShip({ shipId: change.shipId,
-        activeRoleIds: session.get('activeRoleIds'), shuttleDockings: session.get('shuttleDockings'),
-        smallShipStates: session.get('smallShipStates') });
-    } catch (error) {
-      throw commandError('failed-precondition', error instanceof Error ? error.message : 'Carried craft authority is malformed.', 'conflict');
-    }
-    requireMissionMovementAvailable(session, carriedCraftIds);
+    requireHostMissionMovementAvailable(session, change.shipId);
     requireNavigableShip(session, change.shipId);
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
@@ -30938,6 +30932,18 @@ export const rollbackMaintenance = onCall<{
     return reply;
   });
 });
+
+function requireHostMissionMovementAvailable(session: DocumentSnapshot, shipId: string): void {
+  let carriedCraftIds: readonly string[];
+  try {
+    carriedCraftIds = missionCraftIdsCarriedByShip({ shipId,
+      activeRoleIds: session.get('activeRoleIds'), shuttleDockings: session.get('shuttleDockings'),
+      smallShipStates: session.get('smallShipStates') });
+  } catch (error) {
+    throw commandError('failed-precondition', error instanceof Error ? error.message : 'Carried craft authority is malformed.', 'conflict');
+  }
+  requireMissionMovementAvailable(session, carriedCraftIds);
+}
 
 function requireMissionMovementAvailable(session: DocumentSnapshot, craftIds: readonly string[]): void {
   try { requireMissionCraftMovementAvailable(session.get('missionCraftCommitments'), craftIds); }
