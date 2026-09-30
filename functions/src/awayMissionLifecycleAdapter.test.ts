@@ -369,3 +369,31 @@ it('projects Reclamator eligibility only into the entitled Warrior participant p
   expect(projectAwayMissionPrivateState(record, 'alice')).toMatchObject({ canUseReclamator: false });
   expect(projectAwayMissionPublicState(record, 'bob')).not.toHaveProperty('canUseReclamator');
 });
+
+it('binds one exploration application to a successful printed opportunity and keeps selected coordinates private', () => {
+  let record = fixture();
+  const send = (type: string, command: Record<string, unknown>, uid: string, authority = {}) => {
+    const result = act(record, type, command, uid, authority);
+    expect(result.status).toBe('committed');
+    record = result.record!;
+  };
+  send('requestExtraCards', { count: 1 }, 'alice');
+  send('requestExtraCards', { count: 1 }, 'bob');
+  send('distributeExtraCard', { participantUid: 'alice', opportunityId: 'D-3' }, 'alice');
+  send('distributeExtraCard', { participantUid: 'bob', opportunityId: 'D-3' }, 'alice');
+  send('openDiscards', {}, 'gm', { isActiveGm: true });
+  send('discardCard', { cardId: '10♥' }, 'alice');
+  send('discardCard', { cardId: '10♦' }, 'bob');
+  send('assignCards', { placements: [{ cardId: 'A♥', opportunityId: 'D-3' }] }, 'alice');
+  send('assignCards', { placements: [{ cardId: 'A♦', opportunityId: 'D-3' }] }, 'bob');
+  send('addFacilitatorCards', {}, 'gm', { isActiveGm: true, randomIndex: (upper: number) => upper - 1 });
+  send('resolve', {}, 'gm', { isActiveGm: true });
+  expect(record.rewards?.find(({ opportunityId }) => opportunityId === 'D-3')?.branch).toBe('success');
+  expect(act(record, 'dropOff', { shipId: 'aegis' }, 'alice').status).toBe('denied');
+  expect(act(record, 'exploreSystems', { opportunityId: 'D-3', targetCoordinates: ['4454', '5143'] }, 'alice').status).toBe('denied');
+  send('exploreSystems', { opportunityId: 'D-3', targetCoordinates: ['4454', '5143'] }, 'gm', { isActiveGm: true });
+  expect(projectAwayMissionPublicState(record)?.explorationAppliedOpportunityIds).toEqual(['D-3']);
+  expect(JSON.stringify(projectAwayMissionPublicState(record))).not.toMatch(/4454|5143/);
+  expect(act(record, 'exploreSystems', { opportunityId: 'D-3', targetCoordinates: ['4454', '5143'] }, 'gm', { isActiveGm: true }).status).toBe('denied');
+  expect(act(record, 'dropOff', { shipId: 'aegis' }, 'alice').status).toBe('committed');
+});

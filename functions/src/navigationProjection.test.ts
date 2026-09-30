@@ -412,3 +412,20 @@ it('replacement entitlement supersedes historical assignment without a fallback'
     expect(revoked.navigationLogs).toEqual([]);
   }
 });
+
+it('keeps mission exploration knowledge bound to a UID across navigation refreshes and role changes', () => {
+  const state = navigationState({ ...navigation, missionExploredCoordinatesByUid: {
+    alice: ['4454', '5143'], bob: ['1413'],
+  } }, ['dione', 'shepherd']);
+  const alice = playerDiscoveryProjection(player({ assignedRoleId: 'shepherd-captain', fleetGroupId: 'fleet-2' }),
+    state, 4, ['shepherd'], undefined, 'alice');
+  const stranger = playerDiscoveryProjection(player({ assignedRoleId: 'shepherd-captain', fleetGroupId: 'fleet-2' }),
+    state, 4, ['shepherd'], undefined, 'stranger');
+  expect(alice.knownCoordinates).toEqual(expect.arrayContaining(['4454', '5143']));
+  expect(stranger.knownCoordinates).not.toContain('4454');
+  expect(alice.navigationLogs).toEqual(navigation.shipNavigationLogs.shepherd);
+  const tx = { set: vi.fn() };
+  writePlayerDiscoveryProjection(tx as never, firestore.doc('sessions/s1/playerDiscoveries/alice'),
+    player({ fleetGroupId: 'fleet-2' }) as never, state, 5);
+  expect(tx.set.mock.calls[0]?.[1].knownCoordinates).toEqual(expect.arrayContaining(['4454', '5143']));
+});
