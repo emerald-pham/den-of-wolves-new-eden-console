@@ -1572,7 +1572,7 @@ it('applies a charged intact Icebreaker Ram Scoop to a successful emergency FTL 
     'sessions/s1/events/ship-jump-icebreaker-emergency-ram-scoop',
     expect.objectContaining({
       type: 'ship-jump', outcome: 'emergency', shipId: 'icebreaker',
-      payload: expect.objectContaining({ length: 'short', fuelSpent: 4, ramScoopOreGain: 10 }),
+      length: 'short', fuelSpent: 4, ramScoopOreGain: 10,
     }),
   );
 });

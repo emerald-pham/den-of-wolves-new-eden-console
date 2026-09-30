@@ -20,6 +20,22 @@ describe('buildPrivacySafeEventRecord', () => {
     expect(memberEventFieldsFor('ship-jump')).not.toContain('destination');
   });
 
+  it('publishes the source-authorized Ram Scoop gain without exposing jump coordinates', () => {
+    expect(buildPrivacySafeEventRecord({
+      type: 'ship-jump',
+      payload: {
+        shipId: 'icebreaker', outcome: 'emergency', length: 'short', fuelSpent: 4,
+        ramScoopOreGain: 10, destination: '5143', fingerprint: 'private',
+      },
+      createdAt: 'server-time',
+    })).toEqual({
+      type: 'ship-jump', createdAt: 'server-time', shipId: 'icebreaker',
+      outcome: 'emergency', length: 'short', fuelSpent: 4, ramScoopOreGain: 10,
+    });
+    expect(memberEventFieldsFor('ship-jump')).toContain('ramScoopOreGain');
+    expect(memberEventFieldsFor('ship-jump')).not.toContain('destination');
+  });
+
   it('publishes only the Highwall mining outcome', () => {
     expect(buildPrivacySafeEventRecord({
       type: 'highwall-mining',
