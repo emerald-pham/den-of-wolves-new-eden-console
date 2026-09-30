@@ -17,6 +17,21 @@ it('labels PC06 as a one-sitting synthetic review with an explicit local-only bo
   expect(screen.getByRole('link', { name: /return to new eden console/i })).toHaveAttribute('href', '/#/');
 });
 
+it('supports accessible forward and back navigation through the review steps', async () => {
+  const user = userEvent.setup();
+  render(<PC06ReviewScene />);
+
+  const steps = screen.getByRole('navigation', { name: 'PC06 review steps' });
+  expect(screen.getByRole('heading', { name: 'Move a vessel and account for its host' })).toBeVisible();
+  await user.click(screen.getByRole('button', { name: 'Next review step' }));
+  expect(screen.getByRole('heading', { name: 'Keep ship stores, craft cargo, and held tokens distinct' })).toBeVisible();
+  expect(within(steps).getByRole('button', { name: '2 Cargo and trade' })).toHaveAttribute('aria-pressed', 'true');
+
+  await user.click(screen.getByRole('button', { name: 'Previous review step' }));
+  expect(screen.getByRole('heading', { name: 'Move a vessel and account for its host' })).toBeVisible();
+  expect(within(steps).getByRole('button', { name: '1 Movement' })).toHaveAttribute('aria-pressed', 'true');
+});
+
 it('simulates docking and a legal destination using the production movement panel', async () => {
   const user = userEvent.setup();
   render(<PC06ReviewScene />);
