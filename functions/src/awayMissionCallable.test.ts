@@ -7,6 +7,7 @@ const mock = vi.hoisted(() => ({
   set: vi.fn(),
   create: vi.fn(),
   update: vi.fn(),
+  delete: vi.fn(),
   marker: undefined as Record<string, unknown> | undefined,
   orphanEvent: false,
   discardMission: undefined as Record<string, unknown> | undefined,
@@ -20,6 +21,7 @@ const mock = vi.hoisted(() => ({
   arrivalPressureState: undefined as Record<string, unknown> | undefined,
   missionOpportunities: {} as Record<string, Record<string, unknown>>,
   missionStartSnapshots: {} as Record<string, Record<string, unknown>>,
+  supportViews: [] as Array<{ id: string; fields: Record<string, unknown> }>,
   shuttleDockings: [] as Array<{ shuttleId: string; shipId: string; dockedAt: string }>,
   shuttleMovements: {} as Record<string, Record<string, unknown>>,
   pdfEscortWingState: undefined as Record<string, unknown> | undefined,
@@ -42,7 +44,7 @@ vi.mock('firebase-admin/firestore', () => ({
       set: mock.set,
       create: mock.create,
       update: mock.update,
-      delete: vi.fn(),
+      delete: mock.delete,
     }),
   }),
   FieldValue: { serverTimestamp: () => 'server-time', delete: () => 'delete-field' },
@@ -137,6 +139,7 @@ beforeEach(() => {
   });
   mock.create.mockReset();
   mock.update.mockReset();
+  mock.delete.mockReset();
   mock.update.mockImplementation((ref: { path: string }, patch: Record<string, unknown>) => {
     if (!ref.path.includes('/awayMissionHandPointers/')) return;
     const handId = ref.path.split('/').at(-1)!;
@@ -159,6 +162,7 @@ beforeEach(() => {
   mock.arrivalPressureState = undefined;
   mock.missionOpportunities = { [defaultOpportunity.id]: { ...defaultOpportunity } };
   mock.missionStartSnapshots = {};
+  mock.supportViews = [];
   mock.shuttleDockings = [
     { shuttleId: 'starlight', shipId: 'aegis', dockedAt: 'now' },
     { shuttleId: 'highwall', shipId: 'icebreaker', dockedAt: 'now' },
@@ -197,6 +201,13 @@ beforeEach(() => {
     }, ref.path);
     if (ref.path === 'sessions/s1/players') {
       return { exists: true, docs: players.map(({ id, fields }) => snapshot(fields, `sessions/s1/players/${id}`)) };
+    }
+    if (ref.path === 'sessions/s1/gorgoneionMissionSupportViews') {
+      return {
+        exists: true,
+        docs: mock.supportViews.map(({ id, fields }) =>
+          snapshot(fields, `sessions/s1/gorgoneionMissionSupportViews/${id}`)),
+      };
     }
     if (ref.path === 'sessions/s1/fleetGroups') {
       return {
@@ -572,6 +583,23 @@ describe('dealPrivateInitialCards', () => {
       expect.objectContaining({ path: 'sessions/s1/serverState/missionDeck' }),
       expect.objectContaining({ dealtCount: 2 }),
     );
+  });
+
+  it('clears private Gorgoneion projections in the same committed card-deal transaction', async () => {
+    mock.supportViews = [
+      { id: 'captain-a', fields: { cardIds: ['A♥', '4♥', '5♥', '6♥', '7♥'] } },
+      { id: 'captain-b', fields: { cardIds: ['8♥', '9♥', '10♥', 'J♥', 'Q♥'] } },
+    ];
+
+    await dealPrivateInitialCards.run(request(command));
+
+    expect(mock.delete).toHaveBeenCalledTimes(2);
+    expect(mock.delete).toHaveBeenCalledWith(expect.objectContaining({
+      path: 'sessions/s1/gorgoneionMissionSupportViews/captain-a',
+    }));
+    expect(mock.delete).toHaveBeenCalledWith(expect.objectContaining({
+      path: 'sessions/s1/gorgoneionMissionSupportViews/captain-b',
+    }));
   });
 
   it('keeps the exact start group and leader projection through opening private discards', async () => {
