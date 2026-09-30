@@ -1,0 +1,23 @@
+.demo-jump-unavailable-toast {
+  position: fixed;
+  inset-inline-end: max(1rem, env(safe-area-inset-right));
+  inset-block-end: max(1rem, env(safe-area-inset-bottom));
+  z-index: 27;
+  box-sizing: border-box;
+  width: min(24rem, calc(100vw - 2rem));
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--cic-cyan);
+  background: color-mix(in srgb, var(--cic-panel) 94%, transparent);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--cic-cyan) 42%, transparent);
+  color: var(--cic-cyan-hot);
+  font: 0.875rem/1.45 var(--cic-mono);
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demo-jump-unavailable-toast {
+    animation: none;
+    transition: none;
+  }
+}
