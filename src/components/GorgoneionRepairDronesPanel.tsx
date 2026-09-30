@@ -1,3 +1,4 @@
+import GorgoneionRepairDronesView from './GorgoneionRepairDronesView';
 import { useEffect, useRef, useState } from 'react';
 import { findShip } from '@/data/ships';
 import { damageSystemIdsForShip } from '@/lib/chacauRepairLedger';
@@ -261,51 +262,22 @@ export default function GorgoneionRepairDronesPanel() {
   const selectedName = hostShip?.systems?.find((system) => system.id === systemId)?.name ??
     systemId.split('-').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 
-  return (
-    <section className="role-brief__rules gorgoneion-repair-drones" aria-labelledby="gorg-repair-title">
-      <p className="eyebrow">Current host // {hostShip?.name ?? 'unavailable'}</p>
-      <h3 id="gorg-repair-title">Gorgoneion Repair Drones</h3>
-      <p>During Coordination, when charged, spend exactly 3 materials from Gorgoneion’s current docked host to repair 1 damaged console. Once per cycle.</p>
-      <p role="status">
-        Docked host // {hostShip?.name ?? (hostShipId ? 'Host unavailable' : 'Awaiting facilitator docking')} // host materials // {materials}
-      </p>
-      {!isCaptain && <p>The current Gorgoneion Captain replacement role controls this repair.</p>}
-      {!hostIsActive && <p>Gorgoneion must be docked with a current active fleet host before repairing.</p>}
-      {!maintenanceReady && <p>Finish current-cycle Gorgoneion Team maintenance and charge Repair Drones before repairing.</p>}
-      {!coordinationOpen && <p>Repair Drones are available during the current Coordination cycle.</p>}
-      {usedThisCycle && <p>Gorgoneion Repair Drones have already been used this cycle.</p>}
-      {hostDamage?.destroyed && <p>A destroyed host cannot receive Repair Drones.</p>}
-      {hostIsActive && !hostDamage?.destroyed && eligibleSystemIds.length === 0 &&
-        <p>No eligible damaged host consoles are available.</p>}
-      {hostIsActive && !hostDamage?.destroyed && materials < 3 &&
-        <p>Repair Drones need 3 host materials; this host has {materials}.</p>}
-      {!repairHistoryValid && <p>Repair history is unavailable. Refresh the live session before repairing.</p>}
-      <fieldset className="maintenance-controls" disabled={!isCaptain || !repairHistoryValid || !hostIsActive ||
-        !maintenanceReady || !coordinationOpen || usedThisCycle || hostDamage?.destroyed === true || pendingForCurrentAuthority}>
-        <legend>Choose one damaged host console</legend>
-        <label htmlFor="gorg-repair-console">Damaged console</label>
-        <select id="gorg-repair-console" aria-label="Gorgoneion repair console" value={systemId}
-          onChange={(event) => chooseSystem(event.target.value)}>
-          <option value="">Choose a console</option>
-          {eligibleSystemIds.map((id) => <option key={id} value={id}>
-            {hostShip?.systems?.find((system) => system.id === id)?.name ?? id}
-          </option>)}
-        </select>
-        <p role="status">Selected // {systemId ? selectedName : 'No console selected'} // cost // 3 materials</p>
-      </fieldset>
-      <div className="maintenance-controls__confirmation">
-        <button className="cic-action-button" type="button"
-          disabled={pendingForCurrentAuthority || (retry?.stale ? !canSubmit : !retryCommand && !canSubmit)}
-          onClick={() => void submit()}>
-          {pendingForCurrentAuthority ? 'Repairing console…' : retry?.stale && retryCommand
-            ? 'Retry repair with current revision' : retryCommand ? 'Retry exact repair request' : 'Repair one console'}
-        </button>
-      </div>
-      {errorMessage && <p role="alert">{errorMessage}</p>}
-      {retryCommand && !pendingForCurrentAuthority && <p role="status">{retry?.stale
-        ? 'Review the selected console before retrying. The retry uses a fresh request id.'
-        : 'Retry the last request with its original request id.'}</p>}
-      {statusMessage && <p role="status">{statusMessage}</p>}
-    </section>
-  );
+  return <GorgoneionRepairDronesView
+    hostName={hostShip?.name}
+    hostDescription={hostShip?.name ?? (hostShipId ? 'Host unavailable' : 'Awaiting facilitator docking')}
+    materials={materials} isCaptain={isCaptain} hostIsActive={hostIsActive}
+    maintenanceReady={maintenanceReady} coordinationOpen={coordinationOpen}
+    usedThisCycle={usedThisCycle} hostDestroyed={hostDamage?.destroyed === true}
+    repairHistoryValid={repairHistoryValid}
+    eligibleSystems={eligibleSystemIds.map((id) => ({ id, name: hostShip?.systems?.find((system) => system.id === id)?.name ?? id }))}
+    systemId={systemId} selectedName={selectedName} pending={pendingForCurrentAuthority}
+    submitDisabled={pendingForCurrentAuthority || (retry?.stale ? !canSubmit : !retryCommand && !canSubmit)}
+    submitLabel={pendingForCurrentAuthority ? 'Repairing console…' : retry?.stale && retryCommand
+      ? 'Retry repair with current revision' : retryCommand ? 'Retry exact repair request' : 'Repair one console'}
+    errorMessage={errorMessage} statusMessage={statusMessage}
+    retryMessage={retryCommand && !pendingForCurrentAuthority ? retry?.stale
+      ? 'Review the selected console before retrying. The retry uses a fresh request id.'
+      : 'Retry the last request with its original request id.' : undefined}
+    onChooseSystem={chooseSystem} onSubmit={() => void submit()}
+  />;
 }

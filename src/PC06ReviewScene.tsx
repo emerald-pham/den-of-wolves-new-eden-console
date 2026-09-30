@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import GorgoneionRepairDronesView from '@/components/GorgoneionRepairDronesView';
 import FleetGroupPanel from '@/components/FleetGroupPanel';
 import AwayMissionLifecyclePanel from '@/components/AwayMissionLifecyclePanel';
 import JumpDriveConsole from '@/components/JumpDriveConsole';
@@ -456,6 +457,7 @@ function CargoAndTradeReview() {
 
   return (
     <section className="pc06-review__trade-layout" aria-label="Cargo and same-table trade sample">
+      <RepairDronesReview />
       <section className="pc06-review__panel cic-frame" aria-label="Small-craft cargo sample">
         <header className="pc06-review__panel-heading">
           <div><p className="cic-overline">CRAFT MANIFEST // LOCAL SAMPLE</p><h3>Capybara cargo</h3></div>
@@ -495,6 +497,42 @@ function CargoAndTradeReview() {
       </section>
     </section>
   );
+}
+
+function RepairDronesReview() {
+  const [systemId, setSystemId] = useState('');
+  const [repaired, setRepaired] = useState(false);
+  const [stale, setStale] = useState(false);
+  const [result, setResult] = useState('LOCAL SAMPLE // A charged Gorgoneion is docked at Aegis with 6 materials and one damaged Jump Drive.');
+  return <section className="pc06-review__panel cic-frame" aria-label="Repair Drones review sample">
+    <p className="pc06-review__note">The production repair presentation uses only sample values and local callbacks here. It opens no session or production action.</p>
+    <GorgoneionRepairDronesView hostName="Aegis" hostDescription="Aegis"
+      materials={repaired ? 3 : 6} isCaptain hostIsActive maintenanceReady coordinationOpen
+      usedThisCycle={repaired} hostDestroyed={false} repairHistoryValid={!stale}
+      eligibleSystems={repaired ? [] : [{ id: 'jump-drive', name: 'Jump Drive' }]}
+      systemId={systemId} selectedName={systemId ? 'Jump Drive' : ''} pending={false}
+      submitDisabled={repaired || stale || systemId !== 'jump-drive'} submitLabel="Repair one console"
+      onChooseSystem={setSystemId} onSubmit={() => {
+        if (repaired || stale || systemId !== 'jump-drive') return;
+        setRepaired(true); setSystemId('');
+        setResult('LOCAL SIMULATION // Jump Drive repaired; 3 materials remain. No production repair occurred.');
+      }} />
+    <div className="pc06-review__sample-controls">
+      <button type="button" className="cic-action-button" onClick={() => {
+        setRepaired(false); setStale(true); setSystemId('');
+        setResult('COMPETING REPAIR SAMPLE // The host damage changed. Refresh before selecting a console.');
+      }}>Competing repair sample</button>
+      <button type="button" className="cic-action-button" disabled={!stale} onClick={() => {
+        setStale(false); setRepaired(true); setSystemId('');
+        setResult('LOCAL REFRESHED SAMPLE // This console was already repaired; 3 host materials remain.');
+      }}>Refresh repair sample</button>
+      <button type="button" className="cic-action-button" onClick={() => {
+        setStale(false); setRepaired(false); setSystemId('');
+        setResult('LOCAL SAMPLE RESTORED // No production state changed.');
+      }}>Restore repair sample</button>
+    </div>
+    <p className="pc06-review__result" role="status" aria-label="Repair sample result">{result}</p>
+  </section>;
 }
 
 const COUNTERPARTIES = [
