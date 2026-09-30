@@ -156,11 +156,31 @@ it('sends baseline, offer, and acceptance commands using their stable request id
     sessionId: 's1', offerId, recipientUid: 'bob', quantities: { ore: 1 },
   });
 
+  const ownInventory = {
+    type: 'player-held-resource-inventory', sessionId: 's1', playerUid: 'alice', revision: 2, balances,
+  };
+  const receipt = {
+    receiptId: incomingOfferId, offerId: incomingOfferId, fromUid: 'bob', toUid: 'alice',
+    tableId: 'aegis', revision: 2, quantities: { ore: 1, fuel: 0, food: 0, water: 0, materials: 0, securityTeams: 0 },
+  };
   mocks.call.mockResolvedValue({ data: {
     status: 'committed', sessionId: 's1', offerId: incomingOfferId, revision: 2,
+    inventory: ownInventory, receipt,
   } });
-  await acceptSameTableTradeOffer(incomingOfferId);
+  const accepted = await acceptSameTableTradeOffer(incomingOfferId);
+  expect(accepted.inventory).toEqual({ revision: 2, balances });
+  expect(accepted.receipt).toEqual(receipt);
   expect(mocks.callable).toHaveBeenLastCalledWith('functions', 'acceptSameTableTradeOffer');
   expect(mocks.call).toHaveBeenLastCalledWith({ sessionId: 's1', offerId: incomingOfferId });
   expect(mocks.requireFresh).toHaveBeenCalledTimes(3);
+});
+
+it('rejects a malformed or bilateral balance reply from trade acceptance', async () => {
+  const incomingOfferId = '3f23b456-789a-4abc-8def-0123456789ab';
+  mocks.call.mockResolvedValue({ data: {
+    status: 'committed', sessionId: 's1', offerId: incomingOfferId, revision: 2,
+    sourceInventory: balances, recipientInventory: balances,
+  } });
+
+  await expect(acceptSameTableTradeOffer(incomingOfferId)).rejects.toThrow(/invalid same-table trade result/i);
 });
