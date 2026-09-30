@@ -54,6 +54,7 @@ export interface AwayMissionPublicState {
 }
 
 export interface AwayMissionPrivateState {
+  readonly assignmentCommitted?: boolean;
   readonly canUseReclamator?: boolean;
   readonly missionId: string;
   readonly participantUid: string;
@@ -356,7 +357,9 @@ export function parseAwayMissionLifecyclePrivateState(
 ): AwayMissionPrivateState | null {
   if (!isRecord(value) || !hasExactKeys(value, [...PRIVATE_KEYS,
       ...(Object.hasOwn(value, 'canUseReclamator') ? ['canUseReclamator'] : []),
+      ...(Object.hasOwn(value, 'assignmentCommitted') ? ['assignmentCommitted'] : []),
     ]) || (value.canUseReclamator !== undefined && typeof value.canUseReclamator !== 'boolean') ||
+      (value.assignmentCommitted !== undefined && typeof value.assignmentCommitted !== 'boolean') ||
       value.missionId !== expected.missionId || value.participantUid !== expected.participantUid ||
       value.revision !== expected.revision || typeof value.phase !== 'string' ||
       !MISSION_PHASES.has(value.phase) || !Array.isArray(value.cards) || value.cards.length > 33) return null;

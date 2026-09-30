@@ -14,6 +14,7 @@ interface PrivateMissionCard {
 }
 
 interface PrivateMissionState {
+  readonly assignmentCommitted?: boolean;
   readonly missionId: string;
   readonly participantUid: string;
   readonly revision: number;
@@ -141,7 +142,8 @@ export default function AwayMissionLifecyclePanel({
 
   const chosenDropOffShipId = dropOffShipId || legalDropOffIds[0] || '';
   const privateDiscardComplete = ownPrivateState?.cards.some(({ status }) => status === 'discarded') === true;
-  const assignmentPhase = publicState.phase === 'assignment-ready' || publicState.phase === 'assigning';
+  const assignmentPhase = ownPrivateState?.assignmentCommitted !== true &&
+    (publicState.phase === 'assignment-ready' || publicState.phase === 'assigning');
 
   return (
     <section className="away-mission-lifecycle cic-frame" aria-label={`Away mission // ${publicState.missionId}`}>
@@ -276,6 +278,9 @@ export default function AwayMissionLifecyclePanel({
             <button type="button" onClick={submitAssignments} disabled={busy}>
               Submit mission assignments
             </button>
+          )}
+          {ownPrivateState.assignmentCommitted === true && publicState.status === 'active' && (
+            <p role="status" aria-label="Your mission assignment">Your assignment is committed // waiting for the team</p>
           )}
           {publicState.phase === 'discarding' && canUseReclamator && !ownPrivateState.reclamatorSalvage &&
             remainingCards.length > 0 && (

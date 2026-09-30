@@ -146,6 +146,7 @@ export interface AwayMissionPublicState {
 }
 
 export interface AwayMissionPrivateState {
+  readonly assignmentCommitted?: boolean;
   readonly canUseReclamator?: boolean;
   readonly missionId: string;
   readonly participantUid: string;
@@ -446,6 +447,7 @@ export function projectAwayMissionPrivateState(
     opportunityId: record.lifecycle.assignments.find((assignment) => assignment.cardId === card.id)?.opportunityId ?? null,
   }));
   return {
+    assignmentCommitted: record.lifecycle.assignedParticipantUids.includes(participantUid),
     canUseReclamator: record.lifecycle.participants.find(({ uid }) => uid === participantUid)?.roleId === 'warrior-captain' &&
       record.participantCrafts.some((binding) => binding.participantUid === participantUid && binding.craftIds.includes('warrior')),
     missionId: record.lifecycle.missionId,

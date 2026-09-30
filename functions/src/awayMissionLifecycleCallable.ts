@@ -1177,7 +1177,9 @@ function validateStoredCommandReply(
     if (!isRecord(privateState) || !hasExactKeys(privateState, [
       'missionId', 'participantUid', 'revision', 'phase', 'cards', 'reclamatorSalvage',
       ...(Object.hasOwn(privateState, 'canUseReclamator') ? ['canUseReclamator'] : []),
+      ...(Object.hasOwn(privateState, 'assignmentCommitted') ? ['assignmentCommitted'] : []),
     ]) || (privateState.canUseReclamator !== undefined && typeof privateState.canUseReclamator !== 'boolean') || privateState.missionId !== command.missionId || privateState.participantUid !== actorUid ||
+        (privateState.assignmentCommitted !== undefined && typeof privateState.assignmentCommitted !== 'boolean') ||
         privateState.revision !== value.revision || !Array.isArray(privateState.cards) ||
         privateState.cards.some((card) => !isRecord(card) ||
           !hasExactKeys(card, ['id', 'value', 'status', 'opportunityId']))) {
