@@ -97,6 +97,10 @@ vi.mock('@/lib/smallShipService', () => ({
   setSmallShipDocking: vi.fn(),
 }));
 
+vi.mock('@/lib/sameTableTradeService', () => ({
+  attestPlayerHeldTokenBaseline: vi.fn(),
+}));
+
 const { kickGmInstance, kickPlayer, assignRole, releaseRole, setReplacementEligibility, assignReplacementRole, setCapybaraEnabled, setDioneEnabled, setPressEnabled, setDebriefMode, setGmControlsLocked,
   replayTurnStartAnnouncement, advanceTurn, startGame, extendAirspaceWindow, setWolfAttackWindow, stageWolfAttackPreparation, declareWolfAttack, startWolfConsoleVisit, resolveWolfConsoleSabotage, setEmergencyTimerPaused, calculateArrestPosse,
   advanceWolfAttackToLongRange,
@@ -257,6 +261,35 @@ it('redirects browsers without a local GM claim', () => {
   renderConsole();
   expect(screen.getByText('Role selection route')).toBeInTheDocument();
   expect(screen.queryByRole('region', { name: /gm starmap/i })).not.toBeInTheDocument();
+});
+
+it('shows the held-token baseline to the GM using only the active player roster', async () => {
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(subscribeSessionPlayers).mockImplementation((_sessionId, onPlayers) => {
+    onPlayers([
+      {
+        uid: 'player-1', sessionId: 's1', role: 'player', displayName: 'Alice',
+        connected: true, joinedAt: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        uid: 'player-offline', sessionId: 's1', role: 'player', displayName: 'Offline',
+        connected: false, joinedAt: '2026-01-01T00:01:00.000Z',
+      },
+      {
+        uid: 'player-gm', sessionId: 's1', role: 'gm', displayName: 'Facilitator',
+        connected: true, joinedAt: '2026-01-01T00:02:00.000Z',
+      },
+    ]);
+    return vi.fn();
+  });
+  renderConsole();
+
+  const baseline = await screen.findByRole('region', { name: 'Physical tabletop baseline' });
+  const target = within(baseline).getByRole('combobox', { name: 'Player to attest' });
+  expect(within(target).getByRole('option', { name: 'Alice' })).toHaveValue('player-1');
+  expect(within(target).queryByRole('option', { name: 'Offline' })).not.toBeInTheDocument();
+  expect(within(target).queryByRole('option', { name: 'Facilitator' })).not.toBeInTheDocument();
 });
 
 it('lists every GM instance and only offers to kick other instances', async () => {
