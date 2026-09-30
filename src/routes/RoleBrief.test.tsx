@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -83,7 +83,9 @@ it('mounts the away-mission workspace for the assigned player without changing t
     </MemoryRouter>,
   );
 
-  expect(awayMissionMocks.subscribe).toHaveBeenCalledWith('s1', 'u1', expect.any(Function));
+  await waitFor(() => {
+    expect(awayMissionMocks.subscribe).toHaveBeenCalledWith('s1', 'u1', expect.any(Function));
+  });
   await user.click(screen.getByRole('link', { name: /return to station catalog/i }));
   expect(screen.getByText('Station catalog')).toBeInTheDocument();
 });
