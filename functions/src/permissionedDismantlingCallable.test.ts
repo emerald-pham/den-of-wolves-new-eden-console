@@ -112,6 +112,7 @@ function seededStore(): FakeStore {
     shipResources: {
       dione: { ore: 0, fuel: 3, food: 13, water: 14, materials: 5, securityTeams: 2 },
     },
+    updatedAt: 'session-v1',
   });
   store.records.set(p.proposer, activePlayer('dione-engineer'));
   store.records.set(p.targetPlayer, activePlayer('dione-captain'));
@@ -302,6 +303,34 @@ it('returns a stale revision without writes when the target changes after consen
   expect(store.committedWrites).toHaveLength(before);
   expect(store.records.get(paths().consent)).toMatchObject({ status: 'granted' });
   expect(store.records.get(paths().proposal)).toMatchObject({ status: 'pending' });
+});
+
+it('invalidates consent after a target change is reverted before apply', async () => {
+  const store = seededStore();
+  const callables = createPermissionedDismantlingCallables(dependencies(store));
+  await callables.proposePermissionedDismantling(proposeRequest());
+  await callables.consentToPermissionedDismantling(consentRequest());
+  const session = store.records.get(paths().session)!;
+  const originalDamage = structuredClone(session.shipDamage);
+  session.shipDamage = { dione: { damagedSystemIds: ['storage', 'hydroponics'], destroyed: false } };
+  session.updatedAt = 'session-v2';
+  store.records.set(paths().session, session);
+  session.shipDamage = originalDamage;
+  session.updatedAt = 'session-v3';
+  store.records.set(paths().session, session);
+  const before = store.committedWrites.length;
+
+  await expect(callables.applyPermissionedDismantling(applyRequest())).resolves.toMatchObject({
+    status: 'stale',
+    expectedTargetRevision: 0,
+    currentTargetRevision: 1,
+  });
+  expect(store.committedWrites).toHaveLength(before);
+  expect(store.records.get(paths().consent)).toMatchObject({ status: 'granted' });
+  expect(store.records.get(paths().session)).toMatchObject({
+    shipDamage: { dione: { damagedSystemIds: ['storage'], destroyed: false } },
+    shipResources: { dione: { materials: 5 } },
+  });
 });
 
 it('requires a fresh target revision and current craft control both when proposing and when applying', async () => {
