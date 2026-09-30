@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   callable: vi.fn(),
   httpsCallable: vi.fn(),
   doc: vi.fn(),
+  getDocFromServer: vi.fn(),
   onSnapshot: vi.fn(),
   functions: vi.fn(() => 'functions-instance'),
   db: vi.fn(() => 'firestore-instance'),
@@ -14,7 +15,9 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('firebase/functions', () => ({ httpsCallable: mocks.httpsCallable }));
-vi.mock('firebase/firestore', () => ({ doc: mocks.doc, onSnapshot: mocks.onSnapshot }));
+vi.mock('firebase/firestore', () => ({
+  doc: mocks.doc, getDocFromServer: mocks.getDocFromServer, onSnapshot: mocks.onSnapshot,
+}));
 vi.mock('./firebase', () => ({ functions: mocks.functions }));
 vi.mock('./firestore', () => ({ db: mocks.db }));
 
@@ -59,6 +62,7 @@ beforeEach(() => {
   mocks.callable.mockReset();
   mocks.httpsCallable.mockReset().mockReturnValue(mocks.callable);
   mocks.doc.mockReset().mockReturnValue('projection-ref');
+  mocks.getDocFromServer.mockReset().mockResolvedValue({ exists: () => true, data: () => view });
   mocks.onSnapshot.mockReset().mockImplementation((_ref, _options, onNext, onError) => {
     mocks.onNext = onNext;
     mocks.onError = onError;
@@ -77,6 +81,7 @@ it('loads only the exact current Captain projection from the callable response',
   await expect(getGorgoneionMissionSupportProjection()).resolves.toEqual(view);
   expect(mocks.httpsCallable).toHaveBeenCalledWith('functions-instance', 'getGorgoneionMissionSupportProjection');
   expect(mocks.callable).toHaveBeenCalledWith({ sessionId: 's1' });
+  expect(mocks.getDocFromServer).toHaveBeenCalledWith('projection-ref');
 
   mocks.callable.mockResolvedValue({ data: { status: 'available', ...view, actorUid: 'another-player' } });
   await expect(getGorgoneionMissionSupportProjection()).rejects.toThrow(/malformed|authority/i);
