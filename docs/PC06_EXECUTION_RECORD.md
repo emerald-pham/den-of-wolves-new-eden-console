@@ -97,11 +97,13 @@ independent Sol review at the review boundary. The checkpoint owner remains
 accountable for integration and release in either case.
 
 The live-access probe reached the production console at
-`dow-new-eden-console.web.app/#/console`, where a first-use motion choice offers
-Normal and Reduced Motion and says the selection is saved on this device for 24
-hours. The applicable Computer Use Confirmation Policy classifies non-sensitive
-application settings as requiring an explicit request or confirmation before
-the change. The task authorizes gameplay testing but does not specify either
-motion setting, so the choice remains untouched until it is authorized or a
-previously authorized production session is available. This is a policy
-boundary, not a tool denial. Ordinary authorized gameplay proof remains open.
+`dow-new-eden-console.web.app/#/console`, running build `0.5.58`. Its current
+settings show Reduce Motion unchecked, so normal motion was already selected;
+no preference change was made. The applicable Computer Use Confirmation Policy
+requires confirmation before changing a non-sensitive application setting
+unless the user explicitly requests that change. The console reports local GM
+access authorized, but the current session remains authorization-pending with
+two devices connected. No session code, email address, or credential was
+recorded, and the session was not changed. Facilitator login availability is
+therefore observed, while authorized active-session gameplay proof remains
+open.
