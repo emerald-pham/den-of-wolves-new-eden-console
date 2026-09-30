@@ -59,7 +59,10 @@ beforeEach(() => {
   vi.mocked(startSinglePlayerDemo).mockResolvedValue(undefined);
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
     ok: true,
-    json: async () => CHANGELOG.map(({ version, changes }) => ({ version, changes: [...changes] })),
+    json: async () => ({
+      currentProgress: CHANGELOG[0]?.implementationProgress,
+      entries: CHANGELOG.map(({ version, changes }) => ({ version, changes: [...changes] })),
+    }),
   }));
 });
 
@@ -617,6 +620,8 @@ it('opens a readable changelog in a bounded scroll region from settings', async 
   expect(toggle).toHaveAttribute('aria-expanded', 'true');
   expect(screen.getByRole('heading', { name: 'Changelog' })).toBeVisible();
   expect(screen.getByRole('region', { name: /changelog entries/i })).toBeVisible();
+  expect(await screen.findByText(/current build catalog: 507 of 751 complete \(67\.51%\)/i)).toBeVisible();
+  expect(screen.getByText(/35 partial · 209 not yet implemented/i)).toBeVisible();
   expect(await screen.findByRole('heading', { name: `Build ${APP_VERSION}` })).toBeVisible();
   expect(screen.getByText(/read what changed without leaving your session/i)).toBeVisible();
   expect(screen.queryByText(/component|refactor|typescript/i)).not.toBeInTheDocument();
@@ -624,10 +629,16 @@ it('opens a readable changelog in a bounded scroll region from settings', async 
 
 it('loads only the display changelog when the player opens it in Settings', async () => {
   const user = userEvent.setup();
-  const display = [
-    { version: APP_VERSION, changes: ['Current display copy.'] },
-    { version: '0.5.38', changes: ['Preserved historical display copy.'] },
-  ];
+  const display = {
+    currentProgress: {
+      completed: 507, total: 751, percentage: '67.51%',
+      done: 507, partial: 35, active: 0, missing: 209, blocked: 0,
+    },
+    entries: [
+      { version: APP_VERSION, changes: ['Current display copy.'] },
+      { version: '0.5.38', changes: ['Preserved historical display copy.'] },
+    ],
+  };
   const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => display });
   vi.stubGlobal('fetch', fetchMock);
   render(<MemoryRouter><AppHeader /></MemoryRouter>);
@@ -646,7 +657,13 @@ it('loads only the display changelog when the player opens it in Settings', asyn
 
 it('lets the player retry the changelog after a temporary asset failure', async () => {
   const user = userEvent.setup();
-  const display = [{ version: APP_VERSION, changes: ['Recovered display copy.'] }];
+  const display = {
+    currentProgress: {
+      completed: 507, total: 751, percentage: '67.51%',
+      done: 507, partial: 35, active: 0, missing: 209, blocked: 0,
+    },
+    entries: [{ version: APP_VERSION, changes: ['Recovered display copy.'] }],
+  };
   const fetchMock = vi.fn()
     .mockRejectedValueOnce(new Error('offline'))
     .mockResolvedValueOnce({ ok: true, json: async () => display });
@@ -711,6 +728,11 @@ it('renders current and retained repair history with progress and keyboard stop 
     'A stale recharge does not spend resources or add a charge.',
   )).toBeVisible();
   expect(within(newestEntry).getByText(
+    '507 of 751 planned items are complete in the catalog snapshot used to build this release (67.51%).',
+  )).toBeVisible();
+  const historicalPc05Entry = within(region).getByRole('heading', { name: 'Build 0.5.57' }).closest('article');
+  if (!historicalPc05Entry) throw new Error('Expected the historical 0.5.57 PC05 release entry.');
+  expect(within(historicalPc05Entry).getByText(
     '458 of 751 planned items were complete in the catalog snapshot used to build this release (60.99%).',
   )).toBeVisible();
   const previousPc05Entry = within(region).getByRole('heading', { name: 'Build 0.5.56' }).closest('article');

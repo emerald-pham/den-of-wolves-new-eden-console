@@ -2,30 +2,50 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   loadChangelogDisplay,
   parseChangelogDisplay,
-  type ChangelogDisplayEntry,
+  type ChangelogDisplayPayload,
 } from './changelogDisplay';
 
-const sample: readonly ChangelogDisplayEntry[] = [
-  { version: '0.5.39', changes: ['Current release copy.'] },
-  { version: '0.5.38', changes: ['Historical release copy.'] },
-];
+const sample: ChangelogDisplayPayload = {
+  currentProgress: {
+    completed: 507,
+    total: 751,
+    percentage: '67.51%',
+    done: 507,
+    partial: 35,
+    active: 0,
+    missing: 209,
+    blocked: 0,
+  },
+  entries: [
+    { version: '0.5.58', changes: ['Current release copy.'] },
+    { version: '0.5.57', changes: ['Historical release copy.'] },
+  ],
+};
 
 describe('changelog display loader', () => {
   it('accepts only display fields and preserves historical copy and ordering', () => {
-    expect(parseChangelogDisplay([
-      { version: '0.5.39', changes: ['First', 'Second'], implementationProgress: { completed: 1 } },
-      { version: '0.5.38', changes: ['Earlier'] },
-    ])).toEqual([
-      { version: '0.5.39', changes: ['First', 'Second'] },
-      { version: '0.5.38', changes: ['Earlier'] },
-    ]);
+    expect(parseChangelogDisplay({
+      currentProgress: sample.currentProgress,
+      entries: [
+        { version: '0.5.58', changes: ['First', 'Second'], implementationProgress: { completed: 1 } },
+        { version: '0.5.57', changes: ['Earlier'] },
+      ],
+    })).toEqual({
+      currentProgress: sample.currentProgress,
+      entries: [
+        { version: '0.5.58', changes: ['First', 'Second'] },
+        { version: '0.5.57', changes: ['Earlier'] },
+      ],
+    });
   });
 
   it.each([
     null,
     {},
-    [{ version: '', changes: ['copy'] }],
-    [{ version: '0.5.39', changes: [42] }],
+    { currentProgress: sample.currentProgress, entries: [{ version: '', changes: ['copy'] }] },
+    { currentProgress: sample.currentProgress, entries: [{ version: '0.5.39', changes: [42] }] },
+    { currentProgress: { ...sample.currentProgress, percentage: '68%' }, entries: sample.entries },
+    { currentProgress: { ...sample.currentProgress, completed: 508 }, entries: sample.entries },
   ])('rejects malformed display data: %j', (payload) => {
     expect(() => parseChangelogDisplay(payload)).toThrow();
   });

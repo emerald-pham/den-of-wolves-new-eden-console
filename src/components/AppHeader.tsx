@@ -19,7 +19,7 @@ import { APP_VERSION } from '@/version';
 import { setMotionOverride, useMotionPreference } from '@/lib/motionPreference';
 import { findConsoleRole } from '@/data/roles';
 import { CHANGELOG_DISPLAY_URL } from '@/changelogDisplayAsset';
-import { loadChangelogDisplay, type ChangelogDisplayEntry } from '@/lib/changelogDisplay';
+import { loadChangelogDisplay, type ChangelogDisplayPayload } from '@/lib/changelogDisplay';
 import { useDialogFocus } from '@/hooks/useDialogFocus';
 import FleetBroadcast from './FleetBroadcast';
 import PrimaryStatus from './PrimaryStatus';
@@ -235,7 +235,7 @@ export default function AppHeader() {
   }, []);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [changelogOpen, setChangelogOpen] = useState(false);
-  const [changelog, setChangelog] = useState<readonly ChangelogDisplayEntry[] | null>(null);
+  const [changelog, setChangelog] = useState<ChangelogDisplayPayload | null>(null);
   const [changelogLoading, setChangelogLoading] = useState(false);
   const [changelogFailed, setChangelogFailed] = useState(false);
   const [gmAccessPassword, setGmAccessPassword] = useState('');
@@ -643,7 +643,24 @@ export default function AppHeader() {
                   {changelogFailed && (
                     <p role="alert">Changelog unavailable. Close and reopen to try again.</p>
                   )}
-                  {changelog?.map((entry) => (
+                  {changelog && (
+                    <div className="settings-changelog__progress" role="status">
+                      <strong>
+                        Current build catalog: {changelog.currentProgress.completed} of{' '}
+                        {changelog.currentProgress.total} complete{' '}
+                        ({changelog.currentProgress.percentage})
+                      </strong>
+                      <span>
+                        {changelog.currentProgress.partial} partial ·{' '}
+                        {changelog.currentProgress.missing} not yet implemented
+                        {changelog.currentProgress.blocked > 0
+                          ? ` · ${changelog.currentProgress.blocked} blocked`
+                          : ''}
+                      </span>
+                      <span>Release notes below preserve each build’s historical catalog snapshot.</span>
+                    </div>
+                  )}
+                  {changelog?.entries.map((entry) => (
                     <article className="settings-changelog__entry" key={entry.version}>
                       <h4>Build {entry.version}</h4>
                       <ul>

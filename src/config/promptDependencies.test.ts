@@ -91,13 +91,13 @@ describe('read-only dependency lookup', () => {
     expect(stableCatalogJson(packet)).toBe(stableCatalogJson(JSON.parse(json)));
   });
 
-  it('can inspect a blocked prompt without mutating or inventing completion state', () => {
+  it('reports the first unresolved prompt ready after PC05 closes all prerequisites', () => {
     const packet = createDependencyPacket({ prompt: '020a', catalog });
-    expect(packet.readiness).toBe('blocked');
+    expect(packet.readiness).toBe('ready');
     expect(packet.selected.status).toBe('missing');
     const prerequisites = packet.selected.prerequisites as Array<{ id: string; status: string }>;
     expect(prerequisites.some(({ id, status }) => id === '075' && status === 'done')).toBe(true);
     expect(packet.next).toBe(packet.readyQueue[0]?.prompt ?? null);
-    expect(packet.readyQueue.some(({ prompt }) => prompt === packet.selected.prompt)).toBe(false);
+    expect(packet.readyQueue.some(({ prompt }) => prompt === packet.selected.prompt)).toBe(true);
   });
 });
