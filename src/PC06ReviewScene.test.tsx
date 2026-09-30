@@ -1,7 +1,16 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { expect, it } from 'vitest';
+import { beforeEach, expect, it, vi } from 'vitest';
 import PC06ReviewScene from './PC06ReviewScene';
+
+vi.mock('@/lib/sessionService', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/sessionService')>();
+  return { ...actual, jumpShip: vi.fn() };
+});
+
+const { jumpShip } = await import('@/lib/sessionService');
+
+beforeEach(() => vi.mocked(jumpShip).mockClear());
 
 it('labels PC06 as a one-sitting synthetic review with an explicit local-only boundary', () => {
   render(<PC06ReviewScene />);
@@ -57,6 +66,7 @@ it('previews blind-jump presentation while keeping the production launch control
   expect(within(drive).getByRole('button', { name: 'Blind jump' })).toBeDisabled();
   expect(within(drive).getByRole('status')).toHaveTextContent(/presentation preview.*jump commands are disabled/i);
   expect(within(drive).getByLabelText('Blind destination hidden until server resolution')).toBeVisible();
+  expect(jumpShip).not.toHaveBeenCalled();
 });
 
 it('keeps cargo, ship stores, and consented same-table trade in separate local samples', async () => {
