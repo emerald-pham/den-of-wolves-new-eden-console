@@ -2555,6 +2555,13 @@ it('revokes the Gorgoneion face projection when docking changes or the first car
 
   await assertSucceeds(getDoc(doc(as('gorg'), projectionPath)));
   await env.withSecurityRulesDisabled(async (ctx) => {
+    await updateDoc(doc(ctx.firestore(), SESSION), { phase: 'debrief' });
+  });
+  await assertFails(getDoc(doc(as('gorg'), projectionPath)));
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await updateDoc(doc(ctx.firestore(), SESSION), { phase: 'active' });
+  });
+  await env.withSecurityRulesDisabled(async (ctx) => {
     await updateDoc(doc(ctx.firestore(), SESSION), {
       'smallShipStates.gorgoneion.dockingRevision': 3,
     });
