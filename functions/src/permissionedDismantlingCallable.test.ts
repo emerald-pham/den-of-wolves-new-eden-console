@@ -463,6 +463,26 @@ it('requires a new proposal after the target player revokes the exact request', 
   expect(store.records.get(paths().inbox)).toMatchObject({ status: 'revoked', consentId: CONSENT_ID });
 });
 
+it('lets the target player decline a pending proposal without damage or materials changes', async () => {
+  const store = seededStore();
+  const callables = createPermissionedDismantlingCallables(dependencies(store));
+  await callables.proposePermissionedDismantling(proposeRequest());
+  const beforeDamage = structuredClone(store.records.get(paths().session)?.shipDamage);
+  const beforeResources = structuredClone(store.records.get(paths().session)?.shipResources);
+  const declineRequest = request('target-player', { sessionId: SESSION_ID, proposalId: PROPOSAL_ID });
+
+  await expect(callables.declinePermissionedDismantling(declineRequest))
+    .resolves.toMatchObject({ status: 'declined', proposalId: PROPOSAL_ID });
+  const writesAfterDecision = store.committedWrites.length;
+  await expect(callables.declinePermissionedDismantling(declineRequest))
+    .resolves.toMatchObject({ status: 'replayed', proposalId: PROPOSAL_ID });
+
+  expect(store.committedWrites).toHaveLength(writesAfterDecision);
+  expect(store.records.get(paths().session)?.shipDamage).toEqual(beforeDamage);
+  expect(store.records.get(paths().session)?.shipResources).toEqual(beforeResources);
+  expect(store.records.get(paths().inbox)).toMatchObject({ status: 'declined', consentId: null });
+});
+
 it('rejects an inactive target, changed docking, an already-damaged console, and material overflow atomically', async () => {
   const inactiveStore = seededStore();
   const inactive = createPermissionedDismantlingCallables(dependencies(inactiveStore));
