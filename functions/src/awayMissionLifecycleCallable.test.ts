@@ -227,7 +227,7 @@ function seededStore(options: { readonly warrior?: boolean; readonly siteCode?: 
   return store;
 }
 
-function dependencies(store: FakeStore, options: { readonly d6?: number } = {}) {
+function dependencies(store: FakeStore, options: { readonly d6?: number; readonly prepareRewardDelivery?: (context: unknown) => Promise<() => void> } = {}) {
   let randomCalls = 0;
   let d6Calls = 0;
   const db = store;
@@ -261,6 +261,7 @@ function dependencies(store: FakeStore, options: { readonly d6?: number } = {}) 
         craftIds: roleId === 'wing-commander' ? ['starlight'] :
           roleId === 'warrior-captain' ? ['warrior'] : [],
       })),
+    prepareRewardDelivery: options.prepareRewardDelivery ?? (async () => () => undefined),
     deriveContext: async ({ session }) => {
       const turnPhase = session.get('turnPhase') as Fields | undefined;
       return {
@@ -567,4 +568,41 @@ it('fails closed when any immutable P403 start, deck, initial hand, or pointer s
     }))).rejects.toMatchObject({ code: 'failed-precondition' });
     expect(store.committedWrites).toHaveLength(0);
   }
+});
+
+
+it('commits destination rewards with custody atomically and never reapplies them after a lost acknowledgement', async () => {
+  const store = seededStore({ warrior: true, siteCode: 'D' });
+  let preparations = 0;
+  const commit = dependencies(store, { prepareRewardDelivery: async (raw) => {
+    preparations += 1;
+    const context = raw as { transaction: Transaction; nextRecord: { specialRewards: unknown }; shipId: string };
+    expect(context.shipId).toBe('aegis');
+    expect(context.nextRecord.specialRewards).toMatchObject([{ resources: { food: 1, materials: 1 } }]);
+    const destination = await context.transaction.get(store.doc(paths().session));
+    const amount = destination.get('deliveredFood') as number | undefined;
+    return () => context.transaction.update(store.doc(paths().session), { deliveredFood: (amount ?? 0) + 1 });
+  } }).commitAwayMissionLifecycleCommand;
+  const send = (uid: string, type: string, fields: Fields = {}) => commit(commandRequest(uid, {
+    type, requestId: `${type}-${uid}`, expectedRevision: currentRevision(store), ...fields,
+    ...(uid === 'gm' ? { instanceId: 'gm-instance' } : {}),
+  }));
+  await send('gm', 'openDiscards');
+  await send('alice', 'discardCard', { cardId: ALICE_CARD });
+  await send('bob', 'reclamatorSalvage', { opportunityId: 'D-1', choices: [{ cardId: BOB_CARD, resource: 'food' }] });
+  await send('alice', 'assignCards', { placements: [] });
+  await send('bob', 'assignCards', { placements: [] });
+  const request = commandRequest('alice', {
+    type: 'dropOff', requestId: 'deliver-once', expectedRevision: currentRevision(store), shipId: 'aegis',
+  });
+  store.retryCallbacks = 1;
+  store.loseNextAcknowledgement = true;
+  await expect(commit(request)).rejects.toThrow('simulated lost acknowledgement');
+  expect(store.records.get(paths().session)?.deliveredFood).toBe(1);
+  expect(store.records.get(paths().mission)?.status).toBe('complete');
+  const writes = store.committedWrites.length;
+  await expect(commit(request)).resolves.toMatchObject({ status: 'replayed' });
+  expect(preparations).toBe(2);
+  expect(store.records.get(paths().session)?.deliveredFood).toBe(1);
+  expect(store.committedWrites).toHaveLength(writes);
 });
