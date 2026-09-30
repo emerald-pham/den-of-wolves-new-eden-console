@@ -4282,6 +4282,39 @@ it('sends blind jumps without a client destination and applies the authoritative
   });
 });
 
+it('applies the same Ram Scoop receipt twice without duplicating its ore award locally', async () => {
+  const requestId = '30400000-0000-4000-8000-000000000014';
+  vi.spyOn(window.crypto, 'randomUUID').mockReturnValue(requestId);
+  useSessionStore.getState().setIdentity({
+    ...session, phase: 'active', currentTurn: 1,
+    shipGalacticCoordinates: { icebreaker: '0000' },
+    shipResources: { icebreaker: { ...INITIAL_SHIP_RESOURCES.icebreaker!, fuel: 20, ore: 4 } },
+    vesselActionRevisions: { icebreaker: 1 },
+  }, { ...player, role: 'gm' });
+  useSessionStore.getState().setGmInstance({
+    id: 'bridge', sessionId: 's1', uid: 'u1', name: 'Bridge',
+    deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+  });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  const callable = Object.assign(vi.fn().mockResolvedValue({ data: {
+    status: 'jumped', shipId: 'icebreaker', origin: '0000', destination: '5143',
+    length: 'short', fuelCost: 3, remainingFuel: 17, ramScoopOreGain: 10, remainingOre: 14,
+    state: { lastJumpTurn: 1 }, revision: 2,
+    idempotencyKey: requestId, auditId: `jump-ship-${requestId}`,
+    actorUid: 'u1', actorRoleId: null, vesselId: 'icebreaker', turn: 1, phase: 'active',
+  } }), { stream: vi.fn() });
+  vi.mocked(httpsCallable).mockReturnValue(callable as never);
+
+  const attempt = createJumpShipAttempt('icebreaker', undefined, { blind: true });
+  await jumpShip(attempt);
+  await jumpShip(attempt);
+
+  expect(callable).toHaveBeenCalledTimes(2);
+  expect(callable.mock.calls[0]?.[0]).toEqual(callable.mock.calls[1]?.[0]);
+  expect(useSessionStore.getState().session?.shipResources?.icebreaker?.ore).toBe(14);
+});
+
 it('does not apply a delayed jump success over a newer ship projection', async () => {
   const initialSession = {
     ...session, phase: 'active' as const, currentTurn: 1,
