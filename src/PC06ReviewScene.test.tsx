@@ -141,9 +141,9 @@ it('follows private mission cards through local assignment, results, rewards, an
 
 it('uses the real group-note controls while keeping the local note out of the other sample group', async () => {
   render(<PC06ReviewScene />);
-  fireEvent.click(screen.getByRole('button', { name: '3 Scouting', exact: true }));
+  fireEvent.click(screen.getByRole('button', { name: '3 Scouting' }));
   fireEvent.change(screen.getByLabelText('Note to your fleet group'), { target: { value: 'Fleet two stays here.' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Send group note', exact: true }));
+  fireEvent.click(screen.getByRole('button', { name: 'Send group note' }));
   expect(await screen.findByText('Fleet two stays here.')).toBeVisible();
   expect(within(screen.getByRole('region', { name: 'Fleet 1 sample view' })).queryByText('Fleet two stays here.')).toBeNull();
 });
