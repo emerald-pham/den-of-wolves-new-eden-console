@@ -49,6 +49,14 @@
 .away-mission-lifecycle__muted { color: var(--cic-muted); }
 .away-mission-lifecycle__actions { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: end; }
 .away-mission-lifecycle__actions > label { flex: 1 1 15rem; }
+.away-mission-lifecycle__header { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
+.away-mission-lifecycle__result { border-inline-start: 0.25rem solid var(--cic-amber); padding-inline-start: 0.75rem; }
+
+@media (max-width: 640px) {
+  .away-mission-lifecycle__actions { align-items: stretch; flex-direction: column; }
+  .away-mission-lifecycle__actions > * { width: 100%; }
+  .away-mission-lifecycle__actions > label { flex-basis: auto; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .away-mission-lifecycle * { animation: none !important; transition: none !important; }

@@ -147,19 +147,7 @@ export default function AwayMissionLifecyclePanel({
 
   return (
     <section className="away-mission-lifecycle cic-frame" aria-label={`Away mission // ${publicState.missionId}`}>
-      <style data-away-mission-lifecycle>{`
-        .away-mission-lifecycle { display: grid; gap: 1rem; min-width: 0; padding: clamp(1rem, 2vw, 1.5rem); }
-        .away-mission-lifecycle__header, .away-mission-lifecycle__actions { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
-        .away-mission-lifecycle__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr)); gap: .85rem; }
-        .away-mission-lifecycle__card, .away-mission-lifecycle__opportunity { border: 1px solid var(--console-line, #38615f); border-radius: .35rem; padding: .8rem; background: var(--console-panel, #101c20); }
-        .away-mission-lifecycle label { display: grid; gap: .35rem; min-width: min(100%, 12rem); color: var(--console-text, #e7e6dc); }
-        .away-mission-lifecycle button, .away-mission-lifecycle select, .away-mission-lifecycle input { min-height: 2.75rem; max-width: 100%; }
-        .away-mission-lifecycle :focus-visible { outline: 3px solid var(--console-focus, #a7d6bc); outline-offset: 2px; }
-        .away-mission-lifecycle__muted { color: var(--console-muted, #aab7b2); }
-        .away-mission-lifecycle__result { border-inline-start: .25rem solid var(--console-accent, #b4cda8); padding-inline-start: .75rem; }
-        @media (max-width: 640px) { .away-mission-lifecycle__actions { align-items: stretch; flex-direction: column; } .away-mission-lifecycle__actions > * { width: 100%; } }
-        @media (prefers-reduced-motion: reduce) { .away-mission-lifecycle, .away-mission-lifecycle * { animation: none !important; scroll-behavior: auto !important; transition: none !important; } }
-      `}</style>
+
 
       <header className="away-mission-lifecycle__header">
         <div>

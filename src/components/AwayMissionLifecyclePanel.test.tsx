@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import AwayMissionLifecyclePanel, { type AwayMissionLifecyclePanelProps } from './AwayMissionLifecyclePanel';
@@ -205,7 +206,7 @@ describe('AwayMissionLifecyclePanel', () => {
     expect(within(panel).getByRole('option', { name: 'AEGIS' })).toBeInTheDocument();
     expect(within(panel).getByText(/Reclamator salvage \/\/ D-1 \/\/ food 2 \/\/ materials 1/i)).toBeInTheDocument();
 
-    const css = document.querySelector('style[data-away-mission-lifecycle]')?.textContent ?? '';
+    const css = readFileSync('src/components/AwayMissionLifecyclePanel.css', 'utf8');
     expect(css).toMatch(/prefers-reduced-motion/);
     expect(css).toMatch(/min-width:\s*320px|@media\s*\(max-width/);
   });
