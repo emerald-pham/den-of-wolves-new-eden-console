@@ -84,6 +84,8 @@ export interface AwayMissionLifecycleParticipantCraftContext {
   readonly groupId: string;
   readonly participantSnapshots: readonly AwayMissionParticipantSnapshot[];
   readonly availableCarrierCraftIds: readonly string[];
+  /** Captured by P403 alongside its immutable participant roster. */
+  readonly participantCrafts?: readonly AwayMissionParticipantCrafts[];
 }
 
 export interface AwayMissionLifecycleGameContext {
@@ -164,6 +166,7 @@ interface P403MissionContext {
   readonly missionLeaderRoleId: string;
   readonly participantSnapshots: readonly AwayMissionParticipantSnapshot[];
   readonly availableCarrierCraftIds: readonly string[];
+  readonly participantCrafts?: readonly AwayMissionParticipantCrafts[];
   readonly handIds: readonly string[];
   readonly cardIds: readonly MissionCardId[];
   readonly dealtFrom: number;
@@ -650,6 +653,9 @@ function parseP403MissionContext(value: Data, requestedMissionId: string): P403M
   const missionLeaderUid = safePathSegment(value.missionLeaderUid);
   const missionLeaderRoleId = safePathSegment(value.missionLeaderRoleId);
   const availableCarrierCraftIds = uniqueStringArray(value.availableCarrierCraftIds);
+  const participantCrafts = Object.hasOwn(value, 'participantCrafts')
+    ? parseParticipantCraftBindings(value.participantCrafts, participantSnapshots ?? [])
+    : undefined;
   const handIds = stringArray(value.handIds);
   const cardIds = stringArray(value.cardIds) as readonly MissionCardId[] | null;
   const discardedParticipantUids = uniqueStringArray(value.discardedParticipantUids);
@@ -669,6 +675,7 @@ function parseP403MissionContext(value: Data, requestedMissionId: string): P403M
       !Number.isSafeInteger(sourceCycle) || (sourceCycle as number) < 1 ||
       !missionLeaderUid || !missionLeaderRoleId || !leader || leader.roleId !== missionLeaderRoleId ||
       !availableCarrierCraftIds || availableCarrierCraftIds.length === 0 ||
+      (Object.hasOwn(value, 'participantCrafts') && participantCrafts === null) ||
       !handIds || !cardIds || handIds.length !== participantSnapshots.length ||
       cardIds.length !== participantSnapshots.length ||
       !discardedParticipantUids || !discardedCardIds ||
@@ -701,6 +708,7 @@ function parseP403MissionContext(value: Data, requestedMissionId: string): P403M
     missionLeaderRoleId,
     participantSnapshots,
     availableCarrierCraftIds,
+    ...(participantCrafts == null ? {} : { participantCrafts }),
     handIds,
     cardIds,
     dealtFrom: dealtFrom as number,
@@ -764,6 +772,7 @@ async function bootstrapLifecycleRecord(
     groupId: p403.groupId,
     participantSnapshots: p403.participantSnapshots,
     availableCarrierCraftIds: p403.availableCarrierCraftIds,
+    ...(p403.participantCrafts === undefined ? {} : { participantCrafts: p403.participantCrafts }),
   });
   const record = createAwayMissionLifecycleRecord({
     sessionId,
@@ -801,6 +810,10 @@ function requireStoredLifecycleRecord(
       record.lifecycle.siteCode !== p403.siteCode ||
       record.lifecycle.availableCarrierCraftIds.length !== p403.availableCarrierCraftIds.length ||
       record.lifecycle.availableCarrierCraftIds.some((craftId, index) => craftId !== p403.availableCarrierCraftIds[index]) ||
+      (p403.participantCrafts === undefined
+        ? Object.hasOwn(missionData, 'participantCrafts')
+        : !sameJson(record.participantCrafts, p403.participantCrafts) ||
+          !sameJson(missionData.participantCrafts, p403.participantCrafts)) ||
       record.lifecycle.deckState.order.length !== deckState.order.length ||
       record.lifecycle.deckState.order.some((cardId, index) => cardId !== deckState.order[index]) ||
       record.lifecycle.dealtCount < p403.dealtThrough || record.lifecycle.dealtCount > deckCount ||
@@ -850,6 +863,7 @@ function validateStartSnapshot(value: Data, p403: P403MissionContext, sessionId:
       value.siteCode !== p403.siteCode || value.sourceCycle !== p403.sourceCycle ||
       !inputs || !sameJson(inputs.participantSnapshots, p403.participantSnapshots) ||
       !sameJson(inputs.availableCarrierCraftIds, p403.availableCarrierCraftIds) ||
+      (p403.participantCrafts !== undefined && !sameJson(inputs.participantCrafts, p403.participantCrafts)) ||
       inputs.missionLeaderUid !== p403.missionLeaderUid ||
       !stateDelta || stateDelta.missionDeckDealtCountBefore !== p403.dealtFrom ||
       stateDelta.missionDeckDealtCountAfter !== p403.dealtThrough ||
@@ -1184,6 +1198,31 @@ function parseParticipantSnapshots(value: unknown): readonly AwayMissionParticip
     participants.push({ uid, roleId: candidate.roleId as string });
   }
   return participants;
+}
+
+const KNOWN_PARTICIPANT_CRAFT_IDS = new Set([
+  'starlight', 'highwall', 'endeavour', 'hummingbird', 'pdf-escort-fighter-wing',
+  'blacksmith', 'macaw', 'boa', 'capybara-small', 'warrior', 'gorgoneion', 'vulcan',
+]);
+
+function parseParticipantCraftBindings(
+  value: unknown,
+  participants: readonly AwayMissionParticipantSnapshot[],
+): readonly AwayMissionParticipantCrafts[] | null {
+  if (!Array.isArray(value) || value.length !== participants.length) return null;
+  const bindings: AwayMissionParticipantCrafts[] = [];
+  for (const [index, candidate] of value.entries()) {
+    if (!isRecord(candidate) || !hasExactKeys(candidate, ['participantUid', 'craftIds']) ||
+        candidate.participantUid !== participants[index]?.uid || !Array.isArray(candidate.craftIds) ||
+        candidate.craftIds.some((craftId) => typeof craftId !== 'string' ||
+          !KNOWN_PARTICIPANT_CRAFT_IDS.has(craftId)) ||
+        new Set(candidate.craftIds).size !== candidate.craftIds.length) return null;
+    bindings.push({
+      participantUid: candidate.participantUid as string,
+      craftIds: [...candidate.craftIds] as string[],
+    });
+  }
+  return bindings;
 }
 
 function stringArray(value: unknown): readonly string[] | null {

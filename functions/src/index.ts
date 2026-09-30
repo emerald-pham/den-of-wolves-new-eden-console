@@ -55,6 +55,8 @@ import {
 import { enforceExpensiveCallableRateLimit } from './callableRateLimitFirestore';
 import { createSameTableTradeCallables } from './sameTableTradeCallable';
 import { createGorgoneionMissionSupportCallables } from './gorgoneionMissionSupportCallable';
+import { createAwayMissionLifecycleCallables } from './awayMissionLifecycleCallable';
+import { deriveAwayMissionParticipantCraftSnapshots } from './awayMissionCraftSnapshot';
 import { createPermissionedDismantlingCallables } from './permissionedDismantlingCallable';
 import { createVoyage33MovementCallables } from './voyage33MovementCallable';
 import { publicVoyage33MovementState } from './voyage33Movement';
@@ -720,6 +722,71 @@ const gorgoneionMissionSupportCallables = createGorgoneionMissionSupportCallable
   serverTimestamp: () => FieldValue.serverTimestamp(),
 });
 
+const awayMissionLifecycleCallables = createAwayMissionLifecycleCallables({
+  db,
+  commandMarkers: {
+    read: (transaction, sessionId, requestId) =>
+      (transaction as Transaction).get(commandReceiptRef(sessionId, requestId)),
+    create: (transaction, fingerprint, result) => {
+      const sessionId = fingerprint.sessionId;
+      if (!sessionId) throw new Error('Away-mission lifecycle receipts require a session ID.');
+      (transaction as Transaction).create(commandReceiptRef(sessionId, fingerprint.requestId), {
+        fingerprint,
+        result,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    },
+  },
+  serverTimestamp: () => FieldValue.serverTimestamp(),
+  isActivePlayer: (player) => isActivePlayer(player as DocumentSnapshot),
+  requireActiveGm: async (transaction, sessionId, uid, instanceId) => {
+    await requireFacilitatorInstance(transaction as Transaction, sessionId, uid, instanceId);
+  },
+  deriveParticipantCrafts: async ({ participantSnapshots, participantCrafts }) => participantCrafts ??
+    participantSnapshots.map(({ uid, roleId }) => ({
+      participantUid: uid,
+      craftIds: [...awayMissionCraftForRole(roleId)],
+    })),
+  deriveContext: async ({ transaction, session: sessionSnapshot, mission, record, commandType }) => {
+    const session = sessionSnapshot as DocumentSnapshot;
+    const activePhase = turnPhaseState(session.get('turnPhase'));
+    const currentCycle = session.get('currentTurn');
+    const currentTurnState = activePhase ? sessionTurnState(session, activePhase) : undefined;
+    if (!activePhase || !currentTurnState || !Number.isSafeInteger(currentCycle) ||
+        (currentCycle as number) < record.sourceCycle ||
+        activePhase.turn !== currentCycle || currentTurnState.currentTurn !== currentCycle) {
+      throw new HttpsError('failed-precondition', 'Current away-mission cycle authority is unavailable.');
+    }
+
+    let legalDropOffShipIds: string[] = [];
+    if (commandType === 'resolve' || commandType === 'dropOff') {
+      const missionCoordinate = mission.get('coordinate');
+      const activeVesselIds = activeVesselIdsForSession(session);
+      const tx = transaction as Transaction;
+      const [groupSnapshot, navigationSnapshot] = await Promise.all([
+        tx.get(db.doc(`sessions/${record.sessionId}/fleetGroups/${record.groupId}`)),
+        tx.get(navigationStateRef(record.sessionId)),
+      ]);
+      const group = groupSnapshot.exists ? fleetGroupRecord(groupSnapshot.data()) : undefined;
+      if (!group || group.id !== record.groupId || !group.vesselIds.every((shipId) =>
+        activeVesselIds.includes(shipId)) || !navigationSnapshot.exists ||
+          typeof missionCoordinate !== 'string' || !/^\d{4}$/.test(missionCoordinate)) {
+        throw new HttpsError('failed-precondition', 'Current mission-group ship locations are unavailable.');
+      }
+      const navigation = navigationStateForSession(navigationSnapshot, session, activeVesselIds);
+      legalDropOffShipIds = group.vesselIds.filter((shipId) =>
+        navigation.shipGalacticCoordinates[shipId] === missionCoordinate);
+    }
+
+    return {
+      currentCycle: currentCycle as number,
+      teamPhase: currentTurnState.phase === 'team',
+      legalDropOffShipIds,
+      bonusSources: [],
+    };
+  },
+});
+
 const permissionedDismantlingCallables = createPermissionedDismantlingCallables({
   db,
   serverTimestamp: () => FieldValue.serverTimestamp(),
@@ -742,6 +809,9 @@ export const getGorgoneionMissionSupportProjection = onCall((request) =>
 
 export const applyGorgoneionMissionSupport = onCall((request) =>
   gorgoneionMissionSupportCallables.applyGorgoneionMissionSupport(request));
+
+export const commitAwayMissionLifecycleCommand = onCall((request) =>
+  awayMissionLifecycleCallables.commitAwayMissionLifecycleCommand(request));
 
 export const consentToPermissionedDismantling = onCall((request) =>
   permissionedDismantlingCallables.consentToPermissionedDismantling(request));
@@ -9789,13 +9859,38 @@ export const dealPrivateInitialCards = onCall<{
     let missionGroupId: string | undefined;
     for (const participantUid of command.participantUids) {
       const player = playersByUid.get(participantUid);
-      const roleId = player?.get('assignedRoleId');
+      const assignedRoleId = player?.get('assignedRoleId');
+      const replacementRoleId = player?.get('replacementRoleId');
+      const replacementRole = typeof replacementRoleId === 'string'
+        ? replacementRoleFor(replacementRoleId)
+        : undefined;
+      const activeVessels = activeVesselIdsForSession(authority.session);
+      const replacementHolders = typeof replacementRoleId === 'string'
+        ? players.docs.filter((candidate) => candidate.get('replacementRoleId') === replacementRoleId &&
+          candidate.get('replacementStatus') == null)
+        : [];
+      const isAdmittedExtraShipParticipant = !!player && !!replacementRole &&
+        replacementRole.kind === 'extra-ship' && player.get('replacementStatus') == null &&
+        player.get('activeConsoleRoleId') == null && player.get('seatId') == null &&
+        playerEscapeState(player) === undefined && replacementHolders.length === 1 &&
+        replacementHolders[0]!.id === player.id &&
+        replacementRoleAvailable(replacementRoleId as string, {
+          activeVesselIds: activeVessels,
+          expansion: String(authority.session.get('expansion') ?? 'base'),
+          smallShipStates: authority.session.get('smallShipStates'),
+          capybaraEnabled: authority.session.get('capybaraEnabled'),
+        });
+      const roleId = typeof replacementRoleId === 'string' ? replacementRoleId : assignedRoleId;
+      const hasCurrentRole = typeof replacementRoleId === 'string'
+        ? isAdmittedExtraShipParticipant
+        : typeof assignedRoleId === 'string' && activeRoleIds.includes(assignedRoleId) &&
+          player?.get('replacementStatus') == null;
       const groupId = player?.get('fleetGroupId');
       const canonicalGroups = canonicalFleetGroups.filter((group) =>
         group.memberUids.includes(participantUid));
       const canonicalGroupId = canonicalGroups.length === 1 ? canonicalGroups[0]!.id : undefined;
       if (!player || !isActivePlayer(player) || player.get('role') !== 'player' ||
-        typeof roleId !== 'string' || !activeRoleIds.includes(roleId) ||
+        typeof roleId !== 'string' || !hasCurrentRole ||
         typeof groupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(groupId) ||
         canonicalGroupId !== groupId || groupId !== opportunity.groupId ||
         (missionGroupId !== undefined && missionGroupId !== canonicalGroupId)) {
@@ -9813,6 +9908,25 @@ export const dealPrivateInitialCards = onCall<{
         'failed-precondition',
         'The selected Mission Leader must be a current participant in the opportunity group.',
         'malformed-input',
+      );
+    }
+    const rawSmallShipStates = authority.session.get('smallShipStates');
+    const participantCrafts = deriveAwayMissionParticipantCraftSnapshots({
+      participantSnapshots: participants,
+      availableCarrierCraftIds: carrierCraftIds,
+      activeVesselIds: activeVesselIdsForSession(authority.session),
+      smallShipStates: rawSmallShipStates === undefined ? {} : rawSmallShipStates,
+      expansion: authority.session.get('expansion'),
+      capybaraEnabled: authority.session.get('capybaraEnabled'),
+      opportunityGroupVesselIds: opportunityGroup.vesselIds,
+      opportunityCoordinate: opportunity.coordinate,
+      shipGalacticCoordinates: currentNavigation.shipGalacticCoordinates,
+    });
+    if (!participantCrafts) {
+      throw commandError(
+        'failed-precondition',
+        'The mission participant craft snapshot could not be validated.',
+        'conflict',
       );
     }
     const pressureSnapshot = await tx.get(
@@ -9885,6 +9999,7 @@ export const dealPrivateInitialCards = onCall<{
         expectedCycle: command.expectedCycle,
         availableCarrierCraftIds: [...carrierCraftIds],
         participantSnapshots: participants,
+        participantCrafts,
         missionLeaderUid: missionLeader.uid,
       },
       modifiers: [], outcome: 'started',
@@ -9930,6 +10045,7 @@ export const dealPrivateInitialCards = onCall<{
       missionLeaderUid: missionLeader.uid,
       missionLeaderRoleId: missionLeader.roleId,
       participantSnapshots: participants,
+      participantCrafts,
       availableCarrierCraftIds: [...carrierCraftIds],
       handIds: participants.map((participant) => awayMissionHandId(missionId, participant.uid)),
       cardIds: allocations.map(({ card }) => card.id),
