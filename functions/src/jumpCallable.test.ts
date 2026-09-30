@@ -546,7 +546,7 @@ it('adjusts protected pursuit from the server chart depth through facilitator mo
 });
 
 it.each(['move', 'jump'] as const)('keeps immutable mission reward knowledge after %s and does not grant it to another UID', async transition => {
-  mock.missionExploredCoordinatesByUid = { u1: ['6798'], parkedParticipant: ['0102'] };
+  mock.missionExploredCoordinatesByUid = { u1: ['6798'], parkedParticipant: ['1413'] };
   mock.fleetGroups[0]!.memberUids = ['u1', 'u2'];
   mock.players = [
     { id: 'u1', fields: { role: 'player', connected: true, fleetGroupId: 'fleet-1', assignedRoleId: 'admiral' } },
