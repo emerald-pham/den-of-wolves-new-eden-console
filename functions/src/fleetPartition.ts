@@ -35,7 +35,7 @@ export function planFleetPartition(navigation: NavigationState, groups: readonly
     const byCoordinate = new Map<string, string[]>();
     for (const vesselId of group.vesselIds) {
       const coordinate = navigation.shipGalacticCoordinates[vesselId];
-      if (!isStarSystemCoordinate(coordinate)) throw new Error('Fleet partition ship coordinates are malformed.');
+      if (typeof coordinate !== 'string' || !isStarSystemCoordinate(coordinate)) throw new Error('Fleet partition ship coordinates are malformed.');
       byCoordinate.set(coordinate, [...(byCoordinate.get(coordinate) ?? []), vesselId]);
     }
     const partitions = [...byCoordinate.values()].map((ids, index) => ({
@@ -57,11 +57,12 @@ export function planFleetPartition(navigation: NavigationState, groups: readonly
 /** Returning members retain their authority; a new browser cannot choose another partition. */
 export function reconcilePartitionMember(groups: readonly FleetGroupRecord[], uid: string, storedGroupId: unknown) {
   const membership = groups.filter(group => group.memberUids.includes(uid));
-  if (membership.length > 1 || (membership.length === 1 && storedGroupId !== membership[0].id) ||
+  const existing = membership[0];
+  if (membership.length > 1 || (existing && storedGroupId !== existing.id) ||
       (membership.length === 0 && storedGroupId !== undefined && storedGroupId !== null)) {
     throw new Error('Fleet partition membership does not match the returning browser.');
   }
-  if (membership.length === 1) return { group: membership[0], groups };
+  if (existing) return { group: existing, groups };
   const initial = groups.find(group => group.id === 'fleet-1');
   if (!initial) throw new Error('Initial fleet partition membership is unavailable.');
   const group = { ...initial, memberUids: [...initial.memberUids, uid] };
