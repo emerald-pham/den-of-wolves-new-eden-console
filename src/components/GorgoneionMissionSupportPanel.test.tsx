@@ -17,13 +17,18 @@ it('classifies the projected cards and submits both destination lists in source 
     />,
   );
 
-  const cardTwo = screen.getByRole('group', { name: 'Card 2' });
+  const cardTwo = screen.getByRole('group', { name: 'Card 2 — Ace of hearts' });
   fireEvent.click(within(cardTwo).getByLabelText('Move to bottom'));
 
   expect(onPartitionChange).toHaveBeenCalledWith(
     ['Q♣', '5♦', 'K♥', '4♥'],
     ['A♥'],
   );
+  expect(view.container).toHaveTextContent(/Card 1 — Queen of clubs/);
+  expect(view.container).toHaveTextContent(/Card 2 — Ace of hearts/);
+  expect(view.container).toHaveTextContent(/Card 3 — Five of diamonds/);
+  expect(view.container).toHaveTextContent(/Card 4 — King of hearts/);
+  expect(view.container).toHaveTextContent(/Card 5 — Four of hearts/);
   expect(view.container).not.toHaveTextContent(/Q♣|A♥|5♦|K♥|4♥/);
   expect(view.container.querySelector('[value="Q♣"], [value="A♥"], [value="5♦"], [value="K♥"], [value="4♥"]'))
     .toBeNull();
