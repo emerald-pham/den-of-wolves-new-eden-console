@@ -61,6 +61,21 @@ test('PC06 solo scene fits phone, short landscape and desktop in both motion mod
           await page.getByRole('region',{name:'Voyage 33-0 movement'}).getByRole('button',{name:'Dock with Dione',exact:true}).click();
           await page.getByRole('region',{name:'Voyage 33-0 movement'}).getByRole('button',{name:/Jump to Pallas/}).click();
           assert.match(await page.getByRole('status',{name:'Movement sample result'}).textContent(),/local review only/i);
+          const smallCraft = page.getByRole('region',{name:'Small-craft Jump Drive review sample'});
+          await smallCraft.getByRole('button',{name:'Charge Jump Drive',exact:true}).click();
+          assert.match(await smallCraft.getByRole('status',{name:'Small-craft Jump Drive sample result'}).textContent(),/local simulation.*charge ready.*no production charge/i);
+          await smallCraft.getByRole('combobox',{name:'Known destination'}).selectOption('5143');
+          await smallCraft.getByRole('button',{name:'Execute jump',exact:true}).click();
+          assert.match(await smallCraft.textContent(),/Detached[\s\S]*5143[\s\S]*Arrival knowledge recorded for this Captain/);
+          assert.match(await smallCraft.getByRole('status',{name:'Small-craft Jump Drive sample result'}).textContent(),/local simulation.*arrival knowledge.*no production jump/i);
+          await smallCraft.getByRole('button',{name:'Stale-origin sample',exact:true}).click();
+          await smallCraft.getByRole('combobox',{name:'Known destination'}).selectOption('5143');
+          await smallCraft.getByRole('button',{name:'Execute jump',exact:true}).click();
+          assert.match(await smallCraft.getByRole('status',{name:'Small-craft Jump Drive sample result'}).textContent(),/stale-origin sample.*refresh/i);
+          await smallCraft.getByRole('button',{name:'Refresh movement projection',exact:true}).click();
+          assert.ok(await smallCraft.getByText('0101',{exact:true}).isVisible());
+          assert.match(await smallCraft.getByRole('status',{name:'Small-craft Jump Drive sample result'}).textContent(),/recovered sample.*no retry/i);
+          await page.screenshot({path:`/tmp/pc06-review-${width}x${height}-${reducedMotion}-smallcraft.png`,fullPage:true});
           if (reducedMotion === 'reduce') {
             assert.equal(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches),true);
             const animations = await page.locator('.pc06-review *').evaluateAll(elements => elements.map(element=>getComputedStyle(element).animationDuration));

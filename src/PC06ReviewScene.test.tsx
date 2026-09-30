@@ -9,7 +9,14 @@ vi.mock('@/lib/sessionService', async (importOriginal) => {
   return { ...actual, jumpShip: vi.fn() };
 });
 
+vi.mock('@/lib/smallShipJumpService', () => ({
+  chargeSmallShipJumpDrive: vi.fn(),
+  getSmallShipJumpWorkspace: vi.fn(),
+  jumpSmallShip: vi.fn(),
+}));
+
 const { jumpShip } = await import('@/lib/sessionService');
+const smallShipJumpService = await import('@/lib/smallShipJumpService');
 
 beforeEach(() => vi.mocked(jumpShip).mockClear());
 
@@ -40,6 +47,40 @@ it('supports accessible forward and back navigation through the review steps', a
   await user.click(screen.getByRole('button', { name: 'Previous review step' }));
   expect(screen.getByRole('heading', { name: 'Move a vessel and account for its host' })).toBeVisible();
   expect(within(steps).getByRole('button', { name: '1 Movement' })).toHaveAttribute('aria-pressed', 'true');
+});
+
+it('connects the small-craft Jump Drive presentation to local readiness, arrival, and stale-origin samples only', async () => {
+  const user = userEvent.setup();
+  render(<PC06ReviewScene />);
+
+  const boundary = screen.getByRole('note', { name: 'Synthetic review boundary' });
+  expect(boundary).toHaveTextContent(/local-only simulation.*no live session.*callable.*firestore write.*not multiplayer proof/i);
+  const jumpSample = screen.getByRole('region', { name: 'Small-craft Jump Drive review sample' });
+  await user.click(within(jumpSample).getByRole('button', { name: 'Charge Jump Drive' }));
+  expect(within(jumpSample).getByRole('status', { name: 'Small-craft Jump Drive sample result' })).toHaveTextContent(
+    /local simulation.*charge ready.*no production charge/i,
+  );
+
+  await user.selectOptions(within(jumpSample).getByRole('combobox', { name: 'Known destination' }), '5143');
+  await user.click(within(jumpSample).getByRole('button', { name: 'Execute jump' }));
+  expect(within(jumpSample).getByText('Detached')).toBeVisible();
+  expect(within(jumpSample).getByText('5143', { exact: true })).toBeVisible();
+  expect(within(jumpSample).getByText(/0000 \/\/ 5143/)).toBeVisible();
+  expect(within(jumpSample).getByRole('status', { name: 'Small-craft Jump Drive sample result' })).toHaveTextContent(
+    /local simulation.*arrival knowledge.*no production jump/i,
+  );
+
+  await user.click(within(jumpSample).getByRole('button', { name: 'Stale-origin sample' }));
+  await user.selectOptions(within(jumpSample).getByRole('combobox', { name: 'Known destination' }), '5143');
+  await user.click(within(jumpSample).getByRole('button', { name: 'Execute jump' }));
+  expect(within(jumpSample).getByRole('status', { name: 'Small-craft Jump Drive sample result' })).toHaveTextContent(/stale-origin sample.*refresh/i);
+  await user.click(within(jumpSample).getByRole('button', { name: 'Refresh movement projection' }));
+  expect(within(jumpSample).getByText('0101', { exact: true })).toBeVisible();
+  expect(within(jumpSample).getByRole('status', { name: 'Small-craft Jump Drive sample result' })).toHaveTextContent(/recovered sample.*no retry/i);
+
+  expect(smallShipJumpService.chargeSmallShipJumpDrive).not.toHaveBeenCalled();
+  expect(smallShipJumpService.getSmallShipJumpWorkspace).not.toHaveBeenCalled();
+  expect(smallShipJumpService.jumpSmallShip).not.toHaveBeenCalled();
 });
 
 it('simulates docking and a legal destination using the production movement panel', async () => {
