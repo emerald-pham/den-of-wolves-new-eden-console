@@ -53,8 +53,9 @@ export default function GmStarmapModule({ session }: Props) {
   const fleetGroups = [...groupedMarkers.entries()].sort(([left], [right]) =>
     left.localeCompare(right, undefined, { numeric: true }));
   const gameplayFrozen = ['success', 'failure', 'debrief', 'closed'].includes(session.phase);
+  const demoMode = session.singlePlayerDemo !== undefined;
   const canMove = Boolean(
-    selectedShip && selectedCoordinate !== selectedShip.coordinate && !moving && !gameplayFrozen,
+    selectedShip && selectedCoordinate !== selectedShip.coordinate && !moving && !gameplayFrozen && !demoMode,
   );
 
   async function moveSelectedShip(): Promise<void> {
@@ -101,7 +102,9 @@ export default function GmStarmapModule({ session }: Props) {
         >
           Move ship to location
         </button>
-        <p role="status">{gameplayFrozen
+        <p role="status">{demoMode
+          ? 'Demo mode // ship relocation is unavailable.'
+          : gameplayFrozen
           ? 'Endgame evaluation // ship movement is frozen.'
           : status}</p>
       </div>

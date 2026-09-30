@@ -3677,6 +3677,12 @@ export async function setDebriefMode(active: boolean): Promise<CommandDispositio
 
 interface TurnAdvanceReply {
   readonly currentTurn: number;
+  readonly status?: 'complete' | 'committed' | 'replayed';
+  readonly mode?: 'demo';
+  readonly finalCycle?: 1;
+  readonly title?: 'Demo complete';
+  readonly message?: 'Demo mode ends after Cycle 1.';
+  readonly singlePlayerDemo?: GameSession['singlePlayerDemo'];
   readonly phase?: GameSession['phase'];
   readonly gameOutcome?: GameSession['gameOutcome'];
   readonly turnState?: unknown;
@@ -4043,6 +4049,21 @@ function applyTurnAdvanceReply(
     activeSession?.id !== sessionId || !Number.isSafeInteger(reply.currentTurn) ||
     reply.currentTurn < 0 || !authorityCheckpointIsCurrent(checkpoint)
   ) return;
+  if (reply.status === 'complete' || reply.mode === 'demo') {
+    if (
+      reply.status === 'complete' && reply.mode === 'demo' && reply.currentTurn === 1 &&
+      reply.finalCycle === 1 && reply.title === 'Demo complete' &&
+      reply.message === 'Demo mode ends after Cycle 1.' &&
+      reply.singlePlayerDemo?.status === 'complete' && reply.singlePlayerDemo.finalCycle === 1 &&
+      activeSession.currentTurn === reply.currentTurn
+    ) {
+      useSessionStore.getState().setSession({
+        ...activeSession,
+        singlePlayerDemo: reply.singlePlayerDemo,
+      });
+    }
+    return;
+  }
   // A terminal reply is the authoritative lifecycle checkpoint. Do not let
   // optional phase/entity/announcement fields from the same response reopen
   // the completed turn projection after the debrief transition.
@@ -4080,6 +4101,7 @@ function applyTurnAdvanceReply(
   const nextSession = {
     ...activeSession,
     currentTurn: reply.currentTurn,
+    ...(reply.singlePlayerDemo ? { singlePlayerDemo: reply.singlePlayerDemo } : {}),
     ...(hasAnnouncement && announcement ? { turnStartAnnouncement: announcement } : {}),
     ...(reply.maintenanceCycles
       ? { maintenanceCycles: reply.maintenanceCycles }

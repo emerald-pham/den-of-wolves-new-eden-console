@@ -1055,6 +1055,11 @@ export interface PdfEscortWingMemberView {
 }
 
 export interface GameSession {
+  /** Server-owned Cycle 1 cap for the optional single-player Demo. */
+  readonly singlePlayerDemo?: {
+    readonly status: 'active' | 'complete';
+    readonly finalCycle: 1;
+  };
   /** Shared game turn advanced by an active GM; new sessions begin at Turn 0. */
   readonly currentTurn?: number;
   /** Complete server-owned turn entity; legacy clock fields remain supported. */

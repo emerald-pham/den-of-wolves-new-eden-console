@@ -12,6 +12,7 @@ import {
   formatJumpLockout,
 } from '@/lib/jumpDrive';
 import { useConsoleAccess } from '@/lib/consoleAccess';
+import { DemoJumpUnavailableToast } from './DemoJumpUnavailableToast';
 
 interface Props {
   readonly shipId: string;
@@ -29,6 +30,7 @@ interface Props {
   readonly pursuitValue?: number | undefined;
   readonly pursuitEmergencyWindowStatus?: 'awaiting-gm-decision' | 'offered' | undefined;
   readonly presentationOnly?: boolean | undefined;
+  readonly demoMode?: boolean | undefined;
 }
 
 const DIGITS = [0, 1, 2, 3] as const;
@@ -74,6 +76,7 @@ export default function JumpDriveConsole({
   pursuitValue,
   pursuitEmergencyWindowStatus,
   presentationOnly = false,
+  demoMode = false,
 }: Props) {
   const access = useConsoleAccess();
   const [destination, setDestination] = useState(() => coordinateDigits(currentCoordinate).join(''));
@@ -229,6 +232,21 @@ export default function JumpDriveConsole({
     } finally {
       setPending(false);
     }
+  }
+
+  if (demoMode) {
+    return (
+      <section className="jump-drive" aria-label={`${shipName} Jump Drive control`} data-mode="demo">
+        <header className="jump-drive__header">
+          <div>
+            <p className="jump-drive__eyebrow">FTL navigation // Cycle One demo</p>
+            <h4>Jump Drive control</h4>
+          </div>
+          <strong className="jump-drive__mode">DEMO MODE</strong>
+        </header>
+        <DemoJumpUnavailableToast open />
+      </section>
+    );
   }
 
   return (

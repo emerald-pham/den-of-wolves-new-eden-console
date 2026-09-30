@@ -91,6 +91,7 @@ function SystemCard({
           ? { lastFailureRequestId: jumpState.lastFailureRequestId } : {})}
         {...(pursuitValue === undefined ? {} : { pursuitValue })}
         pursuitEmergencyWindowStatus={session?.pursuitEmergencyWindow?.status}
+        demoMode={session?.singlePlayerDemo !== undefined}
       />}
       <dl>
         <div className="aegis-system__condition">

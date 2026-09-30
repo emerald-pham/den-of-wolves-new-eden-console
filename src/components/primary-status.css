@@ -2,6 +2,19 @@
   flex-wrap: wrap;
 }
 
+.app-header__demo-complete {
+  order: 1;
+  flex: 1 0 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0.45rem 0.65rem;
+  border-inline-start: 2px solid var(--cic-cyan);
+  background: color-mix(in srgb, var(--cic-panel) 88%, transparent);
+  color: var(--cic-cyan-hot);
+  font: 0.8rem/1.4 var(--cic-mono);
+  overflow-wrap: anywhere;
+}
+
 .primary-status {
   order: 7;
   flex: 1 0 100%;

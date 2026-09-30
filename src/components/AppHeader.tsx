@@ -310,6 +310,7 @@ export default function AppHeader() {
   const joinCode = useSessionStore((state) => state.session?.joinCode);
   const hasSession = sessionId !== undefined && joinCode !== undefined;
   const currentTurn = useSessionStore((state) => state.session?.currentTurn);
+  const singlePlayerDemo = useSessionStore((state) => state.session?.singlePlayerDemo);
   const gmInstance = useSessionStore((state) => state.gmInstance);
   const gmAccessAuthenticated = useSessionStore(selectGmAccessAuthenticated);
   const activeConsoleRoleId = useSessionStore((state) => state.me?.activeConsoleRoleId);
@@ -456,6 +457,11 @@ export default function AppHeader() {
           connectedPlayers={connectedPlayers}
           label="Current session"
         />
+      )}
+      {singlePlayerDemo?.status === 'complete' && (
+        <p className="app-header__demo-complete" role="status" aria-live="polite">
+          Demo mode ends after Cycle 1.
+        </p>
       )}
       <FleetBroadcast />
       <FleetDirectives />

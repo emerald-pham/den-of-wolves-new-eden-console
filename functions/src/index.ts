@@ -39,6 +39,11 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { commandError } from './commandErrors';
 import {
+  DEMO_COMPLETE_RESULT,
+  getSinglePlayerDemoAdvanceBoundary,
+  getSinglePlayerDemoJumpDenial,
+} from './singlePlayerDemoPolicy';
+import {
   isPursuitEmergencyWindowMarker,
   publicPursuitEmergencyWindow,
   pursuitEmergencyWindowAuthority,
@@ -3513,6 +3518,15 @@ function pursuitEmergencyDecisionAfterMovement(
 
 type TurnAdvanceResult = {
   readonly currentTurn: number;
+  readonly status?: 'complete';
+  readonly mode?: 'demo';
+  readonly finalCycle?: 1;
+  readonly title?: 'Demo complete';
+  readonly message?: 'Demo mode ends after Cycle 1.';
+  readonly singlePlayerDemo?: {
+    readonly status: 'active' | 'complete';
+    readonly finalCycle: 1;
+  };
   readonly phase?: 'debrief' | 'failure';
   readonly gameOutcome?: PursuitFailureOutcome;
   readonly turnState?: ActiveTurnState;
@@ -3545,6 +3559,19 @@ function isTurnAdvanceResult(value: unknown): value is TurnAdvanceResult {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const result = value as Record<string, unknown>;
   if (!Number.isSafeInteger(result.currentTurn) || (result.currentTurn as number) < 0) return false;
+  if (result.singlePlayerDemo !== undefined) {
+    const demo = result.singlePlayerDemo;
+    if (typeof demo !== 'object' || demo === null || Array.isArray(demo) ||
+        !['active', 'complete'].includes(String((demo as Record<string, unknown>).status)) ||
+        (demo as Record<string, unknown>).finalCycle !== 1) return false;
+  }
+  if (result.status === 'complete' || result.mode === 'demo') {
+    const demo = result.singlePlayerDemo as Record<string, unknown> | undefined;
+    return result.status === 'complete' && result.mode === 'demo' &&
+      result.finalCycle === 1 && result.title === DEMO_COMPLETE_RESULT.title &&
+      result.message === DEMO_COMPLETE_RESULT.message && result.phase === undefined &&
+      result.turnPhase === undefined && demo?.status === 'complete' && demo.finalCycle === 1;
+  }
   if (result.pursuitEmergencyWindow !== undefined &&
       !isPursuitEmergencyWindowMarker(result.pursuitEmergencyWindow)) return false;
   if (result.phase === 'debrief') return result.turnPhase === undefined;
@@ -15541,6 +15568,12 @@ export const moveShipToLocation = onCall<{
     const session = await tx.get(sessionRef);
     const attackState = await tx.get(attackStateRef);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const demoDenial = getSinglePlayerDemoJumpDenial(
+      session.get('singlePlayerDemo') !== undefined && session.get('singlePlayerDemo') !== null,
+    );
+    if (demoDenial) {
+      throw commandError('failed-precondition', demoDenial.message, 'invalid-phase');
+    }
     const player = await tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`));
     const storedNavigation = await tx.get(navigationStateRef(change.sessionId));
     const players = await tx.get(db.collection(`sessions/${change.sessionId}/players`));
@@ -15912,6 +15945,12 @@ export const jumpShip = onCall<{
     const players = await tx.get(db.collection(`sessions/${change.sessionId}/players`));
     const fleetGroups = await tx.get(fleetGroupsRef);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const demoDenial = getSinglePlayerDemoJumpDenial(
+      session.get('singlePlayerDemo') !== undefined && session.get('singlePlayerDemo') !== null,
+    );
+    if (demoDenial) {
+      throw commandError('failed-precondition', demoDenial.message, 'invalid-phase');
+    }
     const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'ship jump');
     if (replay) return replay;
@@ -17098,6 +17137,34 @@ export const advanceTurn = onCall<{
     );
     const replay = replayBoundCommand(receipt, fingerprint, isTurnAdvanceResult, 'cycle advance');
     if (replay) return replay;
+    const demoState = session.get('singlePlayerDemo');
+    if (demoState !== undefined && demoState !== null) {
+      if (sessionTurn(session.get('currentTurn')) !== advance.expectedTurn) {
+        throw commandError('failed-precondition', 'The cycle changed. Wait for the live update and try again.', 'stale-revision');
+      }
+      const completion = getSinglePlayerDemoAdvanceBoundary(true, session.get('currentTurn'));
+      if (completion) {
+        const marker = { status: 'complete' as const, finalCycle: 1 as const };
+        const existing = demoState as Record<string, unknown>;
+        if (existing.status !== marker.status || existing.finalCycle !== marker.finalCycle) {
+          tx.update(sessionRef, {
+            singlePlayerDemo: marker,
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        }
+        const result: TurnAdvanceResult = {
+          ...completion,
+          currentTurn: sessionTurn(session.get('currentTurn')),
+          singlePlayerDemo: marker,
+        };
+        tx.set(receiptRef, {
+          fingerprint,
+          result,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+        return result;
+      }
+    }
     const emergencyMarker = pursuitEmergencyWindowMarker(session);
     if (advance.pursuitEmergencyDecision !== undefined) {
       if (!emergencyMarker) {
@@ -17254,7 +17321,7 @@ export const advanceTurn = onCall<{
       pursuitAuthority,
       ordinaryAirspaceClosed,
     );
-    if (result.phase === 'debrief' || result.phase === 'failure' || result.pursuitEmergencyWindow) {
+    if (result.status === 'complete' || result.phase === 'debrief' || result.phase === 'failure' || result.pursuitEmergencyWindow) {
       tx.set(receiptRef, {
         fingerprint,
         result,
@@ -17308,7 +17375,11 @@ export const startSinglePlayerDemo = onCall<{
         'conflict',
       );
     }
-    return advanceTurnInTransaction(tx, sessionRef, sessionId, session, false);
+    const marker = { status: 'active' as const, finalCycle: 1 as const };
+    const result = advanceTurnInTransaction(
+      tx, sessionRef, sessionId, session, false, { singlePlayerDemo: marker },
+    );
+    return { ...result, singlePlayerDemo: marker };
   });
 });
 
