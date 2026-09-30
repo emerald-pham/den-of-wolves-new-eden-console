@@ -180,7 +180,7 @@ describe('away mission lifecycle client service', () => {
     );
 
     await expect(actions.requestExtraCards(1)).rejects.toMatchObject({ code: 'functions/unavailable' });
-    await expect(actions.requestExtraCards(2)).rejects.toThrow(/same request/i);
+    await expect(actions.requestExtraCards(2)).rejects.toThrow(/same away-mission request/i);
     await actions.requestExtraCards(1);
 
     expect(invoke).toHaveBeenCalledTimes(2);
