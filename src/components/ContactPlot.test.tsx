@@ -1102,6 +1102,53 @@ it('reclamps a stationary return when a sweep changes its held fix but skips sam
   expect(layout).toHaveBeenCalled();
 });
 
+it('lays out one complete sweep batch once, while preserving every contact scan', () => {
+  let frame: FrameRequestCallback = () => undefined;
+  let normal = { x: 0, y: 0, z: 1 };
+  vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
+    frame = callback;
+    return 1;
+  }));
+  vi.stubGlobal('cancelAnimationFrame', vi.fn());
+  vi.stubGlobal('DOMMatrixReadOnly', class {
+    constructor(private value: string) {}
+    inverse() { return this; }
+    transformPoint(point: DOMPointInit) { return this.value === 'sweep' ? normal : point; }
+  });
+  vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => ({
+    transform: element.classList.contains('contact-plot__sweep') ? 'sweep' : 'none',
+    width: '200px', height: '200px', perspective: '300px', perspectiveOrigin: '100px 100px',
+  }) as CSSStyleDeclaration);
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    return (this.classList.contains('contact-plot__actual')
+      ? { x: 150, y: 100, left: 150, top: 100, width: 0, height: 0 }
+      : { x: 0, y: 0, left: 0, top: 0, width: 200, height: 200 }) as DOMRect;
+  });
+  const { container } = render(<ContactPlot contacts={Array.from({ length: 20 }, (_, index) => ({
+    id: `batch-${index}`, tag: `CONTACT ${index}`, x: 0.5, y: 0, z: 0, color: 'white',
+  }))} />);
+  const plot = plotIn(container)!;
+  const layout = vi.spyOn(plot, 'getBoundingClientRect');
+  const scans = vi.fn();
+  plot.addEventListener(CONTACT_SCAN_EVENT, scans);
+  act(() => frame(0));
+  layout.mockClear();
+
+  normal = { x: 0.996, y: 0, z: 0.087 };
+  act(() => frame(16));
+  expect(scans).toHaveBeenCalledTimes(20);
+  expect(container.querySelectorAll('.contact-plot__apparent[data-acquired="true"]')).toHaveLength(20);
+  // One sweep projection and one label layout, regardless of contact count.
+  expect(layout).toHaveBeenCalledTimes(2);
+
+  scans.mockClear();
+  layout.mockClear();
+  normal = { x: 0, y: 0, z: 1 };
+  act(() => frame(32));
+  expect(scans).toHaveBeenCalledTimes(20);
+  expect(layout).toHaveBeenCalledTimes(1);
+});
+
 it('reuses stationary return projections until DRADIS geometry changes', () => {
   let frame: FrameRequestCallback = () => undefined;
   let notifyResize: (() => void) | undefined;
