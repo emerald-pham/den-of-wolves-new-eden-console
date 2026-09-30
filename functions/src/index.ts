@@ -55,7 +55,7 @@ import {
 import { enforceExpensiveCallableRateLimit } from './callableRateLimitFirestore';
 import { createSameTableTradeCallables } from './sameTableTradeCallable';
 import { createGorgoneionMissionSupportCallables } from './gorgoneionMissionSupportCallable';
-import { createAwayMissionLifecycleBootstrap } from './awayMissionLifecycleAdapter';
+import { applyAwayMissionLifecycleCommand, createAwayMissionLifecycleBootstrap, projectAwayMissionPrivateState, projectAwayMissionPublicState, type AwayMissionLifecycleRecord, type AwayMissionLifecycleCommand } from './awayMissionLifecycleAdapter';
 import { createAwayMissionLifecycleCallables } from './awayMissionLifecycleCallable';
 import { deriveAwayMissionParticipantCraftSnapshots } from './awayMissionCraftSnapshot';
 import { createPermissionedDismantlingCallables } from './permissionedDismantlingCallable';
@@ -437,6 +437,7 @@ import { aggregateSurvivorOutcome, type SurvivorOutcome } from './survivorOutcom
 import {
   missionDeckStateFromCards,
   parseMissionDeckState,
+  type MissionCardId,
   shuffledMissionDeck,
   type MissionDeckState,
 } from './missionDeck';
@@ -10141,6 +10142,54 @@ export const dealPrivateInitialCards = onCall<{
   });
 });
 
+/** Keep older deployed discard clients on the same authoritative lifecycle. */
+function synchronizeLegacyMissionLifecycle(
+  tx: Transaction,
+  session: DocumentSnapshot,
+  mission: DocumentSnapshot,
+  sessionId: string,
+  actorUid: string,
+  requestId: string,
+  type: 'openDiscards' | 'discardCard',
+  cardId?: string,
+): void {
+  const stored = mission.get('lifecycleRecord');
+  if (stored === undefined) return;
+  const record = stored as AwayMissionLifecycleRecord;
+  const command: AwayMissionLifecycleCommand = type === 'discardCard'
+    ? { type, requestId, expectedRevision: mission.get('revision') as number, cardId: cardId as MissionCardId }
+    : { type, requestId, expectedRevision: mission.get('revision') as number };
+  const result = applyAwayMissionLifecycleCommand(record, command, {
+    actorUid, isActiveGm: type === 'openDiscards', teamPhase: session.get('turnPhase.phase') === 'team',
+    currentCycle: session.get('currentTurn') as number, legalDropOffShipIds: [],
+  });
+  if (result.status !== 'committed' || !result.record) {
+    throw commandError('failed-precondition', 'The current mission lifecycle cannot accept this private-card action.', 'conflict');
+  }
+  const nextRecord = result.record;
+  const states = nextRecord.lifecycle.participants.map(({ uid: participantUid }) => ({
+    participantUid,
+    privateState: projectAwayMissionPrivateState(nextRecord, participantUid),
+    publicState: projectAwayMissionPublicState(nextRecord, participantUid),
+  }));
+  if (states.some((state) => !state.privateState || !state.publicState)) {
+    throw commandError('failed-precondition', 'Current mission projections could not be validated.', 'conflict');
+  }
+  tx.update(mission.ref, { lifecycleRecord: nextRecord, status: nextRecord.status, overrun: nextRecord.overrun });
+  for (const state of states) {
+    const handId = awayMissionHandId(nextRecord.lifecycle.missionId, state.participantUid);
+    tx.update(db.doc(`sessions/${sessionId}/awayMissionHands/${handId}`), {
+      revision: nextRecord.revision, phase: state.privateState!.phase,
+      lifecyclePrivateState: state.privateState,
+    });
+    tx.update(db.doc(`sessions/${sessionId}/awayMissionHandPointers/${handId}`), {
+      revision: nextRecord.revision, phase: state.publicState!.phase,
+      lifecyclePublicState: state.publicState,
+      discarded: state.privateState!.cards.some(({ status }) => status === 'discarded'),
+    });
+  }
+}
+
 type AwayMissionDiscardReadyReply = Readonly<{
   status: 'committed' | 'replayed' | 'stale';
   sessionId: string;
@@ -10294,12 +10343,13 @@ export const openPrivateMissionDiscards = onCall<{
       participantCount: participants.length,
       expectedSetupRevision: command.expectedSetupRevision,
     };
+    synchronizeLegacyMissionLifecycle(tx, authority.session, missionSnapshot, command.sessionId, uid, command.requestId, 'openDiscards');
     tx.update(missionRef, {
       phase: 'discarding',
       revision: (revision as number) + 1,
       updatedAt: FieldValue.serverTimestamp(),
     });
-    participants.forEach((_participant, index) => {
+    if (missionSnapshot.get('lifecycleRecord') === undefined) participants.forEach((_participant, index) => {
       tx.update(pointerRefs[index]!, {
         phase: 'discarding',
         revision: (revision as number) + 1,
@@ -10518,6 +10568,7 @@ export const discardPrivateMissionCard = onCall<{
       missionId: command.missionId,
       expectedSetupRevision: command.expectedSetupRevision,
     };
+    synchronizeLegacyMissionLifecycle(tx, session, missionSnapshot, command.sessionId, uid, command.requestId, 'discardCard', command.cardId);
     tx.update(handRef, {
       discarded: true,
       discardedAt: FieldValue.serverTimestamp(),
@@ -10529,13 +10580,13 @@ export const discardPrivateMissionCard = onCall<{
       revision: revision + 1,
       updatedAt: FieldValue.serverTimestamp(),
     });
-    tx.update(pointerRef, {
+    if (missionSnapshot.get('lifecycleRecord') === undefined) tx.update(pointerRef, {
       phase: allParticipantsDiscarded ? 'assignment-ready' : 'discarding',
       revision: revision + 1,
       discarded: true,
       updatedAt: FieldValue.serverTimestamp(),
     });
-    if (allParticipantsDiscarded) {
+    if (allParticipantsDiscarded && missionSnapshot.get('lifecycleRecord') === undefined) {
       participants.forEach((candidate) => {
         if (candidate.uid === uid) return;
         tx.update(db.doc(`sessions/${command.sessionId}/awayMissionHandPointers/${awayMissionHandId(command.missionId, candidate.uid)}`), {
