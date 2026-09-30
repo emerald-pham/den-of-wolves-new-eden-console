@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { HttpsError } from 'firebase-functions/v2/https';
 import { emptySmallShipState } from './smallShip';
 import { missionDeck, missionDeckStateFromCards } from './missionDeck';
 import { createGorgoneionMissionSupportCallables } from './gorgoneionMissionSupportCallable';
