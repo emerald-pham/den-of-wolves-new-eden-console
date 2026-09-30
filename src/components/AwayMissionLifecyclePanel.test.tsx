@@ -93,6 +93,22 @@ describe('AwayMissionLifecyclePanel', () => {
     expect(actions.discardCard).toHaveBeenCalledWith('A♥');
   });
 
+  it('does not offer a second discard after the participant has used their one standard discard', () => {
+    renderPanel({
+      publicState: { ...basePublicMission, phase: 'discarding' },
+      privateState: {
+        ...privateHand,
+        phase: 'discarding',
+        cards: [
+          { id: '10♦', value: 10, status: 'discarded', opportunityId: null },
+          { id: 'A♥', value: 10, status: 'remaining', opportunityId: null },
+        ],
+      },
+    });
+
+    expect(screen.queryByRole('button', { name: 'Discard A♥ secretly' })).not.toBeInTheDocument();
+  });
+
   it('lets an admitted Warrior choose one private resource for every card in one salvage opportunity', async () => {
     const actions = renderPanel({
       canUseReclamator: true,
