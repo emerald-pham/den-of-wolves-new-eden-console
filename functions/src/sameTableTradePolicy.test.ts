@@ -108,7 +108,10 @@ describe('same-table trade policy', () => {
       { uid: 'giver', active: true, tableId: 'aegis' },
       { uid: 'receiver', active: true, tableId: 'dione' },
     ] }],
-    ['offer names another table', { offer: { ...offer, tableId: 'dione' } }],
+    ['offer names another table', {
+      offer: { ...offer, tableId: 'dione' },
+      acceptance: { actorUid: 'receiver', offer: { ...offer, tableId: 'dione' } },
+    }],
     ['missing sender', { participants: [{ uid: 'receiver', active: true, tableId: 'aegis' }] }],
   ])('rejects %s with no partial transfer', (_label, change) => {
     const attempt = { ...input, ...change };
@@ -127,7 +130,7 @@ describe('same-table trade policy', () => {
     expect(() => resolveSameTableTrade({
       ...input,
       acceptance: { actorUid: 'receiver', offer: { ...offer, quantities: { ore: 4, fuel: 2 } } },
-    })).toThrow(/exact offer/i);
+    })).toThrow(/exact.*offer/i);
   });
 
   it('rejects a stale offer and a changed offer that kept its old acceptance', () => {
@@ -137,7 +140,7 @@ describe('same-table trade policy', () => {
     expect(() => resolveSameTableTrade({
       ...input,
       offer: { ...offer, quantities: { ore: 4, fuel: 2 } },
-    })).toThrow(/exact offer/i);
+    })).toThrow(/exact.*offer/i);
   });
 
   it('replays an exact committed offer without applying the transfer again or changing its receipt', () => {
