@@ -405,6 +405,13 @@ describe('discardPrivateMissionCard', () => {
     };
   });
 
+  it('rejects a malformed lifecycle record at the legacy discard endpoint without desynchronizing projections', async () => {
+    mock.discardMission = { ...mock.discardMission, lifecycleRecord: { schemaVersion: 1 } };
+    await expect(discardPrivateMissionCard.run(request(command, 'alice'))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled();
+  });
+
   it('consumes exactly one owned card without returning card identity or content', async () => {
     await expect(discardPrivateMissionCard.run(request(command, 'alice'))).resolves.toEqual({
       status: 'committed', sessionId: 's1', requestId: 'discard-1',
