@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   jumpFuelCost,
   jumpLengthBetween,
+  resolveRamScoopOreGain,
   resolveJumpAttempt,
 } from './jumpDrive';
 import * as jumpDrive from './jumpDrive';
@@ -228,5 +229,40 @@ describe('authoritative jump-drive resolution', () => {
       status: 'integrity-locked',
       integrityLockedUntil: '2026-09-07T13:30:00.000Z',
     });
+  });
+
+  it.each([
+    ['short', '5143', 10],
+    ['medium', '9997', 15],
+    ['long', '4888', 20],
+  ] as const)('awards the Icebreaker Ram Scoop output after a successful %s jump', (length, destination, ore) => {
+    const result = resolveJumpAttempt({
+      shipId: 'icebreaker', origin: '0000', destination, currentTurn: 1,
+      fuel: 20, charged: true, damaged: false, upgraded: false, now,
+      transitionId: `ram-scoop-${length}`,
+    });
+
+    expect(result).toMatchObject({ status: 'jumped', length });
+    expect(resolveRamScoopOreGain(result, { charged: true, damaged: false, upgraded: false })).toBe(ore);
+    expect(resolveRamScoopOreGain(result, { charged: true, damaged: false, upgraded: true })).toBe(ore + 5);
+  });
+
+  it('requires a successful Icebreaker jump with a charged, undamaged Ram Scoop', () => {
+    const jump = (overrides: Partial<Parameters<typeof resolveJumpAttempt>[0]> = {}) =>
+      resolveJumpAttempt({
+        shipId: 'icebreaker', origin: '0000', destination: '5143', currentTurn: 1,
+        fuel: 20, charged: true, damaged: false, upgraded: false, now,
+        transitionId: 'ram-scoop-eligibility', ...overrides,
+      });
+    const successful = jump();
+    const failed = jump({ damaged: true, integrityRoll: 1 });
+    const wrongDestination = jump({ destination: '0101' });
+    const otherShip = jump({ shipId: 'shepherd' });
+
+    expect(resolveRamScoopOreGain(successful, { charged: false, damaged: false, upgraded: false })).toBe(0);
+    expect(resolveRamScoopOreGain(successful, { charged: true, damaged: true, upgraded: true })).toBe(0);
+    expect(resolveRamScoopOreGain(failed, { charged: true, damaged: false, upgraded: true })).toBe(0);
+    expect(resolveRamScoopOreGain(wrongDestination, { charged: true, damaged: false, upgraded: true })).toBe(0);
+    expect(resolveRamScoopOreGain(otherShip, { charged: true, damaged: false, upgraded: true })).toBe(0);
   });
 });
