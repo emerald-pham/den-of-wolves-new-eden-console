@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import {
   classifyRiskGates,
   formatRiskGateOutputs,
@@ -88,6 +89,23 @@ const MALIADE_REPAIR_REQUEST_ADDITIONS = Object.freeze([
     `  return {\n    sessionId: raw.sessionId, requestId: raw.requestId,\n    expectedCycle: raw.expectedCycle as number, expectedRevision: raw.expectedRevision as number,\n    expectedHostShipId: raw.expectedHostShipId, damageToRepair: raw.damageToRepair as number,\n  };`,
   ],
 ]);
+
+// Exact PC06 source transitions include factory wiring and transitive helpers.
+// This owner inventory selects deployment targets; it does not grant review approval.
+const PC06_DEPLOYMENT_CONSUMERS = JSON.parse(readFileSync(
+  new URL('./pc06-deployment-consumers.json', import.meta.url), 'utf8',
+));
+
+function pc06TransitionConsumers(file, previous, current) {
+  const transition = file === 'functions/src/index.ts'
+    ? PC06_DEPLOYMENT_CONSUMERS.index : PC06_DEPLOYMENT_CONSUMERS.modules[file];
+  const digest = source => createHash('sha256').update(source).digest('hex');
+  if (!transition || digest(previous) !== transition.before) return null;
+  if (digest(current) !== transition.after) {
+    throw new Error(`Cannot safely map PC06 ${file} outside its exact source consumer audit.`);
+  }
+  return [...transition.consumers];
+}
 
 // Keep this dependency map explicit. When a shared helper changes, deploy every
 // callable known to consume it; unknown production modules fail closed below.
@@ -642,6 +660,8 @@ function changedIndexCallables(before, after, cwd, sourceAtRevision = null) {
     }
     return [...new Set([...changed, ...PC05_INDEX_HELPER_TRANSITION.consumers])];
   }
+  const pc06Consumers = pc06TransitionConsumers('functions/src/index.ts', previousSource, currentSource);
+  if (pc06Consumers) return [...new Set([...changed, ...pc06Consumers])];
   return changed;
 }
 
@@ -1329,6 +1349,24 @@ function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }
     file.startsWith('functions/src/') && !isTestFile(file) && /\.(?:ts|js|mjs|cjs)$/.test(file));
   const selected = new Set();
   for (const file of runtimeFiles) {
+    if (file !== 'functions/src/index.ts' && PC06_DEPLOYMENT_CONSUMERS.modules[file]) {
+      const readAt = revision => {
+        if (sourceAtRevision) return sourceAtRevision(revision, file);
+        try {
+          return execFileSync('git', ['show', `${revision}:${file}`], {
+            cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 16 * 1024 * 1024,
+          });
+        } catch {
+          if (revision === before) return '';
+          throw new Error(`Cannot safely determine PC06 module source ${file}.`);
+        }
+      };
+      const consumers = pc06TransitionConsumers(file, readAt(before), readAt(after));
+      if (consumers) {
+        for (const name of consumers) selected.add(name);
+        continue;
+      }
+    }
     if (file === 'functions/src/airspaceClosureTaskHandlers.ts') {
       for (const name of airspaceClosureTaskHandlerImpacts(before, after, cwd, sourceAtRevision)) selected.add(name);
       continue;

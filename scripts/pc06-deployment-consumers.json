@@ -1,0 +1,551 @@
+{
+  "schemaVersion": 1,
+  "baseline": "c27842ff6d9e240209bbfc5798f7dbeff519110a",
+  "implementationCandidate": "0b4f8494",
+  "auditBoundary": "Owner source consumer inventory; independent exact-candidate security review still required.",
+  "index": {
+    "before": "51eec3ab6fe1a97c7df6fddcda474ede2a9abfaacac2581a52866e5fc12d00d0",
+    "after": "db01c9dcbc64d12d1ac2e4d378fe102cf833961d85bfa320d30871b4535722e3",
+    "consumers": [
+      "acceptSameTableTradeOffer",
+      "addShipDamage",
+      "adjudicateFailedJump",
+      "adjustShipPopulation",
+      "adjustShipResource",
+      "adjustShipUnrest",
+      "admitVoyage33",
+      "advanceTurn",
+      "advanceWolfAttackToLongRange",
+      "allocateHummingbirdHarvest",
+      "applyAegisCommandAndControl",
+      "applyCommissarPurge",
+      "applyGorgoneionMissionSupport",
+      "applyPermissionedDismantling",
+      "applyShipCounterSteps",
+      "applyWolfCommanderTargetRerolls",
+      "assignReplacementRole",
+      "attestPlayerHeldTokenBaseline",
+      "authorArbourVision",
+      "authorFacilitatorRuleCall",
+      "beginOpenAirspacePhase",
+      "beginShuttleTransit",
+      "buildFighter",
+      "calculateArrestPosse",
+      "commitAwayMissionLifecycleCommand",
+      "confirmFleetPartition",
+      "confirmSetup",
+      "consentCommissarPurge",
+      "consentToPermissionedDismantling",
+      "createSameTableTradeOffer",
+      "createSession",
+      "declareWolfAttack",
+      "declinePermissionedDismantling",
+      "deliverWolfCultIntelligence",
+      "discardPrivateMissionCard",
+      "dismissPopulationAlert",
+      "dismissPressDispatch",
+      "dismissUnrestAlert",
+      "dockVoyage33",
+      "drawVipCard",
+      "evacuateShuttleSurvivorsCommand",
+      "extendAirspaceWindow",
+      "finishWolfCommanderTargetingRerolls",
+      "fleeDestroyedShip",
+      "getAegisCommandAndControl",
+      "getDioneMaliadesLaunch",
+      "getGorgoneionMissionSupportProjection",
+      "getPdfEscortWingLaunch",
+      "getSmallShipJumpWorkspace",
+      "getWolfCommanderTargeting",
+      "investigateAsIntelligenceAgent",
+      "joinSession",
+      "jumpShip",
+      "jumpSmallShip",
+      "jumpVoyage33",
+      "kickPlayer",
+      "launchDioneMaliades",
+      "launchPdfEscortWing",
+      "listUnresolvedJumpFailures",
+      "moveShipToLocation",
+      "openPrivateMissionDiscards",
+      "popShipConfetti",
+      "proposePermissionedDismantling",
+      "publishAdmiralDirectiveCommand",
+      "publishPressDispatch",
+      "readFleetGroupMessages",
+      "rechargeHostConsoleFromShuttle",
+      "recordCivilUnrestResolution",
+      "recordPresidentActionCommand",
+      "recordZealotryResponse",
+      "recycleWithBoa",
+      "repairAllShipDamage",
+      "repairConsolesFromBlacksmith",
+      "repairConsolesFromChacau",
+      "repairConsolesFromMacaw",
+      "repairConsolesFromPhilia",
+      "replayTurnStartAnnouncement",
+      "requestScout",
+      "requestShuttleDeparture",
+      "rerollVipUnrest",
+      "resolveShipMutiny",
+      "resolveWolfConsoleSabotage",
+      "resumeSession",
+      "retargetShuttleTransit",
+      "revealAndroidProof",
+      "revokePermissionedDismantlingConsent",
+      "rollDice",
+      "rollHummingbirdHarvest",
+      "rollbackMaintenance",
+      "runMaintenance",
+      "runSmallShipMaintenance",
+      "runVoyage33Maintenance",
+      "runVulcanAdditionalLabour",
+      "scavengeDestroyedShipStores",
+      "sendFleetGroupMessage",
+      "setCandidatePlanCheckpoint",
+      "setDiseaseQuarantine",
+      "setEmergencyTimerPaused",
+      "setFacilitatorCensusNote",
+      "setFighterWingCount",
+      "setFleetRedAlert",
+      "setGmControlsLocked",
+      "setPressEnabled",
+      "setReplacementEligibility",
+      "setShipConsoleLock",
+      "setSmallShipDocking",
+      "startGame",
+      "startSinglePlayerDemo",
+      "startWolfConsoleVisit",
+      "submitCivilUnrestGrievance",
+      "submitWolfHomingBeacon",
+      "submitWolfIntelligence",
+      "submitWolfSupplySabotage",
+      "transferShuttleCargoCommand",
+      "transferShuttleControlCommand",
+      "transferVipCard",
+      "transitionCrisis",
+      "triggerDradisContact",
+      "unlockPressAirspace",
+      "updatePoliticalCapital",
+      "upgradeEndeavourFieldTargets"
+    ]
+  },
+  "modules": {
+    "functions/src/awayMissionBonuses.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "bb19f8eb35449aa2fbd26535d3afcde511e4431d73a6d1476573b0719f6e2652",
+      "consumers": [
+        "commitAwayMissionLifecycleCommand",
+        "dealPrivateInitialCards",
+        "discardPrivateMissionCard",
+        "openPrivateMissionDiscards"
+      ]
+    },
+    "functions/src/awayMissionCraftSnapshot.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "0054f90a3ed0a567945f167eeb047063c24d40181f28592f08c9ace1054bda12",
+      "consumers": [
+        "dealPrivateInitialCards"
+      ]
+    },
+    "functions/src/awayMissionLifecycleAdapter.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "f662c74e1024e2517452b9e5dd42c96dcc1e95157707128c8c4c764ba80ceed8",
+      "consumers": [
+        "commitAwayMissionLifecycleCommand",
+        "dealPrivateInitialCards",
+        "discardPrivateMissionCard",
+        "openPrivateMissionDiscards"
+      ]
+    },
+    "functions/src/awayMissionLifecycleCallable.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "f61c1512fb992210937dc603d56269140ccd1902fdc0a3094460af72916c78de",
+      "consumers": [
+        "commitAwayMissionLifecycleCommand"
+      ]
+    },
+    "functions/src/eventRedaction.ts": {
+      "before": "7b7678f7d0681f1d1283b820372409ef13227692d253e8bcb9dfa109e700a0c2",
+      "after": "1c0c81d1388ea4bf82ee372b7050144c4b64a8205a94f33168c791249c55a79b",
+      "consumers": [
+        "jumpShip"
+      ]
+    },
+    "functions/src/explorationRewards.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "7a5aaa635fc09de5099ad61453bcb8a116293dc6bc8dbc2c1e1ddf36f181938e",
+      "consumers": [
+        "commitAwayMissionLifecycleCommand"
+      ]
+    },
+    "functions/src/fleetPartition.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "edc6d138ec5e3032119385f5dfd2ac8314a8c3d61dedcaa08202d192a3a1c27e",
+      "consumers": [
+        "confirmFleetPartition",
+        "joinSession",
+        "resumeSession"
+      ]
+    },
+    "functions/src/gorgoneionMissionSupport.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "0e4915de831bd6fe23f962ef89ef94989e886cbf55d3659ce0658330ae47e14c",
+      "consumers": [
+        "applyGorgoneionMissionSupport",
+        "getGorgoneionMissionSupportProjection"
+      ]
+    },
+    "functions/src/gorgoneionMissionSupportCallable.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "97391e5be5bfbb84e46e3936ff298169c4a91e0ad09478ce425a78d2dd095ba5",
+      "consumers": [
+        "applyGorgoneionMissionSupport",
+        "getGorgoneionMissionSupportProjection"
+      ]
+    },
+    "functions/src/jumpDrive.ts": {
+      "before": "c089397d1881ce3d5f9448e3afb68b7f533d09a8ec17e6a16d309081627a77c7",
+      "after": "19ee3f9901a88e464916a3233509d2b1ae67003f272d233582bab50499bd4b01",
+      "consumers": [
+        "adjudicateFailedJump",
+        "dockVoyage33",
+        "getSmallShipJumpWorkspace",
+        "joinSession",
+        "jumpShip",
+        "jumpSmallShip",
+        "jumpVoyage33",
+        "resumeSession",
+        "setSmallShipDocking"
+      ]
+    },
+    "functions/src/missionCraftCommitment.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "d0687234caca230f3e480cbfc4b8faaa3eb53a6060e20f6358d5e123f0ebf37a",
+      "consumers": [
+        "beginShuttleTransit",
+        "commitAwayMissionLifecycleCommand",
+        "dealPrivateInitialCards",
+        "getSmallShipJumpWorkspace",
+        "jumpShip",
+        "jumpSmallShip",
+        "moveShipToLocation",
+        "requestShuttleDeparture",
+        "retargetShuttleTransit",
+        "setSmallShipDocking"
+      ]
+    },
+    "functions/src/missionLifecycle.ts": {
+      "before": "fe4d1c387f2d18880266b17530d2db083af77b9ffac5cb671afe11862fc5e59d",
+      "after": "c382ea653c7931fbefe1a6148f6abfb8b07310615fbc2e3e2127502d9217319a",
+      "consumers": [
+        "commitAwayMissionLifecycleCommand",
+        "dealPrivateInitialCards",
+        "discardPrivateMissionCard",
+        "openPrivateMissionDiscards"
+      ]
+    },
+    "functions/src/missionRewardDelivery.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "c5aca5e872e4156ad93ca5d611a5c45a80bac592e977149609e6500a40cfe3b6",
+      "consumers": [
+        "commitAwayMissionLifecycleCommand"
+      ]
+    },
+    "functions/src/missionRewards.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "61be51958fa248dda1d4268c149150f178d850b50b99a88d7d61cfbe52aabd76",
+      "consumers": [
+        "commitAwayMissionLifecycleCommand",
+        "dealPrivateInitialCards",
+        "discardPrivateMissionCard",
+        "openPrivateMissionDiscards"
+      ]
+    },
+    "functions/src/navigationProjection.ts": {
+      "before": "50d342435db1c7d99d388ab449c436ac4a3a6eb426f781066101e04d96f25e93",
+      "after": "c685922c17cc1b794fcc4d9bfa528d137b252207378b58aba69a9a67a1d64883",
+      "consumers": [
+        "activateEndeavourEcmDevice",
+        "adjudicateFailedJump",
+        "advanceTurn",
+        "assignReplacementRole",
+        "commitAwayMissionLifecycleCommand",
+        "confirmFleetPartition",
+        "confirmSetup",
+        "createSession",
+        "dealPrivateInitialCards",
+        "declareWolfAttack",
+        "dockVoyage33",
+        "getSmallShipJumpWorkspace",
+        "joinSession",
+        "jumpShip",
+        "jumpSmallShip",
+        "jumpVoyage33",
+        "listUnresolvedJumpFailures",
+        "moveShipToLocation",
+        "readEndeavourEcmDeviceWorkspace",
+        "requestScout",
+        "resumeSession",
+        "runMaintenance",
+        "setCandidatePlanCheckpoint",
+        "setSmallShipDocking",
+        "startGame",
+        "startSinglePlayerDemo",
+        "submitWolfHomingBeacon"
+      ]
+    },
+    "functions/src/permissionedDismantling.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "3401a8293d7caabac54dd84eb04619627d3dd1b1137c48978738b70704c9fff2",
+      "consumers": [
+        "applyPermissionedDismantling",
+        "consentToPermissionedDismantling",
+        "declinePermissionedDismantling",
+        "proposePermissionedDismantling",
+        "revokePermissionedDismantlingConsent"
+      ]
+    },
+    "functions/src/permissionedDismantlingCallable.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "426907dd7608b3a5ee2d7d41ffc794181897572ec54c7ca2efae5ad81be45921",
+      "consumers": [
+        "applyPermissionedDismantling",
+        "consentToPermissionedDismantling",
+        "declinePermissionedDismantling",
+        "proposePermissionedDismantling",
+        "revokePermissionedDismantlingConsent"
+      ]
+    },
+    "functions/src/requestGuards.ts": {
+      "before": "a878e1b151ce3bc8deb496f1f7ef836f59eb5d430f4764f370addc3541d650bd",
+      "after": "91f9ce8249a0904711b576076636e9c8cde2875cd7724ae1b91b84cbd2db64cb",
+      "consumers": [
+        "acceptSameTableTradeOffer",
+        "addShipDamage",
+        "adjudicateFailedJump",
+        "adjustShipPopulation",
+        "adjustShipResource",
+        "adjustShipUnrest",
+        "admitVoyage33",
+        "advanceTurn",
+        "advanceWolfAttackToLongRange",
+        "allocateHummingbirdHarvest",
+        "applyAegisCommandAndControl",
+        "applyCommissarPurge",
+        "applyShipCounterSteps",
+        "applyWolfCommanderTargetRerolls",
+        "assignReplacementRole",
+        "attestPlayerHeldTokenBaseline",
+        "authorArbourVision",
+        "authorFacilitatorRuleCall",
+        "beginOpenAirspacePhase",
+        "beginShuttleTransit",
+        "buildFighter",
+        "calculateArrestPosse",
+        "confirmFleetPartition",
+        "consentCommissarPurge",
+        "createSameTableTradeOffer",
+        "declareWolfAttack",
+        "deliverWolfCultIntelligence",
+        "dismissPopulationAlert",
+        "dismissPressDispatch",
+        "dismissUnrestAlert",
+        "drawVipCard",
+        "evacuateShuttleSurvivorsCommand",
+        "extendAirspaceWindow",
+        "finishWolfCommanderTargetingRerolls",
+        "fleeDestroyedShip",
+        "getAegisCommandAndControl",
+        "getDioneMaliadesLaunch",
+        "getPdfEscortWingLaunch",
+        "getWolfCommanderTargeting",
+        "investigateAsIntelligenceAgent",
+        "jumpShip",
+        "launchDioneMaliades",
+        "launchPdfEscortWing",
+        "listUnresolvedJumpFailures",
+        "moveShipToLocation",
+        "popShipConfetti",
+        "publishAdmiralDirectiveCommand",
+        "publishPressDispatch",
+        "readFleetGroupMessages",
+        "rechargeHostConsoleFromShuttle",
+        "recordCivilUnrestResolution",
+        "recordPresidentActionCommand",
+        "recordZealotryResponse",
+        "recycleWithBoa",
+        "repairAllShipDamage",
+        "repairConsolesFromBlacksmith",
+        "repairConsolesFromChacau",
+        "repairConsolesFromMacaw",
+        "repairConsolesFromPhilia",
+        "replayTurnStartAnnouncement",
+        "requestScout",
+        "requestShuttleDeparture",
+        "rerollVipUnrest",
+        "resolveShipMutiny",
+        "resolveWolfConsoleSabotage",
+        "retargetShuttleTransit",
+        "revealAndroidProof",
+        "rollDice",
+        "rollHummingbirdHarvest",
+        "rollbackMaintenance",
+        "runMaintenance",
+        "runSmallShipMaintenance",
+        "runVoyage33Maintenance",
+        "runVulcanAdditionalLabour",
+        "scavengeDestroyedShipStores",
+        "sendFleetGroupMessage",
+        "setCandidatePlanCheckpoint",
+        "setDiseaseQuarantine",
+        "setEmergencyTimerPaused",
+        "setFacilitatorCensusNote",
+        "setFighterWingCount",
+        "setFleetRedAlert",
+        "setGmControlsLocked",
+        "setPressEnabled",
+        "setReplacementEligibility",
+        "setShipConsoleLock",
+        "setSmallShipDocking",
+        "startWolfConsoleVisit",
+        "submitCivilUnrestGrievance",
+        "submitWolfHomingBeacon",
+        "submitWolfIntelligence",
+        "submitWolfSupplySabotage",
+        "transferShuttleCargoCommand",
+        "transferShuttleControlCommand",
+        "transferVipCard",
+        "transitionCrisis",
+        "triggerDradisContact",
+        "unlockPressAirspace",
+        "updatePoliticalCapital",
+        "upgradeEndeavourFieldTargets"
+      ]
+    },
+    "functions/src/sameTableTradeCallable.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "56b85b7f499e1221f808a1600a5e32bdef8d2a493cbe352c8e9d69a9885e919f",
+      "consumers": [
+        "acceptSameTableTradeOffer",
+        "attestPlayerHeldTokenBaseline",
+        "createSameTableTradeOffer"
+      ]
+    },
+    "functions/src/sameTableTradePolicy.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "0a51fb808b8d8d475203d2426fed7927310cd5eb6da5cd52e507c62168ce1b5a",
+      "consumers": [
+        "acceptSameTableTradeOffer",
+        "attestPlayerHeldTokenBaseline",
+        "createSameTableTradeOffer"
+      ]
+    },
+    "functions/src/shipPopulation.ts": {
+      "before": "8a37fd692a16c56caaf24f2054127ee0a052ac5553ad317668318cdccb6ee8ff",
+      "after": "4b796deef7d0b1b06b1bc26a9fb8714038b069e9f76813d82a4d73c4f3b54faf",
+      "consumers": [
+        "addShipDamage",
+        "adjudicateFailedJump",
+        "adjustShipPopulation",
+        "advanceEndeavourResearchTrack",
+        "advanceTurn",
+        "advanceWolfAttackToLongRange",
+        "applyAegisCommandAndControl",
+        "applyCommissarPurge",
+        "applyPermissionedDismantling",
+        "applyShipCounterSteps",
+        "applyWolfCommanderTargetRerolls",
+        "buildFighter",
+        "commitAwayMissionLifecycleCommand",
+        "confirmSetup",
+        "consentToPermissionedDismantling",
+        "createSession",
+        "declareWolfAttack",
+        "declinePermissionedDismantling",
+        "drawVipCard",
+        "evacuateShuttleSurvivorsCommand",
+        "finishWolfCommanderTargetingRerolls",
+        "getAegisCommandAndControl",
+        "getDioneMaliadesLaunch",
+        "getPdfEscortWingLaunch",
+        "getWolfCommanderTargeting",
+        "joinSession",
+        "jumpShip",
+        "launchDioneMaliades",
+        "launchPdfEscortWing",
+        "moveShipToLocation",
+        "proposePermissionedDismantling",
+        "readEndeavourResearchWorkspace",
+        "rechargeHostConsoleFromShuttle",
+        "recycleWithBoa",
+        "repairConsolesFromAlly",
+        "repairConsolesFromBlacksmith",
+        "repairConsolesFromChacau",
+        "repairConsolesFromMacaw",
+        "repairConsolesFromPhilia",
+        "repairGorgoneionWithDrones",
+        "repairMaliades",
+        "repairWarriorWithDrones",
+        "requestScout",
+        "rerollVipUnrest",
+        "resolveMaliadesMedium",
+        "resolveMaliadesShort",
+        "resumeSession",
+        "revokePermissionedDismantlingConsent",
+        "rollbackMaintenance",
+        "runMaintenance",
+        "runVulcanAdditionalLabour",
+        "setShipConsoleLock",
+        "startGame",
+        "startSinglePlayerDemo",
+        "upgradeEndeavourFieldTargets"
+      ]
+    },
+    "functions/src/shuttleEvacuation.ts": {
+      "before": "d4158c4075f47271887438985af5da159f7a6896c83549a43a2e87d687f66b0e",
+      "after": "efa597fc4fd4c4e11a4897348bde2495ba87853b99b25d52a90d30abaf269357",
+      "consumers": [
+        "evacuateShuttleSurvivorsCommand",
+        "joinSession",
+        "resumeSession"
+      ]
+    },
+    "functions/src/singlePlayerDemoPolicy.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "54e005957e8a1ae0d056d7509b98b0dec825903427038edd8af0278b061aa98f",
+      "consumers": [
+        "advanceTurn",
+        "jumpShip",
+        "moveShipToLocation"
+      ]
+    },
+    "functions/src/smallShipJump.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "daf0234d6b87df52ce7bbdf69614f1438340b1df92a7cd44e37b86f2a062ec35",
+      "consumers": [
+        "getSmallShipJumpWorkspace",
+        "jumpSmallShip",
+        "setSmallShipDocking"
+      ]
+    },
+    "functions/src/voyage33Movement.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "a3365a9950c8c4601c14d9b3ea80f8fbf9b2d42e5295cef40c348a3c7efada5d",
+      "consumers": [
+        "dockVoyage33",
+        "joinSession",
+        "jumpVoyage33",
+        "resumeSession"
+      ]
+    },
+    "functions/src/voyage33MovementCallable.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "2181700c39957d9bc9d47fc8389257d0624a627304b67e9a2ace152009a5ad71",
+      "consumers": [
+        "dockVoyage33",
+        "jumpVoyage33"
+      ]
+    }
+  }
+}
