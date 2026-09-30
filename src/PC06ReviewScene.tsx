@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import FleetGroupPanel from '@/components/FleetGroupPanel';
 import AwayMissionLifecyclePanel from '@/components/AwayMissionLifecyclePanel';
 import JumpDriveConsole from '@/components/JumpDriveConsole';
 import SameTableTradePanel, {
@@ -337,6 +338,8 @@ const COUNTERPARTIES = [
 ] as const;
 
 function ScoutingReview() {
+  const [groupDraft, setGroupDraft] = useState('');
+  const [groupNotes, setGroupNotes] = useState<readonly { id: string; actorUid: string; text: string; sentAt: string }[]>([]);
   const [resolved, setResolved] = useState(false);
   const [feedback, setFeedback] = useState('');
   const report: ScoutReportView = {
@@ -370,6 +373,12 @@ function ScoutingReview() {
           <ScoutResultPanel report={report} result={resolved ? SCOUT_RESULT : null} note={resolved ? SCOUT_NOTE : null} />
         </div>
       </div>
+      <FleetGroupPanel groupId="fleet-2" actorUid="pc06-participant-1" notes={groupNotes} draft={groupDraft} busy={false}
+        notice="LOCAL REVIEW ONLY // Group notes update this prepared sample; no message is sent to a live session."
+        onDraft={setGroupDraft} onSend={() => {
+          setGroupNotes(notes => [...notes, { id: `sample-${notes.length}`, actorUid: 'pc06-participant-1',
+            text: groupDraft.trim(), sentAt: '2026-09-30T12:00:00Z' }]); setGroupDraft('');
+        }} onRefresh={() => undefined} />
       <section className="pc06-review__panel cic-frame" aria-label="Fleet 1 sample view">
         <header className="pc06-review__panel-heading">
           <div><p className="cic-overline">SEPARATE GROUP SAMPLE</p><h3>Fleet-1 projection</h3></div>

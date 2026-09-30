@@ -32,6 +32,10 @@ test('PC06 solo scene fits phone, short landscape and desktop in both motion mod
               await page.getByRole('button', {name:'Accept exact offer from Juno Reyes',exact:true}).click();
               assert.match(await page.getByRole('region',{name:'Your held tokens'}).textContent(), /Fuel 3/);
             } else if (name === '3 Scouting') {
+              await page.getByLabel('Note to your fleet group').fill('Fleet two stays here.');
+              await page.getByRole('button',{name:'Send group note',exact:true}).click();
+              assert.match(await page.getByRole('region',{name:'Fleet group communication'}).textContent(), /Fleet two stays here/);
+              assert.doesNotMatch(await page.getByRole('region',{name:'Fleet 1 sample view'}).textContent(), /Fleet two stays here/);
               await page.getByRole('button',{name:'Reveal Hummingbird scout at 6798',exact:true}).click();
               assert.match(await page.getByRole('region',{name:'Hummingbird scout report'}).textContent(), /Site L/);
               assert.doesNotMatch(await page.getByRole('region',{name:'Fleet 1 sample view'}).textContent(), /Site L/);

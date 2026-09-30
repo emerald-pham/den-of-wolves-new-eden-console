@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSessionStore } from '@/store/useSessionStore';
 import { createCurrentFleetGroupActions, type FleetGroupNote } from '@/lib/fleetGroupService';
-import './FleetGroupWorkspace.css';
+import FleetGroupPanel from './FleetGroupPanel';
 export default function FleetGroupWorkspace() {
   const session = useSessionStore(state => state.session);
   const me = useSessionStore(state => state.me);
@@ -38,18 +38,8 @@ export default function FleetGroupWorkspace() {
     } catch (error) { if (activeKey.current !== key) return; setNotice(error instanceof Error ? error.message : 'Group action failed.'); }
     finally { if (activeKey.current === key) setBusy(false); }
   };
-  return <section className="fleet-group-workspace" aria-label="Fleet group communication">
-    <h2>Fleet group // {me.fleetGroupId}</h2>
-    <p>Ordinary notes stay within your current fleet group. Refresh to receive the latest notes.</p>
-    <ul aria-label="Current group notes">{notes.map(note => <li key={note.id}><p>{note.text}</p>
-      <small>{note.actorUid === me.uid ? 'You' : 'Group participant'} // {new Date(note.sentAt).toLocaleTimeString()}</small></li>)}</ul>
-    <label>Note to your fleet group<textarea maxLength={240} value={draft} onChange={event => setDraft(event.target.value)} disabled={busy} /></label>
-    <div className="fleet-group-workspace__actions">
-      <button type="button" disabled={busy || !draft.trim()} onClick={() => void run('send')}>Send group note</button>
-      <button type="button" disabled={busy} onClick={() => void run('read')}>Refresh group notes</button>
-      {me.role === 'gm' && gm?.uid === me.uid && gm.sessionId === session.id && session.playerDiscovery?.groupId === me.fleetGroupId &&
-        <button type="button" disabled={busy} onClick={() => void run('partition')}>Confirm separated fleet groups</button>}
-    </div>
-    {notice && <p role="status">{notice}</p>}
-  </section>;
+  const canConfirm = me.role === 'gm' && gm?.uid === me.uid && gm.sessionId === session.id && session.playerDiscovery?.groupId === me.fleetGroupId;
+  return <FleetGroupPanel groupId={me.fleetGroupId!} actorUid={me.uid} notes={notes} draft={draft} busy={busy} notice={notice}
+    onDraft={setDraft} onSend={() => void run('send')} onRefresh={() => void run('read')}
+    {...(canConfirm ? { onConfirm: () => void run('partition') } : {})} />;
 }
