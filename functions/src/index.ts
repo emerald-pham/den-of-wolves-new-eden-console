@@ -313,6 +313,7 @@ import {
   INITIAL_FLEET_GROUP_ID,
   fleetGroupRecord,
   initialFleetGroup,
+  ordinaryFleetCommunicationGroup,
   withFleetGroupVessels,
   type FleetGroupRecord,
 } from './fleetGroups';
@@ -14574,6 +14575,88 @@ export const revealAndroidProof = onCall<{
       createdAt: FieldValue.serverTimestamp(),
     }));
     const result = { disclosed: true as const };
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+interface FleetGroupNote { readonly id: string; readonly actorUid: string; readonly text: string; readonly sentAt: string }
+interface FleetGroupMessageReply { readonly status: 'committed'; readonly groupId: string; readonly messageId: string }
+function isFleetGroupMessageReply(value: unknown): value is FleetGroupMessageReply {
+  return isRecord(value) && Object.keys(value).every(key => ['status', 'groupId', 'messageId'].includes(key)) &&
+    value.status === 'committed' && typeof value.groupId === 'string' && /^fleet-[1-9][0-9]*$/.test(value.groupId) &&
+    typeof value.messageId === 'string' && isCanonicalRequestId(value.messageId);
+}
+function groupNoteRequest(raw: unknown, sending: boolean): { sessionId: string; expectedGroupId: string; requestId?: string; text?: string } {
+  const allowed = sending ? ['sessionId', 'expectedGroupId', 'requestId', 'text'] : ['sessionId', 'expectedGroupId', 'requestId'];
+  if (!isRecord(raw) || Object.keys(raw).some(key => !allowed.includes(key)) ||
+      typeof raw.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(raw.sessionId) ||
+      typeof raw.expectedGroupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(raw.expectedGroupId) ||
+      (raw.requestId !== undefined && (typeof raw.requestId !== 'string' || !isCanonicalRequestId(raw.requestId))) ||
+      (sending && (typeof raw.requestId !== 'string' || typeof raw.text !== 'string' ||
+        raw.text.trim().length < 1 || raw.text.length > 240))) throw new HttpsError('invalid-argument', 'Invalid fleet group note request.');
+  return { sessionId: raw.sessionId, expectedGroupId: raw.expectedGroupId,
+    ...(sending ? { requestId: raw.requestId as string, text: (raw.text as string).trim() } : {}) };
+}
+async function groupNoteAuthority(tx: Transaction, sessionId: string, uid: string, expectedGroupId: string) {
+  const [session, player, players, groups] = await Promise.all([
+    tx.get(db.doc(`sessions/${sessionId}`)), tx.get(db.doc(`sessions/${sessionId}/players/${uid}`)),
+    tx.get(db.collection(`sessions/${sessionId}/players`)), tx.get(db.collection(`sessions/${sessionId}/fleetGroups`)),
+  ]);
+  if (!session.exists || !isActivePlayer(player)) throw new HttpsError('permission-denied', 'An active session member is required.');
+  requireActiveGameplayPhase(session);
+  const parsedGroups = movementPursuitFleetGroups(activeVesselIdsForSession(session), groups, players);
+  const groupId = player.get('fleetGroupId');
+  if (typeof groupId !== 'string' || !parsedGroups.some(group => group.id === groupId && group.memberUids.includes(uid))) {
+    throw commandError('failed-precondition', 'Current fleet group membership is unavailable.', 'conflict');
+  }
+  try { ordinaryFleetCommunicationGroup(groupId, expectedGroupId); }
+  catch { throw new HttpsError('permission-denied', 'Ordinary notes cannot cross fleet groups.'); }
+  return groupId;
+}
+function storedGroupNotes(snapshot: DocumentSnapshot, groupId: string): readonly FleetGroupNote[] {
+  if (!snapshot.exists) return [];
+  const raw = snapshot.data();
+  if (!isRecord(raw) || raw.groupId !== groupId || !Array.isArray(raw.messages) || raw.messages.length > 20 ||
+      raw.messages.some(note => !isRecord(note) || typeof note.id !== 'string' || !isCanonicalRequestId(note.id) ||
+        typeof note.actorUid !== 'string' || !note.actorUid || note.actorUid.includes('/') ||
+        typeof note.text !== 'string' || !note.text.trim() || note.text.length > 240 ||
+        typeof note.sentAt !== 'string' || !Number.isFinite(Date.parse(note.sentAt))) ||
+      new Set(raw.messages.map(note => (note as FleetGroupNote).id)).size !== raw.messages.length) {
+    throw commandError('failed-precondition', 'Current group notes are malformed.', 'conflict');
+  }
+  return raw.messages as FleetGroupNote[];
+}
+
+/** Server-only storage; every read rechecks the live audience after a partition. */
+export const readFleetGroupMessages = onCall(async request => {
+  const uid = requireUid(request.auth);
+  const data = groupNoteRequest(request.data, false);
+  return db.runTransaction(async tx => {
+    const groupId = await groupNoteAuthority(tx, data.sessionId, uid, data.expectedGroupId);
+    const snapshot = await tx.get(db.doc(`sessions/${data.sessionId}/fleetGroupMessages/${groupId}`));
+    return { groupId, messages: storedGroupNotes(snapshot, groupId) };
+  });
+});
+export const sendFleetGroupMessage = onCall(async request => {
+  const uid = requireUid(request.auth);
+  const data = groupNoteRequest(request.data, true);
+  const fingerprint: CommandFingerprint = { action: 'send-fleet-group-message', sessionId: data.sessionId,
+    requestId: data.requestId!, actorUid: uid, instanceId: null, expectedRevision: null,
+    payload: { groupId: data.expectedGroupId, text: data.text! } };
+  const now = new Date().toISOString();
+  return db.runTransaction(async tx => {
+    const groupId = await groupNoteAuthority(tx, data.sessionId, uid, data.expectedGroupId);
+    const notesRef = db.doc(`sessions/${data.sessionId}/fleetGroupMessages/${groupId}`);
+    const receiptRef = commandReceiptRef(data.sessionId, data.requestId!);
+    const [notes, receipt] = await Promise.all([tx.get(notesRef), tx.get(receiptRef)]);
+    const replay = replayBoundCommand(receipt, fingerprint, isFleetGroupMessageReply, 'fleet group note');
+    if (replay) return replay;
+    const current = storedGroupNotes(notes, groupId);
+    if (current.some(note => note.id === data.requestId)) throw commandError('failed-precondition', 'Group note has no replay receipt.', 'conflict');
+    const message = { id: data.requestId!, actorUid: uid, text: data.text!, sentAt: now };
+    tx.set(notesRef, { groupId, messages: [...current.slice(-19), message], updatedAt: FieldValue.serverTimestamp() });
+    const result: FleetGroupMessageReply = { status: 'committed', groupId, messageId: message.id };
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
   });
