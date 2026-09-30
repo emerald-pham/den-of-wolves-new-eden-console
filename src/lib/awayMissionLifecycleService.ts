@@ -53,6 +53,7 @@ export interface AwayMissionPublicState {
 }
 
 export interface AwayMissionPrivateState {
+  readonly canUseReclamator?: boolean;
   readonly missionId: string;
   readonly participantUid: string;
   readonly revision: number;
@@ -346,7 +347,9 @@ export function parseAwayMissionLifecyclePrivateState(
   value: unknown,
   expected: Readonly<{ missionId: string; participantUid: string; revision: number }>,
 ): AwayMissionPrivateState | null {
-  if (!isRecord(value) || !hasExactKeys(value, PRIVATE_KEYS) ||
+  if (!isRecord(value) || !hasExactKeys(value, [...PRIVATE_KEYS,
+      ...(Object.hasOwn(value, 'canUseReclamator') ? ['canUseReclamator'] : []),
+    ]) || (value.canUseReclamator !== undefined && typeof value.canUseReclamator !== 'boolean') ||
       value.missionId !== expected.missionId || value.participantUid !== expected.participantUid ||
       value.revision !== expected.revision || typeof value.phase !== 'string' ||
       !MISSION_PHASES.has(value.phase) || !Array.isArray(value.cards) || value.cards.length > 33) return null;

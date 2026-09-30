@@ -66,9 +66,7 @@ function MissionPanel({
       actorUid={actorUid}
       isGm={false}
       isMissionLeader={mission.publicState.missionLeaderUid === actorUid}
-      // The current member-safe projection does not include actor-bound
-      // Reclamator eligibility, so this special control remains closed.
-      canUseReclamator={false}
+      canUseReclamator={mission.privateState.canUseReclamator === true}
       publicState={mission.publicState}
       privateState={mission.privateState}
       actions={actions}

@@ -238,7 +238,7 @@ export default function AwayMissionLifecyclePanel({
               </article>
             ))}
           </div>
-          {publicState.phase === 'assignment-ready' && remainingCards.length > 0 && (
+          {publicState.phase === 'assignment-ready' && (
             <button type="button" onClick={submitAssignments} disabled={busy}>
               Submit mission assignments
             </button>
