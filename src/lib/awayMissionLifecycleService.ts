@@ -85,6 +85,7 @@ type LifecycleCommandType =
   | 'dropOff';
 
 export interface AwayMissionLifecycleMission {
+  readonly sourceCycle?: number;
   readonly publicState: AwayMissionPublicState;
   readonly privateState: AwayMissionPrivateState;
 }
@@ -388,15 +389,17 @@ function pointerState(
   id: string,
   sessionId: string,
   actorUid: string,
-): Readonly<{ handId: string; missionId: string; revision: number; publicState: AwayMissionPublicState }> | 'missing' | null {
+): Readonly<{ handId: string; missionId: string; revision: number; publicState: AwayMissionPublicState; sourceCycle?: number }> | 'missing' | null {
   if (!isRecord(value) || value.type !== 'away-mission-hand-pointer' ||
       value.sessionId !== sessionId || value.participantUid !== actorUid || value.handId !== id ||
       !isNonEmptyString(value.missionId) || !isRevision(value.revision) ||
+      (value.sourceCycle !== undefined && (!Number.isSafeInteger(value.sourceCycle) || (value.sourceCycle as number) < 1)) ||
       typeof value.phase !== 'string' || !MISSION_PHASES.has(value.phase)) return null;
   if (value.lifecyclePublicState === undefined) return 'missing';
   const publicState = parseAwayMissionLifecyclePublicState(value.lifecyclePublicState, value.missionId);
   if (!publicState || publicState.revision !== value.revision || publicState.phase !== value.phase) return null;
-  return { handId: id, missionId: value.missionId, revision: value.revision, publicState };
+  return { handId: id, missionId: value.missionId, revision: value.revision, publicState,
+    ...(value.sourceCycle !== undefined ? { sourceCycle: value.sourceCycle as number } : {}) };
 }
 
 function errorCode(error: unknown): string | undefined {
@@ -455,6 +458,7 @@ export function createAwayMissionLifecycleProjectionSubscription(options: Readon
     missionId: string;
     revision: number;
     publicState: AwayMissionPublicState | null;
+    sourceCycle?: number;
   }>>();
   const handEntries = new Map<string, AwayMissionPrivateState | null>();
 
@@ -505,7 +509,8 @@ export function createAwayMissionLifecycleProjectionSubscription(options: Readon
         waitingForOwnHand = true;
         continue;
       }
-      missions.push({ publicState: pointer.publicState, privateState });
+      missions.push({ publicState: pointer.publicState, privateState,
+        ...(pointer.sourceCycle !== undefined ? { sourceCycle: pointer.sourceCycle } : {}) });
     }
     if (missions.length === 0 && waitingForOwnHand) {
       onState({ status: 'loading', missions: [], projectionMissing });
@@ -536,6 +541,7 @@ export function createAwayMissionLifecycleProjectionSubscription(options: Readon
         missionId: string;
         revision: number;
         publicState: AwayMissionPublicState | null;
+        sourceCycle?: number;
       }>>();
       const nextHandIds = new Set<string>();
       for (const document of snapshot.docs) {

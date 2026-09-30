@@ -1,3 +1,5 @@
+import { useSessionStore } from '@/store/useSessionStore';
+import { missionOverrunForCurrentPhase } from '@/lib/awayMissionPresentation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import AwayMissionLifecyclePanel from './AwayMissionLifecyclePanel';
 import {
@@ -55,6 +57,8 @@ function MissionPanel({
   actorUid: string;
   mission: AwayMissionLifecycleMission;
 }>) {
+  const presentationSession = useSessionStore(state => state.connection === 'live' && state.sessionSnapshotFreshness === 'server' ? state.session : null);
+  const presented = missionOverrunForCurrentPhase(mission.publicState, mission.sourceCycle, presentationSession);
   const currentMission = useRef(mission.publicState);
   currentMission.current = mission.publicState;
   const actions = useMemo(() => createAwayMissionLifecycleActions(() =>
@@ -67,7 +71,7 @@ function MissionPanel({
       isGm={false}
       isMissionLeader={mission.publicState.missionLeaderUid === actorUid}
       canUseReclamator={mission.privateState.canUseReclamator === true}
-      publicState={mission.publicState}
+      publicState={presented}
       privateState={mission.privateState}
       actions={actions}
     />
