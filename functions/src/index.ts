@@ -777,19 +777,19 @@ const awayMissionLifecycleCallables = createAwayMissionLifecycleCallables({
     }
     const groups = movementPursuitFleetGroups(activeVesselIds, groupSnapshots, players);
     const audienceUids = record.lifecycle.participants.map(({ uid }) => uid);
+    const knowledge = new Map(Object.entries(navigation.missionExploredCoordinatesByUid ?? {}));
     const knownSystemsByUid = Object.fromEntries(audienceUids.map(uid => [uid,
-      discoverySystemsForCoordinates(navigation.missionExploredCoordinatesByUid?.[uid] ?? [])]));
+      discoverySystemsForCoordinates(knowledge.get(uid) ?? [])]));
     const plan = planMissionExplorationReward({
       missionId, siteCode: record.lifecycle.siteCode as CanonicalMissionCardCode,
       opportunityId, rewardBranch: reward.branch, chart: chart as ChartId,
       targetCoordinates, audienceUids, knownSystemsByUid,
     });
     if (!plan) throw new HttpsError('failed-precondition', 'The targets do not satisfy the printed exploration reward.');
-    const knowledge = { ...navigation.missionExploredCoordinatesByUid };
     for (const uid of audienceUids) {
-      knowledge[uid] = [...new Set([...(knowledge[uid] ?? []), ...Object.values(plan.newDiscoveriesByUid[uid] ?? {})])];
+      knowledge.set(uid, [...new Set([...(knowledge.get(uid) ?? []), ...Object.values(plan.newDiscoveriesByUid[uid] ?? {})])]);
     }
-    const nextNavigation = { ...navigation, missionExploredCoordinatesByUid: knowledge };
+    const nextNavigation = { ...navigation, missionExploredCoordinatesByUid: Object.fromEntries(knowledge) };
     const nextRevision = (revision as number) + 1;
     return () => {
       tx.set(navigationRef, { ...navigationProjectionFields(nextNavigation), revision: nextRevision,
