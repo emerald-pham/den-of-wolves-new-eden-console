@@ -42,7 +42,7 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
     const now = new Date().toISOString();
     const end = new Date(Date.now() + 20 * 60_000).toISOString();
     const allCards = missionDeck();
-    const prefix = ['A♥', '4♥', '10♦', 'A♦', 'K♣', 'Q♣'];
+    const prefix = ['A♥', '4♥', '10♦', 'A♦', '9♣', '10♣', '10♥', '9♥'];
     const deck = missionDeckStateFromCards([...prefix.map(cardId => allCards.find(card => card.id === cardId)),
       ...allCards.filter(card => !prefix.includes(card.id))]);
     try {
@@ -107,8 +107,8 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
       await send('gm', 'openDiscards');
       await send('alice', 'discardCard', { cardId: 'A♥' });
       await send('bob', 'discardCard', { cardId: '4♥' });
-      await send('alice', 'assignCards', { placements: [{ cardId: 'A♦', opportunityId: 'D-3' }, { cardId: 'Q♣', opportunityId: 'D-1' }] });
-      await send('bob', 'assignCards', { placements: [{ cardId: '10♦', opportunityId: 'D-3' }, { cardId: 'K♣', opportunityId: 'D-1' }] });
+      await send('alice', 'assignCards', { placements: [{ cardId: 'A♦', opportunityId: 'D-3' }, { cardId: '10♣', opportunityId: 'D-1' }] });
+      await send('bob', 'assignCards', { placements: [{ cardId: '10♦', opportunityId: 'D-3' }, { cardId: '9♣', opportunityId: 'D-1' }] });
       const resolved = (await missionRef.get()).get('lifecycleRecord');
       assert.equal(resolved.status, 'resolved');
       assert.equal(resolved.rewards.find(reward => reward.opportunityId === 'D-1').branch, 'critical');
