@@ -227,6 +227,7 @@ import {
   isValidPursuitAuthority,
   navigationState,
   navigationStateDocumentPath,
+  playerShipId,
   pursuitGroups,
   recordScoutedCoordinateForShip,
   writePlayerDiscoveryProjection,
@@ -306,6 +307,7 @@ import {
 } from './resources';
 import { planShipStoreScavenge, requireScavengeInventories } from './shipStoreScavenge';
 import { activeVesselRecord, initialSessionComposition } from './sessionComposition';
+import { planFleetPartition } from './fleetPartition';
 import {
   INITIAL_FLEET_GROUP_ID,
   fleetGroupRecord,
@@ -14546,6 +14548,79 @@ export const revealAndroidProof = onCall<{
     }));
     const result = { disclosed: true as const };
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+interface FleetPartitionReply { readonly status: 'committed'; readonly navigationRevision: number; readonly groupIds: readonly string[] }
+function isFleetPartitionReply(value: unknown): value is FleetPartitionReply {
+  return isRecord(value) && Object.keys(value).every(key => ['status', 'navigationRevision', 'groupIds'].includes(key)) &&
+    value.status === 'committed' && Number.isSafeInteger(value.navigationRevision) && (value.navigationRevision as number) >= 0 &&
+    Array.isArray(value.groupIds) && value.groupIds.length > 0 && new Set(value.groupIds).size === value.groupIds.length &&
+    value.groupIds.every(id => typeof id === 'string' && /^fleet-[1-9][0-9]*$/.test(id));
+}
+
+/** Confirm physical partitions from server coordinates; the browser cannot assign groups or pursuit. */
+export const confirmFleetPartition = onCall<{ sessionId: string; instanceId: string; requestId: string; expectedNavigationRevision: number }>(async request => {
+  const uid = requireUid(request.auth);
+  const data = request.data;
+  if (!isRecord(data) || Object.keys(data).some(key => !['sessionId', 'instanceId', 'requestId', 'expectedNavigationRevision'].includes(key)) ||
+      typeof data.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(data.sessionId) ||
+      typeof data.instanceId !== 'string' || !/^[\w-]{1,128}$/.test(data.instanceId) ||
+      typeof data.requestId !== 'string' || !isCanonicalRequestId(data.requestId) ||
+      !Number.isSafeInteger(data.expectedNavigationRevision) || data.expectedNavigationRevision < 0 ||
+      data.expectedNavigationRevision >= Number.MAX_SAFE_INTEGER) throw new HttpsError('invalid-argument', 'Invalid fleet partition confirmation.');
+  const fingerprint: CommandFingerprint = { action: 'confirm-fleet-partition', sessionId: data.sessionId,
+    requestId: data.requestId, actorUid: uid, instanceId: data.instanceId,
+    expectedRevision: data.expectedNavigationRevision, payload: {} };
+  return db.runTransaction(async tx => {
+    const { session } = await requireFacilitatorInstance(tx, data.sessionId, uid, data.instanceId);
+    const [storedNavigation, playerSnapshots, groupSnapshots, receipt] = await Promise.all([
+      tx.get(navigationStateRef(data.sessionId)), tx.get(db.collection(`sessions/${data.sessionId}/players`)),
+      tx.get(db.collection(`sessions/${data.sessionId}/fleetGroups`)), tx.get(commandReceiptRef(data.sessionId, data.requestId)),
+    ]);
+    const replay = replayBoundCommand(receipt, fingerprint, isFleetPartitionReply, 'fleet partition');
+    if (replay) return replay;
+    requireActiveGameplayPhase(session);
+    requireActionPhase(session, 'jump', 'facilitator');
+    if (!storedNavigation.exists || storedNavigation.get('revision') !== data.expectedNavigationRevision) {
+      throw commandError('failed-precondition', 'Navigation changed; refresh before confirming the fleet partition.', 'conflict');
+    }
+    const activeVesselIds = activeVesselIdsForSession(session);
+    const groups = movementPursuitFleetGroups(activeVesselIds, groupSnapshots, playerSnapshots);
+    requireMovementPursuitAuthority(storedNavigation, session);
+    const navigation = navigationStateForSession(storedNavigation, session, activeVesselIds);
+    const players = playerSnapshots.docs.filter(player => player.exists && !isKickedPlayer(player));
+    const members = players.map(player => {
+      let shipId = playerShipId(player) ?? playerAuthoritativeVesselIds(player)[0] ?? null;
+      if (shipId && !activeVesselIds.includes(shipId)) {
+        const id = smallShipId(shipId);
+        shipId = id ? storedSmallShipState(session, id)?.hostShipId ?? null : null;
+      }
+      return { uid: player.id, groupId: player.get('fleetGroupId') as string, shipId };
+    });
+    let plan: ReturnType<typeof planFleetPartition>;
+    try { plan = planFleetPartition(navigation, groups, members, activeVesselIds); }
+    catch (error) { throw commandError('failed-precondition', error instanceof Error ? error.message : 'Fleet partition authority is malformed.', 'conflict'); }
+    const changed = !isDeepStrictEqual(groups, plan.groups);
+    const revision = data.expectedNavigationRevision + (changed ? 1 : 0);
+    if (changed) {
+      for (const group of plan.groups) tx.set(db.doc(`sessions/${data.sessionId}/fleetGroups/${group.id}`), {
+        ...group, updatedAt: FieldValue.serverTimestamp(),
+      });
+      const projectedPlayers = players.map(player => ({ ...player, exists: true, id: player.id,
+        get: (field: string) => field === 'fleetGroupId' ? plan.memberGroups[player.id] : player.get(field),
+      } as DocumentSnapshot));
+      for (const player of players) if (player.get('fleetGroupId') !== plan.memberGroups[player.id]) {
+        tx.update(db.doc(`sessions/${data.sessionId}/players/${player.id}`), { fleetGroupId: plan.memberGroups[player.id] });
+      }
+      tx.set(navigationStateRef(data.sessionId), { ...navigationProjectionFields(plan.navigation), revision,
+        updatedAt: FieldValue.serverTimestamp() });
+      publishDiscoveryProjections(tx, data.sessionId, projectedPlayers, plan.navigation, revision,
+        lockedNavigationChart(session), plan.groups, true);
+    }
+    const result: FleetPartitionReply = { status: 'committed', navigationRevision: revision, groupIds: plan.groups.map(group => group.id) };
+    tx.set(commandReceiptRef(data.sessionId, data.requestId), { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
   });
 });
