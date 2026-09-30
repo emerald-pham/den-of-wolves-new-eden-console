@@ -9,6 +9,7 @@ import GmStarmapModule from '@/components/GmStarmapModule';
 import GmScoutRevealController from '@/components/GmScoutRevealController';
 import GmMutinyRecovery from '@/components/GmMutinyRecovery';
 import SmallShipOperations from '@/components/SmallShipOperations';
+import Voyage33MovementWorkspace from '@/components/Voyage33MovementWorkspace';
 import SameTableTradeBaselineWorkspace from '@/components/SameTableTradeBaselineWorkspace';
 import { GmSetupChecklist } from '@/components/GmSetupChecklist';
 import PursuitTracker from '@/components/PursuitTracker';
@@ -3433,6 +3434,7 @@ export default function GmConsole() {
             </button>
           </section>
           <SmallShipOperations />
+          {session?.voyage33Admission?.status === 'admitted' && <Voyage33MovementWorkspace />}
           <GmStarmapModule session={session} />
           <Suspense fallback={(
             <section className="gm-console__module away-mission-start-panel cic-frame" aria-label="New-location mission start">

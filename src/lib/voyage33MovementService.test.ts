@@ -214,12 +214,13 @@ describe('authenticated Voyage 33-0 movement service', () => {
     await expect(jumpVoyage33Movement('5143')).resolves.toMatchObject({ status: 'jumped', fuelSpent: 1 });
 
     expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'jumpVoyage33');
-    expect(call.mock.calls[0]?.[0]).toMatchObject({
+    expect(call.mock.calls[0]?.[0]).toEqual({
       sessionId,
       shipId: VOYAGE_33_ID,
       hostShipId: 'aegis',
       destination: '5143',
       instanceId: 'gm-instance-1',
+      requestId: expect.stringMatching(/^[A-Za-z0-9_-]{1,128}$/),
       expectedMovementRevision: 5,
       expectedDockingRevision: 7,
     });
@@ -256,6 +257,57 @@ describe('authenticated Voyage 33-0 movement service', () => {
     const first = call.mock.calls[0]?.[0] as { requestId: string };
     const second = call.mock.calls[1]?.[0] as { requestId: string };
     expect(first.requestId).toBe(second.requestId);
+  });
+
+  it('does not accept a late receipt after the GM instance changes and reuses its id after recovery', async () => {
+    const session = sessionFixture('voyage-session-context-switch');
+    installGm(session);
+    const originalInstance = useSessionStore.getState().gmInstance!;
+    const call = vi.fn()
+      .mockImplementationOnce(async (payload: { requestId: string }) => {
+        useSessionStore.getState().setGmInstance({
+          ...originalInstance,
+          id: 'replacement-instance',
+        });
+        return { data: dockReply(session.id, payload.requestId) };
+      })
+      .mockImplementationOnce(async (payload: { requestId: string }) => ({
+        data: dockReply(session.id, payload.requestId),
+      }));
+    vi.mocked(httpsCallable).mockReturnValue(call as never);
+
+    await expect(dockVoyage33Movement('aegis')).rejects.toMatchObject({
+      name: 'Voyage33MovementUncertainError',
+    });
+    useSessionStore.getState().setGmInstance(originalInstance);
+    await expect(dockVoyage33Movement('aegis')).resolves.toMatchObject({ status: 'committed' });
+
+    const first = call.mock.calls[0]?.[0] as { requestId: string };
+    const second = call.mock.calls[1]?.[0] as { requestId: string };
+    expect(first.requestId).toBe(second.requestId);
+  });
+
+  it('returns a stale receipt without treating it as a committed docking command', async () => {
+    const session = sessionFixture('voyage-session-stale-receipt');
+    installGm(session);
+    const call = vi.fn(async (payload: { requestId: string }) => ({
+      data: {
+        status: 'stale',
+        sessionId: session.id,
+        requestId: payload.requestId,
+        shipId: VOYAGE_33_ID,
+        expectedMovementRevision: 0,
+        currentMovementRevision: 1,
+        expectedDockingRevision: 0,
+        currentDockingRevision: 0,
+      },
+    }));
+    vi.mocked(httpsCallable).mockReturnValue(call as never);
+
+    await expect(dockVoyage33Movement('aegis')).resolves.toMatchObject({
+      status: 'stale',
+      currentMovementRevision: 1,
+    });
   });
 
   it('rejects a jump outside the current facilitator navigation projection', async () => {

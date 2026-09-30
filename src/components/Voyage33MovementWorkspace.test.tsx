@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { INITIAL_SHIP_RESOURCES } from '@/data/resources';
 import { useSessionStore } from '@/store/useSessionStore';
@@ -8,10 +8,26 @@ import { VOYAGE_33_ID } from '../../functions/src/voyageAdmission';
 import Voyage33MovementWorkspace from './Voyage33MovementWorkspace';
 import { dockVoyage33Movement, jumpVoyage33Movement } from '@/lib/voyage33MovementService';
 
-vi.mock('@/lib/voyage33MovementService', () => ({
-  dockVoyage33Movement: vi.fn(),
-  jumpVoyage33Movement: vi.fn(),
-}));
+vi.mock('@/lib/voyage33MovementService', () => {
+  class MockUncertainError extends Error {
+    constructor(readonly attempt: Record<string, unknown>, message = 'connection result unavailable') {
+      super(message);
+      this.name = 'Voyage33MovementUncertainError';
+    }
+  }
+  class MockRejectedError extends Error {
+    constructor(readonly attempt: Record<string, unknown>, message = 'movement rejected') {
+      super(message);
+      this.name = 'Voyage33MovementRejectedError';
+    }
+  }
+  return {
+    Voyage33MovementUncertainError: MockUncertainError,
+    Voyage33MovementRejectedError: MockRejectedError,
+    dockVoyage33Movement: vi.fn(),
+    jumpVoyage33Movement: vi.fn(),
+  };
+});
 
 const movementService = await import('@/lib/voyage33MovementService');
 
@@ -138,14 +154,18 @@ beforeEach(() => {
 });
 
 describe('Voyage 33-0 movement workspace', () => {
-  it('offers only active core hosts and leaves the initial origin unresolved until docking', () => {
+  it('offers only active core hosts and leaves the initial origin unresolved until docking', async () => {
     const session = sessionFixture('voyage-workspace-dock', {
       activeVesselIds: ['aegis', 'dione'],
-      voyage33Movement: undefined,
       voyage33Maintenance: maintenanceState(),
       shipDamage: { dione: { damagedSystemIds: [], destroyed: true } },
     });
     installGm(session);
+    vi.mocked(dockVoyage33Movement).mockResolvedValue({
+      status: 'committed',
+      movementState: movementState('0000', 0),
+      maintenanceState: maintenanceState('aegis', 1),
+    } as never);
     render(<Voyage33MovementWorkspace />);
 
     const workspace = screen.getByRole('region', { name: 'Voyage 33-0 movement workspace' });
@@ -153,6 +173,27 @@ describe('Voyage 33-0 movement workspace', () => {
     expect(within(workspace).getAllByRole('button', { name: /dock with/i })).toHaveLength(1);
     expect(within(workspace).queryByRole('button', { name: /dock with.*dione/i })).not.toBeInTheDocument();
     expect(within(workspace).queryByRole('button', { name: /dock with.*voyage/i })).not.toBeInTheDocument();
+
+    fireEvent.click(within(workspace).getByRole('button', { name: /dock with.*aegis/i }));
+    expect(dockVoyage33Movement).toHaveBeenCalledWith('aegis');
+    expect(await within(workspace).findByText(/COMMITTED.*Waiting for live movement revision 0 and docking revision 1/i)).toBeInTheDocument();
+    expect(within(workspace).queryByRole('button', { name: /dock with/i })).not.toBeInTheDocument();
+    expect(within(workspace).queryByText('Current location')).not.toBeInTheDocument();
+  });
+
+  it('offers only live core hosts co-located with the existing Voyage position', () => {
+    const session = sessionFixture('voyage-workspace-colocation', {
+      voyage33Movement: movementState('0000', 2),
+      voyage33Maintenance: maintenanceState(),
+      shipDamage: {},
+    });
+    installGm(session);
+    render(<Voyage33MovementWorkspace />);
+
+    const workspace = screen.getByRole('region', { name: 'Voyage 33-0 movement workspace' });
+    expect(within(workspace).getAllByRole('button', { name: /dock with/i })).toHaveLength(1);
+    expect(within(workspace).getByRole('button', { name: /dock with.*aegis.*0000/i })).toBeInTheDocument();
+    expect(within(workspace).queryByRole('button', { name: /dock with.*dione/i })).not.toBeInTheDocument();
   });
 
   it('uses only GM-projected destinations, displays 1/1/2 host fuel, and sends jumps through the service', async () => {
@@ -160,6 +201,7 @@ describe('Voyage 33-0 movement workspace', () => {
       turnPhase: phase('coordination'),
       voyage33Movement: movementState('0000', 5),
       voyage33Maintenance: maintenanceState('aegis', 7, true),
+      shipDamage: { aegis: { damagedSystemIds: ['engine'], destroyed: false } },
     });
     installGm(session);
     vi.mocked(jumpVoyage33Movement).mockResolvedValue({
@@ -175,15 +217,87 @@ describe('Voyage 33-0 movement workspace', () => {
     expect(within(workspace).getByRole('button', { name: 'Jump to 9997 // medium // 1 host fuel' })).toBeInTheDocument();
     expect(within(workspace).getByRole('button', { name: 'Jump to 4888 // long // 2 host fuel' })).toBeInTheDocument();
     expect(within(workspace).queryByRole('button', { name: /Jump to 0408/i })).not.toBeInTheDocument();
+    expect(within(workspace).getByText('Host state').parentElement).toHaveTextContent(/Damaged/);
+    expect(within(workspace).getByRole('button', { name: /Jump to Known nearby site/i })).not.toBeDisabled();
     expect(within(workspace).getByText(/Voyage 33-0 is an extra ship, not a base small ship/i)).toBeInTheDocument();
+    expect(workspace).toHaveTextContent(/Server-authorized movement.*current session projection/i);
 
+    expect(within(workspace).getByText('Current location').parentElement).toHaveTextContent('0000');
     await act(async () => {
       fireEvent.click(within(workspace).getByRole('button', { name: /Jump to Known nearby site/i }));
     });
 
     expect(jumpVoyage33Movement).toHaveBeenCalledWith('5143');
-    expect(within(workspace).getByText(/Current location/i).parentElement).toHaveTextContent('0000');
-    expect(within(workspace).getByRole('status')).toHaveTextContent(/committed|server projection/i);
+    expect(await within(workspace).findByText(/COMMITTED.*Waiting for live movement revision 6 and docking revision 8/i)).toBeInTheDocument();
+    expect(within(workspace).queryByText('Current location')).not.toBeInTheDocument();
+  });
+
+  it('offers an exact retry after an uncertain response and disables alternate movement choices', async () => {
+    const sessionId = 'voyage-workspace-uncertain';
+    const session = sessionFixture(sessionId, {
+      turnPhase: phase('coordination'),
+      voyage33Movement: movementState('0000', 5),
+      voyage33Maintenance: maintenanceState('aegis', 7, true),
+    });
+    installGm(session);
+    const uncertain = new movementService.Voyage33MovementUncertainError({
+      action: 'jump',
+      sessionId,
+      instanceId: 'gm-instance-1',
+      hostShipId: 'aegis',
+      destination: '5143',
+      expectedMovementRevision: 5,
+      expectedDockingRevision: 7,
+    } as never);
+    vi.mocked(jumpVoyage33Movement)
+      .mockRejectedValueOnce(uncertain)
+      .mockResolvedValueOnce({
+        status: 'jumped',
+        movementState: movementState('5143', 6, 1),
+        maintenanceState: maintenanceState(null, 8),
+        fuelSpent: 1,
+      } as never);
+    render(<Voyage33MovementWorkspace />);
+
+    const workspace = screen.getByRole('region', { name: 'Voyage 33-0 movement workspace' });
+    fireEvent.click(within(workspace).getByRole('button', { name: /Jump to Known nearby site/i }));
+    expect(await within(workspace).findByRole('alert')).toHaveTextContent(/UNCERTAIN/i);
+    expect(within(workspace).getByRole('button', { name: 'Retry exact jump // 5143' })).toBeInTheDocument();
+    expect(within(workspace).getByRole('button', { name: /Jump to 9997/i })).toBeDisabled();
+
+    fireEvent.click(within(workspace).getByRole('button', { name: 'Retry exact jump // 5143' }));
+    expect(jumpVoyage33Movement).toHaveBeenCalledTimes(2);
+    expect(await within(workspace).findByText(/COMMITTED.*Waiting for live movement revision 6 and docking revision 8/i)).toBeInTheDocument();
+  });
+
+  it('holds movement actions after a stale receipt until the live revisions catch up', async () => {
+    const sessionId = 'voyage-workspace-stale-receipt';
+    const session = sessionFixture(sessionId, {
+      turnPhase: phase('coordination'),
+      voyage33Movement: movementState('0000', 5),
+      voyage33Maintenance: maintenanceState('aegis', 7, true),
+    });
+    installGm(session);
+    vi.mocked(jumpVoyage33Movement).mockResolvedValue({
+      status: 'stale',
+      currentMovementRevision: 6,
+      currentDockingRevision: 8,
+    });
+    render(<Voyage33MovementWorkspace />);
+
+    const workspace = screen.getByRole('region', { name: 'Voyage 33-0 movement workspace' });
+    fireEvent.click(within(workspace).getByRole('button', { name: /Jump to Known nearby site/i }));
+    expect(await within(workspace).findByText(/STALE.*Waiting for live movement revision 6/i)).toBeInTheDocument();
+    expect(within(workspace).queryByRole('button', { name: /Jump to/i })).not.toBeInTheDocument();
+
+    await act(async () => {
+      useSessionStore.getState().setSession({
+        ...session,
+        voyage33Movement: movementState('0000', 6),
+        voyage33Maintenance: maintenanceState('aegis', 8, true),
+      });
+    });
+    expect(await within(workspace).findByRole('button', { name: /Jump to Known nearby site/i })).toBeInTheDocument();
   });
 
   it('does not expose jump actions without a current-cycle charge or from a cached session', () => {
@@ -193,13 +307,14 @@ describe('Voyage 33-0 movement workspace', () => {
       voyage33Maintenance: maintenanceState('aegis', 3, false),
     });
     installGm(uncharged);
-    const { rerender } = render(<Voyage33MovementWorkspace />);
+    const { unmount } = render(<Voyage33MovementWorkspace />);
     expect(screen.getByText(/charge the voyage.*jump drive|jump drive charge.*current/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /jump to/i })).not.toBeInTheDocument();
 
     const stale = sessionFixture('voyage-workspace-stale');
+    unmount();
     installGm(stale, 'cache');
-    rerender(<Voyage33MovementWorkspace />);
+    render(<Voyage33MovementWorkspace />);
     expect(screen.getByRole('status')).toHaveTextContent(/waiting for a current live server snapshot/i);
     expect(screen.queryByRole('button', { name: /dock with|jump to/i })).not.toBeInTheDocument();
     expect(movementService.jumpVoyage33Movement).not.toHaveBeenCalled();
