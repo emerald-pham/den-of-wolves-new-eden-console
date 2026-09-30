@@ -106,6 +106,13 @@ it('keeps controls unavailable when the live facilitator link or current authori
   expect(screen.getByText(/offline.*reconnect/i)).toBeInTheDocument();
 });
 
+it('does not claim that no request is pending while the target inbox is offline', () => {
+  render(<PermissionedDismantlingPanel mode="target" sessionId="s1" targetShipId="dione"
+    connection="offline" canAct={false} />);
+  expect(screen.getByText(/offline.*reconnect/i)).toBeInTheDocument();
+  expect(screen.queryByText(/no permissioned dismantling request is pending/i)).not.toBeInTheDocument();
+});
+
 it('does not allow a revoked approval to be reused for the old request', () => {
   mocks.subscribe.mockImplementation((_sessionId, _shipId, handlers) => {
     handlers.onInbox({ ...pendingInbox, status: 'revoked', consentId: 'old-consent' });
@@ -132,5 +139,5 @@ it('lets the target player decline a pending request and closes the old request'
 
   await act(async () => handlers?.onInbox({ ...pendingInbox, status: 'declined' }));
   expect(screen.queryByRole('button', { name: /grant permission/i })).not.toBeInTheDocument();
-  expect(screen.getByText(/request declined.*new request/i)).toBeInTheDocument();
+  expect(screen.getByRole('alert')).toHaveTextContent(/request declined.*new request/i);
 });
