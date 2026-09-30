@@ -30,6 +30,8 @@ are regenerated from it:
 | [PRODUCT_MILESTONE_ASSUMPTIONS.md](PRODUCT_MILESTONE_ASSUMPTIONS.md) | Source-cited rules readings made during builds and their later corrections |
 | [PRODUCT_MILESTONE_CANDIDATES.md](PRODUCT_MILESTONE_CANDIDATES.md) | Work discovered outside the active shaped scope |
 | [IMPLEMENTATION_PROMPT_DEPENDENCIES.md](IMPLEMENTATION_PROMPT_DEPENDENCIES.md) | Generated dependency/readiness view |
+| [PC07–PC10 Gantt chart](PC07_ROADMAP_GANTT.html) | Portable browser view of the fixed allocation and dependency waves; derived snapshot, with no invented dates or durations |
+| [Gantt JSON](PC07_ROADMAP_GANTT.json) and [CSV](PC07_ROADMAP_GANTT.csv) | Machine-readable projection of the same 195 prompt IDs, statuses, prerequisites and waves |
 | [IMPLEMENTATION_MILESTONES.md](IMPLEMENTATION_MILESTONES.md) | Internal technical stories and exit fixtures |
 | [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) | Generated prompt objectives, acceptance, and source decisions |
 | [IMPLEMENTATION_PROGRESS.md](IMPLEMENTATION_PROGRESS.md) | Generated prompt status and release evidence |
@@ -43,6 +45,14 @@ the views remain useful for human review and links. The optional
 and `NEXT` is an advisory ready-work hint rather than a serial lock. Shape the
 next owner playtest from the current catalog and prior feedback; later product
 checkpoint rows are provisional planning slices, not a second status ledger.
+
+Open the Gantt HTML in a browser to view the checkpoint route, workstream lanes
+and expandable prompt ledger. It works offline and includes JSON/CSV downloads.
+Regenerate all three copies with the command
+<code>node scripts/generate-checkpoint-gantt.mjs</code> after catalog or allocation
+changes; <code>node scripts/generate-checkpoint-gantt.mjs --check</code> verifies
+freshness without editing. Wave marks encode dependency order, not work duration.
+The chart preserves PC06 as the entry prerequisite and the fixed PC10 endpoint.
 
 ## Product and presentation contracts
 
