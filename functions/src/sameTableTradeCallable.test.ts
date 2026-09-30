@@ -354,6 +354,37 @@ describe('same-table trade authoritative callables', () => {
     expect(store.committedWrites).toHaveLength(writeCount);
   });
 
+  it('uses the active replacement role vessel instead of the historical printed ship', async () => {
+    const store = seededStore();
+    const sender = player('sender', 'aegis-admiral');
+    sender.replacementRoleId = 'commissar';
+    sender.replacementStatus = null;
+    store.records.set(`${paths().players}/sender`, sender);
+    const callables = createSameTableTradeCallables(dependencies(store));
+
+    const result = await callables.createSameTableTradeOffer(createRequest());
+
+    expect(result).toMatchObject({
+      status: 'created',
+      offer: { fromUid: 'sender', toUid: 'recipient', tableId: 'icebreaker' },
+    });
+  });
+
+  it('does not use a historical printed ship while a player awaits reassignment', async () => {
+    const store = seededStore();
+    const sender = player('sender', 'icebreaker-miner');
+    sender.replacementRoleId = 'vip-host';
+    sender.replacementStatus = 'awaiting-re-role';
+    store.records.set(`${paths().players}/sender`, sender);
+    const before = structuredClone([...store.records.entries()]);
+    const callables = createSameTableTradeCallables(dependencies(store));
+
+    await expect(callables.createSameTableTradeOffer(createRequest()))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(store.committedWrites).toHaveLength(0);
+    expect([...store.records.entries()]).toEqual(before);
+  });
+
   it('rejects offer creation when current server roster tables differ', async () => {
     const store = seededStore();
     store.records.set(`${paths().players}/recipient`, player('recipient', 'dione-engineer'));

@@ -165,6 +165,8 @@ it('shows player-held trades only on the confirmed own ship and lists only curre
       { ...current, uid: 'u2', displayName: 'Bob', connected: true, assignedRoleId: 'executive-officer', activeConsoleRoleId: 'executive-officer' },
       { ...current, uid: 'u3', displayName: 'Dione player', connected: true, assignedRoleId: 'dione-captain', activeConsoleRoleId: 'dione-captain' },
       { ...current, uid: 'u4', displayName: 'Other fleet player', connected: true, fleetGroupId: 'fleet-2', assignedRoleId: 'executive-officer' },
+      { ...current, uid: 'u5', displayName: 'Replacement comms', connected: true, assignedRoleId: 'dione-engineer', replacementRoleId: 'comms-officer', replacementStatus: null, activeConsoleRoleId: null },
+      { ...current, uid: 'u6', displayName: 'Awaiting replacement', connected: true, assignedRoleId: 'admiral', replacementRoleId: 'comms-officer', replacementStatus: 'awaiting-re-role', activeConsoleRoleId: null },
       { ...current, uid: 'gm', displayName: 'Facilitator', connected: true, role: 'gm', activeConsoleRoleId: null },
     ]);
     return vi.fn();
@@ -177,9 +179,35 @@ it('shows player-held trades only on the confirmed own ship and lists only curre
 
   const recipient = await screen.findByRole('combobox', { name: 'Recipient' });
   expect(within(recipient).getByRole('option', { name: 'Bob' })).toBeInTheDocument();
+  expect(within(recipient).getByRole('option', { name: 'Replacement comms' })).toBeInTheDocument();
   expect(within(recipient).queryByRole('option', { name: 'Dione player' })).not.toBeInTheDocument();
   expect(within(recipient).queryByRole('option', { name: 'Other fleet player' })).not.toBeInTheDocument();
+  expect(within(recipient).queryByRole('option', { name: 'Awaiting replacement' })).not.toBeInTheDocument();
   expect(within(recipient).queryByRole('option', { name: 'Facilitator' })).not.toBeInTheDocument();
+});
+
+it('shows held-token trading on the current replacement ship without a historical seat', async () => {
+  const current = useSessionStore.getState().me;
+  if (!current) throw new Error('Expected the player identity.');
+  useSessionStore.getState().setMe({
+    ...current,
+    assignedRoleId: 'dione-engineer',
+    replacementRoleId: 'commissar',
+    replacementStatus: null,
+    activeConsoleRoleId: null,
+  });
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
+    onPlayers([useSessionStore.getState().me!]);
+    return vi.fn();
+  });
+
+  render(<MemoryRouter initialEntries={['/ships/icebreaker/roles/commissar']}><Routes>
+    <Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} />
+    <Route path="/console" element={<p>Fleet roster</p>} />
+  </Routes></MemoryRouter>);
+
+  expect(await screen.findByRole('region', { name: 'Same-table trade' })).toBeInTheDocument();
 });
 
 it('places the pursuit tracker beneath shipboard DRADIS and uses this ship position', () => {
