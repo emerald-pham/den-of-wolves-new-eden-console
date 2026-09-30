@@ -2,6 +2,10 @@ import { readFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
 
 const source = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
+const permissionedDismantlingSource = readFileSync(
+  new URL('./permissionedDismantlingCallable.ts', import.meta.url), 'utf8');
+const sameTableTradeSource = readFileSync(
+  new URL('./sameTableTradeCallable.ts', import.meta.url), 'utf8');
 const callablePattern = /export const (\w+) = onCall/g;
 const matches = [...source.matchAll(callablePattern)];
 const highwallWindowGuardStart = source.indexOf('function requireLiveHighwallMiningWindow(');
@@ -29,6 +33,53 @@ const terminalFreezeExemptions = new Set([
   'acknowledgeWolfHackingAlert',
 ]);
 
+const terminalGuardDelegates: Readonly<Record<string, {
+  readonly target: string;
+  readonly source: string;
+  readonly guard: string;
+}>> = {
+  proposePermissionedDismantling: {
+    target: 'permissionedDismantlingCallables.proposePermissionedDismantling(request)',
+    source: permissionedDismantlingSource,
+    guard: 'requireActiveSession(session);',
+  },
+  consentToPermissionedDismantling: {
+    target: 'permissionedDismantlingCallables.consentToPermissionedDismantling(request)',
+    source: permissionedDismantlingSource,
+    guard: 'requireActiveSession(session);',
+  },
+  declinePermissionedDismantling: {
+    target: 'permissionedDismantlingCallables.declinePermissionedDismantling(request)',
+    source: permissionedDismantlingSource,
+    guard: 'requireActiveSession(session);',
+  },
+  revokePermissionedDismantlingConsent: {
+    target: 'permissionedDismantlingCallables.revokePermissionedDismantlingConsent(request)',
+    source: permissionedDismantlingSource,
+    guard: 'requireActiveSession(session);',
+  },
+  applyPermissionedDismantling: {
+    target: 'permissionedDismantlingCallables.applyPermissionedDismantling(request)',
+    source: permissionedDismantlingSource,
+    guard: 'requireActiveSession(session);',
+  },
+  attestPlayerHeldTokenBaseline: {
+    target: 'sameTableTradeCallables.attestPlayerHeldTokenBaseline(request)',
+    source: sameTableTradeSource,
+    guard: "dependencies.requireNonterminalSessionPhase(sessionSnapshot.get('phase'));",
+  },
+  createSameTableTradeOffer: {
+    target: 'sameTableTradeCallables.createSameTableTradeOffer(request)',
+    source: sameTableTradeSource,
+    guard: "dependencies.requireNonterminalSessionPhase(sessionSnapshot.get('phase'));",
+  },
+  acceptSameTableTradeOffer: {
+    target: 'sameTableTradeCallables.acceptSameTableTradeOffer(request)',
+    source: sameTableTradeSource,
+    guard: "dependencies.requireNonterminalSessionPhase(sessionSnapshot.get('phase'));",
+  },
+};
+
 function callableBody(index: number): string {
   const start = matches[index]!.index;
   const end = matches[index + 1]?.index ?? source.length;
@@ -51,6 +102,12 @@ it('classifies every callable and requires terminal guards on normal gameplay pa
     const name = match[1]!;
     const body = callableBody(index);
     if (terminalFreezeExemptions.has(name)) return;
+    const delegatedGuard = terminalGuardDelegates[name];
+    if (delegatedGuard) {
+      if (!body.includes(delegatedGuard.target)) unclassified.push(name);
+      if (!delegatedGuard.source.includes(delegatedGuard.guard)) unguarded.push(name);
+      return;
+    }
     if (!acceptedGuards.some((guard) => body.includes(guard))) {
       unclassified.push(name);
       unguarded.push(name);
@@ -59,6 +116,13 @@ it('classifies every callable and requires terminal guards on normal gameplay pa
 
   expect(unclassified, 'New callables must be classified or terminal-guarded').toEqual([]);
   expect(unguarded, 'Normal gameplay callables must reject terminal phases').toEqual([]);
+});
+
+it('keeps every delegated callable backed by a transaction-level terminal guard', () => {
+  expect(permissionedDismantlingSource.match(/requireActiveSession\(session\);/g)).toHaveLength(5);
+  expect(sameTableTradeSource.match(
+    /dependencies\.requireNonterminalSessionPhase\(sessionSnapshot\.get\('phase'\)\);/g,
+  )).toHaveLength(3);
 });
 
 it('requires the Highwall mining window guard to reject non-active sessions', () => {

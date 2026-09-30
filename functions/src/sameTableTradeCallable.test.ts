@@ -148,7 +148,7 @@ function inventory(balances: Data): Data {
 function seededStore(options: { revision?: number; sameTable?: boolean; accepted?: boolean } = {}): FakeStore {
   const store = new FakeStore();
   const path = paths();
-  store.records.set(path.session, { id: SESSION_ID });
+  store.records.set(path.session, { id: SESSION_ID, phase: 'active' });
   store.records.set(`${path.players}/sender`, player('sender', 'icebreaker-miner'));
   store.records.set(`${path.players}/recipient`, player('recipient', options.sameTable === false ? 'dione-engineer' : 'icebreaker-engineer'));
   store.records.set(`${path.players}/facilitator`, player('facilitator', '', 'gm'));
@@ -234,6 +234,13 @@ function dependencies(store: FakeStore) {
       }
       return { session: snapshot(paths().session, store.records.get(paths().session)), player: snapshot('facilitator', store.records.get(`${paths().players}/facilitator`)) };
     },
+    requireNonterminalSessionPhase: (phase: unknown) => {
+      if (['closed', 'retained-empty', 'debrief', 'success', 'failure'].includes(String(phase))) {
+        throw Object.assign(new Error('Gameplay actions are unavailable after the session ends.'), {
+          code: 'failed-precondition',
+        });
+      }
+    },
     isActivePlayer: (record: Snapshot) => record.exists && record.get('connected') === true && !record.get('kickedAt'),
     shipForRole: (roleId: unknown) => typeof roleId === 'string' && roleId.includes('-')
       ? roleId.split('-')[0]
@@ -274,6 +281,50 @@ const acceptRequest = (uid = 'recipient', overrides: Data = {}) => ({
 });
 
 describe('same-table trade authoritative callables', () => {
+  it('rejects a new facilitator inventory baseline in a terminal session without writing', async () => {
+    const store = new FakeStore();
+    const path = paths();
+    store.records.set(path.session, { id: SESSION_ID, phase: 'failure' });
+    store.records.set(`${path.players}/sender`, player('sender', 'icebreaker-miner'));
+    store.records.set(`${path.players}/facilitator`, player('facilitator', '', 'gm'));
+    store.records.set(path.state, { type: 'same-table-trade-state', sessionId: SESSION_ID, revision: 0 });
+    const callables = createSameTableTradeCallables(dependencies(store));
+
+    await expect(callables.attestPlayerHeldTokenBaseline(attestationRequest()))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(store.records.has(path.senderInventory)).toBe(false);
+    expect(store.committedWrites).toHaveLength(0);
+  });
+
+  it('rejects a new same-table offer in a terminal session without writing', async () => {
+    const store = seededStore();
+    store.records.get(paths().session)!.phase = 'failure';
+    const callables = createSameTableTradeCallables(dependencies(store));
+
+    await expect(callables.createSameTableTradeOffer(createRequest()))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(store.records.has(paths().offer)).toBe(false);
+    expect(store.committedWrites).toHaveLength(0);
+  });
+
+  it('rejects recipient acceptance in a terminal session without changing either inventory', async () => {
+    const store = seededStore();
+    const callables = createSameTableTradeCallables(dependencies(store));
+    await callables.createSameTableTradeOffer(createRequest());
+    store.committedWrites.length = 0;
+    const beforeSender = structuredClone(store.records.get(paths().senderInventory));
+    const beforeRecipient = structuredClone(store.records.get(paths().recipientInventory));
+    store.records.get(paths().session)!.phase = 'failure';
+
+    await expect(callables.acceptSameTableTradeOffer(acceptRequest()))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(store.records.get(paths().senderInventory)).toEqual(beforeSender);
+    expect(store.records.get(paths().recipientInventory)).toEqual(beforeRecipient);
+    expect(store.records.get(paths().offer)).toMatchObject({ status: 'pending' });
+    expect(store.records.has(paths().receipt)).toBe(false);
+    expect(store.committedWrites).toHaveLength(0);
+  });
+
   it('attests a baseline once and returns the original result for an exact replay', async () => {
     const store = new FakeStore();
     const path = paths();
