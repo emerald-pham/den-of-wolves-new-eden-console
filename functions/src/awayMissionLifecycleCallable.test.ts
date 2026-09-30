@@ -110,7 +110,7 @@ function paths(missionId = MISSION_ID) {
   };
 }
 
-function seededStore(options: { readonly warrior?: boolean } = {}): FakeStore {
+function seededStore(options: { readonly warrior?: boolean; readonly siteCode?: string } = {}): FakeStore {
   const store = new FakeStore();
   const p = paths();
   const allCards = missionDeck();
@@ -143,7 +143,7 @@ function seededStore(options: { readonly warrior?: boolean } = {}): FakeStore {
     opportunityId: OPPORTUNITY_ID,
     chart: 'A',
     coordinate: '1234',
-    siteCode: 'K',
+    siteCode: options.siteCode ?? 'K',
     sourceCycle: 3,
     missionLeaderUid: 'alice',
     missionLeaderRoleId: 'wing-commander',
@@ -172,7 +172,7 @@ function seededStore(options: { readonly warrior?: boolean } = {}): FakeStore {
     groupId: 'fleet-1',
     chart: 'A',
     coordinate: '1234',
-    siteCode: 'K',
+    siteCode: options.siteCode ?? 'K',
     sourceCycle: 3,
     missionLeader: { uid: 'alice', roleId: 'wing-commander' },
     stateDelta: { missionDeckDealtCountBefore: 0, missionDeckDealtCountAfter: 2 },
@@ -207,7 +207,7 @@ function seededStore(options: { readonly warrior?: boolean } = {}): FakeStore {
       groupId: 'fleet-1',
       chart: 'A',
       coordinate: '1234',
-      siteCode: 'K',
+      siteCode: options.siteCode ?? 'K',
       sourceCycle: 3,
       participantCount: 2,
       missionLeaderUid: 'alice',
@@ -522,7 +522,7 @@ it('executes every lifecycle command, keeps the deck cursor and projections atom
 });
 
 it('keeps Warrior Reclamator choices and each participant’s cards private from every other command reply', async () => {
-  const store = seededStore({ warrior: true });
+  const store = seededStore({ warrior: true, siteCode: 'D' });
   const { commitAwayMissionLifecycleCommand } = dependencies(store);
   const send = (uid: string, type: string, fields: Fields = {}) => commitAwayMissionLifecycleCommand(commandRequest(uid, {
     type,
@@ -534,11 +534,11 @@ it('keeps Warrior Reclamator choices and each participant’s cards private from
 
   await send('gm', 'openDiscards');
   const salvage = await send('bob', 'reclamatorSalvage', {
-    opportunityId: 'K-1', choices: [{ cardId: BOB_CARD, resource: 'food' }],
+    opportunityId: 'D-1', choices: [{ cardId: BOB_CARD, resource: 'food' }],
   });
   expect(salvage.privateState).toMatchObject({
     participantUid: 'bob',
-    reclamatorSalvage: { opportunityId: 'K-1', choices: [{ cardId: BOB_CARD, resource: 'food' }] },
+    reclamatorSalvage: { opportunityId: 'D-1', choices: [{ cardId: BOB_CARD, resource: 'food' }] },
   });
   expect(JSON.stringify(salvage.publicState)).not.toMatch(/4♥|choices|food|cardId/);
   expect(JSON.stringify(store.records.get(paths().bobPointer)?.lifecyclePublicState)).not.toMatch(/4♥|choices|food|cardId/);
