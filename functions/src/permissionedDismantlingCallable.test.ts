@@ -483,6 +483,25 @@ it('lets the target player decline a pending proposal without damage or material
   expect(store.records.get(paths().inbox)).toMatchObject({ status: 'declined', consentId: null });
 });
 
+it('does not let the craft holder decline for the target or decline after consent', async () => {
+  const store = seededStore();
+  const callables = createPermissionedDismantlingCallables(dependencies(store));
+  await callables.proposePermissionedDismantling(proposeRequest());
+  const beforeUnauthorized = store.committedWrites.length;
+
+  await expect(callables.declinePermissionedDismantling(request('engineer', {
+    sessionId: SESSION_ID, proposalId: PROPOSAL_ID,
+  }))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(store.committedWrites).toHaveLength(beforeUnauthorized);
+
+  await callables.consentToPermissionedDismantling(consentRequest());
+  const afterConsent = store.committedWrites.length;
+  await expect(callables.declinePermissionedDismantling(request('target-player', {
+    sessionId: SESSION_ID, proposalId: PROPOSAL_ID,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(store.committedWrites).toHaveLength(afterConsent);
+});
+
 it('rejects an inactive target, changed docking, an already-damaged console, and material overflow atomically', async () => {
   const inactiveStore = seededStore();
   const inactive = createPermissionedDismantlingCallables(dependencies(inactiveStore));

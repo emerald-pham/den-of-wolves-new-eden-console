@@ -2959,4 +2959,13 @@ describe('permissioned dismantling target inbox', () => {
     });
     await assertFails(getDoc(doc(as('targetDione'), inboxPath)));
   });
+
+  it('keeps the declined decision readable to the same authorized players', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), inboxPath), { status: 'declined' });
+    });
+    await assertSucceeds(getDoc(doc(as('targetDione'), inboxPath)));
+    await assertSucceeds(getDoc(doc(as('engineer'), inboxPath)));
+    await assertFails(getDoc(doc(as('captain'), inboxPath)));
+  });
 });
