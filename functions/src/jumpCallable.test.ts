@@ -2371,6 +2371,7 @@ for (const craftId of ['warrior', 'capybara-small'] as const) {
     mock.smallShipStates = { [craftId]: emptySmallShipState(craftId, 'aegis') };
     mock.missionCraftCommitments = { [craftId]: { missionId: 'mission-1', sourceCycle: 1 } };
     await expect(jumpShip.run(request({ ...data, destination: '1413' }))).rejects.toThrow(/committed.*away mission/i);
+    await expect(moveShipToLocation.run(request({ ...data, requestId: 'held-relocation', destination: '1413' }))).rejects.toThrow(/committed.*away mission/i);
     expect(mock.update).not.toHaveBeenCalled();
     expect(mock.set).not.toHaveBeenCalled();
     expect(mock.randomInt).not.toHaveBeenCalled();

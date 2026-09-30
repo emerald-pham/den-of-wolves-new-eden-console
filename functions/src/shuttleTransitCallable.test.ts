@@ -520,3 +520,17 @@ it('rejects malformed or already-transiting route state without mutation', async
   expect(mock.set).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();
 });
+
+it('rejects retargeting a transit if current mission authority commits that craft, without changing its route or receipt', async () => {
+  await beginShuttleTransit.run(request(command));
+  const session = mock.documents.get('sessions/s1')!;
+  session.activeVesselIds = ['aegis', 'icebreaker', 'dione'];
+  mock.documents.get('sessions/s1/fleetGroups/fleet-1')!.vesselIds = ['aegis', 'icebreaker', 'dione'];
+  put('sessions/s1', { ...session, missionCraftCommitments: { starlight: { missionId: 'mission-1', sourceCycle: 2 } } });
+  const before = structuredClone([...mock.documents]);
+  mock.update.mockClear(); mock.set.mockClear(); mock.create.mockClear();
+  await expect(retargetShuttleTransit.run(request({ sessionId: 's1', requestId: 'held-retarget', shuttleId: 'starlight',
+    transitRequestId: 'transit-1', destinationShipId: 'dione', expectedControlRevision: 0, expectedCycle: 2 }))).rejects.toThrow(/committed.*away mission/i);
+  expect([...mock.documents]).toEqual(before);
+  expect(mock.update).not.toHaveBeenCalled(); expect(mock.set).not.toHaveBeenCalled(); expect(mock.create).not.toHaveBeenCalled();
+});
