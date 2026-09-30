@@ -423,9 +423,12 @@ export function discardMissionHandForWarriorReclamator(
   const assignedParticipantUids = [...state.assignedParticipantUids, participantUid];
   const allDiscardsComplete = state.discardedParticipantUids.length + reclamatorParticipantUids.length ===
     state.participants.length;
+  const allAssignmentsComplete = assignedParticipantUids.length === state.participants.length;
   const nextState: MissionLifecycleState = {
     ...state,
-    phase: allDiscardsComplete ? 'assignment-ready' : 'discarding',
+    phase: allDiscardsComplete
+      ? allAssignmentsComplete ? 'assignments-complete' : 'assignment-ready'
+      : 'discarding',
     reclamatorParticipantUids,
     reclamatorCardIds,
     assignedParticipantUids,
