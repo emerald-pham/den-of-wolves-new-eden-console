@@ -240,3 +240,8 @@ Sol 6.1 takes accountable implementation, integration and release ownership at c
   tests and 25 evacuation checks pass. Client typecheck and Functions build pass.
   The guidance-test tuple now preserves literal path types; its runtime assertions
   are unchanged after the whole-client typecheck exposed that earlier test error.
+
+- `157b21f2` connects D/E exploration rewards to the locked private chart, immutable participant UID knowledge, and permitted projections in the same transaction. Separate test commits `0c476f47`, `534c99cf`, and `543fe8d7` establish pure, callable, and UI/client reds. No arrival or duplicate visit event is manufactured; 82 focused checks pass.
+- `bc82b4b6` observes the absent mission craft commitment/movement guard red. `642a5b19` integrates a strict session commitment map, atomic admission/release, and fresh ordinary movement guards. The existing missing-receipt assertion counts the added ledger write in `96af6dc9`; 116 lifecycle/jump/small-craft callable checks pass afterward. Further endpoint and overrun display audits remain.
+- The returned Voyage group has separate observed-red original commits `7bec2942`, `69021030`, and `1350f996`, then implementation `1aad8aec`. The owner verified base ancestry and the six-path diff before integrating as `e08ad99d` through `ac68587b`. All143 integrated service/workspace/GM-route tests pass with no filtering.
+- `5e80bf67` reproduces a solo Warrior Reclamator mission stuck at assignment-ready. `a00aa110` finishes its already-satisfied assignment slot; 40 lifecycle/adapter/callable checks pass. The shared server legal-drop context audit remains before final acceptance.
