@@ -241,6 +241,20 @@ it('proposes, grants one exact target-ship consent, and atomically applies damag
   expect(store.committedWrites).toHaveLength(applyWrites);
 });
 
+it('keeps one active consent request visible per target ship', async () => {
+  const store = seededStore();
+  const callables = createPermissionedDismantlingCallables(dependencies(store));
+  await callables.proposePermissionedDismantling(proposeRequest());
+  const writesAfterFirstProposal = store.committedWrites.length;
+
+  await expect(callables.proposePermissionedDismantling(proposeRequest({
+    proposalId: 'proposal-2',
+    targetConsoleId: 'hydroponics',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(store.committedWrites).toHaveLength(writesAfterFirstProposal);
+  expect(store.records.get(paths().inbox)).toMatchObject({ proposalId: PROPOSAL_ID, status: 'pending' });
+});
+
 it('rejects malformed requests, ineligible craft actors, self-consent, and a player assigned to another ship without writes', async () => {
   const malformedStore = seededStore();
   const malformed = createPermissionedDismantlingCallables(dependencies(malformedStore));
