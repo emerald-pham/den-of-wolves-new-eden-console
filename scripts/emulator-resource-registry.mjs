@@ -34,10 +34,8 @@ import {
   prepareReleaseFragmentFile,
   readReleaseLaneState,
   refreshCoordinationLease,
-  withValidationLease,
 } from './coordination-throughput.mjs';
 import {
-  deriveCopyOnlyValidationProfile,
   deriveValidationProfile,
 } from './validation-profile.mjs';
 import { isVersionMetadataOnlyPackageChange } from './risk-gates.mjs';
@@ -940,7 +938,13 @@ export function executeValidationProcess(command, args, cwd, { signalSource = pr
     const resolveOnce = (value) => { if (!settled) { settled = true; cleanup(); resolvePromise(value); } };
     const abort = (reason) => { if (receivedSignal) return; receivedSignal = typeof reason === 'string' ? reason : 'SIGTERM'; terminateValidationProcess(child, receivedSignal); controller.abort(receivedSignal); };
     const onInterrupt = () => abort('SIGINT'); const onTerminate = () => abort('SIGTERM'); const onAbort = () => abort(signal.reason);
-    if (signal) signal.aborted ? abort(signal.reason) : signal.addEventListener('abort', onAbort, { once: true }); else { signalSource.once('SIGINT', onInterrupt); signalSource.once('SIGTERM', onTerminate); }
+    if (signal) {
+      if (signal.aborted) abort(signal.reason);
+      else signal.addEventListener('abort', onAbort, { once: true });
+    } else {
+      signalSource.once('SIGINT', onInterrupt);
+      signalSource.once('SIGTERM', onTerminate);
+    }
     try {
       child = spawn(command, args, { cwd, signal: controller.signal, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'] });
       child.stdout?.on('data', (chunk) => stdout.push(chunk)); child.stderr?.on('data', (chunk) => stderr.push(chunk));
