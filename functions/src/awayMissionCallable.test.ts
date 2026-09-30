@@ -180,6 +180,7 @@ beforeEach(() => {
   (sessionFields.turnPhase as Record<string, unknown>).turn = 2;
   (sessionFields.turnState as Record<string, unknown>).currentTurn = 2;
   (sessionFields.turnState as Record<string, unknown>).phaseRevision = 3;
+  sessionFields.turnState.phase = 'coordination';
   mock.marker = undefined;
   mock.orphanEvent = false;
   mock.discardMission = undefined;
@@ -796,6 +797,27 @@ describe('dealPrivateInitialCards', () => {
         phase: 'discarding', revision: 1,
       });
     }
+  });
+
+  it('keeps a seeded mission on its original roster when legacy discard controls resume in the next Team phase', async () => {
+    const missionId = `mission-${defaultOpportunity.id}`;
+    await dealPrivateInitialCards.run(request(command));
+    mock.discardMission = mock.set.mock.calls.find(([ref]) =>
+      ref.path === `sessions/s1/serverState/awayMissions/instances/${missionId}`)?.[1];
+    mock.discardMissionId = missionId;
+    sessionFields.currentTurn = 3;
+    sessionFields.turnPhase.turn = 3;
+    sessionFields.turnState.currentTurn = 3;
+    sessionFields.turnState.phase = 'team';
+    mock.update.mockClear();
+    await expect(openPrivateMissionDiscards.run(request({ sessionId: 's1', instanceId: 'bridge',
+      requestId: 'open-overrun', expectedSetupRevision: 1, missionId })))
+      .resolves.toMatchObject({ status: 'committed', missionId });
+    expect(mock.update).toHaveBeenCalledWith(expect.objectContaining({
+      path: `sessions/s1/serverState/awayMissions/instances/${missionId}` }),
+      expect.objectContaining({ overrun: true, lifecycleRecord: expect.objectContaining({ sourceCycle: 2, overrun: true }) }));
+    expect(Object.values(mock.pointerDocuments).every(pointer =>
+      (pointer.lifecyclePublicState as Record<string, unknown>).overrun === true)).toBe(true);
   });
 
   it('replays the same request without writing a second hand', async () => {
