@@ -65,6 +65,7 @@ it('connects the small-craft Jump Drive presentation to local readiness, arrival
   await user.click(within(jumpSample).getByRole('button', { name: 'Execute jump' }));
   expect(within(jumpSample).getByText('Detached')).toBeVisible();
   expect(within(jumpSample).getByText('5143', { exact: true })).toBeVisible();
+  await user.click(within(jumpSample).getByText('Arrival knowledge recorded for this Captain'));
   expect(within(jumpSample).getByText(/0000 \/\/ 5143/)).toBeVisible();
   expect(within(jumpSample).getByRole('status', { name: 'Small-craft Jump Drive sample result' })).toHaveTextContent(
     /local simulation.*arrival knowledge.*no production jump/i,
@@ -81,6 +82,7 @@ it('connects the small-craft Jump Drive presentation to local readiness, arrival
   expect(smallShipJumpService.chargeSmallShipJumpDrive).not.toHaveBeenCalled();
   expect(smallShipJumpService.getSmallShipJumpWorkspace).not.toHaveBeenCalled();
   expect(smallShipJumpService.jumpSmallShip).not.toHaveBeenCalled();
+  expect(jumpShip).not.toHaveBeenCalled();
 });
 
 it('simulates docking and a legal destination using the production movement panel', async () => {

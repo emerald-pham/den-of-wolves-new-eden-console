@@ -2,6 +2,7 @@ import { useState } from 'react';
 import FleetGroupPanel from '@/components/FleetGroupPanel';
 import AwayMissionLifecyclePanel from '@/components/AwayMissionLifecyclePanel';
 import JumpDriveConsole from '@/components/JumpDriveConsole';
+import SmallShipJumpPanel, { type SmallShipJumpPanelProjection } from '@/components/SmallShipJumpPanel';
 import SameTableTradePanel, {
   type SameTableTradeBalances,
   type SameTableTradePanelProps,
@@ -26,7 +27,7 @@ const STEPS: readonly { readonly id: ReviewStep; readonly label: string; readonl
     id: 'movement',
     label: '1 Movement',
     title: 'Move a vessel and account for its host',
-    prompt: 'Can I choose a legal destination, read its fuel cost, and follow the keyboard path through ready, pending, denied, and recovered samples?',
+    prompt: 'Can I choose a legal host route, review small-craft charge and arrival, and recover from a stale origin while keeping every sample separate from production?',
   },
   {
     id: 'cargo',
@@ -101,6 +102,38 @@ const INITIAL_TRADE_BALANCES: SameTableTradeBalances = {
   water: 1,
   materials: 4,
   securityTeams: 1,
+};
+
+const SMALL_CRAFT_ROUTES = [
+  { coordinate: '5143', length: 'short' as const, fuelCost: 1 },
+  { coordinate: '1413', length: 'medium' as const, fuelCost: 1 },
+  { coordinate: '6798', length: 'long' as const, fuelCost: 2 },
+];
+
+const SMALL_CRAFT_TEAM_SAMPLE: SmallShipJumpPanelProjection = {
+  viewer: 'captain',
+  smallShipId: 'gorgoneion',
+  hostShipId: 'aegis',
+  currentCoordinate: '0000',
+  movementRevision: 2,
+  dockingRevision: 3,
+  currentTurn: 4,
+  phase: 'team',
+  cycleRevision: 8,
+  cycleStep: 4,
+  cycleTurn: 4,
+  cycleCharges: ['missile-array'],
+  charged: false,
+  hostFuel: 5,
+  knownDestinations: SMALL_CRAFT_ROUTES,
+  arrivalCoordinates: ['0000'],
+};
+
+const SMALL_CRAFT_MOVEMENT_SAMPLE: SmallShipJumpPanelProjection = {
+  ...SMALL_CRAFT_TEAM_SAMPLE,
+  phase: 'coordination',
+  cycleCharges: ['missile-array', 'jump-drive'],
+  charged: true,
 };
 
 function currentStepIndex(step: ReviewStep): number {
@@ -226,6 +259,138 @@ function MovementReview() {
       <p className="pc06-review__result" role="status" aria-label="Movement sample result">{result}</p>
       <p className="pc06-review__note">
         Voyage 33-0 is a movement-panel example. Its LIVE link label is a synthetic control-enabling value; no facilitator connection is open. The listed host, fuel, and locations are synthetic, and local controls do not submit a jump.
+      </p>
+      <SmallCraftJumpReview />
+    </section>
+  );
+}
+
+type SmallCraftReviewState = 'team' | 'ready' | 'arrived' | 'stale' | 'recovered';
+
+function SmallCraftJumpReview() {
+  const [sampleState, setSampleState] = useState<SmallCraftReviewState>('team');
+  const [projection, setProjection] = useState(SMALL_CRAFT_TEAM_SAMPLE);
+  const [selectedDestination, setSelectedDestination] = useState('');
+  const [result, setResult] = useState(
+    'TEAM PHASE SAMPLE // Charge is available for the prepared cycle. Every control here is local-only.',
+  );
+
+  function showTeamSample(): void {
+    setSampleState('team');
+    setProjection({ ...SMALL_CRAFT_TEAM_SAMPLE, cycleCharges: [...(SMALL_CRAFT_TEAM_SAMPLE.cycleCharges ?? [])] });
+    setSelectedDestination('');
+    setResult('TEAM PHASE SAMPLE // Charge is available for the prepared cycle. Every control here is local-only.');
+  }
+
+  function showMovementSample(): void {
+    setSampleState('ready');
+    setProjection({ ...SMALL_CRAFT_MOVEMENT_SAMPLE, cycleCharges: [...(SMALL_CRAFT_MOVEMENT_SAMPLE.cycleCharges ?? [])] });
+    setSelectedDestination('');
+    setResult('MOVEMENT READY SAMPLE // The prepared Jump Drive is charged; choose a known route.');
+  }
+
+  function showStaleOriginSample(): void {
+    setSampleState('stale');
+    setProjection({ ...SMALL_CRAFT_MOVEMENT_SAMPLE, cycleCharges: [...(SMALL_CRAFT_MOVEMENT_SAMPLE.cycleCharges ?? [])] });
+    setSelectedDestination('');
+    setResult('STALE-ORIGIN SAMPLE // This prepared origin is old. Execute once to inspect refresh guidance; no command is sent.');
+  }
+
+  function chargeLocally(): void {
+    if (sampleState !== 'team') return;
+    setProjection((current) => ({
+      ...current,
+      phase: 'coordination',
+      cycleCharges: [...(current.cycleCharges ?? []), 'jump-drive'],
+      charged: true,
+    }));
+    setSampleState('ready');
+    setResult('LOCAL SIMULATION // Charge ready for the movement sample. No production charge occurred.');
+  }
+
+  function jumpLocally(): void {
+    const route = projection.knownDestinations?.find(({ coordinate }) => coordinate === selectedDestination);
+    if (!route || projection.hostShipId === null || projection.currentCoordinate === null) return;
+    if (sampleState === 'stale') {
+      setResult('STALE-ORIGIN SAMPLE // The prepared origin changed before departure. Refresh the movement projection before choosing another route.');
+      return;
+    }
+    if ((sampleState !== 'ready' && sampleState !== 'recovered') || (projection.hostFuel ?? -1) < route.fuelCost) return;
+    setProjection((current) => ({
+      ...current,
+      hostShipId: null,
+      hostFuel: null,
+      currentCoordinate: route.coordinate,
+      movementRevision: current.movementRevision + 1,
+      dockingRevision: current.dockingRevision + 1,
+      knownDestinations: [],
+      arrivalCoordinates: [...(current.arrivalCoordinates ?? []), route.coordinate],
+    }));
+    setSampleState('arrived');
+    const remainingHostFuel = (projection.hostFuel ?? 0) - route.fuelCost;
+    setResult(`LOCAL SIMULATION // Spent ${route.fuelCost} host fuel; ${remainingHostFuel} remains on Aegis in this sample. Private arrival knowledge now includes ${route.coordinate}. The craft is detached. No production jump or fuel change occurred.`);
+  }
+
+  function refreshLocally(): void {
+    if (sampleState === 'stale') {
+      setProjection({
+        ...SMALL_CRAFT_MOVEMENT_SAMPLE,
+        currentCoordinate: '0101',
+        movementRevision: 3,
+        dockingRevision: 4,
+        hostFuel: 4,
+        cycleCharges: [...(SMALL_CRAFT_MOVEMENT_SAMPLE.cycleCharges ?? [])],
+      });
+      setSampleState('recovered');
+      setSelectedDestination('');
+      setResult('RECOVERED SAMPLE // The prepared current origin is 0101. No retry was issued.');
+      return;
+    }
+    setResult('LOCAL REVIEW ONLY // Prepared movement sample refreshed locally. No server read was requested.');
+  }
+
+  return (
+    <section className="pc06-review__workspace" aria-label="Small-craft Jump Drive review sample">
+      <div className="pc06-review__sample-controls" role="group" aria-label="Small-craft Jump Drive sample states">
+        <button className="cic-action-button" type="button" aria-pressed={sampleState === 'team'} onClick={showTeamSample}>
+          Team / charge sample
+        </button>
+        <button className="cic-action-button" type="button" aria-pressed={sampleState === 'ready' || sampleState === 'recovered'} onClick={showMovementSample}>
+          Movement ready sample
+        </button>
+        <button className="cic-action-button" type="button" aria-pressed={sampleState === 'stale'} onClick={showStaleOriginSample}>
+          Stale-origin sample
+        </button>
+        <button className="cic-action-button" type="button" aria-pressed={sampleState === 'arrived'} onClick={showTeamSample}>
+          Reset jump sample
+        </button>
+      </div>
+      <p className="pc06-review__note" role="status" aria-label="Small-craft Jump Drive sample state">
+        {sampleState === 'team' ? 'TEAM PHASE // synthetic charge-ready state.'
+          : sampleState === 'ready' ? 'COORDINATION // synthetic charged movement-ready state.'
+            : sampleState === 'arrived' ? 'ARRIVAL // synthetic detached craft and private Captain knowledge.'
+              : sampleState === 'stale' ? 'STALE ORIGIN // synthetic revision conflict awaiting local refresh.'
+                : 'RECOVERED VIEW // refreshed prepared values; no action was retried.'}
+      </p>
+      <SmallShipJumpPanel
+        smallShipId="gorgoneion"
+        projection={projection}
+        accessibleName="Small-craft Jump Drive panel"
+        authorityLabel="synthetic local sample"
+        resultStatusLabel="Small-craft Jump Drive sample result"
+        loading={false}
+        busy={false}
+        selectedDestination={selectedDestination}
+        resultMessage={result}
+        onDestinationChange={setSelectedDestination}
+        onCharge={chargeLocally}
+        onRetryCharge={() => setResult('LOCAL REVIEW ONLY // No pending charge request exists in this sample.')}
+        onJump={jumpLocally}
+        onRetryJump={() => setResult('LOCAL REVIEW ONLY // No request was issued, so nothing can be retried.')}
+        onRefresh={refreshLocally}
+      />
+      <p className="pc06-review__note">
+        This is a local simulation of the real Captain panel. Its injected callbacks only change prepared sample values; it imports no production movement action and makes no callable or Firestore request. Arrival knowledge shown above is illustrative, not multiplayer proof.
       </p>
     </section>
   );

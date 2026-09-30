@@ -10,6 +10,7 @@ import {
   getSmallShipJumpWorkspace,
   jumpSmallShip,
 } from '@/lib/smallShipJumpService';
+import SmallShipJumpPanel from './SmallShipJumpPanel';
 
 interface SmallShipJumpWorkspaceProps {
   readonly smallShipId: SmallCraftJumpId;
@@ -68,17 +69,6 @@ function SmallShipJumpWorkspace({ smallShipId }: SmallShipJumpWorkspaceProps) {
     () => projection?.knownDestinations?.find((choice) => choice.coordinate === selectedDestination),
     [projection?.knownDestinations, selectedDestination],
   );
-  const hasHostFuel = destination !== undefined && (projection?.hostFuel ?? -1) >= destination.fuelCost;
-  const canCharge = projection?.viewer === 'captain' && projection.hostShipId !== null &&
-    projection.phase === 'team' && projection.cycleStep === 4 &&
-    projection.cycleTurn === projection.currentTurn && projection.charged === false &&
-    Number.isSafeInteger(projection.cycleRevision) &&
-    (projection.cycleCharges?.length ?? 0) < 2 &&
-    !(projection.cycleCharges ?? []).includes('jump-drive');
-  const canJump = projection?.viewer === 'captain' && projection.phase === 'coordination' &&
-    projection.hostShipId !== null && projection.currentCoordinate !== null && projection.charged === true &&
-    destination !== undefined && hasHostFuel && Number.isSafeInteger(projection.cycleRevision);
-
   const submitJump = useCallback(async (command?: SmallShipJumpCommand) => {
     if (busy) return;
     const next = command ?? (projection && destination && projection.currentCoordinate && projection.hostShipId
@@ -151,82 +141,24 @@ function SmallShipJumpWorkspace({ smallShipId }: SmallShipJumpWorkspaceProps) {
     }
   }, [busy, projection, reload, smallShipId]);
 
-  const vesselName = smallShipId === 'gorgoneion' ? 'Gorgoneion' : 'Base Capybara';
   return (
-    <section className="console-workspace extra-ship-workspace__procedure" aria-label="Small-craft Jump Drive workspace">
-      <header className="console-workspace__header">
-        <p className="eyebrow">{vesselName} // Jump Drive // server authority</p>
-        <h3>Small-craft FTL procedure</h3>
-      </header>
-      <p>
-        Charge during Team Phase, then jump during Coordination. Route choices come only from this Captain’s known chart nodes.
-        Host fuel is spent only after the server validates the route and confirms it remains known to this Captain. The host pays 1 / 1 / 2 fuel for a short / medium / long jump.
-      </p>
-      <p>Successful jump detaches the craft at its arrival coordinate. Re-docking requires an active host at that same coordinate.</p>
-      {loading && <p className="console-workspace__status" role="status">Loading current server movement projection…</p>}
-      {error && <p className="console-workspace__error" role="alert">{error}</p>}
-      {resultMessage && <p className="console-workspace__status" role="status">{resultMessage}</p>}
-      {projection && projection.viewer === 'gm' && (
-        <p>Facilitator movement projection: {projection.currentCoordinate ?? 'coordinate unavailable'} // revision {projection.movementRevision}.</p>
-      )}
-      {projection && projection.viewer === 'captain' && (
-        <>
-          <dl className="console-workspace__telemetry">
-            <div><dt>Current coordinate</dt><dd>{projection.currentCoordinate ?? 'Unavailable'}</dd></div>
-            <div><dt>Docked host</dt><dd>{projection.hostShipId ?? 'Detached'}</dd></div>
-            <div><dt>Host fuel</dt><dd>{projection.hostFuel ?? 'No docked host'}</dd></div>
-            <div><dt>Cycle / phase</dt><dd>{projection.currentTurn} // {projection.phase}</dd></div>
-            <div><dt>Jump Drive</dt><dd>{projection.charged ? 'Charged this cycle' : 'Not charged this cycle'}</dd></div>
-          </dl>
-          {canCharge && (
-            <button type="button" className="console-workspace__button" disabled={busy || pendingCharge !== undefined} onClick={() => void submitCharge()}>
-              Charge Jump Drive
-            </button>
-          )}
-          {pendingCharge && (
-            <button type="button" className="console-workspace__button" disabled={busy} onClick={() => void submitCharge(pendingCharge)}>
-              Retry exact charge
-            </button>
-          )}
-          {projection.hostShipId && projection.currentCoordinate && (
-            <label>
-              Known destination
-              <select
-                value={selectedDestination}
-                disabled={busy || pendingJump !== undefined || projection.phase !== 'coordination' || projection.charged !== true}
-                onChange={(event) => setSelectedDestination(event.currentTarget.value)}
-              >
-                <option value="">Select a known destination</option>
-                {(projection.knownDestinations ?? []).map((choice) => (
-                  <option key={choice.coordinate} value={choice.coordinate}>
-                    {choice.coordinate} // {choice.length} // {choice.fuelCost} host fuel
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-          {projection.hostShipId === null && (
-            <p>The craft is independent at its recorded arrival coordinate. Ask the facilitator to dock it with a co-located active host before its next jump.</p>
-          )}
-          {destination && !hasHostFuel && <p role="alert">The current host fuel ledger cannot fund this route.</p>}
-          <button type="button" className="console-workspace__button" disabled={!canJump || busy || pendingJump !== undefined} onClick={() => void submitJump()}>
-            Execute jump
-          </button>
-          {pendingJump && (
-            <button type="button" className="console-workspace__button" disabled={busy} onClick={() => void submitJump(pendingJump)}>
-              Retry exact jump
-            </button>
-          )}
-          <button type="button" className="console-workspace__button" disabled={busy} onClick={() => void reload()}>
-            Refresh movement projection
-          </button>
-          <details>
-            <summary>Arrival knowledge recorded for this Captain</summary>
-            <p>{projection.arrivalCoordinates?.length ? projection.arrivalCoordinates.join(' // ') : 'No private jump arrivals recorded.'}</p>
-          </details>
-        </>
-      )}
-    </section>
+    <SmallShipJumpPanel
+      smallShipId={smallShipId}
+      projection={projection}
+      loading={loading}
+      busy={busy}
+      selectedDestination={selectedDestination}
+      pendingJump={pendingJump !== undefined}
+      pendingCharge={pendingCharge !== undefined}
+      error={error}
+      resultMessage={resultMessage}
+      onDestinationChange={setSelectedDestination}
+      onCharge={() => void submitCharge()}
+      onRetryCharge={() => { if (pendingCharge) void submitCharge(pendingCharge); }}
+      onJump={() => void submitJump()}
+      onRetryJump={() => { if (pendingJump) void submitJump(pendingJump); }}
+      onRefresh={() => void reload()}
+    />
   );
 }
 

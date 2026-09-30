@@ -1,0 +1,43 @@
+.small-ship-jump-panel {
+  display: grid;
+  gap: 0.85rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.small-ship-jump-panel > p,
+.small-ship-jump-panel details p { margin: 0; }
+
+.small-ship-jump-panel select,
+.small-ship-jump-panel button {
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 44px;
+  max-width: 100%;
+  font: 0.72rem/1.4 var(--cic-mono);
+}
+
+.small-ship-jump-panel select {
+  width: 100%;
+  margin-top: 0.35rem;
+  padding: 0.55rem;
+  border: 1px solid var(--cic-amber-dim);
+  border-radius: 0;
+  background: var(--cic-void);
+  color: var(--cic-cyan);
+}
+
+.small-ship-jump-panel button { overflow-wrap: anywhere; }
+
+.small-ship-jump-panel details {
+  min-width: 0;
+  padding: 0.65rem;
+  border: 1px solid var(--cic-rule);
+  background: var(--cic-void);
+  color: var(--cic-muted);
+  font: 0.7rem/1.5 var(--cic-mono);
+}
+
+.small-ship-jump-panel summary { min-height: 44px; padding-block: 0.65rem; cursor: pointer; }
+.small-ship-jump-panel details p { color: var(--cic-cyan); overflow-wrap: anywhere; }
+.small-ship-jump-panel :focus-visible { outline: 2px solid var(--cic-amber); outline-offset: 2px; }

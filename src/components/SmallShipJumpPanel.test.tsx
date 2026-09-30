@@ -84,8 +84,24 @@ it('shows Team Phase readiness and withholds charge when the cycle is full', () 
     projection: { ...teamProjection, cycleCharges: ['missile-array', 'communications-array'] },
     onCharge,
   });
-  expect(screen.getAllByRole('button', { name: 'Charge Jump Drive' }).at(-1)).toBeUndefined();
+  const workspaces = screen.getAllByRole('region', { name: 'Small-craft Jump Drive workspace' });
+  expect(within(workspaces.at(-1)!).queryByRole('button', { name: 'Charge Jump Drive' })).not.toBeInTheDocument();
   expect(onCharge).not.toHaveBeenCalled();
+});
+
+it('keeps uncertain charge and movement recovery as explicit retry actions', () => {
+  const onRetryCharge = vi.fn();
+  const onRetryJump = vi.fn();
+  renderPanel({ pendingCharge: true, pendingJump: true, onRetryCharge, onRetryJump });
+  const workspace = screen.getByRole('region', { name: 'Small-craft Jump Drive workspace' });
+
+  expect(within(workspace).getByRole('button', { name: 'Retry exact charge' })).toBeEnabled();
+  expect(within(workspace).getByRole('combobox', { name: 'Known destination' })).toBeDisabled();
+  expect(within(workspace).getByRole('button', { name: 'Retry exact jump' })).toBeEnabled();
+  fireEvent.click(within(workspace).getByRole('button', { name: 'Retry exact charge' }));
+  fireEvent.click(within(workspace).getByRole('button', { name: 'Retry exact jump' }));
+  expect(onRetryCharge).toHaveBeenCalledOnce();
+  expect(onRetryJump).toHaveBeenCalledOnce();
 });
 
 it('presents a detached arrival and keeps stale-origin refresh as an explicit view action', () => {
@@ -102,8 +118,10 @@ it('presents a detached arrival and keeps stale-origin refresh as an explicit vi
   });
   const workspace = screen.getByRole('region', { name: 'Small-craft Jump Drive workspace' });
   expect(within(workspace).getByText('Detached')).toBeVisible();
-  expect(within(workspace).getByText(/5143/)).toBeVisible();
+  expect(within(workspace).getByText('5143', { exact: true })).toBeVisible();
   expect(within(workspace).getByText(/successful jump detaches/i)).toBeVisible();
+  fireEvent.click(within(workspace).getByText('Arrival knowledge recorded for this Captain'));
+  expect(within(workspace).getByText(/0000 \/\/ 5143/)).toBeVisible();
   fireEvent.click(within(workspace).getByRole('button', { name: 'Refresh movement projection' }));
   expect(onRefresh).toHaveBeenCalledOnce();
 });
