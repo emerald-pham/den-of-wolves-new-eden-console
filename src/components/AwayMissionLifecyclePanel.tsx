@@ -141,6 +141,7 @@ export default function AwayMissionLifecyclePanel({
 
   const chosenDropOffShipId = dropOffShipId || legalDropOffIds[0] || '';
   const privateDiscardComplete = ownPrivateState?.cards.some(({ status }) => status === 'discarded') === true;
+  const assignmentPhase = publicState.phase === 'assignment-ready' || publicState.phase === 'assigning';
 
   return (
     <section className="away-mission-lifecycle cic-frame" aria-label={`Away mission // ${publicState.missionId}`}>
@@ -247,7 +248,7 @@ export default function AwayMissionLifecyclePanel({
                     Discard {card.id} secretly
                   </button>
                 )}
-                {publicState.phase === 'assignment-ready' && card.status === 'remaining' && (
+                {assignmentPhase && card.status === 'remaining' && (
                   <label>
                     Opportunity for {card.id}
                     <select
@@ -271,7 +272,7 @@ export default function AwayMissionLifecyclePanel({
               </article>
             ))}
           </div>
-          {publicState.phase === 'assignment-ready' && (
+          {assignmentPhase && (
             <button type="button" onClick={submitAssignments} disabled={busy}>
               Submit mission assignments
             </button>
@@ -407,6 +408,11 @@ export default function AwayMissionLifecyclePanel({
         </section>
       )}
 
+      {publicState.status === 'complete' && publicState.custody.shipId && (
+        <p className="gm-console__status" role="status" aria-label="Mission reward delivery">
+          Mission rewards delivered to {publicState.custody.shipId.toUpperCase()} // custody complete
+        </p>
+      )}
       {message && <p className="gm-console__status" role="alert">{message}</p>}
     </section>
   );
