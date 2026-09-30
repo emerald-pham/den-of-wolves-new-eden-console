@@ -376,6 +376,15 @@ describe('same-table trade authoritative callables', () => {
     expect(store.committedWrites).toHaveLength(0);
   });
 
+  it('fails closed if the global revision trails an existing private inventory revision', async () => {
+    const store = seededStore({ revision: 3 });
+    const callables = createSameTableTradeCallables(dependencies(store));
+
+    await expect(callables.createSameTableTradeOffer(createRequest()))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(store.committedWrites).toHaveLength(0);
+  });
+
   it('commits one bilateral transfer, advances global revision, and creates its stable receipt', async () => {
     const store = seededStore();
     const callables = createSameTableTradeCallables(dependencies(store));
