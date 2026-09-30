@@ -114,6 +114,17 @@ the original assumption; append the resolution so the decision is traceable.
 | Product effect | Prompt 334 tests two distinct eligible reveals without travel or duplicate discoveries; Prompt 335 rejects non-L/M and chart-mismatched targets. |
 | Review state | New under explicit PC06 authorization; the catalog acceptance supplies the digital limit beyond the printed reward. |
 
+### PC06-A9 — Represent same-table trades as bilateral transfers of held tokens
+
+| Field | Record |
+|---|---|
+| ID and milestone | PC06-A9; same-table trades, Prompt 112. |
+| Source passage | Player's Guide v1.1, printed p. 5, Resources: five resource types are represented by tokens or resource sheets; they may be exchanged at a ship's table, while moving them between tables requires a capable shuttle. Security Teams move between ships and shuttles as resources. |
+| Ambiguity and alternatives | The printed rule does not define digital inventory owners, starting inventory values, consent, exact exchange amounts, or retry behavior. A shared ship-store transfer would not represent one participant handing held tokens to another and could bypass the separate shuttle requirement for cross-table movement. |
+| Chosen reading | Keep a distinct personal inventory for the physical tokens each active player holds. Before enabling trade, the active facilitator records the existing tabletop counts for each participant; this attests current tokens rather than granting stock from a ship. One participant proposes exact typed quantities to another; only that recipient may accept that exact proposal, and the server commits both sides atomically only while both remain active aboard the same ship/table. Reject overdraw, stale or changed proposals, wrong-table participants, and exact-replay duplication without changing either inventory. Only ore, fuel, food, water, materials, and Security Teams are tradeable. This feature cannot move tokens between tables; require the printed shuttle path. Inventory, identity, consent, and receipt details are digital product choices, not printed rules. |
+| Product effect | Prompt 112 uses server-owned per-player balances, facilitator-attested baseline counts, exact bilateral consent, current table membership, atomic balance checks, and stable receipts. Ship stores remain separate. Tests prove overdraw, stale, replay, and wrong-location failures are no-ops. |
+| Review state | New under the standing PC06 authorization and the user's instruction to use judgment on unresolved digital contracts. Source checked directly; the chosen digital representation remains subject to ordinary review and later owner feedback cooldown. |
+
 ### PC04-A1 — Mission Leader selection is recorded, not decided, by the GM
 
 | Field | Record |

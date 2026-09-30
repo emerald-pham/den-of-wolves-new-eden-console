@@ -145,15 +145,16 @@ and observed dispatch/live-access findings are recorded in the
 | Mission eligibility, private distribution and choices, card placement, automated resolution, bonuses, results, custody, recovery, special rewards, and full playthroughs | 401, 237, 241b, 392, 393, 404, 405, 407, 408, 409, 410, 411, 412, 413, 243, 414, 415, 622, 422, 646, 334, 335 |
 | Group-isolated messages/pursuit and the existing Starlight/Hummingbird scan receipts | 151, 307, 322, 323, 324 |
 
-The source audit found a real boundary on Prompt 112: the printed same-table
-trade rule does not define persistent per-player inventories, the two digital
-counterparties, or the trade authority. Its catalog decision owner and parked
-record still require a source- or owner-authorized contract, and explicitly
-reject substituting the shared ship-resource ledger. Keep Prompt 112 inside the
-fixed PC06 accounting, continue its contract audit independently, and do not
-claim its closure from a UI, receipt, or unrelated cargo transfer. If no
-authorized inventory contract is established, preserve this exact shortfall
-and resume point rather than manufacture resource ownership.
+The printed same-table rule supports exchanging held resource tokens at one
+ship's table and requires a capable shuttle to move them between tables. It
+does not define digital personal inventories, baseline capture, participant
+identity, consent, or retries. PC06-A9 records the chosen digital extension:
+the facilitator attests the existing per-player token counts, and an exact
+offer requires its recipient's consent while both active participants remain
+at the same table. This does not touch shared ship stores or bypass shuttle
+movement. Prompt 112 remains open until this server-owned contract is
+implemented and evidenced; a UI, receipt alone, or unrelated cargo transfer
+does not close it.
 
 The other optional-vessel actions operate only through the existing explicit
 server-owned admission, docking, mode, and replacement-role authority. Preserve
@@ -722,10 +723,11 @@ graph exists, but Prompt 287's Short/Medium/Long edge cutoffs are an explicit
 owner decision. Prompt 299's failed-jump damage trigger and draw count are
 also an owner decision. Preserve the existing compatibility behavior without
 claiming either prompt complete or deriving a new policy; dependent prompt
-closure waits for the ruling. Prompt 112's same-table inventory/consent
-contract and Prompt 385's dismantling-consent identity/lifetime remain owner
-decisions. Prompt 371's real deadline enqueue/private worker proof, Prompt
-380's ordinary lost-race conflict, and the live repair/cargo checks for
+closure waits for the ruling. Prompt 112 follows the documented digital
+inventory/consent assumption PC06-A9; Prompt 385's dismantling-consent
+identity/lifetime remains an owner decision. Prompt 371's real deadline
+enqueue/private worker proof, Prompt 380's ordinary lost-race conflict, and the
+live repair/cargo checks for
 Prompts 238, 244, and 241c require authorized production play. They stay open
 until that evidence exists. Prompt 250 depends on movement Prompt 251, which
 depends on the jump chain. The supplemental small-ship vessel records are

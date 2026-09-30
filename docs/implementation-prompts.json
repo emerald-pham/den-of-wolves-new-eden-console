@@ -9193,12 +9193,12 @@
     {
       "changeClass": "non-feature",
       "closureEvidenceGates": "none",
-      "decisionOwner": "OWNER-SAME-TABLE-TRADE-INVENTORIES-CONSENT",
+      "decisionOwner": "none",
       "definition": {
         "acceptance": "a legal local exchange commits atomically and an overdraw, wrong location, or stale trade leaves both sides unchanged.",
         "title": "Resolve same-table trades."
       },
-      "description": "Preserved [NEW] prompt: the routed rules establish that the five base resources (with Security Teams moving like resources) may trade at one ship table, but they do not define the participating inventories, actor authorization, consent, or exchange quantities. Production currently stores only one shared `shipResources` ledger per vessel and has no same-table trade callable or player-owned trade inventory; `shuttleCargo` is the separate shuttle-transfer surface reserved for Prompt 113. Keep this prompt missing until the product owner names the distinct same-table inventories and consent contract; do not model a ship-ledger exchange or bypass the Cargo Transfer boundary.",
+      "description": "PC06-A9 records the digital interpretation of the Player's Guide v1.1 same-table token trade: distinct player-held balances are seeded only by a facilitator attestation of existing tabletop counts; each exact exchange requires the recipient's acceptance while both active participants remain at the same ship table. The five resources and Security Teams are tracked separately from shared ship stores, and this feature cannot move tokens between tables or bypass shuttle cargo. Production still needs the authoritative inventory/callable, consent and stale-retry checks, member-safe projection, write-denial rules, responsive client, and ordinary authorized play evidence. Keep missing until the complete path is proven. The inventory, identity, and consent mechanics are a documented digital product choice, not an asserted printed rule.",
       "evidenceIds": "E-AUDIT-112",
       "hardContract": "none",
       "hardMilestone": "none",

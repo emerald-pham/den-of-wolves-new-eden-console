@@ -25,7 +25,7 @@ exact interface needs to the owner rather than editing shared release seams.
 | Vessel operations, Luna Max task `/root/pc06_release_owner/pc06_vessel_ops` | 238, 244, 241c, 251, 250, 352, 371, 380, 385, 378 | `/Users/emeraldpham/.codex/worktrees/pc06-vessel-ops/den-of-wolves-new-eden-console`, `feat/pc06-vessel-ops`, start `1b33ab3c` | Vessel, repair, cargo, shuttle/transit, conflict, security-team, and dismantling leaf modules with their tests, services, components, and vessel data. The owner owns callable exports, shared session/schema/rules, and release metadata. |
 | Away-mission lifecycle, Luna Max task `/root/pc06_release_owner/pc06_away_mission` | 241b, 392, 393, 404, 405, 407, 408, 409, 410, 411, 412, 413, 243, 414, 415, 622, 422, 646 | `/Users/emeraldpham/.codex/worktrees/pc06-away-missions/den-of-wolves-new-eden-console`, `feat/pc06-away-missions`, start `1b33ab3c` | Private card lifecycle, contribution-linked outcomes, custody, overrun, drop-off, recovery, and scenario leaf modules with focused tests and UI. The owner retains `functions/src/missionStart.ts` and `functions/src/explorationRewards.ts` while reconciling the parked P401 and P334 work. |
 | Scout-request guidance UI, Luna Max task `/root/pc06_release_owner/pc06_scout_requests` | 322, 323, 324 (player-facing slice) | `/Users/emeraldpham/.codex/worktrees/pc06-split-scout/den-of-wolves-new-eden-console`, `feat/pc06-split-scout`, start `6df5f4fe` | `src/components/ScoutRequestControls.tsx`, `.css`, and `.test.tsx`. Explain printed-chart distance/cadence for Starlight and Hummingbird while preserving server-owned authorization, stable retry, and privacy. UI work alone does not close these prompts. |
-| Demo boundary policy and notice leaf, Luna Max task `/root/pc06_release_owner/pc06_demo_boundary` | 020a (leaf slice) | `/Users/emeraldpham/.codex/worktrees/pc06-demo-boundary/den-of-wolves-new-eden-console`, `feat/pc06-demo-boundary`, start `b62ea1ec` | `functions/src/singlePlayerDemoPolicy.ts` and its tests, plus the isolated accessible demo notice component and tests. The owner integrates the policy at shared server/jump entrypoints and owns end-to-end acceptance. Test-first commit: `8f6205fc`. |
+| Demo boundary policy and notice leaf, Luna Max task `/root/pc06_release_owner/pc06_demo_boundary` | 020a (leaf slice) | `/Users/emeraldpham/.codex/worktrees/pc06-demo-boundary/den-of-wolves-new-eden-console`, `feat/pc06-demo-boundary`, start `b62ea1ec` | `functions/src/singlePlayerDemoPolicy.ts` and its tests, plus the isolated accessible demo notice component and tests. Leaf complete at `13bd51aa`; owner integrates the policy at shared server/jump entrypoints and owns end-to-end acceptance. Test-first commit: `8f6205fc`. |
 | Jump, split-fleet messages/pursuit/scouts, mission admission/rewards, P112 decision, checkpoint integration and release, checkpoint owner | 202, 210, 222, 232, 236, 241a, 259, 320, 607, 679, 112, 401, 237, 334, 335, 151, 307 | `/Users/emeraldpham/.codex/worktrees/0ce4/den-of-wolves-new-eden-console`, branch `feat/pc06-execution` | Jump authority and UI, demo policy integration, group-local messaging/pursuit/scouting policy and production integration, mission admission and special rewards, P112 inventory/consent decision, shared entrypoints/schema/rules, integration and release files. The owner retains closure accountability for all 49 prompts, including delegated leaf work. |
 
 The owner reserves `functions/src/index.ts`, `src/types/game.ts`,
@@ -45,12 +45,13 @@ at `6c8c4a91`, and P334 at `6643f7d4`. The owner and workers inspect those
 checkouts before replacing any integration and do not reset, delete, or release
 their coordination records.
 
-The owner will resolve P112 only if the printed source, accepted catalog, and
-standing authorization support a defensible digital inventory and bilateral
-consent contract. No ship-resource ledger may be relabeled as player inventory.
-P112 remains open if that contract cannot be supported. P401, P237, P334, and
-P335 remain owner-owned while their mission-admission and reward boundaries
-are reconciled.
+P112 now follows the explicit digital product assumption in PC06-A9, grounded
+in the Player's Guide v1.1 resource-token and table/shuttle rules. Individual
+holdings, a facilitator-attested baseline, and bilateral exact consent are
+clearly recorded as digital choices, not printed authority. The owner still
+must implement and prove that path; ship-resource stores remain separate.
+P401, P237, P334, and P335 remain owner-owned while their mission-admission
+and reward boundaries are reconciled.
 
 ## Session-specific dispatch and live-access findings
 
