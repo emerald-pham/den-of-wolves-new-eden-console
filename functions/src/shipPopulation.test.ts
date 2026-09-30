@@ -28,8 +28,10 @@ it.each([
   expect(shipRationSchedule(shipId, population)).toEqual({ populationBand, food, water });
 });
 
-it('fails closed for a full ship population outside its printed track', () => {
-  expect(() => shipRationSchedule('dione', 69_999)).toThrow(/printed track/i);
+it('uses printed ration bands for exact rescued-survivor counts between track steps', () => {
+  expect(shipRationSchedule('dione', 69_999).populationBand).toBe('50001-70000');
+  expect(shipRationSchedule('aegis', 1750).populationBand).toBe('1-5000');
+  expect(() => shipRationSchedule('dione', 100001)).toThrow(/printed track/i);
 });
 
 it('initializes the current survivor count for every fleet ship', () => {
@@ -57,7 +59,7 @@ describe('Capybara survivor track', () => {
     (population, populationBand, food, water) => {
       expect(capybaraRationSchedule(population)).toEqual({ populationBand, food, water });
     });
-  it.each([-1, 20_001, 14_999, 1.5, Number.NaN])('rejects invalid Capybara population %s', population => {
+  it.each([-1, 20_001, 1.5, Number.NaN])('rejects invalid Capybara population %s', population => {
     expect(() => capybaraRationSchedule(population)).toThrow(/printed track/i);
   });
   it('preserves every printed step and the initial population', () => {
@@ -72,7 +74,8 @@ describe('Capybara survivor track', () => {
     expect(populationChange('capybara', from, delta as -1 | 1, false)).toEqual({ amount, alertRaised: true });
   });
   it('rejects off-track values, endpoints and pending alerts', () => {
-    expect(() => populationChange('capybara',5500,-1,false)).toThrow();
+    expect(populationChange('capybara',5500,-1,false)).toEqual({ amount: 5000, alertRaised: true });
+    expect(populationChange('capybara',5500,1,false)).toEqual({ amount: 6000, alertRaised: false });
     expect(() => populationChange('capybara',0,-1,false)).toThrow();
     expect(() => populationChange('capybara',20000,1,false)).toThrow();
     expect(() => populationChange('capybara',15000,-1,true)).toThrow();
@@ -93,4 +96,10 @@ describe('AEGIS survivor track', () => {
     expect(populationChange('aegis', 250, -1, false))
       .toEqual({ amount: 0, alertRaised: true });
   });
+});
+
+it('preserves exact rescue totals until the next explicitly requested printed population step', () => {
+  expect(capybaraRationSchedule(14750).populationBand).toBe('5001-15000');
+  expect(populationChange('dione',95750,-1,false)).toEqual({ amount: 95000, alertRaised: false });
+  expect(() => populationChange('dione',100001,-1,false)).toThrow();
 });
