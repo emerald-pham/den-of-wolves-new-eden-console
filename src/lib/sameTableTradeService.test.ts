@@ -71,16 +71,19 @@ it('reads only the current player inventory by exact UID and ignores cache or ma
   const onInventory = vi.fn();
   const stop = subscribeSameTableTradeInventory('s1', 'alice', onInventory);
   expect(mocks.doc).toHaveBeenCalledWith('db', 'sessions/s1/playerHeldResourceInventories/alice');
+  onInventory.mockClear();
 
   const listener = mocks.listeners[0]!;
   listener.next({ metadata: { fromCache: true }, exists: () => true, data: () => ({
     type: 'player-held-resource-inventory', sessionId: 's1', playerUid: 'alice', revision: 1, balances,
   }) });
+  expect(onInventory).not.toHaveBeenCalled();
   listener.next({ metadata: { fromCache: false }, exists: () => true, data: () => ({
     type: 'player-held-resource-inventory', sessionId: 's1', playerUid: 'bob', revision: 1, balances,
   }) });
-  expect(onInventory).not.toHaveBeenCalled();
+  expect(onInventory).toHaveBeenCalledExactlyOnceWith(null);
 
+  onInventory.mockClear();
   listener.next({ metadata: { fromCache: false }, exists: () => true, data: () => ({
     type: 'player-held-resource-inventory', sessionId: 's1', playerUid: 'alice', revision: 1, balances,
   }) });
@@ -91,6 +94,7 @@ it('reads only the current player inventory by exact UID and ignores cache or ma
 it('queries offers only addressed to this UID in its current fleet group and joins both private directions', () => {
   const onOffers = vi.fn();
   subscribeSameTableTradeOffers('s1', 'alice', 'fleet-1', onOffers);
+  onOffers.mockClear();
 
   expect(mocks.where).toHaveBeenCalledWith('sessionId', '==', 's1');
   expect(mocks.where).toHaveBeenCalledWith('fleetGroupId', '==', 'fleet-1');
@@ -119,7 +123,9 @@ it('queries offers only addressed to this UID in its current fleet group and joi
 });
 
 it('sends baseline, offer, and acceptance commands using their stable request identities', async () => {
-  mocks.call.mockResolvedValue({ data: { status: 'accepted', sessionId: 's1' } });
+  const baselineId = '1f23b456-789a-4abc-8def-0123456789ab';
+  const offerId = '2f23b456-789a-4abc-8def-0123456789ab';
+  const incomingOfferId = '3f23b456-789a-4abc-8def-0123456789ab';
   const gm = useSessionStore.getState();
   gm.setIdentity({
     id: 's1', name: 'Aegis', joinCode: '1234', phase: 'active', ownerUid: 'gm', createdAt: '', updatedAt: '',
@@ -128,22 +134,33 @@ it('sends baseline, offer, and acceptance commands using their stable request id
   });
   gm.setGmInstance({ id: 'bridge', sessionId: 's1', uid: 'gm', name: 'Bridge', connected: true, joinedAt: '' } as never);
 
-  await attestPlayerHeldTokenBaseline('bob', balances, 'baseline-uuid');
+  mocks.call.mockResolvedValue({ data: {
+    status: 'attested', sessionId: 's1', targetUid: 'bob', attestationId: baselineId, revision: 1,
+  } });
+  await attestPlayerHeldTokenBaseline('bob', balances, baselineId);
   expect(mocks.callable).toHaveBeenLastCalledWith('functions', 'attestPlayerHeldTokenBaseline');
   expect(mocks.call).toHaveBeenLastCalledWith({
-    sessionId: 's1', instanceId: 'bridge', targetUid: 'bob', balances, attestationId: 'baseline-uuid',
+    sessionId: 's1', instanceId: 'bridge', targetUid: 'bob', balances, attestationId: baselineId,
   });
 
   playerSession();
-  mocks.call.mockResolvedValue({ data: { status: 'created', sessionId: 's1' } });
-  await createSameTableTradeOffer('offer-uuid', 'bob', { ore: 1 });
+  mocks.call.mockResolvedValue({ data: {
+    status: 'created', sessionId: 's1', offer: {
+      id: offerId, fromUid: 'alice', toUid: 'bob', tableId: 'aegis', revision: 1,
+      quantities: { ore: 1 }, status: 'pending',
+    },
+  } });
+  await createSameTableTradeOffer(offerId, 'bob', { ore: 1 });
   expect(mocks.callable).toHaveBeenLastCalledWith('functions', 'createSameTableTradeOffer');
   expect(mocks.call).toHaveBeenLastCalledWith({
-    sessionId: 's1', offerId: 'offer-uuid', recipientUid: 'bob', quantities: { ore: 1 },
+    sessionId: 's1', offerId, recipientUid: 'bob', quantities: { ore: 1 },
   });
 
-  await acceptSameTableTradeOffer('offer-2');
+  mocks.call.mockResolvedValue({ data: {
+    status: 'committed', sessionId: 's1', offerId: incomingOfferId, revision: 2,
+  } });
+  await acceptSameTableTradeOffer(incomingOfferId);
   expect(mocks.callable).toHaveBeenLastCalledWith('functions', 'acceptSameTableTradeOffer');
-  expect(mocks.call).toHaveBeenLastCalledWith({ sessionId: 's1', offerId: 'offer-2' });
+  expect(mocks.call).toHaveBeenLastCalledWith({ sessionId: 's1', offerId: incomingOfferId });
   expect(mocks.requireFresh).toHaveBeenCalledTimes(3);
 });
