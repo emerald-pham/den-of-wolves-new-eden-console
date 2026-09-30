@@ -14,6 +14,7 @@ import {
   SESSION_WAIVER_RESET_EVENT,
   SESSION_WAIVER_STORAGE_KEY,
 } from '@/lib/sessionWaiver';
+import { getBoardingSecurityTeamLocations } from '@/lib/boardingSecurityTeamService';
 import GmConsole from './GmConsole';
 
 const ORGANISER_SYSTEMS = Object.fromEntries(LEGACY_SYSTEMS.map((system, index) => [
@@ -97,6 +98,10 @@ vi.mock('@/lib/smallShipService', () => ({
   setSmallShipDocking: vi.fn(),
 }));
 
+vi.mock('@/lib/boardingSecurityTeamService', () => ({
+  getBoardingSecurityTeamLocations: vi.fn(),
+}));
+
 vi.mock('@/lib/sameTableTradeService', () => ({
   attestPlayerHeldTokenBaseline: vi.fn(),
 }));
@@ -125,6 +130,41 @@ const liveCrisis: CrisisStateProjection = {
   sessionId: 's1', crisisId: 'crisis-1', state: 'draft', revision: 1,
   title: 'Relay pressure', details: 'Facilitator-only deliberation.',
 };
+
+it('mounts security-team locations only for a live, fresh GM in an active session', async () => {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('GM test session fixture is missing.');
+  useSessionStore.getState().setSession({ ...session, phase: 'active', currentTurn: 1 });
+  useSessionStore.getState().setGmInstance(local);
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  streamInstances([local]);
+  vi.mocked(getBoardingSecurityTeamLocations).mockResolvedValue({
+    status: 'ready', sessionId: 's1', actorUid: 'u1', gmInstanceId: 'local-1', cycle: 1,
+    ships: [], shuttles: [], totals: {
+      shipStoredSecurityTeams: 0, aboardDockedShuttleSecurityTeams: 0,
+      boardingEligibleTotal: 0, shuttleCount: 0,
+    },
+  } as never);
+
+  renderConsole();
+  expect(await screen.findByRole('region', { name: 'Security team locations' })).toBeInTheDocument();
+  expect(getBoardingSecurityTeamLocations).toHaveBeenCalledTimes(1);
+});
+
+it('does not mount security-team locations from a cached GM session', () => {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('GM test session fixture is missing.');
+  useSessionStore.getState().setSession({ ...session, phase: 'active', currentTurn: 1 });
+  useSessionStore.getState().setGmInstance(local);
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('cache');
+  streamInstances([local]);
+
+  renderConsole();
+  expect(screen.queryByRole('region', { name: 'Security team locations' })).not.toBeInTheDocument();
+  expect(getBoardingSecurityTeamLocations).not.toHaveBeenCalled();
+});
 
 function renderConsole() {
   return render(
