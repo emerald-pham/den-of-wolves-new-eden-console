@@ -2914,17 +2914,21 @@ describe('permissioned dismantling target inbox', () => {
         assignedRoleId: 'dione-captain', replacementRoleId: null,
         replacementStatus: null, escapeState: null,
       });
+      await setDoc(doc(db, `${SESSION}/players/engineer`), {
+        uid: 'engineer', role: 'player', connected: true,
+      });
       await setDoc(doc(db, inboxPath), {
         type: 'permissioned-dismantling-inbox', sessionId: 's1', targetShipId: 'dione',
-        proposalId: 'proposal-1', craftId: 'philia', targetConsoleId: 'reactor',
+        proposalId: 'proposal-1', proposerUid: 'engineer', craftId: 'philia', targetConsoleId: 'reactor',
         targetRevision: 0, materialGain: 3, status: 'pending', consentId: null,
         materialsAfter: null, updatedAt: new Date('2026-09-30T17:00:00.000Z'),
       });
     });
   });
 
-  it('allows only the current target-ship player to read the exact safe inbox', async () => {
+  it('allows the current target-ship player and original proposer to read the exact safe inbox', async () => {
     await assertSucceeds(getDoc(doc(as('targetDione'), inboxPath)));
+    await assertSucceeds(getDoc(doc(as('engineer'), inboxPath)));
     await assertFails(getDoc(doc(as('captain'), inboxPath)));
     await assertFails(getDoc(doc(as('commissar'), inboxPath)));
     await assertFails(getDoc(doc(as('gm1'), inboxPath)));
@@ -2951,7 +2955,7 @@ describe('permissioned dismantling target inbox', () => {
 
   it('fails closed for malformed server inbox projection fields', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
-      await updateDoc(doc(ctx.firestore(), inboxPath), { proposerUid: 'private-proposer' });
+      await updateDoc(doc(ctx.firestore(), inboxPath), { unexpectedSecret: 'private-data' });
     });
     await assertFails(getDoc(doc(as('targetDione'), inboxPath)));
   });
