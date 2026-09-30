@@ -162,10 +162,10 @@ it('shows player-held trades only on the confirmed own ship and lists only curre
   vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
     onPlayers([
       useSessionStore.getState().me!,
-      { ...current, uid: 'u2', displayName: 'Bob', assignedRoleId: 'executive-officer', activeConsoleRoleId: 'executive-officer' },
-      { ...current, uid: 'u3', displayName: 'Dione player', assignedRoleId: 'dione-captain', activeConsoleRoleId: 'dione-captain' },
-      { ...current, uid: 'u4', displayName: 'Other fleet player', fleetGroupId: 'fleet-2', assignedRoleId: 'executive-officer' },
-      { ...current, uid: 'gm', displayName: 'Facilitator', role: 'gm', assignedRoleId: undefined, activeConsoleRoleId: null },
+      { ...current, uid: 'u2', displayName: 'Bob', connected: true, assignedRoleId: 'executive-officer', activeConsoleRoleId: 'executive-officer' },
+      { ...current, uid: 'u3', displayName: 'Dione player', connected: true, assignedRoleId: 'dione-captain', activeConsoleRoleId: 'dione-captain' },
+      { ...current, uid: 'u4', displayName: 'Other fleet player', connected: true, fleetGroupId: 'fleet-2', assignedRoleId: 'executive-officer' },
+      { ...current, uid: 'gm', displayName: 'Facilitator', connected: true, role: 'gm', activeConsoleRoleId: null },
     ]);
     return vi.fn();
   });
