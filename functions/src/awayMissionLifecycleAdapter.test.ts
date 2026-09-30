@@ -249,7 +249,7 @@ describe('away-mission lifecycle adapter', () => {
       isActiveGm: true, bonusSources: [], secretD6Rolls: {},
     });
     expect(resolved.status).toBe('committed');
-    expect(resolved.record?.specialRewards).toEqual([{ opportunityId: 'D-1', resources: { food: 1 } }]);
+    expect(resolved.record?.specialRewards).toEqual([{ opportunityId: 'D-1', resources: { food: 1, materials: 1 } }]);
     expect(resolved.record?.custody).toMatchObject({ status: 'mission-leader', holderUid: 'alice' });
   });
 

@@ -96,7 +96,7 @@ describe('authoritative away-mission rewards', () => {
     expect(rewards?.find(({ opportunityId }) => opportunityId === 'E-1')?.effects).toEqual([]);
   });
 
-  it('turns every Warrior Reclamator hand card into exactly one chosen food, water, or material', () => {
+  it('awards one material plus the chosen food or water for every discarded Warrior card', () => {
     expect(resolveWarriorReclamatorHand({
       participantUid: 'warrior',
       roleId: 'warrior-captain',
@@ -106,13 +106,13 @@ describe('authoritative away-mission rewards', () => {
       choices: [
         { cardId: 'A♥', resource: 'food' },
         { cardId: '4♦', resource: 'water' },
-        { cardId: '5♣', resource: 'materials' },
+        { cardId: '5♣', resource: 'food' },
       ],
     })).toEqual({
       participantUid: 'warrior',
       opportunityId: 'G-3',
       discardedCardIds: ['A♥', '4♦', '5♣'],
-      resources: { food: 1, water: 1, materials: 1 },
+      resources: { food: 2, water: 1, materials: 3 },
     });
   });
 
@@ -138,4 +138,11 @@ describe('authoritative away-mission rewards', () => {
       roleId: 'gorgoneion-captain',
     })).toBeNull();
   });
+});
+
+it('rejects material-only Reclamator choices and a non-salvage opportunity', () => {
+  const input = { participantUid: 'warrior', roleId: 'warrior-captain', siteCode: 'D', opportunityId: 'D-1',
+    handCardIds: ['A♥'] as const, choices: [{ cardId: 'A♥' as const, resource: 'materials' as const }] };
+  expect(resolveWarriorReclamatorHand(input)).toBeNull();
+  expect(resolveWarriorReclamatorHand({ ...input, opportunityId: 'D-3', choices: [{ cardId: 'A♥', resource: 'food' }] })).toBeNull();
 });

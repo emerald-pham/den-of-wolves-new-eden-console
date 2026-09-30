@@ -129,6 +129,8 @@ describe('AwayMissionLifecyclePanel', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Salvage entire hand with Warrior Reclamator' }));
       await Promise.resolve();
     });
+    expect(screen.getByText(/one material plus/i)).toBeVisible();
+    expect(screen.queryByRole('option', { name: 'Materials' })).toBeNull();
     expect(actions.reclamatorSalvage).toHaveBeenCalledWith('D-1', [
       { cardId: 'A♥', resource: 'food' },
       { cardId: '4♦', resource: 'water' },

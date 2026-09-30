@@ -4,7 +4,7 @@ import { createMissionLifecycleState } from './missionLifecycle';
 import { missionDeck, missionDeckStateFromCards } from './missionDeck';
 
 describe('away-mission shuttle bonus authority', () => {
-  it('derives exact Starlight and Hummingbird bonuses only from their eligible participant bindings', () => {
+  it('derives the exact printed shuttle bonuses only from their eligible participant bindings', () => {
     const cards = missionDeck();
     const lifecycle = createMissionLifecycleState({
       missionId: 'mission-1',
@@ -41,6 +41,7 @@ describe('away-mission shuttle bonus authority', () => {
         source: { kind: 'craft', id: 'hummingbird' },
         bonuses: { exploration: 3, mining: 1 },
       },
+      { participantUid: 'eve', source: { kind: 'craft', id: 'endeavour' }, bonuses: { science: 3 } },
     ]);
   });
 
