@@ -18,6 +18,7 @@ const mock = vi.hoisted(() => ({
   discardMarker: undefined as Record<string, unknown> | undefined,
   readyMarker: undefined as Record<string, unknown> | undefined,
   discardEvent: false,
+  gorgoneionCaptain: false,
   arrivalPressureState: undefined as Record<string, unknown> | undefined,
   missionOpportunities: {} as Record<string, Record<string, unknown>>,
   missionStartSnapshots: {} as Record<string, Record<string, unknown>>,
@@ -51,12 +52,19 @@ vi.mock('firebase-admin/firestore', () => ({
 }));
 vi.mock('node:crypto', () => ({ randomInt: vi.fn(() => 0), randomUUID: vi.fn(() => 'uuid') }));
 
-import { dealPrivateInitialCards, discardPrivateMissionCard, openPrivateMissionDiscards } from './index';
+import {
+  applyGorgoneionMissionSupport,
+  dealPrivateInitialCards,
+  discardPrivateMissionCard,
+  getGorgoneionMissionSupportProjection,
+  openPrivateMissionDiscards,
+} from './index';
 import { roleOwnedCraftManifestForSetup } from './craftOwnership';
 import { missionDeck, missionDeckStateFromCards } from './missionDeck';
 import { recommendedRoleIds } from './roleConfiguration';
 import { activeVesselIdsForRoles } from './gameSetup';
 import { initialPdfEscortWingState } from './pdfEscortWingState';
+import { emptySmallShipState } from './smallShip';
 
 const activeRoleIds = [...recommendedRoleIds(8)];
 const activeVesselIds = [...activeVesselIdsForRoles(activeRoleIds)];
@@ -159,6 +167,7 @@ beforeEach(() => {
   mock.discardMarker = undefined;
   mock.readyMarker = undefined;
   mock.discardEvent = false;
+  mock.gorgoneionCaptain = false;
   mock.arrivalPressureState = undefined;
   mock.missionOpportunities = { [defaultOpportunity.id]: { ...defaultOpportunity } };
   mock.missionStartSnapshots = {};
@@ -186,6 +195,11 @@ beforeEach(() => {
   mock.get.mockImplementation(async (ref: { path: string }) => {
     if (ref.path === 'sessions/s1') return snapshot({
       ...sessionFields,
+      ...(mock.gorgoneionCaptain ? {
+        smallShipStates: {
+          gorgoneion: { ...emptySmallShipState('gorgoneion', 'aegis'), dockingRevision: 1 },
+        },
+      } : {}),
       shuttleDockings: mock.shuttleDockings,
       shuttleControl: {
         starlight: {
@@ -281,6 +295,46 @@ beforeEach(() => {
     }
     if (ref.path.includes('/serverState/awayMissions/instances/')) return snapshot({}, ref.path, false);
     return snapshot({}, ref.path, false);
+  });
+});
+
+describe('Gorgoneion mission-support callable exports', () => {
+  it('exposes the private projection and atomic apply endpoints with shared receipts', async () => {
+    mock.gorgoneionCaptain = true;
+    const captain = players.find(({ id }) => id === 'bob')!;
+    Object.assign(captain.fields, {
+      replacementRoleId: 'gorgoneion-captain', replacementStatus: null,
+      activeConsoleRoleId: null, seatId: null,
+    });
+
+    const projection = await getGorgoneionMissionSupportProjection.run(request({ sessionId: 's1' }, 'bob'));
+    expect(projection).toMatchObject({
+      status: 'available', sessionId: 's1', actorUid: 'bob', hostShipId: 'aegis',
+      dockingRevision: 1, dealtCount: 0,
+    });
+    expect(projection.cardIds).toHaveLength(5);
+    expect(mock.set).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'sessions/s1/gorgoneionMissionSupportViews/bob' }),
+      expect.objectContaining({ actorUid: 'bob', cardIds: projection.cardIds }),
+    );
+
+    const reply = await applyGorgoneionMissionSupport.run(request({
+      sessionId: 's1', requestId: 'support-export', actorUid: 'bob',
+      hostShipId: projection.hostShipId, dockingRevision: projection.dockingRevision,
+      dealtCount: 0, cardIds: projection.cardIds,
+      topCardIds: [projection.cardIds[0], projection.cardIds[2], projection.cardIds[4]],
+      bottomCardIds: [projection.cardIds[1], projection.cardIds[3]],
+    }, 'bob'));
+    expect(reply).toEqual({
+      status: 'committed', sessionId: 's1', requestId: 'support-export', cardCount: 5,
+    });
+    expect(mock.create).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'sessions/s1/commandReceipts/support-export' }),
+      expect.objectContaining({
+        fingerprint: expect.objectContaining({ action: 'gorgoneion-mission-support', actorUid: 'bob' }),
+        result: reply,
+      }),
+    );
   });
 });
 
