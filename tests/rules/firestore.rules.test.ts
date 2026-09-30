@@ -2587,6 +2587,95 @@ it('keeps Dione VIP hands private to the owner and server-written', async () => 
   await assertFails(deleteDoc(doc(as('alice'), handPath)));
 });
 
+describe('same-table player-held token privacy', () => {
+  it('allows only each owner to read their balance and each offer participant to query the current group offer', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      for (const uid of ['bob', 'carol']) {
+        await setDoc(doc(db, `${SESSION}/players/${uid}`), {
+          uid, role: 'player', displayName: uid, assignedRoleId: uid === 'bob' ? 'aegis-captain' : 'icebreaker-miner',
+          fleetGroupId: uid === 'carol' ? 'fleet-2' : 'fleet-1', connected: true,
+        });
+      }
+      const balances = { ore: 2, fuel: 1, food: 0, water: 0, materials: 3, securityTeams: 0 };
+      for (const uid of ['alice', 'bob']) {
+        await setDoc(doc(db, `${SESSION}/playerHeldResourceInventories/${uid}`), {
+          type: 'player-held-resource-inventory', sessionId: 's1', playerUid: uid,
+          revision: 1, balances, baselineAttestation: { attestedByUid: 'gm1' },
+        });
+      }
+      const offer = (id: string, fromUid: string, toUid: string, fleetGroupId = 'fleet-1') => ({
+        type: 'same-table-trade-offer', sessionId: 's1', id, fromUid, toUid,
+        fleetGroupId, tableId: 'aegis', revision: 1, quantities: { ore: 1 }, status: 'pending',
+      });
+      await setDoc(doc(db, `${SESSION}/sameTableTradeOffers/to-alice`), offer('to-alice', 'bob', 'alice'));
+      await setDoc(doc(db, `${SESSION}/sameTableTradeOffers/from-alice`), offer('from-alice', 'alice', 'bob'));
+      await setDoc(doc(db, `${SESSION}/sameTableTradeOffers/other-group`), offer('other-group', 'carol', 'alice', 'fleet-2'));
+      await setDoc(doc(db, `${SESSION}/sameTableTradeOffers/other-players`), offer('other-players', 'bob', 'carol'));
+      await setDoc(doc(db, `${SESSION}/sameTableTradeState/current`), { revision: 1 });
+      await setDoc(doc(db, `${SESSION}/sameTableTradeReceipts/to-alice`), { offerId: 'to-alice' });
+    });
+
+    const aliceInventory = `${SESSION}/playerHeldResourceInventories/alice`;
+    const bobInventory = `${SESSION}/playerHeldResourceInventories/bob`;
+    await assertSucceeds(getDoc(doc(as('alice'), aliceInventory)));
+    await assertFails(getDoc(doc(as('alice'), bobInventory)));
+    await assertFails(getDoc(doc(as('gm1'), bobInventory)));
+    await assertFails(getDocs(collection(as('alice'), `${SESSION}/playerHeldResourceInventories`)));
+    for (const uid of ['alice', 'gm1']) {
+      await assertFails(setDoc(doc(as(uid), aliceInventory), { forged: true }));
+      await assertFails(updateDoc(doc(as(uid), aliceInventory), { balances: {} }));
+      await assertFails(deleteDoc(doc(as(uid), aliceInventory)));
+    }
+
+    const offers = collection(as('alice'), `${SESSION}/sameTableTradeOffers`);
+    const incoming = await assertSucceeds(getDocs(query(
+      offers,
+      where('sessionId', '==', 's1'),
+      where('fleetGroupId', '==', 'fleet-1'),
+      where('toUid', '==', 'alice'),
+    )));
+    expect(incoming.docs.map((entry) => entry.id)).toEqual(['to-alice']);
+    const outgoing = await assertSucceeds(getDocs(query(
+      offers,
+      where('sessionId', '==', 's1'),
+      where('fleetGroupId', '==', 'fleet-1'),
+      where('fromUid', '==', 'alice'),
+    )));
+    expect(outgoing.docs.map((entry) => entry.id)).toEqual(['from-alice']);
+    await assertSucceeds(getDoc(doc(as('alice'), `${SESSION}/sameTableTradeOffers/to-alice`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/sameTableTradeOffers/other-players`)));
+    await assertFails(getDocs(query(offers, where('toUid', '==', 'alice'))));
+    await assertFails(getDocs(collection(as('alice'), `${SESSION}/sameTableTradeOffers`)));
+    await assertFails(getDoc(doc(as('gm1'), `${SESSION}/sameTableTradeOffers/to-alice`)));
+    for (const uid of ['alice', 'gm1']) {
+      await assertFails(setDoc(doc(as(uid), `${SESSION}/sameTableTradeOffers/forged`), { forged: true }));
+      await assertFails(getDoc(doc(as(uid), `${SESSION}/sameTableTradeState/current`)));
+      await assertFails(getDoc(doc(as(uid), `${SESSION}/sameTableTradeReceipts/to-alice`)));
+    }
+  });
+
+  it('revokes old offer projections when the current player leaves its offering fleet group', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, `${SESSION}/sameTableTradeOffers/to-alice`), {
+        type: 'same-table-trade-offer', sessionId: 's1', id: 'to-alice',
+        fromUid: 'bob', toUid: 'alice', fleetGroupId: 'fleet-1', tableId: 'aegis',
+        revision: 1, quantities: { ore: 1 }, status: 'pending',
+      });
+      await updateDoc(doc(db, `${SESSION}/players/alice`), { fleetGroupId: 'fleet-2' });
+    });
+
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/sameTableTradeOffers/to-alice`)));
+    await assertFails(getDocs(query(
+      collection(as('alice'), `${SESSION}/sameTableTradeOffers`),
+      where('sessionId', '==', 's1'),
+      where('fleetGroupId', '==', 'fleet-1'),
+      where('toUid', '==', 'alice'),
+    )));
+  });
+});
+
 describe('complete server-owned denial matrix', () => {
   it('keeps destroyed-ship store reconciliation private from players and GMs', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
