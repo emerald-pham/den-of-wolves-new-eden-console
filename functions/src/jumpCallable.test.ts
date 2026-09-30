@@ -1543,6 +1543,40 @@ it('accepts a pursuit-10 emergency jump without a charge or fuel and damages the
   );
 });
 
+it('applies a charged intact Icebreaker Ram Scoop to a successful emergency FTL jump', async () => {
+  mock.grantedShipId = 'icebreaker';
+  mock.icebreakerFuel = 4;
+  mock.icebreakerCharges = ['ram-scoop'];
+  mock.pursuitGroups = { 'fleet-1': 10 };
+  mock.pursuitEmergencyWindow = {
+    type: 'pursuit-emergency-window', status: 'offered', cycle: 1,
+    navigationRevision: 0, groupIds: ['fleet-1'], openedAt: '2026-09-06T12:10:07.000Z',
+  };
+  mock.update.mockClear();
+  mock.set.mockClear();
+
+  const reply = await jumpShip.run(request({
+    ...data, shipId: 'icebreaker', requestId: 'icebreaker-emergency-ram-scoop',
+    destination: '5143', emergency: true,
+  }));
+
+  expect(reply).toMatchObject({
+    status: 'jumped', emergency: true, length: 'short',
+    ramScoopOreGain: 10, remainingOre: 10,
+  });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'shipResources.icebreaker.fuel': 0,
+    'shipResources.icebreaker.ore': 10,
+  }));
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/events/ship-jump-icebreaker-emergency-ram-scoop',
+    expect.objectContaining({
+      type: 'ship-jump', outcome: 'emergency', shipId: 'icebreaker',
+      payload: expect.objectContaining({ length: 'short', fuelSpent: 4, ramScoopOreGain: 10 }),
+    }),
+  );
+});
+
 it('keeps an emergency jump subject to the ship one-jump-per-cycle guard', async () => {
   mock.charges = [];
   mock.fuel = 0;
