@@ -134,6 +134,10 @@ that the ordinary production path performs the whole operation.
 
 **Frozen scope.** Work exactly the 49 assigned IDs, grouped here for review:
 
+The current implementation groups, worker checkouts, shared-file boundaries,
+and observed dispatch/live-access findings are recorded in the
+[PC06 execution record](PC06_EXECUTION_RECORD.md).
+
 | Product path | Fixed prompt IDs |
 |---|---|
 | Jump costs, transitions, blind-jump privacy, demo boundary, keyboard control, and composed scenario | 202, 210, 222, 232, 236, 241a, 259, 320, 607, 679, 020a |
