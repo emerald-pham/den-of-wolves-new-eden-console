@@ -6,10 +6,10 @@ checkpoint, or preparing a release.
 
 ## Delegation
 
-Only `gpt-6-luna` and `gpt-5.6-sol` may be delegated as subagents. Existing
-agents may finish assignments that began before this policy changed. Use `max`
-for every Luna subagent. Sol may use only `low`, `medium`, `high`, or `xhigh`;
-select the least effort that fits the bounded task and never use `max`.
+Only `gpt-6-luna` and `gpt-6.1-sol` may be delegated as subagents. Existing
+agents may finish current bounded assignments. Luna effort is discretionary;
+`max` is almost always preferred. Sol may use all supported effort levels.
+Select effort for the bounded task and keep explicit security-review floors.
 
 Use Sol for the independent risk reviews required by `CLAUDE.md`. If a
 Luna-owned implementation fails the same acceptance gate after two distinct,
@@ -21,15 +21,15 @@ tests written for test-first work do not count as failed attempts.
 ### Checkpoint ownership and implementation groups
 
 Owner instruction, 2026-09-30: use one checkpoint owner accountable for every
-assigned prompt's acceptance, integration, and release; separate Luna Max
-workers for independent implementation groups; and independent Sol review for
+assigned prompt's acceptance, integration, and release; separate Luna workers (Max almost always preferred)
+for independent implementation groups; and independent Sol review for
 shared-state and authority changes. Accountability does not mean the checkpoint
 owner implements the whole checkpoint serially.
 
 Before implementation, record a concrete grouping of the assigned prompts by
 shared behavior and dependencies, with bounded worker briefs, acceptance
 criteria, separate checkouts, shared-file boundaries, and integration handoffs.
-Dispatch the independent groups to separate Luna Max workers as capacity permits.
+Dispatch the independent groups to separate Luna workers (Max almost always preferred) as capacity permits.
 Do not default to one worker per prompt: catalog boundaries can divide one
 transaction, lifecycle, or authorization contract. Keep tightly coupled work
 together and explain dependencies that require sequential work. Workers carry
@@ -43,6 +43,30 @@ responsible implementation owner. Preserve test-first commits, exact-candidate
 validation, ordinary authorized gameplay proof, and the fixed completion target.
 Use the currently authorized model versions and efforts; this structure does
 not authorize a model excluded by higher-priority working agreements.
+
+### Ownership lessons from the PC06 audit
+
+Use Sol 6.1 for broad checkpoint ownership when shared integration, authority,
+acceptance accounting, and release decisions dominate. Luna remains useful for
+bounded coding groups, normally at Max. This is a task-fit decision based on
+[the PC06 owner audit](PC06_OWNER_AUDIT.md), not a claim that every Luna worker
+fails or that Sol automatically produces correct work. The implementation owner
+cannot provide their own independent risk review.
+
+Delegate complete behavior groups with agreed request/reply/projection contracts
+and an integration acceptance check where feasible. Do not reserve every adapter,
+UI, route, and shared seam to one owner while producing disconnected leaf work.
+Keep conflicting shared-file edits with one owner, but finish and integrate a
+coherent group before opening more dependent leaves. A worker's green focused
+tests do not establish a green reconciled candidate or a shipped acceptance.
+
+Close answered requests explicitly and do not keep revalidating them. Recheck
+current ancestry before merging or cherry-picking a returned branch. Resolve
+catalog rows by their explicit prompt ID, not their ordinal storage key. Keep
+one current acceptance matrix with implemented, connected, tested, reviewed,
+deployed, and live-proof gaps; reuse ordinary task documentation, not a new
+measurement system or universal gate. Record ownership transfer, preserve all
+work, and give the successor exact remaining seams and active worker boundaries.
 
 ## Batched PC releases
 

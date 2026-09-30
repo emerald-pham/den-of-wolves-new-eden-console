@@ -19,16 +19,17 @@ authorization accepts a checkpoint; a completed walkthrough or written UI
 feedback is not required. Agents own gameplay and technical correctness. The
 older M1–M13 fixtures remain internal gates.
 
-Only `gpt-6-luna` and `gpt-5.6-sol` may be delegated as subagents. Existing
-agents may finish current assignments. Use `max` for every `gpt-6-luna`
-subagent. `gpt-5.6-sol` may use only `low`, `medium`, `high`, or `xhigh`; use it
-for the independent risk reviews specified in `CLAUDE.md` and never use `max`.
+Only `gpt-6-luna` and `gpt-6.1-sol` may be delegated as subagents. Existing
+agents may finish current bounded assignments. Luna effort is discretionary;
+`max` is almost always preferred. Sol may use all supported effort levels.
+Use Sol for the independent risk reviews specified in `CLAUDE.md`; retain any
+explicit task-specific security review floor.
 
 Batch all scoped PC work into one reconciled candidate and run one final
 appropriate validation after reconciliation. Prefer one exact-candidate CI and
 deployment run; rerun only for a failed gate, production-only finding, or
 material candidate change. The linked execution policy governs the details.
-Use one accountable checkpoint owner, separate Luna Max workers for independent
+Use one accountable checkpoint owner, separate Luna workers (Max almost always preferred) for independent
 implementation groups, and independent Sol review for shared-state and authority
 changes. Group coupled prompts by behavior rather than assigning one agent per
 prompt; record the concrete groups and integration boundaries before building.

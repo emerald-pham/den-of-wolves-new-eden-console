@@ -65,34 +65,34 @@ const OBSOLETE_UNIVERSAL_GATES = Object.freeze([
 
 /** Validate the compact risk-based model policy on a guidance surface. */
 export function validateAgentModelEscalation({ sources, errors }) {
-  const agentPolicy = sourceFor(sources, 'AGENTS.md', errors);
-  requireText('AGENTS.md', agentPolicy, /only[\s\S]{0,80}gpt-6-luna[\s\S]{0,80}gpt-5.6-sol[\s\S]{0,80}(?:subagents|delegated)/i,
-    'must allow only GPT-6 Luna and GPT-5.6 Sol subagents', errors);
   for (const filePath of ['AGENTS.md', 'CLAUDE.md', 'docs/AGENT_CAMPAIGN_PLAYBOOK.md']) {
     const source = sourceFor(sources, filePath, errors);
-    requireText(filePath, source, /use\s+max\s+for\s+every\s+gpt-6-luna\s+subagent/i,
-      'must require max effort for every GPT-6 Luna subagent', errors);
-    requireText(filePath, source, /gpt-5\.6-sol\s+may\s+use\s+only\s+low,\s+medium,\s+high,\s+or\s+xhigh/i,
-      'must limit GPT-5.6 Sol effort to low, medium, high, or xhigh', errors);
+    requireText(filePath, source, /only[\s\S]{0,80}gpt-6-luna[\s\S]{0,80}gpt-6\.1-sol[\s\S]{0,80}(?:subagents|delegated)/i,
+      'must allow only GPT-6 Luna and GPT-6.1 Sol subagents', errors);
+    requireText(filePath, source, /luna effort is discretionary;\s+max is almost always preferred/i,
+      'must make Luna effort discretionary with max almost always preferred', errors);
+    requireText(filePath, source, /sol may use all supported effort levels/i,
+      'must allow all supported Sol effort levels', errors);
+    if (/use\s+max\s+for\s+every\s+(?:gpt-6-luna|luna)\s+subagent|never use\s+max[^.]{0,60}for sol/i.test(normalizeGuidance(source))) {
+      errors.push(`${filePath}: must not retain a mandatory Luna effort or general Sol effort ceiling`);
+    }
+    // The top-level coordinator is distinct from the delegated-model allowlist.
+    const delegatedSource = source.replace(/New top-level coordinators default to `gpt-6-astra` with medium reasoning\./g, '');
+    const models = delegatedSource.match(/gpt-\d+(?:\.\d+)?-(?:luna|sol|astra|terra)/g) ?? [];
+    if (models.some((model) => !['gpt-6-luna', 'gpt-6.1-sol'].includes(model))) {
+      errors.push(`${filePath}: must not authorize models outside GPT-6.1 Sol and GPT-6 Luna`);
+    }
   }
   for (const filePath of ['CLAUDE.md', 'docs/AGENT_CAMPAIGN_PLAYBOOK.md']) {
     const source = sourceFor(sources, filePath, errors);
-    requireText(filePath, source, /only[\s\S]{0,80}gpt-6-luna[\s\S]{0,80}gpt-5.6-sol[\s\S]{0,80}(?:subagents|delegated)/i,
-      'must allow only GPT-6 Luna and GPT-5.6 Sol subagents', errors);
     requireText(filePath, source, /(?:default[\s\S]{0,60}gpt-6-luna|gpt-6-luna[\s\S]{0,160}economical)/i,
       'must name GPT-6 Luna as the default delegated worker', errors);
-    requireText(filePath, source, /gpt-5.6-sol[\s\S]{0,200}independent[\s\S]{0,100}review[\s\S]{0,180}(?:risk|session|callable|rules|deploy|auth)/i,
-      'must reserve GPT-5.6 Sol independent review for risky shared/session/callable/rules or deploy/auth work', errors);
+    requireText(filePath, source, /gpt-6\.1-sol[\s\S]{0,200}independent[\s\S]{0,100}review[\s\S]{0,180}(?:risk|session|callable|rules|deploy|auth)/i,
+      'must reserve GPT-6.1 Sol independent review for risky shared/session/callable/rules or deploy/auth work', errors);
     requireText(filePath, source, /escalat[\s\S]{0,180}(?:actual|lack of progress|material failed|failed attempt)/i,
       'must escalate only after actual lack of progress or a material failure', errors);
     requireText(filePath, source, /do not (?:run|force) a (?:compulsory )?luna\s*(?:→|->)\s*sol\s*(?:→|->)\s*luna/i,
       'must reject a compulsory Luna/Sol/Luna cycle', errors);
-    if (/gpt-5\.6-(?:luna|terra)|gpt-6-(?:sol|astra|terra)/i.test(source)) {
-      errors.push(`${filePath}: must not authorize models outside GPT-5.6 Sol and GPT-6 Luna`);
-    }
-  }
-  if (/gpt-5\.6-(?:luna|terra)|gpt-6-(?:sol|astra|terra)/i.test(agentPolicy)) {
-    errors.push('AGENTS.md: must not authorize models outside GPT-5.6 Sol and GPT-6 Luna');
   }
 }
 

@@ -36,10 +36,9 @@ and integration handoff; one owner reconciles the release.
 
 ## Model and review choices
 
-Only `gpt-6-luna` and `gpt-5.6-sol` may be delegated as subagents. Existing agents may finish their current assignments without interruption; apply this model policy to new agents and subsequent assignments. Use
-`gpt-6-luna` as the default delegated worker model. Use `max` for every
-`gpt-6-luna` subagent. `gpt-5.6-sol` may use only `low`, `medium`, `high`, or `xhigh`,
-selected for the bounded task. Never use `max` or a higher effort for Sol. Use `gpt-5.6-sol` for independent
+Only `gpt-6-luna` and `gpt-6.1-sol` may be delegated as subagents. Existing agents may finish their current assignments without interruption; apply this model policy to new agents and subsequent assignments. The default delegated worker model is
+`gpt-6-luna`. Luna effort is discretionary; `max` is almost always preferred.
+Sol may use all supported effort levels. Use `gpt-6.1-sol` for independent
 review of risky changes
 touching shared session state, callable authorization, Firestore rules,
 deployment, or authentication infrastructure. An exact security review receipt
@@ -47,7 +46,7 @@ still requires `xhigh` when the validator says so.
 Ask the reviewer for all findings in one pass. Escalate only after actual lack
 of progress or a material failed attempt; a typo, copy change, or test-count
 correction does not require a handoff. Do not force a Luna → Sol → Luna loop.
-Use Sol 5.6 for justified blocker diagnosis or ownership transfer only after the
+Use Sol 6.1 for justified blocker diagnosis or ownership transfer only after the
 failed attempt and reason are recorded in the task discussion.
 
 ## Scope and concurrency

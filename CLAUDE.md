@@ -81,10 +81,10 @@ prevented; fixes to broken existing tools remain allowed. For the first five
 prompts, use the existing task timestamps for a lightweight check; do not add a
 new telemetry system.
 
-New top-level coordinators default to `gpt-5.6-sol` with medium reasoning. The coordinator owns priorities, complete bounded task
+New top-level coordinators default to `gpt-6-astra` with medium reasoning. The coordinator owns priorities, complete bounded task
 briefs, architecture decisions, and difficult blockers, and intervenes at meaningful boundaries rather than
 requesting repeated status, duplicating investigation, or reviewing every tool result. Do not create expensive child
-coordinators or a mandatory review stage. Only `gpt-6-luna` and `gpt-5.6-sol` may be delegated as subagents. Existing agents may finish their current assignments without interruption; apply this model policy to new agents and subsequent assignments.
+coordinators or a mandatory review stage. Only `gpt-6-luna` and `gpt-6.1-sol` may be delegated as subagents. Existing agents may finish their current assignments without interruption; apply this model policy to new agents and subsequent assignments.
 
 Workers own task-specific documentation reading and code investigation. Beyond required agent instructions, the
 coordinator relies on concise worker findings, decisions needed, and evidence pointers; it does not duplicate their
@@ -94,13 +94,13 @@ unless they materially affect the current work.
 
 One task owner carries a change through implementation, repairs, appropriate self-review and validation, merge, push,
 and deployment verification when applicable. For shaped checkpoints, one owner is accountable for every acceptance,
-integration, and release; separate Luna Max workers implement independent groups, with independent Sol review for
+integration, and release; separate Luna workers (Max almost always preferred) implement independent groups, with independent Sol review for
 shared-state and authority changes. Record groups, dependencies, isolated checkouts, and shared-file boundaries before
 building; group coupled prompts together instead of assigning one agent per prompt. Follow the linked execution policy
-and reconcile at one release boundary. Delegated workers default to `gpt-6-luna`. Use `max` for every `gpt-6-luna`
-subagent. `gpt-5.6-sol` may use only `low`, `medium`, `high`, or `xhigh`, selected for the bounded task. Never use `max` or a higher effort for Sol.
+and reconcile at one release boundary. Delegated workers default to `gpt-6-luna`. Luna effort is discretionary; `max` is almost always preferred.
+Sol may use all supported effort levels. Keep explicit task-specific security review floors.
 
-Use `gpt-5.6-sol` for independent review of shared session state, callable behavior
+Use `gpt-6.1-sol` for independent review of shared session state, callable behavior
 (including authorization and rules), Firestore rules, deployment/auth
 infrastructure, or release and capacity evidence. Use `medium` or `high` for a
 narrow, well-tested review and `xhigh` for complex authority or privacy risk. Exact threat-model receipts still require `xhigh`.
@@ -123,7 +123,7 @@ The normal path is:
 2. Implement the smallest useful change with focused, meaningful tests.
 3. For a behavior change to shared session state, callable behavior (including
    authorization and rules), Firestore rules, deployment/authentication
-   infrastructure, or release/capacity evidence, obtain an independent Sol 5.6
+   infrastructure, or release/capacity evidence, obtain an independent Sol 6.1
    risk review and receive all
    actionable findings in one pass. The owner repairs findings in a bounded
    follow-up. Ordinary feature deployment and documentation or copy edits do
@@ -437,7 +437,7 @@ server-only.
 - [ ] Focused meaningful checks cover changed behavior; behavior changes to
   shared session state, callable behavior (including authorization and rules),
   Firestore rules, or deployment/authentication infrastructure received one
-  independent Sol 5.6 review.
+  independent Sol 6.1 review.
 - [ ] Rendered UI, fonts, responsive states, and visible navigation were
   inspected when applicable.
 - [ ] The final appropriate validation ran after reconciliation; any rerun had
