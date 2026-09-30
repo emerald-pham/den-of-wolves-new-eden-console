@@ -6,6 +6,7 @@ import type { ShipResourceInventory } from './resources';
 import {
   dockVoyage33,
   emptyVoyage33MovementState,
+  publicVoyage33MovementState,
   parseVoyage33MovementState,
   resolveVoyage33JumpCommit,
   voyage33JumpFuelCost,
@@ -251,5 +252,15 @@ describe('Voyage 33-0 movement', () => {
     expect(parseVoyage33MovementState({ ...movement, revision: Number.MAX_SAFE_INTEGER })).toBeUndefined();
     expect(parseVoyage33MovementState({ ...movement, jumpState: { lastJumpTurn: -1 } })).toBeUndefined();
     expect(parseVoyage33MovementState({ ...movement, privateCaptainUid: 'private' })).toBeUndefined();
+  });
+
+  it('projects Voyage movement only for a valid admission in the current session', () => {
+    const publicMovement = { ...movement, revision: 3 };
+    expect(publicVoyage33MovementState(publicMovement, admission, sessionId)).toEqual(publicMovement);
+    expect(publicVoyage33MovementState(publicMovement, undefined, sessionId)).toBeUndefined();
+    expect(publicVoyage33MovementState(publicMovement, { ...admission, sessionId: 'other-session' }, sessionId))
+      .toBeUndefined();
+    expect(publicVoyage33MovementState({ ...publicMovement, privateCaptainUid: 'private' }, admission, sessionId))
+      .toBeUndefined();
   });
 });
