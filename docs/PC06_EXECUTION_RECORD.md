@@ -33,6 +33,7 @@ exact interface needs to the owner rather than editing shared release seams.
 | Voyage 33-0 movement transaction adapter, Luna Max task `/root/pc06_release_owner/pc06_voyage33_movement_callable` | 251 (isolated transaction adapter) | `/Users/emeraldpham/.codex/worktrees/pc06-voyage-movement-callable/den-of-wolves-new-eden-console`, `feat/pc06-voyage-movement-callable`, start `14f133e5` | `functions/src/voyage33MovementCallable.ts` and focused tests. Implement an injectable authoritative transaction adapter using the existing pure movement policy; the owner composes it with the common jump path, exports, session/rules, UI, and full Prompt 251 acceptance. |
 | Permissioned-dismantling callable adapter, Luna Max task `/root/pc06_release_owner/pc06_dismantle_callable` | 385 (isolated transaction adapter) | `/Users/emeraldpham/.codex/worktrees/pc06-dismantle-callable/den-of-wolves-new-eden-console`, `feat/pc06-dismantle-callable`, start `1f56d244` | `functions/src/permissionedDismantlingCallable.ts` and its focused tests, using the existing exact-proposal policy. Owner retains callable exports, shared session/rules, client consent UI, and full Prompt 385 acceptance. |
 | Common jump-cost behavior, Luna Max task `/root/pc06_release_owner/pc06_jump_costs` | 202, 210, 222, 232, 236, 259 | `/Users/emeraldpham/.codex/worktrees/pc06-jump-costs/den-of-wolves-new-eden-console`, `feat/pc06-jump-costs`, start `f8304e93` | Authoritative shared jump resolver/policy and focused tests for the source-backed ship-specific costs and Ram Scoop reward. The owner retains `functions/src/index.ts`, shared schema/rules, blind-jump P679, scenario proof P320, and full prompt acceptance. |
+| Away-mission lifecycle callable leaf, Luna Max task `/root/pc06_release_owner/pc06_mission_callable` | 392, 393, 404–415, 422, 622, 646 (authoritative callable slice) | `/Users/emeraldpham/.codex/worktrees/pc06-away-lifecycle-callable/den-of-wolves-new-eden-console`, `feat/pc06-away-lifecycle-callable`, start `bd50d141` | `functions/src/awayMissionLifecycleCallable.ts` and its focused tests, composed around the existing mission lifecycle adapter and policy. Preserve P401/P403 start/deal and private-hand contracts. The owner retains `functions/src/index.ts`, shared schema/session/rules, client service/UI, full mission acceptance, and release. |
 | Split-fleet messaging/pursuit/scouting, mission admission/rewards, P112 integration, checkpoint integration and release, checkpoint owner | 241a, 320, 607, 679, 112, 401, 237, 334, 335, 151, 307 | `/Users/emeraldpham/.codex/worktrees/0ce4/den-of-wolves-new-eden-console`, branch `feat/pc06-execution` | Blind-jump authority and UI, demo policy integration, group-local messaging/pursuit/scouting policy and production integration, mission admission and special rewards, P112 authenticated inventory/consent integration, shared entrypoints/schema/rules, integration and release files. The owner retains closure accountability for all 49 prompts, including delegated leaf work. |
 
 The owner reserves `functions/src/index.ts`, `src/types/game.ts`,
@@ -121,6 +122,21 @@ resolver/policy and focused tests; `functions/src/index.ts`, shared
 schema/rules, P679, P320, and release acceptance remain with the checkpoint
 owner. This is another observed successful dispatch and does not establish a
 permanent capacity limit.
+
+The common jump-cost task completed in the managed checkout at exact HEAD
+`e2ccef0fc4c8308fc5c59c2700bf924842dbdf0f`. Its test-first policy slice passed
+110 focused tests, Functions build, targeted lint, and diff validation. The
+owner retains production callable integration and is checking the source
+phrase “When you FTL jump” against the separate emergency-jump transaction
+before closing the Ram Scoop prompt.
+
+With 63 GiB available, nested `collaboration.spawn_agent` then created the
+real Luna Max task `/root/pc06_release_owner/pc06_mission_callable` in the
+separate managed checkout listed above, starting at `bd50d141`. The bounded
+leaf adds only the away-mission lifecycle transaction/callable adapter and
+its tests; P401/P403 start/deal, shared entrypoint/schema/rules, and client
+integration remain owner responsibilities. This records an observed
+successful dispatch in this session, not a permanent capacity limit.
 
 The live-access probe reached the production console at
 `dow-new-eden-console.web.app/#/console`, running build `0.5.58`. Reduce Motion
