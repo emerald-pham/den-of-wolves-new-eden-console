@@ -93,9 +93,11 @@ owner or request a rebase solely for routine guidance updates; let the owner enc
 unless they materially affect the current work.
 
 One task owner carries a change through implementation, repairs, appropriate self-review and validation, merge, push,
-and deployment verification when applicable. A sidecar is optional and there is no minimum-agent count. For shaped
-checkpoints, delegate independent critical-path work when it shortens release time; fill useful slots with bounded
-owners in isolated worktrees and reconcile at one release boundary. Delegated workers default to `gpt-6-luna`. Use `max` for every `gpt-6-luna`
+and deployment verification when applicable. For shaped checkpoints, one owner is accountable for every acceptance,
+integration, and release; separate Luna Max workers implement independent groups, with independent Sol review for
+shared-state and authority changes. Record groups, dependencies, isolated checkouts, and shared-file boundaries before
+building; group coupled prompts together instead of assigning one agent per prompt. Follow the linked execution policy
+and reconcile at one release boundary. Delegated workers default to `gpt-6-luna`. Use `max` for every `gpt-6-luna`
 subagent. `gpt-5.6-sol` may use only `low`, `medium`, `high`, or `xhigh`, selected for the bounded task. Never use `max` or a higher effort for Sol.
 
 Use `gpt-5.6-sol` for independent review of shared session state, callable behavior

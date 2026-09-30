@@ -28,6 +28,10 @@ Batch all scoped PC work into one reconciled candidate and run one final
 appropriate validation after reconciliation. Prefer one exact-candidate CI and
 deployment run; rerun only for a failed gate, production-only finding, or
 material candidate change. The linked execution policy governs the details.
+Use one accountable checkpoint owner, separate Luna Max workers for independent
+implementation groups, and independent Sol review for shared-state and authority
+changes. Group coupled prompts by behavior rather than assigning one agent per
+prompt; record the concrete groups and integration boundaries before building.
 
 The roadmap facts live in the JSON catalog at
 [`docs/implementation-prompts.json`](./docs/implementation-prompts.json), with

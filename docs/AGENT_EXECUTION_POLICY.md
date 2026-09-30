@@ -18,10 +18,31 @@ to Sol before another repair. Preserve the failed evidence, exact commits,
 checkout and coordination state, then park Luna's edit scope. Deliberate red
 tests written for test-first work do not count as failed attempts.
 
-For a shaped checkpoint, delegate independent critical-path work only when it
-is likely to shorten the release. Give each owner a bounded scope, separate
-checkout, shared-file boundary, and explicit integration handoff. Keep one
-owner for the reconciled release.
+### Checkpoint ownership and implementation groups
+
+Owner instruction, 2026-09-30: use one checkpoint owner accountable for every
+assigned prompt's acceptance, integration, and release; separate Luna Max
+workers for independent implementation groups; and independent Sol review for
+shared-state and authority changes. Accountability does not mean the checkpoint
+owner implements the whole checkpoint serially.
+
+Before implementation, record a concrete grouping of the assigned prompts by
+shared behavior and dependencies, with bounded worker briefs, acceptance
+criteria, separate checkouts, shared-file boundaries, and integration handoffs.
+Dispatch the independent groups to separate Luna Max workers as capacity permits.
+Do not default to one worker per prompt: catalog boundaries can divide one
+transaction, lifecycle, or authorization contract. Keep tightly coupled work
+together and explain dependencies that require sequential work. Workers carry
+their groups through implementation, repairs, and focused validation; the
+checkpoint owner reconciles shared seams, tracks every acceptance and proof
+gap, and owns the single release. This does not add child coordinators.
+
+Obtain independent Sol review of the reconciled shared-state and authority
+changes under the risk rules in `CLAUDE.md`. Review findings return to the
+responsible implementation owner. Preserve test-first commits, exact-candidate
+validation, ordinary authorized gameplay proof, and the fixed completion target.
+Use the currently authorized model versions and efforts; this structure does
+not authorize a model excluded by higher-priority working agreements.
 
 ## Batched PC releases
 
