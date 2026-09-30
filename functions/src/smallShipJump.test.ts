@@ -86,7 +86,7 @@ function session(overrides: Stored = {}): Stored {
     activeVesselIds: ['aegis', 'dione'], expansion: 'base', capybaraEnabled: true,
     chartId: 'A', chartSelectionLocked: true,
     smallShipStates: { gorgoneion: smallShip },
-    missionCraftCommitments: [],
+    missionCraftCommitments: {},
     shipResources: {
       aegis: { ore: 0, fuel: 5, food: 8, water: 6, materials: 1, securityTeams: 2 },
       dione: { ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 2 },
@@ -123,11 +123,10 @@ function seed(overrides: Stored = {}) {
     _smallShipId: string,
   ) => {
     if (uid !== 'u1') throw new HttpsError('permission-denied', 'Active small-craft Captain required.');
-    const role = db.documents.get('sessions/s1/players/u1')?.role;
+    const playerDoc = db.documents.get('sessions/s1/players/u1') ?? {};
     return {
-      player: { get: (key: string) => key === 'role' ? role ?? 'player' :
-        key === 'replacementRoleId' ? 'gorgoneion-captain' :
-          key === 'activeConsoleRoleId' ? null : null },
+      player: { get: (key: string) => key in playerDoc ? playerDoc[key] :
+        key === 'role' ? 'player' : key === 'replacementRoleId' ? 'gorgoneion-captain' : null },
       session: {
         exists: true,
         get: (key: string) => (db.documents.get(sessionPath) ?? {})[key],
@@ -141,6 +140,7 @@ function seed(overrides: Stored = {}) {
       return auth.uid;
     },
     requireSmallShipCaptainAuthority: requireSmallShipCaptainAuthority as never,
+    requireSmallShipMode: () => undefined,
     serverTimestamp: () => 'server-time',
     now: () => now,
   });
@@ -229,6 +229,22 @@ describe('small-craft Jump Drive authority', () => {
     await expect(callables.getSmallShipJumpWorkspace(request({
       sessionId: 's1', smallShipId: 'gorgoneion',
     }))).resolves.toMatchObject({ currentCoordinate: '5143' });
+  });
+
+  it('returns stale when the live host moved after the Captain loaded the jump projection', async () => {
+    const { db, callables } = seed();
+    db.documents.set(navigationStateDocumentPath('s1'), {
+      revision: 6, shipGalacticCoordinates: { aegis: '1413', dione: '5143' }, shipNavigationLogs: {},
+    });
+    db.documents.set('sessions/s1/playerDiscoveries/u1', {
+      revision: 6, knownCoordinates: ['0000', '5143', '1413'],
+    });
+
+    await expect(callables.jumpSmallShip(request({ ...jump, expectedOrigin: '0000' }))).resolves.toMatchObject({
+      status: 'stale', expectedOrigin: '0000', currentOrigin: '1413',
+    });
+    expect(db.documents.get(sessionPath)).toMatchObject({ shipResources: { aegis: { fuel: 5 } } });
+    expect(db.documents.get(movementPath)).toMatchObject({ coordinate: '0000', revision: 0 });
   });
 
   it('rejects an uncharted-to-the-Captain destination without writes', async () => {
