@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { emptySmallShipState } from './smallShip';
 import { navigationStateDocumentPath } from './navigationProjection';
-import { createSmallShipJumpCallables, smallShipMovementDocumentPath } from './smallShipJump';
+import {
+  createSmallShipJumpCallables,
+  parseSmallShipMovementState,
+  smallShipMovementDocumentPath,
+} from './smallShipJump';
 
 type Stored = Record<string, unknown>;
 
@@ -106,6 +110,21 @@ function movement(coordinate = '0000', revision = 0): Stored {
   };
 }
 
+it('preserves the navigation privacy map UID contract without treating a UID as an object prototype', () => {
+  const arrivals = Object.fromEntries([
+    ['captain.with.period', ['0000']],
+    ['__proto__', ['5143']],
+  ]);
+  const parsed = parseSmallShipMovementState({
+    ...movement(), captainArrivalsByUid: arrivals,
+  }, 's1', 'gorgoneion');
+
+  expect(parsed).toBeDefined();
+  expect(Object.keys(parsed!.captainArrivalsByUid)).toEqual(['captain.with.period', '__proto__']);
+  expect(Object.hasOwn(parsed!.captainArrivalsByUid, '__proto__')).toBe(true);
+  expect(parsed!.captainArrivalsByUid['__proto__']).toEqual(['5143']);
+});
+
 function seed(overrides: Stored = {}) {
   const db = new MemoryFirestore();
   db.documents.set(sessionPath, session(overrides));
@@ -119,10 +138,16 @@ function seed(overrides: Stored = {}) {
   });
   db.documents.set(movementPath, movement());
   const requireSmallShipCaptainAuthority = vi.fn(async (
-    _tx: unknown, _sessionId: string, uid: string, _instanceId: string | undefined,
-    _smallShipId: string,
+    _tx: unknown, _sessionId: string, uid: string, instanceId: string | undefined,
+    smallShipId: string,
   ) => {
     if (uid !== 'u1') throw new HttpsError('permission-denied', 'Active small-craft Captain required.');
+    if (smallShipId !== 'gorgoneion' && smallShipId !== 'capybara-small') {
+      throw new HttpsError('permission-denied', 'Unsupported small-craft authority.');
+    }
+    if (instanceId !== undefined && instanceId !== 'gm-1') {
+      throw new HttpsError('permission-denied', 'Unexpected facilitator instance.');
+    }
     const playerDoc = db.documents.get('sessions/s1/players/u1') ?? {};
     return {
       player: { get: (key: string) => key in playerDoc ? playerDoc[key] :
@@ -153,7 +178,7 @@ function request(data: Stored, uid = 'u1') {
 
 const jump = {
   sessionId: 's1', smallShipId: 'gorgoneion', hostShipId: 'aegis',
-  destination: '5143', requestId: 'jump-1', expectedMovementRevision: 0,
+  destination: '5143', expectedOrigin: '0000', requestId: 'jump-1', expectedMovementRevision: 0,
   expectedDockingRevision: 1, expectedCycleRevision: 8,
 };
 
@@ -181,6 +206,13 @@ describe('small-craft Jump Drive authority', () => {
       captainArrivalsByUid: { u1: ['0000', '5143'] },
     });
     expect(db.writes.filter((write) => write.path.includes('smallShipJumpRequests/'))).toHaveLength(1);
+
+    await expect(callables.getSmallShipJumpWorkspace(request({
+      sessionId: 's1', smallShipId: 'gorgoneion',
+    }))).resolves.toMatchObject({
+      viewer: 'captain', hostShipId: null, currentCoordinate: '5143',
+      movementRevision: 1, dockingRevision: 2, arrivalCoordinates: ['0000', '5143'],
+    });
   });
 
   it('replays the exact committed request without spending host fuel or charge again', async () => {
