@@ -562,6 +562,8 @@ it('fails closed when any immutable P403 start, deck, initial hand, or pointer s
     (store: FakeStore) => store.records.delete(paths().aliceHand),
     (store: FakeStore) => store.records.delete(paths().bobPointer),
     (store: FakeStore) => { store.records.get(paths().mission)!.cardIds = [ALICE_CARD, ALICE_CARD]; },
+    (store: FakeStore) => { store.records.get(paths().mission)!.cardIds = [ALICE_CARD, 'A♦']; },
+    (store: FakeStore) => { store.records.get(paths().start)!.requestId = 'different-start'; },
     (store: FakeStore) => { store.records.get(paths().aliceHand)!.cardId = 'A♣'; },
     (store: FakeStore) => { store.records.get(paths().bobPointer)!.groupId = 'other-fleet'; },
   ];
