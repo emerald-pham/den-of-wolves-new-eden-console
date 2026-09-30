@@ -25,7 +25,8 @@ exact interface needs to the owner rather than editing shared release seams.
 | Vessel operations, Luna Max task `/root/pc06_release_owner/pc06_vessel_ops` | 238, 244, 241c, 251, 250, 352, 371, 380, 385, 378 | `/Users/emeraldpham/.codex/worktrees/pc06-vessel-ops/den-of-wolves-new-eden-console`, `feat/pc06-vessel-ops`, start `1b33ab3c` | Vessel, repair, cargo, shuttle/transit, conflict, security-team, and dismantling leaf modules with their tests, services, components, and vessel data. The owner owns callable exports, shared session/schema/rules, and release metadata. |
 | Away-mission lifecycle, Luna Max task `/root/pc06_release_owner/pc06_away_mission` | 241b, 392, 393, 404, 405, 407, 408, 409, 410, 411, 412, 413, 243, 414, 415, 622, 422, 646 | `/Users/emeraldpham/.codex/worktrees/pc06-away-missions/den-of-wolves-new-eden-console`, `feat/pc06-away-missions`, start `1b33ab3c` | Private card lifecycle, contribution-linked outcomes, custody, overrun, drop-off, recovery, and scenario leaf modules with focused tests and UI. The owner retains `functions/src/missionStart.ts` and `functions/src/explorationRewards.ts` while reconciling the parked P401 and P334 work. |
 | Scout-request guidance UI, Luna Max task `/root/pc06_release_owner/pc06_scout_requests` | 322, 323, 324 (player-facing slice) | `/Users/emeraldpham/.codex/worktrees/pc06-split-scout/den-of-wolves-new-eden-console`, `feat/pc06-split-scout`, start `6df5f4fe` | `src/components/ScoutRequestControls.tsx`, `.css`, and `.test.tsx`. Explain printed-chart distance/cadence for Starlight and Hummingbird while preserving server-owned authorization, stable retry, and privacy. UI work alone does not close these prompts. |
-| Jump, split-fleet messages/pursuit/scouts, mission admission/rewards, P112 decision, checkpoint integration and release, checkpoint owner | 202, 210, 222, 232, 236, 241a, 259, 320, 607, 679, 020a, 112, 401, 237, 334, 335, 151, 307 | `/Users/emeraldpham/.codex/worktrees/0ce4/den-of-wolves-new-eden-console`, branch `feat/pc06-execution` | Jump authority and UI, demo boundary, group-local messaging/pursuit/scouting policy and production integration, mission admission and special rewards, P112 inventory/consent decision, shared entrypoints/schema/rules, integration and release files. The owner retains closure accountability for all 49 prompts, including delegated leaf work. |
+| Demo boundary policy and notice leaf, Luna Max task `/root/pc06_release_owner/pc06_demo_boundary` | 020a (leaf slice) | `/Users/emeraldpham/.codex/worktrees/pc06-demo-boundary/den-of-wolves-new-eden-console`, `feat/pc06-demo-boundary`, start `b62ea1ec` | `functions/src/singlePlayerDemoPolicy.ts` and its tests, plus the isolated accessible demo notice component and tests. The owner integrates the policy at shared server/jump entrypoints and owns end-to-end acceptance. Test-first commit: `8f6205fc`. |
+| Jump, split-fleet messages/pursuit/scouts, mission admission/rewards, P112 decision, checkpoint integration and release, checkpoint owner | 202, 210, 222, 232, 236, 241a, 259, 320, 607, 679, 112, 401, 237, 334, 335, 151, 307 | `/Users/emeraldpham/.codex/worktrees/0ce4/den-of-wolves-new-eden-console`, branch `feat/pc06-execution` | Jump authority and UI, demo policy integration, group-local messaging/pursuit/scouting policy and production integration, mission admission and special rewards, P112 inventory/consent decision, shared entrypoints/schema/rules, integration and release files. The owner retains closure accountability for all 49 prompts, including delegated leaf work. |
 
 The owner reserves `functions/src/index.ts`, `src/types/game.ts`,
 `src/lib/firestore.ts`, `src/store/useSessionStore.ts`,
@@ -64,22 +65,28 @@ clean managed checkout and successfully dispatched
 `/root/pc06_release_owner/pc06_scout_requests` as a real Luna Max worker in a
 separate worktree. The worker owns only the Starlight/Hummingbird request UI
 files listed above; server policy and final prompt acceptance remain with the
-checkpoint owner. This records observed results for this session and does not
-establish a permanent host-wide capacity or nested-dispatch limit.
+checkpoint owner. A later free slot allowed a fourth real Luna Max dispatch,
+`/root/pc06_release_owner/pc06_demo_boundary`, in the separate managed checkout
+listed above. The owner retains shared server/jump integration and final
+acceptance. These are observed results for this session and do not establish a
+permanent host-wide capacity or nested-dispatch limit.
 
 If nested dispatch is unavailable while a slot is free, send the bounded group
 brief and exact checkout/branch identity to `/root` for direct dispatch. If all
 session slots are occupied, queue the next group until a real worker completes
 and frees a slot; a different dispatcher cannot remove that capacity limit. In
-this run the third group stays owner-owned after the returned error. Reserve or
-release a slot for independent Sol review at the review boundary. The
-checkpoint owner remains accountable for integration and release in either
-case.
+this run the first attempt to dispatch the scout-request group returned
+`collab spawn failed: agent thread limit reached`; it remained pending until a
+worker completed, then was dispatched successfully. Reserve a slot for
+independent Sol review at the review boundary. The checkpoint owner remains
+accountable for integration and release in either case.
 
-The early live-access probe reached the production console at
-`dow-new-eden-console.web.app/#/console`, then stopped at its first-use motion
-choice. The page says the device choice is stored for 24 hours. The applicable
-computer-use policy requires authorization immediately before changing an
-application setting when the user has not selected it, so neither option was
-chosen. Ordinary authorized gameplay proof remains open until that choice is
-provided or a previously authorized production session is available.
+The live-access probe reached the production console at
+`dow-new-eden-console.web.app/#/console`, where a first-use motion choice offers
+Normal and Reduced Motion and says the selection is saved on this device for 24
+hours. The applicable Computer Use Confirmation Policy classifies non-sensitive
+application settings as requiring an explicit request or confirmation before
+the change. The task authorizes gameplay testing but does not specify either
+motion setting, so the choice remains untouched until it is authorized or a
+previously authorized production session is available. This is a policy
+boundary, not a tool denial. Ordinary authorized gameplay proof remains open.
