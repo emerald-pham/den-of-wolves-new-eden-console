@@ -347,9 +347,10 @@ const P541_NAVIGATION_WRITER_AFTER = [
   '  );\n',
   '  tx.set(ref, projection);\n',
 ].join('');
-const NAVIGATION_PROJECTION_AFTER = readFileSync(
-  new URL('../functions/src/navigationProjection.ts', import.meta.url), 'utf8',
-);
+// Historical reviewed transitions remain pinned as new checkpoint behavior evolves.
+const PC05_REVIEWED_CANDIDATE = 'c27842ff6d9e240209bbfc5798f7dbeff519110a';
+const NAVIGATION_PROJECTION_AFTER = execFileSync('git',
+  ['show', `${PC05_REVIEWED_CANDIDATE}:functions/src/navigationProjection.ts`], { encoding: 'utf8' });
 let NAVIGATION_PROJECTION_BEFORE = NAVIGATION_PROJECTION_AFTER;
 for (const [addition, expectedCount] of P541_NAVIGATION_ADDITIONS) {
   assert.equal(NAVIGATION_PROJECTION_BEFORE.split('\n').filter((line) => line === addition).length, expectedCount);
@@ -1357,7 +1358,7 @@ test('keeps mixed known and unknown Functions helper paths fail-closed', () => {
 
 test('PC05 setup and maintenance candidate selects runtime consumers before release', () => {
   const before = '7782840d';
-  const after = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  const after = PC05_REVIEWED_CANDIDATE;
   const files = execFileSync('git', ['diff', '--name-only', `${before}..${after}`], {
     encoding: 'utf8',
   }).trim().split('\n');
@@ -1504,7 +1505,7 @@ test('maps the shared pursuit decision pause to every indexed action and externa
 
 test('maps the exact PC05 ECM pause addition only to the activation writer', () => {
   const before = '7782840da0defcf64428877cf6d37249d49b5ffa';
-  const after = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  const after = PC05_REVIEWED_CANDIDATE;
   const selected = deploymentSelector({
     before, after, files: ['functions/src/endeavourEcmDeviceWriter.ts'], targets: ['functions'],
   });
@@ -1514,7 +1515,7 @@ test('maps the exact PC05 ECM pause addition only to the activation writer', () 
 test('selects exactly 138 named Functions for the exact PC05 release range', () => {
   const before = '0ba386f50689b375153ceee3b2eb11a9ecd19435';
   const verificationBefore = '7782840da0defcf64428877cf6d37249d49b5ffa';
-  const after = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  const after = PC05_REVIEWED_CANDIDATE;
   const files = execFileSync('git', ['diff', '--name-only', `${before}..${after}`], {
     encoding: 'utf8',
   }).trim().split('\n').filter(Boolean);
@@ -1533,7 +1534,7 @@ test('selects exactly 138 named Functions for the exact PC05 release range', () 
 
 test('maps the exact PC05 jump request contract and rejects an unrelated guard edit', () => {
   const beforeSource = execFileSync('git', ['show', '7782840d:functions/src/requestGuards.ts'], { encoding: 'utf8' });
-  const afterSource = readFileSync('functions/src/requestGuards.ts', 'utf8');
+  const afterSource = execFileSync('git', ['show', `${PC05_REVIEWED_CANDIDATE}:functions/src/requestGuards.ts`], { encoding: 'utf8' });
   const select = (source) => deploymentSelector({ before: 'base', after: 'candidate',
     files: ['functions/src/requestGuards.ts'], targets: ['functions'], isAncestor: () => false,
     sourceAtRevision: (revision) => revision === 'base' ? beforeSource : source,
@@ -1545,7 +1546,7 @@ test('maps the exact PC05 jump request contract and rejects an unrelated guard e
 });
 
 test('maps only the audited member jump event fields to their writers', () => {
-  const source = readFileSync('functions/src/eventRedaction.ts', 'utf8');
+  const source = execFileSync('git', ['show', `${PC05_REVIEWED_CANDIDATE}:functions/src/eventRedaction.ts`], { encoding: 'utf8' });
   const addition = "  'ship-jump': ['shipId', 'outcome', 'length', 'failureRoll', 'failureThreshold', 'fuelSpent', 'damageCount', 'emergency'],\n";
   const select = (afterSource) => deploymentSelector({ before: 'base', after: 'candidate',
     files: ['functions/src/eventRedaction.ts'], targets: ['functions'], isAncestor: () => false,
@@ -1569,7 +1570,7 @@ test('includes failed-jump adjudication in its shared authority and consequence 
 
 test('includes unchanged callable bodies affected by PC05 index-local authority helpers', () => {
   const before = '7782840d';
-  const after = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  const after = PC05_REVIEWED_CANDIDATE;
   const selected = deploymentSelector({ before, after, files: ['functions/src/index.ts'], targets: ['functions'] }).split(',');
   for (const name of ['transferShuttleCargoCommand', 'recycleWithBoa', 'requestShuttleDeparture',
     'beginShuttleTransit', 'retargetShuttleTransit', 'publishPressDispatch', 'dismissPressDispatch',
