@@ -78,6 +78,28 @@ function warriorFixture() {
   });
 }
 
+function hummingbirdFixture() {
+  const deckState = fixture().lifecycle.deckState;
+  const lifecycle = createMissionLifecycleState({
+    missionId: 'mission-hummingbird',
+    siteCode: 'C',
+    leaderUid: 'explorer',
+    participants: [{ uid: 'explorer', roleId: 'quellon-explorer' }],
+    availableCarrierCraftIds: ['hummingbird'],
+    deckState,
+    dealtCount: 1,
+    initialCards: [{ participantUid: 'explorer', cardId: '10♥' }],
+  });
+  if (!lifecycle) throw new Error('Expected valid Hummingbird mission fixture.');
+  return createAwayMissionLifecycleRecord({
+    sessionId: 'session-1',
+    groupId: 'fleet-1',
+    sourceCycle: 3,
+    lifecycle,
+    participantCrafts: [{ participantUid: 'explorer', craftIds: ['hummingbird'] }],
+  });
+}
+
 function act(
   record: ReturnType<typeof fixture>,
   type: string,
@@ -207,6 +229,49 @@ describe('away-mission lifecycle adapter', () => {
     expect(resolved.status).toBe('committed');
     expect(resolved.record?.specialRewards).toEqual([{ opportunityId: 'D-1', resources: { food: 1 } }]);
     expect(resolved.record?.custody).toMatchObject({ status: 'mission-leader', holderUid: 'alice' });
+  });
+
+  it('derives the Hummingbird bonus from the accepted craft snapshot and applies it only to its contribution', () => {
+    let record = hummingbirdFixture()!;
+    const request = act(record, 'requestExtraCards', { count: 1 }, 'explorer');
+    expect(request.status).toBe('committed');
+    record = request.record!;
+    const allocation = act(record, 'distributeExtraCard', {
+      participantUid: 'explorer', opportunityId: 'C-1',
+    }, 'explorer');
+    expect(allocation.status).toBe('committed');
+    record = allocation.record!;
+    const opened = act(record, 'openDiscards', {}, 'gm', { isActiveGm: true });
+    expect(opened.status).toBe('committed');
+    record = opened.record!;
+    const discarded = act(record, 'discardCard', { cardId: '10♥' }, 'explorer');
+    expect(discarded.status).toBe('committed');
+    record = discarded.record!;
+    const assigned = act(record, 'assignCards', {
+      placements: [{ cardId: '10♦', opportunityId: 'C-1' }],
+    }, 'explorer');
+    expect(assigned.status).toBe('committed');
+    record = assigned.record!;
+    const dealt = act(record, 'addFacilitatorCards', {}, 'gm', {
+      isActiveGm: true, randomIndex: () => 0,
+    });
+    expect(dealt.status).toBe('committed');
+    record = dealt.record!;
+    const resolved = act(record, 'resolve', {}, 'gm', {
+      isActiveGm: true, bonusSources: [], secretD6Rolls: {},
+    });
+    expect(resolved.status).toBe('committed');
+    expect(resolved.record?.outcomes?.find(({ opportunityId }) => opportunityId === 'C-1')).toMatchObject({
+      total: 34,
+      bonusTotal: 4,
+      bonusBreakdown: [
+        expect.objectContaining({ participantUid: 'explorer', source: { kind: 'craft', id: 'hummingbird' }, trait: 'exploration', amount: 3 }),
+        expect.objectContaining({ participantUid: 'explorer', source: { kind: 'craft', id: 'hummingbird' }, trait: 'mining', amount: 1 }),
+      ],
+    });
+    expect(resolved.record?.outcomes?.find(({ opportunityId }) => opportunityId === 'C-2')).toMatchObject({
+      contributorCount: 0, bonusTotal: 0, outcome: 'automatic-failure',
+    });
   });
 
   it('keeps committed participant craft movement-locked through a Team Phase overrun until resolution', () => {
