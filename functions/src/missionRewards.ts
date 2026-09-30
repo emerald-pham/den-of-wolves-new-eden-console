@@ -133,7 +133,7 @@ export function resolveWarriorReclamatorHand(
   if (!isRecord(input) || !isNonEmptyString(input.participantUid) || input.roleId !== 'warrior-captain' ||
       !missionCardForCode(input.siteCode) || !Array.isArray(input.handCardIds) || input.handCardIds.length === 0 ||
       !Array.isArray(input.choices) || input.choices.length !== input.handCardIds.length ||
-      !missionCardForCode(input.siteCode)?.opportunities.some(({ id }) => id === input.opportunityId)) return null;
+      !missionCardForCode(input.siteCode)?.opportunities.some(({ id, traits }) => id === input.opportunityId && traits.includes('salvage'))) return null;
   const cards = input.handCardIds;
   if (cards.some((cardId) => typeof cardId !== 'string' || !CARD_IDS.has(cardId)) ||
       new Set(cards).size !== cards.length) return null;
@@ -141,11 +141,11 @@ export function resolveWarriorReclamatorHand(
   for (const choice of input.choices) {
     if (!isRecord(choice) || Object.keys(choice).some((key) => key !== 'cardId' && key !== 'resource') ||
         typeof choice.cardId !== 'string' || !cards.includes(choice.cardId as MissionCardId) ||
-        !['food', 'water', 'materials'].includes(String(choice.resource)) || choicesByCard.has(choice.cardId)) return null;
+        !['food', 'water'].includes(String(choice.resource)) || choicesByCard.has(choice.cardId)) return null;
     choicesByCard.set(choice.cardId, choice.resource as 'food' | 'water' | 'materials');
   }
   if (choicesByCard.size !== cards.length || cards.some((cardId) => !choicesByCard.has(cardId))) return null;
-  const resources: Partial<Record<'food' | 'water' | 'materials', number>> = {};
+  const resources: Partial<Record<'food' | 'water' | 'materials', number>> = { materials: cards.length };
   for (const resource of choicesByCard.values()) resources[resource] = (resources[resource] ?? 0) + 1;
   return {
     participantUid: input.participantUid,

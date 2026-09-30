@@ -358,7 +358,7 @@ export function applyAwayMissionLifecycleCommand(
     case 'resolve': {
       if (!authority.isActiveGm || record.status !== 'active') return { status: 'denied' };
       const serverBonusSources = authority.bonusSources ?? [];
-      const nonMissionShuttleSources = serverBonusSources.filter((candidate) => !isStarlightOrHummingbirdSource(candidate));
+      const nonMissionShuttleSources = serverBonusSources.filter((candidate) => !isMissionShuttleSource(candidate));
       const shuttleSources = missionBonusSourcesForShuttleParticipants(record.lifecycle, record.participantCrafts);
       const outcomes = calculateMissionOpportunityTotals(
         record.lifecycle,
@@ -638,10 +638,10 @@ function bulkHaulageContributorsByOpportunity(
   return result;
 }
 
-function isStarlightOrHummingbirdSource(candidate: unknown): boolean {
+function isMissionShuttleSource(candidate: unknown): boolean {
   if (!isRecord(candidate) || !isRecord(candidate.source)) return false;
   return candidate.source.kind === 'craft' &&
-    (candidate.source.id === 'starlight' || candidate.source.id === 'hummingbird');
+    ['starlight', 'hummingbird', 'highwall', 'endeavour', 'pdf-escort-fighter-wing'].includes(String(candidate.source.id));
 }
 
 function stableStringify(value: unknown): string {

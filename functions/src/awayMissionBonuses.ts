@@ -13,6 +13,9 @@ const SHUTTLE_BONUSES: Readonly<Record<string, Readonly<{
     roleId: 'wing-commander',
     bonuses: { exploration: 3, salvage: 1 },
   },
+  endeavour: { roleId: 'shepherd-scientist', bonuses: { science: 3 } },
+  highwall: { roleId: 'icebreaker-miner', bonuses: { mining: 3, engineering: 2 } },
+  'pdf-escort-fighter-wing': { roleId: 'refinery-124-pdf-colonel', bonuses: { searchAndRescue: 2, salvage: 1 } },
   hummingbird: {
     roleId: 'quellon-explorer',
     bonuses: { exploration: 3, mining: 1 },

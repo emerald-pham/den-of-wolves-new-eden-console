@@ -247,7 +247,7 @@ export default function AwayMissionLifecyclePanel({
             remainingCards.length > 0 && (
               <section className="away-mission-lifecycle__reclamator" aria-label="Warrior Reclamator salvage">
                 <h4>Warrior Reclamator // one salvage opportunity</h4>
-                <p className="away-mission-lifecycle__muted">Choose food, water, or materials for every card in your hand. Using this action consumes the entire hand.</p>
+                <p className="away-mission-lifecycle__muted">Gain one material plus your choice of one food or water for every card. Using this action consumes the entire hand.</p>
                 <label>
                   Reclamator salvage opportunity
                   <select value={reclamatorOpportunityId} onChange={(event) => setReclamatorOpportunityId(event.target.value)}>
@@ -274,8 +274,7 @@ export default function AwayMissionLifecyclePanel({
                         <option value="">Choose a resource</option>
                         <option value="food">Food</option>
                         <option value="water">Water</option>
-                        <option value="materials">Materials</option>
-                      </select>
+                        </select>
                     </label>
                   ))}
                 </div>
