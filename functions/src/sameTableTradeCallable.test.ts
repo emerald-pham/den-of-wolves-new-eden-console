@@ -387,7 +387,10 @@ describe('same-table trade authoritative callables', () => {
     expect(result).toMatchObject({
       status: 'committed', sessionId: SESSION_ID, offerId: OFFER_ID, revision: 5,
       receipt: { receiptId: OFFER_ID, revision: 4 },
+      inventory: { ...RECIPIENT_BASELINE, ore: 4, fuel: 3 },
     });
+    expect(result).not.toHaveProperty('sourceInventory');
+    expect(result).not.toHaveProperty('recipientInventory');
     expect(store.records.get(path.senderInventory)?.balances).toEqual({ ...BASELINE, ore: 7, fuel: 6 });
     expect(store.records.get(path.recipientInventory)?.balances).toEqual({ ...RECIPIENT_BASELINE, ore: 4, fuel: 3 });
     expect(store.records.get(path.state)?.revision).toBe(5);
@@ -461,10 +464,8 @@ describe('same-table trade authoritative callables', () => {
     store.records.set(path.state, { type: 'same-table-trade-state', sessionId: SESSION_ID, revision: 99 });
     store.records.set(`${path.players}/sender`, { ...player('sender', 'dione-engineer'), connected: false });
     store.records.set(`${path.players}/recipient`, player('recipient', 'dione-engineer'));
-    const balancesBeforeReplay = {
-      sender: structuredClone(store.records.get(path.senderInventory)?.balances),
-      recipient: structuredClone(store.records.get(path.recipientInventory)?.balances),
-    };
+    const sourceBeforeReplay = structuredClone(store.records.get(path.senderInventory)?.balances);
+    const recipientBeforeReplay = structuredClone(store.records.get(path.recipientInventory)?.balances);
     store.committedWrites.length = 0;
 
     const replay = await callables.acceptSameTableTradeOffer(acceptRequest());
@@ -472,9 +473,12 @@ describe('same-table trade authoritative callables', () => {
     expect(replay).toMatchObject({
       status: 'replayed', sessionId: SESSION_ID, offerId: OFFER_ID,
       revision: 99, receipt: committed.receipt,
+      inventory: recipientBeforeReplay,
     });
-    expect(store.records.get(path.senderInventory)?.balances).toEqual(balancesBeforeReplay.sender);
-    expect(store.records.get(path.recipientInventory)?.balances).toEqual(balancesBeforeReplay.recipient);
+    expect(replay).not.toHaveProperty('sourceInventory');
+    expect(replay).not.toHaveProperty('recipientInventory');
+    expect(store.records.get(path.senderInventory)?.balances).toEqual(sourceBeforeReplay);
+    expect(store.records.get(path.recipientInventory)?.balances).toEqual(recipientBeforeReplay);
     expect(store.records.get(path.state)?.revision).toBe(99);
     expect(store.committedWrites).toHaveLength(0);
   });
