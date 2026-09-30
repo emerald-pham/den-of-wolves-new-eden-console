@@ -19,8 +19,8 @@ type Transaction = {
 };
 
 const SESSION_ID = 'session-1';
-const MISSION_ID = 'mission-1';
 const OPPORTUNITY_ID = 'arrival-fleet-1-A-1234-cycle-3';
+const MISSION_ID = `mission-${OPPORTUNITY_ID}`;
 const ALICE_CARD = 'A♥';
 const BOB_CARD = '4♥';
 const EXTRA_CARD = '10♦';
