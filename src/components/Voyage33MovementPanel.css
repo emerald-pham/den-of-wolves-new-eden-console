@@ -1,0 +1,180 @@
+.voyage33-movement {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  padding: 1rem;
+  color: var(--cic-ink);
+  font-family: var(--cic-mono);
+}
+
+.voyage33-movement__header,
+.voyage33-movement__readouts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem 1rem;
+  align-items: start;
+  min-width: 0;
+}
+
+.voyage33-movement__header h3,
+.voyage33-movement__action h4,
+.voyage33-movement p {
+  margin: 0;
+}
+
+.voyage33-movement__header h3 {
+  color: var(--cic-amber);
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.voyage33-movement__eyebrow,
+.voyage33-movement__label,
+.voyage33-movement__connection,
+.voyage33-movement__action h4 {
+  color: var(--cic-amber-dim);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  line-height: 1.5;
+  text-transform: uppercase;
+}
+
+.voyage33-movement__eyebrow {
+  margin: 0 0 0.2rem;
+}
+
+.voyage33-movement__connection {
+  padding: 0.25rem 0;
+  text-align: right;
+}
+
+.voyage33-movement__identity,
+.voyage33-movement__note,
+.voyage33-movement__guidance,
+.voyage33-movement__outcome {
+  overflow-wrap: anywhere;
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.voyage33-movement__identity {
+  color: var(--cic-cyan);
+}
+
+.voyage33-movement__readouts {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-block: 1px solid var(--cic-rule);
+  padding-block: 0.7rem;
+}
+
+.voyage33-movement__readout {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.voyage33-movement__readout strong {
+  overflow-wrap: anywhere;
+  color: var(--cic-cyan);
+  font-size: 0.76rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.voyage33-movement__costs {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--cic-ink);
+  font-size: 0.76rem;
+  text-align: left;
+}
+
+.voyage33-movement__costs td {
+  border-bottom: 1px solid var(--cic-rule);
+  padding: 0.35rem 0.2rem;
+}
+
+.voyage33-movement__action {
+  display: grid;
+  gap: 0.65rem;
+  min-width: 0;
+  border-top: 1px solid var(--cic-rule);
+  padding-top: 0.8rem;
+}
+
+.voyage33-movement__action h4 {
+  color: var(--cic-amber);
+}
+
+.voyage33-movement__choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.voyage33-movement__choices .cic-action-button {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.voyage33-movement__guidance,
+.voyage33-movement__note {
+  color: var(--cic-muted);
+}
+
+.voyage33-movement__outcome {
+  border-top: 1px solid var(--cic-rule);
+  padding-top: 0.7rem;
+  color: var(--cic-cyan);
+}
+
+.voyage33-movement__outcome--stale {
+  color: var(--cic-amber);
+}
+
+.voyage33-movement__outcome--denied {
+  color: var(--cic-danger);
+}
+
+.voyage33-movement__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 420px) {
+  .voyage33-movement {
+    padding: 0.75rem;
+  }
+
+  .voyage33-movement__header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .voyage33-movement__connection {
+    padding: 0;
+    text-align: left;
+  }
+
+  .voyage33-movement__readouts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .voyage33-movement__choices {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .voyage33-movement__choices .cic-action-button {
+    width: 100%;
+  }
+}
