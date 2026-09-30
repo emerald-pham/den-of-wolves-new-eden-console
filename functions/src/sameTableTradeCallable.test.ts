@@ -138,6 +138,7 @@ function inventory(balances: Data): Data {
       attestationId: ATTESTATION_ID,
       attestedByUid: 'facilitator',
       balances: BASELINE,
+      revision: 4,
       attestedAt: 'server-time',
     },
     updatedAt: 'server-time',
@@ -151,7 +152,9 @@ function seededStore(options: { revision?: number; sameTable?: boolean; accepted
   store.records.set(`${path.players}/sender`, player('sender', 'icebreaker-miner'));
   store.records.set(`${path.players}/recipient`, player('recipient', options.sameTable === false ? 'dione-engineer' : 'icebreaker-engineer'));
   store.records.set(`${path.players}/facilitator`, player('facilitator', '', 'gm'));
-  store.records.set(path.state, { revision: options.revision ?? 4 });
+  store.records.set(path.state, {
+    type: 'same-table-trade-state', sessionId: SESSION_ID, revision: options.revision ?? 4,
+  });
   store.records.set(path.senderInventory, inventory(BASELINE));
   store.records.set(path.recipientInventory, {
     sessionId: SESSION_ID,
@@ -163,6 +166,7 @@ function seededStore(options: { revision?: number; sameTable?: boolean; accepted
       attestationId: OTHER_ATTESTATION_ID,
       attestedByUid: 'facilitator',
       balances: RECIPIENT_BASELINE,
+      revision: 4,
       attestedAt: 'server-time',
     },
     updatedAt: 'server-time',
@@ -194,6 +198,7 @@ function seededStore(options: { revision?: number; sameTable?: boolean; accepted
         attestationId: OTHER_ATTESTATION_ID,
         attestedByUid: 'facilitator',
         balances: RECIPIENT_BASELINE,
+        revision: 4,
         attestedAt: 'server-time',
       },
       updatedAt: 'server-time',
@@ -251,6 +256,10 @@ const createRequest = (overrides: Data = {}) => ({
     offerId: OFFER_ID,
     recipientUid: 'recipient',
     quantities: QUANTITIES,
+    fromUid: 'client-forgery',
+    tableId: 'client-table',
+    fleetGroupId: 'client-fleet',
+    revision: 900,
     ...overrides,
   },
 });
@@ -266,7 +275,7 @@ describe('same-table trade authoritative callables', () => {
     store.records.set(path.session, { id: SESSION_ID });
     store.records.set(`${path.players}/sender`, player('sender', 'icebreaker-miner'));
     store.records.set(`${path.players}/facilitator`, player('facilitator', '', 'gm'));
-    store.records.set(path.state, { revision: 0 });
+    store.records.set(path.state, { type: 'same-table-trade-state', sessionId: SESSION_ID, revision: 0 });
     const callables = createSameTableTradeCallables(dependencies(store));
 
     const first = await callables.attestPlayerHeldTokenBaseline(attestationRequest());
@@ -293,6 +302,12 @@ describe('same-table trade authoritative callables', () => {
 
   it('rejects unauthenticated calls and prevents a different actor from creating a sender offer', async () => {
     const store = seededStore();
+    store.records.set(paths().offer, {
+      type: 'same-table-trade-offer', sessionId: SESSION_ID, id: OFFER_ID,
+      fromUid: 'sender', toUid: 'recipient', tableId: 'icebreaker', fleetGroupId: 'fleet-1',
+      revision: 4, quantities: { ore: 3, fuel: 2, food: 0, water: 0, materials: 0, securityTeams: 0 },
+      status: 'pending',
+    });
     const callables = createSameTableTradeCallables(dependencies(store));
 
     await expect(callables.createSameTableTradeOffer({
@@ -314,6 +329,13 @@ describe('same-table trade authoritative callables', () => {
     const first = await callables.createSameTableTradeOffer(createRequest());
     const writeCount = store.committedWrites.length;
     const replay = await callables.createSameTableTradeOffer(createRequest());
+    expect(first).toMatchObject({
+      status: 'created', sessionId: SESSION_ID,
+      offer: {
+        id: OFFER_ID, fromUid: 'sender', toUid: 'recipient', tableId: 'icebreaker',
+        fleetGroupId: 'fleet-1', revision: 4, status: 'pending',
+      },
+    });
     expect(replay).toEqual({ ...first, status: 'replayed' });
     expect(store.committedWrites).toHaveLength(writeCount);
     await expect(callables.createSameTableTradeOffer(createRequest({ quantities: { ore: 2 } })))
@@ -337,17 +359,23 @@ describe('same-table trade authoritative callables', () => {
     expect(store.records.get(path.recipientInventory)?.balances).toEqual({ ...RECIPIENT_BASELINE, ore: 4, fuel: 3 });
     expect(store.records.get(path.state)?.revision).toBe(5);
     expect(store.records.get(path.offer)).toMatchObject({ status: 'accepted', acceptedByUid: 'recipient' });
-    expect(store.records.get(path.receipt)).toEqual(result.receipt);
+    expect(store.records.get(path.receipt)).toMatchObject({
+      type: 'same-table-trade-receipt', sessionId: SESSION_ID, ...result.receipt,
+    });
   });
 
-  it.each(['stale revision', 'wrong current table'])('rejects %s before any write', async (caseName) => {
+  it.each(['stale revision', 'wrong current table', 'changed fleet group'])('rejects %s before any write', async (caseName) => {
     const store = seededStore();
     const callables = createSameTableTradeCallables(dependencies(store));
     await callables.createSameTableTradeOffer(createRequest());
     if (caseName === 'stale revision') {
-      store.records.set(paths().state, { revision: 5 });
+      store.records.set(paths().state, {
+        type: 'same-table-trade-state', sessionId: SESSION_ID, revision: 5,
+      });
     } else {
-      store.records.set(`${paths().players}/recipient`, player('recipient', 'dione-engineer'));
+      const recipient = player('recipient', caseName === 'wrong current table' ? 'dione-engineer' : 'icebreaker-engineer');
+      if (caseName === 'changed fleet group') recipient.fleetGroupId = 'fleet-2';
+      store.records.set(`${paths().players}/recipient`, recipient);
     }
     const before = structuredClone([...store.records.entries()]);
     store.committedWrites.length = 0;
@@ -361,14 +389,25 @@ describe('same-table trade authoritative callables', () => {
   it('rejects an overdraw without changing balances, offer state, revision, or receipt', async () => {
     const store = seededStore();
     const path = paths();
-    store.records.set(path.senderInventory, inventory({ ...BASELINE, ore: 2 }));
     const callables = createSameTableTradeCallables(dependencies(store));
     await callables.createSameTableTradeOffer(createRequest());
+    store.records.set(path.senderInventory, inventory({ ...BASELINE, ore: 2 }));
     const before = structuredClone([...store.records.entries()]);
     store.committedWrites.length = 0;
 
     await expect(callables.acceptSameTableTradeOffer(acceptRequest()))
       .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(store.committedWrites).toHaveLength(0);
+    expect([...store.records.entries()]).toEqual(before);
+  });
+
+  it('rejects malformed quantities without creating an offer or changing the revision', async () => {
+    const store = seededStore();
+    const callables = createSameTableTradeCallables(dependencies(store));
+    const before = structuredClone([...store.records.entries()]);
+
+    await expect(callables.createSameTableTradeOffer(createRequest({ quantities: { ore: 1, scrap: 2 } })))
+      .rejects.toMatchObject({ code: 'invalid-argument' });
     expect(store.committedWrites).toHaveLength(0);
     expect([...store.records.entries()]).toEqual(before);
   });
@@ -379,7 +418,7 @@ describe('same-table trade authoritative callables', () => {
     await callables.createSameTableTradeOffer(createRequest());
     const committed = await callables.acceptSameTableTradeOffer(acceptRequest());
     const path = paths();
-    store.records.set(path.state, { revision: 99 });
+    store.records.set(path.state, { type: 'same-table-trade-state', sessionId: SESSION_ID, revision: 99 });
     store.records.set(`${path.players}/sender`, { ...player('sender', 'dione-engineer'), connected: false });
     store.records.set(`${path.players}/recipient`, player('recipient', 'dione-engineer'));
     const balancesBeforeReplay = {
