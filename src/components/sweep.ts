@@ -6,6 +6,7 @@ export interface Vector {
 
 /** Fired by a return whenever a rendered DRADIS sweep crosses its position. */
 export const CONTACT_SCAN_EVENT = 'dradis-contact-scan';
+export const CONTACT_SCAN_LAYOUT_EVENT = 'dradis-contact-scan-layout';
 
 /** Signed screen-space rim test. Cast the viewing ray through the contact
  * onto the sweep disc, then compare its radius with the unit circumference.
@@ -156,6 +157,7 @@ export function followSweeps(plot: HTMLElement): () => void {
         returns.delete(element);
       }
     }
+    let layoutRequired = false;
     for (let index = 0; index < contacts.length; index += 1) {
       const element = contacts[index];
       if (!(element instanceof HTMLElement)) continue;
@@ -240,6 +242,7 @@ export function followSweeps(plot: HTMLElement): () => void {
       }
       const fixChanged = firstAcquisition || state.fix.x !== previousFix.x ||
         state.fix.y !== previousFix.y || state.fix.z !== previousFix.z;
+      layoutRequired ||= moving || fixChanged;
       // Every crossing is still a ping: it refreshes the visible flare and
       // dispatches CONTACT_SCAN_EVENT below, even when the fresh fix is held.
       state.scannedAt = now;
@@ -276,9 +279,12 @@ export function followSweeps(plot: HTMLElement): () => void {
       ].filter((animation): animation is Animation => animation !== undefined);
       element.dispatchEvent(new CustomEvent(CONTACT_SCAN_EVENT, {
         bubbles: true,
-        detail: { fixChanged },
+        detail: { fixChanged, layoutDeferred: true },
       }));
     }
+    // All sampled fixes are now in the DOM. Resolve their labels together
+    // before paint, rather than laying out the entire plot once per return.
+    if (layoutRequired) plot.dispatchEvent(new Event(CONTACT_SCAN_LAYOUT_EVENT));
     previous = normals;
     frame = requestAnimationFrame(tick);
   };

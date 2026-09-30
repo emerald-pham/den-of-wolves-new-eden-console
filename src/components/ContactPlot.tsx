@@ -1,6 +1,6 @@
 import { useSessionStore } from '@/store/useSessionStore';
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
-import { CONTACT_SCAN_EVENT, followSweeps, type Vector } from './sweep';
+import { CONTACT_SCAN_EVENT, CONTACT_SCAN_LAYOUT_EVENT, followSweeps, type Vector } from './sweep';
 import {
   AMBIENT_CLASSIFICATION_MS,
   AMBIENT_CONTACT_LIFETIME_MS,
@@ -889,12 +889,14 @@ export default function ContactPlot({
       clampContactLabels(node, observedStyleScope);
     };
     const clampMovingFix = (event: Event) => {
+      const detail = (event as CustomEvent<{ fixChanged?: boolean; layoutDeferred?: boolean }>).detail;
+      if (detail?.layoutDeferred) return;
       const contact = event.target instanceof HTMLElement
         ? event.target.closest<HTMLElement>('.contact-plot__contact') : null;
       // A held stationary fix can change on first acquisition or a later
       // eligible sweep. Relayout for that new mark, but skip same-fix pings
       // that only refresh its flare.
-      const fixChanged = (event as CustomEvent<{ fixChanged?: boolean }>).detail?.fixChanged === true;
+      const fixChanged = detail?.fixChanged === true;
       if (!contact || contact.dataset.moving === 'true' || fixChanged) clamp();
     };
     clamp();
@@ -930,6 +932,7 @@ export default function ContactPlot({
     fonts?.addEventListener('loadingerror', fontMetricsChanged);
     window.addEventListener('resize', clamp);
     node.addEventListener(CONTACT_SCAN_EVENT, clampMovingFix);
+    node.addEventListener(CONTACT_SCAN_LAYOUT_EVENT, clamp);
     return () => {
       observer?.disconnect();
       styleObserver?.disconnect();
@@ -937,6 +940,7 @@ export default function ContactPlot({
       fonts?.removeEventListener('loadingerror', fontMetricsChanged);
       window.removeEventListener('resize', clamp);
       node.removeEventListener(CONTACT_SCAN_EVENT, clampMovingFix);
+      node.removeEventListener(CONTACT_SCAN_LAYOUT_EVENT, clamp);
     };
   }, [ambient?.id, classifiedOccurrenceId, contacts, departing, hostile,
     orientation?.pitch, orientation?.yaw, placement, size, still, tracks.length]);
