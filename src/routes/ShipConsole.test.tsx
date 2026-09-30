@@ -31,6 +31,21 @@ vi.mock('@/lib/firestore', () => ({
   subscribeVipCards: vi.fn(),
 }));
 
+vi.mock('@/lib/sameTableTradeService', () => ({
+  subscribeSameTableTradeInventory: vi.fn((_sessionId, _uid, onInventory) => {
+    onInventory({ revision: 1, balances: {
+      ore: 3, fuel: 2, food: 1, water: 1, materials: 2, securityTeams: 0,
+    } });
+    return vi.fn();
+  }),
+  subscribeSameTableTradeOffers: vi.fn((_sessionId, _uid, _groupId, onOffers) => {
+    onOffers({ incoming: [], outgoing: [] });
+    return vi.fn();
+  }),
+  createSameTableTradeOffer: vi.fn(),
+  acceptSameTableTradeOffer: vi.fn(),
+}));
+
 vi.mock('@/lib/fleetAlertService', () => ({ setFleetRedAlert: vi.fn() }));
 vi.mock('@/lib/vipCardService', () => ({ drawVipCard: vi.fn(), transferVipCard: vi.fn() }));
 
@@ -42,6 +57,7 @@ const { buildFighter } = await import('@/lib/sessionService');
 const { getDioneMaliadesLaunch, launchDioneMaliades } = await import('@/lib/sessionService');
 const { subscribeShipConfetti } = await import('@/lib/firestore');
 const { subscribeDamageDraws } = await import('@/lib/firestore');
+const { subscribeConnectedPlayers } = await import('@/lib/firestore');
 const { subscribeVipCards } = await import('@/lib/firestore');
 const { drawVipCard, transferVipCard } = await import('@/lib/vipCardService');
 
@@ -73,6 +89,8 @@ beforeEach(() => {
   vi.mocked(subscribeShipConfetti).mockReturnValue(vi.fn());
   vi.mocked(subscribeDamageDraws).mockReset();
   vi.mocked(subscribeDamageDraws).mockReturnValue(vi.fn());
+  vi.mocked(subscribeConnectedPlayers).mockReset();
+  vi.mocked(subscribeConnectedPlayers).mockReturnValue(vi.fn());
   vi.mocked(subscribeVipCards).mockReset();
   vi.mocked(subscribeVipCards).mockImplementation((_sessionId, _uid, onCards) => {
     onCards({ sessionId: 's1', ownerUid: 'u1', revision: 0, cards: [] });
@@ -130,6 +148,38 @@ it('shows only the joined ship identity, nation marking, and fleet role', () => 
   const dockings = within(instruments).getByRole('list', { name: 'Shuttle docking history' });
   expect(dockings).toHaveTextContent('S.A.N.S. Macaw');
   expect(dockings).toHaveTextContent('S.A.N.S. Boa');
+});
+
+it('shows player-held trades only on the confirmed own ship and lists only current same-table crew', async () => {
+  const current = useSessionStore.getState().me;
+  if (!current) throw new Error('Expected the player identity.');
+  useSessionStore.getState().setMe({
+    ...current,
+    assignedRoleId: 'admiral',
+    activeConsoleRoleId: 'admiral',
+  });
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
+    onPlayers([
+      useSessionStore.getState().me!,
+      { ...current, uid: 'u2', displayName: 'Bob', assignedRoleId: 'executive-officer', activeConsoleRoleId: 'executive-officer' },
+      { ...current, uid: 'u3', displayName: 'Dione player', assignedRoleId: 'dione-captain', activeConsoleRoleId: 'dione-captain' },
+      { ...current, uid: 'u4', displayName: 'Other fleet player', fleetGroupId: 'fleet-2', assignedRoleId: 'executive-officer' },
+      { ...current, uid: 'gm', displayName: 'Facilitator', role: 'gm', assignedRoleId: undefined, activeConsoleRoleId: null },
+    ]);
+    return vi.fn();
+  });
+
+  render(<MemoryRouter initialEntries={['/ships/aegis/roles/admiral']}><Routes>
+    <Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} />
+    <Route path="/console" element={<p>Fleet roster</p>} />
+  </Routes></MemoryRouter>);
+
+  const recipient = await screen.findByRole('combobox', { name: 'Recipient' });
+  expect(within(recipient).getByRole('option', { name: 'Bob' })).toBeInTheDocument();
+  expect(within(recipient).queryByRole('option', { name: 'Dione player' })).not.toBeInTheDocument();
+  expect(within(recipient).queryByRole('option', { name: 'Other fleet player' })).not.toBeInTheDocument();
+  expect(within(recipient).queryByRole('option', { name: 'Facilitator' })).not.toBeInTheDocument();
 });
 
 it('places the pursuit tracker beneath shipboard DRADIS and uses this ship position', () => {
