@@ -180,6 +180,70 @@ service cloud.firestore {
         && player.fleetGroupId is string;
     }
 
+    function permissionedDismantlingRoleOwnsShip(roleId, shipId) {
+      return (shipId == 'aegis' && roleId in ['admiral', 'executive-officer', 'wing-commander', 'comms-officer'])
+        || (shipId == 'dione' && roleId in ['dione-captain', 'dione-engineer', 'dione-president', 'vip-host'])
+        || (shipId == 'icebreaker' && roleId in ['icebreaker-captain', 'icebreaker-engineer', 'icebreaker-miner', 'commissar'])
+        || (shipId == 'shepherd' && roleId in ['shepherd-captain', 'shepherd-engineer', 'shepherd-scientist', 'rosal-militia-leader'])
+        || (shipId == 'quellon' && roleId in ['quellon-captain', 'quellon-engineer', 'quellon-explorer', 'doctor'])
+        || (shipId == 'refinery-124' && roleId in ['refinery-124-captain', 'refinery-124-engineer', 'refinery-124-pdf-colonel', 'pdf-fighter-ace'])
+        || (shipId == 'capybara' && roleId in ['capybara-captain', 'capybara-recycler']);
+    }
+
+    function isCurrentPermissionedDismantlingTargetPlayer(sessionId, targetShipId) {
+      let player = get(
+        /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+      ).data;
+      let session = get(/databases/$(database)/documents/sessions/$(sessionId)).data;
+      return isMember(sessionId)
+        && player.role == 'player'
+        && playerHasCurrentRoleAuthority(player)
+        && (!('kickedAt' in player) || player.kickedAt == null)
+        && (!('escapeState' in player) || player.escapeState == null)
+        && session.activeVesselIds is list
+        && targetShipId in session.activeVesselIds
+        && (
+          (('replacementRoleId' in player) && player.replacementRoleId is string
+            && permissionedDismantlingRoleOwnsShip(player.replacementRoleId, targetShipId))
+          || ((!('replacementRoleId' in player) || player.replacementRoleId == null)
+            && player.assignedRoleId is string
+            && session.activeRoleIds is list
+            && player.assignedRoleId in session.activeRoleIds
+            && permissionedDismantlingRoleOwnsShip(player.assignedRoleId, targetShipId))
+        );
+    }
+
+    function isSafePermissionedDismantlingInbox(sessionId, targetShipId) {
+      return resource == null || (
+        resource.data.keys().hasAll([
+          'type', 'sessionId', 'targetShipId', 'proposalId', 'craftId', 'targetConsoleId',
+          'targetRevision', 'materialGain', 'status', 'consentId', 'materialsAfter', 'updatedAt'
+        ])
+        && resource.data.keys().hasOnly([
+          'type', 'sessionId', 'targetShipId', 'proposalId', 'craftId', 'targetConsoleId',
+          'targetRevision', 'materialGain', 'status', 'consentId', 'materialsAfter', 'updatedAt'
+        ])
+        && resource.data.type == 'permissioned-dismantling-inbox'
+        && resource.data.sessionId == sessionId
+        && resource.data.targetShipId == targetShipId
+        && resource.data.proposalId is string
+        && resource.data.proposalId.matches('^[A-Za-z0-9_-]{1,128}$')
+        && resource.data.craftId in ['philia', 'blacksmith', 'chacau', 'ally']
+        && resource.data.targetConsoleId is string
+        && resource.data.targetConsoleId.size() > 0
+        && resource.data.targetConsoleId.size() <= 128
+        && resource.data.targetRevision is int
+        && resource.data.targetRevision >= 0
+        && resource.data.materialGain == 3
+        && resource.data.status in ['pending', 'consented', 'revoked', 'applied']
+        && (resource.data.consentId == null || (resource.data.consentId is string
+          && resource.data.consentId.matches('^[A-Za-z0-9_-]{1,128}$')))
+        && (resource.data.materialsAfter == null || (resource.data.materialsAfter is int
+          && resource.data.materialsAfter >= 0))
+        && resource.data.updatedAt is timestamp
+      );
+    }
+
     function isCurrentSameTableTradeOffer(sessionId) {
       let player = get(
         /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
@@ -1010,6 +1074,15 @@ service cloud.firestore {
       match /sameTableTradeOffers/{offerId} {
         allow get, list: if isCurrentSameTableTradeOffer(sessionId);
         allow write: if false;
+      }
+
+      // A target captain gets one sanitized request at the exact ship path.
+      // It contains no proposer identity and cannot be listed or client-written.
+      match /permissionedDismantlingInboxes/{targetShipId} {
+        allow get: if isCurrentPermissionedDismantlingTargetPlayer(sessionId, targetShipId)
+          && isSafePermissionedDismantlingInbox(sessionId, targetShipId)
+          && (resource == null || targetShipId == resource.data.targetShipId);
+        allow list, write: if false;
       }
 
       // Session-wide revision and stable acceptance receipts contain
