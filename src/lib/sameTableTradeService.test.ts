@@ -114,6 +114,25 @@ it('accepts the facilitator-attested baseline at the initial revision zero', () 
   expect(onInventory).toHaveBeenCalledExactlyOnceWith({ revision: 0, balances });
 });
 
+it('accepts the first facilitator attestation result at revision zero', async () => {
+  const attestationId = '1f23b456-789a-4abc-8def-0123456789ab';
+  useSessionStore.getState().setIdentity({
+    id: 's1', name: 'Aegis', joinCode: '1234', phase: 'active', ownerUid: 'gm', createdAt: '', updatedAt: '',
+  }, {
+    uid: 'gm', sessionId: 's1', displayName: 'GM', role: 'gm', seatId: null, joinedAt: '',
+  });
+  useSessionStore.getState().setGmInstance({
+    id: 'bridge', sessionId: 's1', uid: 'gm', name: 'Bridge', connected: true, joinedAt: '',
+  } as never);
+  mocks.call.mockResolvedValue({ data: {
+    status: 'attested', sessionId: 's1', targetUid: 'alice', attestationId, revision: 0,
+  } });
+
+  await expect(attestPlayerHeldTokenBaseline('alice', balances, attestationId)).resolves.toMatchObject({
+    status: 'attested', revision: 0,
+  });
+});
+
 it('queries offers only addressed to this UID in its current fleet group and joins both private directions', () => {
   const onOffers = vi.fn();
   subscribeSameTableTradeOffers('s1', 'alice', 'fleet-1', onOffers);
