@@ -102,6 +102,9 @@ export interface MissionLifecycleState {
   /** P403-compatible one-card-per-participant discard ledger. */
   readonly discardedParticipantUids: readonly string[];
   readonly discardedCardIds: readonly MissionCardId[];
+  /** Full private hands consumed by the Warrior Reclamator special action. */
+  readonly reclamatorParticipantUids: readonly string[];
+  readonly reclamatorCardIds: readonly MissionCardId[];
   readonly extraAllocationReceipts: readonly {
     readonly requestId: string;
     readonly participantUid: string;
@@ -135,6 +138,11 @@ export interface MissionLeaderExtraCardReceipt {
 export interface MissionParticipantDiscardReceipt {
   readonly participantUid: string;
   readonly discarded: true;
+}
+
+export interface MissionWarriorReclamatorDiscardReceipt {
+  readonly participantUid: string;
+  readonly discardedCount: number;
 }
 
 export interface MissionParticipantAssignmentReceipt {
@@ -243,6 +251,8 @@ export function createMissionLifecycleState(
     requestsByParticipant: [],
     discardedParticipantUids: [...discardedParticipantUids],
     discardedCardIds: [...discardedCardIds],
+    reclamatorParticipantUids: [],
+    reclamatorCardIds: [],
     extraAllocationReceipts: [],
     assignments: [],
     assignedParticipantUids: [],
@@ -372,14 +382,16 @@ export function discardMissionCardSecretly(
 ): Readonly<{ state: MissionLifecycleState; receipt: MissionParticipantDiscardReceipt }> | null {
   if (!isValidMissionLifecycleState(state) || state.phase !== 'discarding' ||
       !isParticipant(state, participantUid) || !isMissionCardId(cardId) ||
-      state.discardedParticipantUids.includes(participantUid)) return null;
+      state.discardedParticipantUids.includes(participantUid) ||
+      state.reclamatorParticipantUids.includes(participantUid)) return null;
   const ownedCard = state.cards.find((card) => card.cardId === cardId && card.participantUid === participantUid);
   if (!ownedCard || state.discardedCardIds.includes(cardId) ||
       state.assignments.some((assignment) => assignment.cardId === cardId)) return null;
 
   const discardedParticipantUids = [...state.discardedParticipantUids, participantUid];
   const discardedCardIds = [...state.discardedCardIds, cardId];
-  const allDiscarded = discardedParticipantUids.length === state.participants.length;
+  const allDiscarded = discardedParticipantUids.length + state.reclamatorParticipantUids.length ===
+    state.participants.length;
   const nextState: MissionLifecycleState = {
     ...state,
     phase: allDiscarded ? 'assignment-ready' : 'discarding',
@@ -388,6 +400,38 @@ export function discardMissionCardSecretly(
   };
   if (!isValidMissionLifecycleState(nextState)) return null;
   return { state: nextState, receipt: { participantUid, discarded: true } };
+}
+
+/** Consume a Warrior Captain's complete private hand and satisfy its assignment slot. */
+export function discardMissionHandForWarriorReclamator(
+  state: MissionLifecycleState,
+  participantUid: string,
+): Readonly<{ state: MissionLifecycleState; receipt: MissionWarriorReclamatorDiscardReceipt }> | null {
+  if (!isValidMissionLifecycleState(state) || state.phase !== 'discarding' ||
+      !isParticipant(state, participantUid) ||
+      state.participants.find(({ uid }) => uid === participantUid)?.roleId !== 'warrior-captain' ||
+      state.discardedParticipantUids.includes(participantUid) ||
+      state.reclamatorParticipantUids.includes(participantUid)) return null;
+  const handCardIds = state.cards.filter(({ participantUid: owner }) => owner === participantUid)
+    .map(({ cardId }) => cardId);
+  if (handCardIds.length === 0 || handCardIds.some((cardId) => state.discardedCardIds.includes(cardId) ||
+      state.reclamatorCardIds.includes(cardId) || state.assignments.some(({ cardId: assigned }) => assigned === cardId))) {
+    return null;
+  }
+  const reclamatorParticipantUids = [...state.reclamatorParticipantUids, participantUid];
+  const reclamatorCardIds = [...state.reclamatorCardIds, ...handCardIds];
+  const assignedParticipantUids = [...state.assignedParticipantUids, participantUid];
+  const allDiscardsComplete = state.discardedParticipantUids.length + reclamatorParticipantUids.length ===
+    state.participants.length;
+  const nextState: MissionLifecycleState = {
+    ...state,
+    phase: allDiscardsComplete ? 'assignment-ready' : 'discarding',
+    reclamatorParticipantUids,
+    reclamatorCardIds,
+    assignedParticipantUids,
+  };
+  if (!isValidMissionLifecycleState(nextState)) return null;
+  return { state: nextState, receipt: { participantUid, discardedCount: handCardIds.length } };
 }
 
 /** Assign all non-discarded cards in one participant's hand face down. */
@@ -409,7 +453,8 @@ export function assignRemainingMissionCards(
     normalized.push({ cardId: placement.cardId, opportunityId: placement.opportunityId });
   }
   const remainingCardIds = state.cards
-    .filter((card) => card.participantUid === participantUid && !state.discardedCardIds.includes(card.cardId))
+    .filter((card) => card.participantUid === participantUid && !state.discardedCardIds.includes(card.cardId) &&
+      !state.reclamatorCardIds.includes(card.cardId))
     .map(({ cardId }) => cardId);
   const placedCardIds = normalized.map(({ cardId }) => cardId);
   const placedOpportunityIds = normalized.map(({ opportunityId }) => opportunityId);
@@ -465,7 +510,9 @@ export function privateMissionHandForParticipant(
     const card = CANONICAL_CARDS.get(cardId)!;
     const status: 'remaining' | 'discarded' | 'assigned' = state.discardedCardIds.includes(cardId)
       ? 'discarded'
-      : state.assignments.some((assignment) => assignment.cardId === cardId)
+      : state.reclamatorCardIds.includes(cardId)
+        ? 'discarded'
+        : state.assignments.some((assignment) => assignment.cardId === cardId)
         ? 'assigned'
         : 'remaining';
     return { id: card.id, rank: card.rank, suit: card.suit, value: card.value, status };
@@ -693,7 +740,8 @@ function isValidMissionLifecycleState(value: unknown): value is MissionLifecycle
       value.participants.length === 0 || !Array.isArray(value.availableCarrierCraftIds) ||
       !normalizeAvailableCarrierCraftIds(value.availableCarrierCraftIds) || !Array.isArray(value.cards) ||
       !Array.isArray(value.requestsByParticipant) || !Array.isArray(value.discardedParticipantUids) ||
-      !Array.isArray(value.discardedCardIds) || !Array.isArray(value.extraAllocationReceipts) ||
+      !Array.isArray(value.discardedCardIds) || !Array.isArray(value.reclamatorParticipantUids) ||
+      !Array.isArray(value.reclamatorCardIds) || !Array.isArray(value.extraAllocationReceipts) ||
       !Array.isArray(value.assignments) || !Array.isArray(value.assignedParticipantUids) ||
       !Array.isArray(value.facilitatorCards) || !Array.isArray(value.shuffledPiles) ||
       (value.facilitatorDealReceipt !== null && !isRecord(value.facilitatorDealReceipt))) return false;
@@ -762,6 +810,27 @@ function isValidMissionLifecycleState(value: unknown): value is MissionLifecycle
     discardedUids.add(uid);
     discardedCardIds.add(cardId);
   }
+  const reclamatorUids = new Set<string>();
+  const reclamatorCardIds = new Set<string>();
+  for (const uid of value.reclamatorParticipantUids) {
+    if (typeof uid !== 'string' || !participantSet.has(uid) || discardedUids.has(uid) || reclamatorUids.has(uid) ||
+        normalizedParticipants.find((participant) => participant.uid === uid)?.roleId !== 'warrior-captain') return false;
+    reclamatorUids.add(uid);
+  }
+  for (const cardId of value.reclamatorCardIds) {
+    if (!isMissionCardId(cardId) || reclamatorCardIds.has(cardId) || discardedCardIds.has(cardId) ||
+        !reclamatorUids.has(cardOwners.get(cardId) ?? '')) return false;
+    reclamatorCardIds.add(cardId);
+  }
+  for (const uid of reclamatorUids) {
+    const ownedCardIds = value.cards
+      .filter((card) => isRecord(card) && card.participantUid === uid)
+      .map((card) => String((card as Record<string, unknown>).cardId));
+    if (ownedCardIds.length === 0 || ownedCardIds.some((cardId) => !reclamatorCardIds.has(cardId))) return false;
+  }
+  if ([...reclamatorCardIds].some((cardId) => !reclamatorUids.has(cardOwners.get(cardId) ?? ''))) return false;
+  const allDiscardedUids = new Set([...discardedUids, ...reclamatorUids]);
+  const allDiscardedCardIds = new Set([...discardedCardIds, ...reclamatorCardIds]);
 
   const allocationRequestIds = new Set<string>();
   const allocationCards = new Set<string>();
@@ -786,7 +855,7 @@ function isValidMissionLifecycleState(value: unknown): value is MissionLifecycle
         !participantSet.has(assignment.participantUid) || typeof assignment.opportunityId !== 'string' ||
         !opportunityIdSet.has(assignment.opportunityId) || !isMissionCardId(assignment.cardId) ||
         assignment.faceDown !== true || assignmentCards.has(assignment.cardId) ||
-        discardedCardIds.has(assignment.cardId) || cardOwners.get(assignment.cardId) !== assignment.participantUid) return false;
+        allDiscardedCardIds.has(assignment.cardId) || cardOwners.get(assignment.cardId) !== assignment.participantUid) return false;
     const pair = `${assignment.participantUid}\u0000${assignment.opportunityId}`;
     if (assignmentPairs.has(pair)) return false;
     assignmentPairs.add(pair);
@@ -803,7 +872,7 @@ function isValidMissionLifecycleState(value: unknown): value is MissionLifecycle
   if ([...assignmentsByParticipant.keys()].some((uid) => !assignedUids.has(uid))) return false;
   for (const uid of assignedUids) {
     const remainingIds = value.cards.filter((card) => isRecord(card) && card.participantUid === uid &&
-      !discardedCardIds.has(String(card.cardId))).map((card) => String(card.cardId));
+      !allDiscardedCardIds.has(String(card.cardId))).map((card) => String(card.cardId));
     const placedIds = (assignmentsByParticipant.get(uid) ?? []).map(({ cardId }) => cardId);
     const placedIdSet = new Set<string>(placedIds);
     if (remainingIds.length !== placedIds.length || remainingIds.some((cardId) => !placedIdSet.has(cardId))) return false;
@@ -830,23 +899,27 @@ function isValidMissionLifecycleState(value: unknown): value is MissionLifecycle
   }
 
   const phase = value.phase as MissionLifecyclePhase;
-  if (phase === 'awaiting-card-selection' && (discardedUids.size !== 0 || value.assignments.length !== 0 ||
+  const completedDiscardCount = allDiscardedUids.size;
+  if (phase === 'awaiting-card-selection' && (completedDiscardCount !== 0 || value.assignments.length !== 0 ||
       value.facilitatorCards.length !== 0 || value.facilitatorDealReceipt !== null)) return false;
-  if (phase === 'discarding' && (discardedUids.size >= participantUids.length || value.assignments.length !== 0 ||
+  if (phase === 'discarding' && (completedDiscardCount >= participantUids.length || value.assignments.length !== 0 ||
+      [...assignedUids].some((uid) => !reclamatorUids.has(uid)) ||
       value.facilitatorCards.length !== 0 || value.facilitatorDealReceipt !== null)) return false;
-  if (phase === 'assignment-ready' && (discardedUids.size !== participantUids.length ||
-      value.assignments.length !== 0 || value.assignedParticipantUids.length !== 0 ||
+  if (phase === 'assignment-ready' && (completedDiscardCount !== participantUids.length ||
+      value.assignments.length !== 0 ||
+      value.assignedParticipantUids.length !== reclamatorUids.size ||
+      value.assignedParticipantUids.some((uid) => !reclamatorUids.has(uid)) ||
       value.facilitatorCards.length !== 0 || value.facilitatorDealReceipt !== null)) return false;
-  if (phase === 'assigning' && (discardedUids.size !== participantUids.length || assignedUids.size === 0 ||
+  if (phase === 'assigning' && (completedDiscardCount !== participantUids.length || assignedUids.size === 0 ||
       assignedUids.size >= participantUids.length || value.facilitatorCards.length !== 0 ||
       value.facilitatorDealReceipt !== null)) return false;
-  if (phase === 'assignments-complete' && (discardedUids.size !== participantUids.length ||
+  if (phase === 'assignments-complete' && (completedDiscardCount !== participantUids.length ||
       assignedUids.size !== participantUids.length || value.facilitatorCards.length !== 0 ||
       value.facilitatorDealReceipt !== null)) return false;
   if (phase === 'facilitator-cards-added') {
     const expectedOpportunityIds = definition.opportunities
       .filter(({ id }) => stateHasAssignments(value.assignments as readonly unknown[], id)).map(({ id }) => id);
-    if (discardedUids.size !== participantUids.length || assignedUids.size !== participantUids.length ||
+    if (completedDiscardCount !== participantUids.length || assignedUids.size !== participantUids.length ||
         expectedOpportunityIds.length !== facilitatorByOpportunity.size ||
         expectedOpportunityIds.some((id) => !facilitatorByOpportunity.has(id) || !pileByOpportunity.has(id)) ||
         pileByOpportunity.size !== expectedOpportunityIds.length || !isRecord(value.facilitatorDealReceipt)) return false;

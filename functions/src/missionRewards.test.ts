@@ -81,7 +81,7 @@ describe('authoritative away-mission rewards', () => {
       result('E-2', 'failure', 'none'),
     ]);
 
-    expect(rewards?.[0]).toMatchObject({
+    expect(rewards?.find(({ opportunityId }) => opportunityId === 'E-3')).toMatchObject({
       opportunityId: 'E-3',
       branch: 'success',
       resources: {},
@@ -92,8 +92,8 @@ describe('authoritative away-mission rewards', () => {
         allowedCodes: ['L', 'M'],
       }],
     });
-    expect(rewards?.[1]?.resources).toEqual({});
-    expect(rewards?.[1]?.effects).toEqual([]);
+    expect(rewards?.find(({ opportunityId }) => opportunityId === 'E-1')?.resources).toEqual({});
+    expect(rewards?.find(({ opportunityId }) => opportunityId === 'E-1')?.effects).toEqual([]);
   });
 
   it('turns every Warrior Reclamator hand card into exactly one chosen food, water, or material', () => {
