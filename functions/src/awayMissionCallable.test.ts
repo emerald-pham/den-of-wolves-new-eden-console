@@ -181,6 +181,8 @@ beforeEach(() => {
   (sessionFields.turnState as Record<string, unknown>).currentTurn = 2;
   (sessionFields.turnState as Record<string, unknown>).phaseRevision = 3;
   sessionFields.turnState.phase = 'coordination';
+  sessionFields.turnState.endsAt = openAirspaceEndsAt;
+  sessionFields.turnPhase.airspace.state = 'lifted';
   mock.marker = undefined;
   mock.orphanEvent = false;
   mock.discardMission = undefined;
@@ -809,6 +811,8 @@ describe('dealPrivateInitialCards', () => {
     sessionFields.turnPhase.turn = 3;
     sessionFields.turnState.currentTurn = 3;
     sessionFields.turnState.phase = 'team';
+    sessionFields.turnState.endsAt = teamPhaseEndsAt;
+    sessionFields.turnPhase.airspace.state = 'restricted';
     mock.update.mockClear();
     await expect(openPrivateMissionDiscards.run(request({ sessionId: 's1', instanceId: 'bridge',
       requestId: 'open-overrun', expectedSetupRevision: 1, missionId })))
