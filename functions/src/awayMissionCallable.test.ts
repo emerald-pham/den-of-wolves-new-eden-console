@@ -678,6 +678,27 @@ describe('dealPrivateInitialCards', () => {
     );
   });
 
+  it('seeds reconnect lifecycle and isolated own-hand projections atomically with the first deal', async () => {
+    await dealPrivateInitialCards.run(request(command));
+    const mission = mock.set.mock.calls.find(([ref]) =>
+      ref.path === `sessions/s1/serverState/awayMissions/instances/mission-${defaultOpportunity.id}`)?.[1];
+    expect(mission?.lifecycleRecord).toMatchObject({
+      revision: 0, status: 'active', overrun: false,
+      lifecycle: { phase: 'awaiting-card-selection', leaderUid: 'alice' },
+    });
+    const hands = mock.set.mock.calls.filter(([ref]) => ref.path.includes('/awayMissionHands/'));
+    expect(hands.map(([, hand]) => hand.lifecyclePrivateState?.participantUid)).toEqual(['alice', 'bob']);
+    expect(hands.map(([, hand]) => hand.lifecyclePrivateState?.cards.map((card: { id: string }) => card.id)))
+      .toEqual([['A♥'], ['4♥']]);
+    const pointers = mock.set.mock.calls.filter(([ref]) => ref.path.includes('/awayMissionHandPointers/'));
+    expect(pointers.map(([, pointer]) => pointer.lifecyclePublicState?.revision)).toEqual([0, 0]);
+    expect(pointers.map(([, pointer]) => pointer.lifecyclePublicState?.phase))
+      .toEqual(['awaiting-card-selection', 'awaiting-card-selection']);
+    expect(JSON.stringify(pointers.map(([, pointer]) => pointer.lifecyclePublicState)))
+      .not.toMatch(/A♥|4♥|cardId|value/);
+    expect(mission?.lifecycleRecord?.participantCrafts).toEqual(mission?.participantCrafts);
+  });
+
   it('admits a current base Capybara Captain and snapshots its participant craft separately from carriers', async () => {
     mock.capybaraAdmitted = true;
     mock.pdfEscortWingState = {
