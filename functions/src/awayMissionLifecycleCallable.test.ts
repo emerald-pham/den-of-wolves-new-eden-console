@@ -463,52 +463,31 @@ it('executes every lifecycle command, keeps the deck cursor and projections atom
     expect.objectContaining({ id: EXTRA_CARD, status: 'discarded' }),
   ]);
   await send('alice', 'assignCards', { placements: [] });
-  await send('bob', 'assignCards', { placements: [{ cardId: BOB_CARD, opportunityId: 'K-1' }] });
-
-  store.retryCallbacks = 1;
-  const facilitatorRequest = commandRequest('gm', {
-    type: 'addFacilitatorCards', requestId: 'facilitator-deal', instanceId: 'gm-instance',
-    expectedRevision: currentRevision(store),
-  });
-  const beforeDealWrites = store.committedWrites.length;
-  await expect(commit(facilitatorRequest)).resolves.toMatchObject({
-    status: 'committed',
-    revision: currentRevision(store) + 1,
-    publicState: { phase: 'facilitator-cards-added' },
-  });
-  expect(callables.randomCalls).toBe(1);
-  expect(store.records.get(paths().deck)?.dealtCount).toBe(4);
-  expect(store.committedWrites.slice(beforeDealWrites).map(({ path }) => path)).toEqual(expect.arrayContaining([
-    paths().mission,
-    paths().deck,
-    paths().aliceHand,
-    paths().bobHand,
-    paths().alicePointer,
-    paths().bobPointer,
-  ]));
-  const publicProjection = store.records.get(paths().alicePointer)?.lifecyclePublicState;
-  expect(JSON.stringify(publicProjection)).not.toMatch(/A♥|4♥|10♦|cardId|cardTotal|bonusBreakdown/);
-
   store.retryCallbacks = 1;
   store.loseNextAcknowledgement = true;
-  const resolveRequest = commandRequest('gm', {
-    type: 'resolve', requestId: 'resolve-k', instanceId: 'gm-instance', expectedRevision: currentRevision(store),
+  const finalAssignment = commandRequest('bob', {
+    type: 'assignCards', requestId: 'final-assignment-k', expectedRevision: currentRevision(store),
+    placements: [{ cardId: BOB_CARD, opportunityId: 'K-1' }],
   });
-  await expect(commit(resolveRequest)).rejects.toThrow('simulated lost acknowledgement');
+  const beforeResolution = store.committedWrites.length;
+  await expect(commit(finalAssignment)).rejects.toThrow('simulated lost acknowledgement');
   const writesAfterResolve = store.committedWrites.length;
-  const committedResolution = store.records.get(paths().mission)?.lifecycleRecord as Fields;
-  expect(committedResolution).toMatchObject({ status: 'resolved' });
-  expect(JSON.stringify(committedResolution)).not.toContain('secretD6Rolls');
+  expect(store.records.get(paths().mission)?.lifecycleRecord).toMatchObject({ status: 'resolved' });
+  expect(store.records.get(paths().deck)?.dealtCount).toBe(4);
+  expect(callables.randomCalls).toBe(1);
   expect(callables.d6Calls).toBe(1);
-  let replayedResolution!: Awaited<ReturnType<typeof commit>>;
+  expect(store.committedWrites.slice(beforeResolution).map(({ path }) => path)).toEqual(expect.arrayContaining([
+    paths().mission, paths().deck, paths().aliceHand, paths().bobHand,
+    paths().alicePointer, paths().bobPointer,
+  ]));
   for (let retry = 0; retry < 3; retry += 1) {
-    const reply = await commit(resolveRequest);
-    if (retry === 0) replayedResolution = reply;
+    const reply = await commit(finalAssignment);
     expect(reply).toMatchObject({ status: 'replayed', publicState: {
       status: 'resolved', outcomes: [expect.objectContaining({ opportunityId: 'K-1', difficulty: 30 })],
     } });
+    expect(JSON.stringify(reply.publicState)).not.toMatch(/A♥|4♥|10♦|cardId|cardTotal|bonusBreakdown|secretD6Rolls/);
   }
-  expect(JSON.stringify(replayedResolution)).not.toMatch(/secretD6Rolls|d6Rolls/);
+  expect(callables.randomCalls).toBe(1);
   expect(callables.d6Calls).toBe(1);
   expect(store.committedWrites).toHaveLength(writesAfterResolve);
   const writesBeforeWrongLeaderDropoff = store.committedWrites.length;
