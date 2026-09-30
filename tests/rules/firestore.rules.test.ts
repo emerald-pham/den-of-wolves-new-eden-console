@@ -2795,6 +2795,7 @@ describe('complete server-owned denial matrix', () => {
       'shuttleArrivalReceipts',
       'maintenanceRequests',
       'voyage33MaintenanceRequests',
+      'voyage33MovementRequests',
       'damageDraws',
       'gmInstances',
       'secrets',
@@ -2817,7 +2818,7 @@ it('denies player and GM client writes to maintenance, charges, cargo and shuttl
   for (const uid of ['alice', 'gm1']) {
     const db = env.authenticatedContext(uid).firestore();
     await assertSucceeds(getDoc(doc(db, SESSION)));
-    for (const field of ['currentTurn', 'maintenanceCycles', 'voyage33Maintenance', 'shuttleCargo', 'shuttleFuelled', 'highwallMining', 'blacksmithRepairs', 'philiaRepairs', 'macawRepairs', 'boaRecycling', 'chacauRepairs', 'allyRepairs', 'maliadesState', 'baseCapybaraCargo', 'shipUpgrades', 'pressDispatch', 'fleetTicker', 'admiralDirectives']) {
+    for (const field of ['currentTurn', 'maintenanceCycles', 'voyage33Movement', 'voyage33Maintenance', 'shuttleCargo', 'shuttleFuelled', 'highwallMining', 'blacksmithRepairs', 'philiaRepairs', 'macawRepairs', 'boaRecycling', 'chacauRepairs', 'allyRepairs', 'maliadesState', 'baseCapybaraCargo', 'shipUpgrades', 'pressDispatch', 'fleetTicker', 'admiralDirectives']) {
       await assertFails(updateDoc(doc(db, SESSION), { [field]: { aegis: { step: 7 } } }));
     }
   }

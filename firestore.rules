@@ -1278,6 +1278,12 @@ service cloud.firestore {
         allow read, write: if false;
       }
 
+      // Voyage movement receipts contain command fingerprints and are only
+      // used for server-authoritative replay; members cannot read or forge them.
+      match /voyage33MovementRequests/{requestId} {
+        allow read, write: if false;
+      }
+
       // Fighter-wing corrections are GM callables with private replay receipts;
       // no client may inspect or forge the correction ledger.
       match /fighterWingCountRequests/{requestId} {

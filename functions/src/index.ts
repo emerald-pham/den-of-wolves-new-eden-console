@@ -55,6 +55,8 @@ import {
 import { enforceExpensiveCallableRateLimit } from './callableRateLimitFirestore';
 import { createSameTableTradeCallables } from './sameTableTradeCallable';
 import { createPermissionedDismantlingCallables } from './permissionedDismantlingCallable';
+import { createVoyage33MovementCallables } from './voyage33MovementCallable';
+import { publicVoyage33MovementState } from './voyage33Movement';
 import {
   ADMIRAL_DIRECTIVE_KINDS,
   admiralDirectiveState,
@@ -704,6 +706,14 @@ const permissionedDismantlingCallables = createPermissionedDismantlingCallables(
   now: () => new Date(),
 });
 
+const voyage33MovementCallables = createVoyage33MovementCallables({
+  db,
+  requireUid,
+  requireShipCounterAuthority,
+  serverTimestamp: () => FieldValue.serverTimestamp(),
+  now: () => new Date(),
+});
+
 export const proposePermissionedDismantling = onCall((request) =>
   permissionedDismantlingCallables.proposePermissionedDismantling(request));
 
@@ -727,6 +737,12 @@ export const createSameTableTradeOffer = onCall((request) =>
 
 export const acceptSameTableTradeOffer = onCall((request) =>
   sameTableTradeCallables.acceptSameTableTradeOffer(request));
+
+export const dockVoyage33 = onCall((request) =>
+  voyage33MovementCallables.dockVoyage33(request));
+
+export const jumpVoyage33 = onCall((request) =>
+  voyage33MovementCallables.jumpVoyage33(request));
 
 /** Persist server-authoritative source events to the Press-only intake. */
 function writePressLogEvent(tx: Transaction, sessionId: string, event: PressLogEvent): void {
@@ -14414,6 +14430,9 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
     );
     const fighterWingCounts = publicFighterWingCounts(sessionSnap.get('fighterWingCounts'));
     const voyageAdmission = publicVoyage33Admission(sessionSnap.get('voyage33Admission'), sessionId);
+    const voyageMovement = publicVoyage33MovementState(
+      sessionSnap.get('voyage33Movement'), voyageAdmission, sessionId,
+    );
     const voyageMaintenance = publicVoyage33Maintenance(
       sessionSnap.get('voyage33Maintenance'), voyageAdmission, activeVesselIds,
     );
@@ -14443,6 +14462,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         activeVesselIds: [...setup.activeVesselIds],
         admittedVesselIds: voyageAdmission ? [VOYAGE_33_ID] : [],
         ...(voyageAdmission ? { voyage33Admission: voyageAdmission } : {}),
+        ...(voyageMovement ? { voyage33Movement: voyageMovement } : {}),
         ...(voyageMaintenance ? { voyage33Maintenance: voyageMaintenance } : {}),
         ...(announcement ? { turnStartAnnouncement: announcement } : {}),
         ...(phaseClock ? { turnPhase: phaseClock } : {}),
@@ -14728,6 +14748,9 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
   );
   const fighterWingCounts = publicFighterWingCounts(sessionSnap.get('fighterWingCounts'));
   const voyageAdmission = publicVoyage33Admission(sessionSnap.get('voyage33Admission'), sessionId);
+  const voyageMovement = publicVoyage33MovementState(
+    sessionSnap.get('voyage33Movement'), voyageAdmission, sessionId,
+  );
   const voyageMaintenance = publicVoyage33Maintenance(
     sessionSnap.get('voyage33Maintenance'), voyageAdmission, activeVesselIds,
   );
@@ -14757,6 +14780,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       activeVesselIds: [...setup.activeVesselIds],
       admittedVesselIds: voyageAdmission ? [VOYAGE_33_ID] : [],
       ...(voyageAdmission ? { voyage33Admission: voyageAdmission } : {}),
+      ...(voyageMovement ? { voyage33Movement: voyageMovement } : {}),
       ...(voyageMaintenance ? { voyage33Maintenance: voyageMaintenance } : {}),
       ...(announcement ? { turnStartAnnouncement: announcement } : {}),
       ...(phaseClock ? { turnPhase: phaseClock } : {}),

@@ -93,6 +93,19 @@ export interface Voyage33Admission {
   };
 }
 
+/** Public movement receipt state for admitted Voyage 33-0. */
+export interface Voyage33MovementState {
+  readonly id: 'voyage-33-0';
+  readonly coordinate: GalacticCoordinate;
+  readonly revision: number;
+  readonly jumpState: Readonly<{
+    readonly lastJumpTurn?: number;
+    readonly integrityLockedUntil?: Timestamp;
+    readonly emergencyJumpUsed?: boolean;
+    readonly lastFailureRequestId?: string;
+  }>;
+}
+
 export type GalacticCoordinate = string;
 export type ShipGalacticCoordinates = Readonly<Record<string, GalacticCoordinate>>;
 
@@ -1142,6 +1155,8 @@ export interface GameSession {
   readonly admittedVesselIds?: readonly SupplementalVesselId[];
   /** Public state for an admitted Voyage 33-0; host selection remains unset until docking. */
   readonly voyage33Admission?: Voyage33Admission;
+  /** Public server-owned movement state for admitted Voyage 33-0; never part of the core roster. */
+  readonly voyage33Movement?: Voyage33MovementState;
   /** Public maintenance state for an admitted Voyage 33-0; docking belongs to P251. */
   readonly voyage33Maintenance?: Voyage33MaintenanceState;
   /** Configurable ship availability; absent legacy values are treated as enabled. */

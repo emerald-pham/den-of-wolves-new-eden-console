@@ -60,7 +60,10 @@ function parseJumpState(value: unknown): JumpDriveState | undefined {
     return undefined;
   }
   if (value.emergencyJumpUsed !== undefined && typeof value.emergencyJumpUsed !== 'boolean') return undefined;
-  if (value.lastFailureRequestId !== undefined && typeof value.lastFailureRequestId !== 'string') return undefined;
+  if (value.lastFailureRequestId !== undefined &&
+      (typeof value.lastFailureRequestId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(value.lastFailureRequestId))) {
+    return undefined;
+  }
   return {
     ...(value.lastJumpTurn === undefined ? {} : { lastJumpTurn: value.lastJumpTurn as number }),
     ...(value.integrityLockedUntil === undefined ? {} : { integrityLockedUntil: value.integrityLockedUntil as string }),
@@ -69,10 +72,11 @@ function parseJumpState(value: unknown): JumpDriveState | undefined {
   };
 }
 
-function parseMovementState(value: unknown): Voyage33MovementState | undefined {
+export function parseVoyage33MovementState(value: unknown): Voyage33MovementState | undefined {
   if (!isRecord(value) || !hasOnlyKeys(value, ['id', 'coordinate', 'revision', 'jumpState']) ||
       value.id !== VOYAGE_33_ID || typeof value.coordinate !== 'string' ||
-      !neighborsForCoordinate(value.coordinate) || !isSafeNonNegativeInteger(value.revision)) return undefined;
+      !neighborsForCoordinate(value.coordinate) || !isSafeNonNegativeInteger(value.revision) ||
+      value.revision === Number.MAX_SAFE_INTEGER) return undefined;
   const jumpState = parseJumpState(value.jumpState);
   if (!jumpState) return undefined;
   return {
@@ -81,6 +85,16 @@ function parseMovementState(value: unknown): Voyage33MovementState | undefined {
     revision: value.revision,
     jumpState,
   };
+}
+
+/** Member-safe movement view; an unadmitted vessel has no public movement state. */
+export function publicVoyage33MovementState(
+  value: unknown,
+  admission: unknown,
+  sessionId: string,
+): Voyage33MovementState | undefined {
+  if (!parseVoyage33Admission(admission, sessionId)) return undefined;
+  return parseVoyage33MovementState(value);
 }
 
 function requireMaintenanceState(value: unknown): Voyage33MaintenanceState {
@@ -181,7 +195,7 @@ export function dockVoyage33(input: Readonly<{
   const state = requireMaintenanceState(input.maintenanceState);
   requireExpectedRevision(input.expectedDockingRevision, state.dockingRevision, 'Voyage 33-0 docking');
   if (state.hostShipId !== null) throw new Error('Voyage 33-0 is already docked with a host.');
-  const movementState = parseMovementState(input.movementState);
+  const movementState = parseVoyage33MovementState(input.movementState);
   if (!movementState) throw new Error('Malformed Voyage 33-0 movement state.');
   const activeVesselIds = requireActiveVesselRoster(input.activeVesselIds);
   if (typeof input.hostShipId !== 'string' || !isResourceShipId(input.hostShipId) ||
@@ -254,7 +268,7 @@ export function resolveVoyage33JumpCommit(input: Readonly<{
   requireActiveAdmission(input.admission, input.sessionId);
   if (input.phase !== 'coordination') throw new Error('Voyage 33-0 can only jump during Coordination Phase.');
   if (!isSafeNonNegativeInteger(input.currentTurn)) throw new Error('The current cycle is malformed.');
-  const movementState = parseMovementState(input.movementState);
+  const movementState = parseVoyage33MovementState(input.movementState);
   if (!movementState) throw new Error('Malformed Voyage 33-0 movement state.');
   requireExpectedRevision(input.expectedMovementRevision, movementState.revision, 'Voyage 33-0 movement');
   if (movementState.jumpState.lastJumpTurn === input.currentTurn) {

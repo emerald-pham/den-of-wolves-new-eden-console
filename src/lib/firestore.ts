@@ -18,6 +18,7 @@ import { httpsCallable } from 'firebase/functions';
 import { app, functions } from './firebase';
 import { emulatorPorts, useEmulators } from './firebaseConfig';
 import { parsePdfEscortWingMemberView } from './pdfEscortWingProjection';
+import { parseVoyage33MovementState } from '../../functions/src/voyage33Movement';
 import type {
   CommissarPurgeAuthority,
   CandidateReveal,
@@ -2825,6 +2826,9 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     (visibleShuttles === undefined || visibleShuttles.has(visit.shuttleId)));
   const ownerUid = parseEntityId('player', data.ownerUid);
   const voyageAdmission = voyage33Admission(data.voyage33Admission, sessionId);
+  const voyageMovement = voyageAdmission
+    ? parseVoyage33MovementState(data.voyage33Movement)
+    : undefined;
   const voyageMaintenance = voyage33Maintenance(data.voyage33Maintenance, sessionId);
   const admitted = voyageAdmission
     ? [...new Set([...admittedVesselIds(data.admittedVesselIds), voyageAdmission.id])]
@@ -2871,6 +2875,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
       activeVesselIds !== undefined ? { activeVesselIds: [...activeVesselIds] } : {}),
     admittedVesselIds: admitted,
     ...(voyageAdmission ? { voyage33Admission: voyageAdmission } : {}),
+    ...(voyageMovement ? { voyage33Movement: voyageMovement } : {}),
     ...(voyageMaintenance ? { voyage33Maintenance: voyageMaintenance } : {}),
     ...(announcement ? { turnStartAnnouncement: announcement } : {}),
     ...(phaseClock ? { turnPhase: phaseClock } : {}),
