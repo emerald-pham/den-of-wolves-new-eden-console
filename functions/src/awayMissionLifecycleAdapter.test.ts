@@ -123,6 +123,26 @@ describe('away-mission lifecycle adapter', () => {
     expect(mismatched.record).toBeUndefined();
   });
 
+  it('fails closed when server authority is malformed or a client adds authority fields to its command', () => {
+    const record = fixture();
+    const command = {
+      type: 'openDiscards', requestId: 'malformed-authority', expectedRevision: 0,
+    } as const;
+    const malformedAuthority = applyAwayMissionLifecycleCommand(record, command, {
+      actorUid: 'gm', isActiveGm: 'true', teamPhase: false, currentCycle: 3,
+      legalDropOffShipIds: [],
+    } as never);
+    expect(malformedAuthority.status).toBe('denied');
+
+    const forgedCommand = applyAwayMissionLifecycleCommand(record, {
+      ...command, requestId: 'client-authority', isActiveGm: true,
+    } as never, {
+      actorUid: 'gm', isActiveGm: false, teamPhase: false, currentCycle: 3,
+      legalDropOffShipIds: [],
+    });
+    expect(forgedCommand.status).toBe('denied');
+  });
+
   it('keeps committed participant craft movement-locked through a Team Phase overrun until resolution', () => {
     const record = fixture();
     const overrun = markAwayMissionOverrun(record, true);
