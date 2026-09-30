@@ -196,6 +196,12 @@ it('shows held-token trading on the current replacement ship without a historica
     replacementStatus: null,
     activeConsoleRoleId: null,
   });
+  const currentSession = useSessionStore.getState().session;
+  if (!currentSession) throw new Error('Expected the session.');
+  useSessionStore.getState().setSession({
+    ...currentSession,
+    activeVesselIds: ['icebreaker'],
+  });
   useSessionStore.getState().setSessionSnapshotFreshness('server');
   vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
     onPlayers([useSessionStore.getState().me!]);
