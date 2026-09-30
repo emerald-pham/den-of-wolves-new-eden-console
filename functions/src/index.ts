@@ -775,13 +775,7 @@ const awayMissionLifecycleCallables = createAwayMissionLifecycleCallables({
         (revision as number) >= Number.MAX_SAFE_INTEGER || receipt.exists) {
       throw new HttpsError('failed-precondition', 'Exploration navigation or reward receipt is inconsistent.');
     }
-    const groups = groupSnapshots.docs.map(snapshot => {
-      const group = fleetGroupRecord(snapshot.data());
-      if (!group || group.id !== snapshot.id) {
-        throw new HttpsError('failed-precondition', 'The current fleet-group authority is malformed.');
-      }
-      return group;
-    });
+    const groups = movementPursuitFleetGroups(activeVesselIds, groupSnapshots, players);
     const audienceUids = record.lifecycle.participants.map(({ uid }) => uid);
     const knownSystemsByUid = Object.fromEntries(audienceUids.map(uid => [uid,
       discoverySystemsForCoordinates(navigation.missionExploredCoordinatesByUid?.[uid] ?? [])]));
