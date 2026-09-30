@@ -8,6 +8,7 @@ import BaseCapybaraCargoTransferPanel from './BaseCapybaraCargoTransferPanel';
 const GorgoneionRepairDronesPanel = lazy(() => import('./GorgoneionRepairDronesPanel'));
 const GorgoneionMissionSupportWorkspace = lazy(() => import('./GorgoneionMissionSupportWorkspace'));
 const WarriorRepairDronesPanel = lazy(() => import('./WarriorRepairDronesPanel'));
+const SmallShipJumpWorkspace = lazy(() => import('./SmallShipJumpWorkspace'));
 
 export default function ExtraShipCaptainWorkspace({ roleId }: { readonly roleId: RoleId }) {
   const session = useSessionStore((state) => state.session);
@@ -71,6 +72,13 @@ export default function ExtraShipCaptainWorkspace({ roleId }: { readonly roleId:
               );
             })}
           </div>
+          {(workspace.vesselId === 'gorgoneion' || workspace.vesselId === 'capybara-small') && (
+            <Suspense fallback={<p className="console-workspace__status" role="status">
+              Loading Jump Drive controls…
+            </p>}>
+              <SmallShipJumpWorkspace smallShipId={workspace.vesselId} />
+            </Suspense>
+          )}
           {workspace.roleId === 'gorgoneion-captain' && (
             <Suspense fallback={<p className="console-workspace__status" role="status">
               Loading repair controls…

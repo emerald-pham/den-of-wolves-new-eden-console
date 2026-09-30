@@ -38,7 +38,12 @@ export const EXTRA_SHIP_CAPTAIN_WORKSPACES: readonly ExtraShipCaptainWorkspaceDe
     vesselId: 'gorgoneion',
     policy: 'Protect the fleet, support missions, and use Gorgoneion systems only through their server-owned phase authority.',
     actions: [
-      unavailable('jump-drive', 'Jump Drive', 'FTL', 'Spend 1 / 1 / 2 fuel from the docked host for a short / medium / long jump.'),
+      {
+        id: 'jump-drive', name: 'Jump Drive', phase: 'Coordination',
+        effect: 'When charged during Team Phase, spend 1 / 1 / 2 fuel from the docked host for a short / medium / long jump.',
+        charge: 'reactor', control: 'live-below',
+        availability: 'Live server-owned movement controls appear below using this Captain’s known chart nodes.',
+      },
       unavailable('mission-support', 'Mission Support', 'Away Mission', 'Before cards are dealt, inspect the top five mission cards and return each to the top or bottom.', 'none', 'Awaiting the authoritative pre-deal mission lifecycle.'),
       {
         id: 'repair-drones',
@@ -58,7 +63,12 @@ export const EXTRA_SHIP_CAPTAIN_WORKSPACES: readonly ExtraShipCaptainWorkspaceDe
     vesselId: 'capybara-small',
     policy: 'Supply the fleet from the base small-ship Capybara without borrowing any full expansion Capybara rule.',
     actions: [
-      unavailable('jump-drive', 'Jump Drive', 'FTL', 'Spend 1 / 1 / 2 fuel from the docked host for a short / medium / long jump.'),
+      {
+        id: 'jump-drive', name: 'Jump Drive', phase: 'Coordination',
+        effect: 'When charged during Team Phase, spend 1 / 1 / 2 fuel from the docked host for a short / medium / long jump.',
+        charge: 'reactor', control: 'live-below',
+        availability: 'Live server-owned movement controls appear below using this Captain’s known chart nodes.',
+      },
       unavailable('bulk-haulage', 'Bulk Haulage', 'Away Mission', 'A contributed opportunity grants one additional resource of every type won.'),
       {
         id: 'cargo-transfer',

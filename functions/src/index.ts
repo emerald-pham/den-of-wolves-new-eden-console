@@ -66,6 +66,12 @@ import { createPermissionedDismantlingCallables } from './permissionedDismantlin
 import { createVoyage33MovementCallables } from './voyage33MovementCallable';
 import { publicVoyage33MovementState } from './voyage33Movement';
 import {
+  createSmallShipJumpCallables,
+  emptySmallShipMovementState,
+  parseSmallShipMovementState,
+  smallShipMovementDocumentPath,
+} from './smallShipJump';
+import {
   ADMIRAL_DIRECTIVE_KINDS,
   admiralDirectiveState,
   publishAdmiralDirective,
@@ -918,6 +924,15 @@ const voyage33MovementCallables = createVoyage33MovementCallables({
   now: () => new Date(),
 });
 
+const smallShipJumpCallables = createSmallShipJumpCallables({
+  db,
+  requireUid,
+  requireSmallShipCaptainAuthority,
+  requireSmallShipMode,
+  serverTimestamp: () => FieldValue.serverTimestamp(),
+  now: () => new Date(),
+});
+
 export const proposePermissionedDismantling = onCall((request) =>
   permissionedDismantlingCallables.proposePermissionedDismantling(request));
 
@@ -956,6 +971,12 @@ export const dockVoyage33 = onCall((request) =>
 
 export const jumpVoyage33 = onCall((request) =>
   voyage33MovementCallables.jumpVoyage33(request));
+
+export const getSmallShipJumpWorkspace = onCall((request) =>
+  smallShipJumpCallables.getSmallShipJumpWorkspace(request));
+
+export const jumpSmallShip = onCall((request) =>
+  smallShipJumpCallables.jumpSmallShip(request));
 
 /** Persist server-authoritative source events to the Press-only intake. */
 function writePressLogEvent(tx: Transaction, sessionId: string, event: PressLogEvent): void {
@@ -28318,7 +28339,7 @@ export const setSmallShipDocking = onCall<{
     await requireShipCounterAuthority(tx, data.sessionId, uid, authorityHost, data.instanceId, true);
     const replay = smallShipReceiptReply(prior, fingerprint, uid);
     if (replay) return replay;
-    requireMissionMovementAvailable(session, [id]);
+    requireMissionMovementAvailable(session, [id, authorityHost]);
     if (isSmallShipInMutiny(current)) {
       throw commandError(
         'failed-precondition',
@@ -28338,6 +28359,39 @@ export const setSmallShipDocking = onCall<{
       tx.set(requestRef, { ...fingerprint, requestId: data.requestId, actorUid: uid, fingerprint,
         authorityHostId: authorityHost, reply: stale, createdAt: FieldValue.serverTimestamp() });
       return stale;
+    }
+    const hasJumpMovementAuthority = id === 'gorgoneion' || id === 'capybara-small';
+    const movementRef = hasJumpMovementAuthority
+      ? db.doc(smallShipMovementDocumentPath(data.sessionId, id))
+      : undefined;
+    let nextMovement: ReturnType<typeof emptySmallShipMovementState> | undefined;
+    if (movementRef) {
+      const [navigation, movementSnapshot] = await Promise.all([
+        tx.get(navigationStateRef(data.sessionId)),
+        tx.get(movementRef),
+      ]);
+      const coordinates = navigation.get('shipGalacticCoordinates');
+      const hostCoordinate = isRecord(coordinates) ? coordinates[authorityHost] : undefined;
+      if (typeof hostCoordinate !== 'string' || !STAR_CHART_COORDINATES.includes(hostCoordinate)) {
+        throw commandError('failed-precondition', 'The active host coordinate is unavailable for small-craft docking.', 'conflict');
+      }
+      const movement = movementSnapshot.exists
+        ? parseSmallShipMovementState(movementSnapshot.data(), data.sessionId, id)
+        : undefined;
+      if (movementSnapshot.exists && !movement) {
+        throw commandError('failed-precondition', 'The small-craft movement authority is malformed. Refresh before docking.', 'conflict');
+      }
+      if (data.docked && movement && movement.coordinate !== hostCoordinate) {
+        throw commandError('failed-precondition', 'A small craft may only re-dock with a host at its current coordinate.', 'conflict');
+      }
+      if (!movement) {
+        nextMovement = emptySmallShipMovementState(data.sessionId, id, hostCoordinate);
+      } else if (!data.docked && movement.coordinate !== hostCoordinate) {
+        if (movement.revision >= Number.MAX_SAFE_INTEGER - 1) {
+          throw commandError('failed-precondition', 'The small-craft movement revision is exhausted.', 'conflict');
+        }
+        nextMovement = { ...movement, coordinate: hostCoordinate, revision: movement.revision + 1 };
+      }
     }
     const next: SmallShipState = {
       ...current,
@@ -28359,6 +28413,7 @@ export const setSmallShipDocking = onCall<{
       [`smallShipStates.${id}`]: next,
       updatedAt: FieldValue.serverTimestamp(),
     });
+    if (movementRef && nextMovement) tx.set(movementRef, nextMovement);
     tx.set(requestRef, { ...fingerprint, requestId: data.requestId, actorUid: uid, fingerprint,
       authorityHostId: authorityHost, reply: committed, createdAt: FieldValue.serverTimestamp() });
     return committed;
