@@ -210,6 +210,30 @@ it('shows held-token trading on the current replacement ship without a historica
   expect(await screen.findByRole('region', { name: 'Same-table trade' })).toBeInTheDocument();
 });
 
+it('shows same-table trading from an active replacement role station', async () => {
+  const current = useSessionStore.getState().me;
+  if (!current) throw new Error('Expected the player identity.');
+  useSessionStore.getState().setMe({
+    ...current,
+    assignedRoleId: 'dione-engineer',
+    replacementRoleId: 'comms-officer',
+    replacementStatus: null,
+    activeConsoleRoleId: null,
+  });
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
+    onPlayers([useSessionStore.getState().me!]);
+    return vi.fn();
+  });
+
+  render(<MemoryRouter initialEntries={['/ships/aegis/roles/comms-officer']}><Routes>
+    <Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} />
+    <Route path="/console" element={<p>Fleet roster</p>} />
+  </Routes></MemoryRouter>);
+
+  expect(await screen.findByRole('region', { name: 'Same-table trade' })).toBeInTheDocument();
+});
+
 it('places the pursuit tracker beneath shipboard DRADIS and uses this ship position', () => {
   const activeSession = useSessionStore.getState().session;
   if (!activeSession) throw new Error('Expected the test session.');
