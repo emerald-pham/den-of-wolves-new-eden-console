@@ -6,6 +6,8 @@ const permissionedDismantlingSource = readFileSync(
   new URL('./permissionedDismantlingCallable.ts', import.meta.url), 'utf8');
 const sameTableTradeSource = readFileSync(
   new URL('./sameTableTradeCallable.ts', import.meta.url), 'utf8');
+const voyage33MovementSource = readFileSync(
+  new URL('./voyage33MovementCallable.ts', import.meta.url), 'utf8');
 const callablePattern = /export const (\w+) = onCall/g;
 const matches = [...source.matchAll(callablePattern)];
 const highwallWindowGuardStart = source.indexOf('function requireLiveHighwallMiningWindow(');
@@ -78,6 +80,16 @@ const terminalGuardDelegates: Readonly<Record<string, {
     source: sameTableTradeSource,
     guard: "dependencies.requireNonterminalSessionPhase(sessionSnapshot.get('phase'));",
   },
+  dockVoyage33: {
+    target: 'voyage33MovementCallables.dockVoyage33(request)',
+    source: voyage33MovementSource,
+    guard: "session.get('phase') !== 'active'",
+  },
+  jumpVoyage33: {
+    target: 'voyage33MovementCallables.jumpVoyage33(request)',
+    source: voyage33MovementSource,
+    guard: "session.get('phase') !== 'active'",
+  },
 };
 
 function callableBody(index: number): string {
@@ -127,6 +139,18 @@ it('keeps every delegated callable backed by a transaction-level terminal guard'
 
 it('requires the Highwall mining window guard to reject non-active sessions', () => {
   expect(highwallWindowGuard).toContain("session.get('phase') !== 'active'");
+});
+
+it('routes both Voyage movement commands through a terminal-phase guard', () => {
+  for (const [name, target] of [
+    ['dockVoyage33', 'voyage33MovementCallables.dockVoyage33(request)'],
+    ['jumpVoyage33', 'voyage33MovementCallables.jumpVoyage33(request)'],
+  ] as const) {
+    const index = matches.findIndex((match) => match[1] === name);
+    expect(index).toBeGreaterThanOrEqual(0);
+    expect(callableBody(index)).toContain(target);
+  }
+  expect(voyage33MovementSource).toContain("session.get('phase') !== 'active'");
 });
 
 it.each([
