@@ -234,3 +234,16 @@ describe('away mission lifecycle client service', () => {
     await expect(actions.requestExtraCards(1)).rejects.toThrow(/mission state changed/i);
   });
 });
+
+it('sends an exploration choice through current GM authority and parses only its safe applied status', async () => {
+  const state = { ...publicState, phase: 'resolved', status: 'resolved', revision: 4,
+    explorationAppliedOpportunityIds: ['D-1'] };
+  const invoke = vi.fn().mockResolvedValue({ status: 'committed', sessionId: 's1', missionId: 'mission-1',
+    requestId: 'explore-request', revision: 4, publicState: state, privateState: null });
+  const actions = createAwayMissionLifecycleActions(() => ({ ...playerContext,
+    actorRole: 'gm', instanceId: 'gm-instance' }), { invoke, createRequestId: () => 'explore-request' });
+  await actions.exploreSystems('D-1', ['4454', '5143']);
+  expect(invoke).toHaveBeenCalledWith(expect.objectContaining({ type: 'exploreSystems',
+    opportunityId: 'D-1', targetCoordinates: ['4454', '5143'], instanceId: 'gm-instance', expectedRevision: 3 }));
+  expect(parseAwayMissionLifecyclePublicState({ ...state, explorationTargets: ['4454', '5143'] }, 'mission-1')).toBeNull();
+});

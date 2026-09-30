@@ -43,6 +43,7 @@ function renderPanel(overrides: Record<string, unknown> = {}) {
     reclamatorSalvage: vi.fn().mockResolvedValue(undefined),
     assignCards: vi.fn().mockResolvedValue(undefined),
     addFacilitatorCards: vi.fn().mockResolvedValue(undefined),
+    exploreSystems: vi.fn().mockResolvedValue(undefined),
     resolve: vi.fn().mockResolvedValue(undefined),
     dropOff: vi.fn().mockResolvedValue(undefined),
   };
@@ -186,4 +187,18 @@ it('allows a participant with no remaining cards to complete an empty assignment
   const actions = renderPanel({ privateState: { ...privateHand, cards: [] } });
   await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Submit mission assignments' })));
   expect(actions.assignCards).toHaveBeenCalledWith([]);
+});
+
+it('lets the GM apply a successful exploration reward with two coordinates and hides that control from participants', async () => {
+  const mission = { ...basePublicMission, status: 'resolved', phase: 'resolved',
+    opportunities: [{ id: 'D-3', label: 'Exploration data' }],
+    outcomes: [{ opportunityId: 'D-3', total: 30, outcome: 'success' }],
+    rewards: [{ opportunityId: 'D-3', resources: {} }] };
+  const actions = renderPanel({ isGm: true, actorUid: 'gm', publicState: mission, privateState: null });
+  const apply = screen.getByRole('button', { name: 'Apply exploration reward D-3' });
+  expect(apply).toBeDisabled();
+  fireEvent.change(screen.getByLabelText('First system coordinate for D-3'), { target: { value: '4454' } });
+  fireEvent.change(screen.getByLabelText('Second system coordinate for D-3'), { target: { value: '5143' } });
+  await act(async () => fireEvent.click(apply));
+  expect(actions.exploreSystems).toHaveBeenCalledWith('D-3', ['4454', '5143']);
 });
