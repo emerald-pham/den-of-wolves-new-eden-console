@@ -129,15 +129,16 @@ it('exposes a supplied unavailable reason and disables offer and acceptance acti
   expect(screen.getByRole('button', { name: 'Accept exact offer from Captain Vale' })).toBeDisabled();
 });
 
-it('supports keyboard-only offer composition and displays parent status feedback', async () => {
+it('keeps offer controls keyboard reachable and displays parent status feedback', async () => {
   const user = userEvent.setup();
   const { props } = renderPanel({ statusMessage: 'Offer sent. Waiting for the recipient.' });
   const recipient = screen.getByRole('combobox', { name: 'Recipient' });
+  await user.selectOptions(recipient, 'player-vale');
   recipient.focus();
-  await user.keyboard('{ArrowDown}{Enter}');
   await user.tab();
-  await user.type(screen.getByRole('spinbutton', { name: 'Ore amount' }), '1');
-  await user.tab();
+  expect(screen.getByRole('spinbutton', { name: 'Ore amount' })).toHaveFocus();
+  await user.keyboard('1');
+  for (let index = 0; index < 6; index += 1) await user.tab();
 
   const send = screen.getByRole('button', { name: 'Send exact offer' });
   expect(send).toHaveFocus();
