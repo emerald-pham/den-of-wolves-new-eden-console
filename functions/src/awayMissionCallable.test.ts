@@ -1164,7 +1164,7 @@ describe('dealPrivateInitialCards', () => {
 
 
 describe('production mission exploration application', () => {
-  function seedResolvedExploration() {
+  function seedResolvedExploration(aliceUid = 'alice') {
     const missionId = 'mission-arrival-exploration';
     const opportunityId = 'arrival-exploration';
     const allCards = missionDeck();
@@ -1173,12 +1173,12 @@ describe('production mission exploration application', () => {
       ...prefix.map(id => allCards.find(card => card.id === id)!),
       ...allCards.filter(card => !prefix.includes(card.id)),
     ]);
-    const participants = [{ uid: 'alice', roleId: 'wing-commander' }, { uid: 'bob', roleId: 'icebreaker-miner' }];
-    const participantCrafts = [{ participantUid: 'alice', craftIds: ['starlight'] }, { participantUid: 'bob', craftIds: ['highwall'] }];
+    const participants = [{ uid: aliceUid, roleId: 'wing-commander' }, { uid: 'bob', roleId: 'icebreaker-miner' }];
+    const participantCrafts = [{ participantUid: aliceUid, craftIds: ['starlight'] }, { participantUid: 'bob', craftIds: ['highwall'] }];
     const bootstrap = createAwayMissionLifecycleBootstrap({ sessionId: 's1', groupId: 'fleet-1', sourceCycle: 2,
-      participantCrafts, lifecycle: { missionId, siteCode: 'D', leaderUid: 'alice', participants,
+      participantCrafts, lifecycle: { missionId, siteCode: 'D', leaderUid: aliceUid, participants,
         availableCarrierCraftIds: ['starlight', 'highwall'], deckState, dealtCount: 2,
-        initialCards: [{ participantUid: 'alice', cardId: 'A♥' }, { participantUid: 'bob', cardId: '4♥' }] } });
+        initialCards: [{ participantUid: aliceUid, cardId: 'A♥' }, { participantUid: 'bob', cardId: '4♥' }] } });
     if (!bootstrap) throw new Error('Invalid exploration bootstrap fixture');
     let record = bootstrap.record;
     const advance = (uid: string, command: Record<string, unknown>) => {
@@ -1190,13 +1190,13 @@ describe('production mission exploration application', () => {
       record = result.record;
     };
     advance('bob', { type: 'requestExtraCards', count: 1 });
-    advance('alice', { type: 'requestExtraCards', count: 1 });
-    advance('alice', { type: 'distributeExtraCard', participantUid: 'bob', opportunityId: 'D-3' });
-    advance('alice', { type: 'distributeExtraCard', participantUid: 'alice', opportunityId: 'D-3' });
+    advance(aliceUid, { type: 'requestExtraCards', count: 1 });
+    advance(aliceUid, { type: 'distributeExtraCard', participantUid: 'bob', opportunityId: 'D-3' });
+    advance(aliceUid, { type: 'distributeExtraCard', participantUid: aliceUid, opportunityId: 'D-3' });
     advance('gm1', { type: 'openDiscards' });
-    advance('alice', { type: 'discardCard', cardId: 'A♥' });
+    advance(aliceUid, { type: 'discardCard', cardId: 'A♥' });
     advance('bob', { type: 'discardCard', cardId: '4♥' });
-    advance('alice', { type: 'assignCards', placements: [{ cardId: 'A♦', opportunityId: 'D-3' }] });
+    advance(aliceUid, { type: 'assignCards', placements: [{ cardId: 'A♦', opportunityId: 'D-3' }] });
     advance('bob', { type: 'assignCards', placements: [{ cardId: '10♦', opportunityId: 'D-3' }] });
     advance('gm1', { type: 'addFacilitatorCards' });
     advance('gm1', { type: 'resolve' });
@@ -1205,7 +1205,7 @@ describe('production mission exploration application', () => {
     mock.discardMissionId = missionId;
     mock.discardMission = { schemaVersion: 1, missionId, requestId: 'start-exploration', actorUid: 'gm1',
       groupId: 'fleet-1', opportunityId, chart: 'A', coordinate: '1234', siteCode: 'D', sourceCycle: 2,
-      missionLeaderUid: 'alice', missionLeaderRoleId: 'wing-commander', participantSnapshots: participants,
+      missionLeaderUid: aliceUid, missionLeaderRoleId: 'wing-commander', participantSnapshots: participants,
       participantCrafts, availableCarrierCraftIds: ['starlight', 'highwall'],
       handIds: participants.map(({ uid }) => awayMissionHandId(missionId, uid)), cardIds: prefix.slice(0, 2),
       dealtFrom: 0, dealtThrough: 2, phase: record.lifecycle.phase, revision: record.revision,
@@ -1214,11 +1214,11 @@ describe('production mission exploration application', () => {
     mock.missionStartSnapshots[opportunityId] = { type: 'away-mission-start-snapshot', schemaVersion: 1,
       sessionId: 's1', missionId, requestId: 'start-exploration', opportunityId, groupId: 'fleet-1',
       chart: 'A', coordinate: '1234', siteCode: 'D', sourceCycle: 2,
-      missionLeader: { uid: 'alice', roleId: 'wing-commander' },
+      missionLeader: { uid: aliceUid, roleId: 'wing-commander' },
       stateDelta: { missionDeckDealtCountBefore: 0, missionDeckDealtCountAfter: 2 },
       revisions: { missionDeck: { before: 0, after: 2 } },
       inputs: { participantSnapshots: participants, participantCrafts,
-        availableCarrierCraftIds: ['starlight', 'highwall'], missionLeaderUid: 'alice' } };
+        availableCarrierCraftIds: ['starlight', 'highwall'], missionLeaderUid: aliceUid } };
     mock.documents['sessions/s1/serverState/missionDeck'] = { ...deckState, dealtCount: record.lifecycle.dealtCount };
     for (const [index, participant] of participants.entries()) {
       const handId = awayMissionHandId(missionId, participant.uid);
@@ -1229,7 +1229,7 @@ describe('production mission exploration application', () => {
         lifecyclePrivateState: projectAwayMissionPrivateState(record, participant.uid) };
       mock.pointerDocuments[handId] = { type: 'away-mission-hand-pointer', sessionId: 's1', missionId, handId,
         participantUid: participant.uid, groupId: 'fleet-1', chart: 'A', coordinate: '1234', siteCode: 'D', sourceCycle: 2,
-        participantCount: 2, missionLeaderUid: 'alice', missionLeaderRoleId: 'wing-commander',
+        participantCount: 2, missionLeaderUid: aliceUid, missionLeaderRoleId: 'wing-commander',
         phase: projectAwayMissionPublicState(record, participant.uid)!.phase, revision: record.revision, discarded: true,
         lifecyclePublicState: projectAwayMissionPublicState(record, participant.uid) };
     }
@@ -1248,6 +1248,15 @@ describe('production mission exploration application', () => {
     expect(write.missionExploredCoordinatesByUid).not.toHaveProperty('admiral');
     expect(mock.create).toHaveBeenCalledWith(expect.objectContaining({ path:
       'sessions/s1/serverState/missionExploration/receipts/mission-arrival-exploration-D-3' }), expect.any(Object));
+  });
+
+  it.each(['__proto__', 'constructor', 'toString'])('preserves a valid reserved-name participant UID %s as an own discovery entry', async uid => {
+    await expect(commitAwayMissionLifecycleCommand.run(seedResolvedExploration(uid)))
+      .resolves.toMatchObject({ status: 'committed' });
+    const write = mock.set.mock.calls.find(([ref]) => ref.path === 'sessions/s1/serverState/navigation')?.[1];
+    expect(Object.hasOwn(write.missionExploredCoordinatesByUid, uid)).toBe(true);
+    expect(write.missionExploredCoordinatesByUid[uid]).toEqual(['4454', '5143']);
+    expect(Object.getPrototypeOf(write.missionExploredCoordinatesByUid)).toBe(Object.prototype);
   });
 
   it.each(['missing-vessel', 'wrong-player-pointer'])('fails closed before any reveal writes for %s authority', async kind => {
