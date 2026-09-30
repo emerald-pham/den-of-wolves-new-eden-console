@@ -6,6 +6,16 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
 import RoleBrief from './RoleBrief';
 
+const awayMissionMocks = vi.hoisted(() => ({
+  subscribe: vi.fn(),
+  makeActions: vi.fn(),
+}));
+
+vi.mock('@/lib/awayMissionLifecycleService', () => ({
+  subscribeToOwnAwayMissionLifecycles: awayMissionMocks.subscribe,
+  createAwayMissionLifecycleActions: awayMissionMocks.makeActions,
+}));
+
 vi.mock('@/lib/vulcanLabourService', () => ({
   runVulcanAdditionalLabour: vi.fn(async () => ({ message: 'Hydroponics: spent 1 water, generated 3 food.' })),
 }));
@@ -52,6 +62,23 @@ it('renders the assigned role brief, common rules, and visible return control', 
   expect(screen.getByRole('heading', { name: 'Action rules' })).toBeVisible();
   expect(screen.queryByText(/fighter count|current docking|holder uid/i)).not.toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Common rules' })).toBeVisible();
+  await user.click(screen.getByRole('link', { name: /return to station catalog/i }));
+  expect(screen.getByText('Station catalog')).toBeInTheDocument();
+});
+
+it('mounts the away-mission workspace for the assigned player without changing the role-brief return route', async () => {
+  awayMissionMocks.subscribe.mockImplementation(() => vi.fn());
+  const user = userEvent.setup();
+  render(
+    <MemoryRouter initialEntries={['/brief']}>
+      <Routes>
+        <Route path="/brief" element={<RoleBrief />} />
+        <Route path="/console" element={<p>Station catalog</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(awayMissionMocks.subscribe).toHaveBeenCalledWith('s1', 'u1', expect.any(Function));
   await user.click(screen.getByRole('link', { name: /return to station catalog/i }));
   expect(screen.getByText('Station catalog')).toBeInTheDocument();
 });
