@@ -134,7 +134,7 @@ interface ProposalCommand {
   readonly craftId: string;
   readonly targetShipId: string;
   readonly targetConsoleId: string;
-  readonly expectedTargetRevision: number;
+  readonly expectedTargetRevision?: number;
   readonly expectedControlRevision: number;
 }
 
@@ -226,6 +226,24 @@ interface StoredApplyReceipt {
   readonly createdAt: unknown;
 }
 
+type PermissionedDismantlingInboxStatus = 'pending' | 'consented' | 'revoked' | 'applied';
+
+interface StoredPermissionedDismantlingInbox {
+  readonly type: 'permissioned-dismantling-inbox';
+  readonly sessionId: string;
+  readonly targetShipId: string;
+  readonly proposalId: string;
+  readonly proposerUid: string;
+  readonly craftId: string;
+  readonly targetConsoleId: string;
+  readonly targetRevision: number;
+  readonly materialGain: number;
+  readonly status: PermissionedDismantlingInboxStatus;
+  readonly consentId: string | null;
+  readonly materialsAfter: number | null;
+  readonly updatedAt: unknown;
+}
+
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 const HASH_PATTERN = /^[a-f0-9]{64}$/;
 const PROPOSAL_BASE_KEYS = [
@@ -252,6 +270,10 @@ const APPLY_REPLY_KEYS = [
 const APPLY_RECEIPT_KEYS = [
   'type', 'sessionId', 'requestId', 'proposalId', 'consentId', 'actorUid',
   'requestFingerprint', 'result', 'createdAt',
+] as const;
+const DISMANTLING_INBOX_KEYS = [
+  'type', 'sessionId', 'targetShipId', 'proposalId', 'proposerUid', 'craftId', 'targetConsoleId',
+  'targetRevision', 'materialGain', 'status', 'consentId', 'materialsAfter', 'updatedAt',
 ] as const;
 
 function isRecord(value: unknown): value is Data {
@@ -303,10 +325,15 @@ function requireRevision(value: unknown, label: string): number {
 }
 
 function requireProposalCommand(value: unknown): ProposalCommand {
-  const data = requireRequest(value, [
+  const requiredKeys = [
     'sessionId', 'proposalId', 'craftId', 'targetShipId', 'targetConsoleId',
-    'expectedTargetRevision', 'expectedControlRevision',
-  ]);
+    'expectedControlRevision',
+  ];
+  if (!isRecord(value) || (!exactKeys(value, [...requiredKeys, 'expectedTargetRevision']) &&
+      !exactKeys(value, requiredKeys))) {
+    return invalid('The permissioned dismantling request is malformed.');
+  }
+  const data = value;
   const sessionId = requireId(data.sessionId, 'sessionId');
   const proposalId = requireId(data.proposalId, 'proposalId');
   const craftId = requireId(data.craftId, 'craftId');
@@ -324,7 +351,9 @@ function requireProposalCommand(value: unknown): ProposalCommand {
     craftId,
     targetShipId,
     targetConsoleId,
-    expectedTargetRevision: requireRevision(data.expectedTargetRevision, 'expectedTargetRevision'),
+    ...(Object.hasOwn(data, 'expectedTargetRevision') ? {
+      expectedTargetRevision: requireRevision(data.expectedTargetRevision, 'expectedTargetRevision'),
+    } : {}),
     expectedControlRevision: requireRevision(data.expectedControlRevision, 'expectedControlRevision'),
   };
 }
@@ -688,7 +717,8 @@ function exactProposalRequestMatches(
     proposal.craftId === command.craftId &&
     proposal.targetShipId === command.targetShipId &&
     proposal.targetConsoleId === command.targetConsoleId &&
-    proposal.targetRevision === command.expectedTargetRevision &&
+    (command.expectedTargetRevision === undefined ||
+      proposal.targetRevision === command.expectedTargetRevision) &&
     proposal.controlRevision === command.expectedControlRevision &&
     proposal.materialGain === PERMISSIONED_DISMANTLING_MATERIAL_GAIN;
 }
@@ -747,6 +777,61 @@ function parseApplyReceipt(value: unknown): StoredApplyReceipt {
   };
 }
 
+function parseDismantlingInbox(
+  value: unknown,
+  sessionId: string,
+  targetShipId: string,
+): StoredPermissionedDismantlingInbox {
+  if (!isRecord(value) || !exactKeys(value, DISMANTLING_INBOX_KEYS) ||
+      value.type !== 'permissioned-dismantling-inbox' || value.sessionId !== sessionId ||
+      value.targetShipId !== targetShipId || typeof value.proposalId !== 'string' ||
+      !ID_PATTERN.test(value.proposalId) ||
+      typeof value.proposerUid !== 'string' || value.proposerUid.length === 0 ||
+      value.proposerUid.length > 128 || typeof value.craftId !== 'string' ||
+      !(ENGINEERING_DISMANTLING_CRAFT_IDS as readonly string[]).includes(value.craftId) ||
+      typeof value.targetConsoleId !== 'string' || !ID_PATTERN.test(value.targetConsoleId) ||
+      !Number.isSafeInteger(value.targetRevision) || (value.targetRevision as number) < 0 ||
+      value.materialGain !== PERMISSIONED_DISMANTLING_MATERIAL_GAIN ||
+      !['pending', 'consented', 'revoked', 'applied'].includes(String(value.status)) ||
+      (value.consentId !== null &&
+        (typeof value.consentId !== 'string' || !ID_PATTERN.test(value.consentId))) ||
+      (value.materialsAfter !== null &&
+        (!Number.isSafeInteger(value.materialsAfter) || (value.materialsAfter as number) < 0))) {
+    precondition('The permissioned-dismantling target inbox is malformed.');
+  }
+  return value as unknown as StoredPermissionedDismantlingInbox;
+}
+
+function dismantlingInboxValue(input: Readonly<{
+  sessionId: string;
+  targetShipId: string;
+  proposalId: string;
+  proposerUid: string;
+  craftId: string;
+  targetConsoleId: string;
+  targetRevision: number;
+  status: PermissionedDismantlingInboxStatus;
+  consentId?: string | null;
+  materialsAfter?: number | null;
+  updatedAt: unknown;
+}>): StoredPermissionedDismantlingInbox {
+  return {
+    type: 'permissioned-dismantling-inbox',
+    sessionId: input.sessionId,
+    targetShipId: input.targetShipId,
+    proposalId: input.proposalId,
+    proposerUid: input.proposerUid,
+    craftId: input.craftId,
+    targetConsoleId: input.targetConsoleId,
+    targetRevision: input.targetRevision,
+    materialGain: PERMISSIONED_DISMANTLING_MATERIAL_GAIN,
+    status: input.status,
+    consentId: input.consentId ?? null,
+    materialsAfter: input.materialsAfter ?? null,
+    updatedAt: input.updatedAt,
+  };
+}
+
 function proposalPath(sessionId: string, proposalId: string): string {
   return 'sessions/' + sessionId + '/permissionedDismantlingProposals/' + proposalId;
 }
@@ -761,6 +846,10 @@ function targetStatePath(sessionId: string, targetShipId: string): string {
 
 function receiptPath(sessionId: string, requestId: string): string {
   return 'sessions/' + sessionId + '/permissionedDismantlingReceipts/' + requestId;
+}
+
+function dismantlingInboxPath(sessionId: string, targetShipId: string): string {
+  return 'sessions/' + sessionId + '/permissionedDismantlingInboxes/' + targetShipId;
 }
 
 function doc(db: PermissionedDismantlingCallableDatabase, path: string): DocumentReference {
@@ -786,10 +875,11 @@ export function createPermissionedDismantlingCallables(
     const actorRef = doc(db, 'sessions/' + command.sessionId + '/players/' + actorUid);
     const proposalRef = doc(db, proposalPath(command.sessionId, command.proposalId));
     const targetStateRef = doc(db, targetStatePath(command.sessionId, command.targetShipId));
+    const inboxRef = doc(db, dismantlingInboxPath(command.sessionId, command.targetShipId));
     return db.runTransaction(async (rawTx) => {
       const tx = rawTx as Transaction;
-      const [session, actor, proposalSnapshot, targetStateSnapshot] = await Promise.all([
-        tx.get(sessionRef), tx.get(actorRef), tx.get(proposalRef), tx.get(targetStateRef),
+      const [session, actor, proposalSnapshot, targetStateSnapshot, inboxSnapshot] = await Promise.all([
+        tx.get(sessionRef), tx.get(actorRef), tx.get(proposalRef), tx.get(targetStateRef), tx.get(inboxRef),
       ]);
       requireActiveSession(session);
       const timestamp = now();
@@ -805,12 +895,13 @@ export function createPermissionedDismantlingCallables(
         session, targetStateSnapshot, command.sessionId, command.targetShipId,
       );
       if (controlRevision !== command.expectedControlRevision ||
-          target.revision !== command.expectedTargetRevision) {
+          (command.expectedTargetRevision !== undefined &&
+            target.revision !== command.expectedTargetRevision)) {
         return {
           status: 'stale',
           sessionId: command.sessionId,
           proposalId: command.proposalId,
-          expectedTargetRevision: command.expectedTargetRevision,
+          expectedTargetRevision: command.expectedTargetRevision ?? target.revision,
           currentTargetRevision: target.revision,
           expectedControlRevision: command.expectedControlRevision,
           currentControlRevision: controlRevision,
@@ -840,6 +931,15 @@ export function createPermissionedDismantlingCallables(
           materialGain: existing.materialGain,
         };
       }
+      if (inboxSnapshot.exists) {
+        const inbox = parseDismantlingInbox(
+          inboxSnapshot.data(), command.sessionId, command.targetShipId,
+        );
+        if ((inbox.status === 'pending' || inbox.status === 'consented') &&
+            inbox.targetRevision === target.revision) {
+          precondition('The target ship already has an active dismantling consent request.');
+        }
+      }
       const stored: StoredProposal = {
         type: 'permissioned-dismantling-proposal',
         sessionId: command.sessionId,
@@ -859,6 +959,17 @@ export function createPermissionedDismantlingCallables(
         tx, targetStateRef, target, command.sessionId, command.targetShipId, serverTimestamp,
       );
       tx.create(proposalRef, stored);
+      tx.set(inboxRef, dismantlingInboxValue({
+        sessionId: command.sessionId,
+        targetShipId: command.targetShipId,
+        proposalId: command.proposalId,
+        proposerUid: actorUid,
+        craftId: command.craftId,
+        targetConsoleId: command.targetConsoleId,
+        targetRevision: target.revision,
+        status: 'pending',
+        updatedAt: serverTimestamp(),
+      }));
       return {
         status: 'proposed',
         sessionId: command.sessionId,
@@ -895,6 +1006,14 @@ export function createPermissionedDismantlingCallables(
       const proposal = proposalRecord(proposalSnapshot.data() ?? {});
       if (proposal.sessionId !== command.sessionId || proposal.proposalId !== command.proposalId) {
         precondition('The requested dismantling proposal is unavailable.');
+      }
+      const inboxRef = doc(db, dismantlingInboxPath(command.sessionId, proposal.targetShipId));
+      const inboxSnapshot = await tx.get(inboxRef);
+      const inbox = parseDismantlingInbox(
+        inboxSnapshot.data(), command.sessionId, proposal.targetShipId,
+      );
+      if (inbox.proposalId !== command.proposalId) {
+        precondition('The dismantling request has been replaced by a newer target-ship request.');
       }
       const activeRoleIds = requireActiveRoleList(session);
       if (actorUid === proposal.proposerUid ||
@@ -940,6 +1059,12 @@ export function createPermissionedDismantlingCallables(
             existing.actorUid !== actorUid) {
           precondition('This consent ID is already bound to a different actor or proposal.');
         }
+        if ((existing.status === 'granted' &&
+              (inbox.status !== 'consented' || inbox.consentId !== command.consentId)) ||
+            (existing.status === 'revoked' &&
+              (inbox.status !== 'revoked' || inbox.consentId !== command.consentId))) {
+          precondition('The target-ship consent inbox does not match this decision.');
+        }
         return {
           status: 'replayed',
           consentStatus: existing.status,
@@ -948,6 +1073,9 @@ export function createPermissionedDismantlingCallables(
           consentId: command.consentId,
           targetRevision: proposal.targetRevision,
         };
+      }
+      if (inbox.status !== 'pending' && inbox.status !== 'revoked') {
+        precondition('The target ship already has a different active consent decision.');
       }
       const consent: StoredConsent = {
         type: 'permissioned-dismantling-consent',
@@ -965,6 +1093,11 @@ export function createPermissionedDismantlingCallables(
         createdAt: serverTimestamp(),
       };
       tx.create(consentRef, consent);
+      tx.update(inboxRef, {
+        status: 'consented',
+        consentId: command.consentId,
+        updatedAt: serverTimestamp(),
+      });
       return {
         status: 'consented',
         consentStatus: 'granted',
@@ -997,8 +1130,17 @@ export function createPermissionedDismantlingCallables(
           consent.consentId !== command.consentId || !consentMatchesProposal(consent, proposal)) {
         precondition('The requested dismantling consent is unavailable.');
       }
+      const inboxRef = doc(db, dismantlingInboxPath(command.sessionId, proposal.targetShipId));
+      const inboxSnapshot = await tx.get(inboxRef);
+      const inbox = parseDismantlingInbox(
+        inboxSnapshot.data(), command.sessionId, proposal.targetShipId,
+      );
+      if (inbox.proposalId !== command.proposalId || inbox.consentId !== command.consentId) {
+        precondition('The target-ship inbox no longer shows this consent request.');
+      }
       if (consent.actorUid !== actorUid) denied('Only the player who granted this consent may revoke it.');
       if (consent.status === 'revoked') {
+        if (inbox.status !== 'revoked') precondition('The target-ship inbox does not record this revocation.');
         return {
           status: 'replayed',
           sessionId: command.sessionId,
@@ -1006,10 +1148,14 @@ export function createPermissionedDismantlingCallables(
           consentId: command.consentId,
         };
       }
+      if (inbox.status !== 'consented') {
+        precondition('The target-ship inbox does not show an active consent to revoke.');
+      }
       if (proposal.status !== 'pending' || consent.status !== 'granted') {
         precondition('Only a current, unused consent on a pending proposal may be revoked.');
       }
       tx.update(consentRef, { status: 'revoked', revokedAt: serverTimestamp() });
+      tx.update(inboxRef, { status: 'revoked', updatedAt: serverTimestamp() });
       return {
         status: 'revoked',
         sessionId: command.sessionId,
@@ -1045,6 +1191,14 @@ export function createPermissionedDismantlingCallables(
           proposal.proposalId !== command.proposalId) {
         denied('Only the original engineering-craft proposer may apply this dismantling.');
       }
+      const inboxRef = doc(db, dismantlingInboxPath(command.sessionId, proposal.targetShipId));
+      const inboxSnapshot = await tx.get(inboxRef);
+      const inbox = parseDismantlingInbox(
+        inboxSnapshot.data(), command.sessionId, proposal.targetShipId,
+      );
+      if (inbox.proposalId !== command.proposalId || inbox.consentId !== command.consentId) {
+        precondition('The target-ship inbox no longer shows this consent request.');
+      }
       const activeRoleIds = requireActiveRoleList(session);
       const controlRevision = currentCraftControlRevision({
         session, actor: proposer, actorUid,
@@ -1068,7 +1222,8 @@ export function createPermissionedDismantlingCallables(
           precondition('This dismantling request ID is already bound to another action.');
         }
         if (proposal.status !== 'applied' || proposal.consumedConsentId !== command.consentId ||
-            consent.status !== 'consumed' || consent.consumedByUid !== actorUid) {
+            consent.status !== 'consumed' || consent.consumedByUid !== actorUid ||
+            inbox.status !== 'applied' || inbox.materialsAfter !== receipt.result.materialsAfter) {
           precondition('This dismantling replay receipt is not bound to the consumed proposal and consent.');
         }
         return { ...receipt.result, status: 'replayed' };
@@ -1080,6 +1235,9 @@ export function createPermissionedDismantlingCallables(
         precondition(consent.status === 'revoked'
           ? 'The target-ship player revoked this dismantling consent.'
           : 'This dismantling consent has already been consumed.');
+      }
+      if (inbox.status !== 'consented') {
+        precondition('The target-ship inbox does not show an active consent.');
       }
       if (command.expectedTargetRevision !== proposal.targetRevision) {
         precondition('The apply request does not match the proposal target revision.');
@@ -1172,6 +1330,11 @@ export function createPermissionedDismantlingCallables(
         status: 'consumed',
         consumedByUid: actorUid,
         consumedAt: appliedAt,
+      });
+      tx.update(inboxRef, {
+        status: 'applied',
+        materialsAfter: result.targetResources.materials,
+        updatedAt: appliedAt,
       });
       const receipt: StoredApplyReceipt = {
         type: 'permissioned-dismantling-receipt',
