@@ -58,10 +58,13 @@ checkpoint owner occupying two before dispatch; these two workers filled the
 remaining slots at dispatch time. This records the observed capacity for this
 session and does not establish a permanent host-wide concurrency limit.
 
-If nested dispatch is unavailable or no independent slot is free in a later
-run, send these same bounded prompt groups and exact checkout/branch identities
-to `/root` for dispatch. The checkpoint owner remains accountable for
-integration and release in either case.
+If nested dispatch is unavailable while a slot is free, send these same bounded
+prompt groups and exact checkout/branch identities to `/root` for direct
+dispatch. If all session slots are occupied, queue the next group until a real
+worker completes and frees a slot; a different dispatcher cannot remove that
+capacity limit. Reserve or release a slot for independent Sol review at the
+review boundary. The checkpoint owner remains accountable for integration and
+release in either case.
 
 The early live-access probe reached the production console at
 `dow-new-eden-console.web.app/#/console`, then stopped at its first-use motion
