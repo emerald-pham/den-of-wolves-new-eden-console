@@ -2,6 +2,7 @@ import { expect, it } from 'vitest';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { awayMissionHandId } from './awayMissionCards';
 import { missionDeck, missionDeckStateFromCards } from './missionDeck';
+import { nextMissionCraftCommitments } from './missionCraftCommitment';
 import { createAwayMissionLifecycleCallables } from './awayMissionLifecycleCallable';
 
 type Fields = Record<string, unknown>;
@@ -261,6 +262,14 @@ function dependencies(store: FakeStore, options: { readonly d6?: number; readonl
         craftIds: roleId === 'wing-commander' ? ['starlight'] :
           roleId === 'warrior-captain' ? ['warrior'] : [],
       })),
+    prepareCraftCommitments: async ({ transaction, session, nextRecord }) => {
+      const commitments = nextMissionCraftCommitments(session.get('missionCraftCommitments'), {
+        missionId: nextRecord.lifecycle.missionId, sourceCycle: nextRecord.sourceCycle,
+        status: nextRecord.status, participantCrafts: nextRecord.participantCrafts,
+      });
+      if (!commitments) throw new Error('Invalid mission craft commitment.');
+      return () => (transaction as Transaction).update(store.doc(paths().session), { missionCraftCommitments: commitments });
+    },
     prepareExplorationApplication: options.prepareExplorationApplication ?? (async () => () => undefined),
     prepareRewardDelivery: options.prepareRewardDelivery ?? (async () => () => undefined),
     deriveContext: async ({ session }) => {
@@ -455,6 +464,7 @@ it('executes every lifecycle command, keeps the deck cursor and projections atom
   expect(distributed.status).toBe('committed');
   expect(distributed.privateState?.cards.map(({ id }) => id)).toEqual([ALICE_CARD]);
   expect(store.records.get(paths().deck)?.dealtCount).toBe(3);
+  expect(store.records.get(paths().session)?.missionCraftCommitments).toMatchObject({ starlight: { missionId: MISSION_ID } });
 
   await send('gm', 'openDiscards');
   const aliceDiscard = await send('alice', 'discardCard', { cardId: ALICE_CARD });
@@ -476,6 +486,7 @@ it('executes every lifecycle command, keeps the deck cursor and projections atom
   const writesAfterResolve = store.committedWrites.length;
   expect(store.records.get(paths().mission)?.lifecycleRecord).toMatchObject({ status: 'resolved' });
   expect(store.records.get(paths().deck)?.dealtCount).toBe(4);
+  expect(store.records.get(paths().session)?.missionCraftCommitments).toEqual({});
   expect(callables.randomCalls).toBe(1);
   expect(callables.d6Calls).toBe(1);
   expect(store.committedWrites.slice(beforeResolution).map(({ path }) => path)).toEqual(expect.arrayContaining([

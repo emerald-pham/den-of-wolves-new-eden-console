@@ -125,6 +125,10 @@ export interface AwayMissionLifecycleCallableDependencies {
   readonly deriveContext: (
     context: AwayMissionLifecycleAuthorityContext,
   ) => Promise<AwayMissionLifecycleGameContext>;
+  /** Keep current mission admissions and movement exclusions on the shared session ledger. */
+  readonly prepareCraftCommitments: (context: AwayMissionLifecycleAuthorityContext & {
+    readonly nextRecord: AwayMissionLifecycleRecord;
+  }) => Promise<() => void>;
   /** Read destination authority before writes, then return its atomic delivery writes. */
   readonly prepareRewardDelivery: (context: AwayMissionLifecycleAuthorityContext & {
     readonly nextRecord: AwayMissionLifecycleRecord;
@@ -511,6 +515,10 @@ export function createAwayMissionLifecycleCallables(
           fail('failed-precondition', 'The away-mission command exhausted the shared deck.');
         }
 
+        const commitCraftCommitments = await dependencies.prepareCraftCommitments({
+          transaction: rawTransaction, sessionId: parsed.sessionId, missionId: parsed.missionId,
+          session: sessionSnapshot, mission: missionSnapshot, record, commandType: parsed.command.type, nextRecord,
+        });
         const commitExploration = parsed.command.type === 'exploreSystems'
           ? await dependencies.prepareExplorationApplication({
             transaction: rawTransaction, sessionId: parsed.sessionId, missionId: parsed.missionId,
@@ -524,6 +532,7 @@ export function createAwayMissionLifecycleCallables(
             commandType: parsed.command.type, nextRecord, shipId: parsed.command.shipId,
           }) : undefined;
         const updatedAt = dependencies.serverTimestamp();
+        commitCraftCommitments();
         commitExploration?.();
         commitDelivery?.();
         transaction.update(dependencies.db.doc(p.mission), {

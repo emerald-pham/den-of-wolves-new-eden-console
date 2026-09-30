@@ -57,6 +57,7 @@ import { enforceExpensiveCallableRateLimit } from './callableRateLimitFirestore'
 import { createSameTableTradeCallables } from './sameTableTradeCallable';
 import { createGorgoneionMissionSupportCallables } from './gorgoneionMissionSupportCallable';
 import { applyAwayMissionLifecycleCommand, createAwayMissionLifecycleBootstrap, projectAwayMissionPrivateState, projectAwayMissionPublicState, type AwayMissionLifecycleRecord, type AwayMissionLifecycleCommand } from './awayMissionLifecycleAdapter';
+import { nextMissionCraftCommitments, requireMissionCraftMovementAvailable } from './missionCraftCommitment';
 import { planMissionRewardDelivery } from './missionRewardDelivery';
 import { createAwayMissionLifecycleCallables } from './awayMissionLifecycleCallable';
 import { deriveAwayMissionParticipantCraftSnapshots } from './awayMissionCraftSnapshot';
@@ -729,6 +730,16 @@ const gorgoneionMissionSupportCallables = createGorgoneionMissionSupportCallable
 
 const awayMissionLifecycleCallables = createAwayMissionLifecycleCallables({
   db,
+  prepareCraftCommitments: async ({ transaction, sessionId, session, nextRecord }) => {
+    const commitments = nextMissionCraftCommitments(session.get('missionCraftCommitments'), {
+      missionId: nextRecord.lifecycle.missionId, sourceCycle: nextRecord.sourceCycle,
+      participantCrafts: nextRecord.participantCrafts, status: nextRecord.status,
+    });
+    if (!commitments) throw new HttpsError('failed-precondition', 'A mission craft is already committed or its authority is malformed.');
+    return () => (transaction as Transaction).update(db.doc(`sessions/${sessionId}`), {
+      missionCraftCommitments: commitments, updatedAt: FieldValue.serverTimestamp(),
+    });
+  },
   prepareExplorationApplication: async ({ transaction, sessionId, missionId, session: sessionSnapshot,
     mission, record, opportunityId, targetCoordinates }) => {
     const tx = transaction as Transaction;
@@ -9040,6 +9051,7 @@ export const requestShuttleDeparture = onCall<{
       'shuttle departure',
     );
     if (replay) return { ...replay, status: 'replayed' as const };
+    requireMissionMovementAvailable(session, [data.shuttleId]);
     requireActiveGameplayPhase(session);
     if (attackState.exists && wolfAttackBlocksNormalMovement(attackState.data())) {
       throw commandError(
@@ -9221,6 +9233,7 @@ export const beginShuttleTransit = onCall<{
       'shuttle transit',
     );
     if (replay) return { ...replay, status: 'replayed' as const };
+    requireMissionMovementAvailable(session, [data.shuttleId]);
     requireActiveGameplayPhase(session);
     if (attackState.exists && wolfAttackBlocksNormalMovement(attackState.data())) {
       throw commandError(
@@ -10093,6 +10106,12 @@ export const dealPrivateInitialCards = onCall<{
     if (!lifecycleBootstrap) {
       throw commandError('failed-precondition', 'The initial mission lifecycle could not be validated.', 'conflict');
     }
+    const commitments = nextMissionCraftCommitments(authority.session.get('missionCraftCommitments'), {
+      missionId, sourceCycle: opportunity.sourceCycle, participantCrafts, status: 'active',
+    });
+    if (!commitments) {
+      throw commandError('failed-precondition', 'A selected craft is already committed to another mission.', 'conflict');
+    }
     const initialLifecycleStates = new Map(lifecycleBootstrap.participantStates.map((state) => [state.participantUid, state]));
 
     const reply: AwayMissionDealReply = {
@@ -10152,6 +10171,7 @@ export const dealPrivateInitialCards = onCall<{
       },
       createdAt: FieldValue.serverTimestamp(),
     };
+    tx.update(db.doc(`sessions/${command.sessionId}`), { missionCraftCommitments: commitments, updatedAt: FieldValue.serverTimestamp() });
     tx.set(missionRef, {
       schemaVersion: 1,
       lifecycleRecord: lifecycleBootstrap.record,
@@ -16354,6 +16374,10 @@ export const jumpShip = onCall<{
     } else {
       requireActionPhase(session, 'jump', player.get('role') === 'gm' ? 'facilitator' : 'player');
     }
+    const dockedMissionCraftIds = Array.isArray(session.get('shuttleDockings'))
+      ? (session.get('shuttleDockings') as { shuttleId: string; shipId: string }[])
+        .filter(docking => docking.shipId === change.shipId).map(docking => docking.shuttleId) : [];
+    requireMissionMovementAvailable(session, [change.shipId, ...dockedMissionCraftIds]);
     requireNavigableShip(session, change.shipId);
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
@@ -28089,6 +28113,7 @@ export const setSmallShipDocking = onCall<{
     await requireShipCounterAuthority(tx, data.sessionId, uid, authorityHost, data.instanceId, true);
     const replay = smallShipReceiptReply(prior, fingerprint, uid);
     if (replay) return replay;
+    requireMissionMovementAvailable(session, [id]);
     if (isSmallShipInMutiny(current)) {
       throw commandError(
         'failed-precondition',
@@ -30702,3 +30727,11 @@ export const rollbackMaintenance = onCall<{
     return reply;
   });
 });
+
+function requireMissionMovementAvailable(session: DocumentSnapshot, craftIds: readonly string[]): void {
+  try { requireMissionCraftMovementAvailable(session.get('missionCraftCommitments'), craftIds); }
+  catch (cause) {
+    throw commandError('failed-precondition', cause instanceof Error ? cause.message : 'Mission commitment is unavailable.',
+      cause instanceof Error && /malformed/i.test(cause.message) ? 'malformed-input' : 'conflict');
+  }
+}
