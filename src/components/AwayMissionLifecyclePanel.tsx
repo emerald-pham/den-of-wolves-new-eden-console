@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import './AwayMissionLifecyclePanel.css';
 
 interface PublicOpportunity {
   readonly id: string;
