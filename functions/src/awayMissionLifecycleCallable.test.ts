@@ -293,6 +293,17 @@ it('bootstraps only from the exact P403 record, atomically projects a participan
     revision: 1,
     lifecycle: { requestsByParticipant: [{ participantUid: 'bob', count: 1 }] },
   });
+  expect(store.records.get(`sessions/${SESSION_ID}/commandReceipts/request-bob-1`)).toMatchObject({
+    fingerprint: {
+      action: 'away-mission-lifecycle-command',
+      sessionId: SESSION_ID,
+      requestId: 'request-bob-1',
+      actorUid: 'bob',
+      instanceId: null,
+      expectedRevision: 0,
+    },
+    result: { status: 'committed' },
+  });
   expect(store.records.get(paths().bobHand)?.lifecyclePrivateState).toMatchObject({ participantUid: 'bob' });
   expect(store.records.get(paths().aliceHand)?.lifecyclePrivateState).toMatchObject({ participantUid: 'alice' });
   expect(store.records.get(paths().bobPointer)?.lifecyclePublicState).toMatchObject({
@@ -320,8 +331,6 @@ it('binds exact replays to both authenticated actor and unchanged command, and r
     type: 'requestExtraCards', requestId: 'shared-request-id', expectedRevision: 0, count: 1,
   });
   await commitAwayMissionLifecycleCommand(request);
-  const writesAfterCommit = store.committedWrites.length;
-
   await expect(commitAwayMissionLifecycleCommand(request)).resolves.toMatchObject({
     status: 'replayed', revision: 1, privateState: { participantUid: 'bob' },
   });
@@ -331,10 +340,24 @@ it('binds exact replays to both authenticated actor and unchanged command, and r
   await expect(commitAwayMissionLifecycleCommand(commandRequest('bob', {
     type: 'requestExtraCards', requestId: 'shared-request-id', expectedRevision: 1, count: 2,
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
-  await expect(commitAwayMissionLifecycleCommand(commandRequest('bob', {
+  const staleRequest = commandRequest('bob', {
     type: 'requestExtraCards', requestId: 'stale-request-id', expectedRevision: 0, count: 1,
-  }))).resolves.toMatchObject({ status: 'stale', expectedRevision: 0, currentRevision: 1 });
-  expect(store.committedWrites).toHaveLength(writesAfterCommit);
+  });
+  await expect(commitAwayMissionLifecycleCommand(staleRequest)).resolves.toMatchObject({
+    status: 'stale', expectedRevision: 0, currentRevision: 1,
+  });
+  expect(store.records.get(`sessions/${SESSION_ID}/commandReceipts/stale-request-id`)).toMatchObject({
+    fingerprint: { action: 'away-mission-lifecycle-command', actorUid: 'bob' },
+    result: { status: 'stale' },
+  });
+  const writesAfterStale = store.committedWrites.length;
+  await expect(commitAwayMissionLifecycleCommand(staleRequest)).resolves.toMatchObject({
+    status: 'stale', expectedRevision: 0, currentRevision: 1,
+  });
+  await expect(commitAwayMissionLifecycleCommand(commandRequest('bob', {
+    type: 'requestExtraCards', requestId: 'stale-request-id', expectedRevision: 1, count: 2,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(store.committedWrites).toHaveLength(writesAfterStale);
   expect(currentRevision(store)).toBe(1);
 });
 
