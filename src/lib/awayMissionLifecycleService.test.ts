@@ -187,6 +187,33 @@ describe('away mission lifecycle client service', () => {
     expect(invoke.mock.calls[0]?.[0]).toEqual(invoke.mock.calls[1]?.[0]);
   });
 
+  it('replays the original revision-bound command after reconnect advances the projection', async () => {
+    let context = playerContext;
+    const invoke = vi.fn()
+      .mockRejectedValueOnce({ code: 'functions/deadline-exceeded' })
+      .mockResolvedValueOnce({
+        status: 'replayed',
+        sessionId: 's1',
+        missionId: 'mission-1',
+        requestId: 'request-before-reconnect',
+        revision: 4,
+        publicState: { ...publicState, revision: 4 },
+        privateState: { ...privateState, revision: 4 },
+      });
+    const actions = createAwayMissionLifecycleActions(
+      () => context,
+      { invoke, createRequestId: () => 'request-before-reconnect' },
+    );
+
+    await expect(actions.requestExtraCards(1)).rejects.toMatchObject({ code: 'functions/deadline-exceeded' });
+    context = { ...context, revision: 4 };
+    await actions.requestExtraCards(1);
+
+    expect(invoke).toHaveBeenCalledTimes(2);
+    expect(invoke.mock.calls[0]?.[0]).toEqual(invoke.mock.calls[1]?.[0]);
+    expect(invoke.mock.calls[1]?.[0]).toMatchObject({ expectedRevision: 3, requestId: 'request-before-reconnect' });
+  });
+
   it('rejects a stale callable reply so the workspace waits for the fresh projection', async () => {
     const invoke = vi.fn().mockResolvedValue({
       status: 'stale',
