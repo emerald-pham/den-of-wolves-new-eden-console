@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type * as SessionService from '@/lib/sessionService';
 import { beforeEach, expect, it, vi } from 'vitest';
@@ -137,4 +137,13 @@ it('follows private mission cards through local assignment, results, rewards, an
   );
   expect(mission).toHaveTextContent(/rewards shown at aegis.*local sample/i);
   expect(within(mission).queryByRole('button', { name: 'Drop mission rewards at selected ship' })).not.toBeInTheDocument();
+});
+
+it('uses the real group-note controls while keeping the local note out of the other sample group', async () => {
+  render(<PC06ReviewScene />);
+  fireEvent.click(screen.getByRole('button', { name: '3 Scouting', exact: true }));
+  fireEvent.change(screen.getByLabelText('Note to your fleet group'), { target: { value: 'Fleet two stays here.' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Send group note', exact: true }));
+  expect(await screen.findByText('Fleet two stays here.')).toBeVisible();
+  expect(within(screen.getByRole('region', { name: 'Fleet 1 sample view' })).queryByText('Fleet two stays here.')).toBeNull();
 });
