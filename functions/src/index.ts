@@ -56,7 +56,7 @@ import {
 import { enforceExpensiveCallableRateLimit } from './callableRateLimitFirestore';
 import { createSameTableTradeCallables } from './sameTableTradeCallable';
 import { createGorgoneionMissionSupportCallables } from './gorgoneionMissionSupportCallable';
-import { applyAwayMissionLifecycleCommand, createAwayMissionLifecycleBootstrap, projectAwayMissionPrivateState, projectAwayMissionPublicState, type AwayMissionLifecycleRecord, type AwayMissionLifecycleCommand } from './awayMissionLifecycleAdapter';
+import { applyAwayMissionLifecycleCommand, createAwayMissionLifecycleBootstrap, markAwayMissionOverrun, projectAwayMissionPrivateState, projectAwayMissionPublicState, type AwayMissionLifecycleRecord, type AwayMissionLifecycleCommand } from './awayMissionLifecycleAdapter';
 import { nextMissionCraftCommitments, requireMissionCraftMovementAvailable } from './missionCraftCommitment';
 import { planMissionRewardDelivery } from './missionRewardDelivery';
 import { createAwayMissionLifecycleCallables } from './awayMissionLifecycleCallable';
@@ -872,7 +872,7 @@ const awayMissionLifecycleCallables = createAwayMissionLifecycleCallables({
     }
 
     let legalDropOffShipIds: string[] = [];
-    if (commandType === 'resolve' || commandType === 'dropOff' || commandType === 'assignCards') {
+    if (commandType === 'resolve' || commandType === 'dropOff' || commandType === 'assignCards' || commandType === 'reclamatorSalvage') {
       const missionCoordinate = mission.get('coordinate');
       const activeVesselIds = activeVesselIdsForSession(session);
       const tx = transaction as Transaction;
@@ -10277,13 +10277,21 @@ function synchronizeLegacyMissionLifecycle(
 ): void {
   const stored = mission.get('lifecycleRecord');
   if (stored === undefined) return;
-  const record = stored as AwayMissionLifecycleRecord;
+  const storedRecord = stored as AwayMissionLifecycleRecord;
+  const currentCycle = session.get('currentTurn');
+  const phase = turnPhaseState(session.get('turnPhase'));
+  const turn = phase ? sessionTurnState(session, phase) : undefined;
+  if (!Number.isSafeInteger(currentCycle) || (currentCycle as number) < storedRecord.sourceCycle ||
+      !turn || turn.currentTurn !== currentCycle) {
+    throw commandError('failed-precondition', 'Current mission cycle authority is unavailable.', 'conflict');
+  }
+  const record = markAwayMissionOverrun(markAwayMissionOverrun(storedRecord, currentCycle as number), turn.phase === 'team');
   const command: AwayMissionLifecycleCommand = type === 'discardCard'
     ? { type, requestId, expectedRevision: mission.get('revision') as number, cardId: cardId as MissionCardId }
     : { type, requestId, expectedRevision: mission.get('revision') as number };
   const result = applyAwayMissionLifecycleCommand(record, command, {
-    actorUid, isActiveGm: type === 'openDiscards', teamPhase: session.get('turnPhase.phase') === 'team',
-    currentCycle: session.get('currentTurn') as number, legalDropOffShipIds: [],
+    actorUid, isActiveGm: type === 'openDiscards', teamPhase: turn.phase === 'team',
+    currentCycle: currentCycle as number, legalDropOffShipIds: [],
   });
   if (result.status !== 'committed' || !result.record) {
     throw commandError('failed-precondition', 'The current mission lifecycle cannot accept this private-card action.', 'conflict');
