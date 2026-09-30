@@ -6,6 +6,7 @@ import {
   calculateMissionOpportunityTotals,
   createMissionLifecycleState,
   discardMissionCardSecretly,
+  discardMissionHandForWarriorReclamator,
   missionLeaderCardRequestCounts,
   openMissionDiscarding,
   privateMissionHandForParticipant,
@@ -164,6 +165,31 @@ describe('pure away-mission lifecycle', () => {
     expect(JSON.stringify(requested?.requestsByParticipant)).not.toContain('secret strategy');
     expect(recordMissionCardRequest(state, 'outsider', { count: 1 })).toBeNull();
     expect(recordMissionCardRequest(state, 'bob', { count: Number.POSITIVE_INFINITY })).toBeNull();
+  });
+
+  it('lets only the Warrior Captain consume the entire private hand for a Reclamator salvage opportunity', () => {
+    let state = buildState({
+      participants: [
+        { uid: 'alice', roleId: 'wing-commander' },
+        { uid: 'bob', roleId: 'warrior-captain' },
+      ],
+    });
+    state = addExtra(state, 'bob', 'A-1', 'warrior-extra');
+    state = openDiscards(state);
+
+    const salvaged = discardMissionHandForWarriorReclamator(state, 'bob');
+    expect(salvaged?.receipt).toEqual({ participantUid: 'bob', discardedCount: 2 });
+    expect(salvaged?.state.reclamatorParticipantUids).toEqual(['bob']);
+    expect(salvaged?.state.reclamatorCardIds).toEqual(['4♥', '5♥']);
+    expect(privateMissionHandForParticipant(salvaged!.state, 'bob')?.cards.map(({ status }) => status))
+      .toEqual(['discarded', 'discarded']);
+    expect(discardMissionHandForWarriorReclamator(state, 'alice')).toBeNull();
+
+    const aliceDiscarded = discard(salvaged!.state, 'alice', 'A♥');
+    expect(aliceDiscarded.phase).toBe('assignment-ready');
+    const aliceAssigned = assign(aliceDiscarded, 'alice', []);
+    expect(aliceAssigned.phase).toBe('assignments-complete');
+    expect(aliceAssigned.assignedParticipantUids).toEqual(['bob', 'alice']);
   });
 
   it('allocates an extra card blindly and safely replays the same leader request', () => {
