@@ -56,6 +56,7 @@ import { enforceExpensiveCallableRateLimit } from './callableRateLimitFirestore'
 import { createSameTableTradeCallables } from './sameTableTradeCallable';
 import { createGorgoneionMissionSupportCallables } from './gorgoneionMissionSupportCallable';
 import { applyAwayMissionLifecycleCommand, createAwayMissionLifecycleBootstrap, projectAwayMissionPrivateState, projectAwayMissionPublicState, type AwayMissionLifecycleRecord, type AwayMissionLifecycleCommand } from './awayMissionLifecycleAdapter';
+import { planMissionRewardDelivery } from './missionRewardDelivery';
 import { createAwayMissionLifecycleCallables } from './awayMissionLifecycleCallable';
 import { deriveAwayMissionParticipantCraftSnapshots } from './awayMissionCraftSnapshot';
 import { createPermissionedDismantlingCallables } from './permissionedDismantlingCallable';
@@ -726,6 +727,48 @@ const gorgoneionMissionSupportCallables = createGorgoneionMissionSupportCallable
 
 const awayMissionLifecycleCallables = createAwayMissionLifecycleCallables({
   db,
+  prepareRewardDelivery: async ({ transaction, sessionId, missionId, session, nextRecord, shipId }) => {
+    const tx = transaction as Transaction;
+    const receiptRef = db.doc(`sessions/${sessionId}/serverState/missionRewardDeliveries/receipts/${missionId}`);
+    const prior = await tx.get(receiptRef);
+    if (prior.exists) {
+      throw new HttpsError('failed-precondition', 'Mission rewards already have a delivery receipt.');
+    }
+    const rawInventories = session.get('shipResources');
+    if (rawInventories !== undefined && (!isRecord(rawInventories) ||
+        (Object.hasOwn(rawInventories, shipId) && !isRecord(rawInventories[shipId])))) {
+      throw new HttpsError('failed-precondition', 'The destination inventory is malformed.');
+    }
+    const inventory = isRecord(rawInventories) && Object.hasOwn(rawInventories, shipId)
+      ? rawInventories[shipId] : shipResources(rawInventories)[shipId];
+    const mineralCargo = session.get('shipMissionMinerals');
+    if (mineralCargo !== undefined && !isRecord(mineralCargo)) {
+      throw new HttpsError('failed-precondition', 'The destination mineral cargo is malformed.');
+    }
+    const storedPopulation = session.get('shipSurvivors');
+    if (storedPopulation !== undefined && !isRecord(storedPopulation)) {
+      throw new HttpsError('failed-precondition', 'The destination population is malformed.');
+    }
+    const delivery = planMissionRewardDelivery({
+      inventory, population: isRecord(storedPopulation) && Object.hasOwn(storedPopulation, shipId)
+        ? storedPopulation[shipId] : INITIAL_SHIP_SURVIVORS[shipId],
+      minerals: isRecord(mineralCargo) && Object.hasOwn(mineralCargo, shipId) ? mineralCargo[shipId] : 0,
+      rewards: nextRecord.rewards ?? [], specialRewards: nextRecord.specialRewards ?? [],
+    });
+    if (!delivery) throw new HttpsError('failed-precondition', 'Mission rewards cannot be delivered safely.');
+    return () => {
+      tx.update(db.doc(`sessions/${sessionId}`), {
+        [`shipResources.${shipId}`]: delivery.inventory,
+        [`shipSurvivors.${shipId}`]: delivery.population,
+        [`shipMissionMinerals.${shipId}`]: delivery.minerals,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      tx.create(receiptRef, {
+        missionId, shipId, revision: nextRecord.revision, deltas: delivery.deltas,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    };
+  },
   commandMarkers: {
     read: (transaction, sessionId, requestId) =>
       (transaction as Transaction).get(commandReceiptRef(sessionId, requestId)),

@@ -125,6 +125,11 @@ export interface AwayMissionLifecycleCallableDependencies {
   readonly deriveContext: (
     context: AwayMissionLifecycleAuthorityContext,
   ) => Promise<AwayMissionLifecycleGameContext>;
+  /** Read destination authority before writes, then return its atomic delivery writes. */
+  readonly prepareRewardDelivery: (context: AwayMissionLifecycleAuthorityContext & {
+    readonly nextRecord: AwayMissionLifecycleRecord;
+    readonly shipId: string;
+  }) => Promise<() => void>;
   /** Override only for deterministic tests; production defaults use crypto.randomInt. */
   readonly randomIndex?: MissionDeckRandomIndex;
   /** Override only for deterministic tests; production defaults use a private cryptographic d6. */
@@ -500,7 +505,14 @@ export function createAwayMissionLifecycleCallables(
           fail('failed-precondition', 'The away-mission command exhausted the shared deck.');
         }
 
+        const commitDelivery = parsed.command.type === 'dropOff'
+          ? await dependencies.prepareRewardDelivery({
+            transaction: rawTransaction, sessionId: parsed.sessionId, missionId: parsed.missionId,
+            session: sessionSnapshot, mission: missionSnapshot, record,
+            commandType: parsed.command.type, nextRecord, shipId: parsed.command.shipId,
+          }) : undefined;
         const updatedAt = dependencies.serverTimestamp();
+        commitDelivery?.();
         transaction.update(dependencies.db.doc(p.mission), {
           phase: nextRecord.lifecycle.phase,
           revision: nextRecord.revision,
