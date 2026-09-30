@@ -14618,7 +14618,7 @@ function storedGroupNotes(snapshot: DocumentSnapshot, groupId: string): readonly
   if (!snapshot.exists) return [];
   const raw = snapshot.data();
   if (!isRecord(raw) || raw.groupId !== groupId || !Array.isArray(raw.messages) || raw.messages.length > 20 ||
-      raw.messages.some(note => !isRecord(note) || typeof note.id !== 'string' || !isCanonicalRequestId(note.id) ||
+      raw.messages.some(note => !isRecord(note) || Object.keys(note).some(key => !['id', 'actorUid', 'text', 'sentAt'].includes(key)) || typeof note.id !== 'string' || !isCanonicalRequestId(note.id) ||
         typeof note.actorUid !== 'string' || !note.actorUid || note.actorUid.includes('/') ||
         typeof note.text !== 'string' || !note.text.trim() || note.text.length > 240 ||
         typeof note.sentAt !== 'string' || !Number.isFinite(Date.parse(note.sentAt))) ||
@@ -14650,7 +14650,8 @@ export const sendFleetGroupMessage = onCall(async request => {
     const notesRef = db.doc(`sessions/${data.sessionId}/fleetGroupMessages/${groupId}`);
     const receiptRef = commandReceiptRef(data.sessionId, data.requestId!);
     const [notes, receipt] = await Promise.all([tx.get(notesRef), tx.get(receiptRef)]);
-    const replay = replayBoundCommand(receipt, fingerprint, isFleetGroupMessageReply, 'fleet group note');
+    const replay = replayBoundCommand(receipt, fingerprint, (value): value is FleetGroupMessageReply =>
+      isFleetGroupMessageReply(value) && value.groupId === data.expectedGroupId && value.messageId === data.requestId, 'fleet group note');
     if (replay) return replay;
     const current = storedGroupNotes(notes, groupId);
     if (current.some(note => note.id === data.requestId)) throw commandError('failed-precondition', 'Group note has no replay receipt.', 'conflict');
@@ -14685,12 +14686,14 @@ export const confirmFleetPartition = onCall<{ sessionId: string; instanceId: str
     expectedRevision: data.expectedNavigationRevision, payload: {} };
   return db.runTransaction(async tx => {
     const { session } = await requireFacilitatorInstance(tx, data.sessionId, uid, data.instanceId);
-    const [storedNavigation, playerSnapshots, groupSnapshots, receipt] = await Promise.all([
+    const [storedNavigation, playerSnapshots, groupSnapshots, receipt, attackState] = await Promise.all([
       tx.get(navigationStateRef(data.sessionId)), tx.get(db.collection(`sessions/${data.sessionId}/players`)),
       tx.get(db.collection(`sessions/${data.sessionId}/fleetGroups`)), tx.get(commandReceiptRef(data.sessionId, data.requestId)),
+      tx.get(db.doc(`sessions/${data.sessionId}/wolfAttackState/current`)),
     ]);
     const replay = replayBoundCommand(receipt, fingerprint, isFleetPartitionReply, 'fleet partition');
     if (replay) return replay;
+    requireWolfAttackMovementReleased(attackState);
     requireActiveGameplayPhase(session);
     requireActionPhase(session, 'jump', 'facilitator');
     if (!storedNavigation.exists || storedNavigation.get('revision') !== data.expectedNavigationRevision) {
