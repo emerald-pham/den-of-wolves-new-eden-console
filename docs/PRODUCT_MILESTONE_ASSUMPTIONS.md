@@ -70,6 +70,17 @@ the original assumption; append the resolution so the decision is traceable.
 | Product effect | Prompt 237 exercises the already-existing optional-craft docking and replacement-role authority without silently enabling a vessel. Tests cover private projection, actor/admission changes, exact partition, one-use/dealt-state guards, stable replay/collision, and concurrency with the initial deal. The UI may display the five authorized card faces to the entitled Captain; deck order, other hands, and card faces remain private from other readers. |
 | Review state | Owner interpretation under the standing PC06 authorization and the user's direction to use judgment for unresolved digital mechanics. Source provenance was already verified in the PC06 audit; this record does not copy private source material. |
 
+### PC06-A11 — Bind Bulk Haulage to the admitted base Capybara at mission start
+
+| Field | Record |
+|---|---|
+| ID and milestone | PC06-A11; base Capybara Bulk Haulage, Prompt 241b. |
+| Source passage | Base A4 small-craft sheet v1.1, printed p. 25, Capybara Captain; Player's Guide v1.1, printed pp. 14–15, Away Missions. The Capybara Captain has a Bulk Haulage benefit, and away-mission cards are assigned to specific participants and opportunities. |
+| Ambiguity and alternatives | The rules do not specify how a digital mission proves the Capybara's presence, whether an expansion Capybara shares this base-craft benefit, or how the benefit follows a contributed card across multiple opportunities. A role label alone could grant the benefit after the small craft has moved or lost admission. |
+| Chosen reading | Bind participant role and craft eligibility in the immutable P403 start receipt. A selected `capybara-small-captain` participant receives the base-craft binding only when strict base Capybara admission succeeds and its docked host belongs to the opportunity group at that opportunity's coordinate at start time. When that participant assigns a card to an opportunity, add one unit of each resource type whose successful reward amount is positive for that opportunity. An empty or failed opportunity grants none. Carrier availability remains a separate list, and the full expansion ship never qualifies as the base small craft. These are digital product rules, not additional printed text. |
+| Product effect | Prompt 241b rewards only the eligible participant's committed contribution to the matching opportunity; the immutable binding survives later role, docking, and movement changes. Tests cover malformed admission, wrong group/coordinate, expansion mode, contribution, failed/empty outcomes, and exact per-resource reward changes. |
+| Review state | New under the standing PC06 authorization and the user's direction to use judgment for unresolved digital mechanics; optional owner feedback may correct it during the checkpoint cooldown. |
+
 ### PC06-A4 — Use each opportunity's printed outcome threshold
 
 | Field | Record |
