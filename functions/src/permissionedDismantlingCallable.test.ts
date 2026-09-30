@@ -223,6 +223,9 @@ it('proposes, grants one exact target-ship consent, and atomically applies damag
   const replayedApply = await callables.applyPermissionedDismantling(applyRequest());
   expect(replayedApply).toMatchObject({ status: 'replayed', requestId: APPLY_ID });
   expect(store.committedWrites).toHaveLength(applyWrites);
+  await expect(callables.applyPermissionedDismantling(applyRequest({ requestId: 'apply-2' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(store.committedWrites).toHaveLength(applyWrites);
 });
 
 it('rejects malformed requests, ineligible craft actors, self-consent, and a player assigned to another ship without writes', async () => {
