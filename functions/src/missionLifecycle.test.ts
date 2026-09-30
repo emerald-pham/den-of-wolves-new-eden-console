@@ -192,6 +192,20 @@ describe('pure away-mission lifecycle', () => {
     expect(aliceAssigned.assignedParticipantUids).toEqual(['bob', 'alice']);
   });
 
+  it('finishes assignments when the only participant consumes their entire Warrior hand', () => {
+    const state = openDiscards(buildState({
+      siteCode: 'D',
+      leaderUid: 'bob',
+      participants: [{ uid: 'bob', roleId: 'warrior-captain' }],
+      initialCards: [{ participantUid: 'bob', cardId: asCardId('A♥') }],
+    }));
+    const salvaged = discardMissionHandForWarriorReclamator(state, 'bob');
+    expect(salvaged?.state.phase).toBe('assignments-complete');
+    expect(salvaged?.state.assignedParticipantUids).toEqual(['bob']);
+    expect(salvaged?.state.assignments).toEqual([]);
+    expect(assignRemainingMissionCards(salvaged!.state, 'bob', [])).toBeNull();
+  });
+
   it('allocates an extra card blindly and safely replays the same leader request', () => {
     const initial = recordMissionCardRequest(buildState(), 'bob', { count: 1 })!;
     const first = allocateBlindExtraMissionCard(initial, {
