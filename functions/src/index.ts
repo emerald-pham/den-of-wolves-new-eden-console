@@ -278,6 +278,7 @@ import {
   INITIAL_SHIP_RESOURCES,
   RESOURCE_IDS,
   canAdjustShipCounter,
+  addResourceAmount,
   isResourceShipId,
   nextResourceAmount,
   shipResources,
@@ -645,7 +646,7 @@ import {
   requireScoutEntitlement,
   type ScoutEntitlement,
 } from './scoutEntitlements';
-import { STAR_CHART_COORDINATES } from './starChartGraph';
+import { neighborsForCoordinate, STAR_CHART_COORDINATES } from './starChartGraph';
 import { authorizeCurrentScoutScan, parseScoutCadence, type AuthorizedScoutScan } from './scoutRequestCadence';
 import {
   parseHighwallMiningState,
@@ -15720,7 +15721,7 @@ function jumpFailureRecord(input: {
   readonly requestId: string;
   readonly shipId: string;
   readonly origin: string;
-  readonly destination: string;
+  readonly destination?: string;
   readonly failureStatus: string;
   readonly failureRevision: number;
   readonly currentTurn: number;
@@ -15738,7 +15739,7 @@ function jumpFailureRecord(input: {
     requestId: input.requestId,
     shipId: input.shipId,
     origin: input.origin,
-    destination: input.destination,
+    ...(input.destination === undefined ? {} : { destination: input.destination }),
     failureStatus: input.failureStatus,
     failureRevision: input.failureRevision,
     currentTurn: input.currentTurn,
@@ -15751,6 +15752,12 @@ function jumpFailureRecord(input: {
     createdAt: FieldValue.serverTimestamp(),
     occurredAt: input.occurredAt,
   };
+}
+
+function withoutBlindJumpDestination<T extends { readonly destination: string }>(result: T): Omit<T, 'destination'> {
+  const publicResult = { ...result };
+  Reflect.deleteProperty(publicResult, 'destination');
+  return publicResult as Omit<T, 'destination'>;
 }
 
 /** Apply the shared population, alert, and destruction consequences of jump damage. */
@@ -15863,6 +15870,7 @@ export const jumpShip = onCall<{
   instanceId?: string;
   shipId?: string;
   destination?: string;
+  blind?: boolean;
   requestId?: string;
   expectedRevision?: number;
   emergency?: boolean;
@@ -15870,6 +15878,8 @@ export const jumpShip = onCall<{
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const change = requireShipJumpRequest(request.data ?? {});
+  const requestedDestination = change.destination;
+  const blind = change.blind === true;
   const identity = requireVesselActionRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
   const attackStateRef = db.doc(`sessions/${change.sessionId}/wolfAttackState/current`);
@@ -15878,7 +15888,7 @@ export const jumpShip = onCall<{
   const fingerprint = vesselActionFingerprint(
     'jump-ship', change.sessionId, identity.requestId, uid, change.instanceId ?? null,
     identity.expectedRevision ?? null, {
-      shipId: change.shipId, destination: change.destination, emergency: change.emergency,
+      shipId: change.shipId, destination: requestedDestination ?? null, blind, emergency: change.emergency,
       failureRequestId: change.failureRequestId ?? null,
     },
   );
@@ -15888,6 +15898,7 @@ export const jumpShip = onCall<{
   // the authoritative reads confirm a damaged drive, then reuse it so
   // contention cannot reroll the same departure.
   let integrityRoll: number | undefined;
+  let stableBlindDestination: { origin: string; chart: 'A' | 'B' | 'C'; destination: string } | undefined;
   const emergencyDamageEntropy: number[] = [];
 
   return db.runTransaction(async (tx) => {
@@ -15934,7 +15945,37 @@ export const jumpShip = onCall<{
     const activeVesselIds = activeVesselIdsForSession(session);
     const currentNavigation = navigationStateForSession(storedNavigation, session, activeVesselIds);
     const currentTurn = sessionTurn(session.get('currentTurn'));
-    const currentCoordinate = currentNavigation.shipGalacticCoordinates[change.shipId] ?? '0000';
+    const rawNavigation = storedNavigation.exists &&
+      typeof (storedNavigation as unknown as { data?: unknown }).data === 'function'
+      ? storedNavigation.data()
+      : undefined;
+    const rawCoordinates = rawNavigation === undefined
+      ? session.get('shipGalacticCoordinates')
+      : isRecord(rawNavigation) ? rawNavigation.shipGalacticCoordinates : undefined;
+    const rawCurrentCoordinate: string | undefined = isRecord(rawCoordinates)
+      ? (() => {
+        const coordinate = rawCoordinates[change.shipId];
+        return typeof coordinate === 'string' ? coordinate : undefined;
+      })()
+      : undefined;
+    if (blind && (!rawCurrentCoordinate || neighborsForCoordinate(rawCurrentCoordinate) === undefined)) {
+      throw commandError(
+        'failed-precondition',
+        'The blind jump requires a valid authoritative current node in the locked chart.',
+        'malformed-input',
+      );
+    }
+    const currentCoordinate = blind
+      ? rawCurrentCoordinate!
+      : currentNavigation.shipGalacticCoordinates[change.shipId] ?? '0000';
+    const blindNeighbors = blind ? neighborsForCoordinate(currentCoordinate) : undefined;
+    if (blind && (!blindNeighbors || blindNeighbors.length === 0)) {
+      throw commandError(
+        'failed-precondition',
+        'The locked chart has no connected destination for this blind jump.',
+        'malformed-input',
+      );
+    }
     const currentCycles = typeof session.get('maintenanceCycles') === 'object' && session.get('maintenanceCycles') !== null
       ? session.get('maintenanceCycles') as Record<string, unknown>
       : {};
@@ -15957,6 +15998,8 @@ export const jumpShip = onCall<{
       : {};
     const upgradeList = upgrades[change.shipId];
     const upgraded = Array.isArray(upgradeList) && upgradeList.some((upgrade) => upgrade === 'jump-drive');
+    const ramScoopUpgraded = change.shipId === 'icebreaker' &&
+      Array.isArray(upgradeList) && upgradeList.includes('ram-scoop');
     const state = shipJumpStates(session.get('shipJumpStates'))[change.shipId] ?? {};
     const emergencyGroups = change.emergency
       ? movementPursuitFleetGroups(activeVesselIds, fleetGroups, players)
@@ -16005,7 +16048,7 @@ export const jumpShip = onCall<{
         status: 'not-charged' as const,
         shipId: change.shipId,
         origin: currentCoordinate,
-        destination: change.destination,
+        ...(blind ? { blind: true } : { destination: requestedDestination! }),
         failureRequestId: identity.requestId,
         state: failureState,
         ...vesselActionEnvelope(session, player, uid, change.shipId, currentRevision,
@@ -16013,7 +16056,8 @@ export const jumpShip = onCall<{
       };
       tx.set(shipJumpFailureRef(change.sessionId, identity.requestId), jumpFailureRecord({
         requestId: identity.requestId, shipId: change.shipId, origin: currentCoordinate,
-        destination: change.destination, failureStatus: 'not-charged', failureRevision: currentRevision,
+        ...(blind ? {} : { destination: requestedDestination! }),
+        failureStatus: 'not-charged', failureRevision: currentRevision,
         currentTurn, fuelAtFailure: inventory.fuel, adjudicable: false, actorUid: uid,
         occurredAt: now.toISOString(),
       }));
@@ -16028,6 +16072,23 @@ export const jumpShip = onCall<{
       txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
       return reply;
     }
+
+    const destination = (() => {
+      if (!blind) return requestedDestination!;
+      const adjacent = blindNeighbors!;
+      const priorSelection = stableBlindDestination;
+      if (priorSelection?.origin === currentCoordinate && priorSelection.chart === chart &&
+          adjacent.includes(priorSelection.destination)) {
+        return priorSelection.destination;
+      }
+      const selectedIndex = randomInt(0, adjacent.length);
+      const selectedDestination = adjacent[selectedIndex];
+      if (typeof selectedDestination !== 'string') {
+        throw commandError('failed-precondition', 'The blind-jump destination could not be resolved.', 'conflict');
+      }
+      stableBlindDestination = { origin: currentCoordinate, chart, destination: selectedDestination };
+      return selectedDestination;
+    })();
 
     if (change.emergency) {
       const failureData = currentFailureSnapshot?.exists ? currentFailureSnapshot.data() : undefined;
@@ -16046,7 +16107,7 @@ export const jumpShip = onCall<{
       }
       try {
         const emergency = resolveEmergencyJump({
-          shipId: change.shipId, origin: currentCoordinate, destination: change.destination,
+          shipId: change.shipId, origin: currentCoordinate, destination,
           currentTurn, fuel: inventory.fuel,
           eligible: pursuitEmergencyEligible || sameFailure,
           now, transitionId, state,
@@ -16077,7 +16138,7 @@ export const jumpShip = onCall<{
           }
         }
         const move = applyShipNavigationMove({
-          shipId: change.shipId, destination: change.destination, now,
+          shipId: change.shipId, destination, now,
           eventIdPrefix: transitionId, navigationalError: false,
           coordinates: currentNavigation.shipGalacticCoordinates,
           logs: currentNavigation.shipNavigationLogs, shipNames: FLEET_SHIP_NAMES,
@@ -16217,7 +16278,7 @@ export const jumpShip = onCall<{
       }
     }
 
-    const attemptedLength = jumpLengthBetween(currentCoordinate, change.destination);
+    const attemptedLength = jumpLengthBetween(currentCoordinate, destination);
     if (attemptedLength) {
       const requiredFuel = jumpFuelCost(change.shipId, attemptedLength, upgraded);
       if (inventory.fuel < requiredFuel) {
@@ -16227,7 +16288,7 @@ export const jumpShip = onCall<{
           status: 'fuel-shortage' as const,
           shipId: change.shipId,
           origin: currentCoordinate,
-          destination: change.destination,
+          ...(blind ? {} : { destination }),
           availableFuel: inventory.fuel,
           requiredFuel,
           failureRequestId: identity.requestId,
@@ -16237,7 +16298,7 @@ export const jumpShip = onCall<{
         };
         tx.set(shipJumpFailureRef(change.sessionId, identity.requestId), jumpFailureRecord({
           requestId: identity.requestId, shipId: change.shipId, origin: currentCoordinate,
-          destination: change.destination, failureStatus: 'fuel-shortage', failureRevision: currentRevision,
+          destination, failureStatus: 'fuel-shortage', failureRevision: currentRevision,
           currentTurn, fuelAtFailure: inventory.fuel, requiredFuel, adjudicable: true,
           actorUid: uid, occurredAt: now.toISOString(),
         }));
@@ -16260,7 +16321,7 @@ export const jumpShip = onCall<{
       const attempt = {
         shipId: change.shipId,
         origin: currentCoordinate,
-        destination: change.destination,
+        destination,
         currentTurn,
         fuel: inventory.fuel,
         charged: true,
@@ -16288,7 +16349,7 @@ export const jumpShip = onCall<{
 
     if (result.status === 'integrity-locked') {
       const reply = {
-        ...result,
+        ...(blind ? withoutBlindJumpDestination(result) : result),
         shipId: change.shipId,
         ...vesselActionEnvelope(session, player, uid, change.shipId, currentRevision,
           identity.requestId, 'jump-ship'),
@@ -16306,10 +16367,12 @@ export const jumpShip = onCall<{
       const revision = currentRevision + 1;
       supersedeEarlierFailure(identity.requestId);
       const failureState = { ...result.state, lastFailureRequestId: identity.requestId };
-      const failureReply = { ...result, state: failureState };
+      const failureReply = blind
+        ? { ...withoutBlindJumpDestination(result), state: failureState }
+        : { ...result, state: failureState };
       tx.set(shipJumpFailureRef(change.sessionId, identity.requestId), jumpFailureRecord({
         requestId: identity.requestId, shipId: change.shipId, origin: currentCoordinate,
-        destination: change.destination, failureStatus: 'wrong-destination', failureRevision: revision,
+        destination, failureStatus: 'wrong-destination', failureRevision: revision,
         currentTurn, fuelAtFailure: inventory.fuel, adjudicable: true,
         actorUid: uid, occurredAt: now.toISOString(),
       }));
@@ -16339,7 +16402,7 @@ export const jumpShip = onCall<{
       const failureState = { ...result.state, lastFailureRequestId: identity.requestId };
       tx.set(shipJumpFailureRef(change.sessionId, identity.requestId), jumpFailureRecord({
         requestId: identity.requestId, shipId: change.shipId, origin: currentCoordinate,
-        destination: change.destination, failureStatus: 'drive-failure', failureRevision: currentRevision,
+        destination, failureStatus: 'drive-failure', failureRevision: currentRevision,
         currentTurn, fuelAtFailure: inventory.fuel,
         requiredFuel: attemptedLength ? jumpFuelCost(change.shipId, attemptedLength, upgraded) : undefined,
         failureRoll: integrityRoll, failureThreshold: upgraded ? 1 : 3, adjudicable: true,
@@ -16348,7 +16411,7 @@ export const jumpShip = onCall<{
       tx.update(sessionRef, { [`shipJumpStates.${change.shipId}`]: failureState,
         updatedAt: FieldValue.serverTimestamp() });
       const reply = {
-        ...result,
+        ...(blind ? withoutBlindJumpDestination(result) : result),
         shipId: change.shipId,
         failureRequestId: identity.requestId,
         failureRoll: integrityRoll,
@@ -16370,11 +16433,20 @@ export const jumpShip = onCall<{
       return reply;
     }
 
+    const ramScoopCharged = change.shipId === 'icebreaker' &&
+      currentCycle.turn === currentTurn && charges.includes('ram-scoop') &&
+      !damage.destroyed && !damage.damagedSystemIds.includes('ram-scoop');
+    const ramScoopBaseOre = result.length === 'short' ? 10 : result.length === 'medium' ? 15 : 20;
+    const ramScoopOreGain = ramScoopCharged ? ramScoopBaseOre + (ramScoopUpgraded ? 5 : 0) : 0;
+    const nextIcebreakerOre = ramScoopOreGain > 0
+      ? addResourceAmount(inventory.ore, ramScoopOreGain)
+      : undefined;
+
     supersedeEarlierFailure(identity.requestId);
 
     const move = applyShipNavigationMove({
       shipId: change.shipId,
-      destination: change.destination,
+      destination,
       now,
       eventIdPrefix: transitionId,
       navigationalError: false,
@@ -16474,6 +16546,7 @@ export const jumpShip = onCall<{
     tx.update(sessionRef, {
       shipGalacticCoordinates: removeLegacyNavigationField(),
       [`shipResources.${change.shipId}.fuel`]: result.remainingFuel,
+      ...(nextIcebreakerOre === undefined ? {} : { 'shipResources.icebreaker.ore': nextIcebreakerOre }),
       [`maintenanceCycles.${change.shipId}`]: nextCycle,
       [`shipJumpStates.${change.shipId}`]: result.state,
       [`shipJumpTransitions.${change.shipId}`]: result.transition,
@@ -16489,6 +16562,8 @@ export const jumpShip = onCall<{
     const reply = {
       ...result,
       shipId: change.shipId,
+      ...(ramScoopOreGain > 0 ? { ramScoopOreGain } : {}),
+      ...(nextIcebreakerOre === undefined ? {} : { remainingOre: nextIcebreakerOre }),
       ...(missionOpportunity ? { missionOpportunityId: missionOpportunity.id } : {}),
       ...(movementDecision.window ? {
         pursuitEmergencyWindow: publicPursuitEmergencyWindow(movementDecision.window),
@@ -16502,7 +16577,10 @@ export const jumpShip = onCall<{
       sessionId: change.sessionId, actorUid: uid, actorRoleId: vesselActorRoleId(player),
       shipId: change.shipId, requestId: identity.requestId, turn: currentTurn,
       phase: vesselActionPhase(session), revision, outcome: 'completed',
-      occurredAt: now.toISOString(), payload: { length: result.length, fuelSpent: result.fuelCost },
+      occurredAt: now.toISOString(), payload: {
+        length: result.length, fuelSpent: result.fuelCost,
+        ...(ramScoopOreGain > 0 ? { ramScoopOreGain } : {}),
+      },
     });
     txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;

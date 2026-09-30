@@ -33,9 +33,9 @@ interface Props {
 
 const DIGITS = [0, 1, 2, 3] as const;
 
-function replyNotice(reply: JumpShipReply): string {
+function replyNotice(reply: JumpShipReply, blind: boolean): string {
   if (reply.status === 'jumped') {
-    return `JUMP COMPLETE // ${reply.origin} → ${reply.destination} // ${reply.length?.toUpperCase() ?? 'FTL'} // ${reply.fuelCost ?? 0} FUEL BURNED`;
+    return `${blind ? 'BLIND JUMP COMPLETE' : 'JUMP COMPLETE'} // ${reply.origin} → ${reply.destination} // ${reply.length?.toUpperCase() ?? 'FTL'} // ${reply.fuelCost ?? 0} FUEL BURNED${reply.ramScoopOreGain ? ` // RAM SCOOP +${reply.ramScoopOreGain} ORE` : ''}`;
   }
   if (reply.status === 'integrity-lockout') {
     return 'COORDINATE REJECTED // DRIVE INTEGRITY LOCKED FOR ONE HOUR';
@@ -77,6 +77,11 @@ export default function JumpDriveConsole({
 }: Props) {
   const access = useConsoleAccess();
   const [destination, setDestination] = useState(() => coordinateDigits(currentCoordinate).join(''));
+  const [blindMode, setBlindMode] = useState(false);
+  const [scrambledDigits, setScrambledDigits] = useState('0000');
+  const [reducedMotion, setReducedMotion] = useState(() => typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const [locked, setLocked] = useState(false);
   const [power, setPower] = useState(0);
   const [pending, setPending] = useState(false);
@@ -101,9 +106,18 @@ export default function JumpDriveConsole({
   );
 
   useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const preference = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const updatePreference = () => setReducedMotion(preference.matches);
+    preference.addEventListener('change', updatePreference);
+    return () => preference.removeEventListener('change', updatePreference);
+  }, []);
+
+  useEffect(() => {
     if (attemptRef.current?.shipId === shipId) return;
     attemptRef.current = null;
     setDestination(coordinateDigits(currentCoordinate).join(''));
+    setBlindMode(false);
     setLocked(false);
     setPower(0);
     setAttempt(null);
@@ -119,11 +133,36 @@ export default function JumpDriveConsole({
     return () => window.clearTimeout(timer);
   }, [effectiveLockout, lockoutActive, clock]);
 
+  const scrambleActive = pending && blindMode && attempt?.blind === true && !reducedMotion;
+  useEffect(() => {
+    if (!scrambleActive) return;
+    let cancelled = false;
+    const timers: number[] = [];
+    const scheduleBeat = () => {
+      for (const index of DIGITS) {
+        // These random delays and numerals are display-only; the callable owns
+        // the destination draw and receives no value from this animation.
+        const staggerMs = index * 75 + Math.floor(Math.random() * 50);
+        timers.push(window.setTimeout(() => {
+          if (cancelled) return;
+          const digit = Math.floor(Math.random() * 10).toString();
+          setScrambledDigits((current) => `${current.slice(0, index)}${digit}${current.slice(index + 1)}`);
+        }, staggerMs));
+      }
+      timers.push(window.setTimeout(scheduleBeat, 500));
+    };
+    scheduleBeat();
+    return () => {
+      cancelled = true;
+      timers.forEach((timer) => window.clearTimeout(timer));
+    };
+  }, [attempt?.blind, attempt?.requestId, blindMode, pending, reducedMotion, scrambleActive]);
+
   const blocked = !presentationOnly && (!access.writable || consoleLocked);
   const exactEmergencyRetry = attempt?.emergency === true;
-  const emergencyAvailable = exactEmergencyRetry || (!emergencyJumpUsed &&
+  const emergencyAvailable = !blindMode && (exactEmergencyRetry || (!emergencyJumpUsed &&
     ((pursuitValue !== undefined && pursuitValue >= 10 && pursuitEmergencyWindowStatus === 'offered') ||
-      Boolean(lastFailureRequestId)));
+      Boolean(lastFailureRequestId))));
   const disabled = blocked || pending || (lockoutActive && !attempt);
   const editingDisabled = presentationOnly ? pending : blocked || pending || attempt !== null ||
     (lockoutActive && !emergencyAvailable);
@@ -142,13 +181,13 @@ export default function JumpDriveConsole({
 
   async function submitJump(emergency = false): Promise<void> {
     if (presentationOnly || blocked || pending || !locked ||
-        (emergency ? !emergencyAvailable : disabled || (!attempt && (power < 100 || !charged)))) return;
+        (emergency ? !emergencyAvailable || blindMode : disabled || (!attempt && (power < 100 || !charged)))) return;
     let request = attempt;
     if (!request) {
       try {
-        request = createJumpShipAttempt(shipId, destination, emergency
+        request = createJumpShipAttempt(shipId, blindMode && !emergency ? undefined : destination, emergency
           ? { emergency: true, ...(lastFailureRequestId ? { failureRequestId: lastFailureRequestId } : {}) }
-          : {});
+          : blindMode ? { blind: true } : {});
         updateAttempt(request);
       } catch {
         setNotice('JUMP REQUEST REJECTED // RECONNECT TO THE LIVE SHIP STATE');
@@ -160,7 +199,17 @@ export default function JumpDriveConsole({
     try {
       const reply = await jumpShip(request);
       updateAttempt(null);
-      setNotice(replyNotice(reply));
+      setNotice(replyNotice(reply, request.blind === true));
+      if (request.blind === true) {
+        setPower(0);
+        if (typeof reply.destination === 'string') {
+          setDestination(reply.destination);
+          setBlindMode(false);
+          setLocked(true);
+        } else {
+          setLocked(false);
+        }
+      }
       if (reply.status === 'integrity-lockout' || reply.status === 'integrity-locked') {
         setLocalLockoutUntil(reply.integrityLockedUntil);
         setPower(0);
@@ -171,6 +220,10 @@ export default function JumpDriveConsole({
         setNotice('JUMP STATUS UNCONFIRMED // RETRY TO CHECK THE SAME REQUEST');
       } else {
         updateAttempt(null);
+        if (request.blind === true) {
+          setPower(0);
+          setLocked(false);
+        }
         setNotice('JUMP REQUEST REJECTED // AUTHORITY OR DRIVE CONDITIONS CHANGED');
       }
     } finally {
@@ -185,7 +238,7 @@ export default function JumpDriveConsole({
           <p className="jump-drive__eyebrow">FTL navigation // coordinate lock</p>
           <h4>Jump Drive control</h4>
         </div>
-        <strong className="jump-drive__mode">{pending ? 'JUMPING' : lockoutActive && !emergencyAvailable ? 'INTEGRITY LOCK' : locked ? 'DESTINATION LOCKED' : 'STANDBY'}</strong>
+        <strong className="jump-drive__mode">{pending ? blindMode ? 'BLIND JUMP' : 'JUMPING' : lockoutActive && !emergencyAvailable ? 'INTEGRITY LOCK' : locked ? blindMode ? 'BLIND LOCKED' : 'DESTINATION LOCKED' : blindMode ? 'BLIND MODE' : 'STANDBY'}</strong>
       </header>
 
       {presentationOnly && (
@@ -202,13 +255,22 @@ export default function JumpDriveConsole({
 
       <div className="jump-drive__coordinates">
         <div className="jump-drive__readout">
-          <span className="jump-drive__label">Destination coordinates</span>
+          <span className="jump-drive__label">{blindMode ? 'Blind-jump display' : 'Destination coordinates'}</span>
           <span
             className="jump-drive__value"
-            aria-label="Locked destination coordinates"
-          >{destination}</span>
+            aria-label={blindMode
+              ? pending ? 'Blind destination pending server selection' : 'Blind destination hidden until server resolution'
+              : 'Locked destination coordinates'}
+          >{blindMode ? (
+            <>
+              <span className="jump-drive__sr-only">BLIND // DESTINATION HIDDEN</span>
+              {scrambleActive
+                ? <span className="jump-drive__blind-digits" data-blind-digit-readout aria-hidden="true">{scrambledDigits}</span>
+                : <span className="jump-drive__blind-digits" aria-hidden="true">BLIND</span>}
+            </>
+          ) : destination}</span>
         </div>
-        <div className="jump-drive__digit-bank" aria-label="Coordinate digit controls">
+        {!blindMode && <div className="jump-drive__digit-bank" aria-label="Coordinate digit controls">
           {DIGITS.map((index) => (
             <div className="jump-drive__digit" key={index}>
               <button
@@ -226,19 +288,38 @@ export default function JumpDriveConsole({
               >−</button>
             </div>
           ))}
-        </div>
+        </div>}
       </div>
+
+      <button
+        className="cic-action-button jump-drive__blind-toggle"
+        type="button"
+        aria-pressed={blindMode}
+        disabled={editingDisabled || attempt !== null}
+        onClick={() => {
+          const enable = !blindMode;
+          setBlindMode(enable);
+          setLocked(false);
+          setPower(0);
+          setNotice('');
+          if (!enable) setDestination(coordinateDigits(currentCoordinate).join(''));
+        }}
+      >{blindMode ? 'Disable blind jump' : 'Enable blind jump'}</button>
+
+      {blindMode && <p className="jump-drive__blind-help">
+        The server selects one connected system. Its coordinates stay hidden until the result is confirmed.
+      </p>}
 
       <button
         className="cic-action-button jump-drive__lock"
         type="button"
-        disabled={editingDisabled || attempt !== null || (!locked && !destination.match(/^\d{4}$/))}
+        disabled={editingDisabled || attempt !== null || (!blindMode && !locked && !destination.match(/^\d{4}$/))}
         onClick={() => {
           setLocked((value) => !value);
           setPower(0);
           setNotice('');
         }}
-      >{locked ? 'Unlock destination coordinates' : 'Lock destination coordinates'}</button>
+      >{locked ? blindMode ? 'Disarm blind jump' : 'Unlock destination coordinates' : blindMode ? 'Arm blind jump' : 'Lock destination coordinates'}</button>
 
       <div className="jump-drive__power-module" data-active={String(locked && power > 0)}>
         <div className="jump-drive__speed-bank" aria-hidden="true">
@@ -285,8 +366,8 @@ export default function JumpDriveConsole({
         disabled={presentationOnly || disabled || !locked || attempt?.emergency === true ||
           (!attempt && (power < 100 || !charged))}
         onClick={() => void submitJump()}
-      >{pending ? 'Jumping…' : attempt?.emergency ? 'Emergency jump pending' : attempt ? 'Retry jump confirmation' : `Jump to ${destination}`}</button>
-      {emergencyAvailable && <button
+      >{pending ? blindMode ? 'Blind jumping…' : 'Jumping…' : attempt?.emergency ? 'Emergency jump pending' : attempt ? attempt.blind ? 'Retry blind-jump confirmation' : 'Retry jump confirmation' : blindMode ? 'Blind jump' : `Jump to ${destination}`}</button>
+      {emergencyAvailable && !blindMode && <button
         className="cic-action-button jump-drive__launch jump-drive__emergency"
         type="button"
         disabled={presentationOnly || blocked || pending || !locked || (attempt !== null && !attempt.emergency)}

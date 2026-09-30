@@ -3566,7 +3566,29 @@ body {
 }
 
 .jump-drive__lock,
+.jump-drive__blind-toggle,
 .jump-drive__launch { width: 100%; }
+
+.jump-drive__blind-help {
+  margin: -0.3rem 0 0;
+  color: var(--cic-muted);
+  font-size: 0.62rem;
+  line-height: 1.45;
+  letter-spacing: 0.04em;
+}
+
+.jump-drive__blind-digits { font-variant-numeric: tabular-nums; }
+.jump-drive__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 
 .jump-drive__power-module {
   position: relative;
@@ -3758,6 +3780,7 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .jump-drive__speed-bank span,
+  .jump-drive__blind-digits,
   .ship-console[data-jump-flash='true'] :where(.ship-console__identity, .ship-console__instruments) {
     animation: none;
   }

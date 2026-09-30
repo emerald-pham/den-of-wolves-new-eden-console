@@ -3254,6 +3254,8 @@ export interface JumpShipReply extends Partial<VesselActionEnvelope> {
   readonly fuelCost?: number;
   readonly remainingFuel?: number;
   readonly fuelSpent?: number;
+  readonly ramScoopOreGain?: number;
+  readonly remainingOre?: number;
   readonly requiredFuel?: number;
   readonly availableFuel?: number;
   readonly failureRequestId?: string;
@@ -3280,7 +3282,8 @@ function withoutPursuitEmergencyWindow<T extends object>(session: T): Omit<T, 'p
 export interface JumpShipAttempt {
   readonly sessionId: string;
   readonly shipId: string;
-  readonly destination: string;
+  readonly destination?: string;
+  readonly blind?: true;
   readonly requestId: string;
   readonly expectedRevision: number;
   readonly instanceId?: string;
@@ -3291,16 +3294,24 @@ export interface JumpShipAttempt {
 /** Capture one immutable request identity so a lost acknowledgement can be retried exactly. */
 export function createJumpShipAttempt(
   shipId: string,
-  destination: string,
-  options: { readonly emergency?: boolean; readonly failureRequestId?: string } = {},
+  destination: string | undefined,
+  options: { readonly emergency?: boolean; readonly failureRequestId?: string; readonly blind?: boolean } = {},
 ): JumpShipAttempt {
+  if (options.blind === true) {
+    if (destination !== undefined || options.emergency === true || options.failureRequestId !== undefined) {
+      throw new Error('Blind jumps cannot include a destination or emergency adjudication.');
+    }
+  } else if (typeof destination !== 'string' || !/^\d{4}$/.test(destination)) {
+    throw new Error('A printed four-digit destination is required for a standard jump.');
+  }
   const store = useSessionStore.getState();
   if (!store.session || !store.me) throw new Error('Join a session before jumping.');
   requireFreshSessionAuthority();
   return {
     sessionId: store.session.id,
     shipId,
-    destination,
+    ...(destination === undefined ? {} : { destination }),
+    ...(options.blind === true ? { blind: true as const } : {}),
     requestId: commandId(),
     expectedRevision: store.session.vesselActionRevisions?.[shipId] ?? 0,
     ...(store.gmInstance ? { instanceId: store.gmInstance.id } : {}),
@@ -3533,7 +3544,7 @@ export async function jumpShip(attempt: JumpShipAttempt): Promise<JumpShipReply>
   const payload = {
     sessionId: attempt.sessionId,
     shipId: attempt.shipId,
-    destination: attempt.destination,
+    ...(attempt.blind === true ? { blind: true } : { destination: attempt.destination }),
     requestId: attempt.requestId,
     expectedRevision: attempt.expectedRevision,
     ...(attempt.instanceId === undefined ? {} : { instanceId: attempt.instanceId }),
@@ -3570,6 +3581,10 @@ export async function jumpShip(attempt: JumpShipAttempt): Promise<JumpShipReply>
       const normalizedResource = currentResource
         ? resourcesForShip(attempt.shipId, current.shipResources)
         : undefined;
+      const ramScoopOreGain = Number.isSafeInteger(reply.ramScoopOreGain) &&
+        (reply.ramScoopOreGain as number) > 0 ? reply.ramScoopOreGain as number : 0;
+      const remainingOre = Number.isSafeInteger(reply.remainingOre) &&
+        (reply.remainingOre as number) >= 0 ? reply.remainingOre as number : undefined;
       const nextSession: GameSession = {
         ...current,
         ...(reply.status === 'jumped' ? {
@@ -3583,7 +3598,11 @@ export async function jumpShip(attempt: JumpShipAttempt): Promise<JumpShipReply>
           ...(current.shipResources && reply.remainingFuel !== undefined && normalizedResource
             ? { shipResources: {
               ...current.shipResources,
-              [attempt.shipId]: { ...normalizedResource, fuel: reply.remainingFuel },
+              [attempt.shipId]: {
+                ...normalizedResource,
+                fuel: reply.remainingFuel,
+                ...(ramScoopOreGain > 0 && remainingOre !== undefined ? { ore: remainingOre } : {}),
+              },
             } }
             : {}),
         } : {}),

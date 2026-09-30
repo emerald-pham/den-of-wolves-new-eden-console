@@ -2113,20 +2113,36 @@ export function requireShipJumpRequest(data: {
   instanceId?: unknown;
   shipId?: unknown;
   destination?: unknown;
+  blind?: unknown;
   emergency?: unknown;
   failureRequestId?: unknown;
-}): { sessionId: string; instanceId?: string; shipId: string; destination: string; emergency: boolean; failureRequestId?: string } {
-  const destination = requiredText(data.destination, 'destination', 4);
-  if (!/^\d{4}$/.test(destination)) {
-    throw new HttpsError('invalid-argument', 'destination must be exactly four digits.');
+}): { sessionId: string; instanceId?: string; shipId: string; destination?: string; blind?: true; emergency: boolean; failureRequestId?: string } {
+  const blind = data.blind === true;
+  if (data.blind !== undefined && typeof data.blind !== 'boolean') {
+    throw new HttpsError('invalid-argument', 'blind must be boolean.');
   }
   if (data.emergency !== undefined && typeof data.emergency !== 'boolean') {
     throw new HttpsError('invalid-argument', 'emergency must be boolean.');
   }
-  const result: { sessionId: string; instanceId?: string; shipId: string; destination: string; emergency: boolean; failureRequestId?: string } = {
+  if (blind && data.emergency === true) {
+    throw new HttpsError('invalid-argument', 'Blind jumps cannot use emergency drive.');
+  }
+  let destination: string | undefined;
+  if (blind) {
+    if (data.destination !== undefined) {
+      throw new HttpsError('invalid-argument', 'A blind jump cannot include a client-selected destination.');
+    }
+  } else {
+    destination = requiredText(data.destination, 'destination', 4);
+    if (!/^\d{4}$/.test(destination)) {
+      throw new HttpsError('invalid-argument', 'destination must be exactly four digits.');
+    }
+  }
+  const result: { sessionId: string; instanceId?: string; shipId: string; destination?: string; blind?: true; emergency: boolean; failureRequestId?: string } = {
     sessionId: requiredId(data.sessionId, 'sessionId'),
     shipId: requiredId(data.shipId, 'shipId'),
-    destination,
+    ...(destination === undefined ? {} : { destination }),
+    ...(blind ? { blind: true as const } : {}),
     emergency: data.emergency === true,
   };
   if (data.instanceId !== undefined) result.instanceId = requiredId(data.instanceId, 'instanceId');
