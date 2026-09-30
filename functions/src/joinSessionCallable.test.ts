@@ -886,3 +886,37 @@ it.each([
     );
   }
 });
+
+it('joins an existing separated fleet without collapsing its partitions or changing the returning audience', async () => {
+  mock.enforceReadOrder = true;
+  const roles = [...recommendedRoleIds(8)];
+  const vessels = activeVesselIdsForRoles(roles);
+  const groups = [
+    { id: 'fleet-1', vesselIds: [vessels[0]!], memberUids: ['gm'] },
+    { id: 'fleet-2', vesselIds: vessels.slice(1), memberUids: ['u1'] },
+  ];
+  const playerFields = { uid: 'u1', sessionId: 's1', role: 'player', seatId: null, activeConsoleRoleId: null, fleetGroupId: 'fleet-2' };
+  const players = [snapshot(playerFields, true, 'u1'), snapshot({ role: 'gm', fleetGroupId: 'fleet-1' }, true, 'gm')];
+  mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
+    if (path === 'joinCodes/482109') return snapshot({ sessionId: 's1' });
+    if (path === 'sessions/s1') return snapshot({ phase: 'active', activeRoleIds: roles, activeVesselIds: vessels,
+      fleetPartitionRevision: 1, playerCount: 8, chartId: 'A', expansion: 'base' });
+    if (path === 'sessions/s1/players/u1') return snapshot(playerFields, true, 'u1');
+    if (path === 'sessions/s1/players') return snapshot({}, true, '', players);
+    if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot(groups[0]!, true, 'fleet-1');
+    if (path === 'sessions/s1/fleetGroups') return snapshot({}, true, '', groups.map(group => snapshot(group, true, group.id)));
+    if (path === 'sessions/s1/serverState/navigation') return snapshot({ revision: 1, pursuitGroups: { 'fleet-1': 2, 'fleet-2': 5 },
+      shipGalacticCoordinates: Object.fromEntries(vessels.map(id => [id, '0000'])) });
+    if (path === 'activeMemberships/u1' || path.endsWith('/wolfAttackState/current') || path.includes('/seats/')) return snapshot({}, false);
+    throw new Error(`Unexpected read: ${path}`);
+  });
+  mock.update.mockImplementation((ref: { path: string }, fields: Record<string, unknown>) => {
+    if (ref.path === 'sessions/s1/players/u1') Object.assign(playerFields, fields);
+  });
+  await expect(joinSession.run(request('482109'))).resolves.toMatchObject({ player: { fleetGroupId: 'fleet-2' } });
+  expect(mock.update).not.toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1/fleetGroups/fleet-1' }), expect.anything());
+  expect(mock.set).not.toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1/fleetGroups/fleet-2' }), expect.anything());
+  expect(mock.set).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1/serverState/navigation' }),
+    expect.objectContaining({ pursuitGroups: { 'fleet-1': 2, 'fleet-2': 5 } }), expect.anything());
+});
