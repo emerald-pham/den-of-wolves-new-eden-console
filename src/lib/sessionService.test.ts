@@ -1986,6 +1986,78 @@ describe('GM instance commands', () => {
     expect(useSessionStore.getState().session?.shuttleFuelled).toEqual({ starlight: false });
   });
 
+  it('projects the server-owned Demo marker when the sole player starts Cycle 1', async () => {
+    useSessionStore.getState().setSession({ ...session, currentTurn: 0 });
+    const callable = callableReturning({ data: {
+      currentTurn: 1,
+      singlePlayerDemo: { status: 'active', finalCycle: 1 },
+      turnPhase: {
+        turn: 1,
+        teamPhaseEndsAt: '2026-01-01T00:05:00.000Z',
+        openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
+        airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+      },
+    } });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+
+    await startSinglePlayerDemo();
+
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'startSinglePlayerDemo');
+    expect(useSessionStore.getState().session).toMatchObject({
+      currentTurn: 1,
+      singlePlayerDemo: { status: 'active', finalCycle: 1 },
+    });
+  });
+
+  it('projects Demo completion without reopening or clearing the Cycle 1 state', async () => {
+    const turnPhase = {
+      turn: 1,
+      teamPhaseEndsAt: '2026-01-01T00:05:00.000Z',
+      openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
+      airspace: { state: 'lifted' as const, tickerActive: true, pressAccess: false },
+    };
+    const turnState = {
+      currentTurn: 1,
+      maxTurn: 7 as const,
+      phase: 'coordination' as const,
+      phaseRevision: 2,
+      startedAt: '2026-01-01T00:05:00.000Z',
+      endsAt: '2026-01-01T00:20:00.000Z',
+    };
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    useSessionStore.getState().setSession({
+      ...session,
+      phase: 'active',
+      currentTurn: 1,
+      singlePlayerDemo: { status: 'active', finalCycle: 1 },
+      turnPhase,
+      turnState,
+    });
+    const callable = callableReturning({ data: {
+      currentTurn: 1,
+      status: 'complete',
+      mode: 'demo',
+      finalCycle: 1,
+      title: 'Demo complete',
+      message: 'Demo mode ends after Cycle 1.',
+      singlePlayerDemo: { status: 'complete', finalCycle: 1 },
+    } });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+
+    await advanceTurn({ overridePhaseTimer: true, requestId: 'demo-complete-ui' });
+
+    expect(useSessionStore.getState().session).toMatchObject({
+      currentTurn: 1,
+      phase: 'active',
+      singlePlayerDemo: { status: 'complete', finalCycle: 1 },
+      turnPhase,
+      turnState,
+    });
+  });
+
   it('clears a prior turn entity when the accepted phase reply is partial or mismatched', async () => {
     const priorTurnState = {
       currentTurn: 1,
