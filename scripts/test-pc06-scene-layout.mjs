@@ -35,6 +35,19 @@ test('PC06 solo scene fits phone, short landscape and desktop in both motion mod
             }).map(element => element.textContent));
             assert.deepEqual(inaccessibleControls, [], `${width}x${height} ${name}: offscreen controls`);
             if (name === '2 Cargo and trade') {
+              const repair = page.getByRole('region', {name:'Repair Drones review sample'});
+              await repair.getByRole('combobox', {name:'Gorgoneion repair console'}).selectOption('jump-drive');
+              await repair.getByRole('button', {name:'Repair one console',exact:true}).click();
+              assert.match(await repair.getByRole('status', {name:'Repair sample result'}).textContent(), /local.*repaired.*3.*no production/i);
+              assert.ok(await repair.getByRole('button', {name:'Repair one console',exact:true}).isDisabled());
+              await repair.getByRole('button', {name:'Competing repair sample',exact:true}).click();
+              assert.match(await repair.getByRole('status', {name:'Repair sample result'}).textContent(), /changed.*refresh/i);
+              await repair.getByRole('button', {name:'Refresh repair sample',exact:true}).click();
+              assert.match(await repair.getByRole('status', {name:'Repair sample result'}).textContent(), /refreshed.*already repaired/i);
+              const repairControls = await repair.locator('button, select').evaluateAll(elements => elements.filter(element => {
+                const rect = element.getBoundingClientRect(); return rect.width > 0 && (rect.left < -1 || rect.right > document.documentElement.clientWidth + 1);
+              }).map(element => element.textContent));
+              assert.deepEqual(repairControls, [], 'repaired sample controls remain contained');
               await page.getByRole('button', {name:'Load 1 food onto Capybara',exact:true}).click();
               await page.getByRole('button', {name:'Accept exact offer from Juno Reyes',exact:true}).click();
               assert.match(await page.getByRole('region',{name:'Your held tokens'}).textContent(), /Fuel 3/);
