@@ -36,6 +36,11 @@ test('PC06 solo scene fits phone, short landscape and desktop in both motion mod
             assert.deepEqual(inaccessibleControls, [], `${width}x${height} ${name}: offscreen controls`);
             if (name === '2 Cargo and trade') {
               const repair = page.getByRole('region', {name:'Repair Drones review sample'});
+              assert.ok(await repair.getByRole('heading', {name:'Gorgoneion Repair Drones',exact:true}).evaluate(element => {
+                const style = getComputedStyle(element);
+                const normalize = value => value.replace(/["']/g, '').replace(/\s+/g, '').toLowerCase();
+                return normalize(style.fontFamily) === normalize(style.getPropertyValue('--cic-display')) && Number.parseFloat(style.fontSize) >= 16;
+              }), 'repair heading uses the actual CIC display font and readable size');
               await repair.getByRole('combobox', {name:'Gorgoneion repair console'}).selectOption('jump-drive');
               await repair.getByRole('button', {name:'Repair one console',exact:true}).click();
               assert.match(await repair.getByRole('status', {name:'Repair sample result'}).textContent(), /local.*repaired.*3.*no production/i);
