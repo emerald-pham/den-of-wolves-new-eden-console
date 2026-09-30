@@ -31,7 +31,7 @@ describe('authoritative jump-drive resolution', () => {
     ]).toEqual([Math.max(0, short - 1), Math.max(0, medium - 1), Math.max(0, long - 1)]);
   });
 
-  it.each(['gorgoneion', 'capybara-small', 'warrior', 'vulcan', 'voyage-33-0'] as const)(
+  it.each(['capybara-small', 'warrior', 'vulcan', 'voyage-33-0'] as const)(
     'uses the server catalog 1/1/2 fuel bands for the supplemental %s vessel',
     (shipId) => {
       expect([
@@ -46,6 +46,19 @@ describe('authoritative jump-drive resolution', () => {
       ]).toEqual([0, 0, 1]);
     },
   );
+
+  it('keeps Gorgoneion short, medium, and long fuel costs at 1/1/2', () => {
+    expect([
+      jumpFuelCost('gorgoneion', 'short', false),
+      jumpFuelCost('gorgoneion', 'medium', false),
+      jumpFuelCost('gorgoneion', 'long', false),
+    ]).toEqual([1, 1, 2]);
+    expect([
+      jumpFuelCost('gorgoneion', 'short', true),
+      jumpFuelCost('gorgoneion', 'medium', true),
+      jumpFuelCost('gorgoneion', 'long', true),
+    ]).toEqual([1, 1, 2]);
+  });
 
   it('allows one legal emergency jump without charge or fuel and persists the once-per-game marker', () => {
     const resolveEmergencyJump = (jumpDrive as unknown as Record<string, (
