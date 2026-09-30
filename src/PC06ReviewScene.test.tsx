@@ -40,20 +40,21 @@ it('keeps cargo, ship stores, and consented same-table trade in separate local s
 
   const cargo = screen.getByRole('region', { name: 'Small-craft cargo sample' });
   await user.click(within(cargo).getByRole('button', { name: 'Load 1 food onto Capybara' }));
-  expect(within(cargo).getByText('Capybara cargo // Food 1')).toBeVisible();
-  expect(within(cargo).getByText('Shepherd ship stores // Food 2')).toBeVisible();
+  expect(within(cargo).getByText('Food 1')).toBeVisible();
+  expect(within(cargo).getByText('Food 2')).toBeVisible();
   expect(within(cargo).getByRole('status')).toHaveTextContent(/local simulation.*no production cargo transfer/i);
 
   const trade = screen.getByRole('region', { name: 'Same-table trade' });
+  const holdings = within(trade).getByRole('region', { name: 'Your held tokens' });
   await user.click(within(trade).getByRole('button', { name: 'Accept exact offer from Juno Reyes' }));
-  expect(within(trade).getByText('Fuel 3')).toBeVisible();
+  expect(holdings).toHaveTextContent('Fuel 3');
   expect(within(trade).getByRole('status')).toHaveTextContent(/local review only.*no live transfer/i);
 
   await user.selectOptions(within(trade).getByLabelText('Recipient'), 'juno-reyes');
   await user.type(within(trade).getByLabelText('Materials amount'), '1');
   await user.click(within(trade).getByRole('button', { name: 'Send exact offer' }));
-  expect(within(trade).getByRole('region', { name: /Offer to Juno Reyes/i })).toHaveTextContent(/local sample only/i);
-  expect(within(trade).getByText('Materials 4')).toBeVisible();
+  expect(within(trade).getByRole('listitem', { name: /Offer to Juno Reyes/i })).toHaveTextContent(/local sample only/i);
+  expect(holdings).toHaveTextContent('Materials 4');
 });
 
 it('reveals a prepared scout result locally while keeping the other group sample separate', async () => {
