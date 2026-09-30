@@ -1,10 +1,11 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type * as SessionService from '@/lib/sessionService';
 import { beforeEach, expect, it, vi } from 'vitest';
 import PC06ReviewScene from './PC06ReviewScene';
 
 vi.mock('@/lib/sessionService', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/sessionService')>();
+  const actual = await importOriginal<typeof SessionService>();
   return { ...actual, jumpShip: vi.fn() };
 });
 
@@ -46,6 +47,8 @@ it('simulates docking and a legal destination using the production movement pane
   render(<PC06ReviewScene />);
 
   const movement = screen.getByRole('region', { name: 'Voyage 33-0 movement' });
+  expect(within(movement).getByLabelText('Facilitator connection LIVE')).toBeVisible();
+  expect(screen.getByText(/LIVE link label is a synthetic control-enabling value.*no facilitator connection is open/i)).toBeVisible();
   await user.click(within(movement).getByRole('button', { name: 'Dock with Dione' }));
   expect(within(movement).getByText(/Dione.*0101.*host fuel.*operational/i)).toBeVisible();
 
@@ -132,4 +135,6 @@ it('follows private mission cards through local assignment, results, rewards, an
   expect(within(mission).getByRole('status', { name: 'Mission sample result' })).toHaveTextContent(
     /local review only.*rewards shown at aegis.*no mission result was written/i,
   );
+  expect(mission).toHaveTextContent(/rewards shown at aegis.*local sample/i);
+  expect(within(mission).queryByRole('button', { name: 'Drop mission rewards at selected ship' })).not.toBeInTheDocument();
 });
