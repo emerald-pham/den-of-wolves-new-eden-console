@@ -13,7 +13,7 @@ import { PDF_ROLE_CONSOLE } from '@/data/pdfConsoles';
 import type { DamageDraw, ShipDamageState, ShipNavigationLogs } from '@/types/game';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { ShipConsoleProjection } from '@/lib/shipStateProjection';
-import { capybaraRationSchedule, isPopulationOnPrintedTrack } from '@/data/shipPopulation';
+import { capybaraRationSchedule, isSupportedShipPopulation } from '@/data/shipPopulation';
 import PresidentWorkspace from './PresidentWorkspace';
 
 // Split only explicit rule headings; phrases such as “damaged jumps” stay intact.
@@ -65,7 +65,7 @@ export default function FleetSystemsWorkspace({
   const maintenance = ship.maintenance;
   const population = shipState?.population ?? session?.shipSurvivors?.[ship.id] ?? ship.initialSurvivors;
   const capybaraPopulationOffTrack = ship.id === 'capybara' &&
-    !isPopulationOnPrintedTrack(ship.id, population);
+    !isSupportedShipPopulation(ship.id, population);
   const capybaraRations = ship.id === 'capybara' && !capybaraPopulationOffTrack
     ? capybaraRationSchedule(population)
     : undefined;

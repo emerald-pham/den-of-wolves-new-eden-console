@@ -226,3 +226,17 @@ Sol 6.1 takes accountable implementation, integration and release ownership at c
   search-and-rescue fixture was not a legal use of the printed ability.
   `d7df0ed7` repairs the production rules. Focused checks are local evidence;
   deployment and ordinary gameplay acceptance remain outstanding.
+
+- `34fd206f`/`7625c1b3` introduced destination-delivery and exact recovery checks;
+  the second commit corrects the fixture because Reclamator already commits that
+  participant's whole-hand assignment. The observed intended red was missing
+  destination mutation. `98cc90d6` connects strict reward arithmetic and a durable
+  delivery receipt to the same transaction as custody, before projections publish.
+- `4f9c68db` and `670b4b07` observed the rescue-count/capacity integration reds.
+  Malformed-state fixtures use capacity overflow to preserve their purpose,
+  including client maintenance and stale counter replies. `e59daaeb` observed the
+  existing evacuation consumer rejecting exact mission counts. PC06-A13 records
+  the bounded digital reading; 270 focused mission/population/counter/maintenance
+  tests and 25 evacuation checks pass. Client typecheck and Functions build pass.
+  The guidance-test tuple now preserves literal path types; its runtime assertions
+  are unchanged after the whole-client typecheck exposed that earlier test error.

@@ -11,7 +11,7 @@ import type { DamageDraw } from '@/types/game';
 import { phaseForSession } from '@/lib/turnPhase';
 import { normalizeCommandError } from '@/lib/commandErrors';
 import type { ShipConsoleProjection } from '@/lib/shipStateProjection';
-import { isPopulationOnPrintedTrack, shipRationSchedule } from '@/data/shipPopulation';
+import { isSupportedShipPopulation, shipRationSchedule } from '@/data/shipPopulation';
 
 export type SystemTiming = 1 | 5 | 6 | 7 | 'ftl' | 'combat' | 'passive';
 
@@ -82,7 +82,7 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   const printedSchedule = ship?.maintenance ?? { ...AEGIS_ROLE_CONSOLES.admiral.rations, reactor: AEGIS_ROLE_CONSOLES.admiral.reactorCapacity };
   const population = shipState?.population ?? session?.shipSurvivors?.[shipId] ?? ship?.initialSurvivors;
   const populationOffTrack =
-    !isPopulationOnPrintedTrack(shipId, population);
+    !isSupportedShipPopulation(shipId, population);
   const activeRations = !populationOffTrack
     ? shipRationSchedule(shipId, population)
     : undefined;

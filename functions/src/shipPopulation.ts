@@ -32,7 +32,7 @@ const BASE_RATION_SCHEDULES: readonly (RationSchedule & { readonly max: number }
 
 export function shipRationSchedule(shipId: string, population: number): RationSchedule {
   if (shipId === 'capybara') return capybaraRationSchedule(population);
-  if (!populationTrackForShip(shipId)?.steps.includes(population)) {
+  if (!isSupportedShipPopulation(shipId, population)) {
     throw new Error(`${shipId} population is not on its printed track.`);
   }
   const card = BASE_RATION_SCHEDULES.find(schedule => population <= schedule.max);
@@ -44,7 +44,7 @@ export function shipRationSchedule(shipId: string, population: number): RationSc
  * Population zero keeps the last applicable table; its separate printed
  * consequence is the one-time unrest increase when the counter reaches zero. */
 export function capybaraRationSchedule(population: number): RationSchedule {
-  if (!populationTrackForShip('capybara')?.steps.includes(population)) {
+  if (!isSupportedShipPopulation('capybara', population)) {
     throw new Error('Capybara population is not on its printed track.');
   }
   if (population <= 5_000) return CAPYBARA_RATION_SCHEDULES['1-5000'];
@@ -96,9 +96,9 @@ export function populationChange(shipId: string, current: number, delta: -1 | 1,
   if (pending) throw new Error('The GM population alert must be dismissed first.');
   const track = populationTrackForShip(shipId);
   if (!track) throw new Error('This ship has no survivor track.');
-  const index = track.steps.indexOf(current);
-  if (index < 0) throw new Error('Population is not on the printed track.');
-  const amount = track.steps[index - delta];
+  if (!isSupportedShipPopulation(shipId, current)) throw new Error('Population is not on the printed track.');
+  const amount = delta === -1 ? track.steps.find(value => value < current)
+    : [...track.steps].reverse().find(value => value > current);
   if (amount === undefined) throw new Error('Population is already at the track endpoint.');
   return { amount, alertRaised: track.thresholds.includes(amount) };
 }
@@ -108,4 +108,11 @@ export function acknowledgePopulationAlert(targets: readonly string[], instanceI
   // One facilitator owns the blocking consequence; other instances may have
   // seen the alert, but cannot hold the ship after that acknowledgement.
   return targets.includes(instanceId) ? [] : [...targets];
+}
+
+/** Mission rescue rewards can produce exact counts between printed markers. */
+export function isSupportedShipPopulation(shipId: string, population: unknown): population is number {
+  const maximum = populationTrackForShip(shipId)?.steps[0];
+  return typeof population === 'number' && Number.isSafeInteger(population) && population >= 0 &&
+    maximum !== undefined && population <= maximum;
 }

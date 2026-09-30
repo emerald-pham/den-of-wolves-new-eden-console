@@ -32,7 +32,7 @@ const BASE_RATION_SCHEDULES: readonly (RationSchedule & { readonly max: number }
 
 export function shipRationSchedule(shipId: string, population: number): RationSchedule {
   if (shipId === 'capybara') return capybaraRationSchedule(population);
-  if (!isPopulationOnPrintedTrack(shipId, population)) {
+  if (!isSupportedShipPopulation(shipId, population)) {
     throw new Error(`${shipId} population is not on its printed track.`);
   }
   const card = BASE_RATION_SCHEDULES.find(schedule => population <= schedule.max);
@@ -41,7 +41,7 @@ export function shipRationSchedule(shipId: string, population: number): RationSc
 }
 
 export function capybaraRationSchedule(population: number): RationSchedule {
-  if (!isPopulationOnPrintedTrack('capybara', population)) {
+  if (!isSupportedShipPopulation('capybara', population)) {
     throw new Error('Capybara population is not on its printed track.');
   }
   if (population <= 5_000) return CAPYBARA_RATION_SCHEDULES['1-5000'];
@@ -70,4 +70,11 @@ export function isPopulationOnPrintedTrack(shipId: string, population: unknown):
 
 export function populationForShip(shipId: string, stored?: Readonly<Record<string, number>>): number | undefined {
   return stored?.[shipId] ?? INITIAL_SHIP_SURVIVORS[shipId];
+}
+
+/** Exact server rescue counts remain valid between the printed markers. */
+export function isSupportedShipPopulation(shipId: string, population: unknown): population is number {
+  const maximum = populationTrackForShip(shipId)?.steps[0];
+  return typeof population === 'number' && Number.isSafeInteger(population) && population >= 0 &&
+    maximum !== undefined && population <= maximum;
 }

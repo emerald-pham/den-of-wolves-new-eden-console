@@ -20,6 +20,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { applyVulcanAdditionalLabour, emptyTargetMaintenanceCycle, VULCAN_ADDITIONAL_LABOUR_CONSOLES, type VulcanAdditionalLabourConsole } from './vulcanLabour';
 import {
   INITIAL_SHIP_SURVIVORS,
+  isSupportedShipPopulation,
   populationChange,
   populationForShip,
   populationTrackForShip,
@@ -750,7 +751,7 @@ const awayMissionLifecycleCallables = createAwayMissionLifecycleCallables({
       throw new HttpsError('failed-precondition', 'The destination population is malformed.');
     }
     const delivery = planMissionRewardDelivery({
-      inventory, population: isRecord(storedPopulation) && Object.hasOwn(storedPopulation, shipId)
+      shipId, inventory, population: isRecord(storedPopulation) && Object.hasOwn(storedPopulation, shipId)
         ? storedPopulation[shipId] : INITIAL_SHIP_SURVIVORS[shipId],
       minerals: isRecord(mineralCargo) && Object.hasOwn(mineralCargo, shipId) ? mineralCargo[shipId] : 0,
       rewards: nextRecord.rewards ?? [], specialRewards: nextRecord.specialRewards ?? [],
@@ -26173,7 +26174,7 @@ export const applyShipCounterSteps = onCall<{
         : undefined;
       if (!Number.isSafeInteger(currentAmount) || (currentAmount as number) < 0 ||
           (change.counter === 'unrest' && (currentAmount as number) > 10) ||
-          (populationTrack && !populationTrack.steps.includes(currentAmount as number))) {
+          (populationTrack && !isSupportedShipPopulation(change.shipId, currentAmount))) {
         throw commandError(
           'failed-precondition',
           'The current ship counter is unavailable; refresh the live session before retrying.',

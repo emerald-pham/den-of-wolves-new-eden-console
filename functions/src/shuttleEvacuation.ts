@@ -1,7 +1,7 @@
 import type { ShuttleControlEntry } from './shuttleControl';
 import type { AuthoritativeShuttleDocking } from './shuttleDocking';
 import { SHUTTLE_CARGO_TYPES } from './shuttleCargoTransfer';
-import { INITIAL_SHIP_SURVIVORS, populationTrackForShip } from './shipPopulation';
+import { INITIAL_SHIP_SURVIVORS, isSupportedShipPopulation, populationTrackForShip } from './shipPopulation';
 
 export const MAX_SHUTTLE_EVACUATION_PER_CYCLE = 5_000;
 
@@ -98,10 +98,15 @@ export function evacuateShuttleSurvivors(input: Readonly<{
   if (nextDestination > (INITIAL_SHIP_SURVIVORS[input.destinationShipId] ?? -1)) {
     throw new Error('The receiving ship cannot exceed its starting maximum population.');
   }
-  if (!sourceTrack?.steps.includes(sourcePopulation as number) || !sourceTrack.steps.includes(nextSource) ||
-      !destinationTrack?.steps.includes(destinationPopulation as number) ||
-      !destinationTrack.steps.includes(nextDestination)) {
-    throw new Error('The transfer must leave both survivor counters on their printed tracks.');
+  const startsOnMarkers = sourceTrack?.steps.includes(sourcePopulation as number) &&
+    destinationTrack?.steps.includes(destinationPopulation as number);
+  if (!isSupportedShipPopulation(sourceShipId, sourcePopulation) ||
+      !isSupportedShipPopulation(input.destinationShipId, destinationPopulation) ||
+      !isSupportedShipPopulation(sourceShipId, nextSource) ||
+      !isSupportedShipPopulation(input.destinationShipId, nextDestination) ||
+      (startsOnMarkers && (!sourceTrack!.steps.includes(nextSource) ||
+        !destinationTrack!.steps.includes(nextDestination)))) {
+    throw new Error('The transfer must preserve valid survivor counts and printed track capacity.');
   }
   const ledger = parseShuttleEvacuations(input.evacuationLedger);
   if (!ledger) throw new Error('The shuttle evacuation ledger is malformed.');

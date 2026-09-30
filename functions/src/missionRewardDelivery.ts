@@ -1,8 +1,10 @@
+import { isSupportedShipPopulation } from './shipPopulation';
 import { RESOURCE_IDS, type ShipResourceInventory } from './resources';
 import type { MissionRewardResourceId } from './missionCards';
 
 interface RewardAmounts { readonly resources: unknown }
 export interface MissionRewardDeliveryInput {
+  readonly shipId: string;
   readonly inventory: unknown;
   readonly population: unknown;
   readonly minerals: unknown;
@@ -44,7 +46,7 @@ export function planMissionRewardDelivery(input: MissionRewardDeliveryInput): {
   }
   const population = input.population + (deltas.survivors ?? 0);
   const minerals = input.minerals + (deltas.minerals ?? 0);
-  if (!amount(population) || !amount(minerals)) return null;
+  if (!isSupportedShipPopulation(input.shipId, population) || !amount(minerals)) return null;
   return { inventory: inventory as unknown as ShipResourceInventory, population, minerals, deltas };
 }
 

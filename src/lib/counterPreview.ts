@@ -51,8 +51,9 @@ export function previewPopulationChange(
   let amount = current;
   const appliedSteps: CounterStep[] = [];
   for (const step of steps) {
-    const currentIndex = track.steps.indexOf(amount);
-    const next = track.steps[currentIndex - step];
+    if (!Number.isSafeInteger(amount) || amount < 0 || amount > track.steps[0]!) break;
+    const next = step === -1 ? track.steps.find(value => value < amount)
+      : [...track.steps].reverse().find(value => value > amount);
     if (next === undefined) break;
     amount = next;
     appliedSteps.push(step);

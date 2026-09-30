@@ -1,5 +1,5 @@
 import { httpsCallable } from 'firebase/functions';
-import { populationTrackForShip } from '@/data/shipPopulation';
+import { isSupportedShipPopulation, populationTrackForShip } from '@/data/shipPopulation';
 import { useSessionStore } from '@/store/useSessionStore';
 import { functions } from './firebase';
 import { requireFreshSessionAuthority } from './sessionMutationAuthority';
@@ -15,8 +15,17 @@ export function validShuttleEvacuationAmounts(input: Readonly<{
 }>): readonly number[] {
   const source = populationTrackForShip(input.sourceShipId);
   const destination = populationTrackForShip(input.destinationShipId);
-  if (!source?.steps.includes(input.sourcePopulation) ||
-      !destination?.steps.includes(input.destinationPopulation) || input.remaining < 1) return [];
+  if (!source || !destination || !isSupportedShipPopulation(input.sourceShipId, input.sourcePopulation) ||
+      !isSupportedShipPopulation(input.destinationShipId, input.destinationPopulation) ||
+      !Number.isSafeInteger(input.remaining) || input.remaining < 1) return [];
+  if (!source.steps.includes(input.sourcePopulation) || !destination.steps.includes(input.destinationPopulation)) {
+    const limit = Math.min(input.sourcePopulation, destination.steps[0]! - input.destinationPopulation,
+      input.remaining, MAX_SHUTTLE_EVACUATION_PER_CYCLE);
+    const candidates = new Set([limit,
+      ...source.steps.map(population => input.sourcePopulation - population),
+      ...destination.steps.map(population => population - input.destinationPopulation)]);
+    return [...candidates].filter(amount => amount > 0 && amount <= limit).sort((a, b) => a - b);
+  }
   const destinationIncreases = new Set(destination.steps
     .filter((population) => population > input.destinationPopulation)
     .map((population) => population - input.destinationPopulation));
