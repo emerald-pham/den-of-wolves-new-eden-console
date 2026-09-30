@@ -179,3 +179,9 @@ describe('AwayMissionLifecyclePanel', () => {
     expect(css).toMatch(/min-width:\s*320px|@media\s*\(max-width/);
   });
 });
+
+it('allows a participant with no remaining cards to complete an empty assignment without inventing a contribution', async () => {
+  const actions = renderPanel({ privateState: { ...privateHand, cards: [] } });
+  await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Submit mission assignments' })));
+  expect(actions.assignCards).toHaveBeenCalledWith([]);
+});

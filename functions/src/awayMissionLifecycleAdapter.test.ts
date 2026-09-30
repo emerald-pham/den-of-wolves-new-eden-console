@@ -362,3 +362,10 @@ describe('away-mission lifecycle adapter', () => {
     expect(dropped.record?.custody).toMatchObject({ status: 'dropped-off', shipId: 'aegis' });
   });
 });
+
+it('projects Reclamator eligibility only into the entitled Warrior participant private hand', () => {
+  const record = warriorFixture();
+  expect(projectAwayMissionPrivateState(record, 'bob')).toMatchObject({ canUseReclamator: true });
+  expect(projectAwayMissionPrivateState(record, 'alice')).toMatchObject({ canUseReclamator: false });
+  expect(projectAwayMissionPublicState(record, 'bob')).not.toHaveProperty('canUseReclamator');
+});
