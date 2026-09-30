@@ -547,8 +547,9 @@ import {
   vipHandForState,
   type VipDeckState,
 } from './vipCards';
-import { organiserSitesForChart } from './starChartLookup';
-import { missionCardForCode } from './missionCards';
+import { organiserSitesForChart, type ChartId } from './starChartLookup';
+import { planMissionExplorationReward } from './explorationRewards';
+import { missionCardForCode, type CanonicalMissionCardCode } from './missionCards';
 import { allDiscoverySystems } from './starChartProjection';
 import { discoverySystemsForCoordinates } from './starChartProjection';
 import { pursuitDistancesForCoordinates } from './starChartProjection';
@@ -728,6 +729,61 @@ const gorgoneionMissionSupportCallables = createGorgoneionMissionSupportCallable
 
 const awayMissionLifecycleCallables = createAwayMissionLifecycleCallables({
   db,
+  prepareExplorationApplication: async ({ transaction, sessionId, missionId, session: sessionSnapshot,
+    mission, record, opportunityId, targetCoordinates }) => {
+    const tx = transaction as Transaction;
+    const session = sessionSnapshot as DocumentSnapshot;
+    const chart = mission.get('chart');
+    if (chart !== lockedNavigationChart(session)) {
+      throw new HttpsError('failed-precondition', 'Mission exploration requires its original locked chart.');
+    }
+    const reward = record.rewards?.find(reward => reward.opportunityId === opportunityId);
+    if (!reward || record.status !== 'resolved') {
+      throw new HttpsError('failed-precondition', 'This mission has no resolved exploration reward.');
+    }
+    const navigationRef = navigationStateRef(sessionId);
+    const receiptRef = db.doc(`sessions/${sessionId}/serverState/missionExploration/receipts/${missionId}-${opportunityId}`);
+    const [navigationSnapshot, receipt, players, groupSnapshots] = await Promise.all([
+      tx.get(navigationRef), tx.get(receiptRef), tx.get(db.collection(`sessions/${sessionId}/players`)),
+      tx.get(db.collection(`sessions/${sessionId}/fleetGroups`)),
+    ]);
+    const activeVesselIds = activeVesselIdsForSession(session);
+    const navigation = navigationStateForSession(navigationSnapshot, session, activeVesselIds);
+    const revision = navigationSnapshot.get('revision');
+    if (!navigationSnapshot.exists || !Number.isSafeInteger(revision) || (revision as number) < 0 ||
+        (revision as number) >= Number.MAX_SAFE_INTEGER || receipt.exists) {
+      throw new HttpsError('failed-precondition', 'Exploration navigation or reward receipt is inconsistent.');
+    }
+    const groups = groupSnapshots.docs.map(snapshot => {
+      const group = fleetGroupRecord(snapshot.data());
+      if (!group || group.id !== snapshot.id) {
+        throw new HttpsError('failed-precondition', 'The current fleet-group authority is malformed.');
+      }
+      return group;
+    });
+    const audienceUids = record.lifecycle.participants.map(({ uid }) => uid);
+    const knownSystemsByUid = Object.fromEntries(audienceUids.map(uid => [uid,
+      discoverySystemsForCoordinates(navigation.missionExploredCoordinatesByUid?.[uid] ?? [])]));
+    const plan = planMissionExplorationReward({
+      missionId, siteCode: record.lifecycle.siteCode as CanonicalMissionCardCode,
+      opportunityId, rewardBranch: reward.branch, chart: chart as ChartId,
+      targetCoordinates, audienceUids, knownSystemsByUid,
+    });
+    if (!plan) throw new HttpsError('failed-precondition', 'The targets do not satisfy the printed exploration reward.');
+    const knowledge = { ...navigation.missionExploredCoordinatesByUid };
+    for (const uid of audienceUids) {
+      knowledge[uid] = [...new Set([...(knowledge[uid] ?? []), ...Object.values(plan.newDiscoveriesByUid[uid] ?? {})])];
+    }
+    const nextNavigation = { ...navigation, missionExploredCoordinatesByUid: knowledge };
+    const nextRevision = (revision as number) + 1;
+    return () => {
+      tx.set(navigationRef, { ...navigationProjectionFields(nextNavigation), revision: nextRevision,
+        updatedAt: FieldValue.serverTimestamp() });
+      tx.create(receiptRef, { ...plan.receipt, createdAt: FieldValue.serverTimestamp() });
+      publishDiscoveryProjections(tx, sessionId, players.docs, nextNavigation, nextRevision, chart as ChartId,
+        groups, true, { sessionSnapshot: session, navigationSnapshot, fleetGroupSnapshots: groupSnapshots.docs });
+    };
+  },
   prepareRewardDelivery: async ({ transaction, sessionId, missionId, session, nextRecord, shipId }) => {
     const tx = transaction as Transaction;
     const receiptRef = db.doc(`sessions/${sessionId}/serverState/missionRewardDeliveries/receipts/${missionId}`);
@@ -1709,6 +1765,8 @@ function navigationProjectionFields(navigation: NavigationState): Record<string,
   return {
     shipGalacticCoordinates: navigation.shipGalacticCoordinates,
     shipNavigationLogs: navigation.shipNavigationLogs,
+    ...(navigation.missionExploredCoordinatesByUid
+      ? { missionExploredCoordinatesByUid: navigation.missionExploredCoordinatesByUid } : {}),
     ...(navigation.scoutedCoordinatesByShip
       ? { scoutedCoordinatesByShip: navigation.scoutedCoordinatesByShip } : {}),
     pursuitGroups: navigation.pursuitGroups,

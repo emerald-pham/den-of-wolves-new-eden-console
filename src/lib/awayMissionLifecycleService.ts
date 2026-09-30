@@ -20,6 +20,7 @@ import {
 
 type Data = Record<string, unknown>;
 export interface AwayMissionPublicState {
+  readonly explorationAppliedOpportunityIds?: readonly string[];
   readonly missionId: string;
   readonly groupId: string;
   readonly siteCode: string;
@@ -79,6 +80,7 @@ type LifecycleCommandType =
   | 'assignCards'
   | 'addFacilitatorCards'
   | 'resolve'
+  | 'exploreSystems'
   | 'dropOff';
 
 export interface AwayMissionLifecycleMission {
@@ -159,6 +161,7 @@ export interface AwayMissionLifecycleCallablePayload {
   readonly cardId?: string;
   readonly choices?: readonly Readonly<{ cardId: string; resource: 'food' | 'water' | 'materials' }>[];
   readonly placements?: readonly Readonly<{ cardId: string; opportunityId: string }> [];
+  readonly targetCoordinates?: readonly string[];
   readonly shipId?: string;
   readonly instanceId?: string;
 }
@@ -189,6 +192,7 @@ export interface AwayMissionLifecycleClientActions {
   ) => Promise<void>;
   readonly addFacilitatorCards: () => Promise<void>;
   readonly resolve: () => Promise<void>;
+  readonly exploreSystems: (opportunityId: string, targetCoordinates: readonly string[]) => Promise<void>;
   readonly dropOff: (shipId: string) => Promise<void>;
 }
 
@@ -223,7 +227,7 @@ const AMBIGUOUS_TRANSPORT_ERRORS = new Set([
   'functions/deadline-exceeded', 'functions/internal', 'functions/network-request-failed',
   'functions/unavailable', 'functions/unknown',
 ]);
-const GM_COMMANDS = new Set<LifecycleCommandType>(['openDiscards', 'addFacilitatorCards', 'resolve']);
+const GM_COMMANDS = new Set<LifecycleCommandType>(['openDiscards', 'addFacilitatorCards', 'resolve', 'exploreSystems']);
 const LEADER_COMMANDS = new Set<LifecycleCommandType>(['distributeExtraCard', 'dropOff']);
 
 function isRecord(value: unknown): value is Data {
@@ -308,7 +312,7 @@ export function parseAwayMissionLifecyclePublicState(
   value: unknown,
   expectedMissionId: string,
 ): AwayMissionPublicState | null {
-  if (!isRecord(value) || !hasExactKeys(value, PUBLIC_KEYS) ||
+  if (!isRecord(value) || !hasExactKeys(value, [...PUBLIC_KEYS, ...(Object.hasOwn(value, 'explorationAppliedOpportunityIds') ? ['explorationAppliedOpportunityIds'] : [])]) ||
       value.missionId !== expectedMissionId || !isNonEmptyString(value.groupId) ||
       typeof value.siteCode !== 'string' || !/^[A-P]$/.test(value.siteCode) ||
       !isRevision(value.revision) || typeof value.phase !== 'string' || !MISSION_PHASES.has(value.phase) ||
@@ -331,6 +335,9 @@ export function parseAwayMissionLifecyclePublicState(
         opportunityIds.has(opportunity.id)) return null;
     opportunityIds.add(opportunity.id);
   }
+  if (value.explorationAppliedOpportunityIds !== undefined &&
+      (!isUniqueStringArray(value.explorationAppliedOpportunityIds) ||
+        value.explorationAppliedOpportunityIds.some(id => !opportunityIds.has(id)))) return null;
   if (value.requestCounts.some((entry) => !isRecord(entry) ||
       !hasExactKeys(entry, ['participantUid', 'count']) || !isNonEmptyString(entry.participantUid) ||
       !Number.isSafeInteger(entry.count) || (entry.count as number) < 1 ||
@@ -825,6 +832,7 @@ export function createAwayMissionLifecycleActions(
     assignCards: (placements) => submit('assignCards', { placements }),
     addFacilitatorCards: () => submit('addFacilitatorCards'),
     resolve: () => submit('resolve'),
+    exploreSystems: (opportunityId, targetCoordinates) => submit('exploreSystems', { opportunityId, targetCoordinates }),
     dropOff: (shipId) => submit('dropOff', { shipId }),
   };
 }

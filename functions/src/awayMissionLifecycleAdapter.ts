@@ -64,6 +64,7 @@ export interface AwayMissionLifecycleCommandReceipt {
 }
 
 export interface AwayMissionLifecycleRecord {
+  readonly explorationAppliedOpportunityIds?: readonly string[];
   readonly schemaVersion: 1;
   readonly sessionId: string;
   readonly groupId: string;
@@ -92,6 +93,7 @@ export type AwayMissionLifecycleCommand =
   | Readonly<{ type: 'assignCards'; requestId: string; expectedRevision: number; placements: readonly Readonly<{ cardId: MissionCardId; opportunityId: string }>[] }>
   | Readonly<{ type: 'addFacilitatorCards'; requestId: string; expectedRevision: number }>
   | Readonly<{ type: 'resolve'; requestId: string; expectedRevision: number }>
+  | Readonly<{ type: 'exploreSystems'; requestId: string; expectedRevision: number; opportunityId: string; targetCoordinates: readonly string[] }>
   | Readonly<{ type: 'dropOff'; requestId: string; expectedRevision: number; shipId: string }>;
 
 export interface AwayMissionLifecycleAuthority {
@@ -116,6 +118,7 @@ export type AwayMissionLifecycleCommandResult = Readonly<{
 }>;
 
 export interface AwayMissionPublicState {
+  readonly explorationAppliedOpportunityIds?: readonly string[];
   readonly missionId: string;
   readonly groupId: string;
   readonly siteCode: string;
@@ -379,7 +382,20 @@ export function applyAwayMissionLifecycleCommand(
       nextLegalDropOffShipIds = [...new Set(authority.legalDropOffShipIds)];
       break;
     }
+    case 'exploreSystems': {
+      const reward = record.rewards?.find(({ opportunityId }) => opportunityId === command.opportunityId);
+      if (!authority.isActiveGm || record.status !== 'resolved' || !reward || reward.branch === 'none' ||
+          !reward.effects.some(({ kind }) => kind === 'exploreStarSystems') ||
+          record.explorationAppliedOpportunityIds?.includes(command.opportunityId) ||
+          !Array.isArray(command.targetCoordinates) || command.targetCoordinates.length !== 2 ||
+          command.targetCoordinates.some(coordinate => typeof coordinate !== 'string' || !/^\d{4}$/.test(coordinate)) ||
+          new Set(command.targetCoordinates).size !== 2) return { status: 'denied' };
+      nextLifecycle = record.lifecycle;
+      break;
+    }
     case 'dropOff':
+      if (record.rewards?.some(reward => reward.effects.some(({ kind }) => kind === 'exploreStarSystems') &&
+          !record.explorationAppliedOpportunityIds?.includes(reward.opportunityId))) return { status: 'denied' };
       if (record.status !== 'resolved' || authority.actorUid !== record.lifecycle.leaderUid ||
           !isNonEmptyString(command.shipId) || !record.legalDropOffShipIds.includes(command.shipId) ||
           !authority.legalDropOffShipIds.includes(command.shipId)) return { status: 'denied' };
@@ -394,6 +410,9 @@ export function applyAwayMissionLifecycleCommand(
 
   const nextRecord: AwayMissionLifecycleRecord = {
     ...record,
+    ...(command.type === 'exploreSystems' ? { explorationAppliedOpportunityIds: [
+      ...(record.explorationAppliedOpportunityIds ?? []), command.opportunityId,
+    ] } : {}),
     revision: record.revision + 1,
     lifecycle: nextLifecycle,
     status: nextStatus,
@@ -456,6 +475,7 @@ export function projectAwayMissionPublicState(
     }));
   const rewards = record.status === 'active' ? null : record.rewards;
   return {
+    ...(record.explorationAppliedOpportunityIds ? { explorationAppliedOpportunityIds: record.explorationAppliedOpportunityIds } : {}),
     missionId: record.lifecycle.missionId,
     groupId: record.groupId,
     siteCode: record.lifecycle.siteCode,
@@ -509,6 +529,7 @@ const COMMAND_KEYS: Readonly<Record<AwayMissionLifecycleCommand['type'], readonl
   assignCards: ['type', 'requestId', 'expectedRevision', 'placements'],
   addFacilitatorCards: ['type', 'requestId', 'expectedRevision'],
   resolve: ['type', 'requestId', 'expectedRevision'],
+  exploreSystems: ['type', 'requestId', 'expectedRevision', 'opportunityId', 'targetCoordinates'],
   dropOff: ['type', 'requestId', 'expectedRevision', 'shipId'],
 };
 
@@ -530,6 +551,14 @@ function isValidRecord(value: unknown): value is AwayMissionLifecycleRecord {
       (value.custody.shipId !== null && !isNonEmptyString(value.custody.shipId)) ||
       value.legalDropOffShipIds.some((id) => !isNonEmptyString(id)) ||
       new Set(value.legalDropOffShipIds).size !== value.legalDropOffShipIds.length) return false;
+
+  if (value.explorationAppliedOpportunityIds !== undefined &&
+      (!Array.isArray(value.explorationAppliedOpportunityIds) ||
+        new Set(value.explorationAppliedOpportunityIds).size !== value.explorationAppliedOpportunityIds.length ||
+        value.explorationAppliedOpportunityIds.some(id => typeof id !== 'string' ||
+          !(value.rewards as readonly MissionOpportunityRewardResult[] | null)?.some(reward =>
+            reward.opportunityId === id && reward.branch !== 'none' &&
+            reward.effects.some(({ kind }) => kind === 'exploreStarSystems'))))) return false;
 
   const participantIds = new Set(lifecycle.participants.map(({ uid }) => uid));
   if (value.participantCrafts.length !== participantIds.size) return false;

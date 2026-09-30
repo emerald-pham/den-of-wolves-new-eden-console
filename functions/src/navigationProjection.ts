@@ -18,6 +18,8 @@ import {
 import type { CandidateReveal } from './candidateRevealProjection';
 
 export interface NavigationState {
+  /** Mission reward knowledge follows its entitled UID, never a later ship occupant. */
+  readonly missionExploredCoordinatesByUid?: Readonly<Record<string, readonly string[]>>;
   readonly shipGalacticCoordinates: Readonly<Record<string, string>>;
   readonly shipNavigationLogs: NavigationLogs;
   /** Additional coordinates independently discovered by each active ship. */
@@ -137,6 +139,8 @@ export function navigationState(
     raw.scoutedCoordinatesByShip,
     activeVesselIds,
   );
+  const missionExploredCoordinatesByUid = parseMissionExploredCoordinatesByUid(raw.missionExploredCoordinatesByUid);
+  if (!missionExploredCoordinatesByUid) throw new Error('Mission discovery authority is malformed.');
   const normalizedHistory = systemHistory(raw.systemHistory, activeVesselIds, shipNavigationLogs);
   const candidatePlanCheckpoint = parseCandidatePlanCheckpoint(raw.candidatePlanCheckpoint);
   return {
@@ -148,6 +152,7 @@ export function navigationState(
     ])),
     shipNavigationLogs,
     ...(scoutedCoordinatesByShip ? { scoutedCoordinatesByShip } : {}),
+    ...(Object.keys(missionExploredCoordinatesByUid).length ? { missionExploredCoordinatesByUid } : {}),
     ...(normalizedHistory ? { systemHistory: normalizedHistory } : {}),
     ...(candidatePlanCheckpoint ? { candidatePlanCheckpoint } : {}),
     pursuitGroups: pursuitGroups(raw, legacyPursuitGroups),
@@ -324,15 +329,17 @@ export function playerDiscoveryProjection(
   revision: number,
   fleetGroupVesselIds: readonly string[] = [],
   candidateReveals?: readonly CandidateReveal[],
+  actorUid?: string,
 ): PlayerDiscoveryProjection {
+  const missionCoordinates = actorUid ? navigation.missionExploredCoordinatesByUid?.[actorUid] ?? [] : [];
   const groupId = typeof player.get('fleetGroupId') === 'string' ? player.get('fleetGroupId') as string : '';
   const shipId = playerShipId(player);
   if (!shipId || !groupId) {
     return {
       groupId,
       fleetGroupVesselIds: [...fleetGroupVesselIds],
-      knownCoordinates: [INITIAL_COORDINATE],
-      knownSystems: discoverySystemsForCoordinates([INITIAL_COORDINATE]),
+      knownCoordinates: [INITIAL_COORDINATE, ...missionCoordinates],
+      knownSystems: discoverySystemsForCoordinates([INITIAL_COORDINATE, ...missionCoordinates]),
       pursuitDistance: 0,
       ...(navigation.pursuitGroups[groupId] !== undefined
         ? { pursuitValue: navigation.pursuitGroups[groupId] }
@@ -349,7 +356,7 @@ export function playerDiscoveryProjection(
   const shipKnownCoordinates = knownCoordinates(
     currentCoordinate,
     entries,
-    navigation.scoutedCoordinatesByShip?.[shipId] ?? [],
+    [...(navigation.scoutedCoordinatesByShip?.[shipId] ?? []), ...missionCoordinates],
   );
   const ownHistory = systemHistoryForShip(navigation.systemHistory, shipId);
   return {
@@ -380,7 +387,21 @@ export function writePlayerDiscoveryProjection(
   candidateReveals?: readonly CandidateReveal[],
 ): void {
   const projection = playerDiscoveryProjection(
-    player, navigation, revision, fleetGroupVesselIds, candidateReveals,
+    player, navigation, revision, fleetGroupVesselIds, candidateReveals, ref.id,
   );
   tx.set(ref, projection);
+}
+
+/** Reject malformed private maps before any navigation mutation can overwrite them. */
+export function parseMissionExploredCoordinatesByUid(value: unknown): Readonly<Record<string, readonly string[]>> | null {
+  if (value === undefined) return {};
+  if (!isRecord(value)) return null;
+  const entries: [string, readonly string[]][] = [];
+  for (const [uid, coordinates] of Object.entries(value)) {
+    if (!uid || uid.includes('/') || !Array.isArray(coordinates) ||
+        coordinates.some(coordinate => typeof coordinate !== 'string' || !isStarSystemCoordinate(coordinate)) ||
+        new Set(coordinates).size !== coordinates.length) return null;
+    entries.push([uid, coordinates as string[]]);
+  }
+  return Object.fromEntries(entries);
 }

@@ -130,6 +130,11 @@ export interface AwayMissionLifecycleCallableDependencies {
     readonly nextRecord: AwayMissionLifecycleRecord;
     readonly shipId: string;
   }) => Promise<() => void>;
+  /** Validate printed chart targets and prepare UID-private knowledge in this transaction. */
+  readonly prepareExplorationApplication: (context: AwayMissionLifecycleAuthorityContext & {
+    readonly opportunityId: string;
+    readonly targetCoordinates: readonly string[];
+  }) => Promise<() => void>;
   /** Override only for deterministic tests; production defaults use crypto.randomInt. */
   readonly randomIndex?: MissionDeckRandomIndex;
   /** Override only for deterministic tests; production defaults use a private cryptographic d6. */
@@ -205,11 +210,12 @@ const COMMAND_FIELDS: Readonly<Record<LifecycleCommandType, readonly string[]>> 
   assignCards: ['placements'],
   addFacilitatorCards: [],
   resolve: [],
+  exploreSystems: ['opportunityId', 'targetCoordinates'],
   dropOff: ['shipId'],
 };
 
 const COMMAND_TYPES = Object.keys(COMMAND_FIELDS) as LifecycleCommandType[];
-const GM_COMMANDS = new Set<LifecycleCommandType>(['openDiscards', 'addFacilitatorCards', 'resolve']);
+const GM_COMMANDS = new Set<LifecycleCommandType>(['openDiscards', 'addFacilitatorCards', 'resolve', 'exploreSystems']);
 const LEADER_COMMANDS = new Set<LifecycleCommandType>(['distributeExtraCard', 'dropOff']);
 const PARTICIPANT_COMMANDS = new Set<LifecycleCommandType>([
   'requestExtraCards', 'discardCard', 'reclamatorSalvage', 'assignCards',
@@ -505,6 +511,12 @@ export function createAwayMissionLifecycleCallables(
           fail('failed-precondition', 'The away-mission command exhausted the shared deck.');
         }
 
+        const commitExploration = parsed.command.type === 'exploreSystems'
+          ? await dependencies.prepareExplorationApplication({
+            transaction: rawTransaction, sessionId: parsed.sessionId, missionId: parsed.missionId,
+            session: sessionSnapshot, mission: missionSnapshot, record, commandType: parsed.command.type,
+            opportunityId: parsed.command.opportunityId, targetCoordinates: parsed.command.targetCoordinates,
+          }) : undefined;
         const commitDelivery = parsed.command.type === 'dropOff'
           ? await dependencies.prepareRewardDelivery({
             transaction: rawTransaction, sessionId: parsed.sessionId, missionId: parsed.missionId,
@@ -512,6 +524,7 @@ export function createAwayMissionLifecycleCallables(
             commandType: parsed.command.type, nextRecord, shipId: parsed.command.shipId,
           }) : undefined;
         const updatedAt = dependencies.serverTimestamp();
+        commitExploration?.();
         commitDelivery?.();
         transaction.update(dependencies.db.doc(p.mission), {
           phase: nextRecord.lifecycle.phase,
@@ -664,6 +677,15 @@ function parseCallableCommand(value: unknown): ParsedCallableCommand {
         type, requestId, expectedRevision: expectedRevision as number,
         placements: value.placements as readonly Readonly<{ cardId: MissionCardId; opportunityId: string }>[],
       };
+      break;
+    case 'exploreSystems':
+      if (!safePathSegment(value.opportunityId) || !Array.isArray(value.targetCoordinates) ||
+          value.targetCoordinates.length !== 2 || new Set(value.targetCoordinates).size !== 2 ||
+          value.targetCoordinates.some(coordinate => typeof coordinate !== 'string' || !/^\d{4}$/.test(coordinate))) {
+        fail('invalid-argument', 'Choose two distinct printed system coordinates.');
+      }
+      command = { type, requestId, expectedRevision: expectedRevision as number,
+        opportunityId: value.opportunityId as string, targetCoordinates: value.targetCoordinates as string[] };
       break;
     case 'dropOff':
       if (!safePathSegment(value.shipId)) fail('invalid-argument', 'Invalid mission reward drop-off ship.');
@@ -1138,6 +1160,7 @@ function validateStoredCommandReply(
         'missionId', 'groupId', 'siteCode', 'revision', 'phase', 'status', 'overrun',
         'missionLeaderUid', 'participantCount', 'opportunities', 'requestCounts', 'outcomes',
         'rewards', 'specialRewards', 'custody', 'legalDropOffShipIds',
+        ...(Object.hasOwn(publicState, 'explorationAppliedOpportunityIds') ? ['explorationAppliedOpportunityIds'] : []),
       ])) {
     fail('failed-precondition', 'The shared away-mission receipt has no safe replay result.');
   }

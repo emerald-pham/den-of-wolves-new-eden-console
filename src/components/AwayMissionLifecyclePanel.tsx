@@ -25,6 +25,7 @@ interface PrivateMissionState {
 }
 
 interface PublicMissionState {
+  readonly explorationAppliedOpportunityIds?: readonly string[];
   readonly missionId: string;
   readonly groupId: string;
   readonly siteCode: string;
@@ -65,6 +66,7 @@ export interface AwayMissionLifecycleActions {
   readonly assignCards: (placements: readonly Readonly<{ cardId: string; opportunityId: string }>[]) => Promise<unknown>;
   readonly addFacilitatorCards: () => Promise<unknown>;
   readonly resolve: () => Promise<unknown>;
+  readonly exploreSystems?: (opportunityId: string, targetCoordinates: readonly string[]) => Promise<unknown>;
   readonly dropOff: (shipId: string) => Promise<unknown>;
 }
 
@@ -95,6 +97,7 @@ export default function AwayMissionLifecyclePanel({
   const [reclamatorChoices, setReclamatorChoices] = useState<Record<string, 'food' | 'water' | 'materials'>>({});
   const [reclamatorOpportunityId, setReclamatorOpportunityId] = useState('');
   const [dropOffShipId, setDropOffShipId] = useState('');
+  const [explorationTargets, setExplorationTargets] = useState<Record<string, readonly [string, string]>>({});
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -182,6 +185,35 @@ export default function AwayMissionLifecyclePanel({
                   .map(([resource, amount]) => `${resource} ${amount}`).join(' // ') || 'printed effect'}
               </p>
             )}
+            {isGm && actions.exploreSystems && publicState.status === 'resolved' &&
+              ((publicState.siteCode === 'D' && opportunity.id === 'D-3') ||
+                (publicState.siteCode === 'E' && opportunity.id === 'E-3')) &&
+              publicState.outcomes?.some(result => result.opportunityId === opportunity.id &&
+                ['success', 'critical-success'].includes(result.outcome)) &&
+              !publicState.explorationAppliedOpportunityIds?.includes(opportunity.id) && (
+                <fieldset disabled={busy} className="away-mission-lifecycle__actions">
+                  <legend>Explore two {publicState.siteCode === 'E' ? 'Wolf ' : ''}systems</legend>
+                  <p>Enter two distinct coordinates on the locked chart. Knowledge goes to this mission's participants.</p>
+                  {[0, 1].map(index => (
+                    <label key={index}>
+                      {index === 0 ? 'First' : 'Second'} system coordinate
+                      <input aria-label={`${index === 0 ? 'First' : 'Second'} system coordinate for ${opportunity.id}`}
+                        inputMode="numeric" maxLength={4} value={explorationTargets[opportunity.id]?.[index] ?? ''}
+                        onChange={event => setExplorationTargets(current => {
+                          const pair: [string, string] = [...(current[opportunity.id] ?? ['', ''])];
+                          pair[index] = event.target.value;
+                          return { ...current, [opportunity.id]: pair };
+                        })} />
+                    </label>
+                  ))}
+                  <button type="button" aria-label={`Apply exploration reward ${opportunity.id}`}
+                    disabled={busy || !explorationTargets[opportunity.id]?.every(coordinate => /^\d{4}$/.test(coordinate)) ||
+                      new Set(explorationTargets[opportunity.id]).size !== 2}
+                    onClick={() => void run(() => actions.exploreSystems!(opportunity.id, explorationTargets[opportunity.id]!))}>
+                    Apply exploration reward
+                  </button>
+                </fieldset>
+              )}
           </article>
         ))}
       </div>
