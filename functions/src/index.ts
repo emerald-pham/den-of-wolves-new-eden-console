@@ -16049,6 +16049,7 @@ export const moveShipToLocation = onCall<{
       eventIdPrefix,
     );
     const movedNavigation = navigationState({
+      ...currentNavigation,
       shipGalacticCoordinates: move.coordinates,
       shipNavigationLogs: move.logs,
       scoutedCoordinatesByShip: currentNavigation.scoutedCoordinatesByShip,
@@ -16630,6 +16631,7 @@ export const jumpShip = onCall<{
         const revision = currentRevision + 1;
         const navigationRevision = nextNavigationRevision(storedNavigation);
         const movedNavigation = navigationState({
+          ...currentNavigation,
           shipGalacticCoordinates: move.coordinates, shipNavigationLogs: move.logs,
           scoutedCoordinatesByShip: currentNavigation.scoutedCoordinatesByShip,
           systemHistory: currentNavigation.systemHistory, pursuitGroups: currentNavigation.pursuitGroups,
@@ -16948,6 +16950,7 @@ export const jumpShip = onCall<{
     const revision = currentRevision + 1;
     const navigationRevision = nextNavigationRevision(storedNavigation);
     const movedNavigation = navigationState({
+      ...currentNavigation,
       shipGalacticCoordinates: move.coordinates,
       shipNavigationLogs: move.logs,
       scoutedCoordinatesByShip: currentNavigation.scoutedCoordinatesByShip,
@@ -17261,6 +17264,7 @@ export const adjudicateFailedJump = onCall<{
       affectedPlayers: Array.isArray(players?.docs) ? players.docs : [player], revision,
     });
     const movedNavigation = navigationState({
+      ...currentNavigation,
       shipGalacticCoordinates: move.coordinates, shipNavigationLogs: move.logs,
       scoutedCoordinatesByShip: currentNavigation.scoutedCoordinatesByShip,
       systemHistory: currentNavigation.systemHistory, pursuitGroups: currentNavigation.pursuitGroups,
