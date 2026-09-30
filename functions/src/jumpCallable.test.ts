@@ -2418,3 +2418,25 @@ it('sends and reads ordinary notes only for the current authoritative group, wit
   await expect(calls.readFleetGroupMessages.run(request({ sessionId: 's1', expectedGroupId: 'fleet-2' }))).rejects.toThrow(/group/i);
   await expect(calls.sendFleetGroupMessage.run(request({ sessionId: 's1', expectedGroupId: 'fleet-2', text: 'Forbidden' }))).rejects.toThrow(/group/i);
 });
+
+it('refuses malformed private note storage and a valid-looking receipt for another group', async () => {
+  const calls = jumpCallables as unknown as {
+    sendFleetGroupMessage: { run: (request: unknown) => Promise<unknown> };
+    readFleetGroupMessages: { run: (request: unknown) => Promise<unknown> };
+  };
+  const command = request({ sessionId: 's1', expectedGroupId: 'fleet-1', text: 'Current group only.' });
+  await calls.sendFleetGroupMessage.run(command);
+  mock.commandReceiptRecord = mock.set.mock.calls.find(([path]) => path === 'sessions/s1/commandReceipts/test-jump')?.[1];
+  mock.commandReceiptRecord = { ...mock.commandReceiptRecord, result: { status: 'committed', groupId: 'fleet-2', messageId: 'other-request' } };
+  await expect(calls.sendFleetGroupMessage.run(command)).rejects.toThrow(/replay|receipt|result/i);
+  mock.groupMessages = { groupId: 'fleet-1', messages: [{ id: 'private-note', actorUid: 'u1', text: 'Safe text',
+    sentAt: '2026-09-30T00:00:00Z', privateCards: ['A♥'] }] };
+  await expect(calls.readFleetGroupMessages.run(request({ sessionId: 's1', expectedGroupId: 'fleet-1' }))).rejects.toThrow(/malformed/i);
+});
+it('does not change fleet partitions while a Wolf attack awaits resolution', async () => {
+  mock.coordinate = '1413';
+  mock.wolfAttackState = { status: 'awaiting-facilitator-resolution' };
+  const call = (jumpCallables as unknown as { confirmFleetPartition: { run: (request: unknown) => Promise<unknown> } }).confirmFleetPartition;
+  await expect(call.run(request({ sessionId: 's1', instanceId: 'bridge', expectedNavigationRevision: 0 }))).rejects.toThrow(/attack.*resolution|movement.*blocked/i);
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+});
