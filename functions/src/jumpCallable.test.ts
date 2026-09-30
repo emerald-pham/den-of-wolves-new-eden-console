@@ -2056,6 +2056,18 @@ it('does not draw a blind destination before the ordinary jump charge requiremen
   }));
 });
 
+it('keeps the server-selected blind destination out of a failed fuel-shortage reply', async () => {
+  mock.fuel = 1;
+  mock.randomInt.mockReturnValue(1);
+
+  const reply = await jumpShip.run(request({ ...data, requestId: 'blind-fuel-shortage', blind: true }));
+
+  expect(reply).toMatchObject({ status: 'fuel-shortage', origin: '0000' });
+  expect(reply).not.toHaveProperty('destination');
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/jumpFailures/blind-fuel-shortage',
+    expect.objectContaining({ destination: '1413', failureStatus: 'fuel-shortage' }));
+});
+
 it.each([
   ['short', '5143', 10],
   ['medium', '9997', 15],
