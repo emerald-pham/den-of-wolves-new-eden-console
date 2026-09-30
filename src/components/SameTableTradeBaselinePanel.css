@@ -1,0 +1,152 @@
+.same-table-trade-baseline {
+  display: grid;
+  gap: 0.8rem;
+  min-width: 0;
+  padding: clamp(0.8rem, 2vw, 1.1rem);
+  color: var(--cic-ink);
+  font: 0.76rem/1.55 var(--cic-mono);
+}
+
+.same-table-trade-baseline__overline,
+.same-table-trade-baseline h2,
+.same-table-trade-baseline p {
+  margin: 0;
+}
+
+.same-table-trade-baseline h2 {
+  color: var(--cic-cyan);
+  font: 700 0.9rem/1.3 var(--cic-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+.same-table-trade-baseline__guidance,
+.same-table-trade-baseline__empty,
+.same-table-trade-baseline__success {
+  color: var(--cic-ink);
+  overflow-wrap: anywhere;
+}
+
+.same-table-trade-baseline__target-field,
+.same-table-trade-baseline__count-field {
+  display: grid;
+  align-content: start;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.same-table-trade-baseline__target-field > label,
+.same-table-trade-baseline__count-field > label {
+  color: var(--cic-amber);
+  font: 0.68rem/1.4 var(--cic-mono);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+.same-table-trade-baseline select,
+.same-table-trade-baseline input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  border: 1px solid var(--cic-amber-dim);
+  border-radius: var(--cic-radius);
+  padding: 0.55rem 0.65rem;
+  background: var(--cic-void);
+  color: var(--cic-cyan);
+  font: 0.78rem/1.35 var(--cic-mono);
+}
+
+.same-table-trade-baseline select:focus-visible,
+.same-table-trade-baseline input:focus-visible {
+  outline: 2px solid var(--cic-amber);
+  outline-offset: 2px;
+}
+
+.same-table-trade-baseline select:disabled,
+.same-table-trade-baseline input:disabled {
+  color: var(--cic-muted);
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.same-table-trade-baseline [aria-invalid='true'] {
+  border-color: var(--cic-danger);
+}
+
+.same-table-trade-baseline__fieldset {
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.same-table-trade-baseline__fieldset legend {
+  margin-bottom: 0.5rem;
+  color: var(--cic-amber);
+  font: 0.66rem/1.4 var(--cic-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.same-table-trade-baseline__count-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.same-table-trade-baseline__count-field input {
+  font-variant-numeric: tabular-nums;
+}
+
+.same-table-trade-baseline__field-error,
+.same-table-trade-baseline__error {
+  color: var(--cic-scream);
+  font-size: 0.68rem;
+  overflow-wrap: anywhere;
+}
+
+.same-table-trade-baseline__error {
+  border-left: 2px solid var(--cic-danger);
+  padding-left: 0.55rem;
+}
+
+.same-table-trade-baseline__empty {
+  border-left: 2px solid var(--cic-amber-dim);
+  padding-left: 0.55rem;
+}
+
+.same-table-trade-baseline__success {
+  border-left: 2px solid var(--cic-cyan);
+  padding-left: 0.55rem;
+}
+
+.same-table-trade-baseline__submit {
+  justify-self: start;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 48rem), (max-height: 30rem) {
+  .same-table-trade-baseline__count-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 22rem) {
+  .same-table-trade-baseline__count-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .same-table-trade-baseline,
+  .same-table-trade-baseline * {
+    scroll-behavior: auto;
+    transition: none;
+    animation: none;
+  }
+}
