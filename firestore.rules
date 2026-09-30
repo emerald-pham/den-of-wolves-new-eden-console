@@ -111,6 +111,7 @@ service cloud.firestore {
         && playerHasCurrentRoleAuthority(player)
         && player.activeConsoleRoleId == null
         && player.seatId == null
+        && session.phase == 'active'
         && session.activeVesselIds is list
         && gorgoneion.hostShipId is string
         && gorgoneion.hostShipId in session.activeVesselIds

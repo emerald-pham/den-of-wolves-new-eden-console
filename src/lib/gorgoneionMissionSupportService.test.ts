@@ -29,8 +29,9 @@ import {
 
 const view = {
   sessionId: 's1', actorUid: 'captain', hostShipId: 'aegis', dockingRevision: 2,
-  dealtCount: 0, cardIds: ['Q♣', 'A♥', '5♦', 'K♥', '4♥'],
-};
+  dealtCount: 0 as const, cardIds: ['Q♣', 'A♥', '5♦', 'K♥', '4♥'],
+} as const;
+const requestId = '00000000-0000-4000-8000-000000000001';
 
 function installSession(overrides: Partial<GameSession> = {}): void {
   useSessionStore.getState().reset();
@@ -68,7 +69,7 @@ beforeEach(() => {
     mocks.onError = onError;
     return vi.fn();
   });
-  vi.spyOn(window.crypto, 'randomUUID').mockReturnValue('gorg-request-1');
+  vi.spyOn(window.crypto, 'randomUUID').mockReturnValue(requestId);
   installSession();
 });
 
@@ -89,16 +90,16 @@ it('loads only the exact current Captain projection from the callable response',
 
 it('sends the immutable projection and exact partition with a retry-stable request id', async () => {
   mocks.callable.mockResolvedValue({
-    data: { status: 'committed', sessionId: 's1', requestId: 'gorg-request-1', cardCount: 5 },
+    data: { status: 'committed', sessionId: 's1', requestId, cardCount: 5 },
   });
   await expect(applyGorgoneionMissionSupport({
     projection: view,
     topCardIds: ['Q♣', '5♦', 'K♥', '4♥'],
     bottomCardIds: ['A♥'],
-  })).resolves.toEqual({ status: 'committed', sessionId: 's1', requestId: 'gorg-request-1', cardCount: 5 });
+  })).resolves.toEqual({ status: 'committed', sessionId: 's1', requestId, cardCount: 5 });
   expect(mocks.httpsCallable).toHaveBeenCalledWith('functions-instance', 'applyGorgoneionMissionSupport');
   expect(mocks.callable).toHaveBeenCalledWith({
-    sessionId: 's1', requestId: 'gorg-request-1', actorUid: 'captain', hostShipId: 'aegis',
+    sessionId: 's1', requestId, actorUid: 'captain', hostShipId: 'aegis',
     dockingRevision: 2, dealtCount: 0, cardIds: view.cardIds,
     topCardIds: ['Q♣', '5♦', 'K♥', '4♥'], bottomCardIds: ['A♥'],
   });
@@ -134,6 +135,6 @@ it('rejects a delayed apply receipt if the dock authority changed while it was p
       gorgoneion: { ...session.smallShipStates!.gorgoneion!, dockingRevision: 3 },
     },
   } as GameSession);
-  finish({ data: { status: 'committed', sessionId: 's1', requestId: 'gorg-request-1', cardCount: 5 } });
+  finish({ data: { status: 'committed', sessionId: 's1', requestId, cardCount: 5 } });
   await expect(pending).rejects.toThrow(/authority|changed/i);
 });

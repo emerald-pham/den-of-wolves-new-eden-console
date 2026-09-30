@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/gorgoneionMissionSupportService', () => ({
   getGorgoneionMissionSupportProjection: mocks.get,
   applyGorgoneionMissionSupport: mocks.apply,
+  hasCurrentGorgoneionMissionSupportAuthority: () => true,
   subscribeGorgoneionMissionSupportProjection: mocks.subscribe,
 }));
 

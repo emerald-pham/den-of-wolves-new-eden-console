@@ -2,6 +2,21 @@ import { useId, type FormEvent } from 'react';
 import './GorgoneionMissionSupportPanel.css';
 
 const INSPECTED_CARD_COUNT = 5;
+const RANK_NAMES: Readonly<Record<string, string>> = {
+  A: 'Ace', 4: 'Four', 5: 'Five', 6: 'Six', 7: 'Seven', 8: 'Eight',
+  9: 'Nine', 10: 'Ten', J: 'Jack', Q: 'Queen', K: 'King',
+};
+const SUIT_NAMES: Readonly<Record<string, string>> = {
+  '♥': 'hearts', '♦': 'diamonds', '♣': 'clubs',
+};
+
+function cardFaceName(cardId: string): string | null {
+  const match = /^(A|4|5|6|7|8|9|10|J|Q|K)([♥♦♣])$/.exec(cardId);
+  if (!match) return null;
+  const rank = RANK_NAMES[match[1]!];
+  const suit = SUIT_NAMES[match[2]!];
+  return rank && suit ? `${rank} of ${suit}` : null;
+}
 
 export interface GorgoneionMissionSupportProjection {
   /** Opaque IDs for the current inspected top five, in their original order. */
@@ -21,6 +36,8 @@ export interface GorgoneionMissionSupportPanelProps {
     topCardIds: readonly string[],
     bottomCardIds: readonly string[],
   ) => void;
+  readonly submitting?: boolean;
+  readonly statusMessage?: string | null;
 }
 
 type Destination = 'top' | 'bottom';
@@ -34,7 +51,7 @@ function hasCurrentProjection(
   }
 
   const cardIds = projection.cardIds;
-  return cardIds.every((cardId) => typeof cardId === 'string' && cardId.length > 0) &&
+  return cardIds.every((cardId) => typeof cardId === 'string' && cardFaceName(cardId) !== null) &&
     new Set(cardIds).size === INSPECTED_CARD_COUNT;
 }
 
@@ -57,12 +74,15 @@ export default function GorgoneionMissionSupportPanel({
   bottomCardIds,
   onPartitionChange,
   onSubmit,
+  submitting = false,
+  statusMessage = null,
 }: GorgoneionMissionSupportPanelProps) {
   const id = useId();
   const titleId = `${id}-title`;
   const hasProjection = hasCurrentProjection(projection);
   const cardIds = hasProjection ? projection.cardIds : [];
-  const canSubmit = hasProjection && hasExactPartition(cardIds, topCardIds, bottomCardIds);
+  const canSubmit = hasProjection && !submitting &&
+    hasExactPartition(cardIds, topCardIds, bottomCardIds);
   const topSet = new Set(topCardIds);
   const bottomSet = new Set(bottomCardIds);
   const orderedTopCardIds = cardIds.filter((cardId) => topSet.has(cardId));
@@ -103,13 +123,17 @@ export default function GorgoneionMissionSupportPanel({
             <p className="gorgoneion-mission-support__instructions">
               Assign each projected card to stay on top or move to the bottom before any deal.
             </p>
-            {!canSubmit && <p className="gorgoneion-mission-support__status" role="status">
-              Choose one destination for each of the five cards.
+            {(statusMessage || submitting || !canSubmit) && <p className="gorgoneion-mission-support__status" role="status">
+              {statusMessage ?? (submitting
+                ? 'Applying the one-use pre-deal deck support…'
+                : 'Choose one destination for each of the five cards.')}
             </p>}
             <div className="gorgoneion-mission-support__cards" role="group" aria-label="Top-five card destinations">
               {cardIds.map((cardId, index) => {
                 const cardNumber = index + 1;
-                const cardLabel = `Card ${cardNumber}`;
+                const faceName = cardFaceName(cardId);
+                if (!faceName) return null;
+                const cardLabel = `Card ${cardNumber} — ${faceName}`;
                 const groupId = `${id}-card-${cardNumber}`;
                 const isOnTop = topSet.has(cardId) && !bottomSet.has(cardId);
                 const isOnBottom = bottomSet.has(cardId) && !topSet.has(cardId);
@@ -144,11 +168,11 @@ export default function GorgoneionMissionSupportPanel({
           </>
         ) : (
           <p className="gorgoneion-mission-support__status" role="status">
-            Deck support unavailable // A current top-five projection is required.
+            {statusMessage ?? 'Deck support unavailable // A current top-five projection is required.'}
           </p>
         )}
         <div className="gorgoneion-mission-support__actions">
-          <button className="cic-action-button" type="submit" disabled={!canSubmit}>
+          <button className="cic-action-button" type="submit" disabled={!canSubmit || submitting}>
             Apply deck support
           </button>
         </div>

@@ -2505,6 +2505,7 @@ it('exposes the Gorgoneion pre-deal face projection only to the current docked C
       replacementStatus: null, activeConsoleRoleId: null, seatId: null,
     });
     await updateDoc(doc(db, SESSION), {
+      phase: 'active',
       activeVesselIds: ['aegis'],
       smallShipStates: { gorgoneion: { hostShipId: 'aegis', dockingRevision: 2 } },
     });
@@ -2541,6 +2542,7 @@ it('revokes the Gorgoneion face projection when docking changes or the first car
       activeConsoleRoleId: null, seatId: null,
     });
     await updateDoc(doc(db, SESSION), {
+      phase: 'active',
       activeVesselIds: ['aegis'],
       smallShipStates: { gorgoneion: { hostShipId: 'aegis', dockingRevision: 2 } },
     });

@@ -54,6 +54,7 @@ import {
 } from './pursuitEmergencyWindow';
 import { enforceExpensiveCallableRateLimit } from './callableRateLimitFirestore';
 import { createSameTableTradeCallables } from './sameTableTradeCallable';
+import { createGorgoneionMissionSupportCallables } from './gorgoneionMissionSupportCallable';
 import { createPermissionedDismantlingCallables } from './permissionedDismantlingCallable';
 import { createVoyage33MovementCallables } from './voyage33MovementCallable';
 import { publicVoyage33MovementState } from './voyage33Movement';
@@ -700,6 +701,25 @@ const sameTableTradeCallables = createSameTableTradeCallables({
   serverTimestamp: () => FieldValue.serverTimestamp(),
 });
 
+const gorgoneionMissionSupportCallables = createGorgoneionMissionSupportCallables({
+  db,
+  commandMarkers: {
+    read: (transaction, sessionId, requestId) =>
+      (transaction as Transaction).get(commandReceiptRef(sessionId, requestId)),
+    create: (transaction, fingerprint, result) => {
+      const sessionId = fingerprint.sessionId;
+      if (!sessionId) throw new Error('Gorgoneion mission-support receipts require a session ID.');
+      (transaction as Transaction).create(commandReceiptRef(sessionId, fingerprint.requestId), {
+        fingerprint,
+        result,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    },
+  },
+  isActivePlayer: (player) => isActivePlayer(player as DocumentSnapshot),
+  serverTimestamp: () => FieldValue.serverTimestamp(),
+});
+
 const permissionedDismantlingCallables = createPermissionedDismantlingCallables({
   db,
   serverTimestamp: () => FieldValue.serverTimestamp(),
@@ -716,6 +736,12 @@ const voyage33MovementCallables = createVoyage33MovementCallables({
 
 export const proposePermissionedDismantling = onCall((request) =>
   permissionedDismantlingCallables.proposePermissionedDismantling(request));
+
+export const getGorgoneionMissionSupportProjection = onCall((request) =>
+  gorgoneionMissionSupportCallables.getGorgoneionMissionSupportProjection(request));
+
+export const applyGorgoneionMissionSupport = onCall((request) =>
+  gorgoneionMissionSupportCallables.applyGorgoneionMissionSupport(request));
 
 export const consentToPermissionedDismantling = onCall((request) =>
   permissionedDismantlingCallables.consentToPermissionedDismantling(request));
@@ -9424,6 +9450,9 @@ export const dealPrivateInitialCards = onCall<{
   const fleetGroupsRef = db.collection(`sessions/${command.sessionId}/fleetGroups`);
   const craftOwnershipManifestRef = db.doc(`sessions/${command.sessionId}/craftOwnership/manifest`);
   const missionDeckRef = db.doc(`sessions/${command.sessionId}/serverState/missionDeck`);
+  const gorgoneionMissionSupportViewsRef = db.collection(
+    `sessions/${command.sessionId}/gorgoneionMissionSupportViews`,
+  );
   const navigationRef = navigationStateRef(command.sessionId);
   const missionId = `mission-${command.opportunityId}`;
   const missionRef = db.doc(
@@ -9451,7 +9480,7 @@ export const dealPrivateInitialCards = onCall<{
 
   return db.runTransaction(async (tx) => {
     const [marker, authority, players, fleetGroups, craftOwnershipManifest,
-      missionDeckSnapshot, navigationSnapshot, opportunitySnapshot, startSnapshotSnapshot,
+      missionDeckSnapshot, gorgoneionMissionSupportViewsSnapshot, navigationSnapshot, opportunitySnapshot, startSnapshotSnapshot,
       missionSnapshot, eventSnapshot] =
       await Promise.all([
         tx.get(markerRef),
@@ -9460,6 +9489,7 @@ export const dealPrivateInitialCards = onCall<{
         tx.get(fleetGroupsRef),
         tx.get(craftOwnershipManifestRef),
         tx.get(missionDeckRef),
+        tx.get(gorgoneionMissionSupportViewsRef),
         tx.get(navigationRef),
         tx.get(opportunityRef),
         tx.get(startSnapshotRef),
@@ -9949,6 +9979,9 @@ export const dealPrivateInitialCards = onCall<{
       dealtCount: dealtCount + allocations.length,
       updatedAt: FieldValue.serverTimestamp(),
     });
+    for (const supportView of gorgoneionMissionSupportViewsSnapshot.docs) {
+      tx.delete(supportView.ref);
+    }
     tx.set(eventRef, buildPrivacySafeEventRecord({
       type: 'mission-cards-dealt',
       payload: {},

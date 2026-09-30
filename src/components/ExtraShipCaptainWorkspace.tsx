@@ -6,6 +6,7 @@ import type { RoleId } from '@/types/identifiers';
 import BaseCapybaraCargoTransferPanel from './BaseCapybaraCargoTransferPanel';
 
 const GorgoneionRepairDronesPanel = lazy(() => import('./GorgoneionRepairDronesPanel'));
+const GorgoneionMissionSupportWorkspace = lazy(() => import('./GorgoneionMissionSupportWorkspace'));
 const WarriorRepairDronesPanel = lazy(() => import('./WarriorRepairDronesPanel'));
 
 export default function ExtraShipCaptainWorkspace({ roleId }: { readonly roleId: RoleId }) {
@@ -75,6 +76,13 @@ export default function ExtraShipCaptainWorkspace({ roleId }: { readonly roleId:
               Loading repair controls…
             </p>}>
               <GorgoneionRepairDronesPanel />
+            </Suspense>
+          )}
+          {workspace.roleId === 'gorgoneion-captain' && (
+            <Suspense fallback={<p className="console-workspace__status" role="status">
+              Loading mission support…
+            </p>}>
+              <GorgoneionMissionSupportWorkspace />
             </Suspense>
           )}
           {workspace.roleId === 'capybara-small-captain' && <BaseCapybaraCargoTransferPanel />}
