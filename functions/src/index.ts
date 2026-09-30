@@ -225,6 +225,7 @@ import {
 import {
   jumpFuelCost,
   jumpLengthBetween,
+  resolveRamScoopOreGain,
   resolveEmergencyJump,
   resolveJumpAttempt,
   type JumpAttemptResult,
@@ -16192,6 +16193,16 @@ export const jumpShip = onCall<{
           eligible: pursuitEmergencyEligible || sameFailure,
           now, transitionId, state,
         });
+        const ramScoopCharged = change.shipId === 'icebreaker' &&
+          currentCycle.turn === currentTurn && charges.includes('ram-scoop');
+        const ramScoopOreGain = resolveRamScoopOreGain(emergency, {
+          charged: ramScoopCharged,
+          damaged: damage.destroyed || damage.damagedSystemIds.includes('ram-scoop'),
+          upgraded: ramScoopUpgraded,
+        });
+        const nextIcebreakerOre = ramScoopOreGain > 0
+          ? addResourceAmount(inventory.ore, ramScoopOreGain)
+          : undefined;
         const remainingConsoleIds = new Set((SHIP_DAMAGE_DECKS[change.shipId] ?? [])
           .filter(({ systemId }) => systemId !== 'jump-drive' && !systemId.startsWith('armoured-hull-') &&
             !damage.damagedSystemIds.includes(systemId))
@@ -16299,6 +16310,7 @@ export const jumpShip = onCall<{
         tx.update(sessionRef, {
           shipGalacticCoordinates: removeLegacyNavigationField(),
           [`shipResources.${change.shipId}.fuel`]: 0,
+          ...(nextIcebreakerOre === undefined ? {} : { 'shipResources.icebreaker.ore': nextIcebreakerOre }),
           [`maintenanceCycles.${change.shipId}`]: nextCycle,
           [`shipJumpStates.${change.shipId}`]: emergency.state,
           [`shipJumpTransitions.${change.shipId}`]: emergency.transition,
@@ -16336,11 +16348,13 @@ export const jumpShip = onCall<{
           shipId: change.shipId, requestId: identity.requestId, turn: currentTurn,
           phase: vesselActionPhase(session), revision, outcome: 'emergency', occurredAt: now.toISOString(),
           payload: { length: emergency.length, fuelSpent: inventory.fuel,
+            ...(ramScoopOreGain > 0 ? { ramScoopOreGain } : {}),
             damageCount: damageDraws.length + (damage.damagedSystemIds.includes('jump-drive') ? 0 : 1), emergency: true },
         });
         const reply = {
           ...emergency, fuelCost: inventory.fuel, fuelSpent: inventory.fuel,
           damage: emergencyDamage, damageDraws, shipId: change.shipId,
+          ...(ramScoopOreGain > 0 ? { ramScoopOreGain, remainingOre: nextIcebreakerOre } : {}),
           ...(emergencyDecision.window ? {
             pursuitEmergencyWindow: publicPursuitEmergencyWindow(emergencyDecision.window),
           } : {}),
@@ -16516,8 +16530,11 @@ export const jumpShip = onCall<{
     const ramScoopCharged = change.shipId === 'icebreaker' &&
       currentCycle.turn === currentTurn && charges.includes('ram-scoop') &&
       !damage.destroyed && !damage.damagedSystemIds.includes('ram-scoop');
-    const ramScoopBaseOre = result.length === 'short' ? 10 : result.length === 'medium' ? 15 : 20;
-    const ramScoopOreGain = ramScoopCharged ? ramScoopBaseOre + (ramScoopUpgraded ? 5 : 0) : 0;
+    const ramScoopOreGain = resolveRamScoopOreGain(result, {
+      charged: ramScoopCharged,
+      damaged: damage.destroyed || damage.damagedSystemIds.includes('ram-scoop'),
+      upgraded: ramScoopUpgraded,
+    });
     const nextIcebreakerOre = ramScoopOreGain > 0
       ? addResourceAmount(inventory.ore, ramScoopOreGain)
       : undefined;
