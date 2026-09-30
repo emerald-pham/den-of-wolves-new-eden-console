@@ -48,6 +48,17 @@ it('simulates docking and a legal destination using the production movement pane
   );
 });
 
+it('previews blind-jump presentation while keeping the production launch control disabled', async () => {
+  const user = userEvent.setup();
+  render(<PC06ReviewScene />);
+
+  const drive = screen.getByRole('region', { name: 'AEGIS Jump Drive control' });
+  await user.click(within(drive).getByRole('button', { name: 'Enable blind jump' }));
+  expect(within(drive).getByRole('button', { name: 'Blind jump' })).toBeDisabled();
+  expect(within(drive).getByRole('status')).toHaveTextContent(/presentation preview.*jump commands are disabled/i);
+  expect(within(drive).getByLabelText('Blind destination hidden until server resolution')).toBeVisible();
+});
+
 it('keeps cargo, ship stores, and consented same-table trade in separate local samples', async () => {
   const user = userEvent.setup();
   render(<PC06ReviewScene />);
