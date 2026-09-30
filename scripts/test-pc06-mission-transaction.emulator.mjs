@@ -50,8 +50,8 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
       batch.set(session, { phase: 'active', currentTurn: 2, setupRevision: 1, playerCount: 8,
         expansion: 'base', turnLimit: 6, chartId: 'A', chartSelectionLocked: true,
         dioneEnabled: false, capybaraEnabled: false, universalArbourEnabled: false, wolfCultEnabled: false,
-        activeRoleIds, activeVesselIds, shipResources: { aegis: { food: 20, water: 20, fuel: 10, ore: 0, materials: 10 } },
-        shipSurvivors: { aegis: 90000 },
+        activeRoleIds, activeVesselIds, shipResources: { aegis: { food: 20, water: 20, fuel: 10, ore: 0, materials: 10, securityTeams: 9 } },
+        shipSurvivors: { aegis: 2500 },
         shuttleDockings: [{ shuttleId: 'starlight', shipId: 'aegis', dockedAt: now },
           { shuttleId: 'highwall', shipId: 'icebreaker', dockedAt: now }],
         shuttleControl: {
