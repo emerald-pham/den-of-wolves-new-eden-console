@@ -804,6 +804,39 @@ it('hydrates admitted Voyage 33-0 as a public vessel identity without widening t
   expect(malformed.admittedVesselIds).toEqual([]);
 });
 
+it('hydrates Voyage 33-0 movement only from valid server state for an admitted vessel', () => {
+  const admission = {
+    type: 'voyage-admission', sessionId: 'voyage-movement-session', id: 'voyage-33-0', status: 'admitted',
+    crisisId: 'approach-1', crisisRevision: 3, population: 40_000, unrest: 0, hostShipId: null,
+    commitments: { requiresHostDocking: true, hostProvidesResources: true, maintenanceSteps: [1, 2, 3, 4], maxConsoleCharges: 1 },
+  };
+  const movement = {
+    id: 'voyage-33-0', coordinate: '0000', revision: 2,
+    jumpState: { lastJumpTurn: 1, emergencyJumpUsed: false },
+  };
+  const admitted = sessionFrom('voyage-movement-session', {
+    ...sessionData(8),
+    activeVesselIds: ['aegis'],
+    voyage33Admission: admission,
+    voyage33Movement: movement,
+  });
+  expect(admitted.voyage33Movement).toEqual(movement);
+  expect(admitted.activeVesselIds).toEqual(['aegis']);
+
+  const malformed = sessionFrom('voyage-movement-malformed', {
+    ...sessionData(8),
+    voyage33Admission: { ...admission, sessionId: 'voyage-movement-malformed' },
+    voyage33Movement: { ...movement, coordinate: '9999' },
+  });
+  expect(malformed.voyage33Movement).toBeUndefined();
+
+  const unadmitted = sessionFrom('voyage-movement-unadmitted', {
+    ...sessionData(8),
+    voyage33Movement: movement,
+  });
+  expect(unadmitted.voyage33Movement).toBeUndefined();
+});
+
 it('hydrates the complete turn entity only when its server fields are valid', () => {
   const session = sessionFrom('turn-state-session', {
     ...sessionData(8),
