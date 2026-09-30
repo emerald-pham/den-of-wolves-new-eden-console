@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Den of Wolves · PC07–PC10 roadmap</title>
+<style>
+  :root{color-scheme:light dark;--paper:#fafaf7;--ink:#172a32;--muted:#50616b;--rule:#d4dce0;--pc07:#007e70;--pc08:#2666b5;--pc09:#7953a6;--pc10:#a75b16;--tint:#edf1f1}
+  *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+  main{max-width:1280px;margin:auto;padding:44px 36px 64px}h1{font-size:clamp(27px,4vw,43px);line-height:1.12;letter-spacing:-.035em;margin:10px 0 16px;max-width:860px}
+  h2{font-size:21px;line-height:1.3;margin:36px 0 12px}p{max-width:920px;margin:8px 0 14px}.eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--muted)}
+  .muted{color:var(--muted)}.small{font-size:13px}code{font-size:.92em;overflow-wrap:anywhere}a{color:var(--pc08);text-underline-offset:3px;overflow-wrap:anywhere}
+  .context{border-left:3px solid var(--pc07);padding-left:14px;margin:22px 0}.legend{display:flex;gap:10px 22px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin:14px 0}
+  .legend span{display:flex;align-items:center;gap:7px}.legend-mark{width:18px;height:11px;background:var(--pc07);display:inline-block}.diamond{width:9px;height:9px;transform:rotate(45deg);background:var(--ink);display:inline-block;margin:0 4px}
+  .hatch{background:repeating-linear-gradient(135deg,var(--pc07) 0,var(--pc07) 3px,var(--paper) 3px,var(--paper) 5px)}.done-mark{background:var(--paper);border:2px solid var(--pc07)}
+  .gantt-row,.axis-row{display:grid;grid-template-columns:300px minmax(0,1fr);gap:18px}.gantt-row{padding:12px 0;border-bottom:1px solid var(--rule);align-items:center}
+  .row-label{line-height:1.3;min-width:0}.row-label strong{display:block;font-size:15px}.row-label .small{display:block;color:var(--muted);margin-top:5px}
+  .axis{position:relative;height:27px;font-variant-numeric:tabular-nums;font-size:12px;color:var(--muted)}.tick{position:absolute;transform:translateX(-50%);white-space:nowrap}
+  .track{position:relative;height:44px;background:repeating-linear-gradient(to right,var(--rule) 0,var(--rule) 1px,transparent 1px,transparent calc(100% / var(--waves)));min-width:0}
+  .bar{position:absolute;top:11px;height:22px;background:var(--accent);border-radius:2px;min-width:2px}.milestone{position:absolute;top:17px;width:10px;height:10px;background:var(--ink);transform:translateX(-50%) rotate(45deg)}
+  .bar-caption{position:absolute;font-size:12px;top:36px;color:var(--muted);white-space:nowrap;line-height:1}.overview .track{height:57px}
+  details{margin:18px 0}summary{font-weight:650;line-height:1.4;padding:12px 0;cursor:pointer}summary:hover{text-decoration:underline;text-underline-offset:4px}
+  .workstreams{margin:6px 0}.workstreams .gantt-row{padding:9px 0}.workstreams .row-label strong{font-size:13px;font-weight:600}.workstreams .track{height:31px}.workstreams .bar{top:8px;height:16px}
+  .workstreams .checkpoint-label{font-weight:750;margin:24px 0 6px;color:var(--accent);font-size:15px}.group-note{font-size:12px;color:var(--muted);margin-top:4px}.partial{background:repeating-linear-gradient(135deg,var(--accent) 0,var(--accent) 3px,var(--paper) 3px,var(--paper) 5px)}
+  .completed{background:var(--paper);border:2px solid var(--accent)}.bucket{position:absolute;top:4px;font-size:11px;color:white;text-align:center;line-height:16px;min-width:0}
+  .chart-description{font-size:13px;color:var(--muted)}.critical-list{padding-left:18px}.critical-list li{margin:9px 0}.critical-list strong{color:var(--ink)}
+  .toolbar{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0 10px}button{font:inherit;padding:8px 13px;border:1px solid var(--rule);border-radius:4px;background:var(--paper);color:var(--ink);cursor:pointer;min-height:44px}
+  .table-wrap{max-width:100%;overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;vertical-align:top;padding:10px 9px;border-bottom:1px solid var(--rule)}th{font-weight:700}
+  th:first-child,td:first-child{padding-left:0}th:last-child,td:last-child{padding-right:0}.id-cell{font-variant-numeric:tabular-nums;white-space:nowrap}.title-cell{min-width:190px;max-width:390px}
+  .state{font-weight:650;font-size:12px}.dependency-cell{max-width:350px;min-width:175px;overflow-wrap:anywhere}.dependency-cell small{display:block;color:var(--muted);margin-top:4px}.source{border-top:1px solid var(--rule);margin-top:32px;padding-top:20px;font-size:13px}
+  noscript{display:block;border-left:3px solid var(--pc10);padding:16px}
+  @media(prefers-color-scheme:dark){:root{--paper:#111c23;--ink:#ecf2f4;--muted:#b3c3cb;--rule:#344850;--pc07:#40b8a6;--pc08:#71a7ec;--pc09:#b598da;--pc10:#e3a96e;--tint:#203239}.bucket{color:#111c23}}
+  @media(max-width:900px){.gantt-row,.axis-row{grid-template-columns:235px minmax(0,1fr);gap:12px}main{padding:28px 24px 48px}}
+  @media(max-width:620px){main{padding:23px 16px 40px}.gantt-row,.axis-row{grid-template-columns:1fr;gap:5px}.axis-row>div:first-child{display:none}.row-label strong{font-size:14px}.overview .track{margin-top:5px}.workstreams .row-label strong{font-size:13px}.workstreams .gantt-row{padding:10px 0}.workstreams .axis-row{margin-top:10px}h2{font-size:19px}.small,.chart-description{font-size:13px}button{flex:1}.title-cell{min-width:175px}}
+  @media print{:root{color-scheme:light;--paper:white;--ink:#172a32;--muted:#50616b;--rule:#d4dce0;--pc07:#007e70;--pc08:#2666b5;--pc09:#7953a6;--pc10:#a75b16}body{font-size:12px}main{padding:10px;max-width:none}.toolbar{display:none}h1{font-size:28px}.gantt-row{break-inside:avoid}*{print-color-adjust:exact;-webkit-print-color-adjust:exact}.source{break-before:auto}}
+</style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">Den of Wolves · New Eden Console</div>
+  <h1>From PC07 to a finished campaign</h1>
+  <p id="subtitle"></p>
+  <p class="muted">A wave is a dependency layer, with no date or duration attached. Work in the same wave has no hard-prompt dependency between it; ownership, shared files and access still limit real parallel work.</p>
+  <div class="context" id="context"></div>
+  <section aria-labelledby="overview-heading">
+    <h2 id="overview-heading">Checkpoint route</h2>
+    <div class="legend"><span><i class="legend-mark" aria-hidden="true"></i>Allocated dependency span</span><span><i class="diamond" aria-hidden="true"></i>Release and gameplay proof</span></div>
+    <div id="overview" class="overview" role="img" aria-label="Gantt chart of PC07 through PC10 on a dependency-wave axis"></div>
+    <p class="chart-description">The four releases remain in checkpoint order. Bar length shows dependency depth, not effort. Every diamond requires the full assigned scope, tests and review, deployment, ordinary authorized gameplay proof, and a solo review link.</p>
+  </section>
+  <details open>
+    <summary>Workstreams and possible parallel work</summary>
+    <p class="chart-description">Each small mark is a wave containing prompts in that workstream. Gaps are dependency gaps. Workstreams are reading groups; detailed implementation ownership is decided when each checkpoint is shaped.</p>
+    <div class="legend"><span><i class="legend-mark" aria-hidden="true"></i>Missing in catalog</span><span><i class="legend-mark hatch" aria-hidden="true"></i>Some partial work in that wave</span><span><i class="legend-mark done-mark" aria-hidden="true"></i>All prompts in that wave done</span></div>
+    <div id="workstreams" class="workstreams"></div>
+  </details>
+  <section aria-labelledby="conditions-heading">
+    <h2 id="conditions-heading">Dependencies and recorded conditions</h2>
+    <ul class="critical-list" id="conditions"></ul>
+  </section>
+  <section aria-labelledby="ledger-heading">
+    <h2 id="ledger-heading">Every assigned prompt</h2>
+    <p class="small muted">Open a checkpoint to read its prompt titles, status, wave, acceptance and prerequisites. A partial prompt still needs its full acceptance and ordinary gameplay evidence before it counts.</p>
+    <div id="ledger"></div>
+  </section>
+  <section class="source" aria-labelledby="source-heading">
+    <h2 id="source-heading">Source and machine-readable copies</h2>
+    <p id="source-description"></p>
+    <p>Regenerate all three artifacts from the current catalog and fixed allocation with <code>node scripts/generate-checkpoint-gantt.mjs</code>. Verify freshness with <code>node scripts/generate-checkpoint-gantt.mjs --check</code>.</p>
+    <div class="toolbar"><button type="button" id="save-json">Save JSON</button><button type="button" id="save-csv">Save CSV</button><button type="button" id="print">Print / save PDF</button></div>
+    <p id="download-status" class="small muted" aria-live="polite"></p>
+  </section>
+  <noscript>This chart uses a small local script to draw the dependency lanes. Enable JavaScript, or read the adjacent PC07_ROADMAP_GANTT.json or PC07_ROADMAP_GANTT.csv files. No network access is needed.</noscript>
+</main>
+<script type="application/json" id="gantt-data">__GANTT_DATA__</script>
+<script type="application/json" id="gantt-csv">__GANTT_CSV__</script>
+<script>
+(() => {
+  'use strict';
+  const data = JSON.parse(document.getElementById('gantt-data').textContent);
+  const csv = JSON.parse(document.getElementById('gantt-csv').textContent);
+  const total = data.scope.dependencyWaveCount;
+  const tasks = new Map(data.tasks.map(task => [task.id, task]));
+  const groups = new Map(data.groups.map(group => [group.id, group]));
+  const colors = {PC07:'var(--pc07)',PC08:'var(--pc08)',PC09:'var(--pc09)',PC10:'var(--pc10)'};
+  const element = (tag, className, text) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  };
+  const percentage = value => value / total * 100 + '%';
+  document.getElementById('subtitle').textContent = 'Dependency waves · ' + data.scope.assignedPromptCount
+    + ' assigned prompts · PC07–PC10 · ' + total + ' layers';
+  const preceding = data.prerequisiteCheckpoint;
+  const context = document.getElementById('context');
+  context.append(element('strong','', 'Before wave 1: PC06 must reach ' + preceding.overallTarget + '/' + preceding.total + '.'));
+  context.append(element('p','small', 'This catalog snapshot records ' + data.catalogSnapshot.complete + '/' + data.catalogSnapshot.total
+    + ' overall done and ' + preceding.statusCounts.done + '/' + preceding.assignedCount
+    + ' PC06 IDs done. In-flight implementation can exist without completed catalog credit. PC07–PC10 are candidate scopes until shaped.'));
+  function axis() {
+    const row = element('div','axis-row');
+    row.append(element('div','small muted','Dependency waves'));
+    const track = element('div','axis');
+    track.setAttribute('aria-hidden','true');
+    row.append(track);
+    return row;
+  }
+  function drawTicks() {
+    document.querySelectorAll('.axis').forEach(track => {
+      track.replaceChildren();
+      const step = Math.max(1, Math.ceil(total / Math.max(2, Math.floor(track.clientWidth / 50))));
+      for (let wave = 1; wave <= total; wave++) {
+        if (wave !== 1 && wave !== total && (wave - 1) % step !== 0) continue;
+        if (wave !== total && wave > total - step / 2) continue;
+        const label = element('span','tick','W' + wave);
+        label.style.left = percentage(wave - .5);
+        track.append(label);
+      }
+    });
+  }
+  function label(title, note) {
+    const node = element('div','row-label');
+    node.append(element('strong','',title), element('span','small',note));
+    return node;
+  }
+  function track() {
+    const node = element('div','track');
+    node.style.setProperty('--waves',total);
+    return node;
+  }
+  const overview = document.getElementById('overview');
+  overview.append(axis());
+  data.checkpoints.forEach(checkpoint => {
+    const row = element('div','gantt-row');
+    row.style.setProperty('--accent',colors[checkpoint.id]);
+    row.append(label(checkpoint.id + ' · ' + checkpoint.title, checkpoint.assignedCount + ' prompts · target '
+      + checkpoint.overallTarget + '/' + checkpoint.total + ' · W' + checkpoint.startWave + '–W' + checkpoint.endWave));
+    const lane = track();
+    const bar = element('div','bar');
+    bar.style.left = percentage(checkpoint.startWave - 1);
+    bar.style.width = percentage(checkpoint.endWave - checkpoint.startWave + 1);
+    const diamond = element('div','milestone');
+    diamond.style.left = percentage(checkpoint.endWave - .15);
+    const caption = element('span','bar-caption','W' + checkpoint.startWave + '–W' + checkpoint.endWave);
+    caption.style.left = percentage(checkpoint.startWave - 1);
+    lane.append(bar,diamond,caption);
+    row.append(lane);
+    overview.append(row);
+  });
+  const streams = document.getElementById('workstreams');
+  data.checkpoints.forEach(checkpoint => {
+    const heading = element('div','checkpoint-label',checkpoint.id + ' · ' + checkpoint.title);
+    heading.style.setProperty('--accent',colors[checkpoint.id]);
+    streams.append(heading,axis());
+    data.groups.filter(group => group.checkpoint === checkpoint.id).forEach(group => {
+      const row = element('div','gantt-row');
+      row.style.setProperty('--accent',colors[checkpoint.id]);
+      row.append(label(group.label,group.assignedCount + ' prompts · ' + group.statusCounts.done + ' done · '
+        + group.statusCounts.partial + ' partial · W' + group.startWave + '–W' + group.endWave));
+      const lane = track();
+      lane.setAttribute('role','img');
+      lane.setAttribute('aria-label',group.label + ': ' + group.waveBuckets.map(bucket => 'wave ' + bucket.wave
+        + ', prompts ' + bucket.promptIds.join(', ')).join('; '));
+      group.waveBuckets.forEach(bucket => {
+        const allDone = bucket.promptIds.every(id => tasks.get(id).status === 'done');
+        const somePartial = bucket.promptIds.some(id => tasks.get(id).status === 'partial');
+        const bar = element('div','bar' + (allDone ? ' completed' : somePartial ? ' partial' : ''));
+        bar.style.left = percentage(bucket.wave - 1);
+        bar.style.width = 'calc(' + percentage(1) + ' - 2px)';
+        lane.append(bar);
+      });
+      row.append(lane);
+      streams.append(row);
+    });
+  });
+  function longestChain(checkpoint) {
+    const memo = new Map();
+    function chain(id) {
+      if (memo.has(id)) return memo.get(id);
+      const local = tasks.get(id).prerequisites.filter(dep => tasks.get(dep.id)?.checkpoint === checkpoint.id);
+      const paths = local.map(dep => chain(dep.id));
+      const best = paths.reduce((result,path) => path.length > result.length ? path : result,[]);
+      const result = best.concat(id);
+      memo.set(id,result);
+      return result;
+    }
+    return checkpoint.ids.map(chain).reduce((result,path) => path.length > result.length ? path : result,[]);
+  }
+  const conditions = document.getElementById('conditions');
+  data.checkpoints.forEach(checkpoint => {
+    const li = element('li');
+    li.append(element('strong','',checkpoint.id + ': '));
+    li.append(document.createTextNode('one longest hard-dependency chain is ' + longestChain(checkpoint).join(' → ')
+      + '. Release follows all ' + checkpoint.assignedCount + ' assigned prompts, not just this chain.'));
+    conditions.append(li);
+  });
+  data.recordedConditions.forEach(condition => {
+    const li = element('li');
+    const values = Object.entries(condition).filter(([key,value]) => !['id','checkpoint'].includes(key) && value !== 'none');
+    li.append(element('strong','',condition.checkpoint + ' / ' + condition.id + ': '));
+    const explanation = {
+      'OWNER-APPROVAL-DEFERRED-VISUALIZATION':'Wolf attack visualization has an explicit owner deferral recorded in the catalog. Resolve it before claiming this assigned prompt complete.',
+      'OWNER-VIP-HOST-VISIT-CONFIRMATION':'The VIP Host visit-confirmation behavior has a recorded product decision. Re-evaluate it against current sources and standing owner instructions.',
+    };
+    li.append(document.createTextNode(values.map(([key,value]) => explanation[value]
+      || key + ': ' + value + '. Re-evaluate this recorded condition against current sources and standing owner instructions.').join(' ')));
+    conditions.append(li);
+  });
+  const external = [...new Set(data.tasks.flatMap(task => task.unfinishedExternalPrerequisites))];
+  const li = element('li');
+  li.append(element('strong','', 'Unfinished prerequisites outside this chart: '));
+  li.append(document.createTextNode(external.length ? external.join(', ') + '. These belong to PC06; W1 stays conditional on its completion.'
+    : 'none in the direct hard-prompt edges. PC06 release is still the entry boundary.'));
+  conditions.append(li);
+  const finalProof = element('li');
+  finalProof.append(element('strong','','PC10 completion: '),document.createTextNode(
+    'full-table twenty-player proof, complete base and Capybara playthroughs, endings, recovery and the final audit stay inside PC10. The target remains 751/751.'));
+  conditions.append(finalProof);
+  const ledger = document.getElementById('ledger');
+  data.checkpoints.forEach(checkpoint => {
+    const details = element('details');
+    details.append(element('summary','',checkpoint.id + ' · ' + checkpoint.assignedCount + ' prompts · '
+      + checkpoint.statusCounts.done + ' done / ' + checkpoint.statusCounts.partial + ' partial / '
+      + checkpoint.statusCounts.missing + ' missing'));
+    const wrap = element('div','table-wrap');
+    const table = element('table');
+    const caption = element('caption','small muted',checkpoint.title + ' — full allocated prompt ledger');
+    table.append(caption);
+    const head = element('thead');const headRow = element('tr');
+    ['Prompt','Work and acceptance','Catalog status','Wave','Hard prerequisites'].forEach(text => {
+      const th = element('th','',text);th.scope='col';headRow.append(th);
+    });
+    head.append(headRow);table.append(head);
+    const body = element('tbody');
+    checkpoint.ids.forEach(id => {
+      const task = tasks.get(id);
+      const row = element('tr');
+      row.append(element('td','id-cell',id));
+      const title = element('td','title-cell');
+      title.append(element('strong','',task.title.replace(/\bTurn\b/g,'Cycle').replace(/\bturn\b/g,'cycle')));
+      title.append(element('div','small muted',groups.get(task.group).label));
+      const acceptance = element('details');
+      acceptance.append(element('summary','small','Acceptance'));
+      acceptance.append(element('p','small',task.acceptance.replace(/\bTurn\b/g,'Cycle').replace(/\bturn\b/g,'cycle')));
+      title.append(acceptance);row.append(title);
+      row.append(element('td','state',task.status),element('td','id-cell','W' + task.startWave));
+      const dependencies = element('td','dependency-cell',task.prerequisites.map(dep => dep.id + (dep.status === 'done' ? ' ✓' : '')).join(', ') || 'None');
+      if(task.unfinishedPrerequisites.length) dependencies.append(element('small','',
+        'Not done: ' + task.unfinishedPrerequisites.join(', ')));
+      row.append(dependencies);body.append(row);
+    });
+    table.append(body);wrap.append(table);details.append(wrap);ledger.append(details);
+  });
+  const source = document.getElementById('source-description');
+  source.append(document.createTextNode('Derived from the prompt catalog and fixed checkpoint allocation at source revision '));
+  const revisionLink = element('a','',data.sources.revision.slice(0,8));
+  revisionLink.href='https://github.com/emerald-pham/den-of-wolves-new-eden-console/commit/' + data.sources.revision;
+  source.append(revisionLink,document.createTextNode(' (' + data.sources.revisionDate.slice(0,10)
+    + '). This is a snapshot; the catalog remains the status authority. JSON preserves IDs, all hard edges, status, conditions, groups, wave semantics and source hashes. CSV has one row per prompt; import IDs as text to keep leading zeroes.'));
+  function download(content,type,filename) {
+    const url = URL.createObjectURL(new Blob([content],{type}));
+    const anchor = element('a');anchor.href=url;anchor.download=filename;
+    document.body.append(anchor);anchor.click();anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url),1000);
+    document.getElementById('download-status').textContent='Saved ' + filename + '.';
+  }
+  document.getElementById('save-json').addEventListener('click',() => download(JSON.stringify(data,null,2) + '\n','application/json','PC07_ROADMAP_GANTT.json'));
+  document.getElementById('save-csv').addEventListener('click',() => download(csv,'text/csv;charset=utf-8','PC07_ROADMAP_GANTT.csv'));
+  document.getElementById('print').addEventListener('click',() => window.print());
+  drawTicks();
+  new ResizeObserver(drawTicks).observe(overview);
+})();
+</script>
+</body>
+</html>
