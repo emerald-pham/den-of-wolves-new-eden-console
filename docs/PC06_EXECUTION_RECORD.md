@@ -13,16 +13,19 @@ branch `feat/pc06-execution`. The owner integrates every group, maintains the
 49-prompt acceptance ledger, resolves shared contracts, obtains the required
 independent review, and owns the single release.
 
-All groups start from commit `1b33ab3c` and use attached, separate branches.
-Workers keep the listed parked worktrees intact and may inspect them read-only.
-They commit only in their assigned checkout and send exact interface needs to
-the owner rather than editing shared release seams.
+The first two groups start from commit `1b33ab3c`; the third group and the
+owner start from `8b7cd66c`, which adds this execution record's dispatch
+fallback correction. Every group uses an attached, separate branch. Workers
+keep the listed parked worktrees intact and may inspect them read-only. They
+commit only in their assigned checkout and send exact interface needs to the
+owner rather than editing shared release seams.
 
 | Group | Assigned prompts | Checkout and branch | Owned files and integration boundary |
 |---|---|---|---|
-| Vessel operations, Luna Max task `/root/pc06_release_owner/pc06_vessel_ops` | 238, 244, 241c, 251, 250, 352, 371, 380, 385, 378 | `/Users/emeraldpham/.codex/worktrees/pc06-vessel-ops/den-of-wolves-new-eden-console`, `feat/pc06-vessel-ops` | Vessel, repair, cargo, shuttle/transit, conflict, security-team, and dismantling leaf modules with their tests, services, components, and vessel data. The owner owns callable exports, shared session/schema/rules, and release metadata. |
-| Away-mission lifecycle, Luna Max task `/root/pc06_release_owner/pc06_away_mission` | 241b, 392, 393, 404, 405, 407, 408, 409, 410, 411, 412, 413, 243, 414, 415, 622, 422, 646 | `/Users/emeraldpham/.codex/worktrees/pc06-away-missions/den-of-wolves-new-eden-console`, `feat/pc06-away-missions` | Private card lifecycle, contribution-linked outcomes, custody, overrun, drop-off, recovery, and scenario leaf modules with focused tests and UI. The owner retains `functions/src/missionStart.ts` and `functions/src/explorationRewards.ts` while reconciling the parked P401 and P334 work. |
-| Jump, split-fleet, and remaining product decisions, checkpoint owner | 202, 210, 222, 232, 236, 241a, 259, 320, 607, 679, 020a, 112, 401, 237, 334, 335, 151, 307, 322, 323, 324 | `/Users/emeraldpham/.codex/worktrees/0ce4/den-of-wolves-new-eden-console`, `feat/pc06-execution` | Jump authority and UI, demo boundary, group-local messaging/pursuit/scouting, mission admission and special rewards, P112 inventory/consent decision, shared entrypoints/schema/rules, integration and release files. |
+| Vessel operations, Luna Max task `/root/pc06_release_owner/pc06_vessel_ops` | 238, 244, 241c, 251, 250, 352, 371, 380, 385, 378 | `/Users/emeraldpham/.codex/worktrees/pc06-vessel-ops/den-of-wolves-new-eden-console`, `feat/pc06-vessel-ops`, start `1b33ab3c` | Vessel, repair, cargo, shuttle/transit, conflict, security-team, and dismantling leaf modules with their tests, services, components, and vessel data. The owner owns callable exports, shared session/schema/rules, and release metadata. |
+| Away-mission lifecycle, Luna Max task `/root/pc06_release_owner/pc06_away_mission` | 241b, 392, 393, 404, 405, 407, 408, 409, 410, 411, 412, 413, 243, 414, 415, 622, 422, 646 | `/Users/emeraldpham/.codex/worktrees/pc06-away-missions/den-of-wolves-new-eden-console`, `feat/pc06-away-missions`, start `1b33ab3c` | Private card lifecycle, contribution-linked outcomes, custody, overrun, drop-off, recovery, and scenario leaf modules with focused tests and UI. The owner retains `functions/src/missionStart.ts` and `functions/src/explorationRewards.ts` while reconciling the parked P401 and P334 work. |
+| Split-fleet messages, pursuit, and scout receipts, Luna Max task `/root/pc06_release_owner/pc06_split_scout` | 151, 307, 322, 323, 324 | `/Users/emeraldpham/.codex/worktrees/pc06-split-scout/den-of-wolves-new-eden-console`, `feat/pc06-split-scout`, start `8b7cd66c` | Group communication/pursuit and Starlight/Hummingbird scout leaf modules, focused tests, services, and controls. The owner owns callable exports, shared session/schema/rules, and release metadata. Preserve the parked P321 and P330 worktrees. |
+| Jump, mission admission/rewards, P112 decision, checkpoint integration and release, checkpoint owner | 202, 210, 222, 232, 236, 241a, 259, 320, 607, 679, 020a, 112, 401, 237, 334, 335 | `/Users/emeraldpham/.codex/worktrees/0ce4/den-of-wolves-new-eden-console`, `feat/pc06-execution`, start `8b7cd66c` | Jump authority and UI, demo boundary, mission admission and special rewards, P112 inventory/consent decision, shared entrypoints/schema/rules, integration and release files. |
 
 The owner reserves `functions/src/index.ts`, `src/types/game.ts`,
 `src/lib/firestore.ts`, `src/store/useSessionStore.ts`,
@@ -51,12 +54,13 @@ are reconciled.
 ## Session-specific dispatch and live-access findings
 
 On 2026-09-30, nested `collaboration.spawn_agent` calls created the real Luna
-Max implementation tasks `/root/pc06_release_owner/pc06_vessel_ops` and
-`/root/pc06_release_owner/pc06_away_mission` in separate managed worktrees. The active task
-tree had four available concurrency slots in total, with the root and
-checkpoint owner occupying two before dispatch; these two workers filled the
-remaining slots at dispatch time. This records the observed capacity for this
-session and does not establish a permanent host-wide concurrency limit.
+Max tasks `/root/pc06_release_owner/pc06_vessel_ops`,
+`/root/pc06_release_owner/pc06_away_mission`, and
+`/root/pc06_release_owner/pc06_split_scout` in separate managed worktrees. The
+first two dispatches filled the four active task slots; after the root task
+completed, one freed slot allowed the third independent group to start. This
+records observed capacity for this session and does not establish a permanent
+host-wide concurrency limit.
 
 If nested dispatch is unavailable while a slot is free, send these same bounded
 prompt groups and exact checkout/branch identities to `/root` for direct
