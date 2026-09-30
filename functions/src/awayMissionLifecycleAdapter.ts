@@ -477,7 +477,7 @@ const COMMAND_KEYS: Readonly<Record<AwayMissionLifecycleCommand['type'], readonl
 function isValidRecord(value: unknown): value is AwayMissionLifecycleRecord {
   if (!isRecord(value) || value.schemaVersion !== 1 || !isNonEmptyString(value.sessionId) ||
       !isNonEmptyString(value.groupId) || !Number.isSafeInteger(value.sourceCycle) ||
-      !Number.isSafeInteger(value.revision) || value.revision < 0 ||
+      typeof value.revision !== 'number' || !Number.isSafeInteger(value.revision) || value.revision < 0 ||
       !['active', 'resolved', 'complete'].includes(String(value.status)) || typeof value.overrun !== 'boolean' ||
       !Array.isArray(value.participantCrafts) || !Array.isArray(value.commandReceipts) ||
       !Array.isArray(value.legalDropOffShipIds) || !Array.isArray(value.reclamatorSalvages) ||

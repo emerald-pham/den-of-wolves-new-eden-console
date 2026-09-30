@@ -39,16 +39,19 @@ export function resolveMissionOpportunityRewards(
   const definition = missionCardForCode(siteCode);
   if (!definition || !Array.isArray(outcomes) || outcomes.length !== definition.opportunities.length) return null;
   const outcomeById = new Map<string, MissionOpportunityResolution>();
-  for (const outcome of outcomes) {
-    if (!isRecord(outcome) || !definition.opportunities.some(({ id }) => id === outcome.opportunityId) ||
-        outcomeById.has(outcome.opportunityId) || !validOutcomeBranch(outcome)) return null;
+  for (const candidate of outcomes as readonly unknown[]) {
+    if (!isRecord(candidate) || !isNonEmptyString(candidate.opportunityId) ||
+        !definition.opportunities.some(({ id }) => id === candidate.opportunityId) ||
+        outcomeById.has(candidate.opportunityId)) return null;
+    const outcome = candidate as unknown as MissionOpportunityResolution;
+    if (!validOutcomeBranch(outcome)) return null;
     outcomeById.set(outcome.opportunityId, outcome);
   }
   if (outcomeById.size !== definition.opportunities.length) return null;
 
   const rolls = options.secretD6Rolls ?? {};
   if (!isRecord(rolls)) return null;
-  const rollEligibleIds = new Set(definition.opportunities
+  const rollEligibleIds = new Set<string>(definition.opportunities
     .filter(({ difficultyRule, reward }) => difficultyRule !== undefined || reward.successRule !== undefined)
     .map(({ id }) => id));
   const suppliedRollIds = Object.keys(rolls);
