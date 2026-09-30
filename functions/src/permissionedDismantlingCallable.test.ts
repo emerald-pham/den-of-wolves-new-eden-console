@@ -204,6 +204,11 @@ it('proposes, grants one exact target-ship consent, and atomically applies damag
     targetRevision: 0,
     materialGain: 3,
   });
+  expect(store.records.get(paths().inbox)).toMatchObject({
+    proposalId: PROPOSAL_ID,
+    consentId: CONSENT_ID,
+    status: 'consented',
+  });
 
   const applied = await callables.applyPermissionedDismantling(applyRequest());
   const applyWrites = store.committedWrites.length;
@@ -231,6 +236,12 @@ it('proposes, grants one exact target-ship consent, and atomically applies damag
     sessionId: SESSION_ID,
     targetShipId: 'dione',
     revision: 1,
+  });
+  expect(store.records.get(paths().inbox)).toMatchObject({
+    proposalId: PROPOSAL_ID,
+    consentId: CONSENT_ID,
+    status: 'applied',
+    materialsAfter: 8,
   });
 
   const replayedApply = await callables.applyPermissionedDismantling(applyRequest());
@@ -405,6 +416,11 @@ it('lets only the consenting target player revoke, and never applies a revoked o
     proposalId: PROPOSAL_ID,
     consentId: CONSENT_ID,
   }));
+  expect(store.records.get(paths().inbox)).toMatchObject({
+    proposalId: PROPOSAL_ID,
+    consentId: CONSENT_ID,
+    status: 'revoked',
+  });
   const beforeApply = store.committedWrites.length;
   await expect(callables.applyPermissionedDismantling(applyRequest()))
     .rejects.toMatchObject({ code: 'failed-precondition' });
