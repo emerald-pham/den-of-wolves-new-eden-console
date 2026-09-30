@@ -279,6 +279,8 @@ export default function JumpDriveConsole({
             aria-label={blindMode
               ? pending ? 'Blind destination pending server selection' : 'Blind destination hidden until server resolution'
               : 'Locked destination coordinates'}
+            aria-live="polite"
+            aria-atomic="true"
           >{blindMode ? (
             <>
               <span className="jump-drive__sr-only">BLIND // DESTINATION HIDDEN</span>
@@ -288,7 +290,7 @@ export default function JumpDriveConsole({
             </>
           ) : destination}</span>
         </div>
-        {!blindMode && <div className="jump-drive__digit-bank" aria-label="Coordinate digit controls">
+        {!blindMode && <div className="jump-drive__digit-bank" role="group" aria-label="Coordinate digit controls">
           {DIGITS.map((index) => (
             <div className="jump-drive__digit" key={index}>
               <button
