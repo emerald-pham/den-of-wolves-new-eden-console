@@ -40,6 +40,7 @@ vi.mock('@/store/useSessionStore', () => ({
 import {
   applyPermissionedDismantling,
   consentToPermissionedDismantling,
+  declinePermissionedDismantling,
   proposePermissionedDismantling,
   subscribePermissionedDismantlingInbox,
 } from './permissionedDismantlingService';
@@ -50,7 +51,7 @@ const inbox = {
   proposerUid: 'engineer', craftId: 'philia', targetConsoleId: 'reactor',
   targetRevision: 9, materialGain: 3, status: 'pending' as const,
   consentId: null, materialsAfter: null, updatedAt: new Date('2026-09-30T17:00:00.000Z'),
-};
+} as const;
 
 beforeEach(() => {
   mocks.callable.mockReset();
@@ -142,4 +143,19 @@ it('subscribes to one exact ship inbox and clears cached or malformed projection
   next?.({ exists: () => true, metadata: { fromCache: false }, data: () => ({ ...inbox, privatePayload: 'secret' }) });
   expect(onInbox).toHaveBeenLastCalledWith(null);
   expect(onError).toHaveBeenCalledTimes(2);
+});
+
+it('declines only the exact pending request for the current target player', async () => {
+  mocks.current.me = {
+    uid: 'target', sessionId: 's1', role: 'player', assignedRoleId: 'dione-captain',
+    activeConsoleRoleId: 'dione-captain', replacementRoleId: null, replacementStatus: null,
+  };
+  const declineCall = vi.fn().mockResolvedValue({ data: {
+    status: 'declined', sessionId: 's1', proposalId: 'proposal-1',
+  } });
+  mocks.callable.mockReturnValue(declineCall);
+
+  await expect(declinePermissionedDismantling({ inbox }))
+    .resolves.toMatchObject({ status: 'declined', proposalId: 'proposal-1' });
+  expect(declineCall).toHaveBeenCalledWith({ sessionId: 's1', proposalId: 'proposal-1' });
 });

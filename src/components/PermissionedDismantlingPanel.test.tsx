@@ -5,6 +5,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   propose: vi.fn(),
   consent: vi.fn(),
+  decline: vi.fn(),
   revoke: vi.fn(),
   apply: vi.fn(),
   subscribe: vi.fn(),
@@ -13,6 +14,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/permissionedDismantlingService', () => ({
   proposePermissionedDismantling: mocks.propose,
   consentToPermissionedDismantling: mocks.consent,
+  declinePermissionedDismantling: mocks.decline,
   revokePermissionedDismantlingConsent: mocks.revoke,
   applyPermissionedDismantling: mocks.apply,
   subscribePermissionedDismantlingInbox: mocks.subscribe,
@@ -31,6 +33,7 @@ const pendingInbox = {
 beforeEach(() => {
   mocks.propose.mockReset().mockResolvedValue({ status: 'proposed', targetRevision: 9 });
   mocks.consent.mockReset().mockResolvedValue({ status: 'consented' });
+  mocks.decline.mockReset().mockResolvedValue({ status: 'declined' });
   mocks.revoke.mockReset().mockResolvedValue({ status: 'revoked' });
   mocks.apply.mockReset().mockResolvedValue({ status: 'applied', materialsAfter: 8 });
   mocks.subscribe.mockReset().mockImplementation((_sessionId, _shipId, handlers) => {
@@ -47,7 +50,7 @@ it('lets the current docked craft holder choose an undamaged target system and r
     handlers.onInbox({ ...pendingInbox, proposalId: 'stable-request-id' });
     return vi.fn();
   });
-  render(<PermissionedDismantlingPanel mode="proposer" sessionId="s1" craftId="philia"
+  render(<PermissionedDismantlingPanel mode="proposer" sessionId="s1" currentPlayerUid="engineer" craftId="philia"
     targetShipId="dione" targetSystems={[{ id: 'reactor', name: 'Reactor' }, { id: 'storage', name: 'Storage' }]}
     damagedSystemIds={['storage']} connection="live" canAct />);
 
@@ -111,4 +114,23 @@ it('does not allow a revoked approval to be reused for the old request', () => {
   render(<PermissionedDismantlingPanel mode="target" sessionId="s1" targetShipId="dione" />);
   expect(screen.queryByRole('button', { name: /grant permission/i })).not.toBeInTheDocument();
   expect(screen.getByText(/previous consent was revoked.*new request/i)).toBeInTheDocument();
+});
+
+it('lets the target player decline a pending request and closes the old request', async () => {
+  const user = userEvent.setup();
+  let handlers: { onInbox: (value: unknown) => void } | undefined;
+  mocks.subscribe.mockImplementation((_sessionId, _shipId, value) => {
+    handlers = value;
+    return vi.fn();
+  });
+  render(<PermissionedDismantlingPanel mode="target" sessionId="s1" targetShipId="dione" />);
+  await waitFor(() => expect(mocks.subscribe).toHaveBeenCalled());
+  await act(async () => handlers?.onInbox(pendingInbox));
+
+  await user.click(screen.getByRole('button', { name: /decline request/i }));
+  expect(mocks.decline).toHaveBeenCalledWith({ inbox: pendingInbox });
+
+  await act(async () => handlers?.onInbox({ ...pendingInbox, status: 'declined' }));
+  expect(screen.queryByRole('button', { name: /grant permission/i })).not.toBeInTheDocument();
+  expect(screen.getByText(/request declined.*new request/i)).toBeInTheDocument();
 });

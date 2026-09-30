@@ -14,7 +14,7 @@ vi.mock('firebase-admin/firestore', () => ({
 }));
 vi.mock('firebase-functions/v2', () => ({ setGlobalOptions: vi.fn() }));
 
-import { proposePermissionedDismantling } from './index';
+import { declinePermissionedDismantling, proposePermissionedDismantling } from './index';
 
 beforeEach(() => {
   mock.runTransaction.mockReset();
@@ -32,6 +32,16 @@ it('exports the permissioned dismantling callable and rejects unauthenticated re
       expectedTargetRevision: 0,
       expectedControlRevision: 0,
     },
+    auth: null,
+  } as CallableRequest<Record<string, unknown>>)).rejects.toMatchObject({
+    code: 'unauthenticated',
+  });
+  expect(mock.runTransaction).not.toHaveBeenCalled();
+});
+
+it('exports the target-player decline callable and rejects unauthenticated requests before database access', async () => {
+  await expect(declinePermissionedDismantling.run({
+    data: { sessionId: 's1', proposalId: 'proposal-1' },
     auth: null,
   } as CallableRequest<Record<string, unknown>>)).rejects.toMatchObject({
     code: 'unauthenticated',
