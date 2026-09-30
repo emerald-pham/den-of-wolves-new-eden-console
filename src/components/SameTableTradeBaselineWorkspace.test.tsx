@@ -18,7 +18,6 @@ const player = {
 
 it('routes a facilitator baseline entry through the authenticated service and reports its result', async () => {
   const user = userEvent.setup();
-  const attestationId = '1f23b456-789a-4abc-8def-0123456789ab';
   mocks.attest.mockResolvedValue({ status: 'attested', sessionId: 's1' });
   render(<SameTableTradeBaselineWorkspace players={[player]} />);
 

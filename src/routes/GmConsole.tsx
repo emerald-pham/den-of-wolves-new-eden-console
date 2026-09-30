@@ -9,6 +9,7 @@ import GmStarmapModule from '@/components/GmStarmapModule';
 import GmScoutRevealController from '@/components/GmScoutRevealController';
 import GmMutinyRecovery from '@/components/GmMutinyRecovery';
 import SmallShipOperations from '@/components/SmallShipOperations';
+import SameTableTradeBaselineWorkspace from '@/components/SameTableTradeBaselineWorkspace';
 import { GmSetupChecklist } from '@/components/GmSetupChecklist';
 import PursuitTracker from '@/components/PursuitTracker';
 import JumpFailureAdjudicationPanel from '@/components/JumpFailureAdjudicationPanel';
@@ -3446,6 +3447,7 @@ export default function GmConsole() {
             />
           </Suspense>
           <GmScoutRevealController />
+          <SameTableTradeBaselineWorkspace players={allPlayers} />
           <section
             className="gm-console__module gm-fleet-resources cic-frame"
             aria-label="Fleet resource controls"

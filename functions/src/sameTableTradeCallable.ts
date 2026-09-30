@@ -16,6 +16,7 @@ import {
   type SameTableTradeQuantities,
   type SameTableTradeResource,
 } from './sameTableTradePolicy';
+import { replacementRoleFor } from './replacementRoles';
 
 type TradeDatabase = Pick<Firestore, 'doc' | 'collection' | 'runTransaction'>;
 type Data = Record<string, unknown>;
@@ -296,7 +297,14 @@ function readRoster(
     const rawGroup = data.fleetGroupId;
     const fleetGroupId = typeof rawGroup === 'string' && rawGroup.trim() === rawGroup &&
       rawGroup.length > 0 && rawGroup.length <= 128 ? rawGroup : null;
-    const tableId = active ? shipForRole(data.assignedRoleId) ?? null : null;
+    const replacementRoleId = player.get('replacementRoleId');
+    const tableId = !active || player.get('replacementStatus') != null
+      ? null
+      : replacementRoleId != null
+        ? (typeof replacementRoleId === 'string'
+          ? replacementRoleFor(replacementRoleId)?.vesselId ?? null
+          : null)
+        : shipForRole(data.assignedRoleId) ?? null;
     return { uid: player.id, player, active, role, tableId, fleetGroupId };
   });
 }
@@ -615,7 +623,11 @@ export function createSameTableTradeCallables(dependencies: SameTableTradeCallab
           sessionId,
           offerId,
           revision: state.revision,
-          inventory: replay.recipientInventory,
+          inventory: {
+            playerUid: uid,
+            revision: recipientInventory.revision,
+            balances: replay.recipientInventory,
+          },
           receipt: replay.receipt,
         };
       }
@@ -682,7 +694,11 @@ export function createSameTableTradeCallables(dependencies: SameTableTradeCallab
         sessionId,
         offerId,
         revision: nextRevision,
-        inventory: accepted.recipientInventory,
+        inventory: {
+          playerUid: uid,
+          revision: nextRevision,
+          balances: accepted.recipientInventory,
+        },
         receipt: accepted.receipt,
       };
     });

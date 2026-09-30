@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import ShipSpecifications from '@/components/ShipSpecifications';
 import PopulationTrack from '@/components/PopulationTrack';
@@ -12,6 +12,7 @@ import RoleAssignment from '@/components/RoleAssignment';
 import { findShip, SHIP_ORIGIN_LABELS } from '@/data/ships';
 import { RESOURCE_DEFINITIONS } from '@/data/resources';
 import { activeFleetShipIds, findConsoleRole } from '@/data/roles';
+import { replacementRoleFor } from '@/data/replacementRoles';
 import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
 import { shuttlebayForShip } from '@/data/shuttles';
 import {
@@ -29,6 +30,7 @@ import type { Player, DamageDraw } from '@/types/game';
 import DioneVipCards from '@/components/DioneVipCards';
 import CommissarPurgePanel from '@/components/CommissarPurgePanel';
 import DioneMaliadesLaunch from '@/components/DioneMaliadesLaunch';
+import SameTableTradeWorkspace from '@/components/SameTableTradeWorkspace';
 import { useDialogFocus } from '@/hooks/useDialogFocus';
 
 type ConfettiStyle = CSSProperties & Record<`--${string}`, string | number>;
@@ -53,6 +55,14 @@ function dockingOccurrence(occurredAt: string): { label: string; dateTime?: stri
     label: new Date(timestamp).toLocaleString(),
     dateTime: new Date(timestamp).toISOString(),
   };
+}
+
+function currentTableShipForPlayer(player: Player): string | undefined {
+  if (player.replacementStatus != null) return undefined;
+  if (player.replacementRoleId != null) {
+    return replacementRoleFor(player.replacementRoleId)?.vesselId;
+  }
+  return findConsoleRole(player.assignedRoleId ?? undefined)?.shipId;
 }
 
 export default function ShipConsole({ observer = false }: { observer?: boolean }) {
@@ -88,7 +98,11 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
     me?.activeConsoleRoleId === boundCoreRoleId
     ? boundCoreRoleId
     : undefined;
-  const ownShip = findConsoleRole(confirmedCoreRoleId)?.shipId;
+  const ownShip = me?.replacementStatus != null
+    ? undefined
+    : me?.replacementRoleId != null
+      ? replacementRoleFor(me.replacementRoleId)?.vesselId
+      : findConsoleRole(confirmedCoreRoleId)?.shipId;
   const replacementVipHost = Boolean(
     !isGm && me && me.replacementStatus == null && me.replacementRoleId === 'vip-host' &&
     me.activeConsoleRoleId === null &&
@@ -117,13 +131,29 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const effectiveRoleId = consoleRole?.id ?? (!observer && roleId === undefined
     ? me?.activeConsoleRoleId
     : undefined);
+  const replacementTableRoute = Boolean(
+    !isGm && playerRole === 'player' && me?.replacementStatus == null &&
+    me?.replacementRoleId != null && me.activeConsoleRoleId === null &&
+    (!roleId || roleId === me.replacementRoleId) && ship && ownShip === ship.id,
+  );
   const hasConfirmedRole = !observer && (
     confirmedCoreRoleId === consoleRole?.id || replacementVipHost || replacementCommissar
   );
   const activeRoleIds = session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
   const activeShipIds = activeFleetShipIds(activeRoleIds, session?.activeVesselIds);
   const configuredShipRoles = ship?.roles.filter(role => activeRoleIds.includes(role.id)) ?? [];
-  const roleEnabled = !roleId || activeRoleIds.includes(roleId) || replacementVipHost || replacementCommissar;
+  const sameTableTradeCounterparties = useMemo(() => (crew ?? [])
+    .filter((player) => player.uid !== me?.uid && player.role === 'player' &&
+      player.connected === true && player.fleetGroupId === fleetGroupId &&
+      currentTableShipForPlayer(player) === ship?.id)
+    .map((player) => ({ id: player.uid, name: player.displayName })),
+  [crew, fleetGroupId, me?.uid, ship?.id]);
+  const canShowSameTableTrade = Boolean(
+    !observer && !isGm && playerRole === 'player' && mode === 'console' &&
+    sessionSnapshotFreshness === 'server' && (hasConfirmedRole || replacementTableRoute) && !visiting &&
+    ship && ownShip === ship.id && fleetGroupId && crew !== null,
+  );
+  const roleEnabled = !roleId || activeRoleIds.includes(roleId) || replacementVipHost || replacementCommissar || replacementTableRoute;
   const canCoverShortStaffedShip = Boolean(
     !observer && visiting && crew && ship && ownShip === ship.id &&
     configuredShipRoles.length > 0 && !configuredShipRoles.every(role => crew.some(player =>
@@ -133,7 +163,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const consoleLocked = shipState?.consoleLocked ?? false;
   const gameplayFrozen = ['success', 'failure', 'debrief', 'closed'].includes(session?.phase ?? '');
   const effectiveWritable = writable && !consoleLocked && !gameplayFrozen;
-  const validRole = !roleId || consoleRole?.shipId === ship?.id || replacementVipHost || replacementCommissar;
+  const validRole = !roleId || consoleRole?.shipId === ship?.id || replacementVipHost || replacementCommissar || replacementTableRoute;
   const [coverOpen, setCoverOpen] = useState(false);
   const [activating, setActivating] = useState(false);
   const [hideResources, setHideResources] = useState(false);
@@ -481,6 +511,15 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
           <RoleAssignment value={replacementVipHost
               ? 'VIP Host'
               : replacementCommissar ? 'Commissar' : consoleRole?.name ?? ''} />
+        )}
+        {canShowSameTableTrade && session && me && fleetGroupId && (
+          <SameTableTradeWorkspace
+            sessionId={session.id}
+            currentPlayerUid={me.uid}
+            currentPlayerName={me.displayName}
+            fleetGroupId={fleetGroupId}
+            counterparties={sameTableTradeCounterparties}
+          />
         )}
         <nav className="ship-console__sections" aria-label="Ship sections">
           {resources && <a className="cic-text-button" href={`#${ship.id}-resource-stores`}>Resource stores</a>}

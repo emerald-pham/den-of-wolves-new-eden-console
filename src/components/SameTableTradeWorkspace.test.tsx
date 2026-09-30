@@ -30,7 +30,6 @@ const offer = {
 let emitInventory: ((inventory: { revision: number; balances: typeof balances } | null) => void) | undefined;
 let failInventory: (() => void) | undefined;
 let emitOffers: ((offers: { incoming: typeof offer[]; outgoing: typeof offer[] }) => void) | undefined;
-let failOffers: (() => void) | undefined;
 
 function renderWorkspace() {
   return render(<SameTableTradeWorkspace
@@ -55,15 +54,13 @@ beforeEach(() => {
   emitInventory = undefined;
   failInventory = undefined;
   emitOffers = undefined;
-  failOffers = undefined;
   mocks.subscribeInventory.mockImplementation((_sessionId, _uid, onInventory, onError) => {
     emitInventory = onInventory;
     failInventory = onError;
     return vi.fn();
   });
-  mocks.subscribeOffers.mockImplementation((_sessionId, _uid, _group, onOffers, onError) => {
-    emitOffers = onOffers;
-    failOffers = onError;
+  mocks.subscribeOffers.mockImplementation((...args) => {
+    emitOffers = args[3] as typeof emitOffers;
     return vi.fn();
   });
   mocks.createOffer.mockResolvedValue({ status: 'created', sessionId: 's1' });

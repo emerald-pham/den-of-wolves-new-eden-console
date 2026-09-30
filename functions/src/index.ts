@@ -53,6 +53,7 @@ import {
   type PursuitEmergencyWindowMarker,
 } from './pursuitEmergencyWindow';
 import { enforceExpensiveCallableRateLimit } from './callableRateLimitFirestore';
+import { createSameTableTradeCallables } from './sameTableTradeCallable';
 import {
   ADMIRAL_DIRECTIVE_KINDS,
   admiralDirectiveState,
@@ -683,6 +684,24 @@ initializeApp();
 setGlobalOptions(CALLABLE_RUNTIME_OPTIONS);
 
 const db = getFirestore();
+
+const sameTableTradeCallables = createSameTableTradeCallables({
+  db,
+  requireUid,
+  requireFacilitatorInstance,
+  isActivePlayer,
+  shipForRole,
+  serverTimestamp: () => FieldValue.serverTimestamp(),
+});
+
+export const attestPlayerHeldTokenBaseline = onCall((request) =>
+  sameTableTradeCallables.attestPlayerHeldTokenBaseline(request));
+
+export const createSameTableTradeOffer = onCall((request) =>
+  sameTableTradeCallables.createSameTableTradeOffer(request));
+
+export const acceptSameTableTradeOffer = onCall((request) =>
+  sameTableTradeCallables.acceptSameTableTradeOffer(request));
 
 /** Persist server-authoritative source events to the Press-only intake. */
 function writePressLogEvent(tx: Transaction, sessionId: string, event: PressLogEvent): void {

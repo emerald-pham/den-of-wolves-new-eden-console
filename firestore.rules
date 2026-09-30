@@ -170,6 +170,31 @@ service cloud.firestore {
         ).data.fleetGroupId;
     }
 
+    function isCurrentSameTableTradePlayer(sessionId) {
+      let player = get(
+        /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+      ).data;
+      return isMember(sessionId)
+        && player.role == 'player'
+        && playerHasCurrentRoleAuthority(player)
+        && player.fleetGroupId is string;
+    }
+
+    function isCurrentSameTableTradeOffer(sessionId) {
+      let player = get(
+        /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+      ).data;
+      return isCurrentSameTableTradePlayer(sessionId)
+        && resource.data.type == 'same-table-trade-offer'
+        && resource.data.sessionId == sessionId
+        && resource.data.fleetGroupId is string
+        && player.fleetGroupId == resource.data.fleetGroupId
+        && (
+          (resource.data.keys().hasAny(['fromUid']) && resource.data.fromUid == uid())
+          || (resource.data.keys().hasAny(['toUid']) && resource.data.toUid == uid())
+        );
+    }
+
     function isSafeCandidateReveal(value) {
       return value is map
         && value.keys().hasAll(['code', 'title'])
@@ -964,6 +989,37 @@ service cloud.firestore {
         allow get: if isMember(sessionId) && playerUid == uid()
           && (!('candidateReveals' in resource.data) || hasCurrentCandidateRevealAuthority(sessionId));
         allow list, write: if false;
+      }
+
+      // Personal tabletop resource counts are readable only by their holder.
+      // The facilitator's initial attestation stays private after it seeds the
+      // balances, and no client may list or alter another player's counts.
+      match /playerHeldResourceInventories/{playerUid} {
+        allow get: if playerUid == uid() && isCurrentSameTableTradePlayer(sessionId)
+          && (resource == null || (
+            resource.data.type == 'player-held-resource-inventory'
+            && resource.data.sessionId == sessionId
+            && resource.data.playerUid == uid()
+          ));
+        allow list, write: if false;
+      }
+
+      // An offer is visible only to its sender or named recipient, and only
+      // while the reader remains in its server-recorded current fleet group.
+      // Queries must constrain session, current group, and one exact actor UID.
+      match /sameTableTradeOffers/{offerId} {
+        allow get, list: if isCurrentSameTableTradeOffer(sessionId);
+        allow write: if false;
+      }
+
+      // Session-wide revision and stable acceptance receipts contain
+      // transaction internals, never client projections.
+      match /sameTableTradeState/{stateId} {
+        allow read, write: if false;
+      }
+
+      match /sameTableTradeReceipts/{offerId} {
+        allow read, write: if false;
       }
 
       // The organiser projection is a separate allowlisted read path. It is
