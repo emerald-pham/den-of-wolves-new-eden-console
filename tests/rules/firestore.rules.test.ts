@@ -1303,6 +1303,17 @@ describe('session header', () => {
     await assertFails(updateDoc(doc(as('gm1'), SESSION), { phase: 'active' }));
   });
 
+  it('keeps the single-player Demo boundary server-owned', async () => {
+    for (const uid of ['alice', 'gm1']) {
+      await assertFails(updateDoc(doc(as(uid), SESSION), {
+        singlePlayerDemo: { status: 'active', finalCycle: 1 },
+      }));
+      await assertFails(updateDoc(doc(as(uid), SESSION), {
+        'singlePlayerDemo.status': 'complete',
+      }));
+    }
+  });
+
   it('denies players and facilitators every direct political capital balance edit', async () => {
     for (const uid of ['alice', 'gm1']) {
       await assertFails(updateDoc(doc(as(uid), SESSION), {

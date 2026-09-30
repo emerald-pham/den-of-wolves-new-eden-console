@@ -52,6 +52,7 @@ const mock = vi.hoisted(() => ({
   missionOpportunityRecord: undefined as Record<string, unknown> | undefined,
   missionOpportunityRecordPath: undefined as string | undefined,
   commandReceiptRecord: undefined as Record<string, unknown> | undefined,
+  singlePlayerDemo: undefined as Record<string, unknown> | undefined,
   jumpFailures: {} as Record<string, Record<string, unknown>>,
   pursuitEmergencyWindow: undefined as Record<string, unknown> | undefined,
   transactionRetries: 0,
@@ -152,6 +153,7 @@ beforeEach(() => {
   mock.missionOpportunityRecord = undefined;
   mock.missionOpportunityRecordPath = undefined;
   mock.commandReceiptRecord = undefined;
+  mock.singlePlayerDemo = undefined;
   mock.jumpFailures = {};
   mock.pursuitEmergencyWindow = undefined;
   mock.transactionRetries = 0;
@@ -259,6 +261,7 @@ beforeEach(() => {
         ? { uid: mock.owner, connected: mock.connected, lastSeenAt: new Date() }
         : {
           phase: mock.phase,
+          ...(mock.singlePlayerDemo ? { singlePlayerDemo: mock.singlePlayerDemo } : {}),
           ...(mock.gameOutcome ? { gameOutcome: mock.gameOutcome } : {}),
           ...(memberPursuitWindow ? { pursuitEmergencyWindow: memberPursuitWindow } : {}),
           activeRoleIds: mock.activeRoleIds,
@@ -345,6 +348,115 @@ it('rejects malformed coordinates before reading or changing any authoritative s
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.randomInt).not.toHaveBeenCalled();
   expect(mock.randomUUID).not.toHaveBeenCalled();
+});
+
+it('denies Demo jumps before replay or stale handling and leaves all state unchanged', async () => {
+  const replayRequest = {
+    ...data,
+    requestId: 'demo-jump-replay',
+    destination: '5143',
+  };
+  const committed = await jumpShip.run(request(replayRequest));
+  expect(committed).toMatchObject({ status: 'jumped', destination: '5143' });
+  const receipt = mock.set.mock.calls.find(([path]) =>
+    path === 'sessions/s1/commandReceipts/demo-jump-replay')?.[1];
+  expect(receipt).toBeDefined();
+
+  mock.singlePlayerDemo = { status: 'active', finalCycle: 1 };
+  mock.commandReceiptRecord = receipt as Record<string, unknown>;
+  mock.update.mockClear();
+  mock.set.mockClear();
+  mock.randomInt.mockClear();
+  mock.randomUUID.mockClear();
+
+  await expect(jumpShip.run(request(replayRequest))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/jumps are unavailable in demo mode/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.randomInt).not.toHaveBeenCalled();
+  expect(mock.randomUUID).not.toHaveBeenCalled();
+
+  mock.commandReceiptRecord = undefined;
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(jumpShip.run(request({
+    ...data,
+    requestId: 'demo-jump-stale',
+    destination: '5143',
+    expectedRevision: 99,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/jumps are unavailable in demo mode/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('denies direct map relocation in Demo without changing location or navigation records', async () => {
+  mock.singlePlayerDemo = { status: 'active', finalCycle: 1 };
+
+  await expect(moveShipToLocation.run(request({
+    ...data,
+    requestId: 'demo-map-relocation',
+    destination: '5143',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/jumps are unavailable in demo mode/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('returns an explicit Cycle 1 Demo completion without advancing the session', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-06T12:10:00.000Z'));
+  mock.currentTurn = 1;
+  mock.activeVesselIds = ['aegis', 'shepherd'];
+  mock.activeRoleIds = ['admiral', 'shepherd-captain'];
+  mock.pursuitGroups = { 'fleet-1': 2, 'fleet-2': 1 };
+  mock.fleetGroups = [
+    { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1'] },
+    { id: 'fleet-2', vesselIds: ['shepherd'], memberUids: ['u2'] },
+  ];
+  mock.players = [
+    { id: 'u1', fields: { role: 'gm', connected: true, fleetGroupId: 'fleet-1' } },
+    { id: 'u2', fields: { role: 'player', connected: true, fleetGroupId: 'fleet-2' } },
+  ];
+  mock.singlePlayerDemo = { status: 'active', finalCycle: 1 };
+  const requestData = {
+    sessionId: 's1',
+    instanceId: 'bridge',
+    requestId: 'demo-cycle-one-complete',
+    expectedTurn: 1,
+    overridePhaseTimer: true,
+  };
+
+  const result = await advanceTurn.run(request(requestData));
+
+  expect(result).toMatchObject({
+    status: 'complete',
+    mode: 'demo',
+    currentTurn: 1,
+    finalCycle: 1,
+    title: 'Demo complete',
+  });
+  const sessionUpdate = mock.update.mock.calls.find(([path]) => path === 'sessions/s1')?.[1];
+  expect(sessionUpdate).toMatchObject({
+    singlePlayerDemo: expect.objectContaining({ status: 'complete', finalCycle: 1 }),
+  });
+  expect(sessionUpdate).not.toHaveProperty('currentTurn');
+  expect(mock.set.mock.calls.some(([path]) => String(path).includes('/events/turn-advanced-'))).toBe(false);
+
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(advanceTurn.run(request({
+    ...requestData,
+    requestId: 'demo-cycle-one-complete-retry',
+  }))).resolves.toMatchObject({ status: 'complete', currentTurn: 1 });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it.each([

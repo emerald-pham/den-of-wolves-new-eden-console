@@ -95,6 +95,16 @@ it('edits four digits, locks the destination, powers the rail, and submits the j
   expect(jumpShip).toHaveBeenCalledWith(expect.objectContaining({ shipId: 'aegis', destination: '2000' }));
 });
 
+it('shows the Demo boundary without exposing any executable jump control', () => {
+  renderConsole({ demoMode: true } as unknown as Partial<ComponentProps<typeof JumpDriveConsole>>);
+
+  expect(screen.getByRole('status')).toHaveTextContent('Jumps are unavailable in Demo mode.');
+  expect(screen.queryByRole('button', { name: /lock destination coordinates/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /blind jump/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole('slider', { name: /jump drive power/i })).not.toBeInTheDocument();
+  expect(jumpShip).not.toHaveBeenCalled();
+});
+
 it('submits blind travel without a candidate and retries the same request until the server reveals arrival', async () => {
   const user = userEvent.setup();
   const blindAttempt = {

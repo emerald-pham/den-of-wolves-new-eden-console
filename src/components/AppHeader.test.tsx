@@ -8,7 +8,7 @@ import { APP_VERSION } from '@/version';
 import { CHANGELOG } from '@/changelog';
 import { SESSION_WAIVER_STORAGE_KEY } from '@/lib/sessionWaiver';
 import { markServiceWorkerUpdateAvailable } from '@/pwa';
-import type { Player } from '@/types/game';
+import type { GameSession, Player } from '@/types/game';
 import AppHeader from './AppHeader';
 
 vi.mock('@/lib/sessionService', () => ({
@@ -508,6 +508,22 @@ it('does not offer the single-player demo when another player is connected', asy
   await user.click(screen.getByRole('button', { name: /settings/i }));
 
   expect(screen.queryByRole('button', { name: /start single-player demo/i })).not.toBeInTheDocument();
+});
+
+it('announces the server-recorded completion of the single-player Demo', () => {
+  window.sessionStorage.setItem('prompt-603a-connected-players', '1');
+  const session = useSessionStore.getState().session!;
+  useSessionStore.getState().setSession({
+    ...session,
+    singlePlayerDemo: { status: 'complete', finalCycle: 1 },
+  } as unknown as GameSession);
+
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+  window.sessionStorage.removeItem('prompt-603a-connected-players');
+
+  const message = screen.getByText('Demo mode ends after Cycle 1.');
+  expect(message).toBeVisible();
+  expect(message.closest('[role="status"]')).toHaveAttribute('aria-live', 'polite');
 });
 
 it('shows the GM access request instructions inside settings', async () => {

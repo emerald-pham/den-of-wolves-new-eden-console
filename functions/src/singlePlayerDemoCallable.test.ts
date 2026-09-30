@@ -88,6 +88,12 @@ it('starts Turn One for the only connected player and writes the shared transiti
     turnPhase: expect.objectContaining({ turn: 1 }),
   });
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({ currentTurn: 1 }));
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    singlePlayerDemo: expect.objectContaining({
+      status: 'active',
+      finalCycle: 1,
+    }),
+  }));
 });
 
 it('rejects the demo when another player is connected or Turn Zero has ended', async () => {
