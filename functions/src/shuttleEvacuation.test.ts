@@ -50,3 +50,9 @@ it('rejects destination overflow and malformed ledgers', () => {
   })).toThrow(/starting maximum/i);
   expect(parseShuttleEvacuations({ hummingbird: { cycle: 2, moved: 5_001, revision: 1 } })).toBeNull();
 });
+
+it('preserves exact rescued counts when a transfer starts between printed markers', () => {
+  expect(evacuateShuttleSurvivors({ ...base, amount: 1750,
+    shipSurvivors: { quellon: 29750, capybara: 13000 },
+  })).toMatchObject({ sourcePopulation: 28000, destinationPopulation: 14750 });
+});
