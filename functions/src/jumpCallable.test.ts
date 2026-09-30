@@ -21,8 +21,11 @@ const mock = vi.hoisted(() => ({
   navigationLogs: {} as Record<string, unknown>,
   fuel: 4,
   dioneFuel: 8,
+  icebreakerFuel: 20,
+  icebreakerOre: 0,
   charges: ['jump-drive'] as string[],
   dioneCharges: ['jump-drive'] as string[],
+  icebreakerCharges: ['jump-drive'] as string[],
   grantedShipId: 'aegis',
   activeRoleIds: [] as string[],
   activeVesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'] as string[],
@@ -120,8 +123,11 @@ beforeEach(() => {
   mock.navigationLogs = {};
   mock.fuel = 4;
   mock.dioneFuel = 8;
+  mock.icebreakerFuel = 20;
+  mock.icebreakerOre = 0;
   mock.charges = ['jump-drive'];
   mock.dioneCharges = ['jump-drive'];
+  mock.icebreakerCharges = ['jump-drive'];
   mock.grantedShipId = 'aegis';
   mock.activeRoleIds = [];
   mock.activeVesselIds = ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'];
@@ -286,6 +292,7 @@ beforeEach(() => {
           shipResources: {
             aegis: { ore: 0, fuel: mock.fuel, food: 8, water: 6, materials: 1, securityTeams: 9 },
             dione: { ore: 0, fuel: mock.dioneFuel, food: 8, water: 6, materials: 1, securityTeams: 9 },
+            icebreaker: { ore: mock.icebreakerOre, fuel: mock.icebreakerFuel, food: 11, water: 9, materials: 3, securityTeams: 2 },
           },
           shipSurvivors: mock.survivors,
           shipDamage: mock.damage,
@@ -297,6 +304,7 @@ beforeEach(() => {
           maintenanceCycles: {
             aegis: { turn: mock.currentTurn, charges: mock.charges, results: {} },
             dione: { turn: mock.currentTurn, charges: mock.dioneCharges, results: {} },
+            icebreaker: { turn: mock.currentTurn, charges: mock.icebreakerCharges, results: {} },
           },
     };
     if (path === 'sessions/s1/serverState/navigation') {
@@ -2034,6 +2042,60 @@ it('does not draw a blind destination before the ordinary jump charge requiremen
   expect(mock.randomInt).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     'shipResources.aegis.fuel': expect.any(Number),
+  }));
+});
+
+it.each([
+  ['short', '5143', 10],
+  ['medium', '9997', 15],
+  ['long', '6931', 20],
+] as const)('awards the charged Icebreaker Ram Scoop output after a %s jump', async (length, destination, ore) => {
+  mock.icebreakerCharges = ['jump-drive', 'ram-scoop'];
+  mock.grantedShipId = 'icebreaker';
+
+  await expect(jumpShip.run(request({
+    sessionId: 's1', instanceId: 'bridge', shipId: 'icebreaker',
+    requestId: `ram-scoop-${length}`, destination,
+  }))).resolves.toMatchObject({ status: 'jumped', length });
+
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'shipResources.icebreaker.ore': ore,
+  }));
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'shipResources.icebreaker.fuel': expect.any(Number),
+  }));
+});
+
+it('adds the server-owned Ram Scoop upgrade bonus to the successful jump award', async () => {
+  mock.icebreakerCharges = ['jump-drive', 'ram-scoop'];
+  mock.upgrades = { icebreaker: ['ram-scoop'] };
+  mock.grantedShipId = 'icebreaker';
+
+  await jumpShip.run(request({
+    sessionId: 's1', instanceId: 'bridge', shipId: 'icebreaker',
+    requestId: 'ram-scoop-upgraded', destination: '5143',
+  }));
+
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'shipResources.icebreaker.ore': 15,
+  }));
+});
+
+it.each([
+  ['uncharged', ['jump-drive'], {}],
+  ['damaged', ['jump-drive', 'ram-scoop'], { icebreaker: { damagedSystemIds: ['ram-scoop'], destroyed: false } }],
+] as const)('does not award Ram Scoop ore when the console is %s', async (_label, charges, damage) => {
+  mock.icebreakerCharges = [...charges];
+  mock.damage = damage;
+  mock.grantedShipId = 'icebreaker';
+
+  await expect(jumpShip.run(request({
+    sessionId: 's1', instanceId: 'bridge', shipId: 'icebreaker',
+    requestId: `ram-scoop-denied-${_label}`, destination: '5143',
+  }))).resolves.toMatchObject({ status: 'jumped' });
+
+  expect(mock.update).not.toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'shipResources.icebreaker.ore': expect.any(Number),
   }));
 });
 
