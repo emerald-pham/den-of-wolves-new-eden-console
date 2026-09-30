@@ -1597,3 +1597,40 @@ test('fails closed when PC05 shared index code changes beyond the audited candid
     sourceAtRevision: (revision) => revision === 'base' ? beforeSource : afterSource,
   }), /Cannot safely map PC05 shared index changes/);
 });
+
+const PC06_IMPLEMENTATION_CANDIDATE = '0b4f8494';
+const pc06SourceAtRevision = (revision, file) => {
+  try { return execFileSync('git', ['show', `${revision}:${file}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 16 * 1024 * 1024 }); }
+  catch { if (revision === PC05_REVIEWED_CANDIDATE) return ''; throw new Error(`Missing candidate source ${file}`); }
+};
+const selectPc06 = (files, sourceAtRevision = pc06SourceAtRevision) => deploymentSelector({
+  before: PC05_REVIEWED_CANDIDATE, after: PC06_IMPLEMENTATION_CANDIDATE,
+  files, targets: ['functions'], sourceAtRevision, isAncestor: () => false,
+});
+for (const [file, names] of Object.entries({
+  'smallShipJump': ['getSmallShipJumpWorkspace', 'jumpSmallShip', 'setSmallShipDocking'],
+  'fleetPartition': ['confirmFleetPartition', 'joinSession', 'resumeSession'],
+  'awayMissionLifecycleCallable': ['commitAwayMissionLifecycleCommand'],
+  'explorationRewards': ['commitAwayMissionLifecycleCommand'],
+  'missionRewardDelivery': ['commitAwayMissionLifecycleCommand'],
+  'gorgoneionMissionSupportCallable': ['getGorgoneionMissionSupportProjection', 'applyGorgoneionMissionSupport'],
+  'permissionedDismantlingCallable': ['proposePermissionedDismantling', 'consentToPermissionedDismantling', 'declinePermissionedDismantling', 'revokePermissionedDismantlingConsent', 'applyPermissionedDismantling'],
+  'voyage33MovementCallable': ['dockVoyage33', 'jumpVoyage33'],
+  'sameTableTradeCallable': ['attestPlayerHeldTokenBaseline', 'createSameTableTradeOffer', 'acceptSameTableTradeOffer'],
+})) {
+  test(`selects all connected PC06 ${file} consumers`, () => {
+    assert.deepEqual(selectedFunctions(selectPc06([`functions/src/${file}.ts`])), functionTargets(names));
+  });
+}
+test('selects the PC06 private navigation and shared index helper writers', () => {
+  const navigation = selectedFunctions(selectPc06(['functions/src/navigationProjection.ts']));
+  for (const name of ['commitAwayMissionLifecycleCommand', 'confirmFleetPartition', 'joinSession', 'resumeSession', 'jumpShip', 'moveShipToLocation']) assert.ok(navigation.includes(`functions:${name}`), name);
+  const index = selectedFunctions(selectPc06(['functions/src/index.ts']));
+  for (const name of ['recycleWithBoa', 'publishPressDispatch', 'runMaintenance', 'sendFleetGroupMessage', 'jumpSmallShip']) assert.ok(index.includes(`functions:${name}`), name);
+});
+test('rejects a changed PC06 source outside its explicit module or index audit', () => {
+  for (const file of ['functions/src/smallShipJump.ts', 'functions/src/navigationProjection.ts', 'functions/src/index.ts']) {
+    assert.throws(() => selectPc06([file], (revision, path) => pc06SourceAtRevision(revision, path) +
+      (revision === PC06_IMPLEMENTATION_CANDIDATE && path === file ? '\n// unaudited authority edit\n' : '')), /PC06|audited|audit/);
+  }
+});
