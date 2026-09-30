@@ -160,11 +160,15 @@ it('scrambles blind digits in four staggered updates every 500 ms and clears tim
     await act(async () => { vi.advanceTimersByTime(75); });
     expect(readout()?.textContent).toBe('5555');
     expect(readout()?.textContent).toMatch(/^[0-9]{4}$/);
-    expect(random).toHaveBeenCalledTimes(8);
+    await act(async () => { vi.advanceTimersByTime(249); });
+    expect(readout()?.textContent).toBe('5555');
+    random.mockReturnValue(0.11);
     await act(async () => { vi.advanceTimersByTime(1); });
-    expect(random).toHaveBeenCalledTimes(12);
-    await act(async () => { vi.advanceTimersByTime(25); });
-    expect(random).toHaveBeenCalledTimes(13);
+    await act(async () => { vi.advanceTimersByTime(4); });
+    expect(readout()?.textContent).toBe('5555');
+    await act(async () => { vi.advanceTimersByTime(1); });
+    expect(readout()?.textContent).toBe('1555');
+    expect(readout()?.textContent).toMatch(/^[0-9]{4}$/);
 
     await act(async () => {
       resolveJump({

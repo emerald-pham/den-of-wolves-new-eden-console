@@ -4260,7 +4260,7 @@ it('sends blind jumps without a client destination and applies the authoritative
   useSessionStore.getState().setSessionSnapshotFreshness('server');
   const callable = Object.assign(vi.fn().mockResolvedValue({ data: {
     status: 'jumped', shipId: 'icebreaker', origin: '0000', destination: '5143',
-    length: 'short', fuelCost: 3, remainingFuel: 17, ramScoopOreGain: 10,
+    length: 'short', fuelCost: 3, remainingFuel: 17, ramScoopOreGain: 10, remainingOre: 14,
     state: { lastJumpTurn: 1 }, revision: 2,
     idempotencyKey: requestId, auditId: `jump-ship-${requestId}`,
     actorUid: 'u1', actorRoleId: null, vesselId: 'icebreaker', turn: 1, phase: 'active',

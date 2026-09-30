@@ -2079,7 +2079,7 @@ it.each([
   await expect(jumpShip.run(request({
     sessionId: 's1', instanceId: 'bridge', shipId: 'icebreaker',
     requestId: `ram-scoop-${length}`, destination,
-  }))).resolves.toMatchObject({ status: 'jumped', length });
+  }))).resolves.toMatchObject({ status: 'jumped', length, ramScoopOreGain: ore, remainingOre: ore });
 
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     'shipResources.icebreaker.ore': ore,
@@ -2097,7 +2097,7 @@ it('adds the server-owned Ram Scoop upgrade bonus to the successful jump award',
   await jumpShip.run(request({
     sessionId: 's1', instanceId: 'bridge', shipId: 'icebreaker',
     requestId: 'ram-scoop-upgraded', destination: '5143',
-  }));
+  })).then((reply) => expect(reply).toMatchObject({ ramScoopOreGain: 15, remainingOre: 15 }));
 
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     'shipResources.icebreaker.ore': 15,
