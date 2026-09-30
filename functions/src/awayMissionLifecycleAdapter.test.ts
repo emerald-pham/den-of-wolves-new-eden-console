@@ -49,7 +49,6 @@ function fixture() {
 }
 
 function warriorFixture() {
-  const base = fixture();
   const lifecycle = createMissionLifecycleState({
     missionId: 'mission-warrior',
     siteCode: 'D',
@@ -258,7 +257,6 @@ describe('away-mission lifecycle adapter', () => {
       isActiveGm: true,
       bonusSources: [],
       secretD6Rolls: {},
-      bulkHaulageContributorUidsByOpportunity: { 'D-1': ['bob'] },
     });
     expect(resolution.status).toBe('committed');
     record = resolution.record!;
