@@ -30,6 +30,7 @@ exact interface needs to the owner rather than editing shared release seams.
 | Same-table trade UI leaf, Luna Max task `/root/pc06_release_owner/pc06_trade_ui` | 112 (player-facing leaf) | `/Users/emeraldpham/.codex/worktrees/pc06-trade-ui/den-of-wolves-new-eden-console`, `feat/pc06-trade-ui`, start `be6a6f59` | `src/components/SameTableTradePanel.tsx`, `.css`, and `.test.tsx`; present facilitator-attested holdings and exact offer/accept controls through props/callbacks only. Owner retains authenticated service/session integration and prompt acceptance. Test-first commit: `b4b68b55`. |
 | Same-table trade domain-policy leaf, Luna Max task `/root/pc06_release_owner/pc06_trade_policy` | 112 (pure domain leaf) | `/Users/emeraldpham/.codex/worktrees/pc06-trade-policy/den-of-wolves-new-eden-console`, `feat/pc06-trade-policy`, start `be6a6f59` | `functions/src/sameTableTradePolicy.ts` and its focused tests. The owner retains callable exports, authenticated per-player state, shared schema/rules, and prompt acceptance. |
 | Voyage 33-0 movement UI leaf, Luna Max task `/root/pc06_release_owner/pc06_voyage33_ui` | 251 (player-facing leaf) | `/Users/emeraldpham/.codex/worktrees/pc06-voyage-movement/den-of-wolves-new-eden-console`, `feat/pc06-voyage33-ui`, start `1f56d244` | `src/components/Voyage33MovementPanel.tsx` and its focused tests. Implement only the stateless GM-facing dock/jump controls through explicit props and callbacks; owner retains server transaction, session/rules wiring, and full Prompt 251 acceptance. |
+| Voyage 33-0 movement transaction adapter, Luna Max task `/root/pc06_release_owner/pc06_voyage33_movement_callable` | 251 (isolated transaction adapter) | `/Users/emeraldpham/.codex/worktrees/pc06-voyage-movement-callable/den-of-wolves-new-eden-console`, `feat/pc06-voyage-movement-callable`, start `14f133e5` | `functions/src/voyage33MovementCallable.ts` and focused tests. Implement an injectable authoritative transaction adapter using the existing pure movement policy; the owner composes it with the common jump path, exports, session/rules, UI, and full Prompt 251 acceptance. |
 | Permissioned-dismantling callable adapter, Luna Max task `/root/pc06_release_owner/pc06_dismantle_callable` | 385 (isolated transaction adapter) | `/Users/emeraldpham/.codex/worktrees/pc06-dismantle-callable/den-of-wolves-new-eden-console`, `feat/pc06-dismantle-callable`, start `1f56d244` | `functions/src/permissionedDismantlingCallable.ts` and its focused tests, using the existing exact-proposal policy. Owner retains callable exports, shared session/rules, client consent UI, and full Prompt 385 acceptance. |
 | Jump, split-fleet messages/pursuit/scouts, mission admission/rewards, P112 integration, checkpoint integration and release, checkpoint owner | 202, 210, 222, 232, 236, 241a, 259, 320, 607, 679, 112, 401, 237, 334, 335, 151, 307 | `/Users/emeraldpham/.codex/worktrees/0ce4/den-of-wolves-new-eden-console`, branch `feat/pc06-execution` | Jump authority and UI, demo policy integration, group-local messaging/pursuit/scouting policy and production integration, mission admission and special rewards, P112 authenticated inventory/consent integration, shared entrypoints/schema/rules, integration and release files. The owner retains closure accountability for all 49 prompts, including delegated leaf work. |
 
@@ -99,13 +100,13 @@ independent Sol review at the review boundary. The checkpoint owner remains
 accountable for integration and release in either case.
 
 The live-access probe reached the production console at
-`dow-new-eden-console.web.app/#/console`, running build `0.5.58`. Its current
-settings show Reduce Motion unchecked, so normal motion was already selected;
-no preference change was made. The applicable Computer Use Confirmation Policy
-requires confirmation before changing a non-sensitive application setting
-unless the user explicitly requests that change. The console reports local GM
-access authorized, but the current session remains authorization-pending with
-two devices connected. No session code, email address, or credential was
-recorded, and the session was not changed. Facilitator login availability is
-therefore observed, while authorized active-session gameplay proof remains
-open.
+`dow-new-eden-console.web.app/#/console`, running build `0.5.58`. Reduce Motion
+was unchecked, so normal motion was already selected; no preference change was
+made. The console reported local GM access authorized. With two devices
+connected and the status strip still reporting authorization pending, the
+checkpoint owner used the supported GM join flow with display name `PC06 Test
+Facilitator`. The visible result showed `RANK: GM`, facilitator authority,
+cycle 0, and Casting phase, while the status strip continued to report
+authorization pending. No turn or gameplay action followed, so this confirms
+the GM join path but not ordinary active-game authorization or gameplay. No
+session code, email address, or credential was recorded.
