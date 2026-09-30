@@ -34,6 +34,7 @@ import {
   type DocumentReference,
   type DocumentSnapshot,
   type Transaction,
+  type QuerySnapshot,
 } from 'firebase-admin/firestore';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
@@ -307,7 +308,7 @@ import {
 } from './resources';
 import { planShipStoreScavenge, requireScavengeInventories } from './shipStoreScavenge';
 import { activeVesselRecord, initialSessionComposition } from './sessionComposition';
-import { planFleetPartition } from './fleetPartition';
+import { planFleetPartition, reconcilePartitionMember } from './fleetPartition';
 import {
   INITIAL_FLEET_GROUP_ID,
   fleetGroupRecord,
@@ -2510,6 +2511,32 @@ function ensureInitialFleetGroup(
     }
   }
   return group;
+}
+
+function reconcileSessionFleetMember(tx: Transaction, sessionId: string, activeVesselIds: readonly string[],
+  memberUids: readonly string[], storedGroup: DocumentSnapshot, players: readonly DocumentSnapshot[],
+  partitions: QuerySnapshot | undefined, uid: string, player: DocumentSnapshot) {
+  if (!partitions) {
+    const group = ensureInitialFleetGroup(tx, sessionId, activeVesselIds, memberUids, storedGroup, players);
+    return { group, groups: [group], snapshots: [storedGroup] };
+  }
+  const groups = movementPursuitFleetGroups(activeVesselIds, partitions, { docs: players });
+  let result: ReturnType<typeof reconcilePartitionMember>;
+  try { result = reconcilePartitionMember(groups, uid, player.exists ? player.get('fleetGroupId') : undefined); }
+  catch (error) { throw commandError('failed-precondition', error instanceof Error ? error.message : 'Fleet membership is malformed.', 'conflict'); }
+  if (!isDeepStrictEqual(groups, result.groups)) tx.update(db.doc(`sessions/${sessionId}/fleetGroups/${result.group.id}`), {
+    memberUids: result.group.memberUids, updatedAt: FieldValue.serverTimestamp(),
+  });
+  return { ...result, snapshots: result.groups.map(group => transactionDocumentSnapshot(group.id,
+    `sessions/${sessionId}/fleetGroups/${group.id}`, { ...group })) };
+}
+function hasFleetPartition(session: DocumentSnapshot): boolean {
+  const marker = session.get('fleetPartitionRevision');
+  if (marker === undefined) return false;
+  if (!Number.isSafeInteger(marker) || (marker as number) < 1) {
+    throw commandError('failed-precondition', 'Fleet partition authority is malformed.', 'conflict');
+  }
+  return true;
 }
 
 /** Publish only each member's own ship history into their group entitlement. */
@@ -14605,6 +14632,7 @@ export const confirmFleetPartition = onCall<{ sessionId: string; instanceId: str
     const changed = !isDeepStrictEqual(groups, plan.groups);
     const revision = data.expectedNavigationRevision + (changed ? 1 : 0);
     if (changed) {
+      tx.update(db.doc(`sessions/${data.sessionId}`), { fleetPartitionRevision: revision, updatedAt: FieldValue.serverTimestamp() });
       for (const group of plan.groups) tx.set(db.doc(`sessions/${data.sessionId}/fleetGroups/${group.id}`), {
         ...group, updatedAt: FieldValue.serverTimestamp(),
       });
@@ -14690,12 +14718,15 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
       const returningSeat = player.exists
         ? await reconcileReturningSeat(tx, sessionId, uid, player, sessionActiveRoleIds(sessionDoc))
         : null;
+      const partitions = hasFleetPartition(sessionDoc)
+        ? await tx.get(db.collection(`sessions/${sessionId}/fleetGroups`)) : undefined;
       const setup = await hydrateCanonicalSessionSetup(tx, sessionId, sessionDoc);
       if (clearStaleMembership) tx.delete(membershipRef);
       const memberUids = [...new Set([...activeFleetGroupMemberUids(playerDocs), uid])];
-      const group = ensureInitialFleetGroup(
-        tx, sessionId, setup.activeVesselIds, memberUids, storedGroup, playerDocs,
+      const fleet = reconcileSessionFleetMember(
+        tx, sessionId, setup.activeVesselIds, memberUids, storedGroup, playerDocs, partitions, uid, player,
       );
+      const group = fleet.group;
       const navigation = navigationStateForSession(storedNavigation, sessionDoc, setup.activeVesselIds);
       const navigationRevision = typeof storedNavigation.get('revision') === 'number'
         ? storedNavigation.get('revision') as number : 0;
@@ -14718,8 +14749,8 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
       publishDiscoveryProjections(
         tx, sessionId, playerDocs, navigation, navigationRevision,
         sessionDoc.get('chartId') === 'B' || sessionDoc.get('chartId') === 'C' ? sessionDoc.get('chartId') : 'A',
-        [group], false,
-        { sessionSnapshot: sessionDoc, navigationSnapshot: storedNavigation, fleetGroupSnapshots: [storedGroup] },
+        fleet.groups, false,
+        { sessionSnapshot: sessionDoc, navigationSnapshot: storedNavigation, fleetGroupSnapshots: fleet.snapshots },
       );
       tx.update(sessionRef, {
         shipGalacticCoordinates: removeLegacyNavigationField(),
@@ -14769,7 +14800,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
             : player.get(field),
         };
         const candidateReveals = currentGroupCandidateReveals(
-          sessionId, sessionDoc, storedNavigation, navigation, playerDocs, [storedGroup], uid,
+          sessionId, sessionDoc, storedNavigation, navigation, playerDocs, fleet.snapshots, uid,
         );
         writePlayerDiscoveryProjection(
           tx,
@@ -14828,7 +14859,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
           storedNavigation,
           navigation,
           [...playerDocs, newPlayerSnapshot],
-          [nextGroupSnapshot],
+          fleet.snapshots.map(snapshot => snapshot.id === group.id ? nextGroupSnapshot : snapshot),
           uid,
         );
         writePlayerDiscoveryProjection(
@@ -15055,16 +15086,13 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
     const returningSeat = await reconcileReturningSeat(
       tx, sessionId, uid, currentPlayer, sessionActiveRoleIds(currentSession),
     );
+    const partitions = hasFleetPartition(currentSession)
+      ? await tx.get(db.collection(`sessions/${sessionId}/fleetGroups`)) : undefined;
     const setup = await hydrateCanonicalSessionSetup(tx, sessionId, currentSession);
     if (clearStaleMembership) tx.delete(membershipRef);
-    const group = ensureInitialFleetGroup(
-      tx,
-      sessionId,
-      setup.activeVesselIds,
-      [...new Set([...activeFleetGroupMemberUids(playerDocs), uid])],
-      storedGroup,
-      playerDocs,
-    );
+    const fleet = reconcileSessionFleetMember(tx, sessionId, setup.activeVesselIds,
+      [...new Set([...activeFleetGroupMemberUids(playerDocs), uid])], storedGroup, playerDocs, partitions, uid, currentPlayer);
+    const group = fleet.group;
     const navigation = navigationStateForSession(storedNavigation, currentSession, setup.activeVesselIds);
     const navigationRevision = typeof storedNavigation.get('revision') === 'number'
       ? storedNavigation.get('revision') as number : 0;
@@ -15085,8 +15113,8 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
     publishDiscoveryProjections(
       tx, sessionId, playerDocs, navigation, navigationRevision,
       currentSession.get('chartId') === 'B' || currentSession.get('chartId') === 'C' ? currentSession.get('chartId') : 'A',
-      [group], false,
-      { sessionSnapshot: currentSession, navigationSnapshot: storedNavigation, fleetGroupSnapshots: [storedGroup] },
+      fleet.groups, false,
+      { sessionSnapshot: currentSession, navigationSnapshot: storedNavigation, fleetGroupSnapshots: fleet.snapshots },
     );
     tx.update(sessionRef, {
       shipGalacticCoordinates: removeLegacyNavigationField(),
@@ -15135,7 +15163,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       get: (field: string) => field === 'fleetGroupId' ? group.id : currentPlayer.get(field),
     };
     const candidateReveals = currentGroupCandidateReveals(
-      sessionId, currentSession, storedNavigation, navigation, playerDocs, [storedGroup], uid,
+      sessionId, currentSession, storedNavigation, navigation, playerDocs, fleet.snapshots, uid,
     );
     writePlayerDiscoveryProjection(
       tx,
