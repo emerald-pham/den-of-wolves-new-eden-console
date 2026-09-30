@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 
@@ -38,10 +38,15 @@ beforeEach(() => {
     return vi.fn();
   });
   vi.stubGlobal('crypto', { randomUUID: vi.fn(() => 'stable-request-id') });
+  sessionStorage.clear();
 });
 
 it('lets the current docked craft holder choose an undamaged target system and retry with one stable proposal id', async () => {
   const user = userEvent.setup();
+  mocks.subscribe.mockImplementation((_sessionId, _shipId, handlers) => {
+    handlers.onInbox({ ...pendingInbox, proposalId: 'stable-request-id' });
+    return vi.fn();
+  });
   render(<PermissionedDismantlingPanel mode="proposer" sessionId="s1" craftId="philia"
     targetShipId="dione" targetSystems={[{ id: 'reactor', name: 'Reactor' }, { id: 'storage', name: 'Storage' }]}
     damagedSystemIds={['storage']} connection="live" canAct />);
@@ -54,7 +59,7 @@ it('lets the current docked craft holder choose an undamaged target system and r
   await waitFor(() => expect(mocks.propose).toHaveBeenCalledWith({
     proposalId: 'stable-request-id', craftId: 'philia', targetShipId: 'dione', targetConsoleId: 'reactor',
   }));
-  expect(within(panel).getByText(/awaiting the dione player/i)).toBeInTheDocument();
+  expect(await within(panel).findByText(/awaiting the dione player/i)).toBeInTheDocument();
   expect(mocks.subscribe).toHaveBeenCalledWith('s1', 'dione', expect.any(Object));
 });
 
@@ -65,22 +70,24 @@ it('shows the exact request to the target player, permits consent, then allows t
     handlers = value;
     return vi.fn();
   });
-  const { rerender } = render(<PermissionedDismantlingPanel mode="target" sessionId="s1" targetShipId="dione" />);
+  const targetView = render(<PermissionedDismantlingPanel mode="target" sessionId="s1" targetShipId="dione" />);
   await waitFor(() => expect(mocks.subscribe).toHaveBeenCalled());
-  handlers?.onInbox(pendingInbox);
+  await act(async () => handlers?.onInbox(pendingInbox));
   expect(screen.getByText(/philia.*reactor.*3 materials/i)).toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: /grant permission/i }));
   expect(mocks.consent).toHaveBeenCalledWith({ inbox: pendingInbox, consentId: 'stable-request-id' });
 
+  targetView.unmount();
+  sessionStorage.setItem('permissioned-dismantling:v1:s1:engineer:philia', JSON.stringify({
+    proposalId: 'proposal-1', craftId: 'philia', targetShipId: 'dione', targetConsoleId: 'reactor',
+  }));
   mocks.subscribe.mockImplementation((_sessionId, _shipId, value) => {
-    handlers = value;
+    value.onInbox({ ...pendingInbox, status: 'consented', consentId: 'stable-request-id' });
     return vi.fn();
   });
-  rerender(<PermissionedDismantlingPanel mode="proposer" sessionId="s1" craftId="philia"
+  render(<PermissionedDismantlingPanel mode="proposer" sessionId="s1" currentPlayerUid="engineer" craftId="philia"
     targetShipId="dione" targetSystems={[{ id: 'reactor', name: 'Reactor' }]}
     damagedSystemIds={[]} connection="live" canAct />);
-  await waitFor(() => expect(mocks.subscribe).toHaveBeenLastCalledWith('s1', 'dione', expect.any(Object)));
-  handlers?.onInbox({ ...pendingInbox, status: 'consented', consentId: 'stable-request-id' });
   await user.click(await screen.findByRole('button', { name: /apply consented dismantling/i }));
   expect(mocks.apply).toHaveBeenCalledWith(expect.objectContaining({
     inbox: expect.objectContaining({ status: 'consented', consentId: 'stable-request-id' }),
@@ -89,9 +96,19 @@ it('shows the exact request to the target player, permits consent, then allows t
 });
 
 it('keeps controls unavailable when the live facilitator link or current authority is missing', () => {
-  render(<PermissionedDismantlingPanel mode="proposer" sessionId="s1" craftId="philia"
+  render(<PermissionedDismantlingPanel mode="proposer" sessionId="s1" currentPlayerUid="engineer" craftId="philia"
     targetShipId="dione" targetSystems={[{ id: 'reactor', name: 'Reactor' }]}
     damagedSystemIds={[]} connection="offline" canAct={false} />);
   expect(screen.getByRole('button', { name: /request target-player permission/i })).toBeDisabled();
-  expect(screen.getByText(/live facilitator connection and current shuttle authority/i)).toBeInTheDocument();
+  expect(screen.getByText(/offline.*reconnect/i)).toBeInTheDocument();
+});
+
+it('does not allow a revoked approval to be reused for the old request', () => {
+  mocks.subscribe.mockImplementation((_sessionId, _shipId, handlers) => {
+    handlers.onInbox({ ...pendingInbox, status: 'revoked', consentId: 'old-consent' });
+    return vi.fn();
+  });
+  render(<PermissionedDismantlingPanel mode="target" sessionId="s1" targetShipId="dione" />);
+  expect(screen.queryByRole('button', { name: /grant permission/i })).not.toBeInTheDocument();
+  expect(screen.getByText(/previous consent was revoked.*new request/i)).toBeInTheDocument();
 });
