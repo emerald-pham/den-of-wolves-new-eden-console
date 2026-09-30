@@ -96,6 +96,55 @@ service cloud.firestore {
         && get(secretPath).data.payload.kind == 'intelligence-agent';
     }
 
+    function isCurrentGorgoneionMissionSupportCaptain(sessionId) {
+      let player = get(
+        /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+      ).data;
+      let session = get(
+        /databases/$(database)/documents/sessions/$(sessionId)
+      ).data;
+      let gorgoneion = session.smallShipStates.gorgoneion;
+      let deckPath = /databases/$(database)/documents/sessions/$(sessionId)/serverState/missionDeck;
+      return isMember(sessionId)
+        && player.role == 'player'
+        && player.replacementRoleId == 'gorgoneion-captain'
+        && playerHasCurrentRoleAuthority(player)
+        && player.activeConsoleRoleId == null
+        && player.seatId == null
+        && session.activeVesselIds is list
+        && gorgoneion.hostShipId is string
+        && gorgoneion.hostShipId in session.activeVesselIds
+        && gorgoneion.dockingRevision is int
+        && exists(deckPath)
+        && get(deckPath).data.dealtCount == 0
+        && (!get(deckPath).data.keys().hasAny(['gorgoneionSupportApplied'])
+          || get(deckPath).data.gorgoneionSupportApplied != true);
+    }
+
+    function isCurrentGorgoneionMissionSupportProjection(sessionId, actorUid) {
+      let session = get(
+        /databases/$(database)/documents/sessions/$(sessionId)
+      ).data;
+      let gorgoneion = session.smallShipStates.gorgoneion;
+      return isCurrentGorgoneionMissionSupportCaptain(sessionId)
+        && actorUid == uid()
+        && (resource == null || (
+          resource.data.keys().hasAll([
+            'sessionId', 'actorUid', 'hostShipId', 'dockingRevision', 'dealtCount', 'cardIds'
+          ])
+          && resource.data.keys().hasOnly([
+            'sessionId', 'actorUid', 'hostShipId', 'dockingRevision', 'dealtCount', 'cardIds'
+          ])
+          && resource.data.sessionId == sessionId
+          && resource.data.actorUid == uid()
+          && resource.data.hostShipId == gorgoneion.hostShipId
+          && resource.data.dockingRevision == gorgoneion.dockingRevision
+          && resource.data.dealtCount == 0
+          && resource.data.cardIds is list
+          && resource.data.cardIds.size() == 5
+        ));
+    }
+
     function isCanonicalIntelligenceInvestigation(sessionId, investigationUid) {
       return resource.data.type == 'intelligence-investigation'
         && resource.data.sessionId == sessionId
@@ -710,6 +759,15 @@ service cloud.firestore {
           && resource.data.sessionId == sessionId
           && (resource.data.participantUid == uid() || isGm(sessionId));
         allow write: if false;
+      }
+
+      // The five inspected faces are a private, live pre-deal projection for
+      // the current docked Gorgoneion Captain. The mission-deck cursor and
+      // one-use marker revoke reads as soon as support is used or any card is
+      // dealt; actor and docking checks revoke stale assignments immediately.
+      match /gorgoneionMissionSupportViews/{actorUid} {
+        allow get: if isCurrentGorgoneionMissionSupportProjection(sessionId, actorUid);
+        allow list, write: if false;
       }
 
       // Dione VIP hands are one server-written private projection per owner.
