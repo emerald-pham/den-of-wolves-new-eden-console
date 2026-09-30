@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  createAwayMissionLifecycleProjectionSubscription,
   createAwayMissionLifecycleActions,
   parseAwayMissionLifecyclePrivateState,
   parseAwayMissionLifecyclePublicState,
@@ -71,6 +72,51 @@ describe('away mission lifecycle client service', () => {
       ...privateState,
       revision: 2,
     }, { missionId: 'mission-1', participantUid: 'bob', revision: 3 })).toBeNull();
+  });
+
+  it('subscribes only to the current participant’s pointers and matching own hand documents', () => {
+    const watchAuth = vi.fn((onUid: (uid: string | null) => void) => {
+      onUid('bob');
+      return vi.fn();
+    });
+    const watchOwnHand = vi.fn((_sessionId, _uid, _handId, onSnapshot) => {
+      onSnapshot({ fromCache: false, hasPendingWrites: false, exists: true, data: () => ({
+        type: 'away-mission-hand', sessionId: 's1', participantUid: 'bob',
+        missionId: 'mission-1', handId: 'hand-bob',
+        lifecyclePrivateState: privateState,
+      }) });
+      return vi.fn();
+    });
+    const watchOwnPointers = vi.fn((_sessionId, _uid, onSnapshot) => {
+      onSnapshot({ fromCache: false, hasPendingWrites: false, docs: [
+        { id: 'hand-bob', data: () => ({
+          type: 'away-mission-hand-pointer', sessionId: 's1', participantUid: 'bob',
+          missionId: 'mission-1', handId: 'hand-bob', phase: 'assignment-ready',
+          revision: 3, discarded: false, lifecyclePublicState: publicState,
+        }) },
+        { id: 'hand-alice', data: () => ({
+          type: 'away-mission-hand-pointer', sessionId: 's1', participantUid: 'alice',
+          missionId: 'mission-1', handId: 'hand-alice', phase: 'assignment-ready',
+          revision: 3, discarded: false, lifecyclePublicState: publicState,
+        }) },
+      ] });
+      return vi.fn();
+    });
+    const onState = vi.fn();
+    const stop = createAwayMissionLifecycleProjectionSubscription({
+      sessionId: 's1',
+      actorUid: 'bob',
+      onState,
+      reader: { watchAuth, watchOwnPointers, watchOwnHand },
+    });
+
+    expect(watchOwnPointers).toHaveBeenCalledWith('s1', 'bob', expect.any(Function), expect.any(Function));
+    expect(watchOwnHand).toHaveBeenCalledOnce();
+    expect(watchOwnHand).toHaveBeenCalledWith('s1', 'bob', 'hand-bob', expect.any(Function), expect.any(Function));
+    expect(onState).toHaveBeenLastCalledWith({
+      status: 'ready', missions: [{ publicState, privateState }], projectionMissing: false,
+    });
+    stop();
   });
 
   it('binds each callable command to the current player, mission, and projected revision', async () => {
