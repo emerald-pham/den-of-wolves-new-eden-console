@@ -399,6 +399,17 @@ describe('callable request guards', () => {
     );
   });
 
+  it('accepts destination-free blind jumps but rejects client-selected blind destinations', () => {
+    expect(requireShipJumpRequest({ sessionId: 's1', shipId: 'aegis', blind: true }))
+      .toEqual({ sessionId: 's1', shipId: 'aegis', blind: true, emergency: false });
+    expectHttpsError(() => requireShipJumpRequest({
+      sessionId: 's1', shipId: 'aegis', blind: true, destination: '5143',
+    }), 'invalid-argument');
+    expectHttpsError(() => requireShipJumpRequest({
+      sessionId: 's1', shipId: 'aegis', blind: true, emergency: true,
+    }), 'invalid-argument');
+  });
+
   it('requires a current airspace window and positive turn for time extension', () => {
     expectHttpsError(() => requireAirspaceWindowExtensionRequest({
       sessionId: 's1', instanceId: 'i1', expectedTurn: 0, window: 'restricted',

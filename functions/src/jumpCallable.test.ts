@@ -1987,6 +1987,56 @@ it('records the printed population value where a multi-card adjudication first c
   }));
 });
 
+it('chooses a blind-jump destination from the authoritative current node and binds the result to its receipt', async () => {
+  mock.coordinate = '0000';
+  mock.randomInt.mockReturnValue(1);
+  const command = { ...data, requestId: 'blind-adjacent', blind: true };
+
+  const first = await jumpShip.run(request(command));
+
+  expect(first).toMatchObject({ status: 'jumped', origin: '0000', destination: '1413', fuelCost: 2 });
+  expect(first).not.toHaveProperty('neighborCandidates');
+  expect(first).not.toHaveProperty('chart');
+  expect(mock.randomInt).toHaveBeenCalledWith(0, 2);
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'shipResources.aegis.fuel': 2,
+  }));
+  const receiptWrite = mock.set.mock.calls.find(([path]) => String(path).includes('/commandReceipts/'));
+  expect(receiptWrite).toBeDefined();
+  mock.commandReceiptRecord = receiptWrite?.[1] as Record<string, unknown>;
+
+  mock.randomInt.mockClear();
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(jumpShip.run(request(command))).resolves.toEqual(first);
+  expect(mock.randomInt).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('rejects a blind jump when the authoritative current node is absent from the locked graph without mutation', async () => {
+  mock.coordinate = '7777';
+
+  await expect(jumpShip.run(request({ ...data, requestId: 'blind-no-node', blind: true })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+
+  expect(mock.randomInt).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('does not draw a blind destination before the ordinary jump charge requirement passes', async () => {
+  mock.charges = [];
+
+  await expect(jumpShip.run(request({ ...data, requestId: 'blind-uncharged', blind: true })))
+    .resolves.toMatchObject({ status: 'not-charged', origin: '0000' });
+
+  expect(mock.randomInt).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'shipResources.aegis.fuel': expect.any(Number),
+  }));
+});
+
 it('rejects facilitator adjudication after fuel changes and performs no jump or damage work', async () => {
   mock.fuel = 2;
   mock.jumpStates = { aegis: { lastFailureRequestId: 'changed-failure' } };
