@@ -2370,3 +2370,23 @@ for (const craftId of ['warrior', 'capybara-small'] as const) {
     expect(mock.randomInt).not.toHaveBeenCalled();
   });
 }
+
+it('confirms a server-derived fleet partition and clones pursuit without exposing the private chart', async () => {
+  mock.coordinate = '1413';
+  const result = await (jumpCallables as unknown as { confirmFleetPartition: { run: (request: unknown) => Promise<unknown> } })
+    .confirmFleetPartition.run(request({ sessionId: 's1', instanceId: 'bridge', expectedNavigationRevision: 0 }));
+  expect(result).toEqual({ status: 'committed', navigationRevision: 1, groupIds: ['fleet-1', 'fleet-2'] });
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/fleetGroups/fleet-2', expect.objectContaining({
+    vesselIds: ['dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'], memberUids: [],
+  }));
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/serverState/navigation', expect.objectContaining({
+    pursuitGroups: { 'fleet-1': 2, 'fleet-2': 2 }, revision: 1,
+  }));
+});
+it('rejects stale fleet partition confirmation and unauthorised players before any write', async () => {
+  const callable = (jumpCallables as unknown as { confirmFleetPartition: { run: (request: unknown) => Promise<unknown> } }).confirmFleetPartition;
+  await expect(callable.run(request({ sessionId: 's1', instanceId: 'bridge', expectedNavigationRevision: 2 }))).rejects.toThrow(/refresh|changed|stale/i);
+  mock.role = 'player';
+  await expect(callable.run(request({ sessionId: 's1', instanceId: 'bridge', expectedNavigationRevision: 0 }))).rejects.toThrow();
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+});
