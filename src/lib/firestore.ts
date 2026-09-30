@@ -1,3 +1,4 @@
+import { parseAwayMissionLifecyclePublicState } from './awayMissionLifecycleService';
 import {
   collection,
   connectFirestoreEmulator,
@@ -537,7 +538,8 @@ function vipHand(value: unknown, sessionId: string, uid: string): VipHand | null
 }
 
 const AWAY_MISSION_HAND_PHASES: ReadonlySet<string> = new Set([
-  'awaiting-card-selection', 'discarding', 'assignment-ready',
+  'awaiting-card-selection', 'discarding', 'assignment-ready', 'assigning',
+  'assignments-complete', 'facilitator-cards-added', 'resolved', 'complete',
 ]);
 
 function awayMissionHandPointer(
@@ -573,8 +575,13 @@ function awayMissionHandPointer(
       !Number.isSafeInteger(raw.participantCount) || (raw.participantCount as number) < 1 ||
       (raw.participantCount as number) > 33 || !missionLeaderUid || !missionLeaderRoleId))
   ) return null;
+  const lifecyclePublicState = raw.lifecyclePublicState === undefined ? undefined :
+    parseAwayMissionLifecyclePublicState(raw.lifecyclePublicState, raw.missionId);
+  if (raw.lifecyclePublicState !== undefined && (!lifecyclePublicState ||
+      lifecyclePublicState.revision !== raw.revision || lifecyclePublicState.phase !== raw.phase)) return null;
   return {
     sessionId: entityId('session', sessionId),
+    ...(lifecyclePublicState ? { lifecyclePublicState } : {}),
     participantUid,
     missionId: raw.missionId,
     handId: raw.handId,

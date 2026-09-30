@@ -1,3 +1,4 @@
+import GmAwayMissionLifecycleWorkspace from './GmAwayMissionLifecycleWorkspace';
 import { useMemo, useState } from 'react';
 import {
   discardPrivateMissionCard,
@@ -39,7 +40,8 @@ export function AwayMissionParticipantPanel({
   const [busyHandId, setBusyHandId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  if (visiblePointers.length === 0) return null;
+  const legacyPointers = visiblePointers.filter((pointer) => !pointer.lifecyclePublicState);
+  if (legacyPointers.length === 0) return null;
   const discard = async (pointer: AwayMissionHandPointer, hand: typeof visibleHands[number]) => {
     if (!hand || busyHandId || pointer.phase !== 'discarding' || pointer.discarded || hand.discarded) return;
     setBusyHandId(hand.handId);
@@ -57,7 +59,7 @@ export function AwayMissionParticipantPanel({
   return (
     <section className="away-mission-private-panel role-card cic-frame" aria-label="Private away mission cards">
       <h2 className="gm-console__section-title">Away mission // private cards</h2>
-      {visiblePointers.map((pointer) => {
+      {legacyPointers.map((pointer) => {
         const hand = handsById.get(pointer.handId);
         const discarded = pointer.discarded || hand?.discarded === true;
         return (
@@ -119,7 +121,7 @@ function FacilitatorPanel() {
   const pointers = useSessionStore((state) => state.gmAwayMissionHandPointers);
   const missions = useMemo(() => {
     const groups = new Map<string, AwayMissionHandPointer[]>();
-    pointers.forEach((pointer) => {
+    pointers.filter((pointer) => !pointer.lifecyclePublicState).forEach((pointer) => {
       const group = groups.get(pointer.missionId) ?? [];
       group.push(pointer);
       groups.set(pointer.missionId, group);
@@ -176,5 +178,5 @@ function FacilitatorPanel() {
 
 export default function AwayMissionDiscardPanel() {
   const isGm = useSessionStore(selectIsGm);
-  return isGm ? <FacilitatorPanel /> : <AwayMissionParticipantPanel />;
+  return isGm ? <><GmAwayMissionLifecycleWorkspace /><FacilitatorPanel /></> : <AwayMissionParticipantPanel />;
 }

@@ -1,3 +1,4 @@
+import type { AwayMissionPublicState } from '../lib/awayMissionLifecycleService';
 /**
  * Shared shapes for the companion console.
  *
@@ -287,7 +288,12 @@ export interface VipHand {
 export type AwayMissionHandPhase =
   | 'awaiting-card-selection'
   | 'discarding'
-  | 'assignment-ready';
+  | 'assignment-ready'
+  | 'assigning'
+  | 'assignments-complete'
+  | 'facilitator-cards-added'
+  | 'resolved'
+  | 'complete';
 
 export interface MissionOpportunity {
   readonly type: 'mission-opportunity';
@@ -349,6 +355,7 @@ export interface AwayMissionStartSnapshot {
 
 /** Server-owned metadata used to discover the participant's private hand. */
 export interface AwayMissionHandPointer {
+  readonly lifecyclePublicState?: AwayMissionPublicState;
   readonly sessionId: SessionId;
   readonly participantUid: PlayerId;
   readonly missionId: string;
