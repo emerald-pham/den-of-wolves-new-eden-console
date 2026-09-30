@@ -6,6 +6,7 @@ import type { ShipResourceInventory } from './resources';
 import {
   dockVoyage33,
   emptyVoyage33MovementState,
+  parseVoyage33MovementState,
   resolveVoyage33JumpCommit,
   voyage33JumpFuelCost,
   type Voyage33MovementState,
@@ -232,5 +233,23 @@ describe('Voyage 33-0 movement', () => {
   it('fails closed on malformed Voyage movement state', () => {
     const malformed = { ...movement, coordinate: 'not-on-chart', revision: -1 } as Voyage33MovementState;
     expect(() => resolveVoyage33JumpCommit(commitInput({ movementState: malformed }))).toThrow();
+  });
+
+  it('parses only the public Voyage movement fields and canonical chart coordinates', () => {
+    expect(parseVoyage33MovementState({
+      id: VOYAGE_33_ID,
+      coordinate: '5143',
+      revision: 2,
+      jumpState: { lastJumpTurn: currentTurn, emergencyJumpUsed: false },
+    })).toEqual({
+      id: VOYAGE_33_ID,
+      coordinate: '5143',
+      revision: 2,
+      jumpState: { lastJumpTurn: currentTurn, emergencyJumpUsed: false },
+    });
+    expect(parseVoyage33MovementState({ ...movement, coordinate: '9999' })).toBeUndefined();
+    expect(parseVoyage33MovementState({ ...movement, revision: Number.MAX_SAFE_INTEGER })).toBeUndefined();
+    expect(parseVoyage33MovementState({ ...movement, jumpState: { lastJumpTurn: -1 } })).toBeUndefined();
+    expect(parseVoyage33MovementState({ ...movement, privateCaptainUid: 'private' })).toBeUndefined();
   });
 });
