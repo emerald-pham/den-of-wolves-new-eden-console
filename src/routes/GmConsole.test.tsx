@@ -263,6 +263,45 @@ it('redirects browsers without a local GM claim', () => {
   expect(screen.queryByRole('region', { name: /gm starmap/i })).not.toBeInTheDocument();
 });
 
+it('keeps the Voyage 33-0 workspace hidden until the session has an admission projection', () => {
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+
+  expect(screen.queryByRole('region', { name: 'Voyage 33-0 movement workspace' })).not.toBeInTheDocument();
+});
+
+it('mounts the Voyage 33-0 movement workspace inside the admitted GM console', () => {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('GM test session fixture is missing.');
+  useSessionStore.getState().setSession({
+    ...session,
+    admittedVesselIds: ['voyage-33-0'],
+    voyage33Admission: {
+      type: 'voyage-admission',
+      sessionId: 's1',
+      id: 'voyage-33-0',
+      status: 'admitted',
+      crisisId: 'arrival-1',
+      crisisRevision: 1,
+      population: 40_000,
+      unrest: 0,
+      hostShipId: null,
+      commitments: {
+        requiresHostDocking: true,
+        hostProvidesResources: true,
+        maintenanceSteps: [1, 2, 3, 4],
+        maxConsoleCharges: 1,
+      },
+    },
+  } as never);
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+
+  expect(screen.getByRole('region', { name: 'Voyage 33-0 movement workspace' })).toBeInTheDocument();
+});
+
 it('shows the held-token baseline to the GM using only the active player roster', async () => {
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);
