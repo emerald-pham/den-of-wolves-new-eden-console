@@ -1,6 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 import { emptySmallShipState } from './smallShip';
+import { navigationStateDocumentPath } from './navigationProjection';
 
 const mock = vi.hoisted(() => ({
   get: vi.fn(), update: vi.fn(), set: vi.fn(),
@@ -8,6 +9,8 @@ const mock = vi.hoisted(() => ({
   replacementRoleId: null as string | null, activeConsoleRoleId: null as string | null,
   session: {} as Record<string, unknown>,
   receipts: {} as Record<string, Record<string, unknown>>,
+  navigation: {} as Record<string, unknown>,
+  smallMovements: {} as Record<string, Record<string, unknown>>,
 }));
 
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
@@ -59,12 +62,23 @@ beforeEach(() => {
     smallShipStates: {},
   };
   mock.receipts = {};
+  mock.navigation = {
+    revision: 5,
+    shipGalacticCoordinates: { aegis: '0000', dione: '5143' },
+    shipNavigationLogs: {},
+  };
+  mock.smallMovements = {};
   mock.get.mockReset();
   mock.update.mockReset();
   mock.set.mockReset();
   mock.get.mockImplementation(async (path: string) => {
     if (path.includes('/smallShipRequests/') || path.includes('/vulcanLabourRequests/')) {
       const fields = mock.receipts[path];
+      return fields ? snapshot(fields) : snapshot({}, false);
+    }
+    if (path === navigationStateDocumentPath('s1')) return snapshot(mock.navigation);
+    if (path.includes('/smallShipMovements/')) {
+      const fields = mock.smallMovements[path];
       return fields ? snapshot(fields) : snapshot({}, false);
     }
     if (path.includes('/players/')) {
@@ -97,6 +111,22 @@ it('keeps legacy sessions on the base Capybara mode when expansion is absent', a
   await expect(setSmallShipDocking.run(request({
     ...dockingBase, smallShipId: 'capybara-small', requestId: 'dock-legacy-base',
   }))).resolves.toMatchObject({ status: 'committed', smallShipId: 'capybara-small' });
+});
+
+it('rejects re-docking a jumped craft to a host at a different live coordinate', async () => {
+  mock.session.activeVesselIds = ['aegis', 'dione'];
+  mock.session.smallShipStates = {
+    gorgoneion: { ...emptySmallShipState('gorgoneion'), dockingRevision: 2 },
+  };
+  mock.smallMovements['sessions/s1/smallShipMovements/gorgoneion'] = {
+    type: 'small-ship-movement', sessionId: 's1', smallShipId: 'gorgoneion',
+    coordinate: '0000', revision: 1, lastJumpTurn: 2, captainArrivalsByUid: { u1: ['0000'] },
+  };
+
+  await expect(setSmallShipDocking.run(request({
+    ...dockingBase, hostShipId: 'dione', expectedRevision: 2, requestId: 'dock-away-craft',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
 });
 
 it('rejects arbitrary hosts, non-GM docking, and malformed present state', async () => {
