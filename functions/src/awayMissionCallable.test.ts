@@ -703,6 +703,7 @@ describe('dealPrivateInitialCards', () => {
     });
     const hands = mock.set.mock.calls.filter(([ref]) => ref.path.includes('/awayMissionHands/'));
     expect(hands.map(([, hand]) => hand.lifecyclePrivateState?.participantUid)).toEqual(['alice', 'bob']);
+    expect(hands.map(([, hand]) => hand.discarded)).toEqual([false, false]);
     expect(hands.map(([, hand]) => hand.lifecyclePrivateState?.cards.map((card: { id: string }) => card.id)))
       .toEqual([['A♥'], ['4♥']]);
     const pointers = mock.set.mock.calls.filter(([ref]) => ref.path.includes('/awayMissionHandPointers/'));
