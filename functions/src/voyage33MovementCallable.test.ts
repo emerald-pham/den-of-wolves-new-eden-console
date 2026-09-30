@@ -190,6 +190,14 @@ describe('Voyage 33-0 movement callable adapter', () => {
       voyage33Maintenance: { hostShipId: 'aegis', dockingRevision: 1 },
     });
     expect(db.documents.has('sessions/s1/voyage33MovementRequests/dock-1')).toBe(true);
+    expect(db.documents.get('sessions/s1/commandReceipts/dock-1')).toMatchObject({
+      fingerprint: {
+        action: 'dock-voyage-33-0', sessionId: 's1', requestId: 'dock-1', actorUid: 'u1',
+        instanceId: null, expectedRevision: 0,
+        payload: { shipId: VOYAGE_33_ID, expectedDockingRevision: 0, hostShipId: 'aegis', destination: null },
+      },
+      result: { status: 'committed', sessionId: 's1', requestId: 'dock-1' },
+    });
     const writesBeforeReplay = db.writes.length;
     await expect(callables.dockVoyage33(request(dockRequest))).resolves.toMatchObject({ status: 'replayed' });
     expect(db.writes).toHaveLength(writesBeforeReplay);
@@ -258,6 +266,14 @@ describe('Voyage 33-0 movement callable adapter', () => {
       transition: { shipId: VOYAGE_33_ID, origin: '0000', destination, id: 'voyage-jump-jump-1' },
       fuelSpent: cost,
     });
+    expect(db.documents.get('sessions/s1/commandReceipts/jump-1')).toMatchObject({
+      fingerprint: {
+        action: 'jump-voyage-33-0', sessionId: 's1', requestId: 'jump-1', actorUid: 'u1',
+        instanceId: null, expectedRevision: 0,
+        payload: { shipId: VOYAGE_33_ID, expectedDockingRevision: 3, hostShipId: 'aegis', destination },
+      },
+      result: { status: 'jumped', sessionId: 's1', requestId: 'jump-1' },
+    });
     expect(result).not.toHaveProperty('actorUid');
     expect(result).not.toHaveProperty('fingerprint');
     expect(result).not.toHaveProperty('hostResources');
@@ -292,6 +308,12 @@ describe('Voyage 33-0 movement callable adapter', () => {
       ...jumpRequest, requestId: 'stale-dock', expectedDockingRevision: 2,
     }))).resolves.toMatchObject({
       status: 'stale', expectedDockingRevision: 2, currentDockingRevision: 3,
+    });
+    expect(db.documents.get('sessions/s1/commandReceipts/stale-dock')).toMatchObject({
+      fingerprint: {
+        action: 'jump-voyage-33-0', requestId: 'stale-dock', actorUid: 'u1',
+      },
+      result: { status: 'stale', requestId: 'stale-dock' },
     });
     expect(db.documents.get(sessionPath)).toEqual(before);
   });
@@ -355,14 +377,41 @@ describe('Voyage 33-0 movement callable adapter', () => {
     expect(db.documents.get(sessionPath)).toMatchObject({ shipResources: { aegis: { fuel: 1 } } });
   });
 
-  it('keeps the movement and host ledger unchanged if writing the receipt fails', async () => {
+  it.each([
+    ['domain receipt', 'sessions/s1/voyage33MovementRequests/atomic'],
+    ['shared command marker', 'sessions/s1/commandReceipts/atomic'],
+  ])('keeps the movement and host ledger unchanged if writing the %s fails', async (_label, failWritePath) => {
     const { db, callables } = seed();
     const before = structuredClone(db.documents.get(sessionPath));
-    db.failWritePath = 'sessions/s1/voyage33MovementRequests/atomic';
+    db.failWritePath = failWritePath;
     await expect(callables.jumpVoyage33(request({ ...jumpRequest, requestId: 'atomic' })))
       .rejects.toThrow('simulated transaction write failure');
     expect(db.documents.get(sessionPath)).toEqual(before);
     expect(db.documents.has(db.failWritePath)).toBe(false);
+    expect(db.writes).toHaveLength(0);
+  });
+
+  it.each([
+    ['another action', 'record-player-action', 'u1', 'failed-precondition'],
+    ['the same action from another actor', 'jump-voyage-33-0', 'u2', 'permission-denied'],
+  ])('rejects a shared request-id marker for %s before movement mutation', async (_label, action, actorUid, code) => {
+    const { db, callables } = seed();
+    db.documents.set('sessions/s1/commandReceipts/jump-1', {
+      fingerprint: {
+        action,
+        sessionId: 's1',
+        requestId: 'jump-1',
+        actorUid,
+        instanceId: null,
+        expectedRevision: 0,
+        payload: { command: 'existing' },
+      },
+      result: { status: 'committed' },
+    });
+    const before = structuredClone(db.documents.get(sessionPath));
+    await expect(callables.jumpVoyage33(request(jumpRequest))).rejects.toMatchObject({ code });
+    expect(db.documents.get(sessionPath)).toEqual(before);
+    expect(db.documents.has('sessions/s1/voyage33MovementRequests/jump-1')).toBe(false);
     expect(db.writes).toHaveLength(0);
   });
 
