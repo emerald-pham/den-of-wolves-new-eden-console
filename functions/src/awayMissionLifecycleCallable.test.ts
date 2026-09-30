@@ -407,7 +407,8 @@ it('fails closed when a committed lifecycle record has lost its atomic event rec
 
   await expect(commitAwayMissionLifecycleCommand(request)).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(currentRevision(store)).toBe(1);
-  expect(store.committedWrites).toHaveLength(7);
+  // The initial lifecycle write now also holds craft on the shared session ledger.
+  expect(store.committedWrites).toHaveLength(8);
 });
 
 it('rejects nonparticipants, nonleaders, and requests without a live GM instance before writing', async () => {
