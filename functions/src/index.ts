@@ -54,6 +54,7 @@ import {
 } from './pursuitEmergencyWindow';
 import { enforceExpensiveCallableRateLimit } from './callableRateLimitFirestore';
 import { createSameTableTradeCallables } from './sameTableTradeCallable';
+import { createPermissionedDismantlingCallables } from './permissionedDismantlingCallable';
 import {
   ADMIRAL_DIRECTIVE_KINDS,
   admiralDirectiveState,
@@ -693,6 +694,24 @@ const sameTableTradeCallables = createSameTableTradeCallables({
   shipForRole,
   serverTimestamp: () => FieldValue.serverTimestamp(),
 });
+
+const permissionedDismantlingCallables = createPermissionedDismantlingCallables({
+  db,
+  serverTimestamp: () => FieldValue.serverTimestamp(),
+  now: () => new Date(),
+});
+
+export const proposePermissionedDismantling = onCall((request) =>
+  permissionedDismantlingCallables.proposePermissionedDismantling(request));
+
+export const consentToPermissionedDismantling = onCall((request) =>
+  permissionedDismantlingCallables.consentToPermissionedDismantling(request));
+
+export const revokePermissionedDismantlingConsent = onCall((request) =>
+  permissionedDismantlingCallables.revokePermissionedDismantlingConsent(request));
+
+export const applyPermissionedDismantling = onCall((request) =>
+  permissionedDismantlingCallables.applyPermissionedDismantling(request));
 
 export const attestPlayerHeldTokenBaseline = onCall((request) =>
   sameTableTradeCallables.attestPlayerHeldTokenBaseline(request));
