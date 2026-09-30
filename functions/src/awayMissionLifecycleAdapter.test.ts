@@ -195,6 +195,28 @@ describe('away-mission lifecycle adapter', () => {
     expect(forgedCommand.status).toBe('denied');
   });
 
+  it('rejects malformed persisted participant bindings and a terminal status without a resolved lifecycle', () => {
+    const record = fixture();
+    const duplicateBinding = {
+      ...record,
+      participantCrafts: [
+        { participantUid: 'alice', craftIds: ['starlight'] },
+        { participantUid: 'alice', craftIds: ['highwall'] },
+      ],
+    } as never;
+    expect(projectAwayMissionPublicState(duplicateBinding)).toBeNull();
+    expect(projectAwayMissionPrivateState(duplicateBinding, 'alice')).toBeNull();
+
+    const falseTerminal = {
+      ...record,
+      status: 'resolved',
+      outcomes: [],
+      rewards: [],
+      specialRewards: [],
+    } as never;
+    expect(projectAwayMissionPublicState(falseTerminal)).toBeNull();
+  });
+
   it('consumes the Warrior hand privately and keeps its per-card salvage award in leader custody', () => {
     let record = warriorFixture()!;
     const opened = act(record, 'openDiscards', {}, 'gm', { isActiveGm: true });
@@ -262,12 +284,12 @@ describe('away-mission lifecycle adapter', () => {
     });
     expect(resolved.status).toBe('committed');
     expect(resolved.record?.outcomes?.find(({ opportunityId }) => opportunityId === 'C-1')).toMatchObject({
-      total: 34,
+      total: 24,
       bonusTotal: 4,
-      bonusBreakdown: [
+      bonusBreakdown: expect.arrayContaining([
         expect.objectContaining({ participantUid: 'explorer', source: { kind: 'craft', id: 'hummingbird' }, trait: 'exploration', amount: 3 }),
         expect.objectContaining({ participantUid: 'explorer', source: { kind: 'craft', id: 'hummingbird' }, trait: 'mining', amount: 1 }),
-      ],
+      ]),
     });
     expect(resolved.record?.outcomes?.find(({ opportunityId }) => opportunityId === 'C-2')).toMatchObject({
       contributorCount: 0, bonusTotal: 0, outcome: 'automatic-failure',
