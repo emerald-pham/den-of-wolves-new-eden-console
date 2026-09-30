@@ -17,6 +17,13 @@ test('PC06 solo scene fits phone, short landscape and desktop in both motion mod
           await page.goto(`http://127.0.0.1:${address.port}/pc06-review.html`);
           await page.getByRole('note', { name: 'Synthetic review boundary' }).waitFor();
           assert.match(await page.title(), /PC06/);
+          const skip = page.getByRole('link', { name: 'Skip to review step' });
+          assert.ok(await skip.evaluate(element => element.getBoundingClientRect().bottom <= 0), 'skip link is outside the viewport until keyboard focus');
+          await page.keyboard.press('Tab');
+          assert.ok(await skip.evaluate(element => document.activeElement === element && element.getBoundingClientRect().top >= 0), 'keyboard focus reveals the skip link');
+          await page.keyboard.press('Tab');
+          assert.ok(await skip.evaluate(element => element.getBoundingClientRect().bottom <= 0), 'skip link hides after focus leaves');
+
           const steps = page.getByRole('navigation', { name: 'PC06 review steps' });
           for (const name of ['1 Movement','2 Cargo and trade','3 Scouting','4 Away mission']) {
             await steps.getByRole('button', { name, exact:true }).click();

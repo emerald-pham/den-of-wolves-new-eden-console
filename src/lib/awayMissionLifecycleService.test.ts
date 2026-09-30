@@ -99,7 +99,7 @@ describe('away mission lifecycle client service', () => {
         { id: 'hand-bob', data: () => ({
           type: 'away-mission-hand-pointer', sessionId: 's1', participantUid: 'bob',
           missionId: 'mission-1', handId: 'hand-bob', phase: 'assignment-ready',
-          revision: 3, discarded: false, lifecyclePublicState: publicState,
+          revision: 3, sourceCycle: 1, discarded: false, lifecyclePublicState: publicState,
         }) },
         { id: 'hand-alice', data: () => ({
           type: 'away-mission-hand-pointer', sessionId: 's1', participantUid: 'alice',
@@ -121,7 +121,7 @@ describe('away mission lifecycle client service', () => {
     expect(watchOwnHand).toHaveBeenCalledOnce();
     expect(watchOwnHand).toHaveBeenCalledWith('s1', 'bob', 'hand-bob', expect.any(Function), expect.any(Function));
     expect(onState).toHaveBeenLastCalledWith({
-      status: 'ready', missions: [{ publicState, privateState }], projectionMissing: false,
+      status: 'ready', missions: [{ publicState, privateState, sourceCycle: 1 }], projectionMissing: false,
     });
     stop();
   });
