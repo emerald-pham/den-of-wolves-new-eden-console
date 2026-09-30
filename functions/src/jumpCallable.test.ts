@@ -51,6 +51,7 @@ const mock = vi.hoisted(() => ({
   mutinies: {} as Record<string, unknown>,
   wolfAttackState: undefined as Record<string, unknown> | undefined,
   arrivalPressureState: undefined as Record<string, unknown> | undefined,
+  groupMessages: undefined as Record<string, unknown> | undefined,
   missionCraftCommitments: {} as Record<string, unknown>,
   smallShipStates: {} as Record<string, unknown>,
   missionOpportunityRecord: undefined as Record<string, unknown> | undefined,
@@ -156,6 +157,7 @@ beforeEach(() => {
   mock.mutinies = {};
   mock.wolfAttackState = undefined;
   mock.arrivalPressureState = undefined;
+  mock.groupMessages = undefined;
   mock.missionCraftCommitments = {};
   mock.smallShipStates = {};
   mock.missionOpportunityRecord = undefined;
@@ -192,6 +194,10 @@ beforeEach(() => {
         get: (key: string) => failure?.[key],
       };
     }
+    if (path.startsWith('sessions/s1/fleetGroupMessages/')) return {
+      exists: mock.groupMessages !== undefined, data: () => mock.groupMessages,
+      get: (key: string) => mock.groupMessages?.[key],
+    };
     if (path.includes('/commandReceipts/')) return {
       exists: mock.commandReceiptRecord !== undefined,
       get: (key: string) => mock.commandReceiptRecord?.[key],
@@ -2389,4 +2395,26 @@ it('rejects stale fleet partition confirmation and unauthorised players before a
   mock.role = 'player';
   await expect(callable.run(request({ sessionId: 's1', instanceId: 'bridge', expectedNavigationRevision: 0 }))).rejects.toThrow();
   expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('sends and reads ordinary notes only for the current authoritative group, with exact replay', async () => {
+  const calls = jumpCallables as unknown as {
+    sendFleetGroupMessage: { run: (request: unknown) => Promise<unknown> };
+    readFleetGroupMessages: { run: (request: unknown) => Promise<unknown> };
+  };
+  const command = request({ sessionId: 's1', expectedGroupId: 'fleet-1', text: 'Hold at the present system.' });
+  const reply = await calls.sendFleetGroupMessage.run(command);
+  expect(reply).toEqual({ status: 'committed', groupId: 'fleet-1', messageId: 'test-jump' });
+  const written = mock.set.mock.calls.find(([path]) => path === 'sessions/s1/fleetGroupMessages/fleet-1')?.[1];
+  expect(written).toMatchObject({ groupId: 'fleet-1', messages: [{ text: 'Hold at the present system.', actorUid: 'u1' }] });
+  mock.groupMessages = written;
+  mock.commandReceiptRecord = mock.set.mock.calls.find(([path]) => path === 'sessions/s1/commandReceipts/test-jump')?.[1];
+  mock.set.mockClear();
+  expect(await calls.sendFleetGroupMessage.run(command)).toEqual(reply);
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(await calls.readFleetGroupMessages.run(request({ sessionId: 's1', expectedGroupId: 'fleet-1' }))).toMatchObject({
+    groupId: 'fleet-1', messages: [{ text: 'Hold at the present system.' }],
+  });
+  await expect(calls.readFleetGroupMessages.run(request({ sessionId: 's1', expectedGroupId: 'fleet-2' }))).rejects.toThrow(/group/i);
+  await expect(calls.sendFleetGroupMessage.run(request({ sessionId: 's1', expectedGroupId: 'fleet-2', text: 'Forbidden' }))).rejects.toThrow(/group/i);
 });
