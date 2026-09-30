@@ -19,6 +19,17 @@ const LABELS: Readonly<Record<ScoutEntitlementId, string>> = {
   'comms-officer': 'Comms Officer',
 };
 
+const PROCEDURE_GUIDANCE: Partial<Record<ScoutEntitlementId, string>> = {
+  starlight: [
+    'Choose a printed system within two jumps of AEGIS\'s current position on the printed chart.',
+    'A second, distinct request in the same cycle requires Starlight to be fuelled in AEGIS\'s shuttle bay during that cycle.',
+  ].join(' '),
+  hummingbird: [
+    'Choose a printed system within three jumps of Quellon\'s current position on the printed chart.',
+    'Hummingbird allows one request per cycle.',
+  ].join(' '),
+};
+
 interface RetryAttempt {
   readonly entitlementId: ScoutEntitlementId;
   readonly targetCoordinate: string;
@@ -79,6 +90,7 @@ export default function ScoutRequestControls({ entitlementId }: Props) {
   const phaseAvailable = isScoutingRequestPhaseAvailable(session);
   const hasLiveSnapshot = connection === 'live' && freshness === 'server';
   const authorityKey = scoutAuthorityKey(entitlementId, session, me);
+  const procedureGuidance = PROCEDURE_GUIDANCE[entitlementId];
   const authorityEpoch = useRef(0);
   const previousAuthorityKey = useRef(authorityKey);
   const retry = retryAttempt?.authorityKey === authorityKey ? retryAttempt : null;
@@ -160,6 +172,11 @@ export default function ScoutRequestControls({ entitlementId }: Props) {
       <p className="scout-request__description">
         Enter a printed four-digit system coordinate to record a request.
       </p>
+      {procedureGuidance && (
+        <p className="scout-request__description" id={`${id}-procedure`}>
+          {procedureGuidance}
+        </p>
+      )}
       {phaseAvailable && <p className="scout-request__phase">Coordination phase available.</p>}
 
       {!phaseAvailable && (
@@ -186,7 +203,9 @@ export default function ScoutRequestControls({ entitlementId }: Props) {
             required
             value={retry?.targetCoordinate ?? targetCoordinate}
             disabled={busy || retrying}
-            aria-describedby={`${id}-help`}
+            aria-describedby={procedureGuidance
+              ? `${id}-procedure ${id}-help`
+              : `${id}-help`}
             onChange={(event) => updateTarget(event.target.value)}
           />
         </label>
