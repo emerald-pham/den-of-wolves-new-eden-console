@@ -76,8 +76,9 @@ const paths = (sessionId = SESSION_ID) => ({
   otherShipPlayer: 'sessions/' + sessionId + '/players/other-ship-player',
   proposal: 'sessions/' + sessionId + '/permissionedDismantlingProposals/' + PROPOSAL_ID,
   consent: 'sessions/' + sessionId + '/permissionedDismantlingConsents/' + CONSENT_ID,
-  targetState: 'sessions/' + sessionId + '/permissionedDismantlingTargetStates/dione',
-  applyReceipt: 'sessions/' + sessionId + '/permissionedDismantlingReceipts/' + APPLY_ID,
+    targetState: 'sessions/' + sessionId + '/permissionedDismantlingTargetStates/dione',
+    inbox: 'sessions/' + sessionId + '/permissionedDismantlingInboxes/dione',
+    applyReceipt: 'sessions/' + sessionId + '/permissionedDismantlingReceipts/' + APPLY_ID,
 });
 
 function activePlayer(assignedRoleId: string): Fields {
@@ -173,6 +174,17 @@ it('proposes, grants one exact target-ship consent, and atomically applies damag
     materialGain: 3,
   });
   expect(replayedProposal).toMatchObject({ status: 'replayed', proposalId: PROPOSAL_ID });
+  expect(store.records.get(paths().inbox)).toMatchObject({
+    type: 'permissioned-dismantling-inbox',
+    sessionId: SESSION_ID,
+    targetShipId: 'dione',
+    proposalId: PROPOSAL_ID,
+    craftId: 'philia',
+    targetConsoleId: 'reactor',
+    targetRevision: 0,
+    materialGain: 3,
+    status: 'pending',
+  });
   expect(store.committedWrites).toHaveLength(proposalWrites);
 
   const consented = await callables.consentToPermissionedDismantling(consentRequest());
