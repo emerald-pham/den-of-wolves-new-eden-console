@@ -190,3 +190,19 @@ it('uses the real group-note controls while keeping the local note out of the ot
   expect(await screen.findByText('Fleet two stays here.')).toBeVisible();
   expect(within(screen.getByRole('region', { name: 'Fleet 1 sample view' })).queryByText('Fleet two stays here.')).toBeNull();
 });
+
+it('reviews a real Repair Drones presentation with local materials, damage and stale refresh only', async () => {
+  const user = userEvent.setup();
+  render(<PC06ReviewScene />);
+  await user.click(screen.getByRole('button', { name: '2 Cargo and trade' }));
+  const repair = screen.getByRole('region', { name: 'Repair Drones review sample' });
+  await user.selectOptions(within(repair).getByRole('combobox', { name: 'Gorgoneion repair console' }), 'jump-drive');
+  await user.click(within(repair).getByRole('button', { name: 'Repair one console' }));
+  expect(within(repair).getByRole('status', { name: 'Repair sample result' })).toHaveTextContent(/local.*repaired.*3.*no production/i);
+  expect(within(repair).getByRole('button', { name: 'Repair one console' })).toBeDisabled();
+  await user.click(within(repair).getByRole('button', { name: 'Competing repair sample' }));
+  expect(within(repair).getByRole('status', { name: 'Repair sample result' })).toHaveTextContent(/changed.*refresh/i);
+  await user.click(within(repair).getByRole('button', { name: 'Refresh repair sample' }));
+  expect(within(repair).getByRole('status', { name: 'Repair sample result' })).toHaveTextContent(/refreshed.*already repaired/i);
+  expect(within(repair).getByRole('combobox', { name: 'Gorgoneion repair console' })).not.toHaveTextContent('Jump Drive');
+});
