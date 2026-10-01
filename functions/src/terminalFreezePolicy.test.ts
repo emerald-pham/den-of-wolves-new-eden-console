@@ -8,6 +8,9 @@ const sameTableTradeSource = readFileSync(
   new URL('./sameTableTradeCallable.ts', import.meta.url), 'utf8');
 const voyage33MovementSource = readFileSync(
   new URL('./voyage33MovementCallable.ts', import.meta.url), 'utf8');
+const gorgoneionSupportSource = readFileSync(new URL('./gorgoneionMissionSupportCallable.ts', import.meta.url), 'utf8');
+const missionLifecycleSource = readFileSync(new URL('./awayMissionLifecycleCallable.ts', import.meta.url), 'utf8');
+const smallShipJumpSource = readFileSync(new URL('./smallShipJump.ts', import.meta.url), 'utf8');
 const callablePattern = /export const (\w+) = onCall/g;
 const matches = [...source.matchAll(callablePattern)];
 const highwallWindowGuardStart = source.indexOf('function requireLiveHighwallMiningWindow(');
@@ -40,6 +43,28 @@ const terminalGuardDelegates: Readonly<Record<string, {
   readonly source: string;
   readonly guard: string;
 }>> = {
+  getGorgoneionMissionSupportProjection: {
+    target: 'gorgoneionMissionSupportCallables.getGorgoneionMissionSupportProjection(request)',
+    source: gorgoneionSupportSource, guard: "session.get('phase') !== 'active'",
+  },
+  applyGorgoneionMissionSupport: {
+    target: 'gorgoneionMissionSupportCallables.applyGorgoneionMissionSupport(request)',
+    source: gorgoneionSupportSource, guard: "session.get('phase') !== 'active'",
+  },
+  commitAwayMissionLifecycleCommand: {
+    target: 'awayMissionLifecycleCallables.commitAwayMissionLifecycleCommand(request)',
+    source: missionLifecycleSource, guard: "sessionData.phase !== 'active'",
+  },
+  getSmallShipJumpWorkspace: {
+    target: 'smallShipJumpCallables.getSmallShipJumpWorkspace(request)',
+    source: smallShipJumpSource, guard: 'requireActiveSession(session);',
+  },
+  jumpSmallShip: {
+    target: 'smallShipJumpCallables.jumpSmallShip(request)',
+    source: smallShipJumpSource, guard: 'requireActiveSession(session);',
+  },
+  readFleetGroupMessages: { target: 'groupNoteAuthority(', source, guard: 'requireActiveGameplayPhase(session);' },
+  sendFleetGroupMessage: { target: 'groupNoteAuthority(', source, guard: 'requireActiveGameplayPhase(session);' },
   proposePermissionedDismantling: {
     target: 'permissionedDismantlingCallables.proposePermissionedDismantling(request)',
     source: permissionedDismantlingSource,
@@ -167,4 +192,14 @@ it.each([
   const index = matches.findIndex((match) => match[1] === name);
   expect(index).toBeGreaterThanOrEqual(0);
   expect(callableBody(index)).toContain('requireActiveGameplayPhase(');
+});
+
+it('keeps fleet note reads and writes routed through the actual active-game authority helper', () => {
+  const start = source.indexOf('async function groupNoteAuthority(');
+  const end = source.indexOf('function storedGroupNotes(', start);
+  expect(start).toBeGreaterThanOrEqual(0);
+  expect(source.slice(start, end)).toContain('requireActiveGameplayPhase(session);');
+  for (const name of ['readFleetGroupMessages', 'sendFleetGroupMessage']) {
+    expect(callableBody(matches.findIndex(match => match[1] === name))).toContain('await groupNoteAuthority(');
+  }
 });

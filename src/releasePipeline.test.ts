@@ -1,6 +1,6 @@
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
-import { execFile } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
@@ -1233,4 +1233,20 @@ it('keeps documentation and roadmap checks separate from application jobs and de
   expect(ci).not.toContain('implementation-registration');
   expect(deploy).toContain('branches: [main]');
   expect(deploy).not.toContain('paths-ignore:');
+});
+
+it('loads the exact PC06 source inventory from a DOM test import and retains its callable mapping', () => {
+  const inventory = JSON.parse(readFileSync('scripts/pc06-deployment-consumers.json', 'utf8'));
+  const selected = deploymentSelector({
+    before: inventory.baseline, after: inventory.implementationCandidate, targets: ['functions'],
+    files: ['functions/src/smallShipJump.ts'], isAncestor: () => false,
+    sourceAtRevision: (revision: string, file: string) => {
+      try { return execFileSync('git', ['show', `${revision}:${file}`], {
+        encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 16 * 1024 * 1024,
+      }); } catch { if (revision === inventory.baseline) return ''; throw new Error('Missing candidate source.'); }
+    },
+  });
+  expect(selected.split(',')).toEqual(expect.arrayContaining([
+    'functions:getSmallShipJumpWorkspace', 'functions:jumpSmallShip', 'functions:setSmallShipDocking',
+  ]));
 });

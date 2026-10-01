@@ -291,6 +291,19 @@ it.each(Object.entries(printed))('preserves every printed %s survivor step on cl
   }
   expect(() => populationChange(ship, track.steps[0], 1, false)).toThrow();
   expect(() => populationChange(ship, 0, -1, false)).toThrow();
-  expect(() => populationChange(ship, 123, -1, false)).toThrow();
+  expect(() => populationChange(ship, 123.5, -1, false)).toThrow();
   expect(() => populationChange(ship, track.thresholds[0], -1, true)).toThrow();
+});
+
+it.each(Object.entries(printed))('preserves exact mission rescue counts between %s markers with safe bounds', (ship, track) => {
+  const count = 123;
+  expect(populationChange(ship, count, -1, false)).toEqual({
+    amount: track.steps.find(value => value < count),
+    alertRaised: (track.thresholds as readonly number[]).includes(track.steps.find(value => value < count)!),
+  });
+  expect(populationChange(ship, count, 1, false).amount)
+    .toBe([...track.steps].reverse().find(value => value > count));
+  for (const invalid of [-1, 123.5, Number.NaN, Number.POSITIVE_INFINITY, track.steps[0] + 1]) {
+    expect(() => populationChange(ship, invalid, -1, false)).toThrow();
+  }
 });

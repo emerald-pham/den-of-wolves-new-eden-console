@@ -190,9 +190,9 @@ it('adds two unrest once when Capybara reaches zero population', async () => {
   expect(mock.update).not.toHaveBeenCalled();
 });
 
-it('rejects an off-track population value without writing the session', async () => {
+it('rejects an unsupported fractional population value without writing the session', async () => {
   mock.shipId = 'dione';
-  mock.population = 95500;
+  mock.population = 95500.5;
 
   await expect(adjustShipPopulation.run(request({ ...data, shipId: 'dione' })))
     .rejects.toMatchObject({ code: 'failed-precondition' });
@@ -217,4 +217,12 @@ it('rejects population changes after pursuit failure without writing', async () 
   await expect(adjustShipPopulation.run(request({ ...data, requestId: 'terminal-population' })))
     .rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/endgame evaluation/i) });
   expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('moves an exact mission rescue count to the next printed marker without discarding the count beforehand', async () => {
+  mock.shipId = 'dione';
+  mock.population = 95500;
+  await expect(adjustShipPopulation.run(request({ ...data, shipId: 'dione' })))
+    .resolves.toMatchObject({ amount: 95000 });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({ 'shipSurvivors.dione': 95000 }));
 });

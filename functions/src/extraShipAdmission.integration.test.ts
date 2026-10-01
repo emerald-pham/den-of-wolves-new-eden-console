@@ -98,6 +98,9 @@ beforeEach(() => {
     },
     shipDamage: { aegis: { damagedSystemIds: ['reactor', 'storage'], destroyed: false } },
   });
+  put('sessions/s1/serverState/navigation', {
+    revision: 0, shipGalacticCoordinates: { aegis: '0000' }, shipNavigationLogs: {},
+  });
   put('sessions/s1/players/gm-1', { role: 'gm', connected: true });
   put('sessions/s1/players/player-1', {
     role: 'player', connected: true, assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral',
@@ -165,4 +168,14 @@ it('composes GM docking, Captain replacement assignment, and the authorized Repa
     status: 'replayed', materialsRemaining: 2, repairRevision: 1,
   });
   expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
+});
+
+it('rejects admission when the active host fix is missing instead of inventing a craft position', async () => {
+  mock.documents.delete('sessions/s1/serverState/navigation');
+  await expect(setSmallShipDocking.run(request({
+    sessionId: 's1', smallShipId: 'gorgoneion', hostShipId: 'aegis', docked: true,
+    instanceId: 'bridge', requestId: 'dock-missing-host-fix', expectedRevision: 0,
+  }, 'gm-1'))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
