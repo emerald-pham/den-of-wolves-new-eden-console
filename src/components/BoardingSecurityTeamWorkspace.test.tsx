@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { GameSession, GmInstance, Player } from '@/types/game';
+import { INITIAL_SHIP_RESOURCES } from '@/data/resources';
 import { getBoardingSecurityTeamLocations } from '@/lib/boardingSecurityTeamService';
 import BoardingSecurityTeamWorkspace from './BoardingSecurityTeamWorkspace';
 
@@ -12,7 +13,10 @@ vi.mock('@/lib/boardingSecurityTeamService', () => ({
 const session = {
   id: 'security-workspace-session', name: 'GM test', joinCode: '4821', phase: 'active', currentTurn: 4,
   activeVesselIds: ['aegis', 'dione'], activeRoleIds: ['admiral', 'dione-engineer'],
-  shipResources: { aegis: { securityTeams: 4 }, dione: { securityTeams: 1 } },
+  shipResources: {
+    aegis: { ...INITIAL_SHIP_RESOURCES.aegis, securityTeams: 4 },
+    dione: { ...INITIAL_SHIP_RESOURCES.dione, securityTeams: 1 },
+  },
   shuttleDockings: [{ shuttleId: 'pallas', shipId: 'aegis', dockedAt: 'cycle-4' }],
   shuttleCargo: { pallas: { securityTeams: 2 } },
   createdAt: '2026-09-30T18:00:00.000Z', updatedAt: '2026-09-30T18:00:00.000Z',
@@ -73,8 +77,8 @@ describe('read-only boarding-security location workspace', () => {
     expect(region).toHaveTextContent('Pallas');
     expect(region).toHaveTextContent('Docked at AEGIS');
     expect(region).toHaveTextContent('Undocked');
-    expect(region).toHaveTextContent(/read-only/i);
-    expect(region).toHaveTextContent(/does not resolve boarding/i);
+    expect(region).toHaveTextContent(/read\s+only/i);
+    expect(region).toHaveTextContent(/resolve a boarding action/i);
     expect(region.querySelectorAll('button')).toHaveLength(1);
   });
 
@@ -97,7 +101,10 @@ describe('read-only boarding-security location workspace', () => {
 
     act(() => useSessionStore.getState().setSession({
       ...session,
-      shipResources: { aegis: { securityTeams: 5 }, dione: { securityTeams: 1 } },
+      shipResources: {
+        aegis: { ...INITIAL_SHIP_RESOURCES.aegis, securityTeams: 5 },
+        dione: { ...INITIAL_SHIP_RESOURCES.dione, securityTeams: 1 },
+      },
     } as GameSession));
     await waitFor(() => expect(getBoardingSecurityTeamLocations).toHaveBeenCalledTimes(2));
     expect(region).toHaveTextContent(/refreshing|loading/i);
@@ -110,7 +117,7 @@ describe('read-only boarding-security location workspace', () => {
     installGm('cache');
     render(<BoardingSecurityTeamWorkspace />);
 
-    expect(await screen.findByRole('status')).toHaveTextContent(/live server session/i);
+    expect(await screen.findByRole('status')).toHaveTextContent(/live, server-backed active GM session/i);
     expect(getBoardingSecurityTeamLocations).not.toHaveBeenCalled();
   });
 });

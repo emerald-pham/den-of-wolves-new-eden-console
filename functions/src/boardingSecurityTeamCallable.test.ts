@@ -10,7 +10,7 @@ const vesselMode = 'none';
 const dockings = initialShuttleDockingsForRoles(roles);
 const shuttleIds = craftStartingManifestForSetup(roles, vesselMode, dockings).entries
   .filter((entry) => entry.kind === 'shuttle').map((entry) => entry.id);
-const loadedShuttle = dockings[0]!;
+const loadedShuttle = dockings.find((entry) => entry.shuttleId === 'pallas')!;
 const sessionId = 'security-session';
 const actorUid = 'active-gm';
 const instanceId = 'gm-tab-current';
