@@ -554,3 +554,36 @@ it('rejects an inactive target, changed docking, an already-damaged console, and
   await expect(overflow.applyPermissionedDismantling(applyRequest())).resolves.toMatchObject({ status: 'stale' });
   expect(overflowStore.committedWrites).toHaveLength(beforeOverflow);
 });
+
+for (const replacementStatus of ['awaiting-re-role', 'awaiting-console']) {
+  it(`rejects new target consent through a historical role while ${replacementStatus}`, async () => {
+    const store = seededStore();
+    const callables = createPermissionedDismantlingCallables(dependencies(store));
+    await callables.proposePermissionedDismantling(proposeRequest());
+    store.records.set(paths().targetPlayer, {
+      ...activePlayer('dione-captain'), replacementStatus,
+    });
+    const writes = store.committedWrites.length;
+    await expect(callables.consentToPermissionedDismantling(consentRequest()))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    expect(store.committedWrites).toHaveLength(writes);
+  });
+
+  it(`rechecks target consent before apply when historical role is ${replacementStatus}`, async () => {
+    const store = seededStore();
+    const callables = createPermissionedDismantlingCallables(dependencies(store));
+    await callables.proposePermissionedDismantling(proposeRequest());
+    await callables.consentToPermissionedDismantling(consentRequest());
+    store.records.set(paths().targetPlayer, {
+      ...activePlayer('dione-captain'), replacementStatus,
+    });
+    const writes = store.committedWrites.length;
+    await expect(callables.applyPermissionedDismantling(applyRequest()))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    expect(store.committedWrites).toHaveLength(writes);
+    expect(store.records.get(paths().session)).toMatchObject({
+      shipDamage: { dione: { damagedSystemIds: ['storage'] } },
+      shipResources: { dione: { materials: 5 } },
+    });
+  });
+}

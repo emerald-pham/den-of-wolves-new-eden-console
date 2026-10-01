@@ -32,3 +32,18 @@ it('reconnect preserves a member’s group and admits newcomers only into the de
   expect(() => reconcilePartitionMember(plan.groups, 'bob', 'fleet-1')).toThrow(/membership/i);
   expect(() => reconcilePartitionMember(plan.groups, 'new', 'fleet-2')).toThrow(/membership/i);
 });
+
+for (const uid of ['__proto__', 'constructor', 'toString', 'player.with.period']) {
+  it(`preserves an own fleet binding and stable audience for UID ${uid}`, () => {
+    const reservedGroups = [{ id: 'fleet-1', vesselIds: vessels, memberUids: [uid, 'gm'] }];
+    const reservedPlayers = [{ uid, groupId: 'fleet-1', shipId: 'dione' },
+      { uid: 'gm', groupId: 'fleet-1', shipId: null }];
+    const plan = planFleetPartition(navigation, reservedGroups, reservedPlayers, vessels);
+    expect(plan.groups[1]?.memberUids).toEqual([uid]);
+    expect(Object.hasOwn(plan.memberGroups, uid)).toBe(true);
+    expect(plan.memberGroups[uid]).toBe('fleet-2');
+    const resumed = planFleetPartition(plan.navigation, plan.groups,
+      reservedPlayers.map(player => ({ ...player, groupId: plan.memberGroups[player.uid]! })), vessels);
+    expect(resumed.groups).toEqual(plan.groups);
+  });
+}

@@ -1471,3 +1471,32 @@ it('rejects a legacy request-id collision before an exact-replay shortcut', asyn
   expect(mock.documents.has('sessions/s1/wolfAttackState/current')).toBe(false);
   expect(mock.documents.has('sessions/s1/commandReceipts/wolf-legacy-collision')).toBe(false);
 });
+
+it('holds an overrun-mission PDF Escort Wing out of a fresh launch and permits launch after release', async () => {
+  await declareThenSeatPdfColonel();
+  const session = mock.documents.get('sessions/s1')!;
+  session.missionCraftCommitments = {
+    'pdf-escort-fighter-wing': { missionId: 'overrun-1', sourceCycle: 1 },
+  };
+  const command = { sessionId: 's1', requestId: 'launch-pdf-mission-held', expectedTurn: 1,
+    expectedRevision: 1, expectedWingRevision: 0 };
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(launchPdfEscortWing.run(request(command)))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.documents.get('sessions/s1/serverState/pdfEscortWing')).toMatchObject({ launched: false, revision: 0 });
+  session.missionCraftCommitments = {};
+  await expect(launchPdfEscortWing.run(request(command)))
+    .resolves.toMatchObject({ status: 'committed', launched: true });
+  mock.documents.get('sessions/s1')!.missionCraftCommitments = {
+    'pdf-escort-fighter-wing': { missionId: 'later-mission', sourceCycle: 1 },
+  };
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(launchPdfEscortWing.run(request(command)))
+    .resolves.toMatchObject({ status: 'replayed', launched: true });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});

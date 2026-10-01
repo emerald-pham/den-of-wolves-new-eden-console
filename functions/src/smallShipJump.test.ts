@@ -125,7 +125,7 @@ it('preserves the navigation privacy map UID contract without treating a UID as 
   expect(parsed!.captainArrivalsByUid['__proto__']).toEqual(['5143']);
 });
 
-function seed(overrides: Stored = {}) {
+function seed(overrides: Stored = {}, captainUid = 'u1') {
   const db = new MemoryFirestore();
   db.documents.set(sessionPath, session(overrides));
   db.documents.set(navigationStateDocumentPath('s1'), {
@@ -133,7 +133,7 @@ function seed(overrides: Stored = {}) {
     shipGalacticCoordinates: { aegis: '0000', dione: '5143' },
     shipNavigationLogs: {},
   });
-  db.documents.set('sessions/s1/playerDiscoveries/u1', {
+  db.documents.set(`sessions/s1/playerDiscoveries/${captainUid}`, {
     revision: 5, knownCoordinates: ['0000', '5143', '1413'],
   });
   db.documents.set(movementPath, movement());
@@ -141,14 +141,14 @@ function seed(overrides: Stored = {}) {
     _tx: unknown, _sessionId: string, uid: string, instanceId: string | undefined,
     smallShipId: string,
   ) => {
-    if (uid !== 'u1') throw new HttpsError('permission-denied', 'Active small-craft Captain required.');
+    if (uid !== captainUid) throw new HttpsError('permission-denied', 'Active small-craft Captain required.');
     if (smallShipId !== 'gorgoneion' && smallShipId !== 'capybara-small') {
       throw new HttpsError('permission-denied', 'Unsupported small-craft authority.');
     }
     if (instanceId !== undefined && instanceId !== 'gm-1') {
       throw new HttpsError('permission-denied', 'Unexpected facilitator instance.');
     }
-    const playerDoc = db.documents.get('sessions/s1/players/u1') ?? {};
+    const playerDoc = db.documents.get(`sessions/s1/players/${captainUid}`) ?? {};
     return {
       player: { get: (key: string) => key in playerDoc ? playerDoc[key] :
         key === 'role' ? 'player' : key === 'replacementRoleId' ? 'gorgoneion-captain' : null },
@@ -344,3 +344,22 @@ describe('small-craft Jump Drive authority', () => {
     expect(unauthorized.db.writes).toHaveLength(0);
   });
 });
+
+for (const uid of ['__proto__', 'constructor', 'toString', 'captain.with.period']) {
+  it(`reads empty private maps and records the first jump for valid UID ${uid}`, async () => {
+    const { db, callables } = seed({}, uid);
+    await expect(callables.getSmallShipJumpWorkspace(request({
+      sessionId: 's1', smallShipId: 'gorgoneion',
+    }, uid))).resolves.toMatchObject({
+      actorUid: uid, currentCoordinate: '0000', arrivalCoordinates: [],
+    });
+    await expect(callables.jumpSmallShip(request(jump, uid)))
+      .resolves.toMatchObject({ status: 'committed', destination: '5143' });
+    const arrivals = db.documents.get(movementPath)!.captainArrivalsByUid as Record<string, string[]>;
+    expect(Object.hasOwn(arrivals, uid)).toBe(true);
+    expect(arrivals[uid]).toEqual(['0000', '5143']);
+    await expect(callables.getSmallShipJumpWorkspace(request({
+      sessionId: 's1', smallShipId: 'gorgoneion',
+    }, uid))).resolves.toMatchObject({ arrivalCoordinates: ['0000', '5143'] });
+  });
+}

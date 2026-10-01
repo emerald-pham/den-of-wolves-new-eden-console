@@ -733,3 +733,40 @@ it('runs upgraded Fuel Refinery through Additional Labour with a replay-bound or
     ...command, productionOreAmount: 14,
   }))).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/request id/i) });
 });
+
+for (const smallShipId of ['gorgoneion', 'capybara-small'] as const) {
+  for (const hasMovement of [true, false]) {
+    it(`rejects remote re-docking of attached ${smallShipId} using live host position (stored authority ${hasMovement})`, async () => {
+      mock.session.activeVesselIds = ['aegis', 'dione'];
+      mock.session.smallShipStates = {
+        [smallShipId]: { ...emptySmallShipState(smallShipId, 'aegis'), dockingRevision: 1 },
+      };
+      mock.navigation.shipGalacticCoordinates = { aegis: '1413', dione: '0000' };
+      if (hasMovement) mock.smallMovements[`sessions/s1/smallShipMovements/${smallShipId}`] = {
+        type: 'small-ship-movement', sessionId: 's1', smallShipId,
+        coordinate: '0000', revision: 0, lastJumpTurn: null, captainArrivalsByUid: {},
+      };
+      await expect(setSmallShipDocking.run(request({
+        ...dockingBase, smallShipId, hostShipId: 'dione', expectedRevision: 1,
+        requestId: `dock-remote-${smallShipId}-${hasMovement}`,
+      }))).rejects.toMatchObject({ code: 'failed-precondition' });
+      expect(mock.update).not.toHaveBeenCalled();
+      expect(mock.set).not.toHaveBeenCalled();
+    });
+  }
+  it(`allows attached ${smallShipId} to change hosts only at their live common position`, async () => {
+    mock.session.activeVesselIds = ['aegis', 'dione'];
+    mock.session.smallShipStates = {
+      [smallShipId]: { ...emptySmallShipState(smallShipId, 'aegis'), dockingRevision: 1 },
+    };
+    mock.navigation.shipGalacticCoordinates = { aegis: '1413', dione: '1413' };
+    mock.smallMovements[`sessions/s1/smallShipMovements/${smallShipId}`] = {
+      type: 'small-ship-movement', sessionId: 's1', smallShipId,
+      coordinate: '0000', revision: 0, lastJumpTurn: null, captainArrivalsByUid: {},
+    };
+    await expect(setSmallShipDocking.run(request({
+      ...dockingBase, smallShipId, hostShipId: 'dione', expectedRevision: 1,
+      requestId: `dock-co-located-${smallShipId}`,
+    }))).resolves.toMatchObject({ status: 'committed', hostShipId: 'dione', committedRevision: 2 });
+  });
+}

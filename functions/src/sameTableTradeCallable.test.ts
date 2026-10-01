@@ -586,3 +586,41 @@ describe('same-table trade authoritative callables', () => {
     expect(store.committedWrites.map(({ path }) => path)).toContain(paths().receipt);
   });
 });
+
+for (const invalidMembership of [
+  { connected: false }, { kickedAt: 'server-time' }, { assignedRoleId: null },
+  { replacementRoleId: null, replacementStatus: 'awaiting-re-role' },
+]) {
+  it(`denies offer replay to the requesting sender after membership changes: ${JSON.stringify(invalidMembership)}`, async () => {
+    const store = seededStore();
+    const callables = createSameTableTradeCallables(dependencies(store));
+    await callables.createSameTableTradeOffer(createRequest());
+    store.records.set(`${paths().players}/sender`, {
+      ...player('sender', 'icebreaker-miner'), ...invalidMembership,
+    });
+    const writes = store.committedWrites.length;
+    await expect(callables.createSameTableTradeOffer(createRequest()))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(store.committedWrites).toHaveLength(writes);
+  });
+  it(`denies private accept replay after requesting recipient membership changes: ${JSON.stringify(invalidMembership)}`, async () => {
+    const store = seededStore({ accepted: true });
+    const callables = createSameTableTradeCallables(dependencies(store));
+    store.records.set(`${paths().players}/recipient`, {
+      ...player('recipient', 'icebreaker-miner'), ...invalidMembership,
+    });
+    await expect(callables.acceptSameTableTradeOffer(acceptRequest()))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(store.committedWrites).toHaveLength(0);
+  });
+}
+it('recovers an exact offer for an active sender even after the other player leaves the old table', async () => {
+  const store = seededStore();
+  const callables = createSameTableTradeCallables(dependencies(store));
+  const first = await callables.createSameTableTradeOffer(createRequest());
+  store.records.set(`${paths().players}/sender`, player('sender', 'dione-engineer'));
+  store.records.set(`${paths().players}/recipient`, { ...player('recipient', 'aegis-admiral'), connected: false });
+  const writes = store.committedWrites.length;
+  await expect(callables.createSameTableTradeOffer(createRequest())).resolves.toEqual({ ...first, status: 'replayed' });
+  expect(store.committedWrites).toHaveLength(writes);
+});
