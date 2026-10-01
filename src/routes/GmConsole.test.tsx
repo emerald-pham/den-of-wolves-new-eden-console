@@ -350,7 +350,16 @@ it('mounts the Voyage 33-0 movement workspace inside the admitted GM console', a
   streamInstances([local]);
   await act(async () => {
     renderConsole();
-    await import('@/components/Voyage33MovementWorkspace');
+    // Resolve every actual sibling in the shared Suspense boundary so this
+    // admission assertion is independent of earlier tests warming imports.
+    await Promise.all([
+      import('@/components/Voyage33MovementWorkspace'),
+      import('@/components/SmallShipOperations'),
+      import('@/components/BoardingSecurityTeamWorkspace'),
+      import('@/components/GmStarmapModule'),
+      import('@/components/GmScoutRevealController'),
+      import('@/components/SameTableTradeBaselineWorkspace'),
+    ]);
   });
 
   expect(screen.getByRole('region', { name: 'Voyage 33-0 movement workspace' })).toBeInTheDocument();
