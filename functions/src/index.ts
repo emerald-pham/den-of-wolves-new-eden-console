@@ -263,6 +263,7 @@ import {
   legacyCycleRepeatableMissionOpportunity,
   missionOpportunityDocumentPath,
   parseStoredMissionOpportunity,
+  partitionPendingMissionOpportunities,
   type MissionOpportunityEligibility,
 } from './missionEligibility';
 import { expireTurnScopedResources } from './turnTransition';
@@ -14713,10 +14714,12 @@ export const confirmFleetPartition = onCall<{ sessionId: string; instanceId: str
     expectedRevision: data.expectedNavigationRevision, payload: {} };
   return db.runTransaction(async tx => {
     const { session } = await requireFacilitatorInstance(tx, data.sessionId, uid, data.instanceId);
-    const [storedNavigation, playerSnapshots, groupSnapshots, receipt, attackState] = await Promise.all([
+    const [storedNavigation, playerSnapshots, groupSnapshots, receipt, attackState, opportunities, missionStarts] = await Promise.all([
       tx.get(navigationStateRef(data.sessionId)), tx.get(db.collection(`sessions/${data.sessionId}/players`)),
       tx.get(db.collection(`sessions/${data.sessionId}/fleetGroups`)), tx.get(commandReceiptRef(data.sessionId, data.requestId)),
       tx.get(db.doc(`sessions/${data.sessionId}/wolfAttackState/current`)),
+      tx.get(db.collection(`sessions/${data.sessionId}/missionOpportunities`)),
+      tx.get(db.collection(`sessions/${data.sessionId}/missionStartSnapshots`)),
     ]);
     const replay = replayBoundCommand(receipt, fingerprint, isFleetPartitionReply, 'fleet partition');
     if (replay) return replay;
@@ -14742,7 +14745,16 @@ export const confirmFleetPartition = onCall<{ sessionId: string; instanceId: str
     let plan: ReturnType<typeof planFleetPartition>;
     try { plan = planFleetPartition(navigation, groups, members, activeVesselIds); }
     catch (error) { throw commandError('failed-precondition', error instanceof Error ? error.message : 'Fleet partition authority is malformed.', 'conflict'); }
-    const changed = !isDeepStrictEqual(groups, plan.groups);
+    let missionMigrations: ReturnType<typeof partitionPendingMissionOpportunities>;
+    try {
+      missionMigrations = partitionPendingMissionOpportunities(data.sessionId, lockedNavigationChart(session),
+        session.get('currentTurn') as number,
+        opportunities.docs.map(record => ({ id: record.id, value: record.data() })),
+        new Set(missionStarts.docs.map(record => record.id)), plan.groups, plan.navigation.shipGalacticCoordinates);
+    } catch (error) {
+      throw commandError('failed-precondition', error instanceof Error ? error.message : 'Pending mission authority is malformed.', 'conflict');
+    }
+    const changed = !isDeepStrictEqual(groups, plan.groups) || missionMigrations.length > 0;
     const revision = data.expectedNavigationRevision + (changed ? 1 : 0);
     if (changed) {
       tx.update(db.doc(`sessions/${data.sessionId}`), { fleetPartitionRevision: revision, updatedAt: FieldValue.serverTimestamp() });
@@ -14759,6 +14771,10 @@ export const confirmFleetPartition = onCall<{ sessionId: string; instanceId: str
         updatedAt: FieldValue.serverTimestamp() });
       publishDiscoveryProjections(tx, data.sessionId, projectedPlayers, plan.navigation, revision,
         lockedNavigationChart(session), plan.groups, true);
+      for (const migration of missionMigrations) {
+        writeMissionOpportunity(tx, data.sessionId, migration.opportunity);
+        tx.delete(db.doc(missionOpportunityDocumentPath(data.sessionId, migration.fromId)));
+      }
     }
     const result: FleetPartitionReply = { status: 'committed', navigationRevision: revision, groupIds: plan.groups.map(group => group.id) };
     tx.set(commandReceiptRef(data.sessionId, data.requestId), { fingerprint, result, createdAt: FieldValue.serverTimestamp() });

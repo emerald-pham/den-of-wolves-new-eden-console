@@ -97,6 +97,53 @@ export function missionOpportunityDocumentPath(sessionId: string, opportunityId:
   return `sessions/${sessionId}/missionOpportunities/${opportunityId}`;
 }
 
+/** Unstarted arrivals follow their source vessel when its physical fleet separates. */
+export function partitionPendingMissionOpportunities(
+  sessionId: string,
+  chart: ChartId,
+  currentCycle: number,
+  records: readonly { readonly id: string; readonly value: unknown }[],
+  startedIds: ReadonlySet<string>,
+  groups: readonly FleetGroupRecord[],
+  coordinates: Readonly<Record<string, string>>,
+): readonly { readonly fromId: string; readonly opportunity: MissionOpportunityEligibility }[] {
+  const occupiedIds = new Set(records.map(({ id }) => id));
+  const migrations: { fromId: string; opportunity: MissionOpportunityEligibility }[] = [];
+  for (const { id, value } of records) {
+    // A committed start owns its original identity, roster and private audience.
+    if (startedIds.has(id)) continue;
+    if (!isRecord(value) || value.chart !== chart || typeof value.groupId !== 'string' ||
+        !/^fleet-[1-9][0-9]*$/.test(value.groupId) || typeof value.coordinate !== 'string' ||
+        typeof value.sourceShipId !== 'string' || typeof value.sourceTransitionId !== 'string' ||
+        !Number.isSafeInteger(value.sourceCycle) || (value.sourceCycle as number) > currentCycle) {
+      throw new Error('Pending mission arrival authority is malformed.');
+    }
+    const siteCode = organiserSitesForChart(chart)[value.coordinate]?.code;
+    const mission = siteCode ? missionCardForCode(siteCode) : undefined;
+    if (!mission) throw new Error('Pending mission arrival is not a printed mission system.');
+    const baseId = `arrival-${value.groupId}-${chart}-${value.coordinate}`;
+    const suffix = mission.siteRules.repeatability === 'everyTurn' && id === `${baseId}-cycle-${value.sourceCycle}`
+      ? `-cycle-${value.sourceCycle}` : '';
+    const opportunity = parseStoredMissionOpportunity(value, sessionId, {
+      type: 'mission-opportunity', status: 'available', id: `${baseId}${suffix}`,
+      groupId: value.groupId, chart, coordinate: value.coordinate, siteCode: mission.code,
+      sourceShipId: value.sourceShipId, sourceTransitionId: value.sourceTransitionId,
+      sourceCycle: value.sourceCycle as number,
+    });
+    if (opportunity.id !== id) throw new Error('Pending mission document identity is mismatched.');
+    if (coordinates[opportunity.sourceShipId] !== opportunity.coordinate) continue;
+    const sourceGroups = groups.filter(group => group.vesselIds.includes(opportunity.sourceShipId));
+    if (sourceGroups.length !== 1) throw new Error('Pending mission source vessel has no unique fleet group.');
+    const groupId = sourceGroups[0]!.id;
+    if (groupId === opportunity.groupId) continue;
+    const nextId = `arrival-${groupId}-${chart}-${opportunity.coordinate}${suffix}`;
+    if (occupiedIds.has(nextId)) throw new Error('Pending mission arrival conflicts with another recorded opportunity.');
+    occupiedIds.add(nextId);
+    migrations.push({ fromId: id, opportunity: { ...opportunity, id: nextId, groupId } });
+  }
+  return migrations;
+}
+
 /**
  * Resolve an unsuffixed identity written before a printed repeatable mission
  * gained cycle-scoped identity. Its validated source cycle decides whether it
