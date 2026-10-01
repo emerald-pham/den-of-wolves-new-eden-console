@@ -28,7 +28,8 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     },
     changes: [
       'Shuttle refuelling during ship maintenance now saves a valid receipt, preserving safe retries and fuel accounting.',
-      '507 of 751 planned items are complete in the catalog snapshot used to build this release (67.51%). PC06 gameplay verification continues.',
+      '507 of 751 planned items are complete in the catalog snapshot used to build this release (67.51%).',
+      'PC06 gameplay verification continues.',
     ],
   },
   {

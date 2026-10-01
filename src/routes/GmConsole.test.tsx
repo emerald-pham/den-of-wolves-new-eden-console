@@ -348,9 +348,12 @@ it('mounts the Voyage 33-0 movement workspace inside the admitted GM console', a
   } as never);
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);
-  renderConsole();
+  await act(async () => {
+    renderConsole();
+    await import('@/components/Voyage33MovementWorkspace');
+  });
 
-  expect(await screen.findByRole('region', { name: 'Voyage 33-0 movement workspace' })).toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'Voyage 33-0 movement workspace' })).toBeInTheDocument();
 });
 
 it('shows the held-token baseline to the GM using only the active player roster', async () => {
@@ -377,7 +380,7 @@ it('shows the held-token baseline to the GM using only the active player roster'
 
   const baseline = await screen.findByRole('region', { name: /physical tabletop baseline/i });
   const target = within(baseline).getByRole('combobox', { name: 'Player to attest' });
-  expect(within(target).getByRole('option', { name: 'Alice' })).toHaveValue('player-1');
+  expect(await within(target).findByRole('option', { name: 'Alice' })).toHaveValue('player-1');
   expect(within(target).queryByRole('option', { name: 'Offline' })).not.toBeInTheDocument();
   expect(within(target).queryByRole('option', { name: 'Facilitator' })).not.toBeInTheDocument();
 });
