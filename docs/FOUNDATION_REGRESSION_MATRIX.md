@@ -3,9 +3,9 @@
 This matrix is the Prompt 160 audit snapshot for the catalog and source tree at
 the commit that publishes it. It includes every catalog row numbered 001–159,
 including lettered rows (020a, 031a, 103a, 106a–106c, 122a, 138a, and 140a–140g).
-The catalog is the status authority; a done row means the catalog currently
-records its acceptance as closed, while partial and missing rows retain their
-open boundary. The matrix does not upgrade a status because a screen exists or
+The status column records the catalog at publication; the
+[current catalog](implementation-prompts.json) owns live completion and
+remaining boundaries. The matrix does not upgrade a status because a screen exists or
 because a generic test passes.
 
 Red-test target is the concrete acceptance boundary to turn red if the behavior
@@ -15,7 +15,7 @@ repository sources or existing evidence records. Rows without production
 evidence say so explicitly and link the catalog audit row rather than inventing
 a test or claiming that an audit label is runtime proof.
 
-The current audit counts are computed from the catalog rows below. Retired
+The audit counts are computed from the recorded rows below. Retired
 numeric 071 is included explicitly as a retired row because the catalog
 records it in retiredPromptIds and Prompt 654 supersedes it; no retired
 acceptance is presented as production proof.
@@ -72,7 +72,7 @@ acceptance is presented as production proof.
 | 046 | done | Assert that ordinary members, stale grants, revoked roles, foreign instances, and client-supplied GM flags fail. | none recorded | [functions/src/gmSessionCallable.test.ts](../functions/src/gmSessionCallable.test.ts) |
 | 047 | done | Assert that any valid member can use the console shell without acquiring GM permissions. | none recorded | [src/routes/RoleSelect.test.tsx](../src/routes/RoleSelect.test.tsx) |
 | 048 | done | Assert that an eligible GM can inspect a selected fleet ship while mutation remains disabled until separately authorized. | none recorded | [src/routes/GmConsole.test.tsx](../src/routes/GmConsole.test.tsx) / [functions/src/gmSessionCallable.test.ts](../functions/src/gmSessionCallable.test.ts) |
-| 049 | done | Assert that leaving the observed ship removes any scoped write grant before another ship loads. | none recorded | [functions/src/gmControlsLock.test.ts](../functions/src/gmControlsLock.test.ts) |
+| 049 | done | Assert that leaving the observed ship removes any scoped write grant before another ship loads. | none recorded | [functions/src/gmSessionCallable.test.ts](../functions/src/gmSessionCallable.test.ts) |
 | 050 | done | Assert that lobby, roster, Console, GM, and Observer routes expose a visible keyboard-operable return to their logical parent. | none recorded | [src/routes/GmConsole.test.tsx](../src/routes/GmConsole.test.tsx) / [src/routes/RoleSelect.test.tsx](../src/routes/RoleSelect.test.tsx) |
 | 051 | done | Assert that session creation, roster application, persisted configuration, and start readiness use the exact printed Prompt 004 base row across client and server and reject a mismatched or convenience role. … | sequence: M1-SETUP | [functions/src/sessionComposition.test.ts](../functions/src/sessionComposition.test.ts) |
 | 052 | done | Assert that Dione, its roles, resources, shuttles, and population are absent and cannot be re-enabled by payload edits. | none recorded | [src/data/rolePresets.test.ts](../src/data/rolePresets.test.ts) / [functions/src/roleConfiguration.ts](../functions/src/roleConfiguration.ts) |
@@ -120,7 +120,7 @@ acceptance is presented as production proof.
 | 094 | done | Assert that all clients agree on the printed five-minute window despite local clock changes. | none recorded | [functions/src/turnZero.test.ts](../functions/src/turnZero.test.ts) / [functions/src/turnZero.ts](../functions/src/turnZero.ts) |
 | 095 | done | Assert that all clients agree on the printed fifteen-minute window without client extension. | none recorded | [functions/src/turnZero.ts](../functions/src/turnZero.ts) |
 | 096 | done | Assert that reconnects and retries cannot reapply the extended opening windows. | none recorded | [functions/src/turnZero.test.ts](../functions/src/turnZero.test.ts) |
-| 097 | done | Assert that the existing three-step GM interlock freezes and resumes exact server time, records events, and denies unauthorized or stale requests. | none recorded | [functions/src/turnZero.test.ts](../functions/src/turnZero.test.ts) / [functions/src/gmControlsLock.test.ts](../functions/src/gmControlsLock.test.ts) |
+| 097 | done | Assert that the existing three-step GM interlock freezes and resumes exact server time, records events, and denies unauthorized or stale requests. | none recorded | [functions/src/turnZero.test.ts](../functions/src/turnZero.test.ts) / [functions/src/maintenanceCallable.test.ts](../functions/src/maintenanceCallable.test.ts) |
 | 098 | done | Assert that simultaneous expiry observers produce one closing transition and one event. | none recorded | [functions/src/maintenanceCallable.test.ts](../functions/src/maintenanceCallable.test.ts) / [functions/src/index.ts](../functions/src/index.ts) / [functions/src/turnTransition.ts](../functions/src/turnTransition.ts) |
 | 099 | done | Assert that maintenance, rations, charging, fuelling, and required docking fail outside Team Phase. | none recorded | [functions/src/maintenanceCallable.test.ts](../functions/src/maintenanceCallable.test.ts) |
 | 100 | partial | Assert that movement, transfer, scouting, research, and jumps fail outside Coordination except printed exceptions. | hard prompt: 113;321;212 | [functions/src/navigation.test.ts](../functions/src/navigation.test.ts) / [functions/src/jumpCallable.test.ts](../functions/src/jumpCallable.test.ts) / [functions/src/actionMetadata.test.ts](../functions/src/actionMetadata.test.ts) / [functions/src/actionMetadata.ts](../functions/src/actionMetadata.ts); catalog description records remaining scope. |

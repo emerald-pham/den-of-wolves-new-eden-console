@@ -8,7 +8,9 @@ security, testing, emulator, release, and deployment rules.
 For the remaining numbered-prompt campaign, the owner-facing
 [playtest checkpoints](PRODUCT_MILESTONES.md) govern shaping, frozen scope,
 source-backed assumptions, test-first commits, nontechnical reports, owner
-feedback, and cooldown. Use this playbook to coordinate work inside a shape.
+feedback, and cooldown. Use this playbook to coordinate work inside a shape. Before the next checkpoint,
+complete the [owner-decision alignment](PRODUCT_MILESTONES.md#owner-decisions-before-the-next-checkpoint).
+The [execution policy](AGENT_EXECUTION_POLICY.md) owns batched release and ownership-transfer details.
 
 ## Start with current facts
 
@@ -22,12 +24,11 @@ hint. Do not copy old counts, SHAs, versions, or statuses into a new task.
 When catalog facts change, run `node scripts/generate-prompt-views.mjs` and use
 `--check` to verify the generated Markdown views.
 
-Use one owner per task. Give the owner a complete brief with the accepted
-scope, affected surfaces, relevant tests, and any shared session/callable/rules,
-deploy/auth, release, or emulator hotspot. The owner implements, obtains any
-risk review, repairs findings, reconciles, validates, merges, pushes, verifies
-deployment, and closes the task. A separate sidecar or reviewer is optional;
-there is no minimum-agent count.
+Use one owner per task for implementation, required risk review, repairs,
+reconciliation, validation, merge, push and deployment verification. Give that
+owner a complete brief with accepted scope, affected surfaces, relevant tests,
+and shared session/callable/rules, deploy/auth, release or emulator hotspots.
+A separate sidecar is optional; there is no minimum-agent count.
 
 For a shaped checkpoint, assign independent work on the release's critical
 path to available subagents when parallel execution is likely to shorten the
@@ -64,8 +65,8 @@ assumptions. Continue independent work around an unavailable source or decision;
 ask the product owner only when higher authority requires it or no useful work
 remains.
 
-Never stop or take over another task because its timestamp looks old, its
-process is temporarily quiet, or its live reservation is empty. A parked task
+Never infer stale ownership from age alone. A quiet process or empty
+reservation does not authorize stopping or taking over another task. A parked task
 keeps its reservation and records a clear next action; no heartbeat/status
 polling loop is needed. Optional goals can remain in chat or the normal session
 record. There is no immutable goal artifact, digest comparison, one-shot
@@ -126,29 +127,3 @@ owners through their agreed commit/validation/merge path, or record a clear
 preserve/discard outcome, release only this campaign's resources, and report
 what remains. Do not claim campaign completion from a local branch or copied
 roadmap status.
-
-## Campaign checklist
-
-```text
-Campaign objective: deliver the accepted Den of Wolves tasks with focused
-checks, appropriate risk review, truthful deployment evidence, and one owner
-from implementation through merge.
-
-Starting state: read CLAUDE.md, the shaped playtest checkpoint, prior feedback,
-assumptions, this playbook, the JSON prompt catalog, current main, active
-coordination, and the current package/changelog when product work is in scope.
-Record only newly observed facts.
-
-Execution: finish due cooldown, choose ready prompts within frozen checkpoint
-scope, commit a failing test before new behavior, use one owner per task, and
-coordinate only actual shared session/callable/rules, deploy/auth, release, and
-emulator hotspots. Log source-backed assumptions and later candidates.
-
-Review: collect all risk-review findings together, repair in a bounded follow-up,
-commit the reconciled reviewed candidate, and run one appropriate final
-validation. Rerun only for meaningful changes, failures, or unresolved concerns.
-
-Closeout: merge and push every landed task, verify the real deployment, keep
-version/changelog and security claims truthful, and preserve or discard
-unfinished work explicitly. Never infer stale ownership from age alone.
-```

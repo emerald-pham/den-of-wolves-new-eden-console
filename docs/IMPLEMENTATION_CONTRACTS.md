@@ -1,12 +1,11 @@
-# Implementation Contract Ledger — Prompts 003–011 and 051
+# Implementation contract and audit ledger
 
-This is a documentation-only contract ledger for Prompts 003–011 and 051 in
-the first 100 prompts of
-[`docs/IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md). It records the
-contract audit snapshot inspected on 2026-09-08; the current completion and
-release evidence live in [`IMPLEMENTATION_PROGRESS.md`](./IMPLEMENTATION_PROGRESS.md).
-It does not change the plan, mark plan items complete, or claim that a
-contract is playable merely because it is described here.
+This maintained ledger records selected foundation, facilitator, console and
+private-information contracts. The initial Prompts 003–011/051 audit was
+inspected on 2026-09-08; later sections record their own bounded decisions and
+evidence. The [catalog](implementation-prompts.json) owns current acceptance
+and status; its [progress view](IMPLEMENTATION_PROGRESS.md) carries release
+evidence. Describing a contract does not establish a playable production path.
 
 ## How to read this ledger
 
@@ -330,7 +329,8 @@ when hidden Wolf identities change; committed history remains durable.
 
 ## 1. Source and ambiguity ledger — Prompt 003
 
-The source map in the plan is authoritative for routing. Printed ship,
+The [private source boundary](../CLAUDE.md#private-source-boundary) owns source
+routing. Printed ship,
 shuttle, fighter, console, and card sheets win over generic rules text for
 specific values. A facilitator call is not a deterministic rule result: it
 must be recorded as an explicit decision with the source, scope, actor, reason,
