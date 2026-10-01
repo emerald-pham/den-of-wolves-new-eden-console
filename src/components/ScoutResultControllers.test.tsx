@@ -90,3 +90,16 @@ it('lets the live GM reveal one pending request and refreshes the queue', async 
   await waitFor(() => expect(screen.getByText(/deep nebula/i)).toBeVisible());
   expect(screen.getByText(/no scout requests are awaiting/i)).toBeVisible();
 });
+
+it('clears a previous unavailable message when an ordinary queue refresh succeeds', async () => {
+  useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, uid: 'gm1', role: 'gm' });
+  useSessionStore.getState().setGmInstance({ id: 'browser-1', sessionId: 's1', uid: 'gm1' } as never);
+  api.listPendingScoutRequests.mockRejectedValueOnce(new Error('temporary read failure'))
+    .mockResolvedValueOnce([{ requestId: 'r1', cycle: 2, entitlementId: 'endeavour',
+      anchorShipId: 'shepherd', targetCoordinate: '0408' }]);
+  render(<GmScoutRevealController />);
+  await screen.findByText('Scout queue unavailable. Reconnect and refresh.');
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh scout queue' }));
+  await screen.findByRole('button', { name: /reveal endeavour scout at 0408/i });
+  expect(screen.queryByText('Scout queue unavailable. Reconnect and refresh.')).not.toBeInTheDocument();
+});

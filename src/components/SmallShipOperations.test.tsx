@@ -186,3 +186,35 @@ it('registers and charges the Vulcan Laser Cannon without exposing a firing cont
     'vulcan', 'reactor', 11, { consoles: ['laser-cannon'] },
   );
 });
+
+it.each([
+  ['gorgoneion', 'Gorgoneion', 2],
+  ['warrior', 'Warrior', 1],
+] as const)('offers the working Repair Drones charge for %s within its reactor capacity', async (id, name, capacity) => {
+  const user = userEvent.setup();
+  const session = useSessionStore.getState().session!;
+  useSessionStore.getState().setSession({
+    ...session,
+    smallShipStates: {
+      ...session.smallShipStates,
+      [id]: {
+        id, hostShipId: 'aegis', dockingRevision: 1, population: 1_000, unrest: 0,
+        cycle: { step: 4, revision: 12, results: {}, charges: [], turn: 2 },
+      },
+    },
+  });
+  render(<SmallShipOperations />);
+  const craft = screen.getByRole('region', { name: `${name} small-ship operations` });
+  const drones = within(craft).getByRole('checkbox', { name: 'Repair Drones' });
+  await user.click(drones);
+  const otherChoices = within(craft).getAllByRole('checkbox').filter((choice) => choice !== drones);
+  if (capacity === 1) otherChoices.forEach((choice) => expect(choice).toBeDisabled());
+  else {
+    await user.click(within(craft).getByRole('checkbox', { name: 'Missile Array' }));
+    expect(within(craft).getByRole('checkbox', { name: 'Force Field Projector' })).toBeDisabled();
+  }
+  await user.click(within(craft).getByRole('button', { name: 'Charge selected consoles' }));
+  expect(runSmallShipMaintenance).toHaveBeenCalledWith(id, 'reactor', 12, {
+    consoles: capacity === 1 ? ['repair-drones'] : ['repair-drones', 'missile-array'],
+  });
+});
