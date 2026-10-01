@@ -301,7 +301,12 @@ it('shows held-token trading on the current replacement ship without a historica
     <Route path="/console" element={<p>Fleet roster</p>} />
   </Routes></MemoryRouter>);
 
-  expect(await screen.findByRole('region', { name: 'Same-table trade' })).toBeInTheDocument();
+  // The loading region is replaced by the loaded panel. Assert the current
+  // committed DOM together, rather than retaining a detached loading element.
+  await waitFor(() => {
+    expect(screen.getByRole('region', { name: 'Same-table trade' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Same-table trade' })).toBeInTheDocument();
+  });
 });
 
 it('shows same-table trading from an active replacement role station', async () => {
