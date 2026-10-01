@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "baseline": "c27842ff6d9e240209bbfc5798f7dbeff519110a",
-  "implementationCandidate": "32451b493c3db98870b3c6fd1a148da4099edc44",
+  "implementationCandidate": "033260dede184135406aba608a3f58093e94df0a",
   "auditBoundary": "Owner source consumer inventory; independent exact-candidate security review still required.",
   "index": {
     "before": "51eec3ab6fe1a97c7df6fddcda474ede2a9abfaacac2581a52866e5fc12d00d0",
-    "after": "486189f13d18367ff1d4652269e644be8da5e4ea608ae6319c4e68d92836a5b6",
+    "after": "277d6c11457130800d8302a0a8fa1e8a8229a5d19ed9c4a02b7266c6f4d0a80c",
     "consumers": [
       "acceptSameTableTradeOffer",
       "addShipDamage",
@@ -182,7 +182,7 @@
     },
     "functions/src/fleetPartition.ts": {
       "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "after": "edc6d138ec5e3032119385f5dfd2ac8314a8c3d61dedcaa08202d192a3a1c27e",
+      "after": "3b4ce4fab20515af65bcbb3b0c00db4f42268a48836b7bfcb136f8cb745eecb4",
       "consumers": [
         "confirmFleetPartition",
         "joinSession",
@@ -230,6 +230,7 @@
         "getSmallShipJumpWorkspace",
         "jumpShip",
         "jumpSmallShip",
+        "launchPdfEscortWing",
         "moveShipToLocation",
         "requestShuttleDeparture",
         "retargetShuttleTransit",
@@ -309,7 +310,7 @@
     },
     "functions/src/permissionedDismantlingCallable.ts": {
       "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "after": "426907dd7608b3a5ee2d7d41ffc794181897572ec54c7ca2efae5ad81be45921",
+      "after": "037112600ac311dedcfe27977afed780e633364df1cd9f9cb12e3de2c3570ef8",
       "consumers": [
         "applyPermissionedDismantling",
         "consentToPermissionedDismantling",
@@ -426,7 +427,7 @@
     },
     "functions/src/sameTableTradeCallable.ts": {
       "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "after": "56b85b7f499e1221f808a1600a5e32bdef8d2a493cbe352c8e9d69a9885e919f",
+      "after": "d8e991139ad39967becf48575b923a8db1a832379f0d8d627d13f61e76332a88",
       "consumers": [
         "acceptSameTableTradeOffer",
         "attestPlayerHeldTokenBaseline",
@@ -523,7 +524,7 @@
     },
     "functions/src/smallShipJump.ts": {
       "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "after": "daf0234d6b87df52ce7bbdf69614f1438340b1df92a7cd44e37b86f2a062ec35",
+      "after": "cd267ab543d00796db23e51283236f9af76f634a7b907762332155879fcc5f56",
       "consumers": [
         "getSmallShipJumpWorkspace",
         "jumpSmallShip",

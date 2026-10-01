@@ -1,6 +1,6 @@
 # PC06 independent risk review brief
 
-This is a navigation brief for the required independent Sol6.1 review. It is not an approval or a security receipt. The implementation owner cannot approve their own work. Use `xhigh` for this complex authority/privacy scope and the repository's exact security receipt floor. P378 and build0.5.59 metadata are reconciled; the owner supplies the exact final candidate SHA with the dispatch.
+This is a navigation brief for the required independent Sol6.1 review. It is not an approval or a security receipt. The implementation owner cannot approve their own work. Use `xhigh` for this complex authority/privacy scope. The current validation profile requires independent review; it does not classify this feature range as threat-model governance or require an exact security receipt. P378 and build0.5.59 metadata are reconciled; the owner supplies the exact final candidate SHA with the dispatch.
 
 ## Scope and source identity
 
@@ -29,8 +29,14 @@ Native browser disabling of the focused launch button exposed a P607 focus-recov
 
 Review changed Firestore paths and rules against each entitled reader and direct-write denial. Review source-bound deployment consumer hashes/sets for changed helpers and modules so shared authority changes reach all production consumers; unknown source tuples fail closed. Review policy/tooling changes and the small registry lint refactor, retaining exact candidate/model/effort receipt binding and existing authentication/deployment protections. The source-consumer inventory is owner evidence, not independent approval.
 
-Send all actionable findings together with exact paths and reproduction/risk. The responsible owner repairs them; follow-up is limited to unresolved findings or materially changed risk. Only an independent approved exact-candidate structured receipt can satisfy the security gate. Final validation occurs after reconciliation and repairs.
+Send all actionable findings together with exact paths and reproduction/risk. The responsible owner repairs them; follow-up is limited to unresolved findings or materially changed risk. An independent exact-candidate approval is required; a structured receipt may record that approval as evidence. Do not introduce a new receipt gate for this feature range. Final validation occurs after reconciliation and repairs.
 
 ## Available local evidence and limits
 
 The execution record preserves test-first reds and source corrections. Real Firestore mission and navigation scripts exercise compiled production transaction code, concurrency/replay, private projections, full delivery and reconnect. The fleet-group script proves current note isolation and partition transaction behavior. These scripts use fixture authentication; they are not ordinary authenticated transport or deployed gameplay. The source candidate has no final review, final validation, CI/release or all49 ordinary acceptance credit yet. Browser access currently fails its administrator-policy check and must not be bypassed.
+
+## Bounded follow-up after the first review
+
+The separate Sol 6.1 xhigh review rejected `b20ae29b0b6de9d5d5d04d696b26f9a156a8edd1` with six actionable findings. Test-only `137f4145` observed 23 failures and 110 passing checks across all six affected suites. Additional test-only `af16e139` observed an established detached craft being incorrectly reinitialized at a requested host. Production repair `033260dede184135406aba608a3f58093e94df0a` changes five authority modules; all 134 focused checks, Functions compilation and touched-file lint pass. The owner supplies the exact reconciled follow-up SHA after updating the deployment inventory.
+
+Review only unresolved findings and materially changed risk: pending replacement status before either dismantling role branch and again before application; the requesting trade actor's current role/membership before either replay, without requiring the other historical participant to remain present; attached craft origin from the live current host, true co-location, and no guessed position for an established detached craft; the PDF wing mission hold after historical exact replay and before fresh launch; own-property reads for all small-craft mission/arrival UID lookups; and prototype-safe fleet member binding. The inventory now includes the PDF launch's mission-hold dependency and hashes the repaired runtime source. No catalog completion or live gameplay credit is claimed.
