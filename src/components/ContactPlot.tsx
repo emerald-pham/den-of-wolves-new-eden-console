@@ -106,6 +106,7 @@ const LABEL_HORIZONTAL_GAP_PX = 11;
 const LABEL_LANE_OFFSETS = [0, -1, 1, -2, 2, -3, 3, -4, 4, -5, 5, -6, 6, -7, 7, -8, 8] as const;
 const intrinsicLabelWidths = new WeakMap<HTMLElement, { context: string; width: number }>();
 type LabelCandidateLayout = { anchor: LabelAnchor; bounds: DOMRect; style: string };
+type PreparedAnchorLayout = { original: DOMRect; sideWidth: number; style: string };
 type ContactLabelLayoutCache = {
   styleScope: string;
   context: string;
@@ -135,6 +136,23 @@ type ProjectedAxes = {
   x: Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom'>;
   y: Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom'>;
 };
+
+function measuredTranslationAxes(original: DOMRect, xProbe: DOMRect, yProbe: DOMRect, probePx: number): ProjectedAxes {
+  return {
+    x: {
+      left: (xProbe.left - original.left) / probePx,
+      right: (xProbe.right - original.right) / probePx,
+      top: (xProbe.top - original.top) / probePx,
+      bottom: (xProbe.bottom - original.bottom) / probePx,
+    },
+    y: {
+      left: (yProbe.left - original.left) / probePx,
+      right: (yProbe.right - original.right) / probePx,
+      top: (yProbe.top - original.top) / probePx,
+      bottom: (yProbe.bottom - original.bottom) / probePx,
+    },
+  };
+}
 
 function labelAnchor(track: Track | PlotContact, index: number): LabelAnchor {
   let x: number;
@@ -612,6 +630,104 @@ function clampContactLabels(
   const oppositeLayouts = measureAnchorBatch(oppositeAnchors.map((anchor, index) =>
     cachedAlternates[index] ? undefined : anchor))
     .map((layout, index) => layout ?? cachedAlternates[index] ?? null);
+  const anchorOrders = preferredAnchors.map((preferred): LabelAnchor[] => preferred ? [
+    preferred,
+    ...(['north-east', 'south-east', 'north-west', 'south-west'] as const)
+      .filter((anchor) => anchor !== preferred),
+  ] : []);
+  const sideWidthAt = (index: number, anchor: LabelAnchor): number => anchor.endsWith('east')
+    ? marks[index]!.left - plotBounds.left - LABEL_VIEWPORT_GUTTER_PX - LABEL_HORIZONTAL_GAP_PX
+    : plotBounds.right - LABEL_VIEWPORT_GUTTER_PX - marks[index]!.right - LABEL_HORIZONTAL_GAP_PX;
+  const preparedLayouts = labels.map((_, index) => {
+    const prepared = new Map<LabelAnchor, PreparedAnchorLayout>();
+    if (marks[index]) {
+      for (const layout of [preferredLayouts[index], oppositeLayouts[index]]) {
+        if (layout) prepared.set(layout.anchor, {
+          original: layout.bounds, sideWidth: sideWidthAt(index, layout.anchor), style: layout.style,
+        });
+      }
+    }
+    return prepared;
+  });
+  // These contacts cannot fit either adjacent natural anchor even before
+  // prior names become obstacles, so they necessarily need the full fallback.
+  // Prepare their independent geometry together. Contacts made crowded only
+  // by an earlier chosen name retain the exact on-demand path below.
+  const batchFallback = labels.map((_, index) => index).filter((index) => {
+    const marker = marks[index];
+    if (!marker || !contacts[index] || !preferredLayouts[index] || !oppositeLayouts[index]) return false;
+    const nearby = [...obstacles, ...marks.filter((mark, other): mark is DOMRect =>
+      other !== index && mark !== null && mark.width > 0 && mark.height > 0)];
+    return [preferredLayouts[index], oppositeLayouts[index]].every((layout) => {
+      const { anchor, bounds } = layout!;
+      const anchorGap = anchor.endsWith('east') ? marker.left - bounds.right : bounds.left - marker.right;
+      return bounds.width <= 0 || bounds.height <= 0 ||
+        bounds.left < plotBounds.left + LABEL_VIEWPORT_GUTTER_PX ||
+        bounds.right > plotBounds.right - LABEL_VIEWPORT_GUTTER_PX ||
+        bounds.top < plotBounds.top + LABEL_VIEWPORT_GUTTER_PX ||
+        bounds.bottom > plotBounds.bottom - LABEL_VIEWPORT_GUTTER_PX ||
+        anchorGap < 4 || nearby.some((rect) => overlaps(bounds, rect));
+    });
+  });
+  for (let pass = 0; pass < 2; pass += 1) {
+    const anchors = new Map(batchFallback.map((index) => [index, anchorOrders[index]!
+      .filter((anchor) => !preparedLayouts[index]!.has(anchor))[0]!]));
+    // Each pass takes the next unprepared quadrant, preserving the original
+    // natural two anchors and the same width-cap/correction arithmetic.
+    for (const [index, anchor] of anchors) {
+      resetLabelLayout(labels[index]!);
+      contacts[index]!.dataset.labelAnchor = anchor;
+    }
+    const originals = new Map([...anchors].map(([index]) => [index, labels[index]!.getBoundingClientRect()]));
+    const caps = [...anchors].filter(([index, anchor]) => originals.get(index)!.width > sideWidthAt(index, anchor) &&
+      sideWidthAt(index, anchor) > 0);
+    const capWidths = new Map(caps.map(([index, anchor]) => {
+      const width = intrinsicWidth(labels[index]!, index);
+      const scale = width > 0 ? originals.get(index)!.width / width : 1;
+      return [index, Math.max(1, Math.max(1, sideWidthAt(index, anchor) - 2) / scale)];
+    }));
+    for (const [index] of caps) {
+      const label = labels[index]!;
+      label.style.maxWidth = `${capWidths.get(index)!}px`;
+      label.style.minInlineSize = '0px';
+      label.style.whiteSpace = 'normal';
+      label.style.overflowWrap = 'anywhere';
+    }
+    for (const [index] of caps) originals.set(index, labels[index]!.getBoundingClientRect());
+    const corrections = caps.filter(([index, anchor]) => originals.get(index)!.width > sideWidthAt(index, anchor));
+    for (const [index, anchor] of corrections) {
+      const label = labels[index]!;
+      const cap = Number.parseFloat(label.style.maxWidth);
+      label.style.maxWidth = `${Math.max(1, cap * Math.max(1, sideWidthAt(index, anchor) - 2) /
+        originals.get(index)!.width)}px`;
+    }
+    for (const [index] of corrections) originals.set(index, labels[index]!.getBoundingClientRect());
+    for (const [index, anchor] of anchors) preparedLayouts[index]!.set(anchor, {
+      original: originals.get(index)!, sideWidth: sideWidthAt(index, anchor), style: labels[index]!.style.cssText,
+    });
+  }
+  const batchedProjections: Partial<Record<'east' | 'west', ProjectedAxes>>[] = labels.map(() => ({}));
+  for (const side of ['east', 'west'] as const) {
+    const references = new Map(batchFallback.map((index) => [index,
+      anchorOrders[index]!.find((anchor) => anchor.endsWith(side))!]));
+    for (const [index, anchor] of references) {
+      contacts[index]!.dataset.labelAnchor = anchor;
+      labels[index]!.style.cssText = preparedLayouts[index]!.get(anchor)!.style;
+      labels[index]!.style.setProperty('--label-clamp-x', '8px');
+    }
+    const xProbes = new Map(batchFallback.map((index) => [index, labels[index]!.getBoundingClientRect()]));
+    for (const [index, anchor] of references) {
+      labels[index]!.style.cssText = preparedLayouts[index]!.get(anchor)!.style;
+      labels[index]!.style.setProperty('--label-clamp-y', '8px');
+    }
+    const yProbes = new Map(batchFallback.map((index) => [index, labels[index]!.getBoundingClientRect()]));
+    for (const [index, anchor] of references) {
+      const prepared = preparedLayouts[index]!.get(anchor)!;
+      labels[index]!.style.cssText = prepared.style;
+      batchedProjections[index]![side] = measuredTranslationAxes(prepared.original,
+        xProbes.get(index)!, yProbes.get(index)!, 8);
+    }
+  }
   for (const [index, label] of labels.entries()) {
     const marker = marks[index];
     const contact = contacts[index];
@@ -671,21 +787,7 @@ function clampContactLabels(
         directPlacements[index] = true;
         continue;
       }
-      const preparedByAnchor = new Map<LabelAnchor, {
-        original: DOMRect;
-        sideWidth: number;
-        style: string;
-      }>();
-      for (const layout of [preferredLayout, oppositeLayout ?? preferredLayout]) {
-        const sideWidth = layout.anchor.endsWith('east')
-          ? marker.left - plotBounds.left - LABEL_VIEWPORT_GUTTER_PX - LABEL_HORIZONTAL_GAP_PX
-          : plotBounds.right - LABEL_VIEWPORT_GUTTER_PX - marker.right - LABEL_HORIZONTAL_GAP_PX;
-        preparedByAnchor.set(layout.anchor, {
-          original: layout.bounds,
-          sideWidth,
-          style: layout.style,
-        });
-      }
+      const preparedByAnchor = preparedLayouts[index]!;
       const prepareAnchor = (anchor: LabelAnchor) => {
         const prepared = preparedByAnchor.get(anchor);
         if (prepared) {
@@ -769,12 +871,8 @@ function clampContactLabels(
         obstacles.push(bestQuick.bounds);
         continue;
       }
-      const anchors: LabelAnchor[] = [
-        preferred,
-        ...(['north-east', 'south-east', 'north-west', 'south-west'] as const)
-          .filter((anchor) => anchor !== preferred),
-      ];
-      const sideProjections: Partial<Record<'east' | 'west', ProjectedAxes>> = {};
+      const anchors = anchorOrders[index]!;
+      const sideProjections = { ...batchedProjections[index] };
       let best: { anchor: LabelAnchor; style: string; x: number; y: number; score: number } | null = null;
       for (const anchor of anchors) {
         const { original, sideWidth, style: baseStyle } = prepareAnchor(anchor);
@@ -791,20 +889,7 @@ function clampContactLabels(
           label.style.setProperty('--label-clamp-y', `${probePx}px`);
           const yProbe = label.getBoundingClientRect();
           label.style.cssText = baseStyle;
-          return {
-            x: {
-              left: (xProbe.left - original.left) / probePx,
-              right: (xProbe.right - original.right) / probePx,
-              top: (xProbe.top - original.top) / probePx,
-              bottom: (xProbe.bottom - original.bottom) / probePx,
-            },
-            y: {
-              left: (yProbe.left - original.left) / probePx,
-              right: (yProbe.right - original.right) / probePx,
-              top: (yProbe.top - original.top) / probePx,
-              bottom: (yProbe.bottom - original.bottom) / probePx,
-            },
-          };
+          return measuredTranslationAxes(original, xProbe, yProbe, probePx);
         })();
         sideProjections[side] = projection;
         const projected = (cssX: number, cssY: number) => ({
