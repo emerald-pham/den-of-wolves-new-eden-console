@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createAnimationSampler, installRenderClock, measureRenderWork } from '../../scripts/render-performance-clock';
+import { createAnimationSampler, installRenderClock, measureRenderUpdate, measureRenderWork } from '../../scripts/render-performance-clock';
 import type { RenderClockEnvironment } from '../../scripts/render-performance-clock';
 
 function environment() {
@@ -109,5 +109,17 @@ describe('render benchmark clock', () => {
     expect(sample).toBeGreaterThan(150);
     expect(clock.nowMs).toBeCloseTo(1000 / 30);
     clock.restore();
+  });
+
+  it('retains native frame waits in the budgeted update duration, with work cost reported separately', async () => {
+    let realElapsed = 0;
+    const sample = await measureRenderUpdate(
+      () => { realElapsed += 80; },
+      async () => { realElapsed += 20; },
+      async () => { realElapsed += 51; },
+      () => realElapsed,
+    );
+    expect(sample).toEqual({ totalMs: 151, workMs: 100 });
+    expect(sample.totalMs).toBeGreaterThan(150);
   });
 });
