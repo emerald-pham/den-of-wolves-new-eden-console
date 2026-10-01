@@ -59,10 +59,8 @@ shaping, assumptions, test-first commits, feedback, and cooldown process in
 gates. Explicit owner authorization accepts a checkpoint; review-scene play
 and written UI feedback are optional. Agents own gameplay proof. Build without
 prebuild approval or routine owner questions: resolve choices from evidence,
-log assumptions, and report proof gaps. Do not pause for owner feedback or a
-rules ruling; ask only when higher authority requires it or no useful work remains.
-Before each checkpoint transition, reconcile owner decisions into all affected
-future prompts and checkpoint plans under that guide.
+log assumptions and report proof gaps. Do not pause for owner feedback or a rules ruling; ask only when higher authority requires it or no useful work remains.
+Before each checkpoint transition, reconcile owner decisions into all affected future prompts and checkpoint plans under that guide.
 
 Keep unrelated agent-policy and workflow edits out of an in-flight feature
 release. Queue them for the next safe checkpoint unless the user explicitly
