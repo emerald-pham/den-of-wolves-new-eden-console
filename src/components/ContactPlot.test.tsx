@@ -1452,6 +1452,38 @@ it('keeps crowded 20-contact label layout within the per-update geometry-read bu
   expect(labelLayoutReads).toBeLessThanOrEqual(20 * contacts.length);
 });
 
+it('resolves each DRADIS label contact once during a layout update', () => {
+  const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
+    x: left, y: top, left, top, width, height,
+    right: left + width, bottom: top + height,
+  }) as DOMRect;
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    if (this.classList.contains('contact-plot')) return bounds(0, 0, 320, 240);
+    if (this.classList.contains('contact-plot__blip')) return bounds(160, 100, 8, 8);
+    if (this.classList.contains('contact-plot__tag')) return bounds(100, 80, 50, 18);
+    return bounds(0, 0, 0, 0);
+  });
+  const contacts = Array.from({ length: 20 }, (_, index) => ({
+    id: `contact-owner-${index}`,
+    tag: `CONTACT ${String(index + 1).padStart(2, '0')}`,
+    x: 0.45 + index * 0.001,
+    y: 0.34,
+    z: 0.1,
+    color: 'white',
+  }));
+  const closest = vi.spyOn(Element.prototype, 'closest');
+  const { rerender } = render(<ContactPlot contacts={contacts} />);
+
+  closest.mockClear();
+  rerender(<ContactPlot contacts={contacts.map((contact) => ({
+    ...contact,
+    x: contact.x + 0.001,
+  }))} />);
+
+  expect(closest.mock.calls.filter(([selector]) => selector === '.contact-plot__contact'))
+    .toHaveLength(contacts.length);
+});
+
 it('measures a spread 20-contact DRADIS anchor batch twice per label', () => {
   const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
     x: left, y: top, left, top, width, height,
