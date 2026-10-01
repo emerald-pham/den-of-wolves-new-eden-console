@@ -602,3 +602,12 @@ The initial early Cycle 3 AEGIS → Dione leg arrived normally through the app's
 
 
 A separate timestamp-scoped request-log attribution check (`/tmp/pc06-airspace-cycle3-attribution.log`) finds no post-deadline resume, arrival or advance invocation before the parking event. One unrelated/uncorrelated resume preflight and rejected HTTP 401 appear eight seconds before the deadline; they could not perform deadline parking, and no session identity or cause is inferred from those global service logs. The source deadline effect updates display state only; the ordinary automatic arrival was due after the already-created parking event.
+
+
+## Reconciled Voyage client recovery handoff
+
+Luna repaired the original review findings in `e7ae2f0b`, then retained the additional monotonic-context red `1013628d` before green `1e26731f`: the exact actor/GM/session-bound request survives transient gates, cycle/revision changes and host detachment; old unfinished steps remain available before fresh maintenance, and player copy uses cycle. Twenty focused cases, typecheck, lint, build and the full 132-case GM route suite pass. Local-only rendered transport covers 320×844, 390×844, 768×900, 1440×900 and short landscape 844×390 in both motion modes, with no horizontal overflow and controls at least 44 px. Evidence is `/tmp/pc06-voyage-detached-proof.json` and screenshots `/tmp/pc06-voyage-detached-*`; these are rendered checks, not live gameplay.
+
+Owner integration red `72394874` found that advancing only the cycle while maintenance/docking counters stayed unchanged could send an uncertain old begin request into later-cycle mutation. The owner retains the returned leaf and owns the small guard repair `11ab6195`: a changed cycle requires a genuinely later maintenance or docking counter before exact receipt recovery. It keeps all backward/future actor/receipt tests and the real committed-response recovery path. All 21 focused client cases pass, along with scoped lint and whitespace validation. The Luna worker's edit scope is completed; the independent reviewer remains distinct from every implementer. The final bounded review includes these unresolved Voyage findings and the new completed-cycle Starlight fuel authority before one reconciled 0.5.62 push.
+
+The supported hidden GM surface also resumed normally after the deadline check (`resumeSession` and `listGmInstances` HTTP 200, GM role, Cycle 3). No credential or access blocker is inferred from unrelated historical/uncorrelated denied calls.
