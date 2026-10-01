@@ -1653,3 +1653,20 @@ test('rejects additional index edits mixed with the audited refuel receipt repai
       (revision === 'candidate' ? '\n// unaudited helper edit\n' : ''), isAncestor: () => false,
   }), /PC06|audit/);
 });
+
+const partitionSourceAtRevision = (revision, file) => execFileSync('git', [
+  'show', `${revision === 'base' ? 'a43a7acd2037941a05108588515b8c7e12564551' : 'db16d3ee615d3c2e78f79e877b01cf261e76485a'}:${file}`,
+], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+test('deploys the fleet partition repair and its exact mission eligibility helper', () => {
+  assert.deepEqual(selectedFunctions(deploymentSelector({
+    before: 'base', after: 'candidate', files: ['functions/src/index.ts', 'functions/src/missionEligibility.ts'],
+    targets: ['functions'], sourceAtRevision: partitionSourceAtRevision, isAncestor: () => false,
+  })), ['functions:confirmFleetPartition']);
+});
+test('rejects unaudited mission eligibility edits mixed with the partition repair', () => {
+  assert.throws(() => deploymentSelector({
+    before: 'base', after: 'candidate', files: ['functions/src/missionEligibility.ts'], targets: ['functions'],
+    sourceAtRevision: (revision, file) => partitionSourceAtRevision(revision, file) +
+      (revision === 'candidate' ? '\n// unaudited mission policy edit\n' : ''), isAncestor: () => false,
+  }), /audited|audit/i);
+});

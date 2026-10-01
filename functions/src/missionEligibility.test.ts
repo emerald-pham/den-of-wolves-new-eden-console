@@ -5,6 +5,7 @@ import {
   legacyCycleRepeatableMissionOpportunity,
   missionOpportunityDocumentPath,
   parseStoredMissionOpportunity,
+  partitionPendingMissionOpportunities,
 } from './missionEligibility';
 import type { SystemHistory } from './systemHistory';
 
@@ -24,6 +25,43 @@ const base = {
   sourceTransitionId: 'navigation-arrival-1',
   cycle: 2,
 };
+
+describe('pending arrival fleet rebinding guards', () => {
+  const pending = (destination = '1413') => {
+    const opportunity = firstArrivalMissionOpportunity({ ...base, destination })!;
+    return { id: opportunity.id, value: { ...opportunity, sessionId: 's1' } };
+  };
+  const groups = [{ id: 'fleet-1', vesselIds: ['dione'], memberUids: [] },
+    { id: 'fleet-2', vesselIds: ['aegis'], memberUids: ['alice'] }];
+  const rebind = (records: ReturnType<typeof pending>[], coordinates = { aegis: '1413' }) =>
+    partitionPendingMissionOpportunities('s1', 'A', 2, records, new Set(), groups, coordinates);
+
+  it('preserves repeatable cycle identity and historical arrival source metadata', () => {
+    const original = pending('8378');
+    expect(rebind([original], { aegis: '8378' })).toEqual([{ fromId: original.id,
+      opportunity: { ...firstArrivalMissionOpportunity({ ...base, destination: '8378' })!,
+        id: 'arrival-fleet-2-A-8378-cycle-2', groupId: 'fleet-2' } }]);
+  });
+
+  it('does not move a pending opportunity away from its recorded arrival location', () => {
+    expect(rebind([pending()], { aegis: '0000' })).toEqual([]);
+  });
+
+  it('rejects target identity collisions rather than overwriting another arrival', () => {
+    const original = pending();
+    const collision = { id: 'arrival-fleet-2-A-1413', value: { ...original.value,
+      id: 'arrival-fleet-2-A-1413', groupId: 'fleet-2' } };
+    expect(() => rebind([original, collision])).toThrow(/conflicts/i);
+  });
+
+  it.each([
+    { sessionId: 'other' }, { chart: 'B' }, { siteCode: 'E' }, { sourceCycle: 3 },
+    { sourceTransitionId: 'arbitrary-origin' }, { id: 'fake-arrival' },
+  ])('fails closed for mismatched pending authority %j', (change) => {
+    const original = pending();
+    expect(() => rebind([{ ...original, value: { ...original.value, ...change } }])).toThrow();
+  });
+});
 
 describe('group first-arrival mission eligibility', () => {
   it('creates one chart-bound opportunity for a newly reached printed mission system', () => {
