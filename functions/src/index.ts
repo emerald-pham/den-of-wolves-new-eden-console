@@ -20804,6 +20804,7 @@ export const launchPdfEscortWing = onCall<{
     await rejectForeignLegacyM1Command(tx, sessionId, requestId, 'P.D.F. Escort Wing launch', []);
     const replay = replayBoundCommand(receipt, fingerprint, isPdfEscortWingLaunchResult, 'P.D.F. Escort Wing launch');
     if (replay) return { ...replay, status: 'replayed' };
+    requireMissionMovementAvailable(session, ['pdf-escort-fighter-wing']);
     requireUsableShip(session, 'refinery-124');
     if (audit.exists) rejectLegacyEventReplay('P.D.F. Escort Wing launch');
     requireActiveGameplayPhase(session);
@@ -28386,16 +28387,32 @@ export const setSmallShipDocking = onCall<{
       if (movementSnapshot.exists && !movement) {
         throw commandError('failed-precondition', 'The small-craft movement authority is malformed. Refresh before docking.', 'conflict');
       }
-      if (data.docked && movement && movement.coordinate !== hostCoordinate) {
+      // Attached craft travel with their current host. Stored movement coordinates
+      // are authoritative only while detached; they may lag a host jump.
+      const attached = current.hostShipId !== null;
+      const origin = attached && isRecord(coordinates)
+        ? coordinates[current.hostShipId!]
+        : movement?.coordinate;
+      if (attached && (!activeVesselIdsForSession(session).includes(current.hostShipId!) ||
+          typeof origin !== 'string' || !STAR_CHART_COORDINATES.includes(origin))) {
+        throw commandError('failed-precondition', 'The current attached host position is unavailable. Refresh before docking.', 'conflict');
+      }
+      if (!attached && !movement && current.dockingRevision !== 0) {
+        throw commandError('failed-precondition', 'The established detached craft position is unavailable. Restore its movement authority before docking.', 'conflict');
+      }
+      if (data.docked && origin !== undefined && origin !== hostCoordinate) {
         throw commandError('failed-precondition', 'A small craft may only re-dock with a host at its current coordinate.', 'conflict');
       }
+      // Only the first GM docking may initialize a never-positioned craft.
+      // Existing attached craft initialize from their actual live host position.
+      const effectiveCoordinate = typeof origin === 'string' ? origin : hostCoordinate;
       if (!movement) {
-        nextMovement = emptySmallShipMovementState(data.sessionId, id, hostCoordinate);
-      } else if (!data.docked && movement.coordinate !== hostCoordinate) {
+        nextMovement = emptySmallShipMovementState(data.sessionId, id, effectiveCoordinate);
+      } else if (movement.coordinate !== effectiveCoordinate) {
         if (movement.revision >= Number.MAX_SAFE_INTEGER - 1) {
           throw commandError('failed-precondition', 'The small-craft movement revision is exhausted.', 'conflict');
         }
-        nextMovement = { ...movement, coordinate: hostCoordinate, revision: movement.revision + 1 };
+        nextMovement = { ...movement, coordinate: effectiveCoordinate, revision: movement.revision + 1 };
       }
     }
     const next: SmallShipState = {

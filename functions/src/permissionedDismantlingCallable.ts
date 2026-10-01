@@ -429,10 +429,10 @@ function currentTargetShipId(
   player: DocumentSnapshot,
   activeRoleIds: readonly string[],
 ): string | undefined {
+  if (player.get('replacementStatus') != null) return undefined;
   const replacementRoleId = player.get('replacementRoleId');
   if (replacementRoleId !== undefined && replacementRoleId !== null) {
-    if (typeof replacementRoleId !== 'string' || replacementRoleId.length === 0 ||
-        player.get('replacementStatus') !== undefined && player.get('replacementStatus') !== null) {
+    if (typeof replacementRoleId !== 'string' || replacementRoleId.length === 0) {
       return undefined;
     }
     return replacementRoleFor(replacementRoleId)?.vesselId;

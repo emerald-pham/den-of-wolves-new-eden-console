@@ -518,6 +518,9 @@ export function createSameTableTradeCallables(dependencies: SameTableTradeCallab
       const offerRef = db.doc(offerDocPath(sessionId, offerId));
       const existingOfferSnapshot = await tx.get(offerRef);
       ensureSessionExists(sessionSnapshot);
+      const playersSnapshot = await tx.get(db.collection(`sessions/${sessionId}/players`)) as QuerySnapshot;
+      const roster = readRoster(playersSnapshot, dependencies.isActivePlayer, dependencies.shipForRole);
+      const sender = requireActivePlayer(roster, uid, 'sender');
       if (existingOfferSnapshot.exists) {
         const existingOffer = requireOfferData(existingOfferSnapshot.data(), sessionId, offerId);
         if (!offerRequestMatches(existingOffer, uid, toUid, quantities)) {
@@ -528,7 +531,6 @@ export function createSameTableTradeCallables(dependencies: SameTableTradeCallab
 
       dependencies.requireNonterminalSessionPhase(sessionSnapshot.get('phase'));
 
-      const playersSnapshot = await tx.get(db.collection(`sessions/${sessionId}/players`)) as QuerySnapshot;
       const senderInventoryRef = db.doc(inventoryDocPath(sessionId, uid));
       const recipientInventoryRef = db.doc(inventoryDocPath(sessionId, toUid));
       const senderInventorySnapshot = await tx.get(senderInventoryRef);
@@ -536,8 +538,6 @@ export function createSameTableTradeCallables(dependencies: SameTableTradeCallab
       const stateRef = db.doc(stateDocPath(sessionId));
       const state = await readRevision(tx, stateRef, sessionId);
 
-      const roster = readRoster(playersSnapshot, dependencies.isActivePlayer, dependencies.shipForRole);
-      const sender = requireActivePlayer(roster, uid, 'sender');
       const recipient = requireActivePlayer(roster, toUid, 'recipient');
       requireSameTableAndFleet(sender, recipient);
       const senderInventory = requireInventoryRecord(senderInventorySnapshot, sessionId, uid);
@@ -592,6 +592,12 @@ export function createSameTableTradeCallables(dependencies: SameTableTradeCallab
         throw new HttpsError('permission-denied', 'Only the intended recipient may accept this trade.');
       }
 
+      // Exact recovery still requires the requesting recipient's current access.
+      // The other participant may have left the historical table after commit.
+      const playersSnapshot = await tx.get(db.collection(`sessions/${sessionId}/players`)) as QuerySnapshot;
+      const roster = readRoster(playersSnapshot, dependencies.isActivePlayer, dependencies.shipForRole);
+      const recipient = requireActivePlayer(roster, uid, 'recipient');
+
       const receiptRef = db.doc(receiptDocPath(sessionId, offerId));
       const receiptSnapshot = await tx.get(receiptRef);
       const senderInventoryRef = db.doc(inventoryDocPath(sessionId, storedOffer.fromUid));
@@ -640,10 +646,7 @@ export function createSameTableTradeCallables(dependencies: SameTableTradeCallab
         precondition('This offer is no longer pending and has no matching receipt.');
       }
       dependencies.requireNonterminalSessionPhase(sessionSnapshot.get('phase'));
-      const playersSnapshot = await tx.get(db.collection(`sessions/${sessionId}/players`)) as QuerySnapshot;
-      const roster = readRoster(playersSnapshot, dependencies.isActivePlayer, dependencies.shipForRole);
       const sender = requireActivePlayer(roster, storedOffer.fromUid, 'sender');
-      const recipient = requireActivePlayer(roster, storedOffer.toUid, 'recipient');
       requireSameTableAndFleet(sender, recipient);
       requireRevisionCoversInventories(state.revision, senderInventory, recipientInventory);
       if (sender.tableId !== storedOffer.tableId || recipient.tableId !== storedOffer.tableId ||

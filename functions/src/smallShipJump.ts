@@ -363,10 +363,11 @@ function entitledKnownCoordinates(
     }
     projectedCoordinates = rawCoordinates as string[];
   }
-  const privateArrivals = movement?.captainArrivalsByUid[uid] ?? [];
+  const privateArrivals = movement && Object.hasOwn(movement.captainArrivalsByUid, uid)
+    ? movement.captainArrivalsByUid[uid] ?? [] : [];
   const known = new Set([
     ...projectedCoordinates,
-    ...(missionCoordinates[uid] ?? []),
+    ...(Object.hasOwn(missionCoordinates, uid) ? missionCoordinates[uid] ?? [] : []),
     ...privateArrivals,
     ...(currentCoordinate === null ? [] : [currentCoordinate]),
   ]);
@@ -440,7 +441,8 @@ function safeWorkspace(
     charged: state.cycle.turn === turn && state.cycle.charges.includes('jump-drive'),
     hostFuel: fuel,
     knownDestinations: destinationChoices(smallShipId, currentCoordinate, knownCoordinates ?? []),
-    arrivalCoordinates: [...(movement?.captainArrivalsByUid[actorUid] ?? [])],
+    arrivalCoordinates: [...(movement && Object.hasOwn(movement.captainArrivalsByUid, actorUid)
+      ? movement.captainArrivalsByUid[actorUid] ?? [] : [])],
   };
 }
 
@@ -666,7 +668,8 @@ export function createSmallShipJumpCallables(dependencies: SmallShipJumpCallable
           captainArrivalsByUid: {
             ...movement.captainArrivalsByUid,
             [uid]: [...new Set([
-              ...(movement.captainArrivalsByUid[uid] ?? []), currentCoordinate, parsed.destination,
+              ...(Object.hasOwn(movement.captainArrivalsByUid, uid)
+                ? movement.captainArrivalsByUid[uid] ?? [] : []), currentCoordinate, parsed.destination,
             ])],
           },
         };

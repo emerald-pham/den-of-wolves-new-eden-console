@@ -24,7 +24,7 @@ export function planFleetPartition(navigation: NavigationState, groups: readonly
   }
   let nextNavigation = navigation;
   const nextGroups: FleetGroupRecord[] = [];
-  const memberGroups: Record<string, string> = {};
+  const memberGroups = new Map<string, string>();
   const occupied = new Set(groups.map(group => group.id));
   let nextId = 1;
   const allocate = () => {
@@ -44,14 +44,14 @@ export function planFleetPartition(navigation: NavigationState, groups: readonly
     for (const member of members.filter(member => member.groupId === group.id)) {
       const partition = member.shipId === null ? partitions[0] : partitions.find(part => part.vesselIds.includes(member.shipId!));
       if (!partition) throw new Error('Fleet partition member ship is outside its current group.');
-      partition.memberUids.push(member.uid); memberGroups[member.uid] = partition.id;
+      partition.memberUids.push(member.uid); memberGroups.set(member.uid, partition.id);
     }
     for (const partition of partitions.slice(1)) {
       nextNavigation = splitPursuitGroup(nextNavigation, group.id, [group.id, partition.id]);
     }
     nextGroups.push(...partitions);
   }
-  return { navigation: nextNavigation, groups: nextGroups, memberGroups };
+  return { navigation: nextNavigation, groups: nextGroups, memberGroups: Object.fromEntries(memberGroups) };
 }
 
 /** Returning members retain their authority; a new browser cannot choose another partition. */
