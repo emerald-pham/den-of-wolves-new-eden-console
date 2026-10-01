@@ -837,6 +837,23 @@ it('hydrates Voyage 33-0 movement only from valid server state for an admitted v
   expect(unadmitted.voyage33Movement).toBeUndefined();
 });
 
+it.each(['active', 'complete'] as const)('preserves the %s Demo boundary across live session snapshots', (status) => {
+  const marker = { status, finalCycle: 1 };
+  expect(sessionFrom('demo-snapshot', {
+    ...sessionData(8), currentTurn: 1, singlePlayerDemo: marker,
+  }).singlePlayerDemo).toEqual(marker);
+});
+
+it.each([
+  null, [], { status: 'active', finalCycle: 2 },
+  { status: 'unknown', finalCycle: 1 }, { finalCycle: 1 },
+  { status: 'active', finalCycle: 1, privatePayload: 'hidden' },
+])('does not project malformed Demo markers: %j', (singlePlayerDemo) => {
+  expect(sessionFrom('demo-malformed', {
+    ...sessionData(8), currentTurn: 1, singlePlayerDemo,
+  }).singlePlayerDemo).toBeUndefined();
+});
+
 it('hydrates the complete turn entity only when its server fields are valid', () => {
   const session = sessionFrom('turn-state-session', {
     ...sessionData(8),
