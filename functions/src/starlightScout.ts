@@ -127,7 +127,10 @@ function requireCurrentStarlightFuel(
   const rawRefuelled = typeof rawAegis === 'object' && rawAegis !== null && !Array.isArray(rawAegis)
     ? (rawAegis as Record<string, unknown>).refuelled
     : undefined;
-  if (!maintenance || maintenance.turn !== cycle || maintenance.step !== 7 ||
+  const completed = maintenance?.step === 0 && typeof maintenance.completedAt === 'string' &&
+    Number.isFinite(Date.parse(maintenance.completedAt)) &&
+    new Date(maintenance.completedAt).toISOString() === maintenance.completedAt;
+  if (!maintenance || maintenance.turn !== cycle || (maintenance.step !== 7 && !completed) ||
       !Array.isArray(rawRefuelled) ||
       rawRefuelled.some((shuttleId) => typeof shuttleId !== 'string' ||
         !knownShuttles.has(shuttleId)) ||
