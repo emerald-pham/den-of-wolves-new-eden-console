@@ -1153,7 +1153,9 @@ it('remeasures only the changed label for a clear deferred sweep fix', () => {
     plot.dispatchEvent(new Event(CONTACT_SCAN_LAYOUT_EVENT));
   });
 
-  expect(markReads).toBe(1);
+  // Blip transform animations can change unscanned bounds. Read every mark
+  // once in a batch, while retaining the expensive label-layout bound.
+  expect(markReads).toBe(marks.length);
   expect(labelReads).toBeLessThanOrEqual(2);
 });
 
