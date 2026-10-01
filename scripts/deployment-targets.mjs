@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import pc06DeploymentConsumers from './pc06-deployment-consumers.json' with { type: 'json' };
 import {
   classifyRiskGates,
   formatRiskGateOutputs,
@@ -92,9 +92,7 @@ const MALIADE_REPAIR_REQUEST_ADDITIONS = Object.freeze([
 
 // Exact PC06 source transitions include factory wiring and transitive helpers.
 // This owner inventory selects deployment targets; it does not grant review approval.
-const PC06_DEPLOYMENT_CONSUMERS = JSON.parse(readFileSync(
-  new URL('./pc06-deployment-consumers.json', import.meta.url), 'utf8',
-));
+const PC06_DEPLOYMENT_CONSUMERS = pc06DeploymentConsumers;
 
 function pc06TransitionConsumers(file, previous, current) {
   const transition = file === 'functions/src/index.ts'

@@ -30,7 +30,8 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       'Ship-specific Jump Drive costs, independent small-craft arrivals, fleet-group notes and scouting keep movement, fuel and private knowledge tied to the current crew and location.',
       'Away missions carry private cards through distribution, assignment, automatic outcomes, exploration, complete reward delivery and recovery while holding participating craft safely.',
       'Cargo, repairs, exact same-table trades and facilitator vessel controls use current roles, hosts and inventories. A separate four-step review scene lets you inspect prepared examples without changing a live game.',
-      '507 of 751 planned items are complete in the catalog snapshot used to build this release (67.51%). Further completion credit requires the remaining production acceptance evidence.',
+      '507 of 751 planned items are complete in the catalog snapshot used to build this release (67.51%).',
+      'Further completion credit requires the remaining production acceptance evidence.',
     ],
   },
 
