@@ -14,7 +14,7 @@ The real Firestore mission scenario uses compiled production transaction handler
 
 A separate composed real Firestore navigation scenario selects and locks a chart through the production setup handler, jumps two core ships independently, confirms their physical fleet partition, preserves group pursuit, creates each arrival opportunity once, and resumes the returning participant without granting the other partition's private destination. Exact retries preserve fuel, location, navigation revision and arrival effects.
 
-The rendered scene passes 320×844, 390×844, 844×390 and 1440×900 in normal and reduced motion. The checks exercise forward/back tabs, keyboard skip navigation, group isolation in prepared notes and scout reports, mission assignment/drop-off/reconnect, small-craft charge/arrival/stale-origin refresh, and repair/competing-action refresh. Controls remain within the viewport. The owner inspected the phone and desktop cargo/repair results. The repair heading uses the actual computed CIC display token at a readable size. These are local UI results.
+The rendered scene passes 320×844, 390×844, 844×390 and 1440×900 in normal and reduced motion. The checks exercise forward/back tabs, keyboard skip navigation, group isolation in prepared notes and scout reports, mission assignment/drop-off/reconnect, small-craft charge/arrival/stale-origin refresh, and repair/competing-action refresh. A vessel selector exposes the existing Shepherd, Quellon, Refinery124 and expansion Capybara fuel bands through the real Jump Drive presentation with launch disabled. Controls remain within the viewport. The owner inspected the phone and desktop cargo/repair results. The repair heading uses the actual computed CIC display token at a readable size. These are local UI results.
 
 ## Why tests changed
 
@@ -25,6 +25,7 @@ The rendered scene passes 320×844, 390×844, 844×390 and 1440×900 in normal a
 - The new composed navigation test joins previously separate chart, movement, pursuit, arrival and reconnect checks into one transaction scenario. A quiet-arrival node also creates its own mission opportunity; the fixture asserts two distinct arrivals and no retry duplicates.
 - The scene lacked a repaired-craft example. Separate component and browser checks failed on that missing surface before the production repair markup was extracted for safe local callbacks. Existing connected-controller retry and stale-state tests remain unchanged and pass.
 - Three inherited registry lint errors would block release CI. Removing unused local imports and expressing the existing conditional as statements preserves the exported API and review requirement; all 29 guidance/registry checks pass.
+- The fleet-drive review originally showed only Aegis. A separate committed regression failed at the missing vessel selector before the scene connected existing ship metadata; all 11 scene tests and eight rendered size/motion combinations pass, with every preview launch disabled.
 
 Earlier test-first and source-contract corrections, including printed bonuses, Warrior Reclamator, complete mission reward delivery, exact population counts, fleet-group membership and overrun, remain in [the execution record](PC06_EXECUTION_RECORD.md). No test was skipped or deleted to obtain the current results.
 
