@@ -32,7 +32,7 @@ it('allows corrected input after definitive server rejection without reusing its
   const actions = createScoutTaxiCommunicationActions(() => context, transport, ids);
   await expect(actions.send('aegis', 'First note.')).rejects.toThrow();
   await actions.send('aegis', 'Corrected note.');
-  expect(transport.mock.calls[1][0].requestId).toBe('taxi-2');
+  expect(transport.mock.calls[1]?.[0].requestId).toBe('taxi-2');
 });
 
 it('rejects a late receipt after the actor, group or authority revision changes', async () => {

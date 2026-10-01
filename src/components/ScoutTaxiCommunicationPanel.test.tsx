@@ -14,8 +14,8 @@ beforeEach(() => {
   useSessionStore.getState().reset();
   useSessionStore.getState().setIdentity({ id: 's1', name: 'Table', joinCode: '4821', phase: 'active', currentTurn: 3,
     activeRoleIds: ['wing-commander', 'quellon-explorer', 'shepherd-scientist'], activeVesselIds: ['aegis', 'quellon', 'shepherd'],
-    playerDiscovery: { sessionId: 's1', shipId: 'quellon', groupId: 'fleet-2', revision: 2,
-      currentCoordinate: '1413', knownCoordinates: ['1413'], systems: [] },
+    playerDiscovery: { shipId: 'quellon', groupId: 'fleet-2', revision: 2,
+      currentCoordinate: '1413', knownCoordinates: ['1413'], knownSystems: {}, pursuitDistance: 0, navigationLogs: [] },
     turnPhase: { turn: 3, teamPhaseEndsAt: '2099-01-01T00:00:00Z', openAirspaceEndsAt: '2099-01-01T00:10:00Z',
       airspace: { state: 'lifted', tickerActive: true, pressAccess: false } },
     ownerUid: 'gm1', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
