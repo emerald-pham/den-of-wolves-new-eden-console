@@ -1797,6 +1797,8 @@ it('batches crowded fallback translation probes while keeping names beside their
   }) as DOMRect;
   const marks = [{ x: 160, y: 80 }, { x: 160, y: 160 }];
   const probeSnapshots: string[][] = [];
+  const styleWrites = vi.spyOn(CSSStyleDeclaration.prototype, 'cssText', 'set');
+  let writesAtLastProbe = 0;
   vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(150);
   vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
     if (this.classList.contains('contact-plot')) return bounds(0, 0, 320, 240);
@@ -1811,6 +1813,7 @@ it('batches crowded fallback translation probes while keeping names beside their
       const anchor = contact?.dataset.labelAnchor ?? 'south-east';
       const xText = label.style.getPropertyValue('--label-clamp-x');
       const yText = label.style.getPropertyValue('--label-clamp-y');
+      if (!xText && yText === '8px') writesAtLastProbe = styleWrites.mock.calls.length;
       if (xText === '8px' && !yText) {
         probeSnapshots.push([...document.querySelectorAll<HTMLElement>('.contact-plot__tag')]
           .map((tag) => tag.style.getPropertyValue('--label-clamp-x')));
@@ -1830,6 +1833,9 @@ it('batches crowded fallback translation probes while keeping names beside their
   }))} />);
 
   expect(probeSnapshots.slice(0, 2)).toEqual([['8px', '8px'], ['8px', '8px']]);
+  // Once all native axes are measured, scoring prepared candidates is pure.
+  // Each label only restores its probe style and installs its final choice.
+  expect(styleWrites.mock.calls.length - writesAtLastProbe).toBeLessThanOrEqual(marks.length * 2);
   contactsIn(container).forEach((contact, index) => {
     const label = contact.querySelector('.contact-plot__tag')!.getBoundingClientRect();
     expect(label.left).toBeGreaterThanOrEqual(8);
