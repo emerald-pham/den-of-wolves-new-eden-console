@@ -203,6 +203,9 @@ function attemptStillMatches(attempt: Attempt, allowAdvancedAuthority = false): 
     (currentState.cycle.turn === undefined || currentState.cycle.turn <= currentTurn) &&
     currentState.cycle.revision >= attempt.expectedRevision &&
     currentState.dockingRevision >= attempt.expectedDockingRevision &&
+    (currentTurn === attempt.turn ||
+      currentState.cycle.revision > attempt.expectedRevision ||
+      currentState.dockingRevision > attempt.expectedDockingRevision) &&
     (currentState.hostShipId === attempt.hostShipId ||
       currentState.dockingRevision > attempt.expectedDockingRevision);
   return typeof window !== 'undefined' && window.navigator.onLine &&
