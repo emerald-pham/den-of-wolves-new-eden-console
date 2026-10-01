@@ -276,7 +276,7 @@ export default function Voyage33MaintenancePanel({
       ? 'UNCERTAIN // retry the exact request before choosing another maintenance action.'
       : 'Waiting for the server maintenance receipt.';
 
-  const perform = async (nextAttempt: Attempt, reconcileOnly?: true) => {
+  const perform = async (nextAttempt: Attempt, reconcileOnly?: true, recovering = false) => {
     setPending(true);
     setFeedback({ role: 'status', message: `Waiting for the server receipt for ${actionLabel(nextAttempt.action)}.` });
     try {
@@ -345,7 +345,7 @@ export default function Voyage33MaintenancePanel({
     } catch (cause) {
       const code = commandErrorCode(cause);
       const normalized = normalizeCommandError(cause);
-      if (reconcileOnly || UNCERTAIN_CODES.has(code)) {
+      if (recovering || reconcileOnly || UNCERTAIN_CODES.has(code)) {
         setAttempt(nextAttempt);
         setFeedback({ role: 'alert', message: `UNCERTAIN // ${normalized.message} Retry only this exact request while the same live GM instance and docked host remain current.` });
       } else {
@@ -385,7 +385,7 @@ export default function Voyage33MaintenancePanel({
       setFeedback({ role: 'alert', message: 'The original GM instance, docked host, or current cycle context changed. Keep this request unresolved and restore its exact live context before retrying.' });
       return;
     }
-    void perform(attempt);
+    void perform(attempt, undefined, true);
   };
 
   const reconcileOriginal = () => {
