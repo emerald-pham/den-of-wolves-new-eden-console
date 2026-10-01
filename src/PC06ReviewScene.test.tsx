@@ -206,3 +206,21 @@ it('reviews a real Repair Drones presentation with local materials, damage and s
   expect(within(repair).getByRole('status', { name: 'Repair sample result' })).toHaveTextContent(/refreshed.*already repaired/i);
   expect(within(repair).getByRole('combobox', { name: 'Gorgoneion repair console' })).not.toHaveTextContent('Jump Drive');
 });
+
+it('previews each assigned core Jump Drive fuel table without enabling production movement', async () => {
+  const user = userEvent.setup();
+  render(<PC06ReviewScene />);
+  const selector = screen.getByRole('combobox', { name: 'Fleet Jump Drive preview vessel' });
+  for (const [id, name, bands] of [
+    ['shepherd', 'Shepherd', 'S 3 // M 6 // L 12'],
+    ['quellon', 'Quellon', 'S 2 // M 4 // L 8'],
+    ['refinery-124', 'Refinery 124', 'S 2 // M 4 // L 8'],
+    ['capybara', 'Capybara', 'S 3 // M 6 // L 12'],
+  ]) {
+    await user.selectOptions(selector, id!);
+    const drive = screen.getByRole('region', { name: `${name} Jump Drive control` });
+    expect(within(drive).getByText(`Cost bands // ${bands}`)).toBeVisible();
+    expect(within(drive).getByRole('button', { name: /jump to/i })).toBeDisabled();
+  }
+  expect(jumpShip).not.toHaveBeenCalled();
+});
