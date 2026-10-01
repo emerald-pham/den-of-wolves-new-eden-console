@@ -956,8 +956,10 @@ it('lets the facilitator author and advance a crisis lifecycle from the GM conso
   renderConsole();
 
   const panel = await screen.findByRole('region', { name: 'Crisis state machine' });
-  await user.type(within(panel).getByRole('textbox', { name: 'Crisis title' }), 'Relay pressure');
-  await user.type(within(panel).getByRole('textbox', { name: 'Crisis facilitator notes' }), 'Facilitator-only deliberation.');
+  await user.click(within(panel).getByRole('textbox', { name: 'Crisis title' }));
+  await user.paste('Relay pressure');
+  await user.click(within(panel).getByRole('textbox', { name: 'Crisis facilitator notes' }));
+  await user.paste('Facilitator-only deliberation.');
   await user.selectOptions(within(panel).getByRole('combobox', { name: 'Crisis kind' }), 'approaching-vessel');
   expect(within(panel).getByText('Vessel reality and difficulty reasoning (private)')).toBeVisible();
   expect(within(panel).getByText(/Delivery publishes the scouting report/)).toBeVisible();
@@ -965,7 +967,8 @@ it('lets the facilitator author and advance a crisis lifecycle from the GM conso
   expect(within(panel).getByText(/Delivery publishes the movement report/)).toBeVisible();
   await user.selectOptions(within(panel).getByRole('combobox', { name: 'Crisis kind' }), 'presidential-election');
   expect(within(panel).getByText(/Delivery introduces the election decision/)).toBeVisible();
-  await user.type(within(panel).getByRole('textbox', { name: 'Crisis configuration override' }), 'Alternate decision maker agreed at this table.');
+  await user.click(within(panel).getByRole('textbox', { name: 'Crisis configuration override' }));
+  await user.paste('Alternate decision maker agreed at this table.');
   await user.click(within(panel).getByRole('button', { name: 'Mark draft' }));
 
   await waitFor(() => expect(transitionCrisis).toHaveBeenCalledWith(
@@ -4153,10 +4156,14 @@ it('labels outbreak fields as public and submits them separately from private no
   await user.selectOptions(within(panel).getByRole('combobox', { name: 'Crisis kind' }), 'disease-outbreak');
   expect(within(panel).getByText('Outbreak report — visible to all session members on delivery')).toBeVisible();
   await user.click(within(panel).getByRole('checkbox', { name: /AEGIS/ }));
-  await user.type(within(panel).getByLabelText('Reported work restrictions (public)'), 'Affected crew cannot work.');
-  await user.type(within(panel).getByLabelText('Escalation risk (public)'), 'Further spread is possible.');
-  await user.type(within(panel).getByLabelText('Crisis title'), 'Outbreak');
-  await user.type(within(panel).getByLabelText('Crisis facilitator notes'), 'Private adjudication.');
+  await user.click(within(panel).getByLabelText('Reported work restrictions (public)'));
+  await user.paste('Affected crew cannot work.');
+  await user.click(within(panel).getByLabelText('Escalation risk (public)'));
+  await user.paste('Further spread is possible.');
+  await user.click(within(panel).getByLabelText('Crisis title'));
+  await user.paste('Outbreak');
+  await user.click(within(panel).getByLabelText('Crisis facilitator notes'));
+  await user.paste('Private adjudication.');
   await user.click(within(panel).getByRole('button', { name: 'Mark draft' }));
   await waitFor(() => expect(transitionCrisis).toHaveBeenCalledWith(
     'crisis-1', 'draft', 'Outbreak', 'Private adjudication.',
