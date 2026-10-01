@@ -1704,3 +1704,20 @@ test('rejects extra Voyage adapter edits mixed with the exact jump repair', () =
       (revision === 'candidate' ? '\n// unaudited authority edit\n' : ''), isAncestor: () => false,
   }), /audited|audit/i);
 });
+
+const starlightRepairSourceAtRevision = (revision, file) => execFileSync('git', ['show',
+  `${revision === 'base' ? 'a1fd66dc5014ff3c9ea8035edecd8ca394e3d76c' : 'f274dd44'}:${file}`,
+], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+test('deploys both exact current Starlight fuel policy consumers', () => {
+  assert.deepEqual(selectedFunctions(deploymentSelector({ before: 'base', after: 'candidate',
+    files: ['functions/src/starlightScout.ts'], targets: ['functions'],
+    sourceAtRevision: starlightRepairSourceAtRevision, isAncestor: () => false,
+  })), ['functions:requestScout', 'functions:sendScoutTaxiCourier']);
+});
+test('rejects unaudited Starlight fuel policy edits', () => {
+  assert.throws(() => deploymentSelector({ before: 'base', after: 'candidate',
+    files: ['functions/src/starlightScout.ts'], targets: ['functions'],
+    sourceAtRevision: (revision, file) => starlightRepairSourceAtRevision(revision, file) +
+      (revision === 'candidate' ? '\n// unaudited scout authority\n' : ''), isAncestor: () => false,
+  }), /audited|audit/i);
+});
