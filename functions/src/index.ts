@@ -14767,9 +14767,10 @@ export const sendScoutTaxiCourier = onCall(async request => {
       }
       const controls = session.get('shuttleControl');
       const control = isRecord(controls) ? controls[data.shuttleId] : undefined;
-      const obsolete = session.get('currentTurn') !== data.expectedCycle ||
-        navigation.get('revision') !== data.expectedNavigationRevision ||
-        (isRecord(control) && control.revision !== data.expectedControlRevision);
+      const advanced = (value: unknown, expected: number) => Number.isSafeInteger(value) && (value as number) > expected;
+      const obsolete = advanced(session.get('currentTurn'), data.expectedCycle) ||
+        advanced(navigation.get('revision'), data.expectedNavigationRevision) ||
+        (isRecord(control) && advanced(control.revision, data.expectedControlRevision));
       if (!obsolete) throw new HttpsError('failed-precondition', 'The original courier may still finish. Retry its exact request.');
       return { status: 'not-delivered' as const, requestId: data.requestId, shuttleId: data.shuttleId,
         targetShipId: data.targetShipId, cycle: data.expectedCycle };
