@@ -281,15 +281,17 @@ function clampScannedContactLabels(
   if (contacts.some((contact) => contact?.dataset.moving === 'true' ||
     contact?.dataset.departing === 'true')) return plotBounds;
 
-  const freshMarks = new Map<number, DOMRect>();
-  for (const index of targets) {
-    const mark = contacts[index]?.querySelector<HTMLElement>('.contact-plot__blip');
+  // First-acquisition flashes animate the blip's rendered scale even when
+  // its held fix is stationary and no scan event targets it. Refresh every
+  // mark in this read batch; only unchanged label rectangles can be reused.
+  const marks: DOMRect[] = [];
+  for (const contact of contacts) {
+    const mark = contact?.querySelector<HTMLElement>('.contact-plot__blip');
     if (!mark) return plotBounds;
     const bounds = mark.getBoundingClientRect();
     if (bounds.width <= 0 || bounds.height <= 0) return plotBounds;
-    freshMarks.set(index, bounds);
+    marks.push(bounds);
   }
-  const marks = cached.map((layout, index) => freshMarks.get(index) ?? layout!.markBounds);
   const shipPlot = plot.closest<HTMLElement>('.ship-plot');
   const overlayControls = shipPlot?.querySelectorAll<HTMLElement>(
     '.ship-plot__label, .ship-plot__toggle, .ship-plot__galactic-coordinate, ' +
