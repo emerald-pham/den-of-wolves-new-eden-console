@@ -290,3 +290,25 @@ the original assumption; append the resolution so the decision is traceable.
 | Chosen reading | A live facilitator explicitly confirms separated groups after ordinary movement. The server partitions each existing group by authoritative current core-vessel coordinates, clones its current pursuit score into the resulting parts, and preserves unrelated groups. Players follow their current authoritative vessel or docked host; members without a core host retain the original group. No browser chooses a partition, recipient group, or pursuit score. |
 | Product effect | Ordinary short group notes use authenticated send/read calls with server-owned group membership. Joining, reconnecting, and kicking a member preserve the existing partition. The client hides notes after authority or audience changes. Existing independently moving small craft retain their communication group until a governed partition/rejoin; they are not added to the core-vessel navigation map. Taxi transport, scheduling partial fleet arrivals, pursuit merge/rejoin clocks, and broader message workflows remain in their assigned later tranches. |
 | Review state | New digital timing assumption under explicit PC06 authorization. Connected local candidate and rendered review evidence exist; independent risk review, deployment, and ordinary gameplay proof remain pending. No outside prompt receives completion credit. |
+
+### PC09-A1 — One minimal VIP Host visit attestation
+
+| Field | Record |
+|---|---|
+| ID and milestone | PC09-A1; future PC09 only; recorded 2026-09-30. |
+| Source passage | Home-printing A4 single-sided pack v1.1, PDF p. 21, VIP Host replacement role, Hosting. The inspected full-page card permits a ship other than Dione to reroll one die in its maintenance cycle when the Host spends Team Time there. |
+| Ambiguity and alternatives | The physical card does not specify who enters that visit in a digital console. Alternatives are Host self-declaration, destination captain confirmation, or a minimal GM attestation. Console browsing and shuttle docking do not prove that the player spent Team Time there. |
+| Chosen reading | The one active GM records the factual Team Time visit once, bound to Host, destination, cycle and current authority. This is a digital confirmation assumption, not a printed GM requirement. It needs no second GM, destination captain acknowledgement or manual calculation. |
+| Product effect | P517 provides this explicit attestation and automatically grants the eligible ship its one-die reroll for the corresponding maintenance cycle; granting and consuming it use durable once-only receipts. Reject Dione, wrong timing/role, stale or duplicate claims and reuse of the benefit. Keep ordinary navigation read-only. This replaces the historical unresolved digital-actor question under standing execution authorization; no implementation or closure is claimed. |
+| Review state | New source-backed digital assumption under FUTURE-F01/FUTURE-F03 authorization, subject to optional owner correction at PC09. State it first in the PC09 report. PC06 is unaffected. |
+
+### PC09-A2 — Presidential Visit uses Coordination and its printed cost
+
+| Field | Record |
+|---|---|
+| ID and milestone | PC09-A2; future PC09 only; recorded 2026-09-30. |
+| Source passage | Home-printing A4 single-sided pack v1.1, PDF p. 37, Office of the President, Presidential Visit. The inspected full-page card allows one political capital to reduce one ship's unrest by one during Coordination. The separate address on that card occurs at Team start. |
+| Ambiguity and alternatives | P524c's old Team Time wording conflated the visit with the VIP Host ability. Digital implementations might require a route/docking visit, a separate GM confirmation, or the President's authoritative action. The card gives phase, cost and effect without printing a shuttle or docking requirement. |
+| Chosen reading | Correct the visit to Coordination. The current President selects an eligible ship and commits the printed action; the server validates authority, phase, political capital and destination, then applies cost and unrest together. Do not invent a docking, console-browsing or second-GM prerequisite. A genuine physical ruling or intervention can use the existing GM path if needed. |
+| Product effect | P524c uses one replay-safe transaction and private GM receipt for the cost/effect, with entitled outcome/news projections. It does not borrow P517's Team Time confirmation or P524b's address timing and does not grant arbitrary resource or GM authority. No runtime behavior or completion is claimed. |
+| Review state | New source correction and digital action assumption under FUTURE-F01/FUTURE-F03 authorization; subject to optional owner correction at PC09 and reported first. PC06 is unaffected. |

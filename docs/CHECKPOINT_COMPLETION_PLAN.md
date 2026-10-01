@@ -114,6 +114,17 @@ planning change. A blocker makes the checkpoint incomplete; it does not make
 its target smaller. Escalate real access or source blockers with concrete
 choices only after exhausting useful independent work.
 
+## PC07–PC10 acceptance alignment — 2026-09-30
+
+The owner authorized prompt revisions for **PC07 onward only**, while PC06
+continues in progress. Apply the [PC07–PC10 alignment guide](PC07_PC10_ALIGNMENT.md)
+to the 195 future IDs below: one-facilitator automation, entitled player choices,
+private GM receipts, audience-safe Press handoffs, CIC presentation, graceful
+recovery and finished solo tours. This updates future acceptance criteria, not
+PC06 scope, runtime behavior, release evidence or completion status. Preserve
+all ID assignments and cumulative targets. P605a still requires separate
+explicit activation before closure; this amendment does not supply it.
+
 ## Complete baseline allocation
 
 This recovery allocation replaces the old per-checkpoint scope assignment.

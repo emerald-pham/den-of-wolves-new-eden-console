@@ -219,6 +219,17 @@ review, repair every finding, then run one reconciled CI/release candidate and
 deployment. Verify normal authorized gameplay separately from tests, the
 synthetic PC06 scene, and deployment; report any unavailable production path
 without crediting its prompt. Do not start PC07 during this checkpoint.
+## Future acceptance alignment — PC07–PC10 only
+
+**Owner instruction, 2026-09-30:** execute the philosophical alignment from
+PC07 onward because PC06 is already in progress. The
+[PC07–PC10 alignment guide](PC07_PC10_ALIGNMENT.md) records the earlier explicit
+decisions, scoped operating/presentation contract, targeted prompt amendments
+and representative solo UI checks. The canonical catalog references that guide
+for each of these 195 assigned IDs. Use it when shaping these future tranches;
+PC06's current shape and acceptance are not retroactively amended. Fixed
+membership, 49/49/49/48 closures, standing authorization and actual gameplay
+proof remain intact. P605a retains its separate owner activation boundary.
 
 ## How the campaign runs
 
