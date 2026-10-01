@@ -105,6 +105,15 @@ function firstStarlightScan(targetCoordinate = '5143') {
   };
 }
 
+function starlightFuelAuthority() {
+  return {
+    maintenanceCycles: {
+      aegis: { turn: 4, step: 7, revision: 1, results: {}, charges: [], refuelled: ['starlight'] },
+    },
+    shuttleFuelled: { starlight: true },
+  };
+}
+
 describe('P151 scout-taxi communication plan', () => {
   it('plans one bounded cross-group courier note and consumes the existing Starlight cadence', () => {
     const plan = planScoutTaxiCommunication(baseInput());
@@ -157,6 +166,18 @@ describe('P151 scout-taxi communication plan', () => {
     });
   });
 
+  it('accepts at most 200 characters of non-empty courier text', () => {
+    expect(planScoutTaxiCommunication(baseInput({
+      request: request({ text: 'x'.repeat(200) }),
+    })).text).toHaveLength(200);
+    expect(() => planScoutTaxiCommunication(baseInput({
+      request: request({ text: 'x'.repeat(201) }),
+    }))).toThrow();
+    expect(() => planScoutTaxiCommunication(baseInput({
+      request: request({ text: '  \n  ' }),
+    }))).toThrow();
+  });
+
   it('permits Starlight’s fuelled second attempt only under the existing cadence policy', () => {
     const result = planScoutTaxiCommunication(baseInput({
       request: request({ targetShipId: 'dione' }),
@@ -165,8 +186,7 @@ describe('P151 scout-taxi communication plan', () => {
         sessionId: 'session-1', entitlementId: 'starlight', cycle: 4,
         scans: [{ requestId: 'first-scan', actorUid: 'starlight-owner', scan: firstStarlightScan() }],
       },
-      maintenanceCycles: { aegis: { turn: 4, step: 7, refuelled: ['starlight'] } },
-      shuttleFuelled: { starlight: true },
+      ...starlightFuelAuthority(),
     }));
 
     expect(result).toMatchObject({
@@ -257,10 +277,11 @@ describe('P151 scout-taxi communication plan', () => {
 
   it('rejects same-group targets and incomplete or duplicated group authority', () => {
     expect(() => planScoutTaxiCommunication(baseInput({
-      fleetGroups: [{
-        id: 'fleet-1', vesselIds: activeVesselIds,
-        memberUids: ['starlight-owner', 'hummingbird-owner', 'target-player'],
-      }],
+      fleetGroups: [
+        { id: 'fleet-1', vesselIds: ['aegis', 'quellon', 'shepherd'],
+          memberUids: ['starlight-owner', 'hummingbird-owner', 'target-player'] },
+        { id: 'fleet-2', vesselIds: ['dione'], memberUids: ['dione-player'] },
+      ],
     }))).toThrow(/different fleet groups/i);
 
     expect(() => planScoutTaxiCommunication(baseInput({
@@ -270,6 +291,18 @@ describe('P151 scout-taxi communication plan', () => {
     expect(() => planScoutTaxiCommunication(baseInput({
       fleetGroups: [groups[0], { ...groups[1], vesselIds: ['shepherd', 'shepherd'] }],
     }))).toThrow();
+
+    expect(() => planScoutTaxiCommunication(baseInput({
+      fleetGroups: [groups[0], { ...groups[1], memberUids: [] }],
+    }))).toThrow();
+  });
+
+  it.each([
+    ['an unlocked or unknown chart', { chartId: 'D' }],
+    ['a missing printed craft role', { activeRoleIds: ['quellon-explorer', 'shepherd-scientist', 'dione-captain'] }],
+    ['an inconsistent active vessel roster', { activeVesselIds: ['aegis', 'shepherd', 'dione'] }],
+  ])('rejects %s', (_label, patch) => {
+    expect(() => planScoutTaxiCommunication(baseInput(patch))).toThrow();
   });
 
   it('rejects absent current fixes and routes outside the printed shuttle range', () => {
@@ -328,8 +361,7 @@ describe('P151 scout-taxi communication plan', () => {
     expect(() => planScoutTaxiCommunication(secondAttempt)).toThrow();
     expect(() => planScoutTaxiCommunication({
       ...secondAttempt,
-      maintenanceCycles: { aegis: { turn: 4, step: 7, refuelled: ['starlight'] } },
-      shuttleFuelled: { starlight: true },
+      ...starlightFuelAuthority(),
       cadence: {
         sessionId: 'session-1', entitlementId: 'starlight', cycle: 4,
         scans: [{ requestId: 'first-scan', actorUid: 'starlight-owner', scan: firstStarlightScan('1413') }],
