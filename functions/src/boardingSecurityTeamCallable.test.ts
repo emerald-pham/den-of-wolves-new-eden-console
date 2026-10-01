@@ -150,4 +150,15 @@ describe('authenticated boarding-security location read', () => {
       auth: { uid: actorUid }, data: { sessionId, instanceId },
     })).rejects.toMatchObject({ code });
   });
+
+  it('does not read the craft manifest when live GM authority rejects the request', async () => {
+    const { callable, facilitator, transaction } = fixture();
+    facilitator.mockRejectedValueOnce(new HttpsError('permission-denied', 'Not the active GM.'));
+
+    await expect(callable({
+      auth: { uid: actorUid },
+      data: { sessionId, instanceId },
+    })).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(transaction.get).not.toHaveBeenCalled();
+  });
 });
