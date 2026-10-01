@@ -4,7 +4,6 @@ import { STAR_CHART_SYSTEMS } from '@/data/starChartTopology';
 import { useSessionStore } from '@/store/useSessionStore';
 import type {
   GameSession,
-  Voyage33MaintenanceState,
   Voyage33MovementState,
 } from '@/types/game';
 import { jumpLengthBetween } from '../../functions/src/jumpDrive';
@@ -14,6 +13,7 @@ import { parseVoyage33MovementState } from '../../functions/src/voyage33Movement
 import {
   emptyVoyage33MaintenanceState,
   parseVoyage33MaintenanceState,
+  type Voyage33MaintenanceState as Voyage33MaintenanceRuntimeState,
 } from '../../functions/src/voyage33Maintenance';
 import {
   Voyage33MovementRejectedError,
@@ -28,6 +28,7 @@ import Voyage33MovementPanel, {
   type Voyage33MovementHost,
   type Voyage33MovementPanelProps,
 } from './Voyage33MovementPanel';
+import Voyage33MaintenancePanel from './Voyage33MaintenancePanel';
 
 type Outcome = Voyage33MovementPanelProps['outcome'];
 type Notice = Readonly<{ role: 'status' | 'alert'; message: string }>;
@@ -46,7 +47,7 @@ type UncertainAction = Readonly<{
   expectedDockingRevision: number;
 }>;
 
-function maintenanceFor(session: GameSession): Voyage33MaintenanceState | undefined {
+function maintenanceFor(session: GameSession): Voyage33MaintenanceRuntimeState | undefined {
   if (session.voyage33Maintenance === undefined) return emptyVoyage33MaintenanceState();
   return parseVoyage33MaintenanceState(session.voyage33Maintenance);
 }
@@ -201,15 +202,13 @@ export default function Voyage33MovementWorkspace() {
     });
   }, [session, maintenance, currentCoordinate, projectedCoordinates]);
 
-  const driveReady = !!maintenance && maintenance.cycle.turn === turn &&
-    maintenance.cycle.charges.includes('jump-drive');
   const alreadyJumped = movement?.jumpState.lastJumpTurn === turn;
   const visibleLegalRoutes = useMemo((): readonly {
     coordinate: string;
     label: string;
     length: Voyage33JumpLength;
   }[] => {
-    if (!session || !movement || !hostProjectionValid || !driveReady || alreadyJumped ||
+    if (!session || !movement || !hostProjectionValid || alreadyJumped ||
         !currentCoordinate || !projectedCoordinates.has(currentCoordinate)) return [];
     return STAR_CHART_SYSTEMS.flatMap((system) => {
       const coordinate = session.organiserSystems?.[system.id];
@@ -219,7 +218,7 @@ export default function Voyage33MovementWorkspace() {
       return length ? [{ coordinate, label: labelFor(session, coordinate), length }] : [];
     });
   }, [
-    session, movement, hostProjectionValid, driveReady, alreadyJumped,
+    session, movement, hostProjectionValid, alreadyJumped,
     currentCoordinate, projectedCoordinates,
   ]);
   const hostFuel = isSafeFuel(hostFuelValue) ? hostFuelValue : 0;
@@ -234,7 +233,6 @@ export default function Voyage33MovementWorkspace() {
     else if (!hostProjectionValid) jumpBlockReason = 'The assigned host position, damage, or fuel projection is unavailable.';
     else if (hostCoordinate !== movement.coordinate) jumpBlockReason = 'Voyage 33-0 and its host must share the same location.';
     else if (alreadyJumped) jumpBlockReason = 'Voyage 33-0 has already jumped this cycle.';
-    else if (!driveReady) jumpBlockReason = 'Charge the Voyage 33-0 Jump Drive during Team Phase before departure.';
     else if (!projectedCoordinates.has(movement.coordinate)) {
       jumpBlockReason = 'The current system is not present in the facilitator navigation projection.';
     } else if (visibleLegalRoutes.length === 0) {
@@ -428,6 +426,20 @@ export default function Voyage33MovementWorkspace() {
             <p className="gm-console__status" role={notice.role} aria-live={notice.role === 'alert' ? 'assertive' : 'polite'}>
               {notice.message}
             </p>
+          )}
+          {rawHostId && maintenance && host && hostProjectionValid && (
+            <Voyage33MaintenancePanel
+              session={session}
+              state={maintenance}
+              hostShipId={rawHostId}
+              hostName={host.name}
+              hostResources={session.shipResources?.[rawHostId]}
+              currentTurn={turn}
+              phase={phase.kind}
+              authorityReady={admission && gmCurrent && fresh && activeMultiplayer &&
+                !phase.paused && phase.kind === 'team' && !projectionGuard &&
+                outcome.status !== 'pending' && connectionState === 'live' && online}
+            />
           )}
           {projectionGuard ? (
             <p className="gm-console__status" role="status">

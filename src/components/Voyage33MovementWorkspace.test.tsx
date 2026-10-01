@@ -81,7 +81,6 @@ function movementState(coordinate = '0000', revision = 0, lastJumpTurn?: number)
 function maintenanceState(
   hostShipId: string | null = null,
   dockingRevision = 0,
-  charged = false,
 ): Voyage33MaintenanceState {
   const base = emptyVoyage33MaintenanceState(hostShipId);
   return {
@@ -90,7 +89,7 @@ function maintenanceState(
     cycle: {
       ...base.cycle,
       turn: 1,
-      charges: charged ? ['jump-drive'] : [],
+      charges: [],
     },
   };
 }
@@ -129,6 +128,31 @@ function sessionFixture(
     },
     ...overrides,
   } as GameSession;
+}
+
+function maintenanceCommit(
+  session: GameSession,
+  requestId: string,
+  action: 'rations' | 'unrest',
+  expectedRevision: number,
+  expectedDockingRevision: number,
+  nextState: Voyage33MaintenanceState,
+) {
+  return {
+    status: 'committed',
+    requestId,
+    sessionId: session.id,
+    shipId: VOYAGE_33_ID,
+    hostShipId: 'aegis',
+    action,
+    expectedRevision,
+    committedRevision: expectedRevision + 1,
+    expectedDockingRevision,
+    currentDockingRevision: expectedDockingRevision,
+    currentTurn: 1,
+    cycle: nextState.cycle,
+    result: { state: nextState, hostResources: session.shipResources!.aegis },
+  };
 }
 
 function installGm(session: GameSession, freshness: 'server' | 'cache' = 'server') {
@@ -207,7 +231,7 @@ describe('Voyage 33-0 movement workspace', () => {
     const session = sessionFixture('voyage-workspace-jump', {
       turnPhase: phase('coordination'),
       voyage33Movement: movementState('0000', 5),
-      voyage33Maintenance: maintenanceState('aegis', 7, true),
+      voyage33Maintenance: maintenanceState('aegis', 7),
       shipDamage: { aegis: { damagedSystemIds: ['engine'], destroyed: false } },
     });
     installGm(session);
@@ -244,7 +268,7 @@ describe('Voyage 33-0 movement workspace', () => {
     const session = sessionFixture(sessionId, {
       turnPhase: phase('coordination'),
       voyage33Movement: movementState('0000', 5),
-      voyage33Maintenance: maintenanceState('aegis', 7, true),
+      voyage33Maintenance: maintenanceState('aegis', 7),
     });
     installGm(session);
     const uncertain = new movementService.Voyage33MovementUncertainError({
@@ -282,7 +306,7 @@ describe('Voyage 33-0 movement workspace', () => {
     const session = sessionFixture(sessionId, {
       turnPhase: phase('coordination'),
       voyage33Movement: movementState('0000', 5),
-      voyage33Maintenance: maintenanceState('aegis', 7, true),
+      voyage33Maintenance: maintenanceState('aegis', 7),
     });
     installGm(session);
     vi.mocked(jumpVoyage33Movement).mockResolvedValue({
@@ -301,7 +325,7 @@ describe('Voyage 33-0 movement workspace', () => {
       useSessionStore.getState().setSession({
         ...session,
         voyage33Movement: movementState('0000', 6),
-        voyage33Maintenance: maintenanceState('aegis', 8, true),
+        voyage33Maintenance: maintenanceState('aegis', 8),
       });
     });
     expect(await within(workspace).findByRole('button', { name: /Jump to Known nearby site/i })).toBeInTheDocument();
@@ -341,9 +365,9 @@ describe('Voyage 33-0 movement workspace', () => {
     render(<Voyage33MovementWorkspace />);
 
     const maintenance = screen.getByRole('region', { name: 'Voyage 33-0 maintenance' });
-    expect(within(maintenance).getByRole('checkbox', { name: /Hydroponics/i })).toBeInTheDocument();
-    expect(within(maintenance).getByRole('checkbox', { name: /Water Reclimator/i })).toBeInTheDocument();
-    expect(within(maintenance).queryByRole('checkbox', { name: /Jump Drive/i })).not.toBeInTheDocument();
+    expect(within(maintenance).getByRole('radio', { name: /Hydroponics/i })).toBeInTheDocument();
+    expect(within(maintenance).getByRole('radio', { name: /Water Reclimator/i })).toBeInTheDocument();
+    expect(within(maintenance).queryByRole('radio', { name: /Jump Drive/i })).not.toBeInTheDocument();
   });
 
   it('waits for the server receipt before showing the actual unrest dice result', async () => {
@@ -378,7 +402,7 @@ describe('Voyage 33-0 movement workspace', () => {
     expect(runVoyage33Maintenance).toHaveBeenCalledWith(
       'unrest', 2, 4, {}, expect.any(String),
     );
-    expect(within(maintenance).getByRole('status')).toHaveTextContent(/waiting for.*server receipt/i);
+    expect(within(maintenance).getByText(/waiting for the server receipt for roll unrest/i)).toBeInTheDocument();
     expect(within(maintenance).queryByText(/Rolled 5 \+ 5 \+ 9 = 19/i)).not.toBeInTheDocument();
 
     const requestId = runVoyage33Maintenance.mock.calls[0]?.[4] as string;
@@ -414,15 +438,190 @@ describe('Voyage 33-0 movement workspace', () => {
       },
     }));
 
-    expect(await within(maintenance).findByText('Rolled 5 + 5 + 9 = 19. Added 1 unrest; unrest 1.')).toBeInTheDocument();
-    expect(within(maintenance).getByRole('status')).toHaveTextContent(/waiting for.*session projection/i);
+    expect(await within(maintenance).findByText(/Rolled 5 \+ 5 \+ 9 = 19\. Added 1 unrest; unrest 1\./)).toBeInTheDocument();
+    expect(within(maintenance).getByText(/waiting for the live session projection to reflect this result and the current host resource ledger/i)).toBeInTheDocument();
+
+    const originalHostResources = session.shipResources!.aegis!;
+    const changedBalances = {
+      ...originalHostResources,
+      food: originalHostResources.food - 1,
+    };
+    const sameRevisionMismatch: Voyage33MaintenanceState = {
+      ...nextState,
+      unrest: 2,
+      cycle: {
+        ...nextState.cycle,
+        results: { ...nextState.cycle.results, '2': 'Mismatched same-revision projection.' },
+      },
+    };
+    await act(async () => useSessionStore.getState().setSession({
+      ...session,
+      voyage33Maintenance: sameRevisionMismatch,
+      shipResources: { ...session.shipResources, aegis: changedBalances },
+    }));
+    expect(within(maintenance).getByText(/waiting for the live session projection to reflect this result and the current host resource ledger/i)).toBeInTheDocument();
+    expect(within(maintenance).getByRole('button', { name: /roll population \/ riot/i })).toBeDisabled();
+
+    await act(async () => useSessionStore.getState().setSession({
+      ...session,
+      voyage33Maintenance: nextState,
+      shipResources: { ...session.shipResources, aegis: changedBalances },
+    }));
+    expect(await within(maintenance).findByText(/live session projection now matches the server maintenance receipt/i)).toBeInTheDocument();
+    expect(within(maintenance).getByRole('button', { name: /roll population \/ riot/i })).toBeEnabled();
+    expect(within(maintenance).getByText(/7 food \/\/ 6 water \/\/ 5 fuel/i)).toBeInTheDocument();
+  });
+
+  it('sends explicit ration levels to the current host and waits for the receipt', async () => {
+    const base = emptyVoyage33MaintenanceState('aegis');
+    const session = sessionFixture('voyage-workspace-rations', {
+      voyage33Movement: movementState('0000', 2),
+      voyage33Maintenance: {
+        ...base,
+        dockingRevision: 4,
+        cycle: { ...base.cycle, step: 1, revision: 1, turn: 1 },
+      },
+    });
+    installGm(session);
+    runVoyage33Maintenance.mockImplementation(() => new Promise(() => undefined));
+    render(<Voyage33MovementWorkspace />);
+
+    const maintenance = screen.getByRole('region', { name: 'Voyage 33-0 maintenance' });
+    fireEvent.change(within(maintenance).getByLabelText('Voyage 33-0 food ration level'), { target: { value: '1' } });
+    fireEvent.change(within(maintenance).getByLabelText('Voyage 33-0 water ration level'), { target: { value: '2' } });
+    fireEvent.click(within(maintenance).getByRole('button', { name: /apply host-funded rations/i }));
+
+    expect(runVoyage33Maintenance).toHaveBeenCalledWith('rations', 1, 4, {
+      foodLevel: 1,
+      waterLevel: 2,
+    }, expect.any(String));
+    expect(within(maintenance).getByText(/waiting for the server receipt for apply rations/i)).toBeInTheDocument();
+  });
+
+  it('keeps a stale maintenance action held until the live projection catches up', async () => {
+    const base = emptyVoyage33MaintenanceState('aegis');
+    const session = sessionFixture('voyage-workspace-maintenance-stale', {
+      voyage33Movement: movementState('0000', 2),
+      voyage33Maintenance: {
+        ...base,
+        dockingRevision: 4,
+        cycle: { ...base.cycle, step: 1, revision: 1, turn: 1 },
+      },
+    });
+    installGm(session);
+    runVoyage33Maintenance.mockImplementation(async (_action, _revision, _dockingRevision, _choices, requestId) => ({
+      status: 'stale',
+      requestId,
+      sessionId: session.id,
+      shipId: VOYAGE_33_ID,
+      hostShipId: 'aegis',
+      action: 'rations',
+      expectedRevision: 1,
+      currentRevision: 2,
+      expectedDockingRevision: 4,
+      currentDockingRevision: 4,
+    }));
+    render(<Voyage33MovementWorkspace />);
+
+    const maintenance = screen.getByRole('region', { name: 'Voyage 33-0 maintenance' });
+    fireEvent.click(within(maintenance).getByRole('button', { name: /apply host-funded rations/i }));
+    expect(await within(maintenance).findByText(/STALE \/\/ maintenance or host state changed/i)).toBeInTheDocument();
+    expect(within(maintenance).getByRole('button', { name: /apply host-funded rations/i })).toBeDisabled();
+
+    await act(async () => useSessionStore.getState().setSession({
+      ...session,
+      voyage33Maintenance: {
+        ...session.voyage33Maintenance!,
+        cycle: { ...session.voyage33Maintenance!.cycle, step: 2, revision: 2 },
+      },
+    }));
+    expect(await within(maintenance).findByRole('button', { name: /roll unrest/i })).toBeEnabled();
+  });
+
+  it('offers the exact same maintenance request after an ambiguous response', async () => {
+    const sessionId = 'voyage-workspace-maintenance-retry';
+    const base = emptyVoyage33MaintenanceState('aegis');
+    const session = sessionFixture(sessionId, {
+      voyage33Movement: movementState('0000', 2),
+      voyage33Maintenance: {
+        ...base,
+        dockingRevision: 4,
+        cycle: { ...base.cycle, step: 2, revision: 2, turn: 1, rationBonus: 9 },
+      },
+    });
+    installGm(session);
+    const nextState: Voyage33MaintenanceState = {
+      ...session.voyage33Maintenance!,
+      unrest: 1,
+      cycle: {
+        ...session.voyage33Maintenance!.cycle,
+        step: 3,
+        revision: 3,
+        results: { '2': 'Rolled 5 + 5 + 9 = 19. Added 1 unrest; unrest 1.' },
+      },
+    };
+    runVoyage33Maintenance
+      .mockRejectedValueOnce(Object.assign(new Error('response lost'), { code: 'functions/unavailable' }))
+      .mockImplementationOnce(async (_action, _revision, _dockingRevision, _choices, requestId) =>
+        maintenanceCommit(session, requestId as string, 'unrest', 2, 4, nextState));
+    render(<Voyage33MovementWorkspace />);
+
+    const maintenance = screen.getByRole('region', { name: 'Voyage 33-0 maintenance' });
+    fireEvent.click(within(maintenance).getByRole('button', { name: /roll unrest/i }));
+    fireEvent.click(await within(maintenance).findByRole('button', { name: /retry exact roll unrest request/i }));
+
+    expect(runVoyage33Maintenance).toHaveBeenCalledTimes(2);
+    expect(runVoyage33Maintenance.mock.calls[1]).toEqual(runVoyage33Maintenance.mock.calls[0]);
+    expect(await within(maintenance).findByText(/Rolled 5 \+ 5 \+ 9 = 19\. Added 1 unrest; unrest 1\./)).toBeInTheDocument();
+  });
+
+  it('reports a denied ration choice and allows a corrected submission', async () => {
+    const base = emptyVoyage33MaintenanceState('aegis');
+    const session = sessionFixture('voyage-workspace-maintenance-denied', {
+      voyage33Movement: movementState('0000', 2),
+      voyage33Maintenance: {
+        ...base,
+        dockingRevision: 4,
+        cycle: { ...base.cycle, step: 1, revision: 1, turn: 1 },
+      },
+    });
+    installGm(session);
+    runVoyage33Maintenance.mockRejectedValueOnce(Object.assign(new Error('host cannot fund'), {
+      code: 'functions/failed-precondition',
+      details: { kind: 'conflict' },
+    }));
+    render(<Voyage33MovementWorkspace />);
+
+    const maintenance = screen.getByRole('region', { name: 'Voyage 33-0 maintenance' });
+    fireEvent.click(within(maintenance).getByRole('button', { name: /apply host-funded rations/i }));
+    expect(await within(maintenance).findByText(/DENIED \/\/ Another command won this update/i)).toBeInTheDocument();
+    expect(within(maintenance).queryByRole('button', { name: /retry exact/i })).not.toBeInTheDocument();
+    expect(within(maintenance).getByRole('button', { name: /apply host-funded rations/i })).toBeEnabled();
+  });
+
+  it('does not offer any console choice after the server records charging skipped', () => {
+    const base = emptyVoyage33MaintenanceState('aegis');
+    const session = sessionFixture('voyage-workspace-charging-skipped', {
+      voyage33Movement: movementState('0000', 2),
+      voyage33Maintenance: {
+        ...base,
+        dockingRevision: 4,
+        cycle: { ...base.cycle, step: 4, revision: 4, turn: 1, chargingSkipped: true },
+      },
+    });
+    installGm(session);
+    render(<Voyage33MovementWorkspace />);
+
+    const maintenance = screen.getByRole('region', { name: 'Voyage 33-0 maintenance' });
+    expect(within(maintenance).queryByRole('radio')).not.toBeInTheDocument();
+    expect(within(maintenance).getByRole('button', { name: /confirm skipped console charging/i })).toBeEnabled();
   });
 
   it('offers a legal current host route without a Jump Drive charge and still requires a live snapshot', () => {
     const uncharged = sessionFixture('voyage-workspace-uncharged', {
       turnPhase: phase('coordination'),
       voyage33Movement: movementState('0000', 2),
-      voyage33Maintenance: maintenanceState('aegis', 3, false),
+      voyage33Maintenance: maintenanceState('aegis', 3),
     });
     installGm(uncharged);
     const { unmount } = render(<Voyage33MovementWorkspace />);

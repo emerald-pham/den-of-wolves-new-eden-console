@@ -54,7 +54,6 @@ function movementState(coordinate = '0000', revision = 0, lastJumpTurn?: number)
 function maintenanceState(
   hostShipId: string | null = null,
   dockingRevision = 0,
-  charged = false,
 ): Voyage33MaintenanceState {
   const base = emptyVoyage33MaintenanceState(hostShipId);
   return {
@@ -63,7 +62,7 @@ function maintenanceState(
     cycle: {
       ...base.cycle,
       turn: 1,
-      charges: charged ? ['jump-drive'] : [],
+      charges: [],
     },
   };
 }
@@ -198,12 +197,12 @@ describe('authenticated Voyage 33-0 movement service', () => {
     });
   });
 
-  it('sends only a currently projected, charged jump and accepts the authoritative host-fuel receipt', async () => {
+  it('sends a currently projected jump without a Jump Drive charge and accepts the host-fuel receipt', async () => {
     const sessionId = 'voyage-session-jump';
     const session = sessionFixture(sessionId, {
       turnPhase: phase('coordination'),
       voyage33Movement: movementState('0000', 5),
-      voyage33Maintenance: maintenanceState('aegis', 7, true),
+      voyage33Maintenance: maintenanceState('aegis', 7),
     });
     installGm(session);
     const call = vi.fn(async (payload: { requestId: string }) => ({
@@ -314,7 +313,7 @@ describe('authenticated Voyage 33-0 movement service', () => {
     const session = sessionFixture('voyage-session-private-route', {
       turnPhase: phase('coordination'),
       voyage33Movement: movementState('0000', 1),
-      voyage33Maintenance: maintenanceState('aegis', 2, true),
+      voyage33Maintenance: maintenanceState('aegis', 2),
     });
     installGm(session);
 

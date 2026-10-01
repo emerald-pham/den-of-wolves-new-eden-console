@@ -202,9 +202,6 @@ function capture(action: Action, value: string): Omit<Command, 'requestId'> {
   if (action === 'jump') {
     if (!movement) throw new Error('Voyage 33-0 must dock before it can jump.');
     if (movement.jumpState.lastJumpTurn === turn) throw new Error('Voyage 33-0 has already jumped this cycle.');
-    if (maintenance.cycle.turn !== turn || !maintenance.cycle.charges.includes('jump-drive')) {
-      throw new Error('Charge the Voyage 33-0 Jump Drive during Team Phase before departure.');
-    }
     destination = value;
     if (!/^\d{4}$/.test(destination) || !projectedCoordinates.has(destination)) {
       throw new Error('Choose a destination in the current facilitator navigation projection.');
