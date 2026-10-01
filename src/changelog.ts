@@ -29,6 +29,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     changes: [
       'Voyage 33-0 maintenance now follows its printed population, rations and reactor choices. Its Jump Drive uses host fuel without needing a reactor charge.',
       'Single-player Demo mode stays visible through live updates and stops at the end of Cycle 1.',
+      'Starlight keeps its fuelled second scouting attempt after AEGIS finishes maintenance for that cycle.',
       '507 of 751 planned items are complete in the catalog snapshot used to build this release (67.51%).',
       'PC06 gameplay verification continues.',
     ],
