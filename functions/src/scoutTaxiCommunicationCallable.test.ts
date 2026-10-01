@@ -160,3 +160,10 @@ it('denies reconciliation after the actor leaves the original audience', async (
   await expect(calls.sendScoutTaxiCourier.run(request({ ...data, reconcileOnly: true }))).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.writes).not.toHaveBeenCalled();
 });
+
+it.each([{ expectedCycle: 4 }, { expectedNavigationRevision: 3 }, { expectedControlRevision: 1 }])(
+  'does not confirm a future authority request as permanently undelivered: %j', async changes => {
+    await expect(calls.sendScoutTaxiCourier.run(request({ ...data, ...changes, reconcileOnly: true })))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.writes).not.toHaveBeenCalled();
+  });
