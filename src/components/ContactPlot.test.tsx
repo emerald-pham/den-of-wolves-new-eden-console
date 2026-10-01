@@ -1790,6 +1790,58 @@ it('measures alternate anchors as one geometry batch when several defaults chang
   ]);
 });
 
+it('batches crowded fallback translation probes while keeping names beside their marks', () => {
+  const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
+    x: left, y: top, left, top, width, height,
+    right: left + width, bottom: top + height,
+  }) as DOMRect;
+  const marks = [{ x: 160, y: 80 }, { x: 160, y: 160 }];
+  const probeSnapshots: string[][] = [];
+  vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(150);
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    if (this.classList.contains('contact-plot')) return bounds(0, 0, 320, 240);
+    const contact = this.closest<HTMLElement>('.contact-plot__contact');
+    const index = contact ? [...document.querySelectorAll('.contact-plot__contact')].indexOf(contact) : -1;
+    const mark = marks[index];
+    if (this.classList.contains('contact-plot__blip') && mark) return bounds(mark.x, mark.y, 8, 8);
+    if (this.classList.contains('contact-plot__tag') && mark) {
+      const label = this as HTMLElement;
+      const cap = Number.parseFloat(label.style.maxWidth);
+      const width = Number.isFinite(cap) ? Math.min(180, cap * 1.2) : 180;
+      const anchor = contact?.dataset.labelAnchor ?? 'south-east';
+      const xText = label.style.getPropertyValue('--label-clamp-x');
+      const yText = label.style.getPropertyValue('--label-clamp-y');
+      if (xText === '8px' && !yText) {
+        probeSnapshots.push([...document.querySelectorAll<HTMLElement>('.contact-plot__tag')]
+          .map((tag) => tag.style.getPropertyValue('--label-clamp-x')));
+      }
+      return bounds(
+        (anchor.endsWith('east') ? mark.x - 11 - width : mark.x + 19) + (Number.parseFloat(xText) || 0),
+        (anchor.startsWith('north') ? mark.y - 26 : mark.y + 16) + (Number.parseFloat(yText) || 0),
+        width, 18,
+      );
+    }
+    return bounds(0, 0, 0, 0);
+  });
+
+  const { container } = render(<ContactPlot contacts={marks.map((_, index) => ({
+    id: `fallback-batch-${index}`, tag: `LONG CONTACT ${index + 1}`,
+    x: 0.55, y: 0.38, z: 0.1, color: 'white',
+  }))} />);
+
+  expect(probeSnapshots.slice(0, 2)).toEqual([['8px', '8px'], ['8px', '8px']]);
+  contactsIn(container).forEach((contact, index) => {
+    const label = contact.querySelector('.contact-plot__tag')!.getBoundingClientRect();
+    expect(label.left).toBeGreaterThanOrEqual(8);
+    expect(label.right).toBeLessThanOrEqual(312);
+    expect(label.top).toBeGreaterThanOrEqual(8);
+    expect(label.bottom).toBeLessThanOrEqual(232);
+    const gap = contact.dataset.labelAnchor?.endsWith('east')
+      ? marks[index]!.x - label.right : label.left - marks[index]!.x - 8;
+    expect(gap).toBeGreaterThanOrEqual(4);
+  });
+});
+
 it('measures a spread 20-contact DRADIS anchor batch twice per label', () => {
   const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
     x: left, y: top, left, top, width, height,
