@@ -192,4 +192,3 @@ it.each([
   expect(success).not.toHaveTextContent(/21|22|23|24|25|26/);
   RESOURCE_LABELS.forEach((label) => expect(screen.getByRole('spinbutton', { name: label })).toHaveValue(null));
 });
-
