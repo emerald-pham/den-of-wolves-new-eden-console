@@ -410,3 +410,63 @@ ordinary acceptances plus Demo-to-Cycle-1 and actual P371 Cloud Tasks enqueue /
 private worker execution, then reconcile catalog closures and generated views.
 No credentials/session codes are recorded here. Preserve the stable owner
 checkout and parked worker branches; no worktree cleanup is performed.
+
+## Supported browser restored after app restart
+
+On 2026-10-01, `/root/pc06_live_owner` resumed the existing owner ledger entry
+`1790767039438-21142-5e61cbf6` from clean `1f4558b1` in the stable checkout.
+The startup pass found no attached terminal or terminal-state test/emulator
+child requiring closure; running app services were left alone. No worktree,
+runtime build, deployment, or reviewed-source change was needed.
+
+The parent restored the supported in-app browser and applied the user's explicit
+Normal Motion choice. The hidden owner tab then opened the production console
+successfully. Settings showed build 0.5.59; ordinary reload resumed session
+presence and station viewing. The GM route returned to the station catalog,
+which had no GM join control, and Settings requested the existing GM access
+password. The parent asked the user to enter that credential directly in the
+visible Settings panel and choose Authorize GM Access. No credential, session
+code, UID, or private chart content is retained in this record. The old browser
+administrator-policy denial is historical; the current prerequisite is normal
+GM login. The authorization-pending status label is expected before the first
+Cycle 1 snapshot and is not used alone as failure evidence.
+
+The prepared live sequence preserves the fixed 49-row allocation:
+
+- Core and small-craft jumps / demo: 202, 210, 222, 232, 236, 241a, 259, 320,
+  607, 679, 020a. Use ordinary reactor charging, printed drive controls,
+  keyboard coordinate lock/power/launch, current host fuel and private arrival.
+  The base and expansion Capybara modes require separate valid configurations.
+  The demo must use its own supported start and complete Cycle 1 boundary.
+- Vessel operations: 112, 238, 244, 241c, 251, 250, 352, 371, 380, 385, 378.
+  Use current entitled Captains and supported GM controls, ordinary docking and
+  movement, exact recipient consent, and current security-team reads. Leave
+  legal craft in transit at the ordinary airspace deadline and correlate the
+  enqueue/private worker log with the observed parking result. Competing tabs
+  must use their genuine actor authority, never privileged client writes.
+- Away missions: 401, 237, 241b, 392, 393, 404, 405, 407, 408, 409, 410, 411,
+  412, 413, 243, 414, 415, 622, 422, 646, 334, 335. Use genuine source
+  opportunities, eligible participants and leader, own private hands, blind
+  allocation, contribution-linked bonuses, automatic outcome, current legal
+  drop-off and participant-only exploration. Preserve a real mission across
+  reload and a cycle boundary; do not seed a chosen card or result.
+- Fleet split and scouting: 151, 307, 322, 323, 324. Separate core ships through
+  ordinary jumps, confirm their server-derived groups, compare entitled notes
+  and pursuit, then use the assigned Starlight/Hummingbird controls with current
+  range, cadence and refuelling. Resume an actor and verify the same audience.
+
+After login, the supported path is Settings authorization → station-catalog
+GM join → named GM instance claim in Role Select → GM Console. Inspect the
+existing setup and casting roster before changing it. Ordinary production
+start is `Start production // Advance to Cycle 1` followed by its visible
+confirmation; unfilled stations do not block start. Additional participants
+must join through ordinary app controls and receive normal casting assignments.
+All live matrix cells remain Pending until their own acceptance is observed.
+
+Core-ship maintenance and jump controls support the existing facilitator
+observer path: `GM ship console read write access` and its per-ship confirmation
+establish the scoped grant checked by the production callables. Leaving the
+view or changing ships revokes it. This can reduce unnecessary player setup for
+those ordinary facilitator actions; it does not replace genuine private mission,
+trade, scout or replacement-Captain participants. Settings exposes
+`Start single-player demo` only at Cycle 0 with exactly one connected participant.
