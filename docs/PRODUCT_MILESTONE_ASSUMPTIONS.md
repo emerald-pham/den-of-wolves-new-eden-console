@@ -302,6 +302,16 @@ the original assumption; append the resolution so the decision is traceable.
 | Product effect | The separate authenticated taxi action atomically delivers only the submitted note and records its attempt/receipt. Ordinary note reads remain restricted to the reader's current group; the courier receives no destination notes or hidden chart facts. Pursuit, ship locations, knowledge and the shared clock remain unchanged. Broader passenger transport/landing, fuel payloads, Endeavour physical range, rejoin/merge consequences and P343's remaining acceptance stay in PC07, with no additional catalog closure credit. |
 | Review state | Minimum scope authorized by the parent; implementation, independent authority/privacy review, release gates and ordinary taxi proof remain required. Subject to optional owner correction. |
 
+### PC06-A16 — Voyage population markers, rations and reactor choices
+
+| Field | Record |
+|---|---|
+| ID and milestone | PC06-A16; source-backed repair within unchanged P250/P251, recorded 2026-10-01. |
+| Source passage | Voyage 33-0 primary single-sided v1.1 sheet, PDF p. 38; Facilitator Guide printed p. 17/PDF p. 19; existing PC05 P118/P121 and PC06-A13. Full primary page inspected privately. |
+| Chosen reading | Voyage uses its printed 40,000-survivor track and the corresponding population-dependent ration bands. A failed riot result moves that many adjacent downward markers, capped at zero; this die-to-marker conversion is a digital inference consistent with PC06-A13, not literal survivor subtraction. The zero transition adds the existing two unrest and skips charging. Exact reward counts between markers remain protected by A13. |
+| Product effect | Fund rations from the current docked host using the vessel's current band. Its one reactor charge selects only Water Reclimator or Hydroponics and remains available after maintenance completion. Its printed Jump Drive has no charge prerequisite: legal Coordination movement retains server host, route, fuel, audience, mutiny, cycle and replay checks. Core vessel/craft charging contracts remain distinct. |
+| Review state | Focused red/green and native Firestore production-handler evidence retained; independent review, release and ordinary corrected-path verification required. No additional prompt or catalog credit. |
+
 ### PC09-A1 — One minimal VIP Host visit attestation
 
 | Field | Record |
