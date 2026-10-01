@@ -2,6 +2,17 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 import { activeVesselIdsForRoles } from './gameSetup';
 
+// Firestore rejects an array directly containing another array. The transaction
+// double must not let a successful refuelling test conceal an invalid receipt.
+function expectFirestoreArrayShape(value: unknown): void {
+  if (Array.isArray(value)) {
+    expect(value.some(Array.isArray), 'Firestore does not support nested arrays').toBe(false);
+    value.forEach(expectFirestoreArrayShape);
+  } else if (value !== null && typeof value === 'object') {
+    Object.values(value).forEach(expectFirestoreArrayShape);
+  }
+}
+
 const mock = vi.hoisted(() => ({
   get: vi.fn(), update: vi.fn(), set: vi.fn(), rateLimitSet: vi.fn(), create: vi.fn(), delete: vi.fn(), role: 'gm', owner: 'u1', connected: true,
   grantShip: 'aegis',
@@ -1501,6 +1512,7 @@ it('resolves the Capybara single-bay shuttle choice through atomic replay and st
     result: { resources: { fuel: 2 }, fuelled: { macaw: true, boa: false } },
   });
   expect(maintenance.session.shuttleFuelled).toEqual({ macaw: true, boa: false });
+  Object.values(maintenance.receipts).forEach(expectFirestoreArrayShape);
 
   const updateCount = mock.update.mock.calls.length;
   await expect(runMaintenance.run(request(requestData))).resolves.toMatchObject({
@@ -1557,6 +1569,7 @@ it.each([
   await expect(runMaintenance.run(request(requestData))).resolves.toMatchObject({
     status: 'replayed', requestId: `${shipId}-bay-${shuttleId}`,
   });
+  Object.values(maintenance.receipts).forEach(expectFirestoreArrayShape);
   expect(mock.update.mock.calls.length).toBe(updateCount);
 
   maintenance.session.maintenanceCycles = {
