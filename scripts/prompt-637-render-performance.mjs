@@ -267,6 +267,7 @@ try {
   await page.addInitScript(acknowledgeSafety, { forceOffline: routeProbe.forceOffline });
   await page.goto(`${harnessOrigin}/scripts/render-performance-harness.html`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => document.documentElement.dataset.ready === 'true');
+  await page.evaluate(() => document.fonts.ready);
   const render = await page.evaluate(async ({ updateSamples, frameSamples }) => {
     if (!window.__p637) throw new Error('P637 browser harness did not initialize.');
     return {
@@ -280,6 +281,11 @@ try {
 
   const results = {
     measuredAt: new Date().toISOString(), baselineVersion: baseline.version, bundle,
+    renderMeasurement: {
+      clock: 'fixed 60Hz animation frames and timeouts; native performance.now',
+      updateCost: 'React commit, two production sweep callbacks, synchronous style/layout; excludes native paint waits',
+      mobileFrames: 'native animation frames, including paint waits',
+    },
     landingStartup: { samples: landingStartup.map(rounded), p95Ms: rounded(percentile(landingStartup)) },
     routeStartup: { samples: routeStartup.map(rounded), p95Ms: rounded(percentile(routeStartup)) },
     protectedMissionChunk: {
@@ -289,7 +295,9 @@ try {
     dradisUpdate: {
       p95Ms: rounded(percentile(render.dradis.samples)),
       maxMs: rounded(Math.max(...render.dradis.samples)),
+      samples: render.dradis.samples.map(rounded),
       labelLayoutReads: render.dradis.labelLayoutReads,
+      labelLayoutReadSamples: render.dradis.labelLayoutReadSamples,
     },
     attackUpdate: { p95Ms: rounded(percentile(render.attack.samples)), maxMs: rounded(Math.max(...render.attack.samples)) },
     missionHandUpdate: { p95Ms: rounded(percentile(render.missionHands.samples)), maxMs: rounded(Math.max(...render.missionHands.samples)) },

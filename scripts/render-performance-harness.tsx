@@ -4,11 +4,12 @@ import ContactPlot, { type PlotContact } from '@/components/ContactPlot';
 import ShipPlot from '@/components/ShipPlot';
 import AwayMissionDiscardPanel from '@/components/AwayMissionDiscardPanel';
 import { useSessionStore } from '@/store/useSessionStore';
+import { createAnimationSampler, installRenderClock, measureRenderWork } from './render-performance-clock';
 import '@/index.css';
 import '@/routes/arrival.css';
 import '@/styles/starmap.css';
 
-type Sample = { name: string; samples: number[]; labelLayoutReads?: number };
+type Sample = { name: string; samples: number[]; labelLayoutReads?: number; labelLayoutReadSamples?: number[] };
 type Harness = {
   measureDradis(iterations: number): Promise<Sample>;
   measureAttack(iterations: number): Promise<Sample>;
@@ -18,11 +19,13 @@ type Harness = {
 
 declare global { interface Window { __p637?: Harness; } }
 
-const container = document.getElementById('root');
-if (!container) throw new Error('P637 performance harness root is missing.');
+const mount = document.getElementById('root');
+if (!mount) throw new Error('P637 performance harness root is missing.');
+const container = mount;
 const root = createRoot(container);
 
-const settle = (): Promise<void> => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+const nativeFrame = window.requestAnimationFrame.bind(window);
+const settle = (): Promise<void> => new Promise((resolve) => nativeFrame(() => nativeFrame(() => resolve())));
 const contacts = (revision: number): PlotContact[] => Array.from({ length: 20 }, (_, index) => ({
   id: `contact-${index}`,
   tag: `CONTACT ${String(index + 1).padStart(2, '0')}`,
@@ -33,17 +36,44 @@ const contacts = (revision: number): PlotContact[] => Array.from({ length: 20 },
   combatRange: index % 3 === 0 ? 'short' : index % 3 === 1 ? 'medium' : 'long',
 }));
 
-async function renderSamples(name: string, iterations: number, render: (index: number) => void): Promise<Sample> {
+async function renderSamples(
+  name: string,
+  iterations: number,
+  render: (index: number) => void,
+  afterSample?: () => void,
+): Promise<Sample> {
   const samples: number[] = [];
-  render(0);
-  await settle();
-  for (let index = 0; index < iterations; index += 1) {
-    const started = performance.now();
-    flushSync(() => render(index + 1));
+  // Every surface starts from a fresh mount and the same clock. Native paint
+  // waits stay outside the timed interval; full-motion sweep work stays inside.
+  flushSync(() => root.render(null));
+  const clock = installRenderClock(window);
+  const sampleAnimations = createAnimationSampler();
+  const animations = () => sampleAnimations(document.getAnimations(), clock.nowMs);
+  const settleWork = async () => {
+    animations();
+    for (let frame = 0; frame < 2; frame += 1) {
+      await Promise.resolve(); // Deliver mutation observers from the prior commit.
+      flushSync(() => clock.stepFrame(() => animations()));
+      animations(); // Include flares created by the production sweep callback.
+      container.getBoundingClientRect(); // Flush the updated styles and geometry.
+    }
+    await Promise.resolve();
+  };
+  try {
+    flushSync(() => render(0));
+    await settleWork();
     await settle();
-    samples.push(performance.now() - started);
+    for (let index = 0; index < iterations; index += 1) {
+      samples.push(await measureRenderWork(() => flushSync(() => render(index + 1)), settleWork));
+      afterSample?.();
+      await settle();
+    }
+    return { name, samples };
+  } finally {
+    // Let production effects cancel their callbacks while this clock owns them.
+    flushSync(() => root.render(null));
+    clock.restore();
   }
-  return { name, samples };
 }
 
 function seedMissionHands(revision: number): void {
@@ -79,10 +109,15 @@ window.__p637 = {
       },
     });
     try {
+      const labelLayoutReadSamples: number[] = [];
+      let previousReads = 0;
       const sample = await renderSamples('dradisUpdate', iterations, (revision) => {
         root.render(<ContactPlot placement="inset" size="min(92vw, 760px)" contacts={contacts(revision)} centerLabel="AEGIS" />);
+      }, () => {
+        labelLayoutReadSamples.push(labelLayoutReads - previousReads);
+        previousReads = labelLayoutReads;
       });
-      return { ...sample, labelLayoutReads };
+      return { ...sample, labelLayoutReads, labelLayoutReadSamples };
     } finally {
       Element.prototype.getBoundingClientRect = getBounds;
       Object.defineProperty(HTMLElement.prototype, 'offsetWidth', offsetWidthDescriptor);
@@ -93,17 +128,10 @@ window.__p637 = {
   }),
   measureMissionHands: async (iterations) => {
     useSessionStore.getState().reset();
-    seedMissionHands(0);
-    flushSync(() => root.render(<AwayMissionDiscardPanel />));
-    await settle();
-    const samples: number[] = [];
-    for (let revision = 1; revision <= iterations; revision += 1) {
-      const started = performance.now();
-      flushSync(() => seedMissionHands(revision));
-      await settle();
-      samples.push(performance.now() - started);
-    }
-    return { name: 'missionHandUpdate', samples };
+    return renderSamples('missionHandUpdate', iterations, (revision) => {
+      seedMissionHands(revision);
+      if (revision === 0) root.render(<AwayMissionDiscardPanel />);
+    });
   },
   measureMobileFrames: async (frames) => {
     root.render(<ContactPlot placement="inset" size="min(92vw, 760px)" contacts={contacts(0)} centerLabel="AEGIS" />);
