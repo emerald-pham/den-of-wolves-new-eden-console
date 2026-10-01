@@ -699,7 +699,7 @@ describe('Voyage 33-0 movement workspace', () => {
     });
     installGm(session);
 
-    let currentState = session.voyage33Maintenance!;
+    let currentState = session.voyage33Maintenance! as Parameters<typeof advanceVoyage33Maintenance>[0]['state'];
     let currentResources = session.shipResources!.aegis!;
     runVoyage33Maintenance.mockImplementation(async (
       action,
