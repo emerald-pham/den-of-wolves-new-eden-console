@@ -81,13 +81,12 @@ decorative.
 
 ### How this is enforced
 
-`src/styles/aesthetic.test.ts` checks the rules a stylesheet can be checked
-against without rendering it: operational and display type stay in the console
-mono family, office/system sans faces are absent, colours are palette tokens or
-the near-black of the ground, `border-radius` is only ever `0` or a full circle,
-and box-shadows have no offset. The risk-based
-`npm run test:font-consistency` command runs that type-system guard whenever UI
-markup, CSS, application entry points, font assets, or web dependencies change.
+`npm run test:font-consistency` runs `src/styles/aesthetic.test.ts` for the
+stylesheet contract: console mono type, palette tokens, square or circular
+corners, and shadows without offsets. Every player-facing deployment also runs
+`npm run test:typography:browser` for computed fonts and representative geometry
+at phone, short-landscape and desktop sizes. Keep both checks: stylesheet
+assertions and rendered measurements cover different failure modes.
 It is a ratchet — it holds the line where it is rather than passing judgement
 on what exists, and it carries a short, annotated list of deviations that
 predate it:

@@ -145,3 +145,22 @@ For this project's handoff rule, **finish the visible message before removing
 it** is the plain-language description. **Non-preemptive playback with
 priority-based next-message selection** is useful engineering shorthand, not
 a claim that the entire behavior has one standardized broadcast name.
+
+## Initial projection and release verification
+
+The initial server projection is also release-critical: a freshly joined member
+must see `AIRSPACE CONTROL // AIRSPACE CLOSED` or
+`AIRSPACE CONTROL // AIRSPACE OPEN`, matching the authoritative airspace state,
+from the moment a lobby is joined. ATC copy never includes cycle numbers;
+cycle information belongs on the pursuit tracker. No standing-by copy or extra lockdown paragraph replaces that
+status. This is independent of Press Officer publication or role selection. The
+Cycle 0 smoke covers a freshly joined member with no claimed role or Press
+dispatch, pending and ready fonts, normal and reduced motion, 320px and
+390px phones, wide desktop, navigation, reload, and the authoritative Cycle 1 airspace transition. The
+initial ATC projection is separate from the SNN/Press stream and must never
+reintroduce the retired Iris lockout ticker.
+
+While a server dispatch is arriving, a neutral
+`AIRSPACE CONTROL // AWAITING DISPATCH` preserves the instrument; it must not
+guess open/closed status or replay old news. Cover this pending state alongside
+the ready initial projection in ticker tests.
