@@ -680,6 +680,7 @@ import {
 } from './scoutEntitlements';
 import { neighborsForCoordinate, STAR_CHART_COORDINATES } from './starChartGraph';
 import { authorizeCurrentScoutScan, parseScoutCadence, type AuthorizedScoutScan } from './scoutRequestCadence';
+import { planScoutTaxiCommunication } from './scoutTaxiCommunication';
 import {
   parseHighwallMiningState,
   resolveHighwallMining,
@@ -14687,6 +14688,109 @@ export const sendFleetGroupMessage = onCall(async request => {
     tx.set(notesRef, { groupId, messages: [...current.slice(-19), message], updatedAt: FieldValue.serverTimestamp() });
     const result: FleetGroupMessageReply = { status: 'committed', groupId, messageId: message.id };
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+/** One authorized courier round trip; this never opens ordinary cross-group reads. */
+export const sendScoutTaxiCourier = onCall(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = ['sessionId', 'requestId', 'shuttleId', 'targetShipId', 'text',
+    'expectedCycle', 'expectedControlRevision', 'expectedNavigationRevision'];
+  if (!isRecord(raw) || Object.keys(raw).some(key => !allowed.includes(key)) ||
+      typeof raw.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(raw.sessionId) ||
+      typeof raw.requestId !== 'string' || !isCanonicalRequestId(raw.requestId) ||
+      !['starlight', 'hummingbird'].includes(String(raw.shuttleId)) ||
+      typeof raw.targetShipId !== 'string' || !isResourceShipId(raw.targetShipId) ||
+      typeof raw.text !== 'string' || !raw.text.trim() || raw.text.length > 200 ||
+      !Number.isSafeInteger(raw.expectedCycle) || (raw.expectedCycle as number) < 1 ||
+      !Number.isSafeInteger(raw.expectedControlRevision) || (raw.expectedControlRevision as number) < 0 ||
+      !Number.isSafeInteger(raw.expectedNavigationRevision) || (raw.expectedNavigationRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'Invalid scout taxi courier request.');
+  }
+  const data = raw as { sessionId: string; requestId: string; shuttleId: 'starlight' | 'hummingbird';
+    targetShipId: string; text: string; expectedCycle: number; expectedControlRevision: number; expectedNavigationRevision: number };
+  const fingerprint: CommandFingerprint = { action: 'scout-taxi-authority', sessionId: data.sessionId,
+    requestId: data.requestId, actorUid: uid, instanceId: null, expectedRevision: data.expectedControlRevision,
+    payload: { shuttleId: data.shuttleId, targetShipId: data.targetShipId, text: data.text.trim(),
+      expectedCycle: data.expectedCycle, expectedNavigationRevision: data.expectedNavigationRevision } };
+  const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
+  const auditRef = db.doc(`sessions/${data.sessionId}/scoutTaxiCourierAudits/${data.requestId}`);
+  const cadenceRef = scoutCadenceRef(data.sessionId, data.expectedCycle, data.shuttleId);
+  return db.runTransaction(async tx => {
+    const [session, actor, navigation, players, groups, receipt, audit, cadenceSnapshot, departure, attack] = await Promise.all([
+      tx.get(db.doc(`sessions/${data.sessionId}`)), tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`)),
+      tx.get(navigationStateRef(data.sessionId)), tx.get(db.collection(`sessions/${data.sessionId}/players`)),
+      tx.get(db.collection(`sessions/${data.sessionId}/fleetGroups`)), tx.get(receiptRef), tx.get(auditRef), tx.get(cadenceRef),
+      tx.get(db.doc(`sessions/${data.sessionId}/shuttleDepartures/${data.shuttleId}`)),
+      tx.get(db.doc(`sessions/${data.sessionId}/wolfAttackState/current`)),
+    ]);
+    if (!session.exists || !isActivePlayer(actor) || actor.get('role') !== 'player') {
+      throw new HttpsError('permission-denied', 'A connected scout owner is required.');
+    }
+    requirePlayerShipActionAuthority(actor);
+    requireActiveGameplayPhase(session);
+    requireActionPhase(session, 'scouting', 'player');
+    requireMissionMovementAvailable(session, [data.shuttleId]);
+    if (attack.exists && wolfAttackBlocksNormalMovement(attack.data())) {
+      throw new HttpsError('failed-precondition', 'Wait until the Wolf attack is resolved.');
+    }
+    const { activeRoleIds, activeVesselIds } = strictScoutRosters(session);
+    const parsedGroups = movementPursuitFleetGroups(activeVesselIds, groups, players);
+    if ((session.get('chartSelectionLocked') !== true && session.get('configurationLocked') !== true) || !navigation.exists) {
+      throw new HttpsError('failed-precondition', 'The locked navigation authority is unavailable.');
+    }
+    const isReply = (value: unknown): value is { status: 'committed'; requestId: string; shuttleId: string; targetShipId: string; cycle: number } =>
+      isRecord(value) && Object.keys(value).length === 5 && value.status === 'committed' && value.requestId === data.requestId &&
+      value.shuttleId === data.shuttleId && value.targetShipId === data.targetShipId && value.cycle === data.expectedCycle;
+    const replay = replayBoundCommand(receipt, fingerprint, isReply, 'scout taxi courier');
+    let cadence;
+    try { cadence = parseScoutCadence(cadenceSnapshot.exists ? cadenceSnapshot.data() : undefined,
+      data.sessionId, data.shuttleId, data.expectedCycle); }
+    catch { throw new HttpsError('failed-precondition', 'The current scout capacity is unavailable.'); }
+    const savedIndex = cadence.scans.findIndex(entry => entry.requestId === data.requestId);
+    if (replay && (savedIndex < 0 || !audit.exists)) throw new HttpsError('failed-precondition', 'The courier receipt is incomplete.');
+    if (!replay && (savedIndex >= 0 || audit.exists)) throw new HttpsError('failed-precondition', 'The courier has no matching receipt.');
+    let plan;
+    try {
+      plan = planScoutTaxiCommunication({ request: data, sessionId: data.sessionId, actorUid: uid,
+        actor: { uid, active: true, playerRole: actor.get('role'), connected: actor.get('connected'),
+          assignedRoleId: actor.get('assignedRoleId'), seatId: actor.get('seatId'), replacementRoleId: actor.get('replacementRoleId'),
+          fleetGroupId: actor.get('fleetGroupId') },
+        currentCycle: session.get('currentTurn'), sessionPhase: session.get('phase'), turnPhase: session.get('turnPhase'), now: Date.now(),
+        chartId: session.get('chartId'), shuttleControl: session.get('shuttleControl'), shuttleDockings: session.get('shuttleDockings'),
+        pendingDeparture: departure.exists ? departure.data() : undefined, transit: undefined,
+        activeRoleIds, activeVesselIds, fleetGroups: parsedGroups, shipGalacticCoordinates: navigation.get('shipGalacticCoordinates'),
+        navigationRevision: navigation.get('revision'), cadence: replay
+          ? (savedIndex === 0 ? undefined : { ...cadence, scans: cadence.scans.slice(0, savedIndex) }) : cadenceSnapshot.data(),
+        maintenanceCycles: session.get('maintenanceCycles'), shuttleFuelled: session.get('shuttleFuelled') });
+    } catch {
+      throw new HttpsError('failed-precondition', 'The current taxi owner, route, capacity or movement authority is unavailable. Refresh before retrying.');
+    }
+    requireUsableShip(session, plan.anchorShipId);
+    requireUsableShip(session, plan.target.shipId);
+    const { nextCadence, ...boundVisit } = plan;
+    const notesRef = db.doc(`sessions/${data.sessionId}/fleetGroupMessages/${plan.target.groupId}`);
+    const notes = await tx.get(notesRef);
+    const currentNotes = storedGroupNotes(notes, plan.target.groupId);
+    if (replay) {
+      const savedAudit = audit.data();
+      if (!isRecord(savedAudit) || !isDeepStrictEqual(savedAudit.visit, boundVisit) ||
+          !isDeepStrictEqual(cadence.scans[savedIndex], nextCadence.scans.at(-1))) {
+        throw new HttpsError('failed-precondition', 'The saved courier visit is incomplete or conflicts with current authority.');
+      }
+      return { ...replay, status: 'replayed' as const };
+    }
+    if (currentNotes.some(note => note.id === data.requestId)) throw new HttpsError('failed-precondition', 'The courier note has no matching receipt.');
+    const message: FleetGroupNote = { id: data.requestId, actorUid: uid,
+      text: `Scout taxi from ${plan.anchorShipId}: ${plan.text}`, sentAt: new Date().toISOString() };
+    const result = { status: 'committed' as const, requestId: data.requestId, shuttleId: data.shuttleId,
+      targetShipId: data.targetShipId, cycle: data.expectedCycle };
+    tx.set(notesRef, { groupId: plan.target.groupId, messages: [...currentNotes.slice(-19), message], updatedAt: FieldValue.serverTimestamp() });
+    tx.set(cadenceRef, nextCadence);
+    tx.create(auditRef, { visit: boundVisit, createdAt: FieldValue.serverTimestamp() });
+    tx.create(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
   });
 });

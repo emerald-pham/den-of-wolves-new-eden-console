@@ -5,6 +5,7 @@ import type { ShuttleControlEntry } from '@/types/game';
 import { isScoutEntitlementHolder, isScoutingRequestPhaseAvailable } from '@/lib/scoutRequestAuthority';
 import { createScoutTaxiCommunicationActions, type ScoutTaxiCommunicationContext } from '@/lib/scoutTaxiCommunicationService';
 import './ScoutRequestControls.css';
+import './ScoutTaxiCommunicationPanel.css';
 
 interface Props { readonly shuttleId: 'starlight' | 'hummingbird'; readonly control: ShuttleControlEntry }
 export default function ScoutTaxiCommunicationPanel({ shuttleId, control }: Props) {
@@ -43,10 +44,10 @@ export default function ScoutTaxiCommunicationPanel({ shuttleId, control }: Prop
       if (currentKey.current === key) setNotice({ key, text: error instanceof Error ? error.message : 'Courier trip was rejected. Refresh before retrying.' });
     } finally { if (currentKey.current === key) setBusyKey(null); }
   };
-  return <section className="scout-request" aria-label={`${label} scout taxi courier`}>
+  return <section className="scout-request scout-taxi-courier" aria-label={`${label} scout taxi courier`}>
     <h3>Scout taxi courier</h3>
-    <p>Spend one scouting attempt on a round trip to deliver a note to a separated fleet group. The operator returns; no passengers or cargo change ships.</p>
-    <p>{label === 'Starlight' ? 'Within two jumps of AEGIS.' : 'Within three jumps of Quellon.'} Your shuttle must be at its home ship while airspace is open.</p>
+    <p className="scout-request__description">Spend one scouting attempt on a round trip to deliver a note to a separated fleet group. The operator returns; no passengers or cargo change ships.</p>
+    <p className="scout-request__help">{label === 'Starlight' ? 'Within two jumps of AEGIS.' : 'Within three jumps of Quellon.'} Your shuttle must be at its home ship while airspace is open.</p>
     <form className="scout-request__form" onSubmit={event => void submit(event)}>
       <label className="scout-request__field">Courier destination ship<select value={target} disabled={busy} onChange={event => setTarget(event.target.value)}>
         <option value="">Choose a ship</option>{SHIPS.filter(ship => session?.activeVesselIds?.includes(ship.id) &&

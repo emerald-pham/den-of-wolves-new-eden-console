@@ -1540,6 +1540,29 @@ describe('session header', () => {
     }
   });
 
+  it('keeps courier visits and delivered group notes behind current callable audiences', async () => {
+    await env.withSecurityRulesDisabled(async ctx => {
+      await setDoc(doc(ctx.firestore(), `${SESSION}/scoutTaxiCourierAudits/courier-1`), {
+        visit: { authorityPath: 'scout-taxi-authority', actorUid: 'alice',
+          origin: { coordinate: '1413', groupId: 'fleet-2' }, target: { coordinate: '0000', groupId: 'fleet-1' } },
+      });
+      await setDoc(doc(ctx.firestore(), `${SESSION}/fleetGroupMessages/fleet-1`), {
+        groupId: 'fleet-1', messages: [{ text: 'Courier note', actorUid: 'alice' }],
+      });
+    });
+    for (const uid of ['alice', 'bob', 'gm1']) {
+      for (const path of ['scoutTaxiCourierAudits/courier-1', 'fleetGroupMessages/fleet-1']) {
+        const reference = doc(as(uid), `${SESSION}/${path}`);
+        await assertFails(getDoc(reference));
+        await assertFails(setDoc(reference, { forged: true }));
+        await assertFails(updateDoc(reference, { privateVisit: 'forged' }));
+        await assertFails(deleteDoc(reference));
+      }
+      await assertFails(getDocs(collection(as(uid), `${SESSION}/scoutTaxiCourierAudits`)));
+      await assertFails(getDocs(collection(as(uid), `${SESSION}/fleetGroupMessages`)));
+    }
+  });
+
   // This denial is the whole reason createSession has to be a callable: a
   // client that could write its own session header could mint a join code
   // that collides with someone else's table, and name itself owner.
