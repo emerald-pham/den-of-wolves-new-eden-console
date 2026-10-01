@@ -101,8 +101,8 @@ it.each([
   expect(mock.writes).not.toHaveBeenCalled();
 });
 
-it.each(['other-holder', 'wrong-role', 'kicked', 'closed-airspace', 'out-of-range', 'in-transit', 'malformed-notes'])
-('denies %s before delivery, attempt consumption or any mutation', async reason => {
+it.each(['other-holder', 'wrong-role', 'kicked', 'closed-airspace', 'out-of-range', 'in-transit', 'malformed-notes'])(
+'denies %s before delivery, attempt consumption or any mutation', async reason => {
   const session = mock.documents.get('sessions/s1')!;
   const player = mock.documents.get('sessions/s1/players/explorer')!;
   if (reason === 'other-holder') (session.shuttleControl as Record<string, Fields>).hummingbird!.holderUid = 'wing';
