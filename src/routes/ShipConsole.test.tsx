@@ -330,7 +330,12 @@ it('shows same-table trading from an active replacement role station', async () 
     <Route path="/console" element={<p>Fleet roster</p>} />
   </Routes></MemoryRouter>);
 
-  expect(await screen.findByRole('region', { name: 'Same-table trade' })).toBeInTheDocument();
+  // Subscription effects replace the initial loading region with the panel.
+  // Check the current committed DOM instead of retaining that detached region.
+  await waitFor(() => {
+    expect(screen.getByRole('region', { name: 'Same-table trade' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Same-table trade' })).toBeInTheDocument();
+  });
 });
 
 it('places the pursuit tracker beneath shipboard DRADIS and uses this ship position', () => {
