@@ -662,7 +662,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 514 | NEW | missing | 513;098 | none | none | none | none | none | none | none | E-AUDIT-514 | M10 | Resolve arrest and its deadline. |
 | 515 | NEW | done | 060;062 | none | none | none | none | none | none | none | E-AUDIT-515;E-515-REPLACEMENT | M10 | Assign a replacement role. |
 | 516 | NEW | missing | 515;326 | none | none | none | none | none | none | none | E-AUDIT-516 | M10 | Activate the Comms Officer. |
-| 517 | NEW | missing | 515;190 | none | none | OWNER-VIP-HOST-VISIT-CONFIRMATION | none | none | none | none | E-AUDIT-517;E-517-VISIT-DECISION | M10 | Activate the VIP Host. |
+| 517 | NEW | missing | 515;190 | none | none | none | none | none | none | none | E-AUDIT-517;E-517-VISIT-DECISION | M10 | Activate the VIP Host. |
 | 518 | NEW | done | 515 | none | none | none | none | none | none | none | E-AUDIT-518;E-518-COMMISSAR | M10 | Activate the Commissar. |
 | 519 | NEW | missing | 515;468 | none | none | none | none | none | none | none | E-AUDIT-519 | M10 | Activate the Militia Leader. |
 | 520 | NEW | missing | 515;456 | none | none | none | none | none | none | none | E-AUDIT-520 | M10 | Activate the PDF Fighter Ace. |
@@ -697,7 +697,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 540 | PROVE | missing | 525;528;531;533;535;538 | none | none | none | none | none | none | none | E-AUDIT-540 | M3;M11;M12 | Run the full crisis scenario. |
 | 541 | NEW | partial | 318;525 | none | none | none | none | none | none | none | E-AUDIT-541;E-541-ARRIVAL-GROUP-REVEAL | M3;M11;M13 | Reveal a New Eden candidate. |
 | 542 | NEW | missing | 541 | none | none | none | none | none | none | none | E-AUDIT-542 | M3;M11;M13 | Make candidate discovery retry-safe. |
-| 543 | NEW | missing | 541;319 | none | none | none | none | none | none | none | E-AUDIT-543 | M3;M11;M13 | Track candidate plans by Turn 6. |
+| 543 | NEW | missing | 541;319 | none | none | none | none | none | none | none | E-AUDIT-543 | M3;M11;M13 | Track candidate plans by Cycle 6. |
 | 544 | NEW | missing | 541 | none | none | none | none | none | none | none | E-AUDIT-544 | M3;M11;M13 | Validate Ancient Jump Ring prerequisites. |
 | 545 | NEW | missing | 544;211;361;111 | none | none | none | none | none | none | none | E-AUDIT-545 | M3;M11;M13 | Repair the Ancient Jump Ring. |
 | 546 | NEW | missing | 545 | none | none | none | none | none | none | none | E-AUDIT-546 | M3;M11;M13 | Prevent duplicate Ring contributions. |
