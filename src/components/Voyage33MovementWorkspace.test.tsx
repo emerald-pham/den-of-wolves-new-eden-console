@@ -871,6 +871,31 @@ describe('Voyage 33-0 movement workspace', () => {
       expect(within(region).getByRole('button', { name: /retry exact/i })).toBeInTheDocument();
     });
 
+  it.each(['functions/permission-denied', 'functions/failed-precondition'])(
+    'keeps the original uncertain ration request held after an exact recovery returns %s', async code => {
+      const base = emptyVoyage33MaintenanceState('aegis');
+      const session = sessionFixture(`voyage-recovery-denied-${code.split('/')[1]}`, {
+        voyage33Movement: movementState('0000', 2),
+        voyage33Maintenance: { ...base, dockingRevision: 4, cycle: { ...base.cycle, step: 1, turn: 1, revision: 1 } },
+      });
+      installGm(session);
+      runVoyage33Maintenance.mockRejectedValueOnce(Object.assign(new Error('response lost'), { code: 'functions/unavailable' }))
+        .mockRejectedValueOnce(Object.assign(new Error('recovery denied'), { code }));
+      render(<Voyage33MovementWorkspace />);
+      const region = screen.getByRole('region', { name: 'Voyage 33-0 maintenance' });
+      fireEvent.change(within(region).getByLabelText('Voyage 33-0 food ration level'), { target: { value: '3' } });
+      fireEvent.change(within(region).getByLabelText('Voyage 33-0 water ration level'), { target: { value: '2' } });
+      fireEvent.click(within(region).getByRole('button', { name: /apply host-funded rations/i }));
+      const retry = await within(region).findByRole('button', { name: /retry exact/i });
+      const original = runVoyage33Maintenance.mock.calls[0];
+      await act(async () => fireEvent.click(retry));
+      expect(runVoyage33Maintenance.mock.calls[1]).toEqual(original);
+      expect(within(region).getByRole('button', { name: /retry exact/i })).toBeInTheDocument();
+      expect(within(region).getByRole('button', { name: /apply host-funded rations/i })).toBeDisabled();
+      expect(within(region).getByLabelText('Voyage 33-0 food ration level')).toHaveValue('3');
+      expect(within(region).getByLabelText('Voyage 33-0 water ration level')).toHaveValue('2');
+    });
+
   it('does not replay an uncertain request against regressed server authority', async () => {
     const sessionId = 'voyage-workspace-maintenance-regressed-authority';
     const base = emptyVoyage33MaintenanceState('aegis');
