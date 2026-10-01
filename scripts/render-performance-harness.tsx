@@ -4,7 +4,7 @@ import ContactPlot, { type PlotContact } from '@/components/ContactPlot';
 import ShipPlot from '@/components/ShipPlot';
 import AwayMissionDiscardPanel from '@/components/AwayMissionDiscardPanel';
 import { useSessionStore } from '@/store/useSessionStore';
-import { createAnimationSampler, installRenderClock, measureRenderUpdate } from './render-performance-clock';
+import { createAnimationSampler, installRenderClock, measureRenderFrames, measureRenderUpdate } from './render-performance-clock';
 import '@/index.css';
 import '@/routes/arrival.css';
 import '@/styles/starmap.css';
@@ -93,8 +93,7 @@ function seedMissionHands(revision: number): void {
   })));
 }
 
-window.__p637 = {
-  measureDradis: async (iterations) => {
+function countLabelReads() {
     const getBounds = Element.prototype.getBoundingClientRect;
     const offsetWidthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetWidth');
     if (!offsetWidthDescriptor?.get) throw new Error('P637 could not instrument HTMLElement.offsetWidth.');
@@ -110,19 +109,30 @@ window.__p637 = {
         return offsetWidthDescriptor.get!.call(this);
       },
     });
+    return {
+      get reads() { return labelLayoutReads; },
+      restore() {
+        Element.prototype.getBoundingClientRect = getBounds;
+        Object.defineProperty(HTMLElement.prototype, 'offsetWidth', offsetWidthDescriptor);
+      },
+    };
+}
+
+window.__p637 = {
+  measureDradis: async (iterations) => {
+    const counter = countLabelReads();
     try {
       const labelLayoutReadSamples: number[] = [];
       let previousReads = 0;
       const sample = await renderSamples('dradisUpdate', iterations, (revision) => {
         root.render(<ContactPlot placement="inset" size="min(92vw, 760px)" contacts={contacts(revision)} centerLabel="AEGIS" />);
       }, () => {
-        labelLayoutReadSamples.push(labelLayoutReads - previousReads);
-        previousReads = labelLayoutReads;
+        labelLayoutReadSamples.push(counter.reads - previousReads);
+        previousReads = counter.reads;
       });
-      return { ...sample, labelLayoutReads, labelLayoutReadSamples };
+      return { ...sample, labelLayoutReads: counter.reads, labelLayoutReadSamples };
     } finally {
-      Element.prototype.getBoundingClientRect = getBounds;
-      Object.defineProperty(HTMLElement.prototype, 'offsetWidth', offsetWidthDescriptor);
+      counter.restore();
     }
   },
   measureAttack: (iterations) => renderSamples('attackUpdate', iterations, (revision) => {
@@ -136,30 +146,49 @@ window.__p637 = {
     });
   },
   measureMobileFrames: async (frames) => {
-    root.render(<ContactPlot placement="inset" size="min(92vw, 760px)" contacts={contacts(0)} centerLabel="AEGIS" />);
-    await settle();
-    const samples: number[] = [];
-    let previous = performance.now();
-    for (let index = 0; index < frames; index += 1) {
-      // Include one representative 20-contact production update in every
-      // sampled frame. The interval therefore covers React work, layout and
-      // the browser's next paint opportunity rather than idle vsync cadence.
-      flushSync(() => root.render(
-        <ContactPlot
-          placement="inset"
-          size="min(92vw, 760px)"
-          contacts={contacts(index + 1)}
-          centerLabel="AEGIS"
-          hostile={index % 12 < 6}
-        />,
-      ));
-      await new Promise<void>((resolve) => requestAnimationFrame((now) => {
-        samples.push(now - previous);
-        previous = now;
-        resolve();
-      }));
+    flushSync(() => root.render(null));
+    const clock = installRenderClock(window);
+    const sampleAnimations = createAnimationSampler();
+    const counter = countLabelReads();
+    const labelLayoutReadSamples: number[] = [];
+    let previousReads = 0;
+    const animations = () => sampleAnimations(document.getAnimations(), clock.nowMs);
+    const step = () => {
+      animations();
+      flushSync(() => clock.stepFrame(() => animations()));
+      animations();
+      container.getBoundingClientRect();
+    };
+    try {
+      flushSync(() => root.render(<ContactPlot placement="inset" size="min(92vw, 760px)" contacts={contacts(0)} centerLabel="AEGIS" />));
+      step();
+      await Promise.resolve();
+      step();
+      await settle();
+      const samples = await measureRenderFrames(frames, (index) => {
+        // One complete production update and fixed sweep batch per retained
+        // native frame. Actual work, layout and paint waits remain budgeted.
+        flushSync(() => root.render(
+          <ContactPlot
+            placement="inset"
+            size="min(92vw, 760px)"
+            contacts={contacts(index + 1)}
+            centerLabel="AEGIS"
+            hostile={index % 12 < 6}
+          />,
+        ));
+        step();
+      }, () => new Promise<number>((resolve) => nativeFrame((now) => {
+        labelLayoutReadSamples.push(counter.reads - previousReads);
+        previousReads = counter.reads;
+        resolve(now);
+      })));
+      return { name: 'mobileFrame', samples, labelLayoutReads: counter.reads, labelLayoutReadSamples };
+    } finally {
+      flushSync(() => root.render(null));
+      clock.restore();
+      counter.restore();
     }
-    return { name: 'mobileFrame', samples };
   },
 };
 

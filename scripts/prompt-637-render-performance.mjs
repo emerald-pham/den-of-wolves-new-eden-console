@@ -285,7 +285,7 @@ try {
       clock: 'fixed 60Hz animation frames and timeouts; native performance.now',
       budgetedUpdate: 'React commit, two production sweep callbacks, synchronous style/layout and two native paint waits',
       workCost: 'diagnostic only; budgeted update minus native paint waits',
-      mobileFrames: 'native animation frames, including paint waits',
+      mobileFrames: 'fixed sweep workload; native animation-frame intervals including work and paint waits',
     },
     landingStartup: { samples: landingStartup.map(rounded), p95Ms: rounded(percentile(landingStartup)) },
     routeStartup: { samples: routeStartup.map(rounded), p95Ms: rounded(percentile(routeStartup)) },
@@ -314,6 +314,9 @@ try {
       p95Ms: rounded(percentile(render.mobileFrames.samples)),
       maxMs: rounded(Math.max(...render.mobileFrames.samples)),
       longFrames: render.mobileFrames.samples.filter((sample) => sample > measurement.longFrameThresholdMs).length,
+      samples: render.mobileFrames.samples.map(rounded),
+      labelLayoutReads: render.mobileFrames.labelLayoutReads,
+      labelLayoutReadSamples: render.mobileFrames.labelLayoutReadSamples,
     },
   };
   // Preserve measurements before enforcing budgets so a regression produces

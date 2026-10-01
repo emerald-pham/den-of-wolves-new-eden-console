@@ -116,3 +116,21 @@ export async function measureRenderUpdate(
   await settlePaint();
   return { totalMs: realNow() - started, workMs };
 }
+
+/** Frame durations use native timestamps, regardless of simulated sweep time. */
+export async function measureRenderFrames(
+  iterations: number,
+  update: (index: number) => void,
+  nextNativeFrame: () => Promise<number>,
+  realNow: () => number = () => performance.now(),
+): Promise<number[]> {
+  const samples: number[] = [];
+  let previous = realNow();
+  for (let index = 0; index < iterations; index += 1) {
+    update(index);
+    const now = await nextNativeFrame();
+    samples.push(now - previous);
+    previous = now;
+  }
+  return samples;
+}

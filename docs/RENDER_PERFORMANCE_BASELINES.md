@@ -37,9 +37,11 @@ timeline, independent of host waits. The budgeted duration still uses native
 reported work cost is diagnostic only. See
 [`DRADIS_BENCHMARK.md`](DRADIS_BENCHMARK.md) for the repeatability evidence and
 clock regression tests. Real milliseconds can vary on shared runners even with
-identical workloads. The mobile-sized probe is a
-390×844 Chromium viewport on the CI host, not physical-device telemetry; every
-one of its 120 retained frames includes a 20-contact DRADIS update.
+identical workloads. The mobile-sized probe uses the same fixed sweep timeline
+with one production sweep batch and a 20-contact update per retained native
+frame. Its durations remain native frame-to-frame intervals, including actual
+work and paint waits. The 390×844 Chromium viewport runs on the CI host, not a
+physical device, and all 120 samples remain in its p95 and long-frame checks.
 
 CI runs the gate after the production build and Playwright installation. Its
 machine-readable evidence is uploaded as the `render-performance-p637`
