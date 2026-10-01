@@ -95,10 +95,12 @@ const MALIADE_REPAIR_REQUEST_ADDITIONS = Object.freeze([
 const PC06_DEPLOYMENT_CONSUMERS = pc06DeploymentConsumers;
 
 function pc06TransitionConsumers(file, previous, current) {
-  const transition = file === 'functions/src/index.ts'
-    ? PC06_DEPLOYMENT_CONSUMERS.index : PC06_DEPLOYMENT_CONSUMERS.modules[file];
   const digest = source => createHash('sha256').update(source).digest('hex');
-  if (!transition || digest(previous) !== transition.before) return null;
+  const transitions = file === 'functions/src/index.ts'
+    ? [PC06_DEPLOYMENT_CONSUMERS.index, ...(PC06_DEPLOYMENT_CONSUMERS.indexTransitions ?? [])]
+    : [PC06_DEPLOYMENT_CONSUMERS.modules[file]];
+  const transition = transitions.find(candidate => candidate?.before === digest(previous));
+  if (!transition) return null;
   if (digest(current) !== transition.after) {
     throw new Error(`Cannot safely map PC06 ${file} outside its exact source consumer audit.`);
   }

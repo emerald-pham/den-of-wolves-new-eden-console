@@ -556,5 +556,17 @@
         "getBoardingSecurityTeamLocations"
       ]
     }
-  }
+  },
+  "indexTransitions": [
+    {
+      "baseline": "1f4558b11c53d8e70c76119c27483e40a180c681",
+      "implementationCandidate": "4c255fb0f974cf9505c956d547de67e4b647401b",
+      "before": "277d6c11457130800d8302a0a8fa1e8a8229a5d19ed9c4a02b7266c6f4d0a80c",
+      "after": "87c79cd15f0dfaf10c33600514ecdce2146ef6518d6c210f319c74c3006f7d9d",
+      "consumers": [
+        "runMaintenance"
+      ],
+      "reason": "Only maintenanceRequestFingerprint and sameMaintenanceRequestFingerprint change; runMaintenance is their sole runtime consumer."
+    }
+  ]
 }

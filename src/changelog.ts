@@ -27,6 +27,17 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 507, partial: 35, active: 0, missing: 209, blocked: 0,
     },
     changes: [
+      'Shuttle refuelling during ship maintenance now saves a valid receipt, preserving safe retries and fuel accounting.',
+      '507 of 751 planned items are complete in the catalog snapshot used to build this release (67.51%). PC06 gameplay verification continues.',
+    ],
+  },
+  {
+    version: '0.5.59',
+    implementationProgress: {
+      completed: 507, total: 751, percentage: '67.51%',
+      done: 507, partial: 35, active: 0, missing: 209, blocked: 0,
+    },
+    changes: [
       'Ship-specific Jump Drive costs, independent small-craft arrivals, fleet-group notes and scouting keep movement, fuel and private knowledge tied to the current crew and location.',
       'Away missions carry private cards through distribution, assignment, automatic outcomes, exploration, complete reward delivery and recovery while holding participating craft safely.',
       'Cargo, repairs, exact same-table trades and facilitator vessel controls use current roles, hosts and inventories. A separate four-step review scene lets you inspect prepared examples without changing a live game.',
