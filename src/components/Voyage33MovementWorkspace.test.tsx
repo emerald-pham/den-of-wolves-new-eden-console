@@ -8,6 +8,10 @@ import { VOYAGE_33_ID } from '../../functions/src/voyageAdmission';
 import Voyage33MovementWorkspace from './Voyage33MovementWorkspace';
 import { dockVoyage33Movement, jumpVoyage33Movement } from '@/lib/voyage33MovementService';
 
+const { runVoyage33Maintenance } = vi.hoisted(() => ({
+  runVoyage33Maintenance: vi.fn(),
+}));
+
 vi.mock('@/lib/voyage33MovementService', () => {
   class MockUncertainError extends Error {
     constructor(readonly attempt: Record<string, unknown>, message = 'connection result unavailable') {
@@ -28,6 +32,8 @@ vi.mock('@/lib/voyage33MovementService', () => {
     jumpVoyage33Movement: vi.fn(),
   };
 });
+
+vi.mock('@/lib/smallShipService', () => ({ runVoyage33Maintenance }));
 
 const movementService = await import('@/lib/voyage33MovementService');
 
@@ -150,6 +156,7 @@ function installGm(session: GameSession, freshness: 'server' | 'cache' = 'server
 beforeEach(() => {
   vi.mocked(dockVoyage33Movement).mockReset();
   vi.mocked(jumpVoyage33Movement).mockReset();
+  runVoyage33Maintenance.mockReset();
   Object.defineProperty(window.navigator, 'onLine', { configurable: true, value: true });
 });
 
@@ -300,7 +307,118 @@ describe('Voyage 33-0 movement workspace', () => {
     expect(await within(workspace).findByRole('button', { name: /Jump to Known nearby site/i })).toBeInTheDocument();
   });
 
-  it('does not expose jump actions without a current-cycle charge or from a cached session', () => {
+  it('mounts Voyage 33-0 maintenance in Team when the admitted vessel has a current host', () => {
+    const base = emptyVoyage33MaintenanceState('aegis');
+    const session = sessionFixture('voyage-workspace-maintenance', {
+      voyage33Movement: movementState('0000', 2),
+      voyage33Maintenance: {
+        ...base,
+        dockingRevision: 4,
+        cycle: { ...base.cycle, step: 0, revision: 2 },
+      },
+    });
+    installGm(session);
+    render(<Voyage33MovementWorkspace />);
+
+    const workspace = screen.getByRole('region', { name: 'Voyage 33-0 movement workspace' });
+    const maintenance = within(workspace).getByRole('region', { name: 'Voyage 33-0 maintenance' });
+    expect(maintenance).toHaveTextContent(/AEGIS.*host/i);
+    expect(maintenance).toHaveTextContent(/8 food.*6 water/i);
+    expect(within(maintenance).getByRole('button', { name: /begin maintenance cycle/i })).toBeEnabled();
+  });
+
+  it('shows only the two printed production choices in the Voyage reactor step', () => {
+    const base = emptyVoyage33MaintenanceState('aegis');
+    const session = sessionFixture('voyage-workspace-maintenance-charge', {
+      voyage33Movement: movementState('0000', 2),
+      voyage33Maintenance: {
+        ...base,
+        dockingRevision: 4,
+        cycle: { ...base.cycle, step: 4, revision: 4, turn: 1 },
+      },
+    });
+    installGm(session);
+    render(<Voyage33MovementWorkspace />);
+
+    const maintenance = screen.getByRole('region', { name: 'Voyage 33-0 maintenance' });
+    expect(within(maintenance).getByRole('checkbox', { name: /Hydroponics/i })).toBeInTheDocument();
+    expect(within(maintenance).getByRole('checkbox', { name: /Water Reclimator/i })).toBeInTheDocument();
+    expect(within(maintenance).queryByRole('checkbox', { name: /Jump Drive/i })).not.toBeInTheDocument();
+  });
+
+  it('waits for the server receipt before showing the actual unrest dice result', async () => {
+    const base = emptyVoyage33MaintenanceState('aegis');
+    const session = sessionFixture('voyage-workspace-maintenance-receipt', {
+      voyage33Movement: movementState('0000', 2),
+      voyage33Maintenance: {
+        ...base,
+        dockingRevision: 4,
+        unrest: 0,
+        cycle: {
+          ...base.cycle,
+          step: 2,
+          revision: 2,
+          turn: 1,
+          rationBonus: 9,
+          results: { '1': 'Ration choice recorded by the server.' },
+        },
+      },
+    });
+    installGm(session);
+
+    let resolveReceipt!: (value: unknown) => void;
+    runVoyage33Maintenance.mockImplementation(() => new Promise((resolve) => {
+      resolveReceipt = resolve;
+    }));
+    render(<Voyage33MovementWorkspace />);
+
+    const maintenance = screen.getByRole('region', { name: 'Voyage 33-0 maintenance' });
+    fireEvent.click(within(maintenance).getByRole('button', { name: /roll.*unrest/i }));
+
+    expect(runVoyage33Maintenance).toHaveBeenCalledWith(
+      'unrest', 2, 4, {}, expect.any(String),
+    );
+    expect(within(maintenance).getByRole('status')).toHaveTextContent(/waiting for.*server receipt/i);
+    expect(within(maintenance).queryByText(/Rolled 5 \+ 5 \+ 9 = 19/i)).not.toBeInTheDocument();
+
+    const requestId = runVoyage33Maintenance.mock.calls[0]?.[4] as string;
+    const nextState = {
+      ...session.voyage33Maintenance!,
+      unrest: 1,
+      cycle: {
+        ...session.voyage33Maintenance!.cycle,
+        step: 3,
+        revision: 3,
+        results: {
+          ...session.voyage33Maintenance!.cycle.results,
+          '2': 'Rolled 5 + 5 + 9 = 19. Added 1 unrest; unrest 1.',
+        },
+      },
+    };
+    await act(async () => resolveReceipt({
+      status: 'committed',
+      requestId,
+      sessionId: session.id,
+      shipId: VOYAGE_33_ID,
+      hostShipId: 'aegis',
+      action: 'unrest',
+      expectedRevision: 2,
+      committedRevision: 3,
+      expectedDockingRevision: 4,
+      currentDockingRevision: 4,
+      currentTurn: 1,
+      cycle: nextState.cycle,
+      result: {
+        state: nextState,
+        hostResources: session.shipResources!.aegis,
+      },
+    }));
+
+    expect(await within(maintenance).findByText('Rolled 5 + 5 + 9 = 19. Added 1 unrest; unrest 1.')).toBeInTheDocument();
+    expect(within(maintenance).getByRole('status')).toHaveTextContent(/waiting for.*session projection/i);
+  });
+
+  it('offers a legal current host route without a Jump Drive charge and still requires a live snapshot', () => {
     const uncharged = sessionFixture('voyage-workspace-uncharged', {
       turnPhase: phase('coordination'),
       voyage33Movement: movementState('0000', 2),
@@ -308,8 +426,8 @@ describe('Voyage 33-0 movement workspace', () => {
     });
     installGm(uncharged);
     const { unmount } = render(<Voyage33MovementWorkspace />);
-    expect(screen.getByText(/charge the voyage.*jump drive|jump drive charge.*current/i)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /jump to/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/charge the voyage.*jump drive|jump drive charge.*current/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Jump to Known nearby site/i })).toBeEnabled();
 
     const stale = sessionFixture('voyage-workspace-stale');
     unmount();
