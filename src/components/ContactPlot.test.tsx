@@ -1848,6 +1848,52 @@ it('batches crowded fallback translation probes while keeping names beside their
   });
 });
 
+it('stops comparing distant obstacles once a collided lane cannot improve the chosen label', () => {
+  const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
+    x: left, y: top, left, top, width, height,
+    right: left + width, bottom: top + height,
+  }) as DOMRect;
+  let centralReads = 0;
+  let distantReads = 0;
+  const watchedBounds = (left: number, top: number, width: number, height: number, distant: boolean) => {
+    const rect = bounds(left, top, width, height);
+    Object.defineProperty(rect, 'right', { get: () => {
+      if (distant) distantReads += 1;
+      else centralReads += 1;
+      return left + width;
+    } });
+    return rect;
+  };
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    if (this.classList.contains('contact-plot')) return bounds(0, 0, 320, 240);
+    if (this.classList.contains('contact-plot__origin')) return watchedBounds(110, 100, 100, 40, false);
+    if (this.hasAttribute('data-plot-obstacle')) return watchedBounds(0, 0, 4, 4, true);
+    if (this.classList.contains('contact-plot__blip')) return bounds(160, 120, 8, 8);
+    if (this.classList.contains('contact-plot__tag')) {
+      const label = this as HTMLElement;
+      const anchor = label.closest<HTMLElement>('.contact-plot__contact')?.dataset.labelAnchor ?? 'south-east';
+      return bounds(
+        (anchor.endsWith('east') ? 160 - 11 - 80 : 160 + 19) +
+          (Number.parseFloat(label.style.getPropertyValue('--label-clamp-x')) || 0),
+        (anchor.startsWith('north') ? 120 - 26 : 120 + 16) +
+          (Number.parseFloat(label.style.getPropertyValue('--label-clamp-y')) || 0),
+        80, 18,
+      );
+    }
+    return bounds(0, 0, 0, 0);
+  });
+  const { container } = render(<div className="ship-plot">
+    <span data-plot-obstacle="distant" />
+    <ContactPlot centerLabel="AEGIS" contacts={[{ id: 'bounded-score', tag: 'CONTACT', x: 0.55, y: 0.38, z: 0.1, color: 'white' }]} />
+  </div>);
+  const label = container.querySelector<HTMLElement>('.contact-plot__tag')!;
+  const placed = label.getBoundingClientRect();
+  expect(placed.top).toBeGreaterThanOrEqual(144);
+  expect(placed.bottom).toBeLessThanOrEqual(232);
+  expect(placed.right).toBeLessThanOrEqual(156);
+  expect(distantReads).toBeLessThanOrEqual(centralReads / 2);
+});
+
 it('measures a spread 20-contact DRADIS anchor batch twice per label', () => {
   const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
     x: left, y: top, left, top, width, height,
