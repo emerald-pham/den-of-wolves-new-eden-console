@@ -105,7 +105,7 @@ function maintenance(hostShipId: string | null = 'aegis', dockingRevision = 3) {
   return {
     ...state,
     dockingRevision,
-    cycle: { ...state.cycle, turn: 2, charges: ['jump-drive'] },
+    cycle: { ...state.cycle, turn: 2, charges: ['hydroponics'] },
   };
 }
 
@@ -261,7 +261,7 @@ describe('Voyage 33-0 movement callable adapter', () => {
       movementState: { coordinate: destination, revision: 1, jumpState: { lastJumpTurn: 2 } },
       maintenanceState: {
         hostShipId: null, dockingRevision: 4,
-        cycle: { revision: 1, charges: [] },
+        cycle: { revision: 1, charges: ['hydroponics'] },
       },
       transition: { shipId: VOYAGE_33_ID, origin: '0000', destination, id: 'voyage-jump-jump-1' },
       fuelSpent: cost,
@@ -334,7 +334,7 @@ describe('Voyage 33-0 movement callable adapter', () => {
     expect(db.writes).toHaveLength(0);
   });
 
-  it('rejects a client-resolved jump result and requires a server-charged Jump Drive', async () => {
+  it('rejects a client-resolved result but permits an uncharged legal Voyage jump', async () => {
     const { db, callables } = seed();
     const forged = {
       ...jumpRequest,
@@ -351,9 +351,9 @@ describe('Voyage 33-0 movement callable adapter', () => {
       },
     });
     await expect(uncharged.callables.jumpVoyage33(request(jumpRequest)))
-      .rejects.toMatchObject({ code: 'failed-precondition' });
+      .resolves.toMatchObject({ status: 'jumped', fuelSpent: 1 });
     expect(db.writes).toHaveLength(0);
-    expect(uncharged.db.writes).toHaveLength(0);
+    expect(uncharged.db.writes.length).toBeGreaterThan(0);
   });
 
   it('does not allow a second jump in the same cycle', async () => {

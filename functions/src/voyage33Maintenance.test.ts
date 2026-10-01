@@ -26,7 +26,7 @@ describe('Voyage 33-0 maintenance', () => {
       { action: 'rations', foodLevel: 1, waterLevel: 1 },
       { action: 'unrest', rolls: [6, 6] },
       { action: 'riot', rolls: [6] },
-      { action: 'reactor', consoles: ['voyage-reactor'] },
+      { action: 'reactor', consoles: ['water-reclamation'] },
       { action: 'end' },
     ] as const;
     for (const action of actions) {
@@ -37,10 +37,11 @@ describe('Voyage 33-0 maintenance', () => {
       state = next.state;
       resources = next.hostResources;
     }
-    expect(resources).toMatchObject({ food: 5, water: 4 });
+    expect(resources).toMatchObject({ food: 4, water: 2 });
     expect(state.population).toBe(40_000);
     expect(state.cycle.step).toBe(0);
     expect(state.cycle.results['4']).toMatch(/Charged 1\/1/);
+    expect(state.cycle.charges).toEqual(['water-reclamation']);
   });
 
   it('loses the server-rolled population amount and skips charging after a failed unrest check', () => {
@@ -59,13 +60,44 @@ describe('Voyage 33-0 maintenance', () => {
       state, expectedRevision: state.cycle.revision, currentTurn: 1,
       hostResources, now: '2026-09-19T00:00:00.000Z', action: 'riot', rolls: [1],
     });
-    expect(failed.state.population).toBe(39_999);
+    expect(failed.state.population).toBe(37_000);
     expect(failed.state.cycle.chargingSkipped).toBe(true);
     expect(() => advanceVoyage33Maintenance({
       state: failed.state, expectedRevision: failed.state.cycle.revision,
       currentTurn: 1, hostResources, now: '2026-09-19T00:00:00.000Z',
-      action: 'reactor', consoles: ['voyage-reactor'], rolls: [],
+      action: 'reactor', consoles: ['water-reclamation'], rolls: [],
     })).toThrow(/charging was skipped/i);
+  });
+
+  it.each([
+    [40_000, 13, 10], [34_000, 12, 9], [25_000, 11, 8],
+    [15_000, 10, 7], [5_000, 8, 6], [0, 8, 6],
+  ])('funds printed full rations at population %i from the host', (population, food, water) => {
+    const base = emptyVoyage33MaintenanceState('aegis');
+    const state = { ...base, population, cycle: { ...base.cycle, step: 1 } };
+    const result = advanceVoyage33Maintenance({ state, action: 'rations',
+      expectedRevision: 0, currentTurn: 1, hostResources: { ...hostResources, food: 30, water: 30 },
+      foodLevel: 3, waterLevel: 3, rolls: [], now: 'now' });
+    expect(result.hostResources).toMatchObject({ food: 30 - food, water: 30 - water });
+    expect(result.state.cycle.rationBonus).toBe(18);
+  });
+
+  it.each(['jump-drive', 'voyage-reactor', 'unknown'])('rejects unprinted charge %s', (consoleId) => {
+    const base = emptyVoyage33MaintenanceState('aegis');
+    const state = { ...base, cycle: { ...base.cycle, step: 4 } };
+    expect(() => advanceVoyage33Maintenance({ state, action: 'reactor', expectedRevision: 0,
+      currentTurn: 1, hostResources, consoles: [consoleId], rolls: [], now: 'now' }))
+      .toThrow(/printed|supported|console/i);
+  });
+
+  it('moves multiple population markers and caps at zero with one unrest consequence', () => {
+    const base = emptyVoyage33MaintenanceState('aegis');
+    const state = { ...base, population: 750, unrest: 4, cycle: { ...base.cycle, step: 3 } };
+    const result = advanceVoyage33Maintenance({ state, action: 'riot', expectedRevision: 0,
+      currentTurn: 1, hostResources, rolls: [3], now: 'now' });
+    expect(result.state.population).toBe(0);
+    expect(result.state.unrest).toBe(6);
+    expect(result.state.cycle.chargingSkipped).toBe(true);
   });
 
   it('applies the zero-population unrest consequence only on the transition', () => {
