@@ -1,6 +1,6 @@
 # PC06 vessel movement and away missions
 
-The connected checkpoint has passed independent source review and final local validation; release and ordinary gameplay evidence remain pending. The fixed assignment is 49 prompts, with a target of 556/751 completed overall and 98/293 in this allocation. The catalog remains 507/751; no local test or synthetic scene grants completion credit. The current production-path and evidence gaps are recorded in [the acceptance matrix](PC06_ACCEPTANCE_MATRIX.md).
+The connected checkpoint has independent source review and local validation evidence. Candidate CI is blocked by radar rendering cost; deployment and ordinary gameplay evidence remain pending. The fixed assignment is 49 prompts, with a target of 556/751 completed overall and 98/293 in this allocation. The catalog remains 507/751; no local test or synthetic scene grants completion credit. The current production-path and evidence gaps are recorded in [the acceptance matrix](PC06_ACCEPTANCE_MATRIX.md).
 
 ## Solo review access
 
@@ -37,7 +37,9 @@ Earlier test-first and source-contract corrections, including printed bonuses, W
 
 ## Remaining release evidence
 
-The connected security-team location projection, service and GM workspace are integrated. The source-bound deployment-consumer inventory is reconciled to the combined runtime source; all 101 selector tests pass, including unknown-source denial. The first independent Sol review found six issues; the owner has added observed-red regressions and repaired them. Independent Sol 6.1 xhigh review approved exact `a72f0ba2`, and all 18 final local gates pass, including 6,655 tests and 152 rules checks. The docs-only successor retains identical runtime and fixed49 membership. Exact successor review binding, candidate CI, production deployment/build verification and ordinary authorized gameplay remain pending. Cloud Tasks enqueue and private deadline-worker invocation require actual production evidence.
+The connected security-team location projection, service and GM workspace are integrated. The source-bound deployment-consumer inventory is reconciled to the combined runtime source; all 101 selector tests pass, including unknown-source denial. The first independent Sol review found six issues; the owner added observed-red regressions and repaired them. All 18 final local gates passed at `a72f0ba2`, including 6,655 tests and 152 rules checks. Later upstream benchmark and documentation reconciliation, plus two test-only CI repairs, received independent approval through exact `164573f2` without changing the reviewed gameplay authority.
+
+The two hosted rendering failures measured 78 and 79 mobile frames above 50 ms against the unchanged cap of 70. Unit, Functions, rules, build, font, typography and full ticker gates passed before that failure. The current bounded ContactPlot repair must reduce the actual continuous layout workload before a new reconciled candidate receives review, affected local validation and the next single PR CI run. Production deployment/build verification and ordinary authorized gameplay remain pending. Cloud Tasks enqueue and private deadline-worker invocation require actual production evidence.
 
 The browser tool currently denies access to the production console because it cannot verify its administrator policy. This is a genuine tool security denial; no alternate browser path is being used to bypass it. Ordinary production proof resumes after access is restored. The earlier product status label is not being treated as an authorization blocker.
 
