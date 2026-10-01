@@ -747,7 +747,7 @@ describe('Voyage 33-0 movement workspace', () => {
     expect(within(maintenance).getByRole('button', { name: /roll unrest/i })).toBeEnabled();
     expect(within(maintenance).queryByLabelText('Voyage 33-0 food ration level')).not.toBeInTheDocument();
     expect(within(maintenance).queryByRole('button', { name: /begin maintenance cycle/i })).not.toBeInTheDocument();
-    expect(within(maintenance).getByText(/unfinished maintenance cycle.*earlier cycle/i)).toBeInTheDocument();
+    expect(within(maintenance).getByRole('status')).toHaveTextContent(/unfinished maintenance cycle from Cycle 0 remains at Step 2/i);
     expect(within(maintenance).queryByText(/\bturn\b/i)).not.toBeInTheDocument();
 
     fireEvent.click(within(maintenance).getByRole('button', { name: /roll unrest/i }));
