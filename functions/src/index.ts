@@ -29069,7 +29069,7 @@ type MaintenanceRequestFingerprint = Readonly<{
   foodLevel: number | null;
   waterLevel: number | null;
   consoles: readonly string[];
-  refuels: readonly (readonly [string, string])[];
+  refuels: readonly Readonly<{ bayId: string; shuttleId: string }>[];
   productionConsoleId: string | null;
   productionMode: 'run' | 'skip' | null;
   productionScrap: boolean | null;
@@ -29100,7 +29100,9 @@ function maintenanceRequestFingerprint(command: MaintenanceCommand, actorUid: st
     foodLevel: command.foodLevel ?? null,
     waterLevel: command.waterLevel ?? null,
     consoles: [...(command.consoles ?? [])],
-    refuels: Object.entries(command.refuels ?? {}).sort(([left], [right]) => left.localeCompare(right)),
+    refuels: Object.entries(command.refuels ?? {})
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([bayId, shuttleId]) => ({ bayId, shuttleId })),
     productionConsoleId: command.productionConsoleId ?? null,
     productionMode: command.productionMode ?? null,
     productionScrap: command.productionScrap ?? null,
@@ -29115,9 +29117,10 @@ function sameMaintenanceRequestFingerprint(
 ): boolean {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const candidate = value as Record<string, unknown>;
-  const samePairs = (stored: unknown, wanted: readonly (readonly [string, string])[]) =>
+  const sameRefuels = (stored: unknown, wanted: MaintenanceRequestFingerprint['refuels']) =>
     Array.isArray(stored) && stored.length === wanted.length && stored.every((pair, index) =>
-      Array.isArray(pair) && pair.length === 2 && pair[0] === wanted[index]?.[0] && pair[1] === wanted[index]?.[1]);
+      typeof pair === 'object' && pair !== null && !Array.isArray(pair) &&
+      pair.bayId === wanted[index]?.bayId && pair.shuttleId === wanted[index]?.shuttleId);
   return candidate.sessionId === expected.sessionId &&
     candidate.shipId === expected.shipId &&
     candidate.actorUid === expected.actorUid &&
@@ -29128,7 +29131,7 @@ function sameMaintenanceRequestFingerprint(
     candidate.waterLevel === expected.waterLevel &&
     Array.isArray(candidate.consoles) && candidate.consoles.length === expected.consoles.length &&
     candidate.consoles.every((item, index) => item === expected.consoles[index]) &&
-    samePairs(candidate.refuels, expected.refuels) &&
+    sameRefuels(candidate.refuels, expected.refuels) &&
     candidate.productionConsoleId === expected.productionConsoleId &&
     candidate.productionMode === expected.productionMode &&
     (candidate.productionScrap ?? null) === expected.productionScrap &&
