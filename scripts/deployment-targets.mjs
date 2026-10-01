@@ -98,7 +98,7 @@ function pc06TransitionConsumers(file, previous, current) {
   const digest = source => createHash('sha256').update(source).digest('hex');
   const transitions = file === 'functions/src/index.ts'
     ? [PC06_DEPLOYMENT_CONSUMERS.index, ...(PC06_DEPLOYMENT_CONSUMERS.indexTransitions ?? [])]
-    : [PC06_DEPLOYMENT_CONSUMERS.modules[file]];
+    : [PC06_DEPLOYMENT_CONSUMERS.modules[file], ...(PC06_DEPLOYMENT_CONSUMERS.moduleTransitions?.[file] ?? [])];
   const transition = transitions.find(candidate => candidate?.before === digest(previous));
   if (!transition) return null;
   if (digest(current) !== transition.after) {

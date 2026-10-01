@@ -582,5 +582,16 @@
       ],
       "reason": "Only maintenanceRequestFingerprint and sameMaintenanceRequestFingerprint change; runMaintenance is their sole runtime consumer."
     }
-  ]
+  ],
+  "moduleTransitions": {
+    "functions/src/voyage33MovementCallable.ts": [
+      {
+        "before": "2181700c39957d9bc9d47fc8389257d0624a627304b67e9a2ace152009a5ad71",
+        "after": "54180b468df00bd8a4afb56f3a48b49429760b23bf2760b18263b96b2b45dee8",
+        "consumers": [
+          "jumpVoyage33"
+        ]
+      }
+    ]
+  }
 }
