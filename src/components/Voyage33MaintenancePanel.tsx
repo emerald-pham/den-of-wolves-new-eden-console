@@ -276,7 +276,7 @@ export default function Voyage33MaintenancePanel({
       ? 'UNCERTAIN // retry the exact request before choosing another maintenance action.'
       : 'Waiting for the server maintenance receipt.';
 
-  const perform = async (nextAttempt: Attempt) => {
+  const perform = async (nextAttempt: Attempt, reconcileOnly?: true) => {
     setPending(true);
     setFeedback({ role: 'status', message: `Waiting for the server receipt for ${actionLabel(nextAttempt.action)}.` });
     try {
@@ -286,7 +286,26 @@ export default function Voyage33MaintenancePanel({
         nextAttempt.expectedDockingRevision,
         nextAttempt.choices,
         nextAttempt.requestId,
+        nextAttempt.turn,
+        reconcileOnly,
       );
+      if (reconcileOnly && isRecord(raw) && raw.status === 'absent') {
+        const current = useSessionStore.getState();
+        if (raw.sessionId !== nextAttempt.sessionId || raw.requestId !== nextAttempt.requestId ||
+            raw.shipId !== 'voyage-33-0' || raw.actorUid !== nextAttempt.uid || raw.instanceId !== nextAttempt.instanceId ||
+            raw.action !== nextAttempt.action || raw.expectedRevision !== nextAttempt.expectedRevision ||
+            raw.expectedDockingRevision !== nextAttempt.expectedDockingRevision || raw.expectedCycle !== nextAttempt.turn ||
+            !isRevision(raw.currentCycle) || raw.currentCycle <= nextAttempt.turn ||
+            current.session?.id !== nextAttempt.sessionId || current.me?.uid !== nextAttempt.uid ||
+            current.gmInstance?.id !== nextAttempt.instanceId || current.session.currentTurn !== raw.currentCycle) {
+          setAttempt(nextAttempt);
+          setFeedback({ role: 'alert', message: 'UNCERTAIN // reconciliation did not match this original request and live GM context.' });
+          return;
+        }
+        setAttempt(null); setReceipt(null); setGuard(null);
+        setFeedback({ role: 'status', message: 'The server confirmed the original request did not commit. Your choices are preserved; continue in the current cycle.' });
+        return;
+      }
       const stale = parseStaleReceipt(raw, nextAttempt);
       if (stale) {
         setAttempt(null);
@@ -326,7 +345,7 @@ export default function Voyage33MaintenancePanel({
     } catch (cause) {
       const code = commandErrorCode(cause);
       const normalized = normalizeCommandError(cause);
-      if (UNCERTAIN_CODES.has(code)) {
+      if (reconcileOnly || UNCERTAIN_CODES.has(code)) {
         setAttempt(nextAttempt);
         setFeedback({ role: 'alert', message: `UNCERTAIN // ${normalized.message} Retry only this exact request while the same live GM instance and docked host remain current.` });
       } else {
@@ -367,6 +386,17 @@ export default function Voyage33MaintenancePanel({
       return;
     }
     void perform(attempt);
+  };
+
+  const reconcileOriginal = () => {
+    if (!attempt || pending) return;
+    const current = useSessionStore.getState();
+    if (!attemptStillMatches({ ...attempt, turn: current.session?.currentTurn ?? 0 }, true) ||
+        !isRevision(current.session?.currentTurn) || current.session.currentTurn <= attempt.turn) {
+      setFeedback({ role: 'alert', message: 'Restore the same live GM instance and a later current cycle before reconciling this request.' });
+      return;
+    }
+    void perform(attempt, true);
   };
 
   const step = state.cycle.step;
@@ -496,6 +526,11 @@ export default function Voyage33MaintenancePanel({
         </p>
       )}
       {feedback && <p className="voyage33-maintenance__feedback" role={feedback.role} aria-live={feedback.role === 'alert' ? 'assertive' : 'polite'}>{feedback.message}</p>}
+      {attempt && !pending && currentTurn > attempt.turn && (
+        <button className="cic-action-button" type="button" onClick={reconcileOriginal}>
+          Reconcile original maintenance request
+        </button>
+      )}
       {attempt && !pending && (
         <button className="cic-action-button" type="button" onClick={retryExact}>
           Retry exact {actionLabel(attempt.action)} request

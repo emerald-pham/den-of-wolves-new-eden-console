@@ -64,10 +64,13 @@ export async function runVoyage33Maintenance(
   expectedDockingRevision: number,
   choices: SmallShipMaintenanceChoices = {},
   requestId = commandId(),
+  expectedCycle = useSessionStore.getState().session?.currentTurn,
+  reconcileOnly?: true,
 ): Promise<unknown> {
   const { sessionId, instanceId } = requireSession();
   const payload = {
-    sessionId, shipId: 'voyage-33-0' as const, action, expectedRevision, expectedDockingRevision, requestId, ...choices,
+    sessionId, shipId: 'voyage-33-0' as const, action, expectedRevision, expectedDockingRevision, expectedCycle, requestId, ...choices,
+    ...(reconcileOnly ? { reconcileOnly } : {}),
     ...(instanceId ? { instanceId } : {}),
   };
   return (await httpsCallable<typeof payload, unknown>(functions(), 'runVoyage33Maintenance')(payload)).data;

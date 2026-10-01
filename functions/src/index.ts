@@ -28755,6 +28755,7 @@ type Voyage33MaintenanceCommandFingerprint = Readonly<{
   instanceId: string | null;
   expectedRevision: number;
   expectedDockingRevision: number;
+  expectedCycle: number;
   action: string;
   foodLevel: number | null;
   waterLevel: number | null;
@@ -28771,6 +28772,7 @@ function sameVoyage33MaintenanceFingerprint(
     value.actorUid === expected.actorUid && value.instanceId === expected.instanceId &&
     value.expectedRevision === expected.expectedRevision && value.action === expected.action &&
     value.expectedDockingRevision === expected.expectedDockingRevision &&
+    value.expectedCycle === expected.expectedCycle &&
     value.foodLevel === expected.foodLevel && value.waterLevel === expected.waterLevel &&
     Array.isArray(consoles) && consoles.length === expected.consoles.length &&
     consoles.every((item, index) => item === expected.consoles[index]);
@@ -28826,13 +28828,13 @@ async function requireVoyage33MaintenanceAuthority(
 /** Run Voyage 33-0's four-step host-funded maintenance lane. Docking remains P251. */
 export const runVoyage33Maintenance = onCall<{
   sessionId?: unknown; shipId?: unknown; requestId?: unknown; action?: unknown;
-  expectedRevision?: unknown; expectedDockingRevision?: unknown; instanceId?: unknown;
+  expectedRevision?: unknown; expectedDockingRevision?: unknown; expectedCycle?: unknown; instanceId?: unknown; reconcileOnly?: unknown;
   foodLevel?: unknown; waterLevel?: unknown; consoles?: unknown;
 }>(async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
-      Object.keys(raw).some(key => !['sessionId', 'shipId', 'requestId', 'action', 'expectedRevision', 'expectedDockingRevision', 'instanceId', 'foodLevel', 'waterLevel', 'consoles'].includes(key))) {
+      Object.keys(raw).some(key => !['sessionId', 'shipId', 'requestId', 'action', 'expectedRevision', 'expectedDockingRevision', 'expectedCycle', 'reconcileOnly', 'instanceId', 'foodLevel', 'waterLevel', 'consoles'].includes(key))) {
     throw new HttpsError('invalid-argument', 'Invalid Voyage 33-0 maintenance request.');
   }
   const parsed = requireSmallShipMaintenanceRequest({ ...raw, smallShipId: raw.shipId });
@@ -28840,6 +28842,11 @@ export const runVoyage33Maintenance = onCall<{
     throw new HttpsError('invalid-argument', 'expectedDockingRevision must be a non-negative integer.');
   }
   const expectedDockingRevision = raw.expectedDockingRevision as number;
+  if (!Number.isSafeInteger(raw.expectedCycle) || (raw.expectedCycle as number) < 1 ||
+      (raw.reconcileOnly !== undefined && raw.reconcileOnly !== true)) {
+    throw new HttpsError('invalid-argument', 'A captured positive cycle and valid reconciliation mode are required.');
+  }
+  const expectedCycle = raw.expectedCycle as number;
   const consoles = requireBoundedIdList(raw.consoles, 'consoles', MAX_VOYAGE_33_CONSOLES);
   if (parsed.smallShipId !== VOYAGE_33_ID || !['begin', 'rations', 'unrest', 'riot', 'reactor', 'end'].includes(parsed.action) ||
       [raw.foodLevel, raw.waterLevel].some(level => level !== undefined && (!Number.isSafeInteger(level) || (level as number) < 0 || (level as number) > 3))) {
@@ -28848,13 +28855,39 @@ export const runVoyage33Maintenance = onCall<{
   const fingerprint: Voyage33MaintenanceCommandFingerprint = {
     kind: 'maintenance', sessionId: parsed.sessionId, actorUid: uid,
     instanceId: parsed.instanceId ?? null, expectedRevision: parsed.expectedRevision,
-    expectedDockingRevision,
+    expectedDockingRevision, expectedCycle,
     action: parsed.action, foodLevel: raw.foodLevel === undefined ? null : raw.foodLevel as number,
     waterLevel: raw.waterLevel === undefined ? null : raw.waterLevel as number,
     consoles: [...(consoles ?? [])],
   };
   const requestRef = db.doc(`sessions/${parsed.sessionId}/voyage33MaintenanceRequests/${parsed.requestId}`);
   const sessionRef = db.doc(`sessions/${parsed.sessionId}`);
+  // Reconciliation is read-only. Once the captured cycle is obsolete the final
+  // mutation guard below makes an absent request incapable of committing late.
+  if (raw.reconcileOnly === true) return db.runTransaction(async tx => {
+    const [prior, session, player] = await Promise.all([
+      tx.get(requestRef), tx.get(sessionRef), tx.get(db.doc(`sessions/${parsed.sessionId}/players/${uid}`)),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!isActivePlayer(player) || player.get('role') !== 'gm' || !parsed.instanceId) {
+      throw new HttpsError('permission-denied', 'An active GM instance is required to reconcile maintenance.');
+    }
+    requirePlayerShipActionAuthority(player);
+    const instance = await tx.get(db.doc(`sessions/${parsed.sessionId}/gmInstances/${parsed.instanceId}`));
+    if (!isLiveGmInstance(instance, player, uid)) throw new HttpsError('permission-denied', 'Active GM instance required.');
+    const replay = voyage33MaintenanceReceiptReply(prior, fingerprint, uid);
+    if (replay) return replay;
+    const currentCycle = sessionTurn(session.get('currentTurn'));
+    const state = storedVoyage33MaintenanceState(session);
+    if (session.get('phase') !== 'active' || currentCycle <= expectedCycle || !state ||
+        !parseVoyage33Admission(session.get('voyage33Admission'), parsed.sessionId) ||
+        state.cycle.revision < parsed.expectedRevision || state.dockingRevision < expectedDockingRevision) {
+      throw commandError('failed-precondition', 'The captured cycle is not safely obsolete; retain the original request.', 'conflict');
+    }
+    return { status: 'absent' as const, sessionId: parsed.sessionId, requestId: parsed.requestId,
+      shipId: VOYAGE_33_ID, actorUid: uid, instanceId: parsed.instanceId, action: parsed.action,
+      expectedRevision: parsed.expectedRevision, expectedDockingRevision, expectedCycle, currentCycle };
+  });
   const preflight = await db.runTransaction(async tx => {
     const prior = await tx.get(requestRef);
     const priorReply = isRecord(prior.get('reply')) ? prior.get('reply') : undefined;
@@ -28878,6 +28911,9 @@ export const runVoyage33Maintenance = onCall<{
     const prior = await tx.get(requestRef);
     const replay = voyage33MaintenanceReceiptReply(prior, fingerprint, uid);
     if (replay) return replay;
+    if (sessionTurn(authority.session.get('currentTurn')) !== expectedCycle) {
+      throw commandError('failed-precondition', 'The captured cycle changed before maintenance committed; reconcile the original request.', 'conflict');
+    }
     if (isVoyage33InMutiny(authority.state)) {
       throw commandError(
         'failed-precondition',
