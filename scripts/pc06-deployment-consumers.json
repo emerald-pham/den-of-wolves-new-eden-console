@@ -569,6 +569,14 @@
       "consumers": [
         "sendScoutTaxiCourier"
       ]
+    },
+    "functions/src/starlightScout.ts": {
+      "before": "d7be9626d90c21a460fddd1f4fc561387d8a38f8d431a6e698e68981a615098e",
+      "after": "49ee273ebaa7440a238dacd210875e2d193ff92cfd0bac3c318a4809e13221d7",
+      "consumers": [
+        "requestScout",
+        "sendScoutTaxiCourier"
+      ]
     }
   },
   "indexTransitions": [
