@@ -79,10 +79,11 @@ describe('authenticated boarding-security location read', () => {
   it('derives strict ship totals, current docked shuttle locations, and a cycle-bound GM projection', async () => {
     const { callable, facilitator, transaction } = fixture();
 
-    await expect(callable({
+    const result = await callable({
       auth: { uid: actorUid },
       data: { sessionId, instanceId },
-    })).resolves.toMatchObject({
+    });
+    expect(result).toMatchObject({
       status: 'ready', sessionId, actorUid, gmInstanceId: instanceId, cycle: 4,
       ships: expect.arrayContaining([
         expect.objectContaining({ shipId: loadedShuttle.shipId, shipSecurityTeams: 2 }),
@@ -96,6 +97,7 @@ describe('authenticated boarding-security location read', () => {
         }),
       ]),
     });
+    expect(result.shuttles.map((shuttle) => shuttle.shuttleId)).toEqual(shuttleIds);
     expect(facilitator).toHaveBeenCalledWith(
       expect.anything(), sessionId, actorUid, instanceId,
     );
