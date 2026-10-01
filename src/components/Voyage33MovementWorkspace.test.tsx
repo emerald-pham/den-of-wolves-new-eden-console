@@ -677,6 +677,161 @@ describe('Voyage 33-0 movement workspace', () => {
     expect(await within(maintenance).findByText(/Rolled 5 \+ 5 \+ 9 = 19\. Added 1 unrest; unrest 1\./)).toBeInTheDocument();
   });
 
+  it('replays an exact maintenance receipt after a later jump detaches the original host', async () => {
+    const sessionId = 'voyage-workspace-maintenance-detached-replay';
+    const base = emptyVoyage33MaintenanceState('aegis');
+    const session = sessionFixture(sessionId, {
+      voyage33Movement: movementState('0000', 2),
+      voyage33Maintenance: {
+        ...base,
+        dockingRevision: 4,
+        cycle: { ...base.cycle, step: 2, revision: 2, turn: 1, rationBonus: 9 },
+      },
+    });
+    installGm(session);
+    const receiptState: Voyage33MaintenanceState = {
+      ...session.voyage33Maintenance!,
+      unrest: 1,
+      cycle: {
+        ...session.voyage33Maintenance!.cycle,
+        step: 3,
+        revision: 3,
+        results: { '2': 'Rolled 5 + 5 + 9 = 19. Added 1 unrest; unrest 1.' },
+      },
+    };
+    runVoyage33Maintenance
+      .mockRejectedValueOnce(Object.assign(new Error('response lost'), { code: 'functions/unavailable' }))
+      .mockImplementationOnce(async (_action, _revision, _dockingRevision, _choices, requestId) =>
+        maintenanceCommit(session, requestId as string, 'unrest', 2, 4, receiptState));
+    render(<Voyage33MovementWorkspace />);
+
+    let maintenance = screen.getByRole('region', { name: 'Voyage 33-0 maintenance' });
+    fireEvent.click(within(maintenance).getByRole('button', { name: /roll unrest/i }));
+    const retry = await within(maintenance).findByRole('button', { name: /retry exact roll unrest request/i });
+    const originalRequest = runVoyage33Maintenance.mock.calls[0];
+
+    const detachedSession = sessionFixture(sessionId, {
+      ...session,
+      currentTurn: 2,
+      turnPhase: { ...phase('team'), turn: 2 },
+      voyage33Movement: movementState('5143', 3),
+      voyage33Maintenance: {
+        ...receiptState,
+        hostShipId: null,
+        dockingRevision: 5,
+        cycle: { ...receiptState.cycle, step: 0, revision: 5, turn: 1, completedAt: '2026-10-01T20:00:00.000Z' },
+      },
+      shipGalacticCoordinates: { aegis: '0000', dione: '5143' },
+    });
+    await act(async () => useSessionStore.getState().setSession(detachedSession));
+
+    maintenance = screen.getByRole('region', { name: 'Voyage 33-0 maintenance' });
+    const begin = within(maintenance).getByRole('button', { name: /begin maintenance cycle \/\/ cycle 2/i });
+    expect(begin).toBeDisabled();
+    await act(async () => fireEvent.click(retry));
+
+    expect(runVoyage33Maintenance).toHaveBeenCalledTimes(2);
+    expect(runVoyage33Maintenance.mock.calls[1]).toEqual(originalRequest);
+    expect(await within(maintenance).findByText(/Rolled 5 \+ 5 \+ 9 = 19\. Added 1 unrest; unrest 1\./)).toBeInTheDocument();
+    expect(begin).toBeDisabled();
+
+    const redockedSession = sessionFixture(sessionId, {
+      ...detachedSession,
+      voyage33Maintenance: {
+        ...detachedSession.voyage33Maintenance!,
+        hostShipId: 'dione',
+        dockingRevision: 6,
+      },
+    });
+    await act(async () => useSessionStore.getState().setSession(redockedSession));
+    expect(begin).toBeEnabled();
+  });
+
+  it('keeps fresh maintenance actions held when an exact retry returns a future-turn receipt', async () => {
+    const sessionId = 'voyage-workspace-maintenance-future-receipt';
+    const base = emptyVoyage33MaintenanceState('aegis');
+    const session = sessionFixture(sessionId, {
+      voyage33Movement: movementState('0000', 2),
+      voyage33Maintenance: {
+        ...base,
+        dockingRevision: 4,
+        cycle: { ...base.cycle, step: 2, revision: 2, turn: 1, rationBonus: 9 },
+      },
+    });
+    installGm(session);
+    const receiptState: Voyage33MaintenanceState = {
+      ...session.voyage33Maintenance!,
+      unrest: 1,
+      cycle: { ...session.voyage33Maintenance!.cycle, step: 3, revision: 3 },
+    };
+    runVoyage33Maintenance
+      .mockRejectedValueOnce(Object.assign(new Error('response lost'), { code: 'functions/unavailable' }))
+      .mockImplementationOnce(async (_action, _revision, _dockingRevision, _choices, requestId) => ({
+        ...maintenanceCommit(session, requestId as string, 'unrest', 2, 4, receiptState),
+        currentTurn: 2,
+      }));
+    render(<Voyage33MovementWorkspace />);
+
+    const maintenance = screen.getByRole('region', { name: 'Voyage 33-0 maintenance' });
+    fireEvent.click(within(maintenance).getByRole('button', { name: /roll unrest/i }));
+    const retry = await within(maintenance).findByRole('button', { name: /retry exact roll unrest request/i });
+    await act(async () => useSessionStore.getState().setSession(sessionFixture(sessionId, {
+      ...session,
+      currentTurn: 2,
+      turnPhase: { ...phase('team'), turn: 2 },
+      voyage33Movement: movementState('5143', 3),
+      voyage33Maintenance: {
+        ...receiptState,
+        hostShipId: 'dione',
+        dockingRevision: 5,
+        cycle: { ...receiptState.cycle, step: 0, revision: 5, turn: 1 },
+      },
+      shipGalacticCoordinates: { aegis: '0000', dione: '5143' },
+    })));
+
+    await act(async () => fireEvent.click(retry));
+    expect(runVoyage33Maintenance).toHaveBeenCalledTimes(2);
+    expect(within(maintenance).getByRole('button', { name: /retry exact roll unrest request/i })).toBeInTheDocument();
+    expect(within(maintenance).getByRole('button', { name: /begin maintenance cycle \/\/ cycle 2/i })).toBeDisabled();
+    expect(within(maintenance).getByRole('alert')).toHaveTextContent(/uncertain/i);
+  });
+
+  it('does not replay an uncertain request against regressed server authority', async () => {
+    const sessionId = 'voyage-workspace-maintenance-regressed-authority';
+    const base = emptyVoyage33MaintenanceState('aegis');
+    const session = sessionFixture(sessionId, {
+      voyage33Movement: movementState('0000', 2),
+      voyage33Maintenance: {
+        ...base,
+        dockingRevision: 4,
+        cycle: { ...base.cycle, step: 2, revision: 2, turn: 1, rationBonus: 9 },
+      },
+    });
+    installGm(session);
+    runVoyage33Maintenance.mockRejectedValueOnce(Object.assign(new Error('response lost'), { code: 'functions/unavailable' }));
+    render(<Voyage33MovementWorkspace />);
+
+    const maintenance = screen.getByRole('region', { name: 'Voyage 33-0 maintenance' });
+    fireEvent.click(within(maintenance).getByRole('button', { name: /roll unrest/i }));
+    const retry = await within(maintenance).findByRole('button', { name: /retry exact roll unrest request/i });
+    await act(async () => useSessionStore.getState().setSession(sessionFixture(sessionId, {
+      ...session,
+      currentTurn: 0,
+      turnPhase: { ...phase('team'), turn: 0 },
+      voyage33Movement: movementState('0000', 1),
+      voyage33Maintenance: {
+        ...session.voyage33Maintenance!,
+        dockingRevision: 3,
+        cycle: { ...session.voyage33Maintenance!.cycle, step: 2, revision: 1, turn: 1 },
+      },
+    })));
+
+    await act(async () => fireEvent.click(retry));
+    expect(runVoyage33Maintenance).toHaveBeenCalledTimes(1);
+    expect(within(maintenance).getByRole('button', { name: /retry exact roll unrest request/i })).toBeInTheDocument();
+    expect(within(maintenance).getByRole('alert')).toHaveTextContent(/context changed/i);
+  });
+
   it('continues the remaining steps of an earlier maintenance cycle before beginning the current cycle', async () => {
     const sessionId = 'voyage-workspace-maintenance-earlier-cycle';
     const base = emptyVoyage33MaintenanceState('aegis');
