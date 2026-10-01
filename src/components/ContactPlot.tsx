@@ -105,6 +105,18 @@ const LABEL_VIEWPORT_GUTTER_PX = 8;
 const LABEL_HORIZONTAL_GAP_PX = 11;
 const LABEL_LANE_OFFSETS = [0, -1, 1, -2, 2, -3, 3, -4, 4, -5, 5, -6, 6, -7, 7, -8, 8] as const;
 const intrinsicLabelWidths = new WeakMap<HTMLElement, { context: string; width: number }>();
+type LabelCandidateLayout = { anchor: LabelAnchor; bounds: DOMRect; style: string };
+type ContactLabelLayoutCache = {
+  styleScope: string;
+  plotBounds: DOMRect;
+  markBounds: DOMRect;
+  labelBounds: DOMRect;
+  preferred: LabelCandidateLayout;
+  opposite: LabelCandidateLayout;
+  chosenAnchor: LabelAnchor;
+  direct: boolean;
+};
+const contactLabelLayouts = new WeakMap<HTMLElement, ContactLabelLayoutCache>();
 const handledFontEvents = new WeakSet<Event>();
 let fontMetricsVersion = 0;
 
@@ -208,10 +220,12 @@ const SWEEP_VISUAL_ATTRIBUTES = new Set(['data-acquired', 'data-scan-fresh']);
 function intrinsicLabelWidthContext(
   plot: HTMLElement,
   label: HTMLElement,
+  contact: HTMLElement | null,
   plotBounds: DOMRect,
   styleScope: string,
 ): string {
   const path: string[] = [];
+  let insideContact = contact !== null;
   for (let element: HTMLElement | null = label; element && element !== plot; element = element.parentElement) {
     const attributes = Array.from(element.attributes)
       .filter((attribute) => attribute.name !== 'style' && attribute.name !== 'data-label-anchor' &&
@@ -219,25 +233,228 @@ function intrinsicLabelWidthContext(
       .map((attribute) => `${attribute.name}=${attribute.value}`)
       .sort()
       .join(';');
-    const inContact = element.closest('.contact-plot__contact') !== null;
-    const inlineStyle = inContact && element !== label
+    const inlineStyle = insideContact && element !== label
       ? labelFontStyleSignature(element)
       : element.getAttribute('style') ?? '';
     path.push(`${element.tagName}[${attributes}]{${inlineStyle}}`);
+    if (element === contact) insideContact = false;
   }
   return `${styleScope}|${plotBounds.width}x${plotBounds.height}|${label.textContent ?? ''}|${path.join('>')}`;
 }
 
-/** Keep intrinsic-width labels inside the actual rendered plot, on both axes. */
-function clampContactLabels(plot: HTMLElement, styleScope: string): void {
+function samePlotBounds(a: DOMRect, b: DOMRect): boolean {
+  return a.left === b.left && a.right === b.right && a.top === b.top && a.bottom === b.bottom &&
+    a.width === b.width && a.height === b.height;
+}
+
+/**
+ * Sweep batches only move the held fix for contacts they just scanned. Reuse
+ * the last full layout for every other return, then replay the direct-anchor
+ * scoring pass against the new marks. If any label would need a different
+ * anchor or the crowded fallback, return false so the caller runs the exact
+ * full layout path.
+ */
+function clampScannedContactLabels(
+  plot: HTMLElement,
+  styleScope: string,
+  changedContacts: readonly HTMLElement[],
+): DOMRect | undefined {
   const plotBounds = plot.getBoundingClientRect();
+  if (plotBounds.width <= 0 || plotBounds.height <= 0) return plotBounds;
+  const labels = [...plot.querySelectorAll<HTMLElement>('.contact-plot__tag')];
+  const contacts = labels.map((label) => label.closest<HTMLElement>('.contact-plot__contact'));
+  const indices = new Map(contacts.flatMap((contact, index) => contact ? [[contact, index] as const] : []));
+  const targets = [...new Set(changedContacts.map((contact) => indices.get(contact)))]
+    .filter((index): index is number => index !== undefined)
+    .sort((a, b) => a - b);
+  if (targets.length === 0) return plotBounds;
+  const targetSet = new Set(targets);
+  const cached = contacts.map((contact) => contact ? contactLabelLayouts.get(contact) : undefined);
+  if (cached.some((layout) => !layout?.direct || layout.styleScope !== styleScope ||
+    !samePlotBounds(layout.plotBounds, plotBounds))) return plotBounds;
+  if (targets.some((index) => contacts[index]?.dataset.moving === 'true')) return plotBounds;
+
+  const freshMarks = new Map<number, DOMRect>();
+  for (const index of targets) {
+    const mark = contacts[index]?.querySelector<HTMLElement>('.contact-plot__blip');
+    if (!mark) return plotBounds;
+    const bounds = mark.getBoundingClientRect();
+    if (bounds.width <= 0 || bounds.height <= 0) return plotBounds;
+    freshMarks.set(index, bounds);
+  }
+  const marks = cached.map((layout, index) => freshMarks.get(index) ?? layout!.markBounds);
+  const shipPlot = plot.closest<HTMLElement>('.ship-plot');
+  const overlayControls = shipPlot?.querySelectorAll<HTMLElement>(
+    '.ship-plot__label, .ship-plot__toggle, .ship-plot__galactic-coordinate, ' +
+    '.ship-plot__close, .ship-plot__compass, [data-plot-obstacle], .dradis-effect-controls',
+  ) ?? [];
+  const baseObstacles = [
+    ...plot.querySelectorAll<HTMLElement>('.contact-plot__origin, .contact-plot__red-alert'),
+    ...overlayControls,
+  ].map((element) => element.getBoundingClientRect())
+    .filter((rect) => rect.width > 0 && rect.height > 0);
+  const changedLayouts = new Map<number, { preferred: LabelCandidateLayout; opposite: LabelCandidateLayout }>();
+  const preferredStyles = new Map<number, string>();
+  for (const index of targets) {
+    const label = labels[index]!;
+    const contact = contacts[index]!;
+    const preferred = cached[index]!.preferred.anchor;
+    resetSweepLabelLayout(label);
+    contact.dataset.labelAnchor = preferred;
+    preferredStyles.set(index, label.style.cssText);
+  }
+  for (const index of targets) {
+    changedLayouts.set(index, {
+      preferred: {
+        anchor: cached[index]!.preferred.anchor,
+        bounds: labels[index]!.getBoundingClientRect(),
+        style: preferredStyles.get(index)!,
+      },
+      opposite: cached[index]!.opposite,
+    });
+  }
+  const oppositeStyles = new Map<number, string>();
+  for (const index of targets) {
+    const label = labels[index]!;
+    const contact = contacts[index]!;
+    const opposite = cached[index]!.opposite.anchor;
+    contact.dataset.labelAnchor = opposite;
+    oppositeStyles.set(index, label.style.cssText);
+  }
+  for (const index of targets) {
+    const label = labels[index]!;
+    changedLayouts.get(index)!.opposite = {
+      anchor: cached[index]!.opposite.anchor,
+      bounds: label.getBoundingClientRect(),
+      style: oppositeStyles.get(index)!,
+    };
+  }
+
+  const gap = 4;
+  const overlaps = (a: Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom'>,
+    b: Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom'>) =>
+    a.left < b.right + gap && a.right + gap > b.left &&
+    a.top < b.bottom + gap && a.bottom + gap > b.top;
+  const minX = plotBounds.left + LABEL_VIEWPORT_GUTTER_PX;
+  const maxX = plotBounds.right - LABEL_VIEWPORT_GUTTER_PX;
+  const minY = plotBounds.top + LABEL_VIEWPORT_GUTTER_PX;
+  const maxY = plotBounds.bottom - LABEL_VIEWPORT_GUTTER_PX;
+  const obstacles = [...baseObstacles];
+  const chosen = new Map<number, LabelCandidateLayout>();
+  for (const index of labels.keys()) {
+    const contact = contacts[index];
+    const mark = marks[index];
+    const layoutCache = cached[index]!;
+    const layouts = changedLayouts.get(index) ?? {
+      preferred: layoutCache.preferred,
+      opposite: layoutCache.opposite,
+    };
+    if (!contact || !mark || mark.width <= 0 || mark.height <= 0) return plotBounds;
+    const nearby = [
+      ...obstacles,
+      ...marks.filter((_, otherIndex) => otherIndex !== index),
+    ];
+    const directCandidates: { layout: LabelCandidateLayout; clearance: number }[] = [];
+    for (const layout of [layouts.preferred, layouts.opposite]) {
+      const { bounds, anchor } = layout;
+      const sideWidth = anchor.endsWith('east')
+        ? mark.left - plotBounds.left - LABEL_VIEWPORT_GUTTER_PX - LABEL_HORIZONTAL_GAP_PX
+        : plotBounds.right - LABEL_VIEWPORT_GUTTER_PX - mark.right - LABEL_HORIZONTAL_GAP_PX;
+      const anchorGap = anchor.endsWith('east') ? mark.left - bounds.right : bounds.left - mark.right;
+      const fits = sideWidth > 0 && bounds.width <= sideWidth && bounds.height > 0 &&
+        bounds.left >= minX && bounds.right <= maxX &&
+        bounds.top >= minY && bounds.bottom <= maxY && anchorGap >= 4;
+      if (!fits) continue;
+      let clearance = Number.POSITIVE_INFINITY;
+      let collides = false;
+      for (const rect of nearby) {
+        if (overlaps(bounds, rect)) {
+          collides = true;
+          break;
+        }
+        const x = Math.max(0, rect.left - bounds.right, bounds.left - rect.right);
+        const y = Math.max(0, rect.top - bounds.bottom, bounds.top - rect.bottom);
+        clearance = Math.min(clearance, x * x + y * y);
+      }
+      if (!collides) directCandidates.push({
+        layout,
+        clearance: Number.isFinite(clearance) ? clearance : 0,
+      });
+    }
+    if (directCandidates.length === 0) return plotBounds;
+    const best = directCandidates.reduce((current, candidate) =>
+      candidate.clearance > current.clearance ? candidate : current);
+    if (!targetSet.has(index) && best.layout.anchor !== layoutCache.chosenAnchor) return plotBounds;
+    chosen.set(index, best.layout);
+    obstacles.push(best.layout.bounds);
+  }
+
+  const leaders = [...plot.querySelectorAll<SVGLineElement>('.contact-plot__leader-line')];
+  for (const index of targets) {
+    const label = labels[index]!;
+    const contact = contacts[index]!;
+    const mark = marks[index]!;
+    const layout = chosen.get(index)!;
+    contact.dataset.labelAnchor = layout.anchor;
+    label.style.cssText = layout.style;
+    contactLabelLayouts.set(contact, {
+      styleScope,
+      plotBounds,
+      markBounds: mark,
+      labelBounds: layout.bounds,
+      preferred: changedLayouts.get(index)!.preferred,
+      opposite: changedLayouts.get(index)!.opposite,
+      chosenAnchor: layout.anchor,
+      direct: true,
+    });
+    const leader = leaders[index];
+    if (!leader || contact.dataset.moving === 'true' || layout.bounds.width === 0 || layout.bounds.height === 0) {
+      if (leader) leader.dataset.visible = 'false';
+      continue;
+    }
+    const verticalGap = Math.max(0, mark.top - layout.bounds.bottom, layout.bounds.top - mark.bottom);
+    const rowShift = Math.abs(Number.parseFloat(label.style.getPropertyValue('--label-clamp-y')) || 0);
+    leader.dataset.visible = String(verticalGap > 14 || rowShift > 14);
+    const east = layout.anchor.endsWith('east');
+    leader.setAttribute('x1', String(round((east ? mark.left : mark.right) - plotBounds.left)));
+    leader.setAttribute('y1', String(round(mark.top + mark.height / 2 - plotBounds.top)));
+    leader.setAttribute('x2', String(round((east ? layout.bounds.right : layout.bounds.left) - plotBounds.left)));
+    leader.setAttribute('y2', String(round(Math.max(layout.bounds.top, Math.min(
+      mark.top + mark.height / 2, layout.bounds.bottom,
+    )) - plotBounds.top)));
+  }
+  return undefined;
+}
+
+function resetSweepLabelLayout(label: HTMLElement): void {
+  label.style.removeProperty('--label-clamp-x');
+  label.style.removeProperty('--label-clamp-y');
+  label.style.removeProperty('max-width');
+  label.style.removeProperty('min-inline-size');
+  label.style.removeProperty('white-space');
+  label.style.removeProperty('overflow-wrap');
+}
+
+/** Keep intrinsic-width labels inside the actual rendered plot, on both axes. */
+function clampContactLabels(
+  plot: HTMLElement,
+  styleScope: string,
+  measuredPlotBounds?: DOMRect,
+  preferClearAnchorOnly = false,
+): void {
+  const plotBounds = measuredPlotBounds ?? plot.getBoundingClientRect();
   if (plotBounds.width <= 0 || plotBounds.height <= 0) return;
   const labels = [...plot.querySelectorAll<HTMLElement>('.contact-plot__tag')];
-  const marks = labels.map((label) => label.closest('.contact-plot__contact')
-    ?.querySelector<HTMLElement>('.contact-plot__blip')?.getBoundingClientRect() ?? null);
+  // Resolve each owner once. The scoring passes revisit each contact several
+  // times, and repeated closest() walks add up during a moving plot update.
+  const contacts = labels.map((label) => label.closest<HTMLElement>('.contact-plot__contact'));
+  const marks = contacts.map((contact) =>
+    contact?.querySelector<HTMLElement>('.contact-plot__blip')?.getBoundingClientRect() ?? null);
   const passWidths = new Map<HTMLElement, { context: string; width: number }>();
-  const intrinsicWidth = (label: HTMLElement): number => {
-    const context = intrinsicLabelWidthContext(plot, label, plotBounds, styleScope);
+  const intrinsicWidth = (label: HTMLElement, index: number): number => {
+    const context = intrinsicLabelWidthContext(
+      plot, label, contacts[index] ?? null, plotBounds, styleScope,
+    );
     const passCached = passWidths.get(label);
     if (passCached?.context === context) return passCached.width;
     const cached = intrinsicLabelWidths.get(label);
@@ -252,6 +469,7 @@ function clampContactLabels(plot: HTMLElement, styleScope: string): void {
     return width;
   };
   const finalBounds: Array<DOMRect | null> = Array.from({ length: labels.length }, () => null);
+  const directPlacements = Array.from({ length: labels.length }, () => false);
   const gap = 4;
   const overlaps = (a: Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom'>,
     b: Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom'>) =>
@@ -339,9 +557,7 @@ function clampContactLabels(plot: HTMLElement, styleScope: string): void {
   // browser to repeat a full plot layout for every label. Most contacts fit
   // naturally on one of these exact rendered anchors. Crowded or
   // width-constrained labels continue through the measured fallback below.
-  const preferredAnchors = labels.map((label) => (
-    label.closest<HTMLElement>('.contact-plot__contact')?.dataset.labelAnchor as LabelAnchor | undefined
-  ));
+  const preferredAnchors = contacts.map((contact) => contact?.dataset.labelAnchor as LabelAnchor | undefined);
   const oppositeAnchors = preferredAnchors.map((anchor): LabelAnchor | undefined => {
     if (!anchor) return undefined;
     const vertical = anchor.startsWith('north') ? 'north' : 'south';
@@ -351,7 +567,7 @@ function clampContactLabels(plot: HTMLElement, styleScope: string): void {
   const measureAnchorBatch = (anchors: Array<LabelAnchor | undefined>) => {
     const styles = labels.map((label, index) => {
       const marker = marks[index];
-      const contact = label.closest<HTMLElement>('.contact-plot__contact');
+      const contact = contacts[index];
       const anchor = anchors[index];
       if (!marker || marker.width <= 0 || marker.height <= 0 || !contact || !anchor) return null;
       resetLabelLayout(label);
@@ -365,14 +581,31 @@ function clampContactLabels(plot: HTMLElement, styleScope: string): void {
     });
   };
   const preferredLayouts = measureAnchorBatch(preferredAnchors);
-  const oppositeLayouts = measureAnchorBatch(oppositeAnchors);
+  // Keep alternate reads batched for contacts whose cached anchor no longer
+  // matches. Stable anchors defer a second read until their current geometry
+  // proves unsafe.
+  const needsAlternateLayout = contacts.map((contact, index) => {
+    const prior = contact ? contactLabelLayouts.get(contact) : undefined;
+    return !preferClearAnchorOnly || !prior || prior.styleScope !== styleScope ||
+      !samePlotBounds(prior.plotBounds, plotBounds) || prior.chosenAnchor !== preferredAnchors[index];
+  });
+  const oppositeLayouts = measureAnchorBatch(oppositeAnchors.map((anchor, index) =>
+    needsAlternateLayout[index] ? anchor : undefined));
+  const measureOppositeAt = (targetIndex: number): void => {
+    const pendingAnchors = oppositeAnchors.map((anchor, index) =>
+      index === targetIndex && !oppositeLayouts[index] ? anchor : undefined);
+    const measured = measureAnchorBatch(pendingAnchors);
+    measured.forEach((layout, index) => {
+      if (layout) oppositeLayouts[index] = layout;
+    });
+  };
   for (const [index, label] of labels.entries()) {
     const marker = marks[index];
-    const contact = label.closest<HTMLElement>('.contact-plot__contact');
+    const contact = contacts[index];
     const preferredLayout = preferredLayouts[index];
-    const oppositeLayout = oppositeLayouts[index];
+    let oppositeLayout = oppositeLayouts[index];
     if (marker && marker.width > 0 && marker.height > 0 && contact &&
-      preferredLayout && oppositeLayout && preferredLayout.bounds.width > 0) {
+      preferredLayout && preferredLayout.bounds.width > 0) {
       const nearby = [
         ...obstacles,
         ...marks.filter((mark, markIndex): mark is DOMRect =>
@@ -383,12 +616,9 @@ function clampContactLabels(plot: HTMLElement, styleScope: string): void {
       const maxX = plotBounds.right - LABEL_VIEWPORT_GUTTER_PX;
       const minY = plotBounds.top + LABEL_VIEWPORT_GUTTER_PX;
       const maxY = plotBounds.bottom - LABEL_VIEWPORT_GUTTER_PX;
-      const directCandidates: {
-        anchor: LabelAnchor;
-        bounds: DOMRect;
-        clearance: number;
-      }[] = [];
-      for (const { anchor, bounds } of [preferredLayout, oppositeLayout]) {
+      const directCandidate = (layout: LabelCandidateLayout | null) => {
+        if (!layout) return null;
+        const { anchor, bounds } = layout;
         const sideWidth = anchor.endsWith('east')
           ? marker.left - plotBounds.left - LABEL_VIEWPORT_GUTTER_PX - LABEL_HORIZONTAL_GAP_PX
           : plotBounds.right - LABEL_VIEWPORT_GUTTER_PX - marker.right - LABEL_HORIZONTAL_GAP_PX;
@@ -398,7 +628,7 @@ function clampContactLabels(plot: HTMLElement, styleScope: string): void {
           bounds.left >= minX && bounds.right <= maxX &&
           bounds.top >= minY && bounds.bottom <= maxY &&
           anchorGap >= 4;
-        if (!fits) continue;
+        if (!fits) return null;
         let clearance = Number.POSITIVE_INFINITY;
         let collides = false;
         for (const rect of nearby) {
@@ -410,20 +640,43 @@ function clampContactLabels(plot: HTMLElement, styleScope: string): void {
           const y = Math.max(0, rect.top - bounds.bottom, bounds.top - rect.bottom);
           clearance = Math.min(clearance, x * x + y * y);
         }
-        if (!collides) directCandidates.push({
-          anchor,
-          bounds,
-          clearance: Number.isFinite(clearance) ? clearance : 0,
-        });
+        if (collides) return null;
+        return { layout, clearance: Number.isFinite(clearance) ? clearance : 0 };
+      };
+      const directCandidates = [] as NonNullable<ReturnType<typeof directCandidate>>[];
+      const preferredCandidate = directCandidate(preferredLayout);
+      let skippedAlternateMeasurement = false;
+      const priorLayout = contactLabelLayouts.get(contact);
+      if (preferClearAnchorOnly && !oppositeLayout && preferredCandidate && priorLayout &&
+        priorLayout.styleScope === styleScope && samePlotBounds(priorLayout.plotBounds, plotBounds) &&
+        priorLayout.chosenAnchor === preferredAnchors[index]) {
+        // The last exact choice remains collision-free and inside the plot, so
+        // keep it stable through this coordinate update. A changed default
+        // anchor or any sweep, resize, font, or style invalidation still runs
+        // the exact two-anchor scorer before paint.
+        directCandidates.push(preferredCandidate);
+        oppositeLayout = preferredLayout;
+        oppositeLayouts[index] = preferredLayout;
+        skippedAlternateMeasurement = true;
+      }
+      if (!skippedAlternateMeasurement) {
+        if (!oppositeLayout && oppositeAnchors[index]) {
+          measureOppositeAt(index);
+          oppositeLayout = oppositeLayouts[index];
+        }
+        const exactOppositeLayout = oppositeLayout ?? preferredLayout;
+        const oppositeCandidate = directCandidate(exactOppositeLayout);
+        if (preferredCandidate) directCandidates.push(preferredCandidate);
+        if (oppositeCandidate) directCandidates.push(oppositeCandidate);
       }
       if (directCandidates.length > 0) {
         const bestDirect = directCandidates.reduce((best, candidate) =>
-          candidate.clearance > best.clearance ? candidate : best);
+          candidate.clearance > best.clearance ? candidate : best).layout;
         contact.dataset.labelAnchor = bestDirect.anchor;
-        label.style.cssText = bestDirect.anchor === preferredLayout.anchor
-          ? preferredLayout.style : oppositeLayout.style;
+        label.style.cssText = bestDirect.style;
         finalBounds[index] = bestDirect.bounds;
         obstacles.push(bestDirect.bounds);
+        directPlacements[index] = !skippedAlternateMeasurement;
         continue;
       }
       const preparedByAnchor = new Map<LabelAnchor, {
@@ -431,7 +684,7 @@ function clampContactLabels(plot: HTMLElement, styleScope: string): void {
         sideWidth: number;
         style: string;
       }>();
-      for (const layout of [preferredLayout, oppositeLayout]) {
+      for (const layout of [preferredLayout, oppositeLayout ?? preferredLayout]) {
         const sideWidth = layout.anchor.endsWith('east')
           ? marker.left - plotBounds.left - LABEL_VIEWPORT_GUTTER_PX - LABEL_HORIZONTAL_GAP_PX
           : plotBounds.right - LABEL_VIEWPORT_GUTTER_PX - marker.right - LABEL_HORIZONTAL_GAP_PX;
@@ -458,7 +711,7 @@ function clampContactLabels(plot: HTMLElement, styleScope: string): void {
           // Read the untransformed width before changing the cap. This shares
           // the intrinsic layout state with `original`, so perspective scale
           // is estimated without a second style/layout flush.
-          const untransformedWidth = intrinsicWidth(label);
+          const untransformedWidth = intrinsicWidth(label, index);
           const projectedScale = untransformedWidth > 0
             ? original.width / untransformedWidth
             : 1;
@@ -668,8 +921,22 @@ function clampContactLabels(plot: HTMLElement, styleScope: string): void {
   for (const [index, label] of labels.entries()) {
     const leader = leaders[index];
     const marker = marks[index];
-    const contact = label.closest<HTMLElement>('.contact-plot__contact');
+    const contact = contacts[index];
     const bounds = finalBounds[index] ?? label.getBoundingClientRect();
+    const preferred = preferredLayouts[index];
+    const opposite = oppositeLayouts[index];
+    if (contact && marker && bounds.width > 0 && bounds.height > 0 && preferred && opposite) {
+      contactLabelLayouts.set(contact, {
+        styleScope,
+        plotBounds,
+        markBounds: marker,
+        labelBounds: bounds,
+        preferred,
+        opposite,
+        chosenAnchor: contact.dataset.labelAnchor as LabelAnchor,
+        direct: directPlacements[index] === true,
+      });
+    }
     if (!leader || !marker || !contact || contact.dataset.moving === 'true' ||
       bounds.width === 0 || bounds.height === 0) {
       if (leader) leader.dataset.visible = 'false';
@@ -781,6 +1048,7 @@ export default function ContactPlot({
 }) {
   const redAlert = useSessionStore(state => state.session?.fleetRedAlert?.active === true);
   const plot = useRef<HTMLDivElement>(null);
+  const hasLaidOutInitialPlot = useRef(false);
   const { reducedMotion: still } = useMotionPreference();
   const [clock, setClock] = useState(Date.now);
   const [classifiedOccurrenceId, setClassifiedOccurrenceId] = useState<string | null>(null);
@@ -884,22 +1152,43 @@ export default function ContactPlot({
     const node = plot.current;
     if (!node) return;
     let observedStyleScope = labelWidthStyleScope(node);
+    const pendingSweepLayouts = new Set<HTMLElement>();
     const clamp = () => {
       observedStyleScope = labelWidthStyleScope(node);
       clampContactLabels(node, observedStyleScope);
     };
+    const clampAfterReactUpdate = () => {
+      observedStyleScope = labelWidthStyleScope(node);
+      clampContactLabels(node, observedStyleScope, undefined, true);
+    };
+    const clampSweepBatch = () => {
+      const changedContacts = [...pendingSweepLayouts];
+      pendingSweepLayouts.clear();
+      observedStyleScope = labelWidthStyleScope(node);
+      const fallbackBounds = clampScannedContactLabels(node, observedStyleScope, changedContacts);
+      if (fallbackBounds) clampContactLabels(node, observedStyleScope, fallbackBounds);
+    };
     const clampMovingFix = (event: Event) => {
       const detail = (event as CustomEvent<{ fixChanged?: boolean; layoutDeferred?: boolean }>).detail;
-      if (detail?.layoutDeferred) return;
       const contact = event.target instanceof HTMLElement
         ? event.target.closest<HTMLElement>('.contact-plot__contact') : null;
+      if (detail?.layoutDeferred) {
+        if (contact && (contact.dataset.moving === 'true' || detail.fixChanged === true)) {
+          pendingSweepLayouts.add(contact);
+        }
+        return;
+      }
       // A held stationary fix can change on first acquisition or a later
       // eligible sweep. Relayout for that new mark, but skip same-fix pings
       // that only refresh its flare.
       const fixChanged = detail?.fixChanged === true;
       if (!contact || contact.dataset.moving === 'true' || fixChanged) clamp();
     };
-    clamp();
+    if (hasLaidOutInitialPlot.current) clampAfterReactUpdate();
+    else {
+      clamp();
+      hasLaidOutInitialPlot.current = true;
+    }
     let observedWidth = node.clientWidth;
     let observedHeight = node.clientHeight;
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(([entry]) => {
@@ -932,7 +1221,7 @@ export default function ContactPlot({
     fonts?.addEventListener('loadingerror', fontMetricsChanged);
     window.addEventListener('resize', clamp);
     node.addEventListener(CONTACT_SCAN_EVENT, clampMovingFix);
-    node.addEventListener(CONTACT_SCAN_LAYOUT_EVENT, clamp);
+    node.addEventListener(CONTACT_SCAN_LAYOUT_EVENT, clampSweepBatch);
     return () => {
       observer?.disconnect();
       styleObserver?.disconnect();
@@ -940,7 +1229,8 @@ export default function ContactPlot({
       fonts?.removeEventListener('loadingerror', fontMetricsChanged);
       window.removeEventListener('resize', clamp);
       node.removeEventListener(CONTACT_SCAN_EVENT, clampMovingFix);
-      node.removeEventListener(CONTACT_SCAN_LAYOUT_EVENT, clamp);
+      node.removeEventListener(CONTACT_SCAN_LAYOUT_EVENT, clampSweepBatch);
+      pendingSweepLayouts.clear();
     };
   }, [ambient?.id, classifiedOccurrenceId, contacts, departing, hostile,
     orientation?.pitch, orientation?.yaw, placement, size, still, tracks.length]);
