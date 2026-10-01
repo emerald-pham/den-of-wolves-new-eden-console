@@ -29,6 +29,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     changes: [
       'Pending away missions now stay with their arriving ship when the facilitator confirms separated fleets.',
       'Gorgoneion and Warrior can charge Repair Drones during maintenance. Refreshing a recovered scout queue clears its old error.',
+      'Starlight and Hummingbird can spend a scouting attempt on a courier round trip to a separated fleet group. Ordinary group notes remain private.',
       '507 of 751 planned items are complete in the catalog snapshot used to build this release (67.51%).',
       'PC06 gameplay verification continues.',
     ],

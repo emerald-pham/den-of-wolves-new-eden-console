@@ -562,6 +562,13 @@
       "consumers": [
         "confirmFleetPartition"
       ]
+    },
+    "functions/src/scoutTaxiCommunication.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "0e3404a25bcfdd8047645945b1837a19c36684a841b6aef03eaf6adb14092f01",
+      "consumers": [
+        "sendScoutTaxiCourier"
+      ]
     }
   },
   "indexTransitions": [

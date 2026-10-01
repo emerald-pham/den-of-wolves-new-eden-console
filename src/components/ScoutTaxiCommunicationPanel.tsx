@@ -24,7 +24,11 @@ export default function ScoutTaxiCommunicationPanel({ shuttleId, control }: Prop
   const currentContext = useRef(context); currentContext.current = context;
   const currentKey = useRef(key); currentKey.current = key;
   const audience = `${session?.id}/${me?.uid}/${me?.fleetGroupId}/${shuttleId}`;
-  const actions = useMemo(() => createScoutTaxiCommunicationActions(() => currentContext.current), [audience]);
+  const actions = useMemo(() => createScoutTaxiCommunicationActions(() => {
+    const current = currentContext.current;
+    const currentAudience = `${current.sessionId}/${current.actorUid}/${current.groupId}/${current.shuttleId}`;
+    return { ...current, ready: current.ready && currentAudience === audience };
+  }), [audience]);
   const [target, setTarget] = useState('');
   const [text, setText] = useState('');
   const [busyKey, setBusyKey] = useState<string | null>(null);
