@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
+import { waitForTypographyTargets } from './typography-browser-readiness.mjs';
 
 const ROOT = process.cwd();
 const EVIDENCE_DIR = resolve(process.env.TYPOGRAPHY_EVIDENCE_DIR ?? '/tmp/pc04-typography');
@@ -375,6 +376,7 @@ async function collectSurface(browser, appUrl, surface, viewport, motion, kind) 
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       });
     }
+    await waitForTypographyTargets(page, surface.targets);
     await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(100);
 
