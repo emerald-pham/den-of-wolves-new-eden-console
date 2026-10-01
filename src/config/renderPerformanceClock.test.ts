@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createAnimationSampler, installRenderClock, measureRenderUpdate, measureRenderWork } from '../../scripts/render-performance-clock';
+import { createAnimationSampler, installRenderClock, measureRenderFrames, measureRenderUpdate, measureRenderWork } from '../../scripts/render-performance-clock';
 import type { RenderClockEnvironment } from '../../scripts/render-performance-clock';
 
 function environment() {
@@ -121,5 +121,29 @@ describe('render benchmark clock', () => {
     );
     expect(sample).toEqual({ totalMs: 151, workMs: 100 });
     expect(sample.totalMs).toBeGreaterThan(150);
+  });
+
+  it('keeps mobile sweep work fixed while retaining genuine long native frames', async () => {
+    const { target } = environment();
+    const clock = installRenderClock(target);
+    const phases: number[] = [];
+    const sweep = (now: number) => {
+      phases.push(now);
+      target.requestAnimationFrame(sweep);
+    };
+    target.requestAnimationFrame(sweep);
+    let nativeNow = 0;
+    const waits = [17, 50, 133];
+    let next = 0;
+    const samples = await measureRenderFrames(
+      3,
+      () => clock.stepFrame(),
+      async () => { nativeNow += waits[next++]!; return nativeNow; },
+      () => nativeNow,
+    );
+    expect(samples).toEqual(waits);
+    expect(samples[2]).toBeGreaterThan(120);
+    expect(phases).toEqual([1000 / 60, 2000 / 60, 3000 / 60]);
+    clock.restore();
   });
 });
