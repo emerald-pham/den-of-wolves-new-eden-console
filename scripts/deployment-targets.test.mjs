@@ -1670,3 +1670,20 @@ test('rejects unaudited mission eligibility edits mixed with the partition repai
       (revision === 'candidate' ? '\n// unaudited mission policy edit\n' : ''), isAncestor: () => false,
   }), /audited|audit/i);
 });
+
+const taxiSourceAtRevision = (revision, file) => revision === 'base' && file === 'functions/src/scoutTaxiCommunication.ts'
+  ? '' : execFileSync('git', ['show', `${revision === 'base' ? 'de80e029d242f750690fa0460a46dc9ef9c82b00' : '137bd64b'}:${file}`],
+    { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+test('deploys the separate scout taxi courier and only its exact new contract consumer', () => {
+  assert.deepEqual(selectedFunctions(deploymentSelector({ before: 'base', after: 'candidate',
+    files: ['functions/src/index.ts', 'functions/src/scoutTaxiCommunication.ts'], targets: ['functions'],
+    sourceAtRevision: taxiSourceAtRevision, isAncestor: () => false,
+  })), ['functions:sendScoutTaxiCourier']);
+});
+test('rejects an unaudited taxi contract edit rather than silently using the courier map', () => {
+  assert.throws(() => deploymentSelector({ before: 'base', after: 'candidate',
+    files: ['functions/src/scoutTaxiCommunication.ts'], targets: ['functions'],
+    sourceAtRevision: (revision, file) => taxiSourceAtRevision(revision, file) +
+      (revision === 'candidate' ? '\n// unaudited route authority edit\n' : ''), isAncestor: () => false,
+  }), /audited|audit/i);
+});
