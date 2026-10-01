@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
-import { waitForTypographyTargets } from './typography-browser-readiness.mjs';
+import { installTypographyNetworkBoundary, waitForTypographyTargets } from './typography-browser-readiness.mjs';
 
 const ROOT = process.cwd();
 const EVIDENCE_DIR = resolve(process.env.TYPOGRAPHY_EVIDENCE_DIR ?? '/tmp/pc04-typography');
@@ -307,6 +307,7 @@ async function collectSurface(browser, appUrl, surface, viewport, motion, kind) 
     reducedMotion: motion === 'reduced' ? 'reduce' : 'no-preference',
     serviceWorkers: 'block',
   });
+  await installTypographyNetworkBoundary(context, appUrl);
   const page = await context.newPage();
   const browserDiagnostics = [];
   page.on('pageerror', (error) => browserDiagnostics.push(`pageerror: ${error.stack || error.message}`));
