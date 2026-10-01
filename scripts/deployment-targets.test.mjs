@@ -1687,3 +1687,20 @@ test('rejects an unaudited taxi contract edit rather than silently using the cou
       (revision === 'candidate' ? '\n// unaudited route authority edit\n' : ''), isAncestor: () => false,
   }), /audited|audit/i);
 });
+
+const voyageRepairSourceAtRevision = (revision, file) => execFileSync('git', ['show',
+  `${revision === 'base' ? 'a1fd66dc5014ff3c9ea8035edecd8ca394e3d76c' : '5747d1a4'}:${file}`,
+], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+test('deploys only the exact Voyage jump authority repair consumer', () => {
+  assert.deepEqual(selectedFunctions(deploymentSelector({ before: 'base', after: 'candidate',
+    files: ['functions/src/voyage33MovementCallable.ts'], targets: ['functions'],
+    sourceAtRevision: voyageRepairSourceAtRevision, isAncestor: () => false,
+  })), ['functions:jumpVoyage33']);
+});
+test('rejects extra Voyage adapter edits mixed with the exact jump repair', () => {
+  assert.throws(() => deploymentSelector({ before: 'base', after: 'candidate',
+    files: ['functions/src/voyage33MovementCallable.ts'], targets: ['functions'],
+    sourceAtRevision: (revision, file) => voyageRepairSourceAtRevision(revision, file) +
+      (revision === 'candidate' ? '\n// unaudited authority edit\n' : ''), isAncestor: () => false,
+  }), /audited|audit/i);
+});
