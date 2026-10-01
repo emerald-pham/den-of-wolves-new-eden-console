@@ -38,6 +38,17 @@ implementation groups, and independent Sol review for shared-state and authority
 changes. Group coupled prompts by behavior rather than assigning one agent per
 prompt; record the concrete groups and integration boundaries before building.
 
+Once the owner has the access, context, and authority to finish the checkpoint,
+the coordinator hands back full execution and steps back. The owner completes
+implementation, ordinary verification, repairs, appropriate review, integration,
+and release autonomously. Coordinator intervention is limited to meaningful
+judgment boundaries, irreducible blockers or approval needs, and final completion;
+temporary help with a uniquely accessible authorized surface ends when that
+boundary is resolved. Avoid routine polling, small-update relays, duplicate
+investigation, and taking over ordinary owner work. Preserve explicit parent
+collaboration messages and do not create coordinator goals. The linked execution
+policy governs the complete handoff contract.
+
 The roadmap facts live in the JSON catalog at
 [`docs/implementation-prompts.json`](./docs/implementation-prompts.json), with
 generated Markdown views for convenient reading. Update the catalog and

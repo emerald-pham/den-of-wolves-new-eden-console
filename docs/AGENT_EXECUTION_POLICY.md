@@ -44,6 +44,22 @@ validation, ordinary authorized gameplay proof, and the fixed completion target.
 Use the currently authorized model versions and efforts; this structure does
 not authorize a model excluded by higher-priority working agreements.
 
+### Coordinator handoff and intervention
+
+Once the checkpoint owner has the access, context, and authority to complete
+the checkpoint, the coordinator hands back full execution and steps back. The
+owner continues implementation, ordinary authorized gameplay verification,
+repairs, appropriate review, integration, and release autonomously.
+
+The coordinator intervenes only at meaningful boundaries requiring its
+judgment, irreducible blockers or approval needs, and final completion. Avoid
+routine polling, relaying every small update, duplicate investigation, or
+taking over ordinary owner work. Temporary coordinator help with a uniquely
+accessible authorized surface ends once that access boundary is resolved.
+Keep the existing explicit collaboration messages to the canonical parent for
+requested checkpoints, blockers, approval needs, and material changes; ordinary
+commentary does not replace those messages. Do not create coordinator goals.
+
 ### Ownership lessons from the PC06 audit
 
 Use Sol 6.1 for broad checkpoint ownership when shared integration, authority,

@@ -100,6 +100,18 @@ building; group coupled prompts together instead of assigning one agent per prom
 and reconcile at one release boundary. Delegated workers default to `gpt-6-luna`. Luna effort is discretionary; `max` is almost always preferred.
 Sol may use all supported effort levels. Keep explicit task-specific security review floors.
 
+Once the owner has the access, context, and authority to finish the checkpoint,
+the coordinator hands back full execution and steps back. The owner continues
+implementation, ordinary authorized gameplay verification, repairs, appropriate
+review, integration, and release autonomously. The coordinator intervenes only
+at meaningful boundaries requiring its judgment, irreducible blockers or
+approval needs, and final completion. Avoid routine polling, relaying every
+small update, duplicate investigation, and taking over ordinary owner work.
+Temporary coordinator help with a uniquely accessible authorized surface ends
+once that access boundary is resolved. Preserve the explicit canonical-parent
+collaboration messages below and do not create coordinator goals. The linked
+execution policy owns the complete handoff contract.
+
 Use `gpt-6.1-sol` for independent review of shared session state, callable behavior
 (including authorization and rules), Firestore rules, deployment/auth
 infrastructure, or release and capacity evidence. Use `medium` or `high` for a
