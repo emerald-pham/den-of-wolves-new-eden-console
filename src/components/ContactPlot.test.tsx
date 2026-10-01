@@ -1157,8 +1157,12 @@ it('remeasures only the changed label for a clear deferred sweep fix', () => {
   expect(labelReads).toBeLessThanOrEqual(2);
 });
 
+type ContactGeometryMark = {
+  x: number; y: number; width?: number; height?: number; labelX?: number; labelY?: number;
+};
+
 function mockAdjacentContactGeometry(
-  marks: { x: number; y: number }[],
+  marks: ContactGeometryMark[],
   origin?: [number, number, number, number],
 ): void {
   const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
@@ -1173,7 +1177,9 @@ function mockAdjacentContactGeometry(
     const contact = this.closest<HTMLElement>('.contact-plot__contact');
     const index = contact ? [...document.querySelectorAll('.contact-plot__contact')].indexOf(contact) : -1;
     const mark = marks[index];
-    if (this.classList.contains('contact-plot__blip') && mark) return bounds(mark.x, mark.y, 8, 8);
+    if (this.classList.contains('contact-plot__blip') && mark) {
+      return bounds(mark.x, mark.y, mark.width ?? 8, mark.height ?? 8);
+    }
     if (this.classList.contains('contact-plot__tag') && mark) {
       const label = this as HTMLElement;
       const cap = Number.parseFloat(label.style.maxWidth);
@@ -1181,9 +1187,11 @@ function mockAdjacentContactGeometry(
       const anchor = contact?.dataset.labelAnchor ?? 'south-east';
       const x = Number.parseFloat(label.style.getPropertyValue('--label-clamp-x')) || 0;
       const y = Number.parseFloat(label.style.getPropertyValue('--label-clamp-y')) || 0;
+      const baseX = mark.labelX ?? mark.x;
+      const baseY = mark.labelY ?? mark.y;
       return bounds(
-        (anchor.endsWith('east') ? mark.x - 11 - width : mark.x + 19) + x,
-        (anchor.startsWith('north') ? mark.y - 26 : mark.y + 16) + y,
+        (anchor.endsWith('east') ? baseX - 11 - width : baseX + 19) + x,
+        (anchor.startsWith('north') ? baseY - 26 : baseY + 16) + y,
         width, 18,
       );
     }
@@ -1243,6 +1251,36 @@ it('selects the clearer opposite anchor when an adjacent contact moves in reduce
   const dx = Math.max(0, otherMark.left - label.right, label.left - otherMark.right);
   const dy = Math.max(0, otherMark.top - label.bottom, label.top - otherMark.bottom);
   expect(dx * dx + dy * dy).toBe(6130);
+});
+
+it('scores current neighbor bounds while an unscanned acquisition flash shrinks', () => {
+  const marks: ContactGeometryMark[] = [
+    { x: 160, y: 100 },
+    { x: 233, y: 116, width: 16, height: 16, labelX: 237, labelY: 120 },
+  ];
+  mockAdjacentContactGeometry(marks, [84, 112, 10, 24]);
+  const { container } = render(<ContactPlot centerLabel="AEGIS" contacts={marks.map((_, index) => ({
+    id: `acquisition-cache-${index}`, tag: `CONTACT ${index + 1}`,
+    x: 0.55, y: index === 0 ? 0.38 : -0.38, z: 0.1, color: 'white',
+  }))} />);
+  const [lead] = contactsIn(container);
+  expect(lead?.dataset.labelAnchor).toBe('south-east');
+  marks[0] = { x: 161, y: 100 };
+  marks[1] = { x: 237, y: 120, width: 8, height: 8, labelX: 237, labelY: 120 };
+
+  act(() => {
+    lead!.dispatchEvent(new CustomEvent(CONTACT_SCAN_EVENT, {
+      bubbles: true, detail: { fixChanged: true, layoutDeferred: true },
+    }));
+    plotIn(container)!.dispatchEvent(new Event(CONTACT_SCAN_LAYOUT_EVENT));
+  });
+
+  expect(lead?.dataset.labelAnchor).toBe('south-west');
+  const label = lead!.querySelector('.contact-plot__tag')!.getBoundingClientRect();
+  const neighbor = contactsIn(container)[1]!.querySelector('.contact-plot__blip')!.getBoundingClientRect();
+  const dx = Math.max(0, neighbor.left - label.right, label.left - neighbor.right);
+  const dy = Math.max(0, neighbor.top - label.bottom, label.top - neighbor.bottom);
+  expect(dx * dx + dy * dy).toBe(49);
 });
 
 it('lays out one complete sweep batch once, while preserving every contact scan', () => {
