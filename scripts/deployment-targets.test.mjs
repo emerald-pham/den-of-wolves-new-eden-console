@@ -1598,7 +1598,7 @@ test('fails closed when PC05 shared index code changes beyond the audited candid
   }), /Cannot safely map PC05 shared index changes/);
 });
 
-const PC06_IMPLEMENTATION_CANDIDATE = 'd91fb1bab959c5395ee2dfb96df446ed98bc1a25';
+const PC06_IMPLEMENTATION_CANDIDATE = '32451b493c3db98870b3c6fd1a148da4099edc44';
 const pc06SourceAtRevision = (revision, file) => {
   try { return execFileSync('git', ['show', `${revision}:${file}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 16 * 1024 * 1024 }); }
   catch { if (revision === PC05_REVIEWED_CANDIDATE) return ''; throw new Error(`Missing candidate source ${file}`); }
@@ -1609,6 +1609,7 @@ const selectPc06 = (files, sourceAtRevision = pc06SourceAtRevision) => deploymen
 });
 for (const [file, names] of Object.entries({
   'smallShipJump': ['getSmallShipJumpWorkspace', 'jumpSmallShip', 'setSmallShipDocking'],
+  'boardingSecurityTeamCallable': ['getBoardingSecurityTeamLocations'],
   'fleetPartition': ['confirmFleetPartition', 'joinSession', 'resumeSession'],
   'awayMissionLifecycleCallable': ['commitAwayMissionLifecycleCommand'],
   'explorationRewards': ['commitAwayMissionLifecycleCommand'],
