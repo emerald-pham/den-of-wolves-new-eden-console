@@ -80,6 +80,19 @@ CI again only when a failed gate, a production-only finding, or a materially
 changed final candidate requires it. Evidence that can exist only after
 deployment may use one final closeout documentation candidate.
 
+Owner clarification, 2026-09-30: aim for one reconciled candidate CI run plus
+required exact-main deployment checks, not one CI run per worker or prompt.
+Workers hand back local commits and focused evidence without opening their own
+CI/release cycles. Before a CI-triggering push, integrate the whole scoped
+checkpoint, local repairs, release metadata, current main, and required review.
+Batch related fixes before the next push and avoid duplicate manual runs when
+the push already triggered CI. Record the concrete reason for each rerun,
+including an upstream change that invalidates prior evidence. This is not a hard
+run cap: do not skip gates, weaken performance budgets, reuse stale approval,
+or suppress required exact-main deployment validation to reduce the count.
+Schedule unrelated policy or documentation follow-ups after the active release
+unless they directly unblock it or the user explicitly requests them now.
+
 While an owner or CI run is active, wait for a meaningful completion, blocker,
 or requested checkpoint. Use a long interruptible wait with a clear owner and
 resume path. Do not loop through short status polls or send updates that only
