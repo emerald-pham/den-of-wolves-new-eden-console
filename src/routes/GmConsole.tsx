@@ -151,6 +151,7 @@ const GmStarmapModule = lazy(() => import('@/components/GmStarmapModule'));
 const GmScoutRevealController = lazy(() => import('@/components/GmScoutRevealController'));
 const SmallShipOperations = lazy(() => import('@/components/SmallShipOperations'));
 const AwayMissionStartPanel = lazy(() => import('@/components/AwayMissionStartPanel'));
+const BoardingSecurityTeamWorkspace = lazy(() => import('@/components/BoardingSecurityTeamWorkspace'));
 
 const SMALL_SHIP_CAPTAIN_ROLE_IDS: Readonly<Record<SmallShipId, string>> = {
   gorgoneion: 'gorgoneion-captain',
@@ -3436,6 +3437,10 @@ export default function GmConsole() {
           <Suspense fallback={<p role="status">Opening fleet operations…</p>}>
           <SmallShipOperations />
           {session?.voyage33Admission?.status === 'admitted' && <Voyage33MovementWorkspace />}
+          {session?.phase === 'active' && isGm && me?.role === 'gm' && me.sessionId === session.id &&
+            local?.sessionId === session.id && local.uid === me.uid &&
+            sessionSnapshotFreshness === 'server' && connection === 'live' &&
+            <BoardingSecurityTeamWorkspace />}
           <GmStarmapModule session={session} />
           <Suspense fallback={(
             <section className="gm-console__module away-mission-start-panel cic-frame" aria-label="New-location mission start">

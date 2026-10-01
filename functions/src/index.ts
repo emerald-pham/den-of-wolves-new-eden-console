@@ -63,6 +63,7 @@ import { planMissionRewardDelivery } from './missionRewardDelivery';
 import { createAwayMissionLifecycleCallables } from './awayMissionLifecycleCallable';
 import { deriveAwayMissionParticipantCraftSnapshots } from './awayMissionCraftSnapshot';
 import { createPermissionedDismantlingCallables } from './permissionedDismantlingCallable';
+import { createBoardingSecurityTeamCallable } from './boardingSecurityTeamCallable';
 import { createVoyage33MovementCallables } from './voyage33MovementCallable';
 import { publicVoyage33MovementState } from './voyage33Movement';
 import {
@@ -927,6 +928,12 @@ const smallShipJumpCallables = createSmallShipJumpCallables({
   now: () => new Date(),
 });
 
+const getBoardingSecurityTeamLocationsCallable = createBoardingSecurityTeamCallable({
+  db,
+  requireUid,
+  requireFacilitatorInstance,
+});
+
 export const proposePermissionedDismantling = onCall((request) =>
   permissionedDismantlingCallables.proposePermissionedDismantling(request));
 
@@ -971,6 +978,9 @@ export const getSmallShipJumpWorkspace = onCall((request) =>
 
 export const jumpSmallShip = onCall((request) =>
   smallShipJumpCallables.jumpSmallShip(request));
+
+export const getBoardingSecurityTeamLocations = onCall((request) =>
+  getBoardingSecurityTeamLocationsCallable(request));
 
 /** Persist server-authoritative source events to the Press-only intake. */
 function writePressLogEvent(tx: Transaction, sessionId: string, event: PressLogEvent): void {

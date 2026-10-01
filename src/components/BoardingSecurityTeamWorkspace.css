@@ -1,0 +1,223 @@
+.boarding-security-workspace {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  padding: clamp(0.9rem, 2.5vw, 1.4rem);
+  color: var(--cic-ink);
+  background: var(--cic-panel);
+  border: 1px solid var(--cic-rule);
+}
+
+.boarding-security-workspace__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  min-width: 0;
+  border-bottom: 1px solid var(--cic-rule);
+  padding-bottom: 0.9rem;
+}
+
+.boarding-security-workspace__header > div,
+.boarding-security-workspace__body,
+.boarding-security-workspace__section {
+  min-width: 0;
+}
+
+.boarding-security-workspace__header h2 {
+  margin: 0.2rem 0 0;
+  color: var(--cic-ink);
+  font: 1.15rem/1.25 var(--cic-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.boarding-security-workspace__intro,
+.boarding-security-workspace__message,
+.boarding-security-workspace__empty,
+.boarding-security-workspace__error,
+.boarding-security-workspace__cycle,
+.boarding-security-workspace__boundary {
+  margin: 0;
+  font: 0.78rem/1.5 var(--cic-mono);
+  overflow-wrap: anywhere;
+}
+
+.boarding-security-workspace__intro {
+  max-width: 68ch;
+  margin-top: 0.5rem;
+  color: var(--cic-muted);
+}
+
+.boarding-security-workspace__refresh {
+  flex: 0 0 auto;
+  letter-spacing: 0.03em;
+}
+
+.boarding-security-workspace__refresh:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.boarding-security-workspace__boundary {
+  padding: 0.7rem 0.8rem;
+  color: var(--cic-amber-glow);
+  border-inline-start: 3px solid var(--cic-amber);
+  background: color-mix(in srgb, var(--cic-amber) 8%, transparent);
+}
+
+.boarding-security-workspace__message {
+  color: var(--cic-cyan);
+}
+
+.boarding-security-workspace__error {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.75rem;
+  color: var(--cic-scream);
+  border: 1px solid var(--cic-danger);
+  background: color-mix(in srgb, var(--cic-danger) 10%, transparent);
+}
+
+.boarding-security-workspace__body {
+  display: grid;
+  gap: 1rem;
+}
+
+.boarding-security-workspace__cycle {
+  color: var(--cic-cyan);
+}
+
+.boarding-security-workspace__totals {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin: 0;
+}
+
+.boarding-security-workspace__totals > div {
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--cic-rule);
+  background: var(--cic-void);
+}
+
+.boarding-security-workspace__totals dt {
+  color: var(--cic-muted);
+  font: 0.65rem/1.4 var(--cic-mono);
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+.boarding-security-workspace__totals dd {
+  margin: 0.35rem 0 0;
+  color: var(--cic-cyan-hot);
+  font: 1.35rem/1.15 var(--cic-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.boarding-security-workspace__section {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.boarding-security-workspace__section h3 {
+  margin: 0;
+  padding-bottom: 0.45rem;
+  color: var(--cic-amber);
+  border-bottom: 1px solid var(--cic-rule);
+  font: 0.72rem/1.4 var(--cic-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.boarding-security-workspace__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.boarding-security-workspace__card {
+  min-width: 0;
+  padding: 0.7rem;
+  border: 1px solid var(--cic-rule);
+  background: color-mix(in srgb, var(--cic-void) 90%, transparent);
+}
+
+.boarding-security-workspace__card h4 {
+  margin: 0 0 0.6rem;
+  color: var(--cic-ink);
+  font: 0.8rem/1.35 var(--cic-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+.boarding-security-workspace__card p {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.65rem;
+  margin: 0.25rem 0 0;
+  color: var(--cic-muted);
+  font: 0.68rem/1.45 var(--cic-mono);
+}
+
+.boarding-security-workspace__card strong {
+  color: var(--cic-cyan-hot);
+  font: inherit;
+  text-align: end;
+  overflow-wrap: anywhere;
+}
+
+.boarding-security-workspace__empty {
+  color: var(--cic-muted);
+}
+
+@media (max-width: 700px) {
+  .boarding-security-workspace__header {
+    flex-direction: column;
+  }
+
+  .boarding-security-workspace__totals {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .boarding-security-workspace__refresh {
+    width: 100%;
+  }
+}
+
+@media (max-width: 360px) {
+  .boarding-security-workspace {
+    padding: 0.75rem;
+  }
+
+  .boarding-security-workspace__totals {
+    gap: 0.4rem;
+  }
+
+  .boarding-security-workspace__totals > div,
+  .boarding-security-workspace__card {
+    padding: 0.6rem;
+  }
+}
+
+@media (max-height: 440px) and (orientation: landscape) {
+  .boarding-security-workspace__totals {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boarding-security-workspace *,
+  .boarding-security-workspace *::before,
+  .boarding-security-workspace *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
