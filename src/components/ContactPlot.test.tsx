@@ -1539,6 +1539,47 @@ it('resolves each DRADIS label contact once during a layout update', () => {
     .toHaveLength(contacts.length);
 });
 
+it('skips the alternate anchor measurement when the preferred clear side has more room', () => {
+  const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
+    x: left, y: top, left, top, width, height,
+    right: left + width, bottom: top + height,
+  }) as DOMRect;
+  const marks = [{ x: 160, y: 100 }, { x: 190, y: 125 }];
+  const labelReads = [0, 0];
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    if (this.classList.contains('contact-plot')) return bounds(0, 0, 320, 240);
+    const contact = this.closest<HTMLElement>('.contact-plot__contact');
+    const index = contact ? [...document.querySelectorAll('.contact-plot__contact')].indexOf(contact) : -1;
+    const mark = marks[index];
+    if (this.classList.contains('contact-plot__blip') && mark) return bounds(mark.x, mark.y, 8, 8);
+    if (this.classList.contains('contact-plot__tag') && mark) {
+      labelReads[index] = (labelReads[index] ?? 0) + 1;
+      const anchor = contact?.dataset.labelAnchor ?? 'south-east';
+      const left = anchor.endsWith('east') ? mark.x - 11 - 50 : mark.x + 8 + 11;
+      const top = anchor.startsWith('north') ? mark.y - 8 - 18 : mark.y + 8 + 8;
+      return bounds(left, top, 50, 18);
+    }
+    return bounds(0, 0, 0, 0);
+  });
+  const contacts = marks.map((_, index) => ({
+    id: `preferred-anchor-${index}`,
+    tag: `CONTACT ${index + 1}`,
+    x: 0.55,
+    y: 0.38,
+    z: 0.1,
+    color: 'white',
+  }));
+  const { rerender } = render(<ContactPlot contacts={contacts} />);
+  labelReads.fill(0);
+
+  rerender(<ContactPlot contacts={contacts.map((contact) => ({
+    ...contact,
+    x: contact.x + 0.001,
+  }))} />);
+
+  expect(labelReads[0]).toBe(1);
+});
+
 it('measures a spread 20-contact DRADIS anchor batch twice per label', () => {
   const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
     x: left, y: top, left, top, width, height,
