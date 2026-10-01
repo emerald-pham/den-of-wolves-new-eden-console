@@ -59,3 +59,23 @@ it('does not paint a late success after a fleet audience change', async () => {
   expect(screen.queryByText(/courier round trip completed/i)).not.toBeInTheDocument();
   expect(screen.getByLabelText('Courier note')).toHaveValue('');
 });
+
+it('preserves the draft through a revision change and a not-delivered reconciliation', async () => {
+  const user = userEvent.setup();
+  send.mockRejectedValueOnce(new Error('The courier result is uncertain. Retry the exact note and destination.'))
+    .mockRejectedValueOnce(new Error('Previous courier was not delivered. Your draft is preserved. Send again.'));
+  render(<ScoutTaxiCommunicationPanel shuttleId="hummingbird" control={control} />);
+  await user.selectOptions(screen.getByLabelText('Courier destination ship'), 'aegis');
+  await user.type(screen.getByLabelText('Courier note'), 'Hold position.');
+  await user.click(screen.getByRole('button', { name: 'Send scout taxi courier' }));
+  await screen.findByText(/result is uncertain/i);
+  act(() => useSessionStore.getState().setSession({ ...useSessionStore.getState().session!, currentTurn: 4,
+    turnPhase: { ...useSessionStore.getState().session!.turnPhase!, turn: 4 } }));
+  expect(screen.getByLabelText('Courier note')).toHaveValue('Hold position.');
+  await user.click(screen.getByRole('button', { name: 'Send scout taxi courier' }));
+  await screen.findByText(/draft is preserved/i);
+  expect(screen.getByLabelText('Courier note')).toHaveValue('Hold position.');
+  await user.click(screen.getByRole('button', { name: 'Send scout taxi courier' }));
+  await screen.findByText(/courier round trip completed/i);
+  expect(send).toHaveBeenCalledTimes(3);
+});

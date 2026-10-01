@@ -123,3 +123,40 @@ it('rechecks current actor and membership even for a prior courier receipt', asy
   await expect(calls.sendScoutTaxiCourier.run(request())).rejects.toThrow();
   expect(mock.writes).not.toHaveBeenCalled();
 });
+
+it.each(['aegis', 'quellon'])('denies a destroyed courier endpoint %s with zero writes', async shipId => {
+  mock.documents.get('sessions/s1')!.shipDamage = { [shipId]: { destroyed: true, damagedSystemIds: [] } };
+  await expect(calls.sendScoutTaxiCourier.run(request())).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.writes).not.toHaveBeenCalled();
+});
+
+it('reconciles a committed prior cycle without redelivery or revealing its audience', async () => {
+  await calls.sendScoutTaxiCourier.run(request()); mock.writes.mockClear();
+  mock.documents.get('sessions/s1')!.currentTurn = 4;
+  mock.documents.get('sessions/s1/serverState/navigation')!.revision = 3;
+  expect(await calls.sendScoutTaxiCourier.run(request({ ...data, reconcileOnly: true }))).toEqual({
+    status: 'replayed', requestId: 'taxi-1', shuttleId: 'hummingbird', targetShipId: 'aegis', cycle: 3 });
+  expect(mock.writes).not.toHaveBeenCalled();
+});
+
+it('confirms an obsolete uncommitted request was not delivered without creating it', async () => {
+  mock.documents.get('sessions/s1')!.currentTurn = 4;
+  expect(await calls.sendScoutTaxiCourier.run(request({ ...data, reconcileOnly: true }))).toEqual({
+    status: 'not-delivered', requestId: 'taxi-1', shuttleId: 'hummingbird', targetShipId: 'aegis', cycle: 3 });
+  expect(mock.writes).not.toHaveBeenCalled();
+  await expect(calls.sendScoutTaxiCourier.run(request())).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.writes).not.toHaveBeenCalled();
+});
+
+it('never clears an uncertain request while its delivery authority could still commit', async () => {
+  await expect(calls.sendScoutTaxiCourier.run(request({ ...data, reconcileOnly: true }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.writes).not.toHaveBeenCalled();
+});
+
+it('denies reconciliation after the actor leaves the original audience', async () => {
+  await calls.sendScoutTaxiCourier.run(request()); mock.writes.mockClear();
+  mock.documents.get('sessions/s1')!.currentTurn = 4;
+  mock.documents.get('sessions/s1/players/explorer')!.fleetGroupId = 'fleet-1';
+  await expect(calls.sendScoutTaxiCourier.run(request({ ...data, reconcileOnly: true }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.writes).not.toHaveBeenCalled();
+});

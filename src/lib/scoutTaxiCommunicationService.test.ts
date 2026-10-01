@@ -61,3 +61,30 @@ it('fails closed while fresh holder and phase authority are unavailable', async 
   await expect(actions.send('aegis', 'Hold position.')).rejects.toThrow(/live/i);
   expect(transport).not.toHaveBeenCalled();
 });
+
+it.each(['cycle', 'navigationRevision', 'controlRevision'] as const)('reconciles an obsolete uncertain %s before allowing a new delivery', async field => {
+  let live = context;
+  const transport = vi.fn().mockRejectedValueOnce(new Error('network'))
+    .mockResolvedValueOnce({ ...reply, status: 'not-delivered' })
+    .mockImplementationOnce(async payload => ({ ...reply, requestId: payload.requestId, cycle: payload.expectedCycle }));
+  const ids = vi.fn().mockReturnValueOnce('taxi-1').mockReturnValueOnce('taxi-2');
+  const actions = createScoutTaxiCommunicationActions(() => live, transport, ids);
+  await expect(actions.send('aegis', 'Hold position.')).rejects.toThrow(/uncertain/i);
+  live = { ...context, [field]: context[field] + 1 };
+  await expect(actions.send('aegis', 'Hold position.')).rejects.toThrow(/not delivered.*draft/i);
+  expect(transport.mock.calls[1]?.[0]).toEqual({ ...transport.mock.calls[0]?.[0], reconcileOnly: true });
+  await actions.send('aegis', 'Hold position.');
+  expect(transport.mock.calls[2]?.[0]).toMatchObject({ requestId: 'taxi-2', expectedCycle: live.cycle });
+});
+
+it('reconciles a committed old request without submitting a new delivery after navigation changes', async () => {
+  let live = context;
+  const transport = vi.fn().mockRejectedValueOnce(new Error('network')).mockResolvedValueOnce({ ...reply, status: 'replayed' });
+  const ids = vi.fn().mockReturnValue('taxi-1');
+  const actions = createScoutTaxiCommunicationActions(() => live, transport, ids);
+  await expect(actions.send('aegis', 'Hold position.')).rejects.toThrow(/uncertain/i);
+  live = { ...context, cycle: 4, navigationRevision: 3 };
+  expect(await actions.send('aegis', 'Hold position.')).toMatchObject({ status: 'replayed', cycle: 3 });
+  expect(ids).toHaveBeenCalledTimes(1);
+  expect(transport).toHaveBeenCalledTimes(2);
+});
