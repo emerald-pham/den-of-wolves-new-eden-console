@@ -89,8 +89,10 @@ classifier correctly requested unit and ticker gates, but the reusable verify
 job was skipped because no Firebase surface was selected. The Deploy workflow
 now distinguishes verification from deployment. A current-tip change with
 non-documentation risk gates runs exact-SHA verification even when `targets` is
-empty; the deploy job still requires a real Firebase target. Documentation-only
-changes retain the no-verify/no-deploy fast path. The successful sharded
+empty; the deploy job still requires a real Firebase target. Documentation can
+skip application verification and deployment when the selected ranges contain
+no outstanding risk or deployable change; watched guidance still runs
+documentation CI. The successful sharded
 workflow above proves that the no-target change ran the base verifier and all
 three ticker shards while both P637 and Firebase deployment stayed skipped. A
 workflow contract test pins all three conditions so release tooling and tests

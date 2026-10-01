@@ -1,45 +1,38 @@
 # Den of Wolves: New Eden — Unofficial Companion Console
 
-An in-person companion console for running *Den of Wolves: New Eden* at the
-table. It provides shared sessions, role and ship selection, GM controls, ship
-and shuttle consoles, a live fleet display, and server-authoritative multiplayer
-state backed by Firebase.
+An in-person companion console for running *Den of Wolves: New Eden*. It
+provides shared sessions, player stations, GM controls, ship and shuttle
+consoles, and a live fleet display backed by server-authoritative Firebase state.
 
 > Unofficial and unaffiliated. Fan project.
 
 Live deployment: [dow-new-eden-console.web.app](https://dow-new-eden-console.web.app/)
 
-## Operating envelope
+## Status and documentation
 
-The target is one 20-player game with up to **60 concurrent browser clients**.
-Players may use several devices, and many clients may share one table network.
-This is the design envelope, not a claim of completed load testing. The
-[capacity and abuse-protection handoff](docs/ABUSE_PROTECTION_HANDOFF.md) is the
-source for that workstream.
+The game is under staged development. The [JSON catalog](docs/implementation-prompts.json)
+owns prompt definitions, completion, dependencies and release evidence. Its
+generated Markdown views are convenient reading copies. Local green checks and
+a deployed build do not establish that the entire game is complete.
 
-The core roster target is **8–20 players**. Press is an optional, non-counted
-extension that may add one Press Officer as a twenty-first role holder when it
-is enabled; GM instances are also non-counting. These roster rules are distinct
-from the 60-client browser capacity target.
+Start with [CLAUDE.md](CLAUDE.md) for repository policy and the
+[documentation map](docs/README.md) for the right contract, checkpoint or report.
+The [product checkpoints](docs/PRODUCT_MILESTONES.md) own preparation and review;
+the [completion plan](docs/CHECKPOINT_COMPLETION_PLAN.md) fixes their membership
+and targets. The [implementation plan](docs/IMPLEMENTATION_PLAN.md) is generated
+from the catalog's objectives and acceptance criteria.
 
-## Current status
+For prompt readiness, `npm run coordination:dependencies -- --prompt NNN` is
+read-only and creates no nonce or receipt. `NEXT` is a ready-work hint. After
+catalog edits, run `node scripts/generate-prompt-views.mjs`; `--check` verifies
+the generated views. Freeze accepted scope and queue unrelated additions.
 
-This is an active, staged work in progress rather than a claim of a complete
-game or release-ready implementation. The JSON
-[prompt catalog](docs/implementation-prompts.json) owns roadmap facts; generated
-implementation Markdown views provide readable objectives, progress, and
-dependencies. A passing local check or deployed build does not by itself
-establish that the full gameplay roadmap or capacity target is complete.
-
-When a task follows a prompt, read its catalog record and use the optional
-read-only dependency check (`npm run coordination:dependencies -- --prompt NNN`)
-to see hard prerequisites and current readiness. `NEXT` is a useful ready-work
-hint, not a serial lock. Coordination can record the owner, branch, worktree,
-and real shared session/callable/rules, deploy/auth, release, or emulator
-hotspots, but there is no universal implementation registration or commit
-trailer. After catalog edits, run `node scripts/generate-prompt-views.mjs` (or
-`--check` to verify) to refresh the generated views. Accept and freeze a bounded
-scope; queue unrelated additions except a directly blocking defect.
+The target is one 20-player game with up to 60 concurrent browser clients. The
+normal core roster is 8–20; optional Press and GM holders do not count toward
+it. [Approved deviations](docs/INTENTIONAL_DEVIATION_GUARDS.md) record the roster
+policy; [capacity conclusions](docs/CAPACITY_CONCLUSIONS.md) state the measured
+local envelope and remaining production limits. The
+[abuse-protection handoff](docs/ABUSE_PROTECTION_HANDOFF.md) owns that workstream.
 
 ## Stack
 
@@ -54,8 +47,8 @@ scope; queue unrelated additions except a directly blocking defect.
 | Tests | Vitest, React Testing Library, Firestore rules emulator |
 | Hosting | GitHub Actions → Firebase Hosting |
 
-`HashRouter` is deliberate: deep links must work on a static host without
-rewrite rules.
+`HashRouter` supports deep links on the static host.
+Keep TypeScript strict; do not hide errors with `any` or `@ts-expect-error`.
 
 ## Project map
 
@@ -71,32 +64,18 @@ firestore.rules        read model and client-write denials
 tests/rules/           emulator-backed security assertions
 ```
 
-Use the [product playtest checkpoints](docs/PRODUCT_MILESTONES.md) to shape
-and review staged gameplay, and the
-[implementation plan](docs/IMPLEMENTATION_PLAN.md) for prompt contracts. The
-[documentation map](docs/README.md) identifies each guide's audience and
-authority so live status, workflow policy, product contracts, and historical
-handoffs are not mistaken for interchangeable sources. Shared vessel composition
-belongs to the
-[console architecture](docs/CONSOLE_ARCHITECTURE.md); the
-[Capybara ship template](docs/SHIP_TEMPLATE.md) and
-[SNN shuttle template](docs/SHUTTLE_TEMPLATE.md) define their respective
-surfaces. The authoritative printed/source library is maintained privately
-outside this repository. The canonical local-only locator and routing rules for
-this single-machine workflow are recorded in [CLAUDE.md](CLAUDE.md). Do not add
-links to private contents, or commit, quote, or reproduce that source material
-in the public project.
-
-The [preserved-in-amber rollback anchor](docs/PRESERVED_IN_AMBER.md) is an
-immutable recovery ref for automated changes to `main`. It must not be deleted
-or moved.
+Shared vessel composition belongs in [Console Architecture](docs/CONSOLE_ARCHITECTURE.md).
+The [ship](docs/SHIP_TEMPLATE.md) and [shuttle](docs/SHUTTLE_TEMPLATE.md) templates
+specify their respective surfaces. Printed sources stay outside this public
+repository; [CLAUDE.md](CLAUDE.md#private-source-boundary) records the private
+locator and routing rules. Preserve the
+[rollback anchor](docs/PRESERVED_IN_AMBER.md).
 
 ## Quick start
 
-Use Node.js 22 and npm. The root package accepts Node.js 20 or newer, while the
-Cloud Functions package targets Node.js 22. A normal browser-only session uses
-the committed Firebase web configuration, which contains public identifiers;
-no service-account credential is needed for local development.
+Use Node.js 22 and npm. The root package accepts Node.js 20 or newer; Functions
+target Node.js 22. The committed Firebase web configuration contains public
+identifiers and needs no service-account credential for browser development.
 
 ```bash
 npm ci
@@ -104,53 +83,7 @@ npm ci --prefix functions
 npm run dev
 ```
 
-For emulator-backed work, configure an isolated worktree slot first. The
-[coordination quick reference](docs/WORKTREE_COORDINATION.md) has the commands,
-full slot matrix, and safety rules. Preserve other tasks' rows and do not infer
-that an old or quiet reservation is safe to take.
-
-## Validation
-
-```bash
-npm test            # unit and component tests
-npm run test:rules  # Firestore rules through the emulator
-npm run test:all    # both suites
-```
-
-For code changes, also run the repository lint and production builds:
-
-```bash
-npm run lint
-npm run build
-npm run build --prefix functions
-```
-
-Code changes use focused, meaningful tests described in [CLAUDE.md](CLAUDE.md).
-Red-before-green TDD is reserved for new security, authority, callable, rules,
-and complex gameplay behavior; low-impact reversible copy or CSS can use a
-focused or rendered check. Risk review is required only for shared
-session/callable/rules behavior or deploy/auth infrastructure. Documentation-
-only changes review rendered text, links, examples, and `git diff --check`; they
-do not change application versioning or the player-facing changelog. One owner
-carries each task through review, reconciliation, final validation, merge,
-push, and truthful deployment verification. There is no universal prompt
-registration or commit-trailer requirement. Risk review returns all findings in
-one pass; the owner repairs them in a bounded follow-up. Rerun validation only
-after a meaningful input changed, a failure, or an unresolved concern. The
-owner's final validation runs after reconciliation with current `main`.
-
-## Security model
-
-Clients may read only entitled data and may write only their own presence
-document. Claims, roles, secrets, random results, and other lie-sensitive game
-mutations are denied by Firestore rules and resolved by callable Cloud
-Functions inside transactions. The rules suite tests those denials.
-
-## Emulator-backed development
-
-Use the [coordination command reference](docs/WORKTREE_COORDINATION.md) for
-optional ownership notes and the complete port-safety policy. Keep each
-emulator row isolated to its worktree and preserve other tasks' reservations.
+For emulator work, select one complete free worktree row first:
 
 ```bash
 npm run emulators:configure -- auto
@@ -159,45 +92,60 @@ npm run emulators
 npm run dev:emulators
 ```
 
-The setup command atomically selects and records one complete free Firebase/Vite
-row and writes ignored local configuration. Use the generated row consistently;
-never mix its ports with another worktree. Rules tests use the same configuration
-and can choose a separate free row when a preview is already running. The
-emulator suite requires Java; CI uses Java 21.
+Use that row's generated local configuration consistently. The
+[coordination reference](docs/WORKTREE_COORDINATION.md#emulator-rows) owns the
+port matrix, reservations and teardown rules. Coordination is optional and
+protects actual shared hotspots. Never infer stale ownership from age alone.
+The rules emulator requires Java; CI uses Java 21.
 
-The Firebase web configuration contains public identifiers, not credentials.
-Never commit a service-account key or App Check debug token. Production App
-Check, capacity evidence, monitoring, and rollback guidance belong in the
-[abuse-protection handoff](docs/ABUSE_PROTECTION_HANDOFF.md).
+## Validation and security
+
+Use focused, meaningful checks appropriate to the change:
+
+```bash
+npm test
+npm run test:rules
+npm run lint
+npm run build
+npm run build --prefix functions
+```
+
+[CLAUDE.md](CLAUDE.md#testing-and-review) owns test-first, rendered QA and
+independent-review requirements. Documentation uses `git diff --check` and
+`npm run coordination:docs`; it does not change the product version or player
+changelog. One owner carries implementation, review, repairs, validation,
+merge, push and truthful deployment verification. Risk review collects all
+findings; the owner repairs them in a bounded follow-up. Reconcile with current
+`main` before one final appropriate validation. Rerun only after a meaningful
+input changed, a failure or an unresolved concern.
+
+Clients read entitled data and write only their own presence. Callable
+Functions own claims, secrets, random results and other game mutations inside
+transactions; Firestore rules deny privileged client writes. Never commit a
+service-account key or App Check debug token. Production App Check, monitoring
+and response guidance are in the [abuse-protection handoff](docs/ABUSE_PROTECTION_HANDOFF.md).
 
 ## Deployment
 
-The task owner runs the focused checks appropriate to the change, reconciles
-the reviewed candidate with current `main`, commits it, and runs one final
-appropriate validation before merging. The main-branch workflow then deploys
-affected Firebase surfaces. Product edits update the visible application
-version and player-facing changelog; tooling and documentation do not. A
-pushed workflow is not proof that production finished, so verify the actual
-workflow result or deployed behavior. Documentation-only pushes do not trigger
-CI or deployment. A manually dispatched deployment runs against all three
-configured Firebase surfaces.
+CI selects checks by changed paths; workflow guides and generated roadmap views
+can trigger documentation verification. The main Deploy workflow selects
+Firebase surfaces from the range since the last successful deployment and uses
+a separate successful-verification baseline for risk checks. Documentation
+alone does not require an application release; earlier undeployed changes can
+still affect a later main workflow. Verify its actual result or deployed
+behavior before reporting production success.
 
-For Workload Identity Federation setup and repository variables, see the
-[deployment setup handoff](docs/ci-deploy-setup.md). Manual deployment uses:
+The [deployment setup handoff](docs/ci-deploy-setup.md) owns Workload Identity
+Federation and repository variables. GitHub Actions uses short-lived
+credentials. Manual deployment requires the Firebase CLI and an authenticated
+session for the project in `.firebaserc`:
 
 ```bash
 npm run deploy
-npm run deploy:hosting  # build and deploy Hosting only
+npm run deploy:hosting
 ```
-
-`npm run deploy` runs `firebase deploy` for the project selected in
-`.firebaserc`; it requires a Firebase CLI available as the `firebase` command
-and an authenticated session for the selected project. The GitHub Actions
-workflow instead uses short-lived Workload Identity Federation credentials and
-does not store a service-account JSON key.
 
 ## License
 
 This unofficial fan project is not currently offered under an open-source
-license. See the [copyright and licensing notice](LICENSE.md) for the current
-rights status and third-party-material boundary.
+license. See [LICENSE.md](LICENSE.md) for rights and third-party boundaries.

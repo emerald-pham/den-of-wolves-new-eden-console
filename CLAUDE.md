@@ -105,10 +105,10 @@ Use `gpt-5.6-sol` for independent review of shared session state, callable behav
 infrastructure, or release and capacity evidence. Use `medium` or `high` for a
 narrow, well-tested review and `xhigh` for complex authority or privacy risk. Exact threat-model receipts still require `xhigh`.
 Editing comments or copy and routinely deploying an ordinary feature do not by
-themselves trigger review. Keep meaningful security and authority tests and final validation. Send all
-actionable findings together; the owner repairs them, with follow-up limited to
-unresolved findings or materially changed risk. Do not run a compulsory Luna →
-Sol → Luna ownership cycle.
+themselves trigger review. Keep meaningful security and authority tests and final validation.
+Independent risk review returns all findings together; the owner repairs them
+in a bounded follow-up limited to unresolved findings or materially changed risk.
+Do not run a compulsory Luna → Sol → Luna ownership cycle.
 
 Escalate only after actual lack of progress or a material failure: substantive
 diagnosis and an attempted repair must fail and the owner cannot identify a
@@ -117,52 +117,19 @@ diagnose or take over a justified blocker when the reason and ownership
 transfer are explicit; the task coordinator handles difficult
 decisions without a mandatory extra stage.
 
-The normal path is:
-
-1. Select a ready task or prompt and accept a bounded scope.
-2. Implement the smallest useful change with focused, meaningful tests.
-3. For a behavior change to shared session state, callable behavior (including
-   authorization and rules), Firestore rules, deployment/authentication
-   infrastructure, or release/capacity evidence, obtain an independent Sol 5.6
-   risk review and receive all
-   actionable findings in one pass. The owner repairs findings in a bounded
-   follow-up. Ordinary feature deployment and documentation or copy edits do
-   not by themselves trigger this review.
-4. Reconcile with current `main`, commit the reviewed candidate, run one
-   appropriate final validation on that commit, then merge, push, and close the
-   task. Rerun validation only when
-   meaningful inputs changed, a check failed, or an unresolved concern remains.
-
 When dependencies permit, tasks may implement and run focused tests in parallel
 while an upstream release settles. Reconcile onto its settled result before
 finalizing release metadata and running final validation. Do not repeatedly run
 a full gate on a candidate already known to need another rebase.
 
-### Stopping while a worker remains active
-
-When delegated work remains unfinished, a coordinator may yield or end its current reply while a concrete, bounded
-worker is actively running with authority for its full implementation, validation, and release scope. Give it a
-complete bounded brief, the canonical parent task destination, and expected checkpoint. The worker must report
-completion, a blocker, review-ready status, or a missing decision through collaboration or `send_message_to_thread`
-to that exact parent task; ordinary commentary is not a reliable handoff. The parent resumes on that boundary,
-retrieves a terminal result with one bounded status lookup if delivery is uncertain, and resolves/dispatches the next
-task while the goal remains unfinished.
-
-Do not end with no work running and imply progress, create a dummy worker or sleep heartbeat, or repeat empty polls.
-Waiting/yielding avoids continuous model generation, but worker execution, handoff, and resumed processing still
-consume usage; never promise zero tokens or unlimited overnight completion. Once an owner or CI gate is running,
-prefer one interruptible event wait sized for that work, or yield with its owner and next boundary recorded. Do not
-cycle through short waits, repeated status snapshots, or elapsed-time commentary while nothing actionable has
-changed. A long browser gate is not a checkpoint each minute. Query status only when the wait returns a meaningful
-boundary, event delivery is unavailable, an expected bound is exceeded, or a concrete failure needs diagnosis. New
-user input interrupts the wait and takes priority. If the goal remains unfinished and ready work is available, a
-completed worker needs a next dispatch; when no independent work is available, park only at an explicit boundary or
-genuine blocker and report it truthfully. Keep pending user decisions pending while independent work proceeds. App
-resume may not survive a sleeping host or closed app, so completion is never guaranteed across that boundary.
+Delegated owners report requested checkpoints, blockers and material changes to
+the canonical parent through collaboration. The [execution policy](docs/AGENT_EXECUTION_POLICY.md)
+owns batched dispatch and waits; the [campaign playbook](docs/AGENT_CAMPAIGN_PLAYBOOK.md#communication-and-stopping)
+owns parent communication and stopping. Keep a concrete owner and resume path.
 
 ## Testing and review
 
-Use the smallest test that proves the behavior. Security and authority changes
+Use focused, meaningful tests that prove the behavior. Security and authority changes
 need focused rules and callable tests: assert Firestore denies privileged
 client writes, callable authorization rejects the wrong actor, and the server
 transaction owns the mutation. New routes need a route-level test that activates
@@ -222,7 +189,7 @@ session projection fixture isolated to the smoke and save a viewport screenshot
 when a case fails; do not replace the real ticker with a mock or an offscreen
 DOM assertion.
 
-Typography is a mandatory exact-SHA CI/deployment gate for every player-facing candidate. `npm run test:font-consistency` verifies the CIC mono/display contract with rendered computed styles and representative geometry, not only source strings or an allowlist.
+Typography is a mandatory exact-SHA CI/deployment gate for every player-facing candidate. `npm run test:font-consistency` checks the stylesheet contract; `npm run test:typography:browser` verifies rendered computed styles and representative geometry. Both checks are required for a player-facing deployment.
 Local green tests, changed-file selection, workflow choice, or urgency cannot bypass it; accepted fixtures change only with reviewed contract updates and fresh rendered evidence. PC01 is a comparison point, not authority over the documented tokens: repair any proven outlier, then ratchet the corrected result.
 
 Automate every source-deterministic facilitator procedure so one facilitator makes only genuinely required choices, rulings, and interventions. Server-owned automation logs source, inputs, modifiers, outcome, state delta, revision/replay identity, and recovery; never ask a person to calculate, transcribe, relay, approve, or confirm a deterministic result the console can safely own.
@@ -236,32 +203,9 @@ The canonical pool, priority, and physical handoff contract is
 [Ticker Behavior](docs/TICKER_BEHAVIOR.md). Priority changes future entries,
 never visible text; Stand Down plays twice before Press resumes.
 
-The news ticker has three player-facing sources: Air Traffic Control for
-airspace open/closed status, Press for published news, and Aegis for Red Alert
-and Stand Down. Preserve each source's authoritative state and displayed
-identity. Eligible Press news takes precedence over ATC regardless of the
-age of a phase notice; Aegis takes precedence over Press. Active Press news
-returns after an Aegis interruption without reviving dismissed news. When no
-news remains, ATC provides the standing bulletin from the current server state.
-The ticker stays visible on every joined screen, including Cycle 0 before role
-selection, empty projections, and after dismissal or Stand Down. A neutral
-`AIRSPACE CONTROL // AWAITING DISPATCH` readout preserves the instrument while
-a server dispatch is arriving; it must not guess open/closed status or replay
-old news. Cover these source transitions in the ticker tests.
-
-Cycle 0 always has airspace closed, including before role selection or game start.
-
-The initial server projection is also release-critical: a freshly joined member
-must see `AIRSPACE CONTROL // AIRSPACE CLOSED` or
-`AIRSPACE CONTROL // AIRSPACE OPEN`, matching the authoritative airspace state,
-from the moment a lobby is joined. ATC copy never includes cycle numbers;
-cycle information belongs on the pursuit tracker. No standing-by copy or extra lockdown paragraph replaces that
-status. This is independent of Press Officer publication or role selection. The
-Cycle 0 smoke covers a freshly joined member with no claimed role or Press
-dispatch, pending and ready fonts, normal and reduced motion, 320px and
-390px phones, wide desktop, navigation, reload, and the authoritative Cycle 1 airspace transition. The
-initial ATC projection is separate from the SNN/Press stream and must never
-reintroduce the retired Iris lockout ticker.
+Ticker source priority, ATC copy, visibility, initial projection and browser
+coverage belong in [Ticker Behavior](docs/TICKER_BEHAVIOR.md#initial-projection-and-release-verification).
+Use that contract for every broadcast change; keep the exact-SHA browser gate above.
 
 ## Worktrees and emulator rows
 
@@ -292,6 +236,8 @@ merges to `main`, pushes
 and reports the exact result. A pushed workflow is not proof that production
 finished; check the deployed behavior or workflow result separately. Do not
 claim capacity, CI, or live Firebase health from a local green test.
+Rerun validation only after a meaningful input changed, a check failed, or an
+unresolved concern remains.
 
 Player-facing work increments the application version, keeps `package.json` and
 the root lockfile synchronized, and adds a concise player-facing changelog entry
@@ -345,12 +291,7 @@ do not touch it in routine repository work.
 
 ## Stack
 
-Vite 6 · TypeScript strict · React 18 · Zustand · Firestore Web SDK v12
-modular · Cloud Functions 2nd gen (Node 22) · React Router `HashRouter` ·
-Vitest + React Testing Library + Firestore rules emulator · GitHub Actions →
-Firebase. `HashRouter` is deliberate: deep links must work on a static host
-without rewrite rules. Do not relax TypeScript strictness or hide errors with
-`any` or `@ts-expect-error`.
+The [project README](README.md#stack) owns the stack and setup reference.
 
 ## Security model
 
@@ -393,17 +334,7 @@ outbox reconciliation, and bundle/dependency audits when changing this flow.
 
 ## Layout
 
-```text
-src/components/       shared controls and DRADIS instruments
-src/data/              fleet, role, ship, and shuttle definitions
-src/lib/               lazy Firebase and Firestore seams
-src/routes/            route components and colocated tests
-src/store/             local view state and server snapshots
-src/types/             shared game and session shapes
-functions/src/         callable functions and server policy helpers
-firestore.rules        read model and client-write denials
-tests/rules/           emulator-backed security assertions
-```
+Use the [project map](README.md#project-map) for source and test locations.
 
 ## Aesthetic and responsive contract
 

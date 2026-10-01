@@ -1,100 +1,103 @@
 # Documentation map
 
-Use this page to choose the right document without treating every Markdown file
-as the same kind of authority. Live state belongs in live ledgers; dated audits
-and handoffs explain their own bounded evidence and must not override current
-code, tests, or canonical policy.
+Start from the authority for the question below. The catalog owns live roadmap
+facts; canonical guides own current contracts; dated reports and archives keep
+bounded evidence and decision history. Update the source rather than copying
+live counts or requirements into another ledger.
 
 ## Start here
 
-| Need | Document | Authority |
-| --- | --- | --- |
-| Product overview, setup, and validation entry point | [Project README](../README.md) | Contributor introduction and quick start |
-| Repository workflow, testing, security, release, and cleanup policy | [CLAUDE.md](../CLAUDE.md) | Canonical repository policy |
-| Agent discovery and private-reference warning | [AGENTS.md](../AGENTS.md) | Thin routing and safety pointer |
-| Multi-agent campaign execution, recovery, and stopping | [Agent campaign playbook](AGENT_CAMPAIGN_PLAYBOOK.md) | Optional multi-task coordination and stopping guidance |
-| Coordination commands | [WORKTREE_COORDINATION.md](WORKTREE_COORDINATION.md) | Lightweight worktree, resource, and emulator command reference |
-| Cowork-specific invocation preferences | [Cowork instructions](../.cowork/instructions.md) | Tool-specific preferences only |
+| Need | Document |
+|---|---|
+| Overview, stack, setup and source map | [Project README](../README.md) |
+| Repository workflow, testing, authority and release policy | [CLAUDE.md](../CLAUDE.md) |
+| Agent entry point and required reading | [AGENTS.md](../AGENTS.md) |
+| Delegation, ownership transfer and batched checkpoint releases | [Agent execution policy](AGENT_EXECUTION_POLICY.md) |
+| Coordinating several tasks and parent communication | [Campaign playbook](AGENT_CAMPAIGN_PLAYBOOK.md) |
+| Ownership commands and emulator port matrix | [Coordination reference](WORKTREE_COORDINATION.md) |
+| Storage inventory and deliberate cleanup | [Local storage](LOCAL_STORAGE.md) |
+| Cowork invocation preferences | [Cowork instructions](../.cowork/instructions.md) |
 
-## Implementation roadmap
-
-Read these as separate, cooperating authorities rather than one interchangeable
-roadmap. The catalog is the source of roadmap facts; generated Markdown views
-are regenerated from it:
+## Checkpoints and roadmap
 
 | Document | Owns |
-| --- | --- |
-| [implementation-prompts.json](implementation-prompts.json) | Canonical prompt definitions, statuses, dependencies, and release facts |
-| [PRODUCT_MILESTONES.md](PRODUCT_MILESTONES.md) | Owner-facing UI playtest checkpoints, first shaped scope, and the trimmed Shape Up build, report, and cooldown loop |
-| [PC07_PC10_ALIGNMENT.md](PC07_PC10_ALIGNMENT.md) | Owner-authorized future acceptance alignment and solo UI checks for PC07–PC10 only; PC06 remains in progress under its existing scope |
-| [PRODUCT_MILESTONE_FEEDBACK.md](PRODUCT_MILESTONE_FEEDBACK.md) | The owner's in-app review notes and how the next shape addresses each one |
-| [PRODUCT_MILESTONE_ASSUMPTIONS.md](PRODUCT_MILESTONE_ASSUMPTIONS.md) | Source-cited rules readings made during builds and their later corrections |
-| [PRODUCT_MILESTONE_CANDIDATES.md](PRODUCT_MILESTONE_CANDIDATES.md) | Work discovered outside the active shaped scope |
-| [IMPLEMENTATION_PROMPT_DEPENDENCIES.md](IMPLEMENTATION_PROMPT_DEPENDENCIES.md) | Generated dependency/readiness view |
-| [PC07–PC10 Gantt chart](PC07_ROADMAP_GANTT.html) | Portable browser view of the fixed allocation and dependency waves; derived snapshot, with no invented dates or durations |
-| [Gantt JSON](PC07_ROADMAP_GANTT.json) and [CSV](PC07_ROADMAP_GANTT.csv) | Machine-readable projection of the same 195 prompt IDs, statuses, prerequisites and waves |
-| [IMPLEMENTATION_MILESTONES.md](IMPLEMENTATION_MILESTONES.md) | Internal technical stories and exit fixtures |
-| [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) | Generated prompt objectives, acceptance, and source decisions |
-| [IMPLEMENTATION_PROGRESS.md](IMPLEMENTATION_PROGRESS.md) | Generated prompt status and release evidence |
-| [IMPLEMENTATION_CONTRACTS.md](IMPLEMENTATION_CONTRACTS.md) | Generated bounded contract view for named prompts |
-| [POST_PROMPT_COMPLETION_TASKS.md](POST_PROMPT_COMPLETION_TASKS.md) | Owner-deferred review and work after all 751 prompts |
+|---|---|
+| [implementation-prompts.json](implementation-prompts.json) | Canonical definitions, statuses, prerequisites and release evidence |
+| [Product checkpoints](PRODUCT_MILESTONES.md) | Current preparation, authorization, UI review and cooldown workflow |
+| [Alignment before the next checkpoint](PRODUCT_MILESTONES.md#owner-decisions-before-the-next-checkpoint) | Review owner conversations and update all affected future criteria before the next shape/build |
+| [Completion plan](CHECKPOINT_COMPLETION_PLAN.md#complete-baseline-allocation) | Fixed PC05–PC10 IDs and cumulative targets; current PC06 scope is its 49-ID row |
+| [PC07–PC10 alignment](PC07_PC10_ALIGNMENT.md) | Future operating/presentation criteria and solo UI checks; preserves in-progress PC06 scope |
+| [Owner feedback](PRODUCT_MILESTONE_FEEDBACK.md) | Explicit decisions, review notes and their dispositions |
+| [Assumptions](PRODUCT_MILESTONE_ASSUMPTIONS.md) | Cited rules interpretations and corrections |
+| [Later candidates](PRODUCT_MILESTONE_CANDIDATES.md) | Work outside the active shaped scope |
+| [Technical milestones](IMPLEMENTATION_MILESTONES.md) | Internal stories and exit fixtures |
+| [After the prompt campaign](POST_PROMPT_COMPLETION_TASKS.md) | Explicitly deferred post-completion work |
 
-Do not manually edit or copy live counts, dependencies, or active-prompt status
-into generated guides. Update the catalog and regenerate its Markdown views;
-the views remain useful for human review and links. The optional
-`coordination:dependencies` check is read-only, creates no nonce or receipt,
-and `NEXT` is an advisory ready-work hint rather than a serial lock. Shape the
-next owner playtest from the current catalog and prior feedback; later product
-checkpoint rows are provisional planning slices, not a second status ledger.
+The generated Markdown views are [objectives and acceptance](IMPLEMENTATION_PLAN.md),
+[progress and release evidence](IMPLEMENTATION_PROGRESS.md), and
+[dependencies/readiness](IMPLEMENTATION_PROMPT_DEPENDENCIES.md). Update the
+catalog, then run `node scripts/generate-prompt-views.mjs`; `--check` verifies
+the views. `coordination:dependencies` is read-only and creates no nonce or
+receipt. `NEXT` is an advisory ready-work hint.
 
-Open the Gantt HTML in a browser to view the checkpoint route, workstream lanes
-and expandable prompt ledger. It works offline and includes JSON/CSV downloads.
-Regenerate all three copies with the command
-<code>node scripts/generate-checkpoint-gantt.mjs</code> after catalog or allocation
-changes; <code>node scripts/generate-checkpoint-gantt.mjs --check</code> verifies
-freshness without editing. Wave marks encode dependency order, not work duration.
-The chart preserves PC06 as the entry prerequisite and the fixed PC10 endpoint.
+The [Gantt HTML](PC07_ROADMAP_GANTT.html), [JSON](PC07_ROADMAP_GANTT.json) and
+[CSV](PC07_ROADMAP_GANTT.csv) project the same fixed 195 PC07–PC10 IDs. They
+encode dependency waves, with PC06 as the entry prerequisite and PC10 as the
+endpoint; they do not estimate dates or duration. Run
+`node scripts/generate-checkpoint-gantt.mjs` after catalog/allocation edits;
+`--check` verifies freshness. The [accounting audit](CHECKPOINT_ACCOUNTING_AUDIT.md)
+records why the fixed recovery allocation was needed.
 
-## Product and presentation contracts
+## Product contracts
 
 | Document | Owns |
-| --- | --- |
-| [AESTHETICS.md](AESTHETICS.md) | Shared CIC visual language, responsive behavior, accessibility, and motion profiles |
-| [PLAYER_COPY_LEXICON.md](PLAYER_COPY_LEXICON.md) | Approved player-facing vocabulary, inventory boundary, forbidden jargon, and reviewed exclusions |
-| [TICKER_BEHAVIOR.md](TICKER_BEHAVIOR.md) | Canonical source priority, visible-message handoff, and Stand Down playback contract |
-| [CONSOLE_ARCHITECTURE.md](CONSOLE_ARCHITECTURE.md) | Shared vessel composition, ownership seams, and server-authority boundaries |
-| [SHIP_TEMPLATE.md](SHIP_TEMPLATE.md) | Capybara reference ship-console specification |
-| [SHUTTLE_TEMPLATE.md](SHUTTLE_TEMPLATE.md) | SNN reference shuttle-console specification |
-| [SHUTTLECRAFT.md](SHUTTLECRAFT.md) | Shared shuttle worldspace and travel model |
-| [INTENTIONAL_DEVIATION_GUARDS.md](INTENTIONAL_DEVIATION_GUARDS.md) | Owner-approved product decisions and their focused regression guards |
+|---|---|
+| [Aesthetics](AESTHETICS.md) | CIC visual language, fonts, responsive behavior and motion |
+| [Copy lexicon](PLAYER_COPY_LEXICON.md) | Approved vocabulary and intentional exclusions |
+| [Ticker behavior](TICKER_BEHAVIOR.md) | Source priority, visible-track handoff, ATC projection and Stand Down |
+| [Console architecture](CONSOLE_ARCHITECTURE.md) | Shared vessel composition and authority seams |
+| [Ship template](SHIP_TEMPLATE.md) | Capybara reference ship surface |
+| [Shuttle template](SHUTTLE_TEMPLATE.md) | SNN reference shuttle surface |
+| [Shuttlecraft](SHUTTLECRAFT.md) | Shared worldspace and travel model |
+| [Intentional deviations](INTENTIONAL_DEVIATION_GUARDS.md) | Owner-approved product decisions and their guards |
+| [Contract ledger](IMPLEMENTATION_CONTRACTS.md) | Maintained contract/audit record for selected prompts; current status remains in the catalog |
 
-The ship template, shuttle template, and shuttle worldspace model remain
-separate deliberately: presentation inheritance must not become gameplay
-authority or cause one vessel's configuration to leak into another.
+Ship, shuttle and worldspace specifications remain separate: common
+presentation does not grant another vessel's gameplay authority.
 
-## Operations, recovery, and historical handoffs
+## Operations and verification
 
 | Document | Owns |
-| --- | --- |
-| [ABUSE_PROTECTION_HANDOFF.md](ABUSE_PROTECTION_HANDOFF.md) | Capacity, abuse protection, App Check, and operational follow-up |
-| [CAPACITY_CONCLUSIONS.md](CAPACITY_CONCLUSIONS.md) | Current supported local envelope and the boundaries the evidence does not prove |
-| [CAPACITY_60_BROWSER_PROOF.md](CAPACITY_60_BROWSER_PROOF.md) | The bounded 60-browser local proof scenario, thresholds, and closure result |
-| [Runtime threat-model manifest](../security/threat-model.json) | Machine-readable hostile-client, session-code, and resource-exhaustion control map |
-| [PRESERVED_IN_AMBER.md](PRESERVED_IN_AMBER.md) | Immutable rollback-anchor policy and recovery reference |
-| [ci-deploy-setup.md](ci-deploy-setup.md) | Dated Workload Identity Federation setup and troubleshooting handoff |
-| [CHECKPOINT_RELEASE_LEARNINGS.md](CHECKPOINT_RELEASE_LEARNINGS.md) | Reusable checkpoint-release findings, implemented velocity improvements, and follow-up measurements |
+|---|---|
+| [Abuse-protection handoff](ABUSE_PROTECTION_HANDOFF.md) | Capacity, App Check and production follow-up |
+| [Capacity conclusions](CAPACITY_CONCLUSIONS.md) | Measured local envelope and unproven boundaries |
+| [60-browser scenario](CAPACITY_60_BROWSER_PROOF.md) | Reproduction, thresholds and bounded closure result |
+| [Runtime threat model](../security/threat-model.json) | Machine-readable hostile-client/resource control map |
+| [Rollback anchor](PRESERVED_IN_AMBER.md) | Recovery ref and preservation policy |
+| [CI/deploy setup](ci-deploy-setup.md) | Dated Workload Identity Federation setup and troubleshooting |
+| [Release learnings](CHECKPOINT_RELEASE_LEARNINGS.md) | Observed checkpoint-release improvements and measurements |
+| [Render baselines](RENDER_PERFORMANCE_BASELINES.md) / [DRADIS method](DRADIS_BENCHMARK.md) | Performance limits, evidence and deterministic benchmark workload |
+| [Presence load](PRESENCE_LOAD_2026-09-19.md) / [callable health](CALLABLE_HEALTH_METRICS.md) | Bounded emulator measurements and their limits |
 
-Historical handoffs describe the state observed when they were written. Verify
-current external configuration before acting on their recorded values.
+Verify current external configuration before acting on a dated handoff.
 
-## Reproducible evidence and local assets
+## Reports, evidence and history
 
-- [Prompt 603a rendered-evidence instructions](../evidence/prompt-603a/README.md)
-  describe how to reproduce that bounded geometry artifact.
-- [Callable and snapshot health evidence](CALLABLE_HEALTH_METRICS.md) records the
-  local emulator metric taxonomy and its limits.
-- [Faction flag asset notes](../src/assets/flags/README.md) document stable local
-  filenames and their focused contract.
+- Checkpoint reports: [PC01](PC01_PLAYTEST_REPORT.md), [PC02](PC02_PLAYTEST_REPORT.md),
+  [PC03](PC03_PLAYTEST_REPORT.md), [PC04](PC04_PLAYTEST_REPORT.md),
+  [PC05](PC05_PLAYTEST_REPORT.md) and its [acceptance matrix](PC05_ACCEPTANCE_MATRIX.md).
+- PC05 path evidence: [jump](PC05_JUMP_EVIDENCE.md) and
+  [maintenance](PC05_MAINTENANCE_EVIDENCE.md).
+- Audit snapshots: [foundation regressions](FOUNDATION_REGRESSION_MATRIX.md) and
+  [button review](audits/P671_BUTTON_REVIEW.md).
+- Historical planning: [original checkpoint shapes](archive/PRODUCT_CHECKPOINT_HISTORY.md),
+  [2026-09-12 dependency audit](archive/DEPENDENCY_AUDIT_2026-09-12.md) and
+  [ticker repair handoff](archive/TICKER_CONTRACT_REPAIR_HANDOFF.md).
+- Local evidence instructions: [Prompt 190](../evidence/prompt-190/README.md),
+  [GM-control presentation](../evidence/prompt-428-gm-control/README.md) and
+  [Prompt 603a geometry](../evidence/prompt-603a/README.md).
+- [Faction flags](../src/assets/flags/README.md) documents the local asset files.
 
-Evidence instructions and path-local asset notes stay beside the artifacts they
-describe; they are not general contributor policy.
+Reports retain the evidence available at their named build. Archives retain
+superseded plans and worktree handoffs; use the current catalog and guides for
+new work.
