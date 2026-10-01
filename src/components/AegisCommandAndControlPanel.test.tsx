@@ -47,7 +47,7 @@ it('offers one ship after targeting is finalized and sends only the selected ros
   render(<AegisCommandAndControlPanel />);
 
   expect(await screen.findByRole('heading', { name: 'Command and Control' })).toBeVisible();
-  expect(screen.getByText('Wolf Fighter Wing 1')).toBeVisible();
+  expect(await screen.findByText('Wolf Fighter Wing 1')).toBeVisible();
   expect(screen.getByText('Wolf Fighter Wing 2')).toBeVisible();
   expect(screen.getByText('Wolf Cruiser')).toBeVisible();
   expect(screen.queryByText(/die|targeted at/i)).not.toBeInTheDocument();
