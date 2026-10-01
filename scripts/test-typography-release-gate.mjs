@@ -50,3 +50,52 @@ test('exact-SHA deployment cannot bypass typography verification before Hosting 
   assert.ok(/deploy:[\s\S]*?needs: \[determine-targets, verify\]/.test(deploy),
     'deployment must depend on reusable exact-SHA verification');
 });
+
+
+test('typography readiness waits for a late lazy target after the heading is visible', async () => {
+  const { waitForTypographyTargets } = await import('./typography-browser-readiness.mjs');
+  let revealMap;
+  const mapReady = new Promise((resolve) => { revealMap = resolve; });
+  const waits = [];
+  let completed = false;
+  const page = {
+    locator(selector) {
+      return { first() { return { waitFor(options) {
+        waits.push([selector, options]);
+        return selector === '.map label' ? mapReady : Promise.resolve();
+      } }; } };
+    },
+  };
+  const ready = waitForTypographyTargets(page, [['heading', 'h1'], ['map', '.map label']])
+    .then(() => { completed = true; });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(completed, false, 'a visible heading cannot make a lazy map ready');
+  assert.deepEqual(waits, [
+    ['h1', { state: 'visible', timeout: 15_000 }],
+    ['.map label', { state: 'visible', timeout: 15_000 }],
+  ], 'all required targets share the existing readiness bound');
+  revealMap();
+  await ready;
+  assert.equal(completed, true);
+});
+
+test('typography readiness rejects an unavailable required target', async () => {
+  const { waitForTypographyTargets } = await import('./typography-browser-readiness.mjs');
+  const missing = new Error('map did not become visible');
+  const page = {
+    locator(selector) {
+      return { first() { return { waitFor() {
+        return selector === '.map label' ? Promise.reject(missing) : Promise.resolve();
+      } }; } };
+    },
+  };
+  await assert.rejects(
+    waitForTypographyTargets(page, [['heading', 'h1'], ['map', '.map label']]),
+    (error) => error === missing,
+  );
+});
+
+test('computed typography uses complete target readiness before measurement', () => {
+  assert.ok(browserGate.includes('await waitForTypographyTargets(page, surface.targets)'),
+    'the full gate must wait for every required sample, including lazy GM controls');
+});
