@@ -231,6 +231,46 @@ PC06's current shape and acceptance are not retroactively amended. Fixed
 membership, 49/49/49/48 closures, standing authorization and actual gameplay
 proof remain intact. P605a retains its separate owner activation boundary.
 
+## Owner decisions before the next checkpoint
+
+**Standing owner instruction, 2026-09-30:** repeat the PC07–PC10 alignment work
+before moving into each next checkpoint. The checkpoint owner must complete
+this review and the affected planning updates before shaping or starting that
+build, under existing standing authorization. Do not wait for the owner to
+request another alignment.
+
+1. Read the recorded decisions, feedback and assumptions, then the relevant
+   owner conversations before and between checkpoints, including new messages
+   since the last alignment. Check earlier decisions that still constrain the
+   future work. Distinguish explicit owner decisions from agent suggestions and
+   source-backed assumptions; record a later owner correction as superseding
+   the earlier decision or interpretation rather than silently discarding it.
+2. Apply each decision to **every affected unstarted prompt and checkpoint**,
+   including later checkpoints beyond the immediate next one. Amend the
+   canonical catalog's acceptance criteria and this plan's affected behavior,
+   presentation and owner-playable UI checks. Update linked alignment guidance
+   and completion-plan wording where affected; only the next checkpoint needs
+   a full shape. Recording feedback alone does not complete the alignment.
+3. Record the decision's source and date, affected prompt IDs and checkpoints,
+   changed criteria, and disposition in the
+   [feedback record](PRODUCT_MILESTONE_FEEDBACK.md). Link any corrected
+   [assumption](PRODUCT_MILESTONE_ASSUMPTIONS.md). Note the latest owner message
+   reviewed so the next owner can continue from that point. If no new applicable
+   decisions exist, record that result and proceed.
+4. Regenerate the prompt views after catalog edits and the checkpoint Gantt
+   after its catalog or allocation inputs change. Run the relevant existing
+   documentation, catalog and projection checks and inspect the final diff.
+   Report unresolved interpretations and proof gaps truthfully.
+
+Preserve fixed prompt membership and completion targets unless the owner
+explicitly changes them. Alignment grants no implementation or closure credit
+and does not waive evidence, privacy, source authority or separately reserved
+feature activation. Keep an already shaped or in-progress checkpoint's agreed
+scope intact unless the owner explicitly changes that scope; handle its
+feedback through the existing cooldown process. For this 2026-09-30 update,
+PC06 is in progress and alignment begins with PC07. This is part of checkpoint
+preparation, with no new owner-approval pause, reviewer stage or Git/CI gate.
+
 ## How the campaign runs
 
 This is a trimmed Shape Up loop. **Scope is the limit, not a six-week clock.**
@@ -246,8 +286,10 @@ make, even when the shaped UI passed.
 1. **Shape one playtest checkpoint before building it.** Read the latest
    [feedback](PRODUCT_MILESTONE_FEEDBACK.md),
    [assumptions](PRODUCT_MILESTONE_ASSUMPTIONS.md), and
-   [later-milestone candidates](PRODUCT_MILESTONE_CANDIDATES.md). Check the
-   current catalog, source passages, dependencies, live product, and active
+   [later-milestone candidates](PRODUCT_MILESTONE_CANDIDATES.md). Complete the
+   [owner-decision alignment](#owner-decisions-before-the-next-checkpoint)
+   across affected future prompts and checkpoints before beginning this shape.
+   Check the current catalog, source passages, dependencies, live product, and active
    ownership. Write the problem, what is in and out, known rabbit holes,
    source-backed assumptions, and the exact owner-playable **UI** yes/no checks.
    Provide a one-sitting walkthrough of representative finished workflows.
@@ -299,6 +341,8 @@ make, even when the shaped UI passed.
    shaped build is underway, finish that scope and do the cooldown at its next
    safe boundary. The next shape must list every prior note and say whether it
    was fixed, adopted into that shape, or routed to a named later candidate.
+   Carry any decision that affects future work into all affected prompt and
+   checkpoint criteria using the alignment procedure above before advancing.
    If no feedback has arrived, record that fact and keep going; never pause
    merely to wait for feedback. Silence alone is not authorization, but an
    explicit authorization needs no accompanying walkthrough answers. A later
