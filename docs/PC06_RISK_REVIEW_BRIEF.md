@@ -1,6 +1,6 @@
 # PC06 independent risk review brief
 
-This is a navigation brief for the required independent Sol6.1 review. It is not an approval or a security receipt. The implementation owner cannot approve their own work. Use `xhigh` for this complex authority/privacy scope and the repository's exact security receipt floor. The precise reconciled candidate will be supplied after the connected P378 worker returns and release metadata is prepared.
+This is a navigation brief for the required independent Sol6.1 review. It is not an approval or a security receipt. The implementation owner cannot approve their own work. Use `xhigh` for this complex authority/privacy scope and the repository's exact security receipt floor. P378 and build0.5.59 metadata are reconciled; the owner supplies the exact final candidate SHA with the dispatch.
 
 ## Scope and source identity
 
@@ -24,6 +24,8 @@ The private source material remains outside Git. Source-backed decisions and exa
 ## Client and release seams
 
 Current-role/session/actor/GM-instance freshness guards and exact ambiguous retries must survive navigation, reconnect, replacing a role, old snapshots and delayed replies. Visible labels must match the actual authority and error state. The isolated review scene uses pure local callback presentations and must not trigger production actions. GM operations remain lazy-loaded within the bundle cap.
+
+Native browser disabling of the focused launch button exposed a P607 focus-recovery gap. Review the bounded layout-effect recovery in `JumpDriveConsole`: it restores the same enabled retry or coordinate-lock control only when the original submitter held focus and the user has not moved elsewhere. The new keyboard harness replaces transport locally and blocks external requests; it does not prove production authority.
 
 Review changed Firestore paths and rules against each entitled reader and direct-write denial. Review source-bound deployment consumer hashes/sets for changed helpers and modules so shared authority changes reach all production consumers; unknown source tuples fail closed. Review policy/tooling changes and the small registry lint refactor, retaining exact candidate/model/effort receipt binding and existing authentication/deployment protections. The source-consumer inventory is owner evidence, not independent approval.
 

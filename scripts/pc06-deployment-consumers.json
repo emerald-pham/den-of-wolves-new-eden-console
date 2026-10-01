@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "baseline": "c27842ff6d9e240209bbfc5798f7dbeff519110a",
-  "implementationCandidate": "d91fb1bab959c5395ee2dfb96df446ed98bc1a25",
+  "implementationCandidate": "32451b493c3db98870b3c6fd1a148da4099edc44",
   "auditBoundary": "Owner source consumer inventory; independent exact-candidate security review still required.",
   "index": {
     "before": "51eec3ab6fe1a97c7df6fddcda474ede2a9abfaacac2581a52866e5fc12d00d0",
-    "after": "ed625fad60c7abc6a6ab5af31ff7e214212ccb32bad4d366f9d7fdd4b02d2cf4",
+    "after": "486189f13d18367ff1d4652269e644be8da5e4ea608ae6319c4e68d92836a5b6",
     "consumers": [
       "acceptSameTableTradeOffer",
       "addShipDamage",
@@ -52,6 +52,7 @@
       "finishWolfCommanderTargetingRerolls",
       "fleeDestroyedShip",
       "getAegisCommandAndControl",
+      "getBoardingSecurityTeamLocations",
       "getDioneMaliadesLaunch",
       "getGorgoneionMissionSupportProjection",
       "getPdfEscortWingLaunch",
@@ -264,7 +265,7 @@
     },
     "functions/src/navigationProjection.ts": {
       "before": "50d342435db1c7d99d388ab449c436ac4a3a6eb426f781066101e04d96f25e93",
-      "after": "c685922c17cc1b794fcc4d9bfa528d137b252207378b58aba69a9a67a1d64883",
+      "after": "5833ebc5fb2dc99f69a279c322141c4b11470655ebb3cc5f42f72325944c4d88",
       "consumers": [
         "activateEndeavourEcmDevice",
         "adjudicateFailedJump",
@@ -545,6 +546,13 @@
       "consumers": [
         "dockVoyage33",
         "jumpVoyage33"
+      ]
+    },
+    "functions/src/boardingSecurityTeamCallable.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "566fbf4833bfcc82f1ddcb247feba9e5be8b6ebeafb9e99e7dffcddc50f685fd",
+      "consumers": [
+        "getBoardingSecurityTeamLocations"
       ]
     }
   }
