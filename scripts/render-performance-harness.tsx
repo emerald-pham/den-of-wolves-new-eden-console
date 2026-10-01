@@ -4,12 +4,12 @@ import ContactPlot, { type PlotContact } from '@/components/ContactPlot';
 import ShipPlot from '@/components/ShipPlot';
 import AwayMissionDiscardPanel from '@/components/AwayMissionDiscardPanel';
 import { useSessionStore } from '@/store/useSessionStore';
-import { createAnimationSampler, installRenderClock, measureRenderWork } from './render-performance-clock';
+import { createAnimationSampler, installRenderClock, measureRenderUpdate } from './render-performance-clock';
 import '@/index.css';
 import '@/routes/arrival.css';
 import '@/styles/starmap.css';
 
-type Sample = { name: string; samples: number[]; labelLayoutReads?: number; labelLayoutReadSamples?: number[] };
+type Sample = { name: string; samples: number[]; workSamples?: number[]; labelLayoutReads?: number; labelLayoutReadSamples?: number[] };
 type Harness = {
   measureDradis(iterations: number): Promise<Sample>;
   measureAttack(iterations: number): Promise<Sample>;
@@ -43,8 +43,9 @@ async function renderSamples(
   afterSample?: () => void,
 ): Promise<Sample> {
   const samples: number[] = [];
+  const workSamples: number[] = [];
   // Every surface starts from a fresh mount and the same clock. Native paint
-  // waits stay outside the timed interval; full-motion sweep work stays inside.
+  // waits remain in the budgeted interval; work-only cost is diagnostic.
   flushSync(() => root.render(null));
   const clock = installRenderClock(window);
   const sampleAnimations = createAnimationSampler();
@@ -64,11 +65,12 @@ async function renderSamples(
     await settleWork();
     await settle();
     for (let index = 0; index < iterations; index += 1) {
-      samples.push(await measureRenderWork(() => flushSync(() => render(index + 1)), settleWork));
+      const sample = await measureRenderUpdate(() => flushSync(() => render(index + 1)), settleWork, settle);
+      samples.push(sample.totalMs);
+      workSamples.push(sample.workMs);
       afterSample?.();
-      await settle();
     }
-    return { name, samples };
+    return { name, samples, workSamples };
   } finally {
     // Let production effects cancel their callbacks while this clock owns them.
     flushSync(() => root.render(null));

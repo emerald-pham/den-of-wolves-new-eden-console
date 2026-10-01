@@ -30,7 +30,14 @@ with Vite's production JSX transform and serves the production `ContactPlot`,
 `ShipPlot`, and `AwayMissionDiscardPanel` implementations with bounded
 worst-case fixtures. It never enters the deployable application output. Two
 animation frames are included in each discrete update sample so layout and
-paint scheduling contribute to the threshold. The mobile-sized probe is a
+paint scheduling contribute to the threshold. The component workload advances
+its sweep callbacks, timeouts and CSS/Web Animation phases on a fixed 60 Hz
+timeline, independent of host waits. The budgeted duration still uses native
+`performance.now()` and includes the two native frame/paint waits; separately
+reported work cost is diagnostic only. See
+[`DRADIS_BENCHMARK.md`](DRADIS_BENCHMARK.md) for the repeatability evidence and
+clock regression tests. Real milliseconds can vary on shared runners even with
+identical workloads. The mobile-sized probe is a
 390×844 Chromium viewport on the CI host, not physical-device telemetry; every
 one of its 120 retained frames includes a 20-contact DRADIS update.
 

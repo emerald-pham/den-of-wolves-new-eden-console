@@ -103,3 +103,16 @@ export async function measureRenderWork(
   await settleWork();
   return realNow() - started;
 }
+
+/** Keep native frame/paint waits in the original budgeted metric. */
+export async function measureRenderUpdate(
+  update: () => void,
+  settleWork: () => Promise<void>,
+  settlePaint: () => Promise<void>,
+  realNow: () => number = () => performance.now(),
+): Promise<{ totalMs: number; workMs: number }> {
+  const started = realNow();
+  const workMs = await measureRenderWork(update, settleWork, realNow);
+  await settlePaint();
+  return { totalMs: realNow() - started, workMs };
+}
