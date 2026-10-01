@@ -48,7 +48,7 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
       seed.set(db.doc(`sessions/${id}/gmInstances/bridge`), { uid, connected: true, claimedAt: now, lastSeenAt: now });
       seed.set(db.doc(`sessions/${id}/serverState/navigation`), { shipGalacticCoordinates: { aegis: '0000' }, shipNavigationLogs: {} });
       await seed.commit();
-      let revision = 0;
+      let revision = 0, reactorRequest;
       for (const choice of [ { action: 'begin' }, { action: 'rations', foodLevel: 3, waterLevel: 3 },
         { action: 'unrest' }, { action: 'riot' }, { action: 'reactor', consoles: ['hydroponics'] }, { action: 'end' } ]) {
         const data = { sessionId: id, shipId: 'voyage-33-0', instanceId: 'bridge', requestId: `maintenance-${choice.action}`,
@@ -65,6 +65,7 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
         }
         if (choice.action === 'unrest') assert.match(result.cycle.results['2'], /Rolled [1-6] \+ [1-6]/);
         if (choice.action === 'reactor') {
+          reactorRequest = data;
           assert.deepEqual(result.cycle.charges, ['hydroponics']);
           assert.equal((await runVoyage33Maintenance.run(call(data))).status, 'replayed');
         }
@@ -82,6 +83,11 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
       assert.equal(result.maintenanceState.hostShipId, null);
       assert.equal((await jumpVoyage33.run(call(jump))).status, 'replayed');
       assert.equal((await session.get()).get('shipResources.aegis.fuel'), 2);
+      const afterJump = (await session.get()).data();
+      const oldReceipt = await runVoyage33Maintenance.run(call(reactorRequest));
+      assert.equal(oldReceipt.status, 'replayed', 'original host-bound receipt remains recoverable after later cycle and movement');
+      assert.equal(oldReceipt.cycle.turn, 1);
+      assert.deepEqual((await session.get()).data(), afterJump, 'old receipt recovery performs zero session writes');
     } finally { await db.recursiveDelete(session); }
   });
 }
