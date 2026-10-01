@@ -42,6 +42,7 @@ type ReceiptGuard =
   }>;
 type ServerReceipt = Readonly<{
   state: Voyage33MaintenanceState;
+  hostShipId: string;
   hostResources: ShipResourceInventory;
   action: MaintenanceAction;
   requestId: string;
@@ -165,7 +166,13 @@ function parseCommittedReceipt(value: unknown, attempt: Attempt): ServerReceipt 
       state.cycle.revision !== value.committedRevision ||
       !sameCycle(state.cycle, topLevelCycleState.cycle)) return undefined;
 
-  return { state, hostResources, action: attempt.action, requestId: attempt.requestId };
+  return {
+    state,
+    hostShipId: attempt.hostShipId,
+    hostResources,
+    action: attempt.action,
+    requestId: attempt.requestId,
+  };
 }
 
 function projectionMatches(session: GameSession | null, guard: ReceiptGuard): boolean {
@@ -180,22 +187,32 @@ function projectionMatches(session: GameSession | null, guard: ReceiptGuard): bo
   return sameMaintenanceState(state, guard.state);
 }
 
-function attemptStillMatches(attempt: Attempt, allowAdvancedCycle = false): boolean {
+function attemptStillMatches(attempt: Attempt, allowAdvancedAuthority = false): boolean {
   const current = useSessionStore.getState();
   const currentSession = current.session;
   const currentState = parseVoyage33MaintenanceState(currentSession?.voyage33Maintenance);
-  const revisionMatches = currentState?.cycle.revision === attempt.expectedRevision ||
-    allowAdvancedCycle && currentState !== undefined && currentState.cycle.revision > attempt.expectedRevision;
+  const currentTurn = currentSession?.currentTurn;
+  const turnIsAtOrAfterAttempt = typeof currentTurn === 'number' &&
+    Number.isSafeInteger(currentTurn) && currentTurn >= attempt.turn;
+  const originalAuthorityMatches = currentSession?.currentTurn === attempt.turn &&
+    currentState?.hostShipId === attempt.hostShipId &&
+    currentState.cycle.revision === attempt.expectedRevision &&
+    currentState.dockingRevision === attempt.expectedDockingRevision;
+  const advancedAuthorityMatches = allowAdvancedAuthority && currentSession !== null &&
+    currentState !== undefined && turnIsAtOrAfterAttempt &&
+    (currentState.cycle.turn === undefined || currentState.cycle.turn <= currentTurn) &&
+    currentState.cycle.revision >= attempt.expectedRevision &&
+    currentState.dockingRevision >= attempt.expectedDockingRevision &&
+    (currentState.hostShipId === attempt.hostShipId ||
+      currentState.dockingRevision > attempt.expectedDockingRevision);
   return typeof window !== 'undefined' && window.navigator.onLine &&
     current.connection === 'live' && current.sessionSnapshotFreshness === 'server' &&
     currentSession?.id === attempt.sessionId && current.me?.uid === attempt.uid &&
     current.me.role === 'gm' && current.me.sessionId === attempt.sessionId &&
     current.gmInstance?.id === attempt.instanceId && current.gmInstance.sessionId === attempt.sessionId &&
     current.gmInstance.uid === attempt.uid && currentSession.phase === 'active' &&
-    currentSession.singlePlayerDemo == null && currentSession.currentTurn === attempt.turn &&
-    currentState?.hostShipId === attempt.hostShipId &&
-    revisionMatches &&
-    currentState.dockingRevision === attempt.expectedDockingRevision;
+    currentSession.singlePlayerDemo == null &&
+    (originalAuthorityMatches || advancedAuthorityMatches);
 }
 
 export default function Voyage33MaintenancePanel({
@@ -370,7 +387,9 @@ export default function Voyage33MaintenancePanel({
       <div className="voyage33-maintenance__readouts">
         <p><span>Population</span><strong>{(receipt?.state.population ?? state.population).toLocaleString()}</strong></p>
         <p><span>Unrest</span><strong>{receipt?.state.unrest ?? state.unrest} / 10</strong></p>
-        <p><span>Current host</span><strong>{hostName} // {hostShipId}</strong></p>
+        <p><span>Current host</span><strong>{state.hostShipId
+          ? `${hostName} // ${state.hostShipId}`
+          : 'No ship is currently docked.'}</strong></p>
         <p><span>Host resources</span><strong>{currentResources
           ? `${currentResources.food} food // ${currentResources.water} water // ${currentResources.fuel} fuel`
           : 'Unavailable // waiting for the live resource ledger'}</strong></p>
@@ -470,7 +489,7 @@ export default function Voyage33MaintenancePanel({
       )}
       {receiptWaiting && receipt && (
         <p className="voyage33-maintenance__receipt" role="status">
-          Receipt host state // {hostName} // {receipt.hostResources.food} food // {receipt.hostResources.water} water // {receipt.hostResources.fuel} fuel. Waiting for the live session projection.
+          Receipt host state // {receipt.hostShipId} // {receipt.hostResources.food} food // {receipt.hostResources.water} water // {receipt.hostResources.fuel} fuel. Waiting for the live session projection.
         </p>
       )}
       {feedback && <p className="voyage33-maintenance__feedback" role={feedback.role} aria-live={feedback.role === 'alert' ? 'assertive' : 'polite'}>{feedback.message}</p>}

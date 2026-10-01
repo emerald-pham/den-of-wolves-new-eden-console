@@ -109,6 +109,7 @@ export default function Voyage33MovementWorkspace() {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [uncertainAction, setUncertainAction] = useState<UncertainAction | null>(null);
   const [projectionGuard, setProjectionGuard] = useState<ProjectionGuard | null>(null);
+  const [lastDockedHost, setLastDockedHost] = useState<{ sessionId: string; shipId: string } | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [online, setOnline] = useState(() =>
     typeof window !== 'undefined' && window.navigator.onLine,
@@ -145,6 +146,7 @@ export default function Voyage33MovementWorkspace() {
   const gmCurrent = sameCurrentGm(session, me, gmInstance);
   const fresh = snapshotFreshness === 'server' && connection === 'live' && online;
   const phase = session ? phaseFor(session, now) : { kind: 'other' as const, paused: false };
+  const currentSessionId = session?.id;
   const turn = session?.currentTurn ?? 1;
   const activeMultiplayer = session?.phase === 'active' && session.singlePlayerDemo == null;
   const projectedCoordinates = useMemo(() => {
@@ -186,6 +188,9 @@ export default function Voyage33MovementWorkspace() {
       status: hostProjectionValid ? hostBaseStatus : hostBaseStatus === 'destroyed' ? 'destroyed' : 'unavailable',
     }
     : null;
+  useEffect(() => {
+    if (currentSessionId && rawHostId) setLastDockedHost({ sessionId: currentSessionId, shipId: rawHostId });
+  }, [currentSessionId, rawHostId]);
 
   const dockableHosts = useMemo(() => {
     if (!session || !maintenance || maintenance.hostShipId !== null) return [];
@@ -382,6 +387,10 @@ export default function Voyage33MovementWorkspace() {
 
   const connectionState = connectionFor(connection);
   const invalidProjection = !!session && (!maintenance || session.voyage33Movement !== undefined && !movement);
+  const retainedHostId = session && lastDockedHost?.sessionId === session.id ? lastDockedHost.shipId : null;
+  const maintenanceHostId = rawHostId ?? retainedHostId;
+  const maintenanceHostName = host?.name ??
+    (maintenanceHostId ? SHIPS.find((ship) => ship.id === maintenanceHostId)?.name ?? maintenanceHostId : 'No host currently docked');
   const workspaceGateMessage = !session ? 'No current session projection is available.'
     : !gmCurrent ? 'The current GM instance changed. Reopen the facilitator console before controlling Voyage 33-0.'
     : !admission ? 'Voyage 33-0 is not admitted in the current session.'
@@ -389,13 +398,13 @@ export default function Voyage33MovementWorkspace() {
     : invalidProjection ? 'The Voyage 33-0 host or movement projection is malformed. Refresh the live session before acting.'
     : undefined;
   const showCurrentWorkspace = workspaceGateMessage === undefined;
-  const maintenancePanel = session && admission && maintenance && rawHostId && host ? (
+  const maintenancePanel = session && admission && maintenance && maintenanceHostId ? (
     <Voyage33MaintenancePanel
       session={session}
       state={maintenance}
-      hostShipId={rawHostId}
-      hostName={host.name}
-      hostResources={session.shipResources?.[rawHostId]}
+      hostShipId={maintenanceHostId}
+      hostName={maintenanceHostName}
+      hostResources={rawHostId ? session.shipResources?.[rawHostId] : undefined}
       currentTurn={turn}
       phase={phase.kind}
       authorityReady={hostProjectionValid && gmCurrent && fresh && activeMultiplayer &&

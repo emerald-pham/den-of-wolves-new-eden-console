@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { INITIAL_SHIP_RESOURCES } from '@/data/resources';
 import { useSessionStore } from '@/store/useSessionStore';
@@ -908,8 +908,12 @@ describe('Voyage 33-0 movement workspace', () => {
     expect(within(maintenance).queryByText(/\bturn\b/i)).not.toBeInTheDocument();
 
     fireEvent.click(within(maintenance).getByRole('button', { name: /roll unrest/i }));
-    fireEvent.click(await within(maintenance).findByRole('button', { name: /roll population \/ riot/i }));
-    fireEvent.click(await within(maintenance).findByRole('radio', { name: /Water Reclimator/i }));
+    const riot = await within(maintenance).findByRole('button', { name: /roll population \/ riot/i });
+    await waitFor(() => expect(riot).toBeEnabled());
+    fireEvent.click(riot);
+    const reactor = await within(maintenance).findByRole('radio', { name: /Water Reclimator/i });
+    await waitFor(() => expect(reactor).toBeEnabled());
+    fireEvent.click(reactor);
     fireEvent.click(within(maintenance).getByRole('button', { name: /Resolve console charging/i }));
     fireEvent.click(await within(maintenance).findByRole('button', { name: /end maintenance cycle/i }));
 
