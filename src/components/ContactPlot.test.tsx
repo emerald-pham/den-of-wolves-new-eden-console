@@ -1580,6 +1580,86 @@ it('skips the alternate anchor measurement when the preferred clear side has mor
   expect(labelReads[0]).toBe(1);
 });
 
+it('keeps a cached clear anchor when the input preference is unchanged', () => {
+  const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
+    x: left, y: top, left, top, width, height,
+    right: left + width, bottom: top + height,
+  }) as DOMRect;
+  let labelReads = 0;
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    if (this.classList.contains('contact-plot')) return bounds(0, 0, 320, 240);
+    if (this.classList.contains('contact-plot__origin')) return bounds(88, 112, 62, 24);
+    if (this.classList.contains('contact-plot__blip')) return bounds(160, 100, 8, 8);
+    if (this.classList.contains('contact-plot__tag')) {
+      labelReads += 1;
+      const anchor = this.closest<HTMLElement>('.contact-plot__contact')?.dataset.labelAnchor ?? 'south-east';
+      const left = anchor.endsWith('east') ? 160 - 11 - 50 : 168 + 11;
+      const top = anchor.startsWith('north') ? 100 - 8 - 18 : 108 + 8 + 8;
+      return bounds(left, top, 50, 18);
+    }
+    return bounds(0, 0, 0, 0);
+  });
+  const contact = {
+    id: 'cached-clear-anchor', tag: 'CONTACT', x: 0.55, y: 0.38, z: 0.1, color: 'white',
+  };
+  const { rerender } = render(<ContactPlot centerLabel="AEGIS" contacts={[contact]} />);
+  expect(document.querySelector('.contact-plot__contact')?.getAttribute('data-label-anchor'))
+    .toBe('south-west');
+  labelReads = 0;
+
+  rerender(<ContactPlot centerLabel="AEGIS" contacts={[{ ...contact, x: contact.x + 0.001 }]} />);
+
+  expect(labelReads).toBe(1);
+  expect(document.querySelector('.contact-plot__contact')?.getAttribute('data-label-anchor'))
+    .toBe('south-west');
+});
+
+it('measures alternate anchors as one geometry batch when several defaults change', () => {
+  const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
+    x: left, y: top, left, top, width, height,
+    right: left + width, bottom: top + height,
+  }) as DOMRect;
+  const marks = [{ x: 200, y: 70 }, { x: 200, y: 160 }];
+  const readAnchorSnapshots: string[][] = [];
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    if (this.classList.contains('contact-plot')) return bounds(0, 0, 320, 240);
+    if (this.classList.contains('contact-plot__origin')) return bounds(210, 55, 95, 150);
+    const contact = this.closest<HTMLElement>('.contact-plot__contact');
+    const index = contact ? [...document.querySelectorAll('.contact-plot__contact')].indexOf(contact) : -1;
+    const mark = marks[index];
+    if (this.classList.contains('contact-plot__blip') && mark) return bounds(mark.x, mark.y, 8, 8);
+    if (this.classList.contains('contact-plot__tag') && mark) {
+      readAnchorSnapshots.push([...document.querySelectorAll<HTMLElement>('.contact-plot__contact')]
+        .map((item) => item.dataset.labelAnchor ?? ''));
+      const anchor = contact?.dataset.labelAnchor ?? 'south-east';
+      const left = anchor.endsWith('east') ? mark.x - 11 - 30 : mark.x + 8 + 11;
+      const top = anchor.startsWith('north') ? mark.y - 8 - 18 : mark.y + 8 + 8;
+      return bounds(left, top, 30, 18);
+    }
+    return bounds(0, 0, 0, 0);
+  });
+  const contacts = marks.map((_, index) => ({
+    id: `batched-anchor-${index}`, tag: `CONTACT ${index + 1}`,
+    x: 0.55, y: 0.3, z: 0.1, color: 'white',
+  }));
+  const { rerender } = render(<ContactPlot centerLabel="AEGIS" contacts={contacts} />);
+  expect([...document.querySelectorAll<HTMLElement>('.contact-plot__contact')]
+    .map((contact) => contact.dataset.labelAnchor)).toEqual(['south-east', 'south-east']);
+  readAnchorSnapshots.length = 0;
+
+  rerender(<ContactPlot centerLabel="AEGIS" contacts={contacts.map((contact) => ({
+    ...contact, x: -contact.x,
+  }))} />);
+
+  expect(readAnchorSnapshots).toHaveLength(4);
+  expect(readAnchorSnapshots.slice(0, 2)).toEqual([
+    ['south-west', 'south-west'], ['south-west', 'south-west'],
+  ]);
+  expect(readAnchorSnapshots.slice(2)).toEqual([
+    ['south-east', 'south-east'], ['south-east', 'south-east'],
+  ]);
+});
+
 it('measures a spread 20-contact DRADIS anchor batch twice per label', () => {
   const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
     x: left, y: top, left, top, width, height,
