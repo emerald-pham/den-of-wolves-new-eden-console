@@ -50,12 +50,12 @@
   min-width: 0;
   margin: 0;
   padding: 0.65rem;
-  border: 1px solid var(--cic-line, rgba(93, 132, 161, 0.35));
-  background: rgba(5, 15, 24, 0.62);
+  border: 1px solid var(--cic-rule);
+  background: color-mix(in srgb, var(--cic-panel) 62%, transparent);
 }
 
 .voyage33-maintenance__readouts span {
-  color: var(--cic-muted, #9caeb8);
+  color: var(--cic-muted);
   font: 0.7rem var(--cic-mono);
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -90,23 +90,23 @@
 .voyage33-maintenance__feedback {
   padding: 0.65rem 0.8rem;
   border-inline-start: 3px solid var(--cic-amber);
-  background: rgba(246, 182, 73, 0.08);
+  background: color-mix(in srgb, var(--cic-amber) 8%, transparent);
 }
 
 .voyage33-maintenance__feedback[role='alert'] {
-  border-inline-start-color: var(--cic-red, #e57772);
-  background: rgba(229, 119, 114, 0.08);
+  border-inline-start-color: var(--cic-danger);
+  background: color-mix(in srgb, var(--cic-danger) 8%, transparent);
 }
 
 .voyage33-maintenance__result,
 .voyage33-maintenance__receipt {
   padding: 0.65rem 0.8rem;
-  border: 1px solid var(--cic-line, rgba(93, 132, 161, 0.35));
-  background: rgba(5, 15, 24, 0.62);
+  border: 1px solid var(--cic-rule);
+  background: color-mix(in srgb, var(--cic-panel) 62%, transparent);
 }
 
 .voyage33-maintenance__result {
-  color: var(--cic-text, #e6eef2);
+  color: var(--cic-ink);
   font-family: var(--cic-mono);
 }
 
