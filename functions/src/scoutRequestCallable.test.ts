@@ -243,6 +243,22 @@ it('allows Starlight a second distinct scan only with current-cycle fuel proof',
     .rejects.toMatchObject({ code: 'failed-precondition' });
 });
 
+it('consumes the completed current-cycle Starlight fuel record exactly once', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  session.shuttleFuelled = { starlight: true };
+  session.maintenanceCycles = { aegis: { step: 0, revision: 10, turn: 2,
+    completedAt: '2026-10-01T20:00:00.000Z', results: {}, charges: [], refuelled: ['starlight'] } };
+  await requestScout.run(request({ sessionId: 's1', requestId: 'complete-first', entitlementId: 'starlight', targetCoordinate: '5143' }));
+  const second = { sessionId: 's1', requestId: 'complete-second', entitlementId: 'starlight', targetCoordinate: '9997' };
+  await expect(requestScout.run(request(second))).resolves.toMatchObject({ status: 'requested' });
+  const writes = mock.create.mock.calls.length;
+  await expect(requestScout.run(request(second))).resolves.toMatchObject({ status: 'replayed' });
+  expect(mock.create).toHaveBeenCalledTimes(writes);
+  await expect(requestScout.run(request({ ...second, requestId: 'complete-third', targetCoordinate: '1413' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.create).toHaveBeenCalledTimes(writes);
+});
+
 it('fails closed when current navigation or cadence evidence is missing or malformed', async () => {
   mock.documents.delete('sessions/s1/serverState/navigation');
   await expect(requestScout.run(request({

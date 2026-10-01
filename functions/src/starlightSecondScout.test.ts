@@ -32,6 +32,18 @@ describe('Starlight fuelled second scan', () => {
     });
   });
 
+  it('retains authoritative fuel after normal current-cycle maintenance completion', () => {
+    expect(resolveStarlightSecondScan({ ...base, ...fuel, priorScans, targetCoordinate: '9997',
+      maintenanceCycles: { aegis: { ...fuel.maintenanceCycles.aegis, step: 0,
+        completedAt: '2026-10-01T20:00:00.000Z' } } })).toMatchObject({ attempt: 2, distance: 2 });
+  });
+
+  it.each([undefined, '', 'not-a-time', '2026-13-01T00:00:00.000Z'])('rejects incomplete or malformed completion %s', completedAt => {
+    expect(() => resolveStarlightSecondScan({ ...base, ...fuel, priorScans, targetCoordinate: '9997',
+      maintenanceCycles: { aegis: { ...fuel.maintenanceCycles.aegis, step: 0,
+        ...(completedAt === undefined ? {} : { completedAt }) } } })).toThrow();
+  });
+
   it('measures the additional target from the current AEGIS position', () => {
     expect(resolveStarlightSecondScan({
       ...base, ...fuel, priorScans,
