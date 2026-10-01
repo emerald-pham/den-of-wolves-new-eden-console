@@ -106,6 +106,20 @@
 
 .pc06-review__workspace,
 .pc06-review__trade-layout { display: grid; gap: 1rem; min-width: 0; }
+.pc06-review__choice { display: grid; gap: 0.5rem; padding: 0.75rem; font: 0.76rem/1.5 var(--cic-mono); }
+.pc06-review__choice select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0.5rem;
+  border: 1px solid var(--cic-rule);
+  border-radius: 0;
+  color: var(--cic-ink);
+  background: var(--cic-panel);
+  font: inherit;
+}
+.pc06-review__choice select:focus-visible { outline: 2px solid var(--cic-cyan); outline-offset: 2px; }
 .pc06-review__trade-layout { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); align-items: start; }
 .pc06-review__trade-panel,
 .pc06-review__scout-participant { display: grid; gap: 0.8rem; min-width: 0; }

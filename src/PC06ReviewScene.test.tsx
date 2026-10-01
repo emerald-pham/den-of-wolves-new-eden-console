@@ -216,8 +216,8 @@ it('previews each assigned core Jump Drive fuel table without enabling productio
     ['quellon', 'Quellon', 'S 2 // M 4 // L 8'],
     ['refinery-124', 'Refinery 124', 'S 2 // M 4 // L 8'],
     ['capybara', 'Capybara', 'S 3 // M 6 // L 12'],
-  ]) {
-    await user.selectOptions(selector, id!);
+  ] as const) {
+    await user.selectOptions(selector, id);
     const drive = screen.getByRole('region', { name: `${name} Jump Drive control` });
     expect(within(drive).getByText(`Cost bands // ${bands}`)).toBeVisible();
     expect(within(drive).getByRole('button', { name: /jump to/i })).toBeDisabled();

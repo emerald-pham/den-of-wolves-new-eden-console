@@ -27,6 +27,20 @@ test('PC06 solo scene fits phone, short landscape and desktop in both motion mod
           const steps = page.getByRole('navigation', { name: 'PC06 review steps' });
           for (const name of ['1 Movement','2 Cargo and trade','3 Scouting','4 Away mission']) {
             await steps.getByRole('button', { name, exact:true }).click();
+            if (name === '1 Movement') {
+              for (const [id, shipName, bands] of [
+                ['shepherd', 'Shepherd', 'S 3 // M 6 // L 12'],
+                ['quellon', 'Quellon', 'S 2 // M 4 // L 8'],
+                ['refinery-124', 'Refinery 124', 'S 2 // M 4 // L 8'],
+                ['capybara', 'Capybara', 'S 3 // M 6 // L 12'],
+              ]) {
+                await page.getByRole('combobox', {name:'Fleet Jump Drive preview vessel'}).selectOption(id);
+                const drive = page.getByRole('region', {name:`${shipName} Jump Drive control`});
+                assert.ok(await drive.getByText(`Cost bands // ${bands}`, {exact:true}).isVisible());
+                assert.ok(await drive.getByRole('button', {name:/Jump to/i}).isDisabled());
+              }
+              await page.getByRole('combobox', {name:'Fleet Jump Drive preview vessel'}).selectOption('aegis');
+            }
             const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
             assert.ok(scrollWidth <= width, `${width}x${height} ${reducedMotion} ${name}: ${scrollWidth}px overflow`);
             const inaccessibleControls = await page.locator('.pc06-review button, .pc06-review select').evaluateAll(elements => elements.filter(element => {

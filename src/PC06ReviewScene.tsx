@@ -17,6 +17,7 @@ import {
 } from '@/components/ScoutResultPanels';
 import Voyage33MovementPanel, { type Voyage33MovementHost } from '@/components/Voyage33MovementPanel';
 import aegis from '@/data/vessels/aegis';
+import { SHIPS } from '@/data/ships';
 import './PC06ReviewScene.css';
 
 type ReviewStep = 'movement' | 'cargo' | 'scouting' | 'mission';
@@ -142,6 +143,8 @@ function currentStepIndex(step: ReviewStep): number {
 }
 
 function MovementReview() {
+  const [previewShipId, setPreviewShipId] = useState(aegis.id);
+  const previewShip = SHIPS.find(({ id }) => id === previewShipId) ?? aegis;
   const [sampleState, setSampleState] = useState<MovementSampleState>('ready');
   const [phase, setPhase] = useState<'team' | 'coordination' | 'other'>('team');
   const [location, setLocation] = useState(START_LOCATION);
@@ -238,16 +241,26 @@ function MovementReview() {
         <p className="pc06-review__note">
           The production Jump Drive controls let you inspect digit editing and hidden-destination copy. The launch button stays disabled.
         </p>
+        <label className="pc06-review__choice">
+          Fleet Jump Drive preview vessel
+          <select value={previewShipId} onChange={(event) => {
+            const selectedShip = SHIPS.find(({ id }) => id === event.target.value);
+            if (selectedShip) setPreviewShipId(selectedShip.id);
+          }}>
+            {SHIPS.map(({ id, name }) => <option key={id} value={id}>{name}</option>)}
+          </select>
+        </label>
         <div className="pc06-review__drive">
           <JumpDriveConsole
-            shipId={aegis.id}
-            shipName={aegis.name}
+            key={previewShip.id}
+            shipId={previewShip.id}
+            shipName={previewShip.name}
             currentCoordinate="0101"
-            fuel={aegis.resources.fuel}
+            fuel={previewShip.resources.fuel}
             jumpCosts={[
-              aegis.printedStatistics.jumpCosts.short,
-              aegis.printedStatistics.jumpCosts.medium,
-              aegis.printedStatistics.jumpCosts.long,
+              previewShip.printedStatistics.jumpCosts.short,
+              previewShip.printedStatistics.jumpCosts.medium,
+              previewShip.printedStatistics.jumpCosts.long,
             ]}
             charged
             damaged={false}
