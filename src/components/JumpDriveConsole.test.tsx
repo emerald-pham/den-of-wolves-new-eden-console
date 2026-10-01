@@ -154,6 +154,12 @@ it('completes denial, uncertain retry, and success through the keyboard with sta
   const pending = screen.getByRole('button', { name: 'Jumping…' });
   expect(pending).toBeDisabled();
   expect(jumpShip).toHaveBeenCalledTimes(1);
+  // Native browsers blur a focused button when it becomes disabled. JSDOM
+  // retains focus unless we reproduce that browser transition explicitly.
+  document.body.setAttribute('tabindex', '-1');
+  document.body.focus();
+  document.body.removeAttribute('tabindex');
+  expect(document.body).toHaveFocus();
   await act(async () => {
     rejectFirstAttempt({ code: 'functions/permission-denied', message: 'Not authorized.' });
   });
@@ -182,6 +188,23 @@ it('shows the Demo boundary without exposing any executable jump control', () =>
   expect(screen.queryByRole('button', { name: /blind jump/i })).not.toBeInTheDocument();
   expect(screen.queryByRole('slider', { name: /jump drive power/i })).not.toBeInTheDocument();
   expect(jumpShip).not.toHaveBeenCalled();
+});
+
+it('keeps focus on another view when a pending jump ends', async () => {
+  const user = userEvent.setup();
+  let reject!: (reason: { code: string }) => void;
+  vi.mocked(jumpShip).mockImplementationOnce(() => new Promise((_resolve, fail) => { reject = fail; }));
+  renderConsole();
+  render(<button type="button">Other view</button>);
+  await user.click(screen.getByRole('button', { name: 'Increase coordinate digit 1' }));
+  await user.click(screen.getByRole('button', { name: 'Lock destination coordinates' }));
+  fireEvent.change(screen.getByRole('slider', { name: 'Jump drive power' }), { target: { value: '100' } });
+  await user.click(screen.getByRole('button', { name: 'Jump to 1000' }));
+  const other = screen.getByRole('button', { name: 'Other view' });
+  other.focus();
+  await act(async () => reject({ code: 'functions/permission-denied' }));
+  expect(await screen.findByText(/jump request rejected/i)).toBeVisible();
+  expect(other).toHaveFocus();
 });
 
 it('submits blind travel without a candidate and retries the same request until the server reveals arrival', async () => {
