@@ -834,13 +834,42 @@ describe('Voyage 33-0 movement workspace', () => {
     const maintenance = screen.getByRole('region', { name: 'Voyage 33-0 maintenance' });
     fireEvent.click(within(maintenance).getByRole('button', { name: /begin maintenance cycle/i }));
     await within(maintenance).findByRole('button', { name: /retry exact/i });
-    const first = runVoyage33Maintenance.mock.calls[0];
+    const first = runVoyage33Maintenance.mock.calls[0]!;
     expect(first[5]).toBe(1);
     await act(async () => useSessionStore.getState().setSession({ ...session, currentTurn: 2, turnPhase: { ...phase('team'), turn: 2 } }));
     fireEvent.click(within(maintenance).getByRole('button', { name: /reconcile original/i }));
     await waitFor(() => expect(within(maintenance).getByRole('button', { name: /begin maintenance cycle/i })).toBeEnabled());
-    expect(runVoyage33Maintenance.mock.calls[1].slice(0, 6)).toEqual(first.slice(0, 6));
+    expect(runVoyage33Maintenance.mock.calls[1]!.slice(0, 6)).toEqual(first.slice(0, 6));
   });
+
+  it.each(['actorUid', 'instanceId', 'requestId', 'expectedCycle', 'expectedRevision', 'currentCycle'])(
+    'retains uncertain rations and draft choices when absence reconciliation has an invalid %s binding', async (field) => {
+      const base = emptyVoyage33MaintenanceState('aegis');
+      const session = sessionFixture(`voyage-invalid-absence-${field}`, {
+        voyage33Movement: movementState('0000', 2),
+        voyage33Maintenance: { ...base, dockingRevision: 4, cycle: { ...base.cycle, step: 1, turn: 1, revision: 1 } },
+      });
+      installGm(session);
+      runVoyage33Maintenance.mockRejectedValueOnce(Object.assign(new Error('response lost'), { code: 'functions/unavailable' }))
+        .mockImplementationOnce(async (action, expectedRevision, expectedDockingRevision, _choices, requestId, expectedCycle) => ({
+          status: 'absent', sessionId: session.id, requestId, shipId: 'voyage-33-0',
+          actorUid: useSessionStore.getState().me!.uid, instanceId: useSessionStore.getState().gmInstance!.id,
+          action, expectedRevision, expectedDockingRevision, expectedCycle, currentCycle: 2, [field]: 'invalid',
+        }));
+      render(<Voyage33MovementWorkspace />);
+      const region = screen.getByRole('region', { name: 'Voyage 33-0 maintenance' });
+      fireEvent.change(within(region).getByLabelText('Voyage 33-0 food ration level'), { target: { value: '3' } });
+      fireEvent.change(within(region).getByLabelText('Voyage 33-0 water ration level'), { target: { value: '2' } });
+      fireEvent.click(within(region).getByRole('button', { name: /apply host-funded rations/i }));
+      await within(region).findByRole('button', { name: /retry exact/i });
+      await act(async () => useSessionStore.getState().setSession({ ...session, currentTurn: 2, turnPhase: { ...phase('team'), turn: 2 } }));
+      fireEvent.click(within(region).getByRole('button', { name: /reconcile original/i }));
+      await waitFor(() => expect(within(region).getByRole('alert')).toHaveTextContent(/reconciliation did not match/i));
+      expect(within(region).getByRole('button', { name: /apply host-funded rations/i })).toBeDisabled();
+      expect(within(region).getByLabelText('Voyage 33-0 food ration level')).toHaveValue('3');
+      expect(within(region).getByLabelText('Voyage 33-0 water ration level')).toHaveValue('2');
+      expect(within(region).getByRole('button', { name: /retry exact/i })).toBeInTheDocument();
+    });
 
   it('does not replay an uncertain request against regressed server authority', async () => {
     const sessionId = 'voyage-workspace-maintenance-regressed-authority';
