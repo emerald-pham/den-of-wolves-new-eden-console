@@ -321,3 +321,43 @@ That run passed unit, Functions, rules, web build and font consistency, then sto
 
 
 The delayed complete-readiness reproduction exposed a second fixture race: the synthetic actor attempted production `resumeSession`, was denied and redirected to the station catalog before the lazy controls arrived. Independent approval was held while that actual failure was diagnosed. Test-only `f9ae3468` observes three additional network-boundary failures before `6edad9c9` permits only the local Vite origin and aborts external requests as disconnected. Nonlocal application origins are rejected; no successful authorization response is fabricated. All eight readiness/network/release contracts pass. The real local GM module delayed by one second now passes the complete 56-case, seven-surface, four-viewport normal/reduced PC01 comparison at `/tmp/pc06-typography-isolated-delayed/results.json`. This fixture isolation is local rendering evidence only. The reviewed product authorization, gameplay runtime, deployment tuples and native performance samples/budgets remain unchanged; narrow independent review and the official affected typography gate are pending before the justified CI successor.
+
+## Exact-main failure and scorer cost repair
+
+Independent review approved `3554a4a2`; its renewed official typography gate
+passed all 56 cases. PR CI run `36823752884` passed all gates, including the
+native mobile count at 69 against the unchanged 70 cap. PR #11 then merged by
+normal fast-forward main push at that exact SHA. Required main deployment run
+`36826210341` passed every other gate but measured 71 mobile long frames; the
+deploy job never started. One isolated rerun of that failed job measured 72.
+Both native artifacts are preserved at `/tmp/pc06-main-first-performance` and
+`/tmp/pc06-main-second-performance`. No further unchanged retry is planned.
+Production remains the previously verified build 0.5.58, and the catalog still
+records 507/751; landing on main supplies no deployment or ordinary gameplay
+credit.
+
+Separate observed-red commits `d65459f1`, `a564b743` and `40364e60` cover exact
+clearance arithmetic, redundant prepared-style assignments and distant obstacle
+work after a collided lane cannot win. Production `682e94ce` keeps the original
+score arithmetic, candidate order, nearest-clear-lane stopping and final native
+geometry correction. Finite axis gaps skip only norms that cannot improve the
+known minimum; nonfinite inputs retain the original path. Prepared rectangles
+score without DOM writes, while an unmeasured side still installs its exact
+anchor/style before native probes. A collided lane stops examining obstacles
+only when its finite partial score cannot beat the finite current winner;
+remaining collisions can only increase that score and minimum clearance can
+only decrease. Original lane bookkeeping still runs.
+
+All 72 focused checks, typecheck and touched lint pass. The actual old/current
+function comparison records zero differences across 160 fixtures and 480
+coordinate/font/container phases; the three previous geometry counterexamples
+remain fixed. Temporary diagnostic instrumentation against exact `3554a4a2`
+records norm calls falling from 1,888,032 to 226,932 and style assignments from
+27,737 to 16,755 across the unchanged workload. Whole-work browser task duration
+was 1.886 to 1.756 seconds and DRADIS work p95 11.8 to 11.1 ms in that local
+diagnostic pair. These timings are noisy diagnostic evidence, not hosted proof;
+native geometry-read counts remain identical. Evidence lives under
+`/tmp/pc06-cost-{3554,pruned}`. No benchmark source, samples, budgets, authority,
+deployment tuples or fixed PC06 allocation changed. Independent successor
+review and affected final gates remain before the next justified candidate CI
+push and required exact-main deployment checks.
