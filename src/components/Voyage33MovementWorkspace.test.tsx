@@ -818,6 +818,30 @@ describe('Voyage 33-0 movement workspace', () => {
     expect(within(maintenance).getByRole('button', { name: /begin maintenance cycle/i })).toBeDisabled();
   });
 
+  it('reconciles an absent obsolete begin then allows a fresh current-cycle action without losing ration drafts', async () => {
+    const base = emptyVoyage33MaintenanceState('aegis');
+    const session = sessionFixture('voyage-workspace-obsolete-absence', {
+      voyage33Movement: movementState('0000', 2), voyage33Maintenance: { ...base, dockingRevision: 4 },
+    });
+    installGm(session);
+    runVoyage33Maintenance.mockRejectedValueOnce(Object.assign(new Error('response unavailable'), { code: 'functions/unavailable' }))
+      .mockImplementationOnce(async (action, expectedRevision, expectedDockingRevision, _choices, requestId, expectedCycle, reconcileOnly) => {
+        expect(reconcileOnly).toBe(true);
+        return { status: 'absent', sessionId: session.id, requestId, actorUid: useSessionStore.getState().me!.uid, instanceId: useSessionStore.getState().gmInstance!.id,
+          shipId: 'voyage-33-0', action, expectedRevision, expectedDockingRevision, expectedCycle, currentCycle: 2 };
+      });
+    render(<Voyage33MovementWorkspace />);
+    const maintenance = screen.getByRole('region', { name: 'Voyage 33-0 maintenance' });
+    fireEvent.click(within(maintenance).getByRole('button', { name: /begin maintenance cycle/i }));
+    await within(maintenance).findByRole('button', { name: /retry exact/i });
+    const first = runVoyage33Maintenance.mock.calls[0];
+    expect(first[5]).toBe(1);
+    await act(async () => useSessionStore.getState().setSession({ ...session, currentTurn: 2, turnPhase: { ...phase('team'), turn: 2 } }));
+    fireEvent.click(within(maintenance).getByRole('button', { name: /reconcile original/i }));
+    await waitFor(() => expect(within(maintenance).getByRole('button', { name: /begin maintenance cycle/i })).toBeEnabled());
+    expect(runVoyage33Maintenance.mock.calls[1].slice(0, 6)).toEqual(first.slice(0, 6));
+  });
+
   it('does not replay an uncertain request against regressed server authority', async () => {
     const sessionId = 'voyage-workspace-maintenance-regressed-authority';
     const base = emptyVoyage33MaintenanceState('aegis');

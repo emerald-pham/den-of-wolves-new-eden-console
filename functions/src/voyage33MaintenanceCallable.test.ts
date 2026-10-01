@@ -6,6 +6,7 @@ const mock = vi.hoisted(() => ({
   get: vi.fn(), update: vi.fn(), set: vi.fn(),
   receipts: {} as Record<string, Record<string, unknown>>,
   session: {} as Record<string, unknown>,
+  beforeTransaction: undefined as (() => void) | undefined, transactions: 0,
 }));
 
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
@@ -13,9 +14,11 @@ vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => ({
     doc: (path: string) => path,
     collection: (path: string) => path,
-    runTransaction: async (callback: (tx: unknown) => unknown) => callback({
-      get: mock.get, update: mock.update, set: mock.set,
-    }),
+    runTransaction: async (callback: (tx: unknown) => unknown) => {
+      mock.transactions += 1;
+      mock.beforeTransaction?.();
+      return callback({ get: mock.get, update: mock.update, set: mock.set });
+    },
   }),
   FieldValue: { serverTimestamp: () => 'server-time' },
   Timestamp: { now: () => ({ toMillis: () => Date.now() }) },
@@ -33,7 +36,7 @@ function snapshot(fields: Record<string, unknown>, exists = true) {
 
 const base = {
   sessionId: 's1', shipId: 'voyage-33-0', instanceId: 'gm1',
-  requestId: 'voyage-maint-1', action: 'begin', expectedRevision: 0, expectedDockingRevision: 0,
+  requestId: 'voyage-maint-1', action: 'begin', expectedRevision: 0, expectedDockingRevision: 0, expectedCycle: 1,
 };
 
 beforeEach(() => {
@@ -49,6 +52,7 @@ beforeEach(() => {
     shipResources: { aegis: { ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 2 } },
   };
   mock.receipts = {};
+  mock.transactions = 0; mock.beforeTransaction = undefined;
   mock.get.mockReset();
   mock.update.mockReset();
   mock.set.mockReset();
@@ -183,4 +187,58 @@ it('rejects fresh maintenance without an authoritative phase clock before writes
   });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
+});
+
+
+it('rejects a captured-cycle command when advance occurs between preflight and final mutation, with zero writes', async () => {
+  mock.beforeTransaction = () => {
+    if (mock.transactions === 2) {
+      mock.session.currentTurn = 2;
+      mock.session.turnPhase = { turn: 2, airspace: { state: 'restricted' } };
+    }
+  };
+  await expect(runVoyage33Maintenance.run(request(base))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.transactions).toBe(2);
+  expect(mock.update).not.toHaveBeenCalled(); expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('confirms an obsolete absent request without a docked host or any writes', async () => {
+  mock.session.currentTurn = 2;
+  mock.session.voyage33Maintenance = emptyVoyage33MaintenanceState(null);
+  await expect(runVoyage33Maintenance.run(request({ ...base, reconcileOnly: true }))).resolves.toMatchObject({
+    status: 'absent', sessionId: 's1', requestId: base.requestId, actorUid: 'u1', instanceId: 'gm1',
+    expectedCycle: 1, currentCycle: 2, expectedRevision: 0, expectedDockingRevision: 0, action: 'begin',
+  });
+  expect(mock.update).not.toHaveBeenCalled(); expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('does not certify absence while the captured cycle can still commit', async () => {
+  await expect(runVoyage33Maintenance.run(request({ ...base, reconcileOnly: true }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled(); expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('reconciles an exact committed receipt before obsolete-cycle checks and rejects changed-cycle reuse', async () => {
+  await runVoyage33Maintenance.run(request(base));
+  mock.receipts['sessions/s1/voyage33MaintenanceRequests/voyage-maint-1'] = mock.set.mock.calls.find(([path]) => String(path).includes('/voyage33MaintenanceRequests/'))?.[1];
+  mock.session.currentTurn = 2;
+  mock.session.voyage33Maintenance = emptyVoyage33MaintenanceState(null);
+  mock.set.mockReset(); mock.update.mockReset();
+  await expect(runVoyage33Maintenance.run(request({ ...base, reconcileOnly: true }))).resolves.toMatchObject({ status: 'replayed', currentTurn: 1 });
+  await expect(runVoyage33Maintenance.run(request({ ...base, expectedCycle: 2, reconcileOnly: true }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled(); expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('requires the original live GM instance for receipt reconciliation', async () => {
+  mock.session.currentTurn = 2;
+  const get = mock.get.getMockImplementation()!;
+  mock.get.mockImplementation((path: string) => path.includes('/gmInstances/') ? snapshot({ uid: 'other', connected: true, lastSeenAt: new Date() }) : get(path));
+  await expect(runVoyage33Maintenance.run(request({ ...base, reconcileOnly: true }))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled(); expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('finishes preserved earlier maintenance using the current command cycle', async () => {
+  const state = emptyVoyage33MaintenanceState('aegis');
+  mock.session.currentTurn = 2; mock.session.turnPhase = { turn: 2, airspace: { state: 'restricted' } };
+  mock.session.voyage33Maintenance = { ...state, cycle: { ...state.cycle, turn: 1, step: 2, revision: 2, rationBonus: 9 } };
+  await expect(runVoyage33Maintenance.run(request({ ...base, expectedCycle: 2, action: 'unrest', expectedRevision: 2 }))).resolves.toMatchObject({ status: 'committed', currentTurn: 2, cycle: { turn: 1, step: 3 } });
 });
