@@ -589,6 +589,16 @@
         "runMaintenance"
       ],
       "reason": "Only maintenanceRequestFingerprint and sameMaintenanceRequestFingerprint change; runMaintenance is their sole runtime consumer."
+    },
+    {
+      "baseline": "a1fd66dc5014ff3c9ea8035edecd8ca394e3d76c",
+      "implementationCandidate": "ebd0e6fd",
+      "before": "0fa018a51fd94a657edda6600e397ca75e554185dbedae5f7de3239f322b0d6e",
+      "after": "e858226097808871edf069e55d2feed3605dee127120acdd9ae45dc36c0510bb",
+      "consumers": [
+        "runVoyage33Maintenance"
+      ],
+      "reason": "Only the Voyage maintenance fingerprint and callable protocol change; runVoyage33Maintenance is the sole runtime consumer of its local receipt helpers."
     }
   ],
   "moduleTransitions": {
