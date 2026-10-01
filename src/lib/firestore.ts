@@ -2696,6 +2696,12 @@ function hummingbirdHarvest(value: unknown, sessionId: string, uid: string): Hum
 
 export function sessionFrom(id: string, data: DocumentData): GameSession {
   const sessionId = entityId('session', id);
+  const rawDemo = data.singlePlayerDemo;
+  const demo = typeof rawDemo === 'object' && rawDemo !== null && !Array.isArray(rawDemo) &&
+    Object.keys(rawDemo).length === 2 &&
+    (rawDemo.status === 'active' || rawDemo.status === 'complete') && rawDemo.finalCycle === 1
+    ? { status: rawDemo.status as 'active' | 'complete', finalCycle: 1 as const }
+    : undefined;
   const dradisContactTriggeredAt = data.dradisContactTriggeredAt;
   const announcement = turnStartAnnouncement(data.turnStartAnnouncement);
   const phaseClock = turnPhaseState(data.turnPhase);
@@ -2924,6 +2930,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     debriefMode: debriefMode(data.debriefMode),
     pressDispatch: normalizePressDispatch(data.pressDispatch),
     fleetTicker: fleetTickerState(data.fleetTicker),
+    ...(demo ? { singlePlayerDemo: demo } : {}),
     maintenanceCycles: maintenanceCycles(data.maintenanceCycles),
     smallShipStates: currentSmallShipStates,
     ...(currentBaseCapybaraCargo ? { baseCapybaraCargo: currentBaseCapybaraCargo } : {}),
