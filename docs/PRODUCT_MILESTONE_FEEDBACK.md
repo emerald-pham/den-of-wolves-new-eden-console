@@ -10,6 +10,12 @@ sufficient checkpoint acceptance and must be recorded here; silence alone is
 not authorization. If no feedback has arrived, record that fact in the next
 shape and continue; do not wait.
 
+Before each next checkpoint, complete the
+[owner-decision alignment](PRODUCT_MILESTONES.md#owner-decisions-before-the-next-checkpoint).
+Record the decision source/date, affected prompt IDs and checkpoints, actual
+planning changes, and latest owner message reviewed. Update every affected
+future criterion; a feedback entry or next-shape mention alone is insufficient.
+
 For each authorization or review, append an entry with:
 
 - milestone ID, build/version, date, authorization state, and any owner notes;
@@ -159,3 +165,19 @@ new gameplay evidence or acceptance of an unfinished checkpoint.
 The P503a acknowledgement/clue sequence and its after-1.0 experience review
 remain intentional. P605a still needs separate explicit activation plus P433a
 proof; planning authorization is not activation or closure credit.
+
+## Standing alignment before checkpoint transitions — 2026-09-30
+
+**Decision source:** after resuming the PC07–PC10 amendment work, the owner
+requested this instruction in the repository, then clarified: “ensure work
+like the above happens before we move into the next checkpoint.” This is the
+latest owner message reviewed for this alignment.
+
+| Note ID | Owner decision | Disposition / next action |
+|---|---|---|
+| FUTURE-F04 | Carry later owner changes into future prompts and checkpoint plans before entering the next checkpoint. | Adopted in `AGENTS.md`, `CLAUDE.md` and the [checkpoint preparation procedure](PRODUCT_MILESTONES.md#owner-decisions-before-the-next-checkpoint). Applies to all affected unstarted IDs and checkpoints; currently PC07–PC10. Review relevant prior/new owner conversations, amend actual criteria, log the decision and affected IDs, and refresh derived views when their inputs change. Every later checkpoint owner repeats this before beginning the next shape/build. |
+
+This instruction changes preparation policy, so it requires no further catalog
+criteria amendment today. The existing 195 PC07–PC10 amendments remain in
+place. PC06 scope, all prompt definitions/statuses/evidence, fixed allocation
+and release facts are unchanged by this follow-up.

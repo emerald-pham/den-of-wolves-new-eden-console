@@ -18,6 +18,10 @@ feedback, and cooldown process govern that campaign. Explicit owner
 authorization accepts a checkpoint; a completed walkthrough or written UI
 feedback is not required. Agents own gameplay and technical correctness. The
 older M1–M13 fixtures remain internal gates.
+Before moving into the next checkpoint, review the owner's decisions before
+and between checkpoints and update every affected future prompt and checkpoint
+plan. Follow that guide's decision-alignment procedure under standing
+authorization; preserve an in-progress checkpoint's agreed scope.
 
 Only `gpt-6-luna` and `gpt-5.6-sol` may be delegated as subagents. Existing
 agents may finish current assignments. Use `max` for every `gpt-6-luna`
