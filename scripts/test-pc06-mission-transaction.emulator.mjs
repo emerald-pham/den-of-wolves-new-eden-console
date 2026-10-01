@@ -20,7 +20,7 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
       'dow-new-eden-pc06-mission-test', '--only', 'firestore', 'node scripts/test-pc06-mission-transaction.emulator.mjs'] });
 } else {  const require = createRequire(resolve(repository, 'functions/package.json'));
   const { getFirestore } = require('firebase-admin/firestore');
-  const { dealPrivateInitialCards, commitAwayMissionLifecycleCommand, jumpShip } = require('../functions/lib/index.js');
+  const { dealPrivateInitialCards, commitAwayMissionLifecycleCommand, jumpShip, confirmFleetPartition } = require('../functions/lib/index.js');
   const { recommendedRoleIds } = require('../functions/lib/roleConfiguration.js');
   const { activeVesselIdsForRoles } = require('../functions/lib/gameSetup.js');
   const { roleOwnedCraftManifestForSetup } = require('../functions/lib/craftOwnership.js');
@@ -35,7 +35,8 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
     const activeRoleIds = [...recommendedRoleIds(8)];
     const activeVesselIds = [...activeVesselIdsForRoles(activeRoleIds)];
     const coordinate = Object.entries(organiserSitesForChart('A')).find(([, site]) => site.code === 'D')[0];
-    const opportunityId = `arrival-fleet-1-A-${coordinate}`;
+    const originalOpportunityId = `arrival-fleet-1-A-${coordinate}`;
+    const opportunityId = `arrival-fleet-2-A-${coordinate}`;
     const missionId = `mission-${opportunityId}`;
     const missionRef = db.doc(`sessions/${id}/serverState/awayMissions/instances/${missionId}`);
     const navigationRef = db.doc(`sessions/${id}/serverState/navigation`);
@@ -61,9 +62,10 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
         turnPhase: { turn: 2, teamPhaseEndsAt: now, openAirspaceEndsAt: end,
           airspace: { state: 'lifted', tickerActive: true, pressAccess: true } },
         turnState: { currentTurn: 2, maxTurn: 6, phase: 'coordination', phaseRevision: 3, startedAt: now, endsAt: end } });
-      batch.set(navigationRef, { revision: 4, shipGalacticCoordinates: Object.fromEntries(activeVesselIds.map(ship => [ship, coordinate])),
+      const initialCoordinates = Object.fromEntries(activeVesselIds.map(ship => [ship, ship === 'refinery-124' ? '0000' : coordinate]));
+      batch.set(navigationRef, { revision: 4, shipGalacticCoordinates: initialCoordinates,
         shipNavigationLogs: Object.fromEntries(activeVesselIds.map(ship => [ship, []])), pursuitGroups: { 'fleet-1': 0 } });
-      batch.set(db.doc(`sessions/${id}/fleetGroups/fleet-1`), { id: 'fleet-1', vesselIds: activeVesselIds, memberUids: ['gm', 'alice', 'bob'] });
+      batch.set(db.doc(`sessions/${id}/fleetGroups/fleet-1`), { id: 'fleet-1', vesselIds: ['refinery-124', ...activeVesselIds.filter(ship => ship !== 'refinery-124')], memberUids: ['gm', 'alice', 'bob'] });
       for (const [uid, role, assignedRoleId] of [['gm', 'gm', null], ['alice', 'player', 'wing-commander'], ['bob', 'player', 'icebreaker-miner']]) {
         batch.set(db.doc(`sessions/${id}/players/${uid}`), { uid, sessionId: id, role, connected: true, fleetGroupId: 'fleet-1', assignedRoleId });
       }
@@ -72,12 +74,18 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
         type: 'gm-ship-console-write-grant', sessionId: id, instanceId: 'bridge', uid: 'gm', shipId: 'aegis', grantedAt: now });
       batch.set(db.doc(`sessions/${id}/craftOwnership/manifest`), roleOwnedCraftManifestForSetup(activeRoleIds, 'none'));
       batch.set(db.doc(`sessions/${id}/serverState/missionDeck`), { ...deck, dealtCount: 0 });
-      batch.set(db.doc(`sessions/${id}/missionOpportunities/${opportunityId}`), { type: 'mission-opportunity', status: 'available',
-        sessionId: id, id: opportunityId, groupId: 'fleet-1', chart: 'A', coordinate, siteCode: 'D',
+      batch.set(db.doc(`sessions/${id}/missionOpportunities/${originalOpportunityId}`), { type: 'mission-opportunity', status: 'available',
+        sessionId: id, id: originalOpportunityId, groupId: 'fleet-1', chart: 'A', coordinate, siteCode: 'D',
         sourceShipId: 'aegis', sourceTransitionId: 'jump-source-arrival', sourceCycle: 2 });
       await batch.commit();
+      const split = request('gm', { sessionId: id, instanceId: 'bridge', requestId: 'split-before-mission', expectedNavigationRevision: 4 });
+      await confirmFleetPartition.run(split);
+      assert.equal((await db.doc(`sessions/${id}/missionOpportunities/${originalOpportunityId}`).get()).exists, false);
+      assert.equal((await db.doc(`sessions/${id}/missionOpportunities/${opportunityId}`).get()).get('sourceTransitionId'), 'jump-source-arrival');
+      assert.equal((await db.doc(`sessions/${id}/players/alice`).get()).get('fleetGroupId'), 'fleet-2');
+      assert.equal((await db.doc(`sessions/${id}/players/bob`).get()).get('fleetGroupId'), 'fleet-2');
       const deal = request('gm', { sessionId: id, instanceId: 'bridge', requestId: 'start-1', expectedSetupRevision: 1,
-        expectedPhaseRevision: 3, expectedCycle: 2, opportunityId, groupId: 'fleet-1', chart: 'A', coordinate,
+        expectedPhaseRevision: 3, expectedCycle: 2, opportunityId, groupId: 'fleet-2', chart: 'A', coordinate,
         sourceCycle: 2, missionLeaderUid: 'alice', participantUids: ['alice', 'bob'] });
       const dealt = await Promise.all([dealPrivateInitialCards.run(deal), dealPrivateInitialCards.run(deal)]);
       assert.deepEqual(new Set(dealt.map(reply => reply.status)), new Set(['committed', 'replayed']));
@@ -120,8 +128,8 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
       assert.deepEqual(new Set(explorationReplies.map(reply => reply.status)), new Set(['committed', 'replayed']));
       const nav = (await navigationRef.get()).data();
       assert.deepEqual(nav.missionExploredCoordinatesByUid, { alice: ['4454', '5143'], bob: ['4454', '5143'] });
-      assert.equal(nav.revision, 5);
-      assert.deepEqual(nav.shipGalacticCoordinates, Object.fromEntries(activeVesselIds.map(ship => [ship, coordinate])));
+      assert.equal(nav.revision, 6);
+      assert.deepEqual(nav.shipGalacticCoordinates, initialCoordinates);
       const deliveryRevision = (await missionRef.get()).get('revision');
       const delivery = request('alice', { sessionId: id, missionId, type: 'dropOff', requestId: 'deliver-once',
         expectedRevision: deliveryRevision, shipId: 'aegis' });

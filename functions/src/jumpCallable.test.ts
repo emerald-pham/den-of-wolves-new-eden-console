@@ -9,6 +9,7 @@ const mock = vi.hoisted(() => ({
   get: vi.fn(),
   update: vi.fn(),
   set: vi.fn(),
+  delete: vi.fn(),
   role: 'gm',
   owner: 'u1',
   connected: true,
@@ -18,6 +19,7 @@ const mock = vi.hoisted(() => ({
   chartId: 'A',
   chartLocked: true,
   coordinate: '0000',
+  coordinates: {} as Record<string, string>,
   navigationRevision: 0,
   navigationLogs: {} as Record<string, unknown>,
   fuel: 4,
@@ -56,6 +58,8 @@ const mock = vi.hoisted(() => ({
   smallShipStates: {} as Record<string, unknown>,
   missionOpportunityRecord: undefined as Record<string, unknown> | undefined,
   missionOpportunityRecordPath: undefined as string | undefined,
+  partitionOpportunities: [] as Array<Record<string, unknown>>,
+  startedOpportunityIds: [] as string[],
   commandReceiptRecord: undefined as Record<string, unknown> | undefined,
   singlePlayerDemo: undefined as Record<string, unknown> | undefined,
   jumpFailures: {} as Record<string, Record<string, unknown>>,
@@ -85,14 +89,17 @@ vi.mock('firebase-admin/firestore', () => ({
       for (let attempt = 0; attempt < attempts; attempt += 1) {
         const writes: Array<[string, Record<string, unknown>]> = [];
         const sets: Array<[string, Record<string, unknown>]> = [];
+        const deletes: string[] = [];
         result = await callback({
           get: mock.get,
           set: (ref: string | { path: string }, fields: Record<string, unknown>) => sets.push([typeof ref === 'string' ? ref : ref.path, fields]),
           update: (path: string, fields: Record<string, unknown>) => writes.push([path, fields]),
+          delete: (path: string) => deletes.push(path),
         });
         if (attempt === attempts - 1) {
           for (const [path, fields] of writes) mock.update(path, fields);
           for (const [path, fields] of sets) mock.set(path, fields);
+          for (const path of deletes) mock.delete(path);
         }
       }
       return result;
@@ -126,6 +133,7 @@ beforeEach(() => {
   mock.chartId = 'A';
   mock.chartLocked = true;
   mock.coordinate = '0000';
+  mock.coordinates = {};
   mock.navigationRevision = 0;
   mock.navigationLogs = {};
   mock.fuel = 4;
@@ -162,6 +170,8 @@ beforeEach(() => {
   mock.smallShipStates = {};
   mock.missionOpportunityRecord = undefined;
   mock.missionOpportunityRecordPath = undefined;
+  mock.partitionOpportunities = [];
+  mock.startedOpportunityIds = [];
   mock.commandReceiptRecord = undefined;
   mock.singlePlayerDemo = undefined;
   mock.jumpFailures = {};
@@ -173,6 +183,7 @@ beforeEach(() => {
   mock.randomUUID.mockReturnValue('jump-event');
   mock.update.mockReset();
   mock.set.mockReset();
+  mock.delete.mockReset();
   mock.get.mockImplementation(async (rawRef: unknown) => {
     const path = typeof rawRef === 'string'
       ? rawRef
@@ -224,6 +235,14 @@ beforeEach(() => {
         get: (key: string) => fields?.[key],
       };
     }
+    if (path === 'sessions/s1/missionOpportunities') return {
+      docs: mock.partitionOpportunities.map(record => ({
+        exists: true, id: record.id, data: () => record,
+      })),
+    };
+    if (path === 'sessions/s1/missionStartSnapshots') return {
+      docs: mock.startedOpportunityIds.map(id => ({ exists: true, id })),
+    };
     if (path.startsWith('sessions/s1/missionOpportunities/')) {
       const record = mock.missionOpportunityRecordPath === undefined ||
         mock.missionOpportunityRecordPath === path
@@ -301,6 +320,7 @@ beforeEach(() => {
             shepherd: '0000',
             quellon: '0000',
             'refinery-124': '0000',
+            ...mock.coordinates,
           },
           shipNavigationLogs: {
             aegis: [], dione: [], icebreaker: [], capybara: [], shepherd: [], quellon: [], 'refinery-124': [],
@@ -2389,6 +2409,44 @@ it('confirms a server-derived fleet partition and clones pursuit without exposin
   expect(mock.set).toHaveBeenCalledWith('sessions/s1/serverState/navigation', expect.objectContaining({
     pursuitGroups: { 'fleet-1': 2, 'fleet-2': 2 }, revision: 1,
   }));
+});
+
+it.each([false, true])('moves an unstarted arrival to its source ship group, including an already stranded arrival (%s)', async (alreadySplit) => {
+  mock.coordinates = { quellon: '1413' };
+  const oldId = 'arrival-fleet-1-A-1413';
+  const nextId = 'arrival-fleet-2-A-1413';
+  mock.partitionOpportunities = [{ type: 'mission-opportunity', status: 'available',
+    sessionId: 's1', id: oldId, groupId: 'fleet-1', chart: 'A', coordinate: '1413', siteCode: 'A',
+    sourceShipId: 'quellon', sourceTransitionId: 'jump-original-arrival', sourceCycle: 1 }];
+  if (alreadySplit) {
+    mock.fleetGroups = [{ id: 'fleet-1', vesselIds: mock.activeVesselIds.filter(id => id !== 'quellon'), memberUids: ['u1'] },
+      { id: 'fleet-2', vesselIds: ['quellon'], memberUids: [] }];
+    mock.pursuitGroups = { 'fleet-1': 2, 'fleet-2': 2 };
+  }
+  const call = (jumpCallables as unknown as { confirmFleetPartition: { run: (request: unknown) => Promise<unknown> } }).confirmFleetPartition;
+  const command = request({ sessionId: 's1', instanceId: 'bridge', expectedNavigationRevision: 0 });
+  expect(await call.run(command)).toMatchObject({ navigationRevision: 1 });
+  expect(mock.set).toHaveBeenCalledWith(`sessions/s1/missionOpportunities/${nextId}`, expect.objectContaining({
+    ...mock.partitionOpportunities[0], id: nextId, groupId: 'fleet-2',
+  }));
+  expect(mock.delete).toHaveBeenCalledWith(`sessions/s1/missionOpportunities/${oldId}`);
+  mock.commandReceiptRecord = mock.set.mock.calls.find(([path]) => path === 'sessions/s1/commandReceipts/test-jump')?.[1];
+  mock.set.mockClear(); mock.delete.mockClear();
+  await call.run(command);
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.delete).not.toHaveBeenCalled();
+});
+
+it('leaves an already-started mission arrival bound to its immutable start', async () => {
+  mock.coordinates = { quellon: '1413' };
+  const id = 'arrival-fleet-1-A-1413';
+  mock.partitionOpportunities = [{ type: 'mission-opportunity', status: 'available',
+    sessionId: 's1', id, groupId: 'fleet-1', chart: 'A', coordinate: '1413', siteCode: 'A',
+    sourceShipId: 'quellon', sourceTransitionId: 'jump-original-arrival', sourceCycle: 1 }];
+  mock.startedOpportunityIds = [id];
+  await (jumpCallables as unknown as { confirmFleetPartition: { run: (request: unknown) => Promise<unknown> } })
+    .confirmFleetPartition.run(request({ sessionId: 's1', instanceId: 'bridge', expectedNavigationRevision: 0 }));
+  expect(mock.set.mock.calls.filter(([path]) => path.includes('/missionOpportunities/'))).toEqual([]);
+  expect(mock.delete).not.toHaveBeenCalled();
 });
 it('rejects stale fleet partition confirmation and unauthorised players before any write', async () => {
   const callable = (jumpCallables as unknown as { confirmFleetPartition: { run: (request: unknown) => Promise<unknown> } }).confirmFleetPartition;
