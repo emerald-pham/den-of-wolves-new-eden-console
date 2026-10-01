@@ -1721,3 +1721,20 @@ test('rejects unaudited Starlight fuel policy edits', () => {
       (revision === 'candidate' ? '\n// unaudited scout authority\n' : ''), isAncestor: () => false,
   }), /audited|audit/i);
 });
+
+const voyageCycleSourceAtRevision = (revision, file) => execFileSync('git', ['show',
+  `${revision === 'base' ? 'a1fd66dc5014ff3c9ea8035edecd8ca394e3d76c' : 'ebd0e6fd'}:${file}`,
+], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+test('deploys the captured-cycle Voyage command and its sole local receipt helper consumer', () => {
+  assert.deepEqual(selectedFunctions(deploymentSelector({ before: 'base', after: 'candidate',
+    files: ['functions/src/index.ts'], targets: ['functions'],
+    sourceAtRevision: voyageCycleSourceAtRevision, isAncestor: () => false,
+  })), ['functions:runVoyage33Maintenance']);
+});
+test('rejects an unaudited index helper edit mixed with Voyage cycle reconciliation', () => {
+  assert.throws(() => deploymentSelector({ before: 'base', after: 'candidate',
+    files: ['functions/src/index.ts'], targets: ['functions'],
+    sourceAtRevision: (revision, file) => voyageCycleSourceAtRevision(revision, file) +
+      (revision === 'candidate' ? '\n// unaudited shared helper edit\n' : ''), isAncestor: () => false,
+  }), /PC06|audit/i);
+});
