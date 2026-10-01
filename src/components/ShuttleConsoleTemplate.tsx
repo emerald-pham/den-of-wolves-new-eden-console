@@ -28,6 +28,7 @@ const SHUTTLE_CAPABILITIES: Record<ShuttleCapability, { component: ComponentType
   'press-dispatches': { component: PressDispatch, placement: 'workspace' },
 };
 const ScoutRequestControls = lazy(() => import('./ScoutRequestControls'));
+const ScoutTaxiCommunicationPanel = lazy(() => import('./ScoutTaxiCommunicationPanel'));
 
 function operationPhaseLabel(phase: ShuttleOperationPhase): string {
   if (phase === 'Team') return 'Airspace closed';
@@ -145,6 +146,10 @@ export default function ShuttleConsoleTemplate({
           {!controlPreview && scoutEntitlementId && <Suspense fallback={<p className="console-workspace__status">Loading scouting request controls…</p>}>
             <ScoutRequestControls key={scoutEntitlementId} entitlementId={scoutEntitlementId} />
           </Suspense>}
+          {!controlPreview && control && (shuttle.id === 'starlight' || shuttle.id === 'hummingbird') &&
+            <Suspense fallback={<p className="console-workspace__status">Loading scout taxi courier…</p>}>
+              <ScoutTaxiCommunicationPanel shuttleId={shuttle.id === 'starlight' ? 'starlight' : 'hummingbird'} control={control} />
+            </Suspense>}
           {!controlPreview && shuttle.id === 'endeavour' && control?.shuttleId === 'endeavour' &&
             <EndeavourResearchPanel control={control} />}
           {controlPreview ? <ShuttleControlReview snapshot={controlPreview} /> :
