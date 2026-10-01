@@ -14697,8 +14697,9 @@ export const sendScoutTaxiCourier = onCall(async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = ['sessionId', 'requestId', 'shuttleId', 'targetShipId', 'text',
-    'expectedCycle', 'expectedControlRevision', 'expectedNavigationRevision'];
+    'expectedCycle', 'expectedControlRevision', 'expectedNavigationRevision', 'reconcileOnly'];
   if (!isRecord(raw) || Object.keys(raw).some(key => !allowed.includes(key)) ||
+      (raw.reconcileOnly !== undefined && raw.reconcileOnly !== true) ||
       typeof raw.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(raw.sessionId) ||
       typeof raw.requestId !== 'string' || !isCanonicalRequestId(raw.requestId) ||
       !['starlight', 'hummingbird'].includes(String(raw.shuttleId)) ||
@@ -14710,7 +14711,7 @@ export const sendScoutTaxiCourier = onCall(async request => {
     throw new HttpsError('invalid-argument', 'Invalid scout taxi courier request.');
   }
   const data = raw as { sessionId: string; requestId: string; shuttleId: 'starlight' | 'hummingbird';
-    targetShipId: string; text: string; expectedCycle: number; expectedControlRevision: number; expectedNavigationRevision: number };
+    targetShipId: string; text: string; expectedCycle: number; expectedControlRevision: number; expectedNavigationRevision: number; reconcileOnly?: true };
   const fingerprint: CommandFingerprint = { action: 'scout-taxi-authority', sessionId: data.sessionId,
     requestId: data.requestId, actorUid: uid, instanceId: null, expectedRevision: data.expectedControlRevision,
     payload: { shuttleId: data.shuttleId, targetShipId: data.targetShipId, text: data.text.trim(),
@@ -14730,12 +14731,6 @@ export const sendScoutTaxiCourier = onCall(async request => {
       throw new HttpsError('permission-denied', 'A connected scout owner is required.');
     }
     requirePlayerShipActionAuthority(actor);
-    requireActiveGameplayPhase(session);
-    requireActionPhase(session, 'scouting', 'player');
-    requireMissionMovementAvailable(session, [data.shuttleId]);
-    if (attack.exists && wolfAttackBlocksNormalMovement(attack.data())) {
-      throw new HttpsError('failed-precondition', 'Wait until the Wolf attack is resolved.');
-    }
     const { activeRoleIds, activeVesselIds } = strictScoutRosters(session);
     const parsedGroups = movementPursuitFleetGroups(activeVesselIds, groups, players);
     if ((session.get('chartSelectionLocked') !== true && session.get('configurationLocked') !== true) || !navigation.exists) {
@@ -14752,9 +14747,42 @@ export const sendScoutTaxiCourier = onCall(async request => {
     const savedIndex = cadence.scans.findIndex(entry => entry.requestId === data.requestId);
     if (replay && (savedIndex < 0 || !audit.exists)) throw new HttpsError('failed-precondition', 'The courier receipt is incomplete.');
     if (!replay && (savedIndex >= 0 || audit.exists)) throw new HttpsError('failed-precondition', 'The courier has no matching receipt.');
+    if (data.reconcileOnly === true) {
+      // No delivery is allowed here. Monotonic authority changes make an
+      // uncommitted old request impossible to commit, including a transaction
+      // racing this read (both transactions read the session/navigation).
+      if (replay) {
+        const visit = audit.get('visit');
+        const scan = cadence.scans[savedIndex];
+        if (!isRecord(visit) || !isRecord(visit.origin) || !isRecord(visit.target) ||
+            visit.authorityPath !== 'scout-taxi-authority' || visit.sessionId !== data.sessionId ||
+            visit.requestId !== data.requestId || visit.actorUid !== uid || visit.cycle !== data.expectedCycle ||
+            visit.shuttleId !== data.shuttleId || visit.controlRevision !== data.expectedControlRevision ||
+            visit.navigationRevision !== data.expectedNavigationRevision || visit.text !== data.text.trim() ||
+            visit.target.shipId !== data.targetShipId || visit.origin.groupId !== actor.get('fleetGroupId') ||
+            scan?.actorUid !== uid || scan?.requestId !== data.requestId) {
+          throw new HttpsError('failed-precondition', 'The prior courier cannot be reconciled in this audience.');
+        }
+        return { ...replay, status: 'replayed' as const };
+      }
+      const controls = session.get('shuttleControl');
+      const control = isRecord(controls) ? controls[data.shuttleId] : undefined;
+      const obsolete = session.get('currentTurn') !== data.expectedCycle ||
+        navigation.get('revision') !== data.expectedNavigationRevision ||
+        (isRecord(control) && control.revision !== data.expectedControlRevision);
+      if (!obsolete) throw new HttpsError('failed-precondition', 'The original courier may still finish. Retry its exact request.');
+      return { status: 'not-delivered' as const, requestId: data.requestId, shuttleId: data.shuttleId,
+        targetShipId: data.targetShipId, cycle: data.expectedCycle };
+    }
+    requireActiveGameplayPhase(session);
+    requireActionPhase(session, 'scouting', 'player');
+    requireMissionMovementAvailable(session, [data.shuttleId]);
+    if (attack.exists && wolfAttackBlocksNormalMovement(attack.data())) {
+      throw new HttpsError('failed-precondition', 'Wait until the Wolf attack is resolved.');
+    }
     let plan;
     try {
-      plan = planScoutTaxiCommunication({ request: data, sessionId: data.sessionId, actorUid: uid,
+      plan = planScoutTaxiCommunication({ request: Object.fromEntries(Object.entries(data).filter(([key]) => key !== 'reconcileOnly')), sessionId: data.sessionId, actorUid: uid,
         actor: { uid, active: true, playerRole: actor.get('role'), connected: actor.get('connected'),
           assignedRoleId: actor.get('assignedRoleId'), seatId: actor.get('seatId'), replacementRoleId: actor.get('replacementRoleId'),
           fleetGroupId: actor.get('fleetGroupId') },
@@ -14768,8 +14796,8 @@ export const sendScoutTaxiCourier = onCall(async request => {
     } catch {
       throw new HttpsError('failed-precondition', 'The current taxi owner, route, capacity or movement authority is unavailable. Refresh before retrying.');
     }
-    requireUsableShip(session, plan.anchorShipId);
-    requireUsableShip(session, plan.target.shipId);
+    requireNavigableShip(session, plan.anchorShipId);
+    requireNavigableShip(session, plan.target.shipId);
     const { nextCadence, ...boundVisit } = plan;
     const notesRef = db.doc(`sessions/${data.sessionId}/fleetGroupMessages/${plan.target.groupId}`);
     const notes = await tx.get(notesRef);

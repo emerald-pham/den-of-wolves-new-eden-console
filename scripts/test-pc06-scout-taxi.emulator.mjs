@@ -78,6 +78,35 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
       assert.deepEqual((await navigation.get()).data(), beforeNavigation);
       assert.equal((await db.doc(`sessions/${id}/players/${explorer}`).get()).get('fleetGroupId'), 'fleet-2');
       assert.equal((await db.collection(`sessions/${id}/commandReceipts`).get()).size, 1);
+      const unchangedDelivery = async () => Promise.all([
+        db.doc(`sessions/${id}/fleetGroupMessages/fleet-1`).get(),
+        db.doc(`sessions/${id}/scoutCadence/3-hummingbird`).get(),
+        db.doc(`sessions/${id}/scoutTaxiCourierAudits/taxi-native`).get(),
+        db.doc(`sessions/${id}/commandReceipts/taxi-native`).get(),
+      ]).then(snapshots => snapshots.map(snapshot => snapshot.data()));
+      const delivered = await unchangedDelivery();
+      await session.update({ currentTurn: 4, turnPhase: { ...beforeSession.turnPhase, turn: 4 } });
+      for (const shipId of ['aegis', 'quellon']) {
+        await session.update({ shipDamage: { [shipId]: { destroyed: true, damagedSystemIds: [] } } });
+        const denied = { ...data, expectedCycle: 4, requestId: `destroyed-${shipId}` };
+        await assert.rejects(sendScoutTaxiCourier.run(call(explorer, denied)), error => error.code === 'failed-precondition' && /Destroyed ships/.test(error.message));
+        assert.equal((await db.doc(`sessions/${id}/commandReceipts/${denied.requestId}`).get()).exists, false);
+        assert.equal((await db.doc(`sessions/${id}/scoutTaxiCourierAudits/${denied.requestId}`).get()).exists, false);
+        assert.deepEqual(await unchangedDelivery(), delivered);
+      }
+      await session.update({ currentTurn: 4, shipDamage: {} });
+      await navigation.update({ revision: 3 });
+      assert.deepEqual(await sendScoutTaxiCourier.run(call(explorer, { ...data, reconcileOnly: true })), {
+        status: 'replayed', requestId: data.requestId, shuttleId: data.shuttleId, targetShipId: data.targetShipId, cycle: 3,
+      });
+      assert.deepEqual(await sendScoutTaxiCourier.run(call(explorer, { ...data, requestId: 'never-delivered', reconcileOnly: true })), {
+        status: 'not-delivered', requestId: 'never-delivered', shuttleId: data.shuttleId, targetShipId: data.targetShipId, cycle: 3,
+      });
+      await assert.rejects(sendScoutTaxiCourier.run(call(explorer, { ...data, requestId: 'never-delivered' })),
+        error => error.code === 'failed-precondition');
+      assert.deepEqual(await unchangedDelivery(), delivered);
+      assert.equal((await db.collection(`sessions/${id}/commandReceipts`).get()).size, 1);
+
     } finally { await db.recursiveDelete(session); }
   });
 }

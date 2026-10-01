@@ -88,3 +88,15 @@ it('reconciles a committed old request without submitting a new delivery after n
   expect(ids).toHaveBeenCalledTimes(1);
   expect(transport).toHaveBeenCalledTimes(2);
 });
+
+it('keeps a known late delivery bound until the new authority reconciles it', async () => {
+  let live = context;
+  const transport = vi.fn().mockImplementationOnce(async () => { live = { ...context, navigationRevision: 3 }; return reply; })
+    .mockResolvedValueOnce({ ...reply, status: 'replayed' });
+  const ids = vi.fn().mockReturnValue('taxi-1');
+  const actions = createScoutTaxiCommunicationActions(() => live, transport, ids);
+  await expect(actions.send('aegis', 'Hold position.')).rejects.toThrow(/changed/i);
+  expect(await actions.send('aegis', 'Hold position.')).toMatchObject({ status: 'replayed' });
+  expect(transport.mock.calls[1]?.[0]).toMatchObject({ requestId: 'taxi-1', reconcileOnly: true });
+  expect(ids).toHaveBeenCalledTimes(1);
+});
