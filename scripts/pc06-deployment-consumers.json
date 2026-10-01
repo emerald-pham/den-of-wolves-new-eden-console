@@ -555,6 +555,13 @@
       "consumers": [
         "getBoardingSecurityTeamLocations"
       ]
+    },
+    "functions/src/missionEligibility.ts": {
+      "before": "88bd7c337e8675b32c4422f3ed13ed760437ecc9e57e0433c1c3eed824c6142f",
+      "after": "b53237569bd244fa53029ce6722b3f48f3008c2e40635079436f73221682eb13",
+      "consumers": [
+        "confirmFleetPartition"
+      ]
     }
   },
   "indexTransitions": [
