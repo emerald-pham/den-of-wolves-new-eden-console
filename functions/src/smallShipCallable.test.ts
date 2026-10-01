@@ -770,3 +770,14 @@ for (const smallShipId of ['gorgoneion', 'capybara-small'] as const) {
     }))).resolves.toMatchObject({ status: 'committed', hostShipId: 'dione', committedRevision: 2 });
   });
 }
+
+it('does not invent a new coordinate for an established detached craft with missing movement authority', async () => {
+  mock.session.smallShipStates = {
+    gorgoneion: { ...emptySmallShipState('gorgoneion'), dockingRevision: 2 },
+  };
+  await expect(setSmallShipDocking.run(request({
+    ...dockingBase, expectedRevision: 2, requestId: 'dock-detached-missing-authority',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
