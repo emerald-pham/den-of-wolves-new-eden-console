@@ -681,6 +681,8 @@ describe('Voyage 33-0 movement workspace', () => {
     const sessionId = 'voyage-workspace-maintenance-earlier-cycle';
     const base = emptyVoyage33MaintenanceState('aegis');
     const session = sessionFixture(sessionId, {
+      currentTurn: 2,
+      turnPhase: { ...phase('team'), turn: 2 },
       voyage33Movement: movementState('0000', 2),
       voyage33Maintenance: {
         ...base,
@@ -689,7 +691,7 @@ describe('Voyage 33-0 movement workspace', () => {
           ...base.cycle,
           step: 2,
           revision: 2,
-          turn: 0,
+          turn: 1,
           rationBonus: 6,
           results: { '1': 'Rations already resolved in the earlier cycle.' },
         },
@@ -710,7 +712,7 @@ describe('Voyage 33-0 movement workspace', () => {
         state: currentState,
         action: action as string,
         expectedRevision: expectedRevision as number,
-        currentTurn: 1,
+        currentTurn: 2,
         hostResources: currentResources,
         rolls: action === 'unrest' ? [6, 6] : action === 'riot' ? [6] : [],
         ...(typeof choices === 'object' && choices !== null ? choices as object : {}),
@@ -729,7 +731,7 @@ describe('Voyage 33-0 movement workspace', () => {
         committedRevision: currentState.cycle.revision,
         expectedDockingRevision,
         currentDockingRevision: currentState.dockingRevision,
-        currentTurn: 1,
+        currentTurn: 2,
         cycle: currentState.cycle,
         result,
       };
@@ -747,7 +749,7 @@ describe('Voyage 33-0 movement workspace', () => {
     expect(within(maintenance).getByRole('button', { name: /roll unrest/i })).toBeEnabled();
     expect(within(maintenance).queryByLabelText('Voyage 33-0 food ration level')).not.toBeInTheDocument();
     expect(within(maintenance).queryByRole('button', { name: /begin maintenance cycle/i })).not.toBeInTheDocument();
-    expect(maintenance.querySelector('.voyage33-maintenance__notice')).toHaveTextContent(/unfinished maintenance cycle from Cycle 0 remains at Step 2/i);
+    expect(maintenance.querySelector('.voyage33-maintenance__notice')).toHaveTextContent(/unfinished maintenance cycle from Cycle 1 remains at Step 2/i);
     expect(within(maintenance).queryByText(/\bturn\b/i)).not.toBeInTheDocument();
 
     fireEvent.click(within(maintenance).getByRole('button', { name: /roll unrest/i }));
@@ -756,7 +758,7 @@ describe('Voyage 33-0 movement workspace', () => {
     fireEvent.click(within(maintenance).getByRole('button', { name: /Resolve console charging/i }));
     fireEvent.click(await within(maintenance).findByRole('button', { name: /end maintenance cycle/i }));
 
-    const begin = await within(maintenance).findByRole('button', { name: /begin maintenance cycle \/\/ cycle 1/i });
+    const begin = await within(maintenance).findByRole('button', { name: /begin maintenance cycle \/\/ cycle 2/i });
     expect(runVoyage33Maintenance.mock.calls.map(([action]) => action)).toEqual([
       'unrest', 'riot', 'reactor', 'end',
     ]);
