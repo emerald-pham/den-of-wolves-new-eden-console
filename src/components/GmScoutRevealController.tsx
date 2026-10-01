@@ -18,6 +18,7 @@ export default function GmScoutRevealController() {
     let disposed = false;
     if (!sessionId || !uid || role !== 'gm' || !instanceId) return;
     setRequests([]);
+    setFeedback('');
     void listPendingScoutRequests().then((pending) => {
       if (!disposed) setRequests(pending);
     }).catch(() => {

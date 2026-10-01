@@ -46,6 +46,9 @@ function SmallShipCard({ id, state, currentTurn, activeHostShipIds, available, c
   const registeredReactorConsoles = vessel?.systems?.map(({ id: systemId, name }) => ({
     id: systemId, name,
   })) ?? [];
+  const repairDroneConsoles = id === 'gorgoneion' || id === 'warrior'
+    ? [{ id: 'repair-drones', name: 'Repair Drones' }]
+    : [];
   const genericReactorConsoles = Array.from(
     { length: Math.max(0, rules.reactorCapacity - registeredReactorConsoles.length) },
     (_, index) => ({
@@ -158,7 +161,7 @@ function SmallShipCard({ id, state, currentTurn, activeHostShipIds, available, c
               ? BASE_CAPYBARA_PRODUCTION_CONSOLES
               : id === 'vulcan'
                 ? [...registeredReactorConsoles, ...VULCAN_ADDITIONAL_LABOUR_REACTOR_CONSOLES]
-                : [...registeredReactorConsoles, ...genericReactorConsoles])
+                : [...registeredReactorConsoles, ...repairDroneConsoles, ...genericReactorConsoles])
               .map((console) => {
                 const checked = consoles.includes(console.id);
                 const atCapacity = consoles.length >= rules.reactorCapacity;
