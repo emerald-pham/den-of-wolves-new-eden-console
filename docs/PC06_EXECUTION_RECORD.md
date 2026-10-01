@@ -361,3 +361,52 @@ native geometry-read counts remain identical. Evidence lives under
 deployment tuples or fixed PC06 allocation changed. Independent successor
 review and affected final gates remain before the next justified candidate CI
 push and required exact-main deployment checks.
+
+## Verified deployment and live-proof resume boundary
+
+Independent Sol 6.1 xhigh review approved exact clean
+`33f9bc04490294e65ef0e052631668efac8c4686`. Its actual-source comparison found
+zero differences across 480 geometry phases and 10,032 targeted scoring cases,
+including 26,364 pruned lanes, 177 exact tied prunes and 1,758 pruned matching
+clear-lane cases. All 12 affected final local gates pass, with 2,795 unit tests,
+complete normal/reduced ticker lifecycles, fonts/typography, native performance,
+bundle and eight scene viewport/motion cases. Evidence is preserved at
+`/tmp/pc06-approved-33f-local-validation`.
+
+The single repaired candidate CI run `36831996571` passed with 15 mobile long
+frames against the unchanged cap of 70. Normal fast-forward main push then
+started required Deploy run `36833975463`. All exact-main jobs passed on their
+first attempt; its render artifact records 61 long frames and the same 22,088
+mobile/5,175 DRADIS label reads. These are separate native measurements, not a
+claim about broad hardware or model speed. Evidence is retained at
+`/tmp/pc06-ci-scoring-performance/results.json` and
+`/tmp/pc06-main-scoring-performance/results.json`.
+
+Deployment completed successfully at 2026-10-01 08:23:44 UTC. The exact checked
+artifact is build 0.5.59 from `33f9bc04`; current-tip guards passed. Hosting
+version and all 134 selected new ready Function revisions passed verification.
+Firebase compiled and released `firestore.rules`. The verifier's Firestore
+check confirms the expected Native database exists, not a rules content hash.
+Logs and machine-readable conclusions are preserved at
+`/tmp/pc06-scoring-deploy.log`, `/tmp/pc06-main-scoring-success.log` and
+`/tmp/pc06-main-scoring-result.json`. No retry or new PR was needed for this
+successor. PR #11 remains the single merged checkpoint PR.
+
+The deployed [solo scene](https://dow-new-eden-console.web.app/pc06-review.html)
+is strictly local prepared state with no production actions. All 49 rows now
+record source/build deployment separately in the acceptance matrix; every
+ordinary-live cell remains pending. Catalog status/dependencies/views and build
+version are unchanged, with 507/751 completed and no assigned closure credited.
+The fixed target remains 556/751 and 98/293.
+
+Supported production browser access is still denied because administrator
+policy cannot be verified/security checking is unavailable. The deployment's
+Firebase callable invoker restoration is unrelated to that tool denial and
+does not justify a retry or bypass. Useful implementation, review, validation,
+release and metadata work is now complete. Resume after that access is restored:
+use the normal PC06 Test Facilitator session (Casting, chart/roster confirmed,
+one unassigned player, no game started; motion already selected), verify the 49
+ordinary acceptances plus Demo-to-Cycle-1 and actual P371 Cloud Tasks enqueue /
+private worker execution, then reconcile catalog closures and generated views.
+No credentials/session codes are recorded here. Preserve the stable owner
+checkout and parked worker branches; no worktree cleanup is performed.
