@@ -99,3 +99,51 @@ test('computed typography uses complete target readiness before measurement', ()
   assert.ok(browserGate.includes('await waitForTypographyTargets(page, surface.targets)'),
     'the full gate must wait for every required sample, including lazy GM controls');
 });
+
+
+test('local typography fixture permits only its own Vite origin', async () => {
+  const { installTypographyNetworkBoundary } = await import('./typography-browser-readiness.mjs');
+  let handler;
+  const context = { route: async (pattern, callback) => {
+    assert.equal(pattern, '**/*');
+    handler = callback;
+  } };
+  await installTypographyNetworkBoundary(context, 'http://127.0.0.1:4321');
+  const decisions = [];
+  for (const url of [
+    'http://127.0.0.1:4321/src/components/GmStarmapModule.tsx',
+    'http://127.0.0.1:4321/fonts/ShareTechMono-Regular.woff2',
+    'https://us-central1-example.cloudfunctions.net/resumeSession',
+    'https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel',
+    'http://127.0.0.1:9999/other-app',
+  ]) {
+    await handler({
+      request: () => ({ url: () => url }),
+      continue: async () => { decisions.push(['continue', url]); },
+      abort: async (reason) => { decisions.push(['abort', url, reason]); },
+    });
+  }
+  assert.deepEqual(decisions.map(([action, , reason]) => [action, reason]), [
+    ['continue', undefined], ['continue', undefined],
+    ['abort', 'internetdisconnected'], ['abort', 'internetdisconnected'],
+    ['abort', 'internetdisconnected'],
+  ]);
+});
+
+test('fixture network boundary rejects a nonlocal application origin', async () => {
+  const { installTypographyNetworkBoundary } = await import('./typography-browser-readiness.mjs');
+  let registered = false;
+  const context = { route: async () => { registered = true; } };
+  await assert.rejects(
+    installTypographyNetworkBoundary(context, 'https://example.web.app'),
+    /local Vite origin/,
+  );
+  assert.equal(registered, false);
+});
+
+test('render fixture installs its network boundary before opening the page', () => {
+  assert.ok(browserGate.includes('await installTypographyNetworkBoundary(context, appUrl)'),
+    'local synthetic state must not race real production resume requests');
+  assert.ok(browserGate.indexOf('await installTypographyNetworkBoundary(context, appUrl)') <
+    browserGate.indexOf('const page = await context.newPage()'));
+});
