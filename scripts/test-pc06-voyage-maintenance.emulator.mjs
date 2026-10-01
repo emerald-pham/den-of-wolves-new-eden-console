@@ -56,7 +56,13 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
         const result = await runVoyage33Maintenance.run(call(data));
         assert.equal(result.status, 'committed');
         revision = result.cycle.revision;
-        if (choice.action === 'rations') assert.deepEqual(result.result.hostResources, { ...inventory, food: 17, water: 20 });
+        if (choice.action === 'rations') {
+          assert.deepEqual(result.result.hostResources, { ...inventory, food: 17, water: 20 });
+          await session.update({ currentTurn: 2, 'turnPhase.turn': 2 });
+        } else if (choice.action !== 'begin') {
+          assert.equal(result.cycle.turn, 1, 'remaining actions finish the preserved earlier cycle');
+          assert.equal(result.currentTurn, 2, 'current authority advances without duplicating old rations');
+        }
         if (choice.action === 'unrest') assert.match(result.cycle.results['2'], /Rolled [1-6] \+ [1-6]/);
         if (choice.action === 'reactor') {
           assert.deepEqual(result.cycle.charges, ['hydroponics']);
