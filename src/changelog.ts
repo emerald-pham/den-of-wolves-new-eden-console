@@ -27,6 +27,19 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 507, partial: 35, active: 0, missing: 209, blocked: 0,
     },
     changes: [
+      'Pending away missions now stay with their arriving ship when the facilitator confirms separated fleets.',
+      'Gorgoneion and Warrior can charge Repair Drones during maintenance. Refreshing a recovered scout queue clears its old error.',
+      '507 of 751 planned items are complete in the catalog snapshot used to build this release (67.51%).',
+      'PC06 gameplay verification continues.',
+    ],
+  },
+  {
+    version: '0.5.60',
+    implementationProgress: {
+      completed: 507, total: 751, percentage: '67.51%',
+      done: 507, partial: 35, active: 0, missing: 209, blocked: 0,
+    },
+    changes: [
       'Shuttle refuelling during ship maintenance now saves a valid receipt, preserving safe retries and fuel accounting.',
       '507 of 751 planned items are complete in the catalog snapshot used to build this release (67.51%).',
       'PC06 gameplay verification continues.',
