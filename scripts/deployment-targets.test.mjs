@@ -1636,3 +1636,20 @@ test('rejects a changed PC06 source outside its explicit module or index audit',
       (revision === PC06_IMPLEMENTATION_CANDIDATE && path === file ? '\n// unaudited authority edit\n' : '')), /PC06|audited|audit/);
   }
 });
+
+const refuelSourceAtRevision = (revision) => execFileSync('git', [
+  'show', `${revision === 'base' ? '1f4558b11c53d8e70c76119c27483e40a180c681' : '4c255fb0f974cf9505c956d547de67e4b647401b'}:functions/src/index.ts`,
+], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+test('deploys runMaintenance for its helper-only Firestore refuel receipt repair', () => {
+  assert.deepEqual(selectedFunctions(deploymentSelector({
+    before: 'base', after: 'candidate', files: ['functions/src/index.ts'], targets: ['functions'],
+    sourceAtRevision: refuelSourceAtRevision, isAncestor: () => false,
+  })), ['functions:runMaintenance']);
+});
+test('rejects additional index edits mixed with the audited refuel receipt repair', () => {
+  assert.throws(() => deploymentSelector({
+    before: 'base', after: 'candidate', files: ['functions/src/index.ts'], targets: ['functions'],
+    sourceAtRevision: (revision) => refuelSourceAtRevision(revision) +
+      (revision === 'candidate' ? '\n// unaudited helper edit\n' : ''), isAncestor: () => false,
+  }), /PC06|audit/);
+});
