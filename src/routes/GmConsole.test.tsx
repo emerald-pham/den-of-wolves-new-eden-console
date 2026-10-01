@@ -147,8 +147,19 @@ it('mounts security-team locations only for a live, fresh GM in an active sessio
     },
   } as never);
 
-  renderConsole();
-  expect(await screen.findByRole('region', { name: 'Security team locations' })).toBeInTheDocument();
+  await act(async () => {
+    renderConsole();
+    // Await the real shared Suspense boundary instead of treating module load
+    // scheduling under full-suite CPU contention as a one-second product gate.
+    await Promise.all([
+      import('@/components/SmallShipOperations'),
+      import('@/components/BoardingSecurityTeamWorkspace'),
+      import('@/components/GmStarmapModule'),
+      import('@/components/GmScoutRevealController'),
+      import('@/components/SameTableTradeBaselineWorkspace'),
+    ]);
+  });
+  expect(screen.getByRole('region', { name: 'Security team locations' })).toBeInTheDocument();
   expect(getBoardingSecurityTeamLocations).toHaveBeenCalledTimes(1);
 });
 
