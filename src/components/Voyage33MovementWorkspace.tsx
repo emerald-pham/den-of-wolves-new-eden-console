@@ -382,6 +382,27 @@ export default function Voyage33MovementWorkspace() {
 
   const connectionState = connectionFor(connection);
   const invalidProjection = !!session && (!maintenance || session.voyage33Movement !== undefined && !movement);
+  const workspaceGateMessage = !session ? 'No current session projection is available.'
+    : !gmCurrent ? 'The current GM instance changed. Reopen the facilitator console before controlling Voyage 33-0.'
+    : !admission ? 'Voyage 33-0 is not admitted in the current session.'
+    : !fresh ? 'Waiting for a current live server snapshot. Movement actions remain unavailable.'
+    : invalidProjection ? 'The Voyage 33-0 host or movement projection is malformed. Refresh the live session before acting.'
+    : undefined;
+  const showCurrentWorkspace = workspaceGateMessage === undefined;
+  const maintenancePanel = session && admission && maintenance && rawHostId && host ? (
+    <Voyage33MaintenancePanel
+      session={session}
+      state={maintenance}
+      hostShipId={rawHostId}
+      hostName={host.name}
+      hostResources={session.shipResources?.[rawHostId]}
+      currentTurn={turn}
+      phase={phase.kind}
+      authorityReady={hostProjectionValid && gmCurrent && fresh && activeMultiplayer &&
+        !phase.paused && phase.kind === 'team' && !projectionGuard &&
+        outcome.status !== 'pending' && connectionState === 'live' && online}
+    />
+  ) : null;
   const commonBoundary = (
     <p className="gm-console__status">
       Server-authorized movement // location and host fuel readouts follow the current session projection.
@@ -392,17 +413,8 @@ export default function Voyage33MovementWorkspace() {
     <section className="gm-console__module cic-frame" aria-label="Voyage 33-0 movement workspace">
       <h2 className="gm-console__section-title">Voyage 33-0 // movement and host fuel</h2>
       {commonBoundary}
-      {!session ? (
-        <p role="status">No current session projection is available.</p>
-      ) : !gmCurrent ? (
-        <p role="status">The current GM instance changed. Reopen the facilitator console before controlling Voyage 33-0.</p>
-      ) : !admission ? (
-        <p role="status">Voyage 33-0 is not admitted in the current session.</p>
-      ) : !fresh ? (
-        <p role="status">Waiting for a current live server snapshot. Movement actions remain unavailable.</p>
-      ) : invalidProjection ? (
-        <p role="status">The Voyage 33-0 host or movement projection is malformed. Refresh the live session before acting.</p>
-      ) : (
+      {workspaceGateMessage && <p role="status">{workspaceGateMessage}</p>}
+      {showCurrentWorkspace && (
         <>
           {!movement && maintenance?.hostShipId === null && (
             <p className="gm-console__status">
@@ -414,7 +426,7 @@ export default function Voyage33MovementWorkspace() {
               Movement is paused until the facilitator resumes the current cycle.
             </p>
           )}
-          {session.phase !== 'active' || session.singlePlayerDemo != null ? (
+          {session?.phase !== 'active' || session?.singlePlayerDemo != null ? (
             <p className="gm-console__status" role="status">
               Voyage 33-0 movement is available only in an active multiplayer session.
             </p>
@@ -427,20 +439,11 @@ export default function Voyage33MovementWorkspace() {
               {notice.message}
             </p>
           )}
-          {rawHostId && maintenance && host && hostProjectionValid && (
-            <Voyage33MaintenancePanel
-              session={session}
-              state={maintenance}
-              hostShipId={rawHostId}
-              hostName={host.name}
-              hostResources={session.shipResources?.[rawHostId]}
-              currentTurn={turn}
-              phase={phase.kind}
-              authorityReady={admission && gmCurrent && fresh && activeMultiplayer &&
-                !phase.paused && phase.kind === 'team' && !projectionGuard &&
-                outcome.status !== 'pending' && connectionState === 'live' && online}
-            />
-          )}
+        </>
+      )}
+      {maintenancePanel}
+      {showCurrentWorkspace && (
+        <>
           {projectionGuard ? (
             <p className="gm-console__status" role="status">
               {projectionGuard.kind === 'stale' ? 'STALE' : 'COMMITTED'} // Waiting for live movement revision {projectionGuard.movementRevision} and docking revision {projectionGuard.dockingRevision}. Actions are held until the session projection catches up.

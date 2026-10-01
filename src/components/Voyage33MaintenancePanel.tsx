@@ -180,10 +180,12 @@ function projectionMatches(session: GameSession | null, guard: ReceiptGuard): bo
   return sameMaintenanceState(state, guard.state);
 }
 
-function attemptStillMatches(attempt: Attempt): boolean {
+function attemptStillMatches(attempt: Attempt, allowAdvancedCycle = false): boolean {
   const current = useSessionStore.getState();
   const currentSession = current.session;
   const currentState = parseVoyage33MaintenanceState(currentSession?.voyage33Maintenance);
+  const revisionMatches = currentState?.cycle.revision === attempt.expectedRevision ||
+    allowAdvancedCycle && currentState !== undefined && currentState.cycle.revision > attempt.expectedRevision;
   return typeof window !== 'undefined' && window.navigator.onLine &&
     current.connection === 'live' && current.sessionSnapshotFreshness === 'server' &&
     currentSession?.id === attempt.sessionId && current.me?.uid === attempt.uid &&
@@ -192,7 +194,7 @@ function attemptStillMatches(attempt: Attempt): boolean {
     current.gmInstance.uid === attempt.uid && currentSession.phase === 'active' &&
     currentSession.singlePlayerDemo == null && currentSession.currentTurn === attempt.turn &&
     currentState?.hostShipId === attempt.hostShipId &&
-    currentState.cycle.revision === attempt.expectedRevision &&
+    revisionMatches &&
     currentState.dockingRevision === attempt.expectedDockingRevision;
 }
 
@@ -238,14 +240,14 @@ export default function Voyage33MaintenancePanel({
   const inCurrentCycle = state.cycle.turn === currentTurn;
   const alreadyCompleted = state.cycle.step === 0 && inCurrentCycle;
   const cycleFromPriorTurn = state.cycle.step > 0 && !inCurrentCycle;
+  const previousCycleLabel = typeof state.cycle.turn === 'number' ? `Cycle ${state.cycle.turn}` : 'an earlier cycle';
   const controlsHeld = !!guard || !!attempt;
   let blockedReason: string | undefined;
   if (phase !== 'team') blockedReason = 'Voyage 33-0 maintenance is available during Team Phase.';
   else if (!authorityReady) blockedReason = 'Wait for the live GM session, active host, and current server projection before maintenance.';
   else if (!currentResources) blockedReason = 'The docked host resource projection is unavailable.';
   else if (inMutiny) blockedReason = 'Mutiny lock // a captain change is required before maintenance.';
-  else if (cycleFromPriorTurn) blockedReason = 'The maintenance cycle belongs to an earlier turn. Refresh the live session before proceeding.';
-  else if (alreadyCompleted) blockedReason = 'This maintenance cycle is already complete for the current turn.';
+  else if (alreadyCompleted) blockedReason = `This maintenance cycle is already complete for Cycle ${currentTurn}.`;
   else if (controlsHeld) blockedReason = guard?.kind === 'stale'
     ? 'STALE // waiting for the latest live maintenance and host projection.'
     : guard?.kind === 'committed'
@@ -306,7 +308,7 @@ export default function Voyage33MaintenancePanel({
       const normalized = normalizeCommandError(cause);
       if (UNCERTAIN_CODES.has(code)) {
         setAttempt(nextAttempt);
-        setFeedback({ role: 'alert', message: `UNCERTAIN // ${normalized.message} Retry only this exact request while the same live GM instance and maintenance revisions remain current.` });
+        setFeedback({ role: 'alert', message: `UNCERTAIN // ${normalized.message} Retry only this exact request while the same live GM instance and docked host remain current.` });
       } else {
         setAttempt(null);
         setFeedback({ role: 'alert', message: `DENIED // ${normalized.message}` });
@@ -340,8 +342,8 @@ export default function Voyage33MaintenancePanel({
 
   const retryExact = () => {
     if (!attempt || pending) return;
-    if (!attemptStillMatches(attempt)) {
-      setFeedback({ role: 'alert', message: 'The original GM instance or maintenance revisions are no longer current. Keep this request unresolved and restore its exact live context before retrying.' });
+    if (!attemptStillMatches(attempt, true)) {
+      setFeedback({ role: 'alert', message: 'The original GM instance, docked host, or current cycle context changed. Keep this request unresolved and restore its exact live context before retrying.' });
       return;
     }
     void perform(attempt);
@@ -381,22 +383,24 @@ export default function Voyage33MaintenancePanel({
         <p className="voyage33-maintenance__notice" role="status">Mutiny lock // maintenance remains unavailable until the captain is replaced.</p>
       )}
       {cycleFromPriorTurn && (
-        <p className="voyage33-maintenance__notice" role="status">This maintenance cycle belongs to an earlier turn. Refresh before acting.</p>
+        <p className="voyage33-maintenance__notice" role="status">
+          An unfinished maintenance cycle from {previousCycleLabel} remains at Step {step}. Continue its recorded steps before beginning Cycle {currentTurn}.
+        </p>
       )}
       {alreadyCompleted && (
-        <p className="voyage33-maintenance__notice" role="status">This maintenance cycle is already complete for the current turn.</p>
+        <p className="voyage33-maintenance__notice" role="status">This maintenance cycle is already complete for Cycle {currentTurn}.</p>
       )}
       {chargingSkipped && step === 4 && (
         <p className="voyage33-maintenance__notice" role="status">Population loss skipped console charging. Confirm the skipped reactor step to continue.</p>
       )}
-      {blockedReason && phase === 'team' && !inMutiny && !cycleFromPriorTurn && !alreadyCompleted && (
+      {blockedReason && phase === 'team' && !inMutiny && !alreadyCompleted && (
           <p className="voyage33-maintenance__notice" role="status">{blockedReason}</p>
       )}
 
       <section className="voyage33-maintenance__controls" aria-label="Four-step Team maintenance">
         {step === 0 && !alreadyCompleted && (
           <button className="cic-action-button" type="button" disabled={disabled}
-            onClick={() => submit('begin')}>Begin maintenance cycle // Turn {currentTurn}</button>
+            onClick={() => submit('begin')}>Begin maintenance cycle // Cycle {currentTurn}</button>
         )}
         {step === 1 && (
           <fieldset className="maintenance-controls" disabled={disabled}>
