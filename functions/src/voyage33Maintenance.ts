@@ -1,6 +1,7 @@
 import { VOYAGE_33_ID, VOYAGE_33_POPULATION } from './voyageAdmission';
 import type { ShipResourceInventory } from './resources';
 import { maintenanceActionForStep } from './maintenanceOrder';
+import { populationChange, shipRationSchedule } from './shipPopulation';
 import {
   isShipInMutiny,
   mutinyAfterUnrestChange,
@@ -8,16 +9,11 @@ import {
   type ShipMutiny,
 } from './mutiny';
 
-/**
- * Voyage 33-0 uses the shared docked-vessel maintenance lane, but remains a
- * distinct state from the four optional base small ships.  The source gives
- * this vessel one reactor charge and the existing P234 host-ledger ration
- * table supplies the common four-step host funding contract.
- */
+/** Voyage shares Icebreaker's printed population track and replacement ration
+ * bands, but keeps its own ledger, unrest and one-console reactor. */
 export const VOYAGE_33_MAINTENANCE_RULES = {
   reactorCapacity: 1,
-  food: [0, 3, 5, 8] as const,
-  water: [0, 2, 3, 6] as const,
+  consoles: ['water-reclamation', 'hydroponics'] as const,
 } as const;
 
 export interface Voyage33MaintenanceCycle {
@@ -184,8 +180,9 @@ export function advanceVoyage33Maintenance(input: Voyage33MaintenanceInput): {
   } else if (action === 'rations') {
     const foodLevel = input.foodLevel ?? -1;
     const waterLevel = input.waterLevel ?? -1;
-    const food = VOYAGE_33_MAINTENANCE_RULES.food[foodLevel];
-    const water = VOYAGE_33_MAINTENANCE_RULES.water[waterLevel];
+    const schedule = shipRationSchedule('icebreaker', state.population);
+    const food = schedule.food[foodLevel];
+    const water = schedule.water[waterLevel];
     if (food === undefined || water === undefined) throw new Error('Select food and water ration levels.');
     if (hostResources.food < food || hostResources.water < water) throw new Error('Host ship cannot fund these rations.');
     hostResources = { ...hostResources, food: hostResources.food - food, water: hostResources.water - water };
@@ -203,9 +200,11 @@ export function advanceVoyage33Maintenance(input: Voyage33MaintenanceInput): {
     const unrestBefore = unrest;
     cycle.chargingSkipped = roll < unrest;
     if (cycle.chargingSkipped) {
-      population = Math.max(0, population - roll);
+      for (let step = 0; step < roll && population > 0; step += 1) {
+        population = populationChange('icebreaker', population, -1, false).amount;
+      }
       if (state.population > 0 && population === 0) unrest = Math.min(10, unrest + 2);
-      cycle.results['3'] = `Rolled ${roll} against unrest ${unrestBefore}. Population loss ${roll}; population ${population}${population === 0 ? `; unrest ${unrest}` : ''}. Voyage 33-0 charging is skipped.`;
+      cycle.results['3'] = `Rolled ${roll} against unrest ${unrestBefore}. Population loss ${roll} track step${roll === 1 ? '' : 's'}; population ${population}${population === 0 ? `; unrest ${unrest}` : ''}. Voyage 33-0 charging is skipped.`;
     } else {
       cycle.results['3'] = `Rolled ${roll} against unrest ${unrestBefore}. No population loss.`;
     }
@@ -213,6 +212,9 @@ export function advanceVoyage33Maintenance(input: Voyage33MaintenanceInput): {
     const consoles = [...(input.consoles ?? [])];
     if (new Set(consoles).size !== consoles.length || consoles.some((id) => typeof id !== 'string' || id.trim().length === 0)) {
       throw new Error('Choose unique named consoles.');
+    }
+    if (consoles.some(id => !VOYAGE_33_MAINTENANCE_RULES.consoles.some(allowed => allowed === id))) {
+      throw new Error('Choose a printed Voyage 33-0 console.');
     }
     if (consoles.length > VOYAGE_33_MAINTENANCE_RULES.reactorCapacity) {
       throw new Error('Voyage 33-0 reactor capacity exceeded.');
@@ -227,7 +229,6 @@ export function advanceVoyage33Maintenance(input: Voyage33MaintenanceInput): {
     }
   } else {
     cycle.completedAt = input.now;
-    cycle.charges = [];
   }
   cycle.step = action === 'end' ? 0 : cycle.step + 1;
   const mutiny = mutinyAfterUnrestChange(state.mutiny, state.unrest, unrest, input.now);

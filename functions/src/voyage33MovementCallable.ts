@@ -568,10 +568,6 @@ function requireNoWolfAttack(attack: { readonly exists: boolean; data(): unknown
   }
 }
 
-function isChargedForCycle(maintenance: Voyage33MaintenanceState, currentTurn: number): boolean {
-  return maintenance.cycle.turn === currentTurn && maintenance.cycle.charges.includes('jump-drive');
-}
-
 function maintenanceAfterJump(
   state: Voyage33MaintenanceState,
   successful: boolean,
@@ -585,7 +581,7 @@ function maintenanceAfterJump(
     cycle: {
       ...state.cycle,
       revision: state.cycle.revision + 1,
-      charges: state.cycle.charges.filter((charge) => charge !== 'jump-drive'),
+      charges: [...state.cycle.charges],
     },
   };
 }
@@ -737,9 +733,6 @@ export function createVoyage33MovementCallables(dependencies: Voyage33MovementCa
       requireNoWolfAttack(attackSnapshot);
       const hostDamage = hostDamageFromSession(session, hostShipId);
       const hostResources = hostResourcesFromSession(session, hostShipId);
-      if (!isChargedForCycle(maintenance, currentTurn)) {
-        precondition('Charge the Voyage 33-0 Jump Drive during Team Phase before departure.');
-      }
       let jumpResult: JumpAttemptResult;
       try {
         // Always resolve from server state. A client-supplied result is not an
