@@ -881,9 +881,12 @@ it('records a durable facilitator rule call for a selected player', async () => 
 
   const panel = await screen.findByRole('region', { name: 'Facilitator rule call' });
   expect(panel).toHaveTextContent('Record a durable ruling when the session needs an ambiguity resolved.');
-  await user.type(within(panel).getByLabelText('Question or ambiguity'), 'Does docking happen first?');
-  await user.type(within(panel).getByLabelText('Source or reference'), 'Facilitator reference');
-  await user.type(within(panel).getByLabelText('Decision'), 'Use the printed docking state.');
+  await user.click(within(panel).getByLabelText('Question or ambiguity'));
+  await user.paste('Does docking happen first?');
+  await user.click(within(panel).getByLabelText('Source or reference'));
+  await user.paste('Facilitator reference');
+  await user.click(within(panel).getByLabelText('Decision'));
+  await user.paste('Use the printed docking state.');
   await user.selectOptions(within(panel).getByLabelText('Audience'), 'selected-player');
   expect(within(panel).getByLabelText('Recipient')).toBeVisible();
   await user.selectOptions(within(panel).getByLabelText('Audience'), 'gm-only');
