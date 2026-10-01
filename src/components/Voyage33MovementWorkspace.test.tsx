@@ -796,6 +796,28 @@ describe('Voyage 33-0 movement workspace', () => {
     expect(within(maintenance).getByRole('alert')).toHaveTextContent(/uncertain/i);
   });
 
+  it('does not retry an uncertain prior-cycle begin without a later maintenance or docking mutation', async () => {
+    const base = emptyVoyage33MaintenanceState('aegis');
+    const session = sessionFixture('voyage-workspace-unchanged-prior-begin', {
+      voyage33Movement: movementState('0000', 2),
+      voyage33Maintenance: { ...base, dockingRevision: 4 },
+    });
+    installGm(session);
+    runVoyage33Maintenance
+      .mockRejectedValueOnce(Object.assign(new Error('response unavailable'), { code: 'functions/unavailable' }))
+      .mockImplementation(() => new Promise(() => undefined));
+    render(<Voyage33MovementWorkspace />);
+    const maintenance = screen.getByRole('region', { name: 'Voyage 33-0 maintenance' });
+    fireEvent.click(within(maintenance).getByRole('button', { name: /begin maintenance cycle/i }));
+    await within(maintenance).findByRole('button', { name: /retry exact/i });
+    await act(async () => useSessionStore.getState().setSession({
+      ...session, currentTurn: 2, turnPhase: { ...phase('team'), turn: 2 },
+    }));
+    fireEvent.click(within(maintenance).getByRole('button', { name: /retry exact/i }));
+    expect(runVoyage33Maintenance).toHaveBeenCalledTimes(1);
+    expect(within(maintenance).getByRole('button', { name: /begin maintenance cycle/i })).toBeDisabled();
+  });
+
   it('does not replay an uncertain request against regressed server authority', async () => {
     const sessionId = 'voyage-workspace-maintenance-regressed-authority';
     const base = emptyVoyage33MaintenanceState('aegis');
