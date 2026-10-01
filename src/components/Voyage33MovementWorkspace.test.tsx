@@ -400,7 +400,7 @@ describe('Voyage 33-0 movement workspace', () => {
     fireEvent.click(within(maintenance).getByRole('button', { name: /roll.*unrest/i }));
 
     expect(runVoyage33Maintenance).toHaveBeenCalledWith(
-      'unrest', 2, 4, {}, expect.any(String),
+      'unrest', 2, 4, {}, expect.any(String), 1, undefined,
     );
     expect(within(maintenance).getByText(/waiting for the server receipt for roll unrest/i)).toBeInTheDocument();
     expect(within(maintenance).queryByText(/Rolled 5 \+ 5 \+ 9 = 19/i)).not.toBeInTheDocument();
@@ -494,7 +494,7 @@ describe('Voyage 33-0 movement workspace', () => {
     expect(runVoyage33Maintenance).toHaveBeenCalledWith('rations', 1, 4, {
       foodLevel: 1,
       waterLevel: 2,
-    }, expect.any(String));
+    }, expect.any(String), 1, undefined);
     expect(within(maintenance).getByText(/waiting for the server receipt for apply rations/i)).toBeInTheDocument();
   });
 
@@ -818,7 +818,7 @@ describe('Voyage 33-0 movement workspace', () => {
     expect(within(maintenance).getByRole('button', { name: /begin maintenance cycle/i })).toBeDisabled();
   });
 
-  it('reconciles an absent obsolete begin then allows a fresh current-cycle action without losing ration drafts', async () => {
+  it('reconciles an absent obsolete begin then allows a fresh current-cycle action without losing the request identity', async () => {
     const base = emptyVoyage33MaintenanceState('aegis');
     const session = sessionFixture('voyage-workspace-obsolete-absence', {
       voyage33Movement: movementState('0000', 2), voyage33Maintenance: { ...base, dockingRevision: 4 },

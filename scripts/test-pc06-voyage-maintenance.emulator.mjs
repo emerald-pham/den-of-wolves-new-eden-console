@@ -48,11 +48,32 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
       seed.set(db.doc(`sessions/${id}/gmInstances/bridge`), { uid, connected: true, claimedAt: now, lastSeenAt: now });
       seed.set(db.doc(`sessions/${id}/serverState/navigation`), { shipGalacticCoordinates: { aegis: '0000' }, shipNavigationLogs: {} });
       await seed.commit();
+      const originalTransaction = db.runTransaction.bind(db);
+      let calls = 0;
+      const delayed = { sessionId: id, shipId: 'voyage-33-0', instanceId: 'bridge', requestId: 'delayed-begin',
+        action: 'begin', expectedRevision: 0, expectedDockingRevision: 3, expectedCycle: 1 };
+      db.runTransaction = async (...args) => {
+        calls += 1;
+        if (calls === 2) await session.update({ currentTurn: 2, 'turnPhase.turn': 2 });
+        return originalTransaction(...args);
+      };
+      try {
+        await assert.rejects(runVoyage33Maintenance.run(call(delayed)), error => error.code === 'failed-precondition');
+      } finally { db.runTransaction = originalTransaction; }
+      const beforeReconcile = (await session.get()).data();
+      const absent = await runVoyage33Maintenance.run(call({ ...delayed, reconcileOnly: true }));
+      assert.equal(absent.status, 'absent'); assert.equal(absent.currentCycle, 2);
+      assert.deepEqual((await session.get()).data(), beforeReconcile);
+      assert.equal((await db.doc(`sessions/${id}/voyage33MaintenanceRequests/delayed-begin`).get()).exists, false);
+      assert.equal((await db.collection(`sessions/${id}/events`).get()).size, 0);
+      await assert.rejects(runVoyage33Maintenance.run(call(delayed)), error => error.code === 'failed-precondition');
+      assert.deepEqual((await session.get()).data(), beforeReconcile);
+      await session.update({ currentTurn: 1, 'turnPhase.turn': 1 });
       let revision = 0, reactorRequest;
       for (const choice of [ { action: 'begin' }, { action: 'rations', foodLevel: 3, waterLevel: 3 },
         { action: 'unrest' }, { action: 'riot' }, { action: 'reactor', consoles: ['hydroponics'] }, { action: 'end' } ]) {
         const data = { sessionId: id, shipId: 'voyage-33-0', instanceId: 'bridge', requestId: `maintenance-${choice.action}`,
-          expectedRevision: revision, expectedDockingRevision: 3, ...choice };
+          expectedRevision: revision, expectedDockingRevision: 3, expectedCycle: revision < 2 ? 1 : 2, ...choice };
         const result = await runVoyage33Maintenance.run(call(data));
         assert.equal(result.status, 'committed');
         revision = result.cycle.revision;
