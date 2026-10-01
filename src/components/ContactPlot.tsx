@@ -10,6 +10,7 @@ import {
 } from './ambientDradisContact';
 import { useMotionPreference } from '@/lib/motionPreference';
 import { ambientCombatRange as ambientCombatRangeFor, type CombatRange } from './dradisRange';
+import { minimumLabelClearance } from './contactLabelClearance';
 
 /**
  * The threat board behind the launcher.
@@ -573,12 +574,6 @@ function clampContactLabels(
     ...overlayControls,
   ].map((element) => element.getBoundingClientRect())
     .filter((rect) => rect.width > 0 && rect.height > 0);
-  const distanceFrom = (a: Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom'>,
-    b: Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom'>) => {
-    const x = Math.max(0, b.left - a.right, a.left - b.right);
-    const y = Math.max(0, b.top - a.bottom, a.top - b.bottom);
-    return Math.hypot(x, y);
-  };
 
   // Reset every measurable label first, then read the two adjacent anchor
   // choices in batches. Reading and writing one contact at a time forces the
@@ -791,11 +786,7 @@ function clampContactLabels(
       const preparedByAnchor = preparedLayouts[index]!;
       const prepareAnchor = (anchor: LabelAnchor) => {
         const prepared = preparedByAnchor.get(anchor);
-        if (prepared) {
-          contact.dataset.labelAnchor = anchor;
-          label.style.cssText = prepared.style;
-          return prepared;
-        }
+        if (prepared) return prepared;
         contact.dataset.labelAnchor = anchor;
         resetLabelLayout(label);
         const sideWidth = anchor.endsWith('east')
@@ -884,6 +875,10 @@ function clampContactLabels(
         const probePx = 8;
         const side = anchor.endsWith('east') ? 'east' : 'west';
         const projection: ProjectedAxes = sideProjections[side] ?? (() => {
+          // Scoring cached bounds needs no DOM writes. An unmeasured side
+          // still installs its exact anchor and base style before native probes.
+          contact.dataset.labelAnchor = anchor;
+          label.style.cssText = baseStyle;
           label.style.setProperty('--label-clamp-x', `${probePx}px`);
           const xProbe = label.getBoundingClientRect();
           label.style.removeProperty('--label-clamp-x');
@@ -914,22 +909,37 @@ function clampContactLabels(
           const bounds = projected(x, laneY + correctionY);
           const anchorGap = anchor.endsWith('east')
             ? marker.left - bounds.right : bounds.left - marker.right;
-          let collisionCount = 0;
-          let clearance = Number.POSITIVE_INFINITY;
-          for (const rect of nearby) {
-            if (overlaps(bounds, rect)) collisionCount += 1;
-            clearance = Math.min(clearance, distanceFrom(bounds, rect));
-          }
-          if (nearby.length === 0) clearance = 0;
           const edgeOverflow = Math.max(0, minX - bounds.left, bounds.right - maxX,
             minY - bounds.top, bounds.bottom - maxY);
-          const score = collisionCount * 1_000_000 + edgeOverflow * 100_000 +
+          const scoreAt = (collisions: number, minimum: number) =>
+            collisions * 1_000_000 + edgeOverflow * 100_000 +
             Math.max(0, 4 - anchorGap) * 100_000 +
             Math.max(0, 48 - sideWidth) * 1_000 +
             (Math.abs(x) + Math.abs(y + correctionY)) * 100 +
-            Math.abs(lane) * 2_000 - clearance;
-          if (!best || score < best.score) {
-            best = { anchor, style: baseStyle, x, y: laneY + correctionY, score };
+            Math.abs(lane) * 2_000 - minimum;
+          let collisionCount = 0;
+          let clearance = Number.POSITIVE_INFINITY;
+          let cannotImprove = false;
+          for (const rect of nearby) {
+            if (overlaps(bounds, rect)) collisionCount += 1;
+            clearance = minimumLabelClearance(bounds, rect, clearance);
+            if (collisionCount > 0 && best && Number.isFinite(best.score)) {
+              // More obstacles only add collisions or lower the minimum gap.
+              // This exact partial score therefore bounds the final score from
+              // below. A losing collided lane cannot affect clear-lane stopping.
+              const partial = scoreAt(collisionCount, clearance);
+              if (Number.isFinite(partial) && partial >= best.score) {
+                cannotImprove = true;
+                break;
+              }
+            }
+          }
+          if (nearby.length === 0) clearance = 0;
+          if (!cannotImprove) {
+            const score = scoreAt(collisionCount, clearance);
+            if (!best || score < best.score) {
+              best = { anchor, style: baseStyle, x, y: laneY + correctionY, score };
+            }
           }
           if (collisionCount === 0 && nearestClearLane === null) nearestClearLane = Math.abs(lane);
           // The nearest clear row wins on this side. Finish its matching
