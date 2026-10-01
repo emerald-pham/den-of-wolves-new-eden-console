@@ -27,6 +27,19 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 507, partial: 35, active: 0, missing: 209, blocked: 0,
     },
     changes: [
+      'Voyage 33-0 maintenance now follows its printed population, rations and reactor choices. Its Jump Drive uses host fuel without needing a reactor charge.',
+      'Single-player Demo mode stays visible through live updates and stops at the end of Cycle 1.',
+      '507 of 751 planned items are complete in the catalog snapshot used to build this release (67.51%).',
+      'PC06 gameplay verification continues.',
+    ],
+  },
+  {
+    version: '0.5.61',
+    implementationProgress: {
+      completed: 507, total: 751, percentage: '67.51%',
+      done: 507, partial: 35, active: 0, missing: 209, blocked: 0,
+    },
+    changes: [
       'Pending away missions now stay with their arriving ship when the facilitator confirms separated fleets.',
       'Gorgoneion and Warrior can charge Repair Drones during maintenance. Refreshing a recovered scout queue clears its old error.',
       'Starlight and Hummingbird can spend a scouting attempt on a courier round trip to a separated fleet group. Ordinary group notes remain private.',
