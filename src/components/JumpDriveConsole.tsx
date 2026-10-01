@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
   createJumpShipAttempt,
   isJumpShipOutcomeUncertain,
@@ -92,6 +92,10 @@ export default function JumpDriveConsole({
   const [localLockoutUntil, setLocalLockoutUntil] = useState<string | undefined>();
   const [attempt, setAttempt] = useState<JumpShipAttempt | null>(null);
   const attemptRef = useRef<JumpShipAttempt | null>(null);
+  const launchRef = useRef<HTMLButtonElement>(null);
+  const emergencyLaunchRef = useRef<HTMLButtonElement>(null);
+  const coordinateLockRef = useRef<HTMLButtonElement>(null);
+  const recoveryFocusRef = useRef<{ source: HTMLButtonElement; emergency: boolean } | null>(null);
   const [clock, setClock] = useState(Date.now);
 
   function updateAttempt(value: JumpShipAttempt | null): void {
@@ -170,6 +174,20 @@ export default function JumpDriveConsole({
   const editingDisabled = presentationOnly ? pending : blocked || pending || attempt !== null ||
     (lockoutActive && !emergencyAvailable);
   const powerDisabled = presentationOnly || disabled || attempt !== null || !locked || !charged;
+  useLayoutEffect(() => {
+    if (pending || !recoveryFocusRef.current) return;
+    const recovery = recoveryFocusRef.current;
+    recoveryFocusRef.current = null;
+    if (presentationOnly || blocked) return;
+    const focused = document.activeElement;
+    if (focused && focused !== document.body && focused !== document.documentElement && focused !== recovery.source) return;
+    // Native browsers blur the disabled submit button during an async request.
+    // Restore its enabled retry, or the coordinate lock after a blind denial,
+    // without taking focus away from another control the user chose.
+    const launch = recovery.emergency && emergencyAvailable ? emergencyLaunchRef.current : launchRef.current;
+    const target = launch && !launch.disabled ? launch : coordinateLockRef.current;
+    if (target && !target.disabled) target.focus();
+  }, [pending, attempt, locked, blocked, presentationOnly, emergencyAvailable]);
   const [printedShort = 0, printedMedium = 0, printedLong = 0] = jumpCosts;
   const upgradeReduction = upgraded ? 1 : 0;
   const short = Math.max(0, printedShort - upgradeReduction);
@@ -197,6 +215,8 @@ export default function JumpDriveConsole({
         return;
       }
     }
+    const source = emergency ? emergencyLaunchRef.current : launchRef.current;
+    if (source && document.activeElement === source) recoveryFocusRef.current = { source, emergency };
     setPending(true);
     setNotice('JUMP DRIVE // COMMITTING DESTINATION LOCK');
     try {
@@ -331,6 +351,7 @@ export default function JumpDriveConsole({
       </p>}
 
       <button
+        ref={coordinateLockRef}
         className="cic-action-button jump-drive__lock"
         type="button"
         disabled={editingDisabled || attempt !== null || (!blindMode && !locked && !destination.match(/^\d{4}$/))}
@@ -381,6 +402,7 @@ export default function JumpDriveConsole({
       {notice && (!lockoutActive || emergencyAvailable) && <p className="jump-drive__notice" role="status">{notice}</p>}
 
       <button
+        ref={launchRef}
         className="cic-action-button jump-drive__launch"
         type="button"
         disabled={presentationOnly || disabled || !locked || attempt?.emergency === true ||
@@ -388,6 +410,7 @@ export default function JumpDriveConsole({
         onClick={() => void submitJump()}
       >{pending ? blindMode ? 'Blind jumping…' : 'Jumping…' : attempt?.emergency ? 'Emergency jump pending' : attempt ? attempt.blind ? 'Retry blind-jump confirmation' : 'Retry jump confirmation' : blindMode ? 'Blind jump' : `Jump to ${destination}`}</button>
       {emergencyAvailable && !blindMode && <button
+        ref={emergencyLaunchRef}
         className="cic-action-button jump-drive__launch jump-drive__emergency"
         type="button"
         disabled={presentationOnly || blocked || pending || !locked || (attempt !== null && !attempt.emergency)}
