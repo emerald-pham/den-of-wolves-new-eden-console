@@ -26,6 +26,7 @@ are regenerated from it:
 | --- | --- |
 | [implementation-prompts.json](implementation-prompts.json) | Canonical prompt definitions, statuses, dependencies, and release facts |
 | [PRODUCT_MILESTONES.md](PRODUCT_MILESTONES.md) | Owner-facing UI playtest checkpoints, first shaped scope, and the trimmed Shape Up build, report, and cooldown loop |
+| [PC07_PC10_ALIGNMENT.md](PC07_PC10_ALIGNMENT.md) | Owner-authorized future acceptance alignment and solo UI checks for PC07–PC10 only; PC06 remains in progress under its existing scope |
 | [PRODUCT_MILESTONE_FEEDBACK.md](PRODUCT_MILESTONE_FEEDBACK.md) | The owner's in-app review notes and how the next shape addresses each one |
 | [PRODUCT_MILESTONE_ASSUMPTIONS.md](PRODUCT_MILESTONE_ASSUMPTIONS.md) | Source-cited rules readings made during builds and their later corrections |
 | [PRODUCT_MILESTONE_CANDIDATES.md](PRODUCT_MILESTONE_CANDIDATES.md) | Work discovered outside the active shaped scope |

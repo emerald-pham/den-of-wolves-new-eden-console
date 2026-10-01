@@ -141,3 +141,21 @@ when nobody is eligible; the configured roster's normal Wolf count remains the
 target. They approved the exact onboarding sentence: “Wolf agents are humans,
 just like the other survivors.” These decisions resolve the P654/P662 policy
 choice and P589 copy question; implementation and gameplay proof still apply.
+
+
+## PC07–PC10 philosophical alignment — 2026-09-30
+
+The owner requested a review of explicit decisions across prior conversations,
+then authorized execution with the boundary: **changes are PC07 onward because
+PC06 is in progress**. This is authorization of future prompt amendments, not
+new gameplay evidence or acceptance of an unfinished checkpoint.
+
+| Note ID | Owner decision | Disposition / next action |
+|---|---|---|
+| FUTURE-F01 | Align PC07–PC10 prompts with the decisions introduced before and between checkpoints. | Applied to the same 195 future catalog rows; [alignment guide](PC07_PC10_ALIGNMENT.md) records one-GM automation, entitled choices, private receipts, Press publication control, CIC presentation, recovery and solo review. Generated prompt and Gantt views consume the amended catalog. |
+| FUTURE-F02 | PC06 is already in progress; revisions begin at PC07. | PC06's catalog rows, baseline allocation, statuses and release files are unchanged by this amendment; future numeric membership and targets are retained. |
+| FUTURE-F03 | Decide, log, keep going within authorized future scope. | PC09-A1 records the minimal VIP Host visit attestation; PC09-A2 corrects presidential-visit timing from the inspected v1.1 card. Future implementation and proof remain required; neither is claimed here. |
+
+The P503a acknowledgement/clue sequence and its after-1.0 experience review
+remain intentional. P605a still needs separate explicit activation plus P433a
+proof; planning authorization is not activation or closure credit.
