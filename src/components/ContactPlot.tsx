@@ -655,7 +655,8 @@ function clampContactLabels(
   // by an earlier chosen name retain the exact on-demand path below.
   const batchFallback = labels.map((_, index) => index).filter((index) => {
     const marker = marks[index];
-    if (!marker || !contacts[index] || !preferredLayouts[index] || !oppositeLayouts[index]) return false;
+    if (!marker || !contacts[index] || !preferredLayouts[index] || !oppositeLayouts[index] ||
+      preferredLayouts[index]!.bounds.width <= 0) return false;
     const nearby = [...obstacles, ...marks.filter((mark, other): mark is DOMRect =>
       other !== index && mark !== null && mark.width > 0 && mark.height > 0)];
     return [preferredLayouts[index], oppositeLayouts[index]].every((layout) => {
