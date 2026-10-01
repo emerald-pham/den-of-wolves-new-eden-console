@@ -1734,6 +1734,8 @@ it('measures alternate anchors as one geometry batch when several defaults chang
   expect([...document.querySelectorAll<HTMLElement>('.contact-plot__contact')]
     .map((contact) => contact.dataset.labelAnchor)).toEqual(['south-east', 'south-east']);
   readAnchorSnapshots.length = 0;
+  // The rendered marks move too, invalidating both cached anchor rectangles.
+  marks.forEach((mark) => { mark.x -= 1; });
 
   rerender(<ContactPlot centerLabel="AEGIS" contacts={contacts.map((contact) => ({
     ...contact, x: -contact.x,

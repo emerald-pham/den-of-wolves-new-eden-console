@@ -108,6 +108,7 @@ const intrinsicLabelWidths = new WeakMap<HTMLElement, { context: string; width: 
 type LabelCandidateLayout = { anchor: LabelAnchor; bounds: DOMRect; style: string };
 type ContactLabelLayoutCache = {
   styleScope: string;
+  context: string;
   plotBounds: DOMRect;
   markBounds: DOMRect;
   labelBounds: DOMRect;
@@ -270,9 +271,15 @@ function clampScannedContactLabels(
   if (targets.length === 0) return plotBounds;
   const targetSet = new Set(targets);
   const cached = contacts.map((contact) => contact ? contactLabelLayouts.get(contact) : undefined);
-  if (cached.some((layout) => !layout?.direct || layout.styleScope !== styleScope ||
-    !samePlotBounds(layout.plotBounds, plotBounds))) return plotBounds;
-  if (targets.some((index) => contacts[index]?.dataset.moving === 'true')) return plotBounds;
+  if (cached.some((layout, index) => !layout?.direct || layout.styleScope !== styleScope ||
+    !samePlotBounds(layout.plotBounds, plotBounds) || layout.context !==
+      intrinsicLabelWidthContext(plot, labels[index]!, contacts[index] ?? null, plotBounds, styleScope))) {
+    return plotBounds;
+  }
+  // Departing spoof jitter can move an unscanned mark and its label between
+  // sweeps. Only stationary, non-departing held fixes have reusable geometry.
+  if (contacts.some((contact) => contact?.dataset.moving === 'true' ||
+    contact?.dataset.departing === 'true')) return plotBounds;
 
   const freshMarks = new Map<number, DOMRect>();
   for (const index of targets) {
@@ -399,6 +406,7 @@ function clampScannedContactLabels(
     label.style.cssText = layout.style;
     contactLabelLayouts.set(contact, {
       styleScope,
+      context: intrinsicLabelWidthContext(plot, label, contact, plotBounds, styleScope),
       plotBounds,
       markBounds: mark,
       labelBounds: layout.bounds,
@@ -440,7 +448,7 @@ function clampContactLabels(
   plot: HTMLElement,
   styleScope: string,
   measuredPlotBounds?: DOMRect,
-  preferClearAnchorOnly = false,
+  reuseUnchangedGeometry = false,
 ): void {
   const plotBounds = measuredPlotBounds ?? plot.getBoundingClientRect();
   if (plotBounds.width <= 0 || plotBounds.height <= 0) return;
@@ -581,29 +589,32 @@ function clampContactLabels(
     });
   };
   const preferredLayouts = measureAnchorBatch(preferredAnchors);
-  // Keep alternate reads batched for contacts whose cached anchor no longer
-  // matches. Stable anchors defer a second read until their current geometry
-  // proves unsafe.
-  const needsAlternateLayout = contacts.map((contact, index) => {
+  // Reuse an alternate rectangle only when this contact's mark, measured
+  // preferred rectangle and typography context are unchanged. Neighborhood
+  // geometry may change: the exact two-anchor scorer below still compares
+  // both candidates against every current mark and chosen label.
+  const cachedAlternates = contacts.map((contact, index): LabelCandidateLayout | null => {
     const prior = contact ? contactLabelLayouts.get(contact) : undefined;
-    return !preferClearAnchorOnly || !prior || prior.styleScope !== styleScope ||
-      !samePlotBounds(prior.plotBounds, plotBounds) || prior.chosenAnchor !== preferredAnchors[index];
+    const preferred = preferredLayouts[index];
+    const marker = marks[index];
+    if (!reuseUnchangedGeometry || !contact || !prior?.direct || !preferred || !marker ||
+      contact.dataset.moving === 'true' || contact.dataset.departing === 'true' ||
+      prior.styleScope !== styleScope || !samePlotBounds(prior.plotBounds, plotBounds) ||
+      !samePlotBounds(prior.markBounds, marker) || prior.context !==
+        intrinsicLabelWidthContext(plot, labels[index]!, contact, plotBounds, styleScope)) return null;
+    const candidates = [prior.preferred, prior.opposite];
+    const priorPreferred = candidates.find((candidate) => candidate.anchor === preferred.anchor);
+    if (!priorPreferred || !samePlotBounds(priorPreferred.bounds, preferred.bounds)) return null;
+    return candidates.find((candidate) => candidate.anchor === oppositeAnchors[index]) ?? null;
   });
   const oppositeLayouts = measureAnchorBatch(oppositeAnchors.map((anchor, index) =>
-    needsAlternateLayout[index] ? anchor : undefined));
-  const measureOppositeAt = (targetIndex: number): void => {
-    const pendingAnchors = oppositeAnchors.map((anchor, index) =>
-      index === targetIndex && !oppositeLayouts[index] ? anchor : undefined);
-    const measured = measureAnchorBatch(pendingAnchors);
-    measured.forEach((layout, index) => {
-      if (layout) oppositeLayouts[index] = layout;
-    });
-  };
+    cachedAlternates[index] ? undefined : anchor))
+    .map((layout, index) => layout ?? cachedAlternates[index] ?? null);
   for (const [index, label] of labels.entries()) {
     const marker = marks[index];
     const contact = contacts[index];
     const preferredLayout = preferredLayouts[index];
-    let oppositeLayout = oppositeLayouts[index];
+    const oppositeLayout = oppositeLayouts[index];
     if (marker && marker.width > 0 && marker.height > 0 && contact &&
       preferredLayout && preferredLayout.bounds.width > 0) {
       const nearby = [
@@ -645,30 +656,9 @@ function clampContactLabels(
       };
       const directCandidates = [] as NonNullable<ReturnType<typeof directCandidate>>[];
       const preferredCandidate = directCandidate(preferredLayout);
-      let skippedAlternateMeasurement = false;
-      const priorLayout = contactLabelLayouts.get(contact);
-      if (preferClearAnchorOnly && !oppositeLayout && preferredCandidate && priorLayout &&
-        priorLayout.styleScope === styleScope && samePlotBounds(priorLayout.plotBounds, plotBounds) &&
-        priorLayout.chosenAnchor === preferredAnchors[index]) {
-        // The last exact choice remains collision-free and inside the plot, so
-        // keep it stable through this coordinate update. A changed default
-        // anchor or any sweep, resize, font, or style invalidation still runs
-        // the exact two-anchor scorer before paint.
-        directCandidates.push(preferredCandidate);
-        oppositeLayout = preferredLayout;
-        oppositeLayouts[index] = preferredLayout;
-        skippedAlternateMeasurement = true;
-      }
-      if (!skippedAlternateMeasurement) {
-        if (!oppositeLayout && oppositeAnchors[index]) {
-          measureOppositeAt(index);
-          oppositeLayout = oppositeLayouts[index];
-        }
-        const exactOppositeLayout = oppositeLayout ?? preferredLayout;
-        const oppositeCandidate = directCandidate(exactOppositeLayout);
-        if (preferredCandidate) directCandidates.push(preferredCandidate);
-        if (oppositeCandidate) directCandidates.push(oppositeCandidate);
-      }
+      const oppositeCandidate = directCandidate(oppositeLayout ?? null);
+      if (preferredCandidate) directCandidates.push(preferredCandidate);
+      if (oppositeCandidate) directCandidates.push(oppositeCandidate);
       if (directCandidates.length > 0) {
         const bestDirect = directCandidates.reduce((best, candidate) =>
           candidate.clearance > best.clearance ? candidate : best).layout;
@@ -676,7 +666,7 @@ function clampContactLabels(
         label.style.cssText = bestDirect.style;
         finalBounds[index] = bestDirect.bounds;
         obstacles.push(bestDirect.bounds);
-        directPlacements[index] = !skippedAlternateMeasurement;
+        directPlacements[index] = true;
         continue;
       }
       const preparedByAnchor = new Map<LabelAnchor, {
@@ -928,6 +918,7 @@ function clampContactLabels(
     if (contact && marker && bounds.width > 0 && bounds.height > 0 && preferred && opposite) {
       contactLabelLayouts.set(contact, {
         styleScope,
+        context: intrinsicLabelWidthContext(plot, label, contact, plotBounds, styleScope),
         plotBounds,
         markBounds: marker,
         labelBounds: bounds,
