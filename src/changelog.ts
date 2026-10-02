@@ -23,13 +23,16 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     implementationProgress: {
-      completed: 507, total: 751, percentage: '67.51%',
-      done: 507, partial: 35, active: 0, missing: 209, blocked: 0,
+      completed: 556, total: 751, percentage: '74.03%',
+      done: 556, partial: 21, active: 0, missing: 174, blocked: 0,
     },
+    implementationPrompts: ["202","210","222","232","236","241a","259","320","607","679","020a","112","238","244","241c","251","250","352","371","380","385","378","401","237","241b","392","393","404","405","407","408","409","410","411","412","413","243","414","415","622","422","646","334","335","151","307","322","323","324"],
     changes: [
       'Completed mission support stays marked as used when the Gorgoneion Captain reconnects.',
-      '507 of 751 planned items are complete in the catalog snapshot used to build this release (67.51%).',
-      'PC06 gameplay verification continues.',
+      '556 of 751 planned items are complete in the catalog snapshot used to build this release (74.03%).',
+      'PC06 is complete: vessel movement, cargo, repairs, scouting and away missions are ready to play.',
+      '98 of 293 remaining campaign items are complete (33.45%); 556 of 751 overall (74.03%).',
+      'Single-player Demo reconnects at Cycle 1, and mission craft stay committed until rewards are delivered.',
     ],
   },
   {

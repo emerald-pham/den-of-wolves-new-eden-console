@@ -6412,6 +6412,13 @@
       "language": "PC05 final candidate d45b1266462ca74eecd39d23db1612b3e5346098 passed 6,122 tests, 143 Firestore rules checks, typecheck, both builds, exact deployment selection, bundle, font, typography, ticker, responsive DRADIS/jump/mutiny, roadmap, dependency and documentation gates. Independent GPT-5.6 Sol xhigh review was clear. PR CI 36636882417 passed without retry; merge 4f2cd9a8c03e8970eae5dd9ad284c855cdb2d2b7 deployed build 0.5.57 through exact-main run 36639176688. Authorized production play verified confirmed empty-roster start with zero fabricated Wolves, the approved Wolf-humanity onboarding copy, Zoom-only compact DRADIS with contact-anchored names and no orphan name, and immediate station-select recovery with the persistent reselect-role notice after a live role release. Prompt-specific authority, privacy, replay, concurrency, resource and responsive edges not each repeated live are covered by deterministic tests and real Firestore emulator evidence on the exact deployed production tree.",
       "source": "docs/PC05_PLAYTEST_REPORT.md; docs/PC05_ACCEPTANCE_MATRIX.md; docs/PRODUCT_MILESTONE_FEEDBACK.md; d45b1266462ca74eecd39d23db1612b3e5346098; 4f2cd9a8c03e8970eae5dd9ad284c855cdb2d2b7; PR #5; workflow 36636882417; deployment 36639176688",
       "type": "evidence / complete / exact-candidate / independent-review / exact-main-deployment / ordinary-production-gameplay / responsive / authority / privacy / replay"
+    },
+    {
+      "direction": "PC06 fixed49 -> 556/751;98/293",
+      "id": "E-PC06-FINAL-20261002",
+      "language": "Fixed 49 behavior acceptances preserve7 ordinary production results and42 explicitly user-authorized representative local/emulator results. Native compiled transaction and actual Auth/HTTP/rules fixtures, local real UI, private reads, arithmetic, replay and denial evidence are distinguished individually. Catalog closures add 49 once; P343 remains PC07. Required final gates and exact-main deployment are separate release evidence, never inferred from a prepared review scene.",
+      "source": "docs/PC06_ACCEPTANCE_MATRIX.md; docs/PC06_PLAYTEST_REPORT.md; docs/PC06_EXECUTION_RECORD.md; external evidence/pc06-49-acceptance-receipt.json; scripts/test-pc06-demo.emulator.mjs; scripts/test-pc06-mission-transaction.emulator.mjs",
+      "type": "evidence / authority / release"
     }
   ],
   "plan": {
@@ -6900,8 +6907,8 @@
         "acceptance": "Given an authorized single-player demo using Prompt 020's production create→join→cast→start composition and the existing `startSinglePlayerDemo` app baseline, when it performs every supported setup/action through the end of Turn 1, then it stops at that boundary with an explicit Demo-mode result and never enters a later turn. Demo never exposes an executable jump control; any jump request, including stale, replayed, or unauthorized requests, is denied by the server-authoritative jump path before mutation, with zero mutation to fuel, location, pursuit, events, or turn/phase state. The client shows an on-screen accessible toast explicitly stating that jumps are unavailable in Demo mode. Keyboard order/focus, screen-reader status/live semantics, touch targets, reduced-motion behavior, reconnect/replay, stale retries, and multi-client projections remain truthful and cannot bypass the boundary. Dependencies: Prompt 020 plus the setup/start/Turn 1 contracts in Prompts 074–081 and the jump authority/readiness, route, mutation, and retry contracts in Prompts 177 and 287–304. Apply the authorized core-rules, facilitation, and ship source areas; this prompt extends the existing demo baseline and does not imply full-game or post-Turn-1 demo support.",
         "title": "Bound the single-player demo to Turn 1 without jump authority."
       },
-      "description": "Planned [NEW] prompt: bound the existing single-player demo to setup and all supported actions through the end of Turn 1, deny jumps server-side with zero fuel/location/pursuit/event/turn mutation, and explain Demo mode in an accessible on-screen toast; no production-path evidence has been recorded. Depends on Prompt 020 plus Prompts 074–081, 177, and 287–304.",
-      "evidenceIds": "E-020A",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Prior production sole-player Cycle 1 maintenance plus actual local UI Demo start/end/reload and explicit no-jump toast. New normal Auth/HTTP native create/join/cast/start checks active/complete join+resume markers, Cycle 1 finish/replay and all jump denials with unchanged session/navigation/events. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-020A;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "020;074-081;177;287-304",
@@ -6909,10 +6916,12 @@
       "milestoneHints": "M1",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "Foundation, session, casting, and start (Prompts 001–090)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -9198,8 +9207,8 @@
         "acceptance": "a legal local exchange commits atomically and an overdraw, wrong location, or stale trade leaves both sides unchanged.",
         "title": "Resolve same-table trades."
       },
-      "description": "PC06-A9 records the digital interpretation of the Player's Guide v1.1 same-table token trade: distinct player-held balances are seeded only by a facilitator attestation of existing tabletop counts; each exact exchange requires the recipient's acceptance while both active participants remain at the same ship table. The five resources and Security Teams are tracked separately from shared ship stores, and this feature cannot move tokens between tables or bypass shuttle cargo. Production still needs the authoritative inventory/callable, consent and stale-retry checks, member-safe projection, write-denial rules, responsive client, and ordinary authorized play evidence. Keep missing until the complete path is proven. The inventory, identity, and consent mechanics are a documented digital product choice, not an asserted printed rule.",
-      "evidenceIds": "E-AUDIT-112",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Distinct Auth-emulator actors normally create/join/claim; native HTTP bilateral recipient acceptance commits separate private inventories once. Overdraw, wrong table and stale revision deny; client private-write Rules deny. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-112;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "111",
@@ -9207,10 +9216,12 @@
       "milestoneHints": "M2",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -10368,8 +10379,8 @@
         "acceptance": "ordinary messages cannot cross fleet groups and scout-taxi exceptions use a separate authorized path.",
         "title": "Block split-fleet communications."
       },
-      "description": "The central server fleet-group contract now fails closed when ordinary communication lacks group identity and authorizes it only when sender and recipient share the same authoritative group. Scout-taxi communication is reserved under a separate authority-path discriminator, so later taxi work cannot bypass the ordinary boundary. Prompt 339 still owns composition into the future ordinary message endpoint; Prompt 343 owns taxi eligibility and state changes. No production messaging path consumes this policy yet.",
-      "evidenceIds": "E-AUDIT-151;E-151-COMMUNICATION-BOUNDARY",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Preserved ordinary authorized production proof is recorded individually in the PC06 acceptance matrix. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-151;E-151-COMMUNICATION-BOUNDARY;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "286",
@@ -10377,10 +10388,12 @@
       "milestoneHints": "M2",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -11622,8 +11635,8 @@
         "acceptance": "a charged successful short/medium/long jump yields 10/15/20 ore plus five when upgraded.",
         "title": "Resolve the Ram Scoop."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-202",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Native short/medium/long Ram Scoop yields 10/15/20 ore; upgraded short gives 15, damaged scoop gives 0, uncharged drive spends/awards 0. Actual local UI blind Icebreaker jump spent 3 fuel and gained 10 ore. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-202;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "201",
@@ -11631,10 +11644,12 @@
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -11858,8 +11873,8 @@
         "acceptance": "successful jumps cost 3/6/12 and respect charge, damage, upgrade, and retry contracts.",
         "title": "Audit the Shepherd Jump Drive."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-210",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Native Shepherd short/medium/long spends 3/6/12 through the common authoritative jump handler. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-210;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "177;287-304",
@@ -11867,10 +11882,12 @@
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
@@ -12195,8 +12212,8 @@
         "acceptance": "successful jumps cost 2/4/8 and preserve authoritative failure and retry behavior.",
         "title": "Audit the Quellon Jump Drive."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-222",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Native Quellon short/medium/long spends 2/4/8 through the common authoritative jump handler. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-222;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "177;287-304",
@@ -12204,10 +12221,12 @@
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
@@ -12477,8 +12496,8 @@
         "acceptance": "successful jumps cost 2/4/8 and use the common authoritative jump contract.",
         "title": "Audit the Refinery 124 Jump Drive."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-232",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Native Refinery 124 short/medium/long spends 2/4/8 through the common authoritative jump handler. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-232;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "177;287-304",
@@ -12486,10 +12505,12 @@
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
@@ -12640,8 +12661,8 @@
         "acceptance": "short/medium/long travel costs 1/1/2 from its current host.",
         "title": "Resolve the Gorgoneion Jump Drive."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-236",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Native Gorgoneion short/medium/long spends 1/1/2 host fuel, consumes charge, detaches, updates private Captain arrival and exact replay once; stale/uncharged/wrong Captain/destroyed host deny without mutation. Actual local GM UI combined Repair Drones+Jump Drive charging committed 2/2. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-236;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "234;287-304",
@@ -12649,10 +12670,12 @@
       "milestoneHints": "M3;M5;M6",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -12663,8 +12686,8 @@
         "acceptance": "its Captain privately moves each of the top five mission cards to top or bottom before dealing.",
         "title": "Resolve Gorgoneion Mission Support."
       },
-      "description": "PC06-A10 resolves the digital product contract from the existing server-owned small-craft docking and replacement-role authorities: Gorgoneion must be docked to a current active core host, and its connected current Captain may inspect the top five and submit one exact top/bottom partition before the first mission card in the session is dealt. The action preserves order within each destination, leaves the deck tail between the groups, and serializes on the same private mission-deck document as dealPrivateInitialCards. The server returns the inspected faces only to that entitled Captain and uses a stable shared command receipt. This does not add Gorgoneion to activeVesselIds or make it a mission carrier. Production still needs the callable, member privacy, responsive role workspace, and ordinary authorized play evidence; keep missing until the complete path is proven. The admission, identity, face projection, and retry details are recorded digital choices, not printed rules.",
-      "evidenceIds": "E-AUDIT-237",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Preserved ordinary authorized production proof is recorded individually in the PC06 acceptance matrix. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-237;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "234;401;402",
@@ -12672,10 +12695,12 @@
       "milestoneHints": "M3;M5;M6",
       "relatedConsumes": "166;278",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -12686,8 +12711,8 @@
         "acceptance": "once in Coordination, three host materials repair one eligible console.",
         "title": "Resolve Gorgoneion Repair Drones."
       },
-      "description": "Source: DoWNE Printer - A4 Card Duplex, base v1.1 PDF (downe-home-printing-a4-double-sided-v1.1.pdf, SHA-256 be57154c140155210e7a32827e4a93067326fb85414640641d413f52d437ba86), printed Gorgoneion card p. 23 and Gorgoneion Captain Role Guide p. 24: once during Coordination, if charged, spend 3 materials from one ship to repair one of its consoles. The integrated server-owned path requires the exact current Gorgoneion Captain replacement-role binding, active gameplay and current live Coordination cycle, current completed and charged Gorgoneion Team maintenance, canonical docking to an active undestroyed resource host, one known damaged eligible host console, and exactly three materials in that current host inventory. One Firestore transaction removes exactly the selected damage, spends exactly three materials, advances the public revision-bound one-use-per-cycle ledger, writes the member-allowlisted public repair outcome without actor or role identity, and stores a private actor-bound replay receipt. The private Captain workspace submits the current docking and repair revisions and stays unavailable when role, phase, charge, host, damage, inventory, or repair history is not current. Extra-ship Captain assignment now uses the strict server-owned docked smallShipStates map and persisted active core roster; the optional ship never mutates canonical setup. Unknown or malformed map entries, invalid Capybara mode, and missing or malformed persisted rosters fail closed. Callable, domain, projection, client, privacy, route, and client-write denial coverage is implemented and locally validated. Prompt 238 remains partial until an ordinary authorized repair succeeds end to end against the deployed exact SHA; no live repair proof is recorded yet.",
-      "evidenceIds": "E-AUDIT-238;E-238-GORGONEION-REPAIR-DRONES",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Native HTTP current Captain Repair Drones spends 3 materials, repairs 1eligible console once and exact replay preserves inventory. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-238;E-238-GORGONEION-REPAIR-DRONES;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "234;361",
@@ -12697,11 +12722,12 @@
       "releaseBoundaries": "none",
       "releases": [
         "0.5.24",
-        "0.5.25"
+        "0.5.25",
+        "0.5.64"
       ],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -12785,8 +12811,8 @@
         "acceptance": "short/medium/long jumps spend 1/1/2 from the current host and retain hybrid immunity.",
         "title": "Resolve the base Capybara Jump Drive."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-241A",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Native base Capybara short/medium/long spends 1/1/2 host fuel with charge, detachment, private arrival, exact retry and authority denials. Connected selector is covered by real-component responsive checks. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-241A;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "234;287-304",
@@ -12794,10 +12820,12 @@
       "milestoneHints": "M3;M5;M6",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -12808,8 +12836,8 @@
         "acceptance": "a contributed mission card grants exactly one extra of each resource type won from that opportunity.",
         "title": "Resolve base Capybara Bulk Haulage."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-241B",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Normal Auth/HTTP native contributed base Capybara critical D1 earns exactly+1 food/+1 water; unassisted D2 gets no haulage. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-241B;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "241;401",
@@ -12817,10 +12845,12 @@
       "milestoneHints": "M3;M5;M6",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -12831,8 +12861,8 @@
         "acceptance": "security teams, ore, fuel, food, water, and materials move only between legal docked inventories.",
         "title": "Resolve base Capybara Cargo Transfer."
       },
-      "description": "The candidate wires base Capybara Cargo Transfer through an ordinary server callable and Captain workspace. Only the uniquely current replacement-role Captain with no core seat may move a positive whole amount of security teams, ore, fuel, food, water, or materials between the admitted small ship and its one current docked active core host during an unpaused, unexpired Coordination cycle; Scrap and full-expansion Capybara remain excluded. The transaction preserves activeVesselIds as the core roster, validates strict base mode, server-owned small-ship admission, live cycle, docking and cargo revisions, exact inventories, explicit undestroyed host damage authority, and safe integer bounds, and atomically writes both ledgers with an actor-bound private replay receipt. The member projection exposes only a well-formed ledger for explicitly enabled base mode and admitted Capybara; the accessible Captain panel suppresses fresh transfer when host damage is unavailable or destroyed and ignores delayed replies or exact retries after same-user role/seat changes, while Firestore direct writes remain denied. Focused callable, projection, client, rules, selector, responsive and capacity checks cover the integrated path. Deployed from exact source SHA a5a8cc587fde69565465c87549fd26d1185c55ec by workflow 35987464866, which selected Hosting plus only transferBaseCapybaraCargo and verified the Hosting build marker and a new ready Cloud Run revision transferbasecapybaracargo-00001-niw at 100% traffic. The live client reports no active session and has no session code available in this browser, so no ordinary authorized transfer or before/after inventory observation was made. Prompt 241c remains partial until an ordinary authorized production cargo transfer is observed with before/after inventory evidence.",
-      "evidenceIds": "E-AUDIT-241C;E-241C-BASE-CAPYBARA-CARGO",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Native HTTP base Captain typed cargo transfer preserves both inventories; stale and illegal cargo type deny, exact replay is read-only. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-241C;E-241C-BASE-CAPYBARA-CARGO;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "241;164",
@@ -12841,11 +12871,12 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.5.27"
+        "0.5.27",
+        "0.5.64"
       ],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -12925,8 +12956,8 @@
         "acceptance": "discarding the participant's entire hand salvages one opportunity for the exact per-card food/water/material choice.",
         "title": "Resolve Warrior Reclamator."
       },
-      "description": "Source audit remains complete, but the runtime producer is intentionally deferred: the routed Warrior card establishes Away Mission full-hand discard and per-card food/water choice, while current code has no authoritative mission eligibility/opportunity ledger, remaining-hand assignment state, or Mission Leader reward custody. P242 and P402 provide Warrior identity and the deck only; P401, P407, and P413 must land before this prompt can add a callable or UI without inventing opportunity availability, recipient policy, or repeat timing.",
-      "evidenceIds": "E-AUDIT-243",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Normal Auth/HTTP native Warrior whole-hand salvage commits 3 cards, yielding 3 materials plus chosen 2 food/1 water; exact delivery is read-only. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-243;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "242;401;402;407;413",
@@ -12934,10 +12965,12 @@
       "milestoneHints": "M3;M5;M6",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -12948,8 +12981,8 @@
         "acceptance": "six materials repair up to two eligible consoles once in Coordination.",
         "title": "Resolve Warrior Repair Drones."
       },
-      "description": "The source-verified Warrior Repair Drones feature now has a server-authoritative callable and role-bound client panel. The callable authorizes the current Warrior Captain replacement role, verifies strict admission from canonical core-roster and docked-host authority, accepts only current-cycle charged Team maintenance during Coordination, spends exactly six materials from the current host, and repairs one or two distinct known damaged consoles once per cycle. It commits host resources and damage, a revision-bound ledger, a private actor-role replay receipt, and a member-safe outcome event atomically; direct client writes are denied. The Captain panel consumes current server state and preserves the one/two-console and current-cycle charge contract. Prompt 244 remains partial until an ordinary authorized production repair is exercised end to end; deployment and source/test evidence alone do not close the prompt.",
-      "evidenceIds": "E-AUDIT-244;E-244-WARRIOR-REPAIR-DRONES",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Native HTTP Warrior Repair Drones spends 6 materials and repairs 2distinct eligible consoles once; exact retry preserves cost/damage. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-244;E-244-WARRIOR-REPAIR-DRONES;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "234;361",
@@ -12958,11 +12991,12 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.5.26"
+        "0.5.26",
+        "0.5.64"
       ],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -13090,8 +13124,8 @@
         "acceptance": "host stores fund steps 1–4, one console charges, and its failed unrest roll loses population and skips charging.",
         "title": "Resolve Voyage 33-0 maintenance."
       },
-      "description": "The repository contains a preparatory server-authoritative Voyage 33-0 maintenance path with a distinct admitted-vessel state, P234 host food/water ledger and four-step lane, one-console reactor cap, failed-unrest population loss with charging skipped, and dual maintenance/docking revision guards. P251 is now recorded as a hard prerequisite because it remains responsible for docking and provisioning the host-backed state; its movement path is hard-blocked by unfinished jump prompts 287–304. No production initializer or player-facing entrypoint currently creates that state, so players cannot execute Voyage maintenance yet. The callable, client payload, public projection, replay/fingerprint, rules, state, and existing small-ship regressions pass focused checks; this prompt remains partial until the P251 docking slice lands.",
-      "evidenceIds": "E-AUDIT-250;E-AUDIT-250-RELATED;E-P250-IMPLEMENTATION",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Prior production rations/dice/nonempty reactor/end plus native guaranteed failed real riot roll: population drops, charging skipped, nonempty selection denied with zero writes; empty reactor/end remains legal. Captured-cycle continuation and uncertainty-recovery native scenarios pass. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-250;E-AUDIT-250-RELATED;E-P250-IMPLEMENTATION;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "234;249;251",
@@ -13099,10 +13133,12 @@
       "milestoneHints": "M3;M5;M6",
       "relatedConsumes": "114",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -13113,8 +13149,8 @@
         "acceptance": "it docks during Team and jumps for 1/1/2 host fuel without being treated as a base small ship in population logic.",
         "title": "Resolve Voyage 33-0 movement."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-251",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Prior production short/medium 1 fuel each plus native long 2 fuel without drive charge, exact replay and private docked-host synchronization. Local native host-move scenario preserves carried coordinate/revisions and cross-group privacy. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-251;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "249;287-304",
@@ -13122,10 +13158,12 @@
       "milestoneHints": "M3;M5;M6",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -13303,8 +13341,8 @@
         "acceptance": "successful jumps cost 3/6/12 and all common charge, damage, route, failure, and retry cases hold.",
         "title": "Audit the expansion Capybara Jump Drive."
       },
-      "description": "Planned [PROVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-259",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Native enabled expansion Capybara short/medium/long spends 3/6/12; exact replay spends/moves 0again. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-259;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "253;287-304",
@@ -13312,10 +13350,12 @@
       "milestoneHints": "M3;M5;M6",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PROVE"
     },
     {
@@ -14537,8 +14577,8 @@
         "acceptance": "a split creates independent values and one group's action cannot mutate another's.",
         "title": "Isolate pursuit by fleet group."
       },
-      "description": "The server-domain pursuit transition now forks one source fleet-group score into two independent canonical group values, preserves unrelated groups, and rejects malformed, missing, duplicate, or colliding authority. Existing movement and cycle transitions consume the independent map without mutating another group. Prompt 336 will invoke this pure transition when partial arrival creates the persisted split. The split transition has no production caller yet.",
-      "evidenceIds": "E-AUDIT-307;E-307-SPLIT-PURSUIT-ISOLATION",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Native partition/jump/resume scenarios preserve independent group pursuit and private knowledge; prior production normal partition/group-note recovery remains complementary evidence. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-307;E-307-SPLIT-PURSUIT-ISOLATION;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "286;305",
@@ -14546,10 +14586,12 @@
       "milestoneHints": "M4;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -14856,8 +14898,8 @@
         "acceptance": "one fixture selects a chart, jumps ships independently, updates pursuit, triggers an arrival effect, and reconnects safely.",
         "title": "Run the jump-and-system scenario."
       },
-      "description": "Planned [PROVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-320",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Native composed setup/chart lock, independent jumps, partition, pursuit, arrival and ordinary resume handler scenario passes. Actual local UI normal create/join/cast/seat/start, maintenance, refuel and blind jump committed through real HTTP callables. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-320;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "281;282;294;313;316",
@@ -14865,10 +14907,12 @@
       "milestoneHints": "M4;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PROVE"
     },
     {
@@ -14906,8 +14950,8 @@
         "acceptance": "the Wing Commander scouts one system within two jumps of current AEGIS position.",
         "title": "Resolve Starlight's first scan."
       },
-      "description": "The server-side Starlight first-scan resolver requires the exact current Wing Commander entitlement, a valid active role/vessel configuration, the complete authoritative per-ship coordinate map, and a positive cycle. It derives the origin only from current AEGIS position, measures the canonical printed chart graph, and returns an immutable first-attempt request for any printed system at distance 0, 1, or 2. Targets three or more jumps away, unknown systems or positions, incomplete or extra fleet coordinates, stale or mismatched role authority, replacement assignments, and malformed cycles fail closed. Current source audit on 2026-09-28 confirms that the production requestScout transaction calls authorizeCurrentScoutScan, which consumes this resolver using current private ship coordinates, actor entitlement, fuel where required, and persisted cadence. It atomically writes the pending request, cadence, and replay receipt. The earlier statement that no production transaction consumes this resolver is superseded. This integration is already implemented; ordinary authorized released-session evidence for this entitlement and the remaining hard prerequisites are not established by this audit, so the prompt remains partial. Do not rebuild the existing integration merely to clear the stale description.",
-      "evidenceIds": "E-AUDIT-322;E-322-STARLIGHT-FIRST-SCAN;E-CHECKPOINT-RECORDING-AUDIT-20260928",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Preserved ordinary authorized production proof is recorded individually in the PC06 acceptance matrix. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-322;E-322-STARLIGHT-FIRST-SCAN;E-CHECKPOINT-RECORDING-AUDIT-20260928;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "321;177",
@@ -14915,10 +14959,12 @@
       "milestoneHints": "M4;M5;M8",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -14929,8 +14975,8 @@
         "acceptance": "only authoritative current-turn fuel permits one additional distinct eligible system.",
         "title": "Resolve Starlight's fuelled second scan."
       },
-      "description": "The pure server policy now resolves Starlight’s one fuelled additional scan from an exact same-cycle first-scan history, the current P321 Wing Commander entitlement, current AEGIS position, canonical chart range, and two corroborating fuel authorities: `shuttleFuelled.starlight === true` plus a current-cycle AEGIS shuttle-bay receipt at step 7 whose unique refuelled list names Starlight. The second target must be distinct from the first and independently remain within two jumps of current AEGIS. Missing or multiple prior scans, forged or stale first receipts, false/malformed/unknown fuel rows, stale or pre-bay maintenance, duplicate/malformed refuel receipts, far or repeated targets, and stale role/position authority fail closed. Current source audit on 2026-09-28 confirms that the production requestScout transaction calls authorizeCurrentScoutScan, which consumes this resolver using current private ship coordinates, actor entitlement, fuel where required, and persisted cadence. It atomically writes the pending request, cadence, and replay receipt. The earlier statement that no production transaction consumes this resolver is superseded. This integration is already implemented; ordinary authorized released-session evidence for this entitlement and the remaining hard prerequisites are not established by this audit, so the prompt remains partial. Do not rebuild the existing integration merely to clear the stale description.",
-      "evidenceIds": "E-AUDIT-323;E-323-STARLIGHT-FUELLED-SECOND-SCAN;E-CHECKPOINT-RECORDING-AUDIT-20260928",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Preserved ordinary authorized production proof is recorded individually in the PC06 acceptance matrix. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-323;E-323-STARLIGHT-FUELLED-SECOND-SCAN;E-CHECKPOINT-RECORDING-AUDIT-20260928;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "321;322",
@@ -14938,10 +14984,12 @@
       "milestoneHints": "M4;M5;M8",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -14952,8 +15000,8 @@
         "acceptance": "the Explorer scouts one system within three jumps of current Quellon position and no farther.",
         "title": "Resolve Hummingbird scouting."
       },
-      "description": "The server-side Hummingbird scout policy requires the exact current Quellon Explorer entitlement, a valid active role/vessel configuration, no prior Hummingbird scan in the cycle, the complete authoritative per-ship coordinate map, and a positive cycle. It derives origin only from current Quellon position and returns one immutable request for a printed target at canonical graph distance 0 through 3. A fourth jump, unknown target or position, incomplete or extra fleet coordinates, used cadence, stale or mismatched role authority, replacement state, and malformed cycles fail closed. Current source audit on 2026-09-28 confirms that the production requestScout transaction calls authorizeCurrentScoutScan, which consumes this resolver using current private ship coordinates, actor entitlement, fuel where required, and persisted cadence. It atomically writes the pending request, cadence, and replay receipt. The earlier statement that no production transaction consumes this resolver is superseded. This integration is already implemented; ordinary authorized released-session evidence for this entitlement and the remaining hard prerequisites are not established by this audit, so the prompt remains partial. Do not rebuild the existing integration merely to clear the stale description.",
-      "evidenceIds": "E-AUDIT-324;E-324-HUMMINGBIRD-SCAN;E-CHECKPOINT-RECORDING-AUDIT-20260928",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Preserved ordinary authorized production proof is recorded individually in the PC06 acceptance matrix. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-324;E-324-HUMMINGBIRD-SCAN;E-CHECKPOINT-RECORDING-AUDIT-20260928;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "321;216",
@@ -14961,10 +15009,12 @@
       "milestoneHints": "M4;M5;M8",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -15206,8 +15256,8 @@
         "acceptance": "D/E rewards reveal two legal targets without creating arrival-only effects or duplicate discoveries.",
         "title": "Apply two-system exploration rewards."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-334",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Normal Auth/HTTP native D3 exploration grants 2 selected-chart systems only to original participant UIDs, with no move/arrival effect; exact replay changes nothing. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-334;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "315;313;412",
@@ -15215,10 +15265,12 @@
       "milestoneHints": "M4;M5;M8",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -15229,8 +15281,8 @@
         "acceptance": "the reward can expose only a valid L/M target on the selected chart.",
         "title": "Constrain Athena's Wolf-system reveal."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-335",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Normal Auth/HTTP native Athena E3 accepts 2ChartA L/M targets; D+Lpair denies without writes and exact valid replay is read-only. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-335;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "315;313;334;412",
@@ -15238,10 +15290,12 @@
       "milestoneHints": "M4;M5;M8",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -15620,8 +15674,8 @@
         "acceptance": "extend the current presentation-only transition primitive so an authoritative departure removes the old arrived contact and destination does not appear before commit.",
         "title": "Represent jumping ships in transition."
       },
-      "description": "Current transition presentation/data exists, but no composed authoritative departure/arrival projection proves it. Planned [EXTEND] prompt.",
-      "evidenceIds": "E-AUDIT-352",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Native common jump transaction persists transition atomically. Real-component timed ShipPlot checks hide the old contact until arrival; actual local UI commits blind jump and presents the arrived result. This is not a recorded production animation trace. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-352;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "294",
@@ -15629,10 +15683,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
@@ -16071,8 +16127,8 @@
         "acceptance": "a travelling shuttle resolves to its authoritative nearest legal host and cannot remain in motion.",
         "title": "Park craft when airspace closes."
       },
-      "description": "Server-side deadline parking, delayed-mutation guards, and bounded task reconciliation are implemented with source tests. PC03 also updates departure availability when the airspace deadline passes without a new snapshot. Prompt 371 remains partial until the deployed runtime proves successful Cloud Tasks enqueue and private worker invocation; source and client checks alone do not satisfy this live gate.",
-      "evidenceIds": "E-AUDIT-371",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Preserved ordinary authorized production proof is recorded individually in the PC06 acceptance matrix. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-371;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "145;146;366",
@@ -16081,11 +16137,12 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.5.53"
+        "0.5.53",
+        "0.5.64"
       ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -16240,8 +16297,8 @@
         "acceptance": "transferred teams remain countable, located, and eligible for boarding only at their host.",
         "title": "Preserve security-team semantics."
       },
-      "description": "A pure server authority now preserves security teams in separate exact ship and shuttle ledgers and derives boarding eligibility from the current authoritative docking map. Teams loaded into a shuttle remain countable there; while docked they reinforce only that host, moving the dock moves eligibility without changing inventory, and an undocked or in-transit shuttle reinforces no ship. The policy validates the exact active fleet and enabled shuttle manifest, each shuttle’s printed cargo allowlist, non-negative safe counts, unique legal docks, and safe host totals; missing or extra hosts, unknown cargo or docks, forbidden security cargo, malformed counts, duplicate docking, and overflow fail closed. Callable integration into the later boarding transaction remains downstream. No production Wolf boarding transaction consumes this host map yet; Prompt 466 owns the downstream security-team defence roll.",
-      "evidenceIds": "E-AUDIT-378;E-378-SECURITY-TEAM-LOCATION",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Native current-host security projection counts 3Dione teams after Philia transfer and leaves visit/event ledgers unchanged. Rules deny private audience/client writes; no boarding-roll scope added. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-378;E-378-SECURITY-TEAM-LOCATION;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "377",
@@ -16249,10 +16306,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -16286,8 +16345,8 @@
         "acceptance": "a lost race returns the authoritative host/transit state without duplicating cargo, fuel, or visits.",
         "title": "Reconcile movement conflicts."
       },
-      "description": "The 0.5.12 candidate adds validated current docked, requested, and in-transit state to movement conflicts from departure request, begin, retarget, and arrival. Docking details follow session-member visibility, while pending request and transit details remain fleet-group restricted. The strict client parser accepts only the matching session/shuttle and exact public shapes, and lost-race regressions prove no duplicate movement, event, visit, fuel, cargo, or receipt writes. Independent Sol xhigh review approved source candidate b3b1c2cbdf42235835c028c3eca6930a0279647c; focused server/client tests, Functions and web builds, and targeted ESLint passed. Live production-path evidence is still pending.",
-      "evidenceIds": "E-AUDIT-380;E-380-SHUTTLE-MOVEMENT-CONFLICT",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Two concurrent native HTTP begin-transit commands produce one winner and a loser envelope with the current transit identity; cargo race conserves inventories, fuel and visits. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-380;E-380-SHUTTLE-MOVEMENT-CONFLICT;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "365;366;367",
@@ -16295,10 +16354,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -16409,8 +16470,8 @@
         "acceptance": "an engineering craft damages an eligible console for three materials only after a target-ship player consents.",
         "title": "Resolve permissioned dismantling."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-385",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Native HTTP dismantling requires genuine recipient consent and produces 3 materials at the target; absent consent denies, exact retry cannot repeat gain/damage. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-385;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "361;377",
@@ -16418,10 +16479,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -16582,8 +16645,8 @@
         "acceptance": "+3 exploration and +1 salvage apply only where its participant contributed a card.",
         "title": "Apply Starlight mission bonuses."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-392",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Normal Auth/HTTP native Starlight contribution gives+1salvage and+3exploration only on contributed opportunities; unassisted opportunity has no bonus. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-392;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "401",
@@ -16591,10 +16654,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -16605,8 +16670,8 @@
         "acceptance": "+3 exploration and +1 mining apply only to its participant's contributed opportunities.",
         "title": "Apply Hummingbird mission bonuses."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-393",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Normal Auth/HTTP native Hummingbird contribution gives+3exploration/+1mining only on contributed opportunities; unassisted opportunity has no bonus. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-393;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "401",
@@ -16614,10 +16679,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -16793,8 +16860,8 @@
         "acceptance": "one newly reached system starts one mission with eligible craft and exactly one entitled Mission Leader.",
         "title": "Validate mission eligibility and leader."
       },
-      "description": "PC04 implements the production mission-start slice for one exact source-authorized new-location opportunity. The active GM records the connected same-group participant roster and its team-selected Mission Leader; the server transaction revalidates opportunity freshness, cycle, chart, coordinate, current active roles, and at least one currently usable colocated carrier before it creates one immutable mission snapshot and private initial deal. Shared available carriers are recorded once at mission level, participant snapshots contain only known per-person UID and role facts, direct writes and unauthorized private reads are denied, and exact ambiguous retries recover the committed receipt without a second deal even after the session reaches a terminal phase. A complete source/input/modifier/outcome/delta/revision/replay/recovery receipt is projected to the GM log automatically. Full local, rules, focused, build, rendered-review, coordinated validation, and exact-head Sol review evidence passed at main SHA 0ba386f50689b375153ceee3b2eb11a9ecd19435. WIF Deploy workflow 36466514603 selected Hosting, Firestore, and 129 audited named Functions, completed the updates, and reported Deployment verification passed; an independent hosted check reports version 0.5.54. No ordinary authorized GM and participant mission-start playthrough was performed, so the prompt remains partial rather than complete.",
-      "evidenceIds": "E-AUDIT-401;E-401-PC04-CANDIDATE",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Native full deal validates leader, current source/group/craft/phase and privately deals once under simultaneous exact retries. Actual GM UI source-carrier absence and operational Wolf-base attempts were denied; these setup denials earned no successful mission credit. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-401;E-401-PC04-CANDIDATE;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "315;361",
@@ -16803,11 +16870,12 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.5.54"
+        "0.5.54",
+        "0.5.64"
       ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -16866,8 +16934,8 @@
         "acceptance": "at most one per player per opportunity is assigned without revealing contents to the leader.",
         "title": "Let the leader distribute extra cards blindly."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-404",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Native complete mission leader blindly distributes 4requested extra cards to 2 participants/opportunities; each own hand/public pointer updates atomically without revealing the next card. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-404;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "401;403",
@@ -16875,10 +16943,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -16889,8 +16959,8 @@
         "acceptance": "a participant may request a count without recording or disclosing the reason.",
         "title": "Accept private card requests."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-405",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Native participants request 2 extra cards each before leader allocation; exact revision-bound commands cannot allocate twice. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-405;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "401;403",
@@ -16898,10 +16968,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -16937,8 +17009,8 @@
         "acceptance": "each participant places at most one face-down card per opportunity from their remaining hand.",
         "title": "Assign cards to opportunities."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-407",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Native own-card assignments bind held IDs once to D1/D3; final assignment advances server resolution automatically. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-407;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "403;405",
@@ -16946,10 +17018,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -16960,8 +17034,8 @@
         "acceptance": "each nonempty opportunity gets one server top-deck card and an authorized shuffle action.",
         "title": "Add facilitator cards."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-408",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Native final assignment draws and shuffles server facilitator cards once; replay does not redeal. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-408;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "402;407",
@@ -16969,10 +17043,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -16983,8 +17059,8 @@
         "acceptance": "the server combines values and exact difficulty/critical thresholds without client-supplied arithmetic.",
         "title": "Calculate opportunity totals."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-409",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Native printed numeric cards and immutable contribution bonuses resolve totals and rewards automatically; native full HTTP mission variants cover salvage/mining/science/exploration. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-409;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "407;408",
@@ -16992,10 +17068,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -17006,8 +17084,8 @@
         "acceptance": "craft, role, or device bonuses affect only the opportunities whose ledger qualifies.",
         "title": "Apply only contribution-linked bonuses."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-410",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Native contribution-linked Starlight/Hummingbird/Bulk Haulage bonuses apply only to the contributing UID/opportunity; forged or absent craft remains denied by focused authority tests. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-410;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "409",
@@ -17015,10 +17093,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -17029,8 +17109,8 @@
         "acceptance": "no player card means no facilitator card and an automatic failure result.",
         "title": "Fail empty opportunities."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-411",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Native full mission empty D2 fails automatically, with no reward and no facilitator contribution draw. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-411;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "409",
@@ -17038,10 +17118,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -17052,8 +17134,8 @@
         "acceptance": "ordinary success and critical success produce only their exact reward branches.",
         "title": "Resolve critical success separately."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-412",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Native D1 critical branch delivers 10 food+8 water once, separately from ordinary branches; full HTTP resource deltas verify contribution variants. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-412;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "409",
@@ -17061,10 +17143,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -17075,8 +17159,8 @@
         "acceptance": "the server mints rewards once and the client cannot create or redirect them outside policy.",
         "title": "Place rewards in Mission Leader custody."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-413",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Native resolved rewards remain leader-held until legal dropOff atomically updates destination resources/private delivery receipt; matching craft hold remains until complete. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-413;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "409",
@@ -17084,10 +17168,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -17098,8 +17184,8 @@
         "acceptance": "a mission crossing into Team Phase keeps participants/craft committed and blocks illegal movement until completion.",
         "title": "Preserve mission overruns."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-414",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Normal Auth/HTTP native Team overrun retains original source cycle and Starlight hold through active AND resolved. Illegal host jump/move denies before nav writes, complete dropOff releases hold; updated native composed test confirms post-resolution movement denial twice and exact post-completion movement replay. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-414;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "409",
@@ -17107,10 +17193,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -17121,8 +17209,8 @@
         "acceptance": "the leader designates one legal ship when their craft cannot carry the result.",
         "title": "Drop off oversized rewards."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-415",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Native oversized 18-unit food/water delivery applies all quantities without an invented carrier cap, once under concurrent exact retries. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-415;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "413",
@@ -17130,10 +17218,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -17443,8 +17533,8 @@
         "acceptance": "private deal, blind distribution, discard, assignment, bonuses, facilitator cards, success/failure, reward, overrun, and reconnect all work without leaks.",
         "title": "Run the complete away-mission scenario."
       },
-      "description": "Planned [PROVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-422",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Complete native production-handler playthrough covers initial deal, request, blind allocation, discards, assignments, automatic outcomes, exploration and oversized dropOff/replay. Native Auth/HTTP variants add actual private reads and overrun. Connected real-component workspace/render checks supply presentation coverage; accepted local proof, not production play. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-422;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "401;409;415;410;411;412;414;622",
@@ -17452,10 +17542,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PROVE"
     },
     {
@@ -22410,8 +22502,8 @@
         "acceptance": "digit editing, lock, power rail alternative, submission, pending, denial, success, and recovery work without a pointer.",
         "title": "Make jump controls keyboard-complete."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-607",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Preserved ordinary authorized production proof is recorded individually in the PC06 acceptance matrix. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-607;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "289;303",
@@ -22419,10 +22511,12 @@
       "milestoneHints": "X",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
@@ -22836,8 +22930,8 @@
         "acceptance": "each participant regains only their private hand/choices and the current public mission state.",
         "title": "Recover during an away mission."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-622",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Native initial deal publishes card-free pointers and isolated own hands; authenticated REST own-hand read/reauth reread returns identical cards, another participant is denied. Actual component reconnect/retry checks cover UI recovery; no claim of a second production browser hand playthrough. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-622;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "401;402;612",
@@ -22845,10 +22939,12 @@
       "milestoneHints": "X",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
@@ -23398,8 +23494,8 @@
         "acceptance": "eligibility, private cards, distribution, discards, placement, bonuses, totals, rewards, failure, overrun, drop-off, and reconnect resolve.",
         "title": "Run a complete away-mission playthrough."
       },
-      "description": "Planned [PROVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-646",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Complete native handler/HTTP mission playthrough finishes rewards and matching hold release with exact retries and private reauthentication. The user-authorized representative local workflow replaces the unavailable production GM requirement without changing behavior criteria. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-AUDIT-646;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "422",
@@ -23407,10 +23503,12 @@
       "milestoneHints": "M13",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PROVE"
     },
     {
@@ -24268,8 +24366,8 @@
         "acceptance": "An entitled ship can choose a blind jump without supplying known destination coordinates. The server reads that ship's authoritative current node and the locked chart graph, randomly selects one directly connected node, and applies the normal jump workflow to that destination. A blind jump may select an undiscovered connected node; do not require the ship to know its coordinates or reveal the candidate neighbor set, hidden coordinates, or organiser chart to the client. Preserve existing role, phase, drive, fuel, group, damage, and jump-consequence rules; the client cannot choose the result, graph, random seed, or origin. Bind the selected destination to the authoritative request/receipt so retries, concurrent commands, and reconnect never redraw or duplicate movement or resource costs. A successful arrival records only the appropriate newly visited/discovered knowledge for that ship. Handle a missing or invalid graph/current node or no eligible connected destination truthfully without mutation. Prove adjacency, unknown-destination eligibility, server randomness, authorization, existing jump requirements, idempotent retry, and arrival knowledge without chart leakage. While the authoritative blind-jump operation is active, the jump-drive coordinate digits visually cycle through random numerals 0–9 twice per second with randomized staggered timing between digits. This is cosmetic scrambling, not a destination preview or source of gameplay randomness; it must not expose the hidden destination, seed the server draw, change costs, or trigger another jump. Stop and reconcile the display when the operation resolves, fails, or is cancelled, and avoid duplicate timers after reconnect or navigation. Provide a readable non-flickering reduced-motion equivalent and avoid announcing each random digit to assistive technology. Verify the digit range, twice-per-second cadence, stagger, cleanup, and separation from the committed destination.",
         "title": "Allow blind jumps to a random adjacent system."
       },
-      "description": "Owner-requested blind jump option: server-random travel to one node connected to the ship's current jump-map node, preserving normal jump authority, costs, consequences, and private chart knowledge. During the active blind jump, coordinate digits cosmetically scramble through 0–9 twice per second at randomized staggered timing, with reduced-motion and cleanup behavior.",
-      "evidenceIds": "E-679;E-679-DEPENDENCIES",
+      "description": "PC06 acceptance verified and reconciled for build 0.5.64. Actual local UI blind jump selected adjacent 5143 from 0000, spent 3 fuel once and consumed charge; native retry-stable adjacency and zero-write authority guards pass. The user explicitly authorized representative local/emulator verification; no production gameplay claim is made for this row. Required final release gates/deployment are recorded separately in the PC06 report.",
+      "evidenceIds": "E-679;E-679-DEPENDENCIES;E-PC06-FINAL-20261002",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "281;282;285;294;304;677",
@@ -24277,10 +24375,12 @@
       "milestoneHints": "none",
       "relatedConsumes": "283;313",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.64"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

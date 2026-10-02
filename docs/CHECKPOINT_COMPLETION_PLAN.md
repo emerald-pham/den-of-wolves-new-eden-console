@@ -69,6 +69,8 @@ routine owner approval, a walkthrough, feedback, or permission to continue to
 the next completed tranche. Genuine blockers preserve the incomplete target
 and do not stop independent useful work.
 
+For PC06 only, the owner's October 2 instruction accepts representative local/emulator gameplay for remaining behavior checks after requesting a strictly local GM access path. The fixed 49 IDs and 556/751 target remain unchanged. Evidence must distinguish the seven production results from local native/HTTP/UI/Rules verification; prepared scenes alone grant no credit. Required authority review and release/deployment gates still apply.
+
 ## Execution and proof
 
 1. Reconcile existing work first using the [accounting audit](CHECKPOINT_ACCOUNTING_AUDIT.md).

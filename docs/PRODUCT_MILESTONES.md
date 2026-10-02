@@ -213,6 +213,8 @@ review, repair every finding, then run one reconciled CI/release candidate and
 deployment. Verify normal authorized gameplay separately from tests, the
 synthetic PC06 scene, and deployment; report any unavailable production path
 without crediting its prompt. Do not start PC07 during this checkpoint.
+**PC06 verification authorization, October 2:** the user requested an emulator-only GM development path and explicitly accepted representative local/emulator gameplay to finish this checkpoint. The 49 criteria and target remain fixed. Preserve seven actual production proofs, label local/native/UI/rules evidence separately for the remaining rows, and retain mandatory review, CI and deployment. This PC06 authorization supersedes the unavailable production-GM hold above; prepared scenes alone do not prove behavior and future checkpoint requirements are unchanged.
+
 ## Future acceptance alignment — PC07–PC10 only
 
 **Owner instruction, 2026-09-30:** execute the philosophical alignment from

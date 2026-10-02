@@ -1,6 +1,14 @@
 # PC06 vessel movement and away missions
 
-Build 0.5.63 is deployed from exact main `2fe6da1a303a7c37d9a2cc066b1839914a0aaa50`; candidate CI 37009280466 and required exact-main Deploy 37012011214 passed. Hosting and all 18 selected Function revisions were verified, and Rules were released. Seven of the fixed 49 ordinary acceptances are verified: P151, P237, P322, P323, P324, P607 and P371. Normal participant recovery works in Chrome, while supported browser access still lacks the IAB GM surface needed for normal setup and cycle controls. Voyage has successful real maintenance and short/medium movement, but its failed-roll branch, long movement and ordinary docked-host departure repair remain pending. A small post-use status correction is prepared for the next 0.5.64 batch, with no new CI push. The catalog stays 507/751 until all assigned closures are earned and reconciled; the target stays 556/751 and 98/293. Local tests and prepared scenes do not grant ordinary acceptance. [The acceptance matrix](PC06_ACCEPTANCE_MATRIX.md) owns each current result.
+The final 0.5.64 candidate verifies all **49 assigned acceptances** and reconciles **556/751 overall (74.03%)**, **98/293 campaign closures (33.45%)**. The opening baseline was 507/751 and 49/293; this adds exactly 49 assigned closures, with no recovered extra credit, reopened IDs or scope changes. Seven acceptances retain ordinary production proof; 42 use the user's explicitly authorized representative local/emulator approach. Final release gates and deployment are still pending; production remains 0.5.63 until they pass. [The matrix](PC06_ACCEPTANCE_MATRIX.md) records each environment and result. Prepared review scenes alone add no credit.
+
+The local GM control is complete and independently reviewed. It is available only in an explicitly opted-in Vite development server connected to a `demo-` emulator project. It seeds the normal short-lived emulator GM access lease; the normal server instance claim, callables and Rules still own authorization. Loopback, Origin/Host, local ports, project-bound Auth lookup/token checks and negative production-build tests fail closed. Production builds contain no executable helper/control, including a poisoned opt-in build. [Usage and isolation](LOCAL_GM_ACCESS.md) give the two startup commands.
+
+The final repair keeps mission craft committed after outcomes resolve and releases them only when reward delivery completes. A native HTTP overrun exposed premature release that older tests did not check between resolution and drop-off. Red unit/callable/native assertions now check that exact boundary; all repaired native transactions and independent authority review pass. Demo reconnect also now retains its strict public Cycle 1 marker through normal join/resume DTOs.
+
+The complete mission proof uses native production transactions and separate authenticated emulator actors: deal, private request, blind distribution, discards, assignment, automatic outcome, contribution bonuses, exploration, critical/empty branches, oversized delivery, overrun, replay and private reauthentication. Vessel proofs cover every fuel band and Ram Scoop branch; cargo/repair/trade proofs cover consent, typed arithmetic, competing requests and direct-write/privacy denials. Actual local UI adds normal setup/seat/start, nonempty refuel, combined Gorgoneion charging, complete core maintenance, blind jump/Ram Scoop and Demo end/reload/no-jump checks. Disposable phase-clock acceleration is labeled fixture preparation. Native fixtures and rendered workspace checks complement these UI samples; they are not claimed as 42 ordinary production playthroughs.
+
+The actual local blind-jump outcome is retained at [the shareable capture](/Users/emeraldpham/Documents/PC06-active/evidence/local-icebreaker-blind-ram-scoop.jpg). It excludes session codes and identities. The external fixed-ID receipt is `evidence/pc06-49-acceptance-receipt.json`; native bundles are linked individually in the matrix. P371 retains its actual production Cloud Tasks enqueue/private-worker parking proof. The narrow P151 scout-taxi prerequisite is complete; broader P343 acceptances remain PC07 and earn no PC06 credit.
 
 ## Solo review access
 
@@ -24,7 +32,7 @@ the 49 ordinary-path checks:
 5. When the fleet is split, can I identify my group's location, pursuit,
    messages and scout results without seeing another group's private state?
 
-## Released 0.5.63 repairs and pending ordinary proof
+## Historical 0.5.63 release and earlier proof boundaries
 
 The released batch includes the observer-control layout, combined Gorgoneion/base
 Capybara charging choice and admitted Captain mission-roster repairs. The
@@ -67,8 +75,7 @@ The existing gate ran successfully but omitted the later Voyage surface. Its
 new before/after render checks catch the dim token and verify the corrected
 color with unchanged text metrics. These are local component renders; the audit
 and any remaining limitations must be included in the final checkpoint report.
-The existing live results are seven verified and 42 pending, with unchanged
-catalog credit.
+Those earlier production-only counts are superseded by the explicitly authorized local verification and the current 49-row reconciliation above.
 
 ## What the current local evidence establishes
 
@@ -176,3 +183,10 @@ P371 now has full correlated ordinary proof. The controlled shuttle began its pr
 The final Voyage recovery review approved exact `e82a5e1b` without findings. Full local validation subsequently exposed a new palette violation and an existing Aegis test that asserted loaded targets after awaiting only its static heading. The palette now uses the established console colors and passes 61 style checks plus ten responsive/motion render cases. The Aegis test now awaits its actual target; all nine cases and their assertions remain. Five unchanged GM route cases timed out in the full parallel suite but passed within all 141 isolated GM/Aegis cases. Their cause is being checked before final validation. These local findings earn no ordinary gameplay credit; the catalog remains 507/751 and five of 49 ordinary rows are Verified.
 
 The bounded timing diagnosis found local contention across ten test workers: the same GM cases finish in 0.6–1.6 seconds in isolation. The next required validation limits local test scheduling to three workers while retaining all cases and their five-second budgets. No keyboard test, product behavior, timeout or CI configuration is changed.
+
+
+## Final test changes and audit
+
+The progress ratchet was red with two failures against the 507 catalog, then updated to all 49 explicit IDs, 556 total and the served 21-partial/174-missing summary. It preserves historical release snapshots and verifies P343 receives no early credit. The deployment selector's historical mission fixture now reads the current audited source; a new exact-last-deployed transition verifies only the lifecycle writer changes and rejects unaudited edits. The retained-history test also advances its newest-entry count to 556 and explicitly preserves the interim 0.5.63 snapshot at 507. No authority, arithmetic, replay, budget or private-data assertion was weakened.
+
+The typography gate audit found that both mandatory gates **ran and passed** on the affected 0.5.62 deployment. The later Voyage caption surface was absent from the rendered sample inventory, and contrast was not asserted there. Its dim amber caption measured about 2.10:1. The existing gate now includes eight Voyage size/motion samples and catches the original token in a discriminating red run; the repaired token measures about 7.38:1 with unchanged font metrics. The correction and expanded gate shipped in 0.5.63. [The full audit](PC06_TYPOGRAPHY_GATE_AUDIT.md) records introducing commit, exact run evidence, before/after renders and limitations. This identifies a confirmed outlier; the user's unrecorded original screen cannot be inferred. Coverage remains an explicit representative inventory, not automatic discovery or physical-device proof.
