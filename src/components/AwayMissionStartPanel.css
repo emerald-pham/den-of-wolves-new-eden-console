@@ -1,0 +1,52 @@
+.away-mission-start-panel {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+}
+
+.away-mission-start-panel__roster {
+  box-sizing: border-box;
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  width: 100%;
+}
+
+.away-mission-start-panel__participant {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.away-mission-start-panel__participant input {
+  flex: 0 0 auto;
+}
+
+.away-mission-start-panel__leader {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.away-mission-start-panel__leader select {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+  width: 100%;
+}
+
+.away-mission-start-panel__receipts,
+.away-mission-start-panel__receipt,
+.away-mission-start-panel__receipt dl,
+.away-mission-start-panel__receipt dl > div,
+.away-mission-start-panel__receipt dd {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.away-mission-start-panel__receipt dd {
+  overflow-wrap: anywhere;
+}

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { replacementRoleAvailableForSession, replacementRoleFor } from '@/data/replacementRoles';
+import './AwayMissionStartPanel.css';
 import {
   subscribeGmMissionOpportunities,
   subscribeGmMissionStartSnapshots,
@@ -39,6 +41,11 @@ interface PendingAttempt {
   readonly command: ExactMissionStartCommand;
 }
 
+interface EligibleMissionParticipant {
+  readonly player: Player;
+  readonly roleId: string;
+}
+
 function requestId(): string {
   if (typeof globalThis.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID();
   return `mission-start-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
@@ -59,6 +66,35 @@ function missionStartFingerprint(payload: MissionStartPayload): string {
 
 function exactCommandFingerprint(command: ExactMissionStartCommand): string {
   return JSON.stringify({ ...command, participantUids: [...command.participantUids] });
+}
+
+function currentMissionParticipantRoleId(
+  player: Player,
+  activeRoleIds: ReadonlySet<string>,
+  session: GameSession,
+  players: readonly Player[],
+): string | undefined {
+  if (player.replacementRoleId != null && typeof player.replacementRoleId !== 'string') return undefined;
+
+  if (typeof player.replacementRoleId === 'string') {
+    const role = replacementRoleFor(player.replacementRoleId);
+    const currentReplacementHolders = players.filter((candidate) =>
+      candidate.replacementRoleId === player.replacementRoleId && candidate.replacementStatus == null);
+    if (!role || role.kind !== 'extra-ship' || player.replacementStatus != null ||
+        player.activeConsoleRoleId != null || player.seatId != null || player.escapeState != null ||
+        currentReplacementHolders.length !== 1 || currentReplacementHolders[0]?.uid !== player.uid ||
+        !replacementRoleAvailableForSession(role, {
+          activeVesselIds: session.activeVesselIds,
+          smallShipStates: session.smallShipStates,
+          expansion: session.expansion,
+          capybaraEnabled: session.capybaraEnabled,
+        })) return undefined;
+    return role.id;
+  }
+
+  if (player.replacementStatus != null || typeof player.assignedRoleId !== 'string' ||
+      !activeRoleIds.has(player.assignedRoleId)) return undefined;
+  return player.assignedRoleId;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -223,19 +259,21 @@ export default function AwayMissionStartPanel({
     availableOpportunities[0];
   const activeRoleIds = useMemo(() => new Set(session?.activeRoleIds ?? []), [session?.activeRoleIds]);
   const eligibleParticipants = useMemo(() => {
-    if (!selectedOpportunity) return [];
+    if (!selectedOpportunity || !session) return [];
     return players
-      .filter((player) => player.role === 'player' && player.connected === true &&
-        player.fleetGroupId === selectedOpportunity.groupId &&
-        typeof player.assignedRoleId === 'string' &&
-        activeRoleIds.has(player.assignedRoleId))
-      .slice()
-      .sort((left, right) => left.displayName.localeCompare(right.displayName) || left.uid.localeCompare(right.uid));
-  }, [activeRoleIds, players, selectedOpportunity]);
+      .flatMap((player): EligibleMissionParticipant[] => {
+        if (player.role !== 'player' || player.connected !== true ||
+            player.fleetGroupId !== selectedOpportunity.groupId) return [];
+        const roleId = currentMissionParticipantRoleId(player, activeRoleIds, session, players);
+        return roleId ? [{ player, roleId }] : [];
+      })
+      .sort((left, right) => left.player.displayName.localeCompare(right.player.displayName) ||
+        left.player.uid.localeCompare(right.player.uid));
+  }, [activeRoleIds, players, selectedOpportunity, session]);
   const selectedUids = selectedParticipantUids.filter((uid) =>
-    eligibleParticipants.some((participant) => participant.uid === uid));
+    eligibleParticipants.some(({ player }) => player.uid === uid));
   const selectedParticipants = selectedUids.flatMap((uid) => {
-    const participant = eligibleParticipants.find((candidate) => candidate.uid === uid);
+    const participant = eligibleParticipants.find((candidate) => candidate.player.uid === uid);
     return participant ? [participant] : [];
   });
   const leaderIsSelected = missionLeaderUid !== '' && selectedUids.includes(missionLeaderUid);
@@ -407,17 +445,17 @@ export default function AwayMissionStartPanel({
           {eligibleParticipants.length > 0 ? (
             <fieldset className="away-mission-start-panel__roster" disabled={busy || Boolean(pendingAttempt)}>
               <legend>Participants selected by the team</legend>
-              {eligibleParticipants.map((participant) => (
-                <label key={participant.uid}>
+              {eligibleParticipants.map(({ player, roleId }) => (
+                <label className="away-mission-start-panel__participant" key={player.uid}>
                   <input
                     type="checkbox"
-                    checked={selectedUids.includes(participant.uid)}
-                    onChange={(event) => toggleParticipant(participant.uid, event.currentTarget.checked)}
+                    checked={selectedUids.includes(player.uid)}
+                    onChange={(event) => toggleParticipant(player.uid, event.currentTarget.checked)}
                   />
-                  {participant.displayName} // {participant.assignedRoleId}
+                  {player.displayName} // {roleId}
                 </label>
               ))}
-              <label>
+              <label className="away-mission-start-panel__leader">
                 Mission Leader
                 <select
                   aria-label="Mission Leader"
@@ -426,9 +464,9 @@ export default function AwayMissionStartPanel({
                   disabled={busy || selectedUids.length === 0}
                 >
                   <option value="">Choose one selected participant</option>
-                  {selectedParticipants.map((participant) => (
-                    <option key={participant.uid} value={participant.uid}>
-                      {participant.displayName} // {participant.assignedRoleId}
+                  {selectedParticipants.map(({ player, roleId }) => (
+                    <option key={player.uid} value={player.uid}>
+                      {player.displayName} // {roleId}
                     </option>
                   ))}
                 </select>
