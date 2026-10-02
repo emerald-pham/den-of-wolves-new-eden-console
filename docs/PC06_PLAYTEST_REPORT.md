@@ -36,9 +36,11 @@ deployed ordinary preview, reorder and one-use proof remain required.
 The docked Voyage/core-host departure mismatch has a native transaction repair.
 Its independent review found one privacy bridge: publishing Voyage's carried
 coordinate in the member-readable session would reveal its host's destination
-to another fleet group. That release is withheld while the existing Voyage
-group moves location authority to private server state and the existing GM
-navigation view. Existing host-crew actions remain authorized; no new player
+to another fleet group. The local repair now keeps location authority in private server state and the
+current GM navigation view, migrates validated legacy coordinates atomically,
+and clears stale client projections. Focused server, client, Rules and native
+transaction checks pass; final bounded review, release gates, deployment and
+ordinary proof remain pending. Existing host-crew actions remain authorized; no new player
 entitlement or PC07 work is added.
 
 The confirmed Voyage caption contrast regression and the audit of why the

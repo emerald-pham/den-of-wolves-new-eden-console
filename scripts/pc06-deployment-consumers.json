@@ -615,14 +615,27 @@
     },
     {
       "before": "e858226097808871edf069e55d2feed3605dee127120acdd9ae45dc36c0510bb",
-      "after": "32ab3ddb968df443f532851320038a72a41b0edd71ffd2d1fcd840eb5f6ea0a6",
+      "after": "0797a3e85dde6d29b76f5029e1cd4a26cc628c256f3eeef86acf5550310893cd",
       "consumers": [
         "adjudicateFailedJump",
+        "advanceTurn",
+        "commitAwayMissionLifecycleCommand",
+        "confirmFleetPartition",
+        "confirmSetup",
+        "getBoardingSecurityTeamLocations",
+        "joinSession",
         "jumpShip",
         "moveShipToLocation",
-        "startGame"
+        "resolvePendingScoutRequest",
+        "resumeSession",
+        "runMaintenance",
+        "setCandidatePlanCheckpoint",
+        "startGame",
+        "startSinglePlayerDemo"
       ],
-      "reason": "Reconciled core host movement sync and explicit zero mission-deck cursor at start; no other index behavior changes."
+      "reason": "Combined explicit startGame mission-deck cursor, private Voyage canonical storage and migration, composed GM view field ownership, and host movement with preloaded arrival-pressure reads; audited from the exact deployed 0.5.62 index source.",
+      "baseline": "baad0b16f1381a6eba835c401aa8796679b1befb",
+      "implementationCandidate": "0645debf"
     },
     {
       "baseline": "f27ecf0850132a2005a787c7218b015b9e71aca0",

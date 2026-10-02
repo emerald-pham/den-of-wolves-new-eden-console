@@ -38,7 +38,7 @@ own independent jump; precise primary-source support and the inference gap
 are recorded with the repair before integration. No acceptance is credited
 from this failing transition.
 
-CUA's restored inventory currently exposes no browser. The single supported
+At startup, CUA's restored inventory exposed no browser. The single supported
 hidden IAB creation returned `Browser is not available: iab`; the coordinator
 received the exact capability boundary. Implementation and source/gate audit
 continue while supported browser access is restored. No alternative profile,
@@ -141,6 +141,45 @@ retained outside Git as `evidence/resumed-runtime-review-f27e-changes-requested.
 The candidate is withheld before CI; final review is limited to the unresolved
 privacy finding and materially changed authority/deployment seams. This local
 review does not grant any ordinary acceptance or update the catalog.
+
+## Integrated private movement candidate after resume
+
+The owner integrated all nine private-movement worker commits through
+`0645debf`, preserving their test-first commits and the rejected `f27ecf08`
+review. Canonical Voyage coordinates now remain in server-only state and the
+current GM navigation view. Ordinary session headers and join/resume replies
+omit them; validated legacy coordinates migrate atomically without inventing a
+new position. The client requires the current server-backed GM identity and
+claim, clears stale or denied views, and cannot recover coordinates from a
+persisted public header. PC06-A17 explicitly retains the accepted A6/A14
+split-fleet audience boundary; no new player entitlement or PC07 credit is added.
+
+Focused post-commit evidence records 149 Functions, 228 client and 154 Rules
+checks, plus three native production-handler Firestore scenarios. Native proof
+covers the stranded legacy position, next host move, stale command denial,
+independent Voyage jump, redock and exact replay, as well as authorized legacy
+migration and emergency movement with an actual damage press-log write. A
+transaction-order red exposed an older emergency/adjudication read after the
+damage write, also present in the exact `f27ecf08` baseline. Preloading arrival
+pressure before writes repairs that storage boundary. These tests remain local
+or emulator evidence and do not grant ordinary acceptance.
+
+Owner test-first `06105226` exposed the missing combined deployment transition
+from the actual deployed 0.5.62 index hash `e8582260…` to `0797a3e8…`; the
+reconciled source inventory passes all 118 selector checks, including extra
+unaudited-source denial. It includes the P237 zero cursor, private Voyage
+storage and migration, GM field ownership and preloaded host-movement reads.
+Retained red/green logs are in the external evidence directory. Final bounded
+independent review, complete release validation, CI, deployment and ordinary
+proof still remain required before this candidate ships.
+
+A later supported Chrome inventory restored the existing controlled Captain
+surface on build 0.5.62. Its unfinished private mission-support workspace is
+preserved; no extra actor or gameplay mutation was inferred from browser handles.
+The supported response-capture capability is available for its next ordinary
+flow. IAB GM access remains absent from the exposed browser inventory, a tool
+capability boundary rather than a security denial or an inferred login failure.
+The six verified rows and 43 pending rows remain unchanged.
 
 ## Owner and implementation groups
 
