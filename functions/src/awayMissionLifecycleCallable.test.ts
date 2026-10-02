@@ -487,7 +487,9 @@ it('executes every lifecycle command, keeps the deck cursor and projections atom
   const writesAfterResolve = store.committedWrites.length;
   expect(store.records.get(paths().mission)?.lifecycleRecord).toMatchObject({ status: 'resolved' });
   expect(store.records.get(paths().deck)?.dealtCount).toBe(4);
-  expect(store.records.get(paths().session)?.missionCraftCommitments).toEqual({});
+  expect(store.records.get(paths().session)?.missionCraftCommitments).toMatchObject({
+    starlight: { missionId: MISSION_ID, sourceCycle: 2 },
+  });
   expect(callables.randomCalls).toBe(1);
   expect(callables.d6Calls).toBe(1);
   expect(store.committedWrites.slice(beforeResolution).map(({ path }) => path)).toEqual(expect.arrayContaining([
@@ -504,6 +506,9 @@ it('executes every lifecycle command, keeps the deck cursor and projections atom
   expect(callables.randomCalls).toBe(1);
   expect(callables.d6Calls).toBe(1);
   expect(store.committedWrites).toHaveLength(writesAfterResolve);
+  expect(store.records.get(paths().session)?.missionCraftCommitments).toMatchObject({
+    starlight: { missionId: MISSION_ID, sourceCycle: 2 },
+  });
   const writesBeforeWrongLeaderDropoff = store.committedWrites.length;
   await expect(commit(commandRequest('bob', {
     type: 'dropOff', requestId: 'bob-dropoff', expectedRevision: currentRevision(store), shipId: 'aegis',
@@ -512,6 +517,7 @@ it('executes every lifecycle command, keeps the deck cursor and projections atom
   await expect(send('alice', 'dropOff', { shipId: 'aegis' })).resolves.toMatchObject({
     status: 'committed', publicState: { status: 'complete', custody: { shipId: 'aegis' } },
   });
+  expect(store.records.get(paths().session)?.missionCraftCommitments).toEqual({});
 });
 
 it('keeps Warrior Reclamator choices and each participant’s cards private from every other command reply', async () => {

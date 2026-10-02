@@ -20,7 +20,7 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
       'dow-new-eden-pc06-mission-test', '--only', 'firestore', 'node scripts/test-pc06-mission-transaction.emulator.mjs'] });
 } else {  const require = createRequire(resolve(repository, 'functions/package.json'));
   const { getFirestore } = require('firebase-admin/firestore');
-  const { dealPrivateInitialCards, commitAwayMissionLifecycleCommand, jumpShip, confirmFleetPartition } = require('../functions/lib/index.js');
+  const { dealPrivateInitialCards, commitAwayMissionLifecycleCommand, jumpShip, moveShipToLocation, confirmFleetPartition } = require('../functions/lib/index.js');
   const { recommendedRoleIds } = require('../functions/lib/roleConfiguration.js');
   const { activeVesselIdsForRoles } = require('../functions/lib/gameSetup.js');
   const { roleOwnedCraftManifestForSetup } = require('../functions/lib/craftOwnership.js');
@@ -130,6 +130,13 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
       assert.deepEqual(nav.missionExploredCoordinatesByUid, { alice: ['4454', '5143'], bob: ['4454', '5143'] });
       assert.equal(nav.revision, 6);
       assert.deepEqual(nav.shipGalacticCoordinates, initialCoordinates);
+      assert.deepEqual((await session.get()).get('missionCraftCommitments'), {
+        starlight: { missionId, sourceCycle: 2 }, highwall: { missionId, sourceCycle: 2 } });
+      const movementAfterResolution = request('gm', { sessionId: id, instanceId: 'bridge',
+        requestId: 'host-movement-after-resolution', shipId: 'aegis', destination: '0000' });
+      await assert.rejects(moveShipToLocation.run(movementAfterResolution), /committed.*away mission/i);
+      await assert.rejects(moveShipToLocation.run(movementAfterResolution), /committed.*away mission/i);
+      assert.equal((await navigationRef.get()).get('shipGalacticCoordinates.aegis'), initialCoordinates.aegis);
       const deliveryRevision = (await missionRef.get()).get('revision');
       const delivery = request('alice', { sessionId: id, missionId, type: 'dropOff', requestId: 'deliver-once',
         expectedRevision: deliveryRevision, shipId: 'aegis' });
@@ -140,6 +147,11 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
       assert.deepEqual((await session.get()).get('missionCraftCommitments'), {});
       assert.equal((await missionRef.get()).get('status'), 'complete');
       assert.equal((await db.doc(`sessions/${id}/serverState/missionRewardDeliveries/receipts/${missionId}`).get()).exists, true);
+      const releasedMoves = await Promise.all([
+        moveShipToLocation.run(movementAfterResolution), moveShipToLocation.run(movementAfterResolution),
+      ]);
+      assert.deepEqual(releasedMoves[0], releasedMoves[1]);
+      assert.equal((await navigationRef.get()).get('shipGalacticCoordinates.aegis'), '0000');
     } finally { await db.recursiveDelete(session); }
   });
 }
