@@ -20,6 +20,8 @@ const BASE_CAPYBARA_PRODUCTION_CONSOLES = [
   { id: 'hydroponics', name: 'Hydroponics', effect: 'Spend 1 water → generate 4 food' },
   { id: 'fuel-processor', name: 'Fuel Processor', effect: 'Spend up to 5 ore → generate 1 fuel each' },
 ] as const;
+const SMALL_SHIP_JUMP_DRIVE_CONSOLE = { id: 'jump-drive', name: 'Jump Drive' } as const;
+const SMALL_SHIP_JUMP_DRIVE_IDS: readonly SmallShipId[] = ['gorgoneion', 'capybara-small'];
 const VULCAN_ADDITIONAL_LABOUR_REACTOR_CONSOLES = VULCAN_ADDITIONAL_LABOUR_CONSOLES.map((id, index) => ({
   id, name: `Additional Labour ${index + 1}`,
 }));
@@ -158,10 +160,15 @@ function SmallShipCard({ id, state, currentTurn, activeHostShipIds, available, c
           {step === 3 && <button className="cic-action-button" type="button" disabled={disabled} onClick={() => void submit('riot')}>Run population / riot roll // server dice</button>}
           {step === 4 && <fieldset disabled={pending || inMutiny} className="maintenance-controls"><legend>Step 4 // Reactor // up to {rules.reactorCapacity}</legend>
             {(id === 'capybara-small'
-              ? BASE_CAPYBARA_PRODUCTION_CONSOLES
+              ? [...BASE_CAPYBARA_PRODUCTION_CONSOLES, SMALL_SHIP_JUMP_DRIVE_CONSOLE]
               : id === 'vulcan'
                 ? [...registeredReactorConsoles, ...VULCAN_ADDITIONAL_LABOUR_REACTOR_CONSOLES]
-                : [...registeredReactorConsoles, ...repairDroneConsoles, ...genericReactorConsoles])
+                : [
+                  ...registeredReactorConsoles,
+                  ...repairDroneConsoles,
+                  ...(SMALL_SHIP_JUMP_DRIVE_IDS.includes(id) ? [SMALL_SHIP_JUMP_DRIVE_CONSOLE] : []),
+                  ...genericReactorConsoles,
+                ])
               .map((console) => {
                 const checked = consoles.includes(console.id);
                 const atCapacity = consoles.length >= rules.reactorCapacity;
