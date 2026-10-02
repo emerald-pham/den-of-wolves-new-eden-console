@@ -31,6 +31,9 @@ const FIRESTORE_FILES = new Set([
 
 const TOOLING_ONLY_FILES = new Set([
   'docs/implementation-prompts.json',
+  'docs/PC07_ROADMAP_GANTT.csv',
+  'docs/PC07_ROADMAP_GANTT.html',
+  'docs/PC07_ROADMAP_GANTT.json',
   'config/render-performance-baseline.json',
 ]);
 
