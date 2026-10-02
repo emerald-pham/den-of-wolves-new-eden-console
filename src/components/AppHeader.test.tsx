@@ -636,8 +636,8 @@ it('opens a readable changelog in a bounded scroll region from settings', async 
   expect(toggle).toHaveAttribute('aria-expanded', 'true');
   expect(screen.getByRole('heading', { name: 'Changelog' })).toBeVisible();
   expect(screen.getByRole('region', { name: /changelog entries/i })).toBeVisible();
-  expect(await screen.findByText(/current build catalog: 507 of 751 complete \(67\.51%\)/i)).toBeVisible();
-  expect(screen.getByText(/35 partial · 209 not yet implemented/i)).toBeVisible();
+  expect(await screen.findByText(/current build catalog: 556 of 751 complete \(74\.03%\)/i)).toBeVisible();
+  expect(screen.getByText(/21 partial · 174 not yet implemented/i)).toBeVisible();
   expect(await screen.findByRole('heading', { name: `Build ${APP_VERSION}` })).toBeVisible();
   expect(screen.getByText(/read what changed without leaving your session/i)).toBeVisible();
   expect(screen.queryByText(/component|refactor|typescript/i)).not.toBeInTheDocument();

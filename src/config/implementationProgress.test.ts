@@ -16,6 +16,14 @@ const catalog = JSON.parse(inputs.catalogSource) as {
 };
 
 describe('catalog-backed implementation progress', () => {
+  it('records all fixed PC06 IDs as earned closures without counting PC07 taxi scope', () => {
+    const ids = '202 210 222 232 236 241a 259 320 607 679 020a 112 238 244 241c 251 250 352 371 380 385 378 401 237 241b 392 393 404 405 407 408 409 410 411 412 413 243 414 415 622 422 646 334 335 151 307 322 323 324'.split(' ');
+    expect(ids).toHaveLength(49);
+    const rows = ids.map(id => catalog.prompts.find(row => row.id === id));
+    expect(rows.every(row => row?.status === 'done')).toBe(true);
+    expect(catalog.prompts.find(row => row.id === '343')?.status).not.toBe('done');
+  });
+
   it('derives the current summary from the catalog and requires the current changelog totals to match', () => {
     const result = validateImplementationProgress(inputs);
 
