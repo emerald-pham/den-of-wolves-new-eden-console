@@ -4,6 +4,9 @@ import * as jumpCallables from './index';
 import { jumpFuelCost, jumpLengthBetween } from './jumpDrive';
 import { populationChange } from './shipPopulation';
 import { emptySmallShipState } from './smallShip';
+import { VOYAGE_33_COMMITMENTS, VOYAGE_33_ID } from './voyageAdmission';
+import { emptyVoyage33MovementState } from './voyage33Movement';
+import { emptyVoyage33MaintenanceState } from './voyage33Maintenance';
 
 const mock = vi.hoisted(() => ({
   get: vi.fn(),
@@ -56,6 +59,10 @@ const mock = vi.hoisted(() => ({
   groupMessages: undefined as Record<string, unknown> | undefined,
   missionCraftCommitments: {} as Record<string, unknown>,
   smallShipStates: {} as Record<string, unknown>,
+  voyage33Admission: undefined as Record<string, unknown> | undefined,
+  admittedVesselIds: [] as string[],
+  voyage33Movement: undefined as Record<string, unknown> | undefined,
+  voyage33Maintenance: undefined as Record<string, unknown> | undefined,
   missionOpportunityRecord: undefined as Record<string, unknown> | undefined,
   missionOpportunityRecordPath: undefined as string | undefined,
   partitionOpportunities: [] as Array<Record<string, unknown>>,
@@ -123,6 +130,46 @@ const data = {
   shipId: 'aegis',
 };
 
+function setDockedVoyage(hostShipId = 'aegis') {
+  mock.voyage33Admission = {
+    type: 'voyage-admission',
+    sessionId: 's1',
+    id: VOYAGE_33_ID,
+    status: 'admitted',
+    crisisId: 'approach-1',
+    crisisRevision: 2,
+    population: 40_000,
+    unrest: 0,
+    hostShipId: null,
+    commitments: VOYAGE_33_COMMITMENTS,
+  };
+  mock.admittedVesselIds = [VOYAGE_33_ID];
+  mock.voyage33Movement = {
+    ...emptyVoyage33MovementState('0000'),
+    revision: 11,
+    jumpState: {
+      lastJumpTurn: 0,
+      emergencyJumpUsed: false,
+      integrityLockedUntil: '2026-09-06T12:10:07.000Z',
+    },
+  };
+  const maintenance = emptyVoyage33MaintenanceState(hostShipId);
+  mock.voyage33Maintenance = {
+    ...maintenance,
+    dockingRevision: 5,
+    population: 26_500,
+    unrest: 4,
+    cycle: {
+      step: 4,
+      revision: 8,
+      results: { '1': 'Rations were recorded.' },
+      charges: ['hydroponics'],
+      turn: 1,
+      rationBonus: 18,
+    },
+  };
+}
+
 beforeEach(() => {
   mock.role = 'gm';
   mock.owner = 'u1';
@@ -168,6 +215,10 @@ beforeEach(() => {
   mock.groupMessages = undefined;
   mock.missionCraftCommitments = {};
   mock.smallShipStates = {};
+  mock.voyage33Admission = undefined;
+  mock.admittedVesselIds = [];
+  mock.voyage33Movement = undefined;
+  mock.voyage33Maintenance = undefined;
   mock.missionOpportunityRecord = undefined;
   mock.missionOpportunityRecordPath = undefined;
   mock.partitionOpportunities = [];
@@ -299,6 +350,10 @@ beforeEach(() => {
           ...(memberPursuitWindow ? { pursuitEmergencyWindow: memberPursuitWindow } : {}),
           missionCraftCommitments: mock.missionCraftCommitments,
           smallShipStates: mock.smallShipStates,
+          voyage33Admission: mock.voyage33Admission,
+          admittedVesselIds: mock.admittedVesselIds,
+          voyage33Movement: mock.voyage33Movement,
+          voyage33Maintenance: mock.voyage33Maintenance,
           activeRoleIds: mock.activeRoleIds,
           activeVesselIds: mock.activeVesselIds,
           currentTurn: mock.currentTurn,
@@ -1775,6 +1830,102 @@ it.each(['ordinary', 'emergency', 'adjudication'] as const)(
     }));
   },
 );
+
+it.each(['ordinary', 'emergency', 'adjudication', 'manual-location'] as const)(
+  'moves docked Voyage with a committed %s host movement while preserving its own ledgers', async (kind) => {
+    setDockedVoyage();
+    const movementBefore = structuredClone(mock.voyage33Movement);
+
+    if (kind === 'emergency') {
+      mock.charges = [];
+      mock.fuel = 0;
+      mock.pursuitGroups = { 'fleet-1': 10 };
+      mock.pursuitEmergencyWindow = {
+        type: 'pursuit-emergency-window', status: 'offered', cycle: 1,
+        navigationRevision: 0, groupIds: ['fleet-1'], openedAt: '2026-09-06T12:10:07.000Z',
+      };
+    }
+    if (kind === 'adjudication') {
+      mock.jumpStates = { aegis: { lastFailureRequestId: 'host-movement-failure' } };
+      mock.jumpFailures = {
+        'host-movement-failure': {
+          type: 'ship-jump-failure', status: 'unresolved', adjudicable: true,
+          requestId: 'host-movement-failure', shipId: 'aegis', origin: '0000', destination: '9997',
+          failureStatus: 'fuel-shortage', failureRevision: 0, currentTurn: 1, fuelAtFailure: mock.fuel,
+        },
+      };
+    }
+
+    const movementRequest = {
+      ...data,
+      requestId: `voyage-host-${kind}`,
+      destination: '5143',
+      expectedRevision: 0,
+    };
+    if (kind === 'manual-location') {
+      await moveShipToLocation.run(request(movementRequest));
+    } else if (kind === 'adjudication') {
+      await adjudicateFailedJump.run(request({
+        sessionId: 's1', instanceId: 'bridge', requestId: movementRequest.requestId,
+        expectedRevision: 0, failureRequestId: 'host-movement-failure', destination: '5143',
+      }));
+    } else {
+      await jumpShip.run(request({
+        ...movementRequest,
+        ...(kind === 'emergency' ? { emergency: true } : {}),
+      }));
+    }
+
+    const sessionPatch = mock.update.mock.calls.find(([path]) => path === 'sessions/s1')?.[1];
+    expect(sessionPatch).toMatchObject({
+      voyage33Movement: {
+        ...movementBefore,
+        coordinate: '5143',
+        revision: 12,
+      },
+    });
+    expect(sessionPatch).not.toHaveProperty('voyage33Maintenance');
+  },
+);
+
+it('leaves Voyage untouched when its valid host is a different vessel', async () => {
+  setDockedVoyage('dione');
+  const movementBefore = structuredClone(mock.voyage33Movement);
+  const maintenanceBefore = structuredClone(mock.voyage33Maintenance);
+
+  await jumpShip.run(request({ ...data, requestId: 'foreign-docked-voyage', destination: '5143' }));
+
+  const sessionPatch = mock.update.mock.calls.find(([path]) => path === 'sessions/s1')?.[1];
+  expect(sessionPatch).not.toHaveProperty('voyage33Movement');
+  expect(sessionPatch).not.toHaveProperty('voyage33Maintenance');
+  expect(mock.voyage33Movement).toEqual(movementBefore);
+  expect(mock.voyage33Maintenance).toEqual(maintenanceBefore);
+});
+
+it.each([
+  ['invalid admission with an admitted roster entry', () => { mock.voyage33Admission = { ...mock.voyage33Admission, status: 'pending' }; }],
+  ['malformed docking state', () => { mock.voyage33Maintenance = { ...mock.voyage33Maintenance, hostShipId: 'not-a-host' }; }],
+  ['malformed movement state', () => { mock.voyage33Movement = { ...mock.voyage33Movement, id: 'forged-voyage' }; }],
+  ['exhausted movement revision', () => { mock.voyage33Movement = { ...mock.voyage33Movement, revision: Number.MAX_SAFE_INTEGER - 1 }; }],
+])('rejects host movement without writes for %s while Voyage is docked', async (_label, corrupt) => {
+  setDockedVoyage();
+  corrupt();
+
+  await expect(jumpShip.run(request({ ...data, requestId: 'malformed-docked-voyage', destination: '5143' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('does not move Voyage or write any movement state when its docked host is destroyed', async () => {
+  setDockedVoyage();
+  mock.damage = { aegis: { damagedSystemIds: [], destroyed: true } };
+
+  await expect(jumpShip.run(request({ ...data, requestId: 'destroyed-voyage-host', destination: '5143' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
 
 it('spends all failure-bound fuel when the facilitator selects a cheaper under-fueled route', async () => {
   const longDestination = Array.from({ length: 10_000 }, (_, value) => String(value).padStart(4, '0'))
