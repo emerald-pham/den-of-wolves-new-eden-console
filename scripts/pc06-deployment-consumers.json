@@ -222,7 +222,7 @@
     },
     "functions/src/missionCraftCommitment.ts": {
       "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "after": "d0687234caca230f3e480cbfc4b8faaa3eb53a6060e20f6358d5e123f0ebf37a",
+      "after": "f226781c8eebaf1908086e6a9505a18962624a0b1f84447a6651eab159073230",
       "consumers": [
         "beginShuttleTransit",
         "commitAwayMissionLifecycleCommand",
@@ -756,6 +756,18 @@
           "resumeSession"
         ],
         "reason": "Existing Demo authority remains unchanged; the new strict public marker parser is consumed by normal join and resume. Existing authority consumers remain conservatively selected for this module."
+      }
+    ],
+    "functions/src/missionCraftCommitment.ts": [
+      {
+        "baseline": "2fe6da1a303a7c37d9a2cc066b1839914a0aaa50",
+        "implementationCandidate": "95f117dd",
+        "before": "d0687234caca230f3e480cbfc4b8faaa3eb53a6060e20f6358d5e123f0ebf37a",
+        "after": "f226781c8eebaf1908086e6a9505a18962624a0b1f84447a6651eab159073230",
+        "consumers": [
+          "commitAwayMissionLifecycleCommand"
+        ],
+        "reason": "Only the lifecycle command changes the matching mission craft commitment map on active/resolved/complete transitions. Existing movement consumers read and enforce the preserved hold unchanged."
       }
     ]
   }

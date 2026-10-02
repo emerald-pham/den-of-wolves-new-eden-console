@@ -1601,6 +1601,7 @@ test('fails closed when PC05 shared index code changes beyond the audited candid
 
 const PC06_IMPLEMENTATION_CANDIDATE = '033260dede184135406aba608a3f58093e94df0a';
 const pc06SourceAtRevision = (revision, file) => {
+  if (revision === PC06_IMPLEMENTATION_CANDIDATE && file === 'functions/src/missionCraftCommitment.ts') return readFileSync(file, 'utf8');
   try { return execFileSync('git', ['show', `${revision}:${file}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 16 * 1024 * 1024 }); }
   catch { if (revision === PC05_REVIEWED_CANDIDATE) return ''; throw new Error(`Missing candidate source ${file}`); }
 };
@@ -1859,4 +1860,13 @@ test('rejects an unaudited index helper edit mixed with Voyage cycle reconciliat
     sourceAtRevision: (revision, file) => voyageCycleSourceAtRevision(revision, file) +
       (revision === 'candidate' ? '\n// unaudited shared helper edit\n' : ''), isAncestor: () => false,
   }), /PC06|audit/i);
+});
+
+test('selects only the lifecycle writer for the resolved mission hold repair and rejects unaudited edits', () => {
+  const file = 'functions/src/missionCraftCommitment.ts';
+  const before = execFileSync('git', ['show', `2fe6da1a303a7c37d9a2cc066b1839914a0aaa50:${file}`], { encoding: 'utf8' });
+  const current = readFileSync(file, 'utf8');
+  const select = after => deploymentSelector({ before: 'base', after: 'candidate', files: [file], targets: ['functions'], isAncestor: () => false, sourceAtRevision: revision => revision === 'base' ? before : after });
+  assert.deepEqual(selectedFunctions(select(current)), functionTargets(['commitAwayMissionLifecycleCommand']));
+  assert.throws(() => select(current + '\n// unaudited hold mutation\n'), /Cannot safely map PC06/);
 });
