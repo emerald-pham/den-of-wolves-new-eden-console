@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import { localGmAccessConfiguration, localGmAccessPlugin } from './scripts/local-gm-access.mjs';
 import { createHash } from 'node:crypto';
 import { dirname, join, resolve as resolvePath } from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -110,11 +111,11 @@ function devServerPort(value: string | undefined): number {
 
 // Static output for Firebase Hosting. HashRouter is used in the app, so no
 // server-side rewrite is required for deep links on any static host.
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_');
 
   return {
-    plugins: [react(), changelogDisplayDevAsset, changelogDisplayBuildAsset, buildVersionMetadata, serviceWorkerPrecache],
+    plugins: [localGmAccessPlugin(localGmAccessConfiguration(command, env)), react(), changelogDisplayDevAsset, changelogDisplayBuildAsset, buildVersionMetadata, serviceWorkerPrecache],
     ...(process.env.TICKER_SMOKE_CACHE_DIR
       ? { cacheDir: resolvePath(process.env.TICKER_SMOKE_CACHE_DIR) }
       : {}),

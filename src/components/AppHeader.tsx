@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ConnectionIndicator from './ConnectionIndicator';
 import SessionReadouts from './SessionReadouts';
@@ -32,6 +32,10 @@ import {
   subscribeServiceWorkerUpdates,
   type ServiceWorkerUpdateState,
 } from '@/pwa';
+
+// Vite removes this module and its local endpoint from production builds.
+const LocalGmAccess = import.meta.env.DEV && import.meta.env.VITE_LOCAL_GM_ACCESS === '1'
+  ? lazy(() => import('./LocalGmAccess')) : null;
 
 const CONNECTION_STATUS_GRACE_MS = 30_000;
 const CONNECTION_ACTIVITY_WINDOW_MS = CONNECTION_STATUS_GRACE_MS;
@@ -573,6 +577,9 @@ export default function AppHeader() {
                 original Den of Wolves: New Eden product. This keeps GM secrets from being
                 spoiled and helps prevent unauthorized use.
               </p>
+              {LocalGmAccess && !gmAccessAuthenticated && (
+                <Suspense fallback={null}><LocalGmAccess /></Suspense>
+              )}
               {gmAccessAuthenticated ? (
                 <>
                   <p className="settings-dialog__gm-access-status">
