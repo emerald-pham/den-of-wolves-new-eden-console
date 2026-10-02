@@ -1347,9 +1347,9 @@ describe('App', () => {
       handlers?.onPlayerDiscovery?.(own);
       handlers?.onSession({ ...session, currentTurn: 3 });
     });
+    await waitFor(() => expect(handlers).not.toBe(previousHandlers));
     act(() => handlers?.onGmDiscovery?.(gm));
     expect(useSessionStore.getState().session).toMatchObject({ ...gm, playerDiscovery: own, currentTurn: 3 });
-    await waitFor(() => expect(handlers).not.toBe(previousHandlers));
     act(() => handlers?.onPlayerDiscovery?.(null));
     expect(useSessionStore.getState().session).toMatchObject(gm);
     expect(useSessionStore.getState().session?.playerDiscovery).toBeUndefined();
