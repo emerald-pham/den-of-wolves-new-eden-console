@@ -220,9 +220,9 @@ it.each([
 });
 
 it.each([
-  ['Gorgoneion', 'Gorgoneion', 'gorgoneion', 'Repair Drones', 'repair-drones'],
-  ['base Capybara', 'Capybara', 'capybara-small', 'Water Reclimator', 'water-reclimator'],
-] as const)('lets the GM charge %s Jump Drive alongside %s within two charges', async (name, cardName, id, secondConsole, secondId) => {
+  { displayName: 'Gorgoneion', cardName: 'Gorgoneion', id: 'gorgoneion', secondConsole: 'Repair Drones', secondId: 'repair-drones' },
+  { displayName: 'base Capybara', cardName: 'Capybara', id: 'capybara-small', secondConsole: 'Water Reclimator', secondId: 'water-reclimator' },
+] as const)('lets the GM charge $displayName Jump Drive alongside another console within two charges', async ({ cardName, id, secondConsole, secondId }) => {
   const user = userEvent.setup();
   const session = useSessionStore.getState().session!;
   useSessionStore.getState().setSession({
