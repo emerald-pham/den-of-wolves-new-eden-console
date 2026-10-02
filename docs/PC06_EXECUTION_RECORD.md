@@ -121,6 +121,27 @@ ordinary proof or approved navigation policy. These new confirmed live repairs
 materially change the preserved 0.5.63 candidate and justify fresh combined
 review and required release validation before its first CI push.
 
+Independent Sol 6.1 xhigh review of exact `f27ecf0850132a2005a787c7218b015b9e71aca0`
+requests one P1 repair: the synchronized coordinate in the member-readable
+session header exposes a docked core host's private destination to separated
+groups. The reviewer confirms existing implementation-contract redaction
+invariants and PC06-A6/A14 already prohibit this bridge. The bounded remedy is
+server-only canonical Voyage movement, deletion of legacy public coordinates,
+no coordinate-bearing ordinary join/resume field, and a GM-only private
+projection for the connected facilitator workspace. Existing current-host crew
+callable authorization and bounded action results must remain intact. No new
+player projection entitlement or broader PC07 work is required. The existing
+Voyage group owns this complete server/rules/client repair on the preserved
+isolated checkout from `f27ecf08`, branch `fix/pc06-voyage-movement-privacy`.
+
+The reviewer found no additional actionable issue in the Gorgoneion cursor,
+host transaction/replay or exact deployment inventory, independently rerunning
+287 focused Functions checks and 116 selector checks. The rejected receipt is
+retained outside Git as `evidence/resumed-runtime-review-f27e-changes-requested.json`.
+The candidate is withheld before CI; final review is limited to the unresolved
+privacy finding and materially changed authority/deployment seams. This local
+review does not grant any ordinary acceptance or update the catalog.
+
 ## Owner and implementation groups
 
 The accountable checkpoint owner is `/root/pc06_sol_owner` in
