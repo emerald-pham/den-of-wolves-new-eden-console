@@ -22,6 +22,14 @@ export async function grantLocalGmAccess(config, request, fetcher = fetch, now =
   } catch { throw Error('Local GM authorization rejected.'); }
   if (origin.protocol !== 'http:' || !loopbackNames.has(origin.hostname) ||
       !loopbackNames.has(host.hostname) || origin.host !== host.host) throw Error('Local GM authorization rejected.');
+  // The emulator lookup remains authoritative for existence; this additional
+  // audience/issuer check prevents an unrelated emulator project being seeded.
+  let claims;
+  try { claims = JSON.parse(Buffer.from(request.token.split('.')[1], 'base64url').toString('utf8')); }
+  catch { throw Error('Local emulator identity rejected.'); }
+  if (claims.aud !== config.projectId || claims.iss !== `https://securetoken.google.com/${config.projectId}`) {
+    throw Error('Local emulator identity rejected.');
+  }
   const lookup = await fetcher(`http://127.0.0.1:${config.authPort}/identitytoolkit.googleapis.com/v1/accounts:lookup?key=local-emulator`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idToken: request.token }), signal: AbortSignal.timeout(5000),
   });

@@ -5,6 +5,14 @@ ownership, shared integration boundary, and session-specific dispatch findings
 for the fixed PC06 scope. It does not change the 49 assigned prompt IDs or
 their acceptance criteria.
 
+## Local GM access and revised verification authorization
+
+The user requested an emulator-only GM path, then explicitly instructed the owner to finish PC06 using representative local verification. Owner resumed clean `602cc09c` and host ledger entry `1790928602830-3970-1145a564`. There were no surviving owned compute children; parked workers remain preserved. Existing 0.5.63 deployment gates are settled, not rerun. The unpushed 0.5.64 wording repair is retained in this batch.
+
+A Vite serve-only helper seeds the usual `gmAccess` lease after loopback/same-origin and demo-project Auth emulator verification. The normal named instance claim remains server-authoritative. Production Functions/rules are unchanged. Test-first commits preserve configuration/request rejection and cross-project token binding failures. The actual local Settings control authorized the emulator identity, normal createSession ran against native Auth/Firestore/Functions emulators, and local named GM claim verification follows. [Setup and isolation](LOCAL_GM_ACCESS.md) describe the explicit opt-in and lifecycle.
+
+The acceptance matrix keeps all 49 criteria, distinguishing the seven production proofs from newly authorized local/emulator evidence. Catalog remains 507/751 until remaining criteria are actually verified. Actual P371 production Cloud Tasks proof remains preserved rather than being replaced by a local queue claim.
+
 ## Resume after the October 2 sleep hold
 
 The user explicitly resumed PC06. Current owner `/root/pc06_live_owner` resumes
