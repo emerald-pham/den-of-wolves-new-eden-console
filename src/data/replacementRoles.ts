@@ -42,12 +42,25 @@ function hasOnlyKeys(value: Record<string, unknown>, allowed: readonly string[])
   return Object.keys(value).every((key) => allowed.includes(key));
 }
 
+function isPresentedSmallShipMutiny(value: unknown): boolean {
+  if (!isRecord(value) || (value.status !== 'active' && value.status !== 'resolved') ||
+      !Number.isSafeInteger(value.revision) || (value.revision as number) < 1 ||
+      !Number.isSafeInteger(value.triggerUnrest) || (value.triggerUnrest as number) < 8 ||
+      (value.triggerUnrest as number) > 10 || typeof value.triggeredAt !== 'string') return false;
+  if (value.status === 'resolved' && (
+    !Number.isSafeInteger(value.reduction) || (value.reduction as number) < 1 ||
+    (value.reduction as number) > 3 || typeof value.recoveryRequestId !== 'string' ||
+    typeof value.recoveredAt !== 'string'
+  )) return false;
+  return true;
+}
+
 function isPresentedSmallShipState(
   value: unknown,
   id: string,
   activeVesselIds: ReadonlySet<string>,
 ): boolean {
-  const rootKeys = ['id', 'hostShipId', 'dockingRevision', 'population', 'unrest', 'cycle'];
+  const rootKeys = ['id', 'hostShipId', 'dockingRevision', 'population', 'unrest', 'mutiny', 'cycle'];
   const cycleKeys = [
     'step', 'revision', 'results', 'charges', 'turn', 'rationBonus',
     'chargingSkipped', 'startedAt', 'completedAt',
@@ -61,6 +74,7 @@ function isPresentedSmallShipState(
       !Number.isSafeInteger(value.population) || (value.population as number) < 0 ||
       (value.population as number) > maxPopulation || !Number.isSafeInteger(value.unrest) ||
       (value.unrest as number) < 0 || (value.unrest as number) > 10 ||
+      (value.mutiny !== undefined && !isPresentedSmallShipMutiny(value.mutiny)) ||
       !hasOnlyKeys(cycle, cycleKeys) ||
       !Number.isSafeInteger(cycle.step) || (cycle.step as number) < 0 ||
       (cycle.step as number) > 5 || !Number.isSafeInteger(cycle.revision) ||
