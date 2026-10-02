@@ -49,6 +49,12 @@ investigation, and taking over ordinary owner work. Preserve explicit parent
 collaboration messages and do not create coordinator goals. The linked execution
 policy governs the complete handoff contract.
 
+For a parent-only dependency, send the canonical parent an actionable
+collaboration message and obtain acknowledgement before dependency parking.
+The parent must triage and own or explicitly return the action; a sent message
+is not an acknowledged handoff. Use the linked policy's bounded follow-up and
+dispatch contract, without routine polling.
+
 The roadmap facts live in the JSON catalog at
 [`docs/implementation-prompts.json`](./docs/implementation-prompts.json), with
 generated Markdown views for convenient reading. Update the catalog and

@@ -17,6 +17,18 @@ Current typography audit is delivered at checkpoint end: both 0.5.62 gates ran/p
 
 The runtime ledger entry 1790928602830-3970-1145a564 finished landed on exact validated/deployed bf222fba before this separate documentation closeout. All temporary gameplay services and completed checks are stopped; the stable checkout is preserved for the user's local GM workflow and evidence, with other worktrees/branches untouched. The coordinator-handoff guidance remains included at 1e92b3f8 with prior consistency validation. This closeout updates only documentation and records the actual completed release.
 
+## Post-closeout coordination receipt correction
+
+The earlier IAB access blockers were explicitly sent to the canonical parent
+through collaboration. The coordinator received those boundary messages but
+did not act or report them promptly; this was a receipt/triage failure, not
+evidence that the worker failed to send. The user requested a future guidance
+fix. The [parent-only dependency handoff](AGENT_EXECUTION_POLICY.md#parent-only-dependency-handoff)
+now requires acknowledgement and explicit action ownership before dependency
+parking, one bounded follow-up when acknowledgement is missing, prompt parent
+triage, and the same contract in future dispatches. This documentation-only
+follow-up leaves the completed PC06 gameplay and release unchanged.
+
 ## Final local acceptance reconciliation
 
 The user-authorized local path verified the remaining 42 criteria without relabeling them production. The fixed-ID receipt `evidence/pc06-49-acceptance-receipt.json` and current matrix retain seven ordinary production proofs, including actual Cloud Tasks transport. Native row 2 Auth/Firestore/Functions ran under `demo-pc06-local`; local GM isolation/revoke, real UI setup/casting/seats/start, maintenance/nonempty Blacksmith refuel, Gorgoneion Repair Drones+Jump Drive combined selector, Icebreaker blind jump/Ram Scoop and Demo start/end/reload/toast were exercised. Phase timers were accelerated only in the disposable local fixture, with coherent actual session turn limit; no identity, authority, fuel, reward or outcome was seeded for these normal UI actions. A first UI mission start correctly denied missing usable carrier; a legal normal GM carrier move then reached the active Wolf-base denial. Those prerequisites are retained as denials, not successful mission evidence.

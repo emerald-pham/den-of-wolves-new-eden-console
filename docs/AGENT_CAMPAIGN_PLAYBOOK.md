@@ -111,6 +111,11 @@ not a role-count or placeholder-screen claim.
 
 At a requested checkpoint, tell the parent task the current state, changed paths,
 commands/results, and any blocker. Do not send repetitive heartbeat chatter.
+For a parent-only action, follow the [acknowledged dependency handoff](AGENT_EXECUTION_POLICY.md#parent-only-dependency-handoff): explicit canonical-parent
+message, actionable request and preserved state, parent acknowledgement and
+triage before dependency parking, and one bounded follow-up if needed. Include
+the contract in dispatches; commentary/final alone and message delivery do not
+establish an acknowledged handoff.
 The parent waits for a completion, blocker, or requested checkpoint with one
 interruptible event wait, or yields with a clear resume path. Avoid short
 polling loops, unchanged workflow snapshots, and elapsed-time updates during

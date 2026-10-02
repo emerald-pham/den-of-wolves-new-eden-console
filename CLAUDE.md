@@ -138,6 +138,11 @@ Delegated owners report requested checkpoints, blockers and material changes to
 the canonical parent through collaboration. The [execution policy](docs/AGENT_EXECUTION_POLICY.md)
 owns batched dispatch and waits; the [campaign playbook](docs/AGENT_CAMPAIGN_PLAYBOOK.md#communication-and-stopping)
 owns parent communication and stopping. Keep a concrete owner and resume path.
+For parent-only dependencies, use the execution policy's acknowledged handoff:
+send an actionable canonical-parent message, obtain acknowledgement before
+dependency parking, and record the parent's triage, action owner and resume
+condition. A sent message is not an acknowledged handoff. Include that contract
+in dispatches and use bounded follow-up without routine polling.
 
 ## Testing and review
 

@@ -60,6 +60,30 @@ Keep the existing explicit collaboration messages to the canonical parent for
 requested checkpoints, blockers, approval needs, and material changes; ordinary
 commentary does not replace those messages. Do not create coordinator goals.
 
+### Parent-only dependency handoff
+
+When progress requires a parent-only action, send an explicit collaboration
+message to the canonical parent path named in the dispatch. Include the
+actionable blocker, preserved checkout/commit and evidence, exact intervention
+requested, and useful work that can continue. Commentary or a final response
+alone is not a parent handoff. A delivered message is not an acknowledged
+handoff.
+
+Before parking for that dependency, obtain the parent's acknowledgement. The
+parent acknowledges receipt, triages the request, and either owns the action
+with a concrete next step or explicitly returns it to the worker. It promptly
+reports any required user action or unresolved decision instead of silently
+leaving a received blocker unattended. The worker records who owns the next
+action and the resume condition, then parks without heartbeat chatter.
+
+If acknowledgement is missing, use one long interruptible wait and one bounded
+follow-up that repeats the actionable request. Continue independent authorized
+work where possible; otherwise record the state as awaiting acknowledgement,
+not an accepted handoff. Do not busy-poll, repeatedly resend, or infer receipt
+from silence. Include this communication contract, the canonical parent path,
+and expected acknowledgement in future worker dispatches. Keep optional,
+non-actionable progress quiet.
+
 ### Ownership lessons from the PC06 audit
 
 Use Sol 6.1 for broad checkpoint ownership when shared integration, authority,
