@@ -87,6 +87,59 @@ export function parseVoyage33MovementState(value: unknown): Voyage33MovementStat
   };
 }
 
+/** Follow the current docked host when its committed core-vessel move arrives. */
+export function followVoyage33HostMovement(input: Readonly<{
+  sessionId: string;
+  admittedVesselIds: unknown;
+  admission: unknown;
+  movementState: unknown;
+  maintenanceState: unknown;
+  activeVesselIds: readonly string[];
+  shipDamage: unknown;
+  hostShipId: string;
+  destination: string;
+}>): Voyage33MovementState | undefined {
+  const hasVoyageState = input.admission !== undefined && input.admission !== null ||
+    input.movementState !== undefined && input.movementState !== null ||
+    input.maintenanceState !== undefined && input.maintenanceState !== null;
+  if (!Array.isArray(input.admittedVesselIds)) {
+    if (hasVoyageState) throw new Error('Voyage 33-0 admission roster is malformed.');
+    return undefined;
+  }
+  if (!input.admittedVesselIds.includes(VOYAGE_33_ID)) {
+    if (hasVoyageState) throw new Error('Voyage 33-0 state is present without an admitted roster entry.');
+    return undefined;
+  }
+  if (input.admittedVesselIds.some((id) => typeof id !== 'string') ||
+      new Set(input.admittedVesselIds).size !== input.admittedVesselIds.length) {
+    throw new Error('Voyage 33-0 admission roster is malformed.');
+  }
+  requireActiveAdmission(input.admission, input.sessionId);
+  const movementState = parseVoyage33MovementState(input.movementState);
+  if (!movementState) throw new Error('Malformed Voyage 33-0 movement state.');
+  const maintenanceState = requireMaintenanceState(input.maintenanceState);
+  if (maintenanceState.hostShipId === null) return undefined;
+
+  const activeVesselIds = requireActiveVesselRoster(input.activeVesselIds);
+  if (!isResourceShipId(maintenanceState.hostShipId) ||
+      !activeVesselIds.includes(maintenanceState.hostShipId)) {
+    throw new Error('Voyage 33-0 is docked with an inactive or malformed core-vessel host.');
+  }
+  if (maintenanceState.hostShipId !== input.hostShipId) return undefined;
+
+  const rawDamage = isRecord(input.shipDamage) ? input.shipDamage[maintenanceState.hostShipId] : undefined;
+  requireLiveHostDamage(maintenanceState.hostShipId, rawDamage);
+  if (!neighborsForCoordinate(input.destination)) throw new Error('The host destination is malformed.');
+  if (movementState.revision >= Number.MAX_SAFE_INTEGER - 1) {
+    throw new Error('Voyage 33-0 movement revision is exhausted.');
+  }
+  return {
+    ...movementState,
+    coordinate: input.destination,
+    revision: movementState.revision + 1,
+  };
+}
+
 /** Member-safe movement view; an unadmitted vessel has no public movement state. */
 export function publicVoyage33MovementState(
   value: unknown,

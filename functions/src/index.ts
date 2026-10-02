@@ -65,7 +65,10 @@ import { deriveAwayMissionParticipantCraftSnapshots } from './awayMissionCraftSn
 import { createPermissionedDismantlingCallables } from './permissionedDismantlingCallable';
 import { createBoardingSecurityTeamCallable } from './boardingSecurityTeamCallable';
 import { createVoyage33MovementCallables } from './voyage33MovementCallable';
-import { publicVoyage33MovementState } from './voyage33Movement';
+import {
+  followVoyage33HostMovement,
+  publicVoyage33MovementState,
+} from './voyage33Movement';
 import {
   createSmallShipJumpCallables,
   emptySmallShipMovementState,
@@ -929,6 +932,33 @@ const smallShipJumpCallables = createSmallShipJumpCallables({
   serverTimestamp: () => FieldValue.serverTimestamp(),
   now: () => new Date(),
 });
+
+function voyage33HostMovementPatch(
+  session: DocumentSnapshot,
+  hostShipId: string,
+  destination: string,
+): Record<string, unknown> {
+  try {
+    const movementState = followVoyage33HostMovement({
+      sessionId: session.id,
+      admittedVesselIds: session.get('admittedVesselIds'),
+      admission: session.get('voyage33Admission'),
+      movementState: session.get('voyage33Movement'),
+      maintenanceState: session.get('voyage33Maintenance'),
+      activeVesselIds: activeVesselIdsForSession(session),
+      shipDamage: session.get('shipDamage'),
+      hostShipId,
+      destination,
+    });
+    return movementState ? { voyage33Movement: movementState } : {};
+  } catch (cause) {
+    throw commandError(
+      'failed-precondition',
+      cause instanceof Error ? cause.message : 'Voyage 33-0 host movement could not be resolved.',
+      'conflict',
+    );
+  }
+}
 
 const getBoardingSecurityTeamLocationsCallable = createBoardingSecurityTeamCallable({
   db,
@@ -16416,6 +16446,7 @@ export const moveShipToLocation = onCall<{
         'conflict',
       );
     }
+    const voyageMovementPatch = voyage33HostMovementPatch(session, change.shipId, move.destination);
     requireMovementPursuitAuthority(storedNavigation, session);
     const pursuitFleetGroups = movementPursuitFleetGroups(activeVesselIds, fleetGroups, players);
     const cycle = sessionTurn(session.get('currentTurn'));
@@ -16482,6 +16513,7 @@ export const moveShipToLocation = onCall<{
       shipNavigationLogs: removeLegacyNavigationField(),
       pursuitGroups: removeLegacyNavigationField(),
       ...vesselActionRevisionPatch(change.shipId, currentRevision + 1),
+      ...voyageMovementPatch,
       updatedAt: FieldValue.serverTimestamp(),
     });
     const result = {
@@ -16985,6 +17017,7 @@ export const jumpShip = onCall<{
           coordinates: currentNavigation.shipGalacticCoordinates,
           logs: currentNavigation.shipNavigationLogs, shipNames: FLEET_SHIP_NAMES,
         });
+        const voyageMovementPatch = voyage33HostMovementPatch(session, change.shipId, move.destination);
         const missionOpportunity = await missionOpportunityForMovement(
           tx, change.sessionId, emergencyGroups, currentNavigation,
           change.shipId, move.destination, chart, currentTurn, transitionId,
@@ -17074,6 +17107,7 @@ export const jumpShip = onCall<{
           } : emergencyDecision.cleared ? { pursuitEmergencyWindow: FieldValue.delete() } : {}),
           ...terminalWindowPatch,
           ...vesselActionRevisionPatch(change.shipId, revision), updatedAt: FieldValue.serverTimestamp(),
+          ...voyageMovementPatch,
         });
         if (!damage.damagedSystemIds.includes('jump-drive')) {
           tx.set(db.doc(`sessions/${change.sessionId}/damageDraws/emergency-${identity.requestId}-jump-drive`), {
@@ -17303,6 +17337,7 @@ export const jumpShip = onCall<{
       logs: currentNavigation.shipNavigationLogs,
       shipNames: FLEET_SHIP_NAMES,
     });
+    const voyageMovementPatch = voyage33HostMovementPatch(session, change.shipId, move.destination);
     requireMovementPursuitAuthority(storedNavigation, session);
     const pursuitFleetGroups = movementPursuitFleetGroups(activeVesselIds, fleetGroups, players);
     const missionOpportunity = await missionOpportunityForMovement(
@@ -17407,6 +17442,7 @@ export const jumpShip = onCall<{
       } : movementDecision.cleared ? { pursuitEmergencyWindow: FieldValue.delete() } : {}),
       ...terminalWindowPatch,
       ...vesselActionRevisionPatch(change.shipId, revision),
+      ...voyageMovementPatch,
       updatedAt: FieldValue.serverTimestamp(),
     });
     const reply = {
@@ -17623,6 +17659,7 @@ export const adjudicateFailedJump = onCall<{
       coordinates: currentNavigation.shipGalacticCoordinates,
       logs: currentNavigation.shipNavigationLogs, shipNames: FLEET_SHIP_NAMES,
     });
+    const voyageMovementPatch = voyage33HostMovementPatch(session, shipId, move.destination);
     const jumpTransition: JumpTransition = {
       id: transitionId, shipId, origin, destination: move.destination, occurredAt,
     };
@@ -17718,7 +17755,9 @@ export const adjudicateFailedJump = onCall<{
         pursuitEmergencyWindow: publicPursuitEmergencyWindow(movementDecision.window),
       } : movementDecision.cleared || damageTerminal ? { pursuitEmergencyWindow: FieldValue.delete() } : {}),
       ...terminalWindowPatch,
-      ...vesselActionRevisionPatch(shipId, revision), updatedAt: FieldValue.serverTimestamp(),
+      ...vesselActionRevisionPatch(shipId, revision),
+      ...voyageMovementPatch,
+      updatedAt: FieldValue.serverTimestamp(),
     });
     damageDraws.forEach((draw, index) => tx.set(
       db.doc(`sessions/${change.sessionId}/damageDraws/jump-adjudication-${change.requestId}-${index + 1}`),

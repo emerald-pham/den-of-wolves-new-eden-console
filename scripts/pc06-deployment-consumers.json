@@ -599,9 +599,34 @@
         "runVoyage33Maintenance"
       ],
       "reason": "Only the Voyage maintenance fingerprint and callable protocol change; runVoyage33Maintenance is the sole runtime consumer of its local receipt helpers."
+    },
+    {
+      "before": "e858226097808871edf069e55d2feed3605dee127120acdd9ae45dc36c0510bb",
+      "after": "7f20a58a53e1bc3cdc87332084ddcd3b2e0bdf4f2a70c6281813c9f54c2954dc",
+      "consumers": [
+        "adjudicateFailedJump",
+        "jumpShip",
+        "moveShipToLocation"
+      ],
+      "reason": "Core host movement syncs an admitted, docked Voyage atomically with manual, ordinary/emergency, and adjudicated movement."
     }
   ],
   "moduleTransitions": {
+    "functions/src/voyage33Movement.ts": [
+      {
+        "before": "a3365a9950c8c4601c14d9b3ea80f8fbf9b2d42e5295cef40c348a3c7efada5d",
+        "after": "1cd3c9c4f984eaffc149d1c73eb25163438d7028d23675c744fc7122c03db450",
+        "consumers": [
+          "adjudicateFailedJump",
+          "dockVoyage33",
+          "joinSession",
+          "jumpShip",
+          "jumpVoyage33",
+          "moveShipToLocation",
+          "resumeSession"
+        ]
+      }
+    ],
     "functions/src/voyage33MovementCallable.ts": [
       {
         "before": "2181700c39957d9bc9d47fc8389257d0624a627304b67e9a2ace152009a5ad71",

@@ -1,0 +1,25 @@
+# PC06 Voyage 33-0 host movement synchronization
+
+This note records the bounded candidate repair and its source interpretation. It does not claim integration, deployment, or live-session verification.
+
+## Printed source and accepted digital inference
+
+The authorized source is `/Users/emeraldpham/.codex/private-reference/den-of-wolves-new-eden-console/docs/reference/den-of-wolves-new-eden/sources/base-v1.1/downe-home-printing-a4-single-sided-v1.1.pdf`, the base-game v1.1 A4 single-sided home-printing PDF. It has 43 pages; PDF page 38 is the G.I.V. Voyage 33-0 ship sheet. Its SHA-256 is `4e3ce6b500716fe139440d669aeae2e7fb4ab85071c98801f28144305f60f8d3`. The routed `SOURCE_PROVENANCE.md` row 15 records the source and hash; the routed `REFERENCE_ONLY_SHIPS.md` Voyage 33-0 section transcribes its Team docking, host-resource, maintenance-step, and host-fuel jump instructions. The PDF remains in the private reference directory and was not copied into this repository.
+
+The printed sheet says Voyage must dock with another ship during Team Phase, uses that ship's resources for maintenance, and spends host fuel for its own Jump Drive. It does not explicitly say whether Voyage moves when its host moves. The accepted PC06 digital inference is that a physically docked Voyage accompanies its active core-vessel host on a committed movement until Voyage completes its own independent jump and clears its docking assignment. This keeps the two vessels co-located while docked without adding a second jump, a Voyage Jump Drive prerequisite, or a new cost or maintenance action.
+
+## Transaction behavior
+
+Successful manual location moves, ordinary jumps, emergency jumps, and facilitator-adjudicated jumps now include a docked Voyage coordinate update in the same Firestore session transaction as the host movement. The update increments Voyage's movement revision so commands captured before the host departure become stale. It preserves the existing Voyage Jump Drive state and leaves Voyage maintenance, host assignment, and docking revision unchanged.
+
+A valid Voyage docked to a different active host receives no movement patch. A malformed admission or movement record, malformed or inactive docking host, destroyed host being moved, invalid destination, or exhausted Voyage movement revision fails the transaction before the movement commits. Failed or stale host actions do not move Voyage. Exact host-command replay returns its existing receipt before movement synchronization, so a later Voyage independent jump and redock cannot be overwritten. Voyage's own jump callable remains responsible for its separate FTL movement and for clearing the docked host.
+
+The write remains server-authoritative and adds no host coordinates to movement events or callable replies. One existing privacy boundary matters: `publicVoyage33MovementState` returns the full coordinate for any valid admission in the matching session, and both `joinSession` and `resumeSession` include that state without a fleet-group filter. Host synchronization therefore refreshes a member-visible Voyage coordinate while it is docked and can reveal the docked host's new location to members in other groups. The existing member projection already exposes Voyage's coordinate and host assignment at docking; this change carries that disclosure forward as the host moves. The limited existing test at `voyage33Movement.test.ts` verifies the full movement state is projected for a valid same-session admission and suppressed for missing or foreign-session admission; the helper has no group input, so that test does not establish group isolation. This is recorded for independent authority/privacy review; the candidate does not redesign the PC07 navigation visibility contract or change client-write rules.
+
+## Candidate evidence
+
+The focused host-callable, Voyage movement, and Voyage callable suites passed 172 tests. This includes a valid legacy record with AEGIS already at `1413` while Voyage remains at `0000`/movement revision `0`; its next ordinary host jump moves Voyage and advances the revision. The deployment-selector suite passed 115 tests and verifies the exact `adjudicateFailedJump`, `jumpShip`, and `moveShipToLocation` index consumers plus the Voyage movement module consumers.
+
+A Firestore emulator run through the production `jumpShip` handler seeded that same stranded state and passed the next-host-move reconciliation, captured old Voyage-command rejection, Voyage's independent jump, redocking to another host, and exact host replay with unchanged session, navigation, receipt, and event documents. The pre-repair native run failed because a committed host jump left Voyage at its previous coordinate and movement revision. These are local candidate and emulator results; they do not claim deployment or live-session verification.
+
+Retained local logs are outside Git at `/Users/emeraldpham/Documents/PC06-active/evidence/voyage-host-sync/`. The deployment selector's exact local source transition is recorded in `scripts/pc06-deployment-consumers.json`; integration must reconcile its index hash with any concurrent shared-index changes before deployment.
