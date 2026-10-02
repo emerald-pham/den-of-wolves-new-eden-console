@@ -1272,7 +1272,7 @@ describe('App', () => {
     act(() => handlers?.onGmDiscovery?.(privateView({ voyage33Movement: movement('1413', 3) })));
     expect(useSessionStore.getState().session?.voyage33Movement).toBeUndefined();
     act(() => handlers?.onSessionFreshness?.(true));
-    expect(useSessionStore.getState().session?.voyage33Movement).toBeUndefined();
+    expect(useSessionStore.getState().session?.voyage33Movement).toEqual(movement('1413', 3));
     act(() => handlers?.onGmDiscovery?.(null));
     expect(useSessionStore.getState().session?.voyage33Movement).toBeUndefined();
     expect(useSessionStore.getState().voyage33MovementProjectionFresh).toBe(false);
