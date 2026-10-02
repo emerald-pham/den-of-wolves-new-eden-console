@@ -41,7 +41,13 @@ current GM navigation view, migrates validated legacy coordinates atomically,
 and clears stale client projections. Focused server, client, Rules and native
 transaction checks pass; final bounded review, release gates, deployment and
 ordinary proof remain pending. Existing host-crew actions remain authorized; no new player
-entitlement or PC07 work is added.
+entitlement or PC07 work is added. The bounded follow-up confirms that privacy
+repair but requires current GM emergency-window publication and private-view
+reauthorization after a named GM claim change. Both are repaired locally with discriminating regressions and native
+production-handler evidence, including a terminal decision using the refreshed
+GM revision. The listener now rebinds to the named claim and rejects its old
+callback. Final independent follow-up and the complete release gates remain
+pending; no ordinary credit is added.
 
 The confirmed Voyage caption contrast regression and the audit of why the
 required typography gate passed are in [the typography audit](PC06_TYPOGRAPHY_GATE_AUDIT.md).

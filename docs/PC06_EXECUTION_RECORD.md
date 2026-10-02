@@ -188,6 +188,81 @@ flow. IAB GM access remains absent from the exposed browser inventory, a tool
 capability boundary rather than a security denial or an inferred login failure.
 The six verified rows and 43 pending rows remain unchanged.
 
+## Bounded private-view review repairs
+
+Independent Sol 6.1 xhigh follow-up reviewed exact
+`adffe58bb2339ce0c40caaccab998c54803b9237`. It confirms the original P1
+coordinate disclosure is repaired, with no additional actionable migration,
+audience/callable, transaction-order or combined inventory finding. It
+independently passed 472 checks across eight focused files and all 119 selector
+checks, but requested two repairs before release. The rejected receipt and
+focused failing probes are preserved outside Git under `evidence/`.
+
+The composed GM navigation writer omitted the protected emergency-window
+projection after host movement. A two-group offered emergency advances the
+protected window to navigation revision 1 while the GM view retains revision
+0; the GM end-run control consequently sends a stale command. The bounded P1
+repair must publish or delete the current protected window in the same composed
+GM view while preserving Voyage and other field ownership. The P2 listener
+finding concerns a same-user/session/role named GM claim change: it clears
+Voyage readiness but leaves the unchanged private document subscribed only
+once, so controls wait for an unrelated write. The repair must reauthorize or
+rebind the listener and accept a fresh current-claim callback while rejecting
+obsolete callbacks.
+
+The explicit two-repair rule transfers implementation ownership to Sol 6.1
+xhigh: the host-sync repair reviewed at `f27ecf08` and the private-view repair
+reviewed at `adffe58b` failed the independent authority acceptance gate on two
+distinct substantive candidates. The Luna group parks before making further
+tracked edits or starting checks. Its diagnosis, probes, original `665ad218`
+branch and clean successor branch remain preserved. This is a bounded
+acceptance/ownership finding, not a broad model-quality conclusion.
+
+Sol task `private_view_sol_repair` owns these two coherent runtime boundaries
+in the same preserved isolated checkout on `fix/pc06-private-view-review-repairs`,
+starting from exact `adffe58b`. It owns meaningful red regressions, focused/native
+verification and exact changed-source inventory. The checkpoint owner retains
+docs, release and ordinary play; the distinct Sol reviewer follows up only on
+the unresolved findings and materially changed risk after integration. No
+candidate push or ordinary acceptance credit is claimed.
+
+Sol test-first `5e24e976` reproduces both reviewed findings in the existing
+handler/App fixtures (three failed, 207 passed). The extended native production
+handler scenarios also retain two failures and one pass: the stale GM
+remaining-group revision and missing validated emergency window on resume.
+Logs remain in `evidence/private-view-review-repairs/`; the emulator wrapper
+released its slot reservation. These are deliberate red regressions, not a
+further failed implementation attempt or ordinary acceptance.
+
+## Integrated Sol private-view repair
+
+The owner integrated Sol's four commits in order: worker `5e24e976`,
+`6c9a24e6`, `56352edd` and `5919c203` become owner `4a52a8b0`, `ce69b9ae`,
+`81fbc00e` and `12819d03`. Red tests and the fixture-only type correction remain
+in history. The composed GM publisher now owns the current validated protected
+emergency window or its deletion; all four host movement paths pass the actual
+post-movement decision. Ordinary projection rebuilds require matching cycle,
+navigation revision and affected group IDs. The listener binds its generation
+to the named GM claim, rejects obsolete callbacks and restores Voyage readiness
+only from the fresh current server view.
+
+Post-commit local evidence records 475 focused checks, 154 Rules checks and all
+120 selector checks, plus three native production-handler scenarios. Native
+proof includes remaining-group emergency revision 1 in the GM view, the actual
+`advanceTurn` terminal decision using that revision, deletion from all window
+views, validated resume projection, and real pressure/damage writes. Root
+TypeScript, focused ESLint and diff checks pass. No ordinary or deployed result
+is inferred from these fixtures. Full handback and logs are retained at
+`evidence/private-view-review-repairs/handback.json`.
+
+Current index SHA-256 is `668b7a3295213e8de0f9b8c6085845c5155b4d1a1d9a395bbede99b20f55374b`.
+The exact deployed baseline range selects Hosting, rules and 18 Functions with
+no unknown file; the review-to-repair range selects Hosting and 14 Functions.
+Historical source transitions remain intact and extra unaudited edits still
+fail closed. Both workers are parked, their branches preserved and emulator
+reservations released. Final distinct Sol follow-up, the complete reconciled
+release gates, CI, deployment and ordinary completion still remain pending.
+
 ## Owner and implementation groups
 
 The accountable checkpoint owner is `/root/pc06_sol_owner` in
