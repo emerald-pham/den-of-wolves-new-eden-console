@@ -302,6 +302,16 @@ the original assumption; append the resolution so the decision is traceable.
 | Product effect | The separate authenticated taxi action atomically delivers only the submitted note and records its attempt/receipt. Ordinary note reads remain restricted to the reader's current group; the courier receives no destination notes or hidden chart facts. Pursuit, ship locations, knowledge and the shared clock remain unchanged. Broader passenger transport/landing, fuel payloads, Endeavour physical range, rejoin/merge consequences and P343's remaining acceptance stay in PC07, with no additional catalog closure credit. |
 | Review state | Minimum scope authorized by the parent; implementation, independent authority/privacy review, release gates and ordinary taxi proof remain required. Subject to optional owner correction. |
 
+### PC06-A17 — Docked Voyage accompanies a moving host
+
+| Field | Decision |
+|---|---|
+| ID and milestone | PC06-A17; bounded repair within unchanged P250/P251, recorded 2026-10-02. |
+| Source passage | Voyage 33-0 primary A4 single-sided v1.1 sheet, PDF p. 38; private archive checksum `4e3ce6b500716fe139440d669aeae2e7fb4ab85071c98801f28144305f60f8d3` verified with the routed page and ship summary. The sheet specifies docking for Team maintenance and docked-host fuel for Voyage's own jumps, but does not state what happens when the host departs. |
+| Chosen reading | A physically docked Voyage accompanies its host's committed movement until Voyage makes its own independent jump and clears docking. This departure behavior is a digital inference, not a claimed printed sentence. |
+| Implementation boundary | Ordinary, emergency, adjudicated and manual authoritative host movement synchronize Voyage's recorded coordinate atomically and advance its movement revision. Preserve maintenance, population, production charge, docking and own-jump cycle state; stale commands and replay cannot move a later detached or re-docked Voyage. |
+| Evidence and limits | A real AEGIS arrival left docked Voyage at the old coordinate after normal reload and blocked its movement UI. Repair requires test-first, native transaction, independent authority/privacy review and ordinary deployed proof. No broader vessel mechanic or extra catalog credit is authorized. |
+
 ### PC06-A16 — Voyage population markers, rations and reactor choices
 
 | Field | Record |

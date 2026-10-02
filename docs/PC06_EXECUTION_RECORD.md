@@ -5,6 +5,74 @@ ownership, shared integration boundary, and session-specific dispatch findings
 for the fixed PC06 scope. It does not change the 49 assigned prompt IDs or
 their acceptance criteria.
 
+## Resume after the October 2 sleep hold
+
+The user explicitly resumed PC06. Current owner `/root/pc06_live_owner` resumes
+the clean `cadb70a37c51119db684be24e969cb262ea5d59d` candidate in the stable
+checkout below. Build 0.5.62 remains deployed from `baad0b16`; the pending
+0.5.63 candidate has not been pushed. Startup inspection found no surviving
+PC06 builds, tests, emulators, development servers or child agents. The restart
+cleared temporary evidence under `/tmp`, including the old host-wide owner
+entry. Historical temporary paths below describe evidence recorded at those
+boundaries, not currently retrievable files. Committed red tests, implementation,
+review summaries, deployment records and six ordinary acceptance results remain
+preserved. New evidence is retained outside Git under
+`/Users/emeraldpham/Documents/PC06-active/evidence/`.
+
+The shared ledger now records owner `1790928602830-3970-1145a564`, preserving
+the unrelated active project. Two independent bounded implementation groups
+start from `cadb70a3`; neither pushes or runs candidate CI:
+
+| Group | Assigned acceptance and scope | Isolated checkout | Handoff |
+|---|---|---|---|
+| Luna Max `voyage_host_sync_repair` | P250/P251: repair the actual docked Voyage/core-host coordinate mismatch, atomic movement/revision/replay and native storage checks | `/Users/emeraldpham/Documents/PC06-active/pc06-voyage-host-sync`, `fix/pc06-voyage-host-sync` | Red then repair commits, source locator and inference, native transaction evidence; owner integrates and obtains independent Sol authority/privacy review |
+| Luna Max `typography_repair_audit` | Identify the reported deployed typography regression, introducing change and actual gate coverage; repair the proven defect and meaningful existing guard | `/Users/emeraldpham/Documents/PC06-active/pc06-typography-audit`, `fix/pc06-typography-audit` | Rendered before/after evidence, red then repair commits, exact release-gate audit and limitations; owner includes the audit in the checkpoint report |
+
+The Voyage mismatch was observed before the hold: the actual AEGIS jump from
+0000 to 1413 committed, while the docked Voyage retained coordinate 0000 and
+movement revision 0. Normal reload/resume retained that mismatch, and the
+Voyage workspace refused movement because its host projection did not match.
+No refresh, privileged write or fabricated state repaired it. The bounded
+repair treats a physically docked Voyage as accompanying its host until its
+own independent jump; precise primary-source support and the inference gap
+are recorded with the repair before integration. No acceptance is credited
+from this failing transition.
+
+CUA's restored inventory currently exposes no browser. The single supported
+hidden IAB creation returned `Browser is not available: iab`; the coordinator
+received the exact capability boundary. Implementation and source/gate audit
+continue while supported browser access is restored. No alternative profile,
+credential copying or security workaround is used. Ordinary actor identity,
+casting and reciprocal seat authority will be re-established through normal
+resume/join controls before further play. The fixed target and six verified
+rows are unchanged.
+
+The controlled normal Chrome participant subsequently resumed its assigned
+Gorgoneion Captain brief and server movement projection (AEGIS at 1413, host
+fuel 2, Cycle 1). That participant surface is separate from unavailable IAB GM
+access; no GM credential or role was moved to it. A normal DevTools Network
+capture of the private mission-support projection returned HTTP 200 with
+`available`, docking revision 1 and undealt cursor 0, while the visible private
+workspace still reported support unavailable. No apply command was sent.
+
+Source and native reproduction establish the missing writer-to-rules contract:
+production `startGame` wrote the validated 33-card deck without `dealtCount`;
+the callable interpreted its absence as zero, while the private read rule
+required an explicit zero. Prior unit/rules/native fixtures supplied it and
+therefore missed the real start shape. Test-first `8266f99e` retains two failures
+with 95 passes, plus the native production-handler projection followed by the
+authenticated SDK read failing with `Property dealtCount is undefined`.
+Repair `f0ae73c8` initializes the explicit cursor at start and atomically
+normalizes an absent validated undealt cursor before publishing the private
+view. It changes no read permission, deck order, actor binding or one-use rule.
+All 97 focused checks and scoped lint pass. The native writer/read/apply scenario
+passes in 6,624 ms: only the current Captain reads the view, other players and GM
+are denied, concurrent exact apply commits/replays once, and support revokes
+the private faces. Logs are in the persistent external evidence directory
+`evidence/gorgoneion-support/`. Its emulator exited and released its reservation.
+This is local native proof; independent review, deployment and ordinary P237
+completion remain pending.
+
 ## Owner and implementation groups
 
 The accountable checkpoint owner is `/root/pc06_sol_owner` in
