@@ -7,6 +7,7 @@ import { emptySmallShipState } from './smallShip';
 import { VOYAGE_33_COMMITMENTS, VOYAGE_33_ID } from './voyageAdmission';
 import { emptyVoyage33MovementState } from './voyage33Movement';
 import { emptyVoyage33MaintenanceState } from './voyage33Maintenance';
+import { neighborsForCoordinate } from './starChartGraph';
 
 const mock = vi.hoisted(() => ({
   get: vi.fn(),
@@ -131,6 +132,10 @@ const data = {
 };
 
 function setDockedVoyage(hostShipId = 'aegis') {
+  mock.damage = {
+    aegis: { damagedSystemIds: [], destroyed: false },
+    dione: { damagedSystemIds: [], destroyed: false },
+  };
   mock.voyage33Admission = {
     type: 'voyage-admission',
     sessionId: 's1',
@@ -1887,6 +1892,27 @@ it.each(['ordinary', 'emergency', 'adjudication', 'manual-location'] as const)(
     expect(sessionPatch).not.toHaveProperty('voyage33Maintenance');
   },
 );
+
+it('reconciles a valid legacy Voyage left behind when its host moves again', async () => {
+  setDockedVoyage();
+  mock.coordinate = '1413';
+  mock.voyage33Movement = {
+    ...emptyVoyage33MovementState('0000'),
+    jumpState: { lastJumpTurn: 0, emergencyJumpUsed: false },
+  };
+  const movementBefore = structuredClone(mock.voyage33Movement);
+  const destination = neighborsForCoordinate('1413')?.[0];
+  expect(destination).toBeTruthy();
+
+  await jumpShip.run(request({ ...data, requestId: 'reconcile-stranded-voyage', destination: destination! }));
+
+  const sessionPatch = mock.update.mock.calls.find(([path]) => path === 'sessions/s1')?.[1];
+  expect(sessionPatch?.voyage33Movement).toEqual({
+    ...movementBefore,
+    coordinate: destination,
+    revision: 1,
+  });
+});
 
 it('leaves Voyage untouched when its valid host is a different vessel', async () => {
   setDockedVoyage('dione');

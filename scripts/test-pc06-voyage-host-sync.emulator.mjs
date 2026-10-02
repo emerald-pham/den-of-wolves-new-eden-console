@@ -80,9 +80,12 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
       shipId,
       { ...INITIAL_SHIP_RESOURCES[shipId], fuel: 50 },
     ]));
+    const strandedHostCoordinate = '1413';
+    const hostDestination = neighborsForCoordinate(strandedHostCoordinate)?.[0];
+    assert.ok(hostDestination, 'the locked chart supplies a host destination from the stranded host coordinate');
     const jumpCommand = {
       sessionId: id, instanceId: 'bridge', shipId: 'aegis',
-      destination: '1413', requestId: 'host-jump-before-redock',
+      destination: hostDestination, requestId: 'host-jump-before-redock',
     };
 
     try {
@@ -125,7 +128,9 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
       seed.set(db.doc(`activeMemberships/${gm}`), { uid: gm, sessionId: id, role: 'gm' });
       seed.set(navigation, {
         revision: 0,
-        shipGalacticCoordinates: Object.fromEntries(ships.map((shipId) => [shipId, '0000'])),
+        shipGalacticCoordinates: Object.fromEntries(ships.map((shipId) => [
+          shipId, shipId === 'aegis' ? strandedHostCoordinate : '0000',
+        ])),
         shipNavigationLogs: Object.fromEntries(ships.map((shipId) => [shipId, []])),
         pursuitGroups: { 'fleet-1': 2 },
         systemHistory: {}, scoutedCoordinatesByShip: {},
@@ -139,11 +144,11 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
       await jumpShip.run(request(gm, jumpCommand));
       const afterHostJump = (await session.get()).data();
       assert.deepEqual(afterHostJump?.voyage33Movement, {
-        ...movement, coordinate: '1413', revision: 1,
+        ...movement, coordinate: hostDestination, revision: 1,
       });
       assert.deepEqual(afterHostJump?.voyage33Maintenance, maintenance,
         'host movement leaves Voyage population, unrest, ration record, charge, and docking revision intact');
-      assert.equal((await navigation.get()).get('shipGalacticCoordinates.aegis'), '1413');
+      assert.equal((await navigation.get()).get('shipGalacticCoordinates.aegis'), hostDestination);
 
       const beforeCapturedRetry = afterHostJump?.voyage33Movement;
       const fuelBeforeStaleRetry = afterHostJump?.shipResources?.aegis?.fuel;
@@ -157,7 +162,7 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
       assert.deepEqual((await session.get()).get('voyage33Movement'), beforeCapturedRetry);
       assert.equal((await session.get()).get('shipResources.aegis.fuel'), fuelBeforeStaleRetry);
 
-      const independentDestination = neighborsForCoordinate('1413')?.[0];
+      const independentDestination = neighborsForCoordinate(hostDestination)?.[0];
       assert.ok(independentDestination, 'the locked chart supplies an independent Voyage destination');
       const independentJump = await jumpVoyage33.run(request(gm, {
         sessionId: id, instanceId: 'bridge', shipId: VOYAGE_33_ID, hostShipId: 'aegis',
