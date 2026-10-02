@@ -515,11 +515,13 @@
     },
     "functions/src/singlePlayerDemoPolicy.ts": {
       "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "after": "54e005957e8a1ae0d056d7509b98b0dec825903427038edd8af0278b061aa98f",
+      "after": "a7c70505ad3de6de6f68d7137c266767383c5a451b28ee464408e1a8666f346e",
       "consumers": [
         "advanceTurn",
         "jumpShip",
-        "moveShipToLocation"
+        "moveShipToLocation",
+        "joinSession",
+        "resumeSession"
       ]
     },
     "functions/src/smallShipJump.ts": {
@@ -595,7 +597,7 @@
   "indexTransitions": [
     {
       "before": "e858226097808871edf069e55d2feed3605dee127120acdd9ae45dc36c0510bb",
-      "after": "668b7a3295213e8de0f9b8c6085845c5155b4d1a1d9a395bbede99b20f55374b",
+      "after": "2270c160ff8ee70f929bff6077dfdc1e8fa5e3d1eeaaaa480e9ef2cacd4a83a4",
       "consumers": [
         "adjudicateFailedJump",
         "advanceTurn",
@@ -613,7 +615,7 @@
         "startGame",
         "startSinglePlayerDemo"
       ],
-      "reason": "Combined explicit startGame mission-deck cursor, private Voyage canonical storage and migration, composed GM view field ownership, and host movement with preloaded arrival-pressure reads; audited from the exact deployed 0.5.62 index source. Includes current pursuit-window publication from post-movement decisions and validated session/protected authority on composed navigation rebuilds.",
+      "reason": "Combined explicit startGame mission-deck cursor, private Voyage canonical storage and migration, composed GM view field ownership, and host movement with preloaded arrival-pressure reads; audited from the exact deployed 0.5.62 index source. Includes current pursuit-window publication from post-movement decisions and validated session/protected authority on composed navigation rebuilds. Additional strict Demo marker projection affects joinSession and resumeSession, already included.",
       "baseline": "baad0b16f1381a6eba835c401aa8796679b1befb",
       "implementationCandidate": "fix/pc06-private-view-review-repairs"
     },
@@ -621,7 +623,7 @@
       "baseline": "f27ecf0850132a2005a787c7218b015b9e71aca0",
       "implementationCandidate": "fix/pc06-private-view-review-repairs",
       "before": "32ab3ddb968df443f532851320038a72a41b0edd71ffd2d1fcd840eb5f6ea0a6",
-      "after": "668b7a3295213e8de0f9b8c6085845c5155b4d1a1d9a395bbede99b20f55374b",
+      "after": "2270c160ff8ee70f929bff6077dfdc1e8fa5e3d1eeaaaa480e9ef2cacd4a83a4",
       "consumers": [
         "adjudicateFailedJump",
         "advanceTurn",
@@ -639,13 +641,13 @@
         "startGame",
         "startSinglePlayerDemo"
       ],
-      "reason": "Private Voyage storage and session migration, private GM movement projection, explicit field-owned discovery updates, and preloaded host-movement arrival state. This includes every export that directly writes the composed GM view through publishDiscoveryProjections or its turn-pursuit helper, the candidate-plan GM projection writer, and the existing index export conservatively selected because its generated block contains the shared helper section. Includes current pursuit-window publication from post-movement decisions and validated session/protected authority on composed navigation rebuilds."
+      "reason": "Private Voyage storage and session migration, private GM movement projection, explicit field-owned discovery updates, and preloaded host-movement arrival state. This includes every export that directly writes the composed GM view through publishDiscoveryProjections or its turn-pursuit helper, the candidate-plan GM projection writer, and the existing index export conservatively selected because its generated block contains the shared helper section. Includes current pursuit-window publication from post-movement decisions and validated session/protected authority on composed navigation rebuilds. Additional strict Demo marker projection affects joinSession and resumeSession, already included."
     },
     {
       "baseline": "adffe58bb2339ce0c40caaccab998c54803b9237",
       "implementationCandidate": "fix/pc06-private-view-review-repairs",
       "before": "0797a3e85dde6d29b76f5029e1cd4a26cc628c256f3eeef86acf5550310893cd",
-      "after": "668b7a3295213e8de0f9b8c6085845c5155b4d1a1d9a395bbede99b20f55374b",
+      "after": "2270c160ff8ee70f929bff6077dfdc1e8fa5e3d1eeaaaa480e9ef2cacd4a83a4",
       "consumers": [
         "adjudicateFailedJump",
         "advanceTurn",
@@ -662,7 +664,7 @@
         "startGame",
         "startSinglePlayerDemo"
       ],
-      "reason": "currentPursuitEmergencyProjection and publishDiscoveryProjections own current pursuit authority. Direct publisher consumers are confirmSetup, confirmFleetPartition, joinSession, resumeSession, resolvePendingScoutRequest, moveShipToLocation, jumpShip, adjudicateFailedJump, runMaintenance and exploration application in commitAwayMissionLifecycleCommand; writeTurnPursuitState adds advanceTurn, startGame and startSinglePlayerDemo. getBoardingSecurityTeamLocations is conservatively selected because the index export block contains the shared helper section. setCandidatePlanCheckpoint is unchanged in this range."
+      "reason": "currentPursuitEmergencyProjection and publishDiscoveryProjections own current pursuit authority. Direct publisher consumers are confirmSetup, confirmFleetPartition, joinSession, resumeSession, resolvePendingScoutRequest, moveShipToLocation, jumpShip, adjudicateFailedJump, runMaintenance and exploration application in commitAwayMissionLifecycleCommand; writeTurnPursuitState adds advanceTurn, startGame and startSinglePlayerDemo. getBoardingSecurityTeamLocations is conservatively selected because the index export block contains the shared helper section. setCandidatePlanCheckpoint is unchanged in this range. Additional strict Demo marker projection affects joinSession and resumeSession, already included."
     },
     {
       "baseline": "1f4558b11c53d8e70c76119c27483e40a180c681",
@@ -683,54 +685,6 @@
         "runVoyage33Maintenance"
       ],
       "reason": "Only the Voyage maintenance fingerprint and callable protocol change; runVoyage33Maintenance is the sole runtime consumer of its local receipt helpers."
-    },
-    {
-      "before": "e858226097808871edf069e55d2feed3605dee127120acdd9ae45dc36c0510bb",
-      "after": "0797a3e85dde6d29b76f5029e1cd4a26cc628c256f3eeef86acf5550310893cd",
-      "consumers": [
-        "adjudicateFailedJump",
-        "advanceTurn",
-        "commitAwayMissionLifecycleCommand",
-        "confirmFleetPartition",
-        "confirmSetup",
-        "getBoardingSecurityTeamLocations",
-        "joinSession",
-        "jumpShip",
-        "moveShipToLocation",
-        "resolvePendingScoutRequest",
-        "resumeSession",
-        "runMaintenance",
-        "setCandidatePlanCheckpoint",
-        "startGame",
-        "startSinglePlayerDemo"
-      ],
-      "reason": "Combined explicit startGame mission-deck cursor, private Voyage canonical storage and migration, composed GM view field ownership, and host movement with preloaded arrival-pressure reads; audited from the exact deployed 0.5.62 index source.",
-      "baseline": "baad0b16f1381a6eba835c401aa8796679b1befb",
-      "implementationCandidate": "0645debf"
-    },
-    {
-      "baseline": "f27ecf0850132a2005a787c7218b015b9e71aca0",
-      "implementationCandidate": "fix/pc06-voyage-movement-privacy",
-      "before": "32ab3ddb968df443f532851320038a72a41b0edd71ffd2d1fcd840eb5f6ea0a6",
-      "after": "0797a3e85dde6d29b76f5029e1cd4a26cc628c256f3eeef86acf5550310893cd",
-      "consumers": [
-        "adjudicateFailedJump",
-        "advanceTurn",
-        "commitAwayMissionLifecycleCommand",
-        "confirmFleetPartition",
-        "confirmSetup",
-        "getBoardingSecurityTeamLocations",
-        "joinSession",
-        "jumpShip",
-        "moveShipToLocation",
-        "resolvePendingScoutRequest",
-        "resumeSession",
-        "runMaintenance",
-        "setCandidatePlanCheckpoint",
-        "startGame",
-        "startSinglePlayerDemo"
-      ],
-      "reason": "Private Voyage storage and session migration, private GM movement projection, explicit field-owned discovery updates, and preloaded host-movement arrival state. This includes every export that directly writes the composed GM view through publishDiscoveryProjections or its turn-pursuit helper, the candidate-plan GM projection writer, and the existing index export conservatively selected because its generated block contains the shared helper section."
     },
     {
       "baseline": "2fe6da1a303a7c37d9a2cc066b1839914a0aaa50",
