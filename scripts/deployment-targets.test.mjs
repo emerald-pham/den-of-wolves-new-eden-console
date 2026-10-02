@@ -1655,6 +1655,30 @@ test('maps the final PC06 shared index from the actually deployed 0.5.62 source'
   assert.deepEqual(selectedFunctions(selection(current)), functionTargets(voyagePrivacyConsumerNames));
   assert.throws(() => selection(`${current}\n// additional unaudited source change\n`), /PC06|audited|audit/);
 });
+test('maps every changed PC06 runtime module from the actual deployed build together', () => {
+  const baseline = 'baad0b16f1381a6eba835c401aa8796679b1befb';
+  const files = execFileSync('git', ['diff', '--name-only', baseline, 'HEAD', '--', 'functions/src'], {
+    encoding: 'utf8',
+  }).split('\n').filter(file => file.endsWith('.ts') && !file.endsWith('.test.ts'));
+  assert.ok(files.includes('functions/src/voyage33MovementCallable.ts'));
+  const sourceAtRevision = (revision, file) => {
+    if (revision !== baseline) return readFileSync(file, 'utf8');
+    try { return execFileSync('git', ['show', `${baseline}:${file}`], {
+      encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 16 * 1024 * 1024,
+    }); } catch { return ''; }
+  };
+  const select = (readSource) => deploymentSelector({
+    before: baseline, after: 'working-candidate', files, targets: ['functions'],
+    sourceAtRevision: readSource, isAncestor: () => false,
+  });
+  assert.deepEqual(selectedFunctions(select(sourceAtRevision)), functionTargets([
+    ...voyagePrivacyConsumerNames, 'dockVoyage33', 'jumpVoyage33',
+    'getGorgoneionMissionSupportProjection',
+  ]));
+  assert.throws(() => select((revision, file) => sourceAtRevision(revision, file) +
+    (revision !== baseline && file === 'functions/src/voyage33MovementCallable.ts'
+      ? '\n// unaudited adapter edit\n' : '')), /audited|audit/i);
+});
 test('maps the new private Voyage storage helper to every callable that reads or migrates it', () => {
   const file = 'functions/src/voyage33MovementStorage.ts';
   const current = readFileSync(file, 'utf8');
