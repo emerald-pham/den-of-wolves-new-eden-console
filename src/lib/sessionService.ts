@@ -2558,7 +2558,7 @@ export async function logoutGmAccess(): Promise<CommandDisposition> {
     id: commandId(),
     kind: 'logoutGmAccess',
     payload: {
-      sessionId: store.session?.id ?? null,
+      sessionId: instanceId ? store.session?.id ?? null : null,
       instanceId,
     },
     createdAt: new Date().toISOString(),
