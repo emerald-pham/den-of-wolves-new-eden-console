@@ -175,6 +175,7 @@ function installGm(session: GameSession, freshness: 'server' | 'cache' = 'server
   });
   useSessionStore.getState().setConnection('live');
   useSessionStore.getState().setSessionSnapshotFreshness(freshness);
+  useSessionStore.setState({ voyage33MovementProjectionFresh: freshness === 'server' } as never);
 }
 
 beforeEach(() => {
@@ -185,6 +186,24 @@ beforeEach(() => {
 });
 
 describe('Voyage 33-0 movement workspace', () => {
+  it('waits for an authorized private movement view before offering initial docking', () => {
+    const session = sessionFixture('voyage-private-view-loading', {
+      voyage33Maintenance: maintenanceState(),
+    });
+    installGm(session);
+    useSessionStore.setState({ voyage33MovementProjectionFresh: false } as never);
+    render(<Voyage33MovementWorkspace />);
+
+    const workspace = screen.getByRole('region', { name: 'Voyage 33-0 movement workspace' });
+    expect(within(workspace).queryAllByRole('button', { name: /dock with/i })).toHaveLength(0);
+    expect(within(workspace).getByText(/private movement projection/i)).toBeInTheDocument();
+    expect(dockVoyage33Movement).not.toHaveBeenCalled();
+
+    // A fresh valid private view with no movement is the genuine initial state.
+    act(() => useSessionStore.setState({ voyage33MovementProjectionFresh: true } as never));
+    expect(within(workspace).getAllByRole('button', { name: /dock with/i })).toHaveLength(2);
+  });
+
   it('offers only active core hosts and leaves the initial origin unresolved until docking', async () => {
     const session = sessionFixture('voyage-workspace-dock', {
       activeVesselIds: ['aegis', 'dione'],
