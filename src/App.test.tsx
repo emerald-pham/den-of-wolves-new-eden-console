@@ -1227,29 +1227,55 @@ describe('App', () => {
     const movement = (coordinate: string, revision: number) => ({
       id: 'voyage-33-0' as const, coordinate, revision, jumpState: { lastJumpTurn: 2 },
     });
+    const privateView = (extra: Record<string, unknown> = {}) => ({
+      voyage33MovementAuthority: 'current' as const,
+      voyage33MovementSessionId: session.id,
+      ...extra,
+    });
 
-    act(() => handlers?.onGmDiscovery?.({ voyage33Movement: movement('1413', 2) }));
+    // A server-backed GM document is buffered until the session identity is
+    // also fresh; an idle/cached workspace cannot expose a private coordinate.
+    act(() => handlers?.onGmDiscovery?.(privateView({ voyage33Movement: movement('1413', 2) })));
+    expect(useSessionStore.getState().session?.voyage33Movement).toBeUndefined();
+    expect(useSessionStore.getState().voyage33MovementProjectionFresh).toBe(false);
+    act(() => handlers?.onSessionFreshness?.(true));
     expect(useSessionStore.getState().session?.voyage33Movement).toEqual(movement('1413', 2));
-    act(() => handlers?.onGmDiscovery?.({
+    expect(useSessionStore.getState().voyage33MovementProjectionFresh).toBe(true);
+
+    // Navigation rebuilds are partial field owners. They must preserve the
+    // accepted Voyage projection while refreshing the rest of the GM view.
+    act(() => handlers?.onGmDiscovery?.(privateView({
+      voyage33MovementAuthority: 'omitted',
+      shipGalacticCoordinates: { aegis: '5143' },
+    })));
+    expect(useSessionStore.getState().session?.voyage33Movement).toEqual(movement('1413', 2));
+    expect(useSessionStore.getState().voyage33MovementProjectionFresh).toBe(true);
+
+    act(() => handlers?.onGmDiscovery?.(privateView({
       voyage33Movement: movement('1413', 2),
       shipGalacticCoordinates: { aegis: '5143' },
-    }));
+    })));
     expect(useSessionStore.getState().session?.voyage33Movement).toEqual(movement('1413', 2));
 
-    // A projection that omits Voyage is authoritative removal; an older
-    // movement revision must not restore its coordinate afterward.
-    act(() => handlers?.onGmDiscovery?.({ shipGalacticCoordinates: { aegis: '5143' } }));
+    // A complete current view with no Voyage state is an authoritative empty
+    // result. A lower movement revision cannot restore an older coordinate.
+    act(() => handlers?.onGmDiscovery?.(privateView({})));
     expect(useSessionStore.getState().session?.voyage33Movement).toBeUndefined();
-    act(() => handlers?.onGmDiscovery?.({ voyage33Movement: movement('0000', 1) }));
+    expect(useSessionStore.getState().voyage33MovementProjectionFresh).toBe(true);
+    act(() => handlers?.onGmDiscovery?.(privateView({ voyage33Movement: movement('0000', 1) })));
     expect(useSessionStore.getState().session?.voyage33Movement).toBeUndefined();
 
-    act(() => handlers?.onGmDiscovery?.({ voyage33Movement: movement('1413', 3) }));
+    act(() => handlers?.onGmDiscovery?.(privateView({ voyage33Movement: movement('1413', 3) })));
     expect(useSessionStore.getState().session?.voyage33Movement).toEqual(movement('1413', 3));
     act(() => handlers?.onSessionFreshness?.(false));
     expect(useSessionStore.getState().session?.voyage33Movement).toBeUndefined();
-    act(() => handlers?.onGmDiscovery?.({ voyage33Movement: movement('1413', 3) }));
+    act(() => handlers?.onGmDiscovery?.(privateView({ voyage33Movement: movement('1413', 3) })));
+    expect(useSessionStore.getState().session?.voyage33Movement).toBeUndefined();
+    act(() => handlers?.onSessionFreshness?.(true));
+    expect(useSessionStore.getState().session?.voyage33Movement).toBeUndefined();
     act(() => handlers?.onGmDiscovery?.(null));
     expect(useSessionStore.getState().session?.voyage33Movement).toBeUndefined();
+    expect(useSessionStore.getState().voyage33MovementProjectionFresh).toBe(false);
     unmount();
   });
 

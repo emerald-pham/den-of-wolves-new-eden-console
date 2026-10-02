@@ -136,6 +136,42 @@ describe('useSessionStore', () => {
     assertNoPrivateNavigation(useSessionStore.getState().session!);
   });
 
+  it('accepts Voyage movement only through the fresh GM projection setter and clears it on claim loss', () => {
+    const movement = {
+      id: 'voyage-33-0' as const, coordinate: '1413', revision: 4,
+      jumpState: { lastJumpTurn: 2 },
+    };
+    const forgedHeader = { ...session, voyage33Movement: {
+      ...movement, coordinate: '0000',
+    } };
+    useSessionStore.getState().setIdentity(forgedHeader, { ...player, role: 'gm' });
+    useSessionStore.getState().setGmInstance(gmInstance);
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+
+    expect(useSessionStore.getState().session?.voyage33Movement).toBeUndefined();
+    expect(useSessionStore.getState().voyage33MovementProjectionFresh).toBe(false);
+
+    useSessionStore.getState().setVoyage33MovementProjection(movement, true);
+    expect(useSessionStore.getState().session?.voyage33Movement).toEqual(movement);
+    expect(useSessionStore.getState().voyage33MovementProjectionFresh).toBe(true);
+
+    // A routine public header refresh cannot replace the GM-owned coordinate.
+    useSessionStore.getState().setSession(forgedHeader);
+    expect(useSessionStore.getState().session?.voyage33Movement).toEqual(movement);
+
+    useSessionStore.getState().setGmInstance(null);
+    expect(useSessionStore.getState().session?.voyage33Movement).toBeUndefined();
+    expect(useSessionStore.getState().voyage33MovementProjectionFresh).toBe(false);
+
+    // An authenticated, complete GM projection with no movement is a real
+    // empty state and can enable the initial dock after claim is current again.
+    useSessionStore.getState().setGmInstance(gmInstance);
+    useSessionStore.getState().setVoyage33MovementProjection(undefined, true);
+    expect(useSessionStore.getState().session?.voyage33Movement).toBeUndefined();
+    expect(useSessionStore.getState().voyage33MovementProjectionFresh).toBe(true);
+  });
+
   it('clears private Voyage movement when the current GM instance loses its claim', () => {
     useSessionStore.getState().setIdentity({
       ...session,

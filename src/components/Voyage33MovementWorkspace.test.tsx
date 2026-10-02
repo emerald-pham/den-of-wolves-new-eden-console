@@ -175,7 +175,10 @@ function installGm(session: GameSession, freshness: 'server' | 'cache' = 'server
   });
   useSessionStore.getState().setConnection('live');
   useSessionStore.getState().setSessionSnapshotFreshness(freshness);
-  useSessionStore.setState({ voyage33MovementProjectionFresh: freshness === 'server' } as never);
+  useSessionStore.getState().setVoyage33MovementProjection(
+    session.voyage33Movement,
+    freshness === 'server',
+  );
 }
 
 beforeEach(() => {
@@ -191,7 +194,7 @@ describe('Voyage 33-0 movement workspace', () => {
       voyage33Maintenance: maintenanceState(),
     });
     installGm(session);
-    useSessionStore.setState({ voyage33MovementProjectionFresh: false } as never);
+    useSessionStore.getState().setVoyage33MovementProjection(undefined, false);
     render(<Voyage33MovementWorkspace />);
 
     const workspace = screen.getByRole('region', { name: 'Voyage 33-0 movement workspace' });
@@ -200,7 +203,7 @@ describe('Voyage 33-0 movement workspace', () => {
     expect(dockVoyage33Movement).not.toHaveBeenCalled();
 
     // A fresh valid private view with no movement is the genuine initial state.
-    act(() => useSessionStore.setState({ voyage33MovementProjectionFresh: true } as never));
+    act(() => useSessionStore.getState().setVoyage33MovementProjection(undefined, true));
     expect(within(workspace).getAllByRole('button', { name: /dock with/i })).toHaveLength(2);
   });
 

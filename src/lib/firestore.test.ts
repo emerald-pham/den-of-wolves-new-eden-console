@@ -3964,7 +3964,13 @@ it('does not hydrate the organiser map from cache or a callback after read autho
       shipGalacticCoordinates: { aegis: '5143' },
       shipNavigationLogs: { aegis: [] },
       knownSystems: { 'system-17': '8378' },
+      organiserSites: {},
+      pursuitDistances: { aegis: 1 },
+      pursuitGroups: { 'fleet-1': 2 },
+      shipFleetGroupIds: { aegis: 'fleet-1' },
+      revision: 8,
       sessionId: 's1',
+      voyage33MovementSessionId: 's1',
       voyage33Movement: {
         id: 'voyage-33-0', coordinate: '1413', revision: 7,
         jumpState: { lastJumpTurn: 2, emergencyJumpUsed: false },
@@ -3986,6 +3992,7 @@ it('does not hydrate the organiser map from cache or a callback after read autho
       id: 'voyage-33-0', coordinate: '1413', revision: 7,
       jumpState: { lastJumpTurn: 2, emergencyJumpUsed: false },
     },
+    voyage33MovementAuthority: 'current',
     pursuitEmergencyWindowAuthority: {
       type: 'pursuit-emergency-window', status: 'offered', cycle: 3,
       navigationRevision: 42, groupIds: ['fleet-1'], openedAt: '2026-09-28T12:00:00.000Z',
@@ -3996,6 +4003,55 @@ it('does not hydrate the organiser map from cache or a callback after read autho
   onGmDiscovery.mockClear();
   callbacks[2]?.(snapshot(false));
   expect(onGmDiscovery).not.toHaveBeenCalled();
+});
+
+it('accepts Voyage only from a complete, session-scoped GM navigation projection', () => {
+  const { callbacks } = captureSessionListener();
+  const onGmDiscovery = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession: vi.fn(), onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+    onGmDiscovery,
+  });
+  const complete = {
+    sessionId: 's1',
+    shipGalacticCoordinates: { aegis: '5143' },
+    shipNavigationLogs: { aegis: [] },
+    knownSystems: { 'system-17': '8378' },
+    organiserSites: {},
+    pursuitDistances: { aegis: 1 },
+    pursuitGroups: { 'fleet-1': 2 },
+    shipFleetGroupIds: { aegis: 'fleet-1' },
+    revision: 8,
+  };
+  const snapshot = (data: unknown) => ({
+    metadata: { fromCache: false }, exists: () => true, data: () => data,
+  });
+
+  callbacks[2]?.(snapshot(complete));
+  expect(onGmDiscovery).toHaveBeenLastCalledWith(expect.objectContaining({
+    voyage33MovementAuthority: 'current',
+  }));
+  expect(onGmDiscovery.mock.lastCall?.[0]).not.toHaveProperty('voyage33Movement');
+
+  const movement = {
+    id: 'voyage-33-0', coordinate: '1413', revision: 7,
+    jumpState: { lastJumpTurn: 2 },
+  };
+  callbacks[2]?.(snapshot({ ...complete, voyage33Movement: movement }));
+  expect(onGmDiscovery).toHaveBeenLastCalledWith(null);
+  callbacks[2]?.(snapshot({
+    ...complete, voyage33MovementSessionId: 's2', voyage33Movement: movement,
+  }));
+  expect(onGmDiscovery).toHaveBeenLastCalledWith(null);
+  callbacks[2]?.(snapshot({ voyage33MovementSessionId: 's1', voyage33Movement: movement }));
+  expect(onGmDiscovery).toHaveBeenLastCalledWith(null);
+
+  // A normal partial GM navigation/knowledge write has no Voyage opinion and
+  // therefore must preserve the movement projection already in the store.
+  callbacks[2]?.(snapshot({ sessionId: 's1', pursuitEmergencyWindow: null }));
+  expect(onGmDiscovery).toHaveBeenLastCalledWith(expect.objectContaining({
+    voyage33MovementAuthority: 'omitted',
+  }));
 });
 
 it('does not let reconnect cache replace an authoritative own-ship discovery or GM navigation projection', () => {
