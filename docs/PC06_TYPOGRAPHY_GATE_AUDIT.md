@@ -84,3 +84,10 @@ frame composition. They establish a reproducible rendered defect and repair;
 they are not evidence of authenticated production gameplay, a deployed 0.5.63
 candidate, or physical-device rendering. The focused source change is handed
 to the PC06 owner for checkpoint integration and release verification.
+
+The gate remains representative coverage with an explicit surface inventory;
+it does not automatically discover every future component or dynamic state.
+Future UI additions need their relevant rendered samples. The eight new cases
+cover this confirmed Voyage caption group and the existing composition in both
+motion modes. Font-family compliance alone does not establish contrast or
+legibility, and these Chromium renders do not establish physical-device behavior.
