@@ -1342,13 +1342,13 @@ describe('App', () => {
     act(() => handlers?.onGmDiscovery?.(gm));
     expect(useSessionStore.getState().session?.organiserSystems).toBeUndefined();
     const previousHandlers = handlers;
+    act(() => handlers?.onPlayer(player));
+    await waitFor(() => expect(handlers).not.toBe(previousHandlers));
     act(() => {
-      handlers?.onPlayer(player);
+      handlers?.onGmDiscovery?.(gm);
       handlers?.onPlayerDiscovery?.(own);
       handlers?.onSession({ ...session, currentTurn: 3 });
     });
-    await waitFor(() => expect(handlers).not.toBe(previousHandlers));
-    act(() => handlers?.onGmDiscovery?.(gm));
     expect(useSessionStore.getState().session).toMatchObject({ ...gm, playerDiscovery: own, currentTurn: 3 });
     act(() => handlers?.onPlayerDiscovery?.(null));
     expect(useSessionStore.getState().session).toMatchObject(gm);
