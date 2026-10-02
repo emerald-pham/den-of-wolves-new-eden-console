@@ -731,11 +731,12 @@ but neither color nor animation may be the only alert or terminal cue. Freeze
 the escalation pulse when reduced motion is enabled. Reconnect, late join, and
 stale snapshots cannot leave a local false-red pursuit state.
 On narrow screens the identity/workspace and rail enter document flow and the
-whole console scrolls; controls must never be compressed out of reach.
+whole console scrolls; controls must never be compressed out of reach. GM ship
+Read / Write access stays with the ship identity, outside the DRADIS rail.
 When that flow starts, the instrument rail is ordered before the identity so
 the first route content after the reserved DRADIS space is the ship-local
-pursuit reading; preserve the rail's child order as pursuit, observer access,
-shuttlebay and command instruments.
+pursuit reading; preserve the rail's child order as pursuit, shuttlebay and
+command instruments.
 
 On phones and short landscape screens, session controls, compact DRADIS, vessel
 identity and instruments all remain in document flow and scroll fully out of
@@ -1530,7 +1531,7 @@ The group is absent for players. Read-only observers retain visible disabled
 commands until they select Write.
 
 GM observers choose the viewed role using a labelled native ship-console select.
-The instrument-rail Read / Write button toggles access and shows its current state;
+The identity-panel Read / Write button toggles access and shows its current state;
 leaving the ship resets it to Read. Crew viewing another console see an explicit
 read-only or incomplete-crew write status and keep View ship consoles navigation.
 Page navigation remains usable in read-only mode. Reviewed at 320×844, 1440×900,

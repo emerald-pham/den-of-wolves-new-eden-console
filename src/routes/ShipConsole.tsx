@@ -511,6 +511,24 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
         <h1 className="ship-console__name" id="ship-name">{ship.name}</h1>
         <p className="ship-console__type">{ship.vesselType}</p>
         <p className="ship-console__description">{ship.description}</p>
+        {observer && (
+          <section className="gm-ship-access cic-frame" aria-label="GM ship console access">
+            <p className="ship-shuttlebay__eyebrow">
+              GM ship console access // {observerWrite ? 'Read / Write' : 'Read only'}
+            </p>
+            <button
+              className="cic-action-button"
+              type="button"
+              aria-label="GM ship console read write access"
+              aria-pressed={observerWrite}
+              disabled={observerWritePending}
+              ref={observerWriteTriggerRef}
+              onClick={() => void toggleObserverWrite()}
+            >
+              GM ship console read write access // {observerWrite ? 'Read / Write' : 'Read only'}
+            </button>
+          </section>
+        )}
         {!hideLocationContents && <CandidateRevealPanel
           session={session}
           player={me}
@@ -702,24 +720,6 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
             ? { pursuitDistance: session.playerDiscovery.pursuitDistance }
             : {})}
         />
-        {observer && (
-          <section className="gm-ship-access cic-frame" aria-label="GM ship console access">
-            <p className="ship-shuttlebay__eyebrow">
-              GM ship console access // {observerWrite ? 'Read / Write' : 'Read only'}
-            </p>
-            <button
-              className="cic-action-button"
-              type="button"
-              aria-label="GM ship console read write access"
-              aria-pressed={observerWrite}
-              disabled={observerWritePending}
-              ref={observerWriteTriggerRef}
-              onClick={() => void toggleObserverWrite()}
-            >
-              GM ship console read write access // {observerWrite ? 'Read / Write' : 'Read only'}
-            </button>
-          </section>
-        )}
         {observer && observerWriteConfirm && (
           <div className="gm-write-confirm-backdrop" role="presentation" onClick={dismissObserverWriteConfirmation}>
             <section

@@ -134,6 +134,7 @@ test('GM ship access stays pointer-reachable beside the ship identity and preser
             `${label}: access must not overlap compact DRADIS; geometry=${JSON.stringify(geometry)}`);
           assert.equal(geometry.centerHitIsButton, true,
             `${label}: the access button center must hit the button; geometry=${JSON.stringify(geometry)}`);
+          console.log(`${label}: GM access ${JSON.stringify(geometry)}`);
 
           await accessButton.click();
           assert.ok(await page.getByRole('alertdialog', { name: 'Are you sure?' }).isVisible(),
@@ -146,6 +147,8 @@ test('GM ship access stays pointer-reachable beside the ship identity and preser
 
           const plot = page.locator('.ship-plot[data-aboard="true"]');
           const zoom = page.getByRole('button', { name: 'Zoom into DRADIS panel' });
+          const compactPlotBox = await plot.boundingBox();
+          assert.ok(compactPlotBox, `${label}: compact DRADIS has visible geometry`);
           await zoom.scrollIntoViewIfNeeded();
           const zoomGeometry = await zoom.evaluate(button => {
             const rect = button.getBoundingClientRect();
@@ -154,10 +157,17 @@ test('GM ship access stays pointer-reachable beside the ship identity and preser
           });
           assert.ok(zoomGeometry.centerHitIsButton,
             `${label}: DRADIS Zoom center must hit its button; geometry=${JSON.stringify(zoomGeometry)}`);
+          console.log(`${label}: DRADIS Zoom ${JSON.stringify(zoomGeometry)}`);
           await zoom.click();
           assert.equal(await plot.getAttribute('data-expanded'), 'true', `${label}: DRADIS Zoom remains functional`);
           await page.getByRole('button', { name: 'Close DRADIS' }).click();
           assert.equal(await plot.getAttribute('data-expanded'), 'false', `${label}: DRADIS closes normally`);
+          await page.waitForFunction(expected => {
+            const element = document.querySelector('.ship-plot[data-aboard="true"]');
+            if (!element || element.getAttribute('data-expanded') !== 'false') return false;
+            const rect = element.getBoundingClientRect();
+            return Math.abs(rect.width - expected.width) < 1 && Math.abs(rect.height - expected.height) < 1;
+          }, { width: compactPlotBox.width, height: compactPlotBox.height });
           await page.screenshot({ path: `/tmp/gm-ship-access-${viewport.width}x${viewport.height}-${motion}.png`, fullPage: true });
         } finally {
           await context.close();
