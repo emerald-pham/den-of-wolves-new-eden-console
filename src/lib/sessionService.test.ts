@@ -2734,6 +2734,19 @@ describe('GM access login', () => {
     expect(localStorage.getItem('gmAccessPassword')).toBeNull();
   });
 
+  it('revokes an authorized lease before a named GM instance is claimed', async () => {
+    const callable = callableReturning({ data: { authenticated: false } });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+    useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
+    expect(useSessionStore.getState().gmInstance).toBeNull();
+
+    await logoutGmAccess();
+
+    // The production request guard requires the optional pair together.
+    expect(callable).toHaveBeenCalledWith({ sessionId: null, instanceId: null });
+    expect(useSessionStore.getState().gmAccessAuthenticatedAt).toBeNull();
+  });
+
   it('logs out through the callable and clears the local GM session', async () => {
     const callable = callableReturning({ data: { authenticated: false } });
     vi.mocked(httpsCallable).mockReturnValue(callable);
