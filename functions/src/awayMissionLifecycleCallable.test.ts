@@ -488,7 +488,7 @@ it('executes every lifecycle command, keeps the deck cursor and projections atom
   expect(store.records.get(paths().mission)?.lifecycleRecord).toMatchObject({ status: 'resolved' });
   expect(store.records.get(paths().deck)?.dealtCount).toBe(4);
   expect(store.records.get(paths().session)?.missionCraftCommitments).toMatchObject({
-    starlight: { missionId: MISSION_ID, sourceCycle: 2 },
+    starlight: { missionId: MISSION_ID, sourceCycle: 3 },
   });
   expect(callables.randomCalls).toBe(1);
   expect(callables.d6Calls).toBe(1);
@@ -507,7 +507,7 @@ it('executes every lifecycle command, keeps the deck cursor and projections atom
   expect(callables.d6Calls).toBe(1);
   expect(store.committedWrites).toHaveLength(writesAfterResolve);
   expect(store.records.get(paths().session)?.missionCraftCommitments).toMatchObject({
-    starlight: { missionId: MISSION_ID, sourceCycle: 2 },
+    starlight: { missionId: MISSION_ID, sourceCycle: 3 },
   });
   const writesBeforeWrongLeaderDropoff = store.committedWrites.length;
   await expect(commit(commandRequest('bob', {
