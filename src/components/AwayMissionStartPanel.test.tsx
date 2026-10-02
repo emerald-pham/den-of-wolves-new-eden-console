@@ -266,11 +266,16 @@ const excludedCaptainCases: readonly {
   { label: 'held core seat', captain: { assignedRoleId: 'wing-commander', seatId: 'wing-commander' } },
   { label: 'held core console', captain: { assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander' } },
   { label: 'active escape state', captain: { escapeState: { status: 'pending' } } },
+  { label: 'malformed replacement-role field with a formerly active core assignment',
+    captain: { assignedRoleId: 'wing-commander', replacementRoleId: { roleId: 'gorgoneion-captain' } } },
   { label: 'unknown replacement role even with an active historical role',
     captain: { assignedRoleId: 'wing-commander', replacementRoleId: 'unknown-captain' } },
   { label: 'ordinary replacement role',
     captain: { assignedRoleId: 'wing-commander', replacementRoleId: 'doctor' } },
   { label: 'unavailable source ship', session: { smallShipStates: {} } },
+  { label: 'inactive source host', session: { smallShipStates: {
+    gorgoneion: { ...dockedGorgoneion, hostShipId: 'dione' },
+  } } },
   { label: 'duplicate replacement-role holder', additionalPlayers: [{
     ...gorgoneionCaptain, uid: 'duplicate-gorg-captain', displayName: 'Disconnected duplicate', connected: false,
   }] },
@@ -303,6 +308,30 @@ it('does not offer the base small-ship Capybara Captain when the full Capybara e
   />);
 
   expect(screen.queryByRole('checkbox', { name: /base capybara captain/i })).not.toBeInTheDocument();
+});
+
+it('offers the base small-ship Capybara Captain only when the base variant is available', () => {
+  render(<AwayMissionStartPanel
+    session={{
+      ...sessionWithDockedGorgoneion,
+      smallShipStates: {
+        'capybara-small': {
+          id: 'capybara-small', hostShipId: 'aegis', dockingRevision: 1,
+          population: 2_000, unrest: 0,
+          cycle: { step: 0, revision: 0, results: {}, charges: [] },
+        },
+      },
+    } as never}
+    players={[...players, {
+      ...gorgoneionCaptain, uid: 'base-capy-captain', displayName: 'Base Capybara Captain',
+      replacementRoleId: 'capybara-small-captain',
+    }] as never}
+    instanceId="bridge"
+    isGm
+  />);
+
+  expect(screen.getByRole('checkbox', { name: /base capybara captain.*capybara-small-captain/i }))
+    .toBeInTheDocument();
 });
 
 it('shows the complete server-owned mission-start receipt to the facilitator without private cards', () => {
