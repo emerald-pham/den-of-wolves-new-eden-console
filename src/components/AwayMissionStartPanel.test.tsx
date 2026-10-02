@@ -53,6 +53,15 @@ const dockedGorgoneion = {
   population: 1_000, unrest: 0,
   cycle: { step: 0, revision: 0, results: {}, charges: [] },
 };
+const resolvedSmallShipMutiny = {
+  status: 'resolved', revision: 1, triggerUnrest: 8, triggeredAt: '2026-01-01T00:00:00.000Z',
+  reduction: 2, recoveryRequestId: 'mutiny-recovery-1', recoveredAt: '2026-01-01T00:01:00.000Z',
+};
+const warriorWithResolvedMutiny = {
+  id: 'warrior', hostShipId: 'aegis', dockingRevision: 1,
+  population: 2_000, unrest: 0, mutiny: resolvedSmallShipMutiny,
+  cycle: { step: 0, revision: 0, results: {}, charges: [] },
+};
 const sessionWithDockedGorgoneion = {
   ...session,
   activeVesselIds: ['aegis'],
@@ -253,6 +262,26 @@ it('includes a source-available extra-ship Captain in the mission request and pr
   expect(mocks.startAwayMission.mock.calls[1]![0].requestId).toBe(firstCommand.requestId);
 });
 
+it.each([
+  ['the Captain’s own ship has a resolved mutiny', {
+    gorgoneion: { ...dockedGorgoneion, mutiny: resolvedSmallShipMutiny },
+  }],
+  ['an unrelated small ship has a resolved mutiny', {
+    gorgoneion: dockedGorgoneion,
+    warrior: warriorWithResolvedMutiny,
+  }],
+])('keeps the eligible Gorgoneion Captain in the roster when %s', (_label, smallShipStates) => {
+  render(<AwayMissionStartPanel
+    session={{ ...sessionWithDockedGorgoneion, smallShipStates } as never}
+    players={[...players, gorgoneionCaptain] as never}
+    instanceId="bridge"
+    isGm
+  />);
+
+  expect(screen.getByRole('checkbox', { name: /gorgoneion captain.*gorgoneion-captain/i }))
+    .toBeInTheDocument();
+});
+
 const excludedCaptainCases: readonly {
   readonly label: string;
   readonly captain?: Record<string, unknown>;
@@ -275,6 +304,12 @@ const excludedCaptainCases: readonly {
   { label: 'unavailable source ship', session: { smallShipStates: {} } },
   { label: 'inactive source host', session: { smallShipStates: {
     gorgoneion: { ...dockedGorgoneion, hostShipId: 'dione' },
+  } } },
+  { label: 'malformed resolved mutiny state', session: { smallShipStates: {
+    gorgoneion: {
+      ...dockedGorgoneion,
+      mutiny: { status: 'resolved', revision: 1, triggerUnrest: 8, triggeredAt: 'now' },
+    },
   } } },
   { label: 'duplicate replacement-role holder', additionalPlayers: [{
     ...gorgoneionCaptain, uid: 'duplicate-gorg-captain', displayName: 'Disconnected duplicate', connected: false,

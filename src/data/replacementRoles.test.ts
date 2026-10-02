@@ -7,6 +7,10 @@ const dockedGorgoneion = {
   population: 1_000, unrest: 0,
   cycle: { step: 0, revision: 0, results: {}, charges: [] },
 };
+const resolvedMutiny = {
+  status: 'resolved', revision: 1, triggerUnrest: 8, triggeredAt: '2026-01-01T00:00:00.000Z',
+  reduction: 2, recoveryRequestId: 'mutiny-recovery-1', recoveredAt: '2026-01-01T00:01:00.000Z',
+};
 const gorgRole = REPLACEMENT_ROLE_CATALOG.find((role) => role.id === 'gorgoneion-captain')!;
 
 function available(overrides: Record<string, unknown> = {}) {
@@ -23,6 +27,25 @@ describe('GM replacement role presentation', () => {
   it('shows an extra-ship Captain after a valid host docking without adding the ship to the core roster', () => {
     expect(available()).toBe(true);
     expect(aegis).toEqual(['aegis']);
+  });
+
+  it('accepts a canonical resolved mutiny in a valid small-ship state', () => {
+    expect(available({
+      smallShipStates: { gorgoneion: { ...dockedGorgoneion, mutiny: resolvedMutiny } },
+    })).toBe(true);
+  });
+
+  it.each([
+    ['non-record mutiny', 'resolved'],
+    ['unknown mutiny status', { ...resolvedMutiny, status: 'pending' }],
+    ['resolved mutiny without recovery proof', {
+      status: 'resolved', revision: 1, triggerUnrest: 8, triggeredAt: 'now',
+    }],
+    ['resolved mutiny with an invalid reduction', { ...resolvedMutiny, reduction: 0 }],
+  ])('rejects a small-ship state with %s', (_label, mutiny) => {
+    expect(available({
+      smallShipStates: { gorgoneion: { ...dockedGorgoneion, mutiny } },
+    })).toBe(false);
   });
 
   it.each([
