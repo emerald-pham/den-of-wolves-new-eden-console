@@ -1297,7 +1297,7 @@ describe('App', () => {
       useSessionStore.getState().setGmInstance(instance);
       const { unmount } = render(<App />);
       await waitFor(() => expect(listeners).toHaveLength(1));
-      const oldListener = listeners[0];
+      const oldListener = listeners[0]!;
       const movement = { id: 'voyage-33-0' as const, coordinate: '1413', revision: 2, jumpState: {} };
       const privateView = {
         voyage33MovementAuthority: 'current' as const,
