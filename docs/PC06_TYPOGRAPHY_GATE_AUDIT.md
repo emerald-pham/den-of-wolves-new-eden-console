@@ -94,7 +94,7 @@ frame composition. They establish a reproducible rendered defect and repair;
 they are not evidence of authenticated production gameplay or physical-device
 rendering. Deployment evidence is recorded separately above. PC06 is now complete under
 the user's seven-production/42-local verification authorization; the final
-0.5.64 local profile, CI37071038158 attempt2 and exact-main Deploy37075527555
+0.5.64 local profile, CI 37071038158 attempt 2 and exact-main Deploy 37075527555
 also passed the extended gate. The checkpoint report delivers this audit and
 retains its coverage limitations.
 
