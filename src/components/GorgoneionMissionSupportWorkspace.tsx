@@ -134,12 +134,17 @@ export default function GorgoneionMissionSupportWorkspace() {
           setStatusMessage(null);
         },
       );
-    }).catch(() => {
+    }).catch((error: unknown) => {
       if (!active) return;
       setProjection(null);
       setTopCardIds([]);
       setBottomCardIds([]);
-      setStatusMessage('Mission support is unavailable. Confirm the current docking and reconnect before trying again.');
+      const alreadyUsed = error instanceof Error && 'code' in error &&
+        error.code === 'functions/failed-precondition' &&
+        error.message === 'Gorgoneion mission support has already been used.';
+      setStatusMessage(alreadyUsed
+        ? 'Mission support has already been used. It cannot be repeated.'
+        : 'Mission support is unavailable. Confirm the current docking and reconnect before trying again.');
     });
 
     return () => {

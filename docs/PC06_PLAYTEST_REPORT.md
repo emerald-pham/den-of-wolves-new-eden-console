@@ -1,6 +1,6 @@
 # PC06 vessel movement and away missions
 
-Build 0.5.62 is deployed from exact main `baad0b16f1381a6eba835c401aa8796679b1befb`; candidate CI 36939952021 and required exact-main Deploy 36940222730 passed. Hosting and all 12 selected Function revisions were verified. The user resumed PC06 after the sleep hold; the pending 0.5.63 candidate is preserved and has not been pushed. Normal participant recovery works in Chrome, while restored CUA currently lacks the IAB GM surface. Six of the fixed 49 ordinary acceptances are verified: P151, P322, P323, P324, P607 and P371. Voyage has successful real maintenance and short/medium movement, but its failed-roll branch, long movement and docked-host departure repair remain pending. The catalog stays 507/751 until all assigned closures are earned and reconciled; the target stays 556/751 and 98/293. Local tests and prepared scenes do not grant ordinary acceptance. [The acceptance matrix](PC06_ACCEPTANCE_MATRIX.md) owns each current result.
+Build 0.5.63 is deployed from exact main `2fe6da1a303a7c37d9a2cc066b1839914a0aaa50`; candidate CI 37009280466 and required exact-main Deploy 37012011214 passed. Hosting and all 18 selected Function revisions were verified, and Rules were released. Seven of the fixed 49 ordinary acceptances are verified: P151, P237, P322, P323, P324, P607 and P371. Normal participant recovery works in Chrome, while supported browser access still lacks the IAB GM surface needed for normal setup and cycle controls. Voyage has successful real maintenance and short/medium movement, but its failed-roll branch, long movement and ordinary docked-host departure repair remain pending. A small post-use status correction is prepared for the next 0.5.64 batch, with no new CI push. The catalog stays 507/751 until all assigned closures are earned and reconciled; the target stays 556/751 and 98/293. Local tests and prepared scenes do not grant ordinary acceptance. [The acceptance matrix](PC06_ACCEPTANCE_MATRIX.md) owns each current result.
 
 ## Solo review access
 
@@ -24,14 +24,20 @@ the 49 ordinary-path checks:
 5. When the fleet is split, can I identify my group's location, pursuit,
    messages and scout results without seeing another group's private state?
 
-## Pending 0.5.63 repair and audit
+## Released 0.5.63 repairs and pending ordinary proof
 
-The pending batch retains the observer-control layout, combined Gorgoneion/base
+The released batch includes the observer-control layout, combined Gorgoneion/base
 Capybara charging choice and admitted Captain mission-roster repairs. The
 resumed ordinary Captain flow exposed an absent mission-deck cursor: the
 callable returned an available preview but its private Firestore view was
 unreadable. The native writer/read regression and scoped repair now pass;
-deployed ordinary preview, reorder and one-use proof remain required.
+ordinary preview, reorder and one-use proof now pass. The genuine Captain
+privately rendered five cards, selected three top/two bottom, and committed
+all five through the real callable. Normal reload resumed the same actor;
+the server denied a fresh preview as already used and the UI retained no faces
+or enabled action. The generic reconnect advice shown for that terminal denial
+is a separate presentation correction prepared for 0.5.64; no entitlement,
+transport, receipt or one-use state changes.
 
 The docked Voyage/core-host departure mismatch has a native transaction repair.
 Its independent review found one privacy bridge: publishing Voyage's carried
@@ -39,8 +45,8 @@ coordinate in the member-readable session would reveal its host's destination
 to another fleet group. The local repair now keeps location authority in private server state and the
 current GM navigation view, migrates validated legacy coordinates atomically,
 and clears stale client projections. Focused server, client, Rules and native
-transaction checks pass; final bounded review, release gates, deployment and
-ordinary proof remain pending. Existing host-crew actions remain authorized; no new player
+transaction checks, final independent review, release gates and deployment
+pass; ordinary host-departure proof remains pending. Existing host-crew actions remain authorized; no new player
 entitlement or PC07 work is added. The bounded follow-up confirms that privacy
 repair but requires current GM emergency-window publication and private-view
 reauthorization after a named GM claim change. Both are repaired locally with discriminating regressions and native
@@ -51,8 +57,9 @@ then failed 149 integration cases while 6,737 passed. The bounded repair
 updates exact SDK/private-read fixtures and adds a client guard requiring a
 fresh private GM view before movement. All 874 combined focused cases now
 pass, including valid empty-view first docking and stale-view denials. The
-new guard's independent follow-up and the complete release profile remain
-pending; no ordinary credit is added.
+new guard's independent follow-up approved exact `2fe6da1a`. Its complete
+6,893-case suite, 154 Rules checks and required local/CI/main release gates
+pass; those results add no ordinary credit.
 
 The confirmed Voyage caption contrast regression and the audit of why the
 required typography gate passed are in [the typography audit](PC06_TYPOGRAPHY_GATE_AUDIT.md).
@@ -60,7 +67,7 @@ The existing gate ran successfully but omitted the later Voyage surface. Its
 new before/after render checks catch the dim token and verify the corrected
 color with unchanged text metrics. These are local component renders; the audit
 and any remaining limitations must be included in the final checkpoint report.
-The existing live results remain six verified and 43 pending, with unchanged
+The existing live results are seven verified and 42 pending, with unchanged
 catalog credit.
 
 ## What the current local evidence establishes

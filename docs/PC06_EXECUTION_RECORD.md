@@ -306,6 +306,66 @@ in `evidence/full-private-view-parity/handback.json` outside Git. The worker is
 parked with clean tracked files and no emulator reservation. Independent
 follow-up on this guard and the complete final profile remain required.
 
+## Released 0.5.63 and ordinary P237 completion
+
+Exact `2fe6da1a303a7c37d9a2cc066b1839914a0aaa50` has distinct Sol 6.1
+xhigh approval, complete local validation, candidate CI 37009280466 and
+exact-main Deploy 37012011214 passing. The local full suite passes all 6,893
+cases in 500 files. Its external wrapper then stopped on an unsupported Rules
+command mapping; no source changed. The corrected continuation checks the
+unchanged exact SHA, retains that complete unit evidence, and runs all 154
+Rules cases and the remaining release profile commands. No case or budget was
+removed. The main workflow independently reruns its required tests and gates.
+Render-performance is outside this selected change scope, not claimed as rerun.
+
+Hosting and all 18 selected new ready Function revisions passed the workflow's
+post-deploy verifier, and Firebase recorded the Rules release. Both typography
+checks pass in candidate CI and exact-main verification. Final local typography
+artifacts retain zero PC01 issues and zero issues across all eight Voyage
+renders. The main/feature refs are at the exact released source; preserved
+workers remain parked and no unique branches or checkouts were removed.
+Persistent release evidence is `evidence/candidate-ci-37009280466.json`, its
+watch log, and `deploy-37012011214.{json,log}`, plus
+`final-validation-2fe6{,-continuation}.log`, the final ledger receipt,
+`final-2fe6-typography/` and `final-2fe6-ticker/`, outside Git.
+
+The controlled genuine Gorgoneion Captain normally applied the update and
+resumed on verified build 0.5.63. Its ordinary private preview returned HTTP
+200 at docking revision 1 and undealt cursor 0; the real workspace rendered
+five cards. The Captain chose three top/two bottom through those controls.
+Ordinary `applyGorgoneionMissionSupport` returned HTTP 200, committed,
+cardCount 5; the private faces cleared and the action disabled. Normal reload
+resumed the same actor, compared privately, and a fresh preview returned exact
+FAILED_PRECONDITION: support has already been used. Zero faces and a disabled
+action persisted. No second mutation or later card deal was performed. This
+earns P237, bringing ordinary proof to seven Verified/42 Pending; catalog
+credit remains 507/751. Privacy-safe retained evidence is
+`evidence/ordinary-p237-0.5.63.json`; no identity, session code or private card
+faces are copied into repository evidence.
+
+The post-reload workspace incorrectly described that final used state as a
+docking/reconnect problem. Its generic catch originated in `00df84c1` and was
+retained unchanged by the cursor repair. The actual terminal response and
+identity-free crop `evidence/ordinary-p237-used-copy-before.jpg` reproduce the
+presentation defect. The bounded 0.5.64 correction recognizes only that exact
+SDK failed-precondition/message and says support is already used; all other
+errors retain their existing advice. The installed SDK source confirms its
+`functions/failed-precondition` code and unchanged server message. It changes
+no projection clearing, subscription, actor authority, transport, receipt,
+deck or replay state. Seven existing workspace/service checks and scoped lint
+pass; no implementation-mirroring test, native rerun or separate CI cycle is
+added for this presentation-only repair. Package/lock metadata and a new release
+entry prepare the next checkpoint batch without changing historical 0.5.63
+notes. The correction has not been pushed or deployed.
+
+Supported IAB GM access remains absent while the existing Chrome participant
+works. The coordinator receives this concrete capability boundary after the
+released repairs and P237 proof: restore the existing authorized GM surface,
+preserving the user tab and profile. No login expiry, credential problem or
+security denial is inferred. Normal GM setup/cycle actions, fresh actor setup,
+the remaining 42 acceptances and earned catalog/release reconciliation remain
+owned by this checkpoint owner after that access returns.
+
 ## Owner and implementation groups
 
 The accountable checkpoint owner is `/root/pc06_sol_owner` in

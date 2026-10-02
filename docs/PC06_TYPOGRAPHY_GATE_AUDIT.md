@@ -79,11 +79,21 @@ was added; this coverage extends the existing typography harness.
   [desktop after](/Users/emeraldpham/Documents/PC06-active/evidence/typography/voyage-candidate-after/voyage33/normal/desktop/voyage-movement.png).
 - `npm run test:typography:release-gate` and `npm run lint` both pass.
 
+The correction is now deployed in build 0.5.63 at exact main
+`2fe6da1a303a7c37d9a2cc066b1839914a0aaa50`.
+[Candidate CI 37009280466](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/37009280466)
+and [exact-main Deploy 37012011214](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/37012011214)
+both pass the font and computed-style gates. The final local source's retained
+report at `evidence/final-2fe6-typography/results.json` outside Git records zero
+PC01 issues and zero issues in all eight added Voyage renders. Hosting and the
+selected Functions were verified after deployment. These gates do not substitute
+for ordinary Voyage gameplay or physical-device proof.
+
 The screenshots are local renders of the exact React panel, product CSS, and
 frame composition. They establish a reproducible rendered defect and repair;
-they are not evidence of authenticated production gameplay, a deployed 0.5.63
-candidate, or physical-device rendering. The focused source change is handed
-to the PC06 owner for checkpoint integration and release verification.
+they are not evidence of authenticated production gameplay or physical-device
+rendering. Deployment evidence is recorded separately above; the complete
+checkpoint's remaining ordinary proof and final audit report remain required.
 
 The gate remains representative coverage with an explicit surface inventory;
 it does not automatically discover every future component or dynamic state.

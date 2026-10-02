@@ -27,6 +27,18 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 507, partial: 35, active: 0, missing: 209, blocked: 0,
     },
     changes: [
+      'Completed mission support stays marked as used when the Gorgoneion Captain reconnects.',
+      '507 of 751 planned items are complete in the catalog snapshot used to build this release (67.51%).',
+      'PC06 gameplay verification continues.',
+    ],
+  },
+  {
+    version: '0.5.63',
+    implementationProgress: {
+      completed: 507, total: 751, percentage: '67.51%',
+      done: 507, partial: 35, active: 0, missing: 209, blocked: 0,
+    },
+    changes: [
       'Facilitator ship access sits beside the ship identity, where DRADIS cannot cover its control.',
       'Gorgoneion and base Capybara can charge Jump Drive alongside another console within their reactor limit.',
       'Admitted extra-ship Captains can join their current fleet group’s away-mission roster.',
