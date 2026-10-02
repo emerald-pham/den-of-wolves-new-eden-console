@@ -32,7 +32,7 @@ export default function BoardingSecurityTeamPanel({
     <section className="boarding-security-workspace gm-console__module cic-frame" aria-label="Security team locations">
       <header className="boarding-security-workspace__header">
         <div>
-          <p className="cic-overline">P378 // facilitator location check</p>
+          <p className="cic-overline">Facilitator location check</p>
           <h2 className="gm-console__section-title">Security team locations</h2>
           <p className="boarding-security-workspace__intro">
             Read the current ship and shuttle ledgers, with boarding eligibility grouped by each shuttle&apos;s dock.
