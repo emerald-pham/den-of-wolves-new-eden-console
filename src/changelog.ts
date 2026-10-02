@@ -30,6 +30,8 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       'Facilitator ship access sits beside the ship identity, where DRADIS cannot cover its control.',
       'Gorgoneion and base Capybara can charge Jump Drive alongside another console within their reactor limit.',
       'Admitted extra-ship Captains can join their current fleet group’s away-mission roster.',
+      'Voyage 33-0 follows its docked host between systems, and its movement labels are easier to read.',
+      'The Gorgoneion Captain can open the private mission-deck preview before the first deal.',
       '507 of 751 planned items are complete in the catalog snapshot used to build this release (67.51%).',
       'PC06 gameplay verification continues.',
     ],

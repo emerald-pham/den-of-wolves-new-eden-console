@@ -73,6 +73,25 @@ the private faces. Logs are in the persistent external evidence directory
 This is local native proof; independent review, deployment and ordinary P237
 completion remain pending.
 
+The typography worker's test-first `12df055c` and repair `e6d8b496` are
+integrated as `49868252` and `2cb7e61d`. The confirmed outlier is Voyage's
+10.88px movement metadata: the dim amber token measured 2.09–2.10:1 against
+its composed CIC panel. Its introduction is `7ad70f6d`, present in deployed
+0.5.62. Exact-main Deploy 36940222730 did run and pass both required typography
+checks; its 56 rendered comparisons omitted Voyage, and neither check measured
+this caption group's contrast. This is a demonstrated coverage gap, rather
+than a skipped or stale gate. The existing harness now includes eight Voyage
+renders across four viewports and both motion modes, retaining all 56 PC01
+comparisons. It records 64 pre-repair failures and zero after-repair issues;
+the established full amber token measures 7.37–7.39:1 with unchanged font,
+size, tracking and line height. All 62 aesthetic checks, the gate contract,
+lint and documentation checks pass locally. The complete audit, introducing
+change, exact run evidence, before/after paths and remaining limits are in
+`PC06_TYPOGRAPHY_GATE_AUDIT.md`. These component renders are not ordinary
+gameplay or physical-device evidence, and the original user report did not
+preserve a route or image to equate with an unrecorded surface. The audit is
+required in the final checkpoint report.
+
 ## Owner and implementation groups
 
 The accountable checkpoint owner is `/root/pc06_sol_owner` in
