@@ -32,7 +32,7 @@
 .voyage33-movement__label,
 .voyage33-movement__connection,
 .voyage33-movement__action h4 {
-  color: var(--cic-amber-dim);
+  color: var(--cic-amber);
   font-size: 0.68rem;
   letter-spacing: 0.08em;
   line-height: 1.5;
