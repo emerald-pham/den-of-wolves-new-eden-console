@@ -44,6 +44,7 @@ import {
   DEMO_COMPLETE_RESULT,
   getSinglePlayerDemoAdvanceBoundary,
   getSinglePlayerDemoJumpDenial,
+  publicSinglePlayerDemoState,
 } from './singlePlayerDemoPolicy';
 import {
   isPursuitEmergencyWindowMarker,
@@ -15329,6 +15330,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
     );
     const fighterWingCounts = publicFighterWingCounts(sessionSnap.get('fighterWingCounts'));
     const voyageAdmission = publicVoyage33Admission(sessionSnap.get('voyage33Admission'), sessionId);
+    const demo = publicSinglePlayerDemoState(sessionSnap.get('singlePlayerDemo'));
     const voyageMaintenance = publicVoyage33Maintenance(
       sessionSnap.get('voyage33Maintenance'), voyageAdmission, activeVesselIds,
     );
@@ -15340,6 +15342,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         joinCode,
         phase: sessionSnap.get('phase') as string,
         currentTurn: sessionTurn(sessionSnap.get('currentTurn')),
+        ...(demo ? { singlePlayerDemo: demo } : {}),
         ...(typeof sessionSnap.get('playerCount') === 'number' ? { playerCount: sessionSnap.get('playerCount') } : {}),
         ...(sessionSnap.get('chartId') === 'A' || sessionSnap.get('chartId') === 'B' || sessionSnap.get('chartId') === 'C'
           ? { chartId: sessionSnap.get('chartId') } : {}),
@@ -15642,6 +15645,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
   );
   const fighterWingCounts = publicFighterWingCounts(sessionSnap.get('fighterWingCounts'));
   const voyageAdmission = publicVoyage33Admission(sessionSnap.get('voyage33Admission'), sessionId);
+  const demo = publicSinglePlayerDemoState(sessionSnap.get('singlePlayerDemo'));
   const voyageMaintenance = publicVoyage33Maintenance(
     sessionSnap.get('voyage33Maintenance'), voyageAdmission, activeVesselIds,
   );
@@ -15653,6 +15657,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       joinCode: sessionSnap.get('joinCode') as string,
       phase: sessionSnap.get('phase') as string,
       currentTurn: sessionTurn(sessionSnap.get('currentTurn')),
+      ...(demo ? { singlePlayerDemo: demo } : {}),
       ...(typeof sessionSnap.get('playerCount') === 'number' ? { playerCount: sessionSnap.get('playerCount') } : {}),
       ...(sessionSnap.get('chartId') === 'A' || sessionSnap.get('chartId') === 'B' || sessionSnap.get('chartId') === 'C'
         ? { chartId: sessionSnap.get('chartId') } : {}),

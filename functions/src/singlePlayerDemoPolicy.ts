@@ -39,3 +39,14 @@ export function getSinglePlayerDemoAdvanceBoundary(
   if (!isDemoSession || currentTurn === 0) return null;
   return DEMO_COMPLETE_RESULT;
 }
+
+/** Public membership recovery carries only the recognized two-field marker. */
+export function publicSinglePlayerDemoState(value: unknown): {
+  readonly status: 'active' | 'complete'; readonly finalCycle: 1;
+} | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const marker = value as Record<string, unknown>;
+  if (Object.keys(marker).length !== 2 ||
+      (marker.status !== 'active' && marker.status !== 'complete') || marker.finalCycle !== 1) return null;
+  return { status: marker.status, finalCycle: 1 };
+}

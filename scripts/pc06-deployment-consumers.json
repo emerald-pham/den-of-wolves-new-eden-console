@@ -731,6 +731,17 @@
         "startSinglePlayerDemo"
       ],
       "reason": "Private Voyage storage and session migration, private GM movement projection, explicit field-owned discovery updates, and preloaded host-movement arrival state. This includes every export that directly writes the composed GM view through publishDiscoveryProjections or its turn-pursuit helper, the candidate-plan GM projection writer, and the existing index export conservatively selected because its generated block contains the shared helper section."
+    },
+    {
+      "baseline": "2fe6da1a303a7c37d9a2cc066b1839914a0aaa50",
+      "implementationCandidate": "PC06 Demo recovery projection",
+      "before": "668b7a3295213e8de0f9b8c6085845c5155b4d1a1d9a395bbede99b20f55374b",
+      "after": "2270c160ff8ee70f929bff6077dfdc1e8fa5e3d1eeaaaa480e9ef2cacd4a83a4",
+      "consumers": [
+        "joinSession",
+        "resumeSession"
+      ],
+      "reason": "Only the public singlePlayerDemo marker projection changes in the normal join and resume DTOs; strict parsing excludes malformed or extra private fields."
     }
   ],
   "moduleTransitions": {
@@ -777,6 +788,20 @@
           "getGorgoneionMissionSupportProjection"
         ],
         "reason": "Only the authorized pre-deal projection normalizes an absent validated zero cursor atomically with its private view."
+      }
+    ],
+    "functions/src/singlePlayerDemoPolicy.ts": [
+      {
+        "before": "54e005957e8a1ae0d056d7509b98b0dec825903427038edd8af0278b061aa98f",
+        "after": "a7c70505ad3de6de6f68d7137c266767383c5a451b28ee464408e1a8666f346e",
+        "consumers": [
+          "advanceTurn",
+          "jumpShip",
+          "moveShipToLocation",
+          "joinSession",
+          "resumeSession"
+        ],
+        "reason": "Existing Demo authority remains unchanged; the new strict public marker parser is consumed by normal join and resume. Existing authority consumers remain conservatively selected for this module."
       }
     ]
   }
