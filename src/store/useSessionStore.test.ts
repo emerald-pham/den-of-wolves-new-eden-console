@@ -88,6 +88,10 @@ describe('useSessionStore', () => {
     };
     const privateSession = {
       ...session,
+      voyage33Movement: {
+        id: 'voyage-33-0' as const, coordinate: '8378', revision: 4,
+        jumpState: { lastJumpTurn: 2 },
+      },
       ...(hasOwn ? { playerDiscovery: own } : {}),
       organiserSystems: { 'system-17': '8378' },
       organiserSites: { '8378': { code: 'J', name: 'Private site', candidate: false, summary: 'Secret' } },
@@ -106,7 +110,7 @@ describe('useSessionStore', () => {
       for (const key of [
         'playerDiscovery', 'shipGalacticCoordinates', 'shipNavigationLogs', 'organiserSystems',
         'organiserSites', 'organiserSystemHistory', 'pursuitDistances', 'pursuitGroups',
-        'shipFleetGroupIds', 'candidatePlanCheckpoint', 'currentGroupCandidateReveals',
+        'shipFleetGroupIds', 'candidatePlanCheckpoint', 'currentGroupCandidateReveals', 'voyage33Movement',
       ]) {
         expect(value).not.toHaveProperty(key);
       }
@@ -130,6 +134,20 @@ describe('useSessionStore', () => {
     } }));
     await useSessionStore.persist.rehydrate();
     assertNoPrivateNavigation(useSessionStore.getState().session!);
+  });
+
+  it('clears private Voyage movement when the current GM instance loses its claim', () => {
+    useSessionStore.getState().setIdentity({
+      ...session,
+      voyage33Movement: {
+        id: 'voyage-33-0', coordinate: '8378', revision: 4, jumpState: { lastJumpTurn: 2 },
+      },
+    }, { ...player, role: 'gm' });
+    useSessionStore.getState().setGmInstance(gmInstance);
+
+    useSessionStore.getState().setGmInstance(null);
+
+    expect(useSessionStore.getState().session?.voyage33Movement).toBeUndefined();
   });
 
   it('persists GM login status without persisting the password', () => {

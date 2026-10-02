@@ -7,6 +7,7 @@ import {
 import {
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -1095,6 +1096,41 @@ describe('session header', () => {
       await updateDoc(doc(ctx.firestore(), `${SESSION}/players/gm1`), { role: 'player' });
     });
     await assertFails(getDoc(doc(as('gm1'), `${SESSION}/gmDiscovery/current`)));
+  });
+
+  it('blocks ordinary members from a legacy public Voyage coordinate while preserving GM cleanup access', async () => {
+    const legacyMovement = {
+      id: 'voyage-33-0', coordinate: '1413', revision: 7,
+      jumpState: { lastJumpTurn: 2, emergencyJumpUsed: false },
+    };
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), SESSION), { voyage33Movement: legacyMovement });
+      await setDoc(doc(ctx.firestore(), `${SESSION}/serverState/voyage33Movement`), {
+        movementState: legacyMovement,
+      });
+      await setDoc(doc(ctx.firestore(), `${SESSION}/gmDiscovery/current`), {
+        voyage33Movement: legacyMovement,
+      });
+    });
+
+    await assertFails(getDoc(doc(as('alice'), SESSION)));
+    const gmHeader = await assertSucceeds(getDoc(doc(as('gm1'), SESSION)));
+    expect(gmHeader.data()?.voyage33Movement).toEqual(legacyMovement);
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/serverState/voyage33Movement`)));
+    await assertFails(getDoc(doc(as('gm1'), `${SESSION}/serverState/voyage33Movement`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/gmDiscovery/current`)));
+    expect((await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/gmDiscovery/current`))))
+      .data()?.voyage33Movement).toEqual(legacyMovement);
+    await assertFails(getDocs(collection(as('gm1'), `${SESSION}/serverState`)));
+    await assertFails(setDoc(doc(as('gm1'), `${SESSION}/serverState/voyage33Movement`), {
+      movementState: { ...legacyMovement, coordinate: '5143' },
+    }));
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), SESSION), { voyage33Movement: deleteField() });
+    });
+    const migratedHeader = await assertSucceeds(getDoc(doc(as('alice'), SESSION)));
+    expect(migratedHeader.data()).not.toHaveProperty('voyage33Movement');
   });
 
   it('keeps fleet-group membership and vessel tuples server-only', async () => {

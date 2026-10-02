@@ -1211,6 +1211,48 @@ describe('App', () => {
     unmount();
   });
 
+  it('keeps Voyage coordinates only while the current GM projection is fresh and monotonic', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_id, _uid, next) => {
+      handlers = next;
+      return vi.fn();
+    });
+    useSessionStore.getState().setIdentity(session, player);
+    useSessionStore.getState().setGmInstance({
+      id: 'bridge', sessionId: session.id, uid: player.uid,
+      name: 'Bridge', deviceLabel: 'Desktop', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    const { unmount } = render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    const movement = (coordinate: string, revision: number) => ({
+      id: 'voyage-33-0' as const, coordinate, revision, jumpState: { lastJumpTurn: 2 },
+    });
+
+    act(() => handlers?.onGmDiscovery?.({ voyage33Movement: movement('1413', 2) }));
+    expect(useSessionStore.getState().session?.voyage33Movement).toEqual(movement('1413', 2));
+    act(() => handlers?.onGmDiscovery?.({
+      voyage33Movement: movement('1413', 2),
+      shipGalacticCoordinates: { aegis: '5143' },
+    }));
+    expect(useSessionStore.getState().session?.voyage33Movement).toEqual(movement('1413', 2));
+
+    // A projection that omits Voyage is authoritative removal; an older
+    // movement revision must not restore its coordinate afterward.
+    act(() => handlers?.onGmDiscovery?.({ shipGalacticCoordinates: { aegis: '5143' } }));
+    expect(useSessionStore.getState().session?.voyage33Movement).toBeUndefined();
+    act(() => handlers?.onGmDiscovery?.({ voyage33Movement: movement('0000', 1) }));
+    expect(useSessionStore.getState().session?.voyage33Movement).toBeUndefined();
+
+    act(() => handlers?.onGmDiscovery?.({ voyage33Movement: movement('1413', 3) }));
+    expect(useSessionStore.getState().session?.voyage33Movement).toEqual(movement('1413', 3));
+    act(() => handlers?.onSessionFreshness?.(false));
+    expect(useSessionStore.getState().session?.voyage33Movement).toBeUndefined();
+    act(() => handlers?.onGmDiscovery?.({ voyage33Movement: movement('1413', 3) }));
+    act(() => handlers?.onGmDiscovery?.(null));
+    expect(useSessionStore.getState().session?.voyage33Movement).toBeUndefined();
+    unmount();
+  });
+
   it('joins the public pursuit marker to protected GM authority in either listener order and clears it in either order', async () => {
     let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
     vi.mocked(subscribeSessionState).mockImplementation((_id, _uid, next) => {

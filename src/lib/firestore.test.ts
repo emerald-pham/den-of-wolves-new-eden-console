@@ -804,7 +804,7 @@ it('hydrates admitted Voyage 33-0 as a public vessel identity without widening t
   expect(malformed.admittedVesselIds).toEqual([]);
 });
 
-it('hydrates Voyage 33-0 movement only from valid server state for an admitted vessel', () => {
+it('never hydrates Voyage coordinates from the member session header', () => {
   const admission = {
     type: 'voyage-admission', sessionId: 'voyage-movement-session', id: 'voyage-33-0', status: 'admitted',
     crisisId: 'approach-1', crisisRevision: 3, population: 40_000, unrest: 0, hostShipId: null,
@@ -820,7 +820,7 @@ it('hydrates Voyage 33-0 movement only from valid server state for an admitted v
     voyage33Admission: admission,
     voyage33Movement: movement,
   });
-  expect(admitted.voyage33Movement).toEqual(movement);
+  expect(admitted.voyage33Movement).toBeUndefined();
   expect(admitted.activeVesselIds).toEqual(['aegis']);
 
   const malformed = sessionFrom('voyage-movement-malformed', {
@@ -3961,7 +3961,14 @@ it('does not hydrate the organiser map from cache or a callback after read autho
   const snapshot = (fromCache: boolean) => ({
     metadata: { fromCache }, exists: () => true,
     data: () => ({
+      shipGalacticCoordinates: { aegis: '5143' },
+      shipNavigationLogs: { aegis: [] },
       knownSystems: { 'system-17': '8378' },
+      sessionId: 's1',
+      voyage33Movement: {
+        id: 'voyage-33-0', coordinate: '1413', revision: 7,
+        jumpState: { lastJumpTurn: 2, emergencyJumpUsed: false },
+      },
       pursuitEmergencyWindow: {
         type: 'pursuit-emergency-window', status: 'offered', cycle: 3,
         navigationRevision: 42, groupIds: ['fleet-1'], openedAt: '2026-09-28T12:00:00.000Z',
@@ -3972,7 +3979,13 @@ it('does not hydrate the organiser map from cache or a callback after read autho
   expect(onGmDiscovery).not.toHaveBeenCalled();
   callbacks[2]?.(snapshot(false));
   expect(onGmDiscovery).toHaveBeenCalledWith(expect.objectContaining({
+    shipGalacticCoordinates: { aegis: '5143' },
+    shipNavigationLogs: { aegis: [] },
     organiserSystems: { 'system-17': '8378' },
+    voyage33Movement: {
+      id: 'voyage-33-0', coordinate: '1413', revision: 7,
+      jumpState: { lastJumpTurn: 2, emergencyJumpUsed: false },
+    },
     pursuitEmergencyWindowAuthority: {
       type: 'pursuit-emergency-window', status: 'offered', cycle: 3,
       navigationRevision: 42, groupIds: ['fleet-1'], openedAt: '2026-09-28T12:00:00.000Z',

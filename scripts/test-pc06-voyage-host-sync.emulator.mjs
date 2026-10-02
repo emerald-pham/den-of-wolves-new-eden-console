@@ -31,11 +31,15 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
   const require = createRequire(resolve(repository, 'functions/package.json'));
   const {
     dockVoyage33,
+    joinSession,
     jumpShip,
     jumpVoyage33,
+    resumeSession,
   } = require('../functions/lib/index.js');
   const { getFirestore } = require('firebase-admin/firestore');
   const { INITIAL_SHIP_RESOURCES } = require('../functions/lib/resources.js');
+  const { recommendedRoleIds } = require('../functions/lib/roleConfiguration.js');
+  const { activeVesselIdsForRoles } = require('../functions/lib/gameSetup.js');
   const { navigationStateDocumentPath } = require('../functions/lib/navigationProjection.js');
   const { neighborsForCoordinate } = require('../functions/lib/starChartGraph.js');
   const { emptyVoyage33MovementState } = require('../functions/lib/voyage33Movement.js');
@@ -53,6 +57,8 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
     const gm = `${id}-gm`;
     const session = db.doc(`sessions/${id}`);
     const navigation = db.doc(navigationStateDocumentPath(id));
+    const privateMovement = db.doc(`sessions/${id}/serverState/voyage33Movement`);
+    const gmProjection = db.doc(`sessions/${id}/gmDiscovery/current`);
     const grant = db.doc(`sessions/${id}/gmInstances/bridge/private/shipConsoleWriteGrant`);
     const ships = ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'];
     const now = new Date().toISOString();
@@ -143,14 +149,41 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
 
       await jumpShip.run(request(gm, jumpCommand));
       const afterHostJump = (await session.get()).data();
-      assert.deepEqual(afterHostJump?.voyage33Movement, {
+      assert.equal(Object.hasOwn(afterHostJump ?? {}, 'voyage33Movement'), false,
+        'the member-readable session header no longer carries Voyage coordinates');
+      assert.deepEqual((await privateMovement.get()).get('movementState'), {
         ...movement, coordinate: hostDestination, revision: 1,
       });
+      assert.deepEqual((await gmProjection.get()).get('voyage33Movement'), {
+        ...movement, coordinate: hostDestination, revision: 1,
+      });
+      assert.equal((await gmProjection.get()).get('shipGalacticCoordinates.aegis'), hostDestination,
+        'the composed GM view includes its normal navigation projection');
       assert.deepEqual(afterHostJump?.voyage33Maintenance, maintenance,
         'host movement leaves Voyage population, unrest, ration record, charge, and docking revision intact');
       assert.equal((await navigation.get()).get('shipGalacticCoordinates.aegis'), hostDestination);
 
-      const beforeCapturedRetry = afterHostJump?.voyage33Movement;
+      const otherHostDestination = neighborsForCoordinate('0000')?.find((coordinate) => coordinate !== hostDestination);
+      assert.ok(otherHostDestination, 'the chart supplies an unrelated vessel destination');
+      await grant.set({
+        type: 'gm-ship-console-write-grant', sessionId: id, instanceId: 'bridge',
+        uid: gm, shipId: 'dione', grantedAt: now,
+      });
+      await jumpShip.run(request(gm, {
+        sessionId: id, instanceId: 'bridge', shipId: 'dione',
+        destination: otherHostDestination, requestId: 'ordinary-navigation-after-voyage-sync',
+      }));
+      assert.deepEqual((await privateMovement.get()).get('movementState'), {
+        ...movement, coordinate: hostDestination, revision: 1,
+      });
+      assert.deepEqual((await gmProjection.get()).get('voyage33Movement'), {
+        ...movement, coordinate: hostDestination, revision: 1,
+      }, 'a later ordinary navigation publication keeps the canonical Voyage movement projection');
+      const coordinatesAfterNormalNavigation = (await navigation.get()).get('shipGalacticCoordinates');
+      assert.deepEqual((await gmProjection.get()).get('shipGalacticCoordinates'), coordinatesAfterNormalNavigation,
+        'the regular GM navigation view remains complete after its ordinary rebuild');
+
+      const beforeCapturedRetry = (await privateMovement.get()).get('movementState');
       const fuelBeforeStaleRetry = afterHostJump?.shipResources?.aegis?.fuel;
       const stale = await jumpVoyage33.run(request(gm, {
         sessionId: id, instanceId: 'bridge', shipId: VOYAGE_33_ID, hostShipId: 'aegis',
@@ -159,7 +192,7 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
       }));
       assert.equal(stale.status, 'stale');
       assert.equal(stale.currentMovementRevision, 1);
-      assert.deepEqual((await session.get()).get('voyage33Movement'), beforeCapturedRetry);
+      assert.deepEqual((await privateMovement.get()).get('movementState'), beforeCapturedRetry);
       assert.equal((await session.get()).get('shipResources.aegis.fuel'), fuelBeforeStaleRetry);
 
       const independentDestination = neighborsForCoordinate(hostDestination)?.[0];
@@ -172,6 +205,12 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
       assert.equal(independentJump.status, 'jumped');
       assert.equal(independentJump.maintenanceState.hostShipId, null);
       assert.equal(independentJump.movementState.coordinate, independentDestination);
+      assert.equal((await session.get()).get('voyage33Movement'), undefined);
+      assert.deepEqual((await privateMovement.get()).get('movementState'), independentJump.movementState);
+      assert.deepEqual((await gmProjection.get()).get('voyage33Movement'), independentJump.movementState);
+      assert.deepEqual((await gmProjection.get()).get('shipGalacticCoordinates'),
+        (await navigation.get()).get('shipGalacticCoordinates'),
+        'Voyage-only field publication preserves the existing GM navigation fields');
 
       await navigation.update({ 'shipGalacticCoordinates.dione': independentDestination });
       await session.update({
@@ -192,6 +231,10 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
       assert.equal(redock.status, 'committed');
       assert.equal(redock.maintenanceState.hostShipId, 'dione');
       assert.equal(redock.movementState.coordinate, independentDestination);
+      assert.deepEqual((await privateMovement.get()).get('movementState'), redock.movementState);
+      assert.deepEqual((await gmProjection.get()).get('shipGalacticCoordinates'),
+        (await navigation.get()).get('shipGalacticCoordinates'),
+        'redocking publishes movement without replacing the composed navigation view');
 
       await grant.set({
         type: 'gm-ship-console-write-grant', sessionId: id, instanceId: 'bridge',
@@ -199,6 +242,8 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
       });
       const beforeHostReplay = (await session.get()).data();
       const beforeNavigationReplay = (await navigation.get()).data();
+      const beforePrivateMovementReplay = (await privateMovement.get()).data();
+      const beforeGmProjectionReplay = (await gmProjection.get()).data();
       const beforeHostReceipt = (await db.doc(`sessions/${id}/commandReceipts/${jumpCommand.requestId}`).get()).data();
       const beforeHostEvent = (await db.doc(`sessions/${id}/events/ship-jump-${jumpCommand.requestId}`).get()).data();
 
@@ -207,6 +252,8 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
       assert.deepEqual((await session.get()).data(), beforeHostReplay,
         'an exact host replay performs no session write after Voyage has independently jumped and redocked');
       assert.deepEqual((await navigation.get()).data(), beforeNavigationReplay);
+      assert.deepEqual((await privateMovement.get()).data(), beforePrivateMovementReplay);
+      assert.deepEqual((await gmProjection.get()).data(), beforeGmProjectionReplay);
       assert.deepEqual(
         (await db.doc(`sessions/${id}/commandReceipts/${jumpCommand.requestId}`).get()).data(),
         beforeHostReceipt,
@@ -215,13 +262,117 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
         (await db.doc(`sessions/${id}/events/ship-jump-${jumpCommand.requestId}`).get()).data(),
         beforeHostEvent,
       );
-      assert.deepEqual((await session.get()).get('voyage33Movement'), {
+      assert.deepEqual((await privateMovement.get()).get('movementState'), {
         ...independentJump.movementState,
       });
+      assert.equal((await session.get()).get('voyage33Movement'), undefined);
       assert.equal((await session.get()).get('voyage33Maintenance.hostShipId'), 'dione');
     } finally {
       await db.recursiveDelete(session);
       await db.doc(`activeMemberships/${gm}`).delete();
+    }
+  });
+
+  test('native join and resume authorize, validate, and atomically migrate legacy movement', async () => {
+    const id = `pc06-voyage-host-sync-join-${process.pid}`;
+    const gm = `${id}-gm`;
+    const member = `${id}-member`;
+    const joinCode = '3141';
+    const session = db.doc(`sessions/${id}`);
+    const privateMovement = db.doc(`sessions/${id}/serverState/voyage33Movement`);
+    const gmProjection = db.doc(`sessions/${id}/gmDiscovery/current`);
+    const roles = [...recommendedRoleIds(8)];
+    const ships = [...activeVesselIdsForRoles(roles)];
+    const now = new Date().toISOString();
+    const validMovement = {
+      ...emptyVoyage33MovementState('1413'),
+      revision: 9,
+      jumpState: { lastJumpTurn: 2, emergencyJumpUsed: false },
+    };
+    try {
+      await session.set({
+        phase: 'active', currentTurn: 2, setupRevision: 0, playerCount: 8, chartId: 'A',
+        joinCode, chartSelectionLocked: true, configurationLocked: true, ownerUid: gm,
+        activeRoleIds: roles, activeVesselIds: ships, admittedVesselIds: [VOYAGE_33_ID],
+        voyage33Admission: {
+          type: 'voyage-admission', sessionId: id, id: VOYAGE_33_ID, status: 'admitted',
+          crisisId: 'approach-1', crisisRevision: 2, population: 40_000, unrest: 0,
+          hostShipId: 'aegis', commitments: VOYAGE_33_COMMITMENTS,
+        },
+        voyage33Movement: { ...validMovement, coordinate: '9999' },
+        voyage33Maintenance: {
+          ...emptyVoyage33MaintenanceState('aegis'), dockingRevision: 3,
+          population: 26_500, unrest: 4,
+          cycle: { step: 4, revision: 8, results: { '1': 'Rations were recorded.' }, charges: ['hydroponics'], turn: 2 },
+        },
+        createdAt: now, updatedAt: now,
+      });
+      await db.doc(`joinCodes/${joinCode}`).set({ sessionId: id });
+      await db.doc(`sessions/${id}/players/${gm}`).set({
+        uid: gm, sessionId: id, role: 'gm', connected: true, fleetGroupId: 'fleet-1',
+        assignedRoleId: null, displayName: 'Join migration fixture', joinedAt: now,
+      });
+      await db.doc(`sessions/${id}/fleetGroups/fleet-1`).set({
+        id: 'fleet-1', vesselIds: ships, memberUids: [],
+      });
+      await db.doc(`sessions/${id}/serverState/navigation`).set({
+        revision: 0,
+        shipGalacticCoordinates: Object.fromEntries(ships.map((shipId) => [shipId, '0000'])),
+        shipNavigationLogs: Object.fromEntries(ships.map((shipId) => [shipId, []])),
+        pursuitGroups: { 'fleet-1': 2 },
+      });
+      await db.doc(`activeMemberships/${gm}`).set({ uid: gm, sessionId: id });
+
+      await assert.rejects(
+        resumeSession.run(request(`${id}-stranger`, { sessionId: id })),
+        { code: 'permission-denied' },
+        'an unaffiliated actor cannot trigger a movement migration',
+      );
+      assert.equal((await session.get()).get('voyage33Movement').coordinate, '9999');
+      assert.equal((await privateMovement.get()).exists, false);
+
+      await assert.rejects(
+        joinSession.run(request(member, { joinCode, displayName: 'New fleet member' })),
+        { code: 'failed-precondition' },
+        'a malformed legacy coordinate fails closed before the join commits',
+      );
+      assert.deepEqual((await session.get()).get('voyage33Movement'), { ...validMovement, coordinate: '9999' });
+      assert.equal((await db.doc(`sessions/${id}/players/${member}`).get()).exists, false);
+      assert.equal((await privateMovement.get()).exists, false);
+
+      await session.update({ voyage33Movement: validMovement });
+      const joined = await joinSession.run(request(member, { joinCode, displayName: 'New fleet member' }));
+      assert.equal(Object.hasOwn(joined.session, 'voyage33Movement'), false,
+        'join does not return the former public coordinate');
+      assert.equal((await session.get()).get('voyage33Movement'), undefined);
+      assert.deepEqual((await privateMovement.get()).get('movementState'), validMovement,
+        'the authorized join transaction migrates the full independent movement history');
+      assert.deepEqual((await gmProjection.get()).get('voyage33Movement'), validMovement,
+        'the GM workspace receives only a private movement projection');
+
+      const resumed = await resumeSession.run(request(member, { sessionId: id }));
+      assert.equal(Object.hasOwn(resumed.session, 'voyage33Movement'), false,
+        'resume never returns the coordinate to a member');
+      assert.deepEqual((await gmProjection.get()).get('voyage33Movement'), validMovement,
+        'a navigation projection refresh preserves current Voyage authority');
+
+      // Reconstruct a valid legacy-only record in the emulator to exercise the
+      // reconnect migration path independently from join.
+      await privateMovement.delete();
+      await session.update({ voyage33Movement: validMovement });
+      const resumedLegacy = await resumeSession.run(request(member, { sessionId: id }));
+      assert.equal(Object.hasOwn(resumedLegacy.session, 'voyage33Movement'), false);
+      assert.equal((await session.get()).get('voyage33Movement'), undefined);
+      assert.deepEqual((await privateMovement.get()).get('movementState'), validMovement,
+        'resume migrates a valid legacy record only after it revalidates the connected actor');
+      assert.deepEqual((await gmProjection.get()).get('voyage33Movement'), validMovement);
+    } finally {
+      await db.recursiveDelete(session);
+      await Promise.all([
+        db.doc(`joinCodes/${joinCode}`).delete(),
+        db.doc(`activeMemberships/${gm}`).delete(),
+        db.doc(`activeMemberships/${member}`).delete(),
+      ]);
     }
   });
 }
