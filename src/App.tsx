@@ -171,6 +171,7 @@ function AppRoutes() {
   const sessionId = session?.id;
   const playerUid = me?.uid;
   const playerRole = me?.role;
+  const gmInstanceId = useSessionStore((state) => state.gmInstance?.id);
   const awayMissionPointerCount = useSessionStore((state) => state.awayMissionHandPointers.length);
   const gmAwayMissionPointerCount = useSessionStore((state) => state.gmAwayMissionHandPointers.length);
   const showAwayMissionDiscardPanel = shouldLoadAwayMissionDiscardPanel(
@@ -245,8 +246,9 @@ function AppRoutes() {
       : ++playerListenerGeneration.current;
     playerListenerIdentity.current = identity;
     const listenerAuthorityKey = playerAuthority;
-    const callbackCurrent = () => appRoutesMounted.current &&
-      playerListenerGeneration.current === listenerGeneration;
+    const callbackCurrent = () => active && appRoutesMounted.current &&
+      playerListenerGeneration.current === listenerGeneration &&
+      useSessionStore.getState().gmInstance?.id === gmInstanceId;
     let pendingRoleBrief: RoleBriefProjection | null = null;
     let pendingWolfCultIntelligence: { intelligence: WolfCultIntelligence; generation: number } | null = null;
     let wolfCultAuthorityGeneration = 0;
@@ -290,6 +292,7 @@ function AppRoutes() {
     const currentGmProjectionAuthority = (store: ReturnType<typeof useSessionStore.getState>) =>
       store.session?.id === sessionId && store.me?.uid === playerUid &&
       store.me.sessionId === sessionId && store.me.role === 'gm' &&
+      store.gmInstance?.id === gmInstanceId &&
       store.gmInstance?.sessionId === sessionId && store.gmInstance.uid === playerUid &&
       store.connection === 'live' && store.sessionSnapshotFreshness === 'server';
     const applyPendingGmDiscovery = () => {
@@ -1020,7 +1023,7 @@ function AppRoutes() {
       unsubscribeAuthorityFreshness();
       unsubscribe();
     };
-  }, [identityHydrationRevision, playerAuthority, playerRole, playerUid, sessionId]);
+  }, [gmInstanceId, identityHydrationRevision, playerAuthority, playerRole, playerUid, sessionId]);
 
   useEffect(() => {
     if (gmAccessAuthenticatedAt === null) return;

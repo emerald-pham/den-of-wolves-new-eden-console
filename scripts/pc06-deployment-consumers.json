@@ -594,6 +594,77 @@
   },
   "indexTransitions": [
     {
+      "before": "e858226097808871edf069e55d2feed3605dee127120acdd9ae45dc36c0510bb",
+      "after": "668b7a3295213e8de0f9b8c6085845c5155b4d1a1d9a395bbede99b20f55374b",
+      "consumers": [
+        "adjudicateFailedJump",
+        "advanceTurn",
+        "commitAwayMissionLifecycleCommand",
+        "confirmFleetPartition",
+        "confirmSetup",
+        "getBoardingSecurityTeamLocations",
+        "joinSession",
+        "jumpShip",
+        "moveShipToLocation",
+        "resolvePendingScoutRequest",
+        "resumeSession",
+        "runMaintenance",
+        "setCandidatePlanCheckpoint",
+        "startGame",
+        "startSinglePlayerDemo"
+      ],
+      "reason": "Combined explicit startGame mission-deck cursor, private Voyage canonical storage and migration, composed GM view field ownership, and host movement with preloaded arrival-pressure reads; audited from the exact deployed 0.5.62 index source. Includes current pursuit-window publication from post-movement decisions and validated session/protected authority on composed navigation rebuilds.",
+      "baseline": "baad0b16f1381a6eba835c401aa8796679b1befb",
+      "implementationCandidate": "fix/pc06-private-view-review-repairs"
+    },
+    {
+      "baseline": "f27ecf0850132a2005a787c7218b015b9e71aca0",
+      "implementationCandidate": "fix/pc06-private-view-review-repairs",
+      "before": "32ab3ddb968df443f532851320038a72a41b0edd71ffd2d1fcd840eb5f6ea0a6",
+      "after": "668b7a3295213e8de0f9b8c6085845c5155b4d1a1d9a395bbede99b20f55374b",
+      "consumers": [
+        "adjudicateFailedJump",
+        "advanceTurn",
+        "commitAwayMissionLifecycleCommand",
+        "confirmFleetPartition",
+        "confirmSetup",
+        "getBoardingSecurityTeamLocations",
+        "joinSession",
+        "jumpShip",
+        "moveShipToLocation",
+        "resolvePendingScoutRequest",
+        "resumeSession",
+        "runMaintenance",
+        "setCandidatePlanCheckpoint",
+        "startGame",
+        "startSinglePlayerDemo"
+      ],
+      "reason": "Private Voyage storage and session migration, private GM movement projection, explicit field-owned discovery updates, and preloaded host-movement arrival state. This includes every export that directly writes the composed GM view through publishDiscoveryProjections or its turn-pursuit helper, the candidate-plan GM projection writer, and the existing index export conservatively selected because its generated block contains the shared helper section. Includes current pursuit-window publication from post-movement decisions and validated session/protected authority on composed navigation rebuilds."
+    },
+    {
+      "baseline": "adffe58bb2339ce0c40caaccab998c54803b9237",
+      "implementationCandidate": "fix/pc06-private-view-review-repairs",
+      "before": "0797a3e85dde6d29b76f5029e1cd4a26cc628c256f3eeef86acf5550310893cd",
+      "after": "668b7a3295213e8de0f9b8c6085845c5155b4d1a1d9a395bbede99b20f55374b",
+      "consumers": [
+        "adjudicateFailedJump",
+        "advanceTurn",
+        "commitAwayMissionLifecycleCommand",
+        "confirmFleetPartition",
+        "confirmSetup",
+        "getBoardingSecurityTeamLocations",
+        "joinSession",
+        "jumpShip",
+        "moveShipToLocation",
+        "resolvePendingScoutRequest",
+        "resumeSession",
+        "runMaintenance",
+        "startGame",
+        "startSinglePlayerDemo"
+      ],
+      "reason": "currentPursuitEmergencyProjection and publishDiscoveryProjections own current pursuit authority. Direct publisher consumers are confirmSetup, confirmFleetPartition, joinSession, resumeSession, resolvePendingScoutRequest, moveShipToLocation, jumpShip, adjudicateFailedJump, runMaintenance and exploration application in commitAwayMissionLifecycleCommand; writeTurnPursuitState adds advanceTurn, startGame and startSinglePlayerDemo. getBoardingSecurityTeamLocations is conservatively selected because the index export block contains the shared helper section. setCandidatePlanCheckpoint is unchanged in this range."
+    },
+    {
       "baseline": "1f4558b11c53d8e70c76119c27483e40a180c681",
       "implementationCandidate": "4c255fb0f974cf9505c956d547de67e4b647401b",
       "before": "277d6c11457130800d8302a0a8fa1e8a8229a5d19ed9c4a02b7266c6f4d0a80c",

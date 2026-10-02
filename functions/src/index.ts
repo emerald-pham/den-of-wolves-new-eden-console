@@ -2697,6 +2697,30 @@ function hasFleetPartition(session: DocumentSnapshot): boolean {
   return true;
 }
 
+/** Rebuild GM window authority from matching current protected/session records. */
+function currentPursuitEmergencyProjection(
+  snapshots: DiscoveryProjectionSnapshots | undefined,
+  navigation: NavigationState,
+  revision: number,
+  fleetGroups: readonly FleetGroupRecord[],
+): PursuitEmergencyWindow | undefined {
+  if (!snapshots || snapshots.sessionSnapshot.get('phase') !== 'active') return undefined;
+  let window: PursuitEmergencyWindow | undefined;
+  try {
+    window = pursuitEmergencyWindowState(snapshots.sessionSnapshot, snapshots.navigationSnapshot);
+  } catch {
+    // A projection rebuild must clear invalid authority, never retain an older
+    // unchecked GM field. The command owning the window repairs its source.
+    return undefined;
+  }
+  if (!window || window.cycle !== snapshots.sessionSnapshot.get('currentTurn') ||
+      window.navigationRevision !== snapshots.navigationSnapshot.get('revision') ||
+      window.navigationRevision !== revision) return undefined;
+  const groupIds = pursuitEmergencyGroupIds(navigation, fleetGroups);
+  return groupIds.length > 0 && isDeepStrictEqual(groupIds, [...window.groupIds].sort())
+    ? window : undefined;
+}
+
 /** Publish only each member's own ship history into their group entitlement. */
 function publishDiscoveryProjections(
   tx: Transaction,
@@ -2709,11 +2733,16 @@ function publishDiscoveryProjections(
   replaceProjectionMaps = false,
   projectionSnapshots?: DiscoveryProjectionSnapshots,
   voyageMovement?: VoyageMovementProjectionPublication,
+  pursuitWindow?: { readonly window: PursuitEmergencyWindow | undefined },
 ): void {
   const shipFleetGroupIds = Object.fromEntries(fleetGroups.flatMap((group) =>
     group.vesselIds.map((shipId) => [shipId, group.id])));
+  const currentWindow = pursuitWindow
+    ? pursuitWindow.window
+    : currentPursuitEmergencyProjection(projectionSnapshots, navigation, revision, fleetGroups);
   const gmProjection = {
     ...gmNavigationProjectionFields(navigation),
+    pursuitEmergencyWindow: currentWindow ?? FieldValue.delete(),
     knownSystems: allDiscoverySystems(),
     pursuitDistances: pursuitDistancesForCoordinates(navigation.shipGalacticCoordinates),
     organiserSites: organiserSitesForChart(chart),
@@ -16615,6 +16644,7 @@ export const moveShipToLocation = onCall<{
       false,
       { sessionSnapshot: session, navigationSnapshot: storedNavigation, fleetGroupSnapshots: fleetGroups.docs },
       { sessionId: change.sessionId, movementState: voyageMovementState },
+      { window: undefined },
     );
     writeVoyageMovementAuthority(tx, change.sessionId, voyageMovementSnapshot, voyageMovementState);
     tx.update(sessionRef, {
@@ -17205,6 +17235,7 @@ export const jumpShip = onCall<{
           nextNavigation, navigationRevision, chart, emergencyGroups, false,
           { sessionSnapshot: session, navigationSnapshot: storedNavigation, fleetGroupSnapshots: fleetGroups.docs },
           { sessionId: change.sessionId, movementState: voyageMovementState },
+          { window: emergencyDecision.window },
         );
         writeVoyageMovementAuthority(tx, change.sessionId, voyageMovementSnapshot, voyageMovementState);
         tx.update(sessionRef, {
@@ -17544,6 +17575,7 @@ export const jumpShip = onCall<{
       false,
       { sessionSnapshot: session, navigationSnapshot: storedNavigation, fleetGroupSnapshots: fleetGroups.docs },
       { sessionId: change.sessionId, movementState: voyageMovementState },
+      { window: movementDecision.window },
     );
     writeVoyageMovementAuthority(tx, change.sessionId, voyageMovementSnapshot, voyageMovementState);
     tx.update(sessionRef, {
@@ -17848,6 +17880,7 @@ export const adjudicateFailedJump = onCall<{
       nextNavigation, navigationRevision, chart, pursuitFleetGroups, false,
       { sessionSnapshot: session, navigationSnapshot: storedNavigation, fleetGroupSnapshots: fleetGroups.docs },
       { sessionId: change.sessionId, movementState: voyageMovementState },
+      { window: damageTerminal ? undefined : movementDecision.window },
     );
     writeVoyageMovementAuthority(tx, change.sessionId, voyageMovementSnapshot, voyageMovementState);
     const nextCycle = {
