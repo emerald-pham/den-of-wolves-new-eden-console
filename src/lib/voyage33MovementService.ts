@@ -106,6 +106,9 @@ function assertLiveAuthority(sessionId?: string, uid?: string, instanceId?: stri
       instanceId !== undefined && instance.id !== instanceId) {
     throw new Error('Only the current authenticated GM instance may control Voyage 33-0 movement.');
   }
+  if (!state.voyage33MovementProjectionFresh) {
+    throw new Error('Wait for the fresh private Voyage 33-0 movement projection before changing gameplay.');
+  }
 }
 
 function resolvePhase(session: GameSession, action: Action): number {
