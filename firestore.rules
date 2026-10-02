@@ -589,7 +589,11 @@ service cloud.firestore {
     match /sessions/{sessionId} {
       // Joining by code goes through the callable function, so session headers
       // never need to be exposed to strangers or enumerable from the client.
-      allow get: if isMember(sessionId);
+      // During validated migration, only the facilitator may read a legacy
+      // header that still contains Voyage's private coordinate. Once the
+      // callable clears that field, normal member reads resume.
+      allow get: if isGm(sessionId) ||
+        (isMember(sessionId) && !resource.data.keys().hasAny(['voyage33Movement']));
       allow list: if false;
       // Created, phased and closed only by callable functions.
       allow create, update, delete: if false;

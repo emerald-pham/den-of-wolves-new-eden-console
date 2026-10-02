@@ -33,6 +33,7 @@ import type {
   LoyaltyCensus,
   PopulationAlert,
   Player,
+  Voyage33MovementState,
   PrivateLoyalty,
   ReplacementEligibilityProjection,
   RoleBrief,
@@ -1684,14 +1685,43 @@ function organiserSiteProjection(value: unknown): OrganiserSiteProjection | unde
   return { code: raw.code, name: raw.name, candidate: raw.candidate, summary: raw.summary };
 }
 
-type GmDiscoveryProjection = Pick<GameSession,
+export type GmDiscoveryProjection = Pick<GameSession,
   'shipGalacticCoordinates' | 'shipNavigationLogs' | 'organiserSites' | 'organiserSystems' |
   'organiserSystemHistory' | 'pursuitDistances' | 'pursuitGroups' | 'shipFleetGroupIds' |
-  'candidatePlanCheckpoint' | 'pursuitEmergencyWindowAuthority'>;
+  'candidatePlanCheckpoint' | 'pursuitEmergencyWindowAuthority'> & {
+    readonly voyage33Movement?: Voyage33MovementState;
+    /** Internal indication that this callback contains a complete current Voyage view. */
+    readonly voyage33MovementAuthority?: 'current' | 'omitted';
+  };
 
-function gmDiscoveryProjection(value: unknown): GmDiscoveryProjection | undefined {
+function gmDiscoveryProjection(value: unknown, expectedSessionId: string): GmDiscoveryProjection | undefined {
   const raw = recordValue(value);
-  if (!raw) return undefined;
+  const parsedDocumentSessionId = raw?.sessionId === undefined
+    ? expectedSessionId
+    : parseEntityId('session', raw.sessionId);
+  if (!raw || parsedDocumentSessionId !== expectedSessionId) return undefined;
+
+  const rawMovementPresent = Object.hasOwn(raw, 'voyage33Movement');
+  const rawMovementSessionIdPresent = Object.hasOwn(raw, 'voyage33MovementSessionId');
+  const movementSessionId = rawMovementSessionIdPresent
+    ? parseEntityId('session', raw.voyage33MovementSessionId)
+    : undefined;
+  const movementState = rawMovementPresent
+    ? parseVoyage33MovementState(raw.voyage33Movement)
+    : undefined;
+  if ((rawMovementPresent && (!movementState || movementSessionId !== expectedSessionId)) ||
+      (rawMovementSessionIdPresent && movementSessionId !== expectedSessionId)) return undefined;
+
+  const completeMovementView = !!recordValue(raw.shipGalacticCoordinates) &&
+    !!recordValue(raw.shipNavigationLogs) && !!recordValue(raw.knownSystems) &&
+    !!recordValue(raw.organiserSites) && !!recordValue(raw.pursuitDistances) &&
+    !!recordValue(raw.pursuitGroups) && !!recordValue(raw.shipFleetGroupIds) &&
+    nonNegativeInteger(raw.revision) !== undefined;
+  if ((rawMovementPresent || rawMovementSessionIdPresent) && !completeMovementView) return undefined;
+  const voyage33MovementAuthority = rawMovementPresent || rawMovementSessionIdPresent || completeMovementView
+    ? 'current' as const
+    : 'omitted' as const;
+
   const parsedSystemHistory = systemHistory(raw.systemHistory);
   const parsedCandidatePlanCheckpoint = candidatePlanCheckpoint(raw.candidatePlanCheckpoint);
   const emergencyWindowAuthority = pursuitEmergencyWindowAuthority(raw.pursuitEmergencyWindow);
@@ -1724,6 +1754,8 @@ function gmDiscoveryProjection(value: unknown): GmDiscoveryProjection | undefine
     ...(emergencyWindowAuthority ? {
       pursuitEmergencyWindowAuthority: emergencyWindowAuthority,
     } : {}),
+    ...(movementState ? { voyage33Movement: movementState } : {}),
+    voyage33MovementAuthority,
   };
 }
 
@@ -2839,9 +2871,6 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     (visibleShuttles === undefined || visibleShuttles.has(visit.shuttleId)));
   const ownerUid = parseEntityId('player', data.ownerUid);
   const voyageAdmission = voyage33Admission(data.voyage33Admission, sessionId);
-  const voyageMovement = voyageAdmission
-    ? parseVoyage33MovementState(data.voyage33Movement)
-    : undefined;
   const voyageMaintenance = voyage33Maintenance(data.voyage33Maintenance, sessionId);
   const admitted = voyageAdmission
     ? [...new Set([...admittedVesselIds(data.admittedVesselIds), voyageAdmission.id])]
@@ -2888,7 +2917,6 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
       activeVesselIds !== undefined ? { activeVesselIds: [...activeVesselIds] } : {}),
     admittedVesselIds: admitted,
     ...(voyageAdmission ? { voyage33Admission: voyageAdmission } : {}),
-    ...(voyageMovement ? { voyage33Movement: voyageMovement } : {}),
     ...(voyageMaintenance ? { voyage33Maintenance: voyageMaintenance } : {}),
     ...(announcement ? { turnStartAnnouncement: announcement } : {}),
     ...(phaseClock ? { turnPhase: phaseClock } : {}),
@@ -3383,10 +3411,15 @@ export function subscribeSessionState(
       { includeMetadataChanges: true },
       (snapshot) => {
         if (!subscribed || gmDiscoveryTerminated || currentSessionSubscriptionToken !== subscriptionToken) return;
-        // The full chart is privileged. A remembered GM role is insufficient
-        // to expose a cached chart before this read is authorized again.
-        if (snapshot.metadata?.fromCache === true) return;
-        handlers.onGmDiscovery?.(snapshot.exists() ? gmDiscoveryProjection(snapshot.data()) ?? null : null);
+        // A cached chart is not a fresh privilege check. Clear it immediately,
+        // then wait for the server listener to reauthorize the current GM.
+        if (snapshot.metadata?.fromCache === true) {
+          handlers.onGmDiscovery?.(null);
+          return;
+        }
+        handlers.onGmDiscovery?.(snapshot.exists()
+          ? gmDiscoveryProjection(snapshot.data(), sessionId) ?? null
+          : null);
       },
       (error: { readonly code?: string }) => {
         if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;

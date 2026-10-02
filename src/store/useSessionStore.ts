@@ -13,6 +13,7 @@ import type {
   Seat,
   SetupReceipt,
   TurnStartReplay,
+  Voyage33MovementState,
   WolfCultIntelligence,
   ArbourVision,
   AwayMissionHand,
@@ -479,6 +480,8 @@ interface SessionState {
   lastRoute: string | null;
   connection: 'idle' | 'connecting' | 'live' | 'offline';
   sessionSnapshotFreshness: 'unknown' | 'cache' | 'server';
+  /** A fresh server-backed GM movement projection has been accepted for this identity. */
+  voyage33MovementProjectionFresh: boolean;
   /** A local-storage snapshot was restored before this browser revalidated it. */
   persistedSessionSnapshot: boolean;
   /** Changes when a join or resume replaces identity and clears private projections. */
@@ -518,6 +521,8 @@ interface SessionState {
   setLastRoute: (lastRoute: string | null) => void;
   setConnection: (connection: SessionState['connection']) => void;
   setSessionSnapshotFreshness: (freshness: SessionState['sessionSnapshotFreshness']) => void;
+  setVoyage33MovementProjectionFresh: (fresh: boolean) => void;
+  setVoyage33MovementProjection: (movement: Voyage33MovementState | undefined, fresh: boolean) => void;
   disconnect: () => void;
   reset: () => void;
 }
@@ -554,14 +559,23 @@ const initial = {
   lastRoute: null,
   connection: 'idle',
   sessionSnapshotFreshness: 'unknown',
+  voyage33MovementProjectionFresh: false,
   persistedSessionSnapshot: false,
   identityHydrationRevision: 0,
 } satisfies Pick<
   SessionState,
   'session' | 'seats' | 'me' | 'gmInstance' | 'gmAccessAuthenticatedAt' | 'turnStartReplay' | 'pendingCommands' |
   'privateLoyalty' | 'roleBrief' | 'awayMissionHandPointer' | 'awayMissionHand' | 'awayMissionHandPointers' | 'awayMissionHands' | 'gmAwayMissionHandPointers' | 'gmLoyaltyCensus' | 'wolfCultIntelligence' | 'gmWolfCultIntelligence' | 'arbourVision' | 'gmArbourVision' | 'facilitatorRuleCall' | 'gmFacilitatorRuleCall' | 'gmCrisisState' | 'gmZealotryResponse' | 'gmCivilUnrestResolution' | 'gmSetupReceipt' | 'commissarPurgeAuthority' | 'communicationError' | 'mode' | 'lastRoute' | 'connection' |
-  'sessionSnapshotFreshness' | 'persistedSessionSnapshot' | 'identityHydrationRevision'
+  'sessionSnapshotFreshness' | 'voyage33MovementProjectionFresh' |
+  'persistedSessionSnapshot' | 'identityHydrationRevision'
 >;
+
+function clearVoyageMovement(session: GameSession | null): GameSession | null {
+  if (!session || session.voyage33Movement === undefined) return session;
+  const next = { ...session };
+  delete next.voyage33Movement;
+  return next;
+}
 
 function normalizePersistedSession(session: GameSession | null | undefined): GameSession | null {
   if (!session) return null;
@@ -592,30 +606,65 @@ export const useSessionStore = create<SessionState>()(
   persist(
     (set, get) => ({
       ...initial,
-      setSession: (session) => set({
-        session,
-        ...(session === null ? { persistedSessionSnapshot: false } : {}),
+      setSession: (session) => set((state) => {
+        const changedSession = state.session?.id !== session?.id;
+        const safeSession = clearVoyageMovement(session);
+        const preservedMovement = !changedSession && state.voyage33MovementProjectionFresh
+          ? state.session?.voyage33Movement
+          : undefined;
+        return {
+          session: safeSession && preservedMovement
+            ? { ...safeSession, voyage33Movement: preservedMovement }
+            : safeSession,
+          ...(session === null ? {
+            persistedSessionSnapshot: false,
+            voyage33MovementProjectionFresh: false,
+          } : {}),
+          ...(changedSession && session !== null ? { voyage33MovementProjectionFresh: false } : {}),
+        };
       }),
       setIdentity: (session, me) => set((state) => ({
-        session, me, roleBrief: null, awayMissionHandPointer: null, awayMissionHand: null,
+        session: clearVoyageMovement(session), me, roleBrief: null, awayMissionHandPointer: null, awayMissionHand: null,
         privateLoyalty: samePrivateAssignment(state.me, me) ? state.privateLoyalty : null,
         awayMissionHandPointers: [], awayMissionHands: [],
         gmAwayMissionHandPointers: [], wolfCultIntelligence: null, gmWolfCultIntelligence: null,
         arbourVision: null, gmArbourVision: null, facilitatorRuleCall: null,
         gmFacilitatorRuleCall: null, gmCrisisState: null, gmZealotryResponse: null, gmCivilUnrestResolution: null, commissarPurgeAuthority: null,
         identityHydrationRevision: state.identityHydrationRevision + 1,
+        voyage33MovementProjectionFresh: false,
       })),
       setSeats: (seats) => set({ seats }),
       // Presence snapshots often carry the same player fields. Avoid notifying
       // the entire UI and serializing the full persisted session in that case.
       setMe: (me) => {
         const previous = get().me;
-        if (!shallow(previous, me)) set({
-          me,
-          ...(!samePrivateAssignment(previous, me) ? { privateLoyalty: null } : {}),
+        if (!shallow(previous, me)) set((state) => {
+          const losesGmAuthority = me?.role !== 'gm' || me.sessionId !== state.session?.id ||
+            me.uid !== state.gmInstance?.uid || state.gmInstance?.sessionId !== state.session?.id;
+          return {
+            me,
+            ...(!samePrivateAssignment(previous, me) ? { privateLoyalty: null } : {}),
+            ...(losesGmAuthority ? {
+              session: clearVoyageMovement(state.session),
+              voyage33MovementProjectionFresh: false,
+            } : {}),
+          };
         });
       },
-      setGmInstance: (gmInstance) => set({ gmInstance }),
+      setGmInstance: (gmInstance) => set((state) => {
+        const sameClaim = state.gmInstance?.id === gmInstance?.id &&
+          state.gmInstance?.sessionId === gmInstance?.sessionId &&
+          state.gmInstance?.uid === gmInstance?.uid;
+        const claimMatchesCurrentGm = !!gmInstance && state.me?.role === 'gm' &&
+          gmInstance.sessionId === state.session?.id && gmInstance.uid === state.me.uid;
+        return {
+          gmInstance,
+          ...(!sameClaim || !claimMatchesCurrentGm ? {
+            session: clearVoyageMovement(state.session),
+            voyage33MovementProjectionFresh: false,
+          } : {}),
+        };
+      }),
       setGmAccessAuthenticatedAt: (gmAccessAuthenticatedAt) => set({ gmAccessAuthenticatedAt }),
       clearGmAccess: () => set({ gmAccessAuthenticatedAt: null }),
       setTurnStartReplay: (turnStartReplay) => set({ turnStartReplay }),
@@ -653,17 +702,48 @@ export const useSessionStore = create<SessionState>()(
       setCommunicationError: (communicationError) => set({ communicationError }),
       setMode: (mode) => set({ mode }),
       setLastRoute: (lastRoute) => { if (get().lastRoute !== lastRoute) set({ lastRoute }); },
-      setConnection: (connection) => { if (get().connection !== connection) set({ connection }); },
+      setConnection: (connection) => {
+        if (get().connection === connection) return;
+        set((state) => ({
+          connection,
+          ...(connection === 'live' ? {} : {
+            session: clearVoyageMovement(state.session),
+            voyage33MovementProjectionFresh: false,
+          }),
+        }));
+      },
       setSessionSnapshotFreshness: (sessionSnapshotFreshness) => {
         if (get().sessionSnapshotFreshness !== sessionSnapshotFreshness) {
-          set({
+          set((state) => ({
             sessionSnapshotFreshness,
+            ...(sessionSnapshotFreshness === 'server' ? {} : {
+              session: clearVoyageMovement(state.session),
+              voyage33MovementProjectionFresh: false,
+            }),
             ...(sessionSnapshotFreshness === 'server' || sessionSnapshotFreshness === 'unknown'
               ? { persistedSessionSnapshot: false }
               : {}),
-          });
+          }));
         }
       },
+      setVoyage33MovementProjectionFresh: (voyage33MovementProjectionFresh) => {
+        if (get().voyage33MovementProjectionFresh !== voyage33MovementProjectionFresh) {
+          set((state) => ({
+            voyage33MovementProjectionFresh,
+            ...(voyage33MovementProjectionFresh ? {} : { session: clearVoyageMovement(state.session) }),
+          }));
+        }
+      },
+      setVoyage33MovementProjection: (movement, fresh) => set((state) => {
+        if (!state.session) return { voyage33MovementProjectionFresh: false };
+        const next = { ...state.session };
+        if (fresh && movement) next.voyage33Movement = movement;
+        else delete next.voyage33Movement;
+        return {
+          session: next,
+          voyage33MovementProjectionFresh: fresh,
+        };
+      }),
       disconnect: () =>
         set((state) => ({
           session: null,
@@ -693,6 +773,7 @@ export const useSessionStore = create<SessionState>()(
           mode: null,
           lastRoute: null,
           sessionSnapshotFreshness: 'unknown',
+          voyage33MovementProjectionFresh: false,
           persistedSessionSnapshot: false,
           identityHydrationRevision: state.identityHydrationRevision + 1,
           // Queued disconnect and logout commands must survive local teardown
@@ -736,6 +817,7 @@ export const useSessionStore = create<SessionState>()(
           sessionSnapshotFreshness: hasRestoredSession && restoredSession
             ? 'cache'
             : current.sessionSnapshotFreshness,
+          voyage33MovementProjectionFresh: false,
           persistedSessionSnapshot: hasRestoredSession && restoredSession !== null,
           identityHydrationRevision: current.identityHydrationRevision,
         };

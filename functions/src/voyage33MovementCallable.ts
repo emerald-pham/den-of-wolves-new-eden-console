@@ -15,6 +15,7 @@ import {
   resolveVoyage33JumpCommit,
   type Voyage33MovementState,
 } from './voyage33Movement';
+import { resolveVoyage33MovementStorage } from './voyage33MovementStorage';
 import { VOYAGE_33_ID, parseVoyage33Admission } from './voyageAdmission';
 import {
   emptyVoyage33MaintenanceState,
@@ -42,6 +43,7 @@ export interface Voyage33MovementCallableDependencies {
     instanceId?: string,
   ) => Promise<void>;
   readonly serverTimestamp: () => unknown;
+  readonly deleteField: () => unknown;
   readonly now: () => Date;
 }
 
@@ -186,12 +188,44 @@ function parseMovementState(value: unknown): Voyage33MovementState | undefined {
   };
 }
 
-function movementStateFromSession(session: { get(field: string): unknown }): Voyage33MovementState | undefined {
-  const raw = session.get('voyage33Movement');
-  if (raw === undefined) return undefined;
-  const state = parseMovementState(raw);
-  if (!state) return precondition('The stored Voyage 33-0 movement state is malformed; refresh before operating it.');
-  return state;
+function movementDocument(dependencies: Voyage33MovementCallableDependencies, sessionId: string) {
+  return dependencies.db.doc(`sessions/${sessionId}/serverState/voyage33Movement`);
+}
+
+function gmMovementProjectionDocument(dependencies: Voyage33MovementCallableDependencies, sessionId: string) {
+  return dependencies.db.doc(`sessions/${sessionId}/gmDiscovery/current`);
+}
+
+function resolveMovementStorage(
+  session: { get(field: string): unknown },
+  privateSnapshot: { readonly exists: boolean; data(): unknown },
+) {
+  try {
+    return resolveVoyage33MovementStorage(session.get('voyage33Movement'), privateSnapshot);
+  } catch (error) {
+    return precondition(error instanceof Error ? error.message : 'The stored Voyage 33-0 movement state is malformed.');
+  }
+}
+
+function stageMovementAuthority(
+  dependencies: Voyage33MovementCallableDependencies,
+  tx: Transaction,
+  movementRef: ReturnType<MovementDatabase['doc']>,
+  sessionId: string,
+  movementState: Voyage33MovementState | undefined,
+  privatePresent: boolean,
+  updatedAt: unknown,
+): Data {
+  if (movementState) tx.set(movementRef, { movementState, updatedAt });
+  else if (privatePresent) tx.delete(movementRef);
+  tx.set(gmMovementProjectionDocument(dependencies, sessionId), {
+    voyage33Movement: movementState ?? dependencies.deleteField(),
+    voyage33MovementSessionId: sessionId,
+    updatedAt,
+  }, { mergeFields: ['voyage33Movement', 'voyage33MovementSessionId', 'updatedAt'] });
+  // The member-readable header is cleared in the same transaction as both
+  // private copies. Callers fold this delete into their one session update.
+  return { voyage33Movement: dependencies.deleteField() };
 }
 
 function maintenanceStateFromSession(
@@ -596,11 +630,12 @@ export function createVoyage33MovementCallables(dependencies: Voyage33MovementCa
     );
     const sharedExpected = commandFingerprint(expected);
     const sessionRef = sessionDocument(dependencies, parsed.sessionId);
+    const movementRef = movementDocument(dependencies, parsed.sessionId);
     const receiptRef = requestDocument(dependencies, parsed.sessionId, parsed.requestId);
     const sharedReceiptRef = commandReceiptDocument(dependencies, parsed.sessionId, parsed.requestId);
     return dependencies.db.runTransaction(async (tx) => {
-      const [session, prior, marker] = await Promise.all([
-        tx.get(sessionRef), tx.get(receiptRef), tx.get(sharedReceiptRef),
+      const [session, prior, marker, movementSnapshot] = await Promise.all([
+        tx.get(sessionRef), tx.get(receiptRef), tx.get(sharedReceiptRef), tx.get(movementRef),
       ]);
       requireSessionExists(session);
       validateSharedReceipt(marker, prior, sharedExpected);
@@ -615,7 +650,8 @@ export function createVoyage33MovementCallables(dependencies: Voyage33MovementCa
       const activeVesselIds = requireActiveCoreRoster(session.get('activeVesselIds'));
       requireHostShipId(parsed.hostShipId, activeVesselIds);
       const hostDamage = hostDamageFromSession(session, parsed.hostShipId);
-      const movement = movementStateFromSession(session);
+      const movementStorage = resolveMovementStorage(session, movementSnapshot);
+      const movement = movementStorage.movementState;
       const currentMovementRevision = movement?.revision ?? 0;
       const currentMaintenance = maintenanceStateFromSession(session);
       const currentDockingRevision = currentMaintenance.dockingRevision;
@@ -626,6 +662,12 @@ export function createVoyage33MovementCallables(dependencies: Voyage33MovementCa
           parsed.expectedMovementRevision, currentMovementRevision,
           parsed.expectedDockingRevision, currentDockingRevision,
         );
+        const updatedAt = dependencies.serverTimestamp();
+        const headerPatch = stageMovementAuthority(
+          dependencies, tx, movementRef, parsed.sessionId,
+          movement, movementStorage.privatePresent, updatedAt,
+        );
+        tx.update(sessionRef, { ...headerPatch, updatedAt });
         writeReceipt(tx, receiptRef, expected, stale, parsed.hostShipId, dependencies.serverTimestamp);
         writeSharedReceipt(tx, sharedReceiptRef, sharedExpected, stale, dependencies.serverTimestamp);
         return stale;
@@ -664,10 +706,15 @@ export function createVoyage33MovementCallables(dependencies: Voyage33MovementCa
         movementState,
         maintenanceState: nextMaintenance,
       };
+      const updatedAt = dependencies.serverTimestamp();
+      const headerPatch = stageMovementAuthority(
+        dependencies, tx, movementRef, parsed.sessionId, movementState,
+        movementStorage.privatePresent, updatedAt,
+      );
       tx.update(sessionRef, {
-        voyage33Movement: movementState,
+        ...headerPatch,
         voyage33Maintenance: nextMaintenance,
-        updatedAt: dependencies.serverTimestamp(),
+        updatedAt,
       });
       writeReceipt(tx, receiptRef, expected, reply, parsed.hostShipId, dependencies.serverTimestamp);
       writeSharedReceipt(tx, sharedReceiptRef, sharedExpected, reply, dependencies.serverTimestamp);
@@ -684,13 +731,14 @@ export function createVoyage33MovementCallables(dependencies: Voyage33MovementCa
     );
     const sharedExpected = commandFingerprint(expected);
     const sessionRef = sessionDocument(dependencies, parsed.sessionId);
+    const movementRef = movementDocument(dependencies, parsed.sessionId);
     const receiptRef = requestDocument(dependencies, parsed.sessionId, parsed.requestId);
     const sharedReceiptRef = commandReceiptDocument(dependencies, parsed.sessionId, parsed.requestId);
     const operationTime = dependencies.now();
     if (!Number.isFinite(operationTime.getTime())) precondition('The server clock is unavailable.');
     return dependencies.db.runTransaction(async (tx) => {
-      const [session, prior, marker] = await Promise.all([
-        tx.get(sessionRef), tx.get(receiptRef), tx.get(sharedReceiptRef),
+      const [session, prior, marker, movementSnapshot] = await Promise.all([
+        tx.get(sessionRef), tx.get(receiptRef), tx.get(sharedReceiptRef), tx.get(movementRef),
       ]);
       requireSessionExists(session);
       validateSharedReceipt(marker, prior, sharedExpected);
@@ -703,11 +751,12 @@ export function createVoyage33MovementCallables(dependencies: Voyage33MovementCa
       }
       requireAdmission(session, parsed.sessionId);
       const currentTurn = requireLiveSessionPhase(session, 'coordination');
-      const movement = movementStateFromSession(session);
-      if (!movement) precondition('Voyage 33-0 must be docked and have a valid movement state before jumping.');
       const maintenance = maintenanceStateFromSession(session);
       const hostShipId = parsed.hostShipId;
       await requireMovementActor(dependencies, tx, parsed.sessionId, uid, hostShipId, parsed.instanceId);
+      const movementStorage = resolveMovementStorage(session, movementSnapshot);
+      const movement = movementStorage.movementState;
+      if (!movement) precondition('Voyage 33-0 must be docked and have a valid movement state before jumping.');
       const currentMovementRevision = movement.revision;
       const currentDockingRevision = maintenance.dockingRevision;
       if (parsed.expectedMovementRevision !== currentMovementRevision ||
@@ -717,6 +766,12 @@ export function createVoyage33MovementCallables(dependencies: Voyage33MovementCa
           parsed.expectedMovementRevision, currentMovementRevision,
           parsed.expectedDockingRevision, currentDockingRevision,
         );
+        const updatedAt = dependencies.serverTimestamp();
+        const headerPatch = stageMovementAuthority(
+          dependencies, tx, movementRef, parsed.sessionId, movement,
+          movementStorage.privatePresent, updatedAt,
+        );
+        tx.update(sessionRef, { ...headerPatch, updatedAt });
         writeReceipt(tx, receiptRef, expected, stale, hostShipId, dependencies.serverTimestamp);
         writeSharedReceipt(tx, sharedReceiptRef, sharedExpected, stale, dependencies.serverTimestamp);
         return stale;
@@ -791,10 +846,15 @@ export function createVoyage33MovementCallables(dependencies: Voyage33MovementCa
         maintenanceState: nextMaintenance,
         ...(result.status === 'jumped' ? { transition: result.transition, fuelSpent } : {}),
       };
+      const updatedAt = dependencies.serverTimestamp();
+      const headerPatch = stageMovementAuthority(
+        dependencies, tx, movementRef, parsed.sessionId, result.movementState,
+        movementStorage.privatePresent, updatedAt,
+      );
       const patch: Data = {
-        voyage33Movement: result.movementState,
+        ...headerPatch,
         voyage33Maintenance: nextMaintenance,
-        updatedAt: dependencies.serverTimestamp(),
+        updatedAt,
       };
       if (jumped) patch[`shipResources.${hostShipId}`] = result.hostResources;
       tx.update(sessionRef, patch);

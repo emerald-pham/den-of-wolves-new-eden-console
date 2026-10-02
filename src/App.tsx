@@ -55,6 +55,8 @@ import type {
 import { isSessionRoute, restoreSessionRoute } from '@/lib/sessionRoute';
 import { stripGmNavigationProjection } from '@/lib/navigationPrivacy';
 import { shouldLoadAwayMissionDiscardPanel } from '@/lib/awayMissionVisibility';
+import type { GmDiscoveryProjection } from '@/lib/firestore';
+import { parseVoyage33MovementState } from '../functions/src/voyage33Movement';
 
 const GM_RECONCILE_INTERVAL_MS = 5_000;
 const PRESENCE_HEARTBEAT_INTERVAL_MS = 10_000;
@@ -81,6 +83,7 @@ function stripNavigationProjection(session: GameSession): GameSession {
   delete next.currentGroupCandidateReveals;
   delete next.shipGalacticCoordinates;
   delete next.shipNavigationLogs;
+  delete next.voyage33Movement;
   return next;
 }
 
@@ -253,10 +256,8 @@ function AppRoutes() {
     let arbourVisionBlocked = false;
     let arbourVisionBlockReason: 'entitlement' | 'loyalty' | null = null;
     let arbourVisionRevisionFloor = 0;
-    let pendingGmDiscovery: Pick<GameSession, 'shipGalacticCoordinates' | 'shipNavigationLogs' |
-      'organiserSites' | 'organiserSystems' | 'organiserSystemHistory' | 'pursuitDistances' |
-      'pursuitGroups' | 'shipFleetGroupIds' | 'candidatePlanCheckpoint' |
-      'pursuitEmergencyWindowAuthority'> | null = null;
+    let pendingGmDiscovery: GmDiscoveryProjection | null | undefined;
+    let highestVoyageMovementRevision = -1;
     let unsubscribe: () => void = () => undefined;
     let unsubscribeLoyaltyCensus: () => void = () => undefined;
     let censusSubscribed = false;
@@ -285,6 +286,72 @@ function AppRoutes() {
       retainedGroupCandidateProjection = undefined;
       pendingPlayerDiscovery = undefined;
       hideCurrentGroupCandidateReveals();
+    };
+    const currentGmProjectionAuthority = (store: ReturnType<typeof useSessionStore.getState>) =>
+      store.session?.id === sessionId && store.me?.uid === playerUid &&
+      store.me.sessionId === sessionId && store.me.role === 'gm' &&
+      store.gmInstance?.sessionId === sessionId && store.gmInstance.uid === playerUid &&
+      store.connection === 'live' && store.sessionSnapshotFreshness === 'server';
+    const applyPendingGmDiscovery = () => {
+      if (!callbackCurrent() || pendingGmDiscovery === undefined) return;
+      const store = useSessionStore.getState();
+      const current = store.session;
+      if (!current || current.id !== sessionId) return;
+      if (pendingGmDiscovery === null) {
+        store.setVoyage33MovementProjection(undefined, false);
+        if (store.me?.role === 'gm') {
+          retainedGroupCandidateProjection = undefined;
+          const next = { ...stripGmNavigationProjection(current) };
+          delete next.currentGroupCandidateReveals;
+          store.setSession(next);
+        } else {
+          store.setSession(stripGmNavigationProjection(current));
+        }
+        return;
+      }
+
+      const {
+        voyage33Movement,
+        voyage33MovementAuthority = 'omitted',
+        ...navigationProjection
+      } = pendingGmDiscovery;
+      if (voyage33MovementAuthority === 'current') {
+        if (!currentGmProjectionAuthority(store)) {
+          store.setVoyage33MovementProjection(undefined, false);
+        } else {
+          const parsedMovement = voyage33Movement === undefined
+            ? undefined
+            : parseVoyage33MovementState(voyage33Movement);
+          const malformedMovement = Object.hasOwn(pendingGmDiscovery, 'voyage33Movement') &&
+            parsedMovement === undefined;
+          const currentMovement = store.session?.voyage33Movement;
+          const regressedMovement = parsedMovement !== undefined && (
+            parsedMovement.revision < highestVoyageMovementRevision ||
+            parsedMovement.revision === highestVoyageMovementRevision && currentMovement !== undefined &&
+              JSON.stringify(parsedMovement) !== JSON.stringify(currentMovement)
+          );
+          if (malformedMovement || regressedMovement) {
+            store.setVoyage33MovementProjection(undefined, false);
+          } else {
+            if (parsedMovement) highestVoyageMovementRevision = Math.max(
+              highestVoyageMovementRevision, parsedMovement.revision,
+            );
+            store.setVoyage33MovementProjection(parsedMovement, true);
+          }
+        }
+      }
+
+      // Preserve the existing GM navigation behavior, while keeping Voyage's
+      // coordinate on the stricter live-claim path above.
+      if (store.me?.role === 'gm') {
+        const next = { ...current, ...navigationProjection };
+        if (!navigationProjection.candidatePlanCheckpoint) delete next.candidatePlanCheckpoint;
+        if (!navigationProjection.pursuitEmergencyWindowAuthority ||
+            !pursuitEmergencyAuthorityMatches(next)) {
+          delete next.pursuitEmergencyWindowAuthority;
+        }
+        store.setSession(next);
+      }
     };
     const restoreRetainedGroupCandidateProjection = () => {
       if (!callbackCurrent() || !playerProjectionFresh) return;
@@ -365,10 +432,29 @@ function AppRoutes() {
       const wasFresh = previousState.connection === 'live' &&
         previousState.sessionSnapshotFreshness === 'server';
       const isFresh = state.connection === 'live' && state.sessionSnapshotFreshness === 'server';
-      if (!wasFresh || isFresh) return;
-      playerProjectionFresh = false;
-      invalidatePendingStationReleaseFreshness();
-      clearCurrentGroupCandidateReveals();
+      if (wasFresh && !isFresh) {
+        pendingGmDiscovery = undefined;
+        state.setVoyage33MovementProjection(undefined, false);
+        playerProjectionFresh = false;
+        invalidatePendingStationReleaseFreshness();
+        clearCurrentGroupCandidateReveals();
+      }
+      const previousGmClaim = previousState.gmInstance?.id;
+      const currentGmClaim = state.gmInstance?.id;
+      const previousSessionId = previousState.session?.id;
+      const currentSessionId = state.session?.id;
+      const previousUid = previousState.me?.uid;
+      const currentUid = state.me?.uid;
+      const previousRole = previousState.me?.role;
+      const currentRole = state.me?.role;
+      if (previousGmClaim !== currentGmClaim || previousSessionId !== currentSessionId ||
+          previousUid !== currentUid || previousRole !== currentRole) {
+        pendingGmDiscovery = undefined;
+        highestVoyageMovementRevision = -1;
+        if (!currentGmProjectionAuthority(state)) {
+          state.setVoyage33MovementProjection(undefined, false);
+        }
+      }
     });
     let subscribeLoyaltyCensusFn: (
       sessionId: string,
@@ -532,29 +618,7 @@ function AppRoutes() {
           const current = store.session;
           if (!current || current.id !== sessionId) return;
           pendingGmDiscovery = projection;
-          if (!projection) {
-            if (store.me?.role === 'gm') {
-              retainedGroupCandidateProjection = undefined;
-              const next = { ...stripGmNavigationProjection(current) };
-              delete next.currentGroupCandidateReveals;
-              store.setSession(next);
-            } else {
-              // An ordinary player's denied GM-chart listener is expected;
-              // scrub any stale chart data without clearing their separate
-              // current-group candidate projection.
-              store.setSession(stripGmNavigationProjection(current));
-            }
-            return;
-          }
-          if (store.me?.role === 'gm') {
-            const next = { ...current, ...projection };
-            if (!projection.candidatePlanCheckpoint) delete next.candidatePlanCheckpoint;
-            if (!projection.pursuitEmergencyWindowAuthority ||
-                !pursuitEmergencyAuthorityMatches(next)) {
-              delete next.pursuitEmergencyWindowAuthority;
-            }
-            store.setSession(next);
-          }
+          applyPendingGmDiscovery();
         },
         onSessionFreshness: (fresh) => {
           if (!callbackCurrent()) return;
@@ -562,10 +626,13 @@ function AppRoutes() {
           store.setConnection(fresh ? 'live' : 'offline');
           store.setSessionSnapshotFreshness(fresh ? 'server' : 'cache');
           if (!fresh) {
+            pendingGmDiscovery = undefined;
+            store.setVoyage33MovementProjection(undefined, false);
             invalidatePendingStationReleaseFreshness();
             clearCurrentGroupCandidateReveals();
           }
           else {
+            applyPendingGmDiscovery();
             applyPendingPlayerDiscovery();
             restoreRetainedGroupCandidateProjection();
             reconcileStationRelease();
@@ -688,6 +755,7 @@ function AppRoutes() {
           }
           if (next.role !== 'gm') {
             pendingGmDiscovery = null;
+            useSessionStore.getState().setVoyage33MovementProjection(undefined, false);
             clearLoyaltyCensus();
             useSessionStore.getState().setGmSetupReceipt(null);
             useSessionStore.getState().setGmCrisisState(null);
@@ -696,16 +764,7 @@ function AppRoutes() {
               useSessionStore.getState().setSession(stripGmNavigationProjection(current));
             }
           } else if (pendingGmDiscovery) {
-            const current = store.session;
-            if (current?.id === sessionId) {
-              const next = { ...current, ...pendingGmDiscovery };
-              if (!pendingGmDiscovery.candidatePlanCheckpoint) delete next.candidatePlanCheckpoint;
-              if (!pendingGmDiscovery.pursuitEmergencyWindowAuthority ||
-                  !pursuitEmergencyAuthorityMatches(next)) {
-                delete next.pursuitEmergencyWindowAuthority;
-              }
-              store.setSession(next);
-            }
+            applyPendingGmDiscovery();
           }
         },
         onPlayerFreshness: (fresh) => {

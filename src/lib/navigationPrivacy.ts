@@ -15,6 +15,7 @@ export function stripGmNavigationProjection(session: GameSession): GameSession {
   delete next.shipFleetGroupIds;
   delete next.candidatePlanCheckpoint;
   delete next.pursuitEmergencyWindowAuthority;
+  delete next.voyage33Movement;
   const own = next.playerDiscovery;
   if (own?.shipId) {
     if (own.currentCoordinate) next.shipGalacticCoordinates = { [own.shipId]: own.currentCoordinate };

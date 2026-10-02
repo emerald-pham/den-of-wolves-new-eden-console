@@ -67,8 +67,9 @@ import { createBoardingSecurityTeamCallable } from './boardingSecurityTeamCallab
 import { createVoyage33MovementCallables } from './voyage33MovementCallable';
 import {
   followVoyage33HostMovement,
-  publicVoyage33MovementState,
+  type Voyage33MovementState,
 } from './voyage33Movement';
+import { resolveVoyage33MovementStorage } from './voyage33MovementStorage';
 import {
   createSmallShipJumpCallables,
   emptySmallShipMovementState,
@@ -921,8 +922,56 @@ const voyage33MovementCallables = createVoyage33MovementCallables({
   requireUid,
   requireShipCounterAuthority,
   serverTimestamp: () => FieldValue.serverTimestamp(),
+  deleteField: () => FieldValue.delete(),
   now: () => new Date(),
 });
+
+function voyage33MovementRef(sessionId: string) {
+  return db.doc(`sessions/${sessionId}/serverState/voyage33Movement`);
+}
+
+function resolveVoyageMovementForSession(
+  session: Pick<DocumentSnapshot, 'get'>,
+  sessionId: string,
+  movementSnapshot: DocumentSnapshot,
+) {
+  try {
+    const storage = resolveVoyage33MovementStorage(
+      session.get('voyage33Movement'), movementSnapshot,
+    );
+    if (storage.movementState) {
+      const admittedVesselIds = session.get('admittedVesselIds');
+      if (!parseVoyage33Admission(session.get('voyage33Admission'), sessionId) ||
+          !Array.isArray(admittedVesselIds) ||
+          admittedVesselIds.filter((id) => id === VOYAGE_33_ID).length !== 1) {
+        throw new Error('Voyage 33-0 movement is present without a matching current admission.');
+      }
+    }
+    return storage;
+  } catch (error) {
+    throw commandError(
+      'failed-precondition',
+      error instanceof Error ? error.message : 'Voyage 33-0 movement storage is malformed.',
+      'conflict',
+    );
+  }
+}
+
+function writeVoyageMovementAuthority(
+  tx: Transaction,
+  sessionId: string,
+  movementSnapshot: DocumentSnapshot,
+  movementState: Voyage33MovementState | undefined,
+): void {
+  if (movementState) {
+    tx.set(voyage33MovementRef(sessionId), {
+      movementState,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  } else if (movementSnapshot.exists) {
+    tx.delete(voyage33MovementRef(sessionId));
+  }
+}
 
 const smallShipJumpCallables = createSmallShipJumpCallables({
   db,
@@ -933,24 +982,32 @@ const smallShipJumpCallables = createSmallShipJumpCallables({
   now: () => new Date(),
 });
 
-function voyage33HostMovementPatch(
+function voyage33HostMovementState(
   session: DocumentSnapshot,
+  movementSnapshot: DocumentSnapshot,
   hostShipId: string,
   destination: string,
-): Record<string, unknown> {
+): Voyage33MovementState | undefined {
   try {
+    const stored = resolveVoyage33MovementStorage(
+      session.get('voyage33Movement'),
+      movementSnapshot,
+    );
     const movementState = followVoyage33HostMovement({
       sessionId: session.id,
       admittedVesselIds: session.get('admittedVesselIds'),
       admission: session.get('voyage33Admission'),
-      movementState: session.get('voyage33Movement'),
+      movementState: stored.movementState,
       maintenanceState: session.get('voyage33Maintenance'),
       activeVesselIds: activeVesselIdsForSession(session),
       shipDamage: session.get('shipDamage'),
       hostShipId,
       destination,
     });
-    return movementState ? { voyage33Movement: movementState } : {};
+    // An absent follow result means the moved ship was not Voyage's current
+    // docked host (or Voyage is independently undocked). Keep its canonical
+    // private coordinate intact while publishing the unrelated navigation.
+    return movementState ?? stored.movementState;
   } catch (cause) {
     throw commandError(
       'failed-precondition',
@@ -1848,6 +1905,24 @@ function navigationProjectionFields(navigation: NavigationState): Record<string,
   };
 }
 
+/** Exact field ownership for gmDiscovery navigation writes; absent private
+ * navigation fields are deleted rather than inherited from an old projection. */
+function gmNavigationProjectionFields(navigation: NavigationState): Record<string, unknown> {
+  return {
+    ...navigationProjectionFields(navigation),
+    missionExploredCoordinatesByUid:
+      navigation.missionExploredCoordinatesByUid ?? FieldValue.delete(),
+    scoutedCoordinatesByShip: navigation.scoutedCoordinatesByShip ?? FieldValue.delete(),
+    systemHistory: navigation.systemHistory ?? FieldValue.delete(),
+    candidatePlanCheckpoint: navigation.candidatePlanCheckpoint ?? FieldValue.delete(),
+  };
+}
+
+interface VoyageMovementProjectionPublication {
+  readonly sessionId: string;
+  readonly movementState: Voyage33MovementState | undefined;
+}
+
 interface DiscoveryProjectionSnapshots {
   readonly sessionSnapshot: DocumentSnapshot;
   readonly navigationSnapshot: DocumentSnapshot;
@@ -2191,8 +2266,25 @@ function movementPursuitNavigation(
   }
 }
 
-async function writeWolfArrivalPressureForMovement(
+interface WolfArrivalPressureMovementRead {
+  readonly ref: DocumentReference;
+  readonly snapshot: DocumentSnapshot;
+}
+
+async function readWolfArrivalPressureForMovement(
   tx: Transaction,
+  sessionId: string,
+  groups: readonly FleetGroupRecord[],
+  shipId: string,
+): Promise<WolfArrivalPressureMovementRead> {
+  const group = movementFleetGroup(groups, shipId);
+  const ref = wolfArrivalPressureStateRef(sessionId, group.id);
+  return { ref, snapshot: await tx.get(ref) };
+}
+
+function writeWolfArrivalPressureForMovement(
+  tx: Transaction,
+  stored: WolfArrivalPressureMovementRead,
   sessionId: string,
   groups: readonly FleetGroupRecord[],
   navigation: NavigationState,
@@ -2201,12 +2293,20 @@ async function writeWolfArrivalPressureForMovement(
   chart: 'A' | 'B' | 'C',
   cycle: number,
   sourceTransitionId: string,
-): Promise<void> {
+): void {
   const group = movementFleetGroup(groups, shipId);
-  const stateRef = wolfArrivalPressureStateRef(sessionId, group.id);
-  const stored = await tx.get(stateRef);
-  const current = stored.exists ? parseWolfArrivalPressureState(stored.data(), chart) : undefined;
-  if (stored.exists && !current) {
+  const expectedRef = wolfArrivalPressureStateRef(sessionId, group.id);
+  if (stored.ref.path !== expectedRef.path) {
+    throw commandError(
+      'failed-precondition',
+      'The Wolf-base arrival pressure read no longer matches the moved fleet group.',
+      'malformed-input',
+    );
+  }
+  const stateRef = stored.ref;
+  const pressureSnapshot = stored.snapshot;
+  const current = pressureSnapshot.exists ? parseWolfArrivalPressureState(pressureSnapshot.data(), chart) : undefined;
+  if (pressureSnapshot.exists && !current) {
     throw commandError(
       'failed-precondition',
       'The stored Wolf-base arrival pressure is malformed; movement cannot continue.',
@@ -2608,23 +2708,28 @@ function publishDiscoveryProjections(
   fleetGroups: readonly FleetGroupRecord[] = [],
   replaceProjectionMaps = false,
   projectionSnapshots?: DiscoveryProjectionSnapshots,
+  voyageMovement?: VoyageMovementProjectionPublication,
 ): void {
   const shipFleetGroupIds = Object.fromEntries(fleetGroups.flatMap((group) =>
     group.vesselIds.map((shipId) => [shipId, group.id])));
   const gmProjection = {
-    ...navigationProjectionFields(navigation),
+    ...gmNavigationProjectionFields(navigation),
     knownSystems: allDiscoverySystems(),
     pursuitDistances: pursuitDistancesForCoordinates(navigation.shipGalacticCoordinates),
     organiserSites: organiserSitesForChart(chart),
-    ...(Object.keys(shipFleetGroupIds).length > 0 ? { shipFleetGroupIds } : {}),
+    shipFleetGroupIds,
     revision,
     updatedAt: FieldValue.serverTimestamp(),
+    ...(voyageMovement ? {
+      voyage33Movement: voyageMovement.movementState ?? FieldValue.delete(),
+      voyage33MovementSessionId: voyageMovement.sessionId,
+    } : {}),
   };
-  tx.set(
-    gmDiscoveryProjectionRef(sessionId),
-    gmProjection,
-    replaceProjectionMaps ? { mergeFields: Object.keys(gmProjection) } : { merge: true },
-  );
+  // Every field above is owned by this authoritative view. The explicit mask
+  // replaces complete maps, clears omitted navigation authority, and leaves
+  // Voyage coordinates intact unless this transaction owns their publication.
+  void replaceProjectionMaps;
+  tx.set(gmDiscoveryProjectionRef(sessionId), gmProjection, { mergeFields: Object.keys(gmProjection) });
   for (const player of players) {
     if (!player.exists || isKickedPlayer(player) || typeof player.id !== 'string' || player.id.length === 0) continue;
     const groupId = player.get('fleetGroupId');
@@ -6512,7 +6617,7 @@ export const startGame = onCall<{
       pursuitGroups: initialPursuitGroups,
       shipFleetGroupIds: Object.fromEntries(initialGroup.vesselIds.map((shipId) => [shipId, initialGroup.id])),
       updatedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
+    }, { mergeFields: ['pursuitGroups', 'shipFleetGroupIds', 'updatedAt'] });
     for (const player of players.docs) {
       if (!player.exists || isKickedPlayer(player)) continue;
       tx.set(playerDiscoveryProjectionRef(start.sessionId, player.id), {
@@ -14158,11 +14263,14 @@ export const setCandidatePlanCheckpoint = onCall<{
       revision,
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
-    tx.set(gmDiscoveryProjectionRef(change.sessionId), {
-      ...navigationProjectionFields(nextNavigation),
+    const gmProjection = {
+      ...gmNavigationProjectionFields(nextNavigation),
       revision,
       updatedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
+    };
+    tx.set(gmDiscoveryProjectionRef(change.sessionId), gmProjection, {
+      mergeFields: Object.keys(gmProjection),
+    });
     const result: CandidatePlanCheckpointResult = {
       status: 'committed',
       sessionId: change.sessionId,
@@ -14969,14 +15077,16 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
     const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
     const playersRef = db.collection(`sessions/${sessionId}/players`);
     const membershipRef = db.doc(`activeMemberships/${uid}`);
+    const movementRef = voyage33MovementRef(sessionId);
     const joinResult = await db.runTransaction(async (tx) => {
-      const [sessionDoc, player, membership, storedGroup, storedNavigation, players] = await Promise.all([
+      const [sessionDoc, player, membership, storedGroup, storedNavigation, players, movementSnapshot] = await Promise.all([
         tx.get(sessionRef),
         tx.get(playerRef),
         tx.get(membershipRef),
         tx.get(fleetGroupRef(sessionId)),
         tx.get(navigationStateRef(sessionId)),
         tx.get(playersRef),
+        tx.get(movementRef),
       ]);
       const playerDocs = Array.isArray(players?.docs) ? players.docs : [];
       if (!sessionDoc.exists) throw new HttpsError('not-found', 'No session with that code.');
@@ -15008,6 +15118,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
           'conflict',
         );
       }
+      const voyageMovementStorage = resolveVoyageMovementForSession(sessionDoc, sessionId, movementSnapshot);
       const connectionGeneration = player.exists ? nextConnectionGeneration(player) : 1;
       const clearStaleMembership = membership.exists && !membershipActive;
       const returningSeat = player.exists
@@ -15037,20 +15148,19 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         pursuitGroups: navigation.pursuitGroups,
         updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
-      tx.set(gmDiscoveryProjectionRef(sessionId), {
-        ...navigationProjectionFields(navigation), knownSystems: allDiscoverySystems(), revision: navigationRevision,
-        updatedAt: FieldValue.serverTimestamp(),
-      });
       publishDiscoveryProjections(
         tx, sessionId, playerDocs, navigation, navigationRevision,
         sessionDoc.get('chartId') === 'B' || sessionDoc.get('chartId') === 'C' ? sessionDoc.get('chartId') : 'A',
         fleet.groups, false,
         { sessionSnapshot: sessionDoc, navigationSnapshot: storedNavigation, fleetGroupSnapshots: fleet.snapshots },
+        { sessionId, movementState: voyageMovementStorage.movementState },
       );
+      writeVoyageMovementAuthority(tx, sessionId, movementSnapshot, voyageMovementStorage.movementState);
       tx.update(sessionRef, {
         shipGalacticCoordinates: removeLegacyNavigationField(),
         shipNavigationLogs: removeLegacyNavigationField(),
         pursuitGroups: removeLegacyNavigationField(),
+        voyage33Movement: FieldValue.delete(),
       });
       reconcilePresenceTimer(tx, sessionRef, sessionDoc, attackState, true);
       if (player.exists) {
@@ -15190,9 +15300,6 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
     );
     const fighterWingCounts = publicFighterWingCounts(sessionSnap.get('fighterWingCounts'));
     const voyageAdmission = publicVoyage33Admission(sessionSnap.get('voyage33Admission'), sessionId);
-    const voyageMovement = publicVoyage33MovementState(
-      sessionSnap.get('voyage33Movement'), voyageAdmission, sessionId,
-    );
     const voyageMaintenance = publicVoyage33Maintenance(
       sessionSnap.get('voyage33Maintenance'), voyageAdmission, activeVesselIds,
     );
@@ -15222,7 +15329,6 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         activeVesselIds: [...setup.activeVesselIds],
         admittedVesselIds: voyageAdmission ? [VOYAGE_33_ID] : [],
         ...(voyageAdmission ? { voyage33Admission: voyageAdmission } : {}),
-        ...(voyageMovement ? { voyage33Movement: voyageMovement } : {}),
         ...(voyageMaintenance ? { voyage33Maintenance: voyageMaintenance } : {}),
         ...(announcement ? { turnStartAnnouncement: announcement } : {}),
         ...(phaseClock ? { turnPhase: phaseClock } : {}),
@@ -15332,14 +15438,16 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
   await enforceExpensiveCallableRateLimit(db, { callableName: 'resumeSession', sessionId, uid });
 
   const membershipRef = db.doc(`activeMemberships/${uid}`);
+  const movementRef = voyage33MovementRef(sessionId);
   const resumeResult = await db.runTransaction(async (tx) => {
-    const [currentSession, currentPlayer, membership, storedGroup, storedNavigation, players] = await Promise.all([
+    const [currentSession, currentPlayer, membership, storedGroup, storedNavigation, players, movementSnapshot] = await Promise.all([
       tx.get(sessionRef),
       tx.get(playerRef),
       tx.get(membershipRef),
       tx.get(fleetGroupRef(sessionId)),
       tx.get(navigationStateRef(sessionId)),
       tx.get(playersRef),
+      tx.get(movementRef),
     ]);
     const playerDocs = Array.isArray(players?.docs) ? players.docs : [];
     if (!currentSession.exists || currentSession.get('deletingAt')) {
@@ -15373,6 +15481,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
         'conflict',
       );
     }
+    const voyageMovementStorage = resolveVoyageMovementForSession(currentSession, sessionId, movementSnapshot);
     const connectionGeneration = nextConnectionGeneration(currentPlayer);
     const clearStaleMembership = membership.exists && !membershipActive;
     // Read the returning seat before setup hydration can write canonical seat
@@ -15401,20 +15510,19 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       pursuitGroups: navigation.pursuitGroups,
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
-    tx.set(gmDiscoveryProjectionRef(sessionId), {
-      ...navigationProjectionFields(navigation), knownSystems: allDiscoverySystems(), revision: navigationRevision,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
     publishDiscoveryProjections(
       tx, sessionId, playerDocs, navigation, navigationRevision,
       currentSession.get('chartId') === 'B' || currentSession.get('chartId') === 'C' ? currentSession.get('chartId') : 'A',
       fleet.groups, false,
       { sessionSnapshot: currentSession, navigationSnapshot: storedNavigation, fleetGroupSnapshots: fleet.snapshots },
+      { sessionId, movementState: voyageMovementStorage.movementState },
     );
+    writeVoyageMovementAuthority(tx, sessionId, movementSnapshot, voyageMovementStorage.movementState);
     tx.update(sessionRef, {
       shipGalacticCoordinates: removeLegacyNavigationField(),
       shipNavigationLogs: removeLegacyNavigationField(),
       pursuitGroups: removeLegacyNavigationField(),
+      voyage33Movement: FieldValue.delete(),
     });
     const storedGroupId = currentPlayer.get('fleetGroupId');
     if (storedGroupId !== undefined && storedGroupId !== group.id) {
@@ -15505,9 +15613,6 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
   );
   const fighterWingCounts = publicFighterWingCounts(sessionSnap.get('fighterWingCounts'));
   const voyageAdmission = publicVoyage33Admission(sessionSnap.get('voyage33Admission'), sessionId);
-  const voyageMovement = publicVoyage33MovementState(
-    sessionSnap.get('voyage33Movement'), voyageAdmission, sessionId,
-  );
   const voyageMaintenance = publicVoyage33Maintenance(
     sessionSnap.get('voyage33Maintenance'), voyageAdmission, activeVesselIds,
   );
@@ -15537,7 +15642,6 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       activeVesselIds: [...setup.activeVesselIds],
       admittedVesselIds: voyageAdmission ? [VOYAGE_33_ID] : [],
       ...(voyageAdmission ? { voyage33Admission: voyageAdmission } : {}),
-      ...(voyageMovement ? { voyage33Movement: voyageMovement } : {}),
       ...(voyageMaintenance ? { voyage33Maintenance: voyageMaintenance } : {}),
       ...(announcement ? { turnStartAnnouncement: announcement } : {}),
       ...(phaseClock ? { turnPhase: phaseClock } : {}),
@@ -16385,8 +16489,9 @@ export const moveShipToLocation = onCall<{
     await requireShipCounterAuthority(
       tx, change.sessionId, uid, change.shipId, change.instanceId, true,
     );
-    const session = await tx.get(sessionRef);
-    const attackState = await tx.get(attackStateRef);
+    const [session, attackState, voyageMovementSnapshot] = await Promise.all([
+      tx.get(sessionRef), tx.get(attackStateRef), tx.get(voyage33MovementRef(change.sessionId)),
+    ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     const demoDenial = getSinglePlayerDemoJumpDenial(
       session.get('singlePlayerDemo') !== undefined && session.get('singlePlayerDemo') !== null,
@@ -16446,7 +16551,9 @@ export const moveShipToLocation = onCall<{
         'conflict',
       );
     }
-    const voyageMovementPatch = voyage33HostMovementPatch(session, change.shipId, move.destination);
+    const voyageMovementState = voyage33HostMovementState(
+      session, voyageMovementSnapshot, change.shipId, move.destination,
+    );
     requireMovementPursuitAuthority(storedNavigation, session);
     const pursuitFleetGroups = movementPursuitFleetGroups(activeVesselIds, fleetGroups, players);
     const cycle = sessionTurn(session.get('currentTurn'));
@@ -16476,8 +16583,12 @@ export const moveShipToLocation = onCall<{
       move.destination,
       chart,
     );
-    await writeWolfArrivalPressureForMovement(
+    const arrivalPressureRead = await readWolfArrivalPressureForMovement(
+      tx, change.sessionId, pursuitFleetGroups, change.shipId,
+    );
+    writeWolfArrivalPressureForMovement(
       tx,
+      arrivalPressureRead,
       change.sessionId,
       pursuitFleetGroups,
       nextNavigation,
@@ -16493,10 +16604,6 @@ export const moveShipToLocation = onCall<{
       ...navigationProjectionFields(nextNavigation), revision: nextRevision,
       updatedAt: FieldValue.serverTimestamp(),
     });
-    tx.set(gmDiscoveryProjectionRef(change.sessionId), {
-      ...navigationProjectionFields(nextNavigation), revision: nextRevision,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
     publishDiscoveryProjections(
       tx,
       change.sessionId,
@@ -16507,13 +16614,15 @@ export const moveShipToLocation = onCall<{
       pursuitFleetGroups,
       false,
       { sessionSnapshot: session, navigationSnapshot: storedNavigation, fleetGroupSnapshots: fleetGroups.docs },
+      { sessionId: change.sessionId, movementState: voyageMovementState },
     );
+    writeVoyageMovementAuthority(tx, change.sessionId, voyageMovementSnapshot, voyageMovementState);
     tx.update(sessionRef, {
       shipGalacticCoordinates: removeLegacyNavigationField(),
       shipNavigationLogs: removeLegacyNavigationField(),
       pursuitGroups: removeLegacyNavigationField(),
+      voyage33Movement: FieldValue.delete(),
       ...vesselActionRevisionPatch(change.shipId, currentRevision + 1),
-      ...voyageMovementPatch,
       updatedAt: FieldValue.serverTimestamp(),
     });
     const result = {
@@ -16762,12 +16871,16 @@ export const jumpShip = onCall<{
     await requireShipCounterAuthority(
       tx, change.sessionId, uid, change.shipId, change.instanceId, false, true, true,
     );
-    const session = await tx.get(sessionRef);
-    const attackState = await tx.get(attackStateRef);
-    const player = await tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`));
-    const storedNavigation = await tx.get(navigationStateRef(change.sessionId));
-    const players = await tx.get(db.collection(`sessions/${change.sessionId}/players`));
-    const fleetGroups = await tx.get(fleetGroupsRef);
+    const [session, attackState, player, storedNavigation, players, fleetGroups, voyageMovementSnapshot] =
+      await Promise.all([
+        tx.get(sessionRef),
+        tx.get(attackStateRef),
+        tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`)),
+        tx.get(navigationStateRef(change.sessionId)),
+        tx.get(db.collection(`sessions/${change.sessionId}/players`)),
+        tx.get(fleetGroupsRef),
+        tx.get(voyage33MovementRef(change.sessionId)),
+      ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     const demoDenial = getSinglePlayerDemoJumpDenial(
       session.get('singlePlayerDemo') !== undefined && session.get('singlePlayerDemo') !== null,
@@ -17017,10 +17130,15 @@ export const jumpShip = onCall<{
           coordinates: currentNavigation.shipGalacticCoordinates,
           logs: currentNavigation.shipNavigationLogs, shipNames: FLEET_SHIP_NAMES,
         });
-        const voyageMovementPatch = voyage33HostMovementPatch(session, change.shipId, move.destination);
+        const voyageMovementState = voyage33HostMovementState(
+          session, voyageMovementSnapshot, change.shipId, move.destination,
+        );
         const missionOpportunity = await missionOpportunityForMovement(
           tx, change.sessionId, emergencyGroups, currentNavigation,
           change.shipId, move.destination, chart, currentTurn, transitionId,
+        );
+        const arrivalPressureRead = await readWolfArrivalPressureForMovement(
+          tx, change.sessionId, emergencyGroups, change.shipId,
         );
         const damageConsequences = await jumpDamageConsequences({
           tx, sessionId: change.sessionId, session, shipId: change.shipId,
@@ -17072,8 +17190,8 @@ export const jumpShip = onCall<{
           turnPhase: FieldValue.delete(), turnState: FieldValue.delete(),
           turnStartAnnouncement: FieldValue.delete(), pursuitEmergencyWindow: FieldValue.delete(),
         } : {};
-        await writeWolfArrivalPressureForMovement(
-          tx, change.sessionId, emergencyGroups, nextNavigation, change.shipId,
+        writeWolfArrivalPressureForMovement(
+          tx, arrivalPressureRead, change.sessionId, emergencyGroups, nextNavigation, change.shipId,
           move.destination, chart, currentTurn, transitionId,
         );
         writeMissionOpportunity(tx, change.sessionId, missionOpportunity);
@@ -17082,16 +17200,13 @@ export const jumpShip = onCall<{
           ...(emergencyDecision.window ? { pursuitEmergencyWindow: emergencyDecision.window } : {}),
           updatedAt: FieldValue.serverTimestamp(),
         });
-        tx.set(gmDiscoveryProjectionRef(change.sessionId), {
-          ...navigationProjectionFields(nextNavigation), revision: navigationRevision,
-          ...(emergencyDecision.window ? { pursuitEmergencyWindow: emergencyDecision.window } : {}),
-          updatedAt: FieldValue.serverTimestamp(),
-        });
         publishDiscoveryProjections(
           tx, change.sessionId, Array.isArray(players?.docs) ? players.docs : [player],
           nextNavigation, navigationRevision, chart, emergencyGroups, false,
           { sessionSnapshot: session, navigationSnapshot: storedNavigation, fleetGroupSnapshots: fleetGroups.docs },
+          { sessionId: change.sessionId, movementState: voyageMovementState },
         );
+        writeVoyageMovementAuthority(tx, change.sessionId, voyageMovementSnapshot, voyageMovementState);
         tx.update(sessionRef, {
           shipGalacticCoordinates: removeLegacyNavigationField(),
           [`shipResources.${change.shipId}.fuel`]: 0,
@@ -17100,6 +17215,7 @@ export const jumpShip = onCall<{
           [`shipJumpStates.${change.shipId}`]: emergency.state,
           [`shipJumpTransitions.${change.shipId}`]: emergency.transition,
           shipNavigationLogs: removeLegacyNavigationField(), pursuitGroups: removeLegacyNavigationField(),
+          voyage33Movement: FieldValue.delete(),
           ...damageConsequences,
           ...(emergencyDecision.window ? {
             phase: 'active',
@@ -17107,7 +17223,6 @@ export const jumpShip = onCall<{
           } : emergencyDecision.cleared ? { pursuitEmergencyWindow: FieldValue.delete() } : {}),
           ...terminalWindowPatch,
           ...vesselActionRevisionPatch(change.shipId, revision), updatedAt: FieldValue.serverTimestamp(),
-          ...voyageMovementPatch,
         });
         if (!damage.damagedSystemIds.includes('jump-drive')) {
           tx.set(db.doc(`sessions/${change.sessionId}/damageDraws/emergency-${identity.requestId}-jump-drive`), {
@@ -17325,6 +17440,11 @@ export const jumpShip = onCall<{
       ? addResourceAmount(inventory.ore, ramScoopOreGain)
       : undefined;
 
+    const pursuitFleetGroups = movementPursuitFleetGroups(activeVesselIds, fleetGroups, players);
+    requireMovementPursuitAuthority(storedNavigation, session);
+    const arrivalPressureRead = await readWolfArrivalPressureForMovement(
+      tx, change.sessionId, pursuitFleetGroups, change.shipId,
+    );
     supersedeEarlierFailure(identity.requestId);
 
     const move = applyShipNavigationMove({
@@ -17337,9 +17457,9 @@ export const jumpShip = onCall<{
       logs: currentNavigation.shipNavigationLogs,
       shipNames: FLEET_SHIP_NAMES,
     });
-    const voyageMovementPatch = voyage33HostMovementPatch(session, change.shipId, move.destination);
-    requireMovementPursuitAuthority(storedNavigation, session);
-    const pursuitFleetGroups = movementPursuitFleetGroups(activeVesselIds, fleetGroups, players);
+    const voyageMovementState = voyage33HostMovementState(
+      session, voyageMovementSnapshot, change.shipId, move.destination,
+    );
     const missionOpportunity = await missionOpportunityForMovement(
       tx,
       change.sessionId,
@@ -17395,8 +17515,9 @@ export const jumpShip = onCall<{
       turnPhase: FieldValue.delete(), turnState: FieldValue.delete(),
       turnStartAnnouncement: FieldValue.delete(), pursuitEmergencyWindow: FieldValue.delete(),
     } : {};
-    await writeWolfArrivalPressureForMovement(
+    writeWolfArrivalPressureForMovement(
       tx,
+      arrivalPressureRead,
       change.sessionId,
       pursuitFleetGroups,
       nextNavigation,
@@ -17412,11 +17533,6 @@ export const jumpShip = onCall<{
       ...(movementDecision.window ? { pursuitEmergencyWindow: movementDecision.window } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
-    tx.set(gmDiscoveryProjectionRef(change.sessionId), {
-      ...navigationProjectionFields(nextNavigation), revision: navigationRevision,
-      ...(movementDecision.window ? { pursuitEmergencyWindow: movementDecision.window } : {}),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
     publishDiscoveryProjections(
       tx,
       change.sessionId,
@@ -17427,7 +17543,9 @@ export const jumpShip = onCall<{
       pursuitFleetGroups,
       false,
       { sessionSnapshot: session, navigationSnapshot: storedNavigation, fleetGroupSnapshots: fleetGroups.docs },
+      { sessionId: change.sessionId, movementState: voyageMovementState },
     );
+    writeVoyageMovementAuthority(tx, change.sessionId, voyageMovementSnapshot, voyageMovementState);
     tx.update(sessionRef, {
       shipGalacticCoordinates: removeLegacyNavigationField(),
       [`shipResources.${change.shipId}.fuel`]: result.remainingFuel,
@@ -17437,12 +17555,12 @@ export const jumpShip = onCall<{
       [`shipJumpTransitions.${change.shipId}`]: result.transition,
       shipNavigationLogs: removeLegacyNavigationField(),
       pursuitGroups: removeLegacyNavigationField(),
+      voyage33Movement: FieldValue.delete(),
       ...(movementDecision.window ? {
         pursuitEmergencyWindow: publicPursuitEmergencyWindow(movementDecision.window),
       } : movementDecision.cleared ? { pursuitEmergencyWindow: FieldValue.delete() } : {}),
       ...terminalWindowPatch,
       ...vesselActionRevisionPatch(change.shipId, revision),
-      ...voyageMovementPatch,
       updatedAt: FieldValue.serverTimestamp(),
     });
     const reply = {
@@ -17562,13 +17680,14 @@ export const adjudicateFailedJump = onCall<{
     const authority = await requireFacilitatorInstance(tx, change.sessionId, uid, change.instanceId);
     const session = authority.session;
     const player = authority.player;
-    const [attackState, storedNavigation, players, fleetGroups, prior, failureSnapshot] = await Promise.all([
+    const [attackState, storedNavigation, players, fleetGroups, prior, failureSnapshot, voyageMovementSnapshot] = await Promise.all([
       tx.get(db.doc(`sessions/${change.sessionId}/wolfAttackState/current`)),
       tx.get(navigationStateRef(change.sessionId)),
       tx.get(db.collection(`sessions/${change.sessionId}/players`)),
       tx.get(db.collection(`sessions/${change.sessionId}/fleetGroups`)),
       tx.get(receiptRef),
       tx.get(failureRef),
+      tx.get(voyage33MovementRef(change.sessionId)),
     ]);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'failed jump adjudication');
     if (replay) return replay;
@@ -17659,7 +17778,9 @@ export const adjudicateFailedJump = onCall<{
       coordinates: currentNavigation.shipGalacticCoordinates,
       logs: currentNavigation.shipNavigationLogs, shipNames: FLEET_SHIP_NAMES,
     });
-    const voyageMovementPatch = voyage33HostMovementPatch(session, shipId, move.destination);
+    const voyageMovementState = voyage33HostMovementState(
+      session, voyageMovementSnapshot, shipId, move.destination,
+    );
     const jumpTransition: JumpTransition = {
       id: transitionId, shipId, origin, destination: move.destination, occurredAt,
     };
@@ -17668,6 +17789,9 @@ export const adjudicateFailedJump = onCall<{
     const missionOpportunity = await missionOpportunityForMovement(
       tx, change.sessionId, pursuitFleetGroups, currentNavigation, shipId,
       move.destination, lockedNavigationChart(session), currentTurn, transitionId,
+    );
+    const arrivalPressureRead = await readWolfArrivalPressureForMovement(
+      tx, change.sessionId, pursuitFleetGroups, shipId,
     );
     const chart = lockedNavigationChart(session);
     const revision = currentRevision + 1;
@@ -17708,8 +17832,8 @@ export const adjudicateFailedJump = onCall<{
       turnPhase: FieldValue.delete(), turnState: FieldValue.delete(),
       turnStartAnnouncement: FieldValue.delete(), pursuitEmergencyWindow: FieldValue.delete(),
     } : {};
-    await writeWolfArrivalPressureForMovement(
-      tx, change.sessionId, pursuitFleetGroups, nextNavigation, shipId,
+    writeWolfArrivalPressureForMovement(
+      tx, arrivalPressureRead, change.sessionId, pursuitFleetGroups, nextNavigation, shipId,
       move.destination, chart, currentTurn, transitionId,
     );
     writeMissionOpportunity(tx, change.sessionId, missionOpportunity);
@@ -17719,17 +17843,13 @@ export const adjudicateFailedJump = onCall<{
         ? { pursuitEmergencyWindow: movementDecision.window } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
-    tx.set(gmDiscoveryProjectionRef(change.sessionId), {
-      ...navigationProjectionFields(nextNavigation), revision: navigationRevision,
-      ...(!damageTerminal && movementDecision.window
-        ? { pursuitEmergencyWindow: movementDecision.window } : {}),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
     publishDiscoveryProjections(
       tx, change.sessionId, Array.isArray(players?.docs) ? players.docs : [player],
       nextNavigation, navigationRevision, chart, pursuitFleetGroups, false,
       { sessionSnapshot: session, navigationSnapshot: storedNavigation, fleetGroupSnapshots: fleetGroups.docs },
+      { sessionId: change.sessionId, movementState: voyageMovementState },
     );
+    writeVoyageMovementAuthority(tx, change.sessionId, voyageMovementSnapshot, voyageMovementState);
     const nextCycle = {
       ...currentCycle,
       ...(currentCycle.turn === currentTurn ? { charges: charges.filter((charge) => charge !== 'jump-drive') } : {}),
@@ -17749,6 +17869,7 @@ export const adjudicateFailedJump = onCall<{
       [`shipJumpStates.${shipId}`]: jumpState,
       [`shipJumpTransitions.${shipId}`]: jumpTransition,
       shipNavigationLogs: removeLegacyNavigationField(), pursuitGroups: removeLegacyNavigationField(),
+      voyage33Movement: FieldValue.delete(),
       ...damageConsequences,
       ...(movementDecision.window && !damageTerminal ? {
         phase: 'active',
@@ -17756,7 +17877,6 @@ export const adjudicateFailedJump = onCall<{
       } : movementDecision.cleared || damageTerminal ? { pursuitEmergencyWindow: FieldValue.delete() } : {}),
       ...terminalWindowPatch,
       ...vesselActionRevisionPatch(shipId, revision),
-      ...voyageMovementPatch,
       updatedAt: FieldValue.serverTimestamp(),
     });
     damageDraws.forEach((draw, index) => tx.set(

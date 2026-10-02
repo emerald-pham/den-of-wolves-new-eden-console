@@ -105,6 +105,7 @@ export default function Voyage33MovementWorkspace() {
   const gmInstance = useSessionStore((state) => state.gmInstance);
   const connection = useSessionStore((state) => state.connection);
   const snapshotFreshness = useSessionStore((state) => state.sessionSnapshotFreshness);
+  const voyageMovementProjectionFresh = useSessionStore((state) => state.voyage33MovementProjectionFresh);
   const [outcome, setOutcome] = useState<Outcome>({ status: 'idle' });
   const [notice, setNotice] = useState<Notice | null>(null);
   const [uncertainAction, setUncertainAction] = useState<UncertainAction | null>(null);
@@ -386,7 +387,9 @@ export default function Voyage33MovementWorkspace() {
   };
 
   const connectionState = connectionFor(connection);
-  const invalidProjection = !!session && (!maintenance || session.voyage33Movement !== undefined && !movement);
+  const invalidProjection = !!session && (!maintenance ||
+    session.voyage33Movement !== undefined && !movement ||
+    maintenance.hostShipId !== null && movement === undefined);
   const retainedHostId = session && lastDockedHost?.sessionId === session.id ? lastDockedHost.shipId : null;
   const maintenanceHostId = rawHostId ?? retainedHostId;
   const maintenanceHostName = host?.name ??
@@ -395,6 +398,7 @@ export default function Voyage33MovementWorkspace() {
     : !gmCurrent ? 'The current GM instance changed. Reopen the facilitator console before controlling Voyage 33-0.'
     : !admission ? 'Voyage 33-0 is not admitted in the current session.'
     : !fresh ? 'Waiting for a current live server snapshot. Movement actions remain unavailable.'
+    : !voyageMovementProjectionFresh ? 'Waiting for the private Voyage movement projection. Movement actions remain unavailable.'
     : invalidProjection ? 'The Voyage 33-0 host or movement projection is malformed. Refresh the live session before acting.'
     : undefined;
   const showCurrentWorkspace = workspaceGateMessage === undefined;
