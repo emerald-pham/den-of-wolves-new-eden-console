@@ -1641,6 +1641,20 @@ const voyagePrivacyConsumerNames = [
   'resolvePendingScoutRequest', 'resumeSession', 'runMaintenance', 'setCandidatePlanCheckpoint',
   'startGame', 'startSinglePlayerDemo',
 ];
+test('maps the final PC06 shared index from the actually deployed 0.5.62 source', () => {
+  const file = 'functions/src/index.ts';
+  const previous = execFileSync('git', ['show', `baad0b16f1381a6eba835c401aa8796679b1befb:${file}`], {
+    encoding: 'utf8', maxBuffer: 16 * 1024 * 1024,
+  });
+  const current = readFileSync(file, 'utf8');
+  const selection = (candidate) => deploymentSelector({
+    before: 'deployed-062', after: 'combined-063', files: [file], targets: ['functions'],
+    sourceAtRevision: revision => revision === 'deployed-062' ? previous : candidate,
+    isAncestor: () => false,
+  });
+  assert.deepEqual(selectedFunctions(selection(current)), functionTargets(voyagePrivacyConsumerNames));
+  assert.throws(() => selection(`${current}\n// additional unaudited source change\n`), /PC06|audited|audit/);
+});
 test('maps the new private Voyage storage helper to every callable that reads or migrates it', () => {
   const file = 'functions/src/voyage33MovementStorage.ts';
   const current = readFileSync(file, 'utf8');
