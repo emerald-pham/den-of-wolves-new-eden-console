@@ -11,16 +11,16 @@
     "dependencyWaveCount": 21
   },
   "sources": {
-    "revision": "a4ae2b0a584410fbcaf0338b3e0278a6d22c73fe",
-    "revisionDate": "2026-09-30T20:22:19-04:00",
+    "revision": "4a76afd9d6ea58e61d27d3b7d0e42b3e4392fe82",
+    "revisionDate": "2026-10-02T17:26:21-04:00",
     "files": [
       {
         "path": "docs/implementation-prompts.json",
-        "sha256": "04ddaf972762a72b0103efb8490cbe161bccee0af71b88fe77e65e7527cc7544"
+        "sha256": "9f5f02f5d0e2b1418bf6e3e9a5393dda5202b03a9c339f0acd4ce62df8669e63"
       },
       {
         "path": "docs/CHECKPOINT_COMPLETION_PLAN.md",
-        "sha256": "f58d3d1b8516ee267b7986e764770edc78f4629f47db8db67776d1c46a462c12"
+        "sha256": "ad5743acde304f61d864dc38a8bd07c6613c961112131b2cfab6b84f79287f16"
       }
     ]
   },
@@ -40,12 +40,12 @@
     "release": "Review, validation, deployment and ordinary gameplay proof are required but have no invented duration."
   },
   "catalogSnapshot": {
-    "complete": 507,
+    "complete": 556,
     "total": 751,
     "statusCounts": {
-      "done": 507,
-      "partial": 35,
-      "missing": 209,
+      "done": 556,
+      "partial": 21,
+      "missing": 174,
       "blocked": 0,
       "in-progress": 0
     }
@@ -109,9 +109,9 @@
     "overallTarget": 556,
     "total": 751,
     "statusCounts": {
-      "done": 0,
-      "partial": 14,
-      "missing": 35,
+      "done": 49,
+      "partial": 0,
+      "missing": 0,
       "blocked": 0,
       "in-progress": 0
     },
@@ -188,7 +188,7 @@
         "in-progress": 0
       },
       "predecessorCheckpoint": "PC06",
-      "predecessorCompleteInCatalog": false,
+      "predecessorCompleteInCatalog": true,
       "releaseMilestone": {
         "afterWave": 5,
         "overallDoneTarget": 605,
@@ -2686,19 +2686,19 @@
         },
         {
           "id": "401",
-          "status": "partial",
+          "status": "done",
           "checkpoint": "PC06",
           "inChart": false
         },
         {
           "id": "409",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC06",
           "inChart": false
         },
         {
           "id": "307",
-          "status": "partial",
+          "status": "done",
           "checkpoint": "PC06",
           "inChart": false
         }
@@ -2721,16 +2721,9 @@
         "347",
         "338",
         "339",
-        "343",
-        "401",
-        "409",
-        "307"
+        "343"
       ],
-      "unfinishedExternalPrerequisites": [
-        "401",
-        "409",
-        "307"
-      ]
+      "unfinishedExternalPrerequisites": []
     },
     {
       "id": "678",
@@ -2820,7 +2813,7 @@
       "checkpoint": "PC07",
       "title": "Run the all-vessel maintenance matrix.",
       "status": "missing",
-      "catalogReadiness": "blocked",
+      "catalogReadiness": "ready",
       "acceptance": "six core ships, four small ships, Voyage 33-0, and expansion Capybara each execute their own printed path. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites.",
       "prerequisites": [
         {
@@ -2891,7 +2884,7 @@
         },
         {
           "id": "250",
-          "status": "partial",
+          "status": "done",
           "checkpoint": "PC06",
           "inChart": false
         },
@@ -2914,12 +2907,8 @@
       "group": "PC07-G3",
       "startWave": 1,
       "endWave": 1,
-      "unfinishedPrerequisites": [
-        "250"
-      ],
-      "unfinishedExternalPrerequisites": [
-        "250"
-      ]
+      "unfinishedPrerequisites": [],
+      "unfinishedExternalPrerequisites": []
     },
     {
       "id": "154",
@@ -2961,7 +2950,7 @@
         },
         {
           "id": "414",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC06",
           "inChart": false
         }
@@ -2979,12 +2968,9 @@
       "startWave": 2,
       "endWave": 2,
       "unfinishedPrerequisites": [
-        "336",
-        "414"
+        "336"
       ],
-      "unfinishedExternalPrerequisites": [
-        "414"
-      ]
+      "unfinishedExternalPrerequisites": []
     },
     {
       "id": "155",
@@ -4287,7 +4273,7 @@
         },
         {
           "id": "371",
-          "status": "partial",
+          "status": "done",
           "checkpoint": "PC06",
           "inChart": false
         },
@@ -4299,7 +4285,7 @@
         },
         {
           "id": "352",
-          "status": "partial",
+          "status": "done",
           "checkpoint": "PC06",
           "inChart": false
         },
@@ -4329,7 +4315,7 @@
         },
         {
           "id": "380",
-          "status": "partial",
+          "status": "done",
           "checkpoint": "PC06",
           "inChart": false
         }
@@ -4347,17 +4333,10 @@
       "startWave": 6,
       "endWave": 6,
       "unfinishedPrerequisites": [
-        "371",
-        "352",
         "353",
-        "156",
-        "380"
+        "156"
       ],
-      "unfinishedExternalPrerequisites": [
-        "371",
-        "352",
-        "380"
-      ]
+      "unfinishedExternalPrerequisites": []
     },
     {
       "id": "644",
@@ -5374,7 +5353,7 @@
       "prerequisites": [
         {
           "id": "378",
-          "status": "partial",
+          "status": "done",
           "checkpoint": "PC06",
           "inChart": false
         },
@@ -5398,12 +5377,9 @@
       "startWave": 7,
       "endWave": 7,
       "unfinishedPrerequisites": [
-        "378",
         "465"
       ],
-      "unfinishedExternalPrerequisites": [
-        "378"
-      ]
+      "unfinishedExternalPrerequisites": []
     },
     {
       "id": "394",
@@ -6510,7 +6486,7 @@
       "checkpoint": "PC09",
       "title": "Preserve independent split-group threat.",
       "status": "missing",
-      "catalogReadiness": "blocked",
+      "catalogReadiness": "ready",
       "acceptance": "attacks and Commander capacity use the targeted group's pursuit only. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites.",
       "prerequisites": [
         {
@@ -6521,7 +6497,7 @@
         },
         {
           "id": "307",
-          "status": "partial",
+          "status": "done",
           "checkpoint": "PC06",
           "inChart": false
         }
@@ -6538,12 +6514,8 @@
       "group": "PC09-G3",
       "startWave": 11,
       "endWave": 11,
-      "unfinishedPrerequisites": [
-        "307"
-      ],
-      "unfinishedExternalPrerequisites": [
-        "307"
-      ]
+      "unfinishedPrerequisites": [],
+      "unfinishedExternalPrerequisites": []
     },
     {
       "id": "491",
@@ -7457,7 +7429,7 @@
       "checkpoint": "PC09",
       "title": "Integrate Voyage 33-0 arrival.",
       "status": "partial",
-      "catalogReadiness": "blocked",
+      "catalogReadiness": "ready",
       "acceptance": "accepting the vessel activates its people, needs, maintenance, docking, and motivated-role hooks exactly once. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites.",
       "prerequisites": [
         {
@@ -7468,13 +7440,13 @@
         },
         {
           "id": "250",
-          "status": "partial",
+          "status": "done",
           "checkpoint": "PC06",
           "inChart": false
         },
         {
           "id": "251",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC06",
           "inChart": false
         },
@@ -7497,14 +7469,8 @@
       "group": "PC09-G5",
       "startWave": 11,
       "endWave": 11,
-      "unfinishedPrerequisites": [
-        "250",
-        "251"
-      ],
-      "unfinishedExternalPrerequisites": [
-        "250",
-        "251"
-      ]
+      "unfinishedPrerequisites": [],
+      "unfinishedExternalPrerequisites": []
     },
     {
       "id": "537",
@@ -7827,13 +7793,13 @@
         },
         {
           "id": "322",
-          "status": "partial",
+          "status": "done",
           "checkpoint": "PC06",
           "inChart": false
         },
         {
           "id": "323",
-          "status": "partial",
+          "status": "done",
           "checkpoint": "PC06",
           "inChart": false
         },
@@ -7845,7 +7811,7 @@
         },
         {
           "id": "392",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC06",
           "inChart": false
         },
@@ -7857,7 +7823,7 @@
         },
         {
           "id": "422",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC06",
           "inChart": false
         },
@@ -7899,22 +7865,13 @@
       "startWave": 15,
       "endWave": 15,
       "unfinishedPrerequisites": [
-        "322",
-        "323",
-        "392",
         "396",
-        "422",
         "449",
         "450",
         "451",
         "452"
       ],
-      "unfinishedExternalPrerequisites": [
-        "322",
-        "323",
-        "392",
-        "422"
-      ]
+      "unfinishedExternalPrerequisites": []
     },
     {
       "id": "215b",
@@ -7992,19 +7949,19 @@
         },
         {
           "id": "401",
-          "status": "partial",
+          "status": "done",
           "checkpoint": "PC06",
           "inChart": false
         },
         {
           "id": "410",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC06",
           "inChart": false
         },
         {
           "id": "422",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC06",
           "inChart": false
         },
@@ -8029,23 +7986,16 @@
       "endWave": 15,
       "unfinishedPrerequisites": [
         "214",
-        "401",
-        "410",
-        "422",
         "508"
       ],
-      "unfinishedExternalPrerequisites": [
-        "401",
-        "410",
-        "422"
-      ]
+      "unfinishedExternalPrerequisites": []
     },
     {
       "id": "223b",
       "checkpoint": "PC10",
       "title": "Complete the Explorer workspace.",
       "status": "missing",
-      "catalogReadiness": "blocked",
+      "catalogReadiness": "ready",
       "acceptance": "Hummingbird scouting, harvesting allocation, route planning, and mission participation are authoritative. Use the existing ordinary-player station/console chooser, role-bound actions and truthful pending/committed results. Back and lost-station recovery return to the correct chooser with a reselect instruction, preserving safe local input. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites.",
       "prerequisites": [
         {
@@ -8074,7 +8024,7 @@
         },
         {
           "id": "324",
-          "status": "partial",
+          "status": "done",
           "checkpoint": "PC06",
           "inChart": false
         },
@@ -8110,25 +8060,25 @@
         },
         {
           "id": "393",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC06",
           "inChart": false
         },
         {
           "id": "401",
-          "status": "partial",
+          "status": "done",
           "checkpoint": "PC06",
           "inChart": false
         },
         {
           "id": "410",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC06",
           "inChart": false
         },
         {
           "id": "422",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC06",
           "inChart": false
         }
@@ -8145,20 +8095,8 @@
       "group": "PC10-G1",
       "startWave": 15,
       "endWave": 15,
-      "unfinishedPrerequisites": [
-        "324",
-        "393",
-        "401",
-        "410",
-        "422"
-      ],
-      "unfinishedExternalPrerequisites": [
-        "324",
-        "393",
-        "401",
-        "410",
-        "422"
-      ]
+      "unfinishedPrerequisites": [],
+      "unfinishedExternalPrerequisites": []
     },
     {
       "id": "233b",
@@ -8218,19 +8156,19 @@
         },
         {
           "id": "401",
-          "status": "partial",
+          "status": "done",
           "checkpoint": "PC06",
           "inChart": false
         },
         {
           "id": "410",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC06",
           "inChart": false
         },
         {
           "id": "422",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC06",
           "inChart": false
         }
@@ -8251,28 +8189,21 @@
         "231",
         "340",
         "395",
-        "398",
-        "401",
-        "410",
-        "422"
+        "398"
       ],
-      "unfinishedExternalPrerequisites": [
-        "401",
-        "410",
-        "422"
-      ]
+      "unfinishedExternalPrerequisites": []
     },
     {
       "id": "576",
       "checkpoint": "PC10",
       "title": "Resolve Macaw salvage dismantling.",
       "status": "missing",
-      "catalogReadiness": "blocked",
+      "catalogReadiness": "ready",
       "acceptance": "target permission and the recorded self-dismantling policy govern deliberate damage and Scrap gain. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites.",
       "prerequisites": [
         {
           "id": "385",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC06",
           "inChart": false
         },
@@ -8295,24 +8226,20 @@
       "group": "PC10-G2",
       "startWave": 15,
       "endWave": 15,
-      "unfinishedPrerequisites": [
-        "385"
-      ],
-      "unfinishedExternalPrerequisites": [
-        "385"
-      ]
+      "unfinishedPrerequisites": [],
+      "unfinishedExternalPrerequisites": []
     },
     {
       "id": "579",
       "checkpoint": "PC10",
       "title": "Resolve Boa reclamation.",
       "status": "missing",
-      "catalogReadiness": "blocked",
+      "catalogReadiness": "ready",
       "acceptance": "one pre-deal opportunity halves difficulty, replaces reward with one Scrap, and grants no critical bonus. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites.",
       "prerequisites": [
         {
           "id": "401",
-          "status": "partial",
+          "status": "done",
           "checkpoint": "PC06",
           "inChart": false
         },
@@ -8335,12 +8262,8 @@
       "group": "PC10-G2",
       "startWave": 15,
       "endWave": 15,
-      "unfinishedPrerequisites": [
-        "401"
-      ],
-      "unfinishedExternalPrerequisites": [
-        "401"
-      ]
+      "unfinishedPrerequisites": [],
+      "unfinishedExternalPrerequisites": []
     },
     {
       "id": "581",
@@ -9609,7 +9532,7 @@
         },
         {
           "id": "622",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC06",
           "inChart": false
         },
@@ -9647,12 +9570,9 @@
       "unfinishedPrerequisites": [
         "565",
         "621",
-        "622",
         "514"
       ],
-      "unfinishedExternalPrerequisites": [
-        "622"
-      ]
+      "unfinishedExternalPrerequisites": []
     },
     {
       "id": "618",
@@ -9924,13 +9844,13 @@
         },
         {
           "id": "320",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC06",
           "inChart": false
         },
         {
           "id": "422",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC06",
           "inChart": false
         },
@@ -9961,15 +9881,10 @@
       "endWave": 15,
       "unfinishedPrerequisites": [
         "159",
-        "320",
-        "422",
         "524",
         "540"
       ],
-      "unfinishedExternalPrerequisites": [
-        "320",
-        "422"
-      ]
+      "unfinishedExternalPrerequisites": []
     },
     {
       "id": "642",
@@ -10043,7 +9958,7 @@
         },
         {
           "id": "646",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC06",
           "inChart": false
         },
@@ -10090,15 +10005,12 @@
         "643",
         "644",
         "645",
-        "646",
         "647",
         "648",
         "649",
         "650"
       ],
-      "unfinishedExternalPrerequisites": [
-        "646"
-      ]
+      "unfinishedExternalPrerequisites": []
     }
   ],
   "dependencyEdges": [
@@ -10373,21 +10285,21 @@
       "to": "424",
       "type": "hard_prompt",
       "inChart": false,
-      "sourceStatus": "partial"
+      "sourceStatus": "done"
     },
     {
       "from": "409",
       "to": "424",
       "type": "hard_prompt",
       "inChart": false,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "307",
       "to": "424",
       "type": "hard_prompt",
       "inChart": false,
-      "sourceStatus": "partial"
+      "sourceStatus": "done"
     },
     {
       "from": "328",
@@ -10506,7 +10418,7 @@
       "to": "140",
       "type": "hard_prompt",
       "inChart": false,
-      "sourceStatus": "partial"
+      "sourceStatus": "done"
     },
     {
       "from": "571",
@@ -10555,7 +10467,7 @@
       "to": "154",
       "type": "hard_prompt",
       "inChart": false,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "154",
@@ -11059,7 +10971,7 @@
       "to": "423",
       "type": "hard_prompt",
       "inChart": false,
-      "sourceStatus": "partial"
+      "sourceStatus": "done"
     },
     {
       "from": "373",
@@ -11073,7 +10985,7 @@
       "to": "423",
       "type": "hard_prompt",
       "inChart": false,
-      "sourceStatus": "partial"
+      "sourceStatus": "done"
     },
     {
       "from": "353",
@@ -11108,7 +11020,7 @@
       "to": "423",
       "type": "hard_prompt",
       "inChart": false,
-      "sourceStatus": "partial"
+      "sourceStatus": "done"
     },
     {
       "from": "423",
@@ -11500,7 +11412,7 @@
       "to": "466",
       "type": "hard_prompt",
       "inChart": false,
-      "sourceStatus": "partial"
+      "sourceStatus": "done"
     },
     {
       "from": "465",
@@ -11885,7 +11797,7 @@
       "to": "490",
       "type": "hard_prompt",
       "inChart": false,
-      "sourceStatus": "partial"
+      "sourceStatus": "done"
     },
     {
       "from": "312",
@@ -12193,14 +12105,14 @@
       "to": "529",
       "type": "hard_prompt",
       "inChart": false,
-      "sourceStatus": "partial"
+      "sourceStatus": "done"
     },
     {
       "from": "251",
       "to": "529",
       "type": "hard_prompt",
       "inChart": false,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "527",
@@ -12417,14 +12329,14 @@
       "to": "181",
       "type": "hard_prompt",
       "inChart": false,
-      "sourceStatus": "partial"
+      "sourceStatus": "done"
     },
     {
       "from": "323",
       "to": "181",
       "type": "hard_prompt",
       "inChart": false,
-      "sourceStatus": "partial"
+      "sourceStatus": "done"
     },
     {
       "from": "328",
@@ -12438,7 +12350,7 @@
       "to": "181",
       "type": "hard_prompt",
       "inChart": false,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "396",
@@ -12452,7 +12364,7 @@
       "to": "181",
       "type": "hard_prompt",
       "inChart": false,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "449",
@@ -12564,21 +12476,21 @@
       "to": "215b",
       "type": "hard_prompt",
       "inChart": false,
-      "sourceStatus": "partial"
+      "sourceStatus": "done"
     },
     {
       "from": "410",
       "to": "215b",
       "type": "hard_prompt",
       "inChart": false,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "422",
       "to": "215b",
       "type": "hard_prompt",
       "inChart": false,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "508",
@@ -12620,7 +12532,7 @@
       "to": "223b",
       "type": "hard_prompt",
       "inChart": false,
-      "sourceStatus": "partial"
+      "sourceStatus": "done"
     },
     {
       "from": "328",
@@ -12662,28 +12574,28 @@
       "to": "223b",
       "type": "hard_prompt",
       "inChart": false,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "401",
       "to": "223b",
       "type": "hard_prompt",
       "inChart": false,
-      "sourceStatus": "partial"
+      "sourceStatus": "done"
     },
     {
       "from": "410",
       "to": "223b",
       "type": "hard_prompt",
       "inChart": false,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "422",
       "to": "223b",
       "type": "hard_prompt",
       "inChart": false,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "166",
@@ -12746,28 +12658,28 @@
       "to": "233b",
       "type": "hard_prompt",
       "inChart": false,
-      "sourceStatus": "partial"
+      "sourceStatus": "done"
     },
     {
       "from": "410",
       "to": "233b",
       "type": "hard_prompt",
       "inChart": false,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "422",
       "to": "233b",
       "type": "hard_prompt",
       "inChart": false,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "385",
       "to": "576",
       "type": "hard_prompt",
       "inChart": false,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "575",
@@ -12781,7 +12693,7 @@
       "to": "579",
       "type": "hard_prompt",
       "inChart": false,
-      "sourceStatus": "partial"
+      "sourceStatus": "done"
     },
     {
       "from": "578",
@@ -13320,7 +13232,7 @@
       "to": "650",
       "type": "hard_prompt",
       "inChart": false,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "140c",
@@ -13453,14 +13365,14 @@
       "to": "641",
       "type": "hard_prompt",
       "inChart": false,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "422",
       "to": "641",
       "type": "hard_prompt",
       "inChart": false,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "524",
@@ -13523,7 +13435,7 @@
       "to": "651",
       "type": "hard_prompt",
       "inChart": false,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "647",

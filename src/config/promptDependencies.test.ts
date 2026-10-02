@@ -92,10 +92,10 @@ describe('read-only dependency lookup', () => {
   });
 
   it('reports an unfinished Demo fixture ready after PC05 closes all prerequisites', () => {
-    const readyCatalog = structuredClone(catalog);
-    const demo = readyCatalog.prompts.find(({ id }) => id === '020a');
-    if (!demo) throw new Error('Expected the canonical Demo prompt.');
-    demo.status = 'missing';
+    const readyCatalog: PromptCatalog = {
+      ...catalog,
+      prompts: catalog.prompts.map(row => row.id === '020a' ? { ...row, status: 'missing' } : row),
+    };
     const packet = createDependencyPacket({ prompt: '020a', catalog: readyCatalog });
     expect(packet.readiness).toBe('ready');
     expect(packet.selected.status).toBe('missing');

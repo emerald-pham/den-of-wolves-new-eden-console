@@ -270,7 +270,7 @@ const template = readFileSync(resolve(root, templatePath), 'utf8');
 assert.equal(template.split('__GANTT_DATA__').length, 2, 'Missing/duplicate data placeholder');
 assert.equal(template.split('__GANTT_CSV__').length, 2, 'Missing/duplicate CSV placeholder');
 const html = template.replace('__GANTT_DATA__', () => safeJson).replace('__GANTT_CSV__', () => safeCsv);
-for (const [extension, content] of [['json', json], ['csv', csv], ['html', html]]) {
+for (const [extension, content] of [['json', json], ['csv', csv.replaceAll('\r\n', '\n')], ['html', html]]) {
   const path = resolve(root, outputBase + '.' + extension);
   if (check) assert.equal(readFileSync(path, 'utf8'), content, 'Stale generated artifact: ' + path);
   else writeFileSync(path, content);
