@@ -8,7 +8,7 @@ const env = {
   VITE_FIREBASE_AUTH_EMULATOR_PORT: '9119',
   VITE_FIREBASE_FIRESTORE_EMULATOR_PORT: '8100',
 };
-const request = { method: 'POST', origin: 'http://127.0.0.1:5175', host: '127.0.0.1:5175', remoteAddress: '127.0.0.1', token: 'local-token' };
+const request = { method: 'POST', origin: 'http://127.0.0.1:5175', host: '127.0.0.1:5175', remoteAddress: '127.0.0.1', token: `e30.${Buffer.from(JSON.stringify({aud:'demo-pc06-local',iss:'https://securetoken.google.com/demo-pc06-local'})).toString('base64url')}.` };
 test('requires explicit emulator configuration and a demo project, never a production build', () => {
   assert.ok(localGmAccessConfiguration('serve', env));
   for (const [command, overrides] of [
@@ -53,4 +53,11 @@ test('rejects malformed emulator identity and storage errors without claiming su
   }
   let calls = 0;
   await assert.rejects(grantLocalGmAccess(localGmAccessConfiguration('serve', env), request, async () => { calls++; return calls === 1 ? {ok:true,json:async()=>({users:[{localId:'actor'}]})} : {ok:false}; }));
+});
+
+test('rejects an emulator token for a different project before lookup or write', async () => {
+  let calls = 0;
+  const token = `e30.${Buffer.from(JSON.stringify({aud:'dow-new-eden-console',iss:'https://securetoken.google.com/dow-new-eden-console'})).toString('base64url')}.`;
+  await assert.rejects(grantLocalGmAccess(localGmAccessConfiguration('serve', env), {...request,token}, async () => {calls++;return {ok:true,json:async()=>({users:[{localId:'actor'}]})};}));
+  assert.equal(calls, 0);
 });
