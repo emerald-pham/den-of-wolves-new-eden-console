@@ -35,6 +35,17 @@ test('classifies the isolated PC06 review entry as Hosting', () => {
   assert.deepEqual(result.unknownFiles, []);
 });
 
+test('ignores only the three generated PC07 roadmap data artifacts', () => {
+  const files = ['docs/PC07_ROADMAP_GANTT.csv', 'docs/PC07_ROADMAP_GANTT.html', 'docs/PC07_ROADMAP_GANTT.json'];
+  const result = classifyChangedFiles(files);
+  assert.deepEqual(result.targets, []);
+  assert.deepEqual(result.unknownFiles, []);
+  assert.deepEqual(result.ignoredFiles, files);
+  const adjacent = classifyChangedFiles(['docs/PC07_ROADMAP_GANTT.js']);
+  assert.deepEqual(adjacent.targets, ['hosting', 'firestore', 'functions']);
+  assert.deepEqual(adjacent.unknownFiles, ['docs/PC07_ROADMAP_GANTT.js']);
+});
+
 test('PC01 selects its new callables and existing ship-map writers for deployment', () => {
   const before = '9fc824f5';
   const after = '33fb746d';
