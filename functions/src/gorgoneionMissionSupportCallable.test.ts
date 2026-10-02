@@ -181,6 +181,22 @@ async function apply(db: MemoryDatabase, uid: string, data: unknown) {
 }
 
 describe('Gorgoneion mission-support callable', () => {
+  it('normalizes the absent production-start cursor before publishing a rules-readable private view', async () => {
+    const db = seededDatabase();
+    db.records.set(DECK_PATH, { ...initialDeck });
+    const reply = await availableProjection(db);
+    expect(reply.cardIds).toEqual(originalTopFive);
+    expect(db.records.get(DECK_PATH)).toEqual({ ...initialDeck, dealtCount: 0 });
+    expect(db.writesByTransaction[0]).toEqual([
+      expect.objectContaining({ kind: 'update', path: DECK_PATH, data: { dealtCount: 0 } }),
+      expect.objectContaining({ kind: 'set', path: VIEW_PATH }),
+    ]);
+    await availableProjection(db);
+    expect(db.writesByTransaction[1]).toEqual([
+      expect.objectContaining({ kind: 'set', path: VIEW_PATH }),
+    ]);
+  });
+
   it('returns only the current Captain’s inspected top five and docking projection', async () => {
     const db = seededDatabase();
     const reply = await availableProjection(db);

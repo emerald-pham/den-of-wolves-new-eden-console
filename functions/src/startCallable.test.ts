@@ -318,6 +318,16 @@ it('records a distinct facilitator responsibility', async () => {
   );
 });
 
+it('writes an explicit zero mission-deck cursor required by the private pre-deal read rules', async () => {
+  await startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-deck-cursor', expectedSetupRevision: 0,
+  }));
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/serverState/missionDeck' }),
+    expect.objectContaining({ dealtCount: 0 }),
+  );
+});
+
 it('starts a fully staffed roster in one transaction with locked setup, Turn 1, and pursuit 2', async () => {
   await expect(startGame.run(request({
     sessionId: 's1', instanceId: 'bridge', requestId: 'start-1', expectedSetupRevision: 0,
