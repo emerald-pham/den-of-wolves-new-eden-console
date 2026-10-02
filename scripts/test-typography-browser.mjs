@@ -7,6 +7,7 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { inflateSync } from 'node:zlib';
 import { chromium } from 'playwright';
 import { installTypographyNetworkBoundary, waitForTypographyTargets } from './typography-browser-readiness.mjs';
 
@@ -20,6 +21,14 @@ const VIEWPORTS = [
   { name: 'desktop', width: 1440, height: 900 },
 ];
 const MOTION_MODES = ['normal', 'reduced'];
+const VOYAGE_TARGETS = [
+  ['movement-eyebrow', '.voyage33-movement__eyebrow'],
+  ['connection-state', '.voyage33-movement__connection'],
+  ['current-location-label', '.voyage33-movement__readouts .voyage33-movement__label'],
+  ['host-state-label', '.voyage33-movement__readout:nth-child(2) .voyage33-movement__label'],
+];
+const VOYAGE_CAPTION_SIZE_REM = 0.68;
+const MIN_METADATA_CONTRAST = 4.5;
 
 const STAMP = '2026-01-01T00:00:00.000Z';
 
@@ -234,6 +243,106 @@ function normalizeFamily(value) {
 
 function safeName(value) {
   return value.replace(/[^a-z0-9-]+/gi, '-').toLowerCase();
+}
+
+function paeth(left, above, upperLeft) {
+  const prediction = left + above - upperLeft;
+  const leftDistance = Math.abs(prediction - left);
+  const aboveDistance = Math.abs(prediction - above);
+  const upperLeftDistance = Math.abs(prediction - upperLeft);
+  if (leftDistance <= aboveDistance && leftDistance <= upperLeftDistance) return left;
+  if (aboveDistance <= upperLeftDistance) return above;
+  return upperLeft;
+}
+
+function samplePng(png, requests) {
+  let width;
+  let height;
+  let bitDepth;
+  let colorType;
+  const idat = [];
+  for (let offset = 8; offset < png.length;) {
+    const length = png.readUInt32BE(offset);
+    const type = png.toString('ascii', offset + 4, offset + 8);
+    const data = png.subarray(offset + 8, offset + 8 + length);
+    if (type === 'IHDR') {
+      width = data.readUInt32BE(0);
+      height = data.readUInt32BE(4);
+      bitDepth = data[8];
+      colorType = data[9];
+    } else if (type === 'IDAT') {
+      idat.push(data);
+    }
+    offset += length + 12;
+    if (type === 'IEND') break;
+  }
+  assert.equal(bitDepth, 8, 'Voyage screenshot pixels must use 8-bit PNG channels.');
+  assert.ok(colorType === 2 || colorType === 6,
+    `Voyage screenshot PNG must be RGB or RGBA; got color type ${colorType}.`);
+  const channels = colorType === 6 ? 4 : 3;
+  const stride = width * channels;
+  const raw = inflateSync(Buffer.concat(idat));
+  const pixels = new Map();
+  const byRow = new Map();
+  for (const request of requests) {
+    assert.ok(request.x >= 0 && request.x < width && request.y >= 0 && request.y < height,
+      `Voyage background sample ${request.name} is outside its rendered panel.`);
+    if (!byRow.has(request.y)) byRow.set(request.y, []);
+    byRow.get(request.y).push(request);
+  }
+  let previous = Buffer.alloc(stride);
+  for (let y = 0; y < height; y += 1) {
+    const rowStart = y * (stride + 1);
+    const filter = raw[rowStart];
+    const row = Buffer.from(raw.subarray(rowStart + 1, rowStart + stride + 1));
+    for (let index = 0; index < stride; index += 1) {
+      const left = index >= channels ? row[index - channels] : 0;
+      const above = previous[index];
+      const upperLeft = index >= channels ? previous[index - channels] : 0;
+      let predictor = 0;
+      if (filter === 1) predictor = left;
+      else if (filter === 2) predictor = above;
+      else if (filter === 3) predictor = Math.floor((left + above) / 2);
+      else if (filter === 4) predictor = paeth(left, above, upperLeft);
+      else assert.equal(filter, 0, `Unsupported PNG filter ${filter}.`);
+      row[index] = (row[index] + predictor) & 0xff;
+    }
+    for (const request of byRow.get(y) ?? []) {
+      const start = request.x * channels;
+      pixels.set(request.name, {
+        red: row[start], green: row[start + 1], blue: row[start + 2],
+        alpha: channels === 4 ? row[start + 3] : 255,
+      });
+    }
+    previous = row;
+  }
+  return pixels;
+}
+
+function parseRgb(value) {
+  const rgb = value.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+  if (rgb) return { red: Number(rgb[1]), green: Number(rgb[2]), blue: Number(rgb[3]) };
+  const hex = value.match(/^#([\da-f]{3}|[\da-f]{6})$/i);
+  assert.ok(hex, `Expected a rendered RGB color, got ${value}.`);
+  const expanded = hex[1].length === 3 ? [...hex[1]].map((digit) => digit + digit).join('') : hex[1];
+  return {
+    red: Number.parseInt(expanded.slice(0, 2), 16),
+    green: Number.parseInt(expanded.slice(2, 4), 16),
+    blue: Number.parseInt(expanded.slice(4, 6), 16),
+  };
+}
+
+function relativeLuminance({ red, green, blue }) {
+  const linear = [red, green, blue].map((channel) => {
+    const normalized = channel / 255;
+    return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+}
+
+function contrastRatio(first, second) {
+  const [lighter, darker] = [relativeLuminance(first), relativeLuminance(second)].sort((a, b) => b - a);
+  return round((lighter + 0.05) / (darker + 0.05));
 }
 
 async function preparePc01Reference() {
@@ -468,6 +577,167 @@ async function collectSurface(browser, appUrl, surface, viewport, motion, kind) 
   }
 }
 
+async function collectVoyageSurface(browser, appUrl, viewport, motion) {
+  const context = await browser.newContext({
+    viewport: { width: viewport.width, height: viewport.height },
+    deviceScaleFactor: 1,
+    reducedMotion: motion === 'reduced' ? 'reduce' : 'no-preference',
+    serviceWorkers: 'block',
+  });
+  await installTypographyNetworkBoundary(context, appUrl);
+  const page = await context.newPage();
+  const diagnostics = [];
+  page.on('pageerror', (error) => diagnostics.push(`pageerror: ${error.stack || error.message}`));
+  page.on('console', (message) => {
+    if (message.type() === 'error') diagnostics.push(`console: ${message.text()}`);
+  });
+  const screenshotDir = resolve(EVIDENCE_DIR, 'voyage33', motion, viewport.name);
+  await mkdir(screenshotDir, { recursive: true });
+  const screenshot = resolve(screenshotDir, 'voyage-movement.png');
+  try {
+    const url = `${appUrl}/scripts/fixtures/typography-voyage.html?motion=${motion}`;
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20_000 });
+    await waitForTypographyTargets(page, VOYAGE_TARGETS);
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForTimeout(100);
+
+    const measurement = await page.evaluate((targetSpecs) => {
+      const roundPixel = (number) => Math.round(number * 100) / 100;
+      const root = document.documentElement;
+      const rootStyle = getComputedStyle(root);
+      const panel = document.querySelector('.voyage33-movement');
+      if (!(panel instanceof HTMLElement)) throw new Error('Voyage movement panel did not render.');
+      const panelRect = panel.getBoundingClientRect();
+      const targets = targetSpecs.map(([name, selector]) => {
+        const element = document.querySelector(selector);
+        if (!(element instanceof HTMLElement)) return { name, selector, missing: true };
+        const style = getComputedStyle(element);
+        const rect = element.getBoundingClientRect();
+        return {
+          name,
+          selector,
+          text: (element.innerText || element.textContent || '').replace(/\s+/g, ' ').trim(),
+          color: style.color,
+          fontFamily: style.fontFamily,
+          fontSize: roundPixel(Number.parseFloat(style.fontSize)),
+          fontWeight: style.fontWeight,
+          lineHeight: style.lineHeight,
+          letterSpacing: style.letterSpacing,
+          textTransform: style.textTransform,
+          geometry: {
+            left: roundPixel(rect.left), top: roundPixel(rect.top),
+            width: roundPixel(rect.width), height: roundPixel(rect.height),
+            right: roundPixel(rect.right), bottom: roundPixel(rect.bottom),
+          },
+        };
+      });
+      return {
+        viewport: { width: innerWidth, height: innerHeight },
+        pageGeometry: {
+          scrollWidth: root.scrollWidth,
+          clientWidth: root.clientWidth,
+          scrollHeight: root.scrollHeight,
+          clientHeight: root.clientHeight,
+        },
+        appliedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'reduce' : 'full',
+        appMotionMode: document.documentElement.getAttribute('data-motion'),
+        rootFontSize: Number.parseFloat(rootStyle.fontSize),
+        tokens: {
+          mono: rootStyle.getPropertyValue('--cic-mono').trim(),
+          amber: rootStyle.getPropertyValue('--cic-amber').trim(),
+          amberDim: rootStyle.getPropertyValue('--cic-amber-dim').trim(),
+          panel: rootStyle.getPropertyValue('--cic-panel').trim(),
+        },
+        panelGeometry: {
+          left: roundPixel(panelRect.left), top: roundPixel(panelRect.top),
+          width: roundPixel(panelRect.width), height: roundPixel(panelRect.height),
+          right: roundPixel(panelRect.right), bottom: roundPixel(panelRect.bottom),
+        },
+        targets,
+      };
+    }, VOYAGE_TARGETS);
+    assert.deepEqual(
+      measurement.targets.filter((target) => target.missing),
+      [],
+      `Voyage labels are missing at ${viewport.name}/${motion}.`,
+    );
+
+    const panelPng = await page.locator('.voyage33-movement').screenshot({ scale: 'css' });
+    const panelWidth = Math.max(1, Math.ceil(measurement.panelGeometry.width));
+    const requests = measurement.targets.map((target) => ({
+      name: target.name,
+      x: Math.max(0, panelWidth - 7),
+      y: Math.max(0, Math.floor(
+        target.geometry.top - measurement.panelGeometry.top + target.geometry.height / 2,
+      )),
+    }));
+    const backgroundSamples = samplePng(panelPng, requests);
+    const targets = measurement.targets.map((target) => {
+      const background = backgroundSamples.get(target.name);
+      assert.equal(background.alpha, 255, `${target.name}: rendered panel background is not opaque.`);
+      return {
+        ...target,
+        compositedBackground: background,
+        contrastRatio: contrastRatio(parseRgb(target.color), background),
+      };
+    });
+    await page.screenshot({ path: screenshot, fullPage: true });
+    return {
+      id: 'voyage33-movement',
+      route: '/scripts/fixtures/typography-voyage.html',
+      viewport,
+      motion,
+      screenshot,
+      panelBackgroundSampling: 'Chromium element screenshot pixels, sampled inside the rendered cic-frame at each label baseline; includes CSS gradient alpha compositing.',
+      diagnostics,
+      ...measurement,
+      targets,
+    };
+  } finally {
+    await context.close();
+  }
+}
+
+function auditVoyageSurface(cases) {
+  const issues = [];
+  const check = (condition, message) => {
+    if (!condition) issues.push(message);
+  };
+  for (const entry of cases) {
+    const key = `voyage33-movement/${entry.motion}/${entry.viewport.width}x${entry.viewport.height}`;
+    const expectedMotion = entry.motion === 'reduced' ? 'reduce' : 'full';
+    check(entry.appliedMotion === expectedMotion,
+      `${key}: browser motion preference was ${entry.appliedMotion}.`);
+    check(entry.appMotionMode === expectedMotion,
+      `${key}: fixture motion mode was ${entry.appMotionMode}.`);
+    check(entry.pageGeometry.scrollWidth <= entry.viewport.width + 1,
+      `${key}: rendered page overflows horizontally (${entry.pageGeometry.scrollWidth}px).`);
+    check(normalizeFamily(entry.tokens.mono) === normalizeFamily('"SFMono-Regular", Consolas, "Liberation Mono", monospace'),
+      `${key}: the CIC mono token changed unexpectedly.`);
+    for (const target of entry.targets) {
+      const label = `${key}/${target.name}`;
+      const expectedSize = entry.rootFontSize * VOYAGE_CAPTION_SIZE_REM;
+      check(normalizeFamily(target.fontFamily) === normalizeFamily(entry.tokens.mono),
+        `${label}: font family does not resolve to the issued CIC mono token.`);
+      check(Math.abs(target.fontSize - expectedSize) <= 0.05,
+        `${label}: rendered size changed from ${expectedSize}px to ${target.fontSize}px.`);
+      check(Math.abs(Number.parseFloat(target.lineHeight) - target.fontSize * 1.5) <= 0.1,
+        `${label}: line-height no longer matches the existing 1.5 caption rhythm.`);
+      check(Math.abs(Number.parseFloat(target.letterSpacing) - target.fontSize * 0.08) <= 0.1,
+        `${label}: tracking no longer matches the existing 0.08em caption style.`);
+      check(target.textTransform === 'uppercase',
+        `${label}: metadata casing changed from uppercase.`);
+      check(target.geometry.width > 0 && target.geometry.height > 0,
+        `${label}: rendered text has no bounds.`);
+      check(JSON.stringify(parseRgb(target.color)) === JSON.stringify(parseRgb(entry.tokens.amber)),
+        `${label}: foreground ${target.color} does not resolve to the established full-amber label token ${entry.tokens.amber}.`);
+      check(target.contrastRatio >= MIN_METADATA_CONTRAST,
+        `${label}: rendered contrast ${target.contrastRatio}:1 against composited panel pixels is below ${MIN_METADATA_CONTRAST}:1.`);
+    }
+  }
+  return issues;
+}
+
 function comparePc01(candidate, reference) {
   const caseKey = (entry) =>
     `${entry.motion}/${entry.viewport.width}x${entry.viewport.height}/${entry.id}`;
@@ -596,6 +866,13 @@ try {
   }
 
   const pc01Comparison = comparePc01(candidate, pc01);
+  const voyage33 = [];
+  for (const motion of MOTION_MODES) {
+    for (const viewport of VIEWPORTS) {
+      voyage33.push(await collectVoyageSurface(browser, candidateServer.url, viewport, motion));
+    }
+  }
+  const voyage33AuditIssues = auditVoyageSurface(voyage33);
 
   const report = {
     reference: {
@@ -607,6 +884,8 @@ try {
     candidate,
     pc01,
     pc01Comparison,
+    voyage33,
+    voyage33AuditIssues,
   };
   await writeFile(resolve(EVIDENCE_DIR, 'results.json'), `${JSON.stringify(report, null, 2)}\n`);
   if (pc01Comparison.issues.length > 0) {
@@ -619,8 +898,19 @@ try {
       `${pc01Comparison.issues.length} checks:\n${visibleIssues}${remainder}`,
     );
   }
+  if (voyage33AuditIssues.length > 0) {
+    const visibleIssues = voyage33AuditIssues.slice(0, 30).join('\n');
+    const remainder = voyage33AuditIssues.length > 30
+      ? `\n...and ${voyage33AuditIssues.length - 30} more; see results.json.`
+      : '';
+    throw new Error(
+      `Rendered Voyage 33-0 metadata fails its representative size/contrast contract in ` +
+      `${voyage33AuditIssues.length} checks:\n${visibleIssues}${remainder}`,
+    );
+  }
   console.log(
-    `Rendered typography gate passed: ${candidate.length} cases, ${SURFACES.length} surfaces, ` +
+    `Rendered typography gate passed: ${candidate.length} PC01 cases, ${SURFACES.length} surfaces, ` +
+    `${voyage33.length} Voyage metadata renders, ` +
     `${VIEWPORTS.length} viewports, normal/reduced motion. Evidence: ${EVIDENCE_DIR}`,
   );
   console.log(`Exact PC01 ${PC01_SHA} comparison evidence: ${resolve(EVIDENCE_DIR, 'results.json')}`);

@@ -120,6 +120,17 @@ describe('the CIC type system', () => {
   });
 });
 
+describe('the Voyage 33-0 movement labels', () => {
+  it('keeps essential location and connection labels on the readable issued amber', () => {
+    const movement = SHEETS.find(({ name }) => name === 'src/components/Voyage33MovementPanel.css')?.css ?? '';
+    const labels = movement.match(
+      /\.voyage33-movement__eyebrow,\s*\.voyage33-movement__label,\s*\.voyage33-movement__connection,\s*\.voyage33-movement__action h4\s*\{([^}]*)\}/,
+    )?.[1] ?? '';
+
+    expect(labels).toContain('color: var(--cic-amber)');
+  });
+});
+
 describe('the CIC frame', () => {
   it('is never rounded', () => {
     const rounded = SHEETS.flatMap(({ name, css }) =>
