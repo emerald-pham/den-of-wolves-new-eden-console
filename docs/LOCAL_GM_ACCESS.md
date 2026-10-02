@@ -54,9 +54,17 @@ Focused rejection coverage runs with:
 
 ```sh
 node --test scripts/local-gm-access.test.mjs
+VITE_FIREBASE_PROJECT_ID=demo-pc06-local node scripts/test-local-gm-native.mjs
 ```
 
 Local/emulator checks establish local behavior through the production handlers
 and rules. They are labeled separately from deployment and production gameplay;
 they never claim a production credential, Cloud Tasks transport, or physical
 device result.
+
+Native emulator verification passed: normal create/resume, unseeded claim denial,
+incorrect password denial, normal client privileged-write denial, helper lease,
+normal named GM claim, logout and post-revoke denial. Actual UI authorization,
+normal named claim and revoke/re-authorize also passed. The production build was
+checked both normally and with opt-in flags accidentally set; executable local
+helper/control/module code was absent in both. This is local verification.

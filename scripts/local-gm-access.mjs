@@ -30,7 +30,7 @@ export async function grantLocalGmAccess(config, request, fetcher = fetch, now =
   if (claims.aud !== config.projectId || claims.iss !== `https://securetoken.google.com/${config.projectId}`) {
     throw Error('Local emulator identity rejected.');
   }
-  const lookup = await fetcher(`http://127.0.0.1:${config.authPort}/identitytoolkit.googleapis.com/v1/accounts:lookup?key=local-emulator`, {
+  const lookup = await fetcher(`http://127.0.0.1:${config.authPort}/identitytoolkit.googleapis.com/v1/accounts:lookup?key=${config.projectId}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idToken: request.token }), signal: AbortSignal.timeout(5000),
   });
   if (!lookup.ok) throw Error('Local emulator identity rejected.');
