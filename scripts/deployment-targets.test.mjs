@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
@@ -1630,6 +1631,36 @@ test('selects the PC06 private navigation and shared index helper writers', () =
   const index = selectedFunctions(selectPc06(['functions/src/index.ts']));
   for (const name of ['recycleWithBoa', 'publishPressDispatch', 'runMaintenance', 'sendFleetGroupMessage', 'jumpSmallShip']) assert.ok(index.includes(`functions:${name}`), name);
 });
+
+const sha256 = source => createHash('sha256').update(source).digest('hex');
+const voyageHostSyncConsumerNames = ['adjudicateFailedJump', 'jumpShip', 'moveShipToLocation'];
+for (const [file, mapPath, consumers] of [
+  ['functions/src/voyage33Movement.ts', 'modules', [
+    'adjudicateFailedJump', 'dockVoyage33', 'joinSession', 'jumpShip', 'jumpVoyage33',
+    'moveShipToLocation', 'resumeSession',
+  ]],
+  ['functions/src/index.ts', 'indexTransitions', voyageHostSyncConsumerNames],
+]) {
+  test(`maps the exact Voyage host movement consumers for ${file}`, () => {
+    const previous = execFileSync('git', ['show', `HEAD:${file}`], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+    const current = readFileSync(file, 'utf8');
+    const dependencyMap = JSON.parse(readFileSync('scripts/pc06-deployment-consumers.json', 'utf8'));
+    const priorDigest = sha256(previous);
+    const currentDigest = sha256(current);
+    assert.notEqual(currentDigest, priorDigest, 'the mapped host-sync source must differ from the committed baseline');
+    const transitions = mapPath === 'modules'
+      ? dependencyMap.moduleTransitions?.[file] ?? []
+      : dependencyMap[mapPath] ?? [];
+    const transition = transitions.find(candidate => candidate.before === priorDigest && candidate.after === currentDigest);
+    assert.deepEqual(transition?.consumers, consumers);
+    const selected = deploymentSelector({
+      before: 'host-sync-baseline', after: 'host-sync-candidate', files: [file], targets: ['functions'],
+      sourceAtRevision: revision => revision === 'host-sync-baseline' ? previous : current,
+      isAncestor: () => false,
+    });
+    assert.deepEqual(selected, consumers.map(name => `functions:${name}`));
+  });
+}
 test('rejects a changed PC06 source outside its explicit module or index audit', () => {
   for (const file of ['functions/src/smallShipJump.ts', 'functions/src/navigationProjection.ts', 'functions/src/index.ts']) {
     assert.throws(() => selectPc06([file], (revision, path) => pc06SourceAtRevision(revision, path) +
