@@ -30,6 +30,7 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
 } else {
   const require = createRequire(resolve(repository, 'functions/package.json'));
   const {
+    advanceTurn,
     dockVoyage33,
     joinSession,
     jumpShip,
@@ -290,7 +291,7 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
     }
   });
 
-  test('native emergency host movement reads arrival pressure before its damage press-log write', async () => {
+  test('native emergency host movement publishes the remaining-group window and accepts its terminal decision', async () => {
     const id = `pc06-voyage-host-sync-emergency-${process.pid}`;
     const gm = `${id}-gm`;
     const session = db.doc(`sessions/${id}`);
@@ -304,7 +305,7 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
     const phaseEnd = new Date(Date.now() + 20 * 60_000).toISOString();
     const emergencyWindow = {
       type: 'pursuit-emergency-window', status: 'offered', cycle: 1,
-      navigationRevision: 0, groupIds: ['fleet-1'], openedAt: now,
+      navigationRevision: 0, groupIds: ['fleet-1', 'fleet-2'], openedAt: now,
     };
     const movement = {
       ...emptyVoyage33MovementState('0000'),
@@ -338,6 +339,7 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
       const seed = db.batch();
       seed.set(session, {
         phase: 'active', currentTurn: 1, setupRevision: 0, playerCount: 8, chartId: 'A',
+        fleetPartitionRevision: 1,
         chartSelectionLocked: true, configurationLocked: true, ownerUid: gm,
         activeRoleIds: [], activeVesselIds: ships, admittedVesselIds: [VOYAGE_33_ID],
         voyage33Admission: {
@@ -379,17 +381,21 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
         uid: gm, connected: true, lastSeenAt: now,
       });
       seed.set(db.doc(`sessions/${id}/fleetGroups/fleet-1`), {
-        id: 'fleet-1', vesselIds: ships, memberUids: [gm],
+        id: 'fleet-1', vesselIds: ['aegis'], memberUids: [gm],
+      });
+      seed.set(db.doc(`sessions/${id}/fleetGroups/fleet-2`), {
+        id: 'fleet-2', vesselIds: ships.filter(shipId => shipId !== 'aegis'), memberUids: [],
       });
       seed.set(db.doc(`activeMemberships/${gm}`), { uid: gm, sessionId: id, role: 'gm' });
       seed.set(navigation, {
         revision: 0,
         shipGalacticCoordinates: Object.fromEntries(ships.map((shipId) => [shipId, '0000'])),
         shipNavigationLogs: Object.fromEntries(ships.map((shipId) => [shipId, []])),
-        pursuitGroups: { 'fleet-1': 10 },
+        pursuitGroups: { 'fleet-1': 10, 'fleet-2': 10 },
         pursuitEmergencyWindow: emergencyWindow,
         systemHistory: {}, scoutedCoordinatesByShip: {},
       });
+      seed.set(gmProjection, { pursuitEmergencyWindow: emergencyWindow });
       seed.set(privateMovement, { movementState: movement, updatedAt: now });
       seed.set(arrivalPressure, {
         type: 'wolf-base-arrival-pressure-state',
@@ -432,6 +438,32 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
       assert.ok(pressure?.entries.some((entry) =>
         entry.sourceTransitionId === `jump-${requestId}` && entry.status === 'operational' &&
         entry.coordinate === '5143'));
+
+      const protectedAfterJump = (await navigation.get()).data();
+      const gmAfterJump = (await gmProjection.get()).data();
+      assert.equal(protectedAfterJump.pursuitGroups['fleet-2'], 10);
+      assert.ok(protectedAfterJump.pursuitGroups['fleet-1'] < 10);
+      assert.deepEqual(gmAfterJump.pursuitEmergencyWindow, {
+        ...emergencyWindow, navigationRevision: 1, groupIds: ['fleet-2'],
+      }, 'the GM view carries the current remaining-group decision instead of the prior revision');
+      assert.deepEqual(gmAfterJump.pursuitEmergencyWindow, protectedAfterJump.pursuitEmergencyWindow);
+      assert.equal((await session.get()).get('pursuitEmergencyWindow').status, 'offered');
+
+      const decision = await advanceTurn.run(request(gm, {
+        sessionId: id, instanceId: 'bridge', requestId: 'native-decline-current-window',
+        expectedTurn: 1, expectedPhase: 'coordination', expectedPhaseRevision: 1,
+        pursuitEmergencyDecision: 'decline',
+        expectedPursuitNavigationRevision: gmAfterJump.pursuitEmergencyWindow.navigationRevision,
+      }));
+      assert.equal(decision.phase, 'failure', 'the actual facilitator callable accepts the GM projection revision');
+      const [terminalHeader, terminalNavigation, terminalGm] = await Promise.all([
+        session.get(), navigation.get(), gmProjection.get(),
+      ]);
+      assert.equal(terminalHeader.get('pursuitEmergencyWindow'), undefined);
+      assert.equal(terminalNavigation.get('pursuitEmergencyWindow'), undefined);
+      assert.equal(terminalGm.get('pursuitEmergencyWindow'), undefined);
+      assert.deepEqual(terminalGm.get('voyage33Movement'), gmAfterJump.voyage33Movement,
+        'clearing pursuit authority retains private Voyage movement');
     } finally {
       await db.recursiveDelete(session);
       await db.doc(`activeMemberships/${gm}`).delete();
@@ -531,6 +563,35 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
       assert.deepEqual((await privateMovement.get()).get('movementState'), validMovement,
         'resume migrates a valid legacy record only after it revalidates the connected actor');
       assert.deepEqual((await gmProjection.get()).get('voyage33Movement'), validMovement);
+
+      const navigation = db.doc(`sessions/${id}/serverState/navigation`);
+      const currentWindow = {
+        type: 'pursuit-emergency-window', status: 'offered', cycle: 2,
+        navigationRevision: 0, groupIds: ['fleet-1'], openedAt: now,
+      };
+      const marker = {
+        type: currentWindow.type, status: currentWindow.status,
+        cycle: currentWindow.cycle, openedAt: currentWindow.openedAt,
+      };
+      await session.update({ pursuitEmergencyWindow: marker });
+      await navigation.update({ pursuitEmergencyWindow: currentWindow, pursuitGroups: { 'fleet-1': 10 } });
+      await resumeSession.run(request(member, { sessionId: id }));
+      assert.deepEqual((await gmProjection.get()).get('pursuitEmergencyWindow'), currentWindow,
+        'a complete navigation rebuild retains only current protected window authority');
+
+      for (const invalidWindow of [
+        { ...currentWindow, navigationRevision: 9 },
+        { ...currentWindow, groupIds: ['fleet-2'] },
+        { ...currentWindow, status: 'awaiting-gm-decision' },
+        { ...currentWindow, extra: 'malformed' },
+      ]) {
+        await navigation.update({ pursuitEmergencyWindow: invalidWindow });
+        await gmProjection.update({ pursuitEmergencyWindow: currentWindow });
+        await resumeSession.run(request(member, { sessionId: id }));
+        assert.equal((await gmProjection.get()).get('pursuitEmergencyWindow'), undefined,
+          'stale, mismatched and malformed authority is removed on an ordinary rebuild');
+        assert.deepEqual((await gmProjection.get()).get('voyage33Movement'), validMovement);
+      }
     } finally {
       await db.recursiveDelete(session);
       await Promise.all([

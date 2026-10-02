@@ -1279,6 +1279,67 @@ describe('App', () => {
     unmount();
   });
 
+  it.each(['replacement', 'loss-and-reclaim'] as const)(
+    'reauthorizes unchanged private Voyage data after a named GM claim %s', async (change) => {
+      const listeners: Array<Parameters<typeof subscribeSessionState>[2]> = [];
+      const unsubscriptions: Array<ReturnType<typeof vi.fn>> = [];
+      vi.mocked(subscribeSessionState).mockImplementation((_id, _uid, handlers) => {
+        listeners.push(handlers);
+        const unsubscribe = vi.fn();
+        unsubscriptions.push(unsubscribe);
+        return unsubscribe;
+      });
+      useSessionStore.getState().setIdentity(session, player);
+      const instance = {
+        id: 'bridge', sessionId: session.id, uid: player.uid,
+        name: 'Bridge', deviceLabel: 'Desktop', claimedAt: '2026-01-01T00:00:00.000Z',
+      };
+      useSessionStore.getState().setGmInstance(instance);
+      const { unmount } = render(<App />);
+      await waitFor(() => expect(listeners).toHaveLength(1));
+      const oldListener = listeners[0];
+      const movement = { id: 'voyage-33-0' as const, coordinate: '1413', revision: 2, jumpState: {} };
+      const privateView = {
+        voyage33MovementAuthority: 'current' as const,
+        voyage33MovementSessionId: session.id,
+        voyage33Movement: movement,
+      };
+      act(() => {
+        oldListener.onGmDiscovery?.(privateView);
+        oldListener.onSessionFreshness?.(true);
+      });
+      expect(useSessionStore.getState().voyage33MovementProjectionFresh).toBe(true);
+
+      if (change === 'loss-and-reclaim') {
+        act(() => useSessionStore.getState().setGmInstance(null));
+        expect(useSessionStore.getState().voyage33MovementProjectionFresh).toBe(false);
+        await waitFor(() => expect(listeners).toHaveLength(2));
+        act(() => oldListener.onGmDiscovery?.(privateView));
+        expect(useSessionStore.getState().session?.voyage33Movement).toBeUndefined();
+      }
+      const superseded = [...listeners];
+      act(() => useSessionStore.getState().setGmInstance({ ...instance, id: 'new-bridge' }));
+      expect(useSessionStore.getState().voyage33MovementProjectionFresh).toBe(false);
+      await waitFor(() => expect(listeners).toHaveLength(superseded.length + 1));
+      expect(unsubscriptions[0]).toHaveBeenCalledOnce();
+      act(() => superseded.forEach(listener => {
+        listener.onGmDiscovery?.(privateView);
+        listener.onSessionFreshness?.(true);
+      }));
+      expect(useSessionStore.getState().session?.voyage33Movement).toBeUndefined();
+      expect(useSessionStore.getState().voyage33MovementProjectionFresh).toBe(false);
+
+      // The same document is sufficient once a new server-authorized callback
+      // arrives; restoring the previous claim's buffered view is insufficient.
+      const current = listeners.at(-1)!;
+      act(() => current.onGmDiscovery?.(privateView));
+      act(() => current.onSessionFreshness?.(true));
+      expect(useSessionStore.getState().session?.voyage33Movement).toEqual(movement);
+      expect(useSessionStore.getState().voyage33MovementProjectionFresh).toBe(true);
+      unmount();
+    },
+  );
+
   it('joins the public pursuit marker to protected GM authority in either listener order and clears it in either order', async () => {
     let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
     vi.mocked(subscribeSessionState).mockImplementation((_id, _uid, next) => {

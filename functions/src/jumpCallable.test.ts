@@ -2737,3 +2737,43 @@ it('does not change fleet partitions while a Wolf attack awaits resolution', asy
   await expect(call.run(request({ sessionId: 's1', instanceId: 'bridge', expectedNavigationRevision: 0 }))).rejects.toThrow(/attack.*resolution|movement.*blocked/i);
   expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
 });
+
+
+it('publishes remaining pursuit-emergency authority after a host jump and clears a resolved window', async () => {
+  mock.pursuitGroups = { 'fleet-1': 10, 'fleet-2': 10 };
+  mock.fleetGroups = [
+    { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1'] },
+    { id: 'fleet-2', vesselIds: ['dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'], memberUids: ['u2'] },
+  ];
+  mock.players = [
+    { id: 'u1', fields: { role: 'gm', connected: true, fleetGroupId: 'fleet-1' } },
+    { id: 'u2', fields: { role: 'player', connected: true, fleetGroupId: 'fleet-2' } },
+  ];
+  mock.pursuitEmergencyWindow = {
+    type: 'pursuit-emergency-window', status: 'offered', cycle: 1,
+    navigationRevision: 0, groupIds: ['fleet-1', 'fleet-2'], openedAt: '2026-09-06T12:10:07.000Z',
+  };
+  const reply = await jumpShip.run(request({
+    ...data, requestId: 'remaining-group-emergency-projection', destination: '5143', emergency: true,
+  }));
+  expect(reply).toHaveProperty('pursuitEmergencyWindow.status', 'offered');
+  const protectedView = mock.set.mock.calls.find(([path]) => path === 'sessions/s1/serverState/navigation')?.[1];
+  const gmView = mock.set.mock.calls.find(([path]) => path === 'sessions/s1/gmDiscovery/current')?.[1];
+  expect(protectedView).toHaveProperty('pursuitEmergencyWindow.navigationRevision', 1);
+  expect(gmView?.pursuitEmergencyWindow).toEqual(protectedView?.pursuitEmergencyWindow);
+  expect(gmView).toHaveProperty('pursuitEmergencyWindow.groupIds', ['fleet-2']);
+  expect(mock.setOptions).toHaveBeenCalledWith('sessions/s1/gmDiscovery/current', {
+    mergeFields: expect.arrayContaining(['pursuitEmergencyWindow', 'voyage33Movement']),
+  });
+  const firstWrite = mock.transactionOperations.findIndex(operation => operation.kind === 'write');
+  expect(mock.transactionOperations.slice(firstWrite).every(operation => operation.kind === 'write')).toBe(true);
+
+  // A later, unrelated jump must remove old GM window authority when no group
+  // remains at the limit. It still publishes the private Voyage field it owns.
+  mock.pursuitEmergencyWindow = undefined;
+  mock.pursuitGroups = { 'fleet-1': 2, 'fleet-2': 2 };
+  mock.set.mockClear();
+  await jumpShip.run(request({ ...data, requestId: 'resolved-window-projection', destination: '5143' }));
+  const resolved = mock.set.mock.calls.find(([path]) => path === 'sessions/s1/gmDiscovery/current')?.[1];
+  expect(resolved).toHaveProperty('pursuitEmergencyWindow', 'delete-field');
+});
