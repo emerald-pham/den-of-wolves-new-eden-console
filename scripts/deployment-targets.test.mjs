@@ -1634,17 +1634,46 @@ test('selects the PC06 private navigation and shared index helper writers', () =
 
 const sha256 = source => createHash('sha256').update(source).digest('hex');
 const voyageHostSyncBaseline = 'cadb70a37c51119db684be24e969cb262ea5d59d';
-const voyageHostSyncConsumerNames = ['adjudicateFailedJump', 'jumpShip', 'moveShipToLocation', 'startGame'];
-for (const [file, mapPath, consumers] of [
+const voyagePrivacyBaseline = 'f27ecf0850132a2005a787c7218b015b9e71aca0';
+const voyagePrivacyConsumerNames = [
+  'adjudicateFailedJump', 'advanceTurn', 'commitAwayMissionLifecycleCommand', 'confirmFleetPartition',
+  'confirmSetup', 'getBoardingSecurityTeamLocations', 'joinSession', 'jumpShip', 'moveShipToLocation',
+  'resolvePendingScoutRequest', 'resumeSession', 'runMaintenance', 'setCandidatePlanCheckpoint',
+  'startGame', 'startSinglePlayerDemo',
+];
+test('maps the new private Voyage storage helper to every callable that reads or migrates it', () => {
+  const file = 'functions/src/voyage33MovementStorage.ts';
+  const current = readFileSync(file, 'utf8');
+  const consumers = [
+    'adjudicateFailedJump', 'dockVoyage33', 'joinSession', 'jumpShip', 'jumpVoyage33',
+    'moveShipToLocation', 'resumeSession',
+  ];
+  const dependencyMap = JSON.parse(readFileSync('scripts/pc06-deployment-consumers.json', 'utf8'));
+  const transition = dependencyMap.modules?.[file];
+  assert.equal(transition?.before, sha256(''));
+  assert.equal(transition?.after, sha256(current));
+  assert.deepEqual(transition?.consumers, consumers);
+  const sourceAtRevision = revision => revision === 'host-sync-baseline' ? '' : current;
+  assert.deepEqual(selectedFunctions(deploymentSelector({
+    before: 'host-sync-baseline', after: 'host-sync-candidate', files: [file], targets: ['functions'],
+    sourceAtRevision, isAncestor: () => false,
+  })), functionTargets(consumers));
+  assert.throws(() => deploymentSelector({
+    before: 'host-sync-baseline', after: 'host-sync-candidate', files: [file], targets: ['functions'],
+    sourceAtRevision: revision => revision === 'host-sync-baseline' ? '' : `${current}\n// unaudited edit`,
+    isAncestor: () => false,
+  }), /Cannot safely map PC06 .* outside its exact source consumer audit/);
+});
+for (const [file, mapPath, consumers, baseline = voyageHostSyncBaseline] of [
   ['functions/src/voyage33Movement.ts', 'modules', [
     'adjudicateFailedJump', 'dockVoyage33', 'joinSession', 'jumpShip', 'jumpVoyage33',
     'moveShipToLocation', 'resumeSession',
   ]],
-  ['functions/src/index.ts', 'indexTransitions', voyageHostSyncConsumerNames],
+  ['functions/src/index.ts', 'indexTransitions', voyagePrivacyConsumerNames, voyagePrivacyBaseline],
   ['functions/src/gorgoneionMissionSupportCallable.ts', 'modules', ['getGorgoneionMissionSupportProjection']],
 ]) {
   test(`maps the exact reconciled Voyage and mission-cursor consumers for ${file}`, () => {
-    const previous = execFileSync('git', ['show', `${voyageHostSyncBaseline}:${file}`], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+    const previous = execFileSync('git', ['show', `${baseline}:${file}`], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
     const current = readFileSync(file, 'utf8');
     const dependencyMap = JSON.parse(readFileSync('scripts/pc06-deployment-consumers.json', 'utf8'));
     const priorDigest = sha256(previous);

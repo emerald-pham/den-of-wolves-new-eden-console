@@ -13,7 +13,9 @@ const mock = vi.hoisted(() => ({
   get: vi.fn(),
   update: vi.fn(),
   set: vi.fn(),
+  setOptions: vi.fn(),
   delete: vi.fn(),
+  transactionOperations: [] as Array<{ kind: 'read' | 'write'; path: string }>,
   role: 'gm',
   owner: 'u1',
   connected: true,
@@ -63,6 +65,7 @@ const mock = vi.hoisted(() => ({
   voyage33Admission: undefined as Record<string, unknown> | undefined,
   admittedVesselIds: [] as string[],
   voyage33Movement: undefined as Record<string, unknown> | undefined,
+  legacyVoyage33Movement: undefined as Record<string, unknown> | undefined,
   voyage33Maintenance: undefined as Record<string, unknown> | undefined,
   missionOpportunityRecord: undefined as Record<string, unknown> | undefined,
   missionOpportunityRecordPath: undefined as string | undefined,
@@ -96,17 +99,34 @@ vi.mock('firebase-admin/firestore', () => ({
       const attempts = mock.transactionRetries + 1;
       for (let attempt = 0; attempt < attempts; attempt += 1) {
         const writes: Array<[string, Record<string, unknown>]> = [];
-        const sets: Array<[string, Record<string, unknown>]> = [];
+        const sets: Array<[string, Record<string, unknown>, Record<string, unknown>?]> = [];
         const deletes: string[] = [];
         result = await callback({
-          get: mock.get,
-          set: (ref: string | { path: string }, fields: Record<string, unknown>) => sets.push([typeof ref === 'string' ? ref : ref.path, fields]),
-          update: (path: string, fields: Record<string, unknown>) => writes.push([path, fields]),
-          delete: (path: string) => deletes.push(path),
+          get: (ref: string | { path: string }) => {
+            const path = typeof ref === 'string' ? ref : ref.path;
+            mock.transactionOperations.push({ kind: 'read', path });
+            return mock.get(ref);
+          },
+          set: (ref: string | { path: string }, fields: Record<string, unknown>, options?: Record<string, unknown>) => {
+            const path = typeof ref === 'string' ? ref : ref.path;
+            mock.transactionOperations.push({ kind: 'write', path });
+            sets.push([path, fields, options]);
+          },
+          update: (path: string, fields: Record<string, unknown>) => {
+            mock.transactionOperations.push({ kind: 'write', path });
+            writes.push([path, fields]);
+          },
+          delete: (path: string) => {
+            mock.transactionOperations.push({ kind: 'write', path });
+            deletes.push(path);
+          },
         });
         if (attempt === attempts - 1) {
           for (const [path, fields] of writes) mock.update(path, fields);
-          for (const [path, fields] of sets) mock.set(path, fields);
+          for (const [path, fields, options] of sets) {
+            mock.set(path, fields);
+            if (options) mock.setOptions(path, options);
+          }
           for (const path of deletes) mock.delete(path);
         }
       }
@@ -158,6 +178,7 @@ function setDockedVoyage(hostShipId = 'aegis') {
       integrityLockedUntil: '2026-09-06T12:10:07.000Z',
     },
   };
+  mock.legacyVoyage33Movement = undefined;
   const maintenance = emptyVoyage33MaintenanceState(hostShipId);
   mock.voyage33Maintenance = {
     ...maintenance,
@@ -223,6 +244,7 @@ beforeEach(() => {
   mock.voyage33Admission = undefined;
   mock.admittedVesselIds = [];
   mock.voyage33Movement = undefined;
+  mock.legacyVoyage33Movement = undefined;
   mock.voyage33Maintenance = undefined;
   mock.missionOpportunityRecord = undefined;
   mock.missionOpportunityRecordPath = undefined;
@@ -239,6 +261,7 @@ beforeEach(() => {
   mock.randomUUID.mockReturnValue('jump-event');
   mock.update.mockReset();
   mock.set.mockReset();
+  mock.setOptions.mockReset();
   mock.delete.mockReset();
   mock.get.mockImplementation(async (rawRef: unknown) => {
     const path = typeof rawRef === 'string'
@@ -357,7 +380,8 @@ beforeEach(() => {
           smallShipStates: mock.smallShipStates,
           voyage33Admission: mock.voyage33Admission,
           admittedVesselIds: mock.admittedVesselIds,
-          voyage33Movement: mock.voyage33Movement,
+          ...(mock.legacyVoyage33Movement === undefined
+            ? {} : { voyage33Movement: mock.legacyVoyage33Movement }),
           voyage33Maintenance: mock.voyage33Maintenance,
           activeRoleIds: mock.activeRoleIds,
           activeVesselIds: mock.activeVesselIds,
@@ -419,6 +443,17 @@ beforeEach(() => {
         get: (key: string) => protectedFields[key],
       };
     }
+    if (path === 'sessions/s1/serverState/voyage33Movement') {
+      const record = mock.voyage33Movement === undefined
+        ? undefined : { movementState: mock.voyage33Movement };
+      return {
+        exists: record !== undefined,
+        id: 'voyage33Movement',
+        ref: { path },
+        data: () => record,
+        get: (key: string) => record?.[key],
+      };
+    }
     const pathId = path.split('/').at(-1) ?? '';
     return {
       exists: true,
@@ -428,6 +463,7 @@ beforeEach(() => {
       get: (key: string) => fields[key],
     };
   });
+  mock.transactionOperations = [];
 });
 
 afterEach(() => {
@@ -1882,14 +1918,26 @@ it.each(['ordinary', 'emergency', 'adjudication', 'manual-location'] as const)(
     }
 
     const sessionPatch = mock.update.mock.calls.find(([path]) => path === 'sessions/s1')?.[1];
-    expect(sessionPatch).toMatchObject({
-      voyage33Movement: {
-        ...movementBefore,
-        coordinate: '5143',
-        revision: 12,
-      },
-    });
+    const movementAfter = { ...movementBefore, coordinate: '5143', revision: 12 };
+    expect(sessionPatch?.voyage33Movement).toBe('delete-field');
+    expect(mock.set).toHaveBeenCalledWith('sessions/s1/serverState/voyage33Movement', expect.objectContaining({
+      movementState: movementAfter,
+    }));
+    expect(mock.set).toHaveBeenCalledWith('sessions/s1/gmDiscovery/current', expect.objectContaining({
+      voyage33Movement: movementAfter,
+      voyage33MovementSessionId: 's1',
+    }));
+    expect(mock.setOptions).toHaveBeenCalledWith('sessions/s1/gmDiscovery/current', expect.objectContaining({
+      mergeFields: expect.arrayContaining(['voyage33Movement', 'voyage33MovementSessionId']),
+    }));
     expect(sessionPatch).not.toHaveProperty('voyage33Maintenance');
+    const privateReadIndex = mock.transactionOperations.findIndex((operation) =>
+      operation.kind === 'read' && operation.path === 'sessions/s1/serverState/voyage33Movement');
+    const firstWriteIndex = mock.transactionOperations.findIndex((operation) => operation.kind === 'write');
+    expect(privateReadIndex).toBeGreaterThanOrEqual(0);
+    expect(firstWriteIndex).toBeGreaterThan(privateReadIndex);
+    expect(mock.transactionOperations.slice(firstWriteIndex).filter((operation) => operation.kind === 'read'))
+      .toEqual([]);
   },
 );
 
@@ -1901,17 +1949,30 @@ it('reconciles a valid legacy Voyage left behind when its host moves again', asy
     jumpState: { lastJumpTurn: 0, emergencyJumpUsed: false },
   };
   const movementBefore = structuredClone(mock.voyage33Movement);
+  mock.voyage33Movement = undefined;
+  mock.legacyVoyage33Movement = movementBefore;
   const destination = neighborsForCoordinate('1413')?.[0];
   expect(destination).toBeTruthy();
 
   await jumpShip.run(request({ ...data, requestId: 'reconcile-stranded-voyage', destination: destination! }));
 
   const sessionPatch = mock.update.mock.calls.find(([path]) => path === 'sessions/s1')?.[1];
-  expect(sessionPatch?.voyage33Movement).toEqual({
+  const movementAfter = {
     ...movementBefore,
     coordinate: destination,
     revision: 1,
-  });
+  };
+  expect(sessionPatch?.voyage33Movement).toBe('delete-field');
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/serverState/voyage33Movement', expect.objectContaining({
+    movementState: movementAfter,
+  }));
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/gmDiscovery/current', expect.objectContaining({
+    voyage33Movement: movementAfter,
+    voyage33MovementSessionId: 's1',
+  }));
+  expect(mock.setOptions).toHaveBeenCalledWith('sessions/s1/gmDiscovery/current', expect.objectContaining({
+    mergeFields: expect.arrayContaining(['voyage33Movement', 'voyage33MovementSessionId']),
+  }));
 });
 
 it('leaves Voyage untouched when its valid host is a different vessel', async () => {
@@ -1922,7 +1983,7 @@ it('leaves Voyage untouched when its valid host is a different vessel', async ()
   await jumpShip.run(request({ ...data, requestId: 'foreign-docked-voyage', destination: '5143' }));
 
   const sessionPatch = mock.update.mock.calls.find(([path]) => path === 'sessions/s1')?.[1];
-  expect(sessionPatch).not.toHaveProperty('voyage33Movement');
+  expect(sessionPatch?.voyage33Movement).toBe('delete-field');
   expect(sessionPatch).not.toHaveProperty('voyage33Maintenance');
   expect(mock.voyage33Movement).toEqual(movementBefore);
   expect(mock.voyage33Maintenance).toEqual(maintenanceBefore);

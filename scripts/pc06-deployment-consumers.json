@@ -577,6 +577,19 @@
         "requestScout",
         "sendScoutTaxiCourier"
       ]
+    },
+    "functions/src/voyage33MovementStorage.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "b393da6255b5e9eac88639833d4a3bfbb3fe339706621e4443722ab072694cd5",
+      "consumers": [
+        "adjudicateFailedJump",
+        "dockVoyage33",
+        "joinSession",
+        "jumpShip",
+        "jumpVoyage33",
+        "moveShipToLocation",
+        "resumeSession"
+      ]
     }
   },
   "indexTransitions": [
@@ -610,6 +623,30 @@
         "startGame"
       ],
       "reason": "Reconciled core host movement sync and explicit zero mission-deck cursor at start; no other index behavior changes."
+    },
+    {
+      "baseline": "f27ecf0850132a2005a787c7218b015b9e71aca0",
+      "implementationCandidate": "fix/pc06-voyage-movement-privacy",
+      "before": "32ab3ddb968df443f532851320038a72a41b0edd71ffd2d1fcd840eb5f6ea0a6",
+      "after": "0797a3e85dde6d29b76f5029e1cd4a26cc628c256f3eeef86acf5550310893cd",
+      "consumers": [
+        "adjudicateFailedJump",
+        "advanceTurn",
+        "commitAwayMissionLifecycleCommand",
+        "confirmFleetPartition",
+        "confirmSetup",
+        "getBoardingSecurityTeamLocations",
+        "joinSession",
+        "jumpShip",
+        "moveShipToLocation",
+        "resolvePendingScoutRequest",
+        "resumeSession",
+        "runMaintenance",
+        "setCandidatePlanCheckpoint",
+        "startGame",
+        "startSinglePlayerDemo"
+      ],
+      "reason": "Private Voyage storage and session migration, private GM movement projection, explicit field-owned discovery updates, and preloaded host-movement arrival state. This includes every export that directly writes the composed GM view through publishDiscoveryProjections or its turn-pursuit helper, the candidate-plan GM projection writer, and the existing index export conservatively selected because its generated block contains the shared helper section."
     }
   ],
   "moduleTransitions": {

@@ -3982,7 +3982,7 @@ it('does not hydrate the organiser map from cache or a callback after read autho
     }),
   });
   callbacks[2]?.(snapshot(true));
-  expect(onGmDiscovery).not.toHaveBeenCalled();
+  expect(onGmDiscovery).toHaveBeenLastCalledWith(null);
   callbacks[2]?.(snapshot(false));
   expect(onGmDiscovery).toHaveBeenCalledWith(expect.objectContaining({
     shipGalacticCoordinates: expect.objectContaining({ aegis: '5143' }),
@@ -4043,6 +4043,11 @@ it('accepts Voyage only from a complete, session-scoped GM navigation projection
     ...complete, voyage33MovementSessionId: 's2', voyage33Movement: movement,
   }));
   expect(onGmDiscovery).toHaveBeenLastCalledWith(null);
+  callbacks[2]?.({ metadata: { fromCache: true }, exists: () => true,
+    data: () => ({ ...complete, voyage33MovementSessionId: 's1', voyage33Movement: movement }) });
+  expect(onGmDiscovery).toHaveBeenLastCalledWith(null);
+  callbacks[2]?.(snapshot({ ...complete, voyage33Movement: movement, voyage33MovementSessionId: 's1' }));
+  expect(onGmDiscovery).toHaveBeenLastCalledWith(expect.objectContaining({ voyage33Movement: movement }));
   callbacks[2]?.(snapshot({ voyage33MovementSessionId: 's1', voyage33Movement: movement }));
   expect(onGmDiscovery).toHaveBeenLastCalledWith(null);
 
@@ -4181,17 +4186,20 @@ it('does not let reconnect cache replace an authoritative own-ship discovery or 
   expect(ownProjection.systemHistory?.['5143']?.candidateDiscovery?.code).toBe('N');
   expect(ownProjection.systemHistory).not.toHaveProperty('6798');
   expect(ownProjection.systemHistory).not.toHaveProperty('4888');
-  expect(onGmDiscovery).toHaveBeenCalledTimes(1);
-  expect(onGmDiscovery.mock.lastCall?.[0]).toMatchObject({
+  expect(onGmDiscovery).toHaveBeenCalledTimes(2);
+  expect(onGmDiscovery.mock.calls[0]?.[0]).toMatchObject({
     shipGalacticCoordinates: expect.objectContaining({ aegis: '5143' }),
     pursuitGroups: { 'fleet-1': 2, 'fleet-2': 7 },
     shipFleetGroupIds: { aegis: 'fleet-1', dione: 'fleet-2' },
     candidatePlanCheckpoint: { cycle: 6, planExists: true },
   });
-  const gmProjection = onGmDiscovery.mock.lastCall?.[0] as { organiserSystemHistory?: Record<string, Record<string, { attempts: readonly { id: string }[]; candidateDiscovery?: { code: string } }>> };
+  expect(onGmDiscovery).toHaveBeenLastCalledWith(null);
+  const gmProjection = onGmDiscovery.mock.calls[0]?.[0] as { organiserSystemHistory?: Record<string, Record<string, { attempts: readonly { id: string }[]; candidateDiscovery?: { code: string } }>> };
   expect(gmProjection.organiserSystemHistory?.aegis?.['5143']?.attempts[0]?.id).toBe('attempt-1');
   expect(gmProjection.organiserSystemHistory?.aegis?.['5143']?.candidateDiscovery?.code).toBe('N');
   expect(gmProjection.organiserSystemHistory?.dione?.['8378']?.attempts[0]?.id).toBe('attempt-2');
+  expect(onGmDiscovery).toHaveBeenCalledTimes(2);
+  expect(onGmDiscovery).toHaveBeenLastCalledWith(null);
 });
 
 it('redacts cached candidate names, accepts only the exact code/title schema, and clears on read denial', () => {

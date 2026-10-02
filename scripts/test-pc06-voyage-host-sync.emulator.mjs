@@ -157,6 +157,14 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
       assert.deepEqual((await gmProjection.get()).get('voyage33Movement'), {
         ...movement, coordinate: hostDestination, revision: 1,
       });
+      const firstGmProjection = (await gmProjection.get()).data();
+      for (const field of [
+        'shipGalacticCoordinates', 'shipNavigationLogs', 'knownSystems', 'organiserSites',
+        'pursuitDistances', 'pursuitGroups', 'shipFleetGroupIds', 'revision',
+      ]) {
+        assert.ok(Object.hasOwn(firstGmProjection ?? {}, field),
+          `the GM movement projection remains a complete ${field} view`);
+      }
       assert.equal((await gmProjection.get()).get('shipGalacticCoordinates.aegis'), hostDestination,
         'the composed GM view includes its normal navigation projection');
       assert.deepEqual(afterHostJump?.voyage33Maintenance, maintenance,
@@ -180,6 +188,7 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
         ...movement, coordinate: hostDestination, revision: 1,
       }, 'a later ordinary navigation publication keeps the canonical Voyage movement projection');
       const coordinatesAfterNormalNavigation = (await navigation.get()).get('shipGalacticCoordinates');
+      const gmNavigationBeforeVoyageJump = (await gmProjection.get()).data();
       assert.deepEqual((await gmProjection.get()).get('shipGalacticCoordinates'), coordinatesAfterNormalNavigation,
         'the regular GM navigation view remains complete after its ordinary rebuild');
 
@@ -211,6 +220,14 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
       assert.deepEqual((await gmProjection.get()).get('shipGalacticCoordinates'),
         (await navigation.get()).get('shipGalacticCoordinates'),
         'Voyage-only field publication preserves the existing GM navigation fields');
+      const gmNavigationAfterVoyageJump = (await gmProjection.get()).data();
+      for (const field of [
+        'shipGalacticCoordinates', 'shipNavigationLogs', 'knownSystems', 'organiserSites',
+        'pursuitDistances', 'pursuitGroups', 'shipFleetGroupIds', 'revision',
+      ]) {
+        assert.deepEqual(gmNavigationAfterVoyageJump?.[field], gmNavigationBeforeVoyageJump?.[field],
+          `a partial Voyage projection write preserves GM navigation field ${field}`);
+      }
 
       await navigation.update({ 'shipGalacticCoordinates.dione': independentDestination });
       await session.update({
@@ -273,6 +290,154 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
     }
   });
 
+  test('native emergency host movement reads arrival pressure before its damage press-log write', async () => {
+    const id = `pc06-voyage-host-sync-emergency-${process.pid}`;
+    const gm = `${id}-gm`;
+    const session = db.doc(`sessions/${id}`);
+    const navigation = db.doc(`sessions/${id}/serverState/navigation`);
+    const privateMovement = db.doc(`sessions/${id}/serverState/voyage33Movement`);
+    const gmProjection = db.doc(`sessions/${id}/gmDiscovery/current`);
+    const arrivalPressure = db.doc(`sessions/${id}/serverState/wolfArrivalPressure/groups/fleet-1`);
+    const grant = db.doc(`sessions/${id}/gmInstances/bridge/private/shipConsoleWriteGrant`);
+    const ships = ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'];
+    const now = new Date().toISOString();
+    const phaseEnd = new Date(Date.now() + 20 * 60_000).toISOString();
+    const emergencyWindow = {
+      type: 'pursuit-emergency-window', status: 'offered', cycle: 1,
+      navigationRevision: 0, groupIds: ['fleet-1'], openedAt: now,
+    };
+    const movement = {
+      ...emptyVoyage33MovementState('0000'),
+      jumpState: { lastJumpTurn: 0, emergencyJumpUsed: false },
+    };
+    const maintenance = {
+      ...emptyVoyage33MaintenanceState('aegis'),
+      dockingRevision: 1,
+      population: 26_500,
+      unrest: 4,
+      cycle: {
+        step: 4, revision: 8, results: { '1': 'Rations were recorded.' },
+        charges: ['hydroponics'], turn: 1, rationBonus: 18,
+      },
+    };
+    const resources = Object.fromEntries(ships.map((shipId) => [
+      shipId,
+      { ...INITIAL_SHIP_RESOURCES[shipId], fuel: 0 },
+    ]));
+    const priorPressure = {
+      type: 'wolf-base-arrival-pressure', status: 'operational', groupId: 'fleet-1',
+      chart: 'A', coordinate: '4454', siteCode: 'M', sourceShipId: 'aegis',
+      sourceTransitionId: 'arrival-before-emergency', cycle: 1, revision: 1,
+      attackStatus: 'scheduled', arrivalTiming: 'immediate', minimumBattleStations: 2,
+      minimumOtherShipDamage: 25, missionAccess: 'blockedWhileWolfBaseOperational',
+      recurringUntil: ['baseDestroyed', 'jumpAway'],
+    };
+    const requestId = 'native-emergency-read-order';
+
+    try {
+      const seed = db.batch();
+      seed.set(session, {
+        phase: 'active', currentTurn: 1, setupRevision: 0, playerCount: 8, chartId: 'A',
+        chartSelectionLocked: true, configurationLocked: true, ownerUid: gm,
+        activeRoleIds: [], activeVesselIds: ships, admittedVesselIds: [VOYAGE_33_ID],
+        voyage33Admission: {
+          type: 'voyage-admission', sessionId: id, id: VOYAGE_33_ID, status: 'admitted',
+          crisisId: 'approach-1', crisisRevision: 2, population: 40_000, unrest: 0,
+          hostShipId: null, commitments: VOYAGE_33_COMMITMENTS,
+        },
+        voyage33Maintenance: maintenance,
+        shipResources: resources,
+        shipDamage: Object.fromEntries(ships.map((shipId) => [
+          shipId, { damagedSystemIds: [], destroyed: false },
+        ])),
+        shipSurvivors: { aegis: 2500 }, shipUnrest: {}, shipMutinies: {}, shipUpgrades: {},
+        shipJumpStates: { aegis: { emergencyJumpUsed: false } },
+        shipJumpTransitions: {}, vesselActionRevisions: {},
+        maintenanceCycles: Object.fromEntries(ships.map((shipId) => [
+          shipId, { turn: 1, step: 0, revision: 0, results: {}, charges: [] },
+        ])),
+        missionCraftCommitments: {}, smallShipStates: {},
+        pursuitEmergencyWindow: {
+          type: emergencyWindow.type, status: emergencyWindow.status,
+          cycle: emergencyWindow.cycle, openedAt: emergencyWindow.openedAt,
+        },
+        turnPhase: {
+          turn: 1, teamPhaseEndsAt: phaseEnd, openAirspaceEndsAt: phaseEnd,
+          airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+        },
+        turnState: {
+          currentTurn: 1, maxTurn: 6, phase: 'coordination', phaseRevision: 1,
+          startedAt: now, endsAt: phaseEnd,
+        },
+        createdAt: now, updatedAt: now,
+      });
+      seed.set(db.doc(`sessions/${id}/players/${gm}`), {
+        uid: gm, sessionId: id, role: 'gm', connected: true, fleetGroupId: 'fleet-1',
+        assignedRoleId: null, displayName: 'Emulator emergency fixture', joinedAt: now,
+      });
+      seed.set(db.doc(`sessions/${id}/gmInstances/bridge`), {
+        uid: gm, connected: true, lastSeenAt: now,
+      });
+      seed.set(db.doc(`sessions/${id}/fleetGroups/fleet-1`), {
+        id: 'fleet-1', vesselIds: ships, memberUids: [gm],
+      });
+      seed.set(db.doc(`activeMemberships/${gm}`), { uid: gm, sessionId: id, role: 'gm' });
+      seed.set(navigation, {
+        revision: 0,
+        shipGalacticCoordinates: Object.fromEntries(ships.map((shipId) => [shipId, '0000'])),
+        shipNavigationLogs: Object.fromEntries(ships.map((shipId) => [shipId, []])),
+        pursuitGroups: { 'fleet-1': 10 },
+        pursuitEmergencyWindow: emergencyWindow,
+        systemHistory: {}, scoutedCoordinatesByShip: {},
+      });
+      seed.set(privateMovement, { movementState: movement, updatedAt: now });
+      seed.set(arrivalPressure, {
+        type: 'wolf-base-arrival-pressure-state',
+        groupId: 'fleet-1', chart: 'A', revision: 1, entries: [priorPressure],
+      });
+      await seed.commit();
+      await grant.set({
+        type: 'gm-ship-console-write-grant', sessionId: id, instanceId: 'bridge',
+        uid: gm, shipId: 'aegis', grantedAt: now,
+      });
+
+      const reply = await jumpShip.run(request(gm, {
+        sessionId: id, instanceId: 'bridge', shipId: 'aegis', destination: '5143',
+        requestId, emergency: true,
+      }));
+      assert.equal(reply.status, 'jumped');
+      assert.equal(reply.emergency, true);
+      assert.equal((await session.get()).get('voyage33Movement'), undefined,
+        'emergency movement also leaves the member-readable header empty');
+      assert.deepEqual((await privateMovement.get()).get('movementState'), {
+        ...movement, coordinate: '5143', revision: 1,
+      });
+      assert.deepEqual((await gmProjection.get()).get('voyage33Movement'), {
+        ...movement, coordinate: '5143', revision: 1,
+      });
+      const survivorsAfterEmergency = (await session.get()).get('shipSurvivors.aegis');
+      assert.ok(survivorsAfterEmergency < 2500,
+        'the emergency jump applies its guaranteed Jump Drive damage consequence');
+      const pressLog = await db.collection(`sessions/${id}/pressLog`).get();
+      assert.ok(pressLog.docs.some((entry) => {
+        const value = entry.data();
+        return value.sourceId === `ship-damage:${requestId}` && value.cause === 'ship-damage' &&
+          value.fromPopulation === 2500 && value.toPopulation === survivorsAfterEmergency;
+      }), 'the actual handler writes its damage press-log event in this transaction');
+      const pressure = (await arrivalPressure.get()).data();
+      assert.equal(pressure?.revision, 2,
+        'the transaction reads and updates the existing arrival-pressure document');
+      assert.ok(pressure?.entries.some((entry) =>
+        entry.sourceTransitionId === 'arrival-before-emergency' && entry.status === 'departed'));
+      assert.ok(pressure?.entries.some((entry) =>
+        entry.sourceTransitionId === `jump-${requestId}` && entry.status === 'operational' &&
+        entry.coordinate === '5143'));
+    } finally {
+      await db.recursiveDelete(session);
+      await db.doc(`activeMemberships/${gm}`).delete();
+    }
+  });
+
   test('native join and resume authorize, validate, and atomically migrate legacy movement', async () => {
     const id = `pc06-voyage-host-sync-join-${process.pid}`;
     const gm = `${id}-gm`;
@@ -297,7 +462,7 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
         voyage33Admission: {
           type: 'voyage-admission', sessionId: id, id: VOYAGE_33_ID, status: 'admitted',
           crisisId: 'approach-1', crisisRevision: 2, population: 40_000, unrest: 0,
-          hostShipId: 'aegis', commitments: VOYAGE_33_COMMITMENTS,
+          hostShipId: null, commitments: VOYAGE_33_COMMITMENTS,
         },
         voyage33Movement: { ...validMovement, coordinate: '9999' },
         voyage33Maintenance: {

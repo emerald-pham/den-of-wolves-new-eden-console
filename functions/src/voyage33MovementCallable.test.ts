@@ -10,7 +10,7 @@ type Stored = Record<string, unknown>;
 
 class MemoryFirestore {
   readonly documents = new Map<string, Stored>();
-  readonly writes: Array<{ kind: 'set' | 'update'; path: string; value: Stored }> = [];
+  readonly writes: Array<{ kind: 'set' | 'update' | 'delete'; path: string; value?: Stored }> = [];
   failWritePath: string | undefined;
   private tail: Promise<unknown> = Promise.resolve();
 
@@ -20,7 +20,7 @@ class MemoryFirestore {
 
   runTransaction<T>(work: (tx: unknown) => Promise<T>): Promise<T> {
     const transaction = this.tail.then(async () => {
-      const staged: Array<{ kind: 'set' | 'update'; path: string; value: Stored }> = [];
+      const staged: Array<{ kind: 'set' | 'update' | 'delete'; path: string; value?: Stored; mergeFields?: string[] }> = [];
       const tx = {
         get: async (reference: { path: string }) => {
           const value = this.documents.get(reference.path);
@@ -33,22 +33,29 @@ class MemoryFirestore {
             data: () => data,
           };
         },
-        set: (reference: { path: string }, value: Stored) => {
+        set: (reference: { path: string }, value: Stored, options?: { mergeFields?: string[] }) => {
           if (reference.path === this.failWritePath) throw new Error('simulated transaction write failure');
-          staged.push({ kind: 'set', path: reference.path, value: structuredClone(value) });
+          staged.push({ kind: 'set', path: reference.path, value: structuredClone(value), mergeFields: options?.mergeFields });
         },
         update: (reference: { path: string }, value: Stored) => {
           if (!this.documents.has(reference.path)) throw new Error('document missing');
           if (reference.path === this.failWritePath) throw new Error('simulated transaction write failure');
           staged.push({ kind: 'update', path: reference.path, value: structuredClone(value) });
         },
+        delete: (reference: { path: string }) => {
+          if (reference.path === this.failWritePath) throw new Error('simulated transaction write failure');
+          staged.push({ kind: 'delete', path: reference.path });
+        },
       };
 
       const result = await work(tx);
       for (const write of staged) {
         this.writes.push(write);
-        if (write.kind === 'set') this.documents.set(write.path, write.value);
-        else this.applyUpdate(write.path, write.value);
+        if (write.kind === 'delete') this.documents.delete(write.path);
+        else if (write.kind === 'set') {
+          if (write.mergeFields) this.applyMaskedSet(write.path, write.value!, write.mergeFields);
+          else this.documents.set(write.path, write.value!);
+        } else this.applyUpdate(write.path, write.value!);
       }
       return result;
     });
@@ -69,14 +76,31 @@ class MemoryFirestore {
           : {};
         target = target[segment] as Stored;
       }
-      target[segments.at(-1)!] = structuredClone(value);
+      if (isDeleteField(value)) delete target[segments.at(-1)!];
+      else target[segments.at(-1)!] = structuredClone(value);
+    }
+    this.documents.set(path, next);
+  }
+
+  private applyMaskedSet(path: string, value: Stored, fields: string[]) {
+    const next = structuredClone(this.documents.get(path) ?? {});
+    for (const field of fields) {
+      const fieldValue = value[field];
+      if (isDeleteField(fieldValue)) delete next[field];
+      else if (fieldValue !== undefined) next[field] = structuredClone(fieldValue);
     }
     this.documents.set(path, next);
   }
 }
 
+function isDeleteField(value: unknown): boolean {
+  return typeof value === 'object' && value !== null && (value as { __deleteField?: boolean }).__deleteField === true;
+}
+
 const sessionPath = 'sessions/s1';
 const navigationPath = navigationStateDocumentPath('s1');
+const movementPath = 'sessions/s1/serverState/voyage33Movement';
+const gmDiscoveryPath = 'sessions/s1/gmDiscovery/current';
 const currentTime = new Date('2026-09-30T15:00:00.000Z');
 const admission = {
   type: 'voyage-admission',
@@ -138,6 +162,12 @@ function seed(overrides: Stored = {}) {
     shipGalacticCoordinates: { aegis: '0000', dione: '0000' },
     shipNavigationLogs: {},
   });
+  db.documents.set(gmDiscoveryPath, {
+    shipGalacticCoordinates: { aegis: '0000', dione: '0000' },
+    shipNavigationLogs: { aegis: [{ turn: 1, coordinate: '0000' }] },
+    knownSystems: { LYS: '0000' },
+    revision: 4,
+  });
   const requireShipCounterAuthority = vi.fn(async (_tx: unknown, _sessionId: string, uid: string) => {
     if (uid !== 'u1') throw new HttpsError('permission-denied', 'Active ship authority required.');
   });
@@ -149,6 +179,7 @@ function seed(overrides: Stored = {}) {
     },
     requireShipCounterAuthority,
     serverTimestamp: () => 'server-time',
+    deleteField: () => ({ __deleteField: true }),
     now: () => currentTime,
   });
   return { db, callables, requireShipCounterAuthority };
@@ -185,9 +216,16 @@ describe('Voyage 33-0 movement callable adapter', () => {
     });
 
     const committed = db.documents.get(sessionPath)!;
-    expect(committed).toMatchObject({
+    expect(committed).not.toHaveProperty('voyage33Movement');
+    expect(committed).toMatchObject({ voyage33Maintenance: { hostShipId: 'aegis', dockingRevision: 1 } });
+    expect(db.documents.get(movementPath)).toMatchObject({
+      movementState: { coordinate: '0000', revision: 0 },
+    });
+    expect(db.documents.get(gmDiscoveryPath)).toMatchObject({
       voyage33Movement: { coordinate: '0000', revision: 0 },
-      voyage33Maintenance: { hostShipId: 'aegis', dockingRevision: 1 },
+      voyage33MovementSessionId: 's1',
+      shipNavigationLogs: { aegis: [{ turn: 1, coordinate: '0000' }] },
+      knownSystems: { LYS: '0000' },
     });
     expect(db.documents.has('sessions/s1/voyage33MovementRequests/dock-1')).toBe(true);
     expect(db.documents.get('sessions/s1/commandReceipts/dock-1')).toMatchObject({
@@ -277,11 +315,12 @@ describe('Voyage 33-0 movement callable adapter', () => {
     expect(result).not.toHaveProperty('actorUid');
     expect(result).not.toHaveProperty('fingerprint');
     expect(result).not.toHaveProperty('hostResources');
+    expect(db.documents.get(sessionPath)).not.toHaveProperty('voyage33Movement');
     expect(db.documents.get(sessionPath)).toMatchObject({
       shipResources: { aegis: { fuel: 0 } },
-      voyage33Movement: { coordinate: destination, revision: 1 },
       voyage33Maintenance: { hostShipId: null, dockingRevision: 4 },
     });
+    expect(db.documents.get(movementPath)).toMatchObject({ movementState: { coordinate: destination, revision: 1 } });
   });
 
   it('rejects insufficient host fuel without movement, undocking, or a partial debit', async () => {
@@ -303,7 +342,13 @@ describe('Voyage 33-0 movement callable adapter', () => {
     const before = structuredClone(db.documents.get(sessionPath));
     await expect(callables.jumpVoyage33(request({ ...jumpRequest, expectedMovementRevision: 1 })))
       .resolves.toMatchObject({ status: 'stale', expectedMovementRevision: 1, currentMovementRevision: 0 });
-    expect(db.documents.get(sessionPath)).toEqual(before);
+    const afterLegacyMigration = structuredClone(db.documents.get(sessionPath)!);
+    delete afterLegacyMigration.voyage33Movement;
+    const beforeWithoutLegacyCoordinate = structuredClone(before);
+    delete beforeWithoutLegacyCoordinate.voyage33Movement;
+    beforeWithoutLegacyCoordinate.updatedAt = 'server-time';
+    expect(afterLegacyMigration).toEqual(beforeWithoutLegacyCoordinate);
+    expect(db.documents.get(movementPath)).toMatchObject({ movementState: emptyVoyage33MovementState('0000') });
     await expect(callables.jumpVoyage33(request({
       ...jumpRequest, requestId: 'stale-dock', expectedDockingRevision: 2,
     }))).resolves.toMatchObject({
@@ -315,7 +360,8 @@ describe('Voyage 33-0 movement callable adapter', () => {
       },
       result: { status: 'stale', requestId: 'stale-dock' },
     });
-    expect(db.documents.get(sessionPath)).toEqual(before);
+    expect(db.documents.get(sessionPath)).not.toHaveProperty('voyage33Movement');
+    expect(db.documents.get(sessionPath)).toMatchObject({ updatedAt: 'server-time' });
   });
 
   it.each([
@@ -422,10 +468,11 @@ describe('Voyage 33-0 movement callable adapter', () => {
       callables.jumpVoyage33(request({ ...jumpRequest, requestId: 'compete-b' })),
     ]);
     expect([left.status, right.status].sort()).toEqual(['jumped', 'stale']);
+    expect(db.documents.get(sessionPath)).not.toHaveProperty('voyage33Movement');
     expect(db.documents.get(sessionPath)).toMatchObject({
       shipResources: { aegis: { fuel: 1 } },
-      voyage33Movement: { revision: 1 },
       voyage33Maintenance: { dockingRevision: 4 },
     });
+    expect(db.documents.get(movementPath)).toMatchObject({ movementState: { revision: 1 } });
   });
 });

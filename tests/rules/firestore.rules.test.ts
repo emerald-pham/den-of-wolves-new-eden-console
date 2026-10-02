@@ -1104,6 +1104,9 @@ describe('session header', () => {
       jumpState: { lastJumpTurn: 2, emergencyJumpUsed: false },
     };
     await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `${SESSION}/players/crossFleet`), {
+        uid: 'crossFleet', role: 'player', displayName: 'Other fleet', fleetGroupId: 'fleet-2', connected: true,
+      });
       await updateDoc(doc(ctx.firestore(), SESSION), { voyage33Movement: legacyMovement });
       await setDoc(doc(ctx.firestore(), `${SESSION}/serverState/voyage33Movement`), {
         movementState: legacyMovement,
@@ -1114,23 +1117,37 @@ describe('session header', () => {
     });
 
     await assertFails(getDoc(doc(as('alice'), SESSION)));
+    await assertFails(getDoc(doc(as('crossFleet'), SESSION)));
+    await assertFails(getDocs(collection(as('alice'), 'sessions')));
+    await assertFails(getDocs(collection(as('gm1'), 'sessions')));
     const gmHeader = await assertSucceeds(getDoc(doc(as('gm1'), SESSION)));
     expect(gmHeader.data()?.voyage33Movement).toEqual(legacyMovement);
     await assertFails(getDoc(doc(as('alice'), `${SESSION}/serverState/voyage33Movement`)));
+    await assertFails(getDoc(doc(as('crossFleet'), `${SESSION}/serverState/voyage33Movement`)));
     await assertFails(getDoc(doc(as('gm1'), `${SESSION}/serverState/voyage33Movement`)));
     await assertFails(getDoc(doc(as('alice'), `${SESSION}/gmDiscovery/current`)));
+    await assertFails(getDoc(doc(as('crossFleet'), `${SESSION}/gmDiscovery/current`)));
     expect((await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/gmDiscovery/current`))))
       .data()?.voyage33Movement).toEqual(legacyMovement);
     await assertFails(getDocs(collection(as('gm1'), `${SESSION}/serverState`)));
+    await assertFails(getDocs(collection(as('alice'), `${SESSION}/serverState`)));
+    await assertFails(getDocs(collection(as('crossFleet'), `${SESSION}/serverState`)));
     await assertFails(setDoc(doc(as('gm1'), `${SESSION}/serverState/voyage33Movement`), {
       movementState: { ...legacyMovement, coordinate: '5143' },
     }));
+    await assertFails(updateDoc(doc(as('gm1'), `${SESSION}/gmDiscovery/current`), {
+      voyage33Movement: { ...legacyMovement, coordinate: '5143' },
+    }));
+    await assertFails(updateDoc(doc(as('alice'), SESSION), { voyage33Movement: deleteField() }));
+    await assertFails(updateDoc(doc(as('gm1'), SESSION), { voyage33Movement: deleteField() }));
 
     await env.withSecurityRulesDisabled(async (ctx) => {
       await updateDoc(doc(ctx.firestore(), SESSION), { voyage33Movement: deleteField() });
     });
     const migratedHeader = await assertSucceeds(getDoc(doc(as('alice'), SESSION)));
     expect(migratedHeader.data()).not.toHaveProperty('voyage33Movement');
+    expect((await assertSucceeds(getDoc(doc(as('crossFleet'), SESSION)))).data())
+      .not.toHaveProperty('voyage33Movement');
   });
 
   it('keeps fleet-group membership and vessel tuples server-only', async () => {
