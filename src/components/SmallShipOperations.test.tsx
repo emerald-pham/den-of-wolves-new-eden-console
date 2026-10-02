@@ -218,3 +218,58 @@ it.each([
     consoles: capacity === 1 ? ['repair-drones'] : ['repair-drones', 'missile-array'],
   });
 });
+
+it.each([
+  ['Gorgoneion', 'gorgoneion', 'Repair Drones', 'repair-drones'],
+  ['base Capybara', 'capybara-small', 'Water Reclimator', 'water-reclimator'],
+] as const)('lets the GM charge %s Jump Drive alongside %s within two charges', async (name, id, secondConsole, secondId) => {
+  const user = userEvent.setup();
+  const session = useSessionStore.getState().session!;
+  useSessionStore.getState().setSession({
+    ...session,
+    smallShipStates: {
+      ...session.smallShipStates,
+      [id]: {
+        id, hostShipId: 'aegis', dockingRevision: 1, population: id === 'gorgoneion' ? 1_000 : 2_000, unrest: 0,
+        cycle: { step: 4, revision: 12, results: {}, charges: [], turn: 2, chargingSkipped: false },
+      },
+    },
+  } as never);
+  render(<SmallShipOperations />);
+
+  const craft = screen.getByRole('region', { name: `${name} small-ship operations` });
+  const jumpDrive = within(craft).getByRole('checkbox', { name: 'Jump Drive' });
+  const second = within(craft).getByRole('checkbox', { name: secondConsole });
+  await user.click(jumpDrive);
+  await user.click(second);
+
+  for (const choice of within(craft).getAllByRole('checkbox')) {
+    if (choice === jumpDrive || choice === second) expect(choice).toBeEnabled();
+    else expect(choice).toBeDisabled();
+  }
+
+  await user.click(within(craft).getByRole('button', { name: 'Charge selected consoles' }));
+  expect(runSmallShipMaintenance).toHaveBeenCalledWith(id, 'reactor', 12, {
+    consoles: ['jump-drive', secondId],
+  });
+});
+
+it('keeps the base Capybara Jump Drive selector unavailable when the expansion ship is active', () => {
+  const session = useSessionStore.getState().session!;
+  useSessionStore.getState().setSession({
+    ...session,
+    expansion: 'capybara', capybaraEnabled: true,
+    smallShipStates: {
+      ...session.smallShipStates,
+      'capybara-small': {
+        id: 'capybara-small', hostShipId: 'aegis', dockingRevision: 1, population: 2_000, unrest: 0,
+        cycle: { step: 4, revision: 12, results: {}, charges: [], turn: 2 },
+      },
+    },
+  } as never);
+  render(<SmallShipOperations />);
+
+  const capybara = screen.getByRole('region', { name: 'Capybara small-ship operations' });
+  expect(within(capybara).getByText(/unavailable.*expansion Capybara uses the full-ship rules/i)).toBeVisible();
+  expect(within(capybara).queryByRole('checkbox', { name: 'Jump Drive' })).not.toBeInTheDocument();
+});

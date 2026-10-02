@@ -266,6 +266,47 @@ it('runs maintenance against only the docked host ledger and persists a replay r
   expect(receiptCall?.[1]).toEqual(expect.objectContaining({ reply: expect.objectContaining({ status: 'committed' }) }));
 });
 
+it('commits the Jump Drive and Repair Drones together in one authorized GM reactor transaction', async () => {
+  const state = emptySmallShipState('gorgoneion', 'aegis');
+  mock.session.smallShipStates = {
+    gorgoneion: {
+      ...state,
+      dockingRevision: 1,
+      cycle: {
+        step: 4, revision: 4, turn: 1, rationBonus: 0, chargingSkipped: false,
+        results: { '1': 'Rations complete.', '2': 'Unrest resolved.', '3': 'Population check complete.' },
+        charges: [],
+      },
+    },
+  };
+
+  const command = {
+    ...maintenanceBase,
+    requestId: 'gorg-jump-repair-combined',
+    action: 'reactor',
+    expectedRevision: 4,
+    consoles: ['jump-drive', 'repair-drones'],
+  };
+  const reply = await runSmallShipMaintenance.run(request(command));
+
+  expect(reply).toMatchObject({
+    status: 'committed', action: 'reactor', expectedRevision: 4, committedRevision: 5,
+    cycle: { step: 5, revision: 5, charges: ['jump-drive', 'repair-drones'] },
+  });
+  const update = mock.update.mock.calls.find(([path]) => path === 'sessions/s1');
+  expect(update?.[1]).toEqual(expect.objectContaining({
+    'smallShipStates.gorgoneion': expect.objectContaining({
+      cycle: expect.objectContaining({ step: 5, revision: 5, charges: ['jump-drive', 'repair-drones'] }),
+    }),
+    'shipResources.aegis': expect.objectContaining({ fuel: 4, materials: 1, food: 8, water: 6 }),
+  }));
+  const receipt = mock.set.mock.calls.find(([path]) => path === 'sessions/s1/smallShipRequests/gorg-jump-repair-combined');
+  expect(receipt?.[1]).toMatchObject({
+    fingerprint: expect.objectContaining({ action: 'reactor', expectedRevision: 4, consoles: ['jump-drive', 'repair-drones'] }),
+    reply: expect.objectContaining({ status: 'committed', committedRevision: 5 }),
+  });
+});
+
 it('binds small-ship maintenance to the live craft Captain instead of a host console', async () => {
   mock.session.smallShipStates = { gorgoneion: emptySmallShipState('gorgoneion', 'aegis') };
   mock.role = 'player';
