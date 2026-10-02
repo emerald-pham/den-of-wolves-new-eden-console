@@ -1633,6 +1633,7 @@ test('selects the PC06 private navigation and shared index helper writers', () =
 });
 
 const sha256 = source => createHash('sha256').update(source).digest('hex');
+const voyageHostSyncBaseline = 'cadb70a37c51119db684be24e969cb262ea5d59d';
 const voyageHostSyncConsumerNames = ['adjudicateFailedJump', 'jumpShip', 'moveShipToLocation'];
 for (const [file, mapPath, consumers] of [
   ['functions/src/voyage33Movement.ts', 'modules', [
@@ -1642,7 +1643,7 @@ for (const [file, mapPath, consumers] of [
   ['functions/src/index.ts', 'indexTransitions', voyageHostSyncConsumerNames],
 ]) {
   test(`maps the exact Voyage host movement consumers for ${file}`, () => {
-    const previous = execFileSync('git', ['show', `HEAD:${file}`], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+    const previous = execFileSync('git', ['show', `${voyageHostSyncBaseline}:${file}`], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
     const current = readFileSync(file, 'utf8');
     const dependencyMap = JSON.parse(readFileSync('scripts/pc06-deployment-consumers.json', 'utf8'));
     const priorDigest = sha256(previous);
