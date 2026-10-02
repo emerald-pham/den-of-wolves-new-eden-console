@@ -92,8 +92,11 @@ for ordinary Voyage gameplay or physical-device proof.
 The screenshots are local renders of the exact React panel, product CSS, and
 frame composition. They establish a reproducible rendered defect and repair;
 they are not evidence of authenticated production gameplay or physical-device
-rendering. Deployment evidence is recorded separately above; the complete
-checkpoint's remaining ordinary proof and final audit report remain required.
+rendering. Deployment evidence is recorded separately above. PC06 is now complete under
+the user's seven-production/42-local verification authorization; the final
+0.5.64 local profile, CI37071038158 attempt2 and exact-main Deploy37075527555
+also passed the extended gate. The checkpoint report delivers this audit and
+retains its coverage limitations.
 
 The gate remains representative coverage with an explicit surface inventory;
 it does not automatically discover every future component or dynamic state.

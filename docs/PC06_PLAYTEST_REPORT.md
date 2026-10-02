@@ -1,6 +1,6 @@
 # PC06 vessel movement and away missions
 
-The final 0.5.64 candidate verifies all **49 assigned acceptances** and reconciles **556/751 overall (74.03%)**, **98/293 campaign closures (33.45%)**. The opening baseline was 507/751 and 49/293; this adds exactly 49 assigned closures, with no recovered extra credit, reopened IDs or scope changes. Seven acceptances retain ordinary production proof; 42 use the user's explicitly authorized representative local/emulator approach. Final release gates and deployment are still pending; production remains 0.5.63 until they pass. [The matrix](PC06_ACCEPTANCE_MATRIX.md) records each environment and result. Prepared review scenes alone add no credit.
+The released 0.5.64 checkpoint verifies all **49 assigned acceptances** and reconciles **556/751 overall (74.03%)**, **98/293 campaign closures (33.45%)**. The opening baseline was 507/751 and 49/293; this adds exactly 49 assigned closures, with no recovered extra credit, reopened IDs or scope changes. Seven acceptances retain ordinary production proof; 42 use the user's explicitly authorized representative local/emulator approach. Required final gates and deployment pass. The served Settings display confirms Build0.5.64 and 556/751 (74.03%), with the local GM control absent from production. [The matrix](PC06_ACCEPTANCE_MATRIX.md) records each environment and result. Prepared review scenes alone add no credit.
 
 The local GM control is complete and independently reviewed. It is available only in an explicitly opted-in Vite development server connected to a `demo-` emulator project. It seeds the normal short-lived emulator GM access lease; the normal server instance claim, callables and Rules still own authorization. Loopback, Origin/Host, local ports, project-bound Auth lookup/token checks and negative production-build tests fail closed. Production builds contain no executable helper/control, including a poisoned opt-in build. [Usage and isolation](LOCAL_GM_ACCESS.md) give the two startup commands.
 
@@ -12,7 +12,7 @@ The actual local blind-jump outcome is retained at [the shareable capture](/User
 
 ## Solo review access
 
-The candidate contains `pc06-review.html`, an isolated interactive scene using the real movement, Jump Drive, trade, scout, group-note, mission, and Repair Drones presentations. It labels every prepared state and local callback. It sends no gameplay command and changes no shared inventory. The [deployed solo review scene](https://dow-new-eden-console.web.app/pc06-review.html) is included in this hosting build. Its prepared local state supplies presentation review, not ordinary multiplayer or callable proof.
+The release contains `pc06-review.html`, an isolated interactive scene using the real movement, Jump Drive, trade, scout, group-note, mission, and Repair Drones presentations. It labels every prepared state and local callback. It sends no gameplay command and changes no shared inventory. The [deployed solo review scene](https://dow-new-eden-console.web.app/pc06-review.html) is included in this hosting build. Its prepared local state supplies presentation review, not ordinary multiplayer or callable proof.
 
 The four numbered tabs cover movement; cargo, repair and trade; scouting and fleet-group notes; and away-mission assignment, outcome and recovery. The agreed five owner checks remain in [the checkpoint definition](PRODUCT_MILESTONES.md). The owner can inspect presentation without building a multiplayer session; agents retain responsibility for authority, privacy, arithmetic, replay and ordinary gameplay proof.
 
@@ -31,6 +31,31 @@ the 49 ordinary-path checks:
    drop-off, and reconnect recovery from the visible mission state?
 5. When the fleet is split, can I identify my group's location, pursuit,
    messages and scout results without seeing another group's private state?
+
+## Release and verification
+
+Build **0.5.64** is deployed from exact main `bf222fbaf4661ed31c154528a49e8f47344b1846`. [Candidate CI37071038158](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/37071038158) passes on attempt2; [exact-main Deploy37075527555](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/37075527555) passes all verification jobs, Hosting, six selected Functions and deployed-surface verification. Local final validation passed all 6,909 application/Functions tests, 154 Rules tests, lint, builds, roadmap freshness, typography, ticker, sustained-render and bundle checks. The unchanged-source CI retry is documented below; no budget or assertion was weakened.
+
+The [acceptance matrix](PC06_ACCEPTANCE_MATRIX.md) retains every fixed ID and its exact behavior evidence. Detailed earlier failures, repairs, source judgments and deployments remain in the [execution record](PC06_EXECUTION_RECORD.md); those historical pending boundaries do not describe the final release. P343 and all broader PC07 work remain unfinished.
+
+## Typography gate audit
+
+The confirmed Voyage labels measured 2.09–2.10:1 contrast in 0.5.62. Both mandatory gates ran and passed; the sample inventory omitted Voyage and lacked a contrast assertion. The repair uses the established amber token without changing size, tracking or line-height. The extended gate first caught 64 contrast failures, then passed at 7.37–7.39:1 across phone, landscape, desktop and both motion modes. It still samples an explicit surface inventory and does not establish physical-device behavior. [The full audit](PC06_TYPOGRAPHY_GATE_AUDIT.md) records introducing/deployed revisions, actual gate runs, before/after evidence and coverage limits.
+
+## Why tests changed
+
+Tests protect the observed behavior gaps: native nonempty refuel storage, combined charging choices, mission roster/private-deck recovery, docked Voyage movement and privacy, consent/replay/courier recovery, and craft commitment through resolved reward custody. Local GM negative tests prove explicit emulator isolation, project-bound actors, lease revocation and absence from production. Typography adds the missing contrast surface while preserving the existing PC01 samples. Catalog tests ratchet the exact 49 IDs and historical snapshots; dependency fixtures now prepare their own unfinished Demo without mutating the real catalog. Deployment tests verify exact audited consumers and fail-closed unknown paths; derived-roadmap tests preserve freshness with stored CSV line-ending normalization. No authority, arithmetic, privacy, timeout or budget assertion was weakened. Detailed reasons and intermediate red/green results remain in the historical record below.
+
+## Final release retry and preservation
+
+The first candidate CI attempt passed through typography and ticker, then failed the mobile render count:83 long frames versus70. The same candidate's local run measured0 (p9516.7ms), and the measured workload/components/styles/clock/budgets were unchanged. The retained source-parity and native measurements justified one unchanged-source failed-job retry. That retry passed with49 long frames (p9566.7ms); exact-main independently passed with61 (p9566.7ms). This supports runner cadence variation but does not establish its cause. No source or gate limit changed. Logs/JSON are outside Git at `evidence/pc06-ci-render-failure/`, `pc06-ci-render-retry/`, `pc06-ci-render-retry-basis.json` and `pc06-final-main-render/` under the preserved evidence root.
+
+The production completion display is captured at [556/751](/Users/emeraldpham/Documents/PC06-active/evidence/pc06-deployed-catalog556.jpg). The local blind-jump/Ram Scoop screenshot above remains actual local gameplay, distinct from the prepared review scene. All disposable gameplay services and owned checks are stopped. The stable owner checkout and external evidence are preserved for local GM use and follow-up; other branches/worktrees and user-authored sessions were preserved.
+
+<details>
+<summary>Earlier checkpoint evidence and test-change reasons (historical)</summary>
+
+These intermediate pending states and catalog counts record their original boundaries; they do not describe the completed release above.
 
 ## Historical 0.5.63 release and earlier proof boundaries
 
@@ -199,3 +224,5 @@ The repaired `c5ee0194` profile passed all 6,909 tests in 502 files and all 154 
 
 
 Final metadata reconciliation also found the three existing generated PC07 roadmap data outputs treated as unknown deployable paths. A red selector regression covers only those exact CSV/HTML/JSON filenames and preserves fail-closed deployment for an adjacent unknown JavaScript path. The repair classifies these derived roadmap artifacts as tooling-only; all 122 selector checks pass. Generated CSV is normalized to LF only for the stored artifact so the existing byte-exact freshness and whitespace checks agree; the HTML download retains its CSV serialization. No future checkpoint allocations or gameplay contracts changed. This is the concrete reason for the bounded deployment-infrastructure review and repaired final profile before the first 0.5.64 candidate push.
+
+</details>
