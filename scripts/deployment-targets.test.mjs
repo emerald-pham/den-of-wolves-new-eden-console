@@ -1653,12 +1653,12 @@ for (const [file, mapPath, consumers] of [
       : dependencyMap[mapPath] ?? [];
     const transition = transitions.find(candidate => candidate.before === priorDigest && candidate.after === currentDigest);
     assert.deepEqual(transition?.consumers, consumers);
-    const selected = deploymentSelector({
+    const selected = selectedFunctions(deploymentSelector({
       before: 'host-sync-baseline', after: 'host-sync-candidate', files: [file], targets: ['functions'],
       sourceAtRevision: revision => revision === 'host-sync-baseline' ? previous : current,
       isAncestor: () => false,
-    });
-    assert.deepEqual(selected, consumers.map(name => `functions:${name}`));
+    }));
+    assert.deepEqual(selected, functionTargets(consumers));
   });
 }
 test('rejects a changed PC06 source outside its explicit module or index audit', () => {
