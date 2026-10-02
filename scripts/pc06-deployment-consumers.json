@@ -685,6 +685,17 @@
         "consumers": [
           "jumpVoyage33"
         ]
+      },
+      {
+        "baseline": "baad0b16f1381a6eba835c401aa8796679b1befb",
+        "implementationCandidate": "0645debf",
+        "before": "54180b468df00bd8a4afb56f3a48b49429760b23bf2760b18263b96b2b45dee8",
+        "after": "3347b33fc77ce97c43b6500d0f19721a53367416ec0905f2af1ca2685827437b",
+        "consumers": [
+          "dockVoyage33",
+          "jumpVoyage33"
+        ],
+        "reason": "Both factory handlers resolve the private canonical and legacy movement in their read phase and atomically migrate the public header into server-only movement plus the GM view; no other callable imports this adapter."
       }
     ],
     "functions/src/gorgoneionMissionSupportCallable.ts": [

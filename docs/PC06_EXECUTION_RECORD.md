@@ -169,9 +169,16 @@ from the actual deployed 0.5.62 index hash `e8582260…` to `0797a3e8…`; the
 reconciled source inventory passes all 118 selector checks, including extra
 unaudited-source denial. It includes the P237 zero cursor, private Voyage
 storage and migration, GM field ownership and preloaded host-movement reads.
-Retained red/green logs are in the external evidence directory. Final bounded
-independent review, complete release validation, CI, deployment and ordinary
-proof still remain required before this candidate ships.
+The subsequent complete deployed-to-candidate preflight failed closed on the
+Voyage callable adapter: narrower tests retained its earlier jump-only hash,
+but had not exercised the current private dock/jump adapter from the deployed
+baseline. Test-first `653da788` records that concrete failure. Its exact adapter
+transition now selects both `dockVoyage33` and `jumpVoyage33`; the full runtime
+regression and tamper denial pass with all 119 selector checks. The actual
+combined preflight selects Hosting, Firestore rules and 18 Functions, with zero
+unknown files. Retained red/green logs are in the external evidence directory.
+Final bounded independent review, complete release validation, CI, deployment
+and ordinary proof still remain required before this candidate ships.
 
 A later supported Chrome inventory restored the existing controlled Captain
 surface on build 0.5.62. Its unfinished private mission-support workspace is
