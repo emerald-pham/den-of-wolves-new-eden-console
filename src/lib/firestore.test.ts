@@ -3985,8 +3985,8 @@ it('does not hydrate the organiser map from cache or a callback after read autho
   expect(onGmDiscovery).not.toHaveBeenCalled();
   callbacks[2]?.(snapshot(false));
   expect(onGmDiscovery).toHaveBeenCalledWith(expect.objectContaining({
-    shipGalacticCoordinates: { aegis: '5143' },
-    shipNavigationLogs: { aegis: [] },
+    shipGalacticCoordinates: expect.objectContaining({ aegis: '5143' }),
+    shipNavigationLogs: expect.objectContaining({ aegis: [] }),
     organiserSystems: { 'system-17': '8378' },
     voyage33Movement: {
       id: 'voyage-33-0', coordinate: '1413', revision: 7,

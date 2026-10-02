@@ -199,7 +199,7 @@ describe('Voyage 33-0 movement workspace', () => {
 
     const workspace = screen.getByRole('region', { name: 'Voyage 33-0 movement workspace' });
     expect(within(workspace).queryAllByRole('button', { name: /dock with/i })).toHaveLength(0);
-    expect(within(workspace).getByText(/private movement projection/i)).toBeInTheDocument();
+    expect(within(workspace).getByText(/private Voyage movement projection/i)).toBeInTheDocument();
     expect(dockVoyage33Movement).not.toHaveBeenCalled();
 
     // A fresh valid private view with no movement is the genuine initial state.
@@ -349,6 +349,7 @@ describe('Voyage 33-0 movement workspace', () => {
         voyage33Movement: movementState('0000', 6),
         voyage33Maintenance: maintenanceState('aegis', 8),
       });
+      useSessionStore.getState().setVoyage33MovementProjection(movementState('0000', 6), true);
     });
     expect(await within(workspace).findByRole('button', { name: /Jump to Known nearby site/i })).toBeInTheDocument();
   });
@@ -745,7 +746,10 @@ describe('Voyage 33-0 movement workspace', () => {
       },
       shipGalacticCoordinates: { aegis: '0000', dione: '5143' },
     });
-    await act(async () => useSessionStore.getState().setSession(detachedSession));
+    await act(async () => {
+      useSessionStore.getState().setSession(detachedSession);
+      useSessionStore.getState().setVoyage33MovementProjection(detachedSession.voyage33Movement, true);
+    });
 
     maintenance = screen.getByRole('region', { name: 'Voyage 33-0 maintenance' });
     const begin = within(maintenance).getByRole('button', { name: /begin maintenance cycle \/\/ cycle 2/i });
