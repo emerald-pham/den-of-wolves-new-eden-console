@@ -35,6 +35,10 @@ const clientWrite = await fetch(`http://127.0.0.1:${config.firestorePort}/v1/pro
 });
 assert.equal(clientWrite.status,403, 'The normal authenticated client cannot grant itself GM access.');
 await grantLocalGmAccess(config,{method:'POST',origin:'http://127.0.0.1:5175',host:'127.0.0.1:5175',remoteAddress:'127.0.0.1',token:idToken});
+const preclaimRevoked = await call('logoutGmAccess',{sessionId:null,instanceId:null});
+assert.equal(preclaimRevoked.status,200);
+assert.equal((await call('claimGmInstance',claim)).body.error.status,'PERMISSION_DENIED');
+await grantLocalGmAccess(config,{method:'POST',origin:'http://127.0.0.1:5175',host:'127.0.0.1:5175',remoteAddress:'127.0.0.1',token:idToken});
 const authorized = await call('claimGmInstance',claim);
 assert.equal(authorized.status,200);
 assert.equal(authorized.body.result.instance.uid,localId);
@@ -47,7 +51,7 @@ const afterRevoke = await call('claimGmInstance',claim);
 assert.equal(afterRevoke.body.error.status,'PERMISSION_DENIED');
 const receipt = {kind:'local-emulator-production-handler-proof',project:'demo project',completedAt:new Date().toISOString(),
  checks:{normalCreateSession:true,unseededClaimDenied:true,wrongProductionPasswordDenied:true,clientLeaseWriteDenied:true,
- localHelperLeaseAccepted:true,normalNamedClaimGranted:true,normalLogoutRevokesLease:true,reclaimAfterRevokeDenied:true},
+ localHelperLeaseAccepted:true,preclaimLeaseRevoked:true,normalNamedClaimGranted:true,normalLogoutRevokesLease:true,reclaimAfterRevokeDenied:true},
  productionGameplay:false,identitiesRetained:false};
 if(process.env.LOCAL_GM_EVIDENCE_PATH)await writeFile(process.env.LOCAL_GM_EVIDENCE_PATH,`${JSON.stringify(receipt,null,2)}\n`);
 console.log(JSON.stringify(receipt));
