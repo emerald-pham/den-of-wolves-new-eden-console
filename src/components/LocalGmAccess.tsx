@@ -36,7 +36,7 @@ export default function LocalGmAccess() {
       disabled={!enabled || busy} onClick={() => void authorize()}>
       {busy ? 'Authorizing local GM…' : 'Authorize local emulator GM'}
     </button>
-    {!enabled && <p>Requires a loopback development server and a demo Firebase project.</p>}
+    {!enabled && <p>Requires a loopback development server and a demo emulator project.</p>}
     {error && <p role="alert">{error}</p>}
   </div>;
 }
