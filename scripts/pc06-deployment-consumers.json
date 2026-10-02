@@ -602,13 +602,14 @@
     },
     {
       "before": "e858226097808871edf069e55d2feed3605dee127120acdd9ae45dc36c0510bb",
-      "after": "7f20a58a53e1bc3cdc87332084ddcd3b2e0bdf4f2a70c6281813c9f54c2954dc",
+      "after": "32ab3ddb968df443f532851320038a72a41b0edd71ffd2d1fcd840eb5f6ea0a6",
       "consumers": [
         "adjudicateFailedJump",
         "jumpShip",
-        "moveShipToLocation"
+        "moveShipToLocation",
+        "startGame"
       ],
-      "reason": "Core host movement syncs an admitted, docked Voyage atomically with manual, ordinary/emergency, and adjudicated movement."
+      "reason": "Reconciled core host movement sync and explicit zero mission-deck cursor at start; no other index behavior changes."
     }
   ],
   "moduleTransitions": {
@@ -634,6 +635,16 @@
         "consumers": [
           "jumpVoyage33"
         ]
+      }
+    ],
+    "functions/src/gorgoneionMissionSupportCallable.ts": [
+      {
+        "before": "97391e5be5bfbb84e46e3936ff298169c4a91e0ad09478ce425a78d2dd095ba5",
+        "after": "87e309c20cc17307430c4c72caf5db4eef83539ccd86276b16b257cf0eb05071",
+        "consumers": [
+          "getGorgoneionMissionSupportProjection"
+        ],
+        "reason": "Only the authorized pre-deal projection normalizes an absent validated zero cursor atomically with its private view."
       }
     ]
   }

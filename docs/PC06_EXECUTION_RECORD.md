@@ -92,6 +92,35 @@ gameplay or physical-device evidence, and the original user report did not
 preserve a route or image to equate with an unrecorded surface. The audit is
 required in the final checkpoint report.
 
+The host-sync worker's red, fixture-hardening and legacy regression commits
+`923c807b`, `a18286bd`, `f467ab3d`, `17a23f61` and `611a73d6`, followed by
+implementation `b598556f`, are integrated through `01aaca6d`. All 172 focused
+checks and the native production `jumpShip` scenario pass. The latter begins
+with the same valid stranded shape as the retained live failure (host 1413,
+Voyage 0000/revision 0), then proves next-host-move recovery, stale captured
+Voyage denial, independent departure, redock and exact host replay without
+additional session/navigation/event/receipt changes. The selector fixture was
+anchored to the exact starting commit and rerun after the implementation commit,
+so its evidence does not depend on a dirty working tree. The worker released
+its emulator configuration and removed its generated dependency symlinks.
+
+Owner red `8e05362c` retains two failures when the isolated host map does not
+cover the combined P237 repair. The reconciled index transition selects only
+`adjudicateFailedJump`, `jumpShip`, `moveShipToLocation` and `startGame`; the
+private-support module transition selects `getGorgoneionMissionSupportProjection`.
+All 116 selector checks pass, including extra unaudited-source denial. Exact
+combined index SHA-256 is
+`32ab3ddb968df443f532851320038a72a41b0edd71ffd2d1fcd840eb5f6ea0a6`.
+The old private-support hash transitions to
+`87e309c20cc17307430c4c72caf5db4eef83539ccd86276b16b257cf0eb05071`.
+Independent review must resolve the explicit public-coordinate risk in
+`PC06_VOYAGE_HOST_SYNC_REPAIR.md`: the existing member-safe Voyage projection
+contains its coordinate for every member, so synchronized host departure can
+refresh another group's private host location. This is not silently treated as
+ordinary proof or approved navigation policy. These new confirmed live repairs
+materially change the preserved 0.5.63 candidate and justify fresh combined
+review and required release validation before its first CI push.
+
 ## Owner and implementation groups
 
 The accountable checkpoint owner is `/root/pc06_sol_owner` in
