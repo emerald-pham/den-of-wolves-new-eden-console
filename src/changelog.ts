@@ -27,6 +27,19 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 507, partial: 35, active: 0, missing: 209, blocked: 0,
     },
     changes: [
+      'Facilitator ship access sits beside the ship identity, where DRADIS cannot cover its control.',
+      'Gorgoneion and base Capybara can charge Jump Drive alongside another console within their reactor limit.',
+      'Admitted extra-ship Captains can join their current fleet group’s away-mission roster.',
+      '507 of 751 planned items are complete in this catalog snapshot (67.51%). PC06 gameplay verification continues.',
+    ],
+  },
+  {
+    version: '0.5.62',
+    implementationProgress: {
+      completed: 507, total: 751, percentage: '67.51%',
+      done: 507, partial: 35, active: 0, missing: 209, blocked: 0,
+    },
+    changes: [
       'Voyage 33-0 maintenance now follows its printed population, rations and reactor choices. Its Jump Drive uses host fuel without needing a reactor charge.',
       'Single-player Demo mode stays visible through live updates and stops at the end of Cycle 1.',
       'Starlight keeps its fuelled second scouting attempt after AEGIS finishes maintenance for that cycle.',
