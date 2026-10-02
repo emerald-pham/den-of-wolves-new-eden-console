@@ -853,7 +853,7 @@ it.each([
         }),
       }),
     }),
-    { merge: true },
+    { mergeFields: expect.arrayContaining(['systemHistory', 'revision', 'pursuitEmergencyWindow']) },
   );
 });
 

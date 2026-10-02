@@ -4,6 +4,19 @@ import type { CallableRequest } from 'firebase-functions/v2/https';
 type Fields = Record<string, unknown>;
 
 const mock = vi.hoisted(() => {
+  const applyFields = (previous: Fields, fields: Fields, mergeMaps = false): Fields => {
+    const next = { ...previous };
+    for (const [field, value] of Object.entries(fields)) {
+      if (value === 'delete-field') delete next[field];
+      else if (mergeMaps && value !== null && typeof value === 'object' &&
+          Object.getPrototypeOf(value) === Object.prototype) {
+        const existing = next[field];
+        next[field] = applyFields(existing !== null && typeof existing === 'object' &&
+          Object.getPrototypeOf(existing) === Object.prototype ? existing as Fields : {}, value as Fields, true);
+      } else next[field] = value;
+    }
+    return next;
+  };
   const documents = new Map<string, Fields>();
   const snapshot = (path: string) => {
     const fields = documents.get(path);
@@ -17,11 +30,14 @@ const mock = vi.hoisted(() => {
   };
   const ref = (path: string) => ({ path, id: path.split('/').at(-1) ?? '' });
   const get = vi.fn(async (target: { path: string }) => snapshot(target.path));
-  const set = vi.fn((target: { path: string }, fields: Fields) => {
-    documents.set(target.path, { ...fields });
+  const set = vi.fn((target: { path: string }, fields: Fields, options?: { merge?: boolean; mergeFields?: string[] }) => {
+    const selected = options?.mergeFields
+      ? Object.fromEntries(options.mergeFields.map(field => [field, fields[field]])) : fields;
+    documents.set(target.path, applyFields(options?.merge || options?.mergeFields
+      ? documents.get(target.path) ?? {} : {}, selected, options?.merge === true));
   });
   const update = vi.fn((target: { path: string }, fields: Fields) => {
-    documents.set(target.path, { ...(documents.get(target.path) ?? {}), ...fields });
+    documents.set(target.path, applyFields(documents.get(target.path) ?? {}, fields));
   });
   const del = vi.fn((target: { path: string }) => documents.delete(target.path));
   const runTransaction = vi.fn(async (callback: (tx: unknown) => unknown) =>
@@ -32,7 +48,7 @@ const mock = vi.hoisted(() => {
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => mock.db,
-  FieldValue: { serverTimestamp: () => 'server-time' },
+  FieldValue: { delete: () => 'delete-field', serverTimestamp: () => 'server-time' },
   Timestamp: { now: () => ({ toMillis: () => Date.now() }) },
 }));
 vi.mock('firebase-functions/v2', () => ({ setGlobalOptions: vi.fn() }));

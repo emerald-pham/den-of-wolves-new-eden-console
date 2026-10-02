@@ -63,7 +63,7 @@ vi.mock('firebase-admin/firestore', () => ({
       });
     },
   }),
-  FieldValue: { serverTimestamp: () => 'server-time' },
+  FieldValue: { delete: () => 'delete-field', serverTimestamp: () => 'server-time' },
   Timestamp: mock.Timestamp,
 }));
 
@@ -140,6 +140,7 @@ it.each(['4821', '482109'])('redeems a valid %s legacy or current code', async (
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
     if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
+    if (path === 'sessions/s1/serverState/voyage33Movement') return snapshot({}, false);
     throw new Error(`Unexpected read: ${path}`);
   });
 
@@ -167,6 +168,7 @@ it.each([
         path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
     if (path === 'sessions/s1/seats/seat-1') return snapshot({ status, holderUid });
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
+    if (path === 'sessions/s1/serverState/voyage33Movement') return snapshot({}, false);
     throw new Error(`Unexpected read: ${path}`);
   });
   await expect(joinSession.run(request('482109'))).resolves.toMatchObject({ player: { seatId: expectedSeat } });
@@ -201,6 +203,7 @@ it('reclaims a canonical missing seat after setup hydration without clearing its
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
     if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
+    if (path === 'sessions/s1/serverState/voyage33Movement') return snapshot({}, false);
     throw new Error(`Unexpected read: ${path}`);
   });
 
@@ -233,6 +236,7 @@ it('persists the Turn 0 ATC bulletin when joining an existing empty stream', asy
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
     if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
+    if (path === 'sessions/s1/serverState/voyage33Movement') return snapshot({}, false);
     throw new Error(`Unexpected read: ${path}`);
   });
 
@@ -280,6 +284,7 @@ it('omits a valid-shaped turn entity when it disagrees with the current phase or
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
     if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
+    if (path === 'sessions/s1/serverState/voyage33Movement') return snapshot({}, false);
     throw new Error(`Unexpected read: ${path}`);
   });
 
@@ -312,6 +317,7 @@ it('projects only the public fleet ticker fields on join', async () => {
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
     if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
+    if (path === 'sessions/s1/serverState/voyage33Movement') return snapshot({}, false);
     throw new Error(`Unexpected read: ${path}`);
   });
 
@@ -351,6 +357,7 @@ it('does not project a retained Press shuttle as docked when legacy docking fiel
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
     if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
+    if (path === 'sessions/s1/serverState/voyage33Movement') return snapshot({}, false);
     throw new Error(`Unexpected read: ${path}`);
   });
 
@@ -394,6 +401,7 @@ it('recovers an active legacy press dispatch from an old authoritative drain on 
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
     if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
+    if (path === 'sessions/s1/serverState/voyage33Movement') return snapshot({}, false);
     throw new Error(`Unexpected read: ${path}`);
   });
 
@@ -427,6 +435,7 @@ it('keeps a legacy inactive alert streamless until its server command writes a d
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
     if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
+    if (path === 'sessions/s1/serverState/voyage33Movement') return snapshot({}, false);
     throw new Error(`Unexpected read: ${path}`);
   });
 
@@ -499,6 +508,7 @@ it('returns only the public session projection when the persisted root has priva
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
     if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
+    if (path === 'sessions/s1/serverState/voyage33Movement') return snapshot({}, false);
     throw new Error(`Unexpected read: ${path}`);
   });
 
@@ -595,6 +605,7 @@ it('replaces a stale membership lock when the same identity joins its remembered
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
     if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
+    if (path === 'sessions/s1/serverState/voyage33Movement') return snapshot({}, false);
     throw new Error('Unexpected read: ' + path);
   });
 
@@ -624,6 +635,7 @@ it('rejects a browser that was kicked from this session', async () => {
     if (path === 'activeMemberships/u1') return snapshot({}, false);
     if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
+    if (path === 'sessions/s1/serverState/voyage33Movement') return snapshot({}, false);
     throw new Error('Unexpected read: ' + path);
   });
 
@@ -649,6 +661,7 @@ it('refuses to displace an identity that is actively connected in another sessio
     });
     if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
+    if (path === 'sessions/s1/serverState/voyage33Movement') return snapshot({}, false);
     throw new Error('Unexpected read: ' + path);
   });
 
@@ -671,6 +684,7 @@ it('treats a legacy connected player without a heartbeat as active elsewhere', a
     if (path === 'sessions/s2/players/u1') return snapshot({ connected: true });
     if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
+    if (path === 'sessions/s1/serverState/voyage33Movement') return snapshot({}, false);
     throw new Error('Unexpected read: ' + path);
   });
 
@@ -705,6 +719,7 @@ it('migrates every non-kicked legacy player into the stable group and backfills 
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
     if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
+    if (path === 'sessions/s1/serverState/voyage33Movement') return snapshot({}, false);
     throw new Error(`Unexpected read: ${path}`);
   });
   mock.update.mockImplementation((ref: { path: string }, fields: Record<string, unknown>) => {
@@ -756,6 +771,7 @@ it('assigns a joining identity to the stable group once across repeated joins', 
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
     if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
+    if (path === 'sessions/s1/serverState/voyage33Movement') return snapshot({}, false);
     throw new Error(`Unexpected read: ${path}`);
   });
   mock.set.mockImplementation((ref: { path: string }, fields: Record<string, unknown>) => {
@@ -838,6 +854,7 @@ it.each([
     if (path === 'sessions/s1/seats/admiral') return snapshot({ status, holderUid, roleId: 'admiral' });
     if (path.startsWith('sessions/s1/seats/') || path === 'activeMemberships/u1' ||
         path === 'sessions/s1/fleetGroups/fleet-1' || path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
+    if (path === 'sessions/s1/serverState/voyage33Movement') return snapshot({}, false);
     throw new Error(`Unexpected read: ${path}`);
   });
   await expect(joinSession.run(request('482109'))).resolves.toMatchObject({
@@ -872,6 +889,7 @@ it.each([
     if (path === 'sessions/s1/players') return snapshot({}, true);
     if (path.startsWith('sessions/s1/seats/') || path === 'activeMemberships/u1' ||
         path === 'sessions/s1/fleetGroups/fleet-1' || path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
+    if (path === 'sessions/s1/serverState/voyage33Movement') return snapshot({}, false);
     throw new Error(`Unexpected read: ${path}`);
   });
   await expect(joinSession.run(request('482109'))).resolves.toMatchObject({
@@ -909,6 +927,7 @@ it('joins an existing separated fleet without collapsing its partitions or chang
     if (path === 'sessions/s1/serverState/navigation') return snapshot({ revision: 1, pursuitGroups: { 'fleet-1': 2, 'fleet-2': 5 },
       shipGalacticCoordinates: Object.fromEntries(vessels.map(id => [id, '0000'])) });
     if (path === 'activeMemberships/u1' || path.endsWith('/wolfAttackState/current') || path.includes('/seats/')) return snapshot({}, false);
+    if (path === 'sessions/s1/serverState/voyage33Movement') return snapshot({}, false);
     throw new Error(`Unexpected read: ${path}`);
   });
   mock.update.mockImplementation((ref: { path: string }, fields: Record<string, unknown>) => {

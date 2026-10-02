@@ -4,6 +4,19 @@ import type { CallableRequest } from 'firebase-functions/v2/https';
 type Fields = Record<string, unknown>;
 
 const mock = vi.hoisted(() => {
+  const applyFields = (previous: Fields, fields: Fields, mergeMaps = false): Fields => {
+    const next = { ...previous };
+    for (const [field, value] of Object.entries(fields)) {
+      if (value === 'delete-field') delete next[field];
+      else if (mergeMaps && value !== null && typeof value === 'object' &&
+          Object.getPrototypeOf(value) === Object.prototype) {
+        const existing = next[field];
+        next[field] = applyFields(existing !== null && typeof existing === 'object' &&
+          Object.getPrototypeOf(existing) === Object.prototype ? existing as Fields : {}, value as Fields, true);
+      } else next[field] = value;
+    }
+    return next;
+  };
   const documents = new Map<string, Fields>();
   const ref = (path: string, collection = false) => ({ path, id: path.split('/').at(-1) ?? '', collection });
   const snapshot = (target: { path: string; id: string; collection?: boolean }) => {
@@ -26,9 +39,10 @@ const mock = vi.hoisted(() => {
     documents.set(target.path, { ...fields });
   });
   const set = vi.fn((target: { path: string }, fields: Fields, options?: { merge?: boolean; mergeFields?: string[] }) => {
-    documents.set(target.path, options?.merge || options?.mergeFields
-      ? { ...documents.get(target.path), ...fields }
-      : { ...fields });
+    const selected = options?.mergeFields
+      ? Object.fromEntries(options.mergeFields.map(field => [field, fields[field]])) : fields;
+    documents.set(target.path, applyFields(options?.merge || options?.mergeFields
+      ? documents.get(target.path) ?? {} : {}, selected, options?.merge === true));
   });
   const db = {
     doc: (path: string) => ref(path),
@@ -41,7 +55,7 @@ const mock = vi.hoisted(() => {
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => mock.db,
-  FieldValue: { serverTimestamp: () => 'server-time' },
+  FieldValue: { delete: () => 'delete-field', serverTimestamp: () => 'server-time' },
   Timestamp: class MockTimestamp {
     constructor(private readonly date: Date) {}
     toMillis() { return this.date.getTime(); }

@@ -122,6 +122,8 @@ function installGm(session: GameSession, role: 'gm' | 'player' = 'gm', instanceI
   });
   useSessionStore.getState().setConnection('live');
   useSessionStore.getState().setSessionSnapshotFreshness('server');
+  expect(useSessionStore.getState().session?.voyage33Movement).toBeUndefined();
+  if (role === 'gm') useSessionStore.getState().setVoyage33MovementProjection(session.voyage33Movement, true);
 }
 
 function dockReply(sessionId: string, requestId: string, expectedMovementRevision = 0, expectedDockingRevision = 0) {
@@ -177,12 +179,15 @@ describe('authenticated Voyage 33-0 movement service', () => {
   it('sends the exact docking command from a fresh GM session and validates its receipt', async () => {
     const session = sessionFixture();
     installGm(session);
+    expect(useSessionStore.getState().voyage33MovementProjectionFresh).toBe(true);
+    expect(useSessionStore.getState().session?.voyage33Movement).toBeUndefined();
     const call = vi.fn(async (payload: { requestId: string }) => ({
       data: dockReply(session.id, payload.requestId),
     }));
     vi.mocked(httpsCallable).mockReturnValue(call as never);
 
     await expect(dockVoyage33Movement('aegis')).resolves.toMatchObject({ status: 'committed' });
+    expect(useSessionStore.getState().session?.voyage33Movement).toBeUndefined();
 
     expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'dockVoyage33');
     const payload = call.mock.calls[0]?.[0] as Record<string, unknown>;
@@ -211,6 +216,8 @@ describe('authenticated Voyage 33-0 movement service', () => {
     vi.mocked(httpsCallable).mockReturnValue(call as never);
 
     await expect(jumpVoyage33Movement('5143')).resolves.toMatchObject({ status: 'jumped', fuelSpent: 1 });
+    expect(useSessionStore.getState().session?.voyage33Movement).toEqual(movementState('0000', 5));
+    // A receipt alone must not replace the authorized private listener state.
 
     expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'jumpVoyage33');
     expect(call.mock.calls[0]?.[0]).toEqual({
@@ -223,6 +230,55 @@ describe('authenticated Voyage 33-0 movement service', () => {
       expectedMovementRevision: 5,
       expectedDockingRevision: 7,
     });
+  });
+
+  it('requires a fresh private view after public-header hydration before sending a movement command', async () => {
+    const session = sessionFixture('voyage-session-private-readiness', {
+      voyage33Movement: movementState('0000', 0),
+    });
+    installGm(session);
+    const actor = useSessionStore.getState().me!;
+    useSessionStore.getState().setIdentity(session, actor);
+    expect(useSessionStore.getState().session?.voyage33Movement).toBeUndefined();
+    expect(useSessionStore.getState().voyage33MovementProjectionFresh).toBe(false);
+    const call = vi.fn(async (payload: { requestId: string }) => ({
+      data: dockReply(session.id, payload.requestId),
+    }));
+    vi.mocked(httpsCallable).mockReturnValue(call as never);
+
+    await expect(dockVoyage33Movement('aegis')).rejects.toThrow(/private.*projection|projection.*fresh/i);
+    expect(httpsCallable).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['dock', 'cache'], ['jump', 'cache'],
+    ['dock', 'missing'], ['jump', 'missing'],
+    ['dock', 'stale'], ['jump', 'stale'],
+  ] as const)('blocks %s after the private view becomes %s', async (action, reason) => {
+    const session = sessionFixture(`voyage-private-${action}-${reason}`, {
+      turnPhase: phase(action === 'dock' ? 'team' : 'coordination'),
+      voyage33Movement: movementState('0000', 5),
+      voyage33Maintenance: maintenanceState('aegis', 7),
+    });
+    installGm(session);
+    if (reason === 'cache') {
+      useSessionStore.getState().setVoyage33MovementProjection(undefined, false);
+      useSessionStore.getState().setSessionSnapshotFreshness('cache');
+    } else if (reason === 'missing') {
+      useSessionStore.getState().setVoyage33MovementProjection(undefined, false);
+    } else {
+      // A stale private document is rejected by the listener and clears its
+      // readiness independently of the still-fresh public session snapshot.
+      useSessionStore.getState().setVoyage33MovementProjectionFresh(false);
+    }
+    const call = vi.fn(async (payload: { requestId: string }) => ({
+      data: action === 'dock' ? dockReply(session.id, payload.requestId, 0, 7)
+        : jumpReply(session.id, payload.requestId),
+    }));
+    vi.mocked(httpsCallable).mockReturnValue(call as never);
+    await expect(action === 'dock' ? dockVoyage33Movement('aegis') : jumpVoyage33Movement('5143'))
+      .rejects.toThrow(reason === 'cache' ? /live|reconnect/i : /private.*projection|projection.*fresh/i);
+    expect(httpsCallable).not.toHaveBeenCalled();
   });
 
   it('blocks non-GM or cached-session commands before calling Firebase', async () => {
@@ -279,6 +335,8 @@ describe('authenticated Voyage 33-0 movement service', () => {
       name: 'Voyage33MovementUncertainError',
     });
     useSessionStore.getState().setGmInstance(originalInstance);
+    // Recovery requires the replacement private listener's server callback.
+    useSessionStore.getState().setVoyage33MovementProjection(undefined, true);
     await expect(dockVoyage33Movement('aegis')).resolves.toMatchObject({ status: 'committed' });
 
     const first = call.mock.calls[0]?.[0] as { requestId: string };

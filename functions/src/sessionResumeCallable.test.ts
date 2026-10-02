@@ -76,7 +76,7 @@ vi.mock('firebase-admin/firestore', () => ({
       });
     },
   }),
-  FieldValue: { serverTimestamp: () => 'server-time' },
+  FieldValue: { delete: () => 'delete-field', serverTimestamp: () => 'server-time' },
   Timestamp: mock.Timestamp,
 }));
 
@@ -109,7 +109,7 @@ function prepareResume(
   seatExists = true,
 ) {
   const twoHoursAgo = mock.Timestamp.fromDate(new Date('2026-09-06T16:00:00.000Z'));
-  const sessionData = {
+  const sessionData: Record<string, unknown> = {
     name: 'Table one',
     joinCode: '482109',
     phase: 'lobby',
@@ -136,7 +136,10 @@ function prepareResume(
 
   mock.update.mockImplementation((ref: { path: string }, update: unknown) => {
     if (ref.path === 'sessions/s1' && typeof update === 'object' && update !== null) {
-      Object.assign(sessionData, update);
+      for (const [field, value] of Object.entries(update)) {
+        if (value === 'delete-field') delete sessionData[field];
+        else sessionData[field] = value;
+      }
     }
     if (ref.path === 'sessions/s1/players/u1' && typeof update === 'object' && update !== null) {
       Object.assign(playerData, update);
@@ -162,6 +165,7 @@ function prepareResume(
       const marker = mock.rateLimitMarkers.get(path);
       return snapshot(marker && typeof marker === 'object' ? marker as Record<string, unknown> : {}, marker !== undefined);
     }
+    if (path === 'sessions/s1/serverState/voyage33Movement') return snapshot({}, false);
     throw new Error('Unexpected read: ' + path);
   });
   return { playerData, sessionData };
@@ -795,6 +799,7 @@ it('rejects a session that closes after the initial read but before resume commi
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
     if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
+    if (path === 'sessions/s1/serverState/voyage33Movement') return snapshot({}, false);
     throw new Error('Unexpected read: ' + path);
   });
 
@@ -833,6 +838,7 @@ it('returns fresh server state after the resume transaction instead of its initi
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
     if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
     if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
+    if (path === 'sessions/s1/serverState/voyage33Movement') return snapshot({}, false);
     throw new Error('Unexpected read: ' + path);
   });
 
@@ -867,6 +873,7 @@ it('replaces a stale membership lock but refuses an active membership in another
       if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
       if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
       if (path === 'sessions/s1/serverState/navigation') return snapshot({}, false);
+    if (path === 'sessions/s1/serverState/voyage33Movement') return snapshot({}, false);
       throw new Error('Unexpected read: ' + path);
     });
   };

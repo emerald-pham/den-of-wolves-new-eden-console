@@ -60,6 +60,19 @@ const mock = vi.hoisted(() => {
     get: () => Promise<unknown>;
   };
 
+  const applyFields = (previous: StoredDocument, fields: StoredDocument, mergeMaps = false): StoredDocument => {
+    const next = { ...previous };
+    for (const [field, value] of Object.entries(fields)) {
+      if (value === 'delete-field') delete next[field];
+      else if (mergeMaps && value !== null && typeof value === 'object' &&
+          Object.getPrototypeOf(value) === Object.prototype) {
+        const existing = next[field];
+        next[field] = applyFields(existing !== null && typeof existing === 'object' &&
+          Object.getPrototypeOf(existing) === Object.prototype ? existing as StoredDocument : {}, value as StoredDocument, true);
+      } else next[field] = value;
+    }
+    return next;
+  };
   const documents = new Map<string, StoredDocument>();
   let beforeTransaction: (() => void) | undefined;
   let transactionDepth = 0;
@@ -146,13 +159,14 @@ const mock = vi.hoisted(() => {
 
   const update = vi.fn((target: Ref, fields: StoredDocument) => {
     if (transactionDepth > 0) transactionWrote = true;
-    documents.set(target.path, { ...(documents.get(target.path) ?? {}), ...fields });
+    documents.set(target.path, applyFields(documents.get(target.path) ?? {}, fields));
   });
-  const set = vi.fn((target: Ref, fields: StoredDocument, options?: { merge?: boolean }) => {
+  const set = vi.fn((target: Ref, fields: StoredDocument, options?: { merge?: boolean; mergeFields?: string[] }) => {
     if (transactionDepth > 0) transactionWrote = true;
-    documents.set(target.path, options?.merge
-      ? { ...(documents.get(target.path) ?? {}), ...fields }
-      : { ...fields });
+    const selected = options?.mergeFields
+      ? Object.fromEntries(options.mergeFields.map(field => [field, fields[field]])) : fields;
+    documents.set(target.path, applyFields(options?.merge || options?.mergeFields
+      ? documents.get(target.path) ?? {} : {}, selected, options?.merge === true));
   });
   const remove = vi.fn((target: Ref) => {
     if (transactionDepth > 0) transactionWrote = true;
@@ -204,7 +218,7 @@ const mock = vi.hoisted(() => {
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => mock.db,
-  FieldValue: { serverTimestamp: () => 'server-time' },
+  FieldValue: { delete: () => 'delete-field', serverTimestamp: () => 'server-time' },
   Timestamp: mock.Timestamp,
 }));
 vi.mock('firebase-functions/v2', () => ({ setGlobalOptions: vi.fn() }));

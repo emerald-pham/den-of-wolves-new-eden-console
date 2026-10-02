@@ -360,7 +360,7 @@ it('starts a fully staffed roster in one transaction with locked setup, Turn 1, 
       pursuitGroups: { 'fleet-1': 2 },
       shipFleetGroupIds: expect.objectContaining({ aegis: 'fleet-1' }),
     }),
-    { merge: true },
+    { mergeFields: ['pursuitGroups', 'shipFleetGroupIds', 'updatedAt'] },
   );
   expect(mock.set).toHaveBeenCalledWith(
     expect.objectContaining({ path: 'sessions/s1/playerDiscoveries/u2' }),
