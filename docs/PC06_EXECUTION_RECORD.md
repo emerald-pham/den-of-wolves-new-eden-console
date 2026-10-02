@@ -263,6 +263,49 @@ fail closed. Both workers are parked, their branches preserved and emulator
 reservations released. Final distinct Sol follow-up, the complete reconciled
 release gates, CI, deployment and ordinary completion still remain pending.
 
+## Full-suite private-view integration boundary
+
+The distinct Sol reviewer approved exact `222f9359` with no remaining finding.
+The owner then ran the required complete local profile on that same candidate.
+Whitespace and lint passed; the full unit/Functions suite failed 149 cases in
+eight files, with 6,737 passing. Later profile commands did not run. The retained
+log is `evidence/final-validation-222f.log` outside Git. No candidate CI push,
+deployment or ordinary acceptance is claimed from this failed gate.
+
+The failing files are the session lifecycle, resume, join, maintenance, start,
+scout-map integration and candidate checkpoint callable suites, plus the
+Voyage movement client service suite. The bounded Sol implementation owner
+resumes from `222f9359` in the preserved isolated checkout to distinguish
+strict SDK/read-table/field-mask fixture drift from actual behavior gaps. It
+must preserve authorization, stale-state, malformed-state and zero-write
+assertions. Any runtime repair receives a meaningful red regression and a
+bounded follow-up from the distinct authority reviewer. The complete profile
+will run again after integration; the concrete failed gate justifies that run.
+The six verified ordinary rows and catalog 507/751 remain unchanged.
+
+Sol's test-first `9df2d210` and repair `da4b119c` are integrated as `86667e7c`
+and `f066a21b`. The original failures came from precise private-record reads,
+missing SDK delete behavior, obsolete GM field-mask assertions and client
+fixtures that still hydrated movement through the stripped public header.
+Document mocks now apply the actual top-level masks, map merges and deletion;
+strict unexpected-read and read-before-write failures remain. No authority,
+privacy, stale-state or malformed-state assertion was removed.
+
+The service investigation also retained five new red failures: current public
+GM authority could dispatch docking before its private movement view arrived.
+The shared movement guard now requires private readiness before transport and
+when checking a returned receipt. A fresh complete empty GM view still allows
+first docking; cached, missing and stale views block docking and jumping.
+Receipts do not create readiness or promote header/reply movement into private
+state. All 874 combined cases across 16 files, 120 selector cases, typecheck,
+focused lint and diff checks pass. The new runtime change is only the client
+service guard; Functions, Rules and native writer source are unchanged. Exact
+preflight remains Hosting, Rules and the same 18 Functions from deployed
+`baad0b16`, with no unknown files. Logs, grouped causes and cleanup receipt are
+in `evidence/full-private-view-parity/handback.json` outside Git. The worker is
+parked with clean tracked files and no emulator reservation. Independent
+follow-up on this guard and the complete final profile remain required.
+
 ## Owner and implementation groups
 
 The accountable checkpoint owner is `/root/pc06_sol_owner` in

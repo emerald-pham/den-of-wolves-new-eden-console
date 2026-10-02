@@ -46,7 +46,12 @@ repair but requires current GM emergency-window publication and private-view
 reauthorization after a named GM claim change. Both are repaired locally with discriminating regressions and native
 production-handler evidence, including a terminal decision using the refreshed
 GM revision. The listener now rebinds to the named claim and rejects its old
-callback. Final independent follow-up and the complete release gates remain
+callback. Independent follow-up approved `222f9359`, but its complete suite
+then failed 149 integration cases while 6,737 passed. The bounded repair
+updates exact SDK/private-read fixtures and adds a client guard requiring a
+fresh private GM view before movement. All 874 combined focused cases now
+pass, including valid empty-view first docking and stale-view denials. The
+new guard's independent follow-up and the complete release profile remain
 pending; no ordinary credit is added.
 
 The confirmed Voyage caption contrast regression and the audit of why the
