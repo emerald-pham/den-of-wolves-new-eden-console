@@ -41,7 +41,7 @@ export function nextMissionCraftCommitments(value: unknown, mission: MissionTran
     if (mission.status === 'active') {
       if (previous && (previous.missionId !== mission.missionId || previous.sourceCycle !== mission.sourceCycle)) return null;
       result[craftId] = { missionId: mission.missionId, sourceCycle: mission.sourceCycle };
-    } else if (previous?.missionId === mission.missionId) {
+    } else if (mission.status === 'complete' && previous?.missionId === mission.missionId) {
       delete result[craftId];
     }
   }
