@@ -43,6 +43,37 @@ const session = {
   },
 };
 
+const gorgoneionCaptain = {
+  uid: 'gorg-captain', displayName: 'Gorgoneion Captain', role: 'player', connected: true,
+  assignedRoleId: null, replacementRoleId: 'gorgoneion-captain', replacementStatus: null,
+  seatId: null, activeConsoleRoleId: null, fleetGroupId: 'fleet-1', escapeState: null,
+};
+const dockedGorgoneion = {
+  id: 'gorgoneion', hostShipId: 'aegis', dockingRevision: 1,
+  population: 1_000, unrest: 0,
+  cycle: { step: 0, revision: 0, results: {}, charges: [] },
+};
+const sessionWithDockedGorgoneion = {
+  ...session,
+  activeVesselIds: ['aegis'],
+  smallShipStates: { gorgoneion: dockedGorgoneion },
+  expansion: 'base',
+  capybaraEnabled: true,
+};
+
+function renderMissionStartWithCaptain(
+  captainOverrides: Record<string, unknown> = {},
+  sessionOverrides: Record<string, unknown> = {},
+  additionalPlayers: readonly Record<string, unknown>[] = [],
+) {
+  render(<AwayMissionStartPanel
+    session={{ ...sessionWithDockedGorgoneion, ...sessionOverrides } as never}
+    players={[...players, { ...gorgoneionCaptain, ...captainOverrides }, ...additionalPlayers] as never}
+    instanceId="bridge"
+    isGm
+  />);
+}
+
 beforeEach(() => {
   sessionStorage.clear();
   mocks.startAwayMission.mockReset();
@@ -169,6 +200,109 @@ it('offers every connected same-group teammate as a participant and leader carri
   expect(mocks.startAwayMission).toHaveBeenCalledWith(expect.objectContaining({
     participantUids: ['alice', 'admiral'], missionLeaderUid: 'admiral',
   }));
+});
+
+it('includes a source-available extra-ship Captain in the mission request and preserves its exact retry after role change', async () => {
+  const user = userEvent.setup();
+  mocks.startAwayMission
+    .mockRejectedValueOnce(new Error('Connection lost after submission.'))
+    .mockResolvedValueOnce({
+      status: 'committed', sessionId: 's1', requestId: 'request-replayed',
+      opportunityId: opportunity.id, missionId: `mission-${opportunity.id}`,
+      groupId: 'fleet-1', coordinate: '5143', participantCount: 1,
+    });
+
+  const first = render(<AwayMissionStartPanel
+    session={sessionWithDockedGorgoneion as never}
+    players={[...players, gorgoneionCaptain] as never}
+    instanceId="bridge"
+    isGm
+  />);
+
+  await user.click(screen.getByRole('checkbox', { name: /gorgoneion captain.*gorgoneion-captain/i }));
+  await user.selectOptions(screen.getByLabelText('Mission Leader'), 'gorg-captain');
+  await user.click(screen.getByRole('button', { name: 'Start mission' }));
+
+  const firstCommand = mocks.startAwayMission.mock.calls[0]![0];
+  expect(firstCommand).toMatchObject({
+    opportunityId: opportunity.id,
+    groupId: 'fleet-1',
+    participantUids: ['gorg-captain'],
+    missionLeaderUid: 'gorg-captain',
+  });
+  const savedAttempt = JSON.parse(sessionStorage.getItem('pc04:mission-start:s1:bridge') ?? 'null');
+  expect(savedAttempt.command).toEqual(firstCommand);
+  expect(savedAttempt.fingerprint).toContain('"participantUids":["gorg-captain"]');
+  expect(screen.getByRole('status', { name: 'Mission start result' }))
+    .toHaveTextContent('Connection lost after submission.');
+  first.unmount();
+
+  render(<AwayMissionStartPanel
+    session={sessionWithDockedGorgoneion as never}
+    players={[...players, {
+      ...gorgoneionCaptain, replacementRoleId: null, replacementStatus: 'awaiting-re-role',
+    }] as never}
+    instanceId="bridge"
+    isGm
+  />);
+  expect(screen.queryByRole('checkbox', { name: /gorgoneion captain/i })).not.toBeInTheDocument();
+  await user.click(await screen.findByRole('button', { name: 'Retry exact mission start' }));
+
+  expect(mocks.startAwayMission).toHaveBeenCalledTimes(2);
+  expect(mocks.startAwayMission.mock.calls[1]![0]).toEqual({ ...firstCommand, allowReplay: true });
+  expect(mocks.startAwayMission.mock.calls[1]![0].requestId).toBe(firstCommand.requestId);
+});
+
+const excludedCaptainCases: readonly {
+  readonly label: string;
+  readonly captain?: Record<string, unknown>;
+  readonly session?: Record<string, unknown>;
+  readonly additionalPlayers?: readonly Record<string, unknown>[];
+}[] = [
+  { label: 'disconnected player', captain: { connected: false } },
+  { label: 'different fleet group', captain: { fleetGroupId: 'fleet-2' } },
+  { label: 'pending re-role even with a formerly active core assignment',
+    captain: { assignedRoleId: 'wing-commander', replacementStatus: 'awaiting-re-role' } },
+  { label: 'held core seat', captain: { assignedRoleId: 'wing-commander', seatId: 'wing-commander' } },
+  { label: 'held core console', captain: { assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander' } },
+  { label: 'active escape state', captain: { escapeState: { status: 'pending' } } },
+  { label: 'unknown replacement role even with an active historical role',
+    captain: { assignedRoleId: 'wing-commander', replacementRoleId: 'unknown-captain' } },
+  { label: 'ordinary replacement role',
+    captain: { assignedRoleId: 'wing-commander', replacementRoleId: 'doctor' } },
+  { label: 'unavailable source ship', session: { smallShipStates: {} } },
+  { label: 'duplicate replacement-role holder', additionalPlayers: [{
+    ...gorgoneionCaptain, uid: 'duplicate-gorg-captain', displayName: 'Disconnected duplicate', connected: false,
+  }] },
+];
+
+it.each(excludedCaptainCases)('does not offer an extra-ship Captain with $label', ({ captain, session: sessionOverrides, additionalPlayers }) => {
+  renderMissionStartWithCaptain(captain, sessionOverrides, additionalPlayers);
+  expect(screen.queryByRole('checkbox', { name: /gorgoneion captain/i })).not.toBeInTheDocument();
+});
+
+it('does not offer the base small-ship Capybara Captain when the full Capybara expansion is active', () => {
+  render(<AwayMissionStartPanel
+    session={{
+      ...sessionWithDockedGorgoneion,
+      expansion: 'capybara',
+      smallShipStates: {
+        'capybara-small': {
+          id: 'capybara-small', hostShipId: 'aegis', dockingRevision: 1,
+          population: 2_000, unrest: 0,
+          cycle: { step: 0, revision: 0, results: {}, charges: [] },
+        },
+      },
+    } as never}
+    players={[...players, {
+      ...gorgoneionCaptain, displayName: 'Base Capybara Captain',
+      replacementRoleId: 'capybara-small-captain',
+    }] as never}
+    instanceId="bridge"
+    isGm
+  />);
+
+  expect(screen.queryByRole('checkbox', { name: /base capybara captain/i })).not.toBeInTheDocument();
 });
 
 it('shows the complete server-owned mission-start receipt to the facilitator without private cards', () => {
