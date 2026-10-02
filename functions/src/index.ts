@@ -6584,8 +6584,11 @@ export const startGame = onCall<{
     if (!persistedMissionDeck) {
       tx.set(missionDeckRef, {
         ...missionDeckState,
+        dealtCount: 0,
         createdAt: FieldValue.serverTimestamp(),
       });
+    } else if (missionDeckSnapshot.get('dealtCount') === undefined) {
+      tx.update(missionDeckRef, { dealtCount: 0 });
     }
 
     const turnOneState = atomicStartState({

@@ -161,6 +161,14 @@ export function createGorgoneionMissionSupportCallables(
           failClosed('Gorgoneion mission support has already been used.');
         }
         const reply = projectionReply(sessionId, actorUid, context);
+        // Older production starts omitted the zero cursor. The callable
+        // validates that legacy deck as undealt, but the private read rules
+        // require the explicit cursor. Publish both authorities atomically.
+        if (context.deckData.dealtCount === undefined) {
+          transaction.update(dependencies.db.doc(`sessions/${sessionId}/serverState/missionDeck`), {
+            dealtCount: 0,
+          });
+        }
         transaction.set(dependencies.db.doc(
           `sessions/${sessionId}/gorgoneionMissionSupportViews/${actorUid}`,
         ), {
