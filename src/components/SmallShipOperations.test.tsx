@@ -220,9 +220,9 @@ it.each([
 });
 
 it.each([
-  ['Gorgoneion', 'gorgoneion', 'Repair Drones', 'repair-drones'],
-  ['base Capybara', 'capybara-small', 'Water Reclimator', 'water-reclimator'],
-] as const)('lets the GM charge %s Jump Drive alongside %s within two charges', async (name, id, secondConsole, secondId) => {
+  ['Gorgoneion', 'Gorgoneion', 'gorgoneion', 'Repair Drones', 'repair-drones'],
+  ['base Capybara', 'Capybara', 'capybara-small', 'Water Reclimator', 'water-reclimator'],
+] as const)('lets the GM charge %s Jump Drive alongside %s within two charges', async (name, cardName, id, secondConsole, secondId) => {
   const user = userEvent.setup();
   const session = useSessionStore.getState().session!;
   useSessionStore.getState().setSession({
@@ -237,7 +237,7 @@ it.each([
   } as never);
   render(<SmallShipOperations />);
 
-  const craft = screen.getByRole('region', { name: `${name} small-ship operations` });
+  const craft = screen.getByRole('region', { name: `${cardName} small-ship operations` });
   const jumpDrive = within(craft).getByRole('checkbox', { name: 'Jump Drive' });
   const second = within(craft).getByRole('checkbox', { name: secondConsole });
   await user.click(jumpDrive);
