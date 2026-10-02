@@ -8,6 +8,48 @@ The candidate contains `pc06-review.html`, an isolated interactive scene using t
 
 The four numbered tabs cover movement; cargo, repair and trade; scouting and fleet-group notes; and away-mission assignment, outcome and recovery. The agreed five owner checks remain in [the checkpoint definition](PRODUCT_MILESTONES.md). The owner can inspect presentation without building a multiplayer session; agents retain responsibility for authority, privacy, arithmetic, replay and ordinary gameplay proof.
 
+These five UI checks are optional. Their prepared states do not complete any of
+the 49 ordinary-path checks:
+
+1. Can I choose a legal destination or blind jump, understand each vessel's fuel
+   cost and result, and use the keyboard through ready, pending, denied and
+   recovered states?
+2. Can I tell which admitted craft is moving, docked, repaired or using cargo,
+   and what changed after a refresh or competing action?
+3. Can I follow an away mission through its group and location, my private
+   cards, the leader's choices, outcomes and rewards without seeing another
+   participant's hand?
+4. Can I understand failures, critical results, overrun, reward custody and
+   drop-off, and reconnect recovery from the visible mission state?
+5. When the fleet is split, can I identify my group's location, pursuit,
+   messages and scout results without seeing another group's private state?
+
+## Pending 0.5.63 repair and audit
+
+The pending batch retains the observer-control layout, combined Gorgoneion/base
+Capybara charging choice and admitted Captain mission-roster repairs. The
+resumed ordinary Captain flow exposed an absent mission-deck cursor: the
+callable returned an available preview but its private Firestore view was
+unreadable. The native writer/read regression and scoped repair now pass;
+deployed ordinary preview, reorder and one-use proof remain required.
+
+The docked Voyage/core-host departure mismatch has a native transaction repair.
+Its independent review found one privacy bridge: publishing Voyage's carried
+coordinate in the member-readable session would reveal its host's destination
+to another fleet group. That release is withheld while the existing Voyage
+group moves location authority to private server state and the existing GM
+navigation view. Existing host-crew actions remain authorized; no new player
+entitlement or PC07 work is added.
+
+The confirmed Voyage caption contrast regression and the audit of why the
+required typography gate passed are in [the typography audit](PC06_TYPOGRAPHY_GATE_AUDIT.md).
+The existing gate ran successfully but omitted the later Voyage surface. Its
+new before/after render checks catch the dim token and verify the corrected
+color with unchanged text metrics. These are local component renders; the audit
+and any remaining limitations must be included in the final checkpoint report.
+The existing live results remain six verified and 43 pending, with unchanged
+catalog credit.
+
 ## What the current local evidence establishes
 
 The real Firestore mission scenario uses compiled production transaction handlers. It deals once under simultaneous exact retries, holds participants' craft against movement, publishes only each own private hand and card-free public pointers, accepts requests and blind allocations, advances discards and assignments, automatically draws and resolves the mission, grants exploration knowledge only to its original participants, and delivers an oversized resource reward once. Delivery changes the destination ledger and releases mission craft holds in the same transaction. It uses fixture authentication, so it does not establish ordinary callable transport or deployed gameplay.
@@ -98,7 +140,7 @@ The new deployment consumer inventory selects only `sendScoutTaxiCourier` for it
 The independent courier review found and requested two repairs: recovery from an uncertain response after authority changes, and zero-write denial for destroyed endpoints. Test-first `5ee5deb4` records ten red regressions; `3288dbd0` adds read-only reconciliation and the existing destruction guard. Focused service/panel/handler checks and the native Firestore handler scenario pass, including committed and undelivered obsolete requests, a known late result, preserved drafts and destroyed anchor/destination denial in a fresh cycle. These remain local repair evidence; follow-up review, final release gates and ordinary courier proof are still required. Catalog progress stays 507/751 and ordinary acceptance remains P324 only.
 
 
-## Current 0.5.62 repair batch
+## 0.5.62 repair history
 
 The configured sole-player Demo completed its real maintenance and stopped at Cycle 1 through the normal transition; live snapshot hydration lost the visible Demo marker. The strict parser repair is independently approved and awaits deployed UI verification.
 
