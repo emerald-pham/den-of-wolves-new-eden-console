@@ -1655,6 +1655,22 @@ test('maps the final PC06 shared index from the actually deployed 0.5.62 source'
   assert.deepEqual(selectedFunctions(selection(current)), functionTargets(voyagePrivacyConsumerNames));
   assert.throws(() => selection(`${current}\n// additional unaudited source change\n`), /PC06|audited|audit/);
 });
+test('maps the GM window repair from its reviewed owner source and rejects extra runtime edits', () => {
+  const baseline = 'adffe58bb2339ce0c40caaccab998c54803b9237';
+  const file = 'functions/src/index.ts';
+  const previous = execFileSync('git', ['show', `${baseline}:${file}`], {
+    encoding: 'utf8', maxBuffer: 16 * 1024 * 1024,
+  });
+  const current = readFileSync(file, 'utf8');
+  const consumers = voyagePrivacyConsumerNames.filter(name => name !== 'setCandidatePlanCheckpoint');
+  const selection = candidate => deploymentSelector({
+    before: baseline, after: 'gm-window-repair', files: [file], targets: ['functions'],
+    sourceAtRevision: revision => revision === baseline ? previous : candidate,
+    isAncestor: () => false,
+  });
+  assert.deepEqual(selectedFunctions(selection(current)), functionTargets(consumers));
+  assert.throws(() => selection(`${current}\n// unaudited post-review runtime edit\n`), /PC06|audited|audit/);
+});
 test('maps every changed PC06 runtime module from the actual deployed build together', () => {
   const baseline = 'baad0b16f1381a6eba835c401aa8796679b1befb';
   const files = execFileSync('git', ['diff', '--name-only', baseline, 'HEAD', '--', 'functions/src'], {
