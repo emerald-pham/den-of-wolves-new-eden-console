@@ -90,7 +90,13 @@ async function replace(actor, replacementRoleId) {
     expectedSetupRevision: eligibility.setupRevision });
   await command(actor, 'refreshPresence', { activeConsoleRoleId: null });
 }
+async function grantCurrentShip(shipId) {
+  const lease = (await f.db.doc(`sessions/${f.sessionId}/gmInstances/${f.instanceId}`).get()).data();
+  const claimedAt = typeof lease.claimedAt === 'string' ? lease.claimedAt : lease.claimedAt.toDate().toISOString();
+  await command(f.gm, 'setGmShipConsoleWriteGrant', { instanceId: f.instanceId, shipId, enabled: true, claimedAt });
+}
 async function maintain(shipId, consoles, refuelCraftIds) {
+  await grantCurrentShip(shipId);
   let bayIndex = 0;
   for (const action of ['begin', ...MAINTENANCE_ORDERS[shipId], 'end']) {
     const current = await f.session.get();
@@ -216,11 +222,6 @@ try {
   console.log(`Disposable normal session: ${f.sessionId}`);
   const eo = f.byRole('executive-officer'), wing = f.byRole('wing-commander');
   const captain = f.byRole('admiral'), commander = f.byRole('shepherd-scientist');
-  const lease = (await f.db.doc(`sessions/${f.sessionId}/gmInstances/${f.instanceId}`).get()).data();
-  const claimedAt = typeof lease.claimedAt === 'string' ? lease.claimedAt : lease.claimedAt.toDate().toISOString();
-  for (const shipId of ['aegis', 'dione', 'refinery-124', 'icebreaker', 'capybara']) {
-    await command(f.gm, 'setGmShipConsoleWriteGrant', { instanceId: f.instanceId, shipId, enabled: true, claimedAt });
-  }
   // Optional ships are admitted in Coordination, then the next normal Team
   // phase charges their systems. The GM explicitly defers the first window.
   const firstPhase = (await f.session.get()).get('turnPhase');
@@ -246,6 +247,7 @@ try {
       ...(action === 'rations' ? { foodLevel: 0, waterLevel: 0 } : {}),
       ...(action === 'reactor' ? { consoles: ['missile-array', 'force-field-projector'] } : {}) });
   }
+  await grantCurrentShip('aegis');
   const current = await f.session.get();
   await command(f.gm, 'adjustShipResource', { instanceId: f.instanceId, requestId: randomUUID(), shipId: 'aegis',
     resourceId: 'ore', delta: 9 - current.get('shipResources').aegis.ore,
