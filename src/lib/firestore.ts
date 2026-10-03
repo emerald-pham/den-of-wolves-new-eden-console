@@ -2926,6 +2926,8 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     joinCode: data.joinCode as string,
     phase: data.phase as GameSession['phase'],
     currentTurn,
+    ...(Number.isSafeInteger(data.fleetPartitionRevision) && Number(data.fleetPartitionRevision) >= 0
+      ? { fleetPartitionRevision: Number(data.fleetPartitionRevision) } : {}),
     ...(playerCount === undefined ? {} : { playerCount }),
     ...(data.chartId === 'A' || data.chartId === 'B' || data.chartId === 'C'
       ? { chartId: data.chartId } : {}),

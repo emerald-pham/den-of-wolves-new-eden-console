@@ -596,6 +596,7 @@ function AppRoutes() {
             ...(current.organiserSystems ? { organiserSystems: current.organiserSystems } : {}),
             ...(current.organiserSites ? { organiserSites: current.organiserSites } : {}),
             ...(current.organiserSystemHistory ? { organiserSystemHistory: current.organiserSystemHistory } : {}),
+            ...(Number.isSafeInteger(current.gmNavigationRevision) ? { gmNavigationRevision: current.gmNavigationRevision } : {}),
             ...(current.pursuitDistances ? { pursuitDistances: current.pursuitDistances } : {}),
             ...(current.pursuitGroups ? { pursuitGroups: current.pursuitGroups } : {}),
             ...(current.shipFleetGroupIds ? { shipFleetGroupIds: current.shipFleetGroupIds } : {}),
