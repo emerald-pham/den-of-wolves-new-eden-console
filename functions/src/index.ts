@@ -614,6 +614,7 @@ import {
   lockWolfRangeActions,
   resolveLockedWolfRange,
   wolfRangeLegalTargetInstanceIds,
+  replayWolfRangeTargetSnapshot,
   wolfCombatRoster,
   resolveWolfTargeting,
   finalizeWolfAttack,
@@ -23324,6 +23325,45 @@ function wolfRangeContacts(roster: readonly WolfCombatShip[], range: WolfCombatR
   }));
 }
 
+function sameWolfTargetSnapshot(
+  actual: unknown,
+  expected: readonly Readonly<{ instanceId: string; target: WolfFleetTargetId }>[],
+): boolean {
+  return Array.isArray(actual) && actual.length === expected.length && actual.every((entry, index) =>
+    isRecord(entry) && entry.instanceId === expected[index]?.instanceId && entry.target === expected[index]?.target);
+}
+
+function wolfRangeTargetProgressionMatches(
+  range: WolfCombatRange,
+  targeting: WolfTargetingReceipt,
+  roster: readonly WolfCombatShip[],
+  rawReceipts: unknown,
+): boolean {
+  const order: readonly WolfCombatRange[] = ['long-range', 'medium-range', 'short-range'];
+  const rangeIndex = order.indexOf(range);
+  const receipts = rawReceipts === undefined ? [] : rawReceipts;
+  if (rangeIndex < 0 || !Array.isArray(receipts) || receipts.length !== rangeIndex) return false;
+  let expected: readonly Readonly<{ instanceId: string; target: WolfFleetTargetId }>[] = targeting.rolls.map((roll, index) => ({
+    instanceId: `${index}:${roll.shipId}`, target: roll.target,
+  }));
+  for (let index = 0; index < receipts.length; index += 1) {
+    const receipt = receipts[index];
+    if (!isRecord(receipt) || receipt.range !== order[index] || !Array.isArray(receipt.targetShifts)) return false;
+    // Older in-progress attacks had no snapshot field. Accept only a no-shift
+    // receipt, whose target map is provably unchanged from the previous phase.
+    const snapshot = receipt.targetSnapshot === undefined
+      ? receipt.targetShifts.length === 0 ? expected : null
+      : receipt.targetSnapshot;
+    if (!snapshot || !sameWolfTargetSnapshot(snapshot, expected)) return false;
+    try {
+      expected = replayWolfRangeTargetSnapshot(snapshot as WolfRangeReceipt['targetSnapshot'],
+        receipt.targetShifts as WolfRangeReceipt['targetShifts'], targeting.ring);
+    } catch { return false; }
+  }
+  return roster.length === expected.length && roster.every((ship, index) =>
+    ship.instanceId === expected[index]?.instanceId && ship.target === expected[index]?.target);
+}
+
 function requireWolfRangeState(
   session: DocumentSnapshot,
   state: DocumentSnapshot,
@@ -23368,9 +23408,10 @@ function requireWolfRangeState(
   if (!Array.isArray(roster) || roster.length !== receipt.rolls.length ||
       roster.some((ship, index) => !isRecord(ship) ||
         ship.instanceId !== `${index}:${receipt.rolls[index]?.shipId}` ||
-        ship.shipId !== receipt.rolls[index]?.shipId || ship.target !== receipt.rolls[index]?.target ||
+        ship.shipId !== receipt.rolls[index]?.shipId || !receipt.ring.includes(ship.target as WolfFleetTargetId) ||
         !Number.isSafeInteger(ship.damageTaken) || (ship.damageTaken as number) < 0 ||
-        typeof ship.destroyed !== 'boolean')) {
+        typeof ship.destroyed !== 'boolean') ||
+      !wolfRangeTargetProgressionMatches(range, receipt, roster as readonly WolfCombatShip[], state.get('rangeReceipts'))) {
     throw commandError('failed-precondition', 'The current private Wolf combat roster is malformed.', 'conflict');
   }
   const cycles = isRecord(session.get('maintenanceCycles')) ? session.get('maintenanceCycles') : {};
