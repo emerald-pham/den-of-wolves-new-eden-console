@@ -14,6 +14,7 @@ export default defineShuttle({
   vesselType: 'Service shuttle',
   description: 'Recharges consoles and carries full cargo for the Quellon / Refinery Union Engineer.',
   captainRoleId: 'joint-engineering-quellon-refinery',
+  boardingSupport: 'security-teams',
   availability: 'gm-controlled',
   cargoTransferTypes: ['securityTeams', 'ore', 'fuel', 'food', 'water', 'materials'],
   cargoTransfer: 'Security teams, strytium ore, fuel, food, water, and materials',

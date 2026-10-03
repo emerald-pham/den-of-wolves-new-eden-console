@@ -10,6 +10,7 @@ export default defineShuttle({
   vesselType: 'Assault shuttle',
   description: 'Moves security teams and reinforces boarding defence for the AEGIS Executive Officer.',
   captainRoleId: 'executive-officer',
+  boardingSupport: 'security-teams+pallas-reroll+fuelled-relocation',
   cargoTransferTypes: ['securityTeams'],
   cargoTransfer: 'Security teams only',
   initialDocking: { shipId: 'aegis', dockedAt: 'SESSION START' },

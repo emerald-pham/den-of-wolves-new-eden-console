@@ -155,6 +155,10 @@ export type ShuttleAvailability = 'standard' | 'gm-controlled';
 
 export type ShuttleOperationPhase = 'Team' | 'Coordination' | 'Away mission' | 'Wolf attack';
 export type WolfAttackCraftRole = 'battle-table' | 'park-only';
+export type WolfBoardingCraftSupport =
+  | 'security-teams'
+  | 'security-teams+pallas-reroll+fuelled-relocation'
+  | 'security-teams+fuelled-relocation';
 
 /** Printed away-mission support, kept distinct from unlisted shuttle abilities. */
 export type AwayMissionSupport =
@@ -186,6 +190,8 @@ export interface Shuttlecraft {
   readonly availability: ShuttleAvailability;
   /** Printed range-combat eligibility; boarding support remains park-only. */
   readonly wolfAttackRole: WolfAttackCraftRole;
+  /** Printed boarding ability used by the server to derive host support. */
+  readonly boardingSupport?: WolfBoardingCraftSupport;
   readonly consoleClass?: string;
   readonly mark?: string;
   /** The ship-system id that controls launch eligibility, when applicable. */

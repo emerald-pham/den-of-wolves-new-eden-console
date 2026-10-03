@@ -6,6 +6,10 @@
 export type RoleOwnedCraftKind = 'shuttle' | 'fighter-wing';
 export type CraftEnabledMode = 'standard' | 'gm-controlled';
 export type WolfAttackCraftRole = 'battle-table' | 'park-only';
+export type WolfBoardingCraftSupport =
+  | 'security-teams'
+  | 'security-teams+pallas-reroll+fuelled-relocation'
+  | 'security-teams+fuelled-relocation';
 
 export interface RoleOwnedCraft {
   readonly id: string;
@@ -13,6 +17,7 @@ export interface RoleOwnedCraft {
   readonly ownerRoleId: string;
   readonly enabledMode: CraftEnabledMode;
   readonly wolfAttackRole: WolfAttackCraftRole;
+  readonly boardingSupport?: WolfBoardingCraftSupport;
 }
 
 /**
@@ -25,22 +30,22 @@ export const ROLE_OWNED_CRAFT_CATALOG: readonly RoleOwnedCraft[] = [
   { id: 'starlight', kind: 'shuttle', ownerRoleId: 'wing-commander', enabledMode: 'standard', wolfAttackRole: 'park-only' },
   { id: 'fighter-wing-alpha', kind: 'fighter-wing', ownerRoleId: 'wing-commander', enabledMode: 'standard', wolfAttackRole: 'battle-table' },
   { id: 'fighter-wing-bravo', kind: 'fighter-wing', ownerRoleId: 'wing-commander', enabledMode: 'standard', wolfAttackRole: 'battle-table' },
-  { id: 'pallas', kind: 'shuttle', ownerRoleId: 'executive-officer', enabledMode: 'standard', wolfAttackRole: 'park-only' },
-  { id: 'philia', kind: 'shuttle', ownerRoleId: 'dione-engineer', enabledMode: 'standard', wolfAttackRole: 'park-only' },
+  { id: 'pallas', kind: 'shuttle', ownerRoleId: 'executive-officer', enabledMode: 'standard', wolfAttackRole: 'park-only', boardingSupport: 'security-teams+pallas-reroll+fuelled-relocation' },
+  { id: 'philia', kind: 'shuttle', ownerRoleId: 'dione-engineer', enabledMode: 'standard', wolfAttackRole: 'park-only', boardingSupport: 'security-teams' },
   { id: 'maliades', kind: 'shuttle', ownerRoleId: 'dione-engineer', enabledMode: 'standard', wolfAttackRole: 'battle-table' },
   { id: 'highwall', kind: 'shuttle', ownerRoleId: 'icebreaker-miner', enabledMode: 'standard', wolfAttackRole: 'battle-table' },
-  { id: 'blacksmith', kind: 'shuttle', ownerRoleId: 'icebreaker-engineer', enabledMode: 'standard', wolfAttackRole: 'park-only' },
-  { id: 'macaw', kind: 'shuttle', ownerRoleId: 'capybara-captain', enabledMode: 'standard', wolfAttackRole: 'park-only' },
+  { id: 'blacksmith', kind: 'shuttle', ownerRoleId: 'icebreaker-engineer', enabledMode: 'standard', wolfAttackRole: 'park-only', boardingSupport: 'security-teams' },
+  { id: 'macaw', kind: 'shuttle', ownerRoleId: 'capybara-captain', enabledMode: 'standard', wolfAttackRole: 'park-only', boardingSupport: 'security-teams' },
   { id: 'boa', kind: 'shuttle', ownerRoleId: 'capybara-recycler', enabledMode: 'standard', wolfAttackRole: 'battle-table' },
   { id: 'endeavour', kind: 'shuttle', ownerRoleId: 'shepherd-scientist', enabledMode: 'standard', wolfAttackRole: 'park-only' },
-  { id: 'black-sheep', kind: 'shuttle', ownerRoleId: 'shepherd-engineer', enabledMode: 'standard', wolfAttackRole: 'park-only' },
+  { id: 'black-sheep', kind: 'shuttle', ownerRoleId: 'shepherd-engineer', enabledMode: 'standard', wolfAttackRole: 'park-only', boardingSupport: 'security-teams' },
   { id: 'hummingbird', kind: 'shuttle', ownerRoleId: 'quellon-explorer', enabledMode: 'standard', wolfAttackRole: 'park-only' },
-  { id: 'condor', kind: 'shuttle', ownerRoleId: 'quellon-engineer', enabledMode: 'standard', wolfAttackRole: 'park-only' },
-  { id: 'chacau', kind: 'shuttle', ownerRoleId: 'refinery-124-engineer', enabledMode: 'standard', wolfAttackRole: 'park-only' },
-  { id: 'chepu', kind: 'shuttle', ownerRoleId: 'refinery-124-pdf-colonel', enabledMode: 'standard', wolfAttackRole: 'park-only' },
+  { id: 'condor', kind: 'shuttle', ownerRoleId: 'quellon-engineer', enabledMode: 'standard', wolfAttackRole: 'park-only', boardingSupport: 'security-teams' },
+  { id: 'chacau', kind: 'shuttle', ownerRoleId: 'refinery-124-engineer', enabledMode: 'standard', wolfAttackRole: 'park-only', boardingSupport: 'security-teams' },
+  { id: 'chepu', kind: 'shuttle', ownerRoleId: 'refinery-124-pdf-colonel', enabledMode: 'standard', wolfAttackRole: 'park-only', boardingSupport: 'security-teams+fuelled-relocation' },
   { id: 'pdf-escort-fighter-wing', kind: 'fighter-wing', ownerRoleId: 'refinery-124-pdf-colonel', enabledMode: 'standard', wolfAttackRole: 'battle-table' },
-  { id: 'wobbly', kind: 'shuttle', ownerRoleId: 'joint-engineering-quellon-refinery', enabledMode: 'gm-controlled', wolfAttackRole: 'park-only' },
-  { id: 'ally', kind: 'shuttle', ownerRoleId: 'joint-engineering-shepherd-icebreaker', enabledMode: 'gm-controlled', wolfAttackRole: 'park-only' },
+  { id: 'wobbly', kind: 'shuttle', ownerRoleId: 'joint-engineering-quellon-refinery', enabledMode: 'gm-controlled', wolfAttackRole: 'park-only', boardingSupport: 'security-teams' },
+  { id: 'ally', kind: 'shuttle', ownerRoleId: 'joint-engineering-shepherd-icebreaker', enabledMode: 'gm-controlled', wolfAttackRole: 'park-only', boardingSupport: 'security-teams' },
 ];
 
 export interface BattleTableCraftActionRegistration {
