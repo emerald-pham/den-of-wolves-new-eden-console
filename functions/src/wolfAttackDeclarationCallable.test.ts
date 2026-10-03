@@ -550,6 +550,14 @@ it('rejects a reasoned recovery after the authoritative Coordination deadline', 
 });
 
 it('requires reasoned revision-bound replay for emergency pause and resume during an attack', async () => {
+  session({
+    turnPhase: {
+      turn: 1,
+      teamPhaseEndsAt: new Date(Date.now() + 60_000).toISOString(),
+      openAirspaceEndsAt: new Date(Date.now() + 120_000).toISOString(),
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+    },
+  });
   await declareWolfAttack.run(request());
   const pause = {
     sessionId: 's1', instanceId: 'gm-1', requestId: 'attack-clock-pause',
