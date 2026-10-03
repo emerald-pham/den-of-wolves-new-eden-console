@@ -1610,9 +1610,15 @@ test('fails closed when PC05 shared index code changes beyond the audited candid
   }), /Cannot safely map PC05 shared index changes/);
 });
 
+// These gates prove a historical PC06 source transition. New checkpoint code is
+// covered by its own exact current candidate audit; it cannot rewrite history.
+const PC06_RELEASE_SHA = 'bf222fbaf4661ed31c154528a49e8f47344b1846';
+const releasedPc06Source = file => execFileSync('git', ['show', `${PC06_RELEASE_SHA}:${file}`], {
+  encoding: 'utf8', maxBuffer: 16 * 1024 * 1024,
+});
 const PC06_IMPLEMENTATION_CANDIDATE = '033260dede184135406aba608a3f58093e94df0a';
 const pc06SourceAtRevision = (revision, file) => {
-  if (revision === PC06_IMPLEMENTATION_CANDIDATE && file === 'functions/src/missionCraftCommitment.ts') return readFileSync(file, 'utf8');
+  if (revision === PC06_IMPLEMENTATION_CANDIDATE && file === 'functions/src/missionCraftCommitment.ts') return releasedPc06Source(file);
   try { return execFileSync('git', ['show', `${revision}:${file}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 16 * 1024 * 1024 }); }
   catch { if (revision === PC05_REVIEWED_CANDIDATE) return ''; throw new Error(`Missing candidate source ${file}`); }
 };
@@ -1658,7 +1664,7 @@ test('maps the final PC06 shared index from the actually deployed 0.5.62 source'
   const previous = execFileSync('git', ['show', `baad0b16f1381a6eba835c401aa8796679b1befb:${file}`], {
     encoding: 'utf8', maxBuffer: 16 * 1024 * 1024,
   });
-  const current = readFileSync(file, 'utf8');
+  const current = releasedPc06Source(file);
   const selection = (candidate) => deploymentSelector({
     before: 'deployed-062', after: 'combined-063', files: [file], targets: ['functions'],
     sourceAtRevision: revision => revision === 'deployed-062' ? previous : candidate,
@@ -1673,7 +1679,7 @@ test('maps the GM window repair from its reviewed owner source and rejects extra
   const previous = execFileSync('git', ['show', `${baseline}:${file}`], {
     encoding: 'utf8', maxBuffer: 16 * 1024 * 1024,
   });
-  const current = readFileSync(file, 'utf8');
+  const current = releasedPc06Source(file);
   const consumers = voyagePrivacyConsumerNames.filter(name => name !== 'setCandidatePlanCheckpoint');
   const selection = candidate => deploymentSelector({
     before: baseline, after: 'gm-window-repair', files: [file], targets: ['functions'],
@@ -1685,12 +1691,12 @@ test('maps the GM window repair from its reviewed owner source and rejects extra
 });
 test('maps every changed PC06 runtime module from the actual deployed build together', () => {
   const baseline = 'baad0b16f1381a6eba835c401aa8796679b1befb';
-  const files = execFileSync('git', ['diff', '--name-only', baseline, 'HEAD', '--', 'functions/src'], {
+  const files = execFileSync('git', ['diff', '--name-only', baseline, PC06_RELEASE_SHA, '--', 'functions/src'], {
     encoding: 'utf8',
   }).split('\n').filter(file => file.endsWith('.ts') && !file.endsWith('.test.ts'));
   assert.ok(files.includes('functions/src/voyage33MovementCallable.ts'));
   const sourceAtRevision = (revision, file) => {
-    if (revision !== baseline) return readFileSync(file, 'utf8');
+    if (revision !== baseline) return releasedPc06Source(file);
     try { return execFileSync('git', ['show', `${baseline}:${file}`], {
       encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 16 * 1024 * 1024,
     }); } catch { return ''; }
@@ -1709,7 +1715,7 @@ test('maps every changed PC06 runtime module from the actual deployed build toge
 });
 test('maps the new private Voyage storage helper to every callable that reads or migrates it', () => {
   const file = 'functions/src/voyage33MovementStorage.ts';
-  const current = readFileSync(file, 'utf8');
+  const current = releasedPc06Source(file);
   const consumers = [
     'adjudicateFailedJump', 'dockVoyage33', 'joinSession', 'jumpShip', 'jumpVoyage33',
     'moveShipToLocation', 'resumeSession',
@@ -1740,7 +1746,7 @@ for (const [file, mapPath, consumers, baseline = voyageHostSyncBaseline] of [
 ]) {
   test(`maps the exact reconciled Voyage and mission-cursor consumers for ${file}`, () => {
     const previous = execFileSync('git', ['show', `${baseline}:${file}`], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
-    const current = readFileSync(file, 'utf8');
+    const current = releasedPc06Source(file);
     const dependencyMap = JSON.parse(readFileSync('scripts/pc06-deployment-consumers.json', 'utf8'));
     const priorDigest = sha256(previous);
     const currentDigest = sha256(current);
