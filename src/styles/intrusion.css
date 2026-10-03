@@ -419,7 +419,7 @@
 /* The clear action is a real, accessible control outside decorative Intrusion. */
 .turn-interstitial-clear {
   position: fixed;
-  z-index: 6;
+  z-index: 31;
   inset-inline: max(1rem, env(safe-area-inset-left));
   bottom: max(1rem, env(safe-area-inset-bottom));
   width: min(40rem, calc(100vw - 2rem));
@@ -434,5 +434,7 @@
 .turn-interstitial-clear button { min-height: 44px; width: 100%; }
 @media (max-height: 30rem) {
   .turn-interstitial-clear { bottom: 0.5rem; padding: 0.5rem; font-size: 0.75rem; }
-  .turn-interstitial-clear ~ .intrusion--fleet { padding-bottom: 6rem; }
+  .turn-interstitial-clear ~ .intrusion--fleet { padding-block: 0.5rem 8rem; align-items: start; }
+  .turn-interstitial-clear ~ .intrusion--fleet .turn-start-announcement__console { padding: 0.65rem; gap: 0.5rem; }
+  .turn-interstitial-clear ~ .intrusion--fleet .turn-start-announcement__slide { min-height: 5rem; }
 }
