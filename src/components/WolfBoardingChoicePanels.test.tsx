@@ -37,13 +37,15 @@ describe('Wolf boarding decision presenters', () => {
     render(<WolfBoardingMilitiaChoicePanelView view={{
       type: 'wolf-boarding-militia-choice-view', status: 'pending',
       targetShipId: 'aegis', boardingParties: 8, availableSecurityTeams: 3,
-      maxFrontLineDice: 3, doubleDiceAvailable: true,
+      selectedSecurityTeams: 2, maxFrontLineDice: 3, doubleDiceAvailable: true,
     }} onChoose={onChoose} />);
 
+    expect(screen.getByText(/ship crew committed 2 security teams/i)).toBeVisible();
+    expect(screen.queryByLabelText(/security teams to commit/i)).toBeNull();
     fireEvent.click(screen.getByRole('checkbox', { name: /roll two dice per security team/i }));
     fireEvent.change(screen.getByLabelText(/front-line dice/i), { target: { value: '2' } });
     fireEvent.click(screen.getByRole('button', { name: /commit defence/i }));
-    expect(onChoose).toHaveBeenCalledWith({ securityTeams: 3, militiaDoubleTeams: true, militiaFrontLineDice: 2 });
+    expect(onChoose).toHaveBeenCalledWith({ militiaDoubleTeams: true, militiaFrontLineDice: 2 });
   });
 
   it('selects indexed defense dice for each independent reroll allowance', () => {
