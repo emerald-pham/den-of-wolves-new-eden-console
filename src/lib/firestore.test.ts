@@ -93,6 +93,21 @@ it('does not invent foreign resources or Press docking from a current member ses
   expect(dione.shuttleDockings?.map(entry => entry.shuttleId)).toEqual(['endeavour']);
 });
 
+it('hydrates the entitled independent SNN docking and visits without foreign vessel maps or invented transit docks', () => {
+  const snn = { shuttleId: 'snn-press-shuttle', ownerRoleId: 'press-officer', ownerUid: 'press', holderUid: 'press', revision: 0 };
+  const source = { ...sessionData(8), activeVesselIds: ['aegis', 'icebreaker'],
+    memberSessionScope: { groupId: 'fleet-1', vesselIds: [], craftIds: ['snn-press-shuttle'] },
+    shipResources: {}, shuttleControl: { 'snn-press-shuttle': snn },
+    shuttleDockings: [{ shuttleId: 'snn-press-shuttle', shipId: 'icebreaker', dockedAt: '2026-10-03T12:00:00.000Z' }],
+    shuttleVisitLog: [{ id: 'snn-own-visit', shuttleId: 'snn-press-shuttle', shipId: 'icebreaker', action: 'docked', occurredAt: '2026-10-03T12:00:00.000Z' }] };
+  const docked = sessionFrom('independent-press', source);
+  expect(docked.shuttleDockings).toEqual(source.shuttleDockings);
+  expect(docked.shuttleVisitLog).toEqual(source.shuttleVisitLog);
+  expect(docked.shuttleControl).toEqual(source.shuttleControl);
+  expect(docked.shipResources).toEqual({});
+  expect(sessionFrom('independent-press', { ...source, shuttleDockings: [], shuttleVisitLog: [] }).shuttleDockings).toEqual([]);
+});
+
 it('carries the current fleet partition revision through member hydration for real navigation commands', () => {
   const value = sessionFrom('partition-current', { ...sessionData(8), fleetPartitionRevision: 7,
     memberSessionScope: { groupId: 'fleet-2', vesselIds: ['shepherd'], craftIds: [] }, shuttleDockings: [], shuttleVisitLog: [] });
