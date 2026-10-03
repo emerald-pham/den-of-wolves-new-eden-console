@@ -289,7 +289,7 @@ it('rejects a callable reply bound to another session', async () => {
 
 it('rejects a C&C redirect receipt from a different submitted request', async () => {
   const values = setFreshIdentity();
-  useSessionStore.getState().setMe({ ...values.player, replacementRoleId: undefined,
+  useSessionStore.getState().setMe({ ...values.player, replacementRoleId: null,
     assignedRoleId: 'executive-officer', activeConsoleRoleId: 'executive-officer' });
   const result = {
     status: 'committed', type: 'aegis-command-and-control-result', sessionId: values.session.id,
