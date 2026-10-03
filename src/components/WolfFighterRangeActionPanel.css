@@ -75,6 +75,38 @@
   text-transform: uppercase;
 }
 
+.wolf-fighter-range__short-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0.7rem;
+  border: 1px solid var(--cic-rule);
+}
+
+.wolf-fighter-range__short-choices legend {
+  padding-inline: 0.35rem;
+  color: var(--cic-cyan);
+  font: 14px/1.4 var(--cic-mono);
+  text-transform: uppercase;
+}
+
+.wolf-fighter-range__short-choices label {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 44px;
+  color: var(--cic-ink);
+  font: 14px/1.45 var(--cic-mono);
+}
+
+.wolf-fighter-range__short-choices input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--cic-cyan);
+}
+
 .wolf-fighter-range__row select {
   width: 100%;
   min-width: 0;

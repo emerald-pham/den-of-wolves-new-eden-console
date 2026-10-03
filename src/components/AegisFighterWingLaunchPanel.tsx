@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   getAegisFighterWingLaunch,
   launchAegisFighterWing,
+  passWolfFighterLaunchChoice,
 } from '@/lib/sessionService';
 import type {
   AegisFighterWingLaunchView,
@@ -19,6 +20,8 @@ const WINGS: readonly Readonly<{ id: AegisFighterWingId; label: string; bay: str
 
 function reasonText(view: AegisFighterWingLaunchView, bay: string): string | undefined {
   if (view.eligible) return undefined;
+  if (view.choiceStatus === 'passed' || view.reason === 'passed') return 'Launch choice passed for this attack.';
+  if (view.choiceStatus === 'unavailable') return 'This wing could not launch for the current attack.';
   switch (view.reason) {
     case 'already-launched': return `${view.wingId === 'fighter-wing-alpha' ? 'Fighter Wing Alpha' : 'Fighter Wing Bravo'} is launched for this attack.`;
     case 'no-fighters': return `No fighters remain in ${view.wingId === 'fighter-wing-alpha' ? 'Alpha' : 'Bravo'}.`;
@@ -32,6 +35,7 @@ function reasonText(view: AegisFighterWingLaunchView, bay: string): string | und
 export interface AegisFighterWingLaunchPanelViewProps {
   readonly views: AegisFighterWingLaunchViews;
   readonly onLaunch: (wingId: AegisFighterWingId, view: AegisFighterWingLaunchView) => void;
+  readonly onPass?: (wingId: AegisFighterWingId, view: AegisFighterWingLaunchView) => void;
   readonly busy?: boolean;
   readonly message?: string;
 }
@@ -39,6 +43,7 @@ export interface AegisFighterWingLaunchPanelViewProps {
 export function AegisFighterWingLaunchPanelView({
   views,
   onLaunch,
+  onPass,
   busy = false,
   message,
 }: AegisFighterWingLaunchPanelViewProps) {
@@ -63,10 +68,16 @@ export function AegisFighterWingLaunchPanelView({
                   : <p role="status">Checking launch authority…</p>}
               </div>
               {view?.eligible ? (
-                <button type="button" className="cic-action-button" disabled={busy}
-                  onClick={() => onLaunch(id, view)}>
-                  Launch {label}
-                </button>
+                <div className="aegis-fighter-launch__actions">
+                  <button type="button" className="cic-action-button" disabled={busy}
+                    onClick={() => onLaunch(id, view)}>
+                    Launch {label}
+                  </button>
+                  <button type="button" className="cic-action-button aegis-fighter-launch__pass" disabled={busy || !onPass}
+                    onClick={() => onPass?.(id, view)}>
+                    Pass {label}
+                  </button>
+                </div>
               ) : (
                 <>
                   <button type="button" className="cic-action-button" disabled>
@@ -130,6 +141,17 @@ export default function AegisFighterWingLaunchPanel({
           setRefreshToken((token) => token + 1);
         })
         .catch((cause) => setMessage(cause instanceof Error ? cause.message : 'The fighter wing could not launch.'))
+        .finally(() => setBusy(false));
+    }}
+    onPass={(wingId, view) => {
+      setBusy(true);
+      setMessage(undefined);
+      void passWolfFighterLaunchChoice(wingId, view.turn, view.revision, view.wingRevision)
+        .then(() => {
+          setMessage(`${wingId === 'fighter-wing-alpha' ? 'Alpha' : 'Bravo'} launch passed for this attack.`);
+          setRefreshToken((token) => token + 1);
+        })
+        .catch((cause) => setMessage(cause instanceof Error ? cause.message : 'The fighter launch choice could not be passed.'))
         .finally(() => setBusy(false));
     }} />;
 }

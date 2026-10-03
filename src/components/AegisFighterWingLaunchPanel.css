@@ -50,6 +50,17 @@
   line-height: 1.45;
 }
 
+.aegis-fighter-launch__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.aegis-fighter-launch__pass {
+  border-color: var(--cic-rule);
+  color: var(--cic-ink);
+}
+
 .aegis-fighter-launch__status {
   flex: 0 0 auto;
   color: var(--cic-accent, #8bd8e8);

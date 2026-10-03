@@ -242,7 +242,7 @@ export function parsePdfEscortWingState(value: unknown): PdfEscortWingState | nu
       mediumIndexes.some((index) => index < 0 || index >= CAPACITY) ||
       shortIndexes.some((index) => index < 0 || index >= CAPACITY) ||
       mediumResolved !== (mediumIndexes.length > 0) ||
-      shortResolved !== (shortIndexes.length > 0) ||
+      (!shortResolved && shortIndexes.length > 0) ||
       (attackId === null && (revision !== 0 || launched || fighters !== CAPACITY || losses !== 0 || mediumResolved || shortResolved)) ||
       (!launched && (mediumResolved || shortResolved)) ||
       (attackId !== null && revision === 0 && (fighters !== CAPACITY || losses !== 0)) ||
@@ -429,8 +429,8 @@ export function resolvePdfEscortWingShort(
   requireExpectedRevision(state, input.expectedRevision);
   if (!state.launched) throw new Error('Launch the PDF Escort Wing before resolving Short Range.');
   if (state.shortResolved) throw new Error('PDF Escort Wing Short Range has already resolved.');
-  if (!Array.isArray(input.fighterIndexes) || input.fighterIndexes.length < 1) {
-    throw new Error('PDF Escort Wing Short Range requires at least one fighter roll.');
+  if (!Array.isArray(input.fighterIndexes)) {
+    throw new Error('PDF Escort Wing Short Range fighter indexes must be a list.');
   }
   validateIndexes(input.fighterIndexes, state.fighters, 'Short Range');
   const rolls = input.fighterIndexes.map((fighterIndex): PdfEscortWingShortRollResult => {

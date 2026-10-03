@@ -606,6 +606,8 @@ import {
 import {
   WOLF_ATTACK_PARKING_RELEASE,
   WOLF_ATTACK_DECLARATION_STEP,
+  type WolfFighterLaunchChoiceRecord,
+  type WolfFighterLaunchChoiceSourceId,
   type WolfAttackStageState,
   wolfAttackBlocksNormalMovement,
 } from './wolfAttackDeclaration';
@@ -20560,6 +20562,7 @@ export const declareWolfAttack = onCall<{
       parkingReleaseCondition: WOLF_ATTACK_PARKING_RELEASE,
       battleTableCraftActions: inputs.battleTableCraftActions.map((action) => ({ ...action })),
       launchedCraftIds: [],
+      fighterLaunchChoices: {},
       parkedShuttleDockings: inputs.parkedShuttleDockings.map((docking) => ({ ...docking })),
       parkingDecisions: inputs.parkingDecisions.map((decision) => ({
         ...decision,
@@ -20711,6 +20714,146 @@ function currentWolfAegisExecutiveOfficers(
     const groupId = player.get('fleetGroupId');
     return typeof groupId === 'string' && fleetGroupMemberShipId(groups, player.id, groupId) === 'aegis';
   });
+}
+
+type WolfFighterLaunchChoiceStatus = WolfFighterLaunchChoiceRecord['status'];
+
+const WOLF_FIGHTER_LAUNCH_SOURCE_IDS: readonly WolfFighterLaunchChoiceSourceId[] = [
+  'fighter-wing-alpha', 'fighter-wing-bravo', 'pdf-escort-fighter-wing', 'maliades',
+];
+
+function wolfFighterLaunchChoiceMap(
+  attack: DocumentSnapshot,
+  turn: number,
+  attackId: string,
+): Readonly<Partial<Record<WolfFighterLaunchChoiceSourceId, WolfFighterLaunchChoiceRecord>>> {
+  const raw = attack.get('fighterLaunchChoices');
+  if (raw === undefined) return {};
+  if (!isRecord(raw)) throw commandError('failed-precondition', 'The fighter launch choice state is malformed.', 'conflict');
+  const choices: Partial<Record<WolfFighterLaunchChoiceSourceId, WolfFighterLaunchChoiceRecord>> = {};
+  for (const [sourceId, value] of Object.entries(raw)) {
+    if (!(WOLF_FIGHTER_LAUNCH_SOURCE_IDS as readonly string[]).includes(sourceId) || !isRecord(value) ||
+        value.sourceId !== sourceId ||
+        (value.status !== 'launched' && value.status !== 'passed' && value.status !== 'unavailable') ||
+        value.turn !== turn || value.attackId !== attackId || !Number.isSafeInteger(value.revision) ||
+        (value.revision as number) < 1 || typeof value.actorUid !== 'string' || value.actorUid.length < 1 ||
+        typeof value.actorRoleId !== 'string' || value.actorRoleId.length < 1 || !isCanonicalRequestId(value.requestId) ||
+        (value.reason !== undefined && (typeof value.reason !== 'string' || value.reason.length > 120))) {
+      throw commandError('failed-precondition', 'The fighter launch choice state is malformed.', 'conflict');
+    }
+    choices[sourceId as WolfFighterLaunchChoiceSourceId] = value as unknown as WolfFighterLaunchChoiceRecord;
+  }
+  return choices;
+}
+
+function currentWolfRoleOwners(
+  players: readonly DocumentSnapshot[],
+  fleetGroupSnapshots: readonly DocumentSnapshot[],
+  roleId: string,
+  vesselId: string,
+): readonly DocumentSnapshot[] {
+  const groups = fleetGroupSnapshots.flatMap((snapshot) => {
+    const group = fleetGroupRecord(snapshot.data());
+    return group ? [group] : [];
+  });
+  return players.filter((player) => {
+    if (player.get('role') !== 'player' || player.get('replacementStatus') != null ||
+        isKickedPlayer(player) || playerEscapeState(player) ||
+        boundCoreConsoleRole(player.get('assignedRoleId'), player.get('seatId')) !== roleId) return false;
+    const groupId = player.get('fleetGroupId');
+    return typeof groupId === 'string' && fleetGroupMemberShipId(groups, player.id, groupId) === vesselId;
+  });
+}
+
+type AutoWolfFighterLaunchDecision = Readonly<{
+  sourceId: WolfFighterLaunchChoiceSourceId;
+  status: WolfFighterLaunchChoiceStatus;
+  actorRoleId: string;
+  reason?: string;
+}>;
+
+function wolfFighterLaunchGateState(input: Readonly<{
+  session: DocumentSnapshot;
+  attack: DocumentSnapshot;
+  pdfWing: DocumentSnapshot;
+  players: readonly DocumentSnapshot[];
+  fleetGroups: readonly DocumentSnapshot[];
+  turn: number;
+  attackId: string;
+}>): Readonly<{
+  choices: ReturnType<typeof wolfFighterLaunchChoiceMap>;
+  waiting: boolean;
+  automatic: readonly AutoWolfFighterLaunchDecision[];
+}> {
+  const { session, attack, pdfWing, players, fleetGroups, turn, attackId } = input;
+  const choices = wolfFighterLaunchChoiceMap(attack, turn, attackId);
+  const automatic: AutoWolfFighterLaunchDecision[] = [];
+  let waiting = false;
+
+  const consider = (
+    sourceId: WolfFighterLaunchChoiceSourceId,
+    actorRoleId: string,
+    eligible: boolean,
+    launched: boolean,
+    actorExists: boolean,
+    ineligibleReason?: string,
+  ) => {
+    const committed = choices[sourceId];
+    if (committed) {
+      if ((committed.status === 'launched') !== launched) {
+        throw commandError('failed-precondition', 'The fighter launch decision conflicts with its authoritative launch state.', 'conflict');
+      }
+      return;
+    }
+    if (launched) {
+      automatic.push({ sourceId, status: 'launched', actorRoleId, reason: 'recovered-authoritative-launch' });
+      return;
+    }
+    if (!actorExists) {
+      automatic.push({ sourceId, status: 'unavailable', actorRoleId, reason: 'no-current-role-owner' });
+      return;
+    }
+    if (!eligible) {
+      automatic.push({ sourceId, status: 'unavailable', actorRoleId, reason: ineligibleReason ?? 'source-ineligible' });
+      return;
+    }
+    waiting = true;
+  };
+
+  const activeRoles = sessionActiveRoleIds(session);
+  const activeVessels = wolfAttackActiveVesselIds(session);
+  if (activeRoles.includes('wing-commander') && activeVessels.includes('aegis')) {
+    const owners = currentWolfRoleOwners(players, fleetGroups, 'wing-commander', 'aegis');
+    for (const wingId of ['fighter-wing-alpha', 'fighter-wing-bravo'] as const) {
+      const view = aegisFighterWingLaunchView(session.id, session, attack, wingId);
+      consider(wingId, 'wing-commander', view.eligible, view.launched, owners.length > 0,
+        view.reason ?? 'source-ineligible');
+    }
+  }
+
+  const rawBattleActions = attack.get('battleTableCraftActions');
+  const battleActions = rawBattleActions === undefined ? [] : rawBattleActions;
+  if (!Array.isArray(battleActions)) {
+    throw commandError('failed-precondition', 'The registered fighter launch opportunities are malformed.', 'conflict');
+  }
+  const registered = (craftId: string, kind: 'shuttle' | 'fighter-wing', ownerRoleId: string) =>
+    battleActions.some((action) => isRecord(action) && action.craftId === craftId &&
+      action.kind === kind && action.ownerRoleId === ownerRoleId);
+
+  if (registered('pdf-escort-fighter-wing', 'fighter-wing', 'refinery-124-pdf-colonel')) {
+    const owners = currentWolfRoleOwners(players, fleetGroups, 'refinery-124-pdf-colonel', 'refinery-124');
+    const view = pdfEscortWingLaunchView(session.id, session, attack, pdfWing);
+    consider('pdf-escort-fighter-wing', 'refinery-124-pdf-colonel', view.eligible, view.launched,
+      owners.length > 0, view.reason ?? 'source-ineligible');
+  }
+  if (registered('maliades', 'shuttle', 'dione-engineer')) {
+    const owners = currentWolfRoleOwners(players, fleetGroups, 'dione-engineer', 'dione');
+    const view = dioneMaliadesLaunchView(session.id, session, attack);
+    consider('maliades', 'dione-engineer', view.eligible, view.launched,
+      owners.length > 0, view.reason ?? 'source-ineligible');
+  }
+
+  return { choices, waiting, automatic };
 }
 
 /** Build the bounded GM-only decision status without copying combat inputs or dice. */
@@ -21298,12 +21441,13 @@ async function reconcileWolfAttackBoarding(
 async function reconcileWolfAttackProgress(sessionId: string): Promise<void> {
   const sessionRef = db.doc(`sessions/${sessionId}`);
   const stateRef = db.doc(`sessions/${sessionId}/wolfAttackState/current`);
+  const pdfWingRef = db.doc(`sessions/${sessionId}/serverState/pdfEscortWing`);
   const playersRef = db.collection(`sessions/${sessionId}/players`);
   const fleetGroupsRef = db.collection(`sessions/${sessionId}/fleetGroups`);
   const finalizationCache: { current?: WolfAttackFinalizationCache } = {};
   await db.runTransaction(async (tx) => {
-    const [session, state, players, fleetGroups] = await Promise.all([
-      tx.get(sessionRef), tx.get(stateRef), tx.get(playersRef), tx.get(fleetGroupsRef),
+    const [session, state, players, fleetGroups, pdfWing] = await Promise.all([
+      tx.get(sessionRef), tx.get(stateRef), tx.get(playersRef), tx.get(fleetGroupsRef), tx.get(pdfWingRef),
     ]);
     if (!session.exists || !state.exists || state.get('status') !== 'declared' ||
         state.get('airspaceLocked') !== true) return;
@@ -21401,6 +21545,38 @@ async function reconcileWolfAttackProgress(sessionId: string): Promise<void> {
         isDamaged === 'undamaged' && inputs.receipt.rolls.length > 0 &&
         !usedRedirect && !passCommitted;
       if (canRedirect) return;
+
+      const attackId = state.get('attackId');
+      if (typeof attackId !== 'string' || !attackId) return;
+      let fighterLaunchGates: ReturnType<typeof wolfFighterLaunchGateState>;
+      try {
+        fighterLaunchGates = wolfFighterLaunchGateState({
+          session, attack: state, pdfWing, players: players.docs, fleetGroups: fleetGroups.docs,
+          turn: inputs.turn, attackId,
+        });
+      } catch { return; }
+      if (fighterLaunchGates.automatic.length > 0) {
+        const nextRevision = inputs.revision + 1;
+        const fighterLaunchChoices = { ...fighterLaunchGates.choices };
+        for (const choice of fighterLaunchGates.automatic) {
+          fighterLaunchChoices[choice.sourceId] = {
+            sourceId: choice.sourceId, status: choice.status, turn: inputs.turn, attackId,
+            revision: nextRevision, actorUid: 'server', actorRoleId: choice.actorRoleId,
+            requestId: `wolf-launch-auto-${choice.sourceId}-${inputs.turn}`,
+            ...(choice.reason ? { reason: choice.reason } : {}),
+          };
+        }
+        tx.update(stateRef, {
+          revision: nextRevision, fighterLaunchChoices, updatedAt: FieldValue.serverTimestamp(),
+        });
+        tx.set(db.doc(`${stateRef.path}/audit/auto-fighter-launch-choices-${inputs.turn}-${nextRevision}`), {
+          type: 'wolf-fighter-launch-choices-auto-unavailable', turn: inputs.turn, revision: nextRevision,
+          attackId, decisions: fighterLaunchGates.automatic, actorUid: 'server',
+          createdAt: FieldValue.serverTimestamp(),
+        });
+        return;
+      }
+      if (fighterLaunchGates.waiting) return;
 
       const nextRevision = inputs.revision + 1;
       const noCommanderMarker = completion === 'record-no-commander'
@@ -23075,7 +23251,7 @@ type WolfRangeTargetAssignmentResult = Readonly<{
 }>;
 
 type AegisFighterWingLaunchReason =
-  | 'waiting' | 'uncharged' | 'damaged' | 'destroyed' | 'no-fighters' | 'already-launched';
+  | 'waiting' | 'uncharged' | 'damaged' | 'destroyed' | 'no-fighters' | 'already-launched' | 'passed';
 
 type AegisFighterWingLaunchView = Readonly<{
   type: 'aegis-fighter-wing-launch-view';
@@ -23088,6 +23264,7 @@ type AegisFighterWingLaunchView = Readonly<{
   fighters: number;
   launched: boolean;
   eligible: boolean;
+  choiceStatus?: WolfFighterLaunchChoiceStatus;
   reason?: AegisFighterWingLaunchReason;
 }>;
 
@@ -23143,10 +23320,17 @@ function aegisFighterWingLaunchView(
   }
   const combat = aegisFighterWingCombatStateForAttack(session, attack, turn, attackId);
   const wing = combat.wings[wingId];
+  const choices = wolfFighterLaunchChoiceMap(attack, turn, attackId);
+  const choice = choices[wingId];
+  if (choice && (choice.status === 'launched') !== wing.launched) {
+    throw commandError('failed-precondition', 'The fighter launch decision conflicts with its authoritative wing state.', 'conflict');
+  }
   const view: AegisFighterWingLaunchView = {
     type: 'aegis-fighter-wing-launch-view', sessionId, wingId, turn, attackId,
     revision: revision as number, wingRevision: combat.revision, fighters: wing.fighters,
-    launched: wing.launched, eligible: false, reason: 'waiting',
+    launched: wing.launched, eligible: false,
+    ...(choice ? { choiceStatus: choice.status } : {}),
+    reason: 'waiting',
   };
   if (attack.get('type') !== 'wolf-attack-state' || attack.get('status') !== 'declared' ||
       attack.get('currentStep') !== 'targeting' || attack.get('airspaceLocked') !== true) return view;
@@ -23154,7 +23338,9 @@ function aegisFighterWingLaunchView(
   if (!phase || phase.turn !== turn || phase.airspace.state !== 'restricted' || phase.timerPause !== undefined) {
     return view;
   }
-  if (wing.launched) return { ...view, launched: true, reason: 'already-launched' };
+  if (choice?.status === 'passed') return { ...view, reason: 'passed' };
+  if (choice?.status === 'unavailable') return { ...view, reason: 'waiting' };
+  if (wing.launched) return { ...view, launched: true, choiceStatus: 'launched', reason: 'already-launched' };
   if (wing.fighters < 1) return { ...view, reason: 'no-fighters' };
 
   const bayId = wingId === 'fighter-wing-alpha' ? 'fighter-bay-alpha' : 'fighter-bay-bravo';
@@ -23247,7 +23433,7 @@ export const launchAegisFighterWing = onCall<{
     instanceId: wingId, expectedRevision,
     payload: { expectedTurn, expectedWingRevision, wingId },
   };
-  return db.runTransaction(async (tx: Transaction): Promise<AegisFighterWingLaunchResult> => {
+  const result = await db.runTransaction(async (tx: Transaction): Promise<AegisFighterWingLaunchResult> => {
     const [session, player, attack, receipt, audit] = await Promise.all([
       tx.get(sessionRef), tx.get(playerRef), tx.get(attackRef), tx.get(receiptRef), tx.get(auditRef),
     ]);
@@ -23296,9 +23482,15 @@ export const launchAegisFighterWing = onCall<{
     const result: AegisFighterWingLaunchResult = {
       ...view, status: 'committed', requestId, revision: nextRevision,
       wingRevision: nextState.revision, fighters: wing.fighters, launched: true, eligible: false,
+      choiceStatus: 'launched',
       reason: 'already-launched',
     };
+    const fighterLaunchChoices = wolfFighterLaunchChoiceMap(attack, view.turn, attackId);
     tx.update(attackRef, { revision: nextRevision, aegisFighterWingState: nextState,
+      fighterLaunchChoices: { ...fighterLaunchChoices, [wingId]: {
+        sourceId: wingId, status: 'launched', turn: view.turn, attackId, revision: nextRevision,
+        actorUid: uid, actorRoleId: 'wing-commander', requestId,
+      } },
       updatedAt: FieldValue.serverTimestamp() });
     tx.set(auditRef, { type: 'aegis-fighter-wing-launch', turn: expectedTurn, revision: nextRevision,
       wingRevision: nextState.revision, wingId, actorUid: uid, actorRoleId: 'wing-commander', requestId,
@@ -23306,6 +23498,8 @@ export const launchAegisFighterWing = onCall<{
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
   });
+  await reconcileWolfAttackProgress(sessionId);
+  return result;
 });
 
 function isWolfCombatRange(value: unknown): value is WolfCombatRange {
@@ -24470,7 +24664,7 @@ export const commitWolfBoardingDefenceChoice = onCall<{
   });
 });
 
-type DioneMaliadesLaunchReason = 'waiting' | 'uncharged' | 'damaged' | 'destroyed' | 'already-launched';
+type DioneMaliadesLaunchReason = 'waiting' | 'uncharged' | 'damaged' | 'destroyed' | 'already-launched' | 'passed';
 
 type DioneMaliadesLaunchView = Readonly<{
   type: 'dione-maliades-launch-view';
@@ -24479,6 +24673,7 @@ type DioneMaliadesLaunchView = Readonly<{
   revision: number;
   launched: boolean;
   eligible: boolean;
+  choiceStatus?: WolfFighterLaunchChoiceStatus;
   reason?: DioneMaliadesLaunchReason;
 }>;
 
@@ -24573,12 +24768,32 @@ function dioneMaliadesLaunchView(
       'conflict',
     );
   }
+  const attackId = state.get('attackId');
+  if (typeof attackId !== 'string' || !attackId) {
+    throw commandError('failed-precondition', 'The active Wolf attack identity is malformed.', 'conflict');
+  }
+  const choices = wolfFighterLaunchChoiceMap(state, turn as number, attackId);
+  const choice = choices.maliades;
   if (launchedCraftIds.includes('maliades')) {
+    if (choice && choice.status !== 'launched') {
+      throw commandError('failed-precondition', 'The Maliades launch decision conflicts with its authoritative launch state.', 'conflict');
+    }
     return {
       type: 'dione-maliades-launch-view', sessionId, turn: turn as number,
-      revision: revision as number, launched: true, eligible: false,
+      revision: revision as number, launched: true, eligible: false, choiceStatus: 'launched',
       reason: 'already-launched',
     };
+  }
+  if (choice?.status === 'launched') {
+    throw commandError('failed-precondition', 'The Maliades launch decision conflicts with its authoritative launch state.', 'conflict');
+  }
+  if (choice?.status === 'passed') {
+    return { type: 'dione-maliades-launch-view', sessionId, turn: turn as number,
+      revision: revision as number, launched: false, eligible: false, choiceStatus: 'passed', reason: 'passed' };
+  }
+  if (choice?.status === 'unavailable') {
+    return { type: 'dione-maliades-launch-view', sessionId, turn: turn as number,
+      revision: revision as number, launched: false, eligible: false, choiceStatus: 'unavailable', reason: 'waiting' };
   }
   const maliadesState = parseMaliadesState(session.get('maliadesState'));
   if (!maliadesState) {
@@ -24696,7 +24911,7 @@ export const launchDioneMaliades = onCall<{
     payload: { expectedTurn },
   };
   const occurredAt = new Date().toISOString();
-  return db.runTransaction(async (tx: Transaction): Promise<DioneMaliadesLaunchResult> => {
+  const result = await db.runTransaction(async (tx: Transaction): Promise<DioneMaliadesLaunchResult> => {
     const [session, player, state, receipt, audit, event] = await Promise.all([
       tx.get(sessionRef), tx.get(playerRef), tx.get(stateRef), tx.get(receiptRef),
       tx.get(auditRef), tx.get(eventRef),
@@ -24753,11 +24968,17 @@ export const launchDioneMaliades = onCall<{
     const launchedCraftIds = state.get('launchedCraftIds');
     const result: DioneMaliadesLaunchResult = {
       status: 'committed', type: 'dione-maliades-launch-view', sessionId, requestId,
-      turn: view.turn, revision, launched: true, eligible: false, reason: 'already-launched',
+      turn: view.turn, revision, launched: true, eligible: false,
+      choiceStatus: 'launched', reason: 'already-launched',
       maliadesRevision: nextMaliadesState.revision,
     };
     tx.update(stateRef, {
       revision,
+      fighterLaunchChoices: { ...wolfFighterLaunchChoiceMap(state, view.turn,
+        typeof state.get('attackId') === 'string' ? state.get('attackId') as string : ''),
+        maliades: { sourceId: 'maliades', status: 'launched', turn: view.turn,
+          attackId: typeof state.get('attackId') === 'string' ? state.get('attackId') as string : '',
+          revision, actorUid: uid, actorRoleId: 'dione-engineer', requestId } },
       launchedCraftIds: [
         ...(Array.isArray(launchedCraftIds) ? launchedCraftIds : []),
         'maliades',
@@ -24786,9 +25007,11 @@ export const launchDioneMaliades = onCall<{
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
   });
+  await reconcileWolfAttackProgress(sessionId);
+  return result;
 });
 
-type PdfEscortWingLaunchReason = 'waiting' | 'uncharged' | 'damaged' | 'destroyed' | 'no-fighters' | 'already-launched';
+type PdfEscortWingLaunchReason = 'waiting' | 'uncharged' | 'damaged' | 'destroyed' | 'no-fighters' | 'already-launched' | 'passed';
 
 type PdfEscortWingLaunchView = Readonly<{
   type: 'pdf-escort-wing-launch-view';
@@ -24798,6 +25021,7 @@ type PdfEscortWingLaunchView = Readonly<{
   wingRevision: number;
   launched: boolean;
   eligible: boolean;
+  choiceStatus?: WolfFighterLaunchChoiceStatus;
   reason?: PdfEscortWingLaunchReason;
 }>;
 
@@ -24866,11 +25090,21 @@ function pdfEscortWingLaunchView(
     throw commandError('failed-precondition', 'The current Wolf attack and PDF Escort Wing state do not match.', 'conflict');
   }
 
+  const choices = wolfFighterLaunchChoiceMap(attack, turn, attackId);
+  const choice = choices['pdf-escort-fighter-wing'];
+  if (choice && (choice.status === 'launched') !== state.launched) {
+    throw commandError('failed-precondition', 'The PDF launch decision conflicts with its authoritative wing state.', 'conflict');
+  }
+
   const view: PdfEscortWingLaunchView = {
     type: 'pdf-escort-wing-launch-view', sessionId, turn,
     revision: revision as number, wingRevision: state.revision,
-    launched: false, eligible: false, reason: 'waiting',
+    launched: false, eligible: false,
+    ...(choice ? { choiceStatus: choice.status } : {}),
+    reason: 'waiting',
   };
+  if (choice?.status === 'passed') return { ...view, reason: 'passed' };
+  if (choice?.status === 'unavailable') return { ...view, reason: 'waiting' };
   if (state.fighters === 0) {
     return { ...view, reason: 'no-fighters' };
   }
@@ -24905,7 +25139,7 @@ function pdfEscortWingLaunchView(
           !launchedCraftIds.includes('pdf-escort-fighter-wing')) {
         throw commandError('failed-precondition', 'PDF Escort Wing launch records are inconsistent.', 'conflict');
       }
-      return { ...view, launched: true, reason: 'already-launched' };
+      return { ...view, launched: true, choiceStatus: 'launched', reason: 'already-launched' };
     }
     if (/Charge the Refinery 8♦ Fighter Bay/i.test(message)) return { ...view, reason: 'uncharged' };
     if (/damaged Refinery 8♦ Fighter Bay/i.test(message)) return { ...view, reason: 'damaged' };
@@ -24975,7 +25209,7 @@ export const launchPdfEscortWing = onCall<{
     payload: { expectedTurn, expectedWingRevision },
   };
 
-  return db.runTransaction(async (tx: Transaction): Promise<PdfEscortWingLaunchResult> => {
+  const result = await db.runTransaction(async (tx: Transaction): Promise<PdfEscortWingLaunchResult> => {
     const [session, player, attack, wing, receipt, audit] = await Promise.all([
       tx.get(sessionRef), tx.get(playerRef), tx.get(attackRef), tx.get(wingRef),
       tx.get(receiptRef), tx.get(auditRef),
@@ -25023,11 +25257,21 @@ export const launchPdfEscortWing = onCall<{
     const result: PdfEscortWingLaunchResult = {
       status: 'committed', type: 'pdf-escort-wing-launch-view', sessionId, requestId,
       turn: view.turn, revision: nextRevision, wingRevision: nextState.revision,
-      launched: true, eligible: false, reason: 'already-launched',
+      launched: true, eligible: false, choiceStatus: 'launched', reason: 'already-launched',
     };
+    const attackId = attack.get('attackId');
+    if (typeof attackId !== 'string' || !attackId) {
+      throw commandError('failed-precondition', 'The active Wolf attack identity is malformed.', 'conflict');
+    }
+    const fighterLaunchChoices = wolfFighterLaunchChoiceMap(attack, view.turn, attackId);
     tx.update(attackRef, {
       revision: nextRevision,
       launchedCraftIds: [...launchedCraftIds, 'pdf-escort-fighter-wing'],
+      fighterLaunchChoices: { ...fighterLaunchChoices, 'pdf-escort-fighter-wing': {
+        sourceId: 'pdf-escort-fighter-wing', status: 'launched', turn: view.turn,
+        attackId, revision: nextRevision, actorUid: uid,
+        actorRoleId: 'refinery-124-pdf-colonel', requestId,
+      } },
       updatedAt: FieldValue.serverTimestamp(),
     });
     tx.set(wingRef, nextState);
@@ -25044,6 +25288,141 @@ export const launchPdfEscortWing = onCall<{
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
   });
+  await reconcileWolfAttackProgress(sessionId);
+  return result;
+});
+
+type WolfFighterLaunchChoiceResult = Readonly<{
+  status: 'committed' | 'replayed';
+  type: 'wolf-fighter-launch-choice';
+  sessionId: string;
+  requestId: string;
+  attackId: string;
+  sourceId: WolfFighterLaunchChoiceSourceId;
+  turn: number;
+  revision: number;
+  choiceStatus: 'passed';
+}>;
+
+function isWolfFighterLaunchChoiceResult(value: unknown): value is WolfFighterLaunchChoiceResult {
+  return isRecord(value) && (value.status === 'committed' || value.status === 'replayed') &&
+    value.type === 'wolf-fighter-launch-choice' && typeof value.sessionId === 'string' &&
+    isCanonicalRequestId(value.requestId) && typeof value.attackId === 'string' && value.attackId.length > 0 &&
+    (WOLF_FIGHTER_LAUNCH_SOURCE_IDS as readonly unknown[]).includes(value.sourceId) &&
+    Number.isSafeInteger(value.turn) && (value.turn as number) >= 1 &&
+    Number.isSafeInteger(value.revision) && (value.revision as number) >= 1 &&
+    value.choiceStatus === 'passed';
+}
+
+/** Record a source's explicit pass against its fresh, entitled launch choice. */
+export const passWolfFighterLaunchChoice = onCall<{
+  sessionId?: unknown; requestId?: unknown; sourceId?: unknown; expectedTurn?: unknown;
+  expectedRevision?: unknown; expectedWingRevision?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const sourceId = isRecord(raw) && (WOLF_FIGHTER_LAUNCH_SOURCE_IDS as readonly unknown[]).includes(raw.sourceId)
+    ? raw.sourceId as WolfFighterLaunchChoiceSourceId : null;
+  const hasWingRevision = isRecord(raw) && raw.expectedWingRevision !== undefined;
+  const allowed = new Set(['sessionId', 'requestId', 'sourceId', 'expectedTurn', 'expectedRevision',
+    ...(hasWingRevision ? ['expectedWingRevision'] : [])]);
+  if (!isRecord(raw) || Object.keys(raw).length !== allowed.size || Object.keys(raw).some((key) => !allowed.has(key)) ||
+      !isCanonicalRequestId(raw.sessionId) || !isCanonicalRequestId(raw.requestId) || !sourceId ||
+      !Number.isSafeInteger(raw.expectedTurn) || (raw.expectedTurn as number) < 1 ||
+      !Number.isSafeInteger(raw.expectedRevision) || (raw.expectedRevision as number) < 1 ||
+      (sourceId === 'maliades' ? hasWingRevision : !hasWingRevision) ||
+      (hasWingRevision && (!Number.isSafeInteger(raw.expectedWingRevision) ||
+        (raw.expectedWingRevision as number) < 0))) {
+    throw new HttpsError('invalid-argument', 'Invalid fighter launch pass request.');
+  }
+  const sessionId = raw.sessionId as string;
+  const requestId = raw.requestId as string;
+  const expectedTurn = raw.expectedTurn as number;
+  const expectedRevision = raw.expectedRevision as number;
+  const expectedWingRevision = hasWingRevision ? raw.expectedWingRevision as number : undefined;
+  const actorRoleId = sourceId === 'fighter-wing-alpha' || sourceId === 'fighter-wing-bravo'
+    ? 'wing-commander' : sourceId === 'pdf-escort-fighter-wing'
+      ? 'refinery-124-pdf-colonel' : 'dione-engineer';
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+  const attackRef = db.doc(`sessions/${sessionId}/wolfAttackState/current`);
+  const pdfWingRef = db.doc(`sessions/${sessionId}/serverState/pdfEscortWing`);
+  const receiptRef = commandReceiptRef(sessionId, requestId);
+  const auditRef = db.doc(`sessions/${sessionId}/wolfAttackState/current/audit/${requestId}`);
+  const fingerprint: CommandFingerprint = {
+    action: 'pass-wolf-fighter-launch-choice', sessionId, requestId, actorUid: uid,
+    instanceId: sourceId, expectedRevision,
+    payload: { sourceId, expectedTurn, expectedWingRevision: expectedWingRevision ?? null },
+  };
+  const result = await db.runTransaction(async (tx: Transaction): Promise<WolfFighterLaunchChoiceResult> => {
+    const [session, player, attack, pdfWing, receipt, audit] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(attackRef), tx.get(pdfWingRef),
+      tx.get(receiptRef), tx.get(auditRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    let view: AegisFighterWingLaunchView | PdfEscortWingLaunchView | DioneMaliadesLaunchView;
+    if (sourceId === 'fighter-wing-alpha' || sourceId === 'fighter-wing-bravo') {
+      requireAegisWingCommanderPlayer(player, uid);
+      const groupId = currentPlayerFleetGroupId(player);
+      const group = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${groupId}`));
+      requireAegisExecutiveOfficerCurrentBerth(player, uid, group);
+      requireActiveGameplayPhase(session);
+      requireUsableShip(session, 'aegis');
+      view = aegisFighterWingLaunchView(sessionId, session, attack, sourceId);
+    } else if (sourceId === 'pdf-escort-fighter-wing') {
+      requirePdfColonel(player);
+      await rejectForeignLegacyM1Command(tx, sessionId, requestId, 'P.D.F. Escort Wing launch pass', []);
+      requireActiveGameplayPhase(session);
+      requireMissionMovementAvailable(session, ['pdf-escort-fighter-wing']);
+      requireUsableShip(session, 'refinery-124');
+      view = pdfEscortWingLaunchView(sessionId, session, attack, pdfWing);
+    } else {
+      requireDioneEngineer(player);
+      await rejectForeignLegacyM1Command(tx, sessionId, requestId, 'Maliades launch pass', []);
+      requireActiveGameplayPhase(session);
+      requireUsableShip(session, 'dione');
+      view = dioneMaliadesLaunchView(sessionId, session, attack);
+    }
+    const replay = replayBoundCommand(receipt, fingerprint, isWolfFighterLaunchChoiceResult,
+      'Wolf fighter launch pass');
+    if (replay) return { ...replay, status: 'replayed' };
+    if (audit.exists) rejectLegacyEventReplay('Wolf fighter launch pass');
+    const attackId = attack.get('attackId');
+    if (!attack.exists || typeof attackId !== 'string' || !attackId) {
+      throw commandError('failed-precondition', 'The active Wolf attack identity is malformed.', 'conflict');
+    }
+    const choices = wolfFighterLaunchChoiceMap(attack, expectedTurn, attackId);
+    if (view.turn !== expectedTurn || view.revision !== expectedRevision ||
+        (expectedWingRevision !== undefined &&
+          (!('wingRevision' in view) || view.wingRevision !== expectedWingRevision))) {
+      throw commandError('failed-precondition', 'The fighter launch choice is stale. Refresh the current Wolf attack.', 'stale-revision');
+    }
+    if (!view.eligible || choices[sourceId]) {
+      throw commandError('failed-precondition', 'This fighter launch choice cannot be passed in its current state.', 'invalid-phase');
+    }
+    const revision = view.revision + 1;
+    const committed: WolfFighterLaunchChoiceResult = {
+      status: 'committed', type: 'wolf-fighter-launch-choice', sessionId, requestId,
+      attackId, sourceId, turn: view.turn, revision, choiceStatus: 'passed',
+    };
+    tx.update(attackRef, {
+      revision,
+      fighterLaunchChoices: { ...choices, [sourceId]: {
+        sourceId, status: 'passed', turn: view.turn, attackId, revision,
+        actorUid: uid, actorRoleId, requestId,
+      } },
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(auditRef, {
+      type: 'wolf-fighter-launch-choice', sourceId, status: 'passed', turn: view.turn,
+      attackId, revision, actorUid: uid, actorRoleId, requestId,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(receiptRef, { fingerprint, result: committed, createdAt: FieldValue.serverTimestamp() });
+    return committed;
+  });
+  await reconcileWolfAttackProgress(sessionId);
+  return result;
 });
 
 type WolfConsoleVisitResult = Readonly<{

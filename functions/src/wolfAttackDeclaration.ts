@@ -6,6 +6,24 @@ export const WOLF_ATTACK_DECLARATION_STEP = 'targeting' as const;
 export type WolfAttackDeclarationStep = typeof WOLF_ATTACK_DECLARATION_STEP;
 export const WOLF_ATTACK_PARKING_RELEASE = 'normal-movement-reopened' as const;
 
+export type WolfFighterLaunchChoiceSourceId =
+  | 'fighter-wing-alpha'
+  | 'fighter-wing-bravo'
+  | 'pdf-escort-fighter-wing'
+  | 'maliades';
+
+export interface WolfFighterLaunchChoiceRecord {
+  readonly sourceId: WolfFighterLaunchChoiceSourceId;
+  readonly status: 'launched' | 'passed' | 'unavailable';
+  readonly turn: number;
+  readonly attackId: string;
+  readonly revision: number;
+  readonly actorUid: string;
+  readonly actorRoleId: string;
+  readonly requestId: string;
+  readonly reason?: string;
+}
+
 /** Private server state created by the atomic declaration transaction. */
 export interface WolfAttackStageState {
   readonly type: 'wolf-attack-state';
@@ -29,6 +47,8 @@ export interface WolfAttackStageState {
   }[];
   /** Craft admitted to the battle table by their own authoritative launch action. */
   readonly launchedCraftIds: readonly string[];
+  /** Durable per-source launch/pass/unavailable decisions made during targeting. */
+  readonly fighterLaunchChoices: Readonly<Partial<Record<WolfFighterLaunchChoiceSourceId, WolfFighterLaunchChoiceRecord>>>;
   readonly parkedShuttleDockings: readonly {
     readonly shuttleId: string;
     readonly shipId: string;

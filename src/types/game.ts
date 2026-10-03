@@ -806,12 +806,32 @@ export interface WolfBoardingDefenceChoiceResult {
   readonly currentStep: 'boarding';
 }
 
+export type WolfFighterLaunchChoiceStatus = 'launched' | 'passed' | 'unavailable';
+export type WolfFighterLaunchChoiceSourceId =
+  | 'fighter-wing-alpha'
+  | 'fighter-wing-bravo'
+  | 'pdf-escort-fighter-wing'
+  | 'maliades';
+
+export interface WolfFighterLaunchChoiceResult {
+  readonly status: 'committed' | 'replayed';
+  readonly type: 'wolf-fighter-launch-choice';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly attackId: string;
+  readonly sourceId: WolfFighterLaunchChoiceSourceId;
+  readonly turn: number;
+  readonly revision: number;
+  readonly choiceStatus: 'passed';
+}
+
 export type DioneMaliadesLaunchReason =
   | 'waiting'
   | 'uncharged'
   | 'damaged'
   | 'destroyed'
-  | 'already-launched';
+  | 'already-launched'
+  | 'passed';
 
 export interface DioneMaliadesLaunchView {
   readonly type: 'dione-maliades-launch-view';
@@ -820,6 +840,7 @@ export interface DioneMaliadesLaunchView {
   readonly revision: number;
   readonly launched: boolean;
   readonly eligible: boolean;
+  readonly choiceStatus?: WolfFighterLaunchChoiceStatus;
   readonly reason?: DioneMaliadesLaunchReason;
 }
 
@@ -834,7 +855,8 @@ export type PdfEscortWingLaunchReason =
   | 'damaged'
   | 'destroyed'
   | 'no-fighters'
-  | 'already-launched';
+  | 'already-launched'
+  | 'passed';
 
 export interface PdfEscortWingLaunchView {
   readonly type: 'pdf-escort-wing-launch-view';
@@ -844,6 +866,7 @@ export interface PdfEscortWingLaunchView {
   readonly wingRevision: number;
   readonly launched: boolean;
   readonly eligible: boolean;
+  readonly choiceStatus?: WolfFighterLaunchChoiceStatus;
   readonly reason?: PdfEscortWingLaunchReason;
 }
 
@@ -853,7 +876,7 @@ export interface PdfEscortWingLaunchResult extends PdfEscortWingLaunchView {
 }
 
 export type AegisFighterWingLaunchReason =
-  | 'waiting' | 'uncharged' | 'damaged' | 'destroyed' | 'no-fighters' | 'already-launched';
+  | 'waiting' | 'uncharged' | 'damaged' | 'destroyed' | 'no-fighters' | 'already-launched' | 'passed';
 
 export interface AegisFighterWingLaunchView {
   readonly type: 'aegis-fighter-wing-launch-view';
@@ -866,6 +889,7 @@ export interface AegisFighterWingLaunchView {
   readonly fighters: number;
   readonly launched: boolean;
   readonly eligible: boolean;
+  readonly choiceStatus?: WolfFighterLaunchChoiceStatus;
   readonly reason?: AegisFighterWingLaunchReason;
 }
 

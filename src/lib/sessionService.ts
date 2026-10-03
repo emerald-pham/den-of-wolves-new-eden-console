@@ -19,6 +19,8 @@ import type {
   WolfAttackDeclarationResult,
   DioneMaliadesLaunchResult,
   DioneMaliadesLaunchView,
+  WolfFighterLaunchChoiceResult,
+  WolfFighterLaunchChoiceSourceId,
   AegisFighterWingLaunchResult,
   AegisFighterWingLaunchView,
   PdfEscortWingLaunchResult,
@@ -4556,11 +4558,13 @@ function dioneMaliadesLaunchViewReply(value: unknown): DioneMaliadesLaunchView |
   const validReason = reply.reason === undefined || reply.reason === 'waiting' ||
     reply.reason === 'uncharged' || reply.reason === 'damaged' ||
     reply.reason === 'destroyed' ||
-    reply.reason === 'already-launched';
+    reply.reason === 'already-launched' || reply.reason === 'passed';
+  const validChoiceStatus = reply.choiceStatus === undefined || reply.choiceStatus === 'launched' ||
+    reply.choiceStatus === 'passed' || reply.choiceStatus === 'unavailable';
   if (reply.type !== 'dione-maliades-launch-view' || typeof reply.sessionId !== 'string' ||
       !reply.sessionId || !Number.isSafeInteger(reply.turn) || (reply.turn as number) < 1 ||
       !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 0 ||
-      typeof reply.launched !== 'boolean' || typeof reply.eligible !== 'boolean' || !validReason ||
+      typeof reply.launched !== 'boolean' || typeof reply.eligible !== 'boolean' || !validReason || !validChoiceStatus ||
       (reply.eligible && (reply.launched || reply.reason !== undefined)) ||
       (reply.launched && reply.reason !== 'already-launched') ||
       (!reply.eligible && !reply.reason)) return null;
@@ -4569,6 +4573,7 @@ function dioneMaliadesLaunchViewReply(value: unknown): DioneMaliadesLaunchView |
     type: 'dione-maliades-launch-view', sessionId: reply.sessionId,
     turn: reply.turn as number, revision: reply.revision as number,
     launched: reply.launched, eligible: reply.eligible,
+    ...(reply.choiceStatus === undefined ? {} : { choiceStatus: reply.choiceStatus as NonNullable<DioneMaliadesLaunchView['choiceStatus']> }),
     ...(reason === undefined ? {} : { reason }),
   };
 }
@@ -4594,12 +4599,14 @@ function pdfEscortWingLaunchViewReply(value: unknown): PdfEscortWingLaunchView |
   const validReason = reply.reason === undefined || reply.reason === 'waiting' ||
     reply.reason === 'uncharged' || reply.reason === 'damaged' ||
     reply.reason === 'destroyed' || reply.reason === 'no-fighters' ||
-    reply.reason === 'already-launched';
+    reply.reason === 'already-launched' || reply.reason === 'passed';
+  const validChoiceStatus = reply.choiceStatus === undefined || reply.choiceStatus === 'launched' ||
+    reply.choiceStatus === 'passed' || reply.choiceStatus === 'unavailable';
   if (reply.type !== 'pdf-escort-wing-launch-view' || typeof reply.sessionId !== 'string' ||
       !reply.sessionId || !Number.isSafeInteger(reply.turn) || (reply.turn as number) < 1 ||
       !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 0 ||
       !Number.isSafeInteger(reply.wingRevision) || (reply.wingRevision as number) < 0 ||
-      typeof reply.launched !== 'boolean' || typeof reply.eligible !== 'boolean' || !validReason ||
+      typeof reply.launched !== 'boolean' || typeof reply.eligible !== 'boolean' || !validReason || !validChoiceStatus ||
       (reply.eligible && (reply.launched || reply.reason !== undefined)) ||
       (reply.launched && reply.reason !== 'already-launched') ||
       (!reply.eligible && !reply.reason)) return null;
@@ -4608,7 +4615,9 @@ function pdfEscortWingLaunchViewReply(value: unknown): PdfEscortWingLaunchView |
     type: 'pdf-escort-wing-launch-view', sessionId: reply.sessionId,
     turn: reply.turn as number, revision: reply.revision as number,
     wingRevision: reply.wingRevision as number, launched: reply.launched,
-    eligible: reply.eligible, ...(reason === undefined ? {} : { reason }),
+    eligible: reply.eligible,
+    ...(reply.choiceStatus === undefined ? {} : { choiceStatus: reply.choiceStatus as NonNullable<PdfEscortWingLaunchView['choiceStatus']> }),
+    ...(reason === undefined ? {} : { reason }),
   };
 }
 
@@ -4628,14 +4637,16 @@ function aegisFighterWingLaunchViewReply(value: unknown): AegisFighterWingLaunch
   const validWing = reply.wingId === 'fighter-wing-alpha' || reply.wingId === 'fighter-wing-bravo';
   const validReason = reply.reason === undefined || reply.reason === 'waiting' || reply.reason === 'uncharged' ||
     reply.reason === 'damaged' || reply.reason === 'destroyed' || reply.reason === 'no-fighters' ||
-    reply.reason === 'already-launched';
+    reply.reason === 'already-launched' || reply.reason === 'passed';
+  const validChoiceStatus = reply.choiceStatus === undefined || reply.choiceStatus === 'launched' ||
+    reply.choiceStatus === 'passed' || reply.choiceStatus === 'unavailable';
   if (reply.type !== 'aegis-fighter-wing-launch-view' || typeof reply.sessionId !== 'string' || !reply.sessionId ||
       !validWing || !Number.isSafeInteger(reply.turn) || (reply.turn as number) < 1 ||
       typeof reply.attackId !== 'string' || !reply.attackId ||
       !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 0 ||
       !Number.isSafeInteger(reply.wingRevision) || (reply.wingRevision as number) < 0 ||
       !Number.isSafeInteger(reply.fighters) || (reply.fighters as number) < 0 ||
-      typeof reply.launched !== 'boolean' || typeof reply.eligible !== 'boolean' || !validReason ||
+      typeof reply.launched !== 'boolean' || typeof reply.eligible !== 'boolean' || !validReason || !validChoiceStatus ||
       (reply.eligible && (reply.launched || reply.reason !== undefined)) ||
       (reply.launched && reply.reason !== 'already-launched') ||
       (!reply.eligible && !reply.reason)) return null;
@@ -4645,6 +4656,7 @@ function aegisFighterWingLaunchViewReply(value: unknown): AegisFighterWingLaunch
     turn: reply.turn as number, attackId: reply.attackId, revision: reply.revision as number,
     wingRevision: reply.wingRevision as number, fighters: reply.fighters as number,
     launched: reply.launched, eligible: reply.eligible,
+    ...(reply.choiceStatus === undefined ? {} : { choiceStatus: reply.choiceStatus as NonNullable<AegisFighterWingLaunchView['choiceStatus']> }),
     ...(reply.reason === undefined ? {} : { reason: reply.reason as NonNullable<AegisFighterWingLaunchView['reason']> }),
   };
 }
@@ -4656,6 +4668,31 @@ function aegisFighterWingLaunchResultReply(value: unknown): AegisFighterWingLaun
   return (reply.status === 'committed' || reply.status === 'replayed') &&
     typeof reply.requestId === 'string' && reply.requestId.length > 0
     ? { ...view, status: reply.status, requestId: reply.requestId }
+    : null;
+}
+
+function wolfFighterLaunchChoiceResultReply(value: unknown): WolfFighterLaunchChoiceResult | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const reply = value as Record<string, unknown>;
+  const sourceIds: readonly WolfFighterLaunchChoiceSourceId[] = [
+    'fighter-wing-alpha', 'fighter-wing-bravo', 'pdf-escort-fighter-wing', 'maliades',
+  ];
+  return Object.keys(reply).every((key) => [
+    'status', 'type', 'sessionId', 'requestId', 'attackId', 'sourceId', 'turn', 'revision', 'choiceStatus',
+  ].includes(key)) && (reply.status === 'committed' || reply.status === 'replayed') &&
+    reply.type === 'wolf-fighter-launch-choice' && typeof reply.sessionId === 'string' &&
+    typeof reply.requestId === 'string' && reply.requestId.length > 0 &&
+    typeof reply.attackId === 'string' && reply.attackId.length > 0 &&
+    sourceIds.includes(reply.sourceId as WolfFighterLaunchChoiceSourceId) &&
+    Number.isSafeInteger(reply.turn) && (reply.turn as number) >= 1 &&
+    Number.isSafeInteger(reply.revision) && (reply.revision as number) >= 1 &&
+    reply.choiceStatus === 'passed'
+    ? {
+      status: reply.status, type: 'wolf-fighter-launch-choice', sessionId: reply.sessionId,
+      requestId: reply.requestId, attackId: reply.attackId,
+      sourceId: reply.sourceId as WolfFighterLaunchChoiceSourceId,
+      turn: reply.turn as number, revision: reply.revision as number, choiceStatus: 'passed',
+    }
     : null;
 }
 
@@ -5362,6 +5399,51 @@ export async function launchAegisFighterWing(
       throw new Error('The server returned an invalid AEGIS Fighter Wing launch receipt.');
     }
     if (!authorityCheckpointIsCurrent(checkpoint)) return reply;
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Explicitly pass one current launch opportunity without affecting another wing or source. */
+export async function passWolfFighterLaunchChoice(
+  sourceId: WolfFighterLaunchChoiceSourceId,
+  expectedTurn: number,
+  expectedRevision: number,
+  expectedWingRevision?: number,
+): Promise<WolfFighterLaunchChoiceResult> {
+  const roleId = sourceId === 'fighter-wing-alpha' || sourceId === 'fighter-wing-bravo'
+    ? 'wing-commander' : sourceId === 'pdf-escort-fighter-wing'
+      ? 'refinery-124-pdf-colonel' : 'dione-engineer';
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.sessionId !== store.session.id ||
+      store.me.activeConsoleRoleId !== roleId) {
+    throw new Error(`Only the active ${roleId} console may pass this fighter launch choice.`);
+  }
+  if ((sourceId === 'maliades') !== (expectedWingRevision === undefined)) {
+    throw new Error('The fighter launch pass requires the current wing revision when applicable.');
+  }
+  requireFreshSessionAuthority('Reconnect before passing this fighter launch choice.');
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const requestId = commandId();
+  const payload = {
+    sessionId, requestId, sourceId, expectedTurn, expectedRevision,
+    ...(expectedWingRevision === undefined ? {} : { expectedWingRevision }),
+  };
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'passWolfFighterLaunchChoice');
+  try {
+    const reply = wolfFighterLaunchChoiceResultReply((await call(payload)).data);
+    if (!reply || reply.sessionId !== sessionId || reply.requestId !== requestId ||
+        reply.sourceId !== sourceId || reply.turn !== expectedTurn || reply.revision !== expectedRevision + 1) {
+      throw new Error('The server returned an invalid fighter launch pass receipt.');
+    }
+    const current = useSessionStore.getState();
+    if (!authorityCheckpointIsCurrent(checkpoint) || current.me?.activeConsoleRoleId !== roleId) {
+      throw new Error('The fighter launch authority changed before the pass committed.');
+    }
     return reply;
   } catch (cause) {
     useSessionStore.getState().setCommunicationError(interception(cause));

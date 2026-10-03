@@ -37,7 +37,7 @@ type DraftAction = Readonly<{
 export interface WolfFighterRangeActionPanelViewProps {
   readonly view: WolfFighterRangeActionView;
   readonly onResolveMedium: (actions: readonly WolfFighterMediumAction[]) => void;
-  readonly onResolveShort: () => void;
+  readonly onResolveShort: (fighterIndexes: readonly number[]) => void;
   readonly busy?: boolean;
   readonly message?: string;
 }
@@ -50,12 +50,16 @@ export function WolfFighterRangeActionPanelView({
   message,
 }: WolfFighterRangeActionPanelViewProps) {
   const [draft, setDraft] = useState<Readonly<Record<number, DraftAction>>>({});
+  const [selectedShortFighters, setSelectedShortFighters] = useState<readonly number[]>([]);
   const draftKey = JSON.stringify([
     view.sessionId, view.attackId, view.turn, view.revision, view.wingId,
     view.range, view.choiceStatus, view.fighters.map(({ fighterIndex }) => fighterIndex),
     view.targets.map(({ instanceId, targetNumber }) => [instanceId, targetNumber]),
   ]);
-  useEffect(() => setDraft({}), [draftKey]);
+  useEffect(() => {
+    setDraft({});
+    setSelectedShortFighters([]);
+  }, [draftKey]);
 
   const mediumActions = useMemo(() => view.fighters.map(({ fighterIndex }) => {
     const selection = draft[fighterIndex];
@@ -70,10 +74,18 @@ export function WolfFighterRangeActionPanelView({
     }
     return { fighterIndex, kind: 'attack' as const, targetInstanceId: target.instanceId };
   }), [draft, view.fighters, view.targets]);
-  const mediumComplete = mediumActions.length > 0 && mediumActions.every((action) => action !== null);
+  const hasCommittedFighter = view.fighters.some(({ fighterIndex }) => !!draft[fighterIndex]?.kind);
+  const hasIncompleteChoice = view.fighters.some(({ fighterIndex }) => {
+    const selection = draft[fighterIndex];
+    if (!selection?.kind) return false;
+    return !selection.targetInstanceId ||
+      (selection.kind === 'target-shift' && selection.shift !== -1 && selection.shift !== 1);
+  });
 
   const rangeLabel = view.range === 'medium-range' ? 'Medium Range' : 'Short Range';
   const locked = view.choiceStatus === 'committed';
+  const shortFighterIndexes = view.fighters.map(({ fighterIndex }) => fighterIndex)
+    .filter((fighterIndex) => selectedShortFighters.includes(fighterIndex)).sort((left, right) => left - right);
 
   return (
     <section className="wolf-fighter-range cic-frame" aria-label={`${view.wingLabel} ${rangeLabel} actions`}>
@@ -94,7 +106,7 @@ export function WolfFighterRangeActionPanelView({
       ) : view.range === 'medium-range' ? (
         <>
           <p className="wolf-fighter-range__notice">
-            Each fighter chooses one action. Attack or shift a ship’s target number; a fighter cannot do both.
+            For each fighter you commit, choose one attack or one target shift. A fighter cannot do both.
           </p>
           {view.fighters.length === 0 ? (
             <p className="wolf-fighter-range__notice">No fighters remain in this wing.</p>
@@ -115,10 +127,15 @@ export function WolfFighterRangeActionPanelView({
                           ...previous,
                           [fighterIndex]: (() => {
                             const current = previous[fighterIndex] ?? {};
-                            const { kind: _kind, ...rest } = current;
                             const nextKind = event.target.value === 'attack' || event.target.value === 'target-shift'
                               ? event.target.value : undefined;
-                            return nextKind ? { ...rest, kind: nextKind } : rest;
+                            if (!nextKind) return {};
+                            return {
+                              kind: nextKind,
+                              ...(current.targetInstanceId ? { targetInstanceId: current.targetInstanceId } : {}),
+                              ...(nextKind === 'target-shift' && current.kind === 'target-shift' && current.shift !== undefined
+                                ? { shift: current.shift } : {}),
+                            };
                           })(),
                         }))}>
                         <option value="">Choose one</option>
@@ -166,23 +183,36 @@ export function WolfFighterRangeActionPanelView({
               })}
             </div>
           )}
-          <button type="button" className="cic-action-button" disabled={busy || !mediumComplete}
-            onClick={() => onResolveMedium(mediumActions as readonly WolfFighterMediumAction[])}>
+          <button type="button" className="cic-action-button" disabled={busy || !hasCommittedFighter || hasIncompleteChoice}
+            onClick={() => onResolveMedium(mediumActions.filter((action): action is WolfFighterMediumAction => action !== null))}>
             Resolve Medium actions
           </button>
         </>
       ) : (
         <>
           <p className="wolf-fighter-range__notice">
-            Roll one die per fighter. A 3+ deals one damage; a 1 or 2 destroys that fighter.
+            Choose up to one die per fighter. A 3+ deals one damage; a 1 or 2 destroys the fighter that rolled it.
           </p>
           <p className="wolf-fighter-range__notice">
-            {view.fighters.length} fighter{view.fighters.length === 1 ? '' : 's'} will roll. The server keeps each roll with its fighter.
+            {shortFighterIndexes.length} of {view.fighters.length} fighter{view.fighters.length === 1 ? '' : 's'} selected. The server keeps each roll with its fighter.
           </p>
+          <fieldset className="wolf-fighter-range__short-choices" disabled={busy}>
+            <legend>Fighters to commit</legend>
+            {view.fighters.map(({ fighterIndex }) => (
+              <label key={fighterIndex}>
+                <input type="checkbox" aria-label={`Fighter ${fighterIndex + 1} Short attack`}
+                  checked={shortFighterIndexes.includes(fighterIndex)}
+                  onChange={(event) => setSelectedShortFighters((previous) => event.target.checked
+                    ? [...new Set([...previous, fighterIndex])]
+                    : previous.filter((selected) => selected !== fighterIndex))} />
+                Fighter {fighterIndex + 1}
+              </label>
+            ))}
+          </fieldset>
           <button type="button" className="cic-action-button"
-            disabled={busy || view.fighters.length === 0}
-            onClick={onResolveShort}>
-            Resolve Short Range
+            disabled={busy}
+            onClick={() => onResolveShort(shortFighterIndexes)}>
+            {shortFighterIndexes.length > 0 ? 'Resolve selected Short attacks' : 'Pass Short Range'}
           </button>
         </>
       )}

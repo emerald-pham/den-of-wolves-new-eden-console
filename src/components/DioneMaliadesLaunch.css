@@ -1,0 +1,10 @@
+.dione-maliades-launch__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.dione-maliades-launch__pass {
+  border-color: var(--cic-rule);
+  color: var(--cic-ink);
+}

@@ -1,0 +1,19 @@
+.pdf-escort-launch {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.pdf-escort-launch > p {
+  margin: 0;
+}
+
+.pdf-escort-launch__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.pdf-escort-launch__pass {
+  border-color: var(--cic-rule);
+  color: var(--cic-ink);
+}
