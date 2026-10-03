@@ -381,7 +381,7 @@ it('marks a charged range unavailable and continues when the fleet configuration
   expect(testState.documents.get('sessions/s1/wolfAttackState/current/audit/auto-long-range-1'))
     .toMatchObject({ type: 'wolf-range-automatic-unavailable', range: 'long-range', toStep: 'medium-range' });
   expect(state.rangeReceipts).toMatchObject([
-    { range: 'long-range', dice: [], assignments: [], unusedHitsByAction: [] },
+    { range: 'long-range', dice: [], assignments: [], targetShifts: [], unusedHitsByAction: [] },
   ]);
   expect(projectWolfAttackMemberView({ sessionId: 's1', state, serverTime: new Date().toISOString() }).results)
     .toEqual([expect.objectContaining({ outcome: { damage: 0 }, effect: expect.stringMatching(/unavailable/i) })]);
@@ -424,7 +424,7 @@ it('does not leave charged Command and Control ownerless when no Executive Offic
 function openBoardingFixture(): void {
   const targets = ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124'];
   const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
-  const emptyRange = (range: string) => ({ range, dice: [], assignments: [], unusedHitsByAction: [],
+  const emptyRange = (range: string) => ({ range, dice: [], assignments: [], targetShifts: [], unusedHitsByAction: [],
     damageByInstance: {}, destroyedInstanceIds: [], destructionDamageByTarget: Object.fromEntries(targets.map((id) => [id, 0])) });
   const current = new Date();
   const future = (milliseconds: number) => new Date(current.getTime() + milliseconds).toISOString();

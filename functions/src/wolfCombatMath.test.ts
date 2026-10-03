@@ -297,7 +297,7 @@ describe('central Wolf combat math', () => {
       ...ship, destroyed: index !== selectedTransport,
     }));
     const ranges = (['long-range', 'medium-range', 'short-range'] as const).map((range) => ({
-      range, dice: [], assignments: [], unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
+      range, dice: [], assignments: [], targetShifts: [], unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
       destructionDamageByTarget: Object.fromEntries(CORE_WOLF_TARGET_RING.map((target) => [target, 0])),
     }));
     let randomCalls = 0;

@@ -82,7 +82,7 @@ describe('authoritative Alpha and Bravo fighter combat state', () => {
         { fighterIndex: 0, kind: 'target-shift', targetInstanceId: '1:wolf-dreadnought', targetNumber: 2, shift: 1 },
       ],
       random: dice(5),
-    })).toThrow(/one action/i);
+    })).toThrow(/only once/i);
   });
 
   it('applies Short losses to only the selected wing, after one roll per committed fighter', () => {
