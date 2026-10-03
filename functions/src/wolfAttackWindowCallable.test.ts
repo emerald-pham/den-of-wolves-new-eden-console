@@ -153,6 +153,44 @@ it('lets the facilitator select a later due window only after a finalized prior 
     .toMatchObject({ action: 'due', turn: 2, actorUid: 'u1' });
 });
 
+it('allows the second additional attack after the second attack is finalized', async () => {
+  const secondReceipt = {
+    type: 'wolf-combat-calculation', version: 1, requestId: 'wolf-final-wolf-attack-second',
+    phase: { turn: 2, phase: 'coordination', serverTime: '2026-10-03T20:00:00.000Z',
+      deadlineAt: '2026-10-03T20:10:00.000Z', overrun: false },
+    targeting: { ring: ['aegis'], rolls: [] }, ranges: [
+      { range: 'long-range', targetSnapshot: [], targetShifts: [] },
+      { range: 'medium-range', targetSnapshot: [], targetShifts: [] },
+      { range: 'short-range', targetSnapshot: [], targetShifts: [] },
+    ], boarding: [], fleetDamage: [], forceField: { status: 'unavailable', preventedDamage: 0 },
+    returningInstanceIds: ['0:wolf-fighter-wing'],
+  };
+  const carryover = {
+    sourceAttackId: 'wolf-attack-first', sourceTurn: 1,
+    sourceInstanceIds: ['0:wolf-fighter-wing'], rosterInstanceIds: ['0:wolf-fighter-wing'],
+  };
+  session({ currentTurn: 3 });
+  put('sessions/s1/wolfAttackWindow/current', { status: 'resolved', turn: 2, revision: 3 });
+  put('sessions/s1/wolfAttackState/current', {
+    type: 'wolf-attack-state', status: 'resolved', currentStep: 'resolved',
+    attackId: 'wolf-attack-second', announcementId: 'wolf-attack-second', turn: 2,
+    attackNumber: 2, previousAttackId: 'wolf-attack-first', carryover,
+    revision: 7, airspaceLocked: false, parkingReleaseCondition: 'normal-movement-reopened',
+    resolvedAt: '2026-10-03T20:00:00.000Z',
+    finalizationRequestId: 'wolf-final-wolf-attack-second', calculationReceipt: secondReceipt,
+  });
+  put('sessions/s1/wolfAttackState/current/audit/wolf-finalized-2', {
+    type: 'wolf-attack-finalization', turn: 2, revision: 7, actorUid: 'server',
+    attackId: 'wolf-attack-second', requestId: 'wolf-final-wolf-attack-second', receipt: secondReceipt,
+    attackNumber: 2, previousAttackId: 'wolf-attack-first', carryover,
+    rangeReceipts: secondReceipt.ranges,
+  });
+
+  await expect(setWolfAttackWindow.run(request({
+    ...baseData, requestId: 'wolf-third-due', expectedRevision: 3,
+  }))).resolves.toEqual({ status: 'due', turn: 3, revision: 4 });
+});
+
 it('keeps a later attack window closed while the previous attack is unresolved', async () => {
   session({ currentTurn: 2 });
   put('sessions/s1/wolfAttackWindow/current', { status: 'resolved', turn: 1, revision: 2 });
