@@ -220,7 +220,7 @@ it('feeds truthful docked, travelling, parked and rejoined craft into the real p
   expect(screen.getByLabelText('ICEBREAKER')).toHaveTextContent('DOCKED // STARLIGHT');
   expect(origin).not.toHaveTextContent('DOCKED // STARLIGHT');
   fireEvent.click(screen.getByRole('button', {name: 'rejoined sample'}));
-  expect(screen.getByLabelText('DIONE')).toHaveTextContent('DOCKED // MALÍADES');
+  expect(screen.getByLabelText('DIONE')).toHaveTextContent('DOCKED // MALIADES');
   fireEvent.click(screen.getByRole('button', {name: 'Cached connection sample'}));
   expect(screen.queryByLabelText('Origin craft')).not.toBeInTheDocument();
 });
