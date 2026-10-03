@@ -1,6 +1,7 @@
 import type { DocumentReference, DocumentSnapshot, Transaction } from 'firebase-admin/firestore';
 import { shipForRole } from './crewAccess';
 import { replacementRoleFor } from './replacementRoles';
+import { isResourceShipId } from './resources';
 import { isStarSystemCoordinate, type NavigationLogEntry, type NavigationLogs } from './navigation';
 import { jumpDistanceBetween } from './starChartGraph';
 import { discoverySystemsForCoordinates, pursuitDistanceForCoordinate } from './starChartProjection';
@@ -27,6 +28,8 @@ export interface NavigationState {
   readonly systemHistory?: SystemHistory;
   readonly candidatePlanCheckpoint?: CandidatePlanCheckpoint;
   readonly pursuitGroups: Readonly<Record<string, number>>;
+  /** Ephemeral server map from host ship to the active committed craft carried there. */
+  readonly missionCommittedCraftIdsByHostShip?: Readonly<Record<string, readonly string[]>>;
 }
 
 export interface PursuitFleetGroup {
@@ -47,6 +50,8 @@ export interface PlayerDiscoveryProjection {
   readonly navigationLogs: readonly NavigationLogEntry[];
   readonly systemHistory?: SystemHistoryForShip;
   readonly candidateReveals?: readonly CandidateReveal[];
+  /** Minimal craft IDs whose active away mission belongs to the player's current fleet group. */
+  readonly missionCommittedCraftIds?: readonly string[];
   readonly revision: number;
 }
 
@@ -330,12 +335,22 @@ export function playerDiscoveryProjection(
   fleetGroupVesselIds: readonly string[] = [],
   candidateReveals?: readonly CandidateReveal[],
   actorUid?: string,
+  currentGroupShipId?: string,
 ): PlayerDiscoveryProjection {
   const missionKnowledge = navigation.missionExploredCoordinatesByUid;
   const missionCoordinates = actorUid && missionKnowledge && Object.hasOwn(missionKnowledge, actorUid)
     ? missionKnowledge[actorUid] ?? [] : [];
   const groupId = typeof player.get('fleetGroupId') === 'string' ? player.get('fleetGroupId') as string : '';
-  const shipId = playerShipId(player);
+  const shipId = currentGroupShipId === undefined ? playerShipId(player)
+    : isResourceShipId(currentGroupShipId) && fleetGroupVesselIds.includes(currentGroupShipId)
+      ? currentGroupShipId : undefined;
+  const hostCommitments = navigation.missionCommittedCraftIdsByHostShip;
+  const rawCommittedCraftIds = hostCommitments
+    ? [...new Set(fleetGroupVesselIds.flatMap(hostShipId => hostCommitments[hostShipId] ?? []))].sort()
+    : undefined;
+  const committedCraftIds = rawCommittedCraftIds !== undefined && rawCommittedCraftIds.length <= 64 &&
+    rawCommittedCraftIds.every(id => typeof id === 'string' && /^[a-z][a-z0-9-]{0,80}$/.test(id))
+    ? rawCommittedCraftIds : undefined;
   if (!shipId || !groupId) {
     return {
       groupId,
@@ -348,6 +363,7 @@ export function playerDiscoveryProjection(
         : {}),
       navigationLogs: [],
       ...(candidateReveals !== undefined ? { candidateReveals: [...candidateReveals] } : {}),
+      ...(committedCraftIds !== undefined ? { missionCommittedCraftIds: committedCraftIds } : {}),
       revision,
     };
   }
@@ -375,6 +391,7 @@ export function playerDiscoveryProjection(
     navigationLogs: entries,
     ...(ownHistory ? { systemHistory: ownHistory } : {}),
     ...(candidateReveals !== undefined ? { candidateReveals: [...candidateReveals] } : {}),
+    ...(committedCraftIds !== undefined ? { missionCommittedCraftIds: committedCraftIds } : {}),
     revision,
   };
 }
@@ -387,9 +404,10 @@ export function writePlayerDiscoveryProjection(
   revision: number,
   fleetGroupVesselIds: readonly string[] = [],
   candidateReveals?: readonly CandidateReveal[],
+  currentGroupShipId?: string,
 ): void {
   const projection = playerDiscoveryProjection(
-    player, navigation, revision, fleetGroupVesselIds, candidateReveals, ref.id,
+    player, navigation, revision, fleetGroupVesselIds, candidateReveals, ref.id, currentGroupShipId,
   );
   tx.set(ref, projection);
 }

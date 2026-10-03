@@ -1223,6 +1223,8 @@ export interface GameSession {
   readonly shipNavigationLogs?: ShipNavigationLogs;
   /** The authenticated player's server-owned discovery entitlement. */
   readonly playerDiscovery?: PlayerDiscoveryProjection;
+  /** Ephemeral current server revision from the live facilitator-only navigation projection. */
+  readonly gmNavigationRevision?: number;
   /** Group-scoped candidate view; it remains available without a claimed ship role. */
   readonly currentGroupCandidateReveals?: CurrentGroupCandidateRevealProjection;
   /** Facilitator-only organiser lookup received from the protected projection. */

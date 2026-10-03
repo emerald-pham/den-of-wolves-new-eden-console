@@ -63,7 +63,7 @@ import { enforceExpensiveCallableRateLimit } from './callableRateLimitFirestore'
 import { createSameTableTradeCallables } from './sameTableTradeCallable';
 import { createGorgoneionMissionSupportCallables } from './gorgoneionMissionSupportCallable';
 import { applyAwayMissionLifecycleCommand, createAwayMissionLifecycleBootstrap, markAwayMissionOverrun, projectAwayMissionPrivateState, projectAwayMissionPublicState, type AwayMissionLifecycleRecord, type AwayMissionLifecycleCommand } from './awayMissionLifecycleAdapter';
-import { missionCraftIdsCarriedByShip, nextMissionCraftCommitments, requireMissionCraftMovementAvailable } from './missionCraftCommitment';
+import { missionCraftIdsCarriedByShip, nextMissionCraftCommitments, parseMissionCraftCommitments, requireMissionCraftMovementAvailable } from './missionCraftCommitment';
 import { planMissionRewardDelivery } from './missionRewardDelivery';
 import { createAwayMissionLifecycleCallables } from './awayMissionLifecycleCallable';
 import { deriveAwayMissionParticipantCraftSnapshots } from './awayMissionCraftSnapshot';
@@ -244,6 +244,7 @@ import {
   isValidPursuitAuthority,
   navigationState,
   navigationStateDocumentPath,
+  playerDiscoveryProjection,
   playerShipId,
   pursuitGroups,
   recordScoutedCoordinateForShip,
@@ -334,6 +335,7 @@ import {
   withFleetGroupVessels,
   type FleetGroupRecord,
 } from './fleetGroups';
+import { planFleetTaxiTransfer, planKnownSystemSharing, type FleetTaxiPayload } from './fleetGroupOperations';
 import {
   ROLE_OWNED_CRAFT_CATALOG,
   battleTableCraftActionsForParkedCraft,
@@ -360,6 +362,7 @@ import {
   parseShuttleTransitAuthority,
   parseShuttleTransitPublic,
   retargetShuttleTransit as retargetTransitState,
+  shuttlePositionAt,
   toPublicShuttleTransit,
   toShuttleTransitChain,
   type ShuttleTransitPublicState,
@@ -1897,15 +1900,17 @@ function navigationStateForSession(
   // Treat those as an absent private document so legacy migration remains
   // compatible while real Admin snapshots still take the private path.
   if (navigationDoc.exists && typeof (navigationDoc as unknown as { data?: unknown }).data === 'function') {
-    return navigationState(navigationDoc.data(), activeVesselIds, session.get('pursuitGroups'));
+    return navigationWithMissionCraftCommitments(
+      navigationState(navigationDoc.data(), activeVesselIds, session.get('pursuitGroups')), session, activeVesselIds,
+    );
   }
   // Legacy sessions predate the private navigation state. This is a bounded
   // migration source only; callers persist the normalized state before the
   // next navigation mutation and never publish these fields to members.
-  return navigationState({
+  return navigationWithMissionCraftCommitments(navigationState({
     shipGalacticCoordinates: session.get('shipGalacticCoordinates'),
     shipNavigationLogs: session.get('shipNavigationLogs'),
-  }, activeVesselIds, session.get('pursuitGroups'));
+  }, activeVesselIds, session.get('pursuitGroups')), session, activeVesselIds);
 }
 
 function navigationProjectionFields(navigation: NavigationState): Record<string, unknown> {
@@ -2236,7 +2241,16 @@ function movementPursuitFleetGroups(
         'malformed-input',
       );
     }
-    return group;
+    const memberShipIds: Record<string, string> = { ...(group.memberShipIds ?? {}) };
+    for (const player of playerSnapshots.docs ?? []) {
+      if (!player.exists || isKickedPlayer(player) || player.get('fleetGroupId') !== group.id ||
+          Object.hasOwn(memberShipIds, player.id)) continue;
+      const roleShipId = playerShipId(player);
+      if (roleShipId && group.vesselIds.includes(roleShipId) && activeVesselIds.includes(roleShipId)) {
+        memberShipIds[player.id] = roleShipId;
+      }
+    }
+    return Object.keys(memberShipIds).length > 0 ? { ...group, memberShipIds } : group;
   });
   requireTurnPursuitMembership(activeVesselIds, groups, playerSnapshots.docs ?? []);
   return groups;
@@ -2663,6 +2677,16 @@ function ensureInitialFleetGroup(
   if (JSON.stringify(group.memberUids) !== JSON.stringify(memberUids)) {
     group = { ...group, memberUids: [...memberUids] };
   }
+  const memberShipIds: Record<string, string> = { ...(group.memberShipIds ?? {}) };
+  for (const player of players) {
+    if (!player.exists || isKickedPlayer(player) || !group.memberUids.includes(player.id) ||
+        Object.hasOwn(memberShipIds, player.id)) continue;
+    const roleShipId = playerShipId(player);
+    if (roleShipId && group.vesselIds.includes(roleShipId)) memberShipIds[player.id] = roleShipId;
+  }
+  if (Object.keys(memberShipIds).length > 0 && !isDeepStrictEqual(memberShipIds, group.memberShipIds ?? {})) {
+    group = { ...group, memberShipIds };
+  }
   const changed = !storedGroup.exists || JSON.stringify(parsed) !== JSON.stringify(group);
   if (!storedGroup.exists) {
     tx.set(fleetGroupRef(sessionId), {
@@ -2675,6 +2699,7 @@ function ensureInitialFleetGroup(
       id: group.id,
       vesselIds: [...group.vesselIds],
       memberUids: [...group.memberUids],
+      ...(group.memberShipIds ? { memberShipIds: { ...group.memberShipIds } } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
   }
@@ -2700,10 +2725,17 @@ function reconcileSessionFleetMember(tx: Transaction, sessionId: string, activeV
   let result: ReturnType<typeof reconcilePartitionMember>;
   try { result = reconcilePartitionMember(groups, uid, player.exists ? player.get('fleetGroupId') : undefined); }
   catch (error) { throw commandError('failed-precondition', error instanceof Error ? error.message : 'Fleet membership is malformed.', 'conflict'); }
-  if (!isDeepStrictEqual(groups, result.groups)) tx.update(db.doc(`sessions/${sessionId}/fleetGroups/${result.group.id}`), {
-    memberUids: result.group.memberUids, updatedAt: FieldValue.serverTimestamp(),
+  const currentBerth = result.group.memberShipIds?.[uid] ?? playerShipId(player);
+  const nextGroup = currentBerth && result.group.vesselIds.includes(currentBerth)
+    ? { ...result.group, memberShipIds: { ...(result.group.memberShipIds ?? {}), [uid]: currentBerth } }
+    : result.group;
+  const nextGroups = result.groups.map(group => group.id === nextGroup.id ? nextGroup : group);
+  if (!isDeepStrictEqual(groups, nextGroups)) tx.update(db.doc(`sessions/${sessionId}/fleetGroups/${nextGroup.id}`), {
+    id: nextGroup.id, vesselIds: [...nextGroup.vesselIds], memberUids: [...nextGroup.memberUids],
+    ...(nextGroup.memberShipIds ? { memberShipIds: { ...nextGroup.memberShipIds } } : {}),
+    updatedAt: FieldValue.serverTimestamp(),
   });
-  return { ...result, snapshots: result.groups.map(group => transactionDocumentSnapshot(group.id,
+  return { ...result, group: nextGroup, groups: nextGroups, snapshots: nextGroups.map(group => transactionDocumentSnapshot(group.id,
     `sessions/${sessionId}/fleetGroups/${group.id}`, { ...group })) };
 }
 function hasFleetPartition(session: DocumentSnapshot): boolean {
@@ -2740,6 +2772,50 @@ function currentPursuitEmergencyProjection(
 }
 
 /** Publish only each member's own ship history into their group entitlement. */
+function missionCommittedCraftIdsByHostShip(
+  session: Pick<DocumentSnapshot, 'get'>,
+  activeVesselIds: readonly string[],
+): Readonly<Record<string, readonly string[]>> | undefined {
+  const commitments = parseMissionCraftCommitments(session.get('missionCraftCommitments'));
+  const activeRoleIds = session.get('activeRoleIds');
+  if (!commitments || !Array.isArray(activeRoleIds) ||
+      activeRoleIds.some(roleId => typeof roleId !== 'string') ||
+      new Set(activeRoleIds).size !== activeRoleIds.length) return undefined;
+  try {
+    const dockings = session.get('shuttleDockings');
+    const smallShipStates = session.get('smallShipStates');
+    return Object.fromEntries(activeVesselIds.map(shipId => [shipId,
+      missionCraftIdsCarriedByShip({ shipId, activeRoleIds, shuttleDockings: dockings, smallShipStates })
+        .filter(craftId => Object.hasOwn(commitments, craftId)).sort(),
+    ]));
+  } catch {
+    // Missing or malformed physical craft authority must not create clearance.
+    return undefined;
+  }
+}
+
+function missionCommittedCraftIdsForFacilitator(
+  session: Pick<DocumentSnapshot, 'get'>,
+  activeVesselIds: readonly string[],
+): readonly string[] | undefined {
+  const byHost = missionCommittedCraftIdsByHostShip(session, activeVesselIds);
+  if (!byHost) return undefined;
+  const ids = [...new Set(Object.values(byHost).flat())].sort();
+  return ids.length <= 64 && ids.every(id => /^[a-z][a-z0-9-]{0,80}$/.test(id)) ? ids : undefined;
+}
+
+function navigationWithMissionCraftCommitments(
+  navigation: NavigationState,
+  session: Pick<DocumentSnapshot, 'get'>,
+  activeVesselIds: readonly string[],
+): NavigationState {
+  const { missionCommittedCraftIdsByHostShip: _discarded, ...withoutOldProjection } = navigation;
+  const missionCommittedCraftIdsByHostShipValue = missionCommittedCraftIdsByHostShip(session, activeVesselIds);
+  return missionCommittedCraftIdsByHostShipValue
+    ? { ...withoutOldProjection, missionCommittedCraftIdsByHostShip: missionCommittedCraftIdsByHostShipValue }
+    : withoutOldProjection;
+}
+
 function publishDiscoveryProjections(
   tx: Transaction,
   sessionId: string,
@@ -2758,8 +2834,15 @@ function publishDiscoveryProjections(
   const currentWindow = pursuitWindow
     ? pursuitWindow.window
     : currentPursuitEmergencyProjection(projectionSnapshots, navigation, revision, fleetGroups);
+  const projectionSession = projectionSnapshots?.sessionSnapshot;
+  const activeVesselIds = projectionSession ? activeVesselIdsForSession(projectionSession) : [];
+  const projectionNavigation = projectionSession
+    ? navigationWithMissionCraftCommitments(navigation, projectionSession, activeVesselIds) : navigation;
+  const facilitatorMissionCommitments = projectionSession
+    ? missionCommittedCraftIdsForFacilitator(projectionSession, activeVesselIds) : undefined;
   const gmProjection = {
-    ...gmNavigationProjectionFields(navigation),
+    ...gmNavigationProjectionFields(projectionNavigation),
+    ...(facilitatorMissionCommitments !== undefined ? { missionCommittedCraftIds: facilitatorMissionCommitments } : {}),
     pursuitEmergencyWindow: currentWindow ?? FieldValue.delete(),
     knownSystems: allDiscoverySystems(),
     pursuitDistances: pursuitDistancesForCoordinates(navigation.shipGalacticCoordinates),
@@ -2786,6 +2869,8 @@ function publishDiscoveryProjections(
     // every non-kicked member receives a projection in this commit.
     const effectiveGroupId = typeof groupId === 'string' && groupId.length > 0
       ? groupId : INITIAL_FLEET_GROUP_ID;
+    const currentGroup = fleetGroups.find((group) => group.id === effectiveGroupId);
+    const currentGroupShipId = currentGroup?.memberShipIds?.[player.id];
     const projectionPlayer = {
       get: (field: string) => field === 'fleetGroupId' ? effectiveGroupId : player.get(field),
     };
@@ -2805,10 +2890,11 @@ function publishDiscoveryProjections(
       tx,
       playerDiscoveryProjectionRef(sessionId, player.id),
       projectionPlayer,
-      navigation,
+      projectionNavigation,
       revision,
       fleetGroupVesselIds,
       candidateReveals,
+      currentGroupShipId,
     );
   }
 }
@@ -11667,6 +11753,7 @@ export const assignReplacementRole = onCall<{
       tx, playerDiscoveryProjectionRef(assignment.sessionId, assignment.targetUid),
       { get: (field: string) => field === 'replacementRoleId' ? assignment.replacementRoleId : target.get(field) },
       navigation, navigationRevision, targetGroup?.vesselIds ?? [], candidateReveals,
+      targetGroup?.memberShipIds?.[assignment.targetUid],
     );
     tx.update(targetRef, {
       replacementRoleId: assignment.replacementRoleId,
@@ -14832,12 +14919,14 @@ async function groupNoteAuthority(tx: Transaction, sessionId: string, uid: strin
   requireActiveGameplayPhase(session);
   const parsedGroups = movementPursuitFleetGroups(activeVesselIdsForSession(session), groups, players);
   const groupId = player.get('fleetGroupId');
-  if (typeof groupId !== 'string' || !parsedGroups.some(group => group.id === groupId && group.memberUids.includes(uid))) {
+  const group = typeof groupId === 'string'
+    ? parsedGroups.find(candidate => candidate.id === groupId && candidate.memberUids.includes(uid)) : undefined;
+  if (!group) {
     throw commandError('failed-precondition', 'Current fleet group membership is unavailable.', 'conflict');
   }
-  try { ordinaryFleetCommunicationGroup(groupId, expectedGroupId); }
+  try { ordinaryFleetCommunicationGroup(group.id, expectedGroupId); }
   catch { throw new HttpsError('permission-denied', 'Ordinary notes cannot cross fleet groups.'); }
-  return groupId;
+  return group;
 }
 function storedGroupNotes(snapshot: DocumentSnapshot, groupId: string): readonly FleetGroupNote[] {
   if (!snapshot.exists) return [];
@@ -14858,9 +14947,15 @@ export const readFleetGroupMessages = onCall(async request => {
   const uid = requireUid(request.auth);
   const data = groupNoteRequest(request.data, false);
   return db.runTransaction(async tx => {
-    const groupId = await groupNoteAuthority(tx, data.sessionId, uid, data.expectedGroupId);
-    const snapshot = await tx.get(db.doc(`sessions/${data.sessionId}/fleetGroupMessages/${groupId}`));
-    return { groupId, messages: storedGroupNotes(snapshot, groupId) };
+    const group = await groupNoteAuthority(tx, data.sessionId, uid, data.expectedGroupId);
+    const historyGroupIds = [...(group.mergedGroupIds ?? []), group.id];
+    const snapshots = await Promise.all(historyGroupIds.map(groupId =>
+      tx.get(db.doc(`sessions/${data.sessionId}/fleetGroupMessages/${groupId}`))));
+    const notes = snapshots.flatMap((snapshot, index) =>
+      storedGroupNotes(snapshot, historyGroupIds[index]!));
+    const messages = [...new Map(notes.map(note => [note.id, note])).values()]
+      .sort((a, b) => Date.parse(a.sentAt) - Date.parse(b.sentAt)).slice(-20);
+    return { groupId: group.id, messages };
   });
 });
 export const sendFleetGroupMessage = onCall(async request => {
@@ -14871,7 +14966,8 @@ export const sendFleetGroupMessage = onCall(async request => {
     payload: { groupId: data.expectedGroupId, text: data.text! } };
   const now = new Date().toISOString();
   return db.runTransaction(async tx => {
-    const groupId = await groupNoteAuthority(tx, data.sessionId, uid, data.expectedGroupId);
+    const group = await groupNoteAuthority(tx, data.sessionId, uid, data.expectedGroupId);
+    const groupId = group.id;
     const notesRef = db.doc(`sessions/${data.sessionId}/fleetGroupMessages/${groupId}`);
     const receiptRef = commandReceiptRef(data.sessionId, data.requestId!);
     const [notes, receipt] = await Promise.all([tx.get(notesRef), tx.get(receiptRef)]);
@@ -14885,6 +14981,258 @@ export const sendFleetGroupMessage = onCall(async request => {
     const result: FleetGroupMessageReply = { status: 'committed', groupId, messageId: message.id };
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
+  });
+});
+
+interface FleetKnownSystemShareRequest {
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly expectedGroupId: string;
+  readonly expectedNavigationRevision: number;
+  readonly coordinate: string;
+  readonly recipientShipIds: 'all' | readonly string[];
+}
+interface FleetKnownSystemShareReply {
+  readonly status: 'committed'; readonly requestId: string; readonly groupId: string;
+  readonly coordinate: string; readonly recipientShipIds: readonly string[]; readonly navigationRevision: number;
+}
+function parseFleetKnownSystemShareRequest(raw: unknown): FleetKnownSystemShareRequest {
+  const allowed = ['sessionId', 'requestId', 'expectedGroupId', 'expectedNavigationRevision', 'coordinate', 'recipientShipIds'];
+  if (!isRecord(raw) || Object.keys(raw).some(key => !allowed.includes(key)) ||
+      typeof raw.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(raw.sessionId) ||
+      typeof raw.requestId !== 'string' || !isCanonicalRequestId(raw.requestId) ||
+      typeof raw.expectedGroupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(raw.expectedGroupId) ||
+      !Number.isSafeInteger(raw.expectedNavigationRevision) || (raw.expectedNavigationRevision as number) < 0 ||
+      (raw.expectedNavigationRevision as number) >= Number.MAX_SAFE_INTEGER ||
+      typeof raw.coordinate !== 'string' || !isStarSystemCoordinate(raw.coordinate) ||
+      (raw.recipientShipIds !== 'all' && (!Array.isArray(raw.recipientShipIds) ||
+        raw.recipientShipIds.length < 1 || raw.recipientShipIds.length > 7 ||
+        raw.recipientShipIds.some(shipId => typeof shipId !== 'string' || !isResourceShipId(shipId)) ||
+        new Set(raw.recipientShipIds).size !== raw.recipientShipIds.length))) {
+    throw new HttpsError('invalid-argument', 'Invalid scanned-system sharing request.');
+  }
+  return { sessionId: raw.sessionId, requestId: raw.requestId, expectedGroupId: raw.expectedGroupId,
+    expectedNavigationRevision: raw.expectedNavigationRevision as number, coordinate: raw.coordinate,
+    recipientShipIds: raw.recipientShipIds as 'all' | readonly string[] };
+}
+function isFleetKnownSystemShareReply(value: unknown): value is FleetKnownSystemShareReply {
+  return isRecord(value) && Object.keys(value).every(key => ['status', 'requestId', 'groupId', 'coordinate', 'recipientShipIds', 'navigationRevision'].includes(key)) &&
+    value.status === 'committed' && typeof value.requestId === 'string' && isCanonicalRequestId(value.requestId) &&
+    typeof value.groupId === 'string' && /^fleet-[1-9][0-9]*$/.test(value.groupId) &&
+    typeof value.coordinate === 'string' && isStarSystemCoordinate(value.coordinate) &&
+    Array.isArray(value.recipientShipIds) && value.recipientShipIds.length > 0 &&
+    new Set(value.recipientShipIds).size === value.recipientShipIds.length &&
+    value.recipientShipIds.every(shipId => typeof shipId === 'string' && isResourceShipId(shipId)) &&
+    Number.isSafeInteger(value.navigationRevision) && (value.navigationRevision as number) >= 0;
+}
+
+/** Deliver only server-known scan facts, directly into selected same-group ship projections. */
+export const shareKnownSystemDetails = onCall(async request => {
+  const uid = requireUid(request.auth);
+  const data = parseFleetKnownSystemShareRequest(request.data);
+  const fingerprint: CommandFingerprint = { action: 'share-known-system-details', sessionId: data.sessionId,
+    requestId: data.requestId, actorUid: uid, instanceId: null,
+    expectedRevision: data.expectedNavigationRevision,
+    payload: { groupId: data.expectedGroupId, coordinate: data.coordinate, recipientShipIds: data.recipientShipIds } };
+  const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
+  const auditRef = db.doc(`sessions/${data.sessionId}/fleetGroupShareAudits/${data.requestId}`);
+  return db.runTransaction(async tx => {
+    const [session, actor, storedNavigation, players, groupSnapshots, receipt, audit] = await Promise.all([
+      tx.get(db.doc(`sessions/${data.sessionId}`)),
+      tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`)),
+      tx.get(navigationStateRef(data.sessionId)),
+      tx.get(db.collection(`sessions/${data.sessionId}/players`)),
+      tx.get(db.collection(`sessions/${data.sessionId}/fleetGroups`)),
+      tx.get(receiptRef), tx.get(auditRef),
+    ]);
+    if (!session.exists || !isActivePlayer(actor) || actor.get('role') !== 'player') {
+      throw new HttpsError('permission-denied', 'An active ship player is required to share scanned details.');
+    }
+    requirePlayerShipActionAuthority(actor);
+    requireActiveGameplayPhase(session);
+    const activeVesselIds = activeVesselIdsForSession(session);
+    const groups = movementPursuitFleetGroups(activeVesselIds, groupSnapshots, players);
+    const groupId = actor.get('fleetGroupId');
+    if (typeof groupId !== 'string' || groupId !== data.expectedGroupId) {
+      throw new HttpsError('permission-denied', 'The sending ship is no longer in that fleet group.');
+    }
+    const group = groups.find(candidate => candidate.id === groupId && candidate.memberUids.includes(uid));
+    const senderShipId = group?.memberShipIds?.[uid] ?? playerShipId(actor);
+    if (!group || !senderShipId || !group.vesselIds.includes(senderShipId)) {
+      throw new HttpsError('permission-denied', 'The current sending ship is outside this fleet group.');
+    }
+    const replay = replayBoundCommand(receipt, fingerprint, isFleetKnownSystemShareReply, 'known-system share');
+    if (replay) {
+      const prior = audit.data();
+      if (!audit.exists || !isRecord(prior) || prior.actorUid !== uid || prior.senderShipId !== senderShipId ||
+          prior.groupId !== groupId || prior.coordinate !== data.coordinate ||
+          !isDeepStrictEqual(prior.recipientShipIds, replay.recipientShipIds)) {
+        throw new HttpsError('failed-precondition', 'The prior share audit is incomplete or outside this actor.');
+      }
+      return replay;
+    }
+    if (audit.exists) throw new HttpsError('failed-precondition', 'The share audit has no matching replay receipt.');
+    const navigationRevision = storedNavigation.get('revision');
+    if (!storedNavigation.exists || navigationRevision !== data.expectedNavigationRevision) {
+      throw commandError('failed-precondition', 'Navigation changed; refresh scanned systems before sharing.', 'conflict');
+    }
+    let navigation: NavigationState;
+    try { navigation = navigationStateForSession(storedNavigation, session, activeVesselIds); }
+    catch { throw new HttpsError('failed-precondition', 'Current chart knowledge is unavailable.'); }
+    let plan;
+    try {
+      const sourceKnowledge = playerDiscoveryProjection(actor, navigation, navigationRevision as number,
+        group.vesselIds, undefined, uid, senderShipId);
+      plan = planKnownSystemSharing({
+        groups, currentGroupId: groupId, senderShipId,
+        knownCoordinates: sourceKnowledge.knownCoordinates,
+        requestedCoordinate: data.coordinate, requestedRecipientShipIds: data.recipientShipIds,
+        scoutedCoordinatesByShip: navigation.scoutedCoordinatesByShip ?? {},
+      });
+    } catch (cause) {
+      throw commandError('permission-denied', cause instanceof Error ? cause.message : 'The selected system is not known to this ship.', 'conflict');
+    }
+    const scoutedCoordinatesByShip = Object.fromEntries(Object.entries({
+      ...(navigation.scoutedCoordinatesByShip ?? {}), ...plan.nextScoutedCoordinatesByShip,
+    }).filter(([, coordinates]) => coordinates.length > 0));
+    const nextNavigation: NavigationState = { ...navigation,
+      ...(Object.keys(scoutedCoordinatesByShip).length ? { scoutedCoordinatesByShip } : { scoutedCoordinatesByShip: undefined }),
+    };
+    const knowledgeChanged = !isDeepStrictEqual(
+      navigation.scoutedCoordinatesByShip ?? {}, scoutedCoordinatesByShip,
+    );
+    const committedNavigationRevision = knowledgeChanged ? (navigationRevision as number) + 1 : navigationRevision as number;
+    const result: FleetKnownSystemShareReply = { status: 'committed', requestId: data.requestId,
+      groupId, coordinate: data.coordinate, recipientShipIds: [...plan.recipientShipIds],
+      navigationRevision: committedNavigationRevision };
+    if (knowledgeChanged) {
+      tx.set(navigationStateRef(data.sessionId), { ...navigationProjectionFields(nextNavigation),
+        revision: committedNavigationRevision, updatedAt: FieldValue.serverTimestamp() });
+      publishDiscoveryProjections(tx, data.sessionId, players.docs, nextNavigation,
+        committedNavigationRevision, lockedNavigationChart(session), groups, true,
+        { sessionSnapshot: session, navigationSnapshot: storedNavigation, fleetGroupSnapshots: groupSnapshots.docs });
+    }
+    tx.create(auditRef, { type: 'fleet-group-known-system-share', sessionId: data.sessionId,
+      requestId: data.requestId, actorUid: uid, senderShipId, groupId, coordinate: data.coordinate,
+      knownSystemFacts: discoverySystemsForCoordinates([data.coordinate]),
+      recipientShipIds: [...plan.recipientShipIds], createdAt: FieldValue.serverTimestamp() });
+    tx.create(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+interface FleetGroupNavigationRequest {
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly expectedNavigationRevision: number;
+  readonly expectedFleetPartitionRevision: number;
+  readonly expectedGroupId?: string;
+  readonly instanceId?: string;
+  readonly viewerShipId?: string;
+}
+function parseFleetGroupNavigationRequest(raw: unknown): FleetGroupNavigationRequest {
+  const allowed = ['sessionId', 'requestId', 'expectedNavigationRevision', 'expectedFleetPartitionRevision',
+    'expectedGroupId', 'instanceId', 'viewerShipId'];
+  if (!isRecord(raw) || Object.keys(raw).some(key => !allowed.includes(key)) ||
+      typeof raw.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(raw.sessionId) ||
+      typeof raw.requestId !== 'string' || !isCanonicalRequestId(raw.requestId) ||
+      !Number.isSafeInteger(raw.expectedNavigationRevision) || (raw.expectedNavigationRevision as number) < 0 ||
+      !Number.isSafeInteger(raw.expectedFleetPartitionRevision) || (raw.expectedFleetPartitionRevision as number) < 0 ||
+      ((raw.viewerShipId === undefined) !== (raw.instanceId === undefined)) ||
+      (raw.viewerShipId !== undefined && (typeof raw.viewerShipId !== 'string' || !isResourceShipId(raw.viewerShipId))) ||
+      (raw.instanceId !== undefined && (typeof raw.instanceId !== 'string' || !/^[\w-]{1,128}$/.test(raw.instanceId))) ||
+      (raw.expectedGroupId !== undefined && (typeof raw.expectedGroupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(raw.expectedGroupId))) ||
+      (raw.viewerShipId === undefined && raw.expectedGroupId === undefined) ||
+      (raw.viewerShipId !== undefined && raw.expectedGroupId !== undefined)) {
+    throw new HttpsError('invalid-argument', 'Invalid fleet navigation projection request.');
+  }
+  return { sessionId: raw.sessionId, requestId: raw.requestId,
+    expectedNavigationRevision: raw.expectedNavigationRevision as number,
+    expectedFleetPartitionRevision: raw.expectedFleetPartitionRevision as number,
+    ...(typeof raw.expectedGroupId === 'string' ? { expectedGroupId: raw.expectedGroupId } : {}),
+    ...(typeof raw.instanceId === 'string' ? { instanceId: raw.instanceId } : {}),
+    ...(typeof raw.viewerShipId === 'string' ? { viewerShipId: raw.viewerShipId } : {}),
+  };
+}
+
+/** Return a current group-only map and server-time shuttle samples. */
+export const readFleetGroupNavigation = onCall(async request => {
+  const uid = requireUid(request.auth);
+  const data = parseFleetGroupNavigationRequest(request.data);
+  const gmView = data.viewerShipId !== undefined;
+  return db.runTransaction(async tx => {
+    const [session, actor, navigationSnapshot, players, groupSnapshots] = await Promise.all([
+      tx.get(db.doc(`sessions/${data.sessionId}`)),
+      tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`)),
+      tx.get(navigationStateRef(data.sessionId)),
+      tx.get(db.collection(`sessions/${data.sessionId}/players`)),
+      tx.get(db.collection(`sessions/${data.sessionId}/fleetGroups`)),
+    ]);
+    if (!session.exists || !isActivePlayer(actor)) {
+      throw new HttpsError('permission-denied', 'A current session member is required.');
+    }
+    if (gmView) {
+      await requireFacilitatorInstance(tx, data.sessionId, uid, data.instanceId!);
+      if (actor.get('role') !== 'gm') throw new HttpsError('permission-denied', 'A current facilitator is required.');
+    } else if (actor.get('role') !== 'player') {
+      throw new HttpsError('permission-denied', 'Player navigation is limited to the actor\'s current group.');
+    }
+    requireActiveGameplayPhase(session);
+    const activeVesselIds = activeVesselIdsForSession(session);
+    const groups = movementPursuitFleetGroups(activeVesselIds, groupSnapshots, players);
+    if (!navigationSnapshot.exists || navigationSnapshot.get('revision') !== data.expectedNavigationRevision) {
+      throw commandError('failed-precondition', 'Navigation changed; refresh before reading the fleet plot.', 'conflict');
+    }
+    const partitionRevision = session.get('fleetPartitionRevision') ?? 0;
+    if (!Number.isSafeInteger(partitionRevision) || (partitionRevision as number) < 0 ||
+        partitionRevision !== data.expectedFleetPartitionRevision) {
+      throw commandError('failed-precondition', 'Fleet membership changed; refresh before reading the fleet plot.', 'conflict');
+    }
+    let groupId: string;
+    if (gmView) {
+      const matchingGroups = groups.filter(group => group.vesselIds.includes(data.viewerShipId!));
+      if (matchingGroups.length !== 1) throw commandError('failed-precondition', 'The selected ship has no unique current fleet group.', 'conflict');
+      groupId = matchingGroups[0]!.id;
+    } else {
+      groupId = actor.get('fleetGroupId') as string;
+      if (groupId !== data.expectedGroupId || !groups.some(group => group.id === groupId && group.memberUids.includes(uid))) {
+        throw new HttpsError('permission-denied', 'The player no longer belongs to that fleet group.');
+      }
+    }
+    const group = groups.find(candidate => candidate.id === groupId);
+    if (!group) throw commandError('failed-precondition', 'Current fleet navigation is unavailable.', 'conflict');
+    const coordinates = navigationSnapshot.get('shipGalacticCoordinates');
+    const ships = group.vesselIds.map(shipId => {
+      const coordinate = isRecord(coordinates) ? coordinates[shipId] : undefined;
+      if (typeof coordinate !== 'string' || !isStarSystemCoordinate(coordinate)) {
+        throw commandError('failed-precondition', 'A current group ship has no authoritative chart fix.', 'conflict');
+      }
+      return { shipId, fleetGroupId: group.id, coordinate };
+    });
+    const shuttleIds = [...AUTHORIZED_SHUTTLE_IDS];
+    const [departures, chains] = await Promise.all([
+      Promise.all(shuttleIds.map(shuttleId => tx.get(db.doc(`sessions/${data.sessionId}/shuttleDepartures/${shuttleId}`)))),
+      Promise.all(shuttleIds.map(shuttleId => tx.get(db.doc(`sessions/${data.sessionId}/shuttleTransitChains/${shuttleId}`)))),
+    ]);
+    const sampledNow = Date.now();
+    const sampledAt = new Date(sampledNow).toISOString();
+    const transits = departures.flatMap((departure, index) => {
+      if (!departure.exists) return [];
+      const rawTransit = departure.data();
+      if (!isRecord(rawTransit) || rawTransit.status !== 'in-transit' || rawTransit.fleetGroupId !== group.id) return [];
+      const chain = chains[index]!;
+      const authority = parseShuttleTransitAuthority(rawTransit, chain.exists ? chain.data() : undefined, shuttleIds[index]!);
+      if (!authority || authority.transit.fleetGroupId !== group.id ||
+          !group.vesselIds.includes(authority.transit.originShipId) ||
+          !group.vesselIds.includes(authority.transit.destinationShipId)) {
+        throw commandError('failed-precondition', 'A current-group shuttle transit failed its server authority check.', 'conflict');
+      }
+      const currentPosition = shuttlePositionAt(authority.transit, sampledNow);
+      return [{ shuttleId: authority.transit.shuttleId, fleetGroupId: group.id, currentPosition,
+        sampledAt, destinationShipId: authority.transit.destinationShipId, arrivesAt: authority.transit.arrivesAt }];
+    });
+    return { groupId: group.id, navigationRevision: data.expectedNavigationRevision,
+      fleetPartitionRevision: partitionRevision as number, sampledAt, ships, transits };
   });
 });
 
@@ -15020,6 +15368,250 @@ export const sendScoutTaxiCourier = onCall(async request => {
   });
 });
 
+interface FleetTaxiTransferRequest {
+  readonly sessionId: string; readonly requestId: string; readonly shuttleId: 'starlight' | 'hummingbird';
+  readonly targetShipId: string; readonly expectedCycle: number; readonly expectedControlRevision: number;
+  readonly expectedNavigationRevision: number; readonly expectedFleetPartitionRevision: number;
+  readonly expectedGroupId: string; readonly payload: FleetTaxiPayload;
+}
+interface FleetTaxiTransferReply {
+  readonly status: 'committed'; readonly requestId: string; readonly shuttleId: 'starlight' | 'hummingbird';
+  readonly kind: 'players' | 'fuel'; readonly sourceGroupId: string; readonly targetShipId: string;
+  readonly playerUids?: readonly string[]; readonly units?: 1 | 2; readonly sourceFuelRemaining?: number;
+  readonly cycle: number;
+}
+function parseFleetTaxiTransferRequest(raw: unknown): FleetTaxiTransferRequest {
+  const allowed = ['sessionId', 'requestId', 'shuttleId', 'targetShipId', 'expectedCycle', 'expectedControlRevision',
+    'expectedNavigationRevision', 'expectedFleetPartitionRevision', 'expectedGroupId', 'payload'];
+  if (!isRecord(raw) || Object.keys(raw).some(key => !allowed.includes(key)) ||
+      typeof raw.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(raw.sessionId) ||
+      typeof raw.requestId !== 'string' || !isCanonicalRequestId(raw.requestId) ||
+      (raw.shuttleId !== 'starlight' && raw.shuttleId !== 'hummingbird') ||
+      typeof raw.targetShipId !== 'string' || !isResourceShipId(raw.targetShipId) ||
+      !Number.isSafeInteger(raw.expectedCycle) || (raw.expectedCycle as number) < 1 ||
+      !Number.isSafeInteger(raw.expectedControlRevision) || (raw.expectedControlRevision as number) < 0 ||
+      !Number.isSafeInteger(raw.expectedNavigationRevision) || (raw.expectedNavigationRevision as number) < 0 ||
+      !Number.isSafeInteger(raw.expectedFleetPartitionRevision) || (raw.expectedFleetPartitionRevision as number) < 0 ||
+      typeof raw.expectedGroupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(raw.expectedGroupId) ||
+      !isRecord(raw.payload) || (raw.payload.kind === 'players'
+        ? Object.keys(raw.payload).some(key => !['kind', 'playerUids'].includes(key)) || !Array.isArray(raw.payload.playerUids) ||
+          raw.payload.playerUids.length < 1 || raw.payload.playerUids.length > 2 ||
+          raw.payload.playerUids.some(uid => typeof uid !== 'string' || !/^[\w-]{1,128}$/.test(uid)) ||
+          new Set(raw.payload.playerUids).size !== raw.payload.playerUids.length
+        : raw.payload.kind === 'fuel'
+          ? Object.keys(raw.payload).some(key => !['kind', 'units'].includes(key)) ||
+            (raw.payload.units !== 1 && raw.payload.units !== 2)
+          : true)) {
+    throw new HttpsError('invalid-argument', 'Invalid scout taxi transfer request.');
+  }
+  const payload: FleetTaxiPayload = raw.payload.kind === 'players'
+    ? { kind: 'players', playerUids: raw.payload.playerUids as string[] }
+    : { kind: 'fuel', units: raw.payload.units as 1 | 2 };
+  return { sessionId: raw.sessionId, requestId: raw.requestId, shuttleId: raw.shuttleId,
+    targetShipId: raw.targetShipId, expectedCycle: raw.expectedCycle as number,
+    expectedControlRevision: raw.expectedControlRevision as number,
+    expectedNavigationRevision: raw.expectedNavigationRevision as number,
+    expectedFleetPartitionRevision: raw.expectedFleetPartitionRevision as number,
+    expectedGroupId: raw.expectedGroupId, payload };
+}
+function isFleetTaxiTransferReply(value: unknown): value is FleetTaxiTransferReply {
+  if (!isRecord(value) || Object.keys(value).some(key => !['status', 'requestId', 'shuttleId', 'kind', 'sourceGroupId',
+    'targetShipId', 'playerUids', 'units', 'sourceFuelRemaining', 'cycle'].includes(key)) ||
+      value.status !== 'committed' || typeof value.requestId !== 'string' || !isCanonicalRequestId(value.requestId) ||
+      (value.shuttleId !== 'starlight' && value.shuttleId !== 'hummingbird') ||
+      (value.kind !== 'players' && value.kind !== 'fuel') || typeof value.sourceGroupId !== 'string' ||
+      !/^fleet-[1-9][0-9]*$/.test(value.sourceGroupId) || typeof value.targetShipId !== 'string' ||
+      !isResourceShipId(value.targetShipId) || !Number.isSafeInteger(value.cycle) || (value.cycle as number) < 1) return false;
+  if (value.kind === 'players') return Array.isArray(value.playerUids) && value.playerUids.length >= 1 &&
+    value.playerUids.length <= 2 && value.playerUids.every(uid => typeof uid === 'string') &&
+    value.units === undefined && value.sourceFuelRemaining === undefined;
+  return (value.units === 1 || value.units === 2) && Number.isSafeInteger(value.sourceFuelRemaining) &&
+    (value.sourceFuelRemaining as number) >= 0 && value.playerUids === undefined;
+}
+
+/** Commit one printed scout-taxi round trip and its selected passenger or fuel payload atomically. */
+export const sendScoutTaxiTransfer = onCall(async request => {
+  const uid = requireUid(request.auth);
+  const data = parseFleetTaxiTransferRequest(request.data);
+  const fingerprint: CommandFingerprint = { action: 'scout-taxi-transfer', sessionId: data.sessionId,
+    requestId: data.requestId, actorUid: uid, instanceId: null,
+    expectedRevision: data.expectedNavigationRevision,
+    payload: { groupId: data.expectedGroupId, fleetPartitionRevision: data.expectedFleetPartitionRevision,
+      cycle: data.expectedCycle, controlRevision: data.expectedControlRevision, shuttleId: data.shuttleId,
+      targetShipId: data.targetShipId, payloadKind: data.payload.kind,
+      ...(data.payload.kind === 'players'
+        ? { playerUids: [...data.payload.playerUids] }
+        : { units: data.payload.units }) } };
+  const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
+  const auditRef = db.doc(`sessions/${data.sessionId}/fleetTaxiTransferAudits/${data.requestId}`);
+  const cadenceRef = scoutCadenceRef(data.sessionId, data.expectedCycle, data.shuttleId);
+  return db.runTransaction(async tx => {
+    const [session, actor, storedNavigation, players, groupSnapshots, receipt, audit, cadenceSnapshot, departure, attack,
+      groupMessageSnapshots] = await Promise.all([
+      tx.get(db.doc(`sessions/${data.sessionId}`)), tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`)),
+      tx.get(navigationStateRef(data.sessionId)), tx.get(db.collection(`sessions/${data.sessionId}/players`)),
+      tx.get(db.collection(`sessions/${data.sessionId}/fleetGroups`)), tx.get(receiptRef), tx.get(auditRef),
+      tx.get(cadenceRef), tx.get(db.doc(`sessions/${data.sessionId}/shuttleDepartures/${data.shuttleId}`)),
+      tx.get(db.doc(`sessions/${data.sessionId}/wolfAttackState/current`)),
+      tx.get(db.collection(`sessions/${data.sessionId}/fleetGroupMessages`)),
+    ]);
+    if (!session.exists || !isActivePlayer(actor) || actor.get('role') !== 'player') {
+      throw new HttpsError('permission-denied', 'A connected shuttle owner is required for taxi transfer.');
+    }
+    requirePlayerShipActionAuthority(actor);
+    if (!storedNavigation.exists || (session.get('chartSelectionLocked') !== true && session.get('configurationLocked') !== true)) {
+      throw new HttpsError('failed-precondition', 'The locked navigation authority is unavailable.');
+    }
+    const isReply = (value: unknown): value is FleetTaxiTransferReply => isFleetTaxiTransferReply(value) &&
+      value.requestId === data.requestId && value.shuttleId === data.shuttleId && value.targetShipId === data.targetShipId &&
+      value.cycle === data.expectedCycle && value.kind === data.payload.kind && value.sourceGroupId === data.expectedGroupId &&
+      (data.payload.kind === 'fuel' ? value.units === data.payload.units :
+        Array.isArray(value.playerUids) && isDeepStrictEqual(value.playerUids, data.payload.playerUids));
+    const replay = replayBoundCommand(receipt, fingerprint, isReply, 'scout taxi transfer');
+    if (replay) {
+      const prior = audit.data();
+      if (!audit.exists || !isRecord(prior) || prior.actorUid !== uid || prior.requestId !== data.requestId) {
+        throw new HttpsError('failed-precondition', 'The prior taxi transfer audit is incomplete or outside this actor.');
+      }
+      return { ...replay, status: 'replayed' as const };
+    }
+    if (audit.exists) throw new HttpsError('failed-precondition', 'The taxi audit has no matching receipt.');
+    requireActiveGameplayPhase(session);
+    requireActionPhase(session, 'scouting', 'player');
+    requireMissionMovementAvailable(session, [data.shuttleId]);
+    if (attack.exists && wolfAttackBlocksNormalMovement(attack.data())) {
+      throw new HttpsError('failed-precondition', 'Wait until the Wolf attack is resolved.');
+    }
+    const partitionRevision = session.get('fleetPartitionRevision') ?? 0;
+    if (!Number.isSafeInteger(partitionRevision) || partitionRevision !== data.expectedFleetPartitionRevision ||
+        actor.get('fleetGroupId') !== data.expectedGroupId || storedNavigation.get('revision') !== data.expectedNavigationRevision) {
+      throw commandError('failed-precondition', 'Fleet membership or navigation changed; refresh before sending the taxi.', 'conflict');
+    }
+    const { activeRoleIds, activeVesselIds } = strictScoutRosters(session);
+    const groups = movementPursuitFleetGroups(activeVesselIds, groupSnapshots, players);
+    let route;
+    try {
+      route = planScoutTaxiCommunication({
+        request: { sessionId: data.sessionId, requestId: data.requestId, shuttleId: data.shuttleId,
+          targetShipId: data.targetShipId, text: 'Taxi transfer', expectedCycle: data.expectedCycle,
+          expectedControlRevision: data.expectedControlRevision, expectedNavigationRevision: data.expectedNavigationRevision },
+        sessionId: data.sessionId, actorUid: uid,
+        actor: { uid, active: true, playerRole: actor.get('role'), connected: actor.get('connected'),
+          assignedRoleId: actor.get('assignedRoleId'), seatId: actor.get('seatId'), replacementRoleId: actor.get('replacementRoleId'),
+          fleetGroupId: actor.get('fleetGroupId') },
+        sessionPhase: session.get('phase'), currentCycle: session.get('currentTurn'), turnPhase: session.get('turnPhase'),
+        now: Date.now(), chartId: session.get('chartId'), activeRoleIds, activeVesselIds,
+        shuttleControl: session.get('shuttleControl'), shuttleDockings: session.get('shuttleDockings'),
+        pendingDeparture: departure.exists ? departure.data() : undefined, transit: undefined,
+        fleetGroups: groups, shipGalacticCoordinates: storedNavigation.get('shipGalacticCoordinates'),
+        navigationRevision: storedNavigation.get('revision'), cadence: cadenceSnapshot.exists ? cadenceSnapshot.data() : undefined,
+        maintenanceCycles: session.get('maintenanceCycles'), shuttleFuelled: session.get('shuttleFuelled'),
+      });
+    } catch {
+      throw new HttpsError('failed-precondition', 'The current taxi owner, range, shuttle, or one-round-trip authority is unavailable.');
+    }
+    requireNavigableShip(session, route.anchorShipId);
+    requireNavigableShip(session, route.target.shipId);
+    const partitionMembers = players.docs.map(player => {
+      const groupId = player.get('fleetGroupId') as string;
+      const group = groups.find(current => current.id === groupId);
+      return { uid: player.id, groupId,
+        hostShipId: group?.memberShipIds?.[player.id] ?? playerShipId(player) ?? '',
+        connected: player.get('connected') === true };
+    });
+    const rawInventories = session.get('shipResources');
+    if (rawInventories !== undefined && (!isRecord(rawInventories) ||
+        [route.anchorShipId, route.target.shipId].some(shipId => Object.hasOwn(rawInventories, shipId) &&
+          !isRecord(rawInventories[shipId])))) {
+      throw new HttpsError('failed-precondition', 'The current taxi fuel inventory is malformed.');
+    }
+    const inventories = data.payload.kind === 'fuel' ? shipResources(rawInventories) : undefined;
+    let plan;
+    try {
+      plan = planFleetTaxiTransfer({ actorUid: uid, groups, sourceGroupId: route.origin.groupId, targetGroupId: route.target.groupId,
+        anchorShipId: route.anchorShipId, targetShipId: route.target.shipId, payload: data.payload,
+        passengers: data.payload.kind === 'players' ? partitionMembers : [],
+        ...(inventories ? { sourceFuel: inventories[route.anchorShipId]!.fuel,
+          targetFuel: inventories[route.target.shipId]!.fuel } : {}) });
+    } catch (cause) {
+      throw commandError('failed-precondition', cause instanceof Error ? cause.message : 'The selected taxi payload is unavailable.', 'conflict');
+    }
+    const messageSnapshot = (id: string) => groupMessageSnapshots.docs.find(snapshot => snapshot.id === id);
+    const sourceNoteSnapshot = messageSnapshot(route.origin.groupId);
+    const targetNoteSnapshot = messageSnapshot(route.target.groupId);
+    const sourceNoteHistory = sourceNoteSnapshot ? storedGroupNotes(sourceNoteSnapshot as DocumentSnapshot, route.origin.groupId) : [];
+    const targetHistory = targetNoteSnapshot ? storedGroupNotes(targetNoteSnapshot as DocumentSnapshot, route.target.groupId) : [];
+    if (sourceNoteHistory.some(note => note.id === data.requestId) || targetHistory.some(note => note.id === data.requestId)) {
+      throw new HttpsError('failed-precondition', 'The taxi announcement has no matching receipt.');
+    }
+    const partitionNextRevision = (partitionRevision as number) + 1;
+    const serverTime = new Date().toISOString();
+    const result: FleetTaxiTransferReply = plan.kind === 'fuel'
+      ? { status: 'committed', requestId: data.requestId, shuttleId: data.shuttleId, kind: 'fuel',
+        sourceGroupId: plan.sourceGroupId, targetShipId: plan.targetShipId, units: plan.units,
+        sourceFuelRemaining: plan.sourceFuel, cycle: data.expectedCycle }
+      : { status: 'committed', requestId: data.requestId, shuttleId: data.shuttleId, kind: 'players',
+        sourceGroupId: plan.sourceGroupId, targetShipId: plan.targetShipId, playerUids: plan.playerUids, cycle: data.expectedCycle };
+    const payloadText = plan.kind === 'fuel' ? `Taxi transfer delivered ${plan.units} fuel unit${plan.units === 1 ? '' : 's'}.`
+      : `Scout taxi carried ${plan.playerUids.length} player${plan.playerUids.length === 1 ? '' : 's'} to ${plan.targetShipId}.`;
+    const sourceMessage = { id: data.requestId, actorUid: uid, text: payloadText, sentAt: serverTime };
+    const targetMessage = { id: data.requestId, actorUid: uid,
+      text: plan.kind === 'fuel' ? `Scout taxi received ${plan.units} fuel unit${plan.units === 1 ? '' : 's'}.`
+        : `Scout taxi arrived with ${plan.playerUids.length} player${plan.playerUids.length === 1 ? '' : 's'}.`, sentAt: serverTime };
+    const sourceGroup = plan.groups.find(group => group.id === plan.sourceGroupId)!;
+    const targetGroup = plan.groups.find(group => group.id === plan.targetGroupId)!;
+    tx.set(db.doc(`sessions/${data.sessionId}/fleetGroups/${sourceGroup.id}`), { ...sourceGroup, updatedAt: FieldValue.serverTimestamp() });
+    tx.set(db.doc(`sessions/${data.sessionId}/fleetGroups/${targetGroup.id}`), { ...targetGroup, updatedAt: FieldValue.serverTimestamp() });
+    const nextInventories = plan.kind === 'fuel' ? {
+      ...inventories!,
+      [route.anchorShipId]: { ...inventories![route.anchorShipId]!, fuel: plan.sourceFuel },
+      [route.target.shipId]: { ...inventories![route.target.shipId]!, fuel: plan.targetFuel },
+    } : undefined;
+    tx.update(db.doc(`sessions/${data.sessionId}`), {
+      fleetPartitionRevision: partitionNextRevision,
+      ...(nextInventories ? { shipResources: nextInventories } : {}), updatedAt: FieldValue.serverTimestamp(),
+    });
+    if (plan.kind === 'players') for (const passengerUid of plan.playerUids) {
+      tx.update(db.doc(`sessions/${data.sessionId}/players/${passengerUid}`), {
+        fleetGroupId: plan.targetGroupId,
+      });
+    }
+    if (plan.kind === 'players') {
+      const navigation = navigationStateForSession(storedNavigation, session, activeVesselIds);
+      const navigationRevision = (storedNavigation.get('revision') as number) + 1;
+      tx.set(navigationStateRef(data.sessionId), { ...navigationProjectionFields(navigation),
+        revision: navigationRevision, updatedAt: FieldValue.serverTimestamp() });
+      const projectedPlayers = players.docs.map(player => ({
+        ...player, exists: true, id: player.id,
+        get: (field: string) => plan.playerUids.includes(player.id) && field === 'fleetGroupId'
+          ? plan.targetGroupId : player.get(field),
+      } as DocumentSnapshot));
+      const projectedGroups = plan.groups.map(group => transactionDocumentSnapshot(
+        group.id, `sessions/${data.sessionId}/fleetGroups/${group.id}`, { ...group },
+      ));
+      publishDiscoveryProjections(tx, data.sessionId, projectedPlayers, navigation, navigationRevision,
+        lockedNavigationChart(session), plan.groups, true, {
+          sessionSnapshot: session, navigationSnapshot: storedNavigation, fleetGroupSnapshots: projectedGroups,
+        });
+    }
+    tx.set(cadenceRef, route.nextCadence);
+    tx.set(db.doc(`sessions/${data.sessionId}/fleetGroupMessages/${route.origin.groupId}`), {
+      groupId: route.origin.groupId, messages: [...sourceNoteHistory.slice(-19), sourceMessage], updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(db.doc(`sessions/${data.sessionId}/fleetGroupMessages/${route.target.groupId}`), {
+      groupId: route.target.groupId, messages: [...targetHistory.slice(-19), targetMessage], updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.create(auditRef, { type: 'fleet-group-scout-taxi-transfer', sessionId: data.sessionId, requestId: data.requestId,
+      actorUid: uid, shuttleId: data.shuttleId, cycle: data.expectedCycle,
+      sourceGroupId: plan.sourceGroupId, targetGroupId: plan.targetGroupId, targetShipId: plan.targetShipId,
+      payload: data.payload, routeDistance: route.distance, sourceFuelRemaining: plan.kind === 'fuel' ? plan.sourceFuel : undefined,
+      targetFuelAfter: plan.kind === 'fuel' ? plan.targetFuel : undefined, fleetPartitionRevision: partitionNextRevision,
+      createdAt: FieldValue.serverTimestamp() });
+    tx.create(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
 interface FleetPartitionReply { readonly status: 'committed'; readonly navigationRevision: number; readonly groupIds: readonly string[] }
 function isFleetPartitionReply(value: unknown): value is FleetPartitionReply {
   return isRecord(value) && Object.keys(value).every(key => ['status', 'navigationRevision', 'groupIds'].includes(key)) &&
@@ -15064,7 +15656,8 @@ export const confirmFleetPartition = onCall<{ sessionId: string; instanceId: str
     const navigation = navigationStateForSession(storedNavigation, session, activeVesselIds);
     const players = playerSnapshots.docs.filter(player => player.exists && !isKickedPlayer(player));
     const members = players.map(player => {
-      let shipId = playerShipId(player) ?? playerAuthoritativeVesselIds(player)[0] ?? null;
+      const currentGroup = groups.find(group => group.id === player.get('fleetGroupId'));
+      let shipId = currentGroup?.memberShipIds?.[player.id] ?? playerShipId(player) ?? playerAuthoritativeVesselIds(player)[0] ?? null;
       if (shipId && !activeVesselIds.includes(shipId)) {
         const id = smallShipId(shipId);
         shipId = id ? storedSmallShipState(session, id)?.hostShipId ?? null : null;
@@ -15090,6 +15683,10 @@ export const confirmFleetPartition = onCall<{ sessionId: string; instanceId: str
       for (const group of plan.groups) tx.set(db.doc(`sessions/${data.sessionId}/fleetGroups/${group.id}`), {
         ...group, updatedAt: FieldValue.serverTimestamp(),
       });
+      const survivingGroupIds = new Set(plan.groups.map(group => group.id));
+      for (const group of groups) if (!survivingGroupIds.has(group.id)) {
+        tx.delete(db.doc(`sessions/${data.sessionId}/fleetGroups/${group.id}`));
+      }
       const projectedPlayers = players.map(player => ({ ...player, exists: true, id: player.id,
         get: (field: string) => field === 'fleetGroupId' ? plan.memberGroups[player.id] : player.get(field),
       } as DocumentSnapshot));
@@ -15099,10 +15696,26 @@ export const confirmFleetPartition = onCall<{ sessionId: string; instanceId: str
       tx.set(navigationStateRef(data.sessionId), { ...navigationProjectionFields(plan.navigation), revision,
         updatedAt: FieldValue.serverTimestamp() });
       publishDiscoveryProjections(tx, data.sessionId, projectedPlayers, plan.navigation, revision,
-        lockedNavigationChart(session), plan.groups, true);
+        lockedNavigationChart(session), plan.groups, true, {
+          sessionSnapshot: session, navigationSnapshot: storedNavigation, fleetGroupSnapshots: groupSnapshots.docs,
+        });
       for (const migration of missionMigrations) {
         writeMissionOpportunity(tx, data.sessionId, migration.opportunity);
         tx.delete(db.doc(missionOpportunityDocumentPath(data.sessionId, migration.fromId)));
+      }
+      if (plan.rejoins.length > 0) {
+        tx.create(db.doc(`sessions/${data.sessionId}/fleetGroupRejoinAudits/${data.requestId}`), {
+          type: 'fleet-group-rejoin-audit', sessionId: data.sessionId, requestId: data.requestId,
+          actorUid: uid, policy: 'highest-pursuit-score', navigationRevision: revision,
+          rejoins: plan.rejoins.map(rejoin => ({
+            coordinate: rejoin.coordinate,
+            survivingGroupId: rejoin.survivingGroupId,
+            absorbedGroupIds: [...rejoin.absorbedGroupIds],
+            pursuitBefore: { ...rejoin.pursuitBefore },
+            pursuitAfter: rejoin.pursuitAfter,
+          })),
+          createdAt: FieldValue.serverTimestamp(),
+        });
       }
     }
     const result: FleetPartitionReply = { status: 'committed', navigationRevision: revision, groupIds: plan.groups.map(group => group.id) };
@@ -15273,6 +15886,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
           navigationRevision,
           group.vesselIds,
           candidateReveals,
+          group.memberShipIds?.[uid],
         );
         tx.update(sessionRef, {
           deleteAfter: null,
@@ -15333,6 +15947,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
           navigationRevision,
           group.vesselIds,
           candidateReveals,
+          group.memberShipIds?.[uid],
         );
       }
       tx.update(sessionRef, { deleteAfter: null, updatedAt: FieldValue.serverTimestamp() });
@@ -15637,6 +16252,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       navigationRevision,
       group.vesselIds,
       candidateReveals,
+      group.memberShipIds?.[uid],
     );
     tx.update(sessionRef, {
       deleteAfter: null,

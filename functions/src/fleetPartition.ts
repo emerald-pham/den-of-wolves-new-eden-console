@@ -1,6 +1,7 @@
 import { fleetGroupRecord, type FleetGroupRecord } from './fleetGroups';
 import { isStarSystemCoordinate } from './navigation';
 import { splitPursuitGroup, isValidPursuitAuthority, type NavigationState } from './navigationProjection';
+import { planFleetGroupRejoins } from './fleetGroupOperations';
 export interface PartitionMember { readonly uid: string; readonly groupId: string; readonly shipId: string | null }
 
 /** A facilitator confirms physical partitions after movement; no client chooses its audience. */
@@ -38,20 +39,29 @@ export function planFleetPartition(navigation: NavigationState, groups: readonly
       if (typeof coordinate !== 'string' || !isStarSystemCoordinate(coordinate)) throw new Error('Fleet partition ship coordinates are malformed.');
       byCoordinate.set(coordinate, [...(byCoordinate.get(coordinate) ?? []), vesselId]);
     }
-    const partitions = [...byCoordinate.values()].map((ids, index) => ({
-      id: index === 0 ? group.id : allocate(), vesselIds: ids, memberUids: [] as string[],
-    }));
+    const partitions = [...byCoordinate.values()].map((ids, index) => {
+      const id = index === 0 ? group.id : allocate();
+      const inherited = [...(group.mergedGroupIds ?? [])].filter(alias => alias !== id);
+      return { id, vesselIds: ids, memberUids: [] as string[], memberShipIds: {} as Record<string, string>,
+        ...(inherited.length ? { mergedGroupIds: [...new Set(inherited)] } : {}) };
+    });
     for (const member of members.filter(member => member.groupId === group.id)) {
       const partition = member.shipId === null ? partitions[0] : partitions.find(part => part.vesselIds.includes(member.shipId!));
       if (!partition) throw new Error('Fleet partition member ship is outside its current group.');
-      partition.memberUids.push(member.uid); memberGroups.set(member.uid, partition.id);
+      partition.memberUids.push(member.uid);
+      if (member.shipId) partition.memberShipIds[member.uid] = member.shipId;
+      memberGroups.set(member.uid, partition.id);
     }
     for (const partition of partitions.slice(1)) {
       nextNavigation = splitPursuitGroup(nextNavigation, group.id, [group.id, partition.id]);
     }
     nextGroups.push(...partitions);
   }
-  return { navigation: nextNavigation, groups: nextGroups, memberGroups: Object.fromEntries(memberGroups) };
+  const reconciled = planFleetGroupRejoins(nextNavigation, nextGroups);
+  const finalMemberGroups = Object.create(null) as Record<string, string>;
+  for (const group of reconciled.groups) for (const uid of group.memberUids) finalMemberGroups[uid] = group.id;
+  return { navigation: reconciled.navigation, groups: reconciled.groups,
+    memberGroups: finalMemberGroups, rejoins: reconciled.rejoins };
 }
 
 /** Returning members retain their authority; a new browser cannot choose another partition. */

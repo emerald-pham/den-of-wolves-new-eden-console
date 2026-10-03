@@ -10,6 +10,10 @@ export interface FleetGroupRecord {
   readonly id: string;
   readonly vesselIds: readonly string[];
   readonly memberUids: readonly string[];
+  /** Server-only physical berth by player; never included in a member projection. */
+  readonly memberShipIds?: Readonly<Record<string, string>>;
+  /** Historical group IDs whose already-authorized communications remain in this lineage. */
+  readonly mergedGroupIds?: readonly string[];
 }
 
 /**
@@ -50,19 +54,48 @@ export function initialFleetGroup(
 }
 
 /** Parse a group document without widening malformed state into a default. */
+/** Current passenger berth; never infer it from the player's historical role. */
+export function fleetGroupMemberShipId(
+  groups: readonly FleetGroupRecord[],
+  uid: string,
+  groupId: string,
+): string | undefined {
+  const group = groups.find(candidate => candidate.id === groupId && candidate.memberUids.includes(uid));
+  const shipId = group?.memberShipIds?.[uid];
+  return shipId && group?.vesselIds.includes(shipId) ? shipId : undefined;
+}
+
 export function fleetGroupRecord(value: unknown): FleetGroupRecord | undefined {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
   const raw = value as Record<string, unknown>;
   if (typeof raw.id !== 'string' || !Array.isArray(raw.vesselIds) || !Array.isArray(raw.memberUids) ||
       raw.vesselIds.some((entry) => typeof entry !== 'string') ||
-      raw.memberUids.some((entry) => typeof entry !== 'string')) return undefined;
+      raw.memberUids.some((entry) => typeof entry !== 'string') ||
+      (raw.memberShipIds !== undefined && (typeof raw.memberShipIds !== 'object' || raw.memberShipIds === null || Array.isArray(raw.memberShipIds))) ||
+      (raw.mergedGroupIds !== undefined && (!Array.isArray(raw.mergedGroupIds) ||
+        raw.mergedGroupIds.some((entry) => typeof entry !== 'string' || !/^fleet-[1-9][0-9]*$/.test(entry))))) return undefined;
   try {
+    const mergedGroupIds = raw.mergedGroupIds === undefined || (Array.isArray(raw.mergedGroupIds) && raw.mergedGroupIds.length === 0)
+      ? undefined : uniqueStrings(raw.mergedGroupIds as string[], 'lineage');
+    const rawMemberShipIds = raw.memberShipIds as Record<string, unknown> | undefined;
+    const memberShipIds = rawMemberShipIds === undefined ? undefined : Object.fromEntries(
+      Object.entries(rawMemberShipIds).map(([uid, shipId]) => {
+        if (!uid || uid.length > 128 || uid.includes('/') || !(raw.memberUids as unknown[]).includes(uid) ||
+            typeof shipId !== 'string' || !(raw.vesselIds as unknown[]).includes(shipId)) {
+          throw new Error('Fleet group member ship authority is malformed.');
+        }
+        return [uid, shipId];
+      }),
+    ) as Record<string, string>;
+    if (mergedGroupIds?.includes(raw.id)) return undefined;
     return {
       id: raw.id,
       vesselIds: uniqueStrings(raw.vesselIds as string[], 'vessels'),
       memberUids: raw.memberUids.length === 0
         ? []
         : uniqueStrings(raw.memberUids as string[], 'members'),
+      ...(memberShipIds && Object.keys(memberShipIds).length ? { memberShipIds } : {}),
+      ...(mergedGroupIds?.length ? { mergedGroupIds } : {}),
     };
   } catch {
     return undefined;

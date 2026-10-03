@@ -1710,6 +1710,8 @@ export type GmDiscoveryProjection = Pick<GameSession,
   'shipGalacticCoordinates' | 'shipNavigationLogs' | 'organiserSites' | 'organiserSystems' |
   'organiserSystemHistory' | 'pursuitDistances' | 'pursuitGroups' | 'shipFleetGroupIds' |
   'candidatePlanCheckpoint' | 'pursuitEmergencyWindowAuthority'> & {
+    /** Current server navigation revision used by authoritative facilitator reads. */
+    readonly navigationRevision?: number;
     readonly voyage33Movement?: Voyage33MovementState;
     /** Internal indication that this callback contains a complete current Voyage view. */
     readonly voyage33MovementAuthority?: 'current' | 'omitted';
@@ -1758,7 +1760,9 @@ function gmDiscoveryProjection(value: unknown, expectedSessionId: string): GmDis
       return parsedShipId && parsedGroupId ? [[parsedShipId, parsedGroupId]] : [];
     },
   ));
+  const navigationRevision = nonNegativeInteger(raw.revision);
   return {
+    ...(navigationRevision !== undefined ? { navigationRevision } : {}),
     shipGalacticCoordinates: shipGalacticCoordinates(raw.shipGalacticCoordinates),
     shipNavigationLogs: shipNavigationLogs(raw.shipNavigationLogs),
     organiserSites,

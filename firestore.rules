@@ -220,6 +220,26 @@ service cloud.firestore {
         ).data.fleetGroupId;
     }
 
+    // A committed same-system rejoin moves historical group event authority
+    // into the surviving group's lineage. Before that commit, former members
+    // cannot read the other group's event path.
+    function isCurrentFleetGroupHistoryReader(sessionId, historyGroupId) {
+      let player = get(
+        /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+      ).data;
+      let currentGroupId = player.fleetGroupId;
+      let currentGroup = get(
+        /databases/$(database)/documents/sessions/$(sessionId)/fleetGroups/$(currentGroupId)
+      ).data;
+      return isMember(sessionId)
+        && currentGroupId is string
+        && currentGroup.id == currentGroupId
+        && currentGroup.memberUids is list
+        && uid() in currentGroup.memberUids
+        && (historyGroupId == currentGroupId
+          || (currentGroup.mergedGroupIds is list && historyGroupId in currentGroup.mergedGroupIds));
+    }
+
     function isCurrentSameTableTradePlayer(sessionId) {
       let player = get(
         /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
@@ -1210,13 +1230,21 @@ service cloud.firestore {
       // the caller's current player pointer. The private device state and
       // replay receipt remain under serverState and commandReceipts above.
       match /fleetGroupEvents/{groupId}/events/{eventId} {
-        allow get, list: if isMember(sessionId) &&
-          exists(/databases/$(database)/documents/sessions/$(sessionId)/fleetGroups/$(groupId)) &&
-          get(/databases/$(database)/documents/sessions/$(sessionId)/fleetGroups/$(groupId)).data.memberUids is list &&
-          uid() in get(/databases/$(database)/documents/sessions/$(sessionId)/fleetGroups/$(groupId)).data.memberUids &&
-          get(/databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())).data.fleetGroupId == groupId &&
+        allow get, list: if isCurrentFleetGroupHistoryReader(sessionId, groupId) &&
           resource.data.sessionId == sessionId && resource.data.groupId == groupId &&
           resource.data.type == 'endeavour-ecm-device-used';
+        allow write: if false;
+      }
+
+      match /fleetGroupRejoinAudits/{auditId} {
+        allow get, list: if isGm(sessionId) && resource.data.type == 'fleet-group-rejoin-audit'
+          && resource.data.sessionId == sessionId;
+        allow write: if false;
+      }
+
+      match /fleetGroupShareAudits/{auditId} {
+        allow get, list: if isGm(sessionId) && resource.data.type == 'fleet-group-known-system-share'
+          && resource.data.sessionId == sessionId;
         allow write: if false;
       }
 

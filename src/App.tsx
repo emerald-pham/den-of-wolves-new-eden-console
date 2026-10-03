@@ -317,6 +317,7 @@ function AppRoutes() {
       }
 
       const {
+        navigationRevision: gmNavigationRevision,
         voyage33Movement,
         voyage33MovementAuthority = 'omitted',
         ...navigationProjection
@@ -351,6 +352,11 @@ function AppRoutes() {
       // coordinate on the stricter live-claim path above.
       if (store.me?.role === 'gm') {
         const next = { ...current, ...navigationProjection };
+        if (typeof gmNavigationRevision === 'number' && Number.isSafeInteger(gmNavigationRevision) && gmNavigationRevision >= 0) {
+          next.gmNavigationRevision = gmNavigationRevision;
+        } else {
+          delete next.gmNavigationRevision;
+        }
         if (!navigationProjection.candidatePlanCheckpoint) delete next.candidatePlanCheckpoint;
         if (!navigationProjection.pursuitEmergencyWindowAuthority ||
             !pursuitEmergencyAuthorityMatches(next)) {
