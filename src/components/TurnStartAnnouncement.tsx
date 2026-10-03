@@ -7,6 +7,7 @@ import type { GameSession } from '@/types/game';
 import { DradisAirspaceTimer } from './TurnPhaseTimer';
 import LiveChangeRegion from './LiveChangeRegion';
 import { clearTurnAdvanceInterstitial, type ClearCycleBriefingRequest } from '@/lib/turnInterstitialService';
+import CycleBriefingClearanceView from './CycleBriefingClearanceView';
 
 export const TURN_START_SLIDE_MS = 2_400;
 export const TURN_START_EXIT_MS = 320;
@@ -289,15 +290,9 @@ export default function TurnStartAnnouncement() {
         politeness="assertive"
         announceInitial
       />
-      {heldAt && <section className="turn-interstitial-clear cic-frame" aria-label="Cycle briefing clearance">
-        <p role="status">Cycle clock held // preserved time resumes when this briefing clears.</p>
-        <button ref={clearButton} className="cic-action-button" type="button"
-          disabled={connection !== 'live' || clearing} onClick={() => void clearBriefing()}>
-          {clearing ? 'Clearing cycle briefing…' : 'Clear cycle briefing // resume clock'}
-        </button>
-        {connection !== 'live' && <p>Reconnect to clear the briefing.</p>}
-        {clearError && <p role="alert">{clearError}</p>}
-      </section>}
+      <div className={heldAt ? 'turn-interstitial-layout' : undefined}>
+      {heldAt && <CycleBriefingClearanceView online={connection === 'live'} clearing={clearing}
+        error={clearError} buttonRef={clearButton} onClear={() => void clearBriefing()} />}
       {activeTransmission && (
         <FleetTransmission
           key={transmissionKey!}
@@ -305,6 +300,7 @@ export default function TurnStartAnnouncement() {
           onComplete={complete}
         />
       )}
+      </div>
     </>
   );
 }
