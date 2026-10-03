@@ -645,7 +645,8 @@ async function composeProductionSession(
 async function clearComposedBriefing(composition: Awaited<ReturnType<typeof composeProductionSession>>) {
   const phase = read(`sessions/${composition.sessionId}`)?.turnPhase as StoredDocument;
   const pause = phase.timerPause as StoredDocument;
-  expect(pause).toMatchObject({ reason: 'turn-interstitial', remainingMs: 300_000 });
+  // Cycle One has the existing ten-minute setup schedule; later cycles use five.
+  expect(pause).toMatchObject({ reason: 'turn-interstitial', remainingMs: 600_000 });
   await expect(clearTurnAdvanceInterstitial.run(request({
     sessionId: composition.sessionId, expectedCycle: 1, expectedPausedAt: pause.pausedAt,
     requestId: 'composed-cycle-one-briefing-clear',
