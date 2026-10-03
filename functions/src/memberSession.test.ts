@@ -12,7 +12,7 @@ const groups = [
 const root = {
   id: 'session', name: 'Table', phase: 'active', currentTurn: 2,
   turnPhase: { turn: 2, phase: 'team', deadlineAt: '2026-10-02T12:00:00.000Z' },
-  activeVesselIds: ['aegis', 'shepherd'], activeRoleIds: ['executive-officer', 'shepherd-captain'],
+  activeVesselIds: ['aegis', 'shepherd'], activeRoleIds: ['executive-officer', 'shepherd-captain'], fleetPartitionRevision: 2,
   shipResources: { aegis: { fuel: 91 }, shepherd: { fuel: 4 } },
   maintenanceCycles: { aegis: { revision: 2 }, shepherd: { revision: 3 } },
   shuttleDockings: [{ shuttleId: 'starlight', shipId: 'aegis' }, { shuttleId: 'endeavour', shipId: 'shepherd' }],
@@ -40,6 +40,7 @@ describe('current member session privacy', () => {
     const value = memberSessionProjection(root, memberSessionScope(player, groups));
     expect(value.turnPhase).toEqual(root.turnPhase);
     expect(value.currentTurn).toBe(2);
+    expect(value.fleetPartitionRevision).toBe(2);
     expect(value.shipResources).toEqual({ shepherd: { fuel: 4 } });
     expect(value.maintenanceCycles).toEqual({ shepherd: { revision: 3 } });
     expect(value.shuttleDockings).toEqual([{ shuttleId: 'endeavour', shipId: 'shepherd' }]);

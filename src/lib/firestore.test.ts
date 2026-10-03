@@ -91,6 +91,12 @@ it('does not invent foreign resources or Press docking from a current member ses
   expect(dione.shuttleDockings?.map(entry => entry.shuttleId)).toEqual(['endeavour']);
 });
 
+it('carries the current fleet partition revision through member hydration for real navigation commands', () => {
+  const value = sessionFrom('partition-current', { ...sessionData(8), fleetPartitionRevision: 7,
+    memberSessionScope: { groupId: 'fleet-2', vesselIds: ['shepherd'], craftIds: [] }, shuttleDockings: [], shuttleVisitLog: [] });
+  expect((value as GameSession & { fleetPartitionRevision?: number }).fleetPartitionRevision).toBe(7);
+});
+
 it('uses the current member read feed without subscribing to a raw session root', async () => {
   const paths: string[] = [];
   vi.mocked(doc).mockImplementation(((_db: unknown, path: string) => { paths.push(path); return { path }; }) as never);

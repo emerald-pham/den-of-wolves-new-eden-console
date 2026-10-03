@@ -43,6 +43,7 @@ vi.mock('@/lib/firestore', () => ({
   sessionSnapshotAuthorityFor: vi.fn(() => ({ hasServerSessionAuthority: false })),
   subscribeConnectedPlayers: vi.fn(() => vi.fn()),
   subscribeSessionState: vi.fn(() => vi.fn()),
+  subscribeWolfAttackMemberView: vi.fn(() => vi.fn()),
   subscribeLoyaltyCensus: vi.fn(() => vi.fn()),
   subscribeGmWolfHackingAlerts: vi.fn(() => vi.fn()),
   subscribePlayerHackingNotices: vi.fn(() => vi.fn()),
@@ -1061,6 +1062,20 @@ describe('App', () => {
     expect(current.shuttleDockings).toEqual([]);
     expect(current.shuttleCargo).toEqual({});
     expect(current.memberSessionScope).toEqual({ groupId: 'fleet-2', vesselIds: [], craftIds: [] });
+    unmount();
+  });
+
+  it('retains the protected GM navigation revision with its maps across a shared header update', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_id, _uid, next) => { handlers = next; return vi.fn(); });
+    useSessionStore.getState().setIdentity(session, player);
+    const { unmount } = render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    act(() => useSessionStore.getState().setSession({ ...session, gmNavigationRevision: 7,
+      shipGalacticCoordinates: { aegis: '3145' } }));
+    act(() => handlers?.onSession({ ...session, updatedAt: '2026-01-01T00:00:01.000Z' }));
+    expect(useSessionStore.getState().session?.shipGalacticCoordinates).toEqual({ aegis: '3145' });
+    expect(useSessionStore.getState().session?.gmNavigationRevision).toBe(7);
     unmount();
   });
 
