@@ -91,6 +91,22 @@ try {
   await page.getByLabel('Destination ship', { exact: true }).selectOption('icebreaker');
   await page.getByRole('button', { name: 'Request departure', exact: true }).click();
   await page.getByRole('button', { name: 'Begin transit', exact: true }).and(page.locator(':enabled')).click();
+  const departureRef = db.doc(`sessions/${sessionId}/shuttleDepartures/snn-press-shuttle`);
+  for (let i = 0; i < 40 && (await departureRef.get()).get('status') !== 'in-transit'; i++) {
+    await page.waitForTimeout(250);
+  }
+  assert.equal((await departureRef.get()).get('status'), 'in-transit', 'History is checked during a real flight.');
+  const inTransit = await command(press, 'getCurrentMemberSession');
+  assert.deepEqual(inTransit.session.shipResources, {});
+  assert.deepEqual(inTransit.session.shuttleDockings, []);
+  const ownHistoryBefore = before.session.shuttleVisitLog.filter(visit => visit.shuttleId === 'snn-press-shuttle');
+  assert.ok(ownHistoryBefore.length > 0, 'Normal setup provides real Press docking history.');
+  for (const visit of ownHistoryBefore) {
+    assert.ok(inTransit.session.shuttleVisitLog.some(current => current.id === visit.id), 'Own docking history survives departure.');
+  }
+  assert.ok(inTransit.session.shuttleVisitLog.some(visit => visit.shuttleId === 'snn-press-shuttle' && visit.action === 'departed'));
+  assert.ok(inTransit.session.shuttleVisitLog.every(visit => visit.shuttleId === 'snn-press-shuttle'));
+  checks.entitledPressHistorySurvivesRealTransitWithoutInventedDocking = true;
   // Wait for the real 60-second flight and the UI's authenticated automatic
   // arrival; an async waitForFunction predicate is not an arrival assertion.
   let arrived = false;
