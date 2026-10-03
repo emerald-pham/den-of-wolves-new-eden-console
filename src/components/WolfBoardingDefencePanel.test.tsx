@@ -38,3 +38,13 @@ it('shows the committed defence after reconnect without reopening the choice', (
   expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /commit defence/i })).not.toBeInTheDocument();
 });
+
+it('explains when the current ship defence stage has not opened yet', () => {
+  render(<WolfBoardingDefencePanelView
+    view={{ type: 'wolf-boarding-defence-choice-unavailable', sessionId: 's1', reason: 'not-your-choice' }}
+    onChoose={vi.fn()}
+  />);
+
+  expect(screen.getByRole('status')).toHaveTextContent(/this ship's defence choice is not open yet/i);
+  expect(screen.queryByRole('button', { name: /commit defence/i })).not.toBeInTheDocument();
+});
