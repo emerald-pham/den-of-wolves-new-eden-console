@@ -28,6 +28,7 @@ const mock = vi.hoisted(() => ({
   coordinate: '0000',
   coordinates: {} as Record<string, string>,
   navigationRevision: 0,
+  fleetPartitionRevision: undefined as unknown,
   navigationLogs: {} as Record<string, unknown>,
   fuel: 4,
   dioneFuel: 8,
@@ -49,7 +50,7 @@ const mock = vi.hoisted(() => ({
     id: 'fleet-1',
     vesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
     memberUids: ['u1'],
-  }] as Array<{ id: string; vesselIds: string[]; memberUids: string[] }>,
+  }] as Array<{ id: string; vesselIds: string[]; memberUids: string[]; memberShipIds?: Record<string,string> }>,
   players: [{ id: 'u1', fields: { role: 'gm', connected: true, fleetGroupId: 'fleet-1' } }] as Array<{
     id: string; fields: Record<string, unknown>;
   }>,
@@ -216,6 +217,7 @@ beforeEach(() => {
   mock.coordinate = '0000';
   mock.coordinates = {};
   mock.navigationRevision = 0;
+  mock.fleetPartitionRevision = undefined;
   mock.navigationLogs = {};
   mock.fuel = 4;
   mock.dioneFuel = 8;
@@ -408,6 +410,7 @@ beforeEach(() => {
           activeRoleIds: mock.activeRoleIds,
           activeVesselIds: mock.activeVesselIds,
           currentTurn: mock.currentTurn,
+          fleetPartitionRevision: mock.fleetPartitionRevision,
           turnPhase: {
             turn: mock.currentTurn,
             teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
@@ -2669,6 +2672,40 @@ it('confirms a server-derived fleet partition and clones pursuit without exposin
   expect(mock.set).toHaveBeenCalledWith('sessions/s1/serverState/navigation', expect.objectContaining({
     pursuitGroups: { 'fleet-1': 2, 'fleet-2': 2 }, revision: 1,
   }));
+});
+
+it('advances the current topology revision independently after taxi transfers and replays without writes',async()=>{
+  mock.coordinate='1413';mock.fleetPartitionRevision=4;mock.navigationRevision=1;
+  const call=(jumpCallables as unknown as {confirmFleetPartition:{run:(request:unknown)=>Promise<unknown>}}).confirmFleetPartition;
+  const command=request({sessionId:'s1',instanceId:'bridge',requestId:'partition-after-taxis',expectedNavigationRevision:1});
+  const reply=await call.run(command);
+  expect(reply).toMatchObject({status:'committed',navigationRevision:2});
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1',expect.objectContaining({fleetPartitionRevision:5}));
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/serverState/navigation',expect.objectContaining({revision:2}));
+  mock.commandReceiptRecord=mock.set.mock.calls.find(([path])=>path==='sessions/s1/commandReceipts/partition-after-taxis')?.[1];
+  mock.update.mockClear();mock.set.mockClear();mock.delete.mockClear();
+  mock.fleetPartitionRevision=5;mock.navigationRevision=2;
+  expect(await call.run(command)).toEqual(reply);
+  expect(mock.update).not.toHaveBeenCalled();expect(mock.set).not.toHaveBeenCalled();expect(mock.delete).not.toHaveBeenCalled();
+});
+
+it('preserves both independent revisions when a physical partition confirmation changes nothing',async()=>{
+  mock.fleetPartitionRevision=4;mock.navigationRevision=1;
+  mock.fleetGroups=[{...mock.fleetGroups[0]!,memberShipIds:{u1:'aegis'}}];
+  const call=(jumpCallables as unknown as {confirmFleetPartition:{run:(request:unknown)=>Promise<unknown>}}).confirmFleetPartition;
+  expect(await call.run(request({sessionId:'s1',instanceId:'bridge',expectedNavigationRevision:1})))
+    .toEqual({status:'committed',navigationRevision:1,groupIds:['fleet-1']});
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set.mock.calls.filter(([path])=>path!=='sessions/s1/commandReceipts/test-jump')).toEqual([]);
+});
+
+it.each([null,-1,1.5,'4',Number.MAX_SAFE_INTEGER,Number.MAX_SAFE_INTEGER+1])
+('denies a malformed or exhausted current topology revision (%s) before any partition write',async revision=>{
+  mock.coordinate='1413';mock.fleetPartitionRevision=revision;
+  const call=(jumpCallables as unknown as {confirmFleetPartition:{run:(request:unknown)=>Promise<unknown>}}).confirmFleetPartition;
+  await expect(call.run(request({sessionId:'s1',instanceId:'bridge',expectedNavigationRevision:0})))
+    .rejects.toMatchObject({code:'failed-precondition'});
+  expect(mock.update).not.toHaveBeenCalled();expect(mock.set).not.toHaveBeenCalled();expect(mock.delete).not.toHaveBeenCalled();
 });
 
 it('reattaches a validated in-flight shuttle to the rejoined current group exactly once', async () => {

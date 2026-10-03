@@ -128,6 +128,18 @@ function seedPlayerTaxiScenario(targetCoordinate: string) {
     pursuitGroups: { 'fleet-1': 2, 'fleet-2': 4, 'fleet-3': 1 } });
 }
 
+it.each([['fuel',null],['players',null],['fuel',Number.MAX_SAFE_INTEGER],['players',Number.MAX_SAFE_INTEGER]] as const)
+('denies malformed or exhausted topology authority before a %s taxi can write (%s)',async(kind,revision)=>{
+  seedPlayerTaxiScenario('1413');
+  Object.assign(mock.documents.get('sessions/s1')!,{fleetPartitionRevision:revision});
+  const before=structuredClone([...mock.documents.entries()]);
+  await expect(calls.sendScoutTaxiTransfer.run(request({...transferData,shuttleId:'starlight',
+    expectedGroupId:'fleet-1',expectedFleetPartitionRevision:revision??0,
+    payload:kind==='fuel'?{kind,units:1}:{kind,playerUids:['admiral']}},'wing')))
+    .rejects.toMatchObject({code:'failed-precondition'});
+  expect(mock.writes).not.toHaveBeenCalled();expect([...mock.documents.entries()]).toEqual(before);
+});
+
 it('commits one legal passenger taxi with a Firestore-safe audit and exact replay', async () => {
   seedPlayerTaxiScenario('0000');
   const taxi = { sessionId: 's1', requestId: 'players-transfer-1', shuttleId: 'starlight', targetShipId: 'quellon',
