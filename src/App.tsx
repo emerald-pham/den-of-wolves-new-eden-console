@@ -1,4 +1,5 @@
 import { commissarPurgeAuthorityIsCurrent } from '@/lib/commissarPurgeAuthority';
+import { memberSessionProjection } from '../functions/src/memberSession';
 import { lazy, Suspense, useEffect, useRef } from 'react';
 import { HashRouter, Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import Landing from '@/routes/Landing';
@@ -714,7 +715,12 @@ function AppRoutes() {
           if (previousFleetGroupId !== next.fleetGroupId) {
             const current = useSessionStore.getState().session;
             if (current?.id === sessionId) {
-              useSessionStore.getState().setSession(stripNavigationProjection(current));
+              // The old group was entitled when painted. Its operations are no
+              // longer current once the actor moves; retain only the shared clock
+              // and header until the server supplies the new group transaction.
+              useSessionStore.getState().setSession(memberSessionProjection(current, {
+                groupId: next.fleetGroupId ?? 'fleet-1', vesselIds: [], craftIds: [],
+              }) as unknown as GameSession);
             }
           }
           const authority = store.commissarPurgeAuthority;
