@@ -85,6 +85,7 @@ function resetFixture(): void {
   put('sessions/s1/wolfAttackState/current', {
     type: 'wolf-attack-state', status: 'declared', currentStep: 'long-range', airspaceLocked: true,
     turn: 1, revision: 4, attackId: 'wolf-attack-test-1', deadlineAt: '2026-10-02T12:10:00.000Z',
+    commanderRerollIndexes: [],
     calculationReceipt: { type: 'wolf-combat-calculation-stage', version: 1, turn: 1, step: 'targeting', targeting },
     combatRoster: roster,
     privateNotes: 'never returned to AEGIS',
