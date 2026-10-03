@@ -63,6 +63,14 @@ The owner evidence root is outside Git at
   clearance disabling, reconnect, clear, reload, named GM join and current
   server DRADIS. The reload harness waits for the ordinary current-member read;
   it does not inject identity or session state.
+- Ordinary scoped GM ship access and all seven AEGIS maintenance steps in the
+  real phone browser, including separate ration costs, server dice, retained
+  charge, committed end, disabled second cycle and station-catalog return.
+- Current-member history reads keep the five repair limits, local details and
+  used drone/service counters while withholding earlier foreign hosts. Normal
+  Auth/HTTP, reconnect and direct Rules denials pass with explicitly labeled
+  disposable group/docking/history fixtures; these do not claim normal history
+  creation.
 - All 156 Rules checks and focused composed client authority checks. Full
   split-fleet and full attack gameplay remain with their implementation owners
   until their complete scenario evidence is reconciled.
@@ -84,6 +92,15 @@ Philia usage limits, late actor/group replies, partition and GM navigation
 cursors, cached shuttle/airspace controls, exact briefing holds and reconnect,
 and the GM join button while reload authority is still cached. Existing success
 fixtures now supply their actual current authority rather than assuming it.
+Additional red tests catch earlier foreign craft histories, preserve total
+repair limits and second-host fuel, and prevent invented recharge labels.
+The real maintenance browser exposed a ship panel intercepting the GM grant
+confirmation. A separate render red proves the overlap; the dialog now paints
+above the console, and pointer/focus/viewport checks pass across six motion and
+device-size cases. Ship route mocks gained the actual connected attack
+subscription in a separate test-only migration, retaining all 121 assertions.
+Browser-only harness repairs wait for committed server end state, accessible
+return names and finished route transitions; failed raw runs are retained.
 
 Rules positive controls were migrated to the GM root read while preserving
 ordinary member reads of entitled child documents and explicit player root

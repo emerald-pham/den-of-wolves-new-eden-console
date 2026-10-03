@@ -280,3 +280,10 @@ committed end ledger instead of counting a rendered intermediate snapshot.
 Test-only `01c64fed` follows the return links' actual accessible names including
 their arrow glyph. Normal return-navigation completion remains separately
 recorded when the browser summary finishes.
+The completed `normal-ui-maintenance-complete/summary.json` now proves the
+ordinary grant, all seven committed steps, real ration costs and charge,
+disabled second cycle and visible station-catalog return. Native end state is
+recorded separately in `maintenance-authoritative-ledger.json`. The final
+return check waits for the actual route transition (`32364fe9`); no forced
+click or injected identity/session data is used. This extends representative
+UI composition alongside the twelve-vessel native matrix.
