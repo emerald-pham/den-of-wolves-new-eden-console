@@ -1,6 +1,7 @@
 import { holdTurnAdvancePhase } from './turnInterstitial';
 import { createCurrentMemberSessionReader } from './memberSessionCallable';
 import { createTurnInterstitialHandler } from './turnInterstitialCallable';
+import { requireAttackAwareEmergencyTimerPauseRequest } from './wolfAttackTimerRequest';
 import { captureMaintenanceUndo, restoreMaintenanceUndo, type MaintenanceUndoField } from './maintenanceRollback';
 import { projectMaintenanceEvent } from './maintenanceEvent';
 import { canOperateRole, shipForRole } from './crewAccess';
@@ -141,7 +142,6 @@ import {
   requireGmInstanceActionRequest,
   requireGmInstanceRequest,
   requireAirspaceWindowExtensionRequest,
-  requireEmergencyTimerPauseRequest,
   requireWolfAttackWindowRequest,
   requireWolfAttackPreparationRequest,
   requireWolfAttackDeclarationRequest,
@@ -19423,7 +19423,7 @@ export const setEmergencyTimerPaused = onCall<{
   if (!isRecord(raw) || Object.keys(raw).some((key) => !allowedRequestFields.has(key))) {
     throw new HttpsError('invalid-argument', 'The emergency timer accepts only its current scoped request.');
   }
-  const requestData = requireEmergencyTimerPauseRequest(raw);
+  const requestData = requireAttackAwareEmergencyTimerPauseRequest(raw);
   const sessionRef = db.doc(`sessions/${requestData.sessionId}`);
   const playerRef = db.doc(`sessions/${requestData.sessionId}/players/${uid}`);
   const instanceRef = db.doc(`sessions/${requestData.sessionId}/gmInstances/${requestData.instanceId}`);

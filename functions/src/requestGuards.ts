@@ -1064,19 +1064,11 @@ export function requireEmergencyTimerPauseRequest(data: {
   instanceId?: unknown;
   expectedTurn?: unknown;
   paused?: unknown;
-  requestId?: unknown;
-  expectedAttackRevision?: unknown;
-  reason?: unknown;
-  dangerConfirmed?: unknown;
 }): {
   sessionId: string;
   instanceId: string;
   expectedTurn: number;
   paused: boolean;
-  requestId?: string;
-  expectedAttackRevision?: number;
-  reason?: string;
-  dangerConfirmed?: true;
 } {
   if (!Number.isSafeInteger(data.expectedTurn) || (data.expectedTurn as number) < 1) {
     throw new HttpsError('invalid-argument', 'expectedTurn must be a positive integer.');
@@ -1084,32 +1076,10 @@ export function requireEmergencyTimerPauseRequest(data: {
   if (typeof data.paused !== 'boolean') {
     throw new HttpsError('invalid-argument', 'paused must be boolean.');
   }
-  const hasAttackIntervention = data.requestId !== undefined || data.expectedAttackRevision !== undefined ||
-    data.reason !== undefined || data.dangerConfirmed !== undefined;
-  let requestId: string | undefined;
-  let expectedAttackRevision: number | undefined;
-  let reason: string | undefined;
-  if (hasAttackIntervention) {
-    requestId = requiredId(data.requestId, 'requestId');
-    if (!Number.isSafeInteger(data.expectedAttackRevision) || (data.expectedAttackRevision as number) < 1) {
-      throw new HttpsError('invalid-argument', 'expectedAttackRevision must be a positive integer.');
-    }
-    expectedAttackRevision = data.expectedAttackRevision as number;
-    reason = typeof data.reason === 'string' ? data.reason : '';
-    if (reason !== reason.trim() || reason.length < 8 || reason.length > 400) {
-      throw new HttpsError('invalid-argument', 'An 8–400 character attack-intervention reason is required.');
-    }
-    if (data.dangerConfirmed !== true) {
-      throw new HttpsError('invalid-argument', 'Confirm the attack-intervention risk before changing the shared clock.');
-    }
-  }
   return {
     ...requireGmInstanceRequest(data),
     expectedTurn: data.expectedTurn as number,
     paused: data.paused,
-    ...(requestId === undefined ? {} : { requestId }),
-    ...(expectedAttackRevision === undefined ? {} : { expectedAttackRevision }),
-    ...(reason === undefined ? {} : { reason, dangerConfirmed: true as const }),
   };
 }
 
