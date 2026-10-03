@@ -276,6 +276,11 @@ beforeEach(() => {
         )),
       };
     }
+    const fleetGroupMatch = ref.path.match(/^sessions\/s1\/fleetGroups\/([^/]+)$/);
+    if (fleetGroupMatch) {
+      const group = mock.fleetGroups.find(({ id }) => id === fleetGroupMatch[1]);
+      return snapshot(group?.fields ?? {}, ref.path, group !== undefined);
+    }
     const player = players.find(({ id }) => ref.path === `sessions/s1/players/${id}`);
     if (player) return snapshot(player.fields, ref.path);
     if (ref.path === 'sessions/s1/gmInstances/bridge') {
@@ -1267,4 +1272,88 @@ describe('production mission exploration application', () => {
     await expect(commitAwayMissionLifecycleCommand.run(command)).rejects.toMatchObject({ code: 'failed-precondition' });
     expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled(); expect(mock.create).not.toHaveBeenCalled();
   });
+});
+
+it('continues a mission after rejoin using the current participant group while preserving its immutable P403 source group', async () => {
+  const missionId = 'mission-arrival-fleet-1-A-5143';
+  const opportunityId = 'arrival-fleet-1-A-5143';
+  const participants = [{ uid: 'alice', roleId: 'wing-commander' }];
+  const participantCrafts = [{ participantUid: 'alice', craftIds: ['starlight'] }];
+  const deckCards = missionDeck();
+  const initialCard = deckCards.find(({ id }) => id === 'A♥')!;
+  const remainingCards = deckCards.filter(({ id }) => id !== initialCard.id);
+  const deckState = missionDeckStateFromCards([initialCard, ...remainingCards]);
+  const bootstrap = createAwayMissionLifecycleBootstrap({
+    sessionId: 's1', groupId: 'fleet-1', sourceCycle: 2, revision: 3, participantCrafts,
+    lifecycle: {
+      missionId, siteCode: 'L', leaderUid: 'alice', participants,
+      availableCarrierCraftIds: ['starlight'], deckState, dealtCount: 1,
+      initialCards: [{ participantUid: 'alice', cardId: initialCard.id }],
+      phase: 'assignment-ready', discardedParticipantUids: ['alice'], discardedCardIds: [initialCard.id],
+    },
+  });
+  if (!bootstrap) throw new Error('Invalid rejoined mission fixture.');
+  const handId = awayMissionHandId(missionId, 'alice');
+  const privateState = bootstrap.participantStates[0]!.privateState;
+  const publicState = bootstrap.participantStates[0]!.publicState;
+  mock.discardMissionId = missionId;
+  mock.discardMission = {
+    schemaVersion: 1, status: 'active', overrun: false, phase: 'assignment-ready', revision: 3,
+    discardedParticipantUids: ['alice'], discardedCardIds: [initialCard.id],
+    missionId, requestId: 'start-rejoined-mission', actorUid: 'gm1',
+    groupId: 'fleet-1', opportunityId, chart: 'A', coordinate: '5143', siteCode: 'L', sourceCycle: 2,
+    missionLeaderUid: 'alice', missionLeaderRoleId: 'wing-commander',
+    participantSnapshots: participants, participantCrafts, availableCarrierCraftIds: ['starlight'],
+    handIds: [handId], cardIds: [initialCard.id], dealtFrom: 0, dealtThrough: 1,
+    lifecycleRecord: bootstrap.record,
+  };
+  mock.missionStartSnapshots[opportunityId] = {
+    type: 'away-mission-start-snapshot', schemaVersion: 1, sessionId: 's1',
+    requestId: 'start-rejoined-mission', opportunityId, missionId, groupId: 'fleet-1',
+    chart: 'A', coordinate: '5143', siteCode: 'L', sourceCycle: 2,
+    missionLeader: { uid: 'alice', roleId: 'wing-commander' },
+    stateDelta: { missionDeckDealtCountBefore: 0, missionDeckDealtCountAfter: 1 },
+    revisions: { missionDeck: { before: 0, after: 1 } },
+    inputs: {
+      participantSnapshots: participants, participantCrafts,
+      availableCarrierCraftIds: ['starlight'], missionLeaderUid: 'alice',
+    },
+  };
+  mock.documents['sessions/s1/serverState/missionDeck'] = { ...deckState, dealtCount: 1 };
+  mock.documents[`sessions/s1/awayMissionHands/${handId}`] = {
+    type: 'away-mission-hand', sessionId: 's1', handId, missionId, participantUid: 'alice',
+    cardId: initialCard.id, rank: initialCard.rank, suit: initialCard.suit, value: initialCard.value,
+    phase: privateState.phase, revision: privateState.revision, discarded: true,
+    lifecyclePrivateState: privateState,
+  };
+  mock.pointerDocuments[handId] = {
+    type: 'away-mission-hand-pointer', sessionId: 's1', missionId, handId, participantUid: 'alice',
+    groupId: 'fleet-1', chart: 'A', coordinate: '5143', siteCode: 'L', sourceCycle: 2,
+    participantCount: 1, missionLeaderUid: 'alice', missionLeaderRoleId: 'wing-commander',
+    phase: publicState.phase, revision: publicState.revision, discarded: true,
+    lifecyclePublicState: publicState,
+  };
+
+  const allMemberUids = players.map(({ id }) => id);
+  players.forEach((player) => { player.fields.fleetGroupId = 'fleet-2'; });
+  mock.fleetGroups = [{ id: 'fleet-2', fields: {
+    id: 'fleet-2', vesselIds: activeVesselIds, memberUids: allMemberUids,
+    memberShipIds: { alice: 'icebreaker' }, mergedGroupIds: ['fleet-1'],
+  } }];
+  mock.navigationState = {
+    revision: 7,
+    shipGalacticCoordinates: Object.fromEntries(activeVesselIds.map((shipId) => [shipId, '5143'])),
+    pursuitGroups: { 'fleet-2': 3 },
+  };
+
+  const reply = await commitAwayMissionLifecycleCommand.run(request({
+    sessionId: 's1', missionId, requestId: 'assign-after-fleet-rejoin', expectedRevision: 3,
+    type: 'assignCards', placements: [],
+  }, 'alice'));
+
+  expect(reply).toMatchObject({
+    status: 'committed', revision: 4,
+    publicState: { groupId: 'fleet-1', status: 'resolved', missionLeaderUid: 'alice' },
+  });
+  expect(mock.update).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1' }), expect.any(Object));
 });
