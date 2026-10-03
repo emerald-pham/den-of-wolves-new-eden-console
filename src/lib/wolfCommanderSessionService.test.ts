@@ -23,6 +23,7 @@ const {
   finishWolfCommanderTargetingRerolls,
   getAegisCommandAndControl,
   getWolfCommanderTargeting,
+  passAegisCommandAndControl,
 } = await import('./sessionService');
 
 let fixtureNumber = 0;
@@ -235,6 +236,40 @@ it('accepts only a privacy-safe committed redirect bound to current Executive Of
   } });
   await expect(applyAegisCommandAndControl(1, 2, 1))
     .rejects.toThrow(/invalid AEGIS Command and Control receipt/i);
+});
+
+it('sends an explicit C&C pass and accepts only the correlated no-redirect receipt', async () => {
+  const values = fixture();
+  const officer: Player = {
+    ...values.player, replacementRoleId: null,
+    assignedRoleId: 'executive-officer', activeConsoleRoleId: 'executive-officer',
+  };
+  useSessionStore.getState().setIdentity(values.session, officer);
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  acceptCallableSessionAuthority(values.session, officer.uid);
+  const result = {
+    status: 'committed', type: 'aegis-command-and-control-pass-result', sessionId: values.session.id,
+    requestId: 'pass-1', turn: 1, revision: 3, commanderCompletion: 'finished',
+    view: {
+      type: 'aegis-command-and-control-view', sessionId: values.session.id, turn: 1, revision: 3,
+      eligible: false, commanderAssigned: true, rerollsFinalized: true,
+      reason: 'passed', targets: [],
+    },
+  };
+  const call = Object.assign(vi.fn().mockResolvedValue({ data: result }), { stream: vi.fn() });
+  vi.mocked(httpsCallable).mockReturnValue(call as never);
+
+  await expect(passAegisCommandAndControl(1, 2)).resolves.toMatchObject({
+    type: 'aegis-command-and-control-pass-result', revision: 3,
+    view: { eligible: false, reason: 'passed', targets: [] },
+  });
+  expect(call).toHaveBeenCalledWith({
+    sessionId: values.session.id, requestId: expect.any(String), expectedTurn: 1, expectedRevision: 2,
+  });
+
+  call.mockResolvedValueOnce({ data: { ...result, shipId: 'wolf-cruiser' } });
+  await expect(passAegisCommandAndControl(1, 2)).rejects.toThrow(/invalid AEGIS Command and Control pass receipt/i);
 });
 
 it('rejects a callable reply bound to another session', async () => {

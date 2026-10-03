@@ -64,9 +64,11 @@ import {
   advanceWolfAttackToLongRange,
   applyAegisCommandAndControl,
   applyWolfCommanderTargetRerolls,
+  advanceWolfAttackLifecycle,
   finishWolfCommanderTargetingRerolls,
   getAegisCommandAndControl,
   launchDioneMaliades,
+  passAegisCommandAndControl,
 } from './index';
 
 const firstTurnCards = [
@@ -362,6 +364,59 @@ it('writes auditable no-Commander completion only from actual player assignments
   });
   expect(mock.documents.get('sessions/s1/wolfAttackState/current/audit/redirect-no-commander')).toMatchObject({
     commanderCompletion: 'no-commander', actorUid: 'xo-1',
+  });
+});
+
+it('lets the current EO explicitly pass optional C&C and automatically advances targeting', async () => {
+  currentGame({ commander: false });
+  session({
+    turnPhase: {
+      turn: 1,
+      teamPhaseEndsAt: '2026-10-03T12:00:00.000Z',
+      openAirspaceEndsAt: '2026-10-03T12:10:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+  });
+  const originalReceipt = structuredClone(mock.documents.get('sessions/s1/wolfAttackState/current')?.calculationReceipt);
+  const data = {
+    sessionId: 's1', requestId: 'pass-cnc-1', expectedTurn: 1, expectedRevision: 1,
+  };
+
+  const view = await getAegisCommandAndControl.run(request({ sessionId: 's1' }));
+  expect(view.eligible).toBe(true);
+  expect(view.targets).toHaveLength(15);
+  const passed = await passAegisCommandAndControl.run(request(data));
+  expect(passed).toMatchObject({
+    status: 'committed', type: 'aegis-command-and-control-pass-result',
+    sessionId: 's1', requestId: 'pass-cnc-1', turn: 1, revision: 2,
+    commanderCompletion: 'no-commander',
+    view: { eligible: false, reason: 'passed', targets: [] },
+  });
+  expect(passed).not.toHaveProperty('shipId');
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
+    revision: 2,
+    commandAndControlPass: {
+      action: 'pass', turn: 1, revision: 2, actorUid: 'xo-1',
+      actorRoleId: 'executive-officer', requestId: 'pass-cnc-1', commanderCompletion: 'no-commander',
+    },
+  });
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current/audit/pass-cnc-1')).toMatchObject({
+    type: 'aegis-command-and-control-pass', actorUid: 'xo-1', actorRoleId: 'executive-officer',
+    requestId: 'pass-cnc-1', turn: 1, revision: 2, action: 'pass',
+  });
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current')?.calculationReceipt).toEqual(originalReceipt);
+  await expect(getAegisCommandAndControl.run(request({ sessionId: 's1' }))).resolves.toMatchObject({
+    eligible: false, reason: 'passed', targets: [],
+  });
+
+  const replay = await passAegisCommandAndControl.run(request(data));
+  expect(replay).toEqual(passed);
+  await expect(passAegisCommandAndControl.run(request({ ...data, expectedRevision: 2 })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
+    currentStep: 'long-range', revision: 3,
+    targetingCompletion: { commandAndControl: 'passed' },
   });
 });
 
