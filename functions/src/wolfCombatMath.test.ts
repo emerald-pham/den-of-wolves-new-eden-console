@@ -73,14 +73,33 @@ describe('central Wolf combat math', () => {
     expect(targeting.rolls[0]?.target).toBe('aegis');
   });
 
-  it('keeps the PDF Escort Wing’s printed zero and seven targets separate from wrapped fighter shifts', () => {
+  it('shares six-target endpoint wraparound across fighters and normalizes endpoints for later shifts', () => {
     expect(applyWolfRangeTargetShift('pdf-escort-wing', 1, -1, CORE_WOLF_TARGET_RING)).toBe(0);
     expect(wolfTargetForRangeTargetNumber('pdf-escort-wing', 0, CORE_WOLF_TARGET_RING)).toBe('refinery-124');
-    expect(applyWolfRangeTargetShift('pdf-escort-wing', 6, 1, CORE_WOLF_TARGET_RING)).toBe(7);
-    expect(wolfTargetForRangeTargetNumber('pdf-escort-wing', 7, CORE_WOLF_TARGET_RING)).toBe('aegis');
+    expect(applyWolfRangeTargetShift('aegis-alpha-wing', 6, 1, CORE_WOLF_TARGET_RING)).toBe(7);
+    expect(wolfTargetForRangeTargetNumber('maliades', 7, CORE_WOLF_TARGET_RING)).toBe('aegis');
     expect(wolfTargetNumberForRangeSource('pdf-escort-wing', 'aegis', CORE_WOLF_TARGET_RING)).toBe(1);
-    expect(() => applyWolfRangeTargetShift('pdf-escort-wing', 0, 1, CORE_WOLF_TARGET_RING)).toThrow(/from 1 through 6/i);
-    expect(applyWolfRangeTargetShift('maliades', 1, -1, CORE_WOLF_TARGET_RING)).toBe(6);
+
+    const targeting = resolveWolfTargeting(firstTurnWolfAttackComposition(), {}, CORE_WOLF_TARGET_RING, () => 0);
+    const result = resolveWolfRangeTargetShifts({
+      roster: wolfCombatRoster(targeting), currentDice: targeting.rolls.map(({ finalDie }) => finalDie),
+      ring: CORE_WOLF_TARGET_RING,
+      choices: [
+        { sourceId: 'aegis-bravo-wing', choiceIndex: 0, rosterIndex: 0, shift: 1 },
+        { sourceId: 'aegis-alpha-wing', choiceIndex: 0, rosterIndex: 0, shift: -1 },
+      ],
+    });
+    expect(result.targetShifts).toEqual([
+      { sourceId: 'aegis-alpha-wing', choiceIndex: 0, rosterIndex: 0, shift: -1, fromDie: 1, toDie: 0 },
+      { sourceId: 'aegis-bravo-wing', choiceIndex: 0, rosterIndex: 0, shift: 1, fromDie: 0, toDie: 7 },
+    ]);
+    expect(result.roster[0]?.target).toBe('aegis');
+  });
+
+  it('uses all seven configured targets for wraparound when Capybara is in the Wolf target ring', () => {
+    expect(applyWolfRangeTargetShift('aegis-alpha-wing', 1, -1, EXPANDED_WOLF_TARGET_RING)).toBe(7);
+    expect(wolfTargetForRangeTargetNumber('aegis-bravo-wing', 7, EXPANDED_WOLF_TARGET_RING)).toBe('capybara');
+    expect(applyWolfRangeTargetShift('pdf-escort-wing', 7, 1, EXPANDED_WOLF_TARGET_RING)).toBe(1);
   });
 
   it('maps final targeting to the configured ring and keeps modifier order separate from staged choices', () => {
