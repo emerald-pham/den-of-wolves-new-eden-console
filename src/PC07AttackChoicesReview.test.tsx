@@ -3,13 +3,16 @@ import { expect, it, vi } from 'vitest';
 import { PC07AttackReview } from './PC07ReviewParts';
 
 const native = vi.hoisted(() => ({ commit: vi.fn(), read: vi.fn(), subscribe: vi.fn() }));
-vi.mock('@/lib/sessionService', () => ({
+vi.mock('@/lib/sessionService', async importOriginal => ({
+  ...await importOriginal<typeof import('@/lib/sessionService')>(),
   commitWolfForceFieldChoice: native.commit, getWolfForceFieldChoice: native.read,
   commitWolfRangeActionChoice: native.commit, commitWolfRangeTargets: native.commit,
   getWolfRangeActionChoice: native.read, commitWolfBoardingDefenceChoice: native.commit,
   getWolfBoardingDefenceChoice: native.read,
 }));
-vi.mock('@/lib/firestore', () => ({ subscribeWolfAttackMemberView: native.subscribe }));
+vi.mock('@/lib/firestore', async importOriginal => ({
+  ...await importOriginal<typeof import('@/lib/firestore')>(), subscribeWolfAttackMemberView: native.subscribe,
+}));
 
 it('lets the owner choose a local Captain target in the actual prepared presenter', () => {
   render(<PC07AttackReview />);
