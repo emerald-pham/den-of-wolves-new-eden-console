@@ -193,7 +193,7 @@ it('commits fixed escort actions once, resolves no early dice, and rejects stale
   expect(result).toMatchObject({ type: 'wolf-escort-range-action-choice', status: 'committed', sourceId: 'pdf-escort-fighter-wing', actionCount: 1, revision: 5 });
   expect(entropy.randomInt).not.toHaveBeenCalled();
   expect(testState.documents.get('sessions/s1/wolfAttackState/current')?.escortRangeChoices)
-    .toMatchObject({ 'medium-range': { 'pdf-escort-fighter-wing': { actions: [{ fighterIndex: 0, kind: 'attack', targetInstanceId: (targeting.targets[0] as Fields).instanceId }] } } });
+    .toMatchObject({ 'medium-range': { 'pdf-escort-fighter-wing': { actions: [{ fighterIndex: 0, kind: 'attack', targetInstanceId: wolfCombatRoster(targeting)[0]!.instanceId }] } } });
   await expect(commitWolfEscortRangeActionChoice.run(request(payload, 'colonel-1'))).resolves.toMatchObject({ status: 'replayed', revision: 5 });
   await expect(commitWolfEscortRangeActionChoice.run(request({ ...payload, requestId: 'escort-medium-stale' }, 'colonel-1'))).rejects.toMatchObject({ code: 'failed-precondition' });
   await expect(commitWolfEscortRangeActionChoice.run(request({ ...payload, requestId: 'escort-medium-forged', dice: [6] }, 'colonel-1'))).rejects.toMatchObject({ code: 'invalid-argument' });
