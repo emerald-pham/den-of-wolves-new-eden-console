@@ -1,4 +1,5 @@
 import type { MaliadesStateRecord } from '@/types/game';
+import {parseMaliadesOperationalView, type MaliadesOperationalView} from '../../functions/src/maliadesOperationalView';
 
 type RecordValue = Record<string, unknown>;
 
@@ -112,4 +113,9 @@ export function parseMaliadesState(value: unknown): MaliadesStateRecord | undefi
     medium,
     short,
   };
+}
+
+/** Member reads contain operation markers; GM reads and private receipts retain detail. */
+export function parseMaliadesSnapshot(value: unknown): MaliadesOperationalView | MaliadesStateRecord | undefined {
+  return parseMaliadesOperationalView(value) ?? parseMaliadesState(value);
 }

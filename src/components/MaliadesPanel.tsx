@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { findShip } from '@/data/ships';
 import { phaseForSession } from '@/lib/turnPhase';
 import { hasFreshSessionAuthority } from '@/lib/sessionMutationAuthority';
-import { parseMaliadesState } from '@/lib/maliadesLedger';
+import { parseMaliadesSnapshot } from '@/lib/maliadesLedger';
 import { repairMaliades, type MaliadesRepairStaleReply } from '@/lib/maliadesService';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { GameSession, ShuttleControlEntry, ShuttleDocking } from '@/types/game';
@@ -116,7 +116,7 @@ function repairSnapshotReady(
   fuelled: boolean,
   recovery: MaliadesStaleRecovery,
 ): boolean {
-  const maliades = parseMaliadesState(session.maliadesState);
+  const maliades = parseMaliadesSnapshot(session.maliadesState);
   const activeVesselIds = session.activeVesselIds;
   const hostResources = record(record((session as unknown as Record<string, unknown>).shipResources)?.[recovery.reply.expectedHostShipId]);
   return currentAuthorityMatches(recovery.binding) && hasFreshSessionAuthority() &&
@@ -182,7 +182,7 @@ export default function MaliadesPanel({ control, docking, fuelled }: Props) {
     const current = useSessionStore.getState();
     const currentSession = current.session as GameSession | undefined;
     const currentMe = current.me;
-    const currentState = currentSession ? parseMaliadesState(currentSession.maliadesState) : undefined;
+    const currentState = currentSession ? parseMaliadesSnapshot(currentSession.maliadesState) : undefined;
     const currentCycle = currentSession?.currentTurn;
     const hostShipId = docking?.shipId;
     if (!currentSession || !currentMe || !currentState || !Number.isSafeInteger(currentCycle) ||

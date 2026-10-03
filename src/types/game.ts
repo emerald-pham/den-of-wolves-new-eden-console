@@ -1,4 +1,5 @@
 import type { AwayMissionPublicState } from '../lib/awayMissionLifecycleService';
+import type { MaliadesOperationalView } from '../../functions/src/maliadesOperationalView';
 /**
  * Shared shapes for the companion console.
  *
@@ -1388,7 +1389,7 @@ export interface GameSession {
   readonly gorgoneionRepairDrones?: GorgoneionRepairDronesState | RedactedCraftUse | null;
   /** Current or legacy-default Warrior repair history; null means malformed. */
   readonly warriorRepairDrones?: WarriorRepairDronesState | RedactedCraftUse | null;
-  readonly maliadesState?: MaliadesStateRecord;
+  readonly maliadesState?: MaliadesStateRecord | MaliadesOperationalView;
   readonly highwallMining?: HighwallMiningState;
   readonly retainedShuttles?: Readonly<Record<string, RetainedShuttleEntry>>;
   readonly quarantineDocking?: QuarantineDockingState;

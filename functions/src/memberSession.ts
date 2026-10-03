@@ -11,6 +11,7 @@ import { politicalCapitalState } from './politicalCapital';
 import { parseBaseCapybaraCargoState } from './baseCapybaraCargoTransfer';
 import { parseBoaRecyclingLedger } from './boaRecycling';
 import { parseMaliadesState } from './maliadesState';
+import { maliadesOperationalView } from './maliadesOperationalView';
 
 export interface MemberSessionScope {
   readonly groupId: string;
@@ -149,7 +150,11 @@ export function memberSessionProjection(value: unknown, scope: MemberSessionScop
   if (scope.groupId !== 'gm') { result.populationAlerts = {};result.unrestAlerts = {}; }
   for (const key of CRAFT_MAP_FIELDS) result[key] = selectedMap(root[key], craft);
   for (const [key, id] of Object.entries(CRAFT_DETAIL_FIELDS)) {
-    if (craft.has(id) && root[key] !== undefined) result[key] = root[key];
+    if (!craft.has(id) || root[key] === undefined) continue;
+    if (key === 'maliadesState' && scope.groupId !== 'gm') {
+      const operational = maliadesOperationalView(root[key]);
+      if (operational) result[key] = operational;
+    } else result[key] = root[key];
   }
   for (const [key, id] of Object.entries(REPAIR_DETAIL_FIELDS)) {
     const ledger = memberPhiliaRepairLedger(root[key]);

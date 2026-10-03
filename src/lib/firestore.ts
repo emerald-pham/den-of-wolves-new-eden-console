@@ -92,7 +92,6 @@ import type {
   AwayMissionHandPhase,
   AwayMissionHandPointer,
   MissionOpportunity,
-  MaliadesStateRecord,
   ArrestPosseCalculation,
   VipCard,
   VipCardId,
@@ -131,7 +130,7 @@ import { parseAllyRepairLedger } from './allyRepairLedger';
 import { parseGorgoneionRepairDronesLedger } from './gorgoneionRepairDronesLedger';
 import { parseWarriorRepairDronesLedger } from './warriorRepairDronesLedger';
 import { parseBaseCapybaraCargoState } from './baseCapybaraCargoLedger';
-import { parseMaliadesState } from './maliadesLedger';
+import { parseMaliadesSnapshot } from './maliadesLedger';
 import { fleetTickerState } from './fleetTickerState';
 import { normalizeAdmiralDirectives } from './admiralDirectiveState';
 import { normalizePresidentWorkspace } from './presidentWorkspaceState';
@@ -2506,8 +2505,8 @@ function warriorRepairDrones(
   return parseWarriorRepairDronesLedger(value);
 }
 
-function maliadesState(value: unknown): MaliadesStateRecord | undefined {
-  return parseMaliadesState(value);
+function maliadesState(value: unknown): GameSession['maliadesState'] {
+  return parseMaliadesSnapshot(value);
 }
 
 function highwallMining(value: unknown): GameSession['highwallMining'] {
