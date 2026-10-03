@@ -697,6 +697,7 @@ import {
   type PdfEscortWingState,
 } from './pdfEscortWingState';
 import { projectPdfEscortWingMemberView } from './pdfEscortWingProjection';
+import { collectWolfEscortRange, type WolfEscortRangeBundle, type WolfEscortSourceId, type WolfEscortRange } from './wolfEscortRange';
 import {
   HOMING_BEACON_SUSPICION_INCREMENT,
   resolveWolfHomingBeaconTarget,
@@ -21076,6 +21077,35 @@ type WolfFighterRangeBundle = Readonly<{
   shortFighterIndexesByWing?: Readonly<Partial<Record<FighterWingId, readonly number[]>>>;
   shifts?: readonly WolfRangeTargetShiftChoice[];
 }>;
+
+/** Preserve disconnected source owners; removed holders become audited zero-action passes. */
+function collectWolfEscortRangeChoices(input: Readonly<{
+  session: DocumentSnapshot; attack: DocumentSnapshot; pdfWing: DocumentSnapshot;
+  players: readonly DocumentSnapshot[]; fleetGroups: readonly DocumentSnapshot[];
+  range: unknown; turn: number; inputs: ReturnType<typeof requireWolfRangeState>;
+}>): WolfEscortRangeBundle {
+  if (input.range !== 'medium-range' && input.range !== 'short-range') return { status: 'not-applicable' };
+  const attackId = input.attack.get('attackId');
+  if (typeof attackId !== 'string' || !attackId) return { status: 'unsupported' };
+  const pdf = parsePdfEscortWingState(input.pdfWing.exists ? input.pdfWing.data() : undefined);
+  const maliades = parseMaliadesState(input.session.get('maliadesState'));
+  if (!pdf || !maliades) return { status: 'unsupported' };
+  const launchChoices = wolfFighterLaunchChoiceMap(input.attack, input.turn, attackId);
+  const pdfActive = pdf.attackId === attackId && pdf.attackCycle === input.turn && pdf.launched && pdf.fighters > 0;
+  const maliadesActive = maliades.attackId === attackId && maliades.attackCycle === input.turn && maliades.launched && !maliades.destroyed;
+  if ((pdfActive && launchChoices['pdf-escort-fighter-wing']?.status !== 'launched') ||
+      (maliadesActive && launchChoices.maliades?.status !== 'launched')) return { status: 'unsupported' };
+  const colonels = currentWolfRoleOwners(input.players, input.fleetGroups, 'refinery-124-pdf-colonel', 'refinery-124');
+  const engineers = currentWolfRoleOwners(input.players, input.fleetGroups, 'dione-engineer', 'dione');
+  const control = parseShuttleControl(input.session.get('shuttleControl'));
+  if (colonels.length > 1 || engineers.length > 1 || (maliadesActive && !control?.maliades)) return { status: 'unsupported' };
+  return collectWolfEscortRange({ attackId, turn: input.turn, range: input.range,
+    roster: input.inputs.roster, ring: input.inputs.receipt.ring,
+    pdf, maliades, choices: input.attack.get('escortRangeChoices'),
+    owners: { 'pdf-escort-fighter-wing': colonels.length === 1,
+      maliades: engineers.length === 1 && control?.maliades?.holderUid === engineers[0]?.id },
+  });
+}
 
 /** Collect committed AEGIS wing choices and mark their range state without drawing early. */
 function collectWolfAegisFighterRangeChoices(input: Readonly<{
