@@ -66,3 +66,28 @@ it('withdraws a cached member snapshot and does not restore it from an older ser
   callbacks[0]?.(snapshot(memberView));
   expect(onView).toHaveBeenCalledTimes(2);
 });
+
+it('withdraws a stale cached event but accepts the matching authoritative server revision again', () => {
+  const current = { ...memberView, revision: 6, currentStep: 'medium-range', range: 'medium' };
+  const { callbacks, onView } = capture();
+  callbacks[0]?.(snapshot(current));
+  callbacks[0]?.(snapshot(memberView, true));
+
+  expect(onView.mock.calls).toEqual([[current], [null]]);
+  callbacks[0]?.(snapshot(memberView));
+  expect(onView).toHaveBeenCalledTimes(2);
+  callbacks[0]?.(snapshot(current));
+  expect(onView).toHaveBeenLastCalledWith(current);
+});
+
+it('withdraws malformed audience data without a raw revision and waits for a newer valid revision', () => {
+  const { callbacks, onView } = capture();
+  callbacks[0]?.(snapshot(memberView));
+  callbacks[0]?.(snapshot({ type: 'wolf-attack-member-view', sessionId: 's1' }));
+
+  expect(onView.mock.calls).toEqual([[memberView], [null]]);
+  callbacks[0]?.(snapshot(memberView));
+  expect(onView).toHaveBeenCalledTimes(2);
+  callbacks[0]?.(snapshot({ ...memberView, revision: 5 }));
+  expect(onView).toHaveBeenLastCalledWith(expect.objectContaining({ revision: 5 }));
+});
