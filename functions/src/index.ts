@@ -476,9 +476,16 @@ import { atomicStartState } from './startState';
 import {
   fighterWingCapacity,
   fighterWingCounts,
+  initialFighterWingCounts,
   type FighterWingCountState,
   type FighterWingId,
 } from './fighterWings';
+import {
+  initialAegisFighterWingAttack,
+  launchAegisFighterWing as launchAegisFighterWingState,
+  parseAegisFighterWingCombatState,
+  type AegisFighterWingCombatState,
+} from './fighterWingCombat';
 import {
   applyPopulationSteps,
   applyResourceSteps,
@@ -21901,6 +21908,15 @@ function requireAegisExecutiveOfficerPlayer(player: DocumentSnapshot, uid: strin
   requirePlayerShipActionAuthority(player);
 }
 
+function requireAegisWingCommanderPlayer(player: DocumentSnapshot, uid: string): void {
+  if (!player.exists || player.id !== uid || !isActivePlayer(player) || player.get('role') !== 'player' ||
+      player.get('activeConsoleRoleId') !== 'wing-commander' ||
+      boundCoreConsoleRole(player.get('assignedRoleId'), player.get('seatId')) !== 'wing-commander') {
+    throw new HttpsError('permission-denied', 'The active AEGIS Wing Commander console is required.');
+  }
+  requirePlayerShipActionAuthority(player);
+}
+
 function currentPlayerFleetGroupId(player: DocumentSnapshot): string {
   const groupId = player.get('fleetGroupId');
   if (typeof groupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(groupId)) {
@@ -23055,7 +23071,238 @@ type WolfRangeTargetAssignmentResult = Readonly<{
   committedContacts: number;
 }>;
 
+type AegisFighterWingLaunchReason =
+  | 'waiting' | 'uncharged' | 'damaged' | 'destroyed' | 'no-fighters' | 'already-launched';
+
+type AegisFighterWingLaunchView = Readonly<{
+  type: 'aegis-fighter-wing-launch-view';
+  sessionId: string;
+  wingId: FighterWingId;
+  turn: number;
+  attackId: string;
+  revision: number;
+  wingRevision: number;
+  fighters: number;
+  launched: boolean;
+  eligible: boolean;
+  reason: AegisFighterWingLaunchReason;
+}>;
+
+type AegisFighterWingLaunchResult = AegisFighterWingLaunchView & Readonly<{
+  status: 'committed' | 'replayed';
+  requestId: string;
+}>;
+
 const WOLF_COMBAT_RANGES = ['long-range', 'medium-range', 'short-range'] as const;
+
+function aegisFighterWingCombatStateForAttack(
+  session: DocumentSnapshot,
+  attack: DocumentSnapshot,
+  turn: number,
+  attackId: string,
+): AegisFighterWingCombatState {
+  const raw = attack.get('aegisFighterWingState');
+  if (raw !== undefined) {
+    const state = parseAegisFighterWingCombatState(raw);
+    if (!state || state.attackId !== attackId || state.cycle !== turn) {
+      throw commandError('failed-precondition', 'The current AEGIS fighter-wing state is malformed or stale.', 'conflict');
+    }
+    return state;
+  }
+  const rawCounts = session.get('fighterWingCounts');
+  const counts = rawCounts === undefined ? initialFighterWingCounts() : fighterWingCounts(rawCounts);
+  const alpha = counts['fighter-wing-alpha'];
+  const bravo = counts['fighter-wing-bravo'];
+  if (!alpha || !bravo) {
+    throw commandError('failed-precondition', 'The authoritative AEGIS fighter counts are unavailable.', 'conflict');
+  }
+  return initialAegisFighterWingAttack({
+    attackId,
+    cycle: turn,
+    counts: { 'fighter-wing-alpha': alpha.count, 'fighter-wing-bravo': bravo.count },
+  });
+}
+
+function aegisFighterWingLaunchView(
+  sessionId: string,
+  session: DocumentSnapshot,
+  attack: DocumentSnapshot,
+  wingId: FighterWingId,
+): AegisFighterWingLaunchView {
+  const turn = sessionTurn(session.get('currentTurn'));
+  const attackTurn = attack.get('turn');
+  const revision = attack.get('revision');
+  const attackId = attack.get('attackId');
+  if (turn < 1 || typeof attackId !== 'string' || !attackId ||
+      !Number.isSafeInteger(attackTurn) || attackTurn !== turn ||
+      !Number.isSafeInteger(revision) || (revision as number) < 1) {
+    throw commandError('failed-precondition', 'The current Wolf attack is unavailable.', 'invalid-phase');
+  }
+  const combat = aegisFighterWingCombatStateForAttack(session, attack, turn, attackId);
+  const wing = combat.wings[wingId];
+  const view: AegisFighterWingLaunchView = {
+    type: 'aegis-fighter-wing-launch-view', sessionId, wingId, turn, attackId,
+    revision: revision as number, wingRevision: combat.revision, fighters: wing.fighters,
+    launched: wing.launched, eligible: false, reason: 'waiting',
+  };
+  if (attack.get('type') !== 'wolf-attack-state' || attack.get('status') !== 'declared' ||
+      attack.get('currentStep') !== 'targeting' || attack.get('airspaceLocked') !== true) return view;
+  const phase = turnPhaseState(session.get('turnPhase'));
+  if (!phase || phase.turn !== turn || phase.airspace.state !== 'restricted' || phase.timerPause !== undefined) {
+    return view;
+  }
+  if (wing.launched) return { ...view, launched: true, reason: 'already-launched' };
+  if (wing.fighters < 1) return { ...view, reason: 'no-fighters' };
+
+  const bayId = wingId === 'fighter-wing-alpha' ? 'fighter-bay-alpha' : 'fighter-bay-bravo';
+  const cycles = session.get('maintenanceCycles');
+  const cycle = parseMaintenanceCycle(isRecord(cycles) ? cycles.aegis : undefined);
+  const damageRoot = session.get('shipDamage');
+  const damage = isRecord(damageRoot) ? damageRoot.aegis : undefined;
+  const knownDamageIds = new Set((SHIP_DAMAGE_DECKS.aegis ?? []).map(({ systemId }) => systemId));
+  if (!cycle || cycle.turn !== turn || !isRecord(damage) || !Array.isArray(damage.damagedSystemIds) ||
+      damage.damagedSystemIds.some((id) => typeof id !== 'string' || !knownDamageIds.has(id)) ||
+      new Set(damage.damagedSystemIds).size !== damage.damagedSystemIds.length || typeof damage.destroyed !== 'boolean') {
+    throw commandError('failed-precondition', 'Current AEGIS bay charge and damage authority is unavailable.', 'conflict');
+  }
+  if (damage.destroyed) return { ...view, reason: 'destroyed' };
+  if ((damage.damagedSystemIds as string[]).includes(bayId)) return { ...view, reason: 'damaged' };
+  if (!cycle.charges.includes(bayId)) return { ...view, reason: 'uncharged' };
+  return { ...view, eligible: true, reason: 'waiting' };
+}
+
+function aegisFighterWingLaunchResultIsValid(value: unknown): value is AegisFighterWingLaunchResult {
+  return isRecord(value) && (value.status === 'committed' || value.status === 'replayed') &&
+    value.type === 'aegis-fighter-wing-launch-view' && typeof value.sessionId === 'string' &&
+    (value.wingId === 'fighter-wing-alpha' || value.wingId === 'fighter-wing-bravo') &&
+    typeof value.attackId === 'string' && value.attackId.length > 0 &&
+    isCanonicalRequestId(value.requestId) && Number.isSafeInteger(value.turn) &&
+    Number.isSafeInteger(value.revision) && Number.isSafeInteger(value.wingRevision) &&
+    Number.isSafeInteger(value.fighters) && (value.fighters as number) >= 0 &&
+    value.launched === true && value.eligible === false && value.reason === 'already-launched';
+}
+
+function aegisFighterWingId(value: unknown): FighterWingId | null {
+  return value === 'fighter-wing-alpha' || value === 'fighter-wing-bravo' ? value : null;
+}
+
+/** Read the current Wing Commander's independent Alpha/Bravo launch gates. */
+export const getAegisFighterWingLaunch = onCall<{ sessionId?: unknown; wingId?: unknown }>(async (request) => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  if (!isRecord(raw) || Object.keys(raw).some((key) => key !== 'sessionId' && key !== 'wingId')) {
+    throw new HttpsError('invalid-argument', 'A valid sessionId and fighter wing are required.');
+  }
+  const { sessionId } = requireSessionRequest(raw);
+  const wingId = aegisFighterWingId(raw.wingId);
+  if (!wingId) throw new HttpsError('invalid-argument', 'Choose Fighter Wing Alpha or Bravo.');
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+  const attackRef = db.doc(`sessions/${sessionId}/wolfAttackState/current`);
+  return db.runTransaction(async (tx: Transaction) => {
+    const [session, player, attack] = await Promise.all([tx.get(sessionRef), tx.get(playerRef), tx.get(attackRef)]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireAegisWingCommanderPlayer(player, uid);
+    const groupId = currentPlayerFleetGroupId(player);
+    const group = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${groupId}`));
+    requireAegisExecutiveOfficerCurrentBerth(player, uid, group);
+    requireUsableShip(session, 'aegis');
+    requireActiveGameplayPhase(session);
+    return aegisFighterWingLaunchView(sessionId, session, attack, wingId);
+  });
+});
+
+/** Atomically launch one charged AEGIS Fighter Bay wing for the current attack. */
+export const launchAegisFighterWing = onCall<{
+  sessionId?: unknown; requestId?: unknown; expectedTurn?: unknown; expectedRevision?: unknown;
+  expectedWingRevision?: unknown; wingId?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = new Set(['sessionId', 'requestId', 'expectedTurn', 'expectedRevision', 'expectedWingRevision', 'wingId']);
+  const wingId = isRecord(raw) ? aegisFighterWingId(raw.wingId) : null;
+  if (!isRecord(raw) || Object.keys(raw).length !== allowed.size || Object.keys(raw).some((key) => !allowed.has(key)) ||
+      !isCanonicalRequestId(raw.sessionId) || !isCanonicalRequestId(raw.requestId) || !wingId ||
+      !Number.isSafeInteger(raw.expectedTurn) || (raw.expectedTurn as number) < 1 ||
+      !Number.isSafeInteger(raw.expectedRevision) || (raw.expectedRevision as number) < 1 ||
+      !Number.isSafeInteger(raw.expectedWingRevision) || (raw.expectedWingRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'Invalid AEGIS Fighter Wing launch request.');
+  }
+  const sessionId = raw.sessionId;
+  const requestId = raw.requestId;
+  const expectedTurn = raw.expectedTurn as number;
+  const expectedRevision = raw.expectedRevision as number;
+  const expectedWingRevision = raw.expectedWingRevision as number;
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+  const attackRef = db.doc(`sessions/${sessionId}/wolfAttackState/current`);
+  const receiptRef = commandReceiptRef(sessionId, requestId);
+  const auditRef = db.doc(`sessions/${sessionId}/wolfAttackState/current/audit/${requestId}`);
+  const fingerprint: CommandFingerprint = {
+    action: 'launch-aegis-fighter-wing', sessionId, requestId, actorUid: uid,
+    instanceId: wingId, expectedRevision,
+    payload: { expectedTurn, expectedWingRevision, wingId },
+  };
+  return db.runTransaction(async (tx: Transaction): Promise<AegisFighterWingLaunchResult> => {
+    const [session, player, attack, receipt, audit] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(attackRef), tx.get(receiptRef), tx.get(auditRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireAegisWingCommanderPlayer(player, uid);
+    const groupId = currentPlayerFleetGroupId(player);
+    const group = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${groupId}`));
+    requireAegisExecutiveOfficerCurrentBerth(player, uid, group);
+    const replay = replayBoundCommand(receipt, fingerprint, aegisFighterWingLaunchResultIsValid, 'AEGIS Fighter Wing launch');
+    if (replay) return { ...replay, status: 'replayed' };
+    if (audit.exists) rejectLegacyEventReplay('AEGIS Fighter Wing launch');
+    requireActiveGameplayPhase(session);
+    requireUsableShip(session, 'aegis');
+    const view = aegisFighterWingLaunchView(sessionId, session, attack, wingId);
+    if (view.turn !== expectedTurn || view.revision !== expectedRevision || view.wingRevision !== expectedWingRevision) {
+      throw commandError('failed-precondition', 'The AEGIS Fighter Wing launch view is stale. Refresh the current Wolf attack.', 'stale-revision');
+    }
+    if (!view.eligible) {
+      const message = view.reason === 'already-launched' ? 'This Fighter Wing is already launched for this Wolf attack.'
+        : view.reason === 'no-fighters' ? 'No fighters remain in this wing.'
+          : view.reason === 'uncharged' ? 'Charge this Fighter Bay before launching its wing.'
+            : view.reason === 'damaged' ? 'A damaged Fighter Bay cannot launch its wing.'
+              : view.reason === 'destroyed' ? 'A destroyed AEGIS cannot launch its Fighter Wing.'
+                : 'No current Wolf attack is accepting fighter launches.';
+      throw commandError('failed-precondition', message, 'invalid-phase');
+    }
+    const attackId = view.attackId;
+    const current = aegisFighterWingCombatStateForAttack(session, attack, view.turn, attackId);
+    let nextState: AegisFighterWingCombatState;
+    try {
+      const cycleRoot = session.get('maintenanceCycles');
+      const cycle = parseMaintenanceCycle(isRecord(cycleRoot) ? cycleRoot.aegis : undefined);
+      const damageRoot = session.get('shipDamage');
+      const damage = isRecord(damageRoot) ? damageRoot.aegis : undefined;
+      const bayId = wingId === 'fighter-wing-alpha' ? 'fighter-bay-alpha' : 'fighter-bay-bravo';
+      nextState = launchAegisFighterWingState(current, {
+        expectedRevision: expectedWingRevision, attackId, cycle: expectedTurn, wingId,
+        bayCharged: Boolean(cycle?.charges.includes(bayId)),
+        bayDamaged: Boolean(isRecord(damage) && Array.isArray(damage.damagedSystemIds) && damage.damagedSystemIds.includes(bayId)),
+      });
+    } catch (error) {
+      throw commandError('failed-precondition', error instanceof Error ? error.message : 'The fighter wing could not launch.', 'conflict');
+    }
+    const nextRevision = view.revision + 1;
+    const wing = nextState.wings[wingId];
+    const result: AegisFighterWingLaunchResult = {
+      ...view, status: 'committed', requestId, revision: nextRevision,
+      wingRevision: nextState.revision, fighters: wing.fighters, launched: true, eligible: false,
+      reason: 'already-launched',
+    };
+    tx.update(attackRef, { revision: nextRevision, aegisFighterWingState: nextState,
+      updatedAt: FieldValue.serverTimestamp() });
+    tx.set(auditRef, { type: 'aegis-fighter-wing-launch', turn: expectedTurn, revision: nextRevision,
+      wingRevision: nextState.revision, wingId, actorUid: uid, actorRoleId: 'wing-commander', requestId,
+      createdAt: FieldValue.serverTimestamp() });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
 
 function isWolfCombatRange(value: unknown): value is WolfCombatRange {
   return WOLF_COMBAT_RANGES.includes(value as WolfCombatRange);
