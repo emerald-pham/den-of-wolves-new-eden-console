@@ -3588,7 +3588,7 @@ it('lets the facilitator mark and resolve the approximate Wolf window without st
   ));
 });
 
-it('stages a private card and target draft through the GM-only preparation panel', async () => {
+it('stages the private composition with automatic server targeting', async () => {
   const user = userEvent.setup();
   const activeSession = useSessionStore.getState().session;
   if (!activeSession) throw new Error('Expected the test session.');
@@ -3616,12 +3616,13 @@ it('stages a private card and target draft through the GM-only preparation panel
   expect(preparation).toHaveTextContent(/players receive no cards/i);
   await user.clear(within(preparation).getByRole('spinbutton', { name: 'Fighter Wing count' }));
   await user.type(within(preparation).getByRole('spinbutton', { name: 'Fighter Wing count' }), '10');
-  await user.selectOptions(within(preparation).getByRole('combobox', { name: 'Target for Wolf card 1' }), 'aegis');
+  expect(within(preparation).queryByRole('combobox', { name: 'Target for Wolf card 1' })).not.toBeInTheDocument();
+  expect(preparation).toHaveTextContent('Targeting is rolled by the server; no target transcription is required.');
   await user.click(within(preparation).getByRole('button', { name: 'Save private attack draft' }));
 
   await waitFor(() => expect(stageWolfAttackPreparation).toHaveBeenCalledWith(expect.objectContaining({
     turn: 1,
-    targetAssignments: [{ cardIndex: 0, targetShipId: 'aegis' }],
+    targetMode: 'pre-rolled', targetAssignments: [],
   }), 0));
 });
 
