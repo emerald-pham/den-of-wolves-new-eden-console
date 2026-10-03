@@ -1042,6 +1042,28 @@ describe('App', () => {
     unmount();
   });
 
+  it('withdraws the previous group operational data immediately when current membership changes', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_id, _uid, next) => { handlers = next; return vi.fn(); });
+    const member: Player = { ...player, role: 'player', assignedRoleId: 'admiral', fleetGroupId: 'fleet-1' };
+    useSessionStore.getState().setIdentity({ ...session, phase: 'active', currentTurn: 2,
+      memberSessionScope: { groupId: 'fleet-1', vesselIds: ['aegis'], craftIds: ['starlight'] },
+      shipResources: { aegis: { ore: 0, fuel: 9, food: 4, water: 3, materials: 2, securityTeams: 4 } },
+      shuttleDockings: [{ shuttleId: 'starlight', shipId: 'aegis', dockedAt: 'now' }],
+      shuttleCargo: { starlight: { shuttleId: 'starlight', ore: 0, fuel: 2, food: 0, water: 0, materials: 0, securityTeams: 0, revision: 1 } } as unknown as GameSession['shuttleCargo'],
+    }, member);
+    const { unmount } = render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    act(() => handlers?.onPlayer({ ...member, fleetGroupId: 'fleet-2' }));
+    const current = useSessionStore.getState().session!;
+    expect(current.currentTurn).toBe(2);
+    expect(current.shipResources).toEqual({});
+    expect(current.shuttleDockings).toEqual([]);
+    expect(current.shuttleCargo).toEqual({});
+    expect(current.memberSessionScope).toEqual({ groupId: 'fleet-2', vesselIds: [], craftIds: [] });
+    unmount();
+  });
+
   it('retains candidate reveals across fresh headers and same-player presence snapshots', async () => {
     let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
     vi.mocked(subscribeSessionState).mockImplementation((_id, _uid, next) => {
