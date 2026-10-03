@@ -199,3 +199,30 @@ and preserved ten minutes. The named GM reload route is still being checked;
 no completed browser summary or production gameplay claim is recorded yet.
 Prepared solo-review render QA separately passes five steps in eight phone,
 desktop, landscape and motion cases; those samples establish presentation only.
+
+
+## Current group and protected-read reconciliation
+
+The split worker's complete source chain through `e16aca9b` is integrated as
+`3184d32d`. The reconciled full four-file Rules suite passes **156/156**. The
+older 137-case result described a narrower earlier invocation; it is not the
+final full-suite count. Test-only `6574f4b0` migrates the remaining nonmember
+positive control to the GM root read and adds explicit ordinary-player root
+denial, while keeping permitted member child reads and direct-write denials.
+This changes the fixture to the accepted privacy contract, not the contract to
+fit the test.
+
+The normal browser uses its own anonymous Auth actor, ordinary local GM lease,
+conduct acknowledgement and named GM claim. It proves held-clock recovery,
+offline disabling, current clear, reload and actual sampled GM DRADIS. A first
+reload attempt clicked while authority was still cached; the harness now waits
+for the normal current-member read. Separate red `1ba573a3` and repair
+`834a3f13` make that same waiting condition visible and disable GM join until
+current authority returns; all 19 route checks and the repaired normal browser
+pass. The successful fixture controls explicitly supply live/server authority.
+No identity/session state is injected by the browser proof.
+
+The worker retains ownership of full21-ID split/scouting/exploration/taxi/share/
+rejoin authenticated scenarios after the owner runtime's explicit source
+rebuild/restart acknowledgement. Focused green group tests alone do not close
+P424/P643 or any remaining scenario gap.
