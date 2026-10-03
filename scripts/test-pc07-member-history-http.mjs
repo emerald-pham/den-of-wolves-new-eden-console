@@ -79,22 +79,29 @@ try {
   assert.equal(gmRaw.status, 200);
   const forgedAudience = await call(actor, 'getCurrentMemberSession', { sessionId, groupId: 'fleet-2' });
   assert.equal(forgedAudience.error?.status, 'INVALID_ARGUMENT');
+  assert.deepEqual((await session.get()).data(), before, 'Read-only calls leave the authoritative root unchanged.');
   await db.doc(`sessions/${sessionId}/players/${actor.localId}`).update({ connected: false });
   const disconnected = await call(actor, 'getCurrentMemberSession', { sessionId });
   assert.equal(disconnected.error?.status, 'PERMISSION_DENIED');
-  await db.doc(`sessions/${sessionId}/players/${actor.localId}`).update({ connected: true });
+  const resumed = ok(await call(actor, 'resumeSession', { sessionId }), 'normal resume after disconnected fixture');
+  assert.ok(resumed.player.connectionGeneration > projected.connectionGeneration);
+  const resumedRoot = (await session.get()).data();
+  for (const key of [...Object.keys(fixture), 'currentTurn', 'turnPhase', 'turnState']) {
+    assert.deepEqual(resumedRoot[key], before[key], `Normal resume preserves ${key}`);
+  }
   const recovered = ok(await call(actor, 'getCurrentMemberSession', { sessionId }), 'fresh read after reconnect');
   assert.deepEqual(recovered.session.serviceShuttleRecharges, { wobbly: used });
   const after = (await session.get()).data();
-  assert.deepEqual(after, before, 'Reads leave the authoritative full ledgers and shared clock unchanged.');
+  assert.deepEqual(after, resumedRoot, 'The fresh read after normal resume leaves the root unchanged.');
   const evidence = {
     kind: 'normal-authenticated-local-emulator-http-rules-with-disposable-current-group-and-history-fixtures',
     checks: { normalAuthAndRoster12: true, actualPhysicalBerthsRetained: true, actorBoundGroup: true,
       fiveRepairCountersPreserved: true, localAllyDetailPreserved: true, foreignHostAndSystemDetailsWithheld: true,
       droneAndRechargeUsePreserved: true, sharedClockUnchanged: true, authoritativeLedgersUnchanged: true,
       memberRawRootDenied: true, gmRawRootAllowed: true, forgedAudienceDenied: true,
-      disconnectedReadDenied: true, reconnectFreshProjection: true },
+      disconnectedReadDenied: true, normalResumeNewGeneration: true, reconnectFreshProjection: true },
     fixtureChanges: ['consistent current-group partition and actor group assignment', 'current craft docking',
+      'disconnected actor state simulates an expired network connection; recovery uses the normal resume callable',
       'earlier foreign host repair/drone/service histories; includes retained Macaw history without claiming an admission or repair action'],
     normalPartitionAction: false, normalHistoryCreation: false, preparedReviewScene: false, productionGameplay: false,
     identitiesRetained: false, completedAt: new Date().toISOString(),

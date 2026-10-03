@@ -287,3 +287,13 @@ recorded separately in `maintenance-authoritative-ledger.json`. The final
 return check waits for the actual route transition (`32364fe9`); no forced
 click or injected identity/session data is used. This extends representative
 UI composition alongside the twelve-vessel native matrix.
+
+The member-history probe now recovers the simulated expired connection through
+the actual `resumeSession` callable and asserts a new connection generation.
+It checks whole-root immutability around the read-only calls, and preserves
+all craft histories plus the shared clock across the normal resume mutation.
+That mutation legitimately updates the session timestamp; it is not treated as
+a read-only request. The refreshed `member-history-http.json` records this
+stronger normal recovery and labels the disconnected-state fixture explicitly.
+Harness failures from using the wrong reply field and comparing a legitimate
+resume timestamp as if it were read-only remain preserved outside Git.
