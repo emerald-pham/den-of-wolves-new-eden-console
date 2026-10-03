@@ -3,6 +3,7 @@ import ShipPlot from '@/components/ShipPlot';
 import FleetGroupPanel from '@/components/FleetGroupPanel';
 import CycleBriefingClearanceView from '@/components/CycleBriefingClearanceView';
 import AirspaceStatusView from '@/components/AirspaceStatusView';
+import {ScoutResultPanel,GmScoutResolutionLog} from '@/components/ScoutResultPanels';
 import {WolfAttackStatusView} from '@/components/WolfAttackStatusPanel';
 import type {LocalDradisNavigation} from '@/components/localDradisContacts';
 import type {FleetGroupNavigationProjection,FleetGroupNote} from '@/lib/fleetGroupService';
@@ -66,6 +67,13 @@ export function PC07KnownSystemsReview(){
     if(names.length)setResult(`LOCAL SIMULATION // ${coordinate} // ${names.join(', ')} // Scanned detail shared.`);
    }} />
   <p className="pc07-review__result" role="status" aria-label="Known system sample result">{result}</p>
+  <p className="pc07-review__note">PREPARED RESULT // A legal Comms choice receives its report automatically; the GM result log records the same committed fact.</p>
+  <ScoutResultPanel report={{requestId:'prepared-comms',cycle:2,entitlementId:'comms-officer',targetCoordinate:'3145',status:'resolved',noteId:'prepared-note'}}
+   result={{type:'private-scout-result',sessionId:'prepared-pc07',requestId:'prepared-comms',requesterUid:'sample-participant',sourceId:'comms-officer',cycle:2,targetCoordinate:'3145',
+    systemFact:{coordinate:'3145',code:'A',title:'Prepared system detail'}}}
+   note={{type:'player-discovery-note',id:'prepared-note',cycle:2,targetCoordinate:'3145',systemFact:{coordinate:'3145',code:'A',title:'Prepared system detail'},recordedAt:SAMPLE_TIME}} />
+  <GmScoutResolutionLog entries={[{requestId:'prepared-comms',cycle:2,sourceId:'comms-officer',originShipId:'aegis',receivingShipId:'aegis',targetCoordinate:'3145',
+   systemFact:{coordinate:'3145',code:'A',title:'Prepared system detail'},recordedAt:SAMPLE_TIME,resolutionMode:'automatic'}]} />
  </section>;
 }
 
