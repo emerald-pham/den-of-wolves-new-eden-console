@@ -364,3 +364,22 @@ the original assumption; append the resolution so the decision is traceable.
 | Ambiguity and alternatives | The recovered preflight rejected every otherwise valid eight-to-eleven-player attack. Leaving that denial blocks supported gameplay; rerolling an unavailable printed result or compressing the active ordered ring both need a digital rule. |
 | Chosen reading | For a valid reduced roster only, filter Dione from the canonical ordered ring and draw uniformly from those five active targets. Target shifts wrap within that configured ring. This is a deliberate digital assumption, not a printed five-sided die instruction. |
 | Limits and proof | Six-target base and seven-target expansion behavior remains unchanged. Other missing required core vessels or malformed configurations remain denied. Red tests, actual native handler proof and independent authority review must cover the reduced roster; no foreign or inactive target may leak into member projections. |
+
+### PC07-A3 — Preserve pursuit conservatively when groups rejoin
+
+| Field | Decision |
+|---|---|
+| ID and checkpoint | PC07-A3, P346–350; recorded 2026-10-03 under PC07 authorization. |
+| Source | Facilitator Guide v1.1 printed p. 16, Split Fleet, requires group-local pursuit and communication but does not specify the pursuit score after groups rejoin. |
+| Chosen reading | When current server positions permit rejoining, retain the highest input pursuit score. The lowest numeric fleet identifier survives, with membership merged atomically and input/result scores recorded in the private GM audit. |
+| Alternatives and limits | Averaging, choosing the lowest score, or asking the GM each time would add a rule or operator step. This conservative digital tie-breaker cannot grant a pursuit reduction just by regrouping. Existing individual chart knowledge and historical identities remain intact. |
+| Effect | Exact retries produce no second membership rewrite, message or pursuit result. [The split-fleet note](PC07_SPLIT_SHARING_ASSUMPTIONS.md) explains the connected route audience and knowledge boundaries. |
+
+### PC07-A4 — A taxi pilot remains at its launch ship
+
+| Field | Decision |
+|---|---|
+| ID and checkpoint | PC07-A4, P343–345; recorded 2026-10-03 under PC07 authorization. |
+| Source | Facilitator Guide v1.1 printed p. 17/PDF p. 19 permits the scout-taxi round trip carrying up to two players or one or two fuel, within the craft's printed range and scouting allowance. It supplies no replacement-pilot procedure. |
+| Chosen reading | The current shuttle owner remains at the launch ship and cannot select themself as a passenger. Other currently connected players physically at that launch ship may travel within the printed limit. The server commits payload, destination and group membership together. |
+| Alternatives and limits | Moving the pilot would invent a control handoff and could strand the round trip. The taxi carries passengers or fuel, never both, and does not expose destination-group chart facts or notes to the pilot. |

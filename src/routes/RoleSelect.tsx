@@ -31,6 +31,9 @@ export default function RoleSelect() {
   const seats = useSessionStore((state) => state.seats);
   const gmAccessAuthenticated = useSessionStore(selectGmAccessAuthenticated);
   const isGm = useSessionStore(selectIsGm);
+  const connection = useSessionStore((state) => state.connection);
+  const sessionFreshness = useSessionStore((state) => state.sessionSnapshotFreshness);
+  const currentSessionAvailable = connection === 'live' && sessionFreshness === 'server';
   const gmJoinIntent = (location.state as { intent?: unknown } | null)?.intent === 'gm-join';
   const pendingClaim = useSessionStore((state) =>
     state.pendingCommands.some((command) => command.kind === 'claimGmInstance'));
@@ -117,6 +120,7 @@ export default function RoleSelect() {
 
   async function claim(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
+    if (!currentSessionAvailable) return;
     setClaiming(true);
     try {
       await claimGmInstance(instanceName);
@@ -255,7 +259,7 @@ export default function RoleSelect() {
             type="submit"
             disabled={
               isGm || pendingClaim || claiming ||
-              instanceName.trim().length === 0 || !gmAccessAuthenticated
+              instanceName.trim().length === 0 || !gmAccessAuthenticated || !currentSessionAvailable
             }
           >
             {claimLabel}
@@ -275,6 +279,11 @@ export default function RoleSelect() {
           {!isGm && !gmAccessAuthenticated && (
             <span className="role-card__description">
               🔐 Authorize GM access through Settings.
+            </span>
+          )}
+          {!isGm && gmAccessAuthenticated && !currentSessionAvailable && (
+            <span className="role-card__description" role="status" aria-label="GM join availability">
+              Waiting for the current session // GM join resumes after reconnecting.
             </span>
           )}
         </form>
