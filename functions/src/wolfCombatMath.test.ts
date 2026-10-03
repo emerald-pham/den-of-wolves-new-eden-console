@@ -187,6 +187,45 @@ describe('central Wolf combat math', () => {
     expect(fleetDamage).toMatchObject({ target: 'capybara', amount: 3, population: 16_000 });
   });
 
+  it('calculates complete attack receipts over a configured five- or seven-target ring', () => {
+    const baseState = completeFleetState();
+    const phase = startTurnPhase(1, 1_000);
+    const liftedPhase = { ...phase, airspace: { ...phase.airspace, state: 'lifted' as const } };
+    const smallRing = ['aegis', 'icebreaker', 'quellon', 'shepherd', 'refinery-124'] as const;
+    const smallState = Object.fromEntries(smallRing.map((target) => [target, baseState[target]]));
+    const small = calculateWolfAttack({
+      requestId: 'attack-small-ring', composition: firstTurnWolfAttackComposition(),
+      phase: liftedPhase, now: 2_000,
+      targetRing: smallRing,
+      rangeActions: [], rangeAssignments: [], boardingDefence: [],
+      fleetState: smallState,
+      randomInt: () => 0,
+    } as Parameters<typeof calculateWolfAttack>[0]);
+    expect(small.targeting.ring).toEqual(smallRing);
+    expect(small.targeting.rolls.every((roll) => roll.target !== 'dione')).toBe(true);
+
+    const expandedState = {
+      ...baseState,
+      capybara: { damage: { damagedSystemIds: [], destroyed: false }, population: INITIAL_SHIP_SURVIVORS.capybara! },
+    };
+    const expanded = calculateWolfAttack({
+      requestId: 'attack-expanded-ring', composition: firstTurnWolfAttackComposition(),
+      phase: liftedPhase, now: 2_000,
+      targetRing: EXPANDED_WOLF_TARGET_RING,
+      rangeActions: [], rangeAssignments: [],
+      boardingDefence: [{ target: 'capybara', securityTeams: 0 }],
+      fleetState: expandedState,
+      randomInt: (upperBound) => upperBound === 8 ? 6 : 0,
+    } as Parameters<typeof calculateWolfAttack>[0]);
+    expect(expanded.targeting.ring).toEqual(EXPANDED_WOLF_TARGET_RING);
+    expect(expanded.boarding).toEqual([expect.objectContaining({
+      target: 'capybara', boardingParties: 20, survivingBoardingParties: 20, damage: 20,
+    })]);
+    expect(expanded.fleetDamage).toEqual(expect.arrayContaining([
+      expect.objectContaining({ target: 'capybara', amount: 30 }),
+    ]));
+  });
+
   it('reuses the existing damage deck and survivor-track casualty rules', () => {
     const result = applyWolfFleetDamage('aegis', 2, {
       damage: { damagedSystemIds: [], destroyed: false },
