@@ -21511,6 +21511,11 @@ async function reconcileWolfAttackProgress(sessionId: string): Promise<void> {
         !Number.isSafeInteger(revision) || (revision as number) < 1) return;
 
     if (state.get('currentStep') === WOLF_ATTACK_DECLARATION_STEP) {
+      let warheadStatus: ReturnType<typeof currentAegisEnrichedWarheads>;
+      try { warheadStatus = currentAegisEnrichedWarheads(state); } catch { return; }
+      const warheadOwner = sessionActiveRoleIds(session).includes('executive-officer') &&
+        currentWolfAegisExecutiveOfficers(players.docs, fleetGroups.docs).length > 0;
+      if (!warheadStatus && warheadOwner && aegisEnrichedWarheadAvailable(session, turn as number)) return;
       const currentCalculation = state.get('calculationReceipt');
       const forceFieldChoice = state.get('forceFieldChoice');
       if (isRecord(currentCalculation) && currentCalculation.step === 'pre-target-force-field') {
@@ -23265,6 +23270,169 @@ export const passAegisCommandAndControl = onCall<{
   });
 });
 
+type AegisEnrichedWarheadView = Readonly<{
+  type: 'aegis-enriched-warhead-view'; sessionId: string; attackId: string | null;
+  turn: number; revision: number; choiceStatus: 'pending' | 'enriched' | 'passed' | 'unavailable';
+  eligible: boolean; oreCost: 5;
+}>;
+
+type AegisEnrichedWarheadResult = Readonly<{
+  type: 'aegis-enriched-warhead-result'; status: 'committed'; sessionId: string;
+  requestId: string; turn: number; revision: number; view: AegisEnrichedWarheadView;
+}>;
+
+/** The printed purchase is attack-scoped, never a later-range toggle. */
+function currentAegisEnrichedWarheads(state: DocumentSnapshot): 'enriched' | 'passed' | 'unavailable' | null {
+  const marker = state.get('enrichedWarheads');
+  if (marker === undefined) return null;
+  if (!isRecord(marker) || marker.attackId !== state.get('attackId') || marker.turn !== state.get('turn') ||
+      !['enriched', 'passed', 'unavailable'].includes(String(marker.status)) ||
+      marker.oreCost !== (marker.status === 'enriched' ? 5 : 0) ||
+      !Number.isSafeInteger(marker.revision) || (marker.revision as number) < 1 ||
+      (marker.revision as number) > Number(state.get('revision')) ||
+      typeof marker.actorUid !== 'string' || !isCanonicalRequestId(marker.requestId)) {
+    throw commandError('failed-precondition', 'The attack-scoped enriched warhead receipt is malformed.', 'conflict');
+  }
+  return marker.status as 'enriched' | 'passed' | 'unavailable';
+}
+
+function aegisEnrichedWarheadAvailable(session: DocumentSnapshot, turn: number): boolean {
+  const rawCycles = session.get('maintenanceCycles');
+  const cycle = parseMaintenanceCycle(isRecord(rawCycles) ? rawCycles.aegis : undefined);
+  const rawDamage = session.get('shipDamage');
+  const damage = isRecord(rawDamage) ? rawDamage.aegis : undefined;
+  const rawResources = session.get('shipResources');
+  const resources = isRecord(rawResources) ? rawResources.aegis : undefined;
+  // Missing legacy inventory means no purchase opportunity. A present malformed
+  // inventory/damage/maintenance never creates spending or a combat bonus.
+  return !!cycle && cycle.turn === turn && cycle.charges.includes('missile-launchers') &&
+    isRecord(damage) && damage.destroyed === false && Array.isArray(damage.damagedSystemIds) &&
+    !damage.damagedSystemIds.includes('missile-launchers') &&
+    isRecord(resources) && Number.isSafeInteger(resources.ore) && (resources.ore as number) >= 5;
+}
+
+function aegisEnrichedWarheadStartInputs(session: DocumentSnapshot, state: DocumentSnapshot) {
+  requireActiveGameplayPhase(session);
+  const phase = turnPhaseState(session.get('turnPhase'));
+  const turn = state.get('turn');
+  const revision = state.get('revision');
+  const attackId = state.get('attackId');
+  if (!state.exists || state.get('type') !== 'wolf-attack-state' || state.get('status') !== 'declared' ||
+      state.get('currentStep') !== 'targeting' || state.get('airspaceLocked') !== true ||
+      !Number.isSafeInteger(turn) || turn !== sessionTurn(session.get('currentTurn')) ||
+      !Number.isSafeInteger(revision) || (revision as number) < 1 || typeof attackId !== 'string' || !attackId ||
+      !phase || phase.turn !== turn || phase.airspace.state !== 'restricted' || phase.timerPause !== undefined) {
+    throw commandError('failed-precondition', 'Enriched Warheads can be chosen only at the live start of this attack.', 'invalid-phase');
+  }
+  return { turn: turn as number, revision: revision as number, attackId };
+}
+
+function aegisEnrichedWarheadView(sessionId: string, session: DocumentSnapshot, state: DocumentSnapshot): AegisEnrichedWarheadView {
+  const turn = Math.max(1, sessionTurn(session.get('currentTurn')));
+  const revision = Number.isSafeInteger(state.get('revision')) ? state.get('revision') as number : 0;
+  const attackId = typeof state.get('attackId') === 'string' ? state.get('attackId') as string : null;
+  const committed = currentAegisEnrichedWarheads(state);
+  let eligible = false;
+  if (!committed) {
+    try { const inputs = aegisEnrichedWarheadStartInputs(session, state);
+      eligible = aegisEnrichedWarheadAvailable(session, inputs.turn); } catch { /* closed or paused */ }
+  }
+  return { type: 'aegis-enriched-warhead-view', sessionId, attackId, turn, revision,
+    choiceStatus: committed ?? (eligible ? 'pending' : 'unavailable'), eligible, oreCost: 5 };
+}
+
+/** Return only this EO's purchase status, without targeting or other players' decisions. */
+export const getAegisEnrichedWarheadChoice = onCall<{ sessionId?: unknown }>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  if (!isRecord(raw) || Object.keys(raw).some(key => key !== 'sessionId')) {
+    throw new HttpsError('invalid-argument', 'The enriched warhead query accepts only sessionId.');
+  }
+  const { sessionId } = requireSessionRequest(raw);
+  return db.runTransaction(async (tx: Transaction) => {
+    const [session, player, state] = await Promise.all([
+      tx.get(db.doc(`sessions/${sessionId}`)), tx.get(db.doc(`sessions/${sessionId}/players/${uid}`)),
+      tx.get(db.doc(`sessions/${sessionId}/wolfAttackState/current`)),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireAegisExecutiveOfficerPlayer(player, uid);
+    const group = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${currentPlayerFleetGroupId(player)}`));
+    requireAegisExecutiveOfficerCurrentBerth(player, uid, group);
+    requireActiveGameplayPhase(session);
+    requireUsableShip(session, 'aegis');
+    return aegisEnrichedWarheadView(sessionId, session, state);
+  });
+});
+
+/** Atomically purchase or pass, bound to one attack, actor, request and revision. */
+export const commitAegisEnrichedWarheadChoice = onCall<{
+  sessionId?: unknown; requestId?: unknown; expectedTurn?: unknown; expectedRevision?: unknown; choice?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  if (!isRecord(raw) || Object.keys(raw).some(key =>
+      !['sessionId', 'requestId', 'expectedTurn', 'expectedRevision', 'choice'].includes(key)) ||
+      (raw.choice !== 'enrich' && raw.choice !== 'pass')) {
+    throw new HttpsError('invalid-argument', 'Choose enriched warheads or pass at the current attack revision.');
+  }
+  const change = requireWolfCommandAndControlPassRequest(raw);
+  const choice = raw.choice;
+  const stateRef = db.doc(`sessions/${change.sessionId}/wolfAttackState/current`);
+  const sessionRef = db.doc(`sessions/${change.sessionId}`);
+  const receiptRef = commandReceiptRef(change.sessionId, change.requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'commit-aegis-enriched-warheads', sessionId: change.sessionId, requestId: change.requestId,
+    actorUid: uid, instanceId: null, expectedRevision: change.expectedRevision,
+    payload: { expectedTurn: change.expectedTurn, choice },
+  };
+  return db.runTransaction(async (tx: Transaction): Promise<AegisEnrichedWarheadResult> => {
+    const [session, player, state, receipt] = await Promise.all([
+      tx.get(sessionRef), tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`)),
+      tx.get(stateRef), tx.get(receiptRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireAegisExecutiveOfficerPlayer(player, uid);
+    const group = await tx.get(db.doc(`sessions/${change.sessionId}/fleetGroups/${currentPlayerFleetGroupId(player)}`));
+    requireAegisExecutiveOfficerCurrentBerth(player, uid, group);
+    const replay = replayBoundCommand(receipt, fingerprint, (value): value is AegisEnrichedWarheadResult =>
+      isRecord(value) && value.type === 'aegis-enriched-warhead-result' && value.status === 'committed' &&
+      value.sessionId === change.sessionId && value.requestId === change.requestId &&
+      value.turn === change.expectedTurn && value.revision === change.expectedRevision + 1 &&
+      isRecord(value.view) && value.view.choiceStatus === (choice === 'enrich' ? 'enriched' : 'passed'),
+    'AEGIS enriched warheads');
+    if (replay) return replay;
+    requireUsableShip(session, 'aegis');
+    const inputs = aegisEnrichedWarheadStartInputs(session, state);
+    if (change.expectedTurn !== inputs.turn || change.expectedRevision !== inputs.revision ||
+        currentAegisEnrichedWarheads(state) !== null) {
+      throw commandError('failed-precondition', 'Refresh the current attack-start warhead choice before committing.', 'stale-revision');
+    }
+    if (!aegisEnrichedWarheadAvailable(session, inputs.turn)) {
+      throw commandError('failed-precondition', 'Enriched Warheads requires charged, undamaged missile launchers and five ore.', 'invalid-phase');
+    }
+    const revision = inputs.revision + 1;
+    if (!Number.isSafeInteger(revision)) throw commandError('failed-precondition', 'Attack revision limit reached.', 'conflict');
+    const marker = { status: choice === 'enrich' ? 'enriched' as const : 'passed' as const,
+      attackId: inputs.attackId, turn: inputs.turn, revision, oreCost: choice === 'enrich' ? 5 : 0,
+      actorUid: uid, actorRoleId: 'executive-officer', requestId: change.requestId };
+    const view: AegisEnrichedWarheadView = { type: 'aegis-enriched-warhead-view', sessionId: change.sessionId,
+      attackId: inputs.attackId, turn: inputs.turn, revision, choiceStatus: marker.status, eligible: false, oreCost: 5 };
+    const result: AegisEnrichedWarheadResult = { type: 'aegis-enriched-warhead-result', status: 'committed',
+      sessionId: change.sessionId, requestId: change.requestId, turn: inputs.turn, revision, view };
+    const resources = session.get('shipResources') as Record<string, Record<string, unknown>>;
+    const oreBefore = resources.aegis.ore as number;
+    if (choice === 'enrich') tx.update(sessionRef, { 'shipResources.aegis.ore': oreBefore - 5,
+      ...vesselActionRevisionPatch('aegis', vesselActionRevision(session, 'aegis') + 1),
+      updatedAt: FieldValue.serverTimestamp() });
+    tx.update(stateRef, { revision, enrichedWarheads: marker, updatedAt: FieldValue.serverTimestamp() });
+    tx.set(db.doc(`${stateRef.path}/audit/${change.requestId}`), { type: 'aegis-enriched-warheads',
+      ...marker, source: 'AEGIS team sheet: five strytium ore at attack start; Long +1 and Medium hit on 4+',
+      oreBefore, oreAfter: oreBefore - marker.oreCost, createdAt: FieldValue.serverTimestamp() });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
 type WolfRangeActionChoiceView = Readonly<{
   type: 'wolf-range-action-choice-view';
   sessionId: string;
@@ -23721,6 +23889,7 @@ function requireWolfRangeState(
     damagedSystemIds: rawDamage.damagedSystemIds as string[],
     destroyed: rawDamage.destroyed,
     upgrades: (rawUpgrades ?? []) as string[],
+    enrichedWarheads: currentAegisEnrichedWarheads(state) === 'enriched',
   });
   return {
     turn: turn as number,
