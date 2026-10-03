@@ -15273,6 +15273,16 @@ export const readFleetGroupNavigation = onCall(async request => {
       }
       return { shipId, fleetGroupId: group.id, coordinate };
     });
+    const rawActiveRoleIds = session.get('activeRoleIds');
+    const activeRoleIds = Array.isArray(rawActiveRoleIds) && rawActiveRoleIds.every(roleId => typeof roleId === 'string')
+      ? rawActiveRoleIds as string[] : undefined;
+    const rawDockings = session.get('shuttleDockings');
+    const currentDockings = rawDockings === undefined ? [] : rawDockings;
+    if (!activeRoleIds || !Array.isArray(currentDockings) ||
+        !shuttleDockingsMatchActiveRoleOwnedSubset(activeRoleIds, currentDockings as { shuttleId: string; shipId: string }[]) ||
+        !shuttleDockingsAreParked(currentDockings, activeVesselIds)) {
+      throw commandError('failed-precondition', 'Current shuttle docking authority is malformed; refresh the fleet plot.', 'conflict');
+    }
     const shuttleIds = [...AUTHORIZED_SHUTTLE_IDS];
     const [departures, chains] = await Promise.all([
       Promise.all(shuttleIds.map(shuttleId => tx.get(db.doc(`sessions/${data.sessionId}/shuttleDepartures/${shuttleId}`)))),
@@ -15295,8 +15305,18 @@ export const readFleetGroupNavigation = onCall(async request => {
       return [{ shuttleId: authority.transit.shuttleId, fleetGroupId: group.id, currentPosition,
         sampledAt, destinationShipId: authority.transit.destinationShipId, arrivesAt: authority.transit.arrivesAt }];
     });
+    const inTransitShuttleIds = new Set(departures.flatMap((departure, index) => {
+      if (!departure.exists) return [];
+      const rawTransit = departure.data();
+      return isRecord(rawTransit) && rawTransit.status === 'in-transit' ? [shuttleIds[index]!] : [];
+    }));
+    const dockedShuttles = currentDockings.flatMap(docking => {
+      if (!isRecord(docking) || typeof docking.shuttleId !== 'string' || typeof docking.shipId !== 'string' ||
+          !group.vesselIds.includes(docking.shipId) || inTransitShuttleIds.has(docking.shuttleId)) return [];
+      return [{ shuttleId: docking.shuttleId, fleetGroupId: group.id, hostShipId: docking.shipId }];
+    });
     return { groupId: group.id, navigationRevision: data.expectedNavigationRevision,
-      fleetPartitionRevision: partitionRevision as number, sampledAt, ships, transits };
+      fleetPartitionRevision: partitionRevision as number, sampledAt, ships, transits, dockedShuttles };
   });
 });
 

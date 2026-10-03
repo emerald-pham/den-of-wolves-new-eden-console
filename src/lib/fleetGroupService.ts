@@ -2,6 +2,7 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from './firebase';
 import { hasFreshSessionAuthority } from './sessionMutationAuthority';
 import { useSessionStore } from '@/store/useSessionStore';
+import { SHUTTLECRAFT } from '@/data/shuttles';
 
 export interface FleetGroupContext {
   readonly sessionId: string; readonly actorUid: string; readonly groupId: string;
@@ -29,6 +30,7 @@ export interface FleetGroupNavigationProjection {
   readonly fleetPartitionRevision: number;
   readonly sampledAt: string;
   readonly ships: readonly { readonly shipId: string; readonly fleetGroupId: string; readonly coordinate: string }[];
+  readonly dockedShuttles: readonly { readonly shuttleId: string; readonly fleetGroupId: string; readonly hostShipId: string }[];
   readonly transits: readonly { readonly shuttleId: string; readonly fleetGroupId: string;
     readonly currentPosition: Readonly<{ x: number; y: number; z: number }>;
     readonly sampledAt: string; readonly destinationShipId: string; readonly arrivesAt: string }[];
@@ -54,12 +56,13 @@ function requireContext(context: FleetGroupContext) {
 function strictFleetGroupNavigationProjection(value: unknown): FleetGroupNavigationProjection {
   const point = (candidate: unknown): candidate is { x: number; y: number; z: number } => record(candidate) &&
     Object.keys(candidate).length === 3 && ['x', 'y', 'z'].every(key => typeof candidate[key] === 'number' && Number.isFinite(candidate[key]));
-  if (!record(value) || Object.keys(value).some(key => !['groupId', 'navigationRevision', 'fleetPartitionRevision', 'sampledAt', 'ships', 'transits'].includes(key)) ||
+  if (!record(value) || Object.keys(value).some(key => !['groupId', 'navigationRevision', 'fleetPartitionRevision', 'sampledAt', 'ships', 'transits', 'dockedShuttles'].includes(key)) ||
       typeof value.groupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(value.groupId) ||
       !Number.isSafeInteger(value.navigationRevision) || (value.navigationRevision as number) < 0 ||
       !Number.isSafeInteger(value.fleetPartitionRevision) || (value.fleetPartitionRevision as number) < 0 ||
       typeof value.sampledAt !== 'string' || !Number.isFinite(Date.parse(value.sampledAt as string)) ||
       !Array.isArray(value.ships) || value.ships.length < 1 ||
+      !Array.isArray(value.dockedShuttles) || value.dockedShuttles.length > SHUTTLECRAFT.length ||
       !Array.isArray(value.transits) || value.transits.length > 32) throw new Error('Current fleet navigation is unavailable.');
   const ships = value.ships.map(ship => {
     if (!record(ship) || Object.keys(ship).some(key => !['shipId', 'fleetGroupId', 'coordinate'].includes(key)) ||
@@ -69,20 +72,41 @@ function strictFleetGroupNavigationProjection(value: unknown): FleetGroupNavigat
   });
   if (new Set(ships.map(ship => ship.shipId)).size !== ships.length) throw new Error('Current fleet navigation has duplicate ships.');
   const shipIds = new Set(ships.map(ship => ship.shipId));
+  const knownShuttleIds = new Set(SHUTTLECRAFT.map(shuttle => shuttle.id));
+  const dockedShuttles = value.dockedShuttles.map(docking => {
+    if (!record(docking) || Object.keys(docking).some(key => !['shuttleId', 'fleetGroupId', 'hostShipId'].includes(key)) ||
+        typeof docking.shuttleId !== 'string' || !knownShuttleIds.has(docking.shuttleId) ||
+        typeof docking.fleetGroupId !== 'string' || docking.fleetGroupId !== value.groupId ||
+        typeof docking.hostShipId !== 'string' || !shipIds.has(docking.hostShipId)) {
+      throw new Error('Current docked shuttle host is malformed.');
+    }
+    return { shuttleId: docking.shuttleId as string, fleetGroupId: docking.fleetGroupId as string,
+      hostShipId: docking.hostShipId as string };
+  });
+  if (new Set(dockedShuttles.map(docking => docking.shuttleId)).size !== dockedShuttles.length) {
+    throw new Error('Current docked shuttle hosts are duplicated.');
+  }
+  const transitIds = new Set<string>();
   const transits = value.transits.map(transit => {
     if (!record(transit) || Object.keys(transit).some(key => !['shuttleId', 'fleetGroupId', 'currentPosition', 'sampledAt', 'destinationShipId', 'arrivesAt'].includes(key)) ||
         typeof transit.shuttleId !== 'string' || typeof transit.fleetGroupId !== 'string' || transit.fleetGroupId !== value.groupId ||
         !point(transit.currentPosition) || transit.sampledAt !== value.sampledAt || !Number.isFinite(Date.parse(transit.sampledAt as string)) ||
         typeof transit.destinationShipId !== 'string' || !shipIds.has(transit.destinationShipId) ||
         typeof transit.arrivesAt !== 'string' || !Number.isFinite(Date.parse(transit.arrivesAt))) throw new Error('Current shuttle transit is malformed.');
-      return { shuttleId: transit.shuttleId as string, fleetGroupId: transit.fleetGroupId as string,
+    if (!knownShuttleIds.has(transit.shuttleId) || transitIds.has(transit.shuttleId)) {
+      throw new Error('Current shuttle transit is duplicated or unknown.');
+    }
+    transitIds.add(transit.shuttleId as string);
+    return { shuttleId: transit.shuttleId as string, fleetGroupId: transit.fleetGroupId as string,
         currentPosition: { x: transit.currentPosition.x, y: transit.currentPosition.y, z: transit.currentPosition.z },
       sampledAt: transit.sampledAt as string, destinationShipId: transit.destinationShipId as string,
       arrivesAt: transit.arrivesAt as string };
   });
-  if (new Set(transits.map(transit => transit.shuttleId)).size !== transits.length) throw new Error('Current shuttle transits are duplicated.');
+  if (dockedShuttles.some(docking => transitIds.has(docking.shuttleId))) {
+    throw new Error('A shuttle cannot be docked and in transit in the same fleet sample.');
+  }
   return { groupId: value.groupId, navigationRevision: value.navigationRevision as number,
-    fleetPartitionRevision: value.fleetPartitionRevision as number, sampledAt: value.sampledAt, ships, transits };
+    fleetPartitionRevision: value.fleetPartitionRevision as number, sampledAt: value.sampledAt, ships, transits, dockedShuttles };
 }
 
 export function createFleetGroupActions(getContext: () => FleetGroupContext, transport: Transport,

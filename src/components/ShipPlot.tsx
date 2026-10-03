@@ -18,7 +18,7 @@ import { activeFleetShipIds } from '@/data/roles';
 import { ORIGIN_GALACTIC_COORDINATE } from '@/data/ships';
 import { JUMP_FLASH_MS } from '@/lib/jumpDrive';
 import type { GameSession } from '@/types/game';
-import { localDradisContacts, type LocalDradisNavigation } from './localDradisContacts';
+import { localDradisCenterDockedCraftTags, localDradisContacts, type LocalDradisNavigation } from './localDradisContacts';
 
 /** One continuous field-to-widget morph; deliberately isolated for easy tuning or removal. */
 export const SHIP_PLOT_RESIZE_MS = DRADIS_RESIZE_MS;
@@ -204,6 +204,7 @@ export default function ShipPlot({
         contacts={contacts}
         ambientSession={jumpInProgress ? undefined : ambientSession}
         centerLabel={viewer?.name.toUpperCase() ?? 'AEGIS'}
+        centerDockedCraftTags={localNavigation ? localDradisCenterDockedCraftTags(effectiveViewerId, localNavigation) : undefined}
         orientation={orientation}
         origin={viewerOrigin}
       />

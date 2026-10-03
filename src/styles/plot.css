@@ -100,6 +100,8 @@
   left: 50%;
   top: 50%;
   z-index: 2;
+  display: grid;
+  gap: 0.14rem;
   width: max-content;
   height: auto;
   color: var(--plot-hot);
@@ -108,6 +110,12 @@
   white-space: nowrap;
   text-indent: 0.8rem;
   text-shadow: 0 0 9px var(--plot-hot);
+}
+
+.contact-plot__docked-craft {
+  font-size: 0.86em;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
 }
 
 .contact-plot__origin::before {

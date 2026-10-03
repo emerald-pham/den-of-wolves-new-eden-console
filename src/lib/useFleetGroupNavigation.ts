@@ -1,4 +1,4 @@
-import {useEffect,useState} from 'react';
+import {useEffect,useLayoutEffect,useRef,useState} from 'react';
 import {useSessionStore} from '@/store/useSessionStore';
 import {readFleetGroupNavigation} from './fleetGroupService';
 import {captureSessionAuthority,isCurrentSessionAuthority} from './sessionMutationAuthority';
@@ -15,6 +15,12 @@ export function useFleetGroupNavigation(enabled:boolean,gmViewerShipId?:string):
  const identity=fresh?JSON.stringify([session?.id,me?.uid,me?.fleetGroupId,me?.role,gmViewerShipId,instance?.id,
   session?.currentTurn,session?.updatedAt,session?.playerDiscovery?.revision]):'';
  const [sample,setSample]=useState<{identity:string;projection:LocalDradisNavigation}>();
+ const previousIdentity=useRef(identity);
+ useLayoutEffect(()=>{
+  if(previousIdentity.current===identity)return;
+  previousIdentity.current=identity;
+  setSample(undefined);
+ },[identity]);
  useEffect(()=>{
   if(!identity)return;
   let alive=true,inFlight=false;

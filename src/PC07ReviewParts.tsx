@@ -6,14 +6,13 @@ import AirspaceStatusView from '@/components/AirspaceStatusView';
 import {ScoutResultPanel,GmScoutResolutionLog} from '@/components/ScoutResultPanels';
 import {WolfAttackStatusView} from '@/components/WolfAttackStatusPanel';
 import PC07AttackChoicesReview from './PC07AttackChoicesReview';
-import type {LocalDradisNavigation} from '@/components/localDradisContacts';
 import type {FleetGroupNavigationProjection,FleetGroupNote} from '@/lib/fleetGroupService';
 import type {TurnPhase,WolfAttackMemberView} from '@/types/game';
 
 const SAMPLE_TIME='2026-10-02T12:00:00.000Z';
 const SAMPLE_NAVIGATION:FleetGroupNavigationProjection={groupId:'fleet-1',navigationRevision:3,fleetPartitionRevision:2,
  sampledAt:SAMPLE_TIME,ships:[{shipId:'aegis',fleetGroupId:'fleet-1',coordinate:'3145'},
-  {shipId:'icebreaker',fleetGroupId:'fleet-1',coordinate:'3145'}],transits:[]};
+  {shipId:'icebreaker',fleetGroupId:'fleet-1',coordinate:'3145'}],dockedShuttles:[],transits:[]};
 const NO_TAXI={taxiDestinations:[],taxiShuttles:[],taxiPlayers:[]} as const;
 const noop=()=>{};
 
@@ -27,8 +26,8 @@ export function PC07GroupsReview() {
  const phase=useMemo<TurnPhase>(()=>({turn:2,teamPhaseEndsAt:new Date(Date.now()-60000).toISOString(),
   openAirspaceEndsAt:new Date(Date.now()+900000).toISOString(),airspace:{state:'lifted',tickerActive:true,pressAccess:true}}),[]);
  const ships=group==='fleet-1'?['aegis','icebreaker']:['shepherd','dione'];
- const projection:LocalDradisNavigation={groupId:group,navigationRevision:3,fleetPartitionRevision:2,sampledAt,
-  ships:ships.map(shipId=>({shipId,fleetGroupId:group,coordinate:group==='fleet-1'?'3145':'6798'})),transits:[]};
+ const projection:FleetGroupNavigationProjection={groupId:group,navigationRevision:3,fleetPartitionRevision:2,sampledAt,
+  ships:ships.map(shipId=>({shipId,fleetGroupId:group,coordinate:group==='fleet-1'?'3145':'6798'})),dockedShuttles:[],transits:[]};
  return <section className="pc07-review__workspace" aria-label="Group-local DRADIS sample">
   <div className="pc07-review__controls" role="group" aria-label="Prepared group perspectives">
    <button className="cic-action-button" type="button" aria-pressed={group==='fleet-1'} onClick={()=>setGroup('fleet-1')}>View Fleet-1 sample</button>

@@ -58,6 +58,8 @@ export interface PlotContact {
   readonly combatRange?: CombatRange;
   /** Friendly fleet contacts, including their shuttlecraft, suppress the range label. */
   readonly showCombatRange?: boolean;
+  /** Current host-bound shuttle labels folded into this ship's contact. */
+  readonly dockedCraftTags?: readonly string[];
   readonly transit?: {
     readonly destination: Vector;
     readonly durationMs: number;
@@ -1118,6 +1120,7 @@ export default function ContactPlot({
   contacts,
   ambientSession,
   centerLabel,
+  centerDockedCraftTags,
   orientation,
   origin = ZERO_ORIGIN,
 }: {
@@ -1131,6 +1134,8 @@ export default function ContactPlot({
   /** Session timing is the shared source for automatic and GM-triggered traffic. */
   ambientSession?: AmbientDradisSession | undefined;
   centerLabel?: string | undefined;
+  /** Docked craft at the viewer ship stay attached to the existing origin marker. */
+  centerDockedCraftTags?: readonly string[] | undefined;
   orientation?: { readonly pitch: number; readonly yaw: number } | undefined;
   /** Shared-world origin of the ship whose DRADIS is rendering this plot. */
   origin?: Vector | undefined;
@@ -1364,7 +1369,10 @@ export default function ContactPlot({
           />
         ))}
         <span className="contact-plot__limb" />
-        {centerLabel ? <span className="contact-plot__origin">{centerLabel}</span> : null}
+        {centerLabel ? <span className="contact-plot__origin">
+          <span>{centerLabel}</span>
+          {centerDockedCraftTags?.map(tag => <span className="contact-plot__docked-craft" key={tag}>{tag}</span>)}
+        </span> : null}
         <div className="contact-plot__sweep" />
         <div className="contact-plot__sweep contact-plot__sweep--polar" />
         <div className="contact-plot__returns">
@@ -1390,6 +1398,9 @@ export default function ContactPlot({
                     {track.showCombatRange !== false ? (
                       <span className="contact-plot__range">{combatRangeLabel(track)}</span>
                     ) : null}
+                    {'x' in track ? track.dockedCraftTags?.map(tag => (
+                      <span className="contact-plot__docked-craft" key={tag}>{tag}</span>
+                    )) : null}
                   </span>
                 </div>
               </div>
