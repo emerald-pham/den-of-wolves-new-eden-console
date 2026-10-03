@@ -4,6 +4,7 @@ import {WolfRangeActionPanelView} from '@/components/WolfRangeActionPanel';
 import {AegisFighterWingLaunchPanelView, type AegisFighterWingLaunchViews} from '@/components/AegisFighterWingLaunchPanel';
 import {PdfEscortWingLaunchPanelView} from '@/components/PdfEscortWingReference';
 import {DioneMaliadesLaunchPanelView} from '@/components/DioneMaliadesLaunch';
+import {DioneMaliadesRangeActionPanelView} from '@/components/DioneMaliadesRangeActions';
 import {WolfFighterRangeActionPanelView, type WolfFighterRangeActionView} from '@/components/WolfFighterRangeActionPanel';
 import {WolfBoardingDefencePanelView} from '@/components/WolfBoardingDefencePanel';
 import {WolfBoardingSupportChoicePanelView, WolfBoardingCommanderChoicePanelView, WolfBoardingMilitiaChoicePanelView,
@@ -146,10 +147,28 @@ function FightersReview() {
       sessionId: 'prepared-pc08', turn: 2, revision: 4, launched: launches[wingId] === 'launched',
       eligible: !launches[wingId] && maliadesDamage < 3, ...(launches[wingId] ? {choiceStatus: launches[wingId]} : {})}}
       onLaunch={() => commitLaunch(wingId, wing, 'launched')} onPass={() => commitLaunch(wingId, wing, 'passed')} />}
-    {wing === 'Maliades' ? <section className="pc07-review__panel cic-frame" aria-label="Prepared Maliades condition">
-      <h3>Maliades condition</h3><p>{maliadesDamage}/3 damage. {maliadesDamage === 3 ? 'Destroyed.' : 'One craft; fighter losses do not remove it.'}</p>
-      <p>Fuelled readiness, durability and repair are separate from fighter counts.</p>
-    </section> : <WolfFighterRangeActionPanelView key={`${wing}:${range}`} view={view}
+    {wing === 'Maliades' ? <>
+      <section className="pc07-review__panel cic-frame" aria-label="Prepared Maliades condition">
+        <h3>Maliades condition</h3><p>{maliadesDamage}/3 damage. {maliadesDamage === 3 ? 'Destroyed.' : 'One craft; fighter losses do not remove it.'}</p>
+        <p>Repair is a separate fuelled Team-phase action: one host material per damage.</p>
+      </section>
+      <DioneMaliadesRangeActionPanelView writable view={{type: 'dione-maliades-range-action-view',
+        sessionId: 'prepared-pc08', attackId: 'prepared-attack', turn: 2, revision: 4, range,
+        choiceStatus: committed[`${wing}:${range}`] ? 'committed' : 'pending',
+        damage: maliadesDamage, destroyed: maliadesDamage === 3, launched: launches[wingId] === 'launched', targets: view.targets}}
+        onResolveMedium={choices => {
+          setCommitted(current => ({...current, [`${wing}:${range}`]: true}));
+          const summary = choices.map(choice => {
+            const target = view.targets.find(target => target.instanceId === choice.targetInstanceId)?.label ?? choice.targetInstanceId;
+            return choice.kind === 'target-shift' ? `target shift ${choice.shift === 1 ? '+1' : '−1'} on ${target}` : `attack on ${target}`;
+          }).join('; ');
+          setMessage(summary ? `LOCAL SIMULATION // Maliades Medium choice committed: ${summary}.` : 'LOCAL SIMULATION // Maliades passed Medium Range.');
+        }} onResolveShort={targetIds => {
+          setCommitted(current => ({...current, [`${wing}:${range}`]: true}));
+          setMessage(targetIds.length ? `LOCAL SIMULATION // Maliades Short Range choice committed: ${targetIds.map(id => view.targets.find(target => target.instanceId === id)?.label ?? id).join(', ')}.`
+            : 'LOCAL SIMULATION // Maliades passed Short Range.');
+        }} />
+    </> : <WolfFighterRangeActionPanelView key={`${wing}:${range}`} view={view}
       onResolveMedium={actions => {setCommitted(current => ({...current, [`${wing}:${range}`]: true}));
         setMessage(`LOCAL SIMULATION // ${wing} choice committed: ${actions.length} independent fighter actions recorded.`);}}
       onResolveShort={indexes => {setCommitted(current => ({...current, [`${wing}:${range}`]: true}));
