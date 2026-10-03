@@ -10,6 +10,7 @@ import ShipPlot from '@/components/ShipPlot';
 import { useFleetGroupNavigation } from '@/lib/useFleetGroupNavigation';
 import GmMutinyRecovery from '@/components/GmMutinyRecovery';
 import { GmSetupChecklist } from '@/components/GmSetupChecklist';
+import UnionCraftStartingHostPanel from '@/components/UnionCraftStartingHostPanel';
 import PursuitTracker from '@/components/PursuitTracker';
 import JumpFailureAdjudicationPanel from '@/components/JumpFailureAdjudicationPanel';
 import PursuitEmergencyWindowPanel from '@/components/PursuitEmergencyWindowPanel';
@@ -4150,6 +4151,7 @@ export default function GmConsole() {
                   </p>
                 </fieldset>
                 <fieldset className="gm-production-start" aria-label="Ordinary production start">
+                  <UnionCraftStartingHostPanel />
                   <legend>Ordinary production start</legend>
                   <p className="gm-role-setup__note">
                     The server derives the routine Wolf count and private loyalty cards from the locked roster.
