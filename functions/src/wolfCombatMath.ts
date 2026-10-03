@@ -266,6 +266,11 @@ export interface WolfRangeTargetShift extends WolfRangeTargetShiftChoice {
   readonly toDie: number;
 }
 
+export type WolfRangeTargetShiftPlan = Readonly<{
+  choices: readonly WolfRangeTargetShiftChoice[];
+  ring: WolfTargetRing;
+}>;
+
 export interface WolfDiceReceipt {
   readonly actionId: string;
   readonly sourceId: string;
@@ -277,6 +282,8 @@ export interface WolfDiceReceipt {
 
 export interface WolfRangeReceipt {
   readonly range: WolfCombatRange;
+  /** Entire committed roster in stable order before this range's shifts or damage. */
+  readonly targetSnapshot: readonly Readonly<{ instanceId: string; target: WolfFleetTargetId }>[];
   readonly dice: readonly WolfDiceReceipt[];
   readonly assignments: readonly WolfRangeAssignment[];
   /** Ordered server-resolved Medium fighter target changes. */
@@ -375,6 +382,9 @@ export function resolveWolfRangeTargetShifts(input: Readonly<{
         (choice.sourceId === 'maliades' && choice.choiceIndex !== 0)) {
       throw new Error('A Wolf range target shift choice is malformed.');
     }
+    if (input.roster[choice.rosterIndex]?.destroyed) {
+      throw new Error('A destroyed Wolf ship cannot have its target shifted.');
+    }
     const key = `${choice.sourceId}:${choice.choiceIndex}`;
     if (seenChoices.has(key)) throw new Error('A fighter choice may shift at most one Wolf target per range.');
     seenChoices.add(key);
@@ -392,6 +402,58 @@ export function resolveWolfRangeTargetShifts(input: Readonly<{
     return { ...choice, fromDie, toDie };
   });
   return deepFreeze({ roster, currentDice, targetShifts });
+}
+
+/** Replay one receipt's ordered fighter shifts from its immutable pre-range target snapshot. */
+export function replayWolfRangeTargetSnapshot(
+  targetSnapshot: readonly Readonly<{ instanceId: string; target: WolfFleetTargetId }>[],
+  targetShifts: readonly WolfRangeTargetShift[],
+  ring: WolfTargetRing,
+): readonly Readonly<{ instanceId: string; target: WolfFleetTargetId }>[] {
+  targetRingIsValid(ring);
+  if (!Array.isArray(targetSnapshot) || !Array.isArray(targetShifts) ||
+      targetSnapshot.some((entry) => !entry || typeof entry.instanceId !== 'string' || !entry.instanceId ||
+        !ring.includes(entry.target)) || new Set(targetSnapshot.map(({ instanceId }) => instanceId)).size !== targetSnapshot.length) {
+    throw new Error('A Wolf range target snapshot is malformed for its configured ring.');
+  }
+  if (targetShifts.length === 0) {
+    return deepFreeze(targetSnapshot.map(({ instanceId, target }) => ({ instanceId, target })));
+  }
+  const sourceId = targetShifts[0]!.sourceId;
+  if (!['aegis-alpha-wing', 'aegis-bravo-wing', 'maliades', 'pdf-escort-wing'].includes(sourceId)) {
+    throw new Error('A Wolf range target shift source is malformed.');
+  }
+  const currentDice = targetSnapshot.map(({ target }) => wolfTargetNumberForRangeSource(sourceId, target, ring));
+  const ordered = [...targetShifts].sort((left, right) =>
+    left.sourceId.localeCompare(right.sourceId) || left.choiceIndex - right.choiceIndex);
+  if (JSON.stringify(ordered) !== JSON.stringify(targetShifts)) {
+    throw new Error('Wolf range target shifts must be in canonical source and choice order.');
+  }
+  const seenChoices = new Set<string>();
+  for (const entry of targetShifts) {
+    if (!entry || !['aegis-alpha-wing', 'aegis-bravo-wing', 'maliades', 'pdf-escort-wing'].includes(entry.sourceId) ||
+        !Number.isSafeInteger(entry.choiceIndex) || entry.choiceIndex < 0 ||
+        !Number.isSafeInteger(entry.rosterIndex) || entry.rosterIndex < 0 || entry.rosterIndex >= targetSnapshot.length ||
+        (entry.shift !== -1 && entry.shift !== 1) ||
+        (entry.sourceId === 'maliades' && entry.choiceIndex !== 0) ||
+        !Number.isSafeInteger(entry.fromDie) || entry.fromDie < 0 || entry.fromDie > 7 ||
+        !Number.isSafeInteger(entry.toDie) || entry.toDie < 0 || entry.toDie > 7) {
+      throw new Error('A Wolf range target shift receipt is malformed.');
+    }
+    const key = `${entry.sourceId}:${entry.choiceIndex}`;
+    if (seenChoices.has(key)) throw new Error('A fighter choice may shift at most one Wolf target per range.');
+    seenChoices.add(key);
+    const currentDie = currentDice[entry.rosterIndex]!;
+    if (entry.fromDie !== currentDie ||
+        entry.toDie !== applyWolfRangeTargetShift(entry.sourceId, currentDie, entry.shift, ring)) {
+      throw new Error('A Wolf range target shift does not replay from its target snapshot.');
+    }
+    currentDice[entry.rosterIndex] = entry.toDie;
+  }
+  return deepFreeze(targetSnapshot.map(({ instanceId }, index) => ({
+    instanceId,
+    target: wolfTargetForRangeTargetNumber(sourceId, currentDice[index]!, ring),
+  })));
 }
 
 /** Private, immutable dice samples committed before any player target assignment. */
@@ -515,6 +577,7 @@ export function resolveWolfRange(
   assignments: readonly WolfRangeAssignment[],
   roster: readonly WolfCombatShip[],
   random: WolfRandomInt = secureRandomInt,
+  targetShiftPlan?: WolfRangeTargetShiftPlan,
 ): { readonly roster: readonly WolfCombatShip[]; readonly receipt: WolfRangeReceipt } {
   if (range !== 'long-range' && range !== 'medium-range' && range !== 'short-range') {
     throw new Error('Unknown Wolf combat range.');
@@ -529,13 +592,26 @@ export function resolveWolfRange(
   if (assignments.some(assignment => !actionIds.includes(assignment.actionId))) {
     throw new Error('A Wolf range assignment names an unknown action.');
   }
+  if (targetShiftPlan && range !== 'medium-range' && targetShiftPlan.choices.length > 0) {
+    throw new Error('Wolf fighter target shifts are only available at Medium Range.');
+  }
+  const targetSnapshot = roster.map(({ instanceId, target }) => ({ instanceId, target }));
+  const targetShiftResolution = targetShiftPlan && targetShiftPlan.choices.length > 0
+    ? resolveWolfRangeTargetShifts({
+      roster,
+      currentDice: roster.map(({ target }) =>
+        wolfTargetNumberForRangeSource(targetShiftPlan.choices[0]!.sourceId, target, targetShiftPlan.ring)),
+      choices: targetShiftPlan.choices,
+      ring: targetShiftPlan.ring,
+    })
+    : { roster, targetShifts: [] as readonly WolfRangeTargetShift[] };
   const assignmentMap = new Map(assignments.map(assignment => [assignment.actionId, assignment]));
   const rosterMap = rosterById(roster);
   const legalTargetIds = new Set(wolfRangeLegalTargetInstanceIds(range, roster));
   const dice: WolfDiceReceipt[] = [];
   const damageByInstance: Record<string, number> = {};
   const fleetDamage = damageRecord();
-  const nextRoster = new Map(rosterMap);
+  const nextRoster = new Map(rosterById(targetShiftResolution.roster));
   const destroyedInstanceIds: string[] = [];
   const rolledActions = rangeActions.map(action => {
     const hasDice = action.dice !== undefined;
@@ -606,27 +682,29 @@ export function resolveWolfRange(
         if (effect.kind === 'target-damage') addFleetDamage(fleetDamage, current.target, effect.amount);
       }
   }
+  const receipt: WolfRangeReceipt = {
+    range,
+    targetSnapshot,
+    dice,
+    // The returned receipt is frozen below. Clone caller-owned assignments so
+    // freezing that receipt cannot freeze a request object or its target list.
+    assignments: assignments
+      .filter(assignment => actionIds.includes(assignment.actionId))
+      .map(assignment => ({
+        actionId: assignment.actionId,
+        targetInstanceIds: [...assignment.targetInstanceIds],
+      })),
+    targetShifts: targetShiftResolution.targetShifts,
+    unusedHitsByAction: rolledActions
+      .filter(({ unusedHits }) => unusedHits > 0)
+      .map(({ action: { actionId }, unusedHits }) => ({ actionId, count: unusedHits })),
+    damageByInstance,
+    destroyedInstanceIds,
+    destructionDamageByTarget: fleetDamage,
+  };
   return {
     roster: [...nextRoster.values()],
-    receipt: {
-      range,
-      dice,
-      // The returned receipt is frozen below. Clone caller-owned assignments so
-      // freezing that receipt cannot freeze a request object or its target list.
-      assignments: assignments
-        .filter(assignment => actionIds.includes(assignment.actionId))
-        .map(assignment => ({
-          actionId: assignment.actionId,
-          targetInstanceIds: [...assignment.targetInstanceIds],
-        })),
-      targetShifts: [],
-      unusedHitsByAction: rolledActions
-        .filter(({ unusedHits }) => unusedHits > 0)
-        .map(({ action: { actionId }, unusedHits }) => ({ actionId, count: unusedHits })),
-      damageByInstance,
-      destroyedInstanceIds,
-      destructionDamageByTarget: fleetDamage,
-    },
+    receipt: deepFreeze(receipt),
   };
 }
 
@@ -637,6 +715,7 @@ export function resolveLockedWolfRange(input: Readonly<{
   locked: WolfRangeRollLock;
   assignments: readonly WolfRangeAssignment[];
   roster: readonly WolfCombatShip[];
+  targetShiftPlan?: WolfRangeTargetShiftPlan;
 }>): { readonly roster: readonly WolfCombatShip[]; readonly receipt: WolfRangeReceipt } {
   const actions = input.actions.filter(action => action.range === input.range);
   if (input.locked.range !== input.range || input.locked.dice.length !== actions.length ||
@@ -673,6 +752,7 @@ export function resolveLockedWolfRange(input: Readonly<{
       }
       return sample;
     },
+    input.targetShiftPlan,
   );
   const lockedReceipt = input.locked.dice.map(({ actionId, sourceId, range, rolls, successes, damage }) => ({
     actionId, sourceId, range, rolls, successes, damage,
