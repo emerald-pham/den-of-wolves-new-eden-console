@@ -639,6 +639,7 @@ import {
   type WolfCombatShip,
   type WolfRangeAction,
   type WolfRangeAssignment,
+  type WolfRangeTargetShiftChoice,
   type WolfRangeReceipt,
   type WolfRangeRollLock,
   type WolfBoardingDefence,
@@ -21066,14 +21067,17 @@ function wolfFighterLaunchGateState(input: Readonly<{
   return { choices, waiting, automatic };
 }
 
-type WolfFighterPassResolution = Readonly<{
-  status: 'not-applicable' | 'waiting' | 'unsupported' | 'passed';
+type WolfFighterRangeBundle = Readonly<{
+  status: 'not-applicable' | 'waiting' | 'unsupported' | 'ready';
   state?: AegisFighterWingCombatState;
   wingIds?: readonly WolfFighterRangeSourceId[];
+  actions?: readonly WolfRangeAction[];
+  actionTargets?: Readonly<Record<string, string>>;
+  shifts?: readonly WolfRangeTargetShiftChoice[];
 }>;
 
-/** Mark a deliberate zero-action AEGIS wing choice without drawing fighter dice. */
-function resolveWolfAegisFighterPasses(input: Readonly<{
+/** Collect committed AEGIS wing choices and mark their range state without drawing early. */
+function collectWolfAegisFighterRangeChoices(input: Readonly<{
   session: DocumentSnapshot;
   attack: DocumentSnapshot;
   pdfWing: DocumentSnapshot;
@@ -21082,7 +21086,7 @@ function resolveWolfAegisFighterPasses(input: Readonly<{
   range: unknown;
   turn: number;
   inputs: ReturnType<typeof requireWolfRangeState>;
-}>): WolfFighterPassResolution {
+}>): WolfFighterRangeBundle {
   if (input.range !== 'medium-range' && input.range !== 'short-range') return { status: 'not-applicable' };
   const attackId = input.attack.get('attackId');
   if (typeof attackId !== 'string' || !attackId) return { status: 'unsupported' };
@@ -21118,7 +21122,11 @@ function resolveWolfAegisFighterPasses(input: Readonly<{
   }
 
   let state = rawCombat;
-  const passed: WolfFighterRangeSourceId[] = [];
+  const resolved: WolfFighterRangeSourceId[] = [];
+  const actions: WolfRangeAction[] = [];
+  const actionTargets: Record<string, string> = {};
+  const shifts: WolfRangeTargetShiftChoice[] = [];
+  const legalTargets = new Set(wolfRangeLegalTargetInstanceIds(input.range, input.inputs.roster));
   for (const wingId of launchedWings) {
     if (launchChoices[wingId]?.status !== 'launched') return { status: 'unsupported' };
     const choice = byRange[wingId];
@@ -21131,7 +21139,31 @@ function resolveWolfAegisFighterPasses(input: Readonly<{
           choice.status !== 'committed' || choice.sourceId !== wingId || choice.range !== input.range ||
           choice.turn !== input.turn || choice.attackId !== attackId) return { status: 'unsupported' };
       if (input.range === 'medium-range') {
-        if (!Array.isArray(choice.actions) || choice.actions.length !== 0) return { status: 'unsupported' };
+        if (!Array.isArray(choice.actions)) return { status: 'unsupported' };
+        const seenIndexes = new Set<number>();
+        for (const action of choice.actions) {
+          if (!isRecord(action) || !Number.isSafeInteger(action.fighterIndex) ||
+              typeof action.targetInstanceId !== 'string' || !legalTargets.has(action.targetInstanceId) ||
+              seenIndexes.has(action.fighterIndex as number) ||
+              (action.kind !== 'attack' && action.kind !== 'target-shift')) return { status: 'unsupported' };
+          const fighterIndex = action.fighterIndex as number;
+          if (fighterIndex < 0 || fighterIndex >= rawCombat.wings[wingId].fighters) return { status: 'unsupported' };
+          seenIndexes.add(fighterIndex);
+          const rosterIndex = input.inputs.roster.findIndex(({ instanceId }) => instanceId === action.targetInstanceId);
+          if (rosterIndex < 0) return { status: 'unsupported' };
+          if (action.kind === 'target-shift') {
+            if ((action.shift !== -1 && action.shift !== 1) || !Number.isSafeInteger(action.targetNumber)) {
+              return { status: 'unsupported' };
+            }
+            shifts.push({ sourceId: fighterRangeShiftSource(wingId), choiceIndex: fighterIndex,
+              rosterIndex, shift: action.shift });
+          } else {
+            const actionId = `${fighterRangeShiftSource(wingId)}-medium-${fighterIndex}`;
+            actions.push({ actionId, sourceId: fighterRangeShiftSource(wingId), range: 'medium-range',
+              dice: { sides: 6, count: 1, successAt: 5, damagePerSuccess: 1 }, maxTargets: 1 });
+            actionTargets[actionId] = action.targetInstanceId;
+          }
+        }
       } else if (!Array.isArray(choice.fighterIndexes) || choice.fighterIndexes.length !== 0) {
         return { status: 'unsupported' };
       }
@@ -21147,9 +21179,37 @@ function resolveWolfAegisFighterPasses(input: Readonly<{
           fighterIndexes: [], random: () => 0,
         }).state;
     } catch { return { status: 'unsupported' }; }
-    passed.push(wingId);
+    resolved.push(wingId);
   }
-  return { status: 'passed', state, wingIds: passed };
+  return { status: 'ready', state, wingIds: resolved, actions, actionTargets, shifts };
+}
+
+function appendWolfFighterRangeMemberResults(
+  existing: unknown,
+  bundle: WolfFighterRangeBundle,
+  applied: ReturnType<typeof resolveLockedWolfRange> | undefined,
+  roster: readonly WolfCombatShip[],
+  range: WolfCombatRange,
+  committedAt: string,
+): unknown[] {
+  const results = Array.isArray(existing) ? [...existing] : [];
+  if (!applied) return results;
+  for (const action of bundle.actions ?? []) {
+    const targetInstanceId = bundle.actionTargets?.[action.actionId];
+    const shipIndex = roster.findIndex(({ instanceId }) => instanceId === targetInstanceId);
+    const roll = applied.receipt.dice.find(({ actionId }) => actionId === action.actionId);
+    if (shipIndex < 0 || !targetInstanceId || !roll) continue;
+    const ship = roster[shipIndex]!;
+    const wingLabel = action.sourceId === 'aegis-alpha-wing' ? 'Alpha' : 'Bravo';
+    results.push({
+      status: 'committed', range, sourceId: action.sourceId, targetId: ship.target, bearing: null,
+      contactReference: `Wolf contact ${shipIndex + 1}`,
+      effect: roll.successes > 0 ? `${wingLabel} Fighter Wing attack hit` : `${wingLabel} Fighter Wing attack missed`,
+      outcome: { damage: roll.damage, destroyed: applied.receipt.destroyedInstanceIds.includes(targetInstanceId) },
+      serverTime: committedAt,
+    });
+  }
+  return results;
 }
 
 /** Build the bounded GM-only decision status without copying combat inputs or dice. */
@@ -22002,20 +22062,38 @@ async function reconcileWolfAttackProgress(sessionId: string): Promise<void> {
     try { inputs = requireWolfRangeState(session, state, step); } catch { return; }
     const prior = wolfRangeDecisionValue(state, step);
     if (prior !== undefined) return;
-    let fighterPass: WolfFighterPassResolution;
+    let fighterBundle: WolfFighterRangeBundle;
     try {
-      fighterPass = resolveWolfAegisFighterPasses({
+      fighterBundle = collectWolfAegisFighterRangeChoices({
         session, attack: state, pdfWing, players: players.docs, fleetGroups: fleetGroups.docs,
         range: step, turn: inputs.turn, inputs,
       });
     } catch { return; }
     // A connected launched wing owns a real per-range decision. Keep the
-    // phase open until it chooses, and keep unsupported attack subsets open
-    // for the range assignment path instead of discarding them as a pass.
-    if (fighterPass.status === 'waiting' || fighterPass.status === 'unsupported') return;
+    // phase open until it chooses, and keep incomplete source bundles open.
+    if (fighterBundle.status === 'waiting' || fighterBundle.status === 'unsupported') return;
     const executiveOfficerRoleConfigured = sessionActiveRoleIds(session).includes('executive-officer');
     const hasCurrentExecutiveOfficer = currentWolfAegisExecutiveOfficers(players.docs, fleetGroups.docs).length > 0;
     if (inputs.actions.length > 0 && executiveOfficerRoleConfigured && hasCurrentExecutiveOfficer) return;
+    let fighterApplied: ReturnType<typeof resolveLockedWolfRange> | undefined;
+    let fighterLock: WolfRangeRollLock | undefined;
+    let fighterAssignments: WolfRangeAssignment[] = [];
+    if (fighterBundle.status === 'ready') {
+      const fighterActions = fighterBundle.actions ?? [];
+      try {
+        fighterLock = lockWolfRangeActions(step, fighterActions, (upperBound) => randomInt(upperBound));
+        fighterAssignments = fighterLock.dice.map((roll) => ({ actionId: roll.actionId,
+          targetInstanceIds: (fighterBundle.actionTargets?.[roll.actionId] && roll.successes > 0)
+            ? [fighterBundle.actionTargets[roll.actionId]!] : [],
+        }));
+        fighterApplied = resolveLockedWolfRange({ range: step, actions: fighterActions, locked: fighterLock,
+          assignments: fighterAssignments, roster: inputs.roster,
+          ...(fighterBundle.shifts && fighterBundle.shifts.length > 0 ? {
+            targetShiftPlan: { choices: fighterBundle.shifts, ring: inputs.receipt.ring },
+          } : {}),
+        });
+      } catch { return; }
+    }
     const nextRevision = inputs.revision + 1;
     const nextStep = wolfAttackNextStep(step);
     if (!nextStep) return;
@@ -22023,7 +22101,7 @@ async function reconcileWolfAttackProgress(sessionId: string): Promise<void> {
     if (inputs.actions.length > 0) {
       const committedAt = new Date().toISOString();
       const reason = !executiveOfficerRoleConfigured ? 'no-configured-executive-officer' : 'no-current-executive-officer';
-      const emptyReceipt: WolfRangeReceipt = {
+      const emptyReceipt: WolfRangeReceipt = fighterApplied?.receipt ?? {
         range: step, targetSnapshot: inputs.roster.map(({ instanceId, target }) => ({ instanceId, target })),
         dice: [], assignments: [], targetShifts: [], unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
         destructionDamageByTarget: Object.fromEntries(inputs.receipt.ring.map((target) => [target, 0])) as Record<WolfFleetTargetId, number>,
@@ -22040,12 +22118,16 @@ async function reconcileWolfAttackProgress(sessionId: string): Promise<void> {
         effect: `AEGIS ${step.replace('-range', ' Range')} weapons unavailable; no current Executive Officer can choose them`,
         outcome: { damage: 0 }, serverTime: committedAt,
       });
+      const publicResults = appendWolfFighterRangeMemberResults(
+        memberResults, fighterBundle, fighterApplied, inputs.roster, step, committedAt,
+      );
       tx.update(stateRef, {
         revision: nextRevision, currentStep: nextStep,
         rangeDecisions: { ...rangeDecisions, [step]: unavailableDecision },
         rangeReceipts: [...(Array.isArray(state.get('rangeReceipts')) ? state.get('rangeReceipts') : []), emptyReceipt],
-        memberResults,
-        ...(fighterPass.state ? { aegisFighterWingState: fighterPass.state } : {}),
+        memberResults: publicResults,
+        ...(fighterBundle.state ? { aegisFighterWingState: fighterBundle.state } : {}),
+        ...(fighterApplied ? { combatRoster: fighterApplied.roster } : {}),
         updatedAt: FieldValue.serverTimestamp(),
       });
       tx.set(db.doc(`${stateRef.path}/audit/auto-${step}-${inputs.turn}`), {
@@ -22056,29 +22138,42 @@ async function reconcileWolfAttackProgress(sessionId: string): Promise<void> {
       });
       return;
     }
-    const emptyReceipt = {
+    const emptyReceipt: WolfRangeReceipt = fighterApplied?.receipt ?? {
       range: step, targetSnapshot: inputs.roster.map(({ instanceId, target }) => ({ instanceId, target })),
       dice: [], assignments: [], targetShifts: [], unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
       destructionDamageByTarget: Object.fromEntries(inputs.receipt.ring.map((target) => [target, 0])),
     };
+    const rangeHasFighterEffect = Boolean(fighterApplied &&
+      (fighterApplied.receipt.dice.length > 0 || fighterApplied.receipt.targetShifts.length > 0));
+    const committedAt = new Date().toISOString();
     const decision = {
-      status: 'auto-passed', range: step, actorUid: 'server', actorRoleId: 'server',
-      requestId: `wolf-no-${step}-${inputs.turn}`, actionIds: [], lock: { range: step, dice: [] },
-      assignments: [], receipt: emptyReceipt, committedAt: new Date().toISOString(),
-      reason: fighterPass.status === 'passed'
+      status: rangeHasFighterEffect ? 'auto-resolved' : 'auto-passed',
+      range: step, actorUid: 'server', actorRoleId: 'server',
+      requestId: `wolf-no-${step}-${inputs.turn}`, actionIds: fighterLock?.dice.map(({ actionId }) => actionId) ?? [],
+      lock: fighterLock ?? { range: step, dice: [] },
+      assignments: fighterAssignments, receipt: emptyReceipt, committedAt,
+      reason: rangeHasFighterEffect ? 'launched-AEGIS-fighter-actions-resolved'
+        : fighterBundle.status === 'ready'
         ? 'launched-AEGIS-wings-explicitly-passed' : 'no-charged-undamaged-base-AEGIS-action',
     };
+    const memberResults = appendWolfFighterRangeMemberResults(
+      state.get('memberResults'), fighterBundle, fighterApplied, inputs.roster, step, committedAt,
+    );
     tx.update(stateRef, {
       revision: nextRevision, currentStep: nextStep,
       rangeDecisions: { ...rangeDecisions, [step]: decision },
       rangeReceipts: [...(Array.isArray(state.get('rangeReceipts')) ? state.get('rangeReceipts') : []), emptyReceipt],
-      ...(fighterPass.state ? { aegisFighterWingState: fighterPass.state } : {}),
+      ...(fighterBundle.state ? { aegisFighterWingState: fighterBundle.state } : {}),
+      ...(fighterApplied ? { combatRoster: fighterApplied.roster } : {}),
+      ...(memberResults.length > (Array.isArray(state.get('memberResults')) ? state.get('memberResults').length : 0)
+        ? { memberResults } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
     tx.set(db.doc(`${stateRef.path}/audit/auto-${step}-${inputs.turn}`), {
       type: 'wolf-range-automatic-no-action', range: step, fromStep: step, toStep: nextStep,
       turn: inputs.turn, revision: nextRevision, actorUid: 'server', reason: decision.reason,
-      fighterWingChoices: fighterPass.wingIds ?? [],
+      fighterWingChoices: fighterBundle.wingIds ?? [],
+      ...(fighterApplied ? { receipt: fighterApplied.receipt } : {}),
       deadlineAt: inputs.deadlineAt, createdAt: FieldValue.serverTimestamp(),
     });
   });
