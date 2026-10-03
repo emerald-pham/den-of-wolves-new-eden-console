@@ -15612,8 +15612,9 @@ export const sendScoutTaxiTransfer = onCall(async request => {
     tx.create(auditRef, { type: 'fleet-group-scout-taxi-transfer', sessionId: data.sessionId, requestId: data.requestId,
       actorUid: uid, shuttleId: data.shuttleId, cycle: data.expectedCycle,
       sourceGroupId: plan.sourceGroupId, targetGroupId: plan.targetGroupId, targetShipId: plan.targetShipId,
-      payload: data.payload, routeDistance: route.distance, sourceFuelRemaining: plan.kind === 'fuel' ? plan.sourceFuel : undefined,
-      targetFuelAfter: plan.kind === 'fuel' ? plan.targetFuel : undefined, fleetPartitionRevision: partitionNextRevision,
+      payload: data.payload, routeDistance: route.distance,
+      ...(plan.kind === 'fuel' ? { sourceFuelRemaining: plan.sourceFuel, targetFuelAfter: plan.targetFuel } : {}),
+      fleetPartitionRevision: partitionNextRevision,
       createdAt: FieldValue.serverTimestamp() });
     tx.create(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
