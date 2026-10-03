@@ -4,8 +4,8 @@ import {createPc07AuthenticatedSession} from './pc07-authenticated-session.mjs';
 
 /** Real local commands compose maintenance, transit and declaration. Only the
  * disposable clock is accelerated; no resources, dice or attack results seed. */
-export async function createPc07AttackHttpSession({beforeDeclaration}={}) {
- const f=await createPc07AuthenticatedSession('PC07 ordinary attack and airspace proof',12);
+export async function createPc07AttackHttpSession({beforeDeclaration,playerCount=12,reactorConsoles=['jump-drive'],rationLevel=1}={}) {
+ const f=await createPc07AuthenticatedSession('PC07 ordinary attack and airspace proof',playerCount);
  const {db,gm,instanceId,session,sessionId,call,ok}=f;
  try {
   const lease=(await db.doc(`sessions/${sessionId}/gmInstances/${instanceId}`).get()).data();
@@ -14,8 +14,8 @@ export async function createPc07AttackHttpSession({beforeDeclaration}={}) {
   let revision=0;
   for(const action of ['begin','storage','rations','unrest','riot','reactor','bays','bays','end']) {
    const data={sessionId,instanceId,shipId:'aegis',action,expectedRevision:revision,requestId:randomUUID(),
-    ...(action==='rations'?{foodLevel:1,waterLevel:1}:{}),
-    ...(action==='reactor'?{consoles:['jump-drive']}:{}),
+    ...(action==='rations'?{foodLevel:rationLevel,waterLevel:rationLevel}:{}),
+    ...(action==='reactor'?{consoles:reactorConsoles}:{}),
     ...(action==='bays'?{refuels:revision===6?{'shuttle-bay-zeta':'starlight'}:{}}:{})};
    const reply=ok(await call(gm,'runMaintenance',data),`maintenance ${action}`);revision=reply.cycle.revision;
   }
