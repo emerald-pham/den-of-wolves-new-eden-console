@@ -108,10 +108,26 @@ test('PC08 real-presenter review is isolated and usable in eight viewport and mo
                 assert.ok(frame.width > 100 && frame.height > 100 && frame.left >= slot.left - 1 && frame.top >= slot.top - 1 && frame.right <= slot.right + 1 && frame.bottom <= slot.bottom + 1,
                   `${width}px ${reducedMotion}: plot containment ${JSON.stringify(geometry)}`);
               };
+              const dockedTagsContained = async () => {
+                const escaped = await page.locator('.contact-plot__docked-craft').evaluateAll(tags => tags.flatMap(tag => {
+                  const text = document.createRange(); text.selectNodeContents(tag);
+                  const painted = text.getBoundingClientRect();
+                  if (painted.width === 0 || painted.height === 0) return [];
+                  const frame = tag.closest('.contact-plot').getBoundingClientRect();
+                  return painted.left < frame.left - 1 || painted.right > frame.right + 1 ||
+                    painted.top < frame.top - 1 || painted.bottom > frame.bottom + 1
+                    ? [{text: tag.textContent, painted: {left: painted.left, right: painted.right, top: painted.top, bottom: painted.bottom},
+                      frame: {left: frame.left, right: frame.right, top: frame.top, bottom: frame.bottom}}] : [];
+                }));
+                assert.deepEqual(escaped, [], `${width}px ${reducedMotion}: clipped docked craft glyphs`);
+              };
               await contained();
+              await dockedTagsContained();
               await page.locator('.ship-plot__toggle').click();
               await page.waitForFunction(() => document.querySelector('.ship-plot')?.dataset.expanded === 'true');
               await contained();
+              await dockedTagsContained();
+              await page.screenshot({path: `${directory}/${width}x${height}-${reducedMotion}-dradis-expanded.png`, fullPage: true});
               await page.locator('.ship-plot__close').click();
               await page.waitForFunction(() => document.querySelector('.ship-plot')?.dataset.expanded === 'false');
               await contained();
@@ -120,6 +136,7 @@ test('PC08 real-presenter review is isolated and usable in eight viewport and mo
               assert.match(await page.locator('.ship-plot').textContent(), /UNAVAILABLE/);
               await page.getByRole('button', {name: 'Current server sample', exact: true}).click();
               await page.getByRole('button', {name: 'rejoined sample', exact: true}).click();
+              await dockedTagsContained();
             } else if (index === 1) {
               await page.getByRole('checkbox', {name: 'Missile launchers', exact: true}).check();
               await page.getByRole('button', {name: 'Use selected actions', exact: true}).click();
