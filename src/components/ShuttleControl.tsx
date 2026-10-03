@@ -49,6 +49,7 @@ import type {
   BlacksmithRepairStaleResult,
 } from '@/lib/blacksmithRepairService';
 import './ShuttleControl.css';
+import AirspaceStatusView from './AirspaceStatusView';
 import {
   captureSessionAuthority,
   isCurrentSessionAuthority,
@@ -433,7 +434,10 @@ export default function ShuttleControl({ control }: Props) {
     };
   }, [airspaceDeadline]);
   const currentClockTime = Math.max(deadlineClock, Date.now());
-  const departureWindowOpen = session.phase === 'active' &&
+  const movementAuthorityCurrent = connection === 'live' && snapshotFreshness === 'server' && hasFreshSessionAuthority();
+  const missionCommitted = Boolean(session.missionCraftCommitments?.[control.shuttleId]);
+  const departureWindowOpen = movementAuthorityCurrent && !missionCommitted && session.phase === 'active' &&
+    session.turnPhase?.turn === session.currentTurn &&
     (session.turnPhase?.airspace.state === 'lifted' || pressMovementException) &&
     !session.turnPhase?.timerPause &&
     currentClockTime < airspaceDeadline;
@@ -1039,6 +1043,8 @@ export default function ShuttleControl({ control }: Props) {
     {canRequestDeparture && <section aria-label="Shuttle departure">
       <p className="console-workspace__eyebrow">Flight plan // server authorised</p>
       <h4>Request departure</h4>
+      <AirspaceStatusView phase={session.turnPhase} current={movementAuthorityCurrent}
+        restriction={missionCommitted ? 'craft committed to an away mission.' : undefined} />
       {transit ? <>
         <p>
           In transit to {findShip(transit.destinationShipId)?.name ?? transit.destinationShipId}.
