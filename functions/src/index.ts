@@ -21386,7 +21386,10 @@ async function reconcileWolfAttackProgress(sessionId: string): Promise<void> {
     if (!session.exists || !state.exists || state.get('status') !== 'declared' ||
         state.get('airspaceLocked') !== true) return;
     const decisionSummary = wolfAttackDecisionSummary(session, state, players.docs, fleetGroups.docs);
-    if (decisionSummary && JSON.stringify(state.get('decisionSummary')) !== JSON.stringify(decisionSummary)) {
+    const summaryChanged = decisionSummary && JSON.stringify(state.get('decisionSummary')) !== JSON.stringify(decisionSummary);
+    // Boarding can still read the current casualty alert audience. Defer this
+    // projection write until those reads finish, preserving Firestore ordering.
+    if (summaryChanged && state.get('currentStep') !== 'boarding') {
       tx.update(stateRef, { decisionSummary, updatedAt: FieldValue.serverTimestamp() });
     }
     const phase = turnPhaseState(session.get('turnPhase'));
@@ -21514,6 +21517,7 @@ async function reconcileWolfAttackProgress(sessionId: string): Promise<void> {
     const step = state.get('currentStep');
     if (step === 'boarding') {
       await reconcileWolfAttackBoarding(tx, sessionId, session, state, players.docs, finalizationCache);
+      if (summaryChanged) tx.update(stateRef, { decisionSummary, updatedAt: FieldValue.serverTimestamp() });
       return;
     }
     if (!isWolfCombatRange(step)) return;
