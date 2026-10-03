@@ -46,6 +46,8 @@ vi.mock('@/lib/sessionService', () => ({
   stageWolfAttackPreparation: vi.fn(),
   declareWolfAttack: vi.fn(),
   advanceWolfAttackToLongRange: vi.fn(),
+  commitWolfBoardingSpecialChoice: vi.fn(),
+  getWolfBoardingSpecialChoice: vi.fn(),
   startWolfConsoleVisit: vi.fn(),
   resolveWolfConsoleSabotage: vi.fn(),
   setEmergencyTimerPaused: vi.fn(),
@@ -76,6 +78,7 @@ vi.mock('@/lib/firestore', () => ({
   subscribeGmWolfAttackWindow: vi.fn(),
   subscribeGmWolfAttackPreparation: vi.fn(),
   subscribeGmWolfAttackState: vi.fn(),
+  subscribeWolfAttackMemberView: vi.fn(),
   subscribeGmWolfAssignment: vi.fn(),
   subscribeGmWolfActionReceipt: vi.fn(),
   subscribeGmWolfSuspicionHistory: vi.fn(),
@@ -112,7 +115,7 @@ const { kickGmInstance, kickPlayer, assignRole, releaseRole, setReplacementEligi
   confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, deliverWolfCultIntelligence, authorUniversalArbourVision, authorFacilitatorRuleCall, setCandidatePlanCheckpoint, transitionCrisis, setDiseaseQuarantine, admitVoyage33, recordZealotryResponse, recordCivilUnrestResolution, applyShipCounterSteps, scavengeDestroyedShipStores, triggerDradisContact,
   setFighterWingCount } =
   await import('@/lib/sessionService');
-const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeReplacementEligibility, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeGmWolfAssignment, subscribeGmWolfActionReceipt, subscribeGmWolfSuspicionHistory, subscribeGmWolfClueDisclosure, subscribeGmWolfCultIntelligence, subscribeGmArbourVision, subscribeGmFacilitatorRuleCall, subscribeGmCrisisState, subscribeGmZealotryResponse, subscribeGmCivilUnrestResolution, subscribeGmArrestPosseCalculation, subscribeSessionEvents, subscribeDamageDraws } =
+const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeReplacementEligibility, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeWolfAttackMemberView, subscribeGmWolfAssignment, subscribeGmWolfActionReceipt, subscribeGmWolfSuspicionHistory, subscribeGmWolfClueDisclosure, subscribeGmWolfCultIntelligence, subscribeGmArbourVision, subscribeGmFacilitatorRuleCall, subscribeGmCrisisState, subscribeGmZealotryResponse, subscribeGmCivilUnrestResolution, subscribeGmArrestPosseCalculation, subscribeSessionEvents, subscribeDamageDraws } =
   await import('@/lib/firestore');
 const { runSmallShipMaintenance } = await import('@/lib/smallShipService');
 
@@ -229,6 +232,10 @@ beforeEach(() => {
   });
   vi.mocked(subscribeGmWolfAttackState).mockImplementation((_sessionId, onState) => {
     onState(null);
+    return vi.fn();
+  });
+  vi.mocked(subscribeWolfAttackMemberView).mockImplementation((_sessionId, onView) => {
+    onView(null);
     return vi.fn();
   });
   vi.mocked(subscribeGmWolfAssignment).mockImplementation((_sessionId, onAssignment) => {
@@ -3588,6 +3595,71 @@ it('lets the facilitator mark and resolve the approximate Wolf window without st
   await waitFor(() => expect(turnControls).toHaveTextContent(
     /wolf-attack timing \/\/ resolved \/\/ cycle 1 \/\/ revision 2/i,
   ));
+});
+
+it('offers a later attack window only after the current attack has finalized', async () => {
+  const user = userEvent.setup();
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    phase: 'active', currentTurn: 2,
+    turnPhase: {
+      turn: 2,
+      teamPhaseEndsAt: new Date(Date.now() - 1_000).toISOString(),
+      openAirspaceEndsAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+    },
+  } as never);
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(subscribeGmWolfAttackWindow).mockImplementation((_sessionId, onWindow) => {
+    onWindow({ status: 'resolved', turn: 1, revision: 2 });
+    return vi.fn();
+  });
+  vi.mocked(subscribeGmWolfAttackState).mockImplementation((_sessionId, onState) => {
+    onState({
+      type: 'wolf-attack-state', status: 'resolved', currentStep: 'resolved', turn: 1, attackNumber: 1,
+      revision: 4, attackId: 'wolf-attack-first', deadlineAt: new Date(Date.now()).toISOString(),
+      airspaceLocked: false, parkingReleaseCondition: 'normal-movement-reopened',
+    } as never);
+    return vi.fn();
+  });
+  vi.mocked(setWolfAttackWindow).mockResolvedValue({ status: 'due', turn: 2, revision: 3 });
+  renderConsole();
+
+  const controls = await screen.findByRole('region', { name: /cycle controls/i });
+  const mark = within(controls).getByRole('button', { name: 'Mark next attack window due' });
+  expect(mark).toBeEnabled();
+  await user.click(mark);
+  expect(setWolfAttackWindow).toHaveBeenCalledWith('due', 2);
+});
+
+it('hides later attack-window authorization while an attack is pending or the printed repeat limit is reached', async () => {
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({ ...activeSession, phase: 'active', currentTurn: 3 });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(subscribeGmWolfAttackWindow).mockImplementation((_sessionId, onWindow) => {
+    onWindow({ status: 'resolved', turn: 2, revision: 4 });
+    return vi.fn();
+  });
+  vi.mocked(subscribeGmWolfAttackState).mockImplementation((_sessionId, onState) => {
+    onState({
+      type: 'wolf-attack-state', status: 'resolved', currentStep: 'resolved', turn: 2, attackNumber: 3,
+      revision: 9, attackId: 'wolf-attack-third', deadlineAt: new Date(Date.now()).toISOString(),
+      airspaceLocked: false, parkingReleaseCondition: 'normal-movement-reopened',
+    } as never);
+    return vi.fn();
+  });
+  renderConsole();
+
+  const controls = await screen.findByRole('region', { name: /cycle controls/i });
+  expect(within(controls).getByRole('button', { name: 'Mark timing due' })).toBeDisabled();
+  expect(within(controls).queryByRole('button', { name: 'Mark next attack window due' })).not.toBeInTheDocument();
 });
 
 it('stages the private composition with automatic server targeting', async () => {
