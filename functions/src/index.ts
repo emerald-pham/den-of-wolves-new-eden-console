@@ -625,6 +625,7 @@ import {
   lockWolfRangeActions,
   resolveLockedWolfRange,
   wolfRangeLegalTargetInstanceIds,
+  wolfRangeFixedTargetInstanceIds,
   replayWolfRangeTargetSnapshot,
   wolfCombatRoster,
   resolveWolfTargeting,
@@ -25261,7 +25262,7 @@ export const getWolfEscortRangeActionChoice = onCall<{ sessionId?: unknown; sour
       throw commandError('failed-precondition', 'The current escort choice is malformed.', 'conflict');
     }
     const combatSource = sourceId === 'maliades' ? 'maliades' : 'pdf-escort-wing';
-    const targets = wolfRangeLegalTargetInstanceIds(range, inputs.roster).map((instanceId) => {
+    const targets = wolfRangeFixedTargetInstanceIds(range, inputs.roster).map((instanceId) => {
       const index = inputs.roster.findIndex((ship) => ship.instanceId === instanceId);
       return { instanceId: wolfRangeContactId(index), label: `Wolf contact ${index + 1}`,
         targetNumber: wolfTargetNumberForRangeSource(combatSource, inputs.roster[index]!.target, inputs.receipt.ring) };
@@ -25347,7 +25348,7 @@ export const commitWolfEscortRangeActionChoice = onCall<{
       : (range === 'medium-range' ? state.pdf.mediumResolved : state.pdf.shortResolved);
     if (!state.launched || resolved || (sourceId === 'maliades' ? state.maliades.destroyed : state.pdf.fighters < 1) ||
         wolfEscortChoice(attack, range, sourceId) !== undefined) throw commandError('failed-precondition', 'This escort cannot make another action at this range.', 'conflict');
-    const legal = new Set(wolfRangeLegalTargetInstanceIds(range, inputs.roster).map((instanceId) => wolfRangeContactId(inputs.roster.findIndex((ship) => ship.instanceId === instanceId))));
+    const legal = new Set(wolfRangeFixedTargetInstanceIds(range, inputs.roster).map((instanceId) => wolfRangeContactId(inputs.roster.findIndex((ship) => ship.instanceId === instanceId))));
     const target = (id: string) => {
       if (!legal.has(id)) throw commandError('failed-precondition', 'The escort target is no longer available.', 'conflict');
       return inputs.roster[Number(id.slice('contact-'.length)) - 1]!;

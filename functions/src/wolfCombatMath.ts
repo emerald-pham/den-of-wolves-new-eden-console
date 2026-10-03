@@ -558,6 +558,18 @@ export function wolfRangeLegalTargetInstanceIds(
     .map(({ instanceId }) => instanceId);
 }
 
+/** Fixed targets chosen before dice cannot rely on unknown aggregate Wing coverage. */
+export function wolfRangeFixedTargetInstanceIds(
+  range: WolfCombatRange,
+  roster: readonly WolfCombatShip[],
+): readonly string[] {
+  if (range === 'short-range') {
+    const wings = roster.filter((ship) => !ship.destroyed && ship.shipId === 'wolf-fighter-wing');
+    if (wings.length > 0) return wings.map(({ instanceId }) => instanceId);
+  }
+  return wolfRangeLegalTargetInstanceIds(range, roster);
+}
+
 function damageRecord(): Record<WolfFleetTargetId, number> {
   return Object.fromEntries(EXPANDED_WOLF_TARGET_RING.map(id => [id, 0])) as Record<WolfFleetTargetId, number>;
 }

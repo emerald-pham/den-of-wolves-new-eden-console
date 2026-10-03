@@ -3,7 +3,7 @@ import { parsePdfEscortWingState, resolvePdfEscortWingMedium, resolvePdfEscortWi
   type PdfEscortWingState, type PdfEscortWingMediumAction } from './pdfEscortWingState';
 import { parseMaliadesState, resolveMaliadesMedium, resolveMaliadesShort,
   type MaliadesState, type MaliadesMediumChoice } from './maliadesState';
-import { wolfRangeLegalTargetInstanceIds, type WolfCombatRange, type WolfCombatShip, type WolfRangeAction,
+import { wolfRangeFixedTargetInstanceIds, type WolfCombatRange, type WolfCombatShip, type WolfRangeAction,
   type WolfRangeRollLock, type WolfRangeTargetShiftChoice, type WolfTargetRing } from './wolfCombatMath';
 
 export type WolfEscortSourceId = 'pdf-escort-fighter-wing' | 'maliades';
@@ -50,7 +50,7 @@ export function collectWolfEscortRange(input: Readonly<{
   const actions: WolfRangeAction[] = [];
   const actionTargets: Record<string, string> = {};
   const shifts: WolfRangeTargetShiftChoice[] = [];
-  const legal = new Set(wolfRangeLegalTargetInstanceIds(range, input.roster));
+  const legal = new Set(wolfRangeFixedTargetInstanceIds(range, input.roster));
   let pdfMedium: PdfEscortWingMediumAction[] = [];
   let maliadesMedium: MaliadesMediumChoice[] = [];
   let pdfShort: number[] = [];
