@@ -26,6 +26,16 @@ consumption. Unresolved, fabricated, undersized and stale reopen paths fail
 closed; replay cannot alter the prior result or include destroyed Wings.
 An explicit Medium whole-wing pass draws no dice or losses and cannot skip
 another entitled source's pending action.
+PDF Escort and Maliades use separate private escortRangeChoices and opaque
+contacts, current printed role/berth/custody and attack-scoped CAS receipts.
+Their choices join the same locked dice batch as AEGIS: no early dice, duplicate
+fighter action, target override, second loss or second self-damage on retry.
+Medium shifts precede damage; Short PDF losses and Maliades self-risk consume
+the already locked dice. Explicit zero-action source passes are durable.
+Enriched Warheads holds the targeting boundary for a current entitled EO,
+spends five AEGIS ore once, and applies this attack's Long damage/Medium threshold.
+Reasoned GM recovery cannot bypass that pending choice. GM status is bounded
+and private, and cache/role/custody switches withdraw mounted client controls.
 Root also closes the Union craft setup gap with a current authenticated GM
 starting-host choice. Check the pre-start window, confirmed Union roster,
 paired active hosts, setup revision, exact private receipt, manifest/history

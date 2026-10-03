@@ -468,3 +468,12 @@ the original assumption; append the resolution so the decision is traceable.
 | Source | Alpha/Bravo A4 single-sided v1.1 printed p. 36 says fighters can act at both ranges, with an either/or Medium attack or target shift. Its explicit up-to wording appears at Short Range. The PDF Escort Wing sheet supplies its corresponding independent choice. |
 | Chosen reading | Give the entitled wing holder an explicit whole-wing Medium pass when declining its available actions. Preserve one attack-or-shift per committed fighter. Record the pass against the current attack and revision before advancing. |
 | Alternatives and limits | The Medium whole-wing pass is a recorded digital choice where the sequence is silent; it is not attributed to explicit printed pass wording. It draws no dice, causes no losses, and cannot bypass another source's pending action. Source-owned validation and authenticated proof remain required. |
+
+### PC08-A8 — Durable optional Maliades range pass
+
+| Field | Decision |
+|---|---|
+| ID and checkpoint | PC08-A8, P397/P453; bounded choice under the owner's full PC08 execution authorization. |
+| Source | The named Maliades component supplies an optional Medium attack/target adjustment and up to two Short attacks, with their printed self-risk and three-damage destruction. Its incomplete digital sequencing does not specify a persisted pass marker. Source routing remains in the private library and PC08_RANGE_ASSUMPTIONS. |
+| Chosen reading | The current Engineer and Maliades holder may explicitly decline all actions at either range. Persist that zero-action choice for the current attack and revision; it participates in the same locked range batch as the other sources. |
+| Alternatives and limits | A pass consumes no dice, causes no self-damage, and cannot bypass another source's pending choice. A disconnected or away assigned owner stays pending; only a genuinely unavailable holder receives an audited automatic zero-action result. The explicit durable marker is a digital extension, not quoted printed pass text. |

@@ -1,9 +1,10 @@
 # PC08 playtest report
 
-**New assumptions come first.** [PC08-A1–A7](PRODUCT_MILESTONE_ASSUMPTIONS.md#pc08-a1--explicit-union-craft-starting-hosts)
+**New assumptions come first.** [PC08-A1–A8](PRODUCT_MILESTONE_ASSUMPTIONS.md#pc08-a1--explicit-union-craft-starting-hosts)
 record explicit Union starting hosts, current-range shift timing, durable
 launch-or-pass windows, simultaneous Short Range Wing priority and Boa's live
-target rule, a consumed next-attack return and an explicit Medium wing pass. These are bounded digital choices or source corrections; the
+target rule, a consumed next-attack return, an explicit Medium wing pass and a
+durable optional Maliades pass. These are bounded digital choices or source corrections; the
 printed component sheets still control costs, ranges, capacity and effects.
 The [range source notes](PC08_RANGE_ASSUMPTIONS.md) preserve precise references.
 The incomplete Commander consequence remains an explicit private facilitator

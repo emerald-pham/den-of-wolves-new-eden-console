@@ -120,3 +120,20 @@ Final catalog closure, version/changelog, deployment consumers and release
 records are reconciled once after worker integration. The acceptance matrix
 tracks every ID and current gap; completion remains pending until all gates
 and exact-main deployment pass.
+
+## Connected integration ownership
+
+The orchestrator took the complete Enriched Warheads and PDF Escort/Maliades
+range API, live console and client-authority groups after the range worker
+identified their missing connected consumers. Range retains the combined range
+collectors, three EO handlers, automatic range progression and the complete
+Highwall/Gorgoneion/Boa source group. Boarding retains its actual multi-target
+reroll/finalization repair and normal authenticated survivor consumer proof;
+DRADIS retains the standard and Union craft playthroughs. These are acknowledged
+bounded handoffs; checkpoint/release ownership remains with root.
+
+The actual live flight and enriched panels also needed stable subscription
+callbacks. A new mounted asynchronous-read test reproduced the disappearing
+controls in AEGIS wings and enriched warheads, and the new escort panels. The
+repair changes their callback lifetime without changing shared authority rules.
+Twenty-seven focused client checks and TypeScript pass after this integration.
