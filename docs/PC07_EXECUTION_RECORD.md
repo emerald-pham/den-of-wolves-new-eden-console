@@ -503,3 +503,12 @@ The actual GM timing marker copy was separately corrected in red `67ce97c4`
 and source `f8b0f949`. It now distinguishes explicit declaration from automatic
 legal stage progress after current player choices. The existing mark/resolve
 test still proves those timing commands do not declare combat.
+
+The current solo scene was rerendered after the Comms presenter integration and
+CIC status repair: eight responsive/motion cases complete all five steps with
+keyboard navigation, usable controls, actual font families and no gameplay,
+Auth, write or external request. The phone sharing/Comms-log screenshot and
+short-landscape attack result were visually inspected. Evidence is
+`solo-current-cic-comms/summary.json` (October 3 07:47 UTC); eight scene unit
+checks pass. This is explicitly prepared render evidence and not native attack
+or split acceptance. Final candidate gates remain separate.
