@@ -2,19 +2,36 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useSessionStore } from '@/store/useSessionStore';
-import PdfEscortWingReference from './PdfEscortWingReference';
+import PdfEscortWingReference, { PdfEscortWingLaunchPanelView } from './PdfEscortWingReference';
 
-const mocks = vi.hoisted(() => ({ read: vi.fn(), launch: vi.fn() }));
+const mocks = vi.hoisted(() => ({ read: vi.fn(), launch: vi.fn(), pass: vi.fn() }));
 
 vi.mock('@/lib/sessionService', () => ({
   getPdfEscortWingLaunch: mocks.read,
   launchPdfEscortWing: mocks.launch,
+  passWolfFighterLaunchChoice: mocks.pass,
 }));
 
 beforeEach(() => {
   useSessionStore.getState().reset();
   mocks.read.mockReset();
   mocks.launch.mockReset();
+  mocks.pass.mockReset();
+});
+
+it('shows the PDF wing pass as a separate current launch choice', async () => {
+  const user = userEvent.setup();
+  const view = {
+    type: 'pdf-escort-wing-launch-view', sessionId: 's1', turn: 2,
+    revision: 5, wingRevision: 3, launched: false, eligible: true,
+  } as const;
+  const onLaunch = vi.fn();
+  const onPass = vi.fn();
+  render(<PdfEscortWingLaunchPanelView view={view} canRead onLaunch={onLaunch} onPass={onPass} />);
+
+  await user.click(screen.getByRole('button', { name: 'Pass PDF Escort Wing' }));
+  expect(onPass).toHaveBeenCalledWith(view);
+  expect(onLaunch).not.toHaveBeenCalled();
 });
 
 describe('PDF Escort Wing reference', () => {

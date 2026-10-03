@@ -26,3 +26,16 @@ it('keeps Alpha and Bravo launch choices independent and explains an uncharged b
   expect(screen.getByRole('button', { name: /launch fighter wing bravo/i })).toBeDisabled();
   expect(screen.getByText(/charge Fighter Bay Bravo/i)).toBeVisible();
 });
+
+it('offers an explicit pass for each eligible independent wing choice', () => {
+  const onLaunch = vi.fn();
+  const onPass = vi.fn();
+  render(<AegisFighterWingLaunchPanelView views={{
+    'fighter-wing-alpha': alpha,
+    'fighter-wing-bravo': bravo,
+  }} onLaunch={onLaunch} onPass={onPass} />);
+
+  fireEvent.click(screen.getByRole('button', { name: /pass fighter wing alpha/i }));
+  expect(onPass).toHaveBeenCalledWith('fighter-wing-alpha', alpha);
+  expect(screen.queryByRole('button', { name: /pass fighter wing bravo/i })).not.toBeInTheDocument();
+});
