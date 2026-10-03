@@ -324,6 +324,9 @@ it('marks a charged range unavailable and continues when the fleet configuration
   });
   expect(testState.documents.get('sessions/s1/wolfAttackState/current/audit/auto-long-range-1'))
     .toMatchObject({ type: 'wolf-range-automatic-unavailable', range: 'long-range', toStep: 'medium-range' });
+  expect(state.rangeReceipts).toMatchObject([
+    { range: 'long-range', dice: [], assignments: [], unusedHitsByAction: [] },
+  ]);
 });
 
 it('keeps a charged range pending while the configured Executive Officer is disconnected', async () => {
@@ -427,4 +430,37 @@ it('commits only the target ship crew boarding choice, reserves teams, then auto
   await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
   expect(testState.documents.get('sessions/s1/wolfAttackState/current')!.revision).toBe(revision);
   expect(entropy.randomInt).toHaveBeenCalledTimes(drawCount);
+});
+
+it('keeps boarding pending through disconnect and requires a current mapped berth', async () => {
+  openBoardingFixture();
+  const player = testState.documents.get('sessions/s1/players/xo-1')!;
+  put('sessions/s1/players/xo-1', { ...player, connected: false });
+  await expect(getWolfBoardingDefenceChoice.run(request({ sessionId: 's1' })))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  put('sessions/s1/players/xo-1', player);
+  const group = testState.documents.get('sessions/s1/fleetGroups/fleet-1')!;
+  put('sessions/s1/fleetGroups/fleet-1', { ...group, memberShipIds: {} });
+  await expect(getWolfBoardingDefenceChoice.run(request({ sessionId: 's1' })))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  put('sessions/s1/fleetGroups/fleet-1', { ...group, memberShipIds: { 'xo-1': 'dione' } });
+  await expect(getWolfBoardingDefenceChoice.run(request({ sessionId: 's1' })))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current'))
+    .toMatchObject({ currentStep: 'boarding', boardingDefenceChoices: {} });
+});
+
+it('bounds the boarding choice by current resources and holds it during a session pause', async () => {
+  openBoardingFixture();
+  await expect(commitWolfBoardingDefenceChoice.run(request({
+    sessionId: 's1', requestId: 'too-many-teams', expectedTurn: 1, expectedRevision: 10,
+    targetShipId: 'aegis', securityTeams: 5,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  const session = testState.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session, turnPhase: { ...session.turnPhase as Fields,
+    timerPause: { reason: 'turn-interstitial', pausedAt: '2026-10-02T12:00:00.000Z', remainingMs: 5000 } } });
+  await expect(getWolfBoardingDefenceChoice.run(request({ sessionId: 's1' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect((testState.documents.get('sessions/s1').shipResources as Fields).aegis)
+    .toMatchObject({ securityTeams: 4 });
 });
