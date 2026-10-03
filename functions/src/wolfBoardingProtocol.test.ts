@@ -44,6 +44,7 @@ describe('Wolf boarding stage protocol', () => {
   it('keeps defence unresolved without an entitled actor and skips attacks with no boarders', () => {
     const noSpecialActors: WolfBoardingProtocolInput = {
       ...base, commanderUid: undefined, relocations: [],
+      crewActorUidsByTarget: { aegis: [], dione: [] },
       supportTargets: [], rollsLocked: true, diceCounts: { aegis: 0, dione: 0 },
       aegisRerollActorUid: undefined, pallasRerollActorUid: undefined,
     };
