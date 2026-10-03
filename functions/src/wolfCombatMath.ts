@@ -1146,28 +1146,45 @@ export function finalizeWolfAttack(input: WolfAttackFinalizationInput): WolfCalc
       JSON.stringify(targetRing) !== JSON.stringify(EXPANDED_WOLF_TARGET_RING)) {
     throw new Error('The configured Wolf target ring must match the supported five-, six-, or seven-ship order.');
   }
+  const rangeOrder = WOLF_ATTACK_RANGES.map(value => `${value}-range`);
   if (!input.targeting || JSON.stringify(input.targeting.ring) !== JSON.stringify(targetRing) ||
       !Array.isArray(input.targeting.rolls) || input.roster.length !== input.targeting.rolls.length ||
-      input.roster.some((ship, index) => !ship || ship.instanceId !== `${index}:${input.targeting.rolls[index]?.shipId}` ||
-        ship.shipId !== input.targeting.rolls[index]?.shipId || ship.target !== input.targeting.rolls[index]?.target ||
-        !targetRing.includes(ship.target) || !Number.isSafeInteger(ship.damageTaken) || ship.damageTaken < 0 ||
-        typeof ship.destroyed !== 'boolean')) {
-    throw new Error('The committed Wolf roster does not match its configured targeting receipt.');
+      !Array.isArray(input.ranges) || input.ranges.length !== rangeOrder.length ||
+      input.ranges.some((range, index) => range?.range !== rangeOrder[index])) {
+    throw new Error('The committed Wolf attack does not contain its ordered targeting and three range receipts.');
   }
-  const rangeOrder = WOLF_ATTACK_RANGES.map(value => `${value}-range`);
-  let lastRangeIndex = -1;
+  let replayRoster = [...wolfCombatRoster(input.targeting)];
+  if (replayRoster.some((ship) => !targetRing.includes(ship.target))) {
+    throw new Error('The targeting receipt contains a target outside its configured ring.');
+  }
+  const rangeDestructionDamage = damageRecord();
   const actionIds = new Set<string>();
   for (const range of input.ranges) {
-    const rangeIndex = rangeOrder.indexOf(range.range);
-    if (rangeIndex < 0 || rangeIndex <= lastRangeIndex || !Array.isArray(range.dice) ||
-        !Array.isArray(range.assignments) || !Array.isArray(range.unusedHitsByAction) ||
+    if (!Array.isArray(range.dice) || !Array.isArray(range.targetSnapshot) ||
+        !Array.isArray(range.targetShifts) || !Array.isArray(range.assignments) ||
+        !Array.isArray(range.unusedHitsByAction) ||
         !assertRecord(range.damageByInstance) || !Array.isArray(range.destroyedInstanceIds) ||
         !assertRecord(range.destructionDamageByTarget)) {
       throw new Error('Committed Wolf range receipts are malformed or out of order.');
     }
-    lastRangeIndex = rangeIndex;
+    const expectedSnapshot = replayRoster.map(({ instanceId, target }) => ({ instanceId, target }));
+    if (JSON.stringify(range.targetSnapshot) !== JSON.stringify(expectedSnapshot)) {
+      throw new Error(`The ${range.range} target snapshot does not match the preceding committed range.`);
+    }
+    if (range.range !== 'medium-range' && range.targetShifts.length > 0) {
+      throw new Error('Wolf target shifts are only valid during Medium Range.');
+    }
+    const effectiveTargets = replayWolfRangeTargetSnapshot(range.targetSnapshot, range.targetShifts, targetRing);
+    if (range.targetShifts.some((shift: WolfRangeTargetShift) => replayRoster[shift.rosterIndex]?.destroyed)) {
+      throw new Error('A destroyed Wolf ship cannot have its target shifted.');
+    }
+    replayRoster = replayRoster.map((ship, index) => ({ ...ship, target: effectiveTargets[index]!.target }));
+
+    const rangeActionIds = new Set<string>();
+    const successesByAction = new Map<string, number>();
     for (const die of range.dice) {
-      if (!die.actionId || actionIds.has(die.actionId) || die.range !== range.range ||
+      if (!die.actionId || typeof die.sourceId !== 'string' || !die.sourceId || actionIds.has(die.actionId) ||
+          die.range !== range.range ||
           !Number.isSafeInteger(die.successes) || die.successes < 0 ||
           !Number.isSafeInteger(die.damage) || die.damage < 0 ||
           !Array.isArray(die.rolls) || die.rolls.some((roll: number) =>
@@ -1175,29 +1192,80 @@ export function finalizeWolfAttack(input: WolfAttackFinalizationInput): WolfCalc
         throw new Error('A committed Wolf range dice receipt is malformed.');
       }
       actionIds.add(die.actionId);
+      rangeActionIds.add(die.actionId);
+      successesByAction.set(die.actionId, die.successes);
     }
-    if (range.assignments.some((assignment: WolfRangeAssignment) => !actionIds.has(assignment.actionId) ||
+    const assignedInstanceIds = new Set<string>();
+    if (range.assignments.some((assignment: WolfRangeAssignment) => !rangeActionIds.has(assignment.actionId) ||
+        !Array.isArray(assignment.targetInstanceIds) ||
         new Set(assignment.targetInstanceIds).size !== assignment.targetInstanceIds.length ||
-        assignment.targetInstanceIds.some((id: string) => !input.roster.some(ship => ship.instanceId === id)))) {
+        assignment.targetInstanceIds.some((id: string) => {
+          const ship = replayRoster.find((candidate) => candidate.instanceId === id);
+          if (!ship || ship.destroyed) return true;
+          assignedInstanceIds.add(id);
+          return false;
+        }))) {
       throw new Error('A committed Wolf range assignment is malformed.');
     }
-    if (range.unusedHitsByAction.some(({ actionId, count }: { actionId: string; count: number }) => !actionIds.has(actionId) ||
-        !Number.isSafeInteger(count) || count < 1)) {
+    uniqueStrings(range.assignments.map((assignment: WolfRangeAssignment) => assignment.actionId),
+      'Committed Wolf range assignments');
+    const assignedCountByAction = new Map<string, number>();
+    range.assignments.forEach((assignment: WolfRangeAssignment) => {
+      assignedCountByAction.set(assignment.actionId, assignment.targetInstanceIds.length);
+    });
+    const expectedUnusedByAction = [...successesByAction].flatMap(([actionId, successes]) => {
+      const unused = Math.max(0, successes - (assignedCountByAction.get(actionId) ?? 0));
+      return unused > 0 ? [{ actionId, count: unused }] : [];
+    });
+    if (JSON.stringify(range.unusedHitsByAction) !== JSON.stringify(expectedUnusedByAction) ||
+        range.unusedHitsByAction.some(({ actionId, count }: { actionId: string; count: number }) =>
+          !rangeActionIds.has(actionId) || !Number.isSafeInteger(count) || count < 1)) {
       throw new Error('A committed Wolf unused-hit receipt is malformed.');
     }
+    if (Object.keys(range.damageByInstance).some((instanceId) => !assignedInstanceIds.has(instanceId)) ||
+        [...assignedInstanceIds].some((instanceId) => range.damageByInstance[instanceId] === undefined)) {
+      throw new Error('A committed Wolf damage receipt does not match its target assignments.');
+    }
+    const expectedDestroyed: string[] = [];
+    const expectedRangeDestructionDamage = damageRecord();
+    const rangeName = range.range === 'long-range' ? 'long' : range.range === 'medium-range' ? 'medium' : 'short';
     for (const [instanceId, damage] of Object.entries(range.damageByInstance)) {
-      if (!input.roster.some(ship => ship.instanceId === instanceId) ||
-          !Number.isSafeInteger(damage) || (damage as number) < 0) {
+      const index = replayRoster.findIndex((ship) => ship.instanceId === instanceId);
+      const current = replayRoster[index];
+      const catalog = current ? wolfShipForId(current.shipId) : undefined;
+      if (!current || current.destroyed || !catalog || !catalog.ranges[rangeName].canBeDamaged ||
+          !Number.isSafeInteger(damage) || (damage as number) < 1) {
         throw new Error('A committed Wolf damage receipt is malformed.');
       }
-    }
-    for (const [target, damage] of Object.entries(range.destructionDamageByTarget)) {
-      if (!(EXPANDED_WOLF_TARGET_RING as readonly string[]).includes(target) ||
-          !Number.isSafeInteger(damage) || (damage as number) < 0 ||
-          !targetRing.includes(target as WolfFleetTargetId) && (damage as number) > 0) {
-        throw new Error('A committed Wolf destruction effect is malformed for the configured ring.');
+      const damageTaken = current.damageTaken + (damage as number);
+      const destroyed = damageTaken >= catalog.damageCapacity;
+      replayRoster[index] = { ...current, damageTaken, destroyed };
+      if (destroyed) {
+        expectedDestroyed.push(instanceId);
+        const effect = catalog.ranges[rangeName].ifDestroyed;
+        if (effect.kind === 'target-damage') {
+          addFleetDamage(expectedRangeDestructionDamage, current.target, effect.amount);
+        }
       }
     }
+    if (!Array.isArray(range.destroyedInstanceIds) ||
+        new Set(range.destroyedInstanceIds).size !== range.destroyedInstanceIds.length ||
+        JSON.stringify([...range.destroyedInstanceIds].sort()) !== JSON.stringify([...expectedDestroyed].sort())) {
+      throw new Error(`The ${range.range} destruction list does not match its committed damage.`);
+    }
+    if (JSON.stringify(Object.keys(range.destructionDamageByTarget).sort()) !==
+        JSON.stringify([...EXPANDED_WOLF_TARGET_RING].sort()) ||
+        EXPANDED_WOLF_TARGET_RING.some((target) => !Number.isSafeInteger(range.destructionDamageByTarget[target]) ||
+          range.destructionDamageByTarget[target] !== expectedRangeDestructionDamage[target])) {
+      throw new Error('A committed Wolf destruction effect does not match the source catalog and current targets.');
+    }
+    targetRing.forEach((target) => addFleetDamage(rangeDestructionDamage, target, expectedRangeDestructionDamage[target]));
+  }
+  if (input.roster.some((ship, index) => !ship || ship.instanceId !== replayRoster[index]?.instanceId ||
+      ship.shipId !== replayRoster[index]?.shipId || ship.target !== replayRoster[index]?.target ||
+      ship.damageTaken !== replayRoster[index]?.damageTaken || ship.destroyed !== replayRoster[index]?.destroyed ||
+      !targetRing.includes(ship.target) || !Number.isSafeInteger(ship.damageTaken) || ship.damageTaken < 0)) {
+    throw new Error('The committed Wolf roster does not match its targeting and ordered range receipts.');
   }
   const now = input.now ?? Date.now();
   if (!Number.isFinite(now)) throw new Error('now must be a finite server instant.');
@@ -1215,7 +1283,7 @@ export function finalizeWolfAttack(input: WolfAttackFinalizationInput): WolfCalc
     throw new Error('The committed Force Field target is outside the active fleet ring.');
   }
   const random = input.randomInt ?? secureRandomInt;
-  const partyCounts = boardersByTarget(input.roster);
+  const partyCounts = boardersByTarget(replayRoster);
   const attackedTargets = targetRing.filter(target => partyCounts[target] > 0);
   uniqueStrings(input.boardingDefence.map(({ target }) => target), 'Boarding defence targets');
   if (input.boardingDefence.some(({ target, securityTeams }) => !attackedTargets.includes(target) ||
@@ -1223,15 +1291,11 @@ export function finalizeWolfAttack(input: WolfAttackFinalizationInput): WolfCalc
       attackedTargets.some(target => !input.boardingDefence.some(choice => choice.target === target))) {
     throw new Error('Every attacked active fleet target requires its entitled Security Teams choice.');
   }
-  const boarding = resolveWolfBoarding(input.roster, input.boardingDefence, random);
-  const survival = resolveSurvivorEffects(input.roster);
+  const boarding = resolveWolfBoarding(replayRoster, input.boardingDefence, random);
+  const survival = resolveSurvivorEffects(replayRoster);
   const damageTotals = damageRecord();
-  for (const range of input.ranges) {
-    for (const [target, amount] of Object.entries(range.destructionDamageByTarget)) {
-      if ((targetRing as readonly string[]).includes(target)) {
-        addFleetDamage(damageTotals, target as WolfFleetTargetId, amount as number);
-      }
-    }
+  for (const target of targetRing) {
+    addFleetDamage(damageTotals, target, rangeDestructionDamage[target]);
   }
   for (const [target, amount] of Object.entries(survival.fleetDamage)) {
     if ((targetRing as readonly string[]).includes(target)) addFleetDamage(damageTotals, target as WolfFleetTargetId, amount);
