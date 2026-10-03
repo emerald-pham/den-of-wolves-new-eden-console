@@ -133,6 +133,9 @@ it('lets the current Wing Commander launch each charged, operational AEGIS bay i
   put('sessions/s1/wolfAttackState/current', { ...attack, currentStep: 'targeting' });
   put('sessions/s1/players/wc-1', { uid: 'wc-1', role: 'player', connected: true,
     assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander', fleetGroupId: 'fleet-1' });
+  put('sessions/s1/fleetGroups/fleet-1', { id: 'fleet-1',
+    vesselIds: ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124'],
+    memberUids: ['xo-1', 'wc-1'], memberShipIds: { 'xo-1': 'aegis', 'wc-1': 'aegis' } });
   const view = await getAegisFighterWingLaunch.run(request({ sessionId: 's1', wingId: 'fighter-wing-alpha' }, 'wc-1'));
   expect(view).toMatchObject({ type: 'aegis-fighter-wing-launch-view', wingId: 'fighter-wing-alpha',
     fighters: 4, launched: false, eligible: true });
