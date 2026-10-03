@@ -3,6 +3,7 @@ import type { CallableRequest } from 'firebase-functions/v2/https';
 import { firstTurnWolfAttackComposition } from './wolfAttackComposition';
 import { CORE_WOLF_TARGET_RING } from './wolfCombatMath';
 import { resolveWolfTargeting, wolfCombatRoster } from './wolfCombatMath';
+import { projectWolfAttackMemberView } from './wolfAttackAudience';
 
 type Fields = Record<string, unknown>;
 
@@ -363,6 +364,8 @@ it('marks a charged range unavailable and continues when the fleet configuration
   expect(state.rangeReceipts).toMatchObject([
     { range: 'long-range', dice: [], assignments: [], unusedHitsByAction: [] },
   ]);
+  expect(projectWolfAttackMemberView({ sessionId: 's1', state, serverTime: new Date().toISOString() }).results)
+    .toEqual([expect.objectContaining({ outcome: { damage: 0 }, effect: expect.stringMatching(/unavailable/i) })]);
 });
 
 it('keeps a charged range pending while the configured Executive Officer is disconnected', async () => {

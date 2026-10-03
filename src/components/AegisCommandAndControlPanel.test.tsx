@@ -91,6 +91,16 @@ it('offers one ship after targeting is finalized and sends only the selected ros
   expect(await screen.findByText(/wolf cruiser redirected to aegis/i)).toBeVisible();
 });
 
+it('withdraws C&C targets after server disconnect despite a delayed live targeting callback', async () => {
+  render(<AegisCommandAndControlPanel />);
+  await screen.findByRole('radio', { name: 'Wolf Cruiser' });
+  act(() => useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, connected: false }));
+  act(() => useSessionStore.setState({ connection: 'live', sessionSnapshotFreshness: 'server' }));
+  act(() => publishMember(memberView()));
+  expect(screen.queryByRole('radio', { name: 'Wolf Cruiser' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /redirect selected ship/i })).not.toBeInTheDocument();
+});
+
 it('offers an explicit pass and records that no target was redirected', async () => {
   const user = userEvent.setup();
   render(<AegisCommandAndControlPanel />);

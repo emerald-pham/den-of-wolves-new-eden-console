@@ -187,6 +187,54 @@ it('never hydrates a response for another authenticated actor', async () => {
   expect(onSession).not.toHaveBeenCalled();stop();
 });
 
+it.each(['disconnected', 'missing', 'kicked'] as const)(
+  'rejects a pending member reply after the server actor becomes %s and waits for current reconnect', async kind => {
+    const sessionId = `revoked-member-${kind}`;
+    const listeners = new Map<string, (snapshot: unknown) => void>();
+    vi.mocked(doc).mockImplementation(((_db: unknown, path: string) => ({ path })) as never);
+    vi.mocked(onSnapshot).mockImplementation(((reference: { path?: string }, _options: unknown, callback: (snapshot: unknown) => void) => {
+      if (reference?.path) listeners.set(reference.path, callback); return vi.fn();
+    }) as never);
+    const reply = { data: {
+      type: 'current-member-session', sessionId, actorUid: 'u1', groupId: 'fleet-1',
+      connectionGeneration: 1, assignedRoleId: 'executive-officer', activeConsoleRoleId: 'executive-officer',
+      session: { ...sessionData(8), phase: 'active', currentTurn: 1,
+        memberSessionScope: { groupId: 'fleet-1', vesselIds: ['aegis'], craftIds: [] }, shuttleDockings: [], shuttleVisitLog: [] },
+    } };
+    let resolvePending!: (value: unknown) => void;
+    const pending = new Promise(resolve => { resolvePending = resolve; });
+    const call = vi.fn().mockResolvedValueOnce(reply).mockResolvedValueOnce(reply).mockReturnValueOnce(pending).mockResolvedValue(reply);
+    vi.mocked(httpsCallable).mockReturnValue(call as never);
+    const onSession = vi.fn(value => useSessionStore.getState().setSession(value));
+    const onPlayer = vi.fn(value => useSessionStore.getState().setMe(value));
+    const markOffline = () => useSessionStore.setState({ connection: 'offline', sessionSnapshotFreshness: 'cache' });
+    const stop = subscribeSessionState(sessionId, 'u1', { sessionReadAudience: 'member', onSession, onPlayer,
+      onSessionFreshness: fresh => useSessionStore.setState({ connection: fresh ? 'live' : 'offline', sessionSnapshotFreshness: fresh ? 'server' : 'cache' }),
+      onPlayerFreshness: fresh => { if (!fresh) markOffline(); }, onKicked: markOffline, onSeats: vi.fn(), onError: markOffline });
+    const actor = { connected: true, role: 'player', fleetGroupId: 'fleet-1', connectionGeneration: 1,
+      assignedRoleId: 'executive-officer', activeConsoleRoleId: 'executive-officer', displayName: 'Crew', joinedAt: '2026-01-01T00:00:00.000Z' };
+    const publish = (exists: boolean, data: Record<string, unknown>) => listeners.get(`sessions/${sessionId}/players/u1`)!(
+      { exists: () => exists, metadata: { fromCache: false }, data: () => data, get: (key: string) => data[key] });
+    try {
+      publish(true, actor);
+      await vi.waitFor(() => expect(onSession).toHaveBeenCalledTimes(1));
+      publish(true, actor);
+      expect(call).toHaveBeenCalledTimes(3);
+      publish(kind !== 'missing', { ...actor, connected: kind !== 'disconnected', ...(kind === 'kicked' ? { kickedAt: 'now' } : {}) });
+      expect(useSessionStore.getState().connection).toBe('offline');
+      resolvePending(reply);
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(onSession).toHaveBeenCalledTimes(1);
+      expect(call).toHaveBeenCalledTimes(3);
+      expect(useSessionStore.getState().sessionSnapshotFreshness).toBe('cache');
+      expect(useSessionStore.getState().me?.connected).toBe(false);
+      publish(true, actor);
+      await vi.waitFor(() => expect(onSession).toHaveBeenCalledTimes(2));
+      expect(useSessionStore.getState().connection).toBe('live');
+      expect(useSessionStore.getState().me?.connected).toBe(true);
+    } finally { stop(); useSessionStore.getState().reset(); }
+  });
+
 function mockGmInstanceProjection(instances: readonly Record<string, unknown>[]) {
   vi.mocked(httpsCallable).mockReturnValue((() => Promise.resolve({ data: { instances } })) as never);
 }

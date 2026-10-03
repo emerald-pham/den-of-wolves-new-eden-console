@@ -33,6 +33,22 @@ it('reconnect preserves a member’s group and admits newcomers only into the de
   expect(() => reconcilePartitionMember(plan.groups, 'new', 'fleet-2')).toThrow(/membership/i);
 });
 
+it('never reuses an absorbed group identity when a reunited fleet splits again', () => {
+  const split = planFleetPartition(navigation, groups, players, vessels);
+  const splitPlayers = players.map(player => ({ ...player, groupId: split.memberGroups[player.uid]! }));
+  const reunited = planFleetPartition({ ...split.navigation,
+    shipGalacticCoordinates: Object.fromEntries(vessels.map(id => [id, '1413'])) }, split.groups, splitPlayers, vessels);
+  expect(reunited.groups[0]?.mergedGroupIds).toEqual(['fleet-2']);
+  const currentPlayers = players.map(player => ({ ...player, groupId: reunited.memberGroups[player.uid]! }));
+  const resplit = planFleetPartition({ ...reunited.navigation,
+    shipGalacticCoordinates: navigation.shipGalacticCoordinates }, reunited.groups, currentPlayers, vessels);
+  const alice = resplit.groups.find(group => group.memberUids.includes('alice'))!;
+  const bob = resplit.groups.find(group => group.memberUids.includes('bob'))!;
+  expect(alice.mergedGroupIds).toContain('fleet-2'); // Entitled old history survives.
+  expect(bob.id).toBe('fleet-3');
+  expect(alice.mergedGroupIds).not.toContain(bob.id); // New notes/events have a distinct audience.
+});
+
 for (const uid of ['__proto__', 'constructor', 'toString', 'player.with.period']) {
   it(`preserves an own fleet binding and stable audience for UID ${uid}`, () => {
     const reservedGroups = [{ id: 'fleet-1', vesselIds: vessels, memberUids: [uid, 'gm'] }];

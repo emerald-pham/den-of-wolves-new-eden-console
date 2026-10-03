@@ -50,3 +50,36 @@ it('tracks actual craft group while in transit and removes it after foreign arri
   records['sessions/s1/shuttleDepartures/endeavour']!.status = 'completed';
   expect((await read(request())).session.shuttleControl).toEqual({});
 });
+
+it('keeps only the current Press holder’s own SNN operations through docking and transit', async () => {
+  const actor = records['sessions/s1/players/u1']!;
+  Object.assign(actor, { assignedRoleId: null, activeConsoleRoleId: 'press-officer' });
+  const snn = { shuttleId: 'snn-press-shuttle', ownerRoleId: 'press-officer', ownerUid: 'u1', holderUid: 'u1', revision: 1 };
+  Object.assign(records['sessions/s1']!, {
+    pressEnabled: true, pressHolderUid: 'u1',
+    shuttleControl: { 'snn-press-shuttle': snn, starlight: { holderUid: 'u2' } },
+    shuttleCargo: { 'snn-press-shuttle': { fuel: 1 }, starlight: { fuel: 99 } },
+    shuttleFuelled: { 'snn-press-shuttle': true, starlight: true },
+    shuttleDockings: [{ shuttleId: 'snn-press-shuttle', shipId: 'aegis', dockedAt: 'now' },
+      { shuttleId: 'starlight', shipId: 'aegis', dockedAt: 'now' }],
+    shuttleVisitLog: [{ shuttleId: 'snn-press-shuttle', shipId: 'aegis', id: 'own-visit' },
+      { shuttleId: 'starlight', shipId: 'aegis', id: 'foreign-visit' }],
+  });
+  const docked = (await read(request())).session;
+  expect(docked.shipResources).toEqual({});
+  expect(docked.shuttleControl).toEqual({ 'snn-press-shuttle': snn });
+  expect(docked.shuttleCargo).toEqual({ 'snn-press-shuttle': { fuel: 1 } });
+  expect(docked.shuttleFuelled).toEqual({ 'snn-press-shuttle': true });
+  expect(docked.shuttleDockings).toEqual([{ shuttleId: 'snn-press-shuttle', shipId: 'aegis', dockedAt: 'now' }]);
+  expect(docked.shuttleVisitLog).toEqual([{ shuttleId: 'snn-press-shuttle', shipId: 'aegis', id: 'own-visit' }]);
+  records['sessions/s1']!.shuttleDockings = [];
+  records['sessions/s1/shuttleDepartures/snn-press-shuttle'] = { shuttleId: 'snn-press-shuttle', status: 'in-transit', fleetGroupId: 'fleet-1' };
+  expect((await read(request())).session.shuttleControl).toEqual({ 'snn-press-shuttle': snn });
+  for (const change of [{ pressHolderUid: 'u2' }, { pressEnabled: false },
+    { shuttleControl: { 'snn-press-shuttle': { ...snn, holderUid: 'u2' } } }]) {
+    const previous = { ...records['sessions/s1'] };
+    Object.assign(records['sessions/s1']!, change);
+    expect((await read(request())).session.shuttleControl).toEqual({});
+    records['sessions/s1'] = previous;
+  }
+});

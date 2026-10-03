@@ -100,6 +100,25 @@ function publish(view: WolfAttackMemberView | null): void {
   act(() => callbacks.at(-1)?.(view));
 }
 
+it.each([
+  { name: 'Captain', panel: WolfForceFieldChoicePanel, view: targeting, button: /pass force field/i,
+    actor: { replacementRoleId: 'gorgoneion-captain' } },
+  { name: 'AEGIS range', panel: WolfRangeActionPanel, view: mediumRange, button: /pass this range/i,
+    actor: { assignedRoleId: 'executive-officer', replacementRoleId: null, activeConsoleRoleId: 'executive-officer' } },
+  { name: 'boarding', panel: WolfBoardingDefencePanel, view: boarding, button: /commit.*defence/i,
+    actor: { assignedRoleId: 'admiral', replacementRoleId: null, activeConsoleRoleId: 'admiral' } },
+])('withdraws $name controls on server disconnect even if a late callback reports live freshness', async scenario => {
+  connectPlayer({ ...scenario.actor, connected: true });
+  const Panel = scenario.panel;
+  render(<Panel />);
+  publish(scenario.view);
+  await screen.findByRole('button', { name: scenario.button });
+  act(() => useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, connected: false }));
+  act(() => useSessionStore.setState({ connection: 'live', sessionSnapshotFreshness: 'server' }));
+  publish(scenario.view);
+  expect(screen.queryByRole('button', { name: scenario.button })).not.toBeInTheDocument();
+});
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (reason?: unknown) => void;

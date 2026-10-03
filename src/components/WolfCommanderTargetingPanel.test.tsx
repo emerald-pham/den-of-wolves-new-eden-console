@@ -126,6 +126,16 @@ it('does not render for a historical role without the active replacement authori
   expect(mocks.get).not.toHaveBeenCalled();
 });
 
+it('withdraws Commander dice after server disconnect despite a delayed live targeting callback', async () => {
+  render(<WolfCommanderTargetingPanel />);
+  await screen.findByText('Die 2 // Dione');
+  act(() => useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, connected: false }));
+  act(() => useSessionStore.setState({ connection: 'live', sessionSnapshotFreshness: 'server' }));
+  act(() => memberListener?.(memberView()));
+  expect(screen.queryByText('Die 2 // Dione')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /finish rerolls/i })).not.toBeInTheDocument();
+});
+
 it('does not let an enabled fixture prop grant Commander authority', () => {
   useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, replacementRoleId: null, role: 'gm' });
   const { container } = render(<WolfCommanderTargetingPanel enabled />);
