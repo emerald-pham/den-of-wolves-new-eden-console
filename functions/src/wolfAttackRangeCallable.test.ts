@@ -62,6 +62,8 @@ vi.mock('firebase-functions/v2/firestore', () => ({
 vi.mock('firebase-functions/v2/scheduler', () => ({ onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }) }));
 
 import {
+  getAegisEnrichedWarheadChoice,
+  commitAegisEnrichedWarheadChoice,
   assignWolfRangeTargets,
   getAegisFighterWingLaunch,
   getWolfFighterRangeActionChoice,
@@ -981,4 +983,78 @@ it('rolls targeting once after the committed Captain choice and continues from t
   const afterProgress = testState.documents.get('sessions/s1/wolfAttackState/current')!;
   expect((afterProgress.calculationReceipt as Fields).targeting).toEqual(targetingReceipt);
   expect(entropy.randomInt).toHaveBeenCalledTimes(drawCount);
+});
+
+
+function enrichedWarheadFixture(ore = 9): void {
+  const session = testState.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session, shipResources: { aegis: { ore, fuel: 4 } } });
+  const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  put('sessions/s1/wolfAttackState/current', { ...attack, currentStep: 'targeting' });
+}
+
+it('offers Enriched Warheads only at attack start without exposing private dice or roster', async () => {
+  enrichedWarheadFixture();
+  const view = await getAegisEnrichedWarheadChoice.run(request({ sessionId: 's1' }));
+  expect(view).toEqual({ type: 'aegis-enriched-warhead-view', sessionId: 's1', attackId: 'wolf-attack-test-1',
+    turn: 1, revision: 4, choiceStatus: 'pending', eligible: true, oreCost: 5 });
+  expect(JSON.stringify(view)).not.toMatch(/rolls|privateNotes|combatRoster|damageTaken/);
+});
+
+it('charges Enriched Warheads once, preserves an exact retry and improves this attack Long Range', async () => {
+  enrichedWarheadFixture();
+  const payload = { sessionId: 's1', requestId: 'enrich-1', expectedTurn: 1, expectedRevision: 4, choice: 'enrich' };
+  const result = await commitAegisEnrichedWarheadChoice.run(request(payload));
+  expect(result).toMatchObject({ status: 'committed', requestId: 'enrich-1', revision: 5,
+    view: { choiceStatus: 'enriched', eligible: false } });
+  expect(testState.documents.get('sessions/s1')!.shipResources).toMatchObject({ aegis: { ore: 4, fuel: 4 } });
+  expect(await commitAegisEnrichedWarheadChoice.run(request(payload))).toEqual(result);
+  expect(testState.documents.get('sessions/s1')!.shipResources).toMatchObject({ aegis: { ore: 4 } });
+  const state = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  put('sessions/s1/wolfAttackState/current', { ...state, currentStep: 'long-range' });
+  await commitWolfRangeActionChoice.run(request({ sessionId: 's1', requestId: 'enriched-long',
+    expectedTurn: 1, expectedRevision: 5, range: 'long-range', actionIds: ['aegis-missile-launchers-long'] }));
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current')!.rangeDecisions).toMatchObject({
+    'long-range': { lock: { dice: [{ damage: 4 }] } } });
+  expect(testState.documents.get('sessions/s1')!.shipResources).toMatchObject({ aegis: { ore: 4 } });
+});
+
+it('rejects insufficient Enriched Warhead funds and a stale or foreign-role purchase without writes', async () => {
+  enrichedWarheadFixture(4);
+  const payload = { sessionId: 's1', requestId: 'enrich-denied', expectedTurn: 1, expectedRevision: 4, choice: 'enrich' };
+  expect(await getAegisEnrichedWarheadChoice.run(request({ sessionId: 's1' }))).toMatchObject({
+    eligible: false, choiceStatus: 'unavailable' });
+  await expect(commitAegisEnrichedWarheadChoice.run(request(payload))).rejects.toMatchObject({ code: 'failed-precondition' });
+  enrichedWarheadFixture(9);
+  await expect(commitAegisEnrichedWarheadChoice.run(request({ ...payload, expectedRevision: 3 })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  await expect(commitAegisEnrichedWarheadChoice.run(request(payload, 'wrong-role')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  expect(testState.update).not.toHaveBeenCalled();
+});
+
+it('keeps an offline entitled Executive Officer Enriched Warhead choice pending', async () => {
+  enrichedWarheadFixture();
+  put('sessions/s1/players/xo-1', { ...testState.documents.get('sessions/s1/players/xo-1')!, connected: false });
+  for (let index = 0; index < 4; index += 1) await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({ currentStep: 'targeting' });
+});
+
+it('passes Enriched Warheads with no cost and cannot enrich after Long Range begins', async () => {
+  enrichedWarheadFixture();
+  await commitAegisEnrichedWarheadChoice.run(request({ sessionId: 's1', requestId: 'enrich-pass',
+    expectedTurn: 1, expectedRevision: 4, choice: 'pass' }));
+  expect(testState.documents.get('sessions/s1')!.shipResources).toMatchObject({ aegis: { ore: 9 } });
+  const state = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  put('sessions/s1/wolfAttackState/current', { ...state, currentStep: 'medium-range' });
+  await expect(commitAegisEnrichedWarheadChoice.run(request({ sessionId: 's1', requestId: 'enrich-late',
+    expectedTurn: 1, expectedRevision: 5, choice: 'enrich' }))).rejects.toMatchObject({ code: 'failed-precondition' });
+});
+
+it('rejects a forged Enriched Warhead marker before returning range actions', async () => {
+  const state = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  put('sessions/s1/wolfAttackState/current', { ...state, enrichedWarheads: {
+    status: 'enriched', attackId: 'different-attack', turn: 1, oreCost: 0 } });
+  await expect(getWolfRangeActionChoice.run(request({ sessionId: 's1' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
 });
