@@ -26,6 +26,18 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       completed: 605, total: 751, percentage: '80.56%',
       done: 605, partial: 15, active: 0, missing: 131, blocked: 0,
     },
+    implementationPrompts: [],
+    changes: [
+      'The PC07 review plot stays beside its group sample, keeping instructions and navigation clear.',
+      '605 of 751 planned items are complete in this release snapshot (80.56%).',
+    ],
+  },
+  {
+    version: '0.5.65',
+    implementationProgress: {
+      completed: 605, total: 751, percentage: '80.56%',
+      done: 605, partial: 15, active: 0, missing: 131, blocked: 0,
+    },
     implementationPrompts: ["326","336","153","337","338","152","339","340","341","342","343","344","345","346","347","348","349","350","424","678","643","140","154","155","156","158","103a","159","428","431","432","432a","433","433a","433b","434","434a","435","436","437","438","439","440","441","442","444","523a","351","353"],
     changes: [
       'PC07 is complete: separated fleets keep their own maps and notes while sharing one cycle clock.',
