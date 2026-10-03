@@ -70,6 +70,17 @@ it('withholds range choices until safe Wolf targets are available and keeps fuel
   expect(screen.getByRole('status')).toHaveTextContent(/repair committed/i);
 });
 
+it('can repair from a current operational member view without receiving private range results', async () => {
+  const user = userEvent.setup();
+  updateSession({maliadesState: {
+    type: 'maliades-operational-view', revision: 2, attackId: 'attack-2', attackCycle: 2,
+    launched: true, damage: 1, destroyed: false, mediumResolved: true, shortResolved: false,
+  }});
+  render(<MaliadesPanel control={control} docking={docking} fuelled />);
+  await user.click(screen.getByRole('button', {name: /repair 1 damage/i}));
+  await waitFor(() => expect(mocks.repair).toHaveBeenCalledWith(2, 2, 'dione', 1));
+});
+
 it.each(['stale reply arrives before the current snapshot', 'current snapshot arrives before the stale reply'])(
   'waits for live repair state and requires an explicit fresh retry when %s', async (order) => {
     const user = userEvent.setup();
