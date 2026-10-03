@@ -181,7 +181,6 @@ function parseMedium(value: unknown): MaliadesMediumResolution | null | undefine
       selfDamage,
     };
   }
-  if (!targetShift && !attack) return undefined;
   if (targetShift && attack && targetShift.targetId === attack.targetId) return undefined;
   return { targetShift, attack };
 }
@@ -193,7 +192,7 @@ function parseShort(value: unknown): MaliadesShortResolution | null | undefined 
       !Number.isSafeInteger(raw.selfDamage)) return undefined;
   const selfDamage = raw.selfDamage as number;
   if (selfDamage < 0) return undefined;
-  if (raw.rolls.length < 1 || raw.rolls.length > 2) return undefined;
+  if (raw.rolls.length > 2) return undefined;
   const rolls: MaliadesShortRoll[] = [];
   for (const item of raw.rolls) {
     const roll = record(item);
@@ -356,7 +355,7 @@ export function resolveMaliadesMedium(
   if (!state.launched) throw new Error('Launch Maliades before resolving Medium Range.');
   if (state.destroyed) throw new Error('A destroyed Maliades cannot resolve Medium Range.');
   if (state.medium) throw new Error('Maliades Medium Range has already resolved.');
-  if (!Array.isArray(input.choices) || input.choices.length < 1 || input.choices.length > 2) {
+  if (!Array.isArray(input.choices) || input.choices.length > 2) {
     throw new Error('Maliades Medium Range allows one target shift and/or one attack.');
   }
   const targetShift = input.choices.find((choice) => choice.kind === 'target-shift');
@@ -411,7 +410,7 @@ export function resolveMaliadesShort(
   if (!state.launched) throw new Error('Launch Maliades before resolving Short Range.');
   if (state.destroyed) throw new Error('A destroyed Maliades cannot resolve Short Range.');
   if (state.short) throw new Error('Maliades Short Range has already resolved.');
-  if (!Array.isArray(input.targetIds) || input.targetIds.length < 1 || input.targetIds.length > 2) {
+  if (!Array.isArray(input.targetIds) || input.targetIds.length > 2) {
     throw new Error('Maliades Short Range allows up to two targets.');
   }
   input.targetIds.forEach(requireTargetId);

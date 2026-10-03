@@ -241,12 +241,12 @@ export function parsePdfEscortWingState(value: unknown): PdfEscortWingState | nu
       new Set(shortIndexes).size !== shortIndexes.length ||
       mediumIndexes.some((index) => index < 0 || index >= CAPACITY) ||
       shortIndexes.some((index) => index < 0 || index >= CAPACITY) ||
-      mediumResolved !== (mediumIndexes.length > 0) ||
+      (!mediumResolved && mediumIndexes.length > 0) ||
       (!shortResolved && shortIndexes.length > 0) ||
       (attackId === null && (revision !== 0 || launched || fighters !== CAPACITY || losses !== 0 || mediumResolved || shortResolved)) ||
       (!launched && (mediumResolved || shortResolved)) ||
       (attackId !== null && revision === 0 && (fighters !== CAPACITY || losses !== 0)) ||
-      (launched && (attackId === null || revision < 1))) {
+      (launched && (attackId === null || revision < 1 + Number(mediumResolved) + Number(shortResolved)))) {
     return null;
   }
   const mission = parseMission(raw.mission);
@@ -381,8 +381,8 @@ export function resolvePdfEscortWingMedium(
   requireExpectedRevision(state, input.expectedRevision);
   if (!state.launched) throw new Error('Launch the PDF Escort Wing before resolving Medium Range.');
   if (state.mediumResolved) throw new Error('PDF Escort Wing Medium Range has already resolved.');
-  if (!Array.isArray(input.actions) || input.actions.length < 1) {
-    throw new Error('PDF Escort Wing Medium Range requires at least one fighter action.');
+  if (!Array.isArray(input.actions)) {
+    throw new Error('PDF Escort Wing Medium Range requires an explicit fighter action list.');
   }
   const indexes = input.actions.map((action) => action.fighterIndex);
   validateIndexes(indexes, state.fighters, 'Medium Range');
