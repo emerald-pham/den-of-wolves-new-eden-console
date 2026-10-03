@@ -18,7 +18,7 @@ it('requires a real target-crew choice from zero through current Security Team i
   expect(screen.getByText(/3 surviving boarding parties/i)).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /commit defence/i })).toBeDisabled();
   const choice = screen.getByRole('combobox', { name: /security teams committed/i });
-  expect(choice).toHaveDisplayValue('');
+  expect(choice).toHaveValue('');
   expect(screen.getByRole('option', { name: '0 teams' })).toBeInTheDocument();
   expect(screen.getByRole('option', { name: '2 teams' })).toBeInTheDocument();
   expect(screen.queryByRole('option', { name: '3 teams' })).not.toBeInTheDocument();
