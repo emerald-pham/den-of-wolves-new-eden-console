@@ -100,7 +100,7 @@ function FightersReview() {
   return <section className="pc07-review__workspace pc07-review__choice-examples" aria-label="Prepared fleet fighter choices">
     <div className="pc07-review__controls">{Object.keys(counts).map(name => <button key={name} className="cic-action-button"
       type="button" aria-pressed={name === wing} onClick={() => setWing(name)}>{name} sample</button>)}
-      <button className="cic-action-button" type="button" onClick={() => {
+      <button className="cic-action-button" type="button" disabled={range !== 'short-range' || (wing !== 'Maliades' && !view.launched) || (counts[wing] ?? 0) === 0} onClick={() => {
         if (wing === 'Maliades') {
           const damage = Math.min(3, maliadesDamage + 1); setMaliadesDamage(damage);
           setCounts(current => ({...current, Maliades: damage === 3 ? 0 : 1}));
