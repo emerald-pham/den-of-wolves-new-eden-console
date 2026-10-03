@@ -1,3 +1,4 @@
+import WolfBoardingSpecialChoicePanel from '@/components/WolfBoardingSpecialChoicePanel';
 import DiseaseOutbreakFields from '../components/DiseaseOutbreakFields';
 import { populationForShip, populationTrackForShip } from '@/data/shipPopulation';
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -2947,7 +2948,7 @@ export default function GmConsole() {
                   disabled={!wolfWindowDueAvailable || wolfWindowMutation !== null}
                   onClick={() => void changeWolfAttackWindow('due')}
                 >
-                  {wolfWindowMutation === 'due' ? 'Marking timing due…' : 'Mark timing due'}
+                  {wolfWindowMutation === 'due' ? 'Marking timing due…' : wolfAttackState?.status === 'resolved' ? 'Mark next attack window due' : 'Mark timing due'}
                 </button>
                 <button
                   className="cic-action-button"
@@ -3075,6 +3076,11 @@ export default function GmConsole() {
                 currentStep={wolfAttackState.currentStep} players={allPlayers}
                 available={Boolean(local && isGm && connection === 'live' && sessionSnapshotFreshness === 'server' &&
                   session?.phase === 'active' && wolfAttackState.turn === currentTurn)} />}
+              {session?.phase === 'active' && isGm && me?.role === 'gm' && me.sessionId === session.id &&
+                wolfAttackState?.currentStep === 'boarding' && wolfAttackState.turn === currentTurn &&
+                local?.sessionId === session.id && local.uid === me.uid &&
+                sessionSnapshotFreshness === 'server' && connection === 'live' &&
+                <WolfBoardingSpecialChoicePanel facilitator />}
               {wolfAttackState && (
                 <details className="gm-wolf-preparation__receipt">
                   <summary>Private attack receipt // facilitator only</summary>

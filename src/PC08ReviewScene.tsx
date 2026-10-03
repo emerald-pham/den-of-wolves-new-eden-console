@@ -1,3 +1,4 @@
+import {AegisEnrichedWarheadPanelView} from '@/components/AegisEnrichedWarheadPanel';
 import {useMemo, useState} from 'react';
 import ShipPlot from '@/components/ShipPlot';
 import {WolfRangeActionPanelView} from '@/components/WolfRangeActionPanel';
@@ -78,12 +79,18 @@ function DradisReview() {
 
 function WeaponsReview() {
   const [view, setView] = useState(SAMPLE_RANGE);
+  const [warheadChoice, setWarheadChoice] = useState<'pending' | 'enriched' | 'passed'>('pending');
   const [message, setMessage] = useState('LOCAL SAMPLE // A prepared Medium Range hit; no dice are rolled in this tour.');
   return <section className="pc07-review__workspace pc07-review__choice-examples" aria-label="Prepared weapon choices">
     <div className="pc07-review__controls">
       <button type="button" className="cic-action-button" onClick={() => {setView(SAMPLE_RANGE); setMessage('LOCAL SAMPLE RESTORED // No shared state changed.');}}>Restore weapon sample</button>
       <button type="button" className="cic-action-button" onClick={() => {setView({...SAMPLE_RANGE, revision: 5, eligibleActions: []}); setMessage('DAMAGED SAMPLE // No charged, undamaged action is available.');}}>Damaged weapon sample</button>
     </div>
+    <AegisEnrichedWarheadPanelView view={{type: 'aegis-enriched-warhead-view', sessionId: 'prepared-pc08',
+      attackId: 'prepared-attack', turn: 2, revision: warheadChoice === 'pending' ? 3 : 4,
+      choiceStatus: warheadChoice, eligible: warheadChoice === 'pending', oreCost: 5}}
+      onChoose={choice => setWarheadChoice(choice === 'enrich' ? 'enriched' : 'passed')} />
+    <p role="status" aria-label="Prepared warhead balance">LOCAL SIMULATION // {warheadChoice === 'enriched' ? 4 : 9} ore remaining in this prepared sample.</p>
     <WolfRangeActionPanelView view={view} onUseActions={actions => {
       setView({...view, revision: view.revision + 1, choiceStatus: 'targets-required', hitSlots: actions.map(actionId => ({actionId, count: 1}))});
       setMessage('LOCAL SIMULATION // The prepared hit is locked; choosing its target will not roll again.');
@@ -197,7 +204,7 @@ function BoardingReview() {
   return <section className="pc07-review__workspace pc07-review__choice-examples" aria-label="Prepared boarding choices">
     <p className="pc07-review__note">Support uses its actual owner, current dock and fuel. Deterministic party counts, dice and damage resolve automatically after genuine choices.
       The Wolf Commander’s incomplete printed consequence remains an explicit privately audited facilitator ruling.</p>
-    <div className="pc07-review__controls">{['Crew', 'Commander', 'Support', 'Militia', 'AEGIS reroll', 'Pallas reroll', 'Ruling'].map(name =>
+    <div className="pc07-review__controls">{['Crew', 'Commander', 'Support', 'Militia', 'Outnumbered Militia', 'AEGIS reroll', 'Pallas reroll', 'Ruling'].map(name =>
       <button className="cic-action-button" key={name} type="button" aria-pressed={sample === name} onClick={() => setSample(name)}>{name} sample</button>)}</div>
     {sample === 'Crew' && <WolfBoardingDefencePanelView view={view} onChoose={securityTeams => {
       setView({...view, revision: view.revision + 1, choiceStatus: 'committed', chosenSecurityTeams: securityTeams});
@@ -217,9 +224,14 @@ function BoardingReview() {
           setMessage('LOCAL SIMULATION // Chepu stayed at Refinery 124; its choice is retained independently from Pallas.');
         }} />
     </div>}
-    {sample === 'Militia' && <WolfBoardingMilitiaChoicePanelView view={{type: 'wolf-boarding-militia-choice-view', targetShipId: 'aegis',
-      status: choices[sample] ? 'committed' : 'pending', boardingParties: 4, availableSecurityTeams: 3, maxFrontLineDice: 3, doubleDiceAvailable: true,
-      ...(choices[sample] ? {selectedSecurityTeams: militiaChoice.securityTeams, ...militiaChoice} : {})}} onChoose={choice => {setMilitiaChoice(choice); commit(`${choice.securityTeams} Security Teams, ${choice.militiaDoubleTeams ? 'two dice per team' : 'one die per team'}, ${choice.militiaFrontLineDice} front-line dice committed.`);}} />}
+    {(sample === 'Militia' || sample === 'Outnumbered Militia') && <WolfBoardingMilitiaChoicePanelView key={sample}
+      view={{type: 'wolf-boarding-militia-choice-view', targetShipId: 'aegis',
+        status: choices[sample] ? 'committed' : 'pending', boardingParties: sample === 'Militia' ? 2 : 4,
+        availableSecurityTeams: 3, selectedSecurityTeams: 3, maxFrontLineDice: sample === 'Militia' ? 3 : 0,
+        doubleDiceAvailable: sample === 'Outnumbered Militia',
+        ...(choices[sample] ? militiaChoice : {})}}
+      onChoose={choice => {setMilitiaChoice({securityTeams: 3, ...choice});
+        commit(`3 Security Teams, ${choice.militiaDoubleTeams ? 'two dice per team' : 'one die per team'}, ${choice.militiaFrontLineDice} front-line dice committed.`);}} />}
     {(sample === 'AEGIS reroll' || sample === 'Pallas reroll') && <WolfBoardingRerollChoicePanelView key={sample} view={{type: 'wolf-boarding-reroll-choice-view',
       source: sample === 'AEGIS reroll' ? 'aegis' : 'pallas', status: choices[sample] ? 'committed' : 'pending', maxRerolls: 3,
       dice: [{targetShipId: 'aegis', dieIndex: 0, value: 1}, {targetShipId: 'aegis', dieIndex: 1, value: 4}], alreadyRerolled: []}}
