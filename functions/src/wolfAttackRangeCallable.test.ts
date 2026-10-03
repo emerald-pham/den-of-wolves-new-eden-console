@@ -479,6 +479,77 @@ it('keeps an assigned offline Wing Commander choice pending and accepts a reconn
   });
 });
 
+it('locks the selected Short fighter subset with the EO range pass and applies losses once', async () => {
+  const session = testState.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session, activeRoleIds: ['executive-officer', 'wing-commander'],
+    maintenanceCycles: { ...(session.maintenanceCycles as Fields), aegis: {
+      ...(session.maintenanceCycles as Fields).aegis as Fields, charges: ['fighter-bay-alpha'],
+    } }, fighterWingCounts: initialFighterWingCounts() });
+  put('sessions/s1/players/wc-1', { uid: 'wc-1', role: 'player', connected: true,
+    assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander', fleetGroupId: 'fleet-1' });
+  const group = testState.documents.get('sessions/s1/fleetGroups/fleet-1')!;
+  put('sessions/s1/fleetGroups/fleet-1', { ...group, memberUids: ['xo-1', 'wc-1'],
+    memberShipIds: { 'xo-1': 'aegis', 'wc-1': 'aegis' } });
+  put('sessions/s1/wolfAttackState/current', {
+    ...testState.documents.get('sessions/s1/wolfAttackState/current')!, currentStep: 'targeting',
+  });
+  const launchView = await getAegisFighterWingLaunch.run(request({ sessionId: 's1', wingId: 'fighter-wing-alpha' }, 'wc-1'));
+  await launchAegisFighterWing.run(request({ sessionId: 's1', requestId: 'launch-alpha-short-batch',
+    expectedTurn: 1, expectedRevision: launchView.revision, expectedWingRevision: launchView.wingRevision,
+    wingId: 'fighter-wing-alpha' }, 'wc-1'));
+
+  const launchedAttack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  const roster = launchedAttack.combatRoster as Array<Fields>;
+  const targetSnapshot = roster.map(({ instanceId, target }) => ({ instanceId, target }));
+  const emptyReceipt = (range: string) => ({ range, targetSnapshot, dice: [], assignments: [], targetShifts: [],
+    unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
+    destructionDamageByTarget: Object.fromEntries(CORE_WOLF_TARGET_RING.map((target) => [target, 0])) });
+  put('sessions/s1/wolfAttackState/current', { ...launchedAttack, currentStep: 'short-range',
+    rangeReceipts: [emptyReceipt('long-range'), emptyReceipt('medium-range')] });
+  const ready = await getWolfFighterRangeActionChoice.run(request({ sessionId: 's1', range: 'short-range',
+    sourceId: 'fighter-wing-alpha' }, 'wc-1'));
+  await commitWolfFighterRangeActionChoice.run(request({ sessionId: 's1', requestId: 'select-alpha-short-subset',
+    expectedTurn: 1, expectedRevision: ready.revision, range: 'short-range', sourceId: 'fighter-wing-alpha',
+    fighterIndexes: [0, 1, 2],
+  }, 'wc-1'));
+  const choiceRevision = (testState.documents.get('sessions/s1/wolfAttackState/current')!.revision as number);
+  entropy.randomInt.mockReset().mockReturnValueOnce(0).mockReturnValueOnce(1).mockReturnValueOnce(2);
+  const locked = await commitWolfRangeActionChoice.run(request({ sessionId: 's1', requestId: 'lock-alpha-short-subset',
+    expectedTurn: 1, expectedRevision: choiceRevision, range: 'short-range', actionIds: [],
+  }));
+  expect(locked).toMatchObject({ choiceStatus: 'targets-required', hitSlots: [
+    { actionId: 'aegis-alpha-wing-short-0', count: 0 },
+    { actionId: 'aegis-alpha-wing-short-1', count: 0 },
+    { actionId: 'aegis-alpha-wing-short-2', count: 1 },
+  ] });
+  const lockedState = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  const assigned = await assignWolfRangeTargets.run(request({ sessionId: 's1', requestId: 'assign-alpha-short-subset',
+    expectedTurn: 1, expectedRevision: locked.revision, range: 'short-range', assignments: [
+      { actionId: 'aegis-alpha-wing-short-0', contactIds: [] },
+      { actionId: 'aegis-alpha-wing-short-1', contactIds: [] },
+      { actionId: 'aegis-alpha-wing-short-2', contactIds: ['contact-1'] },
+    ],
+  }));
+  const resolved = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  const receipt = (resolved.rangeReceipts as Array<Fields>).at(-1)!;
+  expect(assigned).toMatchObject({ currentStep: 'boarding', committedContacts: 1 });
+  expect(receipt).toMatchObject({
+    dice: [
+      { actionId: 'aegis-alpha-wing-short-0', rolls: [1], successes: 0, damage: 0 },
+      { actionId: 'aegis-alpha-wing-short-1', rolls: [2], successes: 0, damage: 0 },
+      { actionId: 'aegis-alpha-wing-short-2', rolls: [3], successes: 1, damage: 1 },
+    ],
+    assignments: [{ actionId: 'aegis-alpha-wing-short-2', targetInstanceIds: [roster[0]!.instanceId] }],
+  });
+  expect(resolved.aegisFighterWingState).toMatchObject({
+    wings: { 'fighter-wing-alpha': { fighters: 2, losses: 2, shortResolved: true } },
+  });
+  expect(entropy.randomInt).toHaveBeenCalledTimes(3);
+  expect(lockedState.rangeDecisions).toMatchObject({ 'short-range': { actionIds: [
+    'aegis-alpha-wing-short-0', 'aegis-alpha-wing-short-1', 'aegis-alpha-wing-short-2',
+  ] } });
+});
+
 it('returns only current source-derived actions and opaque target contacts to the entitled Executive Officer', async () => {
   const view = await getWolfRangeActionChoice.run(request({ sessionId: 's1' }));
   expect(view).toMatchObject({
