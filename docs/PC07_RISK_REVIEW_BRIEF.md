@@ -72,6 +72,18 @@ Direct chart, result, note and audit reads remain denied by Rules.
   audience schema and real callable adapters together. Five/six/seven target
   configurations must use their actual enabled vessels; failed configuration
   cannot fabricate a target, result, damage or defence.
+- Normal GM preparation submits server targeting with no per-card target
+  transcription or fabricated player-owned benefit. Legacy stored draft mode
+  and target annotations do not change source rolls and grant no intervention
+  authority. The old stage retry is explicitly collapsed recovery, governed by
+  real pending choices, shared holds, deadline and revision. Review the current
+  GM form against the actual endpoint contract and readonly pending status.
+- Gorgoneion's current admitted Captain makes the printed before-targeting
+  use/pass and local target choice. Valid current-cycle server charge is the
+  recovered projector readiness model; PC07 adds no small-ship damage deck.
+  Positive population, mutiny and any recognized explicit damage/destruction
+  denial still gate use. Review current host/group privacy, stale offers,
+  genuine disconnected pending choice, exact retry and final reduction once.
 - Declaration owns lock/parking/state/event atomically. Server randomness is
   committed before choices that depend on it; hidden assignments and modifiers
   remain private. Crew and GM projections are separate, direct privileged

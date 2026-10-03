@@ -361,3 +361,41 @@ through the protected callable instead of claiming direct member root access.
 The prepared solo tour now includes the actual Comms report and private GM-log
 presenters with explicitly synthetic facts and no live writes. Eight unit
 checks pass; the final reconciled responsive render matrix remains pending.
+
+
+### GM workflow and Force Field source boundary
+
+Primary Gorgoneion A4 duplex sheet PDF page 23 was visually rechecked outside
+Git. Its charged Force Field is the current Captain's genuine before-targeting
+use/pass and one-ship choice. The attack worker acknowledged a complete
+current-Captain callable/consumer contract, current admitted host/group, local
+eligible targets, current-cycle charge, positive population and mutiny gates,
+with pending disconnected choices preserved. PC07 uses the recovered charged
+console readiness contract and adds no small-ship damage deck/model. Any
+recognized explicit damage/destruction denial still wins. The final attack
+handback must record this bounded foundation assumption and proof; it does not
+credit future damage mechanics.
+
+The owner repaired the normal GM preparation form in separate test-first
+commits. The Wolf Commander reroll, Executive Officer Command and Control and
+Gorgoneion Force Field are no longer routine GM preparation checkboxes. Normal
+progress follows current player choices and server deadlines. The old legal
+stage retry is inside a collapsed "Attack progress recovery" section; it does
+not authorize skipping choices or holds. Existing stale-instance and deadline
+assertions remain. The first full GM test run passed 132/133; its sole failure
+was a new assertion incorrectly demanding a closed native-details descendant
+be absent from the DOM. The separate `a166758e` correction asserts collapsed
+native details and actual hidden visibility instead. Four selected current
+preparation/recovery/late-instance tests pass; final complete candidate tests
+remain open.
+
+The attack worker confirmed declaration always rolls targeting on the server;
+legacy draft target mode/assignments do not change source rolls or outcomes.
+They are not a reasoned correction path. The owner therefore removed routine
+per-card target transcription from the normal form and sends the compatible
+`pre-rolled` mode with no supplied targets. Historical wire/parser data remains
+readable in the private receipt. Red `4e1a412c` and implementation `e34871cc`
+prove the actual current form and source-owned targeting copy. Current
+Functions declarations retain server randomness and first-result replay; the
+worker's final P434a contract owns actual reasoned intervention. Typecheck is
+green, with final browser composition/review/deployment still pending.
