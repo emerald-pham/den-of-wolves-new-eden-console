@@ -539,7 +539,11 @@ it('locks the selected Short fighter subset with the EO range pass and applies l
       { actionId: 'aegis-alpha-wing-short-1', rolls: [2], successes: 0, damage: 0 },
       { actionId: 'aegis-alpha-wing-short-2', rolls: [3], successes: 1, damage: 1 },
     ],
-    assignments: [{ actionId: 'aegis-alpha-wing-short-2', targetInstanceIds: [roster[0]!.instanceId] }],
+    assignments: [
+      { actionId: 'aegis-alpha-wing-short-0', targetInstanceIds: [] },
+      { actionId: 'aegis-alpha-wing-short-1', targetInstanceIds: [] },
+      { actionId: 'aegis-alpha-wing-short-2', targetInstanceIds: [roster[0]!.instanceId] },
+    ],
   });
   expect(resolved.aegisFighterWingState).toMatchObject({
     wings: { 'fighter-wing-alpha': { fighters: 2, losses: 2, shortResolved: true } },

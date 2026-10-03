@@ -3612,6 +3612,7 @@ it('offers a later attack window only after the current attack has finalized', a
     },
   } as never);
   useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);
   vi.mocked(subscribeGmWolfAttackWindow).mockImplementation((_sessionId, onWindow) => {
