@@ -44,6 +44,33 @@ it('shows committed boarding through the real crew presenter without accepting a
   expect(screen.queryByRole('button', {name: 'Commit defence'})).not.toBeInTheDocument();
 });
 
+it('presents actual Commander, support, Militia, independent reroll and ruling choices as isolated samples', () => {
+  render(<PC08ReviewScene />);
+  fireEvent.click(screen.getByRole('button', {name: '4 Boarding defence'}));
+  fireEvent.click(screen.getByRole('button', {name: 'Commander sample'}));
+  fireEvent.click(screen.getByRole('button', {name: /lead at aegis/i}));
+  expect(screen.getByRole('status', {name: 'Prepared boarding result'})).toHaveTextContent('two parties');
+  fireEvent.click(screen.getByRole('button', {name: 'Support sample'}));
+  fireEvent.click(screen.getByRole('button', {name: /move pallas to dione/i}));
+  expect(screen.getByRole('status', {name: 'Prepared boarding result'})).toHaveTextContent('Pallas');
+  fireEvent.click(screen.getByRole('button', {name: 'Militia sample'}));
+  fireEvent.click(screen.getByRole('checkbox', {name: 'Roll two dice per Security Team'}));
+  fireEvent.change(screen.getByRole('combobox', {name: 'Front-line dice'}), {target: {value: '2'}});
+  fireEvent.click(screen.getByRole('button', {name: 'Commit defence'}));
+  expect(screen.getByRole('status', {name: 'Prepared boarding result'})).toHaveTextContent('2 front-line');
+  for (const source of ['AEGIS', 'Pallas']) {
+    fireEvent.click(screen.getByRole('button', {name: `${source} reroll sample`}));
+    fireEvent.click(screen.getByRole('checkbox', {name: /aegis die 1: 1/i}));
+    fireEvent.click(screen.getByRole('button', {name: 'Reroll selected dice'}));
+    expect(screen.getByRole('status', {name: 'Prepared boarding result'})).toHaveTextContent(`${source} chose 1`);
+  }
+  fireEvent.click(screen.getByRole('button', {name: 'Ruling sample'}));
+  expect(screen.getByRole('button', {name: 'Record facilitator ruling'})).toBeDisabled();
+  fireEvent.change(screen.getByRole('textbox', {name: 'Facilitator ruling'}), {target: {value: 'Recorded prepared adjudication.'}});
+  fireEvent.click(screen.getByRole('button', {name: 'Record facilitator ruling'}));
+  expect(screen.getByRole('status', {name: 'Prepared boarding result'})).toHaveTextContent('LOCAL SIMULATION');
+});
+
 it('retains committed results through offline and reconnect samples', () => {
   render(<PC08ReviewScene />);
   fireEvent.click(screen.getByRole('button', {name: '5 Results and recovery'}));
