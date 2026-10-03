@@ -181,6 +181,7 @@ beforeEach(() => {
     mock.pointerDocuments[handId] = { ...(mock.pointerDocuments[handId] ?? {}), ...patch };
   });
   sessionFields.currentTurn = 2;
+  delete (sessionFields as Record<string, unknown>).fleetPartitionRevision;
   (sessionFields.turnPhase as Record<string, unknown>).turn = 2;
   (sessionFields.turnState as Record<string, unknown>).currentTurn = 2;
   (sessionFields.turnState as Record<string, unknown>).phaseRevision = 3;
@@ -1274,7 +1275,7 @@ describe('production mission exploration application', () => {
   });
 });
 
-it('continues a mission after rejoin using the current participant group while preserving its immutable P403 source group', async () => {
+function seedRejoinedMissionFixture() {
   const missionId = 'mission-arrival-fleet-1-A-5143';
   const opportunityId = 'arrival-fleet-1-A-5143';
   const participants = [{ uid: 'alice', roleId: 'wing-commander' }];
@@ -1334,17 +1335,30 @@ it('continues a mission after rejoin using the current participant group while p
     lifecyclePublicState: publicState,
   };
 
-  const allMemberUids = players.map(({ id }) => id);
-  players.forEach((player) => { player.fields.fleetGroupId = 'fleet-2'; });
-  mock.fleetGroups = [{ id: 'fleet-2', fields: {
-    id: 'fleet-2', vesselIds: activeVesselIds, memberUids: allMemberUids,
-    memberShipIds: { alice: 'icebreaker' }, mergedGroupIds: ['fleet-1'],
-  } }];
+  const secondPartitionVessels = activeVesselIds.filter((shipId) => shipId !== 'icebreaker');
+  const secondPartitionMembers = players.filter(({ id }) => id !== 'alice').map(({ id }) => id);
+  players.forEach((player) => { player.fields.fleetGroupId = player.id === 'alice' ? 'fleet-3' : 'fleet-2'; });
+  Object.assign(sessionFields, { fleetPartitionRevision: 2 });
+  mock.fleetGroups = [
+    { id: 'fleet-2', fields: {
+      id: 'fleet-2', vesselIds: secondPartitionVessels, memberUids: secondPartitionMembers,
+      mergedGroupIds: ['fleet-1'],
+    } },
+    { id: 'fleet-3', fields: {
+      id: 'fleet-3', vesselIds: ['icebreaker'], memberUids: ['alice'],
+      memberShipIds: { alice: 'icebreaker' }, mergedGroupIds: ['fleet-1'],
+    } },
+  ];
   mock.navigationState = {
     revision: 7,
     shipGalacticCoordinates: Object.fromEntries(activeVesselIds.map((shipId) => [shipId, '5143'])),
-    pursuitGroups: { 'fleet-2': 3 },
+    pursuitGroups: { 'fleet-2': 3, 'fleet-3': 3 },
   };
+  return { missionId };
+}
+
+it('continues a mission after rejoin and resplit from the leader’s current physical group, preserving P403 lineage', async () => {
+  const { missionId } = seedRejoinedMissionFixture();
 
   const reply = await commitAwayMissionLifecycleCommand.run(request({
     sessionId: 's1', missionId, requestId: 'assign-after-fleet-rejoin', expectedRevision: 3,
@@ -1355,5 +1369,43 @@ it('continues a mission after rejoin using the current participant group while p
     status: 'committed', revision: 4,
     publicState: { groupId: 'fleet-1', status: 'resolved', missionLeaderUid: 'alice' },
   });
+  const missionWrite = mock.update.mock.calls.find(([ref]) =>
+    ref.path === `sessions/s1/serverState/awayMissions/instances/${missionId}`)?.[1] as
+      | Record<string, unknown> | undefined;
+  expect(missionWrite).toBeDefined();
+  const savedRecord = missionWrite?.lifecycleRecord as Record<string, unknown> | undefined;
+  expect(savedRecord).toMatchObject({
+    groupId: 'fleet-1',
+    legalDropOffShipIds: ['icebreaker'],
+  });
   expect(mock.update).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1' }), expect.any(Object));
+
+  mock.discardMission = { ...mock.discardMission, ...missionWrite };
+  mock.update.mockClear(); mock.set.mockClear(); mock.create.mockClear();
+  await expect(commitAwayMissionLifecycleCommand.run(request({
+    sessionId: 's1', missionId, requestId: 'foreign-fleet-drop-off', expectedRevision: 4,
+    type: 'dropOff', shipId: 'aegis',
+  }, 'alice'))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.create).not.toHaveBeenCalled();
 });
+
+it.each(['missing-berth', 'missing-lineage', 'mismatched-pointer', 'malformed-navigation'] as const)(
+  'denies rejoined mission continuation without valid current group authority: %s', async kind => {
+    const { missionId } = seedRejoinedMissionFixture();
+    const currentGroup = mock.fleetGroups.find(({ id }) => id === 'fleet-3')!;
+    if (kind === 'missing-berth') delete currentGroup.fields.memberShipIds;
+    if (kind === 'missing-lineage') currentGroup.fields.mergedGroupIds = [];
+    if (kind === 'mismatched-pointer') players.find(({ id }) => id === 'alice')!.fields.fleetGroupId = 'fleet-2';
+    if (kind === 'malformed-navigation') mock.navigationState.revision = Number.MAX_SAFE_INTEGER + 1;
+
+    await expect(commitAwayMissionLifecycleCommand.run(request({
+      sessionId: 's1', missionId, requestId: `invalid-current-group-${kind}`, expectedRevision: 3,
+      type: 'assignCards', placements: [],
+    }, 'alice'))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.create).not.toHaveBeenCalled();
+  },
+);
