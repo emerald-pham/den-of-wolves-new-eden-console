@@ -334,6 +334,25 @@ it('opens Long Range automatically when targeting has no Commander and no availa
     .toMatchObject({ type: 'wolf-attack-targeting-auto-advance', fromStep: 'targeting', toStep: 'long-range' });
 });
 
+it('continues a real five-ship targeting receipt into automatic unavailable EO ranges', async () => {
+  const ring = CORE_WOLF_TARGET_RING.filter(target => target !== 'dione');
+  const fiveTargeting = resolveWolfTargeting(firstTurnWolfAttackComposition(), {}, ring, () => 0);
+  const session = testState.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session, playerCount: 8, expansion: 'base', dioneEnabled: false,
+    activeVesselIds: [...ring], activeRoleIds: [] });
+  put('sessions/s1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: [...ring], memberUids: ['xo-1'], memberShipIds: { 'xo-1': 'aegis' } });
+  const state = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  put('sessions/s1/wolfAttackState/current', { ...state, currentStep: 'targeting', revision: 4,
+    calculationReceipt: { ...state.calculationReceipt as Fields, targeting: fiveTargeting }, combatRoster: wolfCombatRoster(fiveTargeting) });
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({ currentStep: 'long-range', revision: 5 });
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  const continued = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  expect(continued).toMatchObject({ currentStep: 'medium-range', revision: 6,
+    rangeDecisions: { 'long-range': { status: 'unavailable', reason: 'no-configured-executive-officer' } } });
+  expect(projectWolfAttackMemberView({ sessionId: 's1', state: continued, serverTime: new Date().toISOString() }).results).toHaveLength(1);
+});
+
 it('does not run automatic attack progression through any current session pause', async () => {
   const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
   put('sessions/s1/wolfAttackState/current', { ...attack, currentStep: 'targeting', revision: 4 });

@@ -11,6 +11,15 @@ import {
   parseWolfTargetingReceipt,
 } from './wolfCommanderRerolls';
 
+it('accepts the canonical five-ship receipt while denying arbitrary subsets, reordered rings and out-of-ring dice', () => {
+  const ring = CORE_WOLF_TARGET_RING.filter(target => target !== 'dione');
+  const receipt = resolveWolfTargeting(firstTurnWolfAttackComposition(), {}, ring, () => 0);
+  expect(parseWolfTargetingReceipt(receipt)).toEqual(receipt);
+  expect(parseWolfTargetingReceipt({ ...receipt, ring: ring.slice(0, 4) })).toBeUndefined();
+  expect(parseWolfTargetingReceipt({ ...receipt, ring: [...ring].reverse() })).toBeUndefined();
+  expect(parseWolfTargetingReceipt({ ...receipt, rolls: [{ ...receipt.rolls[0], initialDie: 6, finalDie: 6 }, ...receipt.rolls.slice(1)] })).toBeUndefined();
+});
+
 it('patches only selected rolls and keeps printed Capybara 8 rerolls separate', () => {
   const initial = resolveWolfTargeting(
     firstTurnWolfAttackComposition(), {}, EXPANDED_WOLF_TARGET_RING, () => 0,
