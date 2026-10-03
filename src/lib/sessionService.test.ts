@@ -2510,23 +2510,29 @@ describe('GM instance commands', () => {
       sessionId: payload.sessionId, requestId: payload.requestId,
       turn: 1, revision: 6, previousStep: 'targeting', currentStep: 'long-range',
       deadlineAt: '2026-09-24T20:00:00.000Z',
-      reason: 'Retry the committed targeting transition.', dangerConfirmed: true,
+      reason: payload.reason, dangerConfirmed: payload.dangerConfirmed,
       delta: {
         from: { revision: 5, currentStep: 'targeting', deadlineAt: '2026-09-24T20:00:00.000Z' },
         to: { revision: 6, currentStep: 'long-range', deadlineAt: '2026-09-24T20:00:00.000Z' },
-      }, rollback: { allowed: false },
+      },
+      rollback: { allowed: false },
     } })), { stream: vi.fn() });
     vi.mocked(httpsCallable).mockReturnValue(callable as never);
 
-    await expect(advanceWolfAttackToLongRange(1, 5, 'Retry the committed targeting transition.', true)).resolves.toMatchObject({
+    await expect(advanceWolfAttackToLongRange(
+      1, 5, 'Recover the already-completed targeting step.', true,
+    )).resolves.toMatchObject({
       status: 'committed', previousStep: 'targeting', currentStep: 'long-range', revision: 6,
+      reason: 'Recover the already-completed targeting step.', dangerConfirmed: true,
+      delta: { from: { revision: 5, currentStep: 'targeting' }, to: { revision: 6, currentStep: 'long-range' } },
+      rollback: { allowed: false },
     });
 
     expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'advanceWolfAttackToLongRange');
     expect(callable).toHaveBeenCalledWith(expect.objectContaining({
       sessionId: 's1', instanceId: 'instance-1', expectedTurn: 1, expectedRevision: 5,
+      reason: 'Recover the already-completed targeting step.', dangerConfirmed: true,
       requestId: expect.stringMatching(/^[A-Za-z0-9-]+$/),
-      reason: 'Retry the committed targeting transition.', dangerConfirmed: true,
     }));
   });
 
