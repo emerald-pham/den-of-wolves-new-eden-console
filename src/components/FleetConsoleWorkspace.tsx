@@ -1,3 +1,4 @@
+import AegisEnrichedWarheadPanel from './AegisEnrichedWarheadPanel';
 import AegisConsoleWorkspace from '@/components/AegisConsoleWorkspace';
 import FleetSystemsWorkspace from './FleetSystemsWorkspace';
 import type { ConsoleRole } from '@/data/roles';
@@ -64,6 +65,7 @@ export default function FleetConsoleWorkspace({
         writable={writable}
         shipState={shipState}
       />
+      <AegisEnrichedWarheadPanel consoleLocked={projectedConsoleLock} />
       <AegisCommandAndControlPanel consoleLocked={projectedConsoleLock} />
       {writable && <WolfRangeActionPanel />}
       {writable && <WolfBoardingDefencePanel />}

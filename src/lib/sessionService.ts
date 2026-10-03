@@ -1,3 +1,4 @@
+import type { AegisEnrichedWarheadView, AegisEnrichedWarheadResult } from '@/types/game';
 import { commissarPurgeAuthorityIsCurrent } from './commissarPurgeAuthority';
 import { signInAnonymously } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
@@ -6465,4 +6466,68 @@ export async function authorUniversalArbourVision(
     },
     createdAt: new Date().toISOString(),
   });
+}
+
+
+function aegisEnrichedWarheadViewReply(value: unknown): AegisEnrichedWarheadView | null {
+  const raw = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
+  if (!raw || Object.keys(raw).some(key => !['type', 'sessionId', 'attackId', 'turn', 'revision',
+    'choiceStatus', 'eligible', 'oreCost'].includes(key)) || raw.type !== 'aegis-enriched-warhead-view' ||
+    typeof raw.sessionId !== 'string' || (raw.attackId !== null && typeof raw.attackId !== 'string') ||
+    !Number.isSafeInteger(raw.turn) || (raw.turn as number) < 1 ||
+    !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 0 ||
+    !['pending', 'enriched', 'passed', 'unavailable'].includes(String(raw.choiceStatus)) ||
+    typeof raw.eligible !== 'boolean' || raw.oreCost !== 5 ||
+    (raw.choiceStatus === 'pending') !== raw.eligible) return null;
+  return { type: 'aegis-enriched-warhead-view', sessionId: raw.sessionId, attackId: raw.attackId as string | null,
+    turn: raw.turn as number, revision: raw.revision as number,
+    choiceStatus: raw.choiceStatus as AegisEnrichedWarheadView['choiceStatus'], eligible: raw.eligible, oreCost: 5 };
+}
+
+export async function getAegisEnrichedWarheadChoice(): Promise<AegisEnrichedWarheadView> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.role !== 'player' || store.me.activeConsoleRoleId !== 'executive-officer') {
+    throw new Error('Only the active AEGIS Executive Officer may read enriched warheads.');
+  }
+  requireFreshSessionAuthority('Reconnect before reading enriched warheads.');
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const call = httpsCallable<{ sessionId: string }, unknown>(functions(), 'getAegisEnrichedWarheadChoice');
+  const view = aegisEnrichedWarheadViewReply((await call({ sessionId })).data);
+  if (!view || view.sessionId !== sessionId) throw new Error('The server returned an invalid enriched warhead view.');
+  if (!aegisExecutiveOfficerAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
+    throw new Error('The Executive Officer authority changed before this response arrived.');
+  }
+  return view;
+}
+
+export async function commitAegisEnrichedWarheadChoice(
+  expectedTurn: number, expectedRevision: number, choice: 'enrich' | 'pass',
+): Promise<AegisEnrichedWarheadResult> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.role !== 'player' || store.me.activeConsoleRoleId !== 'executive-officer') {
+    throw new Error('Only the active AEGIS Executive Officer may choose enriched warheads.');
+  }
+  requireFreshSessionAuthority('Reconnect before choosing enriched warheads.');
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const payload = { sessionId, requestId: commandId(), expectedTurn, expectedRevision, choice };
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'commitAegisEnrichedWarheadChoice');
+  const value = (await call(payload)).data;
+  const raw = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
+  const view = aegisEnrichedWarheadViewReply(raw?.view);
+  if (!raw || Object.keys(raw).some(key => !['type', 'status', 'sessionId', 'requestId', 'turn', 'revision', 'view'].includes(key)) ||
+    raw.type !== 'aegis-enriched-warhead-result' || raw.status !== 'committed' ||
+    raw.sessionId !== sessionId || raw.requestId !== payload.requestId || raw.turn !== expectedTurn ||
+    raw.revision !== expectedRevision + 1 || !view || view.sessionId !== sessionId || view.turn !== expectedTurn ||
+    view.revision !== expectedRevision + 1 || view.choiceStatus !== (choice === 'enrich' ? 'enriched' : 'passed')) {
+    throw new Error('The server returned an invalid enriched warhead receipt.');
+  }
+  if (!aegisExecutiveOfficerAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
+    throw new Error('The Executive Officer authority changed before this response arrived.');
+  }
+  return { type: 'aegis-enriched-warhead-result', status: 'committed', sessionId, requestId: payload.requestId,
+    turn: expectedTurn, revision: expectedRevision + 1, view };
 }

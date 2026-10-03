@@ -2157,3 +2157,25 @@ export interface SecretRecord {
   readonly payload: Readonly<Record<string, unknown>>;
   readonly createdAt: Timestamp;
 }
+
+
+export interface AegisEnrichedWarheadView {
+  readonly type: 'aegis-enriched-warhead-view';
+  readonly sessionId: string;
+  readonly attackId: string | null;
+  readonly turn: number;
+  readonly revision: number;
+  readonly choiceStatus: 'pending' | 'enriched' | 'passed' | 'unavailable';
+  readonly eligible: boolean;
+  readonly oreCost: 5;
+}
+
+export interface AegisEnrichedWarheadResult {
+  readonly type: 'aegis-enriched-warhead-result';
+  readonly status: 'committed';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly turn: number;
+  readonly revision: number;
+  readonly view: AegisEnrichedWarheadView;
+}
