@@ -61,6 +61,20 @@ it('shows a bounded taxi payload, one-attempt recovery and an explicit rejoin re
  fireEvent.click(screen.getByRole('button',{name:'Rejoin co-located sample'}));
  expect(screen.getByRole('status',{name:'Rejoin sample result'})).toHaveTextContent('pursuit 4');
 });
+it('renders committed safe attack results and offers genuine use, pass and recovery samples',()=>{
+ render(<PC07ReviewScene />);fireEvent.click(screen.getByRole('button',{name:'4 Attack lifecycle'}));
+ fireEvent.click(screen.getByRole('button',{name:'Declare attack sample'}));
+ expect(screen.getByRole('region',{name:'Wolf attack status'})).toHaveTextContent('Long Range');
+ fireEvent.click(screen.getByRole('button',{name:'Pause attack sample'}));
+ expect(screen.getByRole('button',{name:'Pass charged weapon sample'})).toBeDisabled();
+ fireEvent.click(screen.getByRole('button',{name:'Reconnect attack sample'}));
+ fireEvent.click(screen.getByRole('button',{name:'Pass charged weapon sample'}));
+ expect(screen.getByRole('status',{name:'Attack sample result'})).toHaveTextContent('Charge retained');
+ fireEvent.click(screen.getByRole('button',{name:'Commit boarding sample'}));
+ expect(screen.getByRole('region',{name:'Wolf attack status'})).toHaveTextContent('Attack complete');
+ expect(screen.getByRole('status',{name:'Attack sample result'})).toHaveTextContent('airspace opens');
+ expect(screen.queryByText(/facilitator notes|unresolved dice|hidden composition/i)).not.toBeInTheDocument();
+});
 it('keeps the actual held-clock presentation isolated from an existing signed-in identity',()=>{
  const original=useSessionStore.getState();
  const stamp='2026-10-02T12:00:00.000Z';
