@@ -2,11 +2,15 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest';
 import FleetGroupWorkspace from './FleetGroupWorkspace';
 import { useSessionStore } from '@/store/useSessionStore';
-const mocks = vi.hoisted(() => ({ read: vi.fn(), send: vi.fn(), confirm: vi.fn(), readNavigation: vi.fn(), share: vi.fn(), transferTaxi: vi.fn() }));
+const mocks = vi.hoisted(() => ({ read: vi.fn(), send: vi.fn(), confirm: vi.fn(), readNavigation: vi.fn(), share: vi.fn(), transferTaxi: vi.fn(),
+  roster: [{ uid: 'crew-1', displayName: 'Pilot Mira', role: 'player', connected: true, fleetGroupId: 'fleet-2', assignedRoleId: 'quellon-engineer' }] }));
 vi.mock('@/lib/fleetGroupService', () => ({ createCurrentFleetGroupActions: () => ({
   read: mocks.read, send: mocks.send, confirmPartition: mocks.confirm,
   readNavigation: mocks.readNavigation, share: mocks.share, transferTaxi: mocks.transferTaxi,
 }) }));
+vi.mock('@/lib/firestore', () => ({ subscribeConnectedPlayers: (_sessionId: string, onPlayers: (players: unknown[]) => void) => {
+  onPlayers(mocks.roster); return vi.fn();
+} }));
 beforeEach(() => {
   useSessionStore.getState().reset();
   mocks.read.mockReset().mockResolvedValue({ groupId: 'fleet-2', messages: [{ id: 'r1', actorUid: 'bob', text: 'Hold here.', sentAt: '2026-09-30T10:00:00Z' }] });
@@ -64,4 +68,15 @@ it('offers a legal taxi payload form and reports the server committed fuel resul
   fireEvent.click(screen.getByRole('button', { name: 'Send scout taxi' }));
   await waitFor(() => expect(mocks.transferTaxi).toHaveBeenCalledWith({ shuttleId: 'hummingbird', targetShipId: 'aegis', payload: { kind: 'fuel', units: 1 } }));
   expect(await screen.findByRole('status')).toHaveTextContent(/fuel/i);
+});
+
+it('lets the current taxi owner select at most two connected members from the server scoped group roster', async () => {
+  seed(); useSessionStore.setState(state => ({ me: { ...state.me!, assignedRoleId: 'quellon-explorer' } as never }));
+  render(<FleetGroupWorkspace />);
+  fireEvent.change(await screen.findByLabelText('Taxi destination ship'), { target: { value: 'aegis' } });
+  fireEvent.change(screen.getByLabelText('Taxi payload'), { target: { value: 'players' } });
+  fireEvent.click(screen.getByLabelText('Pilot Mira'));
+  fireEvent.click(screen.getByRole('button', { name: 'Send scout taxi' }));
+  await waitFor(() => expect(mocks.transferTaxi).toHaveBeenCalledWith({ shuttleId: 'hummingbird', targetShipId: 'aegis',
+    payload: { kind: 'players', playerUids: ['crew-1'] } }));
 });
