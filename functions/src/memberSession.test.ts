@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { memberSessionProjection, memberSessionScope } from './memberSession';
+import { emptySmallShipState } from './smallShip';
+import { emptyVoyage33MaintenanceState } from './voyage33Maintenance';
+import { VOYAGE_33_COMMITMENTS } from './voyageAdmission';
 
 const player = { uid: 'crew', connected: true, role: 'player', fleetGroupId: 'fleet-2', connectionGeneration: 3 };
 const groups = [
@@ -70,4 +73,49 @@ describe('current member session privacy', () => {
     const value = memberSessionProjection({ ...root, futureSecret: { entire: 'private' } }, memberSessionScope(player, groups));
     expect(value).not.toHaveProperty('futureSecret');
   });
+
+  it('keeps validated hosted small vessels with their current group and withdraws foreign hosts', () => {
+    const local = { ...emptySmallShipState('gorgoneion', 'shepherd'), dockingRevision: 1 };
+    const foreign = { ...emptySmallShipState('warrior', 'aegis'), dockingRevision: 1 };
+    const value = memberSessionProjection({ ...root, smallShipStates: { gorgoneion: local, warrior: foreign },
+      shipDamage: { gorgoneion: { destroyed: false }, warrior: { destroyed: false } },
+      gorgoneionRepairDrones: { revision: 1 }, warriorRepairDrones: { revision: 2 },
+    }, memberSessionScope(player, groups));
+    expect(value.smallShipStates).toEqual({ gorgoneion: local });
+    expect(value.shipDamage).toEqual({ gorgoneion: { destroyed: false } });
+    expect(value.gorgoneionRepairDrones).toEqual({ revision: 1 });
+    expect(value).not.toHaveProperty('warriorRepairDrones');
+    expect(recordScope(value).vesselIds).toEqual(['shepherd', 'gorgoneion']);
+    const malformed = memberSessionProjection({ ...root, smallShipStates: { gorgoneion: { ...local, dockingRevision: 0 } } }, memberSessionScope(player, groups));
+    expect(malformed.smallShipStates).toEqual({});
+  });
+
+  it('keeps Voyage admission and maintenance at its validated current host without coordinates', () => {
+    const maintenance = { ...emptyVoyage33MaintenanceState('shepherd'), dockingRevision: 1 };
+    const admission = { type: 'voyage-admission', sessionId: 'session', id: 'voyage-33-0', status: 'admitted',
+      crisisId: 'crisis-1', crisisRevision: 1, population: 40000, unrest: 0, hostShipId: null, commitments: VOYAGE_33_COMMITMENTS };
+    const source = { ...root, voyage33Admission: admission, voyage33Maintenance: maintenance, admittedVesselIds: ['voyage-33-0'] };
+    const value = memberSessionProjection(source, memberSessionScope(player, groups));
+    expect(value.voyage33Admission).toEqual(admission);
+    expect(value.voyage33Maintenance).toEqual(maintenance);
+    expect(value.admittedVesselIds).toEqual(['voyage-33-0']);
+    expect(value).not.toHaveProperty('voyage33Movement');
+    const moved = memberSessionProjection({ ...source, voyage33Maintenance: { ...maintenance, hostShipId: 'aegis' } }, memberSessionScope(player, groups));
+    expect(moved).not.toHaveProperty('voyage33Admission');
+    expect(moved).not.toHaveProperty('voyage33Maintenance');
+  });
+
+  it('preserves repair usage without disclosing other-group host details or GM alert recipients', () => {
+    const value = memberSessionProjection({ ...root,
+      shuttleDockings: [{ shuttleId: 'philia', shipId: 'shepherd' }],
+      philiaRepairs: { cycle: 2, revision: 2, hosts: [{ shipId: 'aegis', systemIds: ['reactor'] }, { shipId: 'dione', systemIds: ['storage'] }] },
+      populationAlerts: { shepherd: { targetGmInstanceIds: ['hidden-gm'] } },
+      unrestAlerts: { shepherd: { targetGmInstanceIds: ['hidden-gm'] } },
+    }, memberSessionScope(player, groups));
+    expect(value.philiaRepairs).toEqual({ cycle: 2, revision: 2, totalHostsUsed: 2, hosts: [] });
+    expect(value.populationAlerts).toEqual({});
+    expect(value.unrestAlerts).toEqual({});
+  });
 });
+
+function recordScope(value: Record<string, unknown>) { return value.memberSessionScope as { vesselIds: string[] }; }

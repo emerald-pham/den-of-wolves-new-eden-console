@@ -92,6 +92,15 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
+it('respects redacted prior repair usage without showing foreign host details', () => {
+  installSession({ philiaRepairs: { cycle: 3, revision: 2, hosts: [], totalHostsUsed: 2 } } as Partial<GameSession>);
+  renderPhilia(dioneDocking, true);
+  const repair = screen.getByRole('region', { name: 'Philia console repair' });
+  expect(within(repair).getByText('Philia may repair at most two ships this cycle.')).toBeInTheDocument();
+  expect(within(repair).getByRole('checkbox', { name: 'Reactor' })).toBeDisabled();
+  expect(within(repair).queryByText(/history is unavailable/)).not.toBeInTheDocument();
+});
+
 beforeEach(() => {
   mocks.repair.mockReset();
   vi.stubGlobal('crypto', { randomUUID: vi.fn(() => 'philia-repair-stable-id') });
