@@ -1,0 +1,376 @@
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import { dirname } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
+import { chromium } from 'playwright';
+import { createPc07AuthenticatedSession } from './pc07-authenticated-session.mjs';
+
+const evidencePath = process.env.PC08_ATTACK_EVIDENCE_PATH;
+const uiUrl = process.env.PC08_UI_URL;
+assert.ok(evidencePath && uiUrl, 'External evidence and the isolated app URL are required.');
+await mkdir(dirname(evidencePath), { recursive: true });
+const require = createRequire(new URL('../functions/package.json', import.meta.url));
+const { MAINTENANCE_ORDERS } = require('../functions/lib/maintenanceOrder.js');
+const { SHIP_DAMAGE_DECKS } = require('../functions/lib/shipDamage.js');
+const browser = await chromium.launch({ channel: 'chrome', headless: true });
+const context = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
+const page = await context.newPage();
+const browserErrors = [], checks = {}, actions = [], ranges = [], boarding = [], observations = [];
+page.on('pageerror', error => browserErrors.push(error.message));
+let f;
+async function snapshotIdentity() {
+  return page.evaluate(async () => {
+    const { auth } = await import('/src/lib/firebase.ts');
+    const { useSessionStore } = await import('/src/store/useSessionStore.ts');
+    const s = useSessionStore.getState();
+    return { uid: auth().currentUser?.uid, memberUid: s.me?.uid, sessionId: s.session?.id,
+      roleId: s.me?.assignedRoleId, connection: s.connection, freshness: s.sessionSnapshotFreshness };
+  });
+}
+async function browserUntil(label, ready) {
+  const deadline = Date.now() + 30_000;
+  let last;
+  while (Date.now() < deadline) {
+    last = await snapshotIdentity();
+    if (ready(last)) return last;
+    await delay(250);
+  }
+  throw new Error(`${label}: ${JSON.stringify(last)}`);
+}
+async function joinThroughUi(code) {
+  await page.goto(uiUrl);
+  await page.getByRole('button', { name: /^REDUCED MOTION/i }).click();
+  await page.getByRole('textbox', { name: 'Session code', exact: true }).fill(code);
+  await page.getByRole('button', { name: 'Join a session', exact: true }).click();
+  const waiver = page.getByRole('dialog', { name: 'CODE OF CONDUCT', exact: true });
+  await waiver.waitFor();
+  for (const checkbox of await waiver.getByRole('checkbox', { name: /^Acknowledge regulation/ }).all()) await checkbox.check();
+  await waiver.getByRole('button', { name: 'Acknowledge regulations and continue', exact: true })
+    .and(page.locator(':enabled')).click();
+  await browserUntil('ordinary UI join', s => Boolean(s.uid && s.uid === s.memberUid));
+  return page.evaluate(async () => {
+    const { auth } = await import('/src/lib/firebase.ts');
+    return { localId: auth().currentUser.uid, idToken: await auth().currentUser.getIdToken() };
+  });
+}
+async function command(actor, name, data = {}) {
+  const result = f.ok(await f.call(actor, name, { sessionId: f.sessionId, ...data }), name);
+  assert.notEqual(result?.status, 'stale', `${name} returned stale authority.`);
+  actions.push({ name, status: result?.status ?? 'committed', revision: result?.revision ?? null });
+  console.log(`${name}: ${result?.status ?? 'committed'}${result?.revision ? ` rev ${result.revision}` : ''}`);
+  return result;
+}
+async function denied(actor, name, data = {}) {
+  const reply = await f.call(actor, name, { sessionId: f.sessionId, ...data });
+  assert.notEqual(reply.status, 200, `${name} unexpectedly succeeded.`);
+  assert.ok(['FAILED_PRECONDITION', 'PERMISSION_DENIED', 'INVALID_ARGUMENT'].includes(reply.error?.status));
+}
+async function attackState() { return (await f.db.doc(`sessions/${f.sessionId}/wolfAttackState/current`).get()).data(); }
+async function until(label, ready, timeout = 30_000) {
+  const deadline = Date.now() + timeout;
+  let last;
+  while (Date.now() < deadline) {
+    last = await attackState();
+    if (ready(last)) return last;
+    await delay(250);
+  }
+  throw new Error(`${label} did not become ready (step ${last?.currentStep}, revision ${last?.revision}).`);
+}
+async function replace(actor, replacementRoleId) {
+  const eligibility = await command(f.gm, 'setReplacementEligibility', { instanceId: f.instanceId,
+    requestId: randomUUID(), targetUid: actor.localId, reason: 'removed', expectedRevision: 0,
+    expectedSetupRevision: (await f.session.get()).get('setupRevision') });
+  await command(f.gm, 'assignReplacementRole', { instanceId: f.instanceId, requestId: randomUUID(),
+    targetUid: actor.localId, replacementRoleId, expectedRevision: eligibility.revision,
+    expectedSetupRevision: eligibility.setupRevision });
+  await command(actor, 'refreshPresence', { activeConsoleRoleId: null });
+}
+async function maintain(shipId, consoles, refuelCraftIds) {
+  let bayIndex = 0;
+  for (const action of ['begin', ...MAINTENANCE_ORDERS[shipId], 'end']) {
+    const current = await f.session.get();
+    if (action === 'reactor' && current.get('shipDamage')?.[shipId]?.damagedSystemIds?.length) {
+      await command(f.gm, 'repairAllShipDamage', { instanceId: f.instanceId, shipId, requestId: randomUUID(),
+        expectedRevision: current.get('vesselActionRevisions')?.[shipId] ?? 0 });
+    }
+    const bays = SHIP_DAMAGE_DECKS[shipId].filter(card => card.systemId.startsWith('shuttle-bay'));
+    const craftId = action === 'bays' ? refuelCraftIds[bayIndex] : undefined;
+    const bayId = shipId === 'aegis' ? bays[bayIndex]?.systemId : bays[0]?.systemId;
+    await command(f.gm, 'runMaintenance', { instanceId: f.instanceId, shipId, action,
+      requestId: randomUUID(), expectedRevision: (await f.session.get()).get('maintenanceCycles')?.[shipId]?.revision ?? 0,
+      ...(action === 'rations' ? { foodLevel: 0, waterLevel: 0 } : {}),
+      ...(action === 'reactor' ? { consoles } : {}),
+      ...(action === 'bays' ? { refuels: craftId ? { [bayId]: craftId } : {} } : {}) });
+    if (action === 'bays') bayIndex += 1;
+  }
+}
+function withoutReplayStatus(result) { const { status, ...rest } = result; return rest; }
+async function exactRetry(actor, name, request) {
+  const first = await command(actor, name, request);
+  const replay = await command(actor, name, request);
+  assert.deepEqual(withoutReplayStatus(replay), withoutReplayStatus(first), `${name} changed its exact receipt.`);
+  return first;
+}
+async function sourceChoice(actor, sourceId, range, index = 0) {
+  const view = await command(actor, 'getWolfRangeSupportActionChoice', { sourceId, range });
+  assert.equal(JSON.stringify(view).includes('dice'), false, 'Source read must omit locked dice.');
+  const use = view.eligible === true;
+  const target = view.targets?.[index % Math.max(1, view.targets.length)] ?? view.contacts?.[index % Math.max(1, view.contacts.length)];
+  await exactRetry(actor, 'commitWolfRangeSupportActionChoice', { sourceId, range, requestId: randomUUID(),
+    expectedTurn: view.turn, expectedRevision: view.revision, use,
+    ...(use && sourceId === 'boa' ? { targetContactId: target?.instanceId ?? target?.contactId } : {}) });
+  return { sourceId, use };
+}
+async function chooseFlights(range) {
+  const wing = f.byRole('wing-commander');
+  for (const [sourceId, shortCount] of [['fighter-wing-alpha', 4], ['fighter-wing-bravo', 1]]) {
+    const view = await command(wing, 'getWolfFighterRangeActionChoice', { sourceId, range });
+    const selected = view.fighters.slice(0, shortCount).map(({ fighterIndex }) => fighterIndex);
+    const medium = sourceId === 'fighter-wing-alpha' && view.fighters.length > 1 && view.targets.length > 1
+      ? [{ fighterIndex: view.fighters[0].fighterIndex, kind: 'attack', targetContactId: view.targets[0].instanceId },
+        { fighterIndex: view.fighters[1].fighterIndex, kind: 'target-shift', targetContactId: view.targets[1].instanceId, shift: 1 }]
+      : [];
+    await exactRetry(wing, 'commitWolfFighterRangeActionChoice', { sourceId, range, requestId: randomUUID(),
+      expectedTurn: view.turn, expectedRevision: view.revision,
+      ...(range === 'medium-range' ? { actions: medium } : { fighterIndexes: selected }) });
+  }
+  for (const [sourceId, roleId] of [['pdf-escort-fighter-wing', 'refinery-124-pdf-colonel'], ['maliades', 'dione-engineer']]) {
+    const actor = f.byRole(roleId);
+    const view = await command(actor, 'getWolfEscortRangeActionChoice', { sourceId, range });
+    const targets = view.targets;
+    const medium = targets.length > 1
+      ? [{ ...(sourceId === 'maliades' ? {} : { fighterIndex: 0 }), kind: 'attack', targetContactId: targets[0].instanceId },
+        { ...(sourceId === 'maliades' ? {} : { fighterIndex: 1 }), kind: 'target-shift', targetContactId: targets[1].instanceId, shift: -1 }]
+      : [];
+    await exactRetry(actor, 'commitWolfEscortRangeActionChoice', { sourceId, range, requestId: randomUUID(),
+      expectedTurn: view.turn, expectedRevision: view.revision,
+      ...(range === 'medium-range' ? { actions: medium }
+        : sourceId === 'maliades' ? { targetContactIds: targets.slice(0, 2).map(target => target.instanceId) }
+          : { fighterIndexes: view.fighters.slice(0, 2).map(({ fighterIndex }) => fighterIndex) }) });
+  }
+}
+function safeTargetAssignments(view) {
+  const available = view.contacts.filter(({ available }) => available);
+  const covered = new Map(available.map(contact => [contact.contactId, 0]));
+  return view.hitSlots.map(slot => {
+    const chosen = [];
+    for (let index = 0; index < Math.min(slot.count, available.length); index += 1) {
+      const candidates = available.filter(contact => !chosen.includes(contact.contactId));
+      const required = candidates.find(contact => (contact.requiredCoverageDamage ?? 0) > covered.get(contact.contactId));
+      const target = required ?? candidates.find(contact => covered.get(contact.contactId) === 0) ?? candidates[0];
+      chosen.push(target.contactId);
+      covered.set(target.contactId, covered.get(target.contactId) + 1);
+    }
+    return { actionId: slot.actionId, contactIds: chosen };
+  });
+}
+async function completeBoarding() {
+  const deadline = Date.now() + 120_000;
+  while (Date.now() < deadline) {
+    const state = await attackState();
+    if (state.status === 'resolved') return state;
+    let committed = false;
+    for (const actor of [f.gm, ...f.players]) {
+      const reply = await f.call(actor, 'getWolfBoardingSpecialChoice', { sessionId: f.sessionId,
+        ...(actor === f.gm ? { instanceId: f.instanceId } : {}) });
+      observations.push({ type: reply.result?.type, kind: reply.result?.choice?.kind, reason: reply.result?.reason,
+        status: reply.status });
+      if (observations.length > 50) observations.shift();
+      if (reply.status !== 200 || reply.result.type !== 'wolf-boarding-special-choice-view') continue;
+      const view = reply.result, choice = view.choice;
+      let decision;
+      if (choice.kind === 'commander') decision = { kind: 'commander', targetShipId: choice.targets[0]?.targetShipId ?? null };
+      else if (choice.kind === 'relocation') decision = { kind: 'relocation', craftId: choice.craftId,
+        targetShipId: null, expectedControlRevision: choice.controlRevision };
+      else if (choice.kind === 'militia') decision = { kind: 'militia', targetShipId: choice.targetShipId,
+        militiaDoubleTeams: choice.doubleDiceAvailable, militiaFrontLineDice: 0 };
+      else if (choice.kind === 'reroll') decision = { kind: 'reroll', source: choice.source,
+        targetShipId: choice.targetShipId, dieIndexes: choice.dice.slice(0, choice.maxRerolls).map(die => die.dieIndex) };
+      else decision = { kind: 'commander-ruling', targetShipId: choice.targetShipId,
+        rulingText: 'The unresolved Commander consequence is contained for this disposable attack.' };
+      await exactRetry(actor, 'commitWolfBoardingSpecialChoice', { requestId: randomUUID(), expectedTurn: view.turn,
+        expectedRevision: view.revision, choice: decision, ...(choice.kind === 'commander-ruling' ? { instanceId: f.instanceId } : {}) });
+      boarding.push({ kind: choice.kind }); committed = true; break;
+    }
+    if (committed) continue;
+    for (const actor of f.players) {
+      const reply = await f.call(actor, 'getWolfBoardingDefenceChoice', { sessionId: f.sessionId });
+      if (reply.status !== 200 || reply.result.choiceStatus !== 'pending') continue;
+      const view = reply.result;
+      await exactRetry(actor, 'commitWolfBoardingDefenceChoice', { requestId: randomUUID(), expectedTurn: view.turn,
+        expectedRevision: view.revision, targetShipId: view.targetShipId, securityTeams: Math.min(1, view.availableSecurityTeams) });
+      boarding.push({ kind: 'defence', target: view.targetShipId }); committed = true; break;
+    }
+    if (!committed) await delay(250);
+  }
+  throw new Error('The genuine boarding choices did not reach atomic finalization.');
+}
+try {
+  f = await createPc07AuthenticatedSession('PC08 normal composed range attack', 20, { keepAlive: true,
+    expansion: 'capybara', browserRoleId: 'executive-officer', joinBrowserPlayer: joinThroughUi });
+  console.log(`Disposable normal session: ${f.sessionId}`);
+  const eo = f.byRole('executive-officer'), wing = f.byRole('wing-commander');
+  const captain = f.byRole('admiral'), commander = f.byRole('shepherd-scientist');
+  const lease = (await f.db.doc(`sessions/${f.sessionId}/gmInstances/${f.instanceId}`).get()).data();
+  const claimedAt = typeof lease.claimedAt === 'string' ? lease.claimedAt : lease.claimedAt.toDate().toISOString();
+  for (const shipId of ['aegis', 'dione', 'refinery-124', 'icebreaker', 'capybara']) {
+    await command(f.gm, 'setGmShipConsoleWriteGrant', { instanceId: f.instanceId, shipId, enabled: true, claimedAt });
+  }
+  await replace(captain, 'gorgoneion-captain');
+  await replace(commander, 'wolf-commander');
+  await command(f.gm, 'setSmallShipDocking', { instanceId: f.instanceId, requestId: randomUUID(),
+    smallShipId: 'gorgoneion', hostShipId: 'aegis', docked: true, expectedRevision: 0 });
+  await maintain('aegis', ['command-and-control', 'missile-launchers', 'point-defence-lasers', 'fighter-bay-alpha', 'fighter-bay-bravo'], ['pallas', 'starlight']);
+  await maintain('dione', ['fighter-bay'], ['maliades']);
+  await maintain('refinery-124', ['fighter-bay'], []);
+  await maintain('icebreaker', ['mining-drone-control'], ['highwall']);
+  await maintain('capybara', ['scrap-refinery'], []);
+  for (const action of ['begin', 'rations', 'unrest', 'riot', 'reactor', 'end']) {
+    await command(captain, 'runSmallShipMaintenance', { smallShipId: 'gorgoneion', action, requestId: randomUUID(),
+      expectedRevision: (await f.session.get()).get('smallShipStates').gorgoneion.cycle.revision,
+      ...(action === 'rations' ? { foodLevel: 0, waterLevel: 0 } : {}),
+      ...(action === 'reactor' ? { consoles: ['missile-array', 'force-field-projector'] } : {}) });
+  }
+  const current = await f.session.get();
+  await command(f.gm, 'adjustShipResource', { instanceId: f.instanceId, requestId: randomUUID(), shipId: 'aegis',
+    resourceId: 'ore', delta: 9 - current.get('shipResources').aegis.ore,
+    expectedRevision: current.get('vesselActionRevisions').aegis });
+  const phase = (await f.session.get()).get('turnPhase');
+  // The only privileged fixture mutation accelerates this disposable clock.
+  await f.session.update({ turnPhase: { ...phase, teamPhaseEndsAt: new Date(Date.now() - 1000).toISOString(),
+    openAirspaceEndsAt: new Date(Date.now() + 600_000).toISOString() } });
+  await command(wing, 'beginOpenAirspacePhase', { expectedTurn: 1 });
+  await command(f.gm, 'unlockPressAirspace', { instanceId: f.instanceId });
+  const phaseBefore = (await f.session.get()).get('turnPhase');
+  const departureId = randomUUID();
+  await command(wing, 'requestShuttleDeparture', { requestId: departureId, shuttleId: 'starlight', destinationShipId: 'icebreaker',
+    expectedControlRevision: 0, expectedCycle: 1 });
+  await command(wing, 'beginShuttleTransit', { requestId: randomUUID(), shuttleId: 'starlight',
+    expectedDepartureRequestId: departureId, expectedControlRevision: 0, expectedCycle: 1 });
+  const prep = await command(f.gm, 'stageWolfAttackPreparation', { instanceId: f.instanceId, requestId: randomUUID(),
+    expectedRevision: 0, turn: 1, shipIds: [...Array(10).fill('wolf-fighter-wing'), ...Array(5).fill('wolf-assault-transport')],
+    targetMode: 'pre-rolled', targetAssignments: [], modifiers: [], notes: '' });
+  const declareRequest = { instanceId: f.instanceId, requestId: randomUUID(), expectedRevision: prep.revision };
+  const declaration = await command(f.gm, 'declareWolfAttack', declareRequest);
+  assert.equal((await f.db.doc(`sessions/${f.sessionId}/shuttleTransitChains/starlight`).get()).exists, false);
+  checks.normalTwentyPlayerPreparationAndActualTransitParking = true;
+  const force = await command(captain, 'getWolfForceFieldChoice');
+  await exactRetry(captain, 'commitWolfForceFieldChoice', { requestId: randomUUID(), expectedTurn: force.turn,
+    expectedRevision: force.revision, targetShipId: 'aegis' });
+  await until('private targeting', state => state.calculationReceipt?.step === 'targeting');
+  await page.goto(`${uiUrl}/#/console`);
+  await page.getByRole('heading', { name: 'Stations and consoles', exact: true }).waitFor();
+  await browserUntil('fresh same-actor station choice', s => s.uid === eo.localId && s.sessionId === f.sessionId &&
+    s.roleId === 'executive-officer' && s.connection === 'live' && s.freshness === 'server');
+  await page.getByRole('link', { name: 'AEGIS // Executive Officer // HELD BY YOU', exact: true }).click();
+  let warheadRequest;
+  const capture = request => { if (request.url().endsWith('/commitAegisEnrichedWarheadChoice')) warheadRequest = request.postDataJSON().data; };
+  page.on('request', capture);
+  await page.getByRole('button', { name: 'Enrich warheads // 5 ore', exact: true }).click({ timeout: 30_000 });
+  await until('ordinary live warhead purchase', state => state.enrichedWarheads?.status === 'enriched');
+  page.off('request', capture);
+  assert.ok(warheadRequest, 'The actual panel sent the ordinary actor purchase.');
+  assert.equal((await f.session.get()).get('shipResources').aegis.ore, 4);
+  await command(eo, 'commitAegisEnrichedWarheadChoice', warheadRequest);
+  assert.equal((await f.session.get()).get('shipResources').aegis.ore, 4);
+  await page.screenshot({ path: `${dirname(evidencePath)}/normal-phone-enriched-warheads.png`, fullPage: true });
+  checks.livePhoneWarheadPanelAndExactFiveOreRetry = true;
+  for (const wingId of ['fighter-wing-alpha', 'fighter-wing-bravo']) {
+    const view = await command(wing, 'getAegisFighterWingLaunch', { wingId });
+    await exactRetry(wing, 'launchAegisFighterWing', { wingId, requestId: randomUUID(), expectedTurn: view.turn,
+      expectedRevision: view.revision, expectedWingRevision: view.wingRevision });
+  }
+  const pdf = await command(f.byRole('refinery-124-pdf-colonel'), 'getPdfEscortWingLaunch');
+  await exactRetry(f.byRole('refinery-124-pdf-colonel'), 'launchPdfEscortWing', { requestId: randomUUID(),
+    expectedTurn: pdf.turn, expectedRevision: pdf.revision, expectedWingRevision: pdf.wingRevision });
+  const m = await command(f.byRole('dione-engineer'), 'getDioneMaliadesLaunch');
+  await exactRetry(f.byRole('dione-engineer'), 'launchDioneMaliades', { requestId: randomUUID(), expectedTurn: m.turn, expectedRevision: m.revision });
+  const target = await command(commander, 'getWolfCommanderTargeting');
+  await command(commander, 'finishWolfCommanderTargetingRerolls', { requestId: randomUUID(), expectedTurn: target.turn, expectedRevision: target.revision });
+  const cnc = await command(eo, 'getAegisCommandAndControl');
+  await exactRetry(eo, 'passAegisCommandAndControl', { requestId: randomUUID(), expectedTurn: cnc.turn, expectedRevision: cnc.revision });
+  checks.independentFourSourceLaunchesWithoutExtraFuel = true;
+  for (const range of ['long-range', 'medium-range', 'short-range']) {
+    await until(range, state => state.currentStep === range);
+    const support = [];
+    if (range !== 'long-range') {
+      await command(wing, 'disconnectFromSession');
+      await delay(300);
+      assert.equal((await attackState()).currentStep, range);
+      assert.equal((await attackState()).rangeDecisions?.[range]?.lock, undefined);
+      await command(wing, 'resumeSession');
+      await command(wing, 'refreshPresence', { activeConsoleRoleId: 'wing-commander' });
+      await chooseFlights(range);
+      support.push(await sourceChoice(f.byRole('icebreaker-miner'), 'highwall', range, 2));
+    }
+    support.push(await sourceChoice(captain, 'gorgoneion-missile-array', range));
+    support.push(await sourceChoice(f.byRole('capybara-recycler'), 'boa', range, 3));
+    const view = await command(eo, 'getWolfRangeActionChoice');
+    const locked = await exactRetry(eo, 'commitWolfRangeActionChoice', { requestId: randomUUID(), expectedTurn: view.turn,
+      expectedRevision: view.revision, range, actionIds: view.eligibleActions.map(action => action.actionId) });
+    const lockedState = await attackState();
+    const lockedDice = lockedState.rangeDecisions?.[range]?.lock?.dice;
+    if (locked.choiceStatus === 'targets-required') {
+      const assignmentView = await command(eo, 'getWolfRangeActionChoice');
+      await exactRetry(eo, 'assignWolfRangeTargets', { requestId: randomUUID(), expectedTurn: assignmentView.turn,
+        expectedRevision: assignmentView.revision, range, assignments: safeTargetAssignments(assignmentView) });
+    }
+    const resolved = await attackState();
+    const receipt = resolved.rangeReceipts.find(item => item.range === range);
+    assert.ok(receipt, 'Each range retains one committed immutable receipt.');
+    if (lockedDice) assert.deepEqual(receipt.dice, lockedDice, 'Assignment must consume the same source dice.');
+    ranges.push({ range, support, sourceIds: [...new Set(receipt.dice.map(die => die.sourceId))],
+      diceCount: receipt.dice.reduce((sum, die) => sum + die.rolls.length, 0), targetShiftCount: receipt.targetShifts.length });
+  }
+  checks.allSourcesUseOneLockAndCurrentActorChoices = true;
+  checks.disconnectedEntitledFlightsRemainPending = true;
+  const finalState = await completeBoarding();
+  const finalSession = (await f.session.get()).data();
+  assert.equal(finalState.currentStep, 'resolved');
+  assert.equal(finalState.airspaceLocked, false);
+  assert.equal(finalSession.turnPhase.airspace.state, 'lifted');
+  assert.equal(finalSession.turnPhase.airspace.pressAccess, phaseBefore.airspace.pressAccess);
+  assert.ok(Date.parse(finalSession.turnPhase.openAirspaceEndsAt) >= Date.parse(phaseBefore.openAirspaceEndsAt));
+  checks.genuineBoardingChoicesAndAtomicPressMovementClockReopening = true;
+  const snapshot = { phase: finalSession.turnPhase, resources: finalSession.shipResources, damage: finalSession.shipDamage,
+    population: finalSession.shipSurvivors, ticker: finalSession.fleetTicker };
+  assert.deepEqual(await command(f.gm, 'declareWolfAttack', declareRequest), declaration);
+  const replaySession = (await f.session.get()).data();
+  assert.deepEqual({ phase: replaySession.turnPhase, resources: replaySession.shipResources, damage: replaySession.shipDamage,
+    population: replaySession.shipSurvivors, ticker: replaySession.fleetTicker }, snapshot);
+  await command(wing, 'requestShuttleDeparture', { requestId: randomUUID(), shuttleId: 'starlight', destinationShipId: 'icebreaker',
+    expectedControlRevision: 0, expectedCycle: 1 });
+  checks.finalReplayAndActualMovementAfterReopening = true;
+  for (const path of ['', '/wolfAttackState/current', '/serverState/pdfEscortWing']) {
+    const reply = await fetch(`http://127.0.0.1:${f.config.firestorePort}/v1/projects/${f.project}/databases/(default)/documents/sessions/${f.sessionId}${path}`,
+      { headers: { Authorization: `Bearer ${eo.idToken}` } });
+    assert.equal(reply.status, 403, 'Ordinary direct reads cannot disclose private authority.');
+  }
+  const member = await command(eo, 'getCurrentMemberSession');
+  assert.ok(member.session);
+  assert.equal(Object.hasOwn(member.session, 'wolfAttackState'), false);
+  assert.equal(JSON.stringify(member.session.maliadesState).includes('rolls'), false);
+  checks.privateRootEscortRulesAndMemberDurabilityAllowlist = true;
+  assert.deepEqual(browserErrors, []);
+  assert.deepEqual(f.heartbeatFailures, []);
+  await writeFile(evidencePath, `${JSON.stringify({ kind: 'normal-authenticated-local-emulator-ui-http-composed-gameplay',
+    sourceCommit: process.env.PC08_SOURCE_COMMIT, ordinaryRoster: 20, preparedScene: false, productionGameplay: false,
+    fixtureChanges: ['disposable clock deadlines only'], normalFacilitatorDecisions: ['current replacement admission',
+      'current ship write grants', 'audited resource adjustment to nine AEGIS ore', 'audited maintenance damage correction if required',
+      ...(boarding.some(item => item.kind === 'commander-ruling') ? ['explicit incomplete Commander consequence ruling'] : [])],
+    checks, actions, ranges, boarding, identitiesRetained: false, completedAt: new Date().toISOString() }, null, 2)}\n`);
+  console.log('PC08 ordinary composed source attack and live phone warhead proof passed.');
+} catch (error) {
+  const state = f ? await attackState() : undefined;
+  await page.screenshot({ path: `${dirname(evidencePath)}/failure.png`, fullPage: true }).catch(() => {});
+  await writeFile(`${evidencePath}.failure.json`, `${JSON.stringify({ message: error.message, checks, actions, ranges, boarding,
+    step: state?.currentStep, revision: state?.revision, status: state?.status, resolutionBlocker: state?.resolutionBlocker,
+    decisionSummary: state?.decisionSummary, observations, browserErrors }, null, 2)}\n`);
+  throw error;
+} finally {
+  const keepCleanupAlive = setInterval(() => {}, 1000);
+  try { await browser.close(); if (f) { await f.cleanup(); await f.db.terminate(); } }
+  finally { clearInterval(keepCleanupAlive); }
+}
