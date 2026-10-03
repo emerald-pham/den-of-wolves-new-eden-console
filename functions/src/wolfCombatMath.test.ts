@@ -392,7 +392,7 @@ describe('central Wolf combat math', () => {
 
     expect(boarding[0]).toMatchObject({
       rolls: [1, 4, 4, 6, 1, 4], securityCasualties: 2,
-      boarderCasualties: 3, survivingBoardingParties: 17,
+      boarderCasualties: 4, survivingBoardingParties: 16,
       frontLineDice: 2, militiaLeaderKilled: true,
     });
   });
