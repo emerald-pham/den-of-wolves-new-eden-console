@@ -51,7 +51,7 @@ export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBr
   let heartbeat,heartbeatPending=Promise.resolve();
   if(keepAlive)heartbeat=setInterval(()=>{heartbeatPending=heartbeatPending.then(async()=>{
    for(const actor of [gm,...players,...(press?[press]:[])].filter(actor=>!disconnected.has(actor.localId)))await call(actor,'refreshPresence',{sessionId,
-    ...(actor===gm?{instanceId}:{}),activeConsoleRoleId:consoleRoles.get(actor.localId)??null});
+    ...(actor===gm?{instanceId}:{})});
   });},10000);
   return{db,config,project,gm,players,press,roles,sessionId,session,instanceId,call,ok,
    byRole:role=>players[roles.indexOf(role)],cleanup:async()=>{clearInterval(heartbeat);await heartbeatPending;await db.recursiveDelete(session);}};

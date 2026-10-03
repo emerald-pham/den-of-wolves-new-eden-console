@@ -66,18 +66,20 @@ try {
     assert.deepEqual(writes, [], 'Prepared choices must not send session writes.');
     page.off('request', watch);
     await page.getByRole('link', {name: 'Return to station and console chooser', exact: true}).click();
-    await page.waitForFunction(async ({uid, sessionId}) => {
+    await page.waitForURL(url => url.pathname === '/' && url.hash === '#/console');
+    await page.getByRole('heading', {name: 'Stations and consoles', exact: true}).waitFor();
+    const recovered = await page.waitForFunction(async ({uid, sessionId}) => {
       const {auth} = await import('/src/lib/firebase.ts');
       const {useSessionStore} = await import('/src/store/useSessionStore.ts');
       const state = useSessionStore.getState();
-      return auth().currentUser?.uid === uid && state.me?.uid === uid && state.session?.id === sessionId &&
-        state.connection === 'live' && state.sessionSnapshotFreshness === 'server';
+      if (auth().currentUser?.uid !== uid || state.me?.uid !== uid || state.session?.id !== sessionId ||
+        state.connection !== 'live' || state.sessionSnapshotFreshness !== 'server') return false;
+      return {uid: auth().currentUser.uid, memberUid: state.me.uid, sessionId: state.session.id,
+        roleId: state.me.assignedRoleId, connection: state.connection, freshness: state.sessionSnapshotFreshness};
     }, {uid: before.uid, sessionId: fixture.sessionId});
-    const after = await identity();
+    const after = await recovered.jsonValue();
     assert.deepEqual([after.uid, after.memberUid, after.sessionId, after.roleId],
       [before.uid, before.memberUid, before.sessionId, before.roleId]);
-    await page.waitForURL(/#\/console/);
-    await page.getByRole('heading', {name: 'Stations and consoles', exact: true}).waitFor();
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth));
     await page.screenshot({path: `${directory}/${width}x${height}-recovered-session.png`, fullPage: true});
     cases.push({width, height, sameIdentity: true, sameSession: true, sameAssignedRole: true,
