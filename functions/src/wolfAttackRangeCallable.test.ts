@@ -1115,17 +1115,21 @@ it('does not leave charged Command and Control ownerless when no Executive Offic
   });
 });
 
-function openBoardingFixture(): void {
+function openBoardingFixture(targetingReceipt = targeting): void {
   const targets = [...EXPANDED_WOLF_TARGET_RING];
   const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
-  const targetSnapshot = (attack.combatRoster as Array<{ instanceId: string; target: string }>).map(({ instanceId, target }) => ({ instanceId, target }));
+  const roster = wolfCombatRoster(targetingReceipt);
+  const targetSnapshot = roster.map(({ instanceId, target }) => ({ instanceId, target }));
   const emptyRange = (range: string) => ({ range, targetSnapshot, dice: [], assignments: [], targetShifts: [], unusedHitsByAction: [],
     damageByInstance: {}, destroyedInstanceIds: [], destructionDamageByTarget: Object.fromEntries(targets.map((id) => [id, 0])) });
   const current = new Date();
   const future = (milliseconds: number) => new Date(current.getTime() + milliseconds).toISOString();
   put('sessions/s1', {
     ...testState.documents.get('sessions/s1'),
-    shipResources: { aegis: { ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 4 } },
+    shipResources: {
+      aegis: { ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 4 },
+      dione: { ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 2 },
+    },
     shipSurvivors: { aegis: 2500, dione: 100000, icebreaker: 40000, quellon: 30000, shepherd: 30000, 'refinery-124': 20000 },
     shipDamage: Object.fromEntries(targets.map((id) => [id, { damagedSystemIds: [], destroyed: false }])),
     shipUnrest: Object.fromEntries(targets.map((id) => [id, 0])),
@@ -1133,7 +1137,11 @@ function openBoardingFixture(): void {
       airspace: { state: 'restricted', tickerActive: true, pressAccess: false } },
   });
   put('sessions/s1/wolfAttackState/current', {
-    ...attack, currentStep: 'boarding', revision: 10, rangeReceipts: [
+    ...attack, currentStep: 'boarding', revision: 10,
+    calculationReceipt: { type: 'wolf-combat-calculation-stage', version: 1, turn: 1, step: 'targeting',
+      targeting: targetingReceipt },
+    combatRoster: roster,
+    rangeReceipts: [
       emptyRange('long-range'), emptyRange('medium-range'), emptyRange('short-range'),
     ],
     rangeDecisions: Object.fromEntries(['long-range', 'medium-range', 'short-range'].map((range) => [range, { status: 'committed' }])),
@@ -1202,6 +1210,65 @@ it('commits only the target ship crew boarding choice, reserves teams, then auto
   await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
   expect(testState.documents.get('sessions/s1/wolfAttackState/current')!.revision).toBe(revision);
   expect(entropy.randomInt).toHaveBeenCalledTimes(drawCount);
+});
+
+it('finalizes a source reroll on its own target when another attacked target follows', async () => {
+  let targetingDraw = 0;
+  const twoTargetReceipt = resolveWolfTargeting(firstTurnWolfAttackComposition(), {}, CORE_WOLF_TARGET_RING,
+    () => targetingDraw++ === 10 ? 1 : 0);
+  openBoardingFixture(twoTargetReceipt);
+  put('sessions/s1/players/commander-1', {
+    uid: 'commander-1', role: 'player', connected: true, replacementRoleId: 'wolf-commander',
+  });
+  put('sessions/s1/players/dione-crew', {
+    uid: 'dione-crew', role: 'player', connected: true, assignedRoleId: 'dione-captain',
+    activeConsoleRoleId: 'dione-captain', seatId: 'dione-captain', fleetGroupId: 'fleet-1',
+  });
+  const fleetGroup = testState.documents.get('sessions/s1/fleetGroups/fleet-1')!;
+  put('sessions/s1/fleetGroups/fleet-1', {
+    ...fleetGroup, memberUids: [...(fleetGroup.memberUids as string[]), 'dione-crew'],
+    memberShipIds: { ...(fleetGroup.memberShipIds as Fields), 'dione-crew': 'dione' },
+  });
+
+  const commanderView = await getWolfBoardingSpecialChoice.run(request({ sessionId: 's1' }, 'commander-1'));
+  expect(commanderView).toMatchObject({ choice: { kind: 'commander', targets: [
+    { targetShipId: 'aegis' }, { targetShipId: 'dione' },
+  ] } });
+  await commitWolfBoardingSpecialChoice.run(request({ sessionId: 's1', requestId: 'multi-target-commander',
+    expectedTurn: 1, expectedRevision: 10, choice: { kind: 'commander', targetShipId: 'aegis' },
+  }, 'commander-1'));
+
+  for (const { targetShipId, uid } of [
+    { targetShipId: 'aegis', uid: 'xo-1' }, { targetShipId: 'dione', uid: 'dione-crew' },
+  ]) {
+    const defence = await getWolfBoardingDefenceChoice.run(request({ sessionId: 's1' }, uid));
+    expect(defence).toMatchObject({ type: 'wolf-boarding-defence-choice-view', targetShipId, choiceStatus: 'pending' });
+    await commitWolfBoardingDefenceChoice.run(request({ sessionId: 's1',
+      requestId: `multi-target-defence-${targetShipId}`, expectedTurn: 1, expectedRevision: defence.revision,
+      targetShipId, securityTeams: 1,
+    }, uid));
+  }
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  const aegisReroll = await getWolfBoardingSpecialChoice.run(request({ sessionId: 's1' }, 'xo-1'));
+  expect(aegisReroll).toMatchObject({ choice: { kind: 'reroll', source: 'aegis', targetShipId: 'aegis' } });
+  await commitWolfBoardingSpecialChoice.run(request({ sessionId: 's1', requestId: 'multi-target-aegis-pass',
+    expectedTurn: 1, expectedRevision: aegisReroll.revision,
+    choice: { kind: 'reroll', source: 'aegis', targetShipId: 'aegis', dieIndexes: [] },
+  }));
+  const pallasReroll = await getWolfBoardingSpecialChoice.run(request({ sessionId: 's1' }, 'xo-1'));
+  expect(pallasReroll).toMatchObject({ choice: { kind: 'reroll', source: 'pallas', targetShipId: 'aegis' } });
+  await commitWolfBoardingSpecialChoice.run(request({ sessionId: 's1', requestId: 'multi-target-pallas-pass',
+    expectedTurn: 1, expectedRevision: pallasReroll.revision,
+    choice: { kind: 'reroll', source: 'pallas', targetShipId: 'aegis', dieIndexes: [] },
+  }));
+
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  const state = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  expect(state).toMatchObject({ status: 'resolved', currentStep: 'resolved', airspaceLocked: false,
+    calculationReceipt: { boarding: [
+      expect.objectContaining({ target: 'aegis' }), expect.objectContaining({ target: 'dione' }),
+    ] },
+  });
 });
 
 it('keeps boarding pending through disconnect and scopes the projection to the current mapped berth', async () => {
