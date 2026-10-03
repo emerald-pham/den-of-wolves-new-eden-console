@@ -26,6 +26,7 @@ async function joinPressPlayer(joinCode) {
     const { auth } = await import('/src/lib/firebase.ts');
     return { localId: auth().currentUser.uid, idToken: await auth().currentUser.getIdToken() };
   });
+}
 const f = await createPc07AuthenticatedSession('PC07 unavailable EO and normal Press', 8, { keepAlive: true, joinPressPlayer });
 const { session, sessionId, db, gm, instanceId, press, call, ok } = f;
 const stateRef = db.doc(`sessions/${sessionId}/wolfAttackState/current`);

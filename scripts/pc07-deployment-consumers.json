@@ -83,7 +83,7 @@
     },
     "functions/src/fleetPartition.ts": {
       "before": "3b4ce4fab20515af65bcbb3b0c00db4f42268a48836b7bfcb136f8cb745eecb4",
-      "after": "1f914b4ce0602b1846d33baba414e5fe3291880862a2839c94ccddec64959a85",
+      "after": "6ef1449841837079041d800b219b6744905e130d694e66c8a0da579a51e33e81",
       "consumers": [
         "confirmFleetPartition",
         "joinSession",
@@ -92,7 +92,7 @@
     },
     "functions/src/memberSession.ts": {
       "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "after": "6aa92d3d1501d60a8d3712496582e1c5222bc458ac8305a2f214d205720d848e",
+      "after": "fe30e132cce1b35ab840b5b6c5c16e86de1fec1c0e0a76f405512fb288fdb7bf",
       "consumers": [
         "getCurrentMemberSession",
         "joinSession",
@@ -403,7 +403,7 @@
   },
   "index": {
     "before": "2270c160ff8ee70f929bff6077dfdc1e8fa5e3d1eeaaaa480e9ef2cacd4a83a4",
-    "after": "aa5dd95f41396b617778b477f9323705860265e7ed0dd2478b550da3ff1f6a99",
+    "after": "2f188b0c6c344ef9589c8cb63149a403d7ef1fdc73d195a1b64a9327227ab4e3",
     "consumers": [
       "adjudicateFailedJump",
       "advanceTurn",
