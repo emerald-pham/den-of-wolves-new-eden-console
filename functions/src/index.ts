@@ -633,7 +633,6 @@ import {
   wolfBoardingPartyCounts,
   lockWolfBoardingDefenceRolls,
   resolveWolfBoarding,
-  replayWolfRangeTargetSnapshot,
   EXPANDED_WOLF_TARGET_RING,
   type WolfCombatRange,
   type WolfCombatShip,
@@ -25179,6 +25178,7 @@ type WolfEscortRangeActionResult = Readonly<{
   requestId: string; attackId: string; turn: number; revision: number; range: WolfEscortRange;
   sourceId: WolfEscortSourceId; choiceStatus: 'pending-resolution'; actionCount: number;
 }>;
+type WolfEscortFields = Record<string, unknown>;
 
 function wolfEscortSourceId(value: unknown): WolfEscortSourceId | null {
   return value === 'pdf-escort-fighter-wing' || value === 'maliades' ? value : null;
@@ -25352,9 +25352,9 @@ export const commitWolfEscortRangeActionChoice = onCall<{
       if (!legal.has(id)) throw commandError('failed-precondition', 'The escort target is no longer available.', 'conflict');
       return inputs.roster[Number(id.slice('contact-'.length)) - 1]!;
     };
-    let persisted: Fields;
+    let persisted: WolfEscortFields;
     if (range === 'medium-range') {
-      persisted = { actions: (choices as Fields[]).map((action) => {
+      persisted = { actions: (choices as WolfEscortFields[]).map((action) => {
         if (sourceId !== 'maliades' && (action.fighterIndex as number) >= state.pdf.fighters) throw commandError('failed-precondition', 'The selected PDF fighter is no longer available.', 'conflict');
         const ship = target(action.targetContactId as string);
         return { ...(sourceId === 'maliades' ? {} : { fighterIndex: action.fighterIndex }), kind: action.kind, targetInstanceId: ship.instanceId,
@@ -25366,14 +25366,14 @@ export const commitWolfEscortRangeActionChoice = onCall<{
       persisted = { fighterIndexes: [...choices as number[]].sort((a, b) => a - b) };
     }
     const nextRevision = inputs.revision + 1;
-    const all = isRecord(attack.get('escortRangeChoices')) ? attack.get('escortRangeChoices') as Fields : {};
+    const all = isRecord(attack.get('escortRangeChoices')) ? attack.get('escortRangeChoices') as WolfEscortFields : {};
     const byRange = isRecord(all[range]) ? all[range] : {};
     const choice = { type: 'wolf-escort-range-action-choice', status: 'committed', sourceId, range,
       attackId: state.attackId, turn: inputs.turn, revision: nextRevision, actorUid: uid,
       actorRoleId: sourceId === 'maliades' ? 'dione-engineer' : 'refinery-124-pdf-colonel', requestId, ...persisted };
     const result: WolfEscortRangeActionResult = { type: 'wolf-escort-range-action-choice', status: 'committed', sessionId, requestId,
       attackId: state.attackId, turn: inputs.turn, revision: nextRevision, range, sourceId, choiceStatus: 'pending-resolution', actionCount: choices.length };
-    tx.update(attackRef, { revision: nextRevision, escortRangeChoices: { ...all, [range]: { ...(byRange as Fields), [sourceId]: choice } }, updatedAt: FieldValue.serverTimestamp() });
+    tx.update(attackRef, { revision: nextRevision, escortRangeChoices: { ...all, [range]: { ...(byRange as WolfEscortFields), [sourceId]: choice } }, updatedAt: FieldValue.serverTimestamp() });
     tx.set(auditRef, { ...choice, deadlineAt: inputs.deadlineAt, createdAt: FieldValue.serverTimestamp() });
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
