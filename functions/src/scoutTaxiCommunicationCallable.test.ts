@@ -37,7 +37,9 @@ const calls = callables as unknown as { sendScoutTaxiCourier: { run: (request: u
   sendScoutTaxiTransfer: { run: (request: unknown) => Promise<unknown> };
   readFleetGroupMessages: { run: (request: unknown) => Promise<unknown> };
   sendFleetGroupMessage: { run: (request: unknown) => Promise<unknown> };
-  requestScout: { run: (request: unknown) => Promise<unknown> } };
+  requestScout: { run: (request: unknown) => Promise<unknown> };
+  shareKnownSystemDetails: { run: (request: unknown) => Promise<unknown> };
+  readFleetGroupNavigation: { run: (request: unknown) => Promise<unknown> } };
 const data = { sessionId: 's1', requestId: 'taxi-1', shuttleId: 'hummingbird', targetShipId: 'aegis',
   text: 'Hold position.', expectedCycle: 3, expectedControlRevision: 0, expectedNavigationRevision: 2 };
 const request = (value: Fields = data, uid = 'explorer') => ({ data: value, auth: { uid } });
@@ -65,6 +67,23 @@ beforeEach(() => {
 const transferData = { sessionId: 's1', requestId: 'transfer-1', shuttleId: 'hummingbird', targetShipId: 'shepherd',
   expectedCycle: 3, expectedControlRevision: 0, expectedNavigationRevision: 2, expectedFleetPartitionRevision: 1,
   expectedGroupId: 'fleet-2', payload: { kind: 'fuel', units: 2 } };
+
+function seedSplitNavigation() {
+  Object.assign(mock.documents.get('sessions/s1')!, { fleetPartitionRevision: 1 });
+  put('sessions/s1/players/wing', { role: 'player', connected: true, fleetGroupId: 'fleet-1', assignedRoleId: 'wing-commander' });
+  put('sessions/s1/players/explorer', { role: 'player', connected: true, fleetGroupId: 'fleet-2',
+    assignedRoleId: 'quellon-explorer', seatId: 'quellon-explorer', activeConsoleRoleId: 'quellon-explorer' });
+  put('sessions/s1/players/shepherd-player', { role: 'player', connected: true, fleetGroupId: 'fleet-2',
+    assignedRoleId: 'shepherd-scientist' });
+  put('sessions/s1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['wing'], memberShipIds: { wing: 'aegis' } });
+  put('sessions/s1/fleetGroups/fleet-2', { id: 'fleet-2', vesselIds: ['quellon', 'shepherd'],
+    memberUids: ['explorer', 'shepherd-player'], memberShipIds: { explorer: 'quellon', 'shepherd-player': 'shepherd' } });
+  put('sessions/s1/serverState/navigation', { revision: 2,
+    shipGalacticCoordinates: { aegis: '0000', quellon: '0000', shepherd: '5143' },
+    shipNavigationLogs: { aegis: [], quellon: [], shepherd: [] },
+    scoutedCoordinatesByShip: { aegis: [], quellon: ['1413'], shepherd: [] },
+    pursuitGroups: { 'fleet-1': 2, 'fleet-2': 4 } });
+}
 
 it('atomically taxis fuel only between current groups and reconciles an exact retry once', async () => {
   const session = mock.documents.get('sessions/s1')!;
@@ -106,6 +125,53 @@ it.each([
     aegis: '0000', quellon: '0000', shepherd: '0000',
   } });
   await expect(calls.sendScoutTaxiTransfer.run(request(data, uid))).rejects.toThrow();
+  expect(mock.writes).not.toHaveBeenCalled();
+});
+
+it('shares only scanned systems into current-group private ship projections and retries once', async () => {
+  seedSplitNavigation();
+  const requestData = { sessionId: 's1', requestId: 'share-1', expectedGroupId: 'fleet-2',
+    expectedNavigationRevision: 2, coordinate: '1413', recipientShipIds: ['shepherd'] };
+  expect(await calls.shareKnownSystemDetails.run(request(requestData))).toMatchObject({
+    status: 'committed', groupId: 'fleet-2', coordinate: '1413', recipientShipIds: ['shepherd'], navigationRevision: 3,
+  });
+  expect(mock.documents.get('sessions/s1/serverState/navigation')?.scoutedCoordinatesByShip).toMatchObject({
+    quellon: ['1413'], shepherd: ['1413'],
+  });
+  expect(mock.documents.get('sessions/s1/playerDiscoveries/shepherd-player')?.knownCoordinates).toContain('1413');
+  expect(mock.documents.get('sessions/s1/fleetGroupShareAudits/share-1')).toMatchObject({
+    actorUid: 'explorer', senderShipId: 'quellon', groupId: 'fleet-2', coordinate: '1413', recipientShipIds: ['shepherd'],
+  });
+  mock.writes.mockClear();
+  expect(await calls.shareKnownSystemDetails.run(request(requestData))).toMatchObject({ status: 'committed', requestId: 'share-1' });
+  expect(mock.writes).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['foreign recipient', { recipientShipIds: ['aegis'] }],
+  ['invented coordinate', { coordinate: '5143' }],
+  ['stale navigation', { expectedNavigationRevision: 1 }],
+])('denies known-system share with %s before any write', async (_label, changes) => {
+  seedSplitNavigation();
+  await expect(calls.shareKnownSystemDetails.run(request({ sessionId: 's1', requestId: 'share-denied',
+    expectedGroupId: 'fleet-2', expectedNavigationRevision: 2, coordinate: '1413', recipientShipIds: ['shepherd'], ...changes })))
+    .rejects.toThrow();
+  expect(mock.writes).not.toHaveBeenCalled();
+});
+
+it('returns server-current ships only for the requesting fleet group and denies a forged group', async () => {
+  seedSplitNavigation();
+  const call = (expectedGroupId = 'fleet-2') => calls.readFleetGroupNavigation.run(request({ sessionId: 's1', requestId: 'nav-1',
+    expectedNavigationRevision: 2, expectedFleetPartitionRevision: 1, expectedGroupId }));
+  const reply = await call() as { groupId: string; ships: readonly { shipId: string; coordinate: string }[] };
+  expect(reply.groupId).toBe('fleet-2');
+  expect(reply.ships).toEqual([
+    { shipId: 'quellon', fleetGroupId: 'fleet-2', coordinate: '0000' },
+    { shipId: 'shepherd', fleetGroupId: 'fleet-2', coordinate: '5143' },
+  ]);
+  expect(JSON.stringify(reply)).not.toContain('aegis');
+  mock.writes.mockClear();
+  await expect(call('fleet-1')).rejects.toMatchObject({ code: 'permission-denied' });
   expect(mock.writes).not.toHaveBeenCalled();
 });
 
