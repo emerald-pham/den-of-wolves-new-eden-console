@@ -163,6 +163,39 @@ The attack group's coherent range slice through worker `7185eeb1` is integrated:
 server-derived entitled action availability, explicit use or pass, private dice
 locks before target assignment, opaque contact IDs, range results and safe member
 projection. Unattended targeting, boarding, final effects and composed HTTP/UI
-proof remain outstanding. The split worker's current navigation and privacy
-slice is still awaiting its cohesive compiling handback. Prepared solo-review
-controls do not earn these outstanding behavior closures.
+proof remain outstanding. The split worker's navigation/privacy slice through
+`9b40ade8` is integrated at owner `ec6ad084`; Functions build and application
+typecheck passed. Rejoin route lineage, control styling and full split walkthrough
+evidence remain with the worker. Prepared solo-review controls do not earn these
+outstanding behavior closures.
+
+## Current member read boundary
+
+The P152/P338 root probe exposed a material privacy defect: a member could
+read foreign-group craft custody, cargo, hosts and visit history directly from
+the session root. The parent acknowledged the repair within the fixed scope.
+Ordinary player and Press direct root reads now fail Rules; GM root reads remain
+authorized. `getCurrentMemberSession` reads the actor, root, fleet groups and
+current departures in one read-only server transaction. Its explicit allowlist
+keeps the shared clock/header and current group operations, excludes private
+navigation and mission identifiers, and gives Press the shared header only.
+The actual App chooses this member feed from current role. Actor/group/connection
+tuples, serialized reads and the authority cursor reject delayed responses.
+
+The complete Rules suite passed 137/137 after four historical positive-root
+fixtures were moved to their new GM-only read contract. These test-only migrations
+retain their privileged-write denials; raw failure evidence is preserved.
+Additional red/green tests preserve validated hosted small vessels, host-bound
+Voyage admission/maintenance metadata, and Philia's global usage count with
+foreign host details removed. Current-group changes immediately withdraw old
+operational data while retaining the one shared clock. Targeted member read
+tests pass 11/11, Philia consumer tests 34/34, and delayed actor/group tests 4/4.
+Current independent authority/privacy review remains required.
+
+The ordinary local browser uses anonymous Auth, normal session join, device
+GM authorization and the real code-of-conduct acknowledgement. Its offline,
+reconnect and briefing-clear path has reached the server-owned clock clearance
+and preserved ten minutes. The named GM reload route is still being checked;
+no completed browser summary or production gameplay claim is recorded yet.
+Prepared solo-review render QA separately passes five steps in eight phone,
+desktop, landscape and motion cases; those samples establish presentation only.
