@@ -236,3 +236,17 @@ resumed. `AGENTS.md`, `CLAUDE.md` and the execution policy carry orchestrator
 ownership for future checkpoints. Required independent Sol review remains a
 separate risk check before CI; it does not transfer implementation or release
 ownership. No new gameplay UI feedback or rules correction is pending cooldown.
+
+## PC07 completed under execution authorization — 2026-10-03
+
+The existing “execute pc07 please” authorization accepts the finished checkpoint.
+Root completed the fixed 49 behavior acceptances and release, reaching 605/751
+overall (80.56%) and 147/293 campaign closures (50.17%). The [report](PC07_PLAYTEST_REPORT.md)
+records normal authenticated local/emulator proof, independent review, final
+validation, CI, verified core Functions/Rules deployment and the completed 0.5.66
+Hosting layout follow-up. The [five-step review](https://dow-new-eden-console.web.app/pc07-review.html) is optional prepared
+UI feedback; no owner walkthrough or new written feedback was required.
+No new gameplay decision or UI feedback is pending cooldown. Root remains
+checkpoint owner, all future gameplay proof uses local/emulator paths, and
+PC08–PC10 membership, targets, P605a activation and full 20-player PC10 boundaries
+remain unchanged.

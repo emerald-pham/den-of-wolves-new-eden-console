@@ -140,8 +140,10 @@ already ready. Read every catalog row when shaping its work.
 
 The backlog is distributed evenly by prompt count, not estimated effort.
 Prompt complexity varies; implementation and proof remain part of each ID.
-Later UI themes can span multiple owner tours. PC05 is released; PC06 is the
-next scope to shape, and PC07–PC10 remain candidates until shaped. A documented
+Later UI themes can span multiple owner tours. PC05–PC07 are released, reaching
+605/751 overall and 147/293 campaign closures. PC08 is the next unstarted
+fixed 49 tranche, targeting 654/751; PC09–PC10 retain their assigned targets.
+The [PC07 report](PC07_PLAYTEST_REPORT.md) records the verified release. A documented
 same-count substitution may move an unstarted ID only
 with its dependencies satisfied and another baseline ID replacing it; it
 cannot change any cumulative target or lose any baseline ID. P605a's existing

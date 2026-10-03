@@ -389,13 +389,16 @@ makes authenticated local/emulator proof the repository-wide standard. PC06
 remains closed at 556/751; this checkpoint must
 close exactly its fixed 49 IDs to reach 605/751 and 147/293 campaign closures.
 
-**Candidate preparation, October 3:** the orchestrator owns and has reconciled
-all49 representative local/emulator behavior acceptances for build0.5.65,
-605/751 and147/293. The delegated owner and workers are stopped. The
-[report](PC07_PLAYTEST_REPORT.md) and [matrix](PC07_ACCEPTANCE_MATRIX.md) retain
-normal gameplay, native fixtures and prepared scene boundaries. Independent
-review, final validation, CI and exact-main deployment remain pending release
-gates; this entry does not claim deployment or authorize a new checkpoint.
+**Released October 3:** the orchestrator completed all 49 fixed acceptances,
+605/751 overall (80.56%) and 147/293 campaign (50.17%). Core 0.5.65
+passed independent review, local/emulator gameplay, final validation and CI.
+Deployment verified Hosting, Firestore rules and all 105 named Functions. The bounded 0.5.66
+review-page layout repair passed renewed review, final local and rendered gates,
+[CI](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/37138307265), [exact-main Hosting deployment](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/37139681603) and
+deployed phone/desktop solo access. The [report](PC07_PLAYTEST_REPORT.md) and
+[matrix](PC07_ACCEPTANCE_MATRIX.md) preserve each evidence class. The delegated
+owner and workers remain stopped; root retains checkpoint/release ownership.
+No later checkpoint ID or P605a activation is credited.
 
 **Problem and frozen scope.** Players must act, move and learn within their
 current fleet group while sharing one session cycle clock. A facilitator must
