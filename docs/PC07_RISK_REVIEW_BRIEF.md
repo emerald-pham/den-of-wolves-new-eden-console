@@ -32,6 +32,12 @@ question and paraphrase concise findings.
   Preserve one shared cycle/phase clock and valid current console authority.
   Hosted small craft, Voyage, local repair ledgers and own retained craft must
   remain usable without disclosing foreign fields or resetting printed limits.
+  Five repair ledgers retain their total host-use count and current local
+  details only. Earlier foreign drone/service use becomes a strict cycle and
+  revision marker. Review wire parsing and every actual repair consumer:
+  withheld hosts must not restore a used action, waive second-host fuel, or
+  fabricate a host/console label. The authoritative full server ledger is
+  unchanged by these read-only projections.
 - Review fleet partition/rejoin, notes, scout taxi passenger/fuel transfer,
   known-system sharing and navigation reads in `index.ts`, `fleetGroups.ts`,
   `fleetPartition.ts`, `fleetGroupOperations.ts` and `navigationProjection.ts`.

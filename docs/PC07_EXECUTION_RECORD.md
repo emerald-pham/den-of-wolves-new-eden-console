@@ -226,3 +226,36 @@ The worker retains ownership of full21-ID split/scouting/exploration/taxi/share/
 rejoin authenticated scenarios after the owner runtime's explicit source
 rebuild/restart acknowledgement. Focused green group tests alone do not close
 P424/P643 or any remaining scenario gap.
+
+## Earlier craft history within a current group
+
+The current-craft read still exposed earlier foreign hosts in Blacksmith,
+Macaw, Chacau, Ally, drone and service-recharge histories. Separate red commits
+`78448153`, `b95dd93a` and `51c52247` discriminate disclosure, action limits,
+second-host fuel and truthful recharge copy. Test-only `9d6042d8` and
+`46e0313f` supply canonical drone/service fixtures and correct the fixture's
+scope; their raw failed runs remain outside Git. Implementation `62a503b5`
+extends the bounded Philia count contract to all five repair ledgers and emits
+counter-only foreign drone/service receipts. Client parsers and actual craft
+panels preserve global limits without inventing visible foreign details.
+
+The eight focused craft/projection consumer files pass **103/103**, and five
+selected wire/feed checks pass. TypeScript and the Functions build pass. The
+broader combined run retains one known GM declaration-fixture failure pending
+the attack worker's separate canonical schema migration; this is not reported
+as a full-suite pass. The independent risk brief includes these new wire and
+consumer boundaries.
+
+A normal authenticated HTTP probe demonstrated that compiling while the
+Functions emulator was running did not refresh its served implementation.
+The owner exported only the owned emulator state outside Git, stopped and
+restarted that slot with an import, and reruns the probe against the loaded
+source. Lobby actors are preserved; stale-runtime results cannot establish
+current behavior. Disposable partition/docking/history setup is explicitly
+labeled separately from normal partitioning and normal repair actions.
+The refreshed runtime passes the normal authenticated member-history probe:
+five repair counters, local Ally detail, foreign drone/service markers, shared
+clock and untouched authoritative ledgers; member raw-root 403 versus GM 200;
+forged audience and disconnected denial; fresh reconnect read. The successful
+`member-history-http.json` names every disposable fixture and makes no normal
+history-creation or production gameplay claim.
