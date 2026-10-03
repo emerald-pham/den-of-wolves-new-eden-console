@@ -56,6 +56,7 @@ const {
   getDioneMaliadesLaunch,
   launchDioneMaliades,
   getPdfEscortWingLaunch,
+  passWolfFighterLaunchChoice,
   launchPdfEscortWing,
   setActiveRoleEnabled,
   setActiveRoleConfiguration,
@@ -2614,6 +2615,37 @@ describe('GM instance commands', () => {
       requestId: expect.any(String),
     }));
     expect(result.requestId).toBe(sentRequestId);
+  });
+
+  it('passes only the current fighter source with its fresh attack and wing revisions', async () => {
+    useSessionStore.getState().setIdentity(
+      { ...session, phase: 'active', currentTurn: 2 },
+      {
+        ...player, assignedRoleId: 'refinery-124-pdf-colonel',
+        seatId: 'refinery-124-pdf-colonel', activeConsoleRoleId: 'refinery-124-pdf-colonel',
+      },
+    );
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    let sent: Record<string, unknown> | undefined;
+    const pass = Object.assign(vi.fn(async (payload: unknown) => {
+      sent = payload as Record<string, unknown>;
+      return { data: {
+        status: 'committed', type: 'wolf-fighter-launch-choice', sessionId: 's1',
+        requestId: sent.requestId, attackId: 'wolf-attack-2', sourceId: 'pdf-escort-fighter-wing',
+        turn: 2, revision: 7, choiceStatus: 'passed',
+      } };
+    }), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockReturnValue(pass as never);
+
+    await expect(passWolfFighterLaunchChoice('pdf-escort-fighter-wing', 2, 6, 3)).resolves.toMatchObject({
+      status: 'committed', sourceId: 'pdf-escort-fighter-wing', turn: 2, revision: 7,
+      choiceStatus: 'passed',
+    });
+    expect(pass).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 's1', sourceId: 'pdf-escort-fighter-wing', expectedTurn: 2,
+      expectedRevision: 6, expectedWingRevision: 3, requestId: expect.any(String),
+    }));
   });
 
   it('discards a deferred PDF launch view after active-console authority changes', async () => {
