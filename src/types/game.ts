@@ -234,7 +234,7 @@ export type AirspaceWindow = 'restricted' | 'open';
 /** A server-owned hold freezes the active window, never the client clock. */
 export interface TurnTimerPause {
   /** Absent on legacy and deliberate GM emergency holds. */
-  readonly reason?: 'empty-session';
+  readonly reason?: 'empty-session' | 'turn-interstitial';
   readonly window: AirspaceWindow;
   readonly remainingMs: number;
   readonly pausedAt: Timestamp;
@@ -1751,7 +1751,7 @@ export interface MaintenanceEvent {
 }
 
 export interface TimerPauseEvent {
-  readonly reason?: 'empty-session';
+  readonly reason?: 'empty-session' | 'turn-interstitial';
   readonly id: EventId;
   readonly sessionId: SessionId;
   readonly type: 'timer-pause';

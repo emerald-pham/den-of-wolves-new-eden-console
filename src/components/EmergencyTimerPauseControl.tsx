@@ -36,9 +36,10 @@ export default function EmergencyTimerPauseControl({
   const [changing, setChanging] = useState(false);
   const identity = phaseIdentity(phase);
   const automatic = phase?.timerPause?.reason === 'empty-session';
+  const briefing = phase?.timerPause?.reason === 'turn-interstitial';
   const paused = phase?.timerPause !== undefined;
   const timerLive = hasActiveTurnTimer(phase, now);
-  const canAct = connection === 'live' && Boolean(phase) && timerLive && !busy && !changing && !automatic;
+  const canAct = connection === 'live' && Boolean(phase) && timerLive && !busy && !changing && !automatic && !briefing;
 
   useEffect(() => {
     setNow(Date.now());
@@ -72,12 +73,12 @@ export default function EmergencyTimerPauseControl({
   const clicksRemaining = REQUIRED_CLICKS - clickCount;
   const actionLabel = paused ? 'Re-arm interlock // Resume timer' : 'Disarm interlock // Pause timer';
   const sequenceLabel = paused ? 'Re-arm interlock' : 'Disarm interlock';
-  const buttonLabel = automatic ? 'Awaiting reconnect' : changing
+  const buttonLabel = briefing ? 'Clear cycle briefing first' : automatic ? 'Awaiting reconnect' : changing
     ? `${paused ? 'Resuming' : 'Activating'} emergency timer…`
     : clickCount > 0
       ? `${sequenceLabel} // ${clicksRemaining} ${clicksRemaining === 1 ? 'confirmation' : 'confirmations'} remaining`
       : actionLabel;
-  const status = automatic ? 'Session timer paused // resumes on reconnect' : paused
+  const status = briefing ? 'Cycle clock held // briefing clearance required' : automatic ? 'Session timer paused // resumes on reconnect' : paused
     ? 'Emergency timer paused // GM resume required'
     : timerLive
       ? 'Emergency timer // Armed'
@@ -93,7 +94,9 @@ export default function EmergencyTimerPauseControl({
       <h2 className="gm-console__section-title">Emergency timer pause</h2>
       <p className="gm-console__status" role="status" aria-live="polite">{status}</p>
       <p className="gm-emergency-pause__warning">
-        {automatic
+        {briefing
+          ? 'Clear the committed cycle briefing to resume its preserved time.'
+          : automatic
           ? 'The empty-session hold clears when a participant reconnects.'
           : `For emergencies only // three deliberate confirmations required to ${paused ? 'resume' : 'pause'} all fleet clocks.`}
       </p>

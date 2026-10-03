@@ -6,6 +6,7 @@ import { useSessionStore } from '@/store/useSessionStore';
 import type { GameSession } from '@/types/game';
 import { DradisAirspaceTimer } from './TurnPhaseTimer';
 import LiveChangeRegion from './LiveChangeRegion';
+import { clearTurnAdvanceInterstitial, type ClearCycleBriefingRequest } from '@/lib/turnInterstitialService';
 
 export const TURN_START_SLIDE_MS = 2_400;
 export const TURN_START_EXIT_MS = 320;
@@ -20,6 +21,7 @@ type TurnStartTransmission = {
   readonly survivorPopulation: number;
   readonly revision: number;
   readonly localReplayToken?: number;
+  readonly heldAt?: string;
 };
 
 function currentAnnouncement(session: GameSession | null | undefined): TurnStartTransmission | null {
@@ -34,6 +36,8 @@ function currentAnnouncement(session: GameSession | null | undefined): TurnStart
     turn: announcement.turn,
     survivorPopulation: announcement.survivorPopulation,
     revision: announcement.revision ?? 0,
+    ...(session.turnPhase?.timerPause?.reason === 'turn-interstitial'
+      ? { heldAt: session.turnPhase.timerPause.pausedAt } : {}),
   };
 }
 
@@ -72,6 +76,7 @@ function FleetTransmission({
     const isLastSlide = slide === slideCount - 1;
     const transitionTimer = window.setTimeout(() => {
       if (isLastSlide) {
+        if (transmission.heldAt) return;
         setTransmissionState('exiting');
         return;
       }
@@ -176,6 +181,11 @@ function FleetTransmission({
 /** Shows a server-authorized transmission only when this browser sees a turn advance live. */
 export default function TurnStartAnnouncement() {
   const session = useSessionStore((state) => state.session);
+  const connection = useSessionStore((state) => state.connection);
+  const [clearing, setClearing] = useState(false);
+  const [clearError, setClearError] = useState('');
+  const clearButton = useRef<HTMLButtonElement>(null);
+  const clearRequest = useRef<{identity: string; request: ClearCycleBriefingRequest} | null>(null);
   const localReplay = useSessionStore((state) => state.turnStartReplay);
   const setTurnStartReplay = useSessionStore((state) => state.setTurnStartReplay);
   const previous = useRef<{
@@ -222,7 +232,10 @@ export default function TurnStartAnnouncement() {
       turn: announcement?.turn ?? session.currentTurn ?? 1,
       revision: announcement?.revision ?? 0,
     };
-    if (wasLiveTurnAdvance && announcement) setTransmission(announcement);
+    if ((wasLiveTurnAdvance || announcement?.heldAt) && announcement) setTransmission((current) =>
+      current?.sessionId === announcement.sessionId && current.turn === announcement.turn &&
+      current.revision === announcement.revision && current.heldAt === announcement.heldAt ? current : announcement);
+    if (!announcement?.heldAt) setTransmission((current) => current?.heldAt ? null : current);
   }, [session]);
 
   useEffect(() => {
@@ -235,6 +248,31 @@ export default function TurnStartAnnouncement() {
       localReplayToken: localReplay.token,
     });
   }, [localReplay, session?.id]);
+
+  const heldAt = session?.turnPhase?.timerPause?.reason === 'turn-interstitial'
+    ? session.turnPhase.timerPause.pausedAt : undefined;
+  const holdIdentity = heldAt ? `${session?.id}:${session?.currentTurn}:${heldAt}` : '';
+  useEffect(() => {
+    setClearError('');
+    setClearing(false);
+    if (!holdIdentity) { clearRequest.current = null; return; }
+    const previousFocus = document.activeElement;
+    clearButton.current?.focus();
+    return () => { if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus(); };
+  }, [holdIdentity]);
+  async function clearBriefing(): Promise<void> {
+    if (!session || !heldAt || connection !== 'live' || clearing) return;
+    if (clearRequest.current?.identity !== holdIdentity) clearRequest.current = {
+      identity: holdIdentity, request: {expectedCycle: session.currentTurn ?? 1, expectedPausedAt: heldAt,
+        requestId: crypto.randomUUID()},
+    };
+    const request = clearRequest.current.request;
+    setClearing(true); setClearError('');
+    try { await clearTurnAdvanceInterstitial(request); }
+    catch (cause) { if (clearRequest.current?.identity === holdIdentity)
+      setClearError(cause instanceof Error ? cause.message : 'CIC link unavailable. Reconnect and try again.'); }
+    finally { if (clearRequest.current?.identity === holdIdentity) setClearing(false); }
+  }
 
   const activeTransmission = transmission?.sessionId === session?.id ? transmission : null;
   const transmissionKey = activeTransmission
@@ -251,6 +289,15 @@ export default function TurnStartAnnouncement() {
         politeness="assertive"
         announceInitial
       />
+      {heldAt && <section className="turn-interstitial-clear cic-frame" aria-label="Cycle briefing clearance">
+        <p role="status">Cycle clock held // preserved time resumes when this briefing clears.</p>
+        <button ref={clearButton} className="cic-action-button" type="button"
+          disabled={connection !== 'live' || clearing} onClick={() => void clearBriefing()}>
+          {clearing ? 'Clearing cycle briefing…' : 'Clear cycle briefing // resume clock'}
+        </button>
+        {connection !== 'live' && <p>Reconnect to clear the briefing.</p>}
+        {clearError && <p role="alert">{clearError}</p>}
+      </section>}
       {activeTransmission && (
         <FleetTransmission
           key={transmissionKey!}

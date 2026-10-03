@@ -34,7 +34,7 @@ export function DradisAirspaceTimer({ phase }: { readonly phase: TurnPhase | und
   const open = readout?.kind === 'open' && phase?.airspace.state === 'lifted';
   const paused = phase?.timerPause !== undefined;
   const automatic = phase?.timerPause?.reason === 'empty-session';
-  if (!closed && !open) return null;
+  if ((!closed && !open) || phase?.timerPause?.reason === 'turn-interstitial') return null;
   const time = formatTurnPhaseCountdown(readout.remainingMs);
   const label = closed ? 'Airspace closed' : 'Airspace open';
   return (
@@ -58,7 +58,8 @@ export function AirspaceTimerControls({ phase }: { readonly phase: TurnPhase | u
     ? formatTurnPhaseCountdown(readout.remainingMs)
     : readout?.kind === 'complete' ? 'COMPLETE' : 'STANDBY';
   const pauseSuffix = phase?.timerPause
-    ? phase.timerPause.reason === 'empty-session' ? ' // awaiting reconnect' : ' // emergency hold'
+    ? phase.timerPause.reason === 'turn-interstitial' ? ' // cycle briefing hold'
+      : phase.timerPause.reason === 'empty-session' ? ' // awaiting reconnect' : ' // emergency hold'
     : '';
   return (
     <div className="airspace-control__timers" aria-label="Automated phase timers">

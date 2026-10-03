@@ -1,3 +1,5 @@
+import { holdTurnAdvancePhase } from './turnInterstitial';
+import { createTurnInterstitialHandler } from './turnInterstitialCallable';
 import { captureMaintenanceUndo, restoreMaintenanceUndo, type MaintenanceUndoField } from './maintenanceRollback';
 import { projectMaintenanceEvent } from './maintenanceEvent';
 import { canOperateRole, shipForRole } from './crewAccess';
@@ -1133,8 +1135,9 @@ function fleetTickerStateFromLegacy(
   if (phase?.timerPause) {
     state = publishFleetTicker(sessionId, state, {
       source: 'automatic', priority: FLEET_TICKER_PRIORITIES.emergency,
-      text: phase.timerPause.reason === 'empty-session' ? FLEET_TICKER_COPY.emptySession : FLEET_TICKER_COPY.emergency,
-      tone: phase.timerPause.reason === 'empty-session' ? 'normal' : 'danger', gap: 'long',
+      text: phase.timerPause.reason === 'turn-interstitial' ? FLEET_TICKER_COPY.airspaceClosed
+        : phase.timerPause.reason === 'empty-session' ? FLEET_TICKER_COPY.emptySession : FLEET_TICKER_COPY.emergency,
+      tone: phase.timerPause.reason !== undefined ? 'normal' : 'danger', gap: 'long',
       sourceId: `${phase.timerPause.reason ?? 'emergency'}:${phase.turn}:${phase.timerPause.pausedAt}`,
     }, now);
   } else if (phase?.airspace.tickerActive) {
@@ -4172,7 +4175,10 @@ function advanceTurnInTransaction(
     turn: nextTurn,
     survivorPopulation: announcementPopulation,
   };
-  const turnPhase = startTurnPhase(nextTurn);
+  const phaseStartedAt = Date.now();
+  const initialTurnPhase = startTurnPhase(nextTurn, phaseStartedAt);
+  const turnPhase = skipTurnStartAnnouncement ? initialTurnPhase
+    : holdTurnAdvancePhase(initialTurnPhase, phaseStartedAt);
   const tickerTime = transition?.transitionServerTime ?? new Date().toISOString();
   const fleetTicker = maxTurn !== undefined && currentTurn >= maxTurn
     ? publishFleetTicker(sessionId, fleetTickerForMutation(sessionId, session, tickerTime), {
@@ -4301,6 +4307,11 @@ function advanceTurnInTransaction(
         }
         : {}),
     };
+  }
+  if (turnPhase.timerPause?.reason === 'turn-interstitial') {
+    tx.set(db.doc(`sessions/${sessionId}/turnInterstitials/${nextTurn}`), {
+      cycle: nextTurn, pausedAt: turnPhase.timerPause.pausedAt, status: 'held',
+    });
   }
   tx.update(sessionRef, {
     currentTurn: nextTurn,
@@ -18582,6 +18593,9 @@ export const setEmergencyTimerPaused = onCall<{
     if (!phase || phase.turn !== currentTurn) {
       throw commandError('failed-precondition', 'No current cycle phase is available.', 'invalid-phase');
     }
+    if (phase.timerPause?.reason === 'turn-interstitial') {
+      throw commandError('failed-precondition', 'Clear the cycle briefing before changing the timer hold.', 'invalid-phase');
+    }
     const lockedPhase = preserveWolfAttackAirspaceRestriction(phase, attackState);
     const currentlyPaused = lockedPhase.timerPause !== undefined;
     if (currentlyPaused === requestData.paused) {
@@ -31417,3 +31431,9 @@ function requireMissionMovementAvailable(session: DocumentSnapshot, craftIds: re
       cause instanceof Error && /malformed/i.test(cause.message) ? 'malformed-input' : 'conflict');
   }
 }
+
+/** One active member clears the exact server-held cycle briefing for every console. */
+export const clearTurnAdvanceInterstitial = onCall(createTurnInterstitialHandler({
+  db, requireUid, isActivePlayer, requireActiveGameplayPhase,
+  serverTimestamp: () => FieldValue.serverTimestamp(),
+}));
