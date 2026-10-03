@@ -42,8 +42,20 @@ function DradisReview() {
   const sampledAt = useMemo(() => new Date().toISOString(), []);
   const projection: LocalDradisNavigation = {
     groupId: 'fleet-1', navigationRevision: 3, fleetPartitionRevision: sample === 'rejoined' ? 3 : 2, sampledAt,
-    ships: ['aegis', 'icebreaker', ...(sample === 'rejoined' ? ['dione', 'shepherd'] : [])].map(shipId =>
+    ships: ['aegis', 'icebreaker', 'refinery-124', ...(sample === 'rejoined' ? ['dione', 'shepherd'] : [])].map(shipId =>
       ({shipId, fleetGroupId: 'fleet-1', coordinate: '3145'})),
+    dockedShuttles: [
+      ...(sample === 'travelling' ? [] : [{shuttleId: 'starlight', fleetGroupId: 'fleet-1', hostShipId: sample === 'docked' ? 'aegis' : 'icebreaker'}]),
+      {shuttleId: 'pallas', fleetGroupId: 'fleet-1', hostShipId: 'aegis'},
+      {shuttleId: 'boa', fleetGroupId: 'fleet-1', hostShipId: 'icebreaker'},
+      {shuttleId: 'chepu', fleetGroupId: 'fleet-1', hostShipId: 'refinery-124'},
+      ...(sample === 'rejoined' ? [{shuttleId: 'maliades', fleetGroupId: 'fleet-1', hostShipId: 'dione'}] : []),
+    ],
+    dockedFighterWings: [
+      {wingId: 'fighter-wing-alpha', fleetGroupId: 'fleet-1', hostShipId: 'aegis'},
+      {wingId: 'fighter-wing-bravo', fleetGroupId: 'fleet-1', hostShipId: 'aegis'},
+      {wingId: 'pdf-escort-fighter-wing', fleetGroupId: 'fleet-1', hostShipId: 'refinery-124'},
+    ],
     transits: sample === 'travelling' ? [{shuttleId: 'starlight', fleetGroupId: 'fleet-1', sampledAt,
       currentPosition: {x: 0.08, y: 0.04, z: 0.02}, destinationShipId: 'icebreaker', arrivesAt: DEADLINE}] : [],
   };
