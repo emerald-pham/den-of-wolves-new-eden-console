@@ -620,6 +620,7 @@ import {
   replayWolfRangeTargetSnapshot,
   wolfCombatRoster,
   resolveWolfTargeting,
+  wolfTargetNumberForRangeSource,
   finalizeWolfAttack,
   wolfBoardingPartyCounts,
   EXPANDED_WOLF_TARGET_RING,
@@ -23317,6 +23318,36 @@ type AegisFighterWingLaunchResult = AegisFighterWingLaunchView & Readonly<{
   requestId: string;
 }>;
 
+type WolfFighterRangeSourceId = FighterWingId;
+type WolfFighterRangeActionView = Readonly<{
+  type: 'wolf-fighter-range-action-view';
+  sessionId: string;
+  attackId: string;
+  turn: number;
+  revision: number;
+  wingId: WolfFighterRangeSourceId;
+  wingLabel: string;
+  range: 'medium-range' | 'short-range';
+  choiceStatus: 'pending' | 'committed';
+  fighters: readonly Readonly<{ fighterIndex: number }>[];
+  targets: readonly Readonly<{ instanceId: string; label: string; targetNumber: number }>[];
+  launched: boolean;
+  selectedFighterIndexes?: readonly number[];
+}>;
+type WolfFighterRangeActionResult = Readonly<{
+  status: 'committed' | 'replayed';
+  type: 'wolf-fighter-range-action-choice';
+  sessionId: string;
+  requestId: string;
+  turn: number;
+  revision: number;
+  range: 'medium-range' | 'short-range';
+  wingId: WolfFighterRangeSourceId;
+  choiceStatus: 'pending-resolution';
+  selectedFighterIndexes: readonly number[];
+  actionCount: number;
+}>;
+
 const WOLF_COMBAT_RANGES = ['long-range', 'medium-range', 'short-range'] as const;
 
 function aegisFighterWingCombatStateForAttack(
@@ -24057,6 +24088,256 @@ export const assignWolfRangeTargets = onCall<{
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
   });
+});
+
+function fighterRangeSourceId(value: unknown): WolfFighterRangeSourceId | null {
+  return value === 'fighter-wing-alpha' || value === 'fighter-wing-bravo' ? value : null;
+}
+
+function fighterRangeShiftSource(wingId: WolfFighterRangeSourceId): 'aegis-alpha-wing' | 'aegis-bravo-wing' {
+  return wingId === 'fighter-wing-alpha' ? 'aegis-alpha-wing' : 'aegis-bravo-wing';
+}
+
+function wolfFighterRangeChoiceValue(state: DocumentSnapshot, range: 'medium-range' | 'short-range', wingId: WolfFighterRangeSourceId): unknown {
+  const allChoices = state.get('fighterRangeChoices');
+  const byRange = isRecord(allChoices) ? allChoices[range] : undefined;
+  return isRecord(byRange) ? byRange[wingId] : undefined;
+}
+
+function wolfFighterRangeActionView(
+  sessionId: string,
+  session: DocumentSnapshot,
+  attack: DocumentSnapshot,
+  range: 'medium-range' | 'short-range',
+  inputs: ReturnType<typeof requireWolfRangeState>,
+  wingId: WolfFighterRangeSourceId,
+): WolfFighterRangeActionView {
+  const attackId = attack.get('attackId');
+  if (typeof attackId !== 'string' || !attackId) {
+    throw commandError('failed-precondition', 'The current Wolf attack identity is unavailable.', 'conflict');
+  }
+  const combat = aegisFighterWingCombatStateForAttack(session, attack, inputs.turn, attackId);
+  const wing = combat.wings[wingId];
+  const committed = wolfFighterRangeChoiceValue(attack, range, wingId);
+  if (committed !== undefined && (!isRecord(committed) || committed.status !== 'committed' ||
+      committed.turn !== inputs.turn || committed.attackId !== attackId || committed.range !== range ||
+      committed.sourceId !== wingId || committed.actorRoleId !== 'wing-commander')) {
+    throw commandError('failed-precondition', 'The committed fighter range choice is malformed.', 'conflict');
+  }
+  const targets = wolfRangeLegalTargetInstanceIds(range, inputs.roster).flatMap((instanceId) => {
+    const index = inputs.roster.findIndex((ship) => ship.instanceId === instanceId);
+    const target = inputs.roster[index];
+    if (index < 0 || !target) return [];
+    return [{
+      instanceId: wolfRangeContactId(index),
+      label: `Wolf contact ${index + 1}`,
+      targetNumber: wolfTargetNumberForRangeSource(fighterRangeShiftSource(wingId), target.target, inputs.receipt.ring),
+    }];
+  });
+  const selectedFighterIndexes = isRecord(committed)
+    ? range === 'short-range' && Array.isArray(committed.fighterIndexes)
+      ? committed.fighterIndexes.filter((value): value is number => Number.isSafeInteger(value))
+      : range === 'medium-range' && Array.isArray(committed.actions)
+        ? committed.actions.flatMap((value) => isRecord(value) && Number.isSafeInteger(value.fighterIndex)
+          ? [value.fighterIndex as number] : [])
+        : undefined
+    : undefined;
+  return {
+    type: 'wolf-fighter-range-action-view', sessionId, attackId, turn: inputs.turn,
+    revision: inputs.revision, wingId,
+    wingLabel: wingId === 'fighter-wing-alpha' ? 'Fighter Wing Alpha' : 'Fighter Wing Bravo',
+    range, choiceStatus: committed === undefined ? 'pending' : 'committed',
+    fighters: wing.launched ? Array.from({ length: wing.fighters }, (_, fighterIndex) => ({ fighterIndex })) : [],
+    targets, launched: wing.launched,
+    ...(selectedFighterIndexes === undefined ? {} : { selectedFighterIndexes }),
+  };
+}
+
+function isWolfFighterRangeActionResult(value: unknown): value is WolfFighterRangeActionResult {
+  return isRecord(value) && (value.status === 'committed' || value.status === 'replayed') &&
+    value.type === 'wolf-fighter-range-action-choice' && typeof value.sessionId === 'string' &&
+    isCanonicalRequestId(value.requestId) && Number.isSafeInteger(value.turn) &&
+    Number.isSafeInteger(value.revision) && (value.range === 'medium-range' || value.range === 'short-range') &&
+    fighterRangeSourceId(value.wingId) !== null && value.choiceStatus === 'pending-resolution' &&
+    Array.isArray(value.selectedFighterIndexes) && value.selectedFighterIndexes.every((index) => Number.isSafeInteger(index)) &&
+    Number.isSafeInteger(value.actionCount) && (value.actionCount as number) >= 0;
+}
+
+/** Read the current Wing Commander's private, per-wing range choice. */
+export const getWolfFighterRangeActionChoice = onCall<{
+  sessionId?: unknown; range?: unknown; sourceId?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  if (!isRecord(raw) || Object.keys(raw).some((key) => !['sessionId', 'range', 'sourceId'].includes(key)) ||
+      (raw.range !== 'medium-range' && raw.range !== 'short-range')) {
+    throw new HttpsError('invalid-argument', 'A current Wolf fighter range and wing are required.');
+  }
+  const { sessionId } = requireSessionRequest(raw);
+  const range = raw.range;
+  const wingId = fighterRangeSourceId(raw.sourceId);
+  if (!wingId) throw new HttpsError('invalid-argument', 'Choose Fighter Wing Alpha or Bravo.');
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+  const attackRef = db.doc(`sessions/${sessionId}/wolfAttackState/current`);
+  return db.runTransaction(async (tx: Transaction) => {
+    const [session, player, attack] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(attackRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireAegisWingCommanderPlayer(player, uid);
+    const groupId = currentPlayerFleetGroupId(player);
+    const group = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${groupId}`));
+    requireAegisExecutiveOfficerCurrentBerth(player, uid, group);
+    requireUsableShip(session, 'aegis');
+    const inputs = requireWolfRangeState(session, attack, range);
+    return wolfFighterRangeActionView(sessionId, session, attack, range, inputs, wingId);
+  });
+});
+
+/** Persist a fighter subset/action choice. Dice remain locked until range choices are reconciled. */
+export const commitWolfFighterRangeActionChoice = onCall<{
+  sessionId?: unknown; requestId?: unknown; expectedTurn?: unknown; expectedRevision?: unknown;
+  range?: unknown; sourceId?: unknown; fighterIndexes?: unknown; actions?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = new Set(['sessionId', 'requestId', 'expectedTurn', 'expectedRevision', 'range', 'sourceId',
+    'fighterIndexes', 'actions']);
+  if (!isRecord(raw) || Object.keys(raw).some((key) => !allowed.has(key)) ||
+      (raw.range !== 'medium-range' && raw.range !== 'short-range')) {
+    throw new HttpsError('invalid-argument', 'A Wolf fighter choice must name its current range.');
+  }
+  const { sessionId } = requireSessionRequest(raw);
+  const requestId = isCanonicalRequestId(raw.requestId) ? raw.requestId : null;
+  const wingId = fighterRangeSourceId(raw.sourceId);
+  const range = raw.range;
+  if (!requestId || !Number.isSafeInteger(raw.expectedTurn) || !Number.isSafeInteger(raw.expectedRevision) || !wingId ||
+      (range === 'short-range' && (!Array.isArray(raw.fighterIndexes) || raw.actions !== undefined ||
+        raw.fighterIndexes.some((index) => !Number.isSafeInteger(index)))) ||
+      (range === 'medium-range' && (!Array.isArray(raw.actions) || raw.fighterIndexes !== undefined ||
+        raw.actions.some((value) => !isRecord(value) ||
+          Object.keys(value).some((key) => !['fighterIndex', 'kind', 'targetContactId', 'shift'].includes(key)) ||
+          !Number.isSafeInteger(value.fighterIndex) || (value.fighterIndex as number) < 0 ||
+          (value.kind !== 'attack' && value.kind !== 'target-shift') ||
+          typeof value.targetContactId !== 'string' ||
+          (value.kind === 'attack' && (value.shift !== undefined || Object.keys(value).length !== 3)) ||
+          (value.kind === 'target-shift' && ((value.shift !== -1 && value.shift !== 1) || Object.keys(value).length !== 4)))))) {
+    throw new HttpsError('invalid-argument', 'The Wolf fighter range choice is malformed.');
+  }
+  const fighterIndexes = range === 'short-range' ? [...raw.fighterIndexes as number[]] : undefined;
+  const mediumActions = range === 'medium-range' ? [...raw.actions as Array<{
+    fighterIndex: number; kind: 'attack' | 'target-shift'; targetContactId: string; shift?: -1 | 1;
+  }>] : undefined;
+  const selectedIndexes = range === 'short-range' ? fighterIndexes! : mediumActions!.map(({ fighterIndex }) => fighterIndex);
+  if (new Set(selectedIndexes).size !== selectedIndexes.length) {
+    throw new HttpsError('invalid-argument', 'A fighter can make only one action at each range.');
+  }
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+  const attackRef = db.doc(`sessions/${sessionId}/wolfAttackState/current`);
+  const receiptRef = commandReceiptRef(sessionId, requestId);
+  const auditRef = db.doc(`sessions/${sessionId}/wolfAttackState/current/audit/${requestId}`);
+  const fingerprint: CommandFingerprint = {
+    action: 'commit-wolf-fighter-range-action', sessionId, requestId, actorUid: uid,
+    instanceId: wingId, expectedRevision: raw.expectedRevision as number,
+    payload: { expectedTurn: raw.expectedTurn as number, range,
+      choice: JSON.stringify(range === 'short-range' ? fighterIndexes : mediumActions) },
+  };
+  const result = await db.runTransaction(async (tx: Transaction): Promise<WolfFighterRangeActionResult> => {
+    const [session, player, attack, receipt, audit] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(attackRef), tx.get(receiptRef), tx.get(auditRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireAegisWingCommanderPlayer(player, uid);
+    const groupId = currentPlayerFleetGroupId(player);
+    const group = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${groupId}`));
+    requireAegisExecutiveOfficerCurrentBerth(player, uid, group);
+    const replay = replayBoundCommand(receipt, fingerprint, isWolfFighterRangeActionResult, 'Wolf fighter range choice');
+    if (replay) return { ...replay, status: 'replayed' };
+    if (audit.exists) rejectLegacyEventReplay('Wolf fighter range choice');
+    requireUsableShip(session, 'aegis');
+    const inputs = requireWolfRangeState(session, attack, range);
+    if (raw.expectedTurn !== inputs.turn || raw.expectedRevision !== inputs.revision) {
+      throw commandError('failed-precondition', 'The fighter range view is stale. Refresh the current attack.', 'stale-revision');
+    }
+    const attackId = attack.get('attackId');
+    if (typeof attackId !== 'string' || !attackId) {
+      throw commandError('failed-precondition', 'The current Wolf attack identity is unavailable.', 'conflict');
+    }
+    const combat = aegisFighterWingCombatStateForAttack(session, attack, inputs.turn, attackId);
+    const wing = combat.wings[wingId];
+    if (!wing.launched || wing.fighters < 1) {
+      throw commandError('failed-precondition', 'Only a launched wing with surviving fighters can choose range actions.', 'invalid-phase');
+    }
+    const launchChoices = wolfFighterLaunchChoiceMap(attack, inputs.turn, attackId);
+    if (launchChoices[wingId]?.status !== 'launched') {
+      throw commandError('failed-precondition', 'The authoritative launch choice does not admit this wing to combat.', 'conflict');
+    }
+    if ((range === 'medium-range' && wing.mediumResolved) || (range === 'short-range' && wing.shortResolved)) {
+      throw commandError('failed-precondition', 'This wing has already resolved this range.', 'conflict');
+    }
+    if (selectedIndexes.some((index) => index < 0 || index >= wing.fighters)) {
+      throw commandError('failed-precondition', 'A selected fighter is no longer available.', 'conflict');
+    }
+    let persistedActions: readonly Readonly<Record<string, unknown>>[] | undefined;
+    if (mediumActions) {
+      const available = new Set(wolfRangeLegalTargetInstanceIds(range, inputs.roster).map((instanceId) => {
+        const index = inputs.roster.findIndex((ship) => ship.instanceId === instanceId);
+        return wolfRangeContactId(index);
+      }));
+      if (mediumActions.some((action) => !available.has(action.targetContactId))) {
+        throw commandError('failed-precondition', 'A fighter target is no longer available.', 'conflict');
+      }
+      const source = fighterRangeShiftSource(wingId);
+      persistedActions = mediumActions.map((action) => {
+        const rosterIndex = Number(action.targetContactId.replace(/^contact-/, '')) - 1;
+        const target = inputs.roster[rosterIndex];
+        if (!target) throw commandError('failed-precondition', 'A fighter target is no longer available.', 'conflict');
+        return {
+          fighterIndex: action.fighterIndex,
+          kind: action.kind,
+          targetInstanceId: target.instanceId,
+          ...(action.kind === 'target-shift' ? {
+            shift: action.shift,
+            targetNumber: wolfTargetNumberForRangeSource(source, target.target, inputs.receipt.ring),
+          } : {}),
+        };
+      });
+    }
+    const existing = wolfFighterRangeChoiceValue(attack, range, wingId);
+    if (existing !== undefined) {
+      throw commandError('failed-precondition', 'This wing has already committed its range choice.', 'conflict');
+    }
+    const nextRevision = inputs.revision + 1;
+    const fighterRangeChoices = isRecord(attack.get('fighterRangeChoices'))
+      ? attack.get('fighterRangeChoices') as Record<string, unknown> : {};
+    const currentRange = isRecord(fighterRangeChoices[range]) ? fighterRangeChoices[range] as Record<string, unknown> : {};
+    const selectedFighterIndexes = [...selectedIndexes].sort((left, right) => left - right);
+    const choice = {
+      type: 'wolf-fighter-range-action-choice', status: 'committed', sourceId: wingId, range,
+      turn: inputs.turn, attackId, revision: nextRevision, actorUid: uid, actorRoleId: 'wing-commander', requestId,
+      ...(range === 'short-range' ? { fighterIndexes: selectedFighterIndexes } : { actions: persistedActions }),
+    };
+    const result: WolfFighterRangeActionResult = {
+      status: 'committed', type: 'wolf-fighter-range-action-choice', sessionId, requestId,
+      turn: inputs.turn, revision: nextRevision, range, wingId, choiceStatus: 'pending-resolution',
+      selectedFighterIndexes, actionCount: selectedFighterIndexes.length,
+    };
+    tx.update(attackRef, {
+      revision: nextRevision,
+      fighterRangeChoices: { ...fighterRangeChoices, [range]: { ...currentRange, [wingId]: choice } },
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(auditRef, { type: 'wolf-fighter-range-action-choice', range, sourceId: wingId,
+      turn: inputs.turn, revision: nextRevision, actorUid: uid, actorRoleId: 'wing-commander', requestId,
+      selectedFighterIndexes, actionCount: selectedFighterIndexes.length, deadlineAt: inputs.deadlineAt,
+      createdAt: FieldValue.serverTimestamp() });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+  await reconcileWolfAttackProgress(sessionId);
+  return result;
 });
 
 type WolfForceFieldUnavailableReason =

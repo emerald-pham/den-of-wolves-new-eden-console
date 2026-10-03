@@ -1,0 +1,74 @@
+.dione-maliades-range {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem;
+}
+
+.dione-maliades-range__header,
+.dione-maliades-range__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.dione-maliades-range__header h2 {
+  margin: 0.2rem 0 0;
+  color: var(--color-text-primary, #f5f1e8);
+  font-family: var(--font-display, Georgia, serif);
+}
+
+.dione-maliades-range__status,
+.dione-maliades-range__damage {
+  color: var(--color-accent-cyan, #87d8dc);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dione-maliades-range__notice,
+.dione-maliades-range__damage,
+.dione-maliades-range__error,
+.dione-maliades-range__message {
+  margin: 0;
+}
+
+.dione-maliades-range label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--color-text-secondary, #c1c8cd);
+}
+
+.dione-maliades-range select {
+  width: 100%;
+  min-height: 2.6rem;
+  padding: 0.45rem 0.65rem;
+  color: var(--color-text-primary, #f5f1e8);
+  background: var(--color-surface-deep, #101a23);
+  border: 1px solid var(--color-border, #42515b);
+  border-radius: 0.2rem;
+}
+
+.dione-maliades-range__error {
+  color: var(--color-status-danger, #ff8a80);
+}
+
+.dione-maliades-range__message {
+  color: var(--color-accent-cyan, #87d8dc);
+}
+
+@media (min-width: 42rem) {
+  .dione-maliades-range {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dione-maliades-range__header,
+  .dione-maliades-range__notice,
+  .dione-maliades-range__damage,
+  .dione-maliades-range__actions,
+  .dione-maliades-range__error,
+  .dione-maliades-range__message {
+    grid-column: 1 / -1;
+  }
+}
