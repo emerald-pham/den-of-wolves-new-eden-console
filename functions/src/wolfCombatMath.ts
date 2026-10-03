@@ -547,17 +547,14 @@ function rosterById(roster: readonly WolfCombatShip[]): Map<string, WolfCombatSh
   return map;
 }
 
-/** Contacts that remain legal targets at the start of the simultaneous range. */
+/** Contacts that can receive hits at the start of the simultaneous range. */
 export function wolfRangeLegalTargetInstanceIds(
   range: WolfCombatRange,
   roster: readonly WolfCombatShip[],
 ): readonly string[] {
   const live = roster.filter(ship => !ship.destroyed);
-  const survivingFighters = range === 'short-range' && live.some(ship => ship.shipId === 'wolf-fighter-wing');
   return live
-    .filter(ship => range !== 'short-range' || (
-      ship.shipId !== 'wolf-battlestation' && (!survivingFighters || ship.shipId === 'wolf-fighter-wing')
-    ))
+    .filter(ship => range !== 'short-range' || ship.shipId !== 'wolf-battlestation')
     .map(({ instanceId }) => instanceId);
 }
 
@@ -667,6 +664,19 @@ export function resolveWolfRange(
       damageByInstance[instanceId] = (damageByInstance[instanceId] ?? 0) + perTargetDamage;
       damageTakenByInstance[instanceId] = (damageTakenByInstance[instanceId] ?? 0) + perTargetDamage;
     });
+  }
+  if (range === 'short-range') {
+    const assignedNonWing = Object.keys(damageTakenByInstance).some((instanceId) =>
+      rosterMap.get(instanceId)?.shipId !== 'wolf-fighter-wing');
+    if (assignedNonWing) {
+      const uncoveredWing = roster.filter((ship) => !ship.destroyed && ship.shipId === 'wolf-fighter-wing').some((ship) => {
+        const catalog = wolfShipForId(ship.shipId);
+        return !catalog || ship.damageTaken + (damageTakenByInstance[ship.instanceId] ?? 0) < catalog.damageCapacity;
+      });
+      if (uncoveredWing) {
+        throw new Error('Short Range hits must cover all surviving Fighter Wings first.');
+      }
+    }
   }
   for (const [instanceId, damage] of Object.entries(damageTakenByInstance)) {
     const current = nextRoster.get(instanceId);
