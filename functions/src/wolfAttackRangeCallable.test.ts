@@ -215,6 +215,58 @@ it('requires current Maliades custody and rejects duplicate attack/shift targets
   expect(testState.update).not.toHaveBeenCalled();
 });
 
+it('joins committed PDF and Maliades Medium attacks into one EO lock and one range receipt', async () => {
+  admitEscortRange();
+  entropy.randomInt.mockClear();
+  const pdfView = await getWolfEscortRangeActionChoice.run(request({
+    sessionId: 's1', sourceId: 'pdf-escort-fighter-wing', range: 'medium-range',
+  }, 'colonel-1'));
+  const pdfChoice = await commitWolfEscortRangeActionChoice.run(request({
+    sessionId: 's1', sourceId: 'pdf-escort-fighter-wing', range: 'medium-range', requestId: 'pdf-medium-aggregate',
+    expectedTurn: 1, expectedRevision: pdfView.revision,
+    actions: [{ fighterIndex: 0, kind: 'attack', targetContactId: 'contact-1' }],
+  }, 'colonel-1'));
+  expect(pdfChoice).toMatchObject({ choiceStatus: 'pending-resolution', actionCount: 1 });
+  expect(entropy.randomInt).not.toHaveBeenCalled();
+
+  const maliadesView = await getWolfEscortRangeActionChoice.run(request({
+    sessionId: 's1', sourceId: 'maliades', range: 'medium-range',
+  }, 'engineer-1'));
+  const maliadesChoice = await commitWolfEscortRangeActionChoice.run(request({
+    sessionId: 's1', sourceId: 'maliades', range: 'medium-range', requestId: 'maliades-medium-aggregate',
+    expectedTurn: 1, expectedRevision: maliadesView.revision,
+    actions: [{ kind: 'attack', targetContactId: 'contact-2' }],
+  }, 'engineer-1'));
+  expect(maliadesChoice).toMatchObject({ choiceStatus: 'pending-resolution', actionCount: 1 });
+  expect(entropy.randomInt).not.toHaveBeenCalled();
+
+  const eoView = await getWolfRangeActionChoice.run(request({ sessionId: 's1' }, 'xo-1'));
+  expect(eoView.eligibleActions.map(({ actionId }) => actionId)).not.toEqual(expect.arrayContaining([
+    'pdf-escort-wing-medium-0', 'maliades-medium-0',
+  ]));
+  const committed = await commitWolfRangeActionChoice.run(request({
+    sessionId: 's1', requestId: 'eo-medium-aggregate', expectedTurn: 1, expectedRevision: eoView.revision,
+    range: 'medium-range', actionIds: [],
+  }, 'xo-1'));
+  expect(committed).toMatchObject({ choiceStatus: 'passed', currentStep: 'short-range' });
+  expect(committed.hitSlots.map(({ actionId }) => actionId)).toEqual([
+    'pdf-escort-wing-medium-0', 'maliades-medium-0',
+  ]);
+  expect(entropy.randomInt).toHaveBeenCalledTimes(2);
+  const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  expect(attack.rangeReceipts).toMatchObject([
+    expect.objectContaining({ range: 'long-range' }),
+    expect.objectContaining({ range: 'medium-range', dice: [
+      expect.objectContaining({ actionId: 'pdf-escort-wing-medium-0', rolls: [6], successes: 1 }),
+      expect.objectContaining({ actionId: 'maliades-medium-0', rolls: [6], successes: 1 }),
+    ] }),
+  ]);
+  expect(testState.documents.get('sessions/s1/serverState/pdfEscortWing'))
+    .toMatchObject({ mediumResolved: true, losses: 0 });
+  expect(testState.documents.get('sessions/s1')?.maliadesState)
+    .toMatchObject({ medium: { attack: { targetId: expect.any(String), hit: true } }, damage: 0 });
+});
+
 it('lets the current Wing Commander launch each charged, operational AEGIS bay independently', async () => {
   const session = testState.documents.get('sessions/s1')!;
   put('sessions/s1', { ...session, activeRoleIds: ['executive-officer', 'wing-commander'],
@@ -505,16 +557,13 @@ it('applies the Wing Commander Medium target and shift choices inside the EO ran
   const eoView = await getWolfRangeActionChoice.run(request({ sessionId: 's1' }));
   const locked = await commitWolfRangeActionChoice.run(request({ sessionId: 's1', requestId: 'eo-medium-weapons-pass',
     expectedTurn: 1, expectedRevision: eoView.revision, range: 'medium-range', actionIds: [] }));
-  expect(locked).toMatchObject({ choiceStatus: 'targets-required', hitSlots: [
+  expect(locked).toMatchObject({ hitSlots: [
     { actionId: 'aegis-alpha-wing-medium-0', count: 1 },
   ] });
-
-  entropy.randomInt.mockClear();
-  const assigned = await assignWolfRangeTargets.run(request({ sessionId: 's1', requestId: 'eo-medium-auto-wing-target',
-    expectedTurn: 1, expectedRevision: locked.revision, range: 'medium-range', assignments: [] }));
+  expect(locked).toMatchObject({ choiceStatus: 'passed', currentStep: 'short-range' });
   const resolved = testState.documents.get('sessions/s1/wolfAttackState/current')!;
   const receipt = (resolved.rangeReceipts as Array<Fields>).at(-1)!;
-  expect(assigned.currentStep).toBe('short-range');
+  expect(resolved.currentStep).toBe('short-range');
   expect(receipt).toMatchObject({
     dice: [{ actionId: 'aegis-alpha-wing-medium-0', sourceId: 'aegis-alpha-wing', rolls: [6], successes: 1, damage: 1 }],
     assignments: [{ actionId: 'aegis-alpha-wing-medium-0', targetInstanceIds: [chosenTarget.instanceId] }],
@@ -527,7 +576,7 @@ it('applies the Wing Commander Medium target and shift choices inside the EO ran
     sourceId: 'aegis-alpha-wing', targetId: resolvedTarget.target, effect: 'Alpha Fighter Wing attack hit',
     outcome: { damage: 1 },
   });
-  expect(entropy.randomInt).not.toHaveBeenCalled();
+  expect(entropy.randomInt).toHaveBeenCalledTimes(1);
 });
 
 it('commits a fighter-only Medium target shift in the EO pass receipt', async () => {
