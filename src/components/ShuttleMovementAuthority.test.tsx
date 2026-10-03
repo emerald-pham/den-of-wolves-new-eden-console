@@ -3,14 +3,16 @@ import {beforeEach, expect, it, vi} from 'vitest';
 import ShuttleControl from './ShuttleControl';
 import {useSessionStore} from '@/store/useSessionStore';
 const departure = vi.hoisted(() => vi.fn());
+const subscribeDeparture = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/firestore', () => ({
  subscribeConnectedPlayers: () => () => undefined,
- subscribeShuttleDeparture: (_session: unknown, _craft: unknown, onValue: (v: null) => void) => {onValue(null);return () => undefined;},
+ subscribeShuttleDeparture: subscribeDeparture,
 }));
 vi.mock('@/lib/shuttleDepartureService', () => ({requestShuttleDeparture:departure,beginShuttleTransit:vi.fn(),
  completeShuttleArrival:vi.fn(),retargetShuttleTransit:vi.fn()}));
 const control={shuttleId:'starlight',ownerRoleId:'wing-commander',ownerUid:'wing',holderUid:'wing',revision:0};
 beforeEach(() => {
+ subscribeDeparture.mockReset().mockImplementation((_session: unknown, _craft: unknown, onValue: (v: null) => void) => {onValue(null);return () => undefined;});
  departure.mockReset();const now=Date.now(),stamp=new Date(now).toISOString();
  useSessionStore.getState().setIdentity({id:'local-flight',name:'Local flight',joinCode:'0000',phase:'active',currentTurn:2,
   ownerUid:'wing',createdAt:stamp,updatedAt:stamp,activeVesselIds:['aegis','icebreaker'],
@@ -22,6 +24,24 @@ beforeEach(() => {
  {uid:'wing',sessionId:'local-flight',displayName:'Wing Commander',role:'player',assignedRoleId:'wing-commander',
   activeConsoleRoleId:'wing-commander',seatId:'wing-commander',fleetGroupId:'fleet-1',joinedAt:stamp});
  useSessionStore.getState().setConnection('live');useSessionStore.getState().setSessionSnapshotFreshness('server');
+});
+it('rebinds a route listener denied before the flight existed after the holder commits its departure', async () => {
+ const stopOld=vi.fn();
+ subscribeDeparture.mockReset()
+  .mockImplementationOnce((_session: unknown, _craft: unknown, onValue: (v: null) => void) => {onValue(null);return stopOld;})
+  .mockImplementation((_session: unknown, _craft: unknown, onValue: (v: unknown) => void) => {
+   onValue({status:'requested',requestId:'new-flight',shuttleId:'starlight',holderUid:'wing',fleetGroupId:'fleet-1',
+    originShipId:'aegis',destinationShipId:'icebreaker',cycle:2,controlRevision:0,requestedAt:new Date().toISOString()});
+   return vi.fn();
+  });
+ departure.mockResolvedValue(undefined);
+ render(<ShuttleControl control={control} />);
+ const panel=screen.getByRole('region',{name:'Shuttle departure'});
+ fireEvent.change(within(panel).getByRole('combobox'),{target:{value:'icebreaker'}});
+ fireEvent.click(within(panel).getByRole('button',{name:'Request departure'}));
+ expect(await within(panel).findByRole('button',{name:'Begin transit'})).toBeEnabled();
+ expect(subscribeDeparture).toHaveBeenCalledTimes(2);
+ expect(stopOld).toHaveBeenCalledTimes(1);
 });
 it('withdraws a selected cached route and restores it only from current server clearance', () => {
  render(<ShuttleControl control={control} />);
