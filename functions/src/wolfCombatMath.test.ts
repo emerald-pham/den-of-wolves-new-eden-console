@@ -573,6 +573,59 @@ describe('central Wolf combat math', () => {
     ]);
   });
 
+  it('continues an attack when deployment left a legacy Long receipt before new Medium and Short snapshots', () => {
+    const fullTargeting = resolveWolfTargeting(firstTurnWolfAttackComposition(), {}, undefined, () => 0);
+    const selectedTransport = fullTargeting.rolls.find(({ shipId }) => shipId === 'wolf-assault-transport')!;
+    const targeting = { ...fullTargeting, rolls: [{ ...selectedTransport, rosterIndex: 0 }] };
+    const roster = wolfCombatRoster(targeting);
+    const ranges = (['long-range', 'medium-range', 'short-range'] as const).map((range) => ({
+      range, targetSnapshot: roster.map(({ instanceId, target }) => ({ instanceId, target })),
+      dice: [], assignments: [], targetShifts: [], unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
+      destructionDamageByTarget: Object.fromEntries(EXPANDED_WOLF_TARGET_RING.map((target) => [target, 0])),
+    }));
+    const { targetSnapshot, targetShifts, ...legacyLong } = ranges[0]!;
+    void targetSnapshot;
+    void targetShifts;
+    const prefixRanges = [legacyLong, ranges[1]!, ranges[2]!] as unknown as typeof ranges;
+
+    const resolved = finalizeWolfAttack({
+      requestId: 'attack-legacy-prefix', targeting, roster, ranges: prefixRanges,
+      boardingDefence: [{ target: 'aegis', securityTeams: 0 }],
+      targetRing: CORE_WOLF_TARGET_RING, phase: startTurnPhase(1, 1_000), now: 2_000,
+      fleetState: completeFleetState(), randomInt: () => 0,
+    });
+    expect(resolved.type).toBe('wolf-combat-calculation');
+    expect(resolved.ranges.map(({ range }) => range)).toEqual(['long-range', 'medium-range', 'short-range']);
+  });
+
+  it('rejects a legacy receipt after snapshot-backed range progress and rejects snapshot-less shifts', () => {
+    const fullTargeting = resolveWolfTargeting(firstTurnWolfAttackComposition(), {}, undefined, () => 0);
+    const selectedTransport = fullTargeting.rolls.find(({ shipId }) => shipId === 'wolf-assault-transport')!;
+    const targeting = { ...fullTargeting, rolls: [{ ...selectedTransport, rosterIndex: 0 }] };
+    const roster = wolfCombatRoster(targeting);
+    const ranges = (['long-range', 'medium-range', 'short-range'] as const).map((range) => ({
+      range, targetSnapshot: roster.map(({ instanceId, target }) => ({ instanceId, target })),
+      dice: [], assignments: [], targetShifts: [], unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
+      destructionDamageByTarget: Object.fromEntries(EXPANDED_WOLF_TARGET_RING.map((target) => [target, 0])),
+    }));
+    const { targetSnapshot, targetShifts: _targetShifts, ...legacyShort } = ranges[2]!;
+    void targetSnapshot;
+    void _targetShifts;
+    const reverseRanges = [ranges[0]!, ranges[1]!, legacyShort] as unknown as typeof ranges;
+    const common = {
+      requestId: 'attack-reverse-range-receipts', targeting, roster,
+      boardingDefence: [{ target: 'aegis' as const, securityTeams: 0 }],
+      targetRing: CORE_WOLF_TARGET_RING, phase: startTurnPhase(1, 1_000), now: 2_000,
+      fleetState: completeFleetState(), randomInt: () => 0,
+    };
+
+    expect(() => finalizeWolfAttack({ ...common, ranges: reverseRanges })).toThrow(/malformed|out of order/i);
+    expect(() => finalizeWolfAttack({ ...common, ranges: [
+      ranges[0]!, { ...ranges[1]!, targetSnapshot: undefined, targetShifts: [{ sourceId: 'maliades',
+        choiceIndex: 0, rosterIndex: 0, shift: 1, fromDie: 1, toDie: 2 }] }, ranges[2]!,
+    ] as unknown as typeof ranges })).toThrow(/malformed|out of order/i);
+  });
+
   it('calculates complete attack receipts over a configured five- or seven-target ring', () => {
     const baseState = completeFleetState();
     const phase = startTurnPhase(1, 1_000);
