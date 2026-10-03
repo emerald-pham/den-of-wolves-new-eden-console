@@ -650,12 +650,19 @@ service cloud.firestore {
             && resource.data.status in ['requested', 'in-transit']
             && resource.data.shuttleId == shuttleId
             && resource.data.fleetGroupId is string
+            && isCurrentFleetGroupHistoryReader(sessionId, resource.data.fleetGroupId)
             && get(
               /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
             ).data.fleetGroupId is string
             && resource.data.fleetGroupId == get(
               /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
-            ).data.fleetGroupId);
+            ).data.fleetGroupId
+            && resource.data.destinationShipId is string
+            && resource.data.destinationShipId in get(
+              /databases/$(database)/documents/sessions/$(sessionId)/fleetGroups/$(get(
+                /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+              ).data.fleetGroupId)
+            ).data.vesselIds);
         allow list, write: if false;
       }
 
@@ -1243,6 +1250,12 @@ service cloud.firestore {
 
       match /fleetGroupShareAudits/{auditId} {
         allow get, list: if isGm(sessionId) && resource.data.type == 'fleet-group-known-system-share'
+          && resource.data.sessionId == sessionId;
+        allow write: if false;
+      }
+
+      match /fleetGroupTransitPartitionAudits/{auditId} {
+        allow get, list: if isGm(sessionId) && resource.data.type == 'fleet-group-transit-partition-audit'
           && resource.data.sessionId == sessionId;
         allow write: if false;
       }

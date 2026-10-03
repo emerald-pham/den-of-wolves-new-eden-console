@@ -1657,6 +1657,10 @@ const INITIAL_SHIP_JUMP_TRANSITIONS = Object.fromEntries(
 const AUTHORIZED_SHUTTLE_IDS: ReadonlySet<string> = new Set(
   ROLE_OWNED_CRAFT_CATALOG.filter((craft) => craft.kind === 'shuttle').map((craft) => craft.id),
 );
+// A server-side route with no one local ship group must not be readable by a
+// player while its origin and destination have been separated. The next GM
+// partition confirmation will bind it to the unique group containing both.
+const NO_LOCAL_FLEET_ROUTE_AUDIENCE = 'fleet-0';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -15642,6 +15646,11 @@ export const confirmFleetPartition = onCall<{ sessionId: string; instanceId: str
       tx.get(db.collection(`sessions/${data.sessionId}/missionOpportunities`)),
       tx.get(db.collection(`sessions/${data.sessionId}/missionStartSnapshots`)),
     ]);
+    const shuttleIds = [...AUTHORIZED_SHUTTLE_IDS].sort();
+    const [shuttleDepartures, shuttleChains] = await Promise.all([
+      Promise.all(shuttleIds.map(shuttleId => tx.get(db.doc(`sessions/${data.sessionId}/shuttleDepartures/${shuttleId}`)))),
+      Promise.all(shuttleIds.map(shuttleId => tx.get(db.doc(`sessions/${data.sessionId}/shuttleTransitChains/${shuttleId}`)))),
+    ]);
     const replay = replayBoundCommand(receipt, fingerprint, isFleetPartitionReply, 'fleet partition');
     if (replay) return replay;
     requireWolfAttackMovementReleased(attackState);
@@ -15676,7 +15685,38 @@ export const confirmFleetPartition = onCall<{ sessionId: string; instanceId: str
     } catch (error) {
       throw commandError('failed-precondition', error instanceof Error ? error.message : 'Pending mission authority is malformed.', 'conflict');
     }
-    const changed = !isDeepStrictEqual(groups, plan.groups) || missionMigrations.length > 0;
+    const shuttleAudienceChanges: { readonly shuttleId: string; readonly fromGroupId: string; readonly toGroupId: string }[] = [];
+    for (let index = 0; index < shuttleIds.length; index += 1) {
+      const shuttleId = shuttleIds[index]!;
+      const departure = shuttleDepartures[index]!;
+      const chain = shuttleChains[index]!;
+      if (!departure.exists) {
+        if (chain.exists) throw commandError('failed-precondition', 'A shuttle has a transit chain without its public route.', 'conflict');
+        continue;
+      }
+      const rawRoute = departure.data();
+      if (!isRecord(rawRoute) || rawRoute.shuttleId !== shuttleId) {
+        throw commandError('failed-precondition', 'A shuttle route does not match its server document.', 'conflict');
+      }
+      let originShipId: string;
+      let destinationShipId: string;
+      let currentGroupId: string;
+      if (rawRoute.status === 'requested') {
+        const pending = parseShuttleDepartures({ [shuttleId]: rawRoute })?.[shuttleId];
+        if (!pending || chain.exists) throw commandError('failed-precondition', 'A pending shuttle route is malformed.', 'conflict');
+        ({ originShipId, destinationShipId, fleetGroupId: currentGroupId } = pending);
+      } else if (rawRoute.status === 'in-transit') {
+        const authority = parseShuttleTransitAuthority(rawRoute, chain.exists ? chain.data() : undefined, shuttleId);
+        if (!authority) throw commandError('failed-precondition', 'An in-flight shuttle route failed its private chain validation.', 'conflict');
+        ({ originShipId, destinationShipId, fleetGroupId: currentGroupId } = authority.transit);
+      } else {
+        throw commandError('failed-precondition', 'A shuttle route has an unknown state.', 'conflict');
+      }
+      const localGroups = plan.groups.filter(group => group.vesselIds.includes(originShipId) && group.vesselIds.includes(destinationShipId));
+      const nextAudience = localGroups.length === 1 ? localGroups[0]!.id : NO_LOCAL_FLEET_ROUTE_AUDIENCE;
+      if (currentGroupId !== nextAudience) shuttleAudienceChanges.push({ shuttleId, fromGroupId: currentGroupId, toGroupId: nextAudience });
+    }
+    const changed = !isDeepStrictEqual(groups, plan.groups) || missionMigrations.length > 0 || shuttleAudienceChanges.length > 0;
     const revision = data.expectedNavigationRevision + (changed ? 1 : 0);
     if (changed) {
       tx.update(db.doc(`sessions/${data.sessionId}`), { fleetPartitionRevision: revision, updatedAt: FieldValue.serverTimestamp() });
@@ -15703,10 +15743,15 @@ export const confirmFleetPartition = onCall<{ sessionId: string; instanceId: str
         writeMissionOpportunity(tx, data.sessionId, migration.opportunity);
         tx.delete(db.doc(missionOpportunityDocumentPath(data.sessionId, migration.fromId)));
       }
+      for (const change of shuttleAudienceChanges) {
+        tx.update(db.doc(`sessions/${data.sessionId}/shuttleDepartures/${change.shuttleId}`), { fleetGroupId: change.toGroupId });
+      }
       if (plan.rejoins.length > 0) {
         tx.create(db.doc(`sessions/${data.sessionId}/fleetGroupRejoinAudits/${data.requestId}`), {
           type: 'fleet-group-rejoin-audit', sessionId: data.sessionId, requestId: data.requestId,
           actorUid: uid, policy: 'highest-pursuit-score', navigationRevision: revision,
+          migratedShuttleIds: shuttleAudienceChanges.filter(change => change.toGroupId !== NO_LOCAL_FLEET_ROUTE_AUDIENCE)
+            .map(change => change.shuttleId).sort(),
           rejoins: plan.rejoins.map(rejoin => ({
             coordinate: rejoin.coordinate,
             survivingGroupId: rejoin.survivingGroupId,
@@ -15717,6 +15762,13 @@ export const confirmFleetPartition = onCall<{ sessionId: string; instanceId: str
           createdAt: FieldValue.serverTimestamp(),
         });
       }
+      if (shuttleAudienceChanges.length > 0) tx.create(
+        db.doc(`sessions/${data.sessionId}/fleetGroupTransitPartitionAudits/${data.requestId}`), {
+          type: 'fleet-group-transit-partition-audit', sessionId: data.sessionId, requestId: data.requestId,
+          actorUid: uid, navigationRevision: revision,
+          changes: shuttleAudienceChanges.map(change => ({ ...change })),
+          createdAt: FieldValue.serverTimestamp(),
+        });
     }
     const result: FleetPartitionReply = { status: 'committed', navigationRevision: revision, groupIds: plan.groups.map(group => group.id) };
     tx.set(commandReceiptRef(data.sessionId, data.requestId), { fingerprint, result, createdAt: FieldValue.serverTimestamp() });

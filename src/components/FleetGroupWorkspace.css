@@ -1,10 +1,18 @@
 .fleet-group-workspace { font-family: var(--cic-mono); color: var(--cic-ink); border: 1px solid var(--cic-rule); padding: 1rem; min-width: 0; overflow-wrap: anywhere; }
 .fleet-group-workspace h2 { font-family: var(--cic-display); font-weight: 400; text-transform: uppercase; }
-.fleet-group-workspace textarea { display: block; width: 100%; max-width: 100%; box-sizing: border-box; background: var(--cic-void); color: var(--cic-ink); border: 1px solid var(--cic-amber); border-radius: 0; padding: 0.75rem; font: inherit; }
+.fleet-group-workspace > label, .fleet-group-workspace__tool > label { display: grid; gap: 0.4rem; margin-block: 0.75rem; min-width: 0; }
+.fleet-group-workspace :is(textarea, select) { display: block; width: 100%; max-width: 100%; min-width: 0; min-height: 44px; box-sizing: border-box; background: var(--cic-void); color: var(--cic-ink); border: 1px solid var(--cic-amber); border-radius: 0; padding: 0.65rem 0.75rem; font: 16px/1.35 var(--cic-mono); }
+.fleet-group-workspace textarea { resize: vertical; }
 .fleet-group-workspace__actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 0.75rem; }
-.fleet-group-workspace button { border: 1px solid var(--cic-amber); border-radius: 0; background: var(--cic-void); color: var(--cic-cyan); padding: 0.75rem; font: inherit; max-width: 100%; white-space: normal; }
-.fleet-group-workspace :is(button, textarea):focus-visible { outline: 2px solid var(--cic-cyan); outline-offset: 2px; }
+.fleet-group-workspace button { border: 1px solid var(--cic-amber); border-radius: 0; background: var(--cic-void); color: var(--cic-cyan); min-height: 44px; padding: 0.75rem; font: inherit; max-width: 100%; white-space: normal; }
+.fleet-group-workspace :is(button, textarea, select):focus-visible { outline: 2px solid var(--cic-cyan); outline-offset: 2px; }
 .fleet-group-workspace button:disabled { opacity: 0.5; }
 .fleet-group-workspace li { margin-bottom: 0.75rem; }
-@media (max-width: 480px) { .fleet-group-workspace__actions button { width: 100%; } }
+.fleet-group-workspace fieldset { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0.25rem 0.5rem; min-width: 0; margin: 0.75rem 0; padding: 0.5rem 0.75rem 0.75rem; border: 1px solid var(--cic-rule); }
+.fleet-group-workspace legend { padding-inline: 0.4rem; color: var(--cic-amber); }
+.fleet-group-workspace fieldset label { display: flex; flex: 1 1 10rem; align-items: center; gap: 0.6rem; min-width: min(100%, 10rem); min-height: 44px; padding: 0.35rem 0.45rem; color: var(--cic-ink); font: 16px/1.35 var(--cic-mono); cursor: pointer; }
+.fleet-group-workspace fieldset input[type="checkbox"] { appearance: auto; flex: 0 0 20px; width: 20px; height: 20px; min-width: 20px; min-height: 20px; margin: 0; accent-color: var(--cic-cyan); }
+.fleet-group-workspace__tool { min-width: 0; margin-block: 1rem; }
+@media (max-width: 480px) { .fleet-group-workspace { padding: 0.75rem; } .fleet-group-workspace__actions button { width: 100%; } .fleet-group-workspace fieldset { padding-inline: 0.5rem; } }
+@media (orientation: landscape) and (max-height: 480px) { .fleet-group-workspace { padding: 0.75rem; } .fleet-group-workspace fieldset { gap: 0.2rem 0.4rem; } .fleet-group-workspace fieldset label { flex-basis: 9rem; } .fleet-group-workspace__actions { gap: 0.5rem; } }
 @media (prefers-reduced-motion: reduce) { .fleet-group-workspace * { animation: none; transition: none; } }
