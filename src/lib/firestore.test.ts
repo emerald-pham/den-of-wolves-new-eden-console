@@ -131,15 +131,15 @@ it('hydrates bounded craft histories without resetting usage or inventing foreig
   const repairs = { cycle: 2, revision: 3, hosts: [], totalHostsUsed: 2 };
   const used = { cycle: 2, revision: 1, redacted: true };
   const value = sessionFrom('member-history', { ...sessionData(12), currentTurn: 2,
-    memberSessionScope: { groupId: 'fleet-2', vesselIds: ['shepherd'], craftIds: ['blacksmith','macaw','chacau','ally','endeavour'] },
+    memberSessionScope: { groupId: 'fleet-2', vesselIds: ['shepherd','gorgoneion','warrior'], craftIds: ['blacksmith','macaw','chacau','ally','wobbly'] },
     shuttleDockings: [], shuttleVisitLog: [], blacksmithRepairs: repairs, macawRepairs: repairs, chacauRepairs: repairs, allyRepairs: repairs,
-    gorgoneionRepairDrones: used, warriorRepairDrones: used, serviceShuttleRecharges: { endeavour: used },
+    gorgoneionRepairDrones: used, warriorRepairDrones: used, serviceShuttleRecharges: { wobbly: used },
   });
   for (const field of ['blacksmithRepairs','macawRepairs','chacauRepairs','allyRepairs'] as const) expect(value[field]).toEqual(repairs);
   for (const field of ['gorgoneionRepairDrones','warriorRepairDrones'] as const) {
     expect(value[field]).toMatchObject({ cycle: 2, revision: 1, hostShipId: '', redacted: true });
   }
-  expect(value.serviceShuttleRecharges?.endeavour).toEqual({ cycle: 2, revision: 1, hostShipId: '', consoleId: '', redacted: true });
+  expect(value.serviceShuttleRecharges?.wobbly).toEqual({ cycle: 2, revision: 1, hostShipId: '', consoleId: '', redacted: true });
 });
 
 it('rejects an old group response after the current player moves and accepts the new group read', async () => {

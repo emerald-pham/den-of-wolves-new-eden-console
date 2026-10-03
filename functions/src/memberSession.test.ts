@@ -80,11 +80,12 @@ describe('current member session privacy', () => {
     const foreign = { ...emptySmallShipState('warrior', 'aegis'), dockingRevision: 1 };
     const value = memberSessionProjection({ ...root, smallShipStates: { gorgoneion: local, warrior: foreign },
       shipDamage: { gorgoneion: { destroyed: false }, warrior: { destroyed: false } },
-      gorgoneionRepairDrones: { revision: 1 }, warriorRepairDrones: { revision: 2 },
+      gorgoneionRepairDrones: { cycle: 2, revision: 1, hostShipId: 'shepherd', systemId: 'reactor' },
+      warriorRepairDrones: { cycle: 2, revision: 2, hostShipId: 'aegis', systemIds: ['reactor'] },
     }, memberSessionScope(player, groups));
     expect(value.smallShipStates).toEqual({ gorgoneion: local });
     expect(value.shipDamage).toEqual({ gorgoneion: { destroyed: false } });
-    expect(value.gorgoneionRepairDrones).toEqual({ revision: 1 });
+    expect(value.gorgoneionRepairDrones).toEqual({ cycle: 2, revision: 1, hostShipId: 'shepherd', systemId: 'reactor' });
     expect(value).not.toHaveProperty('warriorRepairDrones');
     expect(recordScope(value).vesselIds).toEqual(['shepherd', 'gorgoneion']);
     const malformed = memberSessionProjection({ ...root, smallShipStates: { gorgoneion: { ...local, dockingRevision: 0 } } }, memberSessionScope(player, groups));
@@ -108,6 +109,7 @@ describe('current member session privacy', () => {
 
   it('preserves repair usage without disclosing other-group host details or GM alert recipients', () => {
     const value = memberSessionProjection({ ...root,
+      shuttleDockings: [...root.shuttleDockings, { shuttleId: 'wobbly', shipId: 'shepherd' }],
       shuttleDockings: [{ shuttleId: 'philia', shipId: 'shepherd' }],
       philiaRepairs: { cycle: 2, revision: 2, hosts: [{ shipId: 'aegis', systemIds: ['reactor'] }, { shipId: 'dione', systemIds: ['storage'] }] },
       populationAlerts: { shepherd: { targetGmInstanceIds: ['hidden-gm'] } },
@@ -134,11 +136,11 @@ describe('current member session privacy', () => {
         warrior: { ...emptySmallShipState('warrior', 'shepherd'), dockingRevision: 1 } },
       gorgoneionRepairDrones: { cycle: 2, revision: 1, hostShipId: 'aegis', systemId: 'reactor' },
       warriorRepairDrones: { cycle: 2, revision: 1, hostShipId: 'icebreaker', systemIds: ['storage'] },
-      serviceShuttleRecharges: { endeavour: { cycle: 2, revision: 1, hostShipId: 'aegis', consoleId: 'jump-drive' } },
+      serviceShuttleRecharges: { wobbly: { cycle: 2, revision: 1, hostShipId: 'aegis', consoleId: 'jump-drive' } },
     }, memberSessionScope(player, groups));
     expect(value.gorgoneionRepairDrones).toEqual({ cycle: 2, revision: 1, redacted: true });
     expect(value.warriorRepairDrones).toEqual({ cycle: 2, revision: 1, redacted: true });
-    expect(value.serviceShuttleRecharges).toEqual({ endeavour: { cycle: 2, revision: 1, redacted: true } });
+    expect(value.serviceShuttleRecharges).toEqual({ wobbly: { cycle: 2, revision: 1, redacted: true } });
   });
 });
 
