@@ -79,13 +79,14 @@ try {
   await maintenance(1);
   await open(1);
   await command(gm, 'unlockPressAirspace', { instanceId });
-  await page.goto('http://127.0.0.1:5174/press');
-  await page.getByRole('region', { name: 'Shuttle control', exact: true }).waitFor();
   const before = await command(press, 'getCurrentMemberSession');
   assert.deepEqual(before.session.shipResources, {});
   assert.deepEqual(Object.keys(before.session.shuttleControl), ['snn-press-shuttle']);
   assert.equal(before.session.shuttleDockings.length, 1);
   assert.equal(before.session.shuttleDockings[0].shuttleId, 'snn-press-shuttle');
+  await page.goto('http://127.0.0.1:5174/console');
+  await page.getByRole('link', { name: 'Press Officer', exact: true }).click();
+  await page.getByRole('region', { name: 'Shuttle control', exact: true }).waitFor();
   await page.waitForTimeout(5500); // Allow an ordinary member poll.
   await page.getByLabel('Destination ship', { exact: true }).selectOption('icebreaker');
   await page.getByRole('button', { name: 'Request departure', exact: true }).click();
