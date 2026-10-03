@@ -323,6 +323,7 @@ it('rehydrates the live timer and permitted actions from the same server phase a
     const start = listeners.length;
     const stop = subscribeSessionState('s1', 'u1', {
       onSession: (session) => useSessionStore.getState().setSession(session),
+      onSessionFreshness: fresh => useSessionStore.getState().setSessionSnapshotFreshness(fresh?'server':'cache'),
       onPlayer: vi.fn(),
       onKicked: vi.fn(),
       onSeats: vi.fn(),
@@ -339,6 +340,7 @@ it('rehydrates the live timer and permitted actions from the same server phase a
         exists: () => true,
         id: 's1',
         data: () => data,
+        metadata: { fromCache:false,hasPendingWrites:false },
       });
     });
   };

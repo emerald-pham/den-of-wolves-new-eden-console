@@ -3846,6 +3846,7 @@ it('requires three deliberate confirmations to pause and resume the emergency ti
     },
   } as never);
   useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);
   vi.mocked(setEmergencyTimerPaused).mockImplementation(async (paused) => {
