@@ -399,6 +399,26 @@
         "refreshWolfAttackDecisionSummaryOnPlayerChange",
         "setEmergencyTimerPaused"
       ]
+    },
+    "functions/src/wolfCommanderRerolls.ts": {
+      "before": "407aef1cd78062b18aec7568dbd494de6d3bcf9d08863fe696b60a750746b28c",
+      "after": "4988ac5f090297322abf82588859ed13aff08539f6b3405083de2ff92db77a77",
+      "consumers": [
+        "advanceWolfAttackLifecycle",
+        "advanceWolfAttackToLongRange",
+        "applyAegisCommandAndControl",
+        "applyWolfCommanderTargetRerolls",
+        "assignWolfRangeTargets",
+        "commitWolfBoardingDefenceChoice",
+        "commitWolfRangeActionChoice",
+        "finishWolfCommanderTargetingRerolls",
+        "getAegisCommandAndControl",
+        "getWolfBoardingDefenceChoice",
+        "getWolfCommanderTargeting",
+        "getWolfRangeActionChoice",
+        "passAegisCommandAndControl",
+        "refreshWolfAttackDecisionSummaryOnPlayerChange"
+      ]
     }
   },
   "index": {
