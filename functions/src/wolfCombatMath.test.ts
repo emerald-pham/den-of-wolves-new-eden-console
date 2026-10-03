@@ -3,6 +3,7 @@ import { firstTurnWolfAttackComposition } from './wolfAttackComposition';
 import {
   applyWolfFleetDamage,
   calculateWolfAttack,
+  finalizeWolfAttack,
   CORE_WOLF_TARGET_RING,
   EXPANDED_WOLF_TARGET_RING,
   isWolfCalculationReceipt,
@@ -228,6 +229,37 @@ describe('central Wolf combat math', () => {
       damage: { damagedSystemIds: [], destroyed: false }, population: INITIAL_SHIP_SURVIVORS.capybara!,
     }, () => 0);
     expect(fleetDamage).toMatchObject({ target: 'capybara', amount: 3, population: 16_000 });
+  });
+
+  it('finalizes committed ranges without rerolls and applies the pre-target Force Field to final damage', () => {
+    const targeting = resolveWolfTargeting(firstTurnWolfAttackComposition(), {}, undefined, () => 0);
+    const selectedTransport = targeting.rolls.findIndex(({ shipId }) => shipId === 'wolf-assault-transport');
+    const roster = wolfCombatRoster(targeting).map((ship, index) => ({
+      ...ship, destroyed: index !== selectedTransport,
+    }));
+    const ranges = (['long-range', 'medium-range', 'short-range'] as const).map((range) => ({
+      range, dice: [], assignments: [], unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
+      destructionDamageByTarget: Object.fromEntries(CORE_WOLF_TARGET_RING.map((target) => [target, 0])),
+    }));
+    let randomCalls = 0;
+    const phase = startTurnPhase(1, 1_000);
+    const resolved = finalizeWolfAttack({
+      requestId: 'attack-final', targeting, roster, ranges,
+      boardingDefence: [{ target: 'aegis', securityTeams: 1 }],
+      forceFieldTargetId: 'aegis', targetRing: CORE_WOLF_TARGET_RING,
+      phase, now: 2_000, fleetState: completeFleetState(),
+      randomInt: (upperBound) => { randomCalls += 1; return upperBound === 6 ? 3 : 0; },
+    });
+
+    expect(resolved).toMatchObject({
+      type: 'wolf-combat-calculation', requestId: 'attack-final',
+      ranges: [{ range: 'long-range' }, { range: 'medium-range' }, { range: 'short-range' }],
+      boarding: [{ target: 'aegis', boardingParties: 4, securityTeams: 1, rolls: [4],
+        boarderCasualties: 1, survivingBoardingParties: 3, damage: 3 }],
+      fleetDamage: [expect.objectContaining({ target: 'aegis', amount: 1 })],
+    });
+    expect(randomCalls).toBe(2); // one defense die and one post-Force-Field damage draw
+    expect(Object.isFrozen(resolved)).toBe(true);
   });
 
   it('calculates complete attack receipts over a configured five- or seven-target ring', () => {
