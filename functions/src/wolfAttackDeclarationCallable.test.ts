@@ -499,6 +499,7 @@ it('rejects a reasoned recovery after the authoritative Coordination deadline', 
   const expiredDeadline = phase.openAirspaceEndsAt as string;
   vi.useFakeTimers();
   vi.setSystemTime(new Date(Date.parse(expiredDeadline) + 1));
+  gm();
   const stateBefore = structuredClone(mock.documents.get('sessions/s1/wolfAttackState/current'));
 
   await expect(advanceWolfAttackToLongRange.run(request({
@@ -509,6 +510,79 @@ it('rejects a reasoned recovery after the authoritative Coordination deadline', 
   expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toEqual(stateBefore);
   expect(mock.documents.has('sessions/s1/commandReceipts/recovery-after-deadline')).toBe(false);
   expect(mock.documents.has('sessions/s1/wolfAttackState/current/audit/recovery-after-deadline')).toBe(false);
+});
+
+it('requires reasoned revision-bound replay for emergency pause and resume during an attack', async () => {
+  await declareWolfAttack.run(request());
+  const pause = {
+    sessionId: 's1', instanceId: 'gm-1', requestId: 'attack-clock-pause',
+    expectedTurn: 1, expectedAttackRevision: 1, paused: true,
+    reason: 'Hold targeting while checking the current player choice.', dangerConfirmed: true,
+  };
+  await expect(setEmergencyTimerPaused.run(request({ ...pause, reason: '' })))
+    .rejects.toMatchObject({ code: 'invalid-argument' });
+  await expect(setEmergencyTimerPaused.run(request({ ...pause, dangerConfirmed: false })))
+    .rejects.toMatchObject({ code: 'invalid-argument' });
+  expect(mock.documents.has('sessions/s1/commandReceipts/attack-clock-pause')).toBe(false);
+
+  const paused = await setEmergencyTimerPaused.run(request(pause));
+  expect(paused).toMatchObject({
+    status: 'committed', type: 'wolf-attack-timer-intervention', action: 'paused',
+    sessionId: 's1', requestId: pause.requestId, turn: 1, revision: 2,
+    reason: pause.reason, dangerConfirmed: true,
+    delta: {
+      from: { attackRevision: 1, timerPause: null },
+      to: { attackRevision: 2, timerPause: { window: 'restricted' } },
+    },
+    rollback: { allowed: false },
+  });
+  const stateWriteCount = mock.update.mock.calls.filter(([target]) =>
+    target.path === 'sessions/s1/wolfAttackState/current').length;
+  await expect(setEmergencyTimerPaused.run(request(pause))).resolves.toEqual(paused);
+  expect(mock.update.mock.calls.filter(([target]) =>
+    target.path === 'sessions/s1/wolfAttackState/current')).toHaveLength(stateWriteCount);
+  await expect(setEmergencyTimerPaused.run(request({
+    ...pause, reason: 'The facilitator changed the reason under one request key.',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+
+  const resume = {
+    ...pause,
+    requestId: 'attack-clock-resume',
+    expectedAttackRevision: 2,
+    paused: false,
+    reason: 'Resume the shared Coordination clock after review.',
+  };
+  const resumed = await setEmergencyTimerPaused.run(request(resume));
+  expect(resumed).toMatchObject({
+    status: 'committed', action: 'resumed', revision: 3,
+    delta: {
+      from: { attackRevision: 2, timerPause: { window: 'restricted' } },
+      to: { attackRevision: 3, timerPause: null },
+    },
+  });
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current/audit/attack-clock-pause'))
+    .toMatchObject({
+      actorUid: 'u1', requestId: pause.requestId, reason: pause.reason,
+      delta: { from: { attackRevision: 1 }, to: { attackRevision: 2 } },
+    });
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current/audit/attack-clock-resume'))
+    .toMatchObject({
+      actorUid: 'u1', requestId: resume.requestId, reason: resume.reason,
+      delta: { from: { attackRevision: 2 }, to: { attackRevision: 3 } },
+    });
+});
+
+it('rejects an attack-clock intervention from a stale attack revision without a receipt', async () => {
+  await declareWolfAttack.run(request());
+  const before = structuredClone(mock.documents.get('sessions/s1/wolfAttackState/current'));
+  await expect(setEmergencyTimerPaused.run(request({
+    sessionId: 's1', instanceId: 'gm-1', requestId: 'stale-attack-clock-pause',
+    expectedTurn: 1, expectedAttackRevision: 2, paused: true,
+    reason: 'Hold the attack while checking the timing.', dangerConfirmed: true,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toEqual(before);
+  expect(mock.documents.has('sessions/s1/commandReceipts/stale-attack-clock-pause')).toBe(false);
+  expect(mock.documents.has('sessions/s1/wolfAttackState/current/audit/stale-attack-clock-pause')).toBe(false);
 });
 
 it('uses the current server-owned airspace deadline after a restricted-window extension', async () => {
@@ -595,13 +669,15 @@ it('uses the resumed server-owned airspace deadline and rejects a paused advance
   const declarationDeadline = mock.documents.get('sessions/s1/wolfAttackState/current')?.deadlineAt;
 
   await setEmergencyTimerPaused.run(request({
-    sessionId: 's1', instanceId: 'gm-1', expectedTurn: 1, paused: true,
+    sessionId: 's1', instanceId: 'gm-1', requestId: 'resume-path-pause', expectedTurn: 1,
+    expectedAttackRevision: 2, paused: true,
+    reason: 'Hold the attack while verifying the current deadline.', dangerConfirmed: true,
   }));
   mock.update.mockClear();
   const stateWhilePaused = structuredClone(mock.documents.get('sessions/s1/wolfAttackState/current'));
   await expect(advanceWolfAttackToLongRange.run(request({
     sessionId: 's1', instanceId: 'gm-1', requestId: 'advance-while-paused',
-    expectedTurn: 1, expectedRevision: 2,
+    expectedTurn: 1, expectedRevision: 3,
     reason: 'Recover the already-completed targeting step.', dangerConfirmed: true,
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toEqual(stateWhilePaused);
@@ -611,7 +687,9 @@ it('uses the resumed server-owned airspace deadline and rejects a paused advance
 
   vi.setSystemTime(new Date('2026-09-24T19:02:00.000Z'));
   await setEmergencyTimerPaused.run(request({
-    sessionId: 's1', instanceId: 'gm-1', expectedTurn: 1, paused: false,
+    sessionId: 's1', instanceId: 'gm-1', requestId: 'resume-path-resume', expectedTurn: 1,
+    expectedAttackRevision: 3, paused: false,
+    reason: 'Resume the attack after verifying the current deadline.', dangerConfirmed: true,
   }));
   const resumedDeadline = mock.documents.get('sessions/s1')?.turnPhase &&
     (mock.documents.get('sessions/s1')?.turnPhase as Fields).openAirspaceEndsAt;
@@ -621,7 +699,7 @@ it('uses the resumed server-owned airspace deadline and rejects a paused advance
   mock.update.mockClear();
   const result = await advanceWolfAttackToLongRange.run(request({
     sessionId: 's1', instanceId: 'gm-1', requestId: 'advance-after-resume',
-    expectedTurn: 1, expectedRevision: 2,
+    expectedTurn: 1, expectedRevision: 4,
     reason: 'Recover the already-completed targeting step.', dangerConfirmed: true,
   }));
   expect(result).toMatchObject({ currentStep: 'long-range', deadlineAt: resumedDeadline });
