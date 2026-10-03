@@ -3571,7 +3571,9 @@ it('lets the facilitator mark and resolve the approximate Wolf window without st
 
   const turnControls = await screen.findByRole('region', { name: /cycle controls/i });
   expect(turnControls).toHaveTextContent(/wolf-attack timing \/\/ planned/i);
-  expect(turnControls).toHaveTextContent(/no automatic attack, combat resolution, or cycle advance/i);
+  expect(turnControls).toHaveTextContent(/Timing marker only \/\/ declaration requires a saved current draft/i);
+  expect(turnControls).toHaveTextContent(/Once declared, legal stages advance automatically after current player choices/i);
+  expect(turnControls).not.toHaveTextContent(/no automatic attack, combat resolution, or cycle advance/i);
   const mark = within(turnControls).getByRole('button', { name: 'Mark timing due' });
   expect(mark).toBeEnabled();
 
