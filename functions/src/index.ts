@@ -1,4 +1,5 @@
 import { holdTurnAdvancePhase } from './turnInterstitial';
+import { parsedMemberSessionDetails } from './memberSession';
 import { createCurrentMemberSessionReader } from './memberSessionCallable';
 import { createTurnInterstitialHandler } from './turnInterstitialCallable';
 import { requireAttackAwareEmergencyTimerPauseRequest } from './wolfAttackTimerRequest';
@@ -15833,10 +15834,117 @@ export const confirmFleetPartition = onCall<{ sessionId: string; instanceId: str
   });
 });
 
-/** Redeem a legacy four-digit or current six-digit code and register presence. */
-const currentMemberSessionReader = createCurrentMemberSessionReader({ db });
+/** Parse known operational values before the live transactional audience filter. */
+function publicMemberSessionSource(sessionSnap: DocumentSnapshot, sessionId: string): Record<string, unknown> {
+  const announcement = turnStartAnnouncement(sessionSnap.get('turnStartAnnouncement'));
+  const phaseClock = turnPhaseState(sessionSnap.get('turnPhase'));
+  const turnState = sessionTurnState(sessionSnap, phaseClock);
+  const activeRoleIds = sessionActiveRoleIds(sessionSnap);
+  const setup = canonicalSetupForSession(sessionSnap, activeRoleIds);
+  const activeVesselIds = setup.activeVesselIds;
+  const retainedShuttles = publicRetainedShuttles(sessionSnap.get('retainedShuttles'));
+  const quarantineDocking = publicQuarantineDocking(sessionSnap.get('quarantineDocking'));
+  const shuttleDockings = publicShuttleDockings(
+    sessionSnap.get('shuttleDockings'), activeVesselIds, activeRoleIds,
+    Object.keys(retainedShuttles),
+  );
+  const shuttleVisitLog = publicShuttleVisitLog(
+    sessionSnap.get('shuttleVisitLog'), shuttleDockings, activeVesselIds,
+  );
+  const fighterWingCounts = publicFighterWingCounts(sessionSnap.get('fighterWingCounts'));
+  const voyageAdmission = publicVoyage33Admission(sessionSnap.get('voyage33Admission'), sessionId);
+  const demo = publicSinglePlayerDemoState(sessionSnap.get('singlePlayerDemo'));
+  const voyageMaintenance = publicVoyage33Maintenance(
+    sessionSnap.get('voyage33Maintenance'), voyageAdmission, activeVesselIds,
+  );
+  return {
+    id: sessionId,
+    name: typeof sessionSnap.get('name') === 'string' ? sessionSnap.get('name') : '',
+    joinCode: typeof sessionSnap.get('joinCode') === 'string' ? sessionSnap.get('joinCode') : '',
+    phase: typeof sessionSnap.get('phase') === 'string' ? sessionSnap.get('phase') : '',
+    currentTurn: sessionTurn(sessionSnap.get('currentTurn')),
+    ...(demo ? { singlePlayerDemo: demo } : {}),
+    ...(typeof sessionSnap.get('playerCount') === 'number' ? { playerCount: sessionSnap.get('playerCount') } : {}),
+    ...(sessionSnap.get('chartId') === 'A' || sessionSnap.get('chartId') === 'B' || sessionSnap.get('chartId') === 'C'
+      ? { chartId: sessionSnap.get('chartId') } : {}),
+    ...(sessionSnap.get('expansion') === 'base' || sessionSnap.get('expansion') === 'capybara' || sessionSnap.get('expansion') === 'none'
+      ? { expansion: sessionSnap.get('expansion') } : {}),
+    ...(sessionSnap.get('turnLimit') === 6 || sessionSnap.get('turnLimit') === 7 || sessionSnap.get('turnLimit') === 8
+      ? { turnLimit: sessionSnap.get('turnLimit') } : {}),
+    ...(sessionSnap.get('setupConfirmed') === true ? { setupConfirmed: true } : {}),
+    ...(typeof sessionSnap.get('chartSelectionLocked') === 'boolean'
+      ? { chartSelectionLocked: sessionSnap.get('chartSelectionLocked') } : {}),
+    ...(typeof sessionSnap.get('configurationLocked') === 'boolean'
+      ? { configurationLocked: sessionSnap.get('configurationLocked') } : {}),
+    ...(typeof sessionSnap.get('setupRevision') === 'number'
+      ? { setupRevision: sessionSnap.get('setupRevision') } : {}),
+    setup,
+    activeVesselIds: [...setup.activeVesselIds],
+    admittedVesselIds: voyageAdmission ? [VOYAGE_33_ID] : [],
+    ...(voyageAdmission ? { voyage33Admission: voyageAdmission } : {}),
+    ...(voyageMaintenance ? { voyage33Maintenance: voyageMaintenance } : {}),
+    ...(announcement ? { turnStartAnnouncement: announcement } : {}),
+    ...(phaseClock ? { turnPhase: phaseClock } : {}),
+    ...(turnState ? { turnState } : {}),
+    capybaraEnabled: sessionSnap.get('capybaraEnabled') !== false,
+    dioneEnabled: sessionSnap.get('dioneEnabled') !== false,
+    pressEnabled: sessionSnap.get('pressEnabled') !== false,
+    pressClaimed: typeof sessionSnap.get('pressHolderUid') === 'string',
+    pressAvailabilityRevision: pressAvailabilityRevision(sessionSnap.get('pressAvailabilityRevision')),
+    shipConsoleLocks: activeVesselRecord(
+      shipConsoleLocks(sessionSnap.get('shipConsoleLocks')), activeVesselIds,
+    ),
+    shipJumpStates: activeVesselRecord(
+      shipJumpStates(sessionSnap.get('shipJumpStates')), activeVesselIds,
+    ),
+    shipJumpTransitions: activeVesselRecord(
+      shipJumpTransitions(sessionSnap.get('shipJumpTransitions')), activeVesselIds,
+    ),
+    ...(fighterWingCounts === undefined ? {} : { fighterWingCounts }),
+    shipDamage: activeVesselRecord(shipDamage(sessionSnap.get('shipDamage')), activeVesselIds),
+    shipResources: activeVesselRecord(shipResources(sessionSnap.get('shipResources')), activeVesselIds),
+    shipUnrest: activeVesselRecord(shipUnrest(sessionSnap.get('shipUnrest')), activeVesselIds),
+    shipMutinies: publicShipMutinies(sessionSnap.get('shipMutinies'), activeVesselIds),
+    unrestAlerts: publicAlertMap(sessionSnap.get('unrestAlerts'), activeVesselIds, false),
+    maintenanceCycles: publicMaintenanceCycles(sessionSnap.get('maintenanceCycles'), activeVesselIds),
+    smallShipStates: publicSmallShipStates(
+      sessionSnap.get('smallShipStates'), sessionSnap.get('activeVesselIds'),
+      sessionSnap.get('expansion'), sessionSnap.get('capybaraEnabled'),
+    ),
+    shuttleCargo: publicShuttleCargo(sessionSnap.get('shuttleCargo'), activeRoleIds),
+    shuttleEvacuations: parseShuttleEvacuations(sessionSnap.get('shuttleEvacuations')) ?? {},
+    serviceShuttleRecharges:
+      parseServiceShuttleRecharges(sessionSnap.get('serviceShuttleRecharges')) ?? {},
+    ...(publicHighwallMining(sessionSnap.get('highwallMining'))
+      ? { highwallMining: publicHighwallMining(sessionSnap.get('highwallMining')) } : {}),
+    shuttleFuelled: publicShuttleFuelled(sessionSnap.get('shuttleFuelled')),
+    retainedShuttles,
+    ...(quarantineDocking ? { quarantineDocking } : {}),
+    shipUpgrades: publicShipUpgrades(sessionSnap.get('shipUpgrades'), activeVesselIds),
+    shipSurvivors: activeShipSurvivors(sessionSnap.get('shipSurvivors'), activeVesselIds),
+    populationAlerts: publicAlertMap(sessionSnap.get('populationAlerts'), activeVesselIds, true),
+    gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
+    debriefMode: debriefModeState(sessionSnap.get('debriefMode')),
+    fleetTicker: fleetTickerForSession(sessionId, sessionSnap),
+    activeRoleIds,
+    shuttleDockings,
+    shuttleVisitLog,
+    pressDispatch: pressDispatchState(sessionSnap.get('pressDispatch')),
+    confettiUsedShipIds: publicConfettiUsedShipIds(sessionSnap.get('confettiUsedShipIds')),
+    ...optionalIsoOf(sessionSnap.get('dradisContactTriggeredAt')),
+    ownerUid: typeof sessionSnap.get('ownerUid') === 'string' ? sessionSnap.get('ownerUid') : '',
+    createdAt: isoOf(sessionSnap.get('createdAt')),
+    updatedAt: isoOf(sessionSnap.get('updatedAt')),
+    ...parsedMemberSessionDetails(sessionSnap.data(), activeVesselIds),
+    ...(isPursuitEmergencyWindowMarker(sessionSnap.get('pursuitEmergencyWindow'))
+      ? { pursuitEmergencyWindow: sessionSnap.get('pursuitEmergencyWindow') } : {}),
+  };
+}
+
+const currentMemberSessionReader = createCurrentMemberSessionReader({ db, projectSession: publicMemberSessionSource });
 export const getCurrentMemberSession = onCall(async request => currentMemberSessionReader(request));
 
+/** Redeem a legacy four-digit or current six-digit code and register presence. */
 export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
   async (request) => {
     const uid = requireUid(request.auth);
@@ -16063,110 +16171,10 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
       tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
       return { seatId: null, connectionGeneration: 1, stationSelectionRequired: false };
     });
-    const [sessionSnap, playerSnap] = await Promise.all([sessionRef.get(), playerRef.get()]);
+    const playerSnap = await playerRef.get();
 
-    const announcement = turnStartAnnouncement(sessionSnap.get('turnStartAnnouncement'));
-    const phaseClock = turnPhaseState(sessionSnap.get('turnPhase'));
-    const turnState = sessionTurnState(sessionSnap, phaseClock);
-    const activeRoleIds = sessionActiveRoleIds(sessionSnap);
-    const setup = canonicalSetupForSession(sessionSnap, activeRoleIds);
-    const activeVesselIds = setup.activeVesselIds;
-    const retainedShuttles = publicRetainedShuttles(sessionSnap.get('retainedShuttles'));
-    const quarantineDocking = publicQuarantineDocking(sessionSnap.get('quarantineDocking'));
-    const shuttleDockings = publicShuttleDockings(
-      sessionSnap.get('shuttleDockings'), activeVesselIds, activeRoleIds,
-      Object.keys(retainedShuttles),
-    );
-    const shuttleVisitLog = publicShuttleVisitLog(
-      sessionSnap.get('shuttleVisitLog'), shuttleDockings, activeVesselIds,
-    );
-    const fighterWingCounts = publicFighterWingCounts(sessionSnap.get('fighterWingCounts'));
-    const voyageAdmission = publicVoyage33Admission(sessionSnap.get('voyage33Admission'), sessionId);
-    const demo = publicSinglePlayerDemoState(sessionSnap.get('singlePlayerDemo'));
-    const voyageMaintenance = publicVoyage33Maintenance(
-      sessionSnap.get('voyage33Maintenance'), voyageAdmission, activeVesselIds,
-    );
     const reply = {
       ...(joinResult.stationSelectionRequired ? { stationSelectionRequired: true } : {}),
-      session: {
-        id: sessionId,
-        name: sessionSnap.get('name') as string,
-        joinCode,
-        phase: sessionSnap.get('phase') as string,
-        currentTurn: sessionTurn(sessionSnap.get('currentTurn')),
-        ...(demo ? { singlePlayerDemo: demo } : {}),
-        ...(typeof sessionSnap.get('playerCount') === 'number' ? { playerCount: sessionSnap.get('playerCount') } : {}),
-        ...(sessionSnap.get('chartId') === 'A' || sessionSnap.get('chartId') === 'B' || sessionSnap.get('chartId') === 'C'
-          ? { chartId: sessionSnap.get('chartId') } : {}),
-        ...(sessionSnap.get('expansion') === 'base' || sessionSnap.get('expansion') === 'capybara' || sessionSnap.get('expansion') === 'none'
-          ? { expansion: sessionSnap.get('expansion') } : {}),
-        ...(sessionSnap.get('turnLimit') === 6 || sessionSnap.get('turnLimit') === 7 || sessionSnap.get('turnLimit') === 8
-          ? { turnLimit: sessionSnap.get('turnLimit') } : {}),
-        ...(sessionSnap.get('setupConfirmed') === true ? { setupConfirmed: true } : {}),
-      ...(typeof sessionSnap.get('chartSelectionLocked') === 'boolean'
-          ? { chartSelectionLocked: sessionSnap.get('chartSelectionLocked') } : {}),
-        ...(typeof sessionSnap.get('configurationLocked') === 'boolean'
-          ? { configurationLocked: sessionSnap.get('configurationLocked') } : {}),
-        ...(typeof sessionSnap.get('setupRevision') === 'number'
-          ? { setupRevision: sessionSnap.get('setupRevision') } : {}),
-        setup,
-        activeVesselIds: [...setup.activeVesselIds],
-        admittedVesselIds: voyageAdmission ? [VOYAGE_33_ID] : [],
-        ...(voyageAdmission ? { voyage33Admission: voyageAdmission } : {}),
-        ...(voyageMaintenance ? { voyage33Maintenance: voyageMaintenance } : {}),
-        ...(announcement ? { turnStartAnnouncement: announcement } : {}),
-        ...(phaseClock ? { turnPhase: phaseClock } : {}),
-        ...(turnState ? { turnState } : {}),
-        capybaraEnabled: sessionSnap.get('capybaraEnabled') !== false,
-        dioneEnabled: sessionSnap.get('dioneEnabled') !== false,
-        pressEnabled: sessionSnap.get('pressEnabled') !== false,
-        pressClaimed: typeof sessionSnap.get('pressHolderUid') === 'string',
-        pressAvailabilityRevision: pressAvailabilityRevision(sessionSnap.get('pressAvailabilityRevision')),
-        shipConsoleLocks: activeVesselRecord(
-          shipConsoleLocks(sessionSnap.get('shipConsoleLocks')), activeVesselIds,
-        ),
-        shipJumpStates: activeVesselRecord(
-          shipJumpStates(sessionSnap.get('shipJumpStates')), activeVesselIds,
-        ),
-        shipJumpTransitions: activeVesselRecord(
-          shipJumpTransitions(sessionSnap.get('shipJumpTransitions')), activeVesselIds,
-        ),
-        ...(fighterWingCounts === undefined ? {} : { fighterWingCounts }),
-        shipDamage: activeVesselRecord(shipDamage(sessionSnap.get('shipDamage')), activeVesselIds),
-        shipResources: activeVesselRecord(shipResources(sessionSnap.get('shipResources')), activeVesselIds),
-        shipUnrest: activeVesselRecord(shipUnrest(sessionSnap.get('shipUnrest')), activeVesselIds),
-        shipMutinies: publicShipMutinies(sessionSnap.get('shipMutinies'), activeVesselIds),
-        unrestAlerts: publicAlertMap(sessionSnap.get('unrestAlerts'), activeVesselIds, false),
-        maintenanceCycles: publicMaintenanceCycles(sessionSnap.get('maintenanceCycles'), activeVesselIds),
-        smallShipStates: publicSmallShipStates(
-          sessionSnap.get('smallShipStates'), sessionSnap.get('activeVesselIds'),
-          sessionSnap.get('expansion'), sessionSnap.get('capybaraEnabled'),
-        ),
-        shuttleCargo: publicShuttleCargo(sessionSnap.get('shuttleCargo'), activeRoleIds),
-        shuttleEvacuations: parseShuttleEvacuations(sessionSnap.get('shuttleEvacuations')) ?? {},
-        serviceShuttleRecharges:
-          parseServiceShuttleRecharges(sessionSnap.get('serviceShuttleRecharges')) ?? {},
-        ...(publicHighwallMining(sessionSnap.get('highwallMining'))
-          ? { highwallMining: publicHighwallMining(sessionSnap.get('highwallMining')) } : {}),
-        shuttleFuelled: publicShuttleFuelled(sessionSnap.get('shuttleFuelled')),
-        retainedShuttles,
-        ...(quarantineDocking ? { quarantineDocking } : {}),
-        shipUpgrades: publicShipUpgrades(sessionSnap.get('shipUpgrades'), activeVesselIds),
-        shipSurvivors: activeShipSurvivors(sessionSnap.get('shipSurvivors'), activeVesselIds),
-        populationAlerts: publicAlertMap(sessionSnap.get('populationAlerts'), activeVesselIds, true),
-        gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
-        debriefMode: debriefModeState(sessionSnap.get('debriefMode')),
-        fleetTicker: fleetTickerForSession(sessionId, sessionSnap),
-        activeRoleIds,
-        shuttleDockings,
-        shuttleVisitLog,
-        pressDispatch: pressDispatchState(sessionSnap.get('pressDispatch')),
-        confettiUsedShipIds: publicConfettiUsedShipIds(sessionSnap.get('confettiUsedShipIds')),
-        ...optionalIsoOf(sessionSnap.get('dradisContactTriggeredAt')),
-        ownerUid: sessionSnap.get('ownerUid') as string,
-        createdAt: isoOf(sessionSnap.get('createdAt')),
-        updatedAt: isoOf(sessionSnap.get('updatedAt')),
-      },
       player: {
         uid,
         sessionId,
@@ -16201,7 +16209,8 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
   const sessionRef = db.doc(`sessions/${sessionId}`);
   const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
   const playersRef = db.collection(`sessions/${sessionId}/players`);
-  let [sessionSnap, playerSnap] = await Promise.all([sessionRef.get(), playerRef.get()]);
+  const [sessionSnap, initialPlayerSnap] = await Promise.all([sessionRef.get(), playerRef.get()]);
+  let playerSnap = initialPlayerSnap;
 
   if (!sessionSnap.exists) {
     throw new HttpsError('not-found', 'That session no longer exists.');
@@ -16380,110 +16389,10 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
     };
   });
 
-  [sessionSnap, playerSnap] = await Promise.all([sessionRef.get(), playerRef.get()]);
+  playerSnap = await playerRef.get();
 
-  const announcement = turnStartAnnouncement(sessionSnap.get('turnStartAnnouncement'));
-  const phaseClock = turnPhaseState(sessionSnap.get('turnPhase'));
-  const turnState = sessionTurnState(sessionSnap, phaseClock);
-  const activeRoleIds = sessionActiveRoleIds(sessionSnap);
-  const setup = canonicalSetupForSession(sessionSnap, activeRoleIds);
-  const activeVesselIds = setup.activeVesselIds;
-  const retainedShuttles = publicRetainedShuttles(sessionSnap.get('retainedShuttles'));
-  const quarantineDocking = publicQuarantineDocking(sessionSnap.get('quarantineDocking'));
-  const shuttleDockings = publicShuttleDockings(
-    sessionSnap.get('shuttleDockings'), activeVesselIds, activeRoleIds,
-    Object.keys(retainedShuttles),
-  );
-  const shuttleVisitLog = publicShuttleVisitLog(
-    sessionSnap.get('shuttleVisitLog'), shuttleDockings, activeVesselIds,
-  );
-  const fighterWingCounts = publicFighterWingCounts(sessionSnap.get('fighterWingCounts'));
-  const voyageAdmission = publicVoyage33Admission(sessionSnap.get('voyage33Admission'), sessionId);
-  const demo = publicSinglePlayerDemoState(sessionSnap.get('singlePlayerDemo'));
-  const voyageMaintenance = publicVoyage33Maintenance(
-    sessionSnap.get('voyage33Maintenance'), voyageAdmission, activeVesselIds,
-  );
   const reply = {
     ...(resumeResult.stationSelectionRequired ? { stationSelectionRequired: true } : {}),
-    session: {
-      id: sessionId,
-      name: sessionSnap.get('name') as string,
-      joinCode: sessionSnap.get('joinCode') as string,
-      phase: sessionSnap.get('phase') as string,
-      currentTurn: sessionTurn(sessionSnap.get('currentTurn')),
-      ...(demo ? { singlePlayerDemo: demo } : {}),
-      ...(typeof sessionSnap.get('playerCount') === 'number' ? { playerCount: sessionSnap.get('playerCount') } : {}),
-      ...(sessionSnap.get('chartId') === 'A' || sessionSnap.get('chartId') === 'B' || sessionSnap.get('chartId') === 'C'
-        ? { chartId: sessionSnap.get('chartId') } : {}),
-      ...(sessionSnap.get('expansion') === 'base' || sessionSnap.get('expansion') === 'capybara' || sessionSnap.get('expansion') === 'none'
-        ? { expansion: sessionSnap.get('expansion') } : {}),
-      ...(sessionSnap.get('turnLimit') === 6 || sessionSnap.get('turnLimit') === 7 || sessionSnap.get('turnLimit') === 8
-        ? { turnLimit: sessionSnap.get('turnLimit') } : {}),
-      ...(sessionSnap.get('setupConfirmed') === true ? { setupConfirmed: true } : {}),
-      ...(typeof sessionSnap.get('chartSelectionLocked') === 'boolean'
-        ? { chartSelectionLocked: sessionSnap.get('chartSelectionLocked') } : {}),
-      ...(typeof sessionSnap.get('configurationLocked') === 'boolean'
-        ? { configurationLocked: sessionSnap.get('configurationLocked') } : {}),
-      ...(typeof sessionSnap.get('setupRevision') === 'number'
-        ? { setupRevision: sessionSnap.get('setupRevision') } : {}),
-      setup,
-      activeVesselIds: [...setup.activeVesselIds],
-      admittedVesselIds: voyageAdmission ? [VOYAGE_33_ID] : [],
-      ...(voyageAdmission ? { voyage33Admission: voyageAdmission } : {}),
-      ...(voyageMaintenance ? { voyage33Maintenance: voyageMaintenance } : {}),
-      ...(announcement ? { turnStartAnnouncement: announcement } : {}),
-      ...(phaseClock ? { turnPhase: phaseClock } : {}),
-      ...(turnState ? { turnState } : {}),
-      capybaraEnabled: sessionSnap.get('capybaraEnabled') !== false,
-      dioneEnabled: sessionSnap.get('dioneEnabled') !== false,
-      pressEnabled: sessionSnap.get('pressEnabled') !== false,
-      pressClaimed: typeof sessionSnap.get('pressHolderUid') === 'string',
-      pressAvailabilityRevision: pressAvailabilityRevision(sessionSnap.get('pressAvailabilityRevision')),
-      shipConsoleLocks: activeVesselRecord(
-        shipConsoleLocks(sessionSnap.get('shipConsoleLocks')), activeVesselIds,
-      ),
-      shipJumpStates: activeVesselRecord(
-        shipJumpStates(sessionSnap.get('shipJumpStates')), activeVesselIds,
-      ),
-      shipJumpTransitions: activeVesselRecord(
-        shipJumpTransitions(sessionSnap.get('shipJumpTransitions')), activeVesselIds,
-      ),
-      ...(fighterWingCounts === undefined ? {} : { fighterWingCounts }),
-      shipDamage: activeVesselRecord(shipDamage(sessionSnap.get('shipDamage')), activeVesselIds),
-      shipResources: activeVesselRecord(shipResources(sessionSnap.get('shipResources')), activeVesselIds),
-      shipUnrest: activeVesselRecord(shipUnrest(sessionSnap.get('shipUnrest')), activeVesselIds),
-      shipMutinies: publicShipMutinies(sessionSnap.get('shipMutinies'), activeVesselIds),
-      unrestAlerts: publicAlertMap(sessionSnap.get('unrestAlerts'), activeVesselIds, false),
-      maintenanceCycles: publicMaintenanceCycles(sessionSnap.get('maintenanceCycles'), activeVesselIds),
-      smallShipStates: publicSmallShipStates(
-        sessionSnap.get('smallShipStates'), sessionSnap.get('activeVesselIds'),
-        sessionSnap.get('expansion'), sessionSnap.get('capybaraEnabled'),
-      ),
-      shuttleCargo: publicShuttleCargo(sessionSnap.get('shuttleCargo'), activeRoleIds),
-      shuttleEvacuations: parseShuttleEvacuations(sessionSnap.get('shuttleEvacuations')) ?? {},
-      serviceShuttleRecharges:
-        parseServiceShuttleRecharges(sessionSnap.get('serviceShuttleRecharges')) ?? {},
-      ...(publicHighwallMining(sessionSnap.get('highwallMining'))
-        ? { highwallMining: publicHighwallMining(sessionSnap.get('highwallMining')) } : {}),
-      shuttleFuelled: publicShuttleFuelled(sessionSnap.get('shuttleFuelled')),
-      retainedShuttles,
-      ...(quarantineDocking ? { quarantineDocking } : {}),
-      shipUpgrades: publicShipUpgrades(sessionSnap.get('shipUpgrades'), activeVesselIds),
-      shipSurvivors: activeShipSurvivors(sessionSnap.get('shipSurvivors'), activeVesselIds),
-      populationAlerts: publicAlertMap(sessionSnap.get('populationAlerts'), activeVesselIds, true),
-      gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
-      debriefMode: debriefModeState(sessionSnap.get('debriefMode')),
-      fleetTicker: fleetTickerForSession(sessionId, sessionSnap),
-      activeRoleIds,
-      shuttleDockings,
-      shuttleVisitLog,
-      pressDispatch: pressDispatchState(sessionSnap.get('pressDispatch')),
-      confettiUsedShipIds: publicConfettiUsedShipIds(sessionSnap.get('confettiUsedShipIds')),
-      ...optionalIsoOf(sessionSnap.get('dradisContactTriggeredAt')),
-      ownerUid: sessionSnap.get('ownerUid') as string,
-      createdAt: isoOf(sessionSnap.get('createdAt')),
-      updatedAt: isoOf(sessionSnap.get('updatedAt')),
-    },
     player: {
       uid,
       sessionId,
