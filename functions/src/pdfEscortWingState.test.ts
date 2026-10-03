@@ -33,6 +33,16 @@ function launched() {
 }
 
 describe('authoritative PDF Escort Wing state', () => {
+  it('persists an explicit whole-wing Medium pass without entropy or fighter losses', () => {
+    const random = vi.fn(() => { throw new Error('A pass cannot draw dice.'); });
+    const state = launched();
+    const resolved = resolvePdfEscortWingMedium(state, { expectedRevision: state.revision, actions: [], random });
+    expect(resolved).toMatchObject({ state: { mediumResolved: true, fighters: 4, losses: 0 }, attacks: [], targetShifts: [] });
+    expect(parsePdfEscortWingState(resolved.state)).toEqual(resolved.state);
+    expect(random).not.toHaveBeenCalled();
+    expect(() => resolvePdfEscortWingMedium(resolved.state, { expectedRevision: resolved.state.revision, actions: [], random }))
+      .toThrow(/already resolved/i);
+  });
   it('starts as an immutable four-fighter wing with independent fuel-free mission metadata', () => {
     const state = initialPdfEscortWingState();
     expect(state).toMatchObject({

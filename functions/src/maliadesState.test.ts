@@ -28,6 +28,17 @@ function launched() {
 const attack = { attackId: 'attack-2', attackCycle: 2 } as const;
 
 describe('authoritative Maliades state', () => {
+  it('persists empty Medium and Short passes without dice, self-damage, or repeat resolution', () => {
+    const random = () => { throw new Error('A pass cannot draw dice.'); };
+    const medium = resolveMaliadesMedium(launched(), { expectedRevision: 1, ...attack, choices: [], random });
+    expect(medium.state).toMatchObject({ medium: { targetShift: null, attack: null }, damage: 0 });
+    expect(parseMaliadesState(medium.state)).toEqual(medium.state);
+    const short = resolveMaliadesShort(medium.state, { expectedRevision: medium.state.revision, ...attack, targetIds: [], random });
+    expect(short.state).toMatchObject({ short: { rolls: [], selfDamage: 0 }, damage: 0 });
+    expect(parseMaliadesState(short.state)).toEqual(short.state);
+    expect(() => resolveMaliadesShort(short.state, { expectedRevision: short.state.revision, ...attack, targetIds: [], random }))
+      .toThrow(/already resolved/i);
+  });
   it('starts immutable and admits one authorized launch', () => {
     const initial = initialMaliadesState();
     expect(initial).toMatchObject({ revision: 0, launched: false, damage: 0, destroyed: false, medium: null, short: null });
