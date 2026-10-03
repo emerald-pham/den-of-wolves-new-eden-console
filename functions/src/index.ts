@@ -23813,12 +23813,15 @@ type AegisEnrichedWarheadResult = Readonly<{
 function currentAegisEnrichedWarheads(state: DocumentSnapshot): 'enriched' | 'passed' | 'unavailable' | null {
   const marker = state.get('enrichedWarheads');
   if (marker === undefined) return null;
-  if (!isRecord(marker) || marker.attackId !== state.get('attackId') || marker.turn !== state.get('turn') ||
+  const markerKeys = ['status', 'attackId', 'turn', 'revision', 'oreCost', 'actorUid', 'actorRoleId', 'requestId'];
+  if (!isRecord(marker) || JSON.stringify(Object.keys(marker).sort()) !== JSON.stringify(markerKeys.sort()) ||
+      marker.attackId !== state.get('attackId') || marker.turn !== state.get('turn') ||
       !['enriched', 'passed', 'unavailable'].includes(String(marker.status)) ||
       marker.oreCost !== (marker.status === 'enriched' ? 5 : 0) ||
       !Number.isSafeInteger(marker.revision) || (marker.revision as number) < 1 ||
       (marker.revision as number) > Number(state.get('revision')) ||
-      typeof marker.actorUid !== 'string' || !isCanonicalRequestId(marker.requestId)) {
+      typeof marker.actorUid !== 'string' || marker.actorUid.length < 1 ||
+      marker.actorRoleId !== 'executive-officer' || !isCanonicalRequestId(marker.requestId)) {
     throw commandError('failed-precondition', 'The attack-scoped enriched warhead receipt is malformed.', 'conflict');
   }
   return marker.status as 'enriched' | 'passed' | 'unavailable';
@@ -25335,10 +25338,13 @@ export const commitWolfEscortRangeActionChoice = onCall<{
     const group = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${currentPlayerFleetGroupId(player)}`));
     requireWolfEscortActor(session, player, uid, group, sourceId);
     const replay = replayBoundCommand(receipt, fingerprint, (value): value is WolfEscortRangeActionResult =>
-      isRecord(value) && value.type === 'wolf-escort-range-action-choice' && value.sessionId === sessionId &&
+      isRecord(value) && JSON.stringify(Object.keys(value).sort()) === JSON.stringify([
+        'type', 'status', 'sessionId', 'requestId', 'attackId', 'turn', 'revision', 'range', 'sourceId', 'choiceStatus', 'actionCount',
+      ].sort()) && value.type === 'wolf-escort-range-action-choice' && value.status === 'committed' && value.sessionId === sessionId &&
       value.requestId === requestId && value.sourceId === sourceId && value.range === range &&
       value.attackId === attack.get('attackId') && value.turn === sessionTurn(session.get('currentTurn')) &&
-      Number.isSafeInteger(value.revision) && Number.isSafeInteger(value.actionCount), 'Escort range choice');
+      value.turn === raw.expectedTurn && value.revision === (raw.expectedRevision as number) + 1 &&
+      value.actionCount === choices.length && value.choiceStatus === 'pending-resolution', 'Escort range choice');
     if (replay) return { ...replay, status: 'replayed' };
     if (audit.exists) rejectLegacyEventReplay('Escort range choice');
     const inputs = requireWolfRangeState(session, attack, range);
