@@ -56,3 +56,9 @@ Existing budget, motion, privacy, arithmetic, source-rule and authority checks a
 ## Known boundaries and release state
 
 There is no unresolved printed-rule question in the fixed PC07 scope. A configured disconnected actor can intentionally keep the attack pending; the current GM summary and reasoned recovery controls make this boundary explicit. Earlier native fixtures and prepared scenes do not claim normal identity admission or production gameplay. The final candidate still requires independent review, full validation, CI, exact-main deployment and deployed solo access; completion will be recorded in this report's release closeout after those gates actually pass.
+
+## Repairs found by the broader checks
+
+The older review scene exposed a group-note render loop, and the unchanged privacy tests exposed private fields nested inside the live session feed. Root fixed both with failing tests committed before the corresponding code. Join, resume and live refresh now use the same typed projection before current membership filtering. All701 focused checks covering the broader failures pass. Fixture and expectation changes, including three old manual-attack assumptions, are named and explained in the [test inventory](PC07_TEST_INVENTORY.md); no test is disabled or silently removed.
+
+The repaired c8b27208 runtime also repeats normal phone Press play: join, conduct, own-SNN polling, a real one-minute flight and arrival, then a five-ship attack through boarding, exactly-once damage/reopening and accepted movement afterward. The four checks pass in `root-takeover/member-projection-ordinary-http.json`, with a separately inspected phone image and no browser errors. Independent review renewal, final full validation, CI and verified production deployment remain pending; local evidence is not a release claim.

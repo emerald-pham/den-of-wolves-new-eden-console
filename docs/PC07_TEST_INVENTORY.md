@@ -1009,3 +1009,171 @@ The normal eight-station attack exposed the private targeting parser still denyi
 ## Final lint reconciliation
 
 The first final validation of approved `c88dcb0a` stopped at four lint errors. Test-only `790cf18a` moves three existing `it.each` invocations onto their call line in `jumpCallable.test.ts`, `scoutAutomaticResolution.test.ts` and `scoutTaxiCommunicationCallable.test.ts`; all parameters, case names and assertions are unchanged. Source-only `0a9774f0` replaces an unused rest-destructuring binding in `planFleetTaxiTransfer` with a copy and explicit removal of the same optional passenger map. The result still omits an empty source map and preserves current passenger membership. The lint failure and repaired lint log are retained externally. The five affected native suites pass 188/188 for the unchanged behavior, and the source-bound consumer hash is refreshed without expanding the 105-Function selector.
+
+## Full-suite failure reconciliation after 6ac25f24
+
+The earlier sections record the initial baseline comparison; this appendix records every later test change in the repair delta. No source test is disabled or removed. Renamed cases below migrate explicitly superseded manual behavior to the equivalent or stricter automatic-authority contract. The failed full run, 670-case diagnostic (204 failures), and all intermediate fixture diagnostics are retained externally. The repaired fifteen focused suites now pass **701/701** in `root-takeover/broad-repairs.green.log`.
+
+Test-only `3c19aaef` precedes render-loop repair `b755c211`; test-only `2b28b983` and `ed6249c3` precede typed session-source repair `c8b27208`. `member-projection.red.log` retains eleven failures, including the unchanged join/resume nested privacy, ticker and phase-context tests; the later Escort retention red detects a missing valid public field. `member-projection-and-workspace.green.log` passes116/116. Fixture-only `97fda4d1`, `53947f8c` and `963fcdcd` are separate from both source repairs.
+
+### functions/src/joinSessionCallable.test.ts
+
+Model committed player/group writes for the additional read-only transaction; persist the real join code and make the retained shuttle belong to the requesting actor. Keep all original nested privacy and phase-context assertions. Add native live-refresh positive controls, nested secret denial and retention of the public AEGIS Escort Wing view.
+
+New cases:
+
+- sanitizes nested operational data on live refresh before applying the current fleet audience
+
+
+
+Changed cases:
+
+- redeems a valid %s legacy or current code
+
+- does not project a retained Press shuttle as docked when legacy docking fields are absent
+
+
+
+### functions/src/maintenanceCallable.test.ts
+
+The old generic request helper attached an advance requestId to every expectedTurn, accidentally making ordinary emergency-clock requests into incomplete attack interventions. Use unchanged ordinary clock payloads; retain pause/resume audits and all stale, expired, Cycle 0 and non-GM denials. Three renamed cases now test the authorized automatic attack contract: cycle override rejects with no writes, automatic resolution retains movement restriction, and unreasoned attack-clock pause/resume rejects with no writes. The existing `wolfAttackDeclarationCallable` case `requires reasoned revision-bound replay for emergency pause and resume during an attack` retains the positive reasoned, revision-bound recovery and replay checks.
+
+New cases:
+
+- keeps Wolf attack parking separate by rejecting cycle advancement during restricted Press catch-up
+
+- keeps an overrunning Wolf attack locked through Team Phase while automatic resolution continues
+
+- keeps an unresolved Wolf attack restricted by rejecting unreasoned emergency pause and resume
+
+
+
+Changed cases:
+
+- lets only the active GM pause and resume a live turn clock with an audit event
+
+- denies stale, expired, Turn 0, and non-GM emergency timer requests without writing
+
+
+
+Previous names, migrated above:
+
+- keeps the P373 Wolf-attack parking lane separate during restricted Press catch-up
+
+- keeps an overrunning Wolf attack locked through Team Phase until facilitator resolution
+
+- keeps an unresolved Wolf attack restricted across emergency pause and resume
+
+
+
+### functions/src/memberSessionCallable.test.ts
+
+Keep this suite focused on atomic membership using an explicitly parsed-public fixture dependency. Add a regression that the required parser receives the current transaction snapshot and the reader cannot spread the raw root.
+
+New cases:
+
+- uses the required public parser on the same transaction snapshot instead of spreading the stored root
+
+
+
+### functions/src/sessionLifecycleCallable.test.ts
+
+Distinguish a DocumentReference from a CollectionReference and Query. The new transaction reads the actual fleet-group collection; all 143 existing assertions remain unchanged.
+
+### functions/src/sessionResumeCallable.test.ts
+
+Expose native snapshot data and committed transaction writes to the refreshed reader. Reset writes when a scenario creates a new prepared membership, including the stale/active membership comparison; retain both denial and write assertions. Retained SNN belongs to the caller instead of a foreign Press actor.
+
+Changed cases:
+
+- does not project a retained Press shuttle as docked when legacy docking fields are absent
+
+- replaces a stale membership lock but refuses an active membership in another session
+
+
+
+### functions/src/terminalFreezePolicy.test.ts
+
+Classify the four new read-only projection endpoints explicitly. Keep commitWolfRangeActionChoice guarded through its exact requireWolfRangeState(session, state, range) delegate and inspect that helper body for the active-game guard; the mutator is not exempted.
+
+### src/App.test.tsx
+
+Add empty readonly mocks for the new range, Captain and boarding choice endpoints, alongside the existing C&C mock. Keep all 99 older route and authorization assertions.
+
+### src/PC01ReviewScene.test.tsx
+
+Update only the pending scouting copy to automatic result delivery. Preserve the older prepared-scene reveal, private note and ship-limited map walkthrough; it does not earn normal gameplay proof.
+
+Changed cases:
+
+- walks from the pending request through the GM reveal to the private note and ship-limited map
+
+
+
+### src/components/FleetGroupPanelRenderStability.test.tsx
+
+Bound the real component with a Profiler guard so an optional-data render loop fails quickly instead of hanging the test worker. Preserve usable Send group note and a small render count.
+
+New cases:
+
+- keeps group-note controls usable when optional navigation and taxi data are absent
+
+
+
+### src/components/FleetSystemsWorkspace.test.tsx
+
+Supply the actual connected Executive Officer fleet identity while remaining offline. Retain the printed C&C reference and reconnect message; require the private redirect offer to be absent until current server authority exists, while maintenance, fighter bay and shuttle navigation remain visible.
+
+Changed cases:
+
+- adds live C&C to the Executive Officer console while retaining its systems and maintenance shell
+
+
+
+### src/routes/ShipConsole.test.tsx
+
+Add the three readonly choice mocks. Scope the original second-person confetti status assertion to its own named region because boarding defence adds a second status node; preserve role, exact copy and activation assertions.
+
+Changed cases:
+
+- tells a lone non-captain that a second person must fire the cannon
+
+
+
+### src/routes/ShipConsoleNavigation.test.tsx
+
+Add the three readonly choice mocks while retaining all navigation and authorization checks.
+
+### src/routes/ShuttleConsole.test.tsx
+
+Add the three readonly choice mocks. Scope operation status queries to unnamed statuses within the Shuttle control region, preserving status roles, exact feedback and deferred old-identity callback denials while the new airspace status remains present. Three positive movement scenarios supply the live server freshness required by current authority, with identical request arguments and no client movement. Scout confirmations now require automatic private delivery instead of routine facilitator follow-up.
+
+Changed cases:
+
+- opens Chacau on its Refinery 124 Engineer route with its repair and cargo envelope
+
+- lets the current %s owner record a scouting request from the shuttle route
+
+- lets the printed owner hand shuttle control to a connected fleet-group player
+
+- lets a fuelled service-shuttle holder add one host charge during Coordination
+
+- preserves a service recharge selection and waits for current revisions before explicit retry
+
+- retains the original request for exact replay after an uncertain result and closed Coordination
+
+- lets the current holder request a local departure during open airspace without moving the shuttle
+
+- lets the SNN holder request departure during AEGIS-authorized restricted airspace
+
+- lets the holder enter transit from an authorized departure without a duplicate request
+
+- lets the current holder retarget an active shuttle leg without client position input
+
+- ignores a deferred old-session retarget %s callback without changing the new pending state
+
+- completes a reached transit automatically and exposes the server-confirmed destination
+
+- ignores a deferred old-session automatic arrival %s and lets the new identity arrive
+
+- ignores a deferred manual retry after identity changes and preserves the new arrival pending state

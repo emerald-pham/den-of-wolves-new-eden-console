@@ -92,7 +92,7 @@
     },
     "functions/src/memberSession.ts": {
       "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "after": "fe30e132cce1b35ab840b5b6c5c16e86de1fec1c0e0a76f405512fb288fdb7bf",
+      "after": "d437f969a359265e576490740b934d6b363da2c5e8ef905c54e9d4eda2f60e37",
       "consumers": [
         "getCurrentMemberSession",
         "joinSession",
@@ -101,7 +101,7 @@
     },
     "functions/src/memberSessionCallable.ts": {
       "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "after": "fc5439ca2b44d34749e3b019e856d5f07abd73267ede623a4b5e4059c37415b7",
+      "after": "c38cbd9054106be4f70ab586ac56ba36e83abfbfdeefb93ce618331822173b61",
       "consumers": [
         "getCurrentMemberSession",
         "joinSession",
@@ -231,6 +231,7 @@
         "evacuateShuttleSurvivorsCommand",
         "expireStalePlayers",
         "extendAirspaceWindow",
+        "getCurrentMemberSession",
         "getDioneMaliadesLaunch",
         "getPdfEscortWingLaunch",
         "getSmallShipJumpWorkspace",
@@ -423,7 +424,7 @@
   },
   "index": {
     "before": "2270c160ff8ee70f929bff6077dfdc1e8fa5e3d1eeaaaa480e9ef2cacd4a83a4",
-    "after": "2f188b0c6c344ef9589c8cb63149a403d7ef1fdc73d195a1b64a9327227ab4e3",
+    "after": "d5dd72f55fafe20b449f9a9600fa8570bc7e27c6a036818d613af5f6182a32bd",
     "consumers": [
       "adjudicateFailedJump",
       "advanceTurn",
