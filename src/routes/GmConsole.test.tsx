@@ -1300,13 +1300,6 @@ it('keeps Advance and Skip available for every numbered cycle', async () => {
   const turnControls = await screen.findByRole('region', { name: /cycle controls/i });
   const advance = within(turnControls).getByRole('button', { name: 'Advance to Cycle 3' });
   const skip = within(turnControls).getByRole('button', { name: 'Skip to Cycle 3' });
-  expect(advance).toBeDisabled();
-  const reason = within(preparation).getByRole('textbox', { name: 'Attack recovery reason' });
-  await user.type(reason, 'Retry the committed targeting transition.');
-  expect(advance).toBeDisabled();
-  await user.click(within(preparation).getByRole('checkbox', {
-    name: 'I confirm advancing the resolved targeting stage into Long Range.',
-  }));
   expect(advance).toBeEnabled();
   expect(skip).toBeEnabled();
 
@@ -3737,6 +3730,13 @@ it('lets the live GM close targeting and enter Long Range on the existing attack
   expect(recovery).not.toBeVisible();
   await user.click(within(preparation).getByText('Attack progress recovery'));
   const advance = within(preparation).getByRole('button', { name: 'Recover targeting progress' });
+  expect(advance).toBeDisabled();
+  const reason = within(preparation).getByRole('textbox', { name: 'Attack recovery reason' });
+  await user.type(reason, 'Retry the committed targeting transition.');
+  expect(advance).toBeDisabled();
+  await user.click(within(preparation).getByRole('checkbox', {
+    name: 'I confirm advancing the resolved targeting stage into Long Range.',
+  }));
   expect(advance).toBeEnabled();
   expect(preparation).not.toHaveTextContent(/calculationReceipt|rosterIndex|die:/i);
   advance.focus();
