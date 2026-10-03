@@ -15,8 +15,8 @@ dependencies were changed.
 
 | Behavior group | Assigned IDs | Owner and checkout |
 |---|---|---|
-| Split fleets and known-system sharing | 326, 336, 153, 337, 338, 152, 339, 340, 341, 342, 343, 344, 345, 346, 347, 348, 349, 350, 424, 678, 643 | Luna Max, isolated checkout pending attachment |
-| Automatic attack lifecycle and audience contract | 428, 431, 432, 432a, 433, 433a, 433b, 434, 434a, 435, 436, 437, 438, 439, 440, 441, 442, 444, 523a | Luna Max, isolated checkout pending attachment |
+| Split fleets and known-system sharing | 326, 336, 153, 337, 338, 152, 339, 340, 341, 342, 343, 344, 345, 346, 347, 348, 349, 350, 424, 678, 643 | Luna Max, `/Users/emeraldpham/.codex/worktrees/pc07-split-sharing/den-of-wolves-new-eden-console` |
+| Automatic attack lifecycle and audience contract | 428, 431, 432, 432a, 433, 433a, 433b, 434, 434a, 435, 436, 437, 438, 439, 440, 441, 442, 444, 523a | Luna Max, `/Users/emeraldpham/.codex/worktrees/pc07-attack-engine/den-of-wolves-new-eden-console` |
 | Airspace, maintenance proof and DRADIS integration | 140, 154, 155, 156, 158, 103a, 159, 351, 353 | Checkpoint owner, assigned checkout |
 
 Each Luna worker owns a complete connected behavior, source reading, separate
