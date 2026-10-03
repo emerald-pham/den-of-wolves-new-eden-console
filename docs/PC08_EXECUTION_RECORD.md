@@ -81,6 +81,18 @@ presentation only. Independent review, final validation, CI, production
 deployment, actual deployed access and physical-device claims stay separately
 labeled. A synthetic scene or pure unused helper cannot close a behavior ID.
 
+The combined owner checkout has configured emulator row 3; workers retain their
+own rows and all other reservations remain untouched. The range/boarding seam
+preserves exactly three ordered immutable range receipts, one per range. Each
+range decision aggregates the entitled sources' genuine choices before one
+server-locked roll/assignment batch; finalization consumes that post-range roster.
+Alpha and Bravo launch choices are independent and recorded during targeting.
+
+A full-page check of original A4 single-sided pages 36 and 81 reconciled an
+extraction interpretation: both AEGIS Alpha/Bravo and the PDF Escort Wing use
+at most one Short Range die per fighter, hit on 3+, and lose a fighter on 1–2.
+The existing P452 catalog rule is retained. Private renderings remain external.
+
 The owner supplies the five-step real-component review scene and final report.
 Final catalog closure, version/changelog, deployment consumers and release
 records are reconciled once after worker integration. The acceptance matrix
