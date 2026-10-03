@@ -62,35 +62,26 @@ beforeEach(() => {
     shipGalacticCoordinates: { aegis: '0000', shepherd: '0000', quellon: '1413' }, pursuitGroups: { 'fleet-1': 2, 'fleet-2': 4 } });
 });
 
-const transferData = { sessionId: 's1', requestId: 'transfer-1', shuttleId: 'starlight', targetShipId: 'shepherd',
+const transferData = { sessionId: 's1', requestId: 'transfer-1', shuttleId: 'hummingbird', targetShipId: 'shepherd',
   expectedCycle: 3, expectedControlRevision: 0, expectedNavigationRevision: 2, expectedFleetPartitionRevision: 1,
-  expectedGroupId: 'fleet-1', payload: { kind: 'fuel', units: 2 } };
+  expectedGroupId: 'fleet-2', payload: { kind: 'fuel', units: 2 } };
 
 it('atomically taxis fuel only between current groups and reconciles an exact retry once', async () => {
   const session = mock.documents.get('sessions/s1')!;
   Object.assign(session, { fleetPartitionRevision: 1, maintenanceCycles: {
-    aegis: { turn: 3, step: 7, revision: 1, results: {}, charges: [], refuelled: ['starlight'] },
-  }, shuttleFuelled: { starlight: true }, shipResources: {
-    aegis: { ore: 0, fuel: 4, food: 10, water: 8, materials: 12 },
+    quellon: { turn: 3, step: 7, revision: 1, results: {}, charges: [], refuelled: ['hummingbird'] },
+  }, shuttleFuelled: { hummingbird: true }, shipResources: {
+    quellon: { ore: 0, fuel: 4, food: 10, water: 8, materials: 12 },
     shepherd: { ore: 0, fuel: 1, food: 10, water: 8, materials: 12 },
   } });
-  mock.documents.get('sessions/s1/players/wing')!.assignedRoleId = 'wing-commander';
-  mock.documents.get('sessions/s1/fleetGroups/fleet-1')!.vesselIds = ['aegis'];
-  mock.documents.get('sessions/s1/fleetGroups/fleet-1')!.memberUids = ['wing'];
-  mock.documents.get('sessions/s1/fleetGroups/fleet-2')!.vesselIds = ['quellon', 'shepherd'];
-  mock.documents.get('sessions/s1/fleetGroups/fleet-2')!.memberUids = ['explorer'];
   Object.assign(mock.documents.get('sessions/s1/serverState/navigation')!, { shipGalacticCoordinates: {
     aegis: '0000', quellon: '0000', shepherd: '5143',
   } });
-  put('sessions/s1/players/wing', { role: 'player', connected: true, fleetGroupId: 'fleet-1',
-    assignedRoleId: 'wing-commander', seatId: 'wing-commander', activeConsoleRoleId: 'wing-commander', replacementRoleId: null });
-  put('sessions/s1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['wing'] });
-  put('sessions/s1/fleetGroups/fleet-2', { id: 'fleet-2', vesselIds: ['quellon', 'shepherd'], memberUids: ['explorer'] });
-  const call = (value = transferData, uid = 'wing') => calls.sendScoutTaxiTransfer.run(request(value, uid));
+  const call = (value = transferData, uid = 'explorer') => calls.sendScoutTaxiTransfer.run(request(value, uid));
   expect(await call()).toMatchObject({ status: 'committed', requestId: 'transfer-1', kind: 'fuel',
-    sourceGroupId: 'fleet-1', targetGroupId: 'fleet-2', targetShipId: 'shepherd', units: 2, sourceFuel: 2, targetFuel: 3 });
-  expect(mock.documents.get('sessions/s1')!.shipResources).toMatchObject({ aegis: { fuel: 2 }, shepherd: { fuel: 3 } });
-  expect(mock.documents.get('sessions/s1/players/wing')!.fleetGroupId).toBe('fleet-1');
+    sourceGroupId: 'fleet-2', targetGroupId: 'fleet-1', targetShipId: 'shepherd', units: 2, sourceFuelRemaining: 2 });
+  expect(mock.documents.get('sessions/s1')!.shipResources).toMatchObject({ quellon: { fuel: 2 }, shepherd: { fuel: 3 } });
+  expect(mock.documents.get('sessions/s1/players/explorer')!.fleetGroupId).toBe('fleet-2');
   const committedWrites = mock.writes.mock.calls.length;
   mock.writes.mockClear();
   expect(await call()).toMatchObject({ status: 'replayed', requestId: 'transfer-1' });
@@ -99,22 +90,20 @@ it('atomically taxis fuel only between current groups and reconciles an exact re
 });
 
 it.each([
-  ['wrong actor', transferData, 'explorer'],
-  ['stale navigation', { ...transferData, expectedNavigationRevision: 1 }, 'wing'],
-  ['stale group revision', { ...transferData, expectedFleetPartitionRevision: 0 }, 'wing'],
-  ['injected origin', { ...transferData, originShipId: 'quellon' }, 'wing'],
+  ['wrong actor', transferData, 'wing'],
+  ['stale navigation', { ...transferData, expectedNavigationRevision: 1 }, 'explorer'],
+  ['stale group revision', { ...transferData, expectedFleetPartitionRevision: 0 }, 'explorer'],
+  ['injected origin', { ...transferData, originShipId: 'aegis' }, 'explorer'],
 ])('rejects taxi %s before any write', async (_label, data, uid) => {
   Object.assign(mock.documents.get('sessions/s1')!, { fleetPartitionRevision: 1, maintenanceCycles: {
-    aegis: { turn: 3, step: 7, revision: 1, results: {}, charges: [], refuelled: ['starlight'] },
-  }, shuttleFuelled: { starlight: true }, shipResources: {
-    aegis: { ore: 0, fuel: 4, food: 10, water: 8, materials: 12 }, shepherd: { ore: 0, fuel: 1, food: 10, water: 8, materials: 12 },
+    quellon: { turn: 3, step: 7, revision: 1, results: {}, charges: [], refuelled: ['hummingbird'] },
+  }, shuttleFuelled: { hummingbird: true }, shipResources: {
+    quellon: { ore: 0, fuel: 4, food: 10, water: 8, materials: 12 }, shepherd: { ore: 0, fuel: 1, food: 10, water: 8, materials: 12 },
   } });
   put('sessions/s1/players/wing', { role: 'player', connected: true, fleetGroupId: 'fleet-1',
     assignedRoleId: 'wing-commander', seatId: 'wing-commander', activeConsoleRoleId: 'wing-commander' });
-  put('sessions/s1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['wing'] });
-  put('sessions/s1/fleetGroups/fleet-2', { id: 'fleet-2', vesselIds: ['quellon', 'shepherd'], memberUids: ['explorer'] });
   Object.assign(mock.documents.get('sessions/s1/serverState/navigation')!, { shipGalacticCoordinates: {
-    aegis: '0000', quellon: '0000', shepherd: '5143',
+    aegis: '0000', quellon: '0000', shepherd: '0000',
   } });
   await expect(calls.sendScoutTaxiTransfer.run(request(data, uid))).rejects.toThrow();
   expect(mock.writes).not.toHaveBeenCalled();
