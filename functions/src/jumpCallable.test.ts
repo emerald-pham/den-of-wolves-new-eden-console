@@ -1897,6 +1897,37 @@ it.each(['ordinary', 'emergency', 'adjudication'] as const)(
   },
 );
 
+it('increments manual-location navigation from its global cursor, independently of the vessel action revision', async () => {
+  mock.navigationRevision = 41;
+
+  const reply = await moveShipToLocation.run(request({
+    ...data, requestId: 'manual-location-global-navigation-cursor', destination: '5143', expectedRevision: 0,
+  }));
+
+  expect(reply).toMatchObject({ shipId: 'aegis', origin: '0000', destination: '5143', revision: 1 });
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/serverState/navigation', expect.objectContaining({
+    revision: 42,
+  }));
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'vesselActionRevisions.aegis': 1,
+  }));
+});
+
+it.each([
+  ['malformed', Number.NaN],
+  ['negative', -1],
+  ['exhausted', Number.MAX_SAFE_INTEGER],
+])('rejects a %s shared navigation cursor before manual-location writes', async (_label, revision) => {
+  mock.navigationRevision = revision;
+
+  await expect(moveShipToLocation.run(request({
+    ...data, requestId: `manual-location-bad-navigation-${_label}`, destination: '5143', expectedRevision: 0,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
 it.each(['ordinary', 'emergency', 'adjudication', 'manual-location'] as const)(
   'moves docked Voyage with a committed %s host movement while preserving its own ledgers', async (kind) => {
     setDockedVoyage();
