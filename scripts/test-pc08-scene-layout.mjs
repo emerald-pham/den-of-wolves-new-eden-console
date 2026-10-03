@@ -39,6 +39,10 @@ test('PC08 return control opens the real parent at phone and desktop sizes', asy
         assert.deepEqual(errors, []);
         await page.screenshot({path: `${directory}/${width}x${height}-returned-parent.png`, fullPage: true});
         cases.push({width, height, returnedToParent: true, errors, tourWrites});
+      } catch (error) {
+        await page.screenshot({path: `${directory}/${width}x${height}-parent-failure.png`, fullPage: true});
+        await writeFile(`${directory}/${width}x${height}-parent-failure.json`, `${JSON.stringify({url: page.url(), body: await page.locator('body').innerText(), errors, failure: String(error)}, null, 2)}\n`);
+        throw error;
       } finally {
         await page.close();
       }
@@ -143,6 +147,7 @@ test('PC08 real-presenter review is isolated and usable in eight viewport and mo
               await page.getByRole('button', {name: 'Resolve selected Short attacks', exact: true}).click();
               assert.match(await page.getByRole('status', {name: 'Prepared fighter result'}).textContent(), /Bravo Short Range choice committed: fighters 1, 3 selected/);
               await page.getByRole('button', {name: 'PDF Escort Wing sample', exact: true}).click();
+              await page.getByRole('button', {name: 'Launch PDF Escort Wing', exact: true}).click();
               await page.getByRole('button', {name: 'Pass Short Range', exact: true}).click();
               assert.match(await page.getByRole('status', {name: 'Prepared fighter result'}).textContent(), /PDF Escort Wing passed Short Range/);
             } else if (index === 3) {

@@ -106,6 +106,7 @@ it('preserves the selected Short Range fighters and a separate zero-fighter pass
   expect(screen.getByRole('status', {name: 'Prepared fighter result'}))
     .toHaveTextContent('Alpha Short Range choice committed: fighters 1, 3 selected.');
   fireEvent.click(screen.getByRole('button', {name: 'PDF Escort Wing sample'}));
+  fireEvent.click(screen.getByRole('button', {name: 'Launch PDF Escort Wing'}));
   fireEvent.click(screen.getByRole('button', {name: 'Pass Short Range'}));
   expect(screen.getByRole('status', {name: 'Prepared fighter result'}))
     .toHaveTextContent('PDF Escort Wing passed Short Range.');
@@ -171,4 +172,31 @@ it('keeps every prepared interaction isolated from the current signed-in identit
   } finally {
     useSessionStore.setState(original);
   }
+});
+
+
+it('retains independent launch or pass decisions through the actual Alpha, Bravo, PDF and Maliades presenters', () => {
+  render(<PC08ReviewScene />);
+  fireEvent.click(screen.getByRole('button', {name: '3 Fleet fighters'}));
+  fireEvent.click(screen.getByRole('button', {name: 'Pass Fighter Wing Alpha'}));
+  expect(screen.getByRole('article', {name: 'Fighter Wing Alpha'})).toHaveTextContent('Launch choice passed');
+  expect(screen.getByRole('button', {name: 'Launch Fighter Wing Alpha'})).toBeDisabled();
+  expect(screen.getByRole('button', {name: 'Launch Fighter Wing Bravo'})).toBeEnabled();
+  fireEvent.click(screen.getByRole('button', {name: 'PDF Escort Wing sample'}));
+  fireEvent.click(screen.getByRole('button', {name: 'Pass PDF Escort Wing'}));
+  expect(screen.getByLabelText('PDF Escort Wing launch control')).toHaveTextContent('Launch choice passed');
+  expect(screen.getByRole('button', {name: 'Launch PDF Escort Wing'})).toBeDisabled();
+  expect(screen.getByRole('button', {name: 'Show Short Range loss sample'})).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', {name: 'Maliades sample'}));
+  fireEvent.click(screen.getByRole('button', {name: 'Short Range sample'}));
+  expect(screen.getByRole('button', {name: 'Show Short Range loss sample'})).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', {name: 'Launch Maliades'}));
+  expect(screen.getByRole('button', {name: 'Show Short Range loss sample'})).toBeEnabled();
+  for (let damage = 1; damage <= 3; damage++) {
+    fireEvent.click(screen.getByRole('button', {name: 'Show Short Range loss sample'}));
+    expect(screen.getByRole('region', {name: 'Prepared Maliades condition'})).toHaveTextContent(`${damage}/3 damage`);
+  }
+  expect(screen.getByRole('button', {name: 'Show Short Range loss sample'})).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', {name: 'Bravo sample'}));
+  expect(screen.getByRole('button', {name: 'Launch Fighter Wing Bravo'})).toBeEnabled();
 });
