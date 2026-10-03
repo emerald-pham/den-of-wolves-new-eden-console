@@ -1633,6 +1633,11 @@ function systemHistory(value: unknown): SystemHistory | undefined {
 
 function playerDiscoveryProjection(value: unknown): PlayerDiscoveryProjection | undefined {
   const raw = recordValue(value);
+  const missionCommittedCraftIds = raw?.missionCommittedCraftIds;
+  if (missionCommittedCraftIds !== undefined && (!Array.isArray(missionCommittedCraftIds) ||
+      missionCommittedCraftIds.length > 64 ||
+      missionCommittedCraftIds.some(id => parseEntityId('shuttle', id) === undefined) ||
+      new Set(missionCommittedCraftIds).size !== missionCommittedCraftIds.length)) return undefined;
   const groupId = parseEntityId('group', raw?.groupId);
   const fleetGroupVesselIds = Array.isArray(raw?.fleetGroupVesselIds)
     ? raw.fleetGroupVesselIds.map((shipId) => parseEntityId('vessel', shipId))
@@ -1660,6 +1665,7 @@ function playerDiscoveryProjection(value: unknown): PlayerDiscoveryProjection | 
   if (raw?.candidateReveals !== undefined && candidateReveals === undefined) return undefined;
   return {
     groupId,
+    ...(missionCommittedCraftIds !== undefined ? { missionCommittedCraftIds: missionCommittedCraftIds as string[] } : {}),
     fleetGroupVesselIds: fleetGroupVesselIds as string[],
     ...(shipId ? { shipId } : {}),
     ...(currentCoordinate ? { currentCoordinate } : {}),

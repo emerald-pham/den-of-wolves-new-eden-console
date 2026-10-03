@@ -435,7 +435,7 @@ export default function ShuttleControl({ control }: Props) {
   }, [airspaceDeadline]);
   const currentClockTime = Math.max(deadlineClock, Date.now());
   const movementAuthorityCurrent = connection === 'live' && snapshotFreshness === 'server' && hasFreshSessionAuthority();
-  const missionCommitted = Boolean(session.missionCraftCommitments?.[control.shuttleId]);
+  const missionCommitted = session.playerDiscovery?.missionCommittedCraftIds?.includes(control.shuttleId) === true;
   const departureWindowOpen = movementAuthorityCurrent && !missionCommitted && session.phase === 'active' &&
     session.turnPhase?.turn === session.currentTurn &&
     (session.turnPhase?.airspace.state === 'lifted' || pressMovementException) &&
@@ -1044,7 +1044,7 @@ export default function ShuttleControl({ control }: Props) {
       <p className="console-workspace__eyebrow">Flight plan // server authorised</p>
       <h4>Request departure</h4>
       <AirspaceStatusView phase={session.turnPhase} current={movementAuthorityCurrent}
-        restriction={missionCommitted ? 'craft committed to an away mission.' : undefined} />
+        {...(missionCommitted ? {restriction:'craft committed to an away mission.'} : {})} />
       {transit ? <>
         <p>
           In transit to {findShip(transit.destinationShipId)?.name ?? transit.destinationShipId}.

@@ -183,6 +183,8 @@ export interface CurrentGroupCandidateRevealProjection {
 
 /** Server-owned navigation knowledge for one entitled player/ship view. */
 export interface PlayerDiscoveryProjection {
+  /** Entitled current group craft IDs only; no private mission identifiers. */
+  readonly missionCommittedCraftIds?: readonly string[];
   readonly groupId: GroupId;
   /** Server-owned vessel membership for this player's current fleet group. */
   readonly fleetGroupVesselIds?: readonly VesselId[];
