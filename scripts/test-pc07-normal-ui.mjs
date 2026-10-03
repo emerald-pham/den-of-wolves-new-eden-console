@@ -12,7 +12,9 @@ try{
  const page=await context.newPage();const errors=[];page.on('pageerror',error=>errors.push(error.message));
  const origin=process.env.PC07_LOCAL_UI_ORIGIN??'http://127.0.0.1:5174';
  assert.match(origin,/^http:\/\/127\.0\.0\.1:\d+$/);
- await page.goto(origin);await page.getByRole('button',{name:'Settings',exact:true}).click();
+ await page.goto(origin);
+ await page.getByRole('button',{name:/^REDUCED MOTION/i}).click();
+ await page.getByRole('button',{name:'Settings',exact:true}).click();
  await page.getByRole('button',{name:'Authorize local emulator GM',exact:true}).click();
  await page.getByRole('button',{name:'Authorize local emulator GM',exact:true}).waitFor({state:'visible'});
  await page.getByRole('button',{name:'Close settings',exact:true}).click();
