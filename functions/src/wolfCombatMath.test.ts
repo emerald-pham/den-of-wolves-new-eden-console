@@ -9,8 +9,12 @@ import {
   isWolfCalculationReceipt,
   resolveWolfBoarding,
   resolveWolfRange,
+  resolveWolfRangeTargetShifts,
   resolveWolfTargeting,
+  applyWolfRangeTargetShift,
   shiftWolfTargetDie,
+  wolfTargetForRangeTargetNumber,
+  wolfTargetNumberForRangeSource,
   wolfCombatRoster,
   type FleetCombatState,
   type WolfCombatShip,
@@ -43,6 +47,42 @@ function completeFleetState(): Record<WolfFleetTargetId, FleetCombatState> {
 }
 
 describe('central Wolf combat math', () => {
+  it('replays independent range shifts in canonical order without mutating targeting or allowing client-provided die faces', () => {
+    const targeting = resolveWolfTargeting(
+      firstTurnWolfAttackComposition(), { commandAndControlRedirectIndex: 0 }, CORE_WOLF_TARGET_RING, () => 0,
+    );
+    const roster = wolfCombatRoster(targeting);
+    const currentDice = targeting.rolls.map((roll) => roll.modifiers.includes('command-and-control-redirect')
+      ? wolfTargetNumberForRangeSource('aegis-alpha-wing', roll.target, targeting.ring)
+      : roll.finalDie);
+    const result = resolveWolfRangeTargetShifts({
+      roster, currentDice, ring: targeting.ring,
+      choices: [
+        { sourceId: 'aegis-bravo-wing', choiceIndex: 0, rosterIndex: 0, shift: 1 },
+        { sourceId: 'aegis-alpha-wing', choiceIndex: 0, rosterIndex: 0, shift: 1 },
+      ],
+    });
+
+    expect(result.targetShifts).toEqual([
+      { sourceId: 'aegis-alpha-wing', choiceIndex: 0, rosterIndex: 0, shift: 1, fromDie: 1, toDie: 2 },
+      { sourceId: 'aegis-bravo-wing', choiceIndex: 0, rosterIndex: 0, shift: 1, fromDie: 2, toDie: 3 },
+    ]);
+    expect(result.currentDice[0]).toBe(3);
+    expect(result.roster[0]?.target).toBe('icebreaker');
+    expect(roster[0]?.target).toBe('aegis');
+    expect(targeting.rolls[0]?.target).toBe('aegis');
+  });
+
+  it('keeps the PDF Escort Wing’s printed zero and seven targets separate from wrapped fighter shifts', () => {
+    expect(applyWolfRangeTargetShift('pdf-escort-wing', 1, -1, CORE_WOLF_TARGET_RING)).toBe(0);
+    expect(wolfTargetForRangeTargetNumber('pdf-escort-wing', 0, CORE_WOLF_TARGET_RING)).toBe('refinery-124');
+    expect(applyWolfRangeTargetShift('pdf-escort-wing', 6, 1, CORE_WOLF_TARGET_RING)).toBe(7);
+    expect(wolfTargetForRangeTargetNumber('pdf-escort-wing', 7, CORE_WOLF_TARGET_RING)).toBe('aegis');
+    expect(wolfTargetNumberForRangeSource('pdf-escort-wing', 'aegis', CORE_WOLF_TARGET_RING)).toBe(1);
+    expect(() => applyWolfRangeTargetShift('pdf-escort-wing', 0, 1, CORE_WOLF_TARGET_RING)).toThrow(/from 1 through 6/i);
+    expect(applyWolfRangeTargetShift('maliades', 1, -1, CORE_WOLF_TARGET_RING)).toBe(6);
+  });
+
   it('maps final targeting to the configured ring and keeps modifier order separate from staged choices', () => {
     const composition = firstTurnWolfAttackComposition();
     const random = samples([0, 5, ...Array.from({ length: 14 }, () => 0)]);
