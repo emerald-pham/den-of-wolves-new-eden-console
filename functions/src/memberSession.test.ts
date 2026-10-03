@@ -109,7 +109,6 @@ describe('current member session privacy', () => {
 
   it('preserves repair usage without disclosing other-group host details or GM alert recipients', () => {
     const value = memberSessionProjection({ ...root,
-      shuttleDockings: [...root.shuttleDockings, { shuttleId: 'wobbly', shipId: 'shepherd' }],
       shuttleDockings: [{ shuttleId: 'philia', shipId: 'shepherd' }],
       philiaRepairs: { cycle: 2, revision: 2, hosts: [{ shipId: 'aegis', systemIds: ['reactor'] }, { shipId: 'dione', systemIds: ['storage'] }] },
       populationAlerts: { shepherd: { targetGmInstanceIds: ['hidden-gm'] } },
@@ -132,6 +131,7 @@ describe('current member session privacy', () => {
 
   it('keeps prior drone/recharge usage without foreign host or system details', () => {
     const value = memberSessionProjection({ ...root,
+      shuttleDockings: [...root.shuttleDockings, { shuttleId: 'wobbly', shipId: 'shepherd' }],
       smallShipStates: { gorgoneion: { ...emptySmallShipState('gorgoneion', 'shepherd'), dockingRevision: 1 },
         warrior: { ...emptySmallShipState('warrior', 'shepherd'), dockingRevision: 1 } },
       gorgoneionRepairDrones: { cycle: 2, revision: 1, hostShipId: 'aegis', systemId: 'reactor' },
