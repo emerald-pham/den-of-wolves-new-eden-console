@@ -96,8 +96,8 @@ try{
   assert.ok(completed.shipResources.aegis.food<resources.food);assert.ok(completed.shipResources.aegis.water<resources.water);
   assert.ok(await cycle.getByRole('button',{name:'Begin Maintenance Cycle: Cycle 1',exact:true}).isDisabled());
   await page.screenshot({path:`${directory}/phone-normal-aegis-maintenance.png`,fullPage:true});
-  await page.getByRole('link',{name:'Change role',exact:true}).click();
-  await page.getByRole('link',{name:'Back to fleet',exact:true}).click();
+  await page.getByRole('link',{name:/Change role/i}).click();
+  await page.getByRole('link',{name:/Back to fleet/i}).click();
   assert.ok(await page.getByRole('link',{name:'View AEGIS station overview',exact:true}).isVisible());
   maintenanceProof=true;
  }
