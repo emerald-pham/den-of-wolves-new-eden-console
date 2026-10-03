@@ -686,6 +686,7 @@ export default function GmConsole() {
     : 'Shared Press projection // one active GM is sufficient; additional GMs are optional';
   const debriefMode = session?.debriefMode ?? { active: false, revision: 0 };
   const currentTurn = session?.currentTurn ?? 1;
+  const attackInProgress = wolfAttackState?.status==='declared';
   const candidatePlanCycleEligible = currentTurn === 6;
   const endgameEvaluation = ['success', 'failure', 'debrief', 'closed'].includes(session?.phase ?? '');
   const canReplayTurnAnnouncement = Boolean(
@@ -2274,6 +2275,7 @@ export default function GmConsole() {
     overridePhaseTimer = false,
     skipTurnStartAnnouncement = false,
   ): Promise<void> {
+    if (attackInProgress) return;
     setConfirmTurnAdvance(false);
     setConfirmTurnOverride(false);
     setConfirmTurnSkip(false);
@@ -2297,6 +2299,7 @@ export default function GmConsole() {
   }
 
   function requestTurnAdvance(): void {
+    if (attackInProgress) return;
     if (currentTurn === 0 && !confirmTurnAdvance) {
       setConfirmTurnAdvance(true);
       return;
@@ -2311,6 +2314,7 @@ export default function GmConsole() {
   }
 
   function requestTurnSkip(): void {
+    if (attackInProgress) return;
     if (!confirmTurnSkip) {
       setConfirmTurnSkip(true);
       return;
@@ -2361,7 +2365,7 @@ export default function GmConsole() {
   }
 
   async function requestAirspaceExtension(window: AirspaceWindow): Promise<void> {
-    if (activeAirspaceWindow !== window || extendingAirspace !== null) return;
+    if (attackInProgress || activeAirspaceWindow !== window || extendingAirspace !== null) return;
     if (confirmAirspaceExtension !== window) {
       setConfirmAirspaceExtension(window);
       return;
@@ -2795,6 +2799,10 @@ export default function GmConsole() {
           <section className="gm-console__module cic-frame" aria-label="Cycle controls">
             <h2 className="gm-console__section-title">Cycle control</h2>
             <p className="gm-console__status">Cycle {currentTurn}</p>
+            {attackInProgress&&<p className="gm-console__hint">
+              Wait for the attack to finish before advancing cycles or extending ordinary airspace.
+              Use the reasoned emergency timer control for a genuine attack pause.
+            </p>}
             {confirmTurnOverride && activeTurnTimer && (
               <p className="gm-turn-control__override" role="alert">
                 ARE YOU SURE? // ACTIVE PHASE TIMER WILL BE OVERRIDDEN
@@ -2817,7 +2825,7 @@ export default function GmConsole() {
                 <button
                   className={`cic-action-button${confirmTurnAdvance || (confirmTurnOverride && activeTurnTimer) ? ' cic-action-button--confirm' : ''}`}
                   type="button"
-                  disabled={changingTurn || replayingTurnAnnouncement !== null}
+                  disabled={attackInProgress || changingTurn || replayingTurnAnnouncement !== null}
                   onClick={requestTurnAdvance}
                 >
                   {advancingTurn
@@ -2830,7 +2838,7 @@ export default function GmConsole() {
               {!endgameEvaluation && <button
                 className={`cic-action-button${confirmTurnSkip ? ' cic-action-button--confirm' : ''}`}
                 type="button"
-                disabled={changingTurn || replayingTurnAnnouncement !== null}
+                disabled={attackInProgress || changingTurn || replayingTurnAnnouncement !== null}
                 onClick={requestTurnSkip}
               >
                 {skippingTurn
@@ -2876,6 +2884,7 @@ export default function GmConsole() {
                       type="button"
                       key={window}
                       disabled={
+                        attackInProgress ||
                         currentPhase?.timerPause !== undefined ||
                         activeAirspaceWindow !== window ||
                         extendingAirspace !== null ||
@@ -3054,7 +3063,7 @@ export default function GmConsole() {
                       }}
                     />
                   </label>
-                  <label className="gm-wolf-preparation__modifier">
+                  <label className="gm-wolf-preparation__check">
                     <input
                       type="checkbox"
                       checked={wolfRecoveryConfirmed}
@@ -3405,7 +3414,9 @@ export default function GmConsole() {
           <EmergencyTimerPauseControl
             phase={currentPhase}
             connection={connection}
-            busy={changingTurn || replayingTurnAnnouncement !== null}
+            busy={changingTurn || replayingTurnAnnouncement !== null || sessionSnapshotFreshness!=='server'}
+            {...(attackInProgress&&wolfAttackState?{attack:wolfAttackState}:{})}
+            authorityKey={`${sessionId}:${local?.id??''}:${me?.uid??''}`}
           />
           <section className="gm-console__module gm-finale cic-frame" aria-label="Finale controls">
             <h2 className="gm-console__section-title">Finale</h2>

@@ -62,6 +62,7 @@ import {
   replaceTurnStateOnPhase,
 } from './turnPhase';
 import type { AirspaceWindow } from '@/types/game';
+import { attackTimerInterventionPhase, type WolfAttackTimerIntervention } from './wolfAttackTimerIntervention';
 import {
   commandErrorCode,
   isRateLimitedCommandError,
@@ -4335,7 +4336,21 @@ export async function extendAirspaceWindow(window: AirspaceWindow): Promise<void
 }
 
 /** GM-only, live-only emergency interlock; a pause must never wait in an outbox. */
-export async function setEmergencyTimerPaused(paused: boolean): Promise<void> {
+export async function setEmergencyTimerPaused(
+  paused: boolean,
+  attackIntervention?: WolfAttackTimerIntervention,
+): Promise<void> {
+  const reason=typeof attackIntervention?.reason==='string'?attackIntervention.reason.trim():undefined;
+  if (attackIntervention) {
+    if (!reason || reason.length<8 || reason.length>400) {
+      throw new Error('Enter an attack timer reason between 8 and 400 characters.');
+    }
+    if (attackIntervention.dangerConfirmed!==true) throw new Error('Confirm the attack timer intervention.');
+    if (!Number.isSafeInteger(attackIntervention.expectedAttackRevision) ||
+        attackIntervention.expectedAttackRevision<1 || attackIntervention.expectedAttackRevision>=Number.MAX_SAFE_INTEGER) {
+      throw new Error('Wait for the current attack revision before changing the timer.');
+    }
+  }
   const store = useSessionStore.getState();
   if (!store.session || !store.gmInstance) {
     throw new Error('Reconnect and claim GM before changing the emergency timer.');
@@ -4348,6 +4363,8 @@ export async function setEmergencyTimerPaused(paused: boolean): Promise<void> {
     instanceId: store.gmInstance.id,
     expectedTurn: store.session.currentTurn ?? 1,
     paused,
+    ...(attackIntervention ? { requestId:commandId(),expectedAttackRevision:attackIntervention.expectedAttackRevision,
+      reason:reason!,dangerConfirmed:true as const } : {}),
   };
   const call = httpsCallable<typeof payload, { turnPhase?: unknown; turnState?: unknown }>(
     functions(),
@@ -4355,9 +4372,17 @@ export async function setEmergencyTimerPaused(paused: boolean): Promise<void> {
   );
   try {
     const reply = await call(payload);
-    const phaseClock = turnPhaseState(reply.data.turnPhase);
+    const phaseClock = attackIntervention ? attackTimerInterventionPhase(reply.data, {
+      ...attackIntervention, reason:reason!,sessionId:payload.sessionId,requestId:payload.requestId!,
+      turn:payload.expectedTurn,paused,
+    }) : turnPhaseState(reply.data.turnPhase);
+    if (attackIntervention && !phaseClock) throw new Error('The server returned an invalid attack timer receipt.');
     const activeSession = useSessionStore.getState().session;
-    if (phaseClock && activeSession?.id === payload.sessionId && authorityCheckpointIsCurrent(checkpoint)) {
+    const currentInstance=useSessionStore.getState().gmInstance;
+    if (phaseClock && activeSession?.id === payload.sessionId &&
+        activeSession.currentTurn===payload.expectedTurn && currentInstance?.id===payload.instanceId &&
+        currentInstance.sessionId===payload.sessionId && currentInstance.uid===store.gmInstance.uid &&
+        authorityCheckpointIsCurrent(checkpoint)) {
       const turnState = turnStateForPhaseContext(
         reply.data.turnState,
         phaseClock,

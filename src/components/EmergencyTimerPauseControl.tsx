@@ -9,6 +9,8 @@ interface EmergencyTimerPauseControlProps {
   readonly phase: TurnPhase | undefined;
   readonly connection: Connection;
   readonly busy?: boolean;
+  readonly attack?: Readonly<{turn:number;revision:number;currentStep:string}>;
+  readonly authorityKey?: string;
 }
 
 const REQUIRED_CLICKS = 3;
@@ -30,16 +32,21 @@ export default function EmergencyTimerPauseControl({
   phase,
   connection,
   busy = false,
+  attack,
+  authorityKey,
 }: EmergencyTimerPauseControlProps) {
   const [now, setNow] = useState(() => Date.now());
   const [clickCount, setClickCount] = useState(0);
   const [changing, setChanging] = useState(false);
-  const identity = phaseIdentity(phase);
+  const [reason,setReason]=useState('');
+  const identity = `${phaseIdentity(phase)}:${attack?.turn??''}:${attack?.revision??''}:${attack?.currentStep??''}:${authorityKey??''}`;
   const automatic = phase?.timerPause?.reason === 'empty-session';
   const briefing = phase?.timerPause?.reason === 'turn-interstitial';
   const paused = phase?.timerPause !== undefined;
   const timerLive = hasActiveTurnTimer(phase, now);
-  const canAct = connection === 'live' && Boolean(phase) && timerLive && !busy && !changing && !automatic && !briefing;
+  const cleanReason=reason.trim();
+  const canAct = connection === 'live' && Boolean(phase) && timerLive && !busy && !changing && !automatic && !briefing &&
+    (!attack || attack.turn===phase?.turn && cleanReason.length>=8 && cleanReason.length<=400);
 
   useEffect(() => {
     setNow(Date.now());
@@ -50,7 +57,8 @@ export default function EmergencyTimerPauseControl({
 
   useEffect(() => {
     setClickCount(0);
-  }, [busy, canAct, connection, identity]);
+  }, [busy, canAct, connection, identity, reason]);
+  useEffect(()=>setReason(''),[identity,connection]);
 
   async function activate(): Promise<void> {
     if (!canAct || !phase) return;
@@ -62,7 +70,10 @@ export default function EmergencyTimerPauseControl({
     setClickCount(0);
     setChanging(true);
     try {
-      await setEmergencyTimerPaused(!paused);
+      if (attack) await setEmergencyTimerPaused(!paused,{
+        expectedAttackRevision:attack.revision,reason:cleanReason,dangerConfirmed:true,
+      });
+      else await setEmergencyTimerPaused(!paused);
     } catch {
       // The shared communication notice reports the authoritative rejection.
     } finally {
@@ -100,6 +111,14 @@ export default function EmergencyTimerPauseControl({
           ? 'The empty-session hold clears when a participant reconnects.'
           : `For emergencies only // three deliberate confirmations required to ${paused ? 'resume' : 'pause'} all fleet clocks.`}
       </p>
+      {attack&&<label className="gm-wolf-preparation__field gm-emergency-pause__reason">
+        <span>Attack timer intervention reason // 8–400 characters</span>
+        <textarea aria-label="Attack timer intervention reason" rows={2} minLength={8} maxLength={400}
+          value={reason} disabled={connection!=='live'||busy||changing||automatic||briefing}
+          onChange={event=>setReason(event.target.value)} />
+        <span>Revision {attack.revision} // three confirmations authorize only this clock change.
+          The private audit retains its reason and before/after clock; committed attack choices stay unchanged.</span>
+      </label>}
       <button
         className={`cic-action-button${clickCount > 0 ? ' cic-action-button--confirm' : ''}`}
         type="button"
