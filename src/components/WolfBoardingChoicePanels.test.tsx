@@ -68,7 +68,7 @@ describe('Wolf boarding decision presenters', () => {
 
     const submit = screen.getByRole('button', { name: /record facilitator ruling/i });
     expect(submit).toBeDisabled();
-    fireEvent.change(screen.getByLabelText(/facilitator ruling/i), { target: { value: 'The transport is removed from the next attack.' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Facilitator ruling' }), { target: { value: 'The transport is removed from the next attack.' } });
     expect(submit).toBeEnabled();
     fireEvent.click(submit);
     expect(onChoose).toHaveBeenCalledWith('The transport is removed from the next attack.');
