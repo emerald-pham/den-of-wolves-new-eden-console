@@ -2392,6 +2392,7 @@ describe('shuttle departure privacy', () => {
       });
       await updateDoc(doc(db, `${SESSION}/players/bob`), { fleetGroupId: 'fleet-1' });
       await deleteDoc(doc(db, `${SESSION}/fleetGroups/fleet-2`));
+      await updateDoc(doc(db, path), { fleetGroupId: 'fleet-1' });
     });
     await assertSucceeds(getDoc(doc(as('alice'), path)));
     await assertSucceeds(getDoc(doc(as('bob'), path)));

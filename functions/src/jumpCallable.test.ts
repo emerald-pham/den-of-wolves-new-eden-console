@@ -8,6 +8,7 @@ import { VOYAGE_33_COMMITMENTS, VOYAGE_33_ID } from './voyageAdmission';
 import { emptyVoyage33MovementState } from './voyage33Movement';
 import { emptyVoyage33MaintenanceState } from './voyage33Maintenance';
 import { neighborsForCoordinate } from './starChartGraph';
+import { enterShuttleTransit, toPublicShuttleTransit, toShuttleTransitChain } from './shuttleTransit';
 
 const mock = vi.hoisted(() => ({
   get: vi.fn(),
@@ -70,6 +71,8 @@ const mock = vi.hoisted(() => ({
   missionOpportunityRecord: undefined as Record<string, unknown> | undefined,
   missionOpportunityRecordPath: undefined as string | undefined,
   partitionOpportunities: [] as Array<Record<string, unknown>>,
+  shuttleDepartures: {} as Record<string, Record<string, unknown>>,
+  shuttleTransitChains: {} as Record<string, Record<string, unknown>>,
   startedOpportunityIds: [] as string[],
   commandReceiptRecord: undefined as Record<string, unknown> | undefined,
   singlePlayerDemo: undefined as Record<string, unknown> | undefined,
@@ -115,6 +118,11 @@ vi.mock('firebase-admin/firestore', () => ({
           update: (path: string, fields: Record<string, unknown>) => {
             mock.transactionOperations.push({ kind: 'write', path });
             writes.push([path, fields]);
+          },
+          create: (ref: string | { path: string }, fields: Record<string, unknown>) => {
+            const path = typeof ref === 'string' ? ref : ref.path;
+            mock.transactionOperations.push({ kind: 'write', path });
+            sets.push([path, fields]);
           },
           delete: (path: string) => {
             mock.transactionOperations.push({ kind: 'write', path });
@@ -249,6 +257,8 @@ beforeEach(() => {
   mock.missionOpportunityRecord = undefined;
   mock.missionOpportunityRecordPath = undefined;
   mock.partitionOpportunities = [];
+  mock.shuttleDepartures = {};
+  mock.shuttleTransitChains = {};
   mock.startedOpportunityIds = [];
   mock.commandReceiptRecord = undefined;
   mock.singlePlayerDemo = undefined;
@@ -322,6 +332,18 @@ beforeEach(() => {
     if (path === 'sessions/s1/missionStartSnapshots') return {
       docs: mock.startedOpportunityIds.map(id => ({ exists: true, id })),
     };
+    const shuttleDepartureMatch = path.match(/^sessions\/s1\/shuttleDepartures\/([^/]+)$/);
+    if (shuttleDepartureMatch) {
+      const fields = mock.shuttleDepartures[shuttleDepartureMatch[1]!];
+      return { exists: fields !== undefined, id: shuttleDepartureMatch[1], ref: { path }, data: () => fields,
+        get: (key: string) => fields?.[key] };
+    }
+    const shuttleChainMatch = path.match(/^sessions\/s1\/shuttleTransitChains\/([^/]+)$/);
+    if (shuttleChainMatch) {
+      const fields = mock.shuttleTransitChains[shuttleChainMatch[1]!];
+      return { exists: fields !== undefined, id: shuttleChainMatch[1], ref: { path }, data: () => fields,
+        get: (key: string) => fields?.[key] };
+    }
     if (path.startsWith('sessions/s1/missionOpportunities/')) {
       const record = mock.missionOpportunityRecordPath === undefined ||
         mock.missionOpportunityRecordPath === path
@@ -2646,6 +2668,45 @@ it('confirms a server-derived fleet partition and clones pursuit without exposin
   }));
   expect(mock.set).toHaveBeenCalledWith('sessions/s1/serverState/navigation', expect.objectContaining({
     pursuitGroups: { 'fleet-1': 2, 'fleet-2': 2 }, revision: 1,
+  }));
+});
+
+it('reattaches a validated in-flight shuttle to the rejoined current group exactly once', async () => {
+  const vesselIds = [...mock.activeVesselIds];
+  const rightFleet = vesselIds.filter((id) => id !== 'aegis');
+  mock.coordinate = '1413';
+  mock.coordinates = Object.fromEntries(vesselIds.map((id) => [id, '1413']));
+  mock.fleetGroups = [
+    { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1'], memberShipIds: { u1: 'aegis' } },
+    { id: 'fleet-2', vesselIds: rightFleet, memberUids: ['u2'], memberShipIds: { u2: 'dione' } },
+  ];
+  mock.players = [
+    { id: 'u1', fields: { role: 'gm', connected: true, fleetGroupId: 'fleet-1' } },
+    { id: 'u2', fields: { role: 'player', connected: true, fleetGroupId: 'fleet-2', assignedRoleId: 'icebreaker-miner' } },
+  ];
+  mock.pursuitGroups = { 'fleet-1': 2, 'fleet-2': 5 };
+  const transit = enterShuttleTransit({
+    transitRequestId: 'transit-rejoin', actorUid: 'u2', expectedDepartureRequestId: 'departure-rejoin',
+    expectedControlRevision: 0, expectedCycle: 1,
+    departure: { status: 'requested', requestId: 'departure-rejoin', shuttleId: 'starlight', holderUid: 'u2',
+      fleetGroupId: 'fleet-2', originShipId: 'dione', destinationShipId: 'shepherd', cycle: 1,
+      controlRevision: 0, requestedAt: '2026-09-06T12:00:00.000Z' },
+    control: { shuttleId: 'starlight', ownerRoleId: 'wing-commander', ownerUid: 'owner', holderUid: 'u2', revision: 0 },
+    dockings: [{ shuttleId: 'starlight', shipId: 'dione', dockedAt: '2026-09-06T12:00:00.000Z' }],
+    group: { id: 'fleet-2', vesselIds: rightFleet, memberUids: ['u2'] },
+    phase: { turn: 1, teamPhaseEndsAt: '2026-09-06T12:05:00.000Z', openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false } },
+    now: Date.parse('2026-09-06T12:10:00.000Z'),
+  }).transit;
+  mock.shuttleDepartures.starlight = toPublicShuttleTransit(transit) as unknown as Record<string, unknown>;
+  mock.shuttleTransitChains.starlight = toShuttleTransitChain(transit) as unknown as Record<string, unknown>;
+  const call = (jumpCallables as unknown as { confirmFleetPartition: { run: (request: unknown) => Promise<unknown> } }).confirmFleetPartition;
+  const command = request({ sessionId: 's1', instanceId: 'bridge', requestId: 'rejoin-with-shuttle', expectedNavigationRevision: 0 });
+
+  await expect(call.run(command)).resolves.toEqual({ status: 'committed', navigationRevision: 1, groupIds: ['fleet-1'] });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1/shuttleDepartures/starlight', { fleetGroupId: 'fleet-1' });
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/fleetGroupRejoinAudits/rejoin-with-shuttle', expect.objectContaining({
+    policy: 'highest-pursuit-score', migratedShuttleIds: ['starlight'],
   }));
 });
 

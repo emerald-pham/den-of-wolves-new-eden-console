@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
 import { beforeEach, expect, it, vi } from 'vitest';
 import FleetGroupWorkspace from './FleetGroupWorkspace';
 import { useSessionStore } from '@/store/useSessionStore';
@@ -84,4 +85,28 @@ it('lets the current taxi owner select at most two connected members from the se
   fireEvent.click(screen.getByRole('button', { name: 'Send scout taxi' }));
   await waitFor(() => expect(mocks.transferTaxi).toHaveBeenCalledWith({ shuttleId: 'hummingbird', targetShipId: 'aegis',
     payload: { kind: 'players', playerUids: ['crew-1'] } }));
+});
+
+it('keeps sharing and taxi controls compact, adjacent to their labels, and tappable on short viewports', async () => {
+  seed();
+  const { container } = render(<div className="pc07-review-scene"><FleetGroupWorkspace /></div>);
+  const checkbox = await screen.findByRole('checkbox', { name: /quellon/i });
+  const stylesheet = document.createElement('style');
+  stylesheet.textContent = `.pc07-review-scene input[type="checkbox"] { width: 44px; height: 44px; }\n${readFileSync('src/components/FleetGroupWorkspace.css', 'utf8')}`;
+  document.head.append(stylesheet);
+  try {
+    const checkboxStyle = getComputedStyle(checkbox);
+    const labelStyle = getComputedStyle(checkbox.closest('label')!);
+    const select = container.querySelector<HTMLSelectElement>('select[aria-label="Taxi shuttle"]')!;
+    const selectStyle = getComputedStyle(select);
+    expect(labelStyle.display).toBe('flex');
+    expect(labelStyle.alignItems).toBe('center');
+    expect(Number.parseFloat(labelStyle.minHeight)).toBeGreaterThanOrEqual(44);
+    expect(checkboxStyle.width).toBe('20px');
+    expect(checkboxStyle.height).toBe('20px');
+    expect(Number.parseFloat(selectStyle.fontSize)).toBeGreaterThanOrEqual(16);
+    expect(readFileSync('src/components/FleetGroupWorkspace.css', 'utf8')).toMatch(/max-height:\s*480px[^}]*landscape|landscape[^}]*max-height:\s*480px/s);
+  } finally {
+    stylesheet.remove();
+  }
 });
