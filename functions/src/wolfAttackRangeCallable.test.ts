@@ -435,8 +435,12 @@ it('applies the Wing Commander Medium target and shift choices inside the EO ran
     targetShifts: [{ sourceId: 'aegis-alpha-wing', choiceIndex: 1, rosterIndex: Number(attackedContact.replace('contact-', '')) - 1,
       shift: 1 }],
   });
-  expect((resolved.combatRoster as Array<Fields>).find(({ instanceId }) => instanceId === chosenTarget.instanceId))
-    .toMatchObject({ damageTaken: 1 });
+  const resolvedTarget = (resolved.combatRoster as Array<Fields>).find(({ instanceId }) => instanceId === chosenTarget.instanceId)!;
+  expect(resolvedTarget).toMatchObject({ damageTaken: 1 });
+  expect((resolved.memberResults as Array<Fields>).at(-1)).toMatchObject({
+    sourceId: 'aegis-alpha-wing', targetId: resolvedTarget.target, effect: 'Alpha Fighter Wing attack hit',
+    outcome: { damage: 1 },
+  });
   expect(entropy.randomInt).not.toHaveBeenCalled();
 });
 
