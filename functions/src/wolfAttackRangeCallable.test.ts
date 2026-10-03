@@ -137,6 +137,47 @@ it('locks one server-generated Long Range attack once and assigns it without rer
     .toMatchObject({ type: 'wolf-range-target-assignment', fromStep: 'long-range', toStep: 'medium-range' });
 });
 
+it('reconstructs a partially selected Medium Range lock after an entitled reconnect', async () => {
+  const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  put('sessions/s1/wolfAttackState/current', { ...attack, currentStep: 'medium-range', revision: 4 });
+  const initial = await getWolfRangeActionChoice.run(request({ sessionId: 's1' }));
+  expect(initial).toMatchObject({ eligibleActions: [
+    { actionId: 'aegis-missile-launchers-medium' },
+    { actionId: 'aegis-point-defence-lasers-medium' },
+  ] });
+
+  const locked = await commitWolfRangeActionChoice.run(request({
+    sessionId: 's1', requestId: 'lock-medium-missiles-only', expectedTurn: 1, expectedRevision: 4,
+    range: 'medium-range', actionIds: ['aegis-missile-launchers-medium'],
+  }));
+  expect(locked).toMatchObject({ choiceStatus: 'targets-required', hitSlots: [
+    { actionId: 'aegis-missile-launchers-medium', count: 5 },
+  ] });
+
+  const reconnected = await getWolfRangeActionChoice.run(request({ sessionId: 's1' }));
+  expect(reconnected).toMatchObject({
+    choiceStatus: 'targets-required',
+    hitSlots: [{ actionId: 'aegis-missile-launchers-medium', count: 5 }],
+  });
+  expect(reconnected.hitSlots).not.toContainEqual(expect.objectContaining({ actionId: 'aegis-point-defence-lasers-medium' }));
+});
+
+it('records an explicit range pass in the final receipt and member-safe results', async () => {
+  const pass = await commitWolfRangeActionChoice.run(request({
+    sessionId: 's1', requestId: 'pass-long-1', expectedTurn: 1, expectedRevision: 4,
+    range: 'long-range', actionIds: [],
+  }));
+  expect(pass).toMatchObject({ status: 'committed', choiceStatus: 'passed' });
+  const state = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  expect(state.rangeReceipts).toEqual(expect.arrayContaining([expect.objectContaining({
+    range: 'long-range', dice: [], assignments: [],
+  })]));
+  expect(state.memberResults).toEqual(expect.arrayContaining([expect.objectContaining({
+    status: 'committed', range: 'long-range', sourceId: 'aegis-executive-officer',
+    effect: 'AEGIS passed Long Range weapons', outcome: { damage: 0, destroyed: false },
+  })]));
+});
+
 it('records an explicit pass, rejects stale/wrong-phase/wrong-actor writes, and honors pause', async () => {
   await expect(commitWolfRangeActionChoice.run(request({
     sessionId: 's1', requestId: 'stale-long', expectedTurn: 1, expectedRevision: 3,
