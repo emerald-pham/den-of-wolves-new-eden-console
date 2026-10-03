@@ -32,7 +32,8 @@ const terminalFreezeExemptions = new Set([
   'setActiveRoleEnabled', 'setActiveRoleConfiguration', 'applyRolePreset',
   'claimSeat', 'releaseSeat', 'startSinglePlayerDemo', 'setDebriefMode',
   // Read-only authority projections do not mutate gameplay state.
-  'getCommissarPurgeAuthority',
+  'getCommissarPurgeAuthority', 'getCurrentMemberSession', 'getWolfRangeActionChoice',
+  'getWolfForceFieldChoice', 'getWolfBoardingDefenceChoice',
   // Current-GM acknowledgement only records handling of a prior committed
   // sabotage clue and emits its decorative notice; it must remain drainable
   // from the terminal/debrief view without reopening gameplay mutations.
@@ -44,6 +45,11 @@ const terminalGuardDelegates: Readonly<Record<string, {
   readonly source: string;
   readonly guard: string;
 }>> = {
+  commitWolfRangeActionChoice: {
+    target: 'requireWolfRangeState(session, state, range)',
+    source: source.slice(source.indexOf('function requireWolfRangeState('), source.indexOf('function ', source.indexOf('function requireWolfRangeState(') + 9)),
+    guard: 'requireActiveGameplayPhase(session);',
+  },
   clearTurnAdvanceInterstitial: {
     target: 'createTurnInterstitialHandler({', source: turnInterstitialSource,
     guard: 'deps.requireActiveGameplayPhase(session);',

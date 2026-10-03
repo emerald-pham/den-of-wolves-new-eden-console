@@ -50,7 +50,7 @@ it('walks from the pending request through the GM reveal to the private note and
   render(<PC01ReviewScene />);
 
   await user.click(screen.getByRole('button', { name: 'Scout report' }));
-  expect(screen.getByRole('region', { name: 'Endeavour scout report' })).toHaveTextContent('Awaiting facilitator reveal.');
+  expect(screen.getByRole('region', { name: 'Endeavour scout report' })).toHaveTextContent('Awaiting automatic scout result.');
 
   await user.selectOptions(screen.getByRole('combobox', { name: 'Review perspective' }), 'gm');
   const chart = screen.getByRole('region', { name: 'GM scout chart' });

@@ -1731,7 +1731,7 @@ it('opens Chacau on its Refinery 124 Engineer route with its repair and cargo en
   await user.type(within(cargo).getByLabelText('Amount'), '1');
   await user.click(within(cargo).getByRole('button', { name: 'Load shuttle' }));
   expect(transferShuttleCargo).toHaveBeenCalledWith('chacau', 'ore', 'load', 1, 1);
-  expect(await screen.findByRole('status')).toHaveTextContent('Loaded 1 Strytium Ore.');
+  expect(await within(screen.getByRole('region', { name: 'Shuttle control' })).findByRole('status', { name: '' })).toHaveTextContent('Loaded 1 Strytium Ore.');
 
   const back = screen.getByRole('link', { name: /back to refinery 124 engineer console/i });
   back.focus();
@@ -1801,7 +1801,7 @@ it.each([
   await waitFor(() => expect(requestScout).toHaveBeenCalledWith(expect.objectContaining({
     entitlementId: shuttleId, targetCoordinate: '5143', requestId: expect.any(String),
   })));
-  expect(await within(controls).findByText(/request recorded\. check with the facilitator/i)).toBeVisible();
+  expect(await within(controls).findByText(/request recorded\. your private scouting report will arrive automatically/i)).toBeVisible();
 });
 
 it('opens Philia on its Dione Engineer route with its repair and cargo envelope', async () => {
@@ -2057,7 +2057,7 @@ it('lets the printed owner hand shuttle control to a connected fleet-group playe
   await user.selectOptions(screen.getByLabelText('Hand off to'), 'u2');
   await user.click(screen.getByRole('button', { name: 'Hand off control' }));
   expect(transferShuttleControl).toHaveBeenCalledWith('starlight', 'handoff', 0, 'u2');
-  expect(screen.getByRole('status')).toHaveTextContent('Shuttle control handed off.');
+  expect(within(screen.getByRole('region', { name: 'Shuttle control' })).getByRole('status', { name: '' })).toHaveTextContent('Shuttle control handed off.');
 });
 
 it('rebinds the connected roster when a same-group GM is demoted on shuttle control', async () => {
@@ -2145,7 +2145,7 @@ it('lets a fuelled service-shuttle holder add one host charge during Coordinatio
       expectedHostShipId: 'quellon',
     }),
   );
-  expect(screen.getByRole('status')).toHaveTextContent(/spent 1 water, generated 3 food/i);
+  expect(within(screen.getByRole('region', { name: 'Shuttle control' })).getByRole('status', { name: '' })).toHaveTextContent(/spent 1 water, generated 3 food/i);
 });
 
 it('preserves a service recharge selection and waits for current revisions before explicit retry', async () => {
@@ -2232,7 +2232,7 @@ it('preserves a service recharge selection and waits for current revisions befor
     productionOreAmount: 4,
   });
   expect(retry.requestId).not.toBe(original.requestId);
-  expect(screen.getByRole('status')).toHaveTextContent(/spent 4 ore, generated 4 fuel/i);
+  expect(within(screen.getByRole('region', { name: 'Shuttle control' })).getByRole('status', { name: '' })).toHaveTextContent(/spent 4 ore, generated 4 fuel/i);
 });
 
 it('retains the original request for exact replay after an uncertain result and closed Coordination', async () => {
@@ -2309,7 +2309,7 @@ it('retains the original request for exact replay after an uncertain result and 
   const replay = vi.mocked(replayServiceShuttleRecharge).mock.calls[0]![0];
   expect(replay).toEqual(original);
   expect(replay.requestId).toBe(original.requestId);
-  expect(screen.getByRole('status')).toHaveTextContent(/spent 4 ore, generated 4 fuel/i);
+  expect(within(screen.getByRole('region', { name: 'Shuttle control' })).getByRole('status', { name: '' })).toHaveTextContent(/spent 4 ore, generated 4 fuel/i);
 });
 
 it.each([
@@ -2493,6 +2493,8 @@ it('lets the current holder request a local departure during open airspace witho
     ...state.me!, assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander',
     fleetGroupId: 'fleet-1',
   });
+  state.setConnection('live');
+  state.setSessionSnapshotFreshness('server');
   render(<MemoryRouter initialEntries={['/shuttles/starlight']}><Routes>
     <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
   </Routes></MemoryRouter>);
@@ -2502,7 +2504,7 @@ it('lets the current holder request a local departure during open airspace witho
   await user.click(screen.getByRole('button', { name: 'Request departure' }));
 
   expect(requestShuttleDeparture).toHaveBeenCalledWith('starlight', 'icebreaker', 4, 2);
-  expect(screen.getByRole('status')).toHaveTextContent('Departure requested to Icebreaker.');
+  expect(within(screen.getByRole('region', { name: 'Shuttle control' })).getByRole('status', { name: '' })).toHaveTextContent('Departure requested to Icebreaker.');
   expect(screen.getByText('Shuttle location // Docked // AEGIS')).toBeVisible();
 });
 
@@ -2582,6 +2584,8 @@ it('lets the SNN holder request departure during AEGIS-authorized restricted air
   state.setMe({
     ...state.me!, activeConsoleRoleId: 'press-officer', fleetGroupId: 'fleet-1',
   });
+  state.setConnection('live');
+  state.setSessionSnapshotFreshness('server');
   render(<MemoryRouter initialEntries={['/press']}><Routes>
     <Route path="/press" element={<ShuttleConsole shuttleId="snn-press-shuttle" />} />
   </Routes></MemoryRouter>);
@@ -2656,6 +2660,8 @@ it('lets the holder enter transit from an authorized departure without a duplica
     });
     return vi.fn();
   });
+  state.setConnection('live');
+  state.setSessionSnapshotFreshness('server');
   render(<MemoryRouter initialEntries={['/shuttles/starlight']}><Routes>
     <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
   </Routes></MemoryRouter>);
@@ -2668,7 +2674,7 @@ it('lets the holder enter transit from an authorized departure without a duplica
   expect(screen.getByText('Shuttle action pending. Waiting for the server to confirm this action.'))
     .toBeVisible();
   await act(async () => transitRequest.resolve());
-  expect(screen.getByRole('status')).toHaveTextContent('Transit begun to Icebreaker.');
+  expect(within(screen.getByRole('region', { name: 'Shuttle control' })).getByRole('status', { name: '' })).toHaveTextContent('Transit begun to Icebreaker.');
 });
 
 it('shows authoritative transit without a docking or departure action', () => {
@@ -2750,7 +2756,7 @@ it('lets the current holder retarget an active shuttle leg without client positi
   await user.selectOptions(within(departure).getByLabelText('New destination ship'), 'dione');
   await user.click(within(departure).getByRole('button', { name: 'Retarget shuttle' }));
   expect(retargetShuttleTransit).toHaveBeenCalledWith('starlight', 'transit-1', 'dione', 3, 2);
-  await waitFor(() => expect(screen.getByRole('status'))
+  await waitFor(() => expect(within(screen.getByRole('region', { name: 'Shuttle control' })).getByRole('status', { name: '' }))
     .toHaveTextContent('Course changed to Dione.'));
 });
 
@@ -2823,11 +2829,11 @@ it.each(['success', 'error'] as const)(
       if (oldOutcome === 'success') first.resolve();
       else first.reject(new Error('Old session retarget failed.'));
     });
-    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Shuttle control' })).queryByRole('status', { name: '' })).not.toBeInTheDocument();
     expect(within(nextDeparture).getByRole('button', { name: 'Retarget shuttle' })).toBeDisabled();
 
     await act(async () => second.resolve());
-    expect(await screen.findByRole('status')).toHaveTextContent('Course changed to Dione.');
+    expect(await within(screen.getByRole('region', { name: 'Shuttle control' })).findByRole('status', { name: '' })).toHaveTextContent('Course changed to Dione.');
   },
 );
 
@@ -2864,7 +2870,7 @@ it('completes a reached transit automatically and exposes the server-confirmed d
   </Routes></MemoryRouter>);
 
   await waitFor(() => expect(completeShuttleArrival).toHaveBeenCalledWith('starlight', 'transit-arrived', 3));
-  expect(await screen.findByRole('status')).toHaveTextContent('Shuttle arrived at Icebreaker.');
+  expect(await within(screen.getByRole('region', { name: 'Shuttle control' })).findByRole('status', { name: '' })).toHaveTextContent('Shuttle arrived at Icebreaker.');
 });
 
 it.each(['success', 'error'] as const)(
@@ -2923,13 +2929,13 @@ it.each(['success', 'error'] as const)(
         oldResponse.reject(new Error('Old session arrival failed.'));
       }
     });
-    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Shuttle control' })).queryByRole('status', { name: '' })).not.toBeInTheDocument();
     expect(within(arrival).getByRole('button', { name: 'Retry arrival' })).toBeDisabled();
 
     await act(async () => newResponse.resolve({
       hostShipId: 'icebreaker', arrivedAt: '2026-09-22T12:01:00.000Z',
     }));
-    expect(await screen.findByRole('status')).toHaveTextContent('Shuttle arrived at Icebreaker.');
+    expect(await within(screen.getByRole('region', { name: 'Shuttle control' })).findByRole('status', { name: '' })).toHaveTextContent('Shuttle arrived at Icebreaker.');
   },
 );
 
@@ -2962,7 +2968,7 @@ it('ignores a deferred manual retry after identity changes and preserves the new
     <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
   </Routes></MemoryRouter>);
 
-  expect(await screen.findByRole('status')).toHaveTextContent('Retry arrival.');
+  expect(await within(screen.getByRole('region', { name: 'Shuttle control' })).findByRole('status', { name: '' })).toHaveTextContent('Retry arrival.');
   const arrival = screen.getByRole('region', { name: 'Shuttle departure' });
   await userEvent.setup().click(within(arrival).getByRole('button', { name: 'Retry arrival' }));
   await waitFor(() => expect(completeShuttleArrival).toHaveBeenCalledTimes(2));
@@ -2984,19 +2990,19 @@ it('ignores a deferred manual retry after identity changes and preserves the new
     <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
   </Routes></MemoryRouter>);
   await waitFor(() => expect(completeShuttleArrival).toHaveBeenCalledTimes(3));
-  expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  expect(within(screen.getByRole('region', { name: 'Shuttle control' })).queryByRole('status', { name: '' })).not.toBeInTheDocument();
   expect(within(screen.getByRole('region', { name: 'Shuttle departure' }))
     .getByRole('button', { name: 'Retry arrival' })).toBeDisabled();
 
   await act(async () => manualResponse.resolve({
     hostShipId: 'icebreaker', arrivedAt: '2026-09-22T12:00:00.000Z',
   }));
-  expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  expect(within(screen.getByRole('region', { name: 'Shuttle control' })).queryByRole('status', { name: '' })).not.toBeInTheDocument();
   expect(within(screen.getByRole('region', { name: 'Shuttle departure' }))
     .getByRole('button', { name: 'Retry arrival' })).toBeDisabled();
 
   await act(async () => newResponse.resolve({
     hostShipId: 'icebreaker', arrivedAt: '2026-09-22T12:01:00.000Z',
   }));
-  expect(await screen.findByRole('status')).toHaveTextContent('Shuttle arrived at Icebreaker.');
+  expect(await within(screen.getByRole('region', { name: 'Shuttle control' })).findByRole('status', { name: '' })).toHaveTextContent('Shuttle arrived at Icebreaker.');
 });

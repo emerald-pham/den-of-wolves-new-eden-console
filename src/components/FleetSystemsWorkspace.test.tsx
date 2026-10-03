@@ -19,15 +19,15 @@ describe('fleet system reference workspaces', () => {
     useSessionStore.getState().setIdentity(
       { id: 's1', name: 'Table', joinCode: '1234', phase: 'active', ownerUid: 'gm1', createdAt: '', updatedAt: '' },
       { uid: 'xo1', sessionId: 's1', displayName: 'Executive Officer', role: 'player', seatId: null,
-        assignedRoleId: 'executive-officer', activeConsoleRoleId: 'executive-officer', joinedAt: '' },
+        assignedRoleId: 'executive-officer', activeConsoleRoleId: 'executive-officer', connected: true, joinedAt: '' },
     );
     useSessionStore.getState().setConnection('offline');
 
     renderWorkspace(<FleetConsoleWorkspace ship={ship} role={role} fuel={3} galacticCoordinate="0000" />);
 
     expect(screen.getByRole('heading', { name: 'Role procedures' })).toBeVisible();
-    expect(screen.getAllByRole('heading', { name: 'Command and Control' })).toHaveLength(2);
-    expect(screen.getByRole('button', { name: /redirect selected ship/i })).toBeDisabled();
+    expect(screen.getByRole('heading', { name: 'Command and Control' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: /redirect selected ship/i })).not.toBeInTheDocument();
     expect(screen.getByText(/reconnect to the live executive officer authority/i)).toBeVisible();
     expect(screen.getByRole('article', { name: /fighter bay alpha system/i })).toBeVisible();
     expect(screen.getByRole('link', { name: /open pallas shuttle console/i })).toBeVisible();

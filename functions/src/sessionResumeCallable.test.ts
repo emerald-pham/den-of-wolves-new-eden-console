@@ -891,6 +891,7 @@ it('returns fresh server state after the resume transaction instead of its initi
 
 it('replaces a stale membership lock but refuses an active membership in another session', async () => {
   const originalPrepare = (membership: Record<string, unknown>, otherPlayer: Record<string, unknown>) => {
+    mock.committedWrites.clear();
     mock.get.mockImplementation(({ path }: { path: string }) => {
     if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot({}, false);
       if (path === 'sessions/s1') return snapshot({

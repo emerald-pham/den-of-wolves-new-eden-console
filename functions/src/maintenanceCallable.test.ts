@@ -468,6 +468,10 @@ function request(data: Record<string, unknown>, uid: string | null = 'u1') {
   }>;
 }
 
+function clockRequest(data: Record<string, unknown>, uid = 'u1') {
+  return { data, auth: { uid } } as CallableRequest<Record<string, unknown>>;
+}
+
 beforeEach(() => {
   advanceRequestSequence = 0;
   mock.role = 'gm';
@@ -2780,7 +2784,7 @@ it('catches up restricted Press parking when advancing after the ordinary window
   );
 });
 
-it('keeps the P373 Wolf-attack parking lane separate during restricted Press catch-up', async () => {
+it('keeps Wolf attack parking separate by rejecting cycle advancement during restricted Press catch-up', async () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-09-23T12:30:01.000Z'));
   mock.currentTurn = 2;
@@ -2797,7 +2801,9 @@ it('keeps the P373 Wolf-attack parking lane separate during restricted Press cat
 
   await expect(advanceTurn.run(request({
     sessionId: 's1', instanceId: 'bridge', expectedTurn: 2, overridePhaseTimer: true,
-  }))).resolves.toMatchObject({ currentTurn: 3 });
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 
   expect(mock.create).not.toHaveBeenCalledWith(
     expect.stringMatching(/\/events\/airspace-close-/),
@@ -3206,7 +3212,7 @@ it('does not reopen normal airspace after the coordination window has ended', as
   expect(mock.set).not.toHaveBeenCalled();
 });
 
-it('keeps an overrunning Wolf attack locked through Team Phase until facilitator resolution', async () => {
+it('keeps an overrunning Wolf attack locked through Team Phase while automatic resolution continues', async () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-09-06T12:05:00.000Z'));
   mock.currentTurn = 2;
@@ -3229,7 +3235,7 @@ it('keeps an overrunning Wolf attack locked through Team Phase until facilitator
     sessionId: 's1', expectedTurn: 2,
   }))).rejects.toMatchObject({
     code: 'failed-precondition',
-    message: expect.stringMatching(/awaits facilitator resolution.*movement remains blocked/i),
+    message: expect.stringMatching(/resolving automatically.*movement remains blocked/i),
   });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
@@ -3609,7 +3615,7 @@ it('lets only the active GM pause and resume a live turn clock with an audit eve
   };
   mock.randomUUID.mockReturnValue('pause-event');
 
-  await expect(setEmergencyTimerPaused.run(request({
+  await expect(setEmergencyTimerPaused.run(clockRequest({
     sessionId: 's1', instanceId: 'bridge', expectedTurn: 2, paused: true,
   }))).resolves.toEqual({
     turnPhase: {
@@ -3645,14 +3651,14 @@ it('lets only the active GM pause and resume a live turn clock with an audit eve
   };
   mock.update.mockClear();
   mock.set.mockClear();
-  await expect(setEmergencyTimerPaused.run(request({
+  await expect(setEmergencyTimerPaused.run(clockRequest({
     sessionId: 's1', instanceId: 'bridge', expectedTurn: 2, paused: true,
   }))).resolves.toEqual({ turnPhase: mock.turnPhase });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
 
   vi.setSystemTime(new Date('2026-09-06T12:04:00.000Z'));
-  await expect(setEmergencyTimerPaused.run(request({
+  await expect(setEmergencyTimerPaused.run(clockRequest({
     sessionId: 's1', instanceId: 'bridge', expectedTurn: 2, paused: false,
   }))).resolves.toEqual({
     turnPhase: {
@@ -3667,7 +3673,7 @@ it('lets only the active GM pause and resume a live turn clock with an audit eve
   }));
 });
 
-it('keeps an unresolved Wolf attack restricted across emergency pause and resume', async () => {
+it('keeps an unresolved Wolf attack restricted by rejecting unreasoned emergency pause and resume', async () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-09-06T12:07:00.000Z'));
   mock.currentTurn = 2;
@@ -3683,24 +3689,14 @@ it('keeps an unresolved Wolf attack restricted across emergency pause and resume
   };
   mock.randomUUID.mockReturnValue('attack-pause-event');
 
-  await expect(setEmergencyTimerPaused.run(request({
-    sessionId: 's1', instanceId: 'bridge', expectedTurn: 2, paused: true,
-  }))).resolves.toMatchObject({
-    turnPhase: {
-      airspace: { state: 'restricted' },
-      timerPause: { window: 'open', remainingMs: 780_000 },
-    },
-  });
-
-  mock.turnPhase = mock.update.mock.calls.at(-1)?.[1].turnPhase;
-  vi.setSystemTime(new Date('2026-09-06T12:08:00.000Z'));
-  const resumed = await setEmergencyTimerPaused.run(request({
-    sessionId: 's1', instanceId: 'bridge', expectedTurn: 2, paused: false,
-  }));
-  expect(resumed).toMatchObject({
-    turnPhase: { airspace: { state: 'restricted' } },
-  });
-  expect(resumed.turnPhase).not.toHaveProperty('timerPause');
+  for (const paused of [true, false]) {
+    await expect(setEmergencyTimerPaused.run(clockRequest({
+      sessionId: 's1', instanceId: 'bridge', expectedTurn: 2, paused,
+    }))).rejects.toMatchObject({ code: 'invalid-argument' });
+    expect(mock.turnPhase.airspace.state).toBe('restricted');
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled();
+  }
 });
 
 it('denies stale, expired, Turn 0, and non-GM emergency timer requests without writing', async () => {
@@ -3715,16 +3711,16 @@ it('denies stale, expired, Turn 0, and non-GM emergency timer requests without w
   };
 
   mock.role = 'player';
-  await expect(setEmergencyTimerPaused.run(request({
+  await expect(setEmergencyTimerPaused.run(clockRequest({
     sessionId: 's1', instanceId: 'bridge', expectedTurn: 2, paused: true,
   }))).rejects.toMatchObject({ code: 'permission-denied' });
   mock.role = 'gm';
-  await expect(setEmergencyTimerPaused.run(request({
+  await expect(setEmergencyTimerPaused.run(clockRequest({
     sessionId: 's1', instanceId: 'bridge', expectedTurn: 1, paused: true,
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
   mock.currentTurn = 0;
   mock.turnPhase = undefined;
-  await expect(setEmergencyTimerPaused.run(request({
+  await expect(setEmergencyTimerPaused.run(clockRequest({
     sessionId: 's1', instanceId: 'bridge', expectedTurn: 0, paused: true,
   }))).rejects.toMatchObject({ code: 'invalid-argument' });
   mock.currentTurn = 2;
@@ -3735,7 +3731,7 @@ it('denies stale, expired, Turn 0, and non-GM emergency timer requests without w
     airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
   };
   vi.setSystemTime(new Date('2026-09-06T12:21:00.000Z'));
-  await expect(setEmergencyTimerPaused.run(request({
+  await expect(setEmergencyTimerPaused.run(clockRequest({
     sessionId: 's1', instanceId: 'bridge', expectedTurn: 2, paused: true,
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.update).not.toHaveBeenCalled();
