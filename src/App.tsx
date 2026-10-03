@@ -19,6 +19,7 @@ import {
 import AppHeader from '@/components/AppHeader';
 import WolfHackingRuntime from '@/components/WolfHackingRuntime';
 import ShipPlot from '@/components/ShipPlot';
+import { useFleetGroupNavigation } from '@/lib/useFleetGroupNavigation';
 import ScreenFade from '@/components/ScreenFade';
 import CommunicationError from '@/components/CommunicationError';
 import PopulationAlert from '@/components/PopulationAlert';
@@ -167,6 +168,8 @@ function AppRoutes() {
   const navigate = useNavigate();
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
+  const requiresLocalDradis = me?.role === 'player' && session?.phase === 'active';
+  const localDradisNavigation = useFleetGroupNavigation(requiresLocalDradis);
   const communicationError = useSessionStore((state) => state.communicationError);
   const sessionId = session?.id;
   const playerUid = me?.uid;
@@ -1059,6 +1062,8 @@ function AppRoutes() {
         hostile={false}
         aboard={hasConsoleDradis(location.pathname)}
         viewerId={shipId}
+        requireLocalAuthority={requiresLocalDradis}
+        localNavigation={localDradisNavigation}
         capybaraEnabled={session?.capybaraEnabled !== false}
         dioneEnabled={session?.dioneEnabled !== false}
         shipGalacticCoordinates={session?.shipGalacticCoordinates}

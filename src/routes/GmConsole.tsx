@@ -5,6 +5,7 @@ import { Link, Navigate } from 'react-router-dom';
 import ArrestPosseCalculator from '@/components/ArrestPosseCalculator';
 import EmergencyTimerPauseControl from '@/components/EmergencyTimerPauseControl';
 import ShipPlot from '@/components/ShipPlot';
+import { useFleetGroupNavigation } from '@/lib/useFleetGroupNavigation';
 import GmMutinyRecovery from '@/components/GmMutinyRecovery';
 import { GmSetupChecklist } from '@/components/GmSetupChecklist';
 import PursuitTracker from '@/components/PursuitTracker';
@@ -779,6 +780,7 @@ export default function GmConsole() {
     .filter(id => !availableShips.some(ship => ship.id === id))
     .map(id => ({ id, name: `${SHIPS.find(ship => ship.id === id)?.name ?? id} (inactive)` }))];
   const viewer = availableShips.find((ship) => ship.id === viewerId) ?? availableShips[0];
+  const localDradisNavigation = useFleetGroupNavigation(session?.phase === 'active', viewer?.id);
   const viewerCoordinate = session?.shipGalacticCoordinates?.[viewer?.id ?? 'aegis'] ??
     ORIGIN_GALACTIC_COORDINATE;
   const latestAlert = events.find((event) => event.type === 'fullscreen-alert');
@@ -5131,6 +5133,8 @@ export default function GmConsole() {
               hostile={false}
               aboard
               viewerId={viewer?.id ?? 'aegis'}
+              requireLocalAuthority={session?.phase === 'active'}
+              localNavigation={localDradisNavigation}
               expanded={dradisExpanded}
               onExpandedChange={toggleDradis}
               capybaraEnabled={capybaraEnabled}

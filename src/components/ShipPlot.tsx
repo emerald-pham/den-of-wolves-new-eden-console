@@ -18,6 +18,7 @@ import { activeFleetShipIds } from '@/data/roles';
 import { ORIGIN_GALACTIC_COORDINATE } from '@/data/ships';
 import { JUMP_FLASH_MS } from '@/lib/jumpDrive';
 import type { GameSession } from '@/types/game';
+import { localDradisContacts, type LocalDradisNavigation } from './localDradisContacts';
 
 /** One continuous field-to-widget morph; deliberately isolated for easy tuning or removal. */
 export const SHIP_PLOT_RESIZE_MS = DRADIS_RESIZE_MS;
@@ -50,6 +51,8 @@ export default function ShipPlot({
   activeVesselIds,
   ambientSession,
   turnPhase,
+  localNavigation,
+  requireLocalAuthority = false,
   layout = 'ship',
   expanded: controlledExpanded,
   onExpandedChange,
@@ -66,6 +69,8 @@ export default function ShipPlot({
   activeVesselIds?: readonly string[] | undefined;
   ambientSession?: Pick<GameSession, 'id' | 'createdAt' | 'dradisContactTriggeredAt'> | undefined;
   turnPhase?: GameSession['turnPhase'] | undefined;
+  localNavigation?: LocalDradisNavigation | undefined;
+  requireLocalAuthority?: boolean;
   /** GM embeds the same plot in its perspective panel while retaining its own expansion state. */
   layout?: 'ship' | 'gm';
   expanded?: boolean;
@@ -157,8 +162,7 @@ export default function ShipPlot({
 
   const viewerOrigin = fleetOriginFor(effectiveViewerId);
   const jumpInProgress = jumpTransitionId === jumpTransition?.id;
-  const galacticCoordinate = shipGalacticCoordinates[effectiveViewerId] ??
-    ORIGIN_GALACTIC_COORDINATE;
+  const galacticCoordinate = localNavigation?.ships.find(s => s.shipId === effectiveViewerId && s.fleetGroupId === localNavigation.groupId)?.coordinate ?? (requireLocalAuthority ? 'UNAVAILABLE' : shipGalacticCoordinates[effectiveViewerId] ?? ORIGIN_GALACTIC_COORDINATE);
   const fleetContacts = fleetViewFrom(
     effectiveViewerId,
     capybaraEnabled,
@@ -167,7 +171,7 @@ export default function ShipPlot({
     activeShipIds,
     shipDamage,
   );
-  const contacts = (jumpInProgress ? [] : fleetContacts).map((ship) => ({
+  const catalogContacts = fleetContacts.map((ship) => ({
     tag: ship.name.toUpperCase(),
     x: ship.x,
     y: ship.y,
@@ -176,6 +180,9 @@ export default function ShipPlot({
     combatRange: ship.combatRange,
     showCombatRange: ship.showCombatRange,
   }));
+  const contacts = jumpInProgress ? [] : localNavigation
+    ? localDradisContacts(effectiveViewerId, localNavigation, shipDamage)
+    : requireLocalAuthority ? [] : catalogContacts;
 
   return (
     <div
@@ -208,7 +215,7 @@ export default function ShipPlot({
         <>
           <DradisAirspaceTimer phase={turnPhase} />
           <span className="ship-plot__label dradis-label" aria-hidden="true">
-            {expanded ? 'DRADIS // ORIENTATION LOCKED' : 'DRADIS // LOCAL PLOT'}
+            {requireLocalAuthority && !localNavigation ? 'DRADIS // LOCAL FIX UNAVAILABLE' : expanded ? 'DRADIS // ORIENTATION LOCKED' : 'DRADIS // LOCAL PLOT'}
           </span>
           {expanded ? (
             <>
