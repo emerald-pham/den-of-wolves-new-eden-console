@@ -66,7 +66,6 @@ try {
     assert.deepEqual(writes, [], 'Prepared choices must not send session writes.');
     page.off('request', watch);
     await page.getByRole('link', {name: 'Return to station and console chooser', exact: true}).click();
-    await page.getByRole('link', {name: 'Return to the current session', exact: true}).waitFor();
     await page.waitForFunction(async ({uid, sessionId}) => {
       const {auth} = await import('/src/lib/firebase.ts');
       const {useSessionStore} = await import('/src/store/useSessionStore.ts');
@@ -77,8 +76,8 @@ try {
     const after = await identity();
     assert.deepEqual([after.uid, after.memberUid, after.sessionId, after.roleId],
       [before.uid, before.memberUid, before.sessionId, before.roleId]);
-    await page.getByRole('link', {name: 'Return to the current session', exact: true}).click();
     await page.waitForURL(/#\/console/);
+    await page.getByRole('heading', {name: 'Stations and consoles', exact: true}).waitFor();
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth));
     await page.screenshot({path: `${directory}/${width}x${height}-recovered-session.png`, fullPage: true});
     cases.push({width, height, sameIdentity: true, sameSession: true, sameAssignedRole: true,
