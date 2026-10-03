@@ -7,7 +7,7 @@ import { getWolfEscortRangeActionChoice, commitWolfEscortRangeActionChoice } fro
 
 const view = { type: 'dione-maliades-range-action-view', sessionId: 's1', attackId: 'attack-2', turn: 2,
   revision: 8, range: 'medium-range', choiceStatus: 'pending', launched: true, damage: 1, destroyed: false,
-  targets: [{ instanceId: 'contact-1', label: 'Wolf contact 1', targetNumber: 1 }] };
+  targets: [{ instanceId: 'contact-1', label: 'Wolf contact 1', targetNumber: 1 }] } as const;
 beforeEach(() => {
   mocks.call.mockReset(); mocks.callable.mockReset().mockReturnValue(mocks.call);
   useSessionStore.getState().reset();
@@ -33,7 +33,7 @@ it('sends an explicit pass and binds the exact source, attack, count, and next r
     sessionId: 's1', requestId: payload.requestId, attackId: 'attack-2', turn: 2, revision: 9,
     range: 'medium-range', sourceId: 'maliades', choiceStatus: 'pending-resolution', actionCount: 0 } }));
   await expect(commitWolfEscortRangeActionChoice(view, 'maliades', [])).resolves.toMatchObject({ actionCount: 0, revision: 9 });
-  expect(mocks.call.mock.calls[0][0]).toMatchObject({ expectedTurn: 2, expectedRevision: 8, sourceId: 'maliades', actions: [] });
+  expect(mocks.call.mock.calls[0]?.[0]).toMatchObject({ expectedTurn: 2, expectedRevision: 8, sourceId: 'maliades', actions: [] });
   mocks.call.mockImplementation(async (payload) => ({ data: { type: 'wolf-escort-range-action-choice', status: 'committed',
     sessionId: 's1', requestId: payload.requestId, attackId: 'other-attack', turn: 2, revision: 9,
     range: 'medium-range', sourceId: 'maliades', choiceStatus: 'pending-resolution', actionCount: 0 } }));

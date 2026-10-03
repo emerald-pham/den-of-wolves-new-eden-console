@@ -3,11 +3,14 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { WolfAttackMemberView } from '@/types/game';
-const mocks = vi.hoisted(() => ({ read: vi.fn(), commit: vi.fn(), subscribe: vi.fn() }));
+const mocks = vi.hoisted(() => ({ read: vi.fn(), commit: vi.fn(), subscribe: vi.fn(), fighterRead: vi.fn(), fighterCommit: vi.fn(), enrichedRead: vi.fn(), enrichedCommit: vi.fn() }));
 vi.mock('@/lib/wolfEscortRangeService', () => ({ getWolfEscortRangeActionChoice: mocks.read, commitWolfEscortRangeActionChoice: mocks.commit }));
 vi.mock('@/lib/firestore', () => ({ subscribeWolfAttackMemberView: mocks.subscribe }));
-vi.mock('@/lib/sessionService', () => ({ getWolfFighterRangeActionChoice: vi.fn(), commitWolfFighterRangeActionChoice: vi.fn() }));
+vi.mock('@/lib/sessionService', () => ({ getWolfFighterRangeActionChoice: mocks.fighterRead, commitWolfFighterRangeActionChoice: mocks.fighterCommit,
+  getAegisEnrichedWarheadChoice: mocks.enrichedRead, commitAegisEnrichedWarheadChoice: mocks.enrichedCommit }));
 import WolfEscortRangeActionPanel from './WolfEscortRangeActionPanel';
+import WolfFighterRangeActionPanel from './WolfFighterRangeActionPanel';
+import AegisEnrichedWarheadPanel from './AegisEnrichedWarheadPanel';
 const member: WolfAttackMemberView = { type: 'wolf-attack-member-view', schemaVersion: 1, sessionId: 's1', attackId: 'attack-2',
   turn: 2, revision: 8, status: 'declared', phase: 'active', currentStep: 'medium-range', range: 'medium',
   deadlineAt: '2099-01-01T12:00:00Z', serverTime: '2099-01-01T12:00:00Z', visibility: 'members',
@@ -52,4 +55,30 @@ it('mounts the actual Maliades presenter and withdraws it after custody changes'
   });
   expect(screen.queryByRole('button', { name: 'Pass Maliades Medium Range' })).not.toBeInTheDocument();
   expect(mocks.commit).not.toHaveBeenCalled();
+});
+
+it('keeps a launched AEGIS wing view mounted through the asynchronous read and choice render', async () => {
+  connect('dione-engineer');
+  const state = useSessionStore.getState();
+  state.setMe({ ...state.me!, assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander' });
+  const view = { ...common, type: 'wolf-fighter-range-action-view', wingId: 'fighter-wing-alpha', wingLabel: 'Fighter Wing Alpha', fighters: [{ fighterIndex: 0 }] };
+  mocks.fighterRead.mockResolvedValue(view);
+  mocks.fighterCommit.mockResolvedValue({ status: 'committed' });
+  render(<WolfFighterRangeActionPanel sourceId="fighter-wing-alpha" range="medium-range" />);
+  act(() => publish(member));
+  await userEvent.click(await screen.findByRole('button', { name: 'Pass Medium Range' }));
+  expect(mocks.fighterCommit).toHaveBeenCalledWith(2, 8, 'medium-range', 'fighter-wing-alpha', []);
+});
+
+it('keeps the attack-start enriched choice mounted and commits its explicit pass once', async () => {
+  connect('dione-engineer');
+  const state = useSessionStore.getState();
+  state.setMe({ ...state.me!, assignedRoleId: 'executive-officer', activeConsoleRoleId: 'executive-officer' });
+  mocks.enrichedRead.mockResolvedValue({ type: 'aegis-enriched-warhead-view', sessionId: 's1', attackId: 'attack-2', turn: 2, revision: 8,
+    choiceStatus: 'pending', eligible: true, oreCost: 5 });
+  mocks.enrichedCommit.mockResolvedValue({ status: 'committed' });
+  render(<AegisEnrichedWarheadPanel />);
+  act(() => publish({ ...member, currentStep: 'targeting', range: null }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Pass enriched warheads' }));
+  expect(mocks.enrichedCommit).toHaveBeenCalledWith(2, 8, 'pass');
 });
