@@ -422,3 +422,12 @@ the original assumption; append the resolution so the decision is traceable.
 | Source | Player Guide v1.1 printed pp. 12–13 describes simultaneous damage rolls followed by target assignment and current-range destroyed-ship effects. Alpha/Bravo and PDF component sheets give the target-number choice at Medium Range (A4 single-sided p. 36 and double-sided p. 81). The precise digital ordering against the combined damage batch is not spelled out. |
 | Chosen reading | Collect genuine source choices, preserve the ordered pre-range target snapshot, and replay that range's committed shifts before attributing its destruction effects. A Medium shift therefore changes Medium and later target consequences, while the Long receipt retains its own damage target. |
 | Alternatives and limits | Applying shifts after all current damage would defer a Medium choice to Short; using the final target map for all ranges would rewrite Long. Neither preserves this immediate-effect reading. Snapshot validation, ordered shift receipts and next-range/final-roster comparison must reject fabricated or inconsistent carry-forward. |
+
+### PC08-A3 — Launch decisions before automatic range progression
+
+| Field | Decision |
+|---|---|
+| ID and checkpoint | PC08-A3, independent fleet fighter launch and connected range actions; root integration decision, October 3, 2026. |
+| Source | The AEGIS Alpha/Bravo and PDF component sheets define independent launch and combat abilities (A4 single-sided p. 36 and double-sided p. 81). They do not prescribe an asynchronous digital choice window. The connected attack already makes targeting the launch boundary. |
+| Chosen reading | Hold targeting for every eligible source with a current entitled actor until its durable launch-or-pass choice is committed. An absent actor or ineligible source receives a server-recorded unavailable outcome, allowing deterministic progression. Independent wings do not consume each other's choice. |
+| Alternatives and limits | Advancing immediately would make a launch depend on racing the server trigger. An arbitrary delay would be unreliable. This is digital timing policy; it does not add a printed range action, consume a bay charge on pass, or give clients control over dice or range advancement. Authenticated proof must exercise the ordinary pending choice and exact retry. |

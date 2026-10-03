@@ -6,6 +6,10 @@ filter and retained repair authority; no member target/dice details may survive.
 Target shifts preserve per-source/per-choice budgets, effective-target C&C
 ordering, canonical receipt replay and legitimate repeated wrapping, including
 the distinct seven-target expansion ring. Earlier range damage cannot change.
+Eligible launch choices must hold targeting until each independent wing or
+craft has launched or explicitly passed; proof cannot rely on beating the
+automatic targeting trigger. Short Range records only the selected fighter
+indexes, including a zero-fighter pass, before the server samples any dice.
 Root also closes the Union craft setup gap with a current authenticated GM
 starting-host choice. Check the pre-start window, confirmed Union roster,
 paired active hosts, setup revision, exact private receipt, manifest/history

@@ -21,6 +21,7 @@ is skipped or deleted to pass. Separate test-only commits precede behavior.
 | eaa3f125: real fighter presenters in the tour | Require independent Alpha/Bravo launches and exactly one Medium action for each fighter before commitment. | owner/fighter-full-scene-red.log precedes c9dc5cee; owner/fighter-full-scene-green.log: 11/11 presenter/scene tests pass. |
 | bdfcb7c4: prepared Short loss readiness | Prevent the prepared loss button from illustrating a loss for an unlaunched wing or the wrong range. | owner/fighter-loss-readiness-red.log precedes ae3f2ca3; fighter-loss-readiness-green.log: all eight scene cases pass. |
 | cf339f7d / f8e7434e: actual fighter render interactions | Add four Medium actions and independent launches to the preserved eight-case render matrix, retaining the Short launch prerequisite. | owner/fighter-scene-render.log passes before the further readiness assertion; final all-choice render remains pending the optional Short selection and contact DTO. |
+| 9bbb5d98: prepared Short subset and pass | Retain the actual selected fighter indexes rather than imply that every surviving fighter rolls, and preserve a separate zero-fighter pass. | owner/fighter-short-subset-red.log: one discriminating failure at the missing checkbox; eight existing cases pass. The worker presenter and owner adapter are pending. |
 
 External evidence root: `/Users/emeraldpham/Documents/PC08-evidence/`.
 Worker test inventories and final rendered/native/rules results remain pending.
