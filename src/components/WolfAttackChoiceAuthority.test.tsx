@@ -43,7 +43,7 @@ const forceFieldView: WolfForceFieldChoiceView = {
   choiceStatus: 'pending', targetShipIds: ['aegis', 'dione'], deadlineAt,
 };
 const rangeView: WolfRangeActionChoiceView = {
-  type: 'wolf-range-action-choice-view', sessionId: 's1', turn: 1, revision: 3,
+  type: 'wolf-range-action-choice-view', sessionId: 's1', turn: 1, revision: 4,
   currentStep: 'medium-range', range: 'medium-range', choiceStatus: 'pending', deadlineAt,
   eligibleActions: [
     { actionId: 'aegis-missile-launchers-medium', sourceId: 'aegis-missile-launchers', range: 'medium-range' },
