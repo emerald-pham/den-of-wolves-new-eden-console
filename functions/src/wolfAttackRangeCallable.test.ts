@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 import { firstTurnWolfAttackComposition } from './wolfAttackComposition';
-import { CORE_WOLF_TARGET_RING } from './wolfCombatMath';
+import { CORE_WOLF_TARGET_RING, EXPANDED_WOLF_TARGET_RING } from './wolfCombatMath';
 import { resolveWolfTargeting, wolfCombatRoster } from './wolfCombatMath';
 import { projectWolfAttackMemberView } from './wolfAttackAudience';
 
@@ -74,6 +74,8 @@ import {
   getWolfRangeActionChoice,
   getWolfBoardingDefenceChoice,
   commitWolfBoardingDefenceChoice,
+  getWolfBoardingSpecialChoice,
+  commitWolfBoardingSpecialChoice,
   getWolfForceFieldChoice,
   commitWolfForceFieldChoice,
 } from './index';
@@ -650,7 +652,7 @@ it('does not leave charged Command and Control ownerless when no Executive Offic
 });
 
 function openBoardingFixture(): void {
-  const targets = ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124'];
+  const targets = [...EXPANDED_WOLF_TARGET_RING];
   const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
   const targetSnapshot = (attack.combatRoster as Array<{ instanceId: string; target: string }>).map(({ instanceId, target }) => ({ instanceId, target }));
   const emptyRange = (range: string) => ({ range, targetSnapshot, dice: [], assignments: [], targetShifts: [], unusedHitsByAction: [],
@@ -703,6 +705,25 @@ it('commits only the target ship crew boarding choice, reserves teams, then auto
 
   const priorOpenDeadline = ((testState.documents.get('sessions/s1')!.turnPhase as Fields).openAirspaceEndsAt);
   await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  const lockedState = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  expect(lockedState).toMatchObject({ status: 'declared', currentStep: 'boarding', revision: 12,
+    boardingLockedDefence: [{ target: 'aegis', lockedRolls: [6, 6] }] });
+  const rerollView = await getWolfBoardingSpecialChoice.run(request({ sessionId: 's1' }));
+  expect(rerollView).toMatchObject({ type: 'wolf-boarding-special-choice-view', revision: 12,
+    choice: { kind: 'reroll', source: 'aegis', targetShipId: 'aegis', dice: [
+      { dieIndex: 0, value: 6 }, { dieIndex: 1, value: 6 },
+    ] } });
+  await commitWolfBoardingSpecialChoice.run(request({ sessionId: 's1', requestId: 'boarding-aegis-reroll-pass',
+    expectedTurn: 1, expectedRevision: 12,
+    choice: { kind: 'reroll', source: 'aegis', targetShipId: 'aegis', dieIndexes: [] } }));
+  const pallasView = await getWolfBoardingSpecialChoice.run(request({ sessionId: 's1' }));
+  expect(pallasView).toMatchObject({ type: 'wolf-boarding-special-choice-view', revision: 13,
+    choice: { kind: 'reroll', source: 'pallas', targetShipId: 'aegis',
+      dice: [{ dieIndex: 0, value: 6 }, { dieIndex: 1, value: 6 }], alreadyRerolled: [] } });
+  await commitWolfBoardingSpecialChoice.run(request({ sessionId: 's1', requestId: 'boarding-pallas-reroll-one',
+    expectedTurn: 1, expectedRevision: 13,
+    choice: { kind: 'reroll', source: 'pallas', targetShipId: 'aegis', dieIndexes: [0] } }));
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
   const state = testState.documents.get('sessions/s1/wolfAttackState/current')!;
   const session = testState.documents.get('sessions/s1')!;
   expect(state).toMatchObject({ status: 'resolved', currentStep: 'resolved', airspaceLocked: false,
@@ -725,7 +746,14 @@ it('keeps boarding pending through disconnect and scopes the projection to the c
   put('sessions/s1/players/xo-1', { ...player, connected: false });
   await expect(getWolfBoardingDefenceChoice.run(request({ sessionId: 's1' })))
     .rejects.toMatchObject({ code: 'permission-denied' });
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current'))
+    .toMatchObject({ currentStep: 'boarding', revision: 10, boardingDefenceChoices: {} });
   put('sessions/s1/players/xo-1', player);
+  expect(await getWolfBoardingDefenceChoice.run(request({ sessionId: 's1' })))
+    .toMatchObject({ type: 'wolf-boarding-defence-choice-view', choiceStatus: 'pending' });
+  await commitWolfBoardingDefenceChoice.run(request({ sessionId: 's1', requestId: 'boarding-after-reconnect',
+    expectedTurn: 1, expectedRevision: 10, targetShipId: 'aegis', securityTeams: 1 }));
   const group = testState.documents.get('sessions/s1/fleetGroups/fleet-1')!;
   put('sessions/s1/fleetGroups/fleet-1', { ...group, memberShipIds: {} });
   await expect(getWolfBoardingDefenceChoice.run(request({ sessionId: 's1' })))
@@ -745,6 +773,7 @@ it('reads casualty alert audiences before any final boarding write under Firesto
   entropy.randomInt.mockReturnValue(0);
   await commitWolfBoardingDefenceChoice.run(request({ sessionId: 's1', requestId: 'boarding-alert-order',
     expectedTurn: 1, expectedRevision: 10, targetShipId: 'aegis', securityTeams: 0 }));
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
   testState.runTransaction.mockImplementationOnce(async (callback: (tx: unknown) => unknown) => {
     let wrote = false;
     return callback({
