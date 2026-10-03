@@ -1830,3 +1830,21 @@ it('holds an overrun-mission PDF Escort Wing out of a fresh launch and permits l
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
 });
+
+it('does not let facilitator targeting recovery bypass a current EO enriched warhead choice', async () => {
+  patchSession({ activeRoleIds: [...activeRoleIds, 'executive-officer'],
+    shipResources: { aegis: { ore: 5 } },
+    maintenanceCycles: { aegis: { turn: 1, step: 7, revision: 2, results: {},
+      charges: ['missile-launchers'], refuelled: [] } },
+    shipDamage: { aegis: { damagedSystemIds: [], destroyed: false } } });
+  put('sessions/s1/players/xo-1', { uid: 'xo-1', role: 'player', connected: false,
+    assignedRoleId: 'executive-officer', activeConsoleRoleId: null, fleetGroupId: 'fleet-1' });
+  fleetGroup('fleet-1', { memberUids: ['u1', 'xo-1'], memberShipIds: { 'u1': 'aegis', 'xo-1': 'aegis' } });
+  await declareWolfAttack.run(request());
+  const state = mock.documents.get('sessions/s1/wolfAttackState/current')!;
+  await expect(advanceWolfAttackToLongRange.run(request({ sessionId: 's1', instanceId: 'gm-1',
+    requestId: 'no-bypass-enrichment', expectedTurn: 1, expectedRevision: state.revision,
+    reason: 'Recover current targeting with the offline EO still assigned.', dangerConfirmed: true })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({ currentStep: 'targeting' });
+});
