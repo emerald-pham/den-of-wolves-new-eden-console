@@ -141,6 +141,22 @@ it('retains committed results through offline and reconnect samples', () => {
   expect(screen.getByRole('status', {name: 'Prepared recovery result'})).toHaveTextContent('same committed');
 });
 
+it('shows surviving Wolf Wings entering one later prepared composition while the prior result stays committed', () => {
+  render(<PC08ReviewScene />);
+  fireEvent.click(screen.getByRole('button', {name: '5 Results and recovery'}));
+  const carryover = screen.getByRole('region', {name: 'Prepared surviving Wolf Wing return'});
+  expect(carryover).toHaveTextContent('Wolf Wing 3: destroyed · does not return');
+  const prepare = within(carryover).getByRole('button', {name: 'Prepare later attack sample'});
+  fireEvent.click(prepare);
+  expect(carryover).toHaveTextContent('15 Wolf ships, including 2 returning Wings.');
+  expect(prepare).toBeDisabled();
+  expect(screen.getByRole('region', {name: 'Wolf attack status'})).toHaveTextContent('Attack complete');
+  fireEvent.click(screen.getByRole('button', {name: 'Offline sample'}));
+  fireEvent.click(screen.getByRole('button', {name: 'Reconnect sample'}));
+  expect(carryover).toHaveTextContent('15 Wolf ships, including 2 returning Wings.');
+  expect(screen.getByRole('region', {name: 'Wolf attack status'})).toHaveTextContent('Attack complete');
+});
+
 it('retains the actual prepared pass, stay and ruling rather than a preset chosen outcome', () => {
   render(<PC08ReviewScene />);
   fireEvent.click(screen.getByRole('button', {name: '4 Boarding defence'}));
