@@ -310,7 +310,7 @@ it('rolls committed fighter Medium attacks against the chosen Wolf contact and r
 
   const resolved = testState.documents.get('sessions/s1/wolfAttackState/current')!;
   expect(resolved.currentStep).toBe('short-range');
-  expect((resolved.combatRoster as Array<Fields>)[0]).toMatchObject({ damageTaken: 1, destroyed: false });
+  expect((resolved.combatRoster as Array<Fields>)[0]).toMatchObject({ damageTaken: 1, destroyed: true });
   expect((resolved.rangeReceipts as Array<Fields>).at(-1)).toMatchObject({
     range: 'medium-range',
     dice: [{ actionId: 'aegis-alpha-wing-medium-0', sourceId: 'aegis-alpha-wing', rolls: [6], successes: 1, damage: 1 }],
