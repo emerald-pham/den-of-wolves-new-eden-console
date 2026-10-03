@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import { WolfFighterRangeActionPanelView } from './WolfFighterRangeActionPanel';
@@ -52,15 +52,27 @@ it('allows a wing commander to commit only the fighters selected for Medium Rang
   ]);
 });
 
-it('keeps fighter Short Range rolls on the server and explains the printed hit and loss results', () => {
+it('lets the wing commander choose which fighters risk a Short Range roll', async () => {
+  const user = userEvent.setup();
   const onResolveShort = vi.fn();
   render(<WolfFighterRangeActionPanelView view={{ ...mediumView, range: 'short-range' }}
     onResolveMedium={vi.fn()} onResolveShort={onResolveShort} />);
 
-  expect(screen.getByText(/one die per fighter/i)).toBeVisible();
+  expect(screen.getByText(/choose up to one die per fighter/i)).toBeVisible();
   expect(screen.getByText(/3\+ deals one damage/i)).toBeVisible();
-  expect(screen.getByText(/1 or 2 destroys that fighter/i)).toBeVisible();
-  expect(screen.getByRole('button', { name: /resolve short range/i })).toBeEnabled();
-  fireEvent.click(screen.getByRole('button', { name: /resolve short range/i }));
-  expect(onResolveShort).toHaveBeenCalledTimes(1);
+  expect(screen.getByText(/1 or 2 destroys the fighter that rolled it/i)).toBeVisible();
+  await user.click(screen.getByRole('checkbox', { name: /fighter 1 short attack/i }));
+  await user.click(screen.getByRole('checkbox', { name: /fighter 2 short attack/i }));
+  await user.click(screen.getByRole('button', { name: /resolve selected short attacks/i }));
+  expect(onResolveShort).toHaveBeenCalledWith([0, 1]);
+});
+
+it('allows an explicit zero-fighter Short Range pass', async () => {
+  const user = userEvent.setup();
+  const onResolveShort = vi.fn();
+  render(<WolfFighterRangeActionPanelView view={{ ...mediumView, range: 'short-range' }}
+    onResolveMedium={vi.fn()} onResolveShort={onResolveShort} />);
+
+  await user.click(screen.getByRole('button', { name: /pass short range/i }));
+  expect(onResolveShort).toHaveBeenCalledWith([]);
 });
