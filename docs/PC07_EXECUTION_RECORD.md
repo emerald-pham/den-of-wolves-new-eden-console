@@ -334,3 +334,30 @@ editing those tests. Ordinary authenticated automatic Comms proof, final
 responsive candidate checks, independent review, CI and deployment remain open.
 The owner will acknowledge served source after preserving worker state and
 restarting the owned emulator; compiling alone is not runtime proof.
+
+
+The group worker acknowledged a pause with no action requests in flight. The
+owner exported its disposable scenario and local Auth/Firestore state to
+`runtime-snapshot-3516643b`, stopped only owned backend session 63987, and
+restarted slot 1 as session 9359 with the preserved import. The new automatic
+request trigger and GM-log callable initialized. A fresh normal eight-player
+Auth/setup/casting/seat/start sequence actually called the new GM log and
+verified player denial (`scout-current-runtime-native.json`, October 3
+06:18:54 UTC). This discriminates the previously served source; it is not the
+complete Comms scan proof. The first probe omitted the explicitly required demo
+project environment and failed before creating any state; that failure is
+preserved. The owner sent current-runtime acknowledgement before the worker
+resumed its group scenario.
+
+The worker's earlier casting denial is resolved: all eight external harness
+actors had stopped sending normal presence, with the captured target lease over
+2.3 million milliseconds old. The exact native response was "That player is
+not eligible for casting." despite a stale connected flag. No casting defect
+is inferred; normal resume/presence, not an admin repair, restores eligibility.
+Read-only context and the request/error payload remain outside Git without auth
+headers. The global safety guide now accurately routes ordinary root reads
+through the protected callable instead of claiming direct member root access.
+
+The prepared solo tour now includes the actual Comms report and private GM-log
+presenters with explicitly synthetic facts and no live writes. Eight unit
+checks pass; the final reconciled responsive render matrix remains pending.
