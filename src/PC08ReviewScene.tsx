@@ -234,6 +234,7 @@ function BoardingReview() {
 
 function ResultsReview() {
   const [message, setMessage] = useState('LOCAL SAMPLE // Completed results and surviving-wing carryover are already committed in this prepared example.');
+  const [laterAttackPrepared, setLaterAttackPrepared] = useState(false);
   const view: WolfAttackMemberView = {
     type: 'wolf-attack-member-view', schemaVersion: 1, sessionId: 'prepared-pc08', attackId: 'prepared-attack',
     turn: 2, revision: 9, status: 'resolved', phase: 'active', currentStep: 'resolved', range: null,
@@ -250,6 +251,17 @@ function ResultsReview() {
       <button className="cic-action-button" type="button" onClick={() => setMessage('RECONNECTED SAMPLE // The same committed results return. No second cost, loss or roll is applied.')}>Reconnect sample</button>
     </div>
     <WolfAttackStatusView view={view} />
+    <section className="pc07-review__panel cic-frame" aria-label="Prepared surviving Wolf Wing return">
+      <h3>Returning Wolf Wings // local sample</h3>
+      <p>Wolf Wing 1: survived · returns in the next attack</p>
+      <p>Wolf Wing 2: survived · returns in the next attack</p>
+      <p>Wolf Wing 3: destroyed · does not return</p>
+      <p>The facilitator chooses the later window. Returning Wings take places within its chosen composition.</p>
+      <button type="button" className="cic-action-button" disabled={laterAttackPrepared}
+        onClick={() => setLaterAttackPrepared(true)}>Prepare later attack sample</button>
+      {laterAttackPrepared && <p role="status">LOCAL SIMULATION // 15 Wolf ships, including 2 returning Wings.
+        Each survivor is included once. The completed result above stays unchanged.</p>}
+    </section>
     <p className="pc07-review__result" role="status" aria-label="Prepared recovery result">{message}</p>
   </section>;
 }
