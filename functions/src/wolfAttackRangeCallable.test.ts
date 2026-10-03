@@ -139,6 +139,7 @@ it('lets the current Wing Commander launch each charged, operational AEGIS bay i
   const view = await getAegisFighterWingLaunch.run(request({ sessionId: 's1', wingId: 'fighter-wing-alpha' }, 'wc-1'));
   expect(view).toMatchObject({ type: 'aegis-fighter-wing-launch-view', wingId: 'fighter-wing-alpha',
     fighters: 4, launched: false, eligible: true });
+  expect(view).not.toHaveProperty('reason');
   await expect(getAegisFighterWingLaunch.run(request({ sessionId: 's1', wingId: 'fighter-wing-alpha' }, 'xo-1')))
     .rejects.toMatchObject({ code: 'permission-denied' });
 
