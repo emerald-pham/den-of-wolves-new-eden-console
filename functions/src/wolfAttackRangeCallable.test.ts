@@ -62,6 +62,8 @@ vi.mock('firebase-functions/v2/firestore', () => ({
 vi.mock('firebase-functions/v2/scheduler', () => ({ onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }) }));
 
 import {
+  getWolfEscortRangeActionChoice,
+  commitWolfEscortRangeActionChoice,
   getAegisEnrichedWarheadChoice,
   commitAegisEnrichedWarheadChoice,
   assignWolfRangeTargets,
@@ -80,6 +82,8 @@ import {
   commitWolfForceFieldChoice,
 } from './index';
 import { initialFighterWingCounts } from './fighterWings';
+import { beginPdfEscortWingAttack, initialPdfEscortWingState, launchPdfEscortWing } from './pdfEscortWingState';
+import { initialMaliadesState, launchMaliades } from './maliadesState';
 
 const targeting = resolveWolfTargeting(firstTurnWolfAttackComposition(), {}, undefined, () => 0);
 
@@ -128,6 +132,88 @@ function resetFixture(): void {
 }
 
 beforeEach(resetFixture);
+
+function admitEscortRange(): void {
+  const session = testState.documents.get('sessions/s1')!;
+  const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  const attackId = attack.attackId as string;
+  const pdf = launchPdfEscortWing(beginPdfEscortWingAttack(initialPdfEscortWingState(), {
+    expectedRevision: 0, attackId, attackCycle: 1,
+  }), { expectedRevision: 0, launchAllowed: true, bayCharged: true, bayDamaged: false });
+  const maliades = launchMaliades(initialMaliadesState(), { expectedRevision: 0, attackId, attackCycle: 1, launchAllowed: true });
+  put('sessions/s1/serverState/pdfEscortWing', { ...pdf });
+  put('sessions/s1', { ...session, maliadesState: maliades,
+    activeRoleIds: ['executive-officer', 'refinery-124-pdf-colonel', 'dione-engineer'],
+    shuttleControl: { maliades: { shuttleId: 'maliades', ownerRoleId: 'dione-engineer', ownerUid: 'engineer-1', holderUid: 'engineer-1', revision: 0 } },
+    shipDamage: { ...(session.shipDamage as Fields), 'refinery-124': { damagedSystemIds: [], destroyed: false }, dione: { damagedSystemIds: [], destroyed: false } } });
+  for (const [uid, roleId] of [['colonel-1', 'refinery-124-pdf-colonel'], ['engineer-1', 'dione-engineer']]) {
+    put(`sessions/s1/players/${uid}`, { uid, role: 'player', connected: true,
+      assignedRoleId: roleId, activeConsoleRoleId: roleId, fleetGroupId: 'fleet-1' });
+  }
+  const group = testState.documents.get('sessions/s1/fleetGroups/fleet-1')!;
+  put('sessions/s1/fleetGroups/fleet-1', { ...group, memberUids: ['xo-1', 'colonel-1', 'engineer-1'],
+    memberShipIds: { 'xo-1': 'aegis', 'colonel-1': 'refinery-124', 'engineer-1': 'dione' } });
+  const targetSnapshot = (attack.combatRoster as Array<{ instanceId: string; target: string }>)
+    .map(({ instanceId, target }) => ({ instanceId, target }));
+  put('sessions/s1/wolfAttackState/current', { ...attack, currentStep: 'medium-range',
+    battleTableCraftActions: [{ craftId: 'pdf-escort-fighter-wing', kind: 'fighter-wing', ownerRoleId: 'refinery-124-pdf-colonel' },
+      { craftId: 'maliades', kind: 'shuttle', ownerRoleId: 'dione-engineer' }],
+    launchedCraftIds: ['pdf-escort-fighter-wing', 'maliades'],
+    fighterLaunchChoices: Object.fromEntries(['pdf-escort-fighter-wing', 'maliades'].map((sourceId) => [sourceId, {
+      type: 'wolf-fighter-launch-choice', status: 'launched', sourceId, attackId, turn: 1, revision: 4,
+      actorUid: sourceId === 'maliades' ? 'engineer-1' : 'colonel-1',
+      actorRoleId: sourceId === 'maliades' ? 'dione-engineer' : 'refinery-124-pdf-colonel', requestId: `launch-${sourceId}`,
+    }])),
+    rangeReceipts: [{ range: 'long-range', targetSnapshot, targetShifts: [], dice: [], assignments: [],
+      unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
+      destructionDamageByTarget: Object.fromEntries(CORE_WOLF_TARGET_RING.map((target) => [target, 0])) }] });
+}
+
+it('returns only safe escort contacts and operational durability to the assigned current role', async () => {
+  admitEscortRange();
+  const pdf = await getWolfEscortRangeActionChoice.run(request({ sessionId: 's1', sourceId: 'pdf-escort-fighter-wing', range: 'medium-range' }, 'colonel-1'));
+  expect(pdf).toMatchObject({ type: 'wolf-fighter-range-action-view', wingId: 'pdf-escort-fighter-wing',
+    wingLabel: 'P.D.F. Escort Fighter Wing', launched: true, fighters: [{ fighterIndex: 0 }, { fighterIndex: 1 }, { fighterIndex: 2 }, { fighterIndex: 3 }] });
+  expect(Object.keys(pdf).sort()).toEqual(['type', 'sessionId', 'attackId', 'turn', 'revision', 'wingId', 'wingLabel', 'range', 'choiceStatus', 'fighters', 'targets', 'launched'].sort());
+  expect(pdf.targets[0]).toEqual({ instanceId: 'contact-1', label: 'Wolf contact 1', targetNumber: 1 });
+  const m = await getWolfEscortRangeActionChoice.run(request({ sessionId: 's1', sourceId: 'maliades', range: 'medium-range' }, 'engineer-1'));
+  expect(m).toMatchObject({ type: 'dione-maliades-range-action-view', damage: 0, destroyed: false, launched: true });
+  expect(JSON.stringify(m)).not.toMatch(/privateNotes|wolf-ship|mediumAction|selfDamage|dice/);
+  await expect(getWolfEscortRangeActionChoice.run(request({ sessionId: 's1', sourceId: 'maliades', range: 'medium-range' }, 'xo-1')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+});
+
+it('commits fixed escort actions once, resolves no early dice, and rejects stale, forged and changed-authority requests', async () => {
+  admitEscortRange();
+  entropy.randomInt.mockClear();
+  const payload = { sessionId: 's1', sourceId: 'pdf-escort-fighter-wing', range: 'medium-range',
+    requestId: 'escort-medium-test', expectedTurn: 1, expectedRevision: 4,
+    actions: [{ fighterIndex: 0, kind: 'attack', targetContactId: 'contact-1' }] };
+  const result = await commitWolfEscortRangeActionChoice.run(request(payload, 'colonel-1'));
+  expect(result).toMatchObject({ type: 'wolf-escort-range-action-choice', status: 'committed', sourceId: 'pdf-escort-fighter-wing', actionCount: 1, revision: 5 });
+  expect(entropy.randomInt).not.toHaveBeenCalled();
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current')?.escortRangeChoices)
+    .toMatchObject({ 'medium-range': { 'pdf-escort-fighter-wing': { actions: [{ fighterIndex: 0, kind: 'attack', targetInstanceId: (targeting.targets[0] as Fields).instanceId }] } } });
+  await expect(commitWolfEscortRangeActionChoice.run(request(payload, 'colonel-1'))).resolves.toMatchObject({ status: 'replayed', revision: 5 });
+  await expect(commitWolfEscortRangeActionChoice.run(request({ ...payload, requestId: 'escort-medium-stale' }, 'colonel-1'))).rejects.toMatchObject({ code: 'failed-precondition' });
+  await expect(commitWolfEscortRangeActionChoice.run(request({ ...payload, requestId: 'escort-medium-forged', dice: [6] }, 'colonel-1'))).rejects.toMatchObject({ code: 'invalid-argument' });
+  const colonel = testState.documents.get('sessions/s1/players/colonel-1')!;
+  put('sessions/s1/players/colonel-1', { ...colonel, assignedRoleId: 'refinery-124-engineer' });
+  await expect(commitWolfEscortRangeActionChoice.run(request(payload, 'colonel-1'))).rejects.toMatchObject({ code: 'permission-denied' });
+});
+
+it('requires current Maliades custody and rejects duplicate attack/shift targets without any writes', async () => {
+  admitEscortRange();
+  const payload = { sessionId: 's1', sourceId: 'maliades', range: 'medium-range', requestId: 'maliades-range-test', expectedTurn: 1, expectedRevision: 4,
+    actions: [{ kind: 'attack', targetContactId: 'contact-1' }, { kind: 'target-shift', targetContactId: 'contact-1', shift: -1 }] };
+  await expect(commitWolfEscortRangeActionChoice.run(request(payload, 'engineer-1'))).rejects.toMatchObject({ code: 'invalid-argument' });
+  expect(testState.update).not.toHaveBeenCalled();
+  const session = testState.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session, shuttleControl: { maliades: { ...(session.shuttleControl as Record<string, Fields>).maliades, holderUid: 'xo-1', revision: 1 } } });
+  await expect(getWolfEscortRangeActionChoice.run(request({ sessionId: 's1', sourceId: 'maliades', range: 'medium-range' }, 'engineer-1')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  expect(testState.update).not.toHaveBeenCalled();
+});
 
 it('lets the current Wing Commander launch each charged, operational AEGIS bay independently', async () => {
   const session = testState.documents.get('sessions/s1')!;
