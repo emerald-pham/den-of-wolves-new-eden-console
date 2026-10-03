@@ -2361,7 +2361,7 @@ describe('players', () => {
 });
 
 describe('shuttle departure privacy', () => {
-  it('moves a historical shuttle route with a rejoined group and revokes it when its endpoints split again', async () => {
+  it('moves a historical shuttle route with a rejoined group and revokes it from both later partitions', async () => {
     const path = `${SESSION}/shuttleDepartures/starlight`;
     await env.withSecurityRulesDisabled(async (ctx) => {
       const db = ctx.firestore();
@@ -2409,7 +2409,7 @@ describe('shuttle departure privacy', () => {
       await updateDoc(doc(db, `${SESSION}/players/bob`), { fleetGroupId: 'fleet-3' });
     });
     await assertFails(getDoc(doc(as('alice'), path)));
-    await assertSucceeds(getDoc(doc(as('bob'), path)));
+    await assertFails(getDoc(doc(as('bob'), path)));
   });
 
   it('scopes an exact pending route to its fleet group and denies enumeration or client writes', async () => {
