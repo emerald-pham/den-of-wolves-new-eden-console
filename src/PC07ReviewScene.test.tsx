@@ -31,12 +31,20 @@ it('uses group-local contacts and notes and immediately removes contacts for a c
  fireEvent.click(screen.getByRole('button',{name:'Current server sample'}));expect(screen.getByText('DIONE')).toBeVisible();
 });
 it('keeps the actual held-clock presentation isolated from an existing signed-in identity',()=>{
- const original=useSessionStore.getState().session;
- render(<PC07ReviewScene />);
- fireEvent.click(screen.getByRole('button',{name:'5 Recovery'}));
- expect(screen.getByRole('region',{name:'Cycle briefing clearance'})).toBeVisible();
- fireEvent.click(screen.getByRole('button',{name:'Clear cycle briefing // resume clock'}));
- expect(screen.getByRole('status',{name:'Recovery sample result'})).toHaveTextContent('5:00 preserved');
- expect(useSessionStore.getState().session).toBe(original);
- expect(screen.queryByRole('button',{name:'Trigger unknown contact'})).not.toBeInTheDocument();
+ const original=useSessionStore.getState();
+ const stamp='2026-10-02T12:00:00.000Z';
+ const me={uid:'prepared-gm',sessionId:'prepared-existing-session',displayName:'Existing facilitator',role:'gm' as const,seatId:null,joinedAt:stamp};
+ const gmInstance={id:'prepared-existing-instance',sessionId:me.sessionId,uid:me.uid,name:'Existing console',deviceLabel:'Existing device',claimedAt:stamp};
+ useSessionStore.setState({me,gmInstance});
+ try {
+  render(<PC07ReviewScene />);
+  expect(screen.queryByRole('button',{name:'Trigger unknown contact'})).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button',{name:'5 Recovery'}));
+  expect(screen.getByRole('region',{name:'Cycle briefing clearance'})).toBeVisible();
+  fireEvent.click(screen.getByRole('button',{name:'Clear cycle briefing // resume clock'}));
+  expect(screen.getByRole('status',{name:'Recovery sample result'})).toHaveTextContent('5:00 preserved');
+  expect(useSessionStore.getState().session).toBe(original.session);
+  expect(useSessionStore.getState().me).toBe(me);
+  expect(useSessionStore.getState().gmInstance).toBe(gmInstance);
+ }finally{useSessionStore.setState(original);}
 });
