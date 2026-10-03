@@ -61,3 +61,27 @@ it('shows truthful readonly GM presence and withdraws the prepared private summa
   expect(gm).toHaveTextContent('Prepared EO');
   expect(native.subscribe).not.toHaveBeenCalled();
 });
+
+
+it('uses the actual local Commander presenter for a selected reroll and explicit finish', () => {
+  render(<PC07AttackReview />);
+  const commander = screen.getByRole('region', { name: 'Targeting dice' });
+  fireEvent.click(within(commander).getAllByRole('checkbox')[0]!);
+  fireEvent.click(within(commander).getByRole('button', { name: 'Reroll selected dice' }));
+  expect(screen.getByRole('status', { name: 'Prepared choice callback result' }))
+    .toHaveTextContent('Local Commander reroll: 1 die');
+  fireEvent.click(within(commander).getByRole('button', { name: 'Finish rerolls' }));
+  expect(commander).toHaveTextContent('Reroll window is closed');
+  expect(native.commit).not.toHaveBeenCalled(); expect(native.read).not.toHaveBeenCalled();
+});
+
+it('uses the actual optional C&C presenter with an explicit prepared pass', () => {
+  render(<PC07AttackReview />);
+  const cnc = screen.getByRole('region', { name: 'Command and Control' });
+  fireEvent.click(within(cnc).getByRole('button', { name: 'Pass Command and Control' }));
+  expect(cnc).toHaveTextContent('no redirect made');
+  expect(within(cnc).queryByRole('radio')).toBeNull();
+  expect(screen.getByRole('status', { name: 'Prepared choice callback result' }))
+    .toHaveTextContent('Local C&C pass');
+  expect(native.commit).not.toHaveBeenCalled(); expect(native.read).not.toHaveBeenCalled();
+});
