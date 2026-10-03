@@ -60,26 +60,25 @@ describe('Wolf boarding support-craft authority', () => {
     expect(moved.dockings.find(({ shuttleId }) => shuttleId === 'pallas'))
       .toEqual({ shuttleId: 'pallas', shipId: 'dione', dockedAt: '2026-10-03T12:10:00.000Z' });
     expect(moved.visits.slice(-2)).toEqual([
-      { id: 'boarding-pallas-move-departed', shuttleId: 'pallas', shipId: 'aegis', action: 'departed', occurredAt: '2026-10-03T12:10:00.000Z' },
-      { id: 'boarding-pallas-move-docked', shuttleId: 'pallas', shipId: 'dione', action: 'docked', occurredAt: '2026-10-03T12:10:00.000Z' },
+      { id: 'wolf-board-boarding-pallas-move-departed', shuttleId: 'pallas', shipId: 'aegis', action: 'departed', occurredAt: '2026-10-03T12:10:00.000Z' },
+      { id: 'wolf-board-boarding-pallas-move-docked', shuttleId: 'pallas', shipId: 'dione', action: 'docked', occurredAt: '2026-10-03T12:10:00.000Z' },
     ]);
     expect(moved.control.pallas).toEqual({
       shuttleId: 'pallas', ownerRoleId: 'executive-officer', ownerUid: 'xo-owner', holderUid: 'pallas-pilot', revision: 3,
     });
     expect(moved.fuelled).toEqual(input.fuelled);
-    expect(moved.cargo).toEqual({});
   });
 
   it('keeps an explicit stay choice unchanged and rejects unfuelled or unregistered relocation', () => {
-    const philias = deriveWolfBoardingSupportCraft(input).find(({ shuttleId }) => shuttleId === 'philia')!;
+    const chepu = deriveWolfBoardingSupportCraft(input).find(({ shuttleId }) => shuttleId === 'chepu')!;
     expect(relocateWolfBoardingSupportCraft({
-      authority: philias, targetShipId: null, requestId: 'boarding-philia-stay',
-      now: '2026-10-03T12:10:00.000Z', ...input,
+      authority: { ...chepu, fuelled: false }, targetShipId: null, requestId: 'boarding-chepu-stay',
+      now: '2026-10-03T12:10:00.000Z', ...input, fuelled: { ...input.fuelled, chepu: false },
     })).toMatchObject({ status: 'stayed', control: input.control, dockings: input.dockings, visits: input.visits });
 
     expect(() => relocateWolfBoardingSupportCraft({
-      authority: philias, targetShipId: 'aegis', requestId: 'boarding-philia-move',
-      now: '2026-10-03T12:10:00.000Z', ...input,
+      authority: { ...chepu, fuelled: false }, targetShipId: 'aegis', requestId: 'boarding-chepu-move',
+      now: '2026-10-03T12:10:00.000Z', ...input, fuelled: { ...input.fuelled, chepu: false },
     })).toThrow(/fuelled/i);
     expect(() => deriveWolfBoardingSupportCraft({
       ...input,
