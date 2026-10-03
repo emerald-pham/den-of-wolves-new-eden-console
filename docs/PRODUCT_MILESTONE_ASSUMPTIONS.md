@@ -431,3 +431,12 @@ the original assumption; append the resolution so the decision is traceable.
 | Source | The AEGIS Alpha/Bravo and PDF component sheets define independent launch and combat abilities (A4 single-sided p. 36 and double-sided p. 81). They do not prescribe an asynchronous digital choice window. The connected attack already makes targeting the launch boundary. |
 | Chosen reading | Hold targeting for every eligible source with a current entitled actor until its durable launch-or-pass choice is committed. An absent actor or ineligible source receives a server-recorded unavailable outcome, allowing deterministic progression. Independent wings do not consume each other's choice. |
 | Alternatives and limits | Advancing immediately would make a launch depend on racing the server trigger. An arbitrary delay would be unreliable. This is digital timing policy; it does not add a printed range action, consume a bay charge on pass, or give clients control over dice or range advancement. Authenticated proof must exercise the ordinary pending choice and exact retry. |
+
+### PC08-A4 — Short Range priority within a simultaneous batch
+
+| Field | Decision |
+|---|---|
+| ID and checkpoint | PC08-A4, P443 and connected Short Range actions; root source reconciliation, October 3, 2026. |
+| Source | Player Guide v1.1 printed pp. 12–13 (physical PDF pp. 14–15) rolls damage simultaneously, then assigns targets; its Wolf Fighter Wing card requires Short Range damage to reach Wings first. |
+| Chosen reading | Validate the combined committed assignments: every live Wolf Fighter Wing must receive lethal assigned damage before any non-Wing receives a hit. If that coverage is unavailable, all assigned hits stay on Wings. Other live Short-legal contacts remain selectable once coverage is satisfied; Battlestations remain immune. |
+| Alternatives and limits | The earlier Wings-only contact filter discarded a second distinct hit even when the sole remaining Wing was already covered. This correction preserves the printed priority without that extra restriction. Fixed one-target damage is not split, and each action retains its distinct-target limit, committed rolls and unused-hit policy. The whole-batch check is the digital expression of simultaneous resolution, not a new printed action. |

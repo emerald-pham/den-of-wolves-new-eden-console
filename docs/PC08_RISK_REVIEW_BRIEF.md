@@ -10,6 +10,9 @@ Eligible launch choices must hold targeting until each independent wing or
 craft has launched or explicitly passed; proof cannot rely on beating the
 automatic targeting trigger. Short Range records only the selected fighter
 indexes, including a zero-fighter pass, before the server samples any dice.
+Its simultaneous assignment batch gives lethal coverage to live Wolf Fighter
+Wings before any other ship receives damage; the old Wings-only filter must
+not discard a valid remaining hit once that coverage is satisfied.
 Root also closes the Union craft setup gap with a current authenticated GM
 starting-host choice. Check the pre-start window, confirmed Union roster,
 paired active hosts, setup revision, exact private receipt, manifest/history
