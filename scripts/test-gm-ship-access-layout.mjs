@@ -139,6 +139,18 @@ test('GM ship access stays pointer-reachable beside the ship identity and preser
           await accessButton.click();
           assert.ok(await page.getByRole('alertdialog', { name: 'Are you sure?' }).isVisible(),
             `${label}: pointer activation opens the existing confirmation`);
+          const confirmation = page.getByRole('alertdialog', { name: 'Are you sure?' });
+          const confirmButton = confirmation.getByRole('button', { name: 'ARE YOU SURE?', exact: true });
+          const confirmationGeometry = await confirmButton.evaluate(button => {
+            const rect = button.getBoundingClientRect();
+            const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+            return { centerHitIsButton: hit === button || button.contains(hit),
+              visibleInViewport: rect.left >= 0 && rect.right <= innerWidth && rect.top >= 0 && rect.bottom <= innerHeight,
+              height: rect.height, hit: hit?.className ?? null };
+          });
+          assert.ok(confirmationGeometry.centerHitIsButton && confirmationGeometry.visibleInViewport,
+            `${label}: confirmation must receive its pointer above ship identity and DRADIS; geometry=${JSON.stringify(confirmationGeometry)}`);
+          assert.ok(confirmationGeometry.height >= 44, `${label}: confirmation retains a touch target`);
           await page.keyboard.press('Escape');
           assert.equal(await page.getByRole('alertdialog', { name: 'Are you sure?' }).count(), 0,
             `${label}: Escape dismisses the confirmation without granting access`);
