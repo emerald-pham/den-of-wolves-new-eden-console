@@ -21215,7 +21215,7 @@ function appendWolfFighterRangeMemberResults(
     const shipIndex = roster.findIndex(({ instanceId }) => instanceId === targetInstanceId);
     const roll = applied.receipt.dice.find(({ actionId }) => actionId === action.actionId);
     if (shipIndex < 0 || !targetInstanceId || !roll) continue;
-    const ship = roster[shipIndex]!;
+    const ship = applied.roster.find(({ instanceId }) => instanceId === targetInstanceId) ?? roster[shipIndex]!;
     const wingLabel = action.sourceId === 'aegis-alpha-wing' ? 'Alpha' : 'Bravo';
     results.push({
       status: 'committed', range, sourceId: action.sourceId, targetId: ship.target, bearing: null,
@@ -24641,12 +24641,24 @@ export const commitWolfRangeActionChoice = onCall<{
       dice: [], assignments: [], targetShifts: [], unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
       destructionDamageByTarget: Object.fromEntries(EXPANDED_WOLF_TARGET_RING.map((target) => [target, 0])) as Record<WolfFleetTargetId, number>,
     };
+    let resolvedPass: ReturnType<typeof resolveLockedWolfRange> | undefined;
+    if (passed && (fighterBundle.shifts?.length ?? 0) > 0) {
+      try {
+        resolvedPass = resolveLockedWolfRange({
+          range, actions: selectedActions, locked, assignments: [], roster: inputs.roster,
+          targetShiftPlan: { choices: fighterBundle.shifts!, ring: inputs.receipt.ring },
+        });
+      } catch (error) {
+        throw commandError('failed-precondition', error instanceof Error ? error.message : 'The fighter target shifts were rejected.', 'conflict');
+      }
+    }
+    const committedReceipt = resolvedPass?.receipt ?? emptyReceipt;
     const committedAt = new Date().toISOString();
     const decision = {
       status: passed ? 'committed' : 'locked', range, actorUid: uid,
       actorRoleId: 'executive-officer', requestId, actionIds: committedActionIds,
       weaponActionIds: [...actionIds], lock: locked,
-      ...(passed ? { assignments: [], receipt: emptyReceipt, committedAt } : {}),
+      ...(passed ? { assignments: [], receipt: committedReceipt, committedAt } : {}),
     };
     const rangeDecisions = isRecord(state.get('rangeDecisions')) ? state.get('rangeDecisions') : {};
     const rangeReceipts = Array.isArray(state.get('rangeReceipts')) ? state.get('rangeReceipts') : [];
@@ -24667,7 +24679,8 @@ export const commitWolfRangeActionChoice = onCall<{
       rangeDecisions: { ...rangeDecisions, [range]: decision },
       ...(passed ? {
         currentStep: nextStep,
-        rangeReceipts: [...rangeReceipts, emptyReceipt],
+        rangeReceipts: [...rangeReceipts, committedReceipt],
+        ...(resolvedPass ? { combatRoster: resolvedPass.roster } : {}),
         memberResults,
         ...(fighterBundle.state ? { aegisFighterWingState: fighterBundle.state } : {}),
       } : {}),
@@ -24771,27 +24784,47 @@ export const assignWolfRangeTargets = onCall<{
     ];
     const expectedLockedActionIds = [...weaponActionIds, ...fighterActions.map(({ actionId }) => actionId)];
     const lock = safeWolfRangeLock(decision.lock, selectedActions, range);
+    const fixedTargetByActionId = fighterBundle.actionTargets ?? {};
+    const assignmentActionIds = selectedActions
+      .filter(({ actionId }) => weaponActionIds.includes(actionId) || !fixedTargetByActionId[actionId])
+      .map(({ actionId }) => actionId);
     if (!lock || actionIds.length !== selectedActions.length ||
         JSON.stringify(actionIds) !== JSON.stringify(expectedLockedActionIds) ||
         new Set(weaponActionIds).size !== weaponActionIds.length ||
         weaponActionIds.some((actionId) => !inputs.actions.some(({ actionId: availableId }) => availableId === actionId)) ||
-        assignmentsInput.length !== actionIds.length ||
+        assignmentsInput.length !== assignmentActionIds.length ||
         new Set(assignmentsInput.map(({ actionId }) => actionId)).size !== assignmentsInput.length ||
-        assignmentsInput.some(({ actionId }) => !actionIds.includes(actionId))) {
+        assignmentActionIds.some((actionId) => !assignmentsInput.some((assignment) => assignment.actionId === actionId)) ||
+        assignmentsInput.some(({ actionId }) => !assignmentActionIds.includes(actionId))) {
       throw commandError('failed-precondition', 'The committed action and target assignments do not match.', 'conflict');
     }
     const contactToInstance = new Map(inputs.roster.map((ship, index) => [wolfRangeContactId(index), ship.instanceId]));
-    const assignments: WolfRangeAssignment[] = assignmentsInput.map(({ actionId, contactIds }) => ({
-      actionId,
-      targetInstanceIds: contactIds.map((contactId) => {
-        const instanceId = contactToInstance.get(contactId);
-        if (!instanceId) throw commandError('failed-precondition', 'A selected Wolf contact is no longer available.', 'conflict');
-        return instanceId;
-      }),
-    }));
+    const requestedByActionId = new Map(assignmentsInput.map((assignment) => [assignment.actionId, assignment]));
+    const assignments: WolfRangeAssignment[] = selectedActions.map(({ actionId }) => {
+      const precommittedTargetId = !weaponActionIds.includes(actionId) ? fixedTargetByActionId[actionId] : undefined;
+      if (precommittedTargetId) {
+        const lockedRoll = lock.dice.find((roll) => roll.actionId === actionId);
+        if (!lockedRoll) throw commandError('failed-precondition', 'A committed fighter die is unavailable.', 'conflict');
+        return { actionId, targetInstanceIds: lockedRoll.successes > 0 ? [precommittedTargetId] : [] };
+      }
+      const requested = requestedByActionId.get(actionId);
+      if (!requested) throw commandError('failed-precondition', 'A target assignment is missing.', 'conflict');
+      return {
+        actionId,
+        targetInstanceIds: requested.contactIds.map((contactId) => {
+          const instanceId = contactToInstance.get(contactId);
+          if (!instanceId) throw commandError('failed-precondition', 'A selected Wolf contact is no longer available.', 'conflict');
+          return instanceId;
+        }),
+      };
+    });
     let applied: ReturnType<typeof resolveLockedWolfRange>;
     try {
-      applied = resolveLockedWolfRange({ range, actions: selectedActions, locked: lock, assignments, roster: inputs.roster });
+      applied = resolveLockedWolfRange({ range, actions: selectedActions, locked: lock, assignments, roster: inputs.roster,
+        ...(fighterBundle.shifts && fighterBundle.shifts.length > 0 ? {
+          targetShiftPlan: { choices: fighterBundle.shifts, ring: inputs.receipt.ring },
+        } : {}),
+      });
     } catch (error) {
       throw commandError('failed-precondition', error instanceof Error ? error.message : 'The target assignments were rejected.', 'conflict');
     }
@@ -24815,6 +24848,7 @@ export const assignWolfRangeTargets = onCall<{
     const memberResults = Array.isArray(state.get('memberResults')) ? [...state.get('memberResults')] : [];
     for (const assignment of assignments) {
       const action = selectedActions.find(({ actionId }) => actionId === assignment.actionId)!;
+      if (fixedTargetByActionId[action.actionId] && !weaponActionIds.includes(action.actionId)) continue;
       const slots = assignment.targetInstanceIds;
       const perHit = action.fixedDamage ?? action.dice?.damagePerSuccess ?? 1;
       slots.forEach((instanceId) => {
@@ -24824,11 +24858,16 @@ export const assignWolfRangeTargets = onCall<{
         memberResults.push({
           status: 'committed', range, sourceId: action.sourceId,
           targetId: ship.target, bearing: null, contactReference: `Wolf contact ${index + 1}`,
-          effect: `${range.replace('-range', ' range')} AEGIS weapon hit`,
+          effect: action.sourceId === 'aegis-alpha-wing' || action.sourceId === 'aegis-bravo-wing'
+            ? `${action.sourceId === 'aegis-alpha-wing' ? 'Alpha' : 'Bravo'} Fighter Wing attack hit`
+            : `${range.replace('-range', ' range')} AEGIS weapon hit`,
           outcome: { damage: perHit, destroyed }, serverTime: committedAt,
         });
       });
     }
+    const memberResultsWithFighters = appendWolfFighterRangeMemberResults(
+      memberResults, fighterBundle, applied, inputs.roster, range, committedAt,
+    );
     const result: WolfRangeTargetAssignmentResult = {
       status: 'committed', type: 'wolf-range-target-assignment', sessionId, requestId,
       turn: inputs.turn, revision: nextRevision, fromStep: range, currentStep: nextStep,
@@ -24840,7 +24879,7 @@ export const assignWolfRangeTargets = onCall<{
       combatRoster: applied.roster,
       rangeDecisions: { ...rangeDecisions, [range]: committedDecision },
       rangeReceipts: [...rangeReceipts, applied.receipt],
-      memberResults,
+      memberResults: memberResultsWithFighters,
       ...(resolvedFighterState ? { aegisFighterWingState: resolvedFighterState } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });

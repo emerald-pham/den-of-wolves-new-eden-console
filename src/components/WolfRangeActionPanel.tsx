@@ -14,6 +14,11 @@ import { useWolfAttackChoiceAuthority, useWolfAttackChoiceController } from '@/l
 import './WolfRangeActionPanel.css';
 
 type RangeAssignment = Readonly<{ actionId: string; contactIds: readonly string[] }>;
+type WolfRangeActionOption = WolfRangeActionChoiceView['eligibleActions'][number];
+type WolfWingCommanderTargetAction = WolfRangeActionOption & Readonly<{
+  range: 'medium-range';
+  sourceId: 'aegis-alpha-wing' | 'aegis-bravo-wing';
+}>;
 
 function actionLabel(sourceId: string): string {
   if (sourceId === 'aegis-missile-launchers') return 'Missile launchers';
@@ -21,6 +26,13 @@ function actionLabel(sourceId: string): string {
   if (sourceId === 'aegis-alpha-wing') return 'Alpha Fighter Wing';
   if (sourceId === 'aegis-bravo-wing') return 'Bravo Fighter Wing';
   return sourceId.replaceAll('-', ' ');
+}
+
+function hasWingCommanderTarget(
+  action: WolfRangeActionOption | undefined,
+): action is WolfWingCommanderTargetAction {
+  return action?.range === 'medium-range' &&
+    (action.sourceId === 'aegis-alpha-wing' || action.sourceId === 'aegis-bravo-wing');
 }
 
 function shipLabel(shipId: string): string {
@@ -55,22 +67,25 @@ export function WolfRangeActionPanelView({
     setAssignmentsByAction({});
   }, [draftKey]);
   const availableContacts = useMemo(() => view.contacts.filter(({ available }) => available), [view.contacts]);
+  const wingCommanderTargetIds = useMemo(() => new Set(view.eligibleActions
+    .filter(hasWingCommanderTarget).map(({ actionId }) => actionId)), [view.eligibleActions]);
   const locked = view.choiceStatus !== 'pending';
   const needsTargets = view.choiceStatus === 'targets-required';
   const assignmentState = useMemo(() => {
-    const assignments: RangeAssignment[] = view.hitSlots.map(({ actionId, count }) => {
+    const assignableSlots = view.hitSlots.filter(({ actionId }) => !wingCommanderTargetIds.has(actionId));
+    const assignments: RangeAssignment[] = assignableSlots.map(({ actionId, count }) => {
       const contactIds = assignmentsByAction[actionId] ?? [];
       const targetable = Math.min(count, availableContacts.length);
       return { actionId, contactIds: contactIds.slice(0, targetable) };
     });
     const complete = assignments.every(({ actionId, contactIds }) => {
-      const slot = view.hitSlots.find(({ actionId: slotId }) => slotId === actionId);
+      const slot = assignableSlots.find(({ actionId: slotId }) => slotId === actionId);
       return !!slot && contactIds.length === Math.min(slot.count, availableContacts.length) &&
         new Set(contactIds).size === contactIds.length;
     });
-    const unused = view.hitSlots.reduce((total, { count }) => total + Math.max(0, count - availableContacts.length), 0);
+    const unused = assignableSlots.reduce((total, { count }) => total + Math.max(0, count - availableContacts.length), 0);
     return { assignments, complete, unused };
-  }, [assignmentsByAction, availableContacts.length, view.hitSlots]);
+  }, [assignmentsByAction, availableContacts.length, view.hitSlots, wingCommanderTargetIds]);
 
   if (view.choiceStatus === 'committed') {
     return (
@@ -132,6 +147,18 @@ export function WolfRangeActionPanelView({
           <div className="wolf-range-action__target-list">
             {view.hitSlots.map((slot) => {
               const action = view.eligibleActions.find(({ actionId }) => actionId === slot.actionId);
+              if (hasWingCommanderTarget(action)) {
+                return (
+                  <fieldset key={slot.actionId} className="wolf-range-action__target-group" disabled={busy}>
+                    <legend>{actionLabel(action.sourceId)} // {slot.count} hits</legend>
+                    <p className="wolf-range-action__notice" role="status">
+                      {slot.count > 0
+                        ? 'Target set by the Wing Commander. This fighter hit is assigned automatically.'
+                        : 'This fighter action generated no hits.'}
+                    </p>
+                  </fieldset>
+                );
+              }
               const targetable = Math.min(slot.count, availableContacts.length);
               const selected = assignmentsByAction[slot.actionId] ?? [];
               const shortfall = Math.max(0, slot.count - targetable);
@@ -178,7 +205,9 @@ export function WolfRangeActionPanelView({
             onClick={() => onAssignTargets(assignmentState.assignments)}>
             Commit target assignments
           </button>
-          <p className="wolf-range-action__hint">{assignmentState.unused > 0 ? `${assignmentState.unused} hit(s) will be recorded unused.` : 'Choose different contacts for each hit from the same action.'}</p>
+          <p className="wolf-range-action__hint">{assignmentState.unused > 0 ? `${assignmentState.unused} hit(s) will be recorded unused.`
+            : assignmentState.assignments.length === 0 ? 'The Wing Commander targets are already committed.'
+              : 'Choose different contacts for each hit from the same action.'}</p>
         </>
       )}
       {message && <p className="wolf-range-action__message" role="status">{message}</p>}
