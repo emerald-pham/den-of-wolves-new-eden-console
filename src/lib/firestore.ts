@@ -1,4 +1,4 @@
-import { memberPhiliaRepairLedger, memberSessionProjection } from '../../functions/src/memberSession';
+import { memberPhiliaRepairLedger, memberRedactedCraftUse, memberSessionProjection } from '../../functions/src/memberSession';
 import { parseAwayMissionLifecyclePublicState } from './awayMissionLifecycleService';
 import {
   collection,
@@ -2163,7 +2163,11 @@ function serviceShuttleRecharges(value: unknown): NonNullable<GameSession['servi
   const stored = recordValue(value);
   if (!stored) return {};
   const serviceShuttles = new Set(['black-sheep', 'condor', 'wobbly']);
-  return Object.fromEntries(Object.entries(stored).flatMap(([shuttleId, entry]) => {
+  return Object.fromEntries(Object.entries(stored).flatMap<[string, NonNullable<GameSession['serviceShuttleRecharges']>[string]]>(([shuttleId, entry]) => {
+    const redacted = memberRedactedCraftUse(entry);
+    if (serviceShuttles.has(shuttleId) && redacted) return [[shuttleId, {
+      ...redacted, hostShipId: '', consoleId: '',
+    }]];
     const raw = recordValue(entry);
     const hostShipId = raw ? parseEntityId('vessel', raw.hostShipId) : undefined;
     if (!serviceShuttles.has(shuttleId) || !raw || !hostShipId || !VESSEL_CATALOG_IDS.has(hostShipId) ||
@@ -2182,10 +2186,12 @@ function repairLedger(
   knownSystemIds?: (shipId: string) => ReadonlySet<string>,
 ): NonNullable<GameSession['blacksmithRepairs']> | undefined {
   const raw = recordValue(value);
-  if (!raw || Object.keys(raw).some((key) => !['cycle', 'revision', 'hosts'].includes(key)) ||
+  if (!raw || Object.keys(raw).some((key) => !['cycle', 'revision', 'hosts', 'totalHostsUsed'].includes(key)) ||
       !Number.isSafeInteger(raw.cycle) || (raw.cycle as number) < 1 ||
       !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
-      !Array.isArray(raw.hosts) || raw.hosts.length < 1 || raw.hosts.length > 2) return undefined;
+      !Array.isArray(raw.hosts) || raw.hosts.length < (raw.totalHostsUsed === undefined ? 1 : 0) || raw.hosts.length > 2) return undefined;
+  if (raw.totalHostsUsed !== undefined && (!Number.isSafeInteger(raw.totalHostsUsed) ||
+      Number(raw.totalHostsUsed) < 1 || Number(raw.totalHostsUsed) > 2 || raw.hosts.length > Number(raw.totalHostsUsed))) return undefined;
   const seen = new Set<string>();
   const hosts = raw.hosts.flatMap((value) => {
     const host = recordValue(value);
@@ -2203,7 +2209,8 @@ function repairLedger(
     return [{ shipId, systemIds }];
   });
   if (hosts.length !== raw.hosts.length) return undefined;
-  return { cycle: raw.cycle as number, revision: raw.revision as number, hosts };
+  return { cycle: raw.cycle as number, revision: raw.revision as number, hosts,
+    ...(raw.totalHostsUsed === undefined ? {} : { totalHostsUsed: Number(raw.totalHostsUsed) }) };
 }
 
 function blacksmithRepairs(value: unknown): GameSession['blacksmithRepairs'] {

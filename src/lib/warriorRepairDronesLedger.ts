@@ -1,3 +1,4 @@
+import { memberRedactedCraftUse } from '../../functions/src/memberSession';
 import { INITIAL_SHIP_RESOURCES } from '@/data/resources';
 import type { WarriorRepairDronesState } from '@/types/game';
 import { parseEntityId } from '@/types/identifiers';
@@ -13,6 +14,8 @@ export function parseWarriorRepairDronesLedger(
   value: unknown,
 ): WarriorRepairDronesState | null {
   if (value === undefined) return { cycle: 0, revision: 0, hostShipId: '', systemIds: [] };
+  const redacted = memberRedactedCraftUse(value);
+  if (redacted && redacted.revision <= redacted.cycle) return { ...redacted, hostShipId: '', systemIds: [] };
   const raw = record(value);
   if (!raw || Object.keys(raw).length !== 4 ||
       Object.keys(raw).some((key) => !['cycle', 'hostShipId', 'revision', 'systemIds'].includes(key)) ||

@@ -71,11 +71,12 @@ export default function AllyRepairPanel({ control, docking, fuelled }: Props) {
   const repairRevision = ledger?.revision ?? 0;
   const currentCycle = session.currentTurn ?? 0;
   const hostsThisCycle = ledger && ledger.cycle === currentCycle ? ledger.hosts : [];
+  const hostsUsedThisCycle = ledger && ledger.cycle === currentCycle ? ledger.totalHostsUsed ?? hostsThisCycle.length : 0;
   const repairedOnHost = docking
     ? hostsThisCycle.find((host) => host.shipId === docking.shipId)?.systemIds ?? [] : [];
   const hostAlreadyUsed = Boolean(docking && hostsThisCycle.some((host) => host.shipId === docking.shipId));
-  const repairShipAvailable = hostAlreadyUsed || hostsThisCycle.length === 0 ||
-    (hostsThisCycle.length === 1 && fuelled);
+  const repairShipAvailable = hostAlreadyUsed || hostsUsedThisCycle === 0 ||
+    (hostsUsedThisCycle === 1 && fuelled);
   const repairSlotsRemaining = Math.max(0, 2 - repairedOnHost.length);
   const damage = docking ? session.shipDamage?.[docking.shipId] : undefined;
   const repairOptions = docking
@@ -271,9 +272,9 @@ export default function AllyRepairPanel({ control, docking, fuelled }: Props) {
       : <p>Dock Ally before repairing consoles.</p>}
     {!isHolder && <p>The current Joint Engineering Union Engineer holding Ally controls repairs.</p>}
     {!repairWindowOpen && <p>Ally repairs open during Coordination Phase.</p>}
-    {hostsThisCycle.length === 1 && !hostAlreadyUsed && !fuelled &&
+    {hostsUsedThisCycle === 1 && !hostAlreadyUsed && !fuelled &&
       <p>Fuel Ally before repairing a second ship this cycle.</p>}
-    {hostsThisCycle.length >= 2 && !hostAlreadyUsed &&
+    {hostsUsedThisCycle >= 2 && !hostAlreadyUsed &&
       <p>Ally may repair at most two ships this cycle.</p>}
     {damage?.destroyed && <p>A destroyed ship cannot receive Ally repairs.</p>}
     {repairOptions.length === 0 && <p>No damaged consoles are eligible on this ship.</p>}

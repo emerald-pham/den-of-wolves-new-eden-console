@@ -1,3 +1,4 @@
+import { memberRedactedCraftUse } from '../../functions/src/memberSession';
 import { INITIAL_SHIP_RESOURCES } from '@/data/resources';
 import type { GorgoneionRepairDronesState } from '@/types/game';
 import { parseEntityId } from '@/types/identifiers';
@@ -13,6 +14,8 @@ export function parseGorgoneionRepairDronesLedger(
   value: unknown,
 ): GorgoneionRepairDronesState | null {
   if (value === undefined) return { cycle: 0, revision: 0, hostShipId: '', systemId: '' };
+  const redacted = memberRedactedCraftUse(value);
+  if (redacted && redacted.revision <= redacted.cycle) return { ...redacted, hostShipId: '', systemId: '' };
   const raw = record(value);
   if (!raw || Object.keys(raw).length !== 4 ||
       Object.keys(raw).some((key) => !['cycle', 'hostShipId', 'revision', 'systemId'].includes(key)) ||

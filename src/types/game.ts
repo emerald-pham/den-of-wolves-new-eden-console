@@ -914,14 +914,24 @@ export interface ShuttleEvacuationLedgerEntry {
 /** One service-shuttle console charge, retained to enforce its cycle limit. */
 export interface ServiceShuttleRechargeEntry {
   readonly cycle: number;
-  readonly hostShipId: VesselId;
+  readonly redacted?: true;
+  readonly hostShipId: VesselId | '';
   readonly consoleId: string;
   readonly revision: number;
+}
+
+/** Member-only current usage receipt with previous foreign host details withheld. */
+export interface RedactedCraftUse {
+  readonly cycle: number;
+  readonly revision: number;
+  readonly redacted: true;
 }
 
 export interface BlacksmithRepairLedger {
   readonly cycle: number;
   readonly revision: number;
+  /** Current member usage count, including redacted foreign hosts. */
+  readonly totalHostsUsed?: number;
   readonly hosts: readonly Readonly<{
     readonly shipId: VesselId;
     readonly systemIds: readonly string[];
@@ -942,6 +952,8 @@ export interface PhiliaRepairLedger {
 export interface MacawRepairLedger {
   readonly cycle: number;
   readonly revision: number;
+  /** Current member usage count, including redacted foreign hosts. */
+  readonly totalHostsUsed?: number;
   readonly hosts: readonly Readonly<{
     readonly shipId: VesselId;
     readonly systemIds: readonly string[];
@@ -958,6 +970,8 @@ export interface BoaRecyclingLedger {
 export interface ChacauRepairLedger {
   readonly cycle: number;
   readonly revision: number;
+  /** Current member usage count, including redacted foreign hosts. */
+  readonly totalHostsUsed?: number;
   readonly hosts: readonly Readonly<{
     readonly shipId: VesselId;
     readonly systemIds: readonly string[];
@@ -967,6 +981,8 @@ export interface ChacauRepairLedger {
 export interface AllyRepairLedger {
   readonly cycle: number;
   readonly revision: number;
+  /** Current member usage count, including redacted foreign hosts. */
+  readonly totalHostsUsed?: number;
   readonly hosts: readonly Readonly<{
     readonly shipId: VesselId;
     readonly systemIds: readonly string[];
@@ -1003,6 +1019,7 @@ export interface MaliadesStateRecord {
 /** Server-owned Gorgoneion Repair Drones use and replay revision for one cycle. */
 export interface GorgoneionRepairDronesState {
   readonly cycle: number;
+  readonly redacted?: true;
   readonly revision: number;
   readonly hostShipId: VesselId | '';
   readonly systemId: string;
@@ -1011,6 +1028,7 @@ export interface GorgoneionRepairDronesState {
 /** Server-owned Warrior Repair Drones use and replay revision for one cycle. */
 export interface WarriorRepairDronesState {
   readonly cycle: number;
+  readonly redacted?: true;
   readonly revision: number;
   readonly hostShipId: VesselId | '';
   readonly systemIds: readonly string[];
@@ -1163,7 +1181,7 @@ export interface GameSession {
   readonly shuttleFuelled?: Readonly<Record<string, boolean>>;
   readonly shuttleControl?: Readonly<Record<string, ShuttleControlEntry>>;
   readonly shuttleEvacuations?: Readonly<Record<string, ShuttleEvacuationLedgerEntry>>;
-  readonly serviceShuttleRecharges?: Readonly<Record<string, ServiceShuttleRechargeEntry>>;
+  readonly serviceShuttleRecharges?: Readonly<Record<string, ServiceShuttleRechargeEntry | RedactedCraftUse>>;
   readonly blacksmithRepairs?: BlacksmithRepairLedger;
   readonly philiaRepairs?: PhiliaRepairLedger;
   readonly macawRepairs?: MacawRepairLedger;
@@ -1171,9 +1189,9 @@ export interface GameSession {
   readonly chacauRepairs?: ChacauRepairLedger;
   readonly allyRepairs?: AllyRepairLedger;
   /** Current or legacy-default Gorgoneion repair history; null means malformed. */
-  readonly gorgoneionRepairDrones?: GorgoneionRepairDronesState | null;
+  readonly gorgoneionRepairDrones?: GorgoneionRepairDronesState | RedactedCraftUse | null;
   /** Current or legacy-default Warrior repair history; null means malformed. */
-  readonly warriorRepairDrones?: WarriorRepairDronesState | null;
+  readonly warriorRepairDrones?: WarriorRepairDronesState | RedactedCraftUse | null;
   readonly maliadesState?: MaliadesStateRecord;
   readonly highwallMining?: HighwallMiningState;
   readonly retainedShuttles?: Readonly<Record<string, RetainedShuttleEntry>>;

@@ -1,3 +1,4 @@
+import { memberPhiliaRepairLedger } from '../../functions/src/memberSession';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from './firebase';
 import { hasFreshSessionAuthority, requireFreshSessionAuthority } from './sessionMutationAuthority';
@@ -68,6 +69,8 @@ function isSafeCounter(value: unknown): value is number {
 
 function repairLedgerRevision(value: unknown, currentCycle: number | undefined): number | null {
   if (value === undefined) return 0;
+  const member = memberPhiliaRepairLedger(value);
+  if (member?.totalHostsUsed !== undefined) return Number.isSafeInteger(currentCycle) && member.cycle <= Number(currentCycle) ? member.revision : null;
   if (!isRecord(value) || Object.keys(value).some((key) => !['cycle', 'revision', 'hosts'].includes(key)) ||
       !Number.isSafeInteger(value.cycle) || (value.cycle as number) < 1 ||
       !isSafeCounter(value.revision) || (value.revision as number) < 1 ||

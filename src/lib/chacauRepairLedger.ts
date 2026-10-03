@@ -29,10 +29,13 @@ function record(value: unknown): Record<string, unknown> | undefined {
 export function parseChacauRepairLedger(value: unknown): ChacauRepairLedger | null {
   if (value === undefined) return { cycle: 0, revision: 0, hosts: [] };
   const raw = record(value);
-  if (!raw || Object.keys(raw).some((key) => !['cycle', 'revision', 'hosts'].includes(key)) ||
+  if (!raw || Object.keys(raw).some((key) => !['cycle', 'revision', 'hosts', 'totalHostsUsed'].includes(key)) ||
       !Number.isSafeInteger(raw.cycle) || (raw.cycle as number) < 1 ||
       !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
-      !Array.isArray(raw.hosts) || raw.hosts.length < 1 || raw.hosts.length > 2) return null;
+      !Array.isArray(raw.hosts) || raw.hosts.length < (raw.totalHostsUsed === undefined ? 1 : 0) || raw.hosts.length > 2) return null;
+
+  if (raw.totalHostsUsed !== undefined && (!Number.isSafeInteger(raw.totalHostsUsed) ||
+      Number(raw.totalHostsUsed) < 1 || Number(raw.totalHostsUsed) > 2 || raw.hosts.length > Number(raw.totalHostsUsed))) return null;
 
   const seenShips = new Set<string>();
   const hosts: ChacauRepairLedger['hosts'][number][] = [];
@@ -53,5 +56,6 @@ export function parseChacauRepairLedger(value: unknown): ChacauRepairLedger | nu
     seenShips.add(shipId);
     hosts.push({ shipId, systemIds });
   }
-  return { cycle: raw.cycle as number, revision: raw.revision as number, hosts };
+  return { cycle: raw.cycle as number, revision: raw.revision as number, hosts,
+    ...(raw.totalHostsUsed === undefined ? {} : { totalHostsUsed: Number(raw.totalHostsUsed) }) };
 }

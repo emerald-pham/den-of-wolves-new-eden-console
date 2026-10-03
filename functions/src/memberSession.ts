@@ -2,6 +2,8 @@ import { fleetGroupRecord } from './fleetGroups';
 import { publicSmallShipStatesForSession } from './extraShipAdmission';
 import { parseVoyage33MaintenanceState } from './voyage33Maintenance';
 import { parseVoyage33Admission, VOYAGE_33_ID } from './voyageAdmission';
+import { parseGorgoneionRepairDronesState } from './gorgoneionRepairDrones';
+import { parseWarriorRepairDronesState } from './warriorRepairDrones';
 
 export interface MemberSessionScope {
   readonly groupId: string;
@@ -50,8 +52,11 @@ export const MEMBER_VESSEL_MAP_FIELDS = [
 const CRAFT_MAP_FIELDS = ['shuttleControl', 'shuttleCargo', 'shuttleFuelled', 'shuttleEvacuations',
   'serviceShuttleRecharges', 'retainedShuttles'] as const;
 const CRAFT_DETAIL_FIELDS: Readonly<Record<string, string>> = {
-  highwallMining: 'highwall', blacksmithRepairs: 'blacksmith', macawRepairs: 'macaw',
-  boaRecycling: 'boa', chacauRepairs: 'chacau', allyRepairs: 'ally', maliadesState: 'maliades',
+  highwallMining: 'highwall', boaRecycling: 'boa', maliadesState: 'maliades',
+};
+const REPAIR_DETAIL_FIELDS: Readonly<Record<string, string>> = {
+  philiaRepairs: 'philia', blacksmithRepairs: 'blacksmith', macawRepairs: 'macaw',
+  chacauRepairs: 'chacau', allyRepairs: 'ally',
 };
 const VESSEL_DETAIL_FIELDS: Readonly<Record<string, string>> = {
   fighterWingCounts: 'aegis', pdfEscortWing: 'aegis', admiralDirectives: 'aegis',
@@ -88,6 +93,18 @@ export function memberPhiliaRepairLedger(value: unknown): {
     ...(raw.totalHostsUsed !== undefined ? { totalHostsUsed: Number(total) } : {}) };
 }
 
+/** A current-use marker carries counters only, never a previous foreign host. */
+export function memberRedactedCraftUse(value: unknown): { cycle: number; revision: number; redacted: true } | undefined {
+  const raw = record(value);
+  if (raw.redacted !== true || Object.keys(raw).some(key => ![
+    'cycle','revision','redacted','hostShipId','consoleId','systemId','systemIds',
+  ].includes(key)) || !Number.isSafeInteger(raw.cycle) || Number(raw.cycle) < 1 ||
+      !Number.isSafeInteger(raw.revision) || Number(raw.revision) < 1 ||
+      ['hostShipId','consoleId','systemId'].some(key => raw[key] !== undefined && raw[key] !== '') ||
+      raw.systemIds !== undefined && (!Array.isArray(raw.systemIds) || raw.systemIds.length !== 0)) return undefined;
+  return { cycle: Number(raw.cycle), revision: Number(raw.revision), redacted: true };
+}
+
 /** Explicit allowlist: a future server field never becomes a member wire field by accident. */
 export function memberSessionProjection(value: unknown, scope: MemberSessionScope): Record<string, unknown> {
   const root = record(value);
@@ -118,12 +135,37 @@ export function memberSessionProjection(value: unknown, scope: MemberSessionScop
   for (const [key, id] of Object.entries(CRAFT_DETAIL_FIELDS)) {
     if (craft.has(id) && root[key] !== undefined) result[key] = root[key];
   }
-  const philia = memberPhiliaRepairLedger(root.philiaRepairs);
-  if (craft.has('philia') && philia) result.philiaRepairs = { ...philia,
-    totalHostsUsed: philia.totalHostsUsed ?? philia.hosts.length,
-    hosts: philia.hosts.filter(host => ships.has(host.shipId)) };
+  for (const [key, id] of Object.entries(REPAIR_DETAIL_FIELDS)) {
+    const ledger = memberPhiliaRepairLedger(root[key]);
+    if (craft.has(id) && ledger) result[key] = { ...ledger,
+      totalHostsUsed: ledger.totalHostsUsed ?? ledger.hosts.length,
+      hosts: scope.groupId === 'gm' ? ledger.hosts : ledger.hosts.filter(host => ships.has(host.shipId)) };
+  }
   for (const [key, id] of Object.entries(VESSEL_DETAIL_FIELDS)) {
     if (ships.has(id) && root[key] !== undefined) result[key] = root[key];
+  }
+  if (scope.groupId !== 'gm') {
+    for (const [key, id, parse] of [
+      ['gorgoneionRepairDrones','gorgoneion',parseGorgoneionRepairDronesState],
+      ['warriorRepairDrones','warrior',parseWarriorRepairDronesState],
+    ] as const) {
+      delete result[key];
+      if (!ships.has(id) || root[key] === undefined) continue;
+      const redacted = memberRedactedCraftUse(root[key]);
+      const used = redacted ?? parse(root[key]);
+      if (used && used.cycle > 0) result[key] = redacted ?? ('hostShipId' in used && ships.has(used.hostShipId)
+        ? used : { cycle: used.cycle, revision: used.revision, redacted: true });
+    }
+    result.serviceShuttleRecharges = Object.fromEntries(Object.entries(record(result.serviceShuttleRecharges)).flatMap(([id, value]) => {
+      const entry = record(value), redacted = memberRedactedCraftUse(value);
+      if (redacted) return [[id, redacted]];
+      if (!Number.isSafeInteger(entry.cycle) || Number(entry.cycle) < 1 ||
+          !Number.isSafeInteger(entry.revision) || Number(entry.revision) < 1 ||
+          typeof entry.hostShipId !== 'string' || typeof entry.consoleId !== 'string' || !entry.consoleId) return [];
+      return [[id, ships.has(entry.hostShipId)
+        ? { cycle: entry.cycle, revision: entry.revision, hostShipId: entry.hostShipId, consoleId: entry.consoleId }
+        : { cycle: entry.cycle, revision: entry.revision, redacted: true }]];
+    }));
   }
   result.admittedVesselIds = (Array.isArray(root.admittedVesselIds) ? root.admittedVesselIds : [])
     .filter(id => ships.has(String(id)));

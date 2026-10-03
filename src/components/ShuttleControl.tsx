@@ -463,13 +463,15 @@ export default function ShuttleControl({ control }: Props) {
   const blacksmithRepairRevision = blacksmithRepair?.revision ?? 0;
   const repairHostsThisCycle = blacksmithRepair && blacksmithRepair.cycle === session.currentTurn
     ? blacksmithRepair.hosts : [];
+  const repairHostsUsedThisCycle = blacksmithRepair && blacksmithRepair.cycle === session.currentTurn
+    ? blacksmithRepair.totalHostsUsed ?? repairHostsThisCycle.length : 0;
   const repairedOnHost = docking
     ? repairHostsThisCycle.find((host) => host.shipId === docking.shipId)?.systemIds ?? EMPTY_SYSTEM_IDS
     : EMPTY_SYSTEM_IDS;
   const repairHostAlreadyUsed = Boolean(docking &&
     repairHostsThisCycle.some((host) => host.shipId === docking.shipId));
-  const repairShipAvailable = repairHostAlreadyUsed || repairHostsThisCycle.length === 0 ||
-    (repairHostsThisCycle.length < 2 && session.shuttleFuelled?.blacksmith === true);
+  const repairShipAvailable = repairHostAlreadyUsed || repairHostsUsedThisCycle === 0 ||
+    (repairHostsUsedThisCycle < 2 && session.shuttleFuelled?.blacksmith === true);
   const repairSlotsRemaining = Math.max(0, 2 - repairedOnHost.length);
   const repairOptions = useMemo(() => docking && control.shuttleId === 'blacksmith'
     ? (hostDamage?.damagedSystemIds ?? []).filter((id) => !repairedOnHost.includes(id)) : [],
@@ -1174,7 +1176,9 @@ export default function ShuttleControl({ control }: Props) {
       {!hostMaintenanceReady && <p>Complete host maintenance for this cycle before recharging.</p>}
       {hostDamage?.destroyed && <p>A destroyed host cannot receive a console charge.</p>}
       {rechargedThisCycle && rechargeEntry && <p>
-        Recharged {rechargeEntry.consoleId} on {findShip(rechargeEntry.hostShipId)?.name ?? rechargeEntry.hostShipId} this cycle.
+        {rechargeEntry.redacted === true || !('hostShipId' in rechargeEntry)
+          ? 'Recharge already used this cycle.'
+          : <>Recharged {rechargeEntry.consoleId} on {findShip(rechargeEntry.hostShipId)?.name ?? rechargeEntry.hostShipId} this cycle.</>}
       </p>}
       <label htmlFor={`service-recharge-console-${control.shuttleId}`}>Host console</label>
       <select className="shuttle-control__touch-target" id={`service-recharge-console-${control.shuttleId}`} value={rechargeConsoleId}
