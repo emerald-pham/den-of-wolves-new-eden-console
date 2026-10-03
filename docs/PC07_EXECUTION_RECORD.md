@@ -421,3 +421,54 @@ attack must also require reason, expected attack revision, idempotency and a
 scoped audit. Its normal non-attack clock behavior remains the existing
 contract. P434a, native composed proof and independent review remain open;
 the reasoned client form alone is not completion evidence.
+
+The owner connected the matching active-attack client contract in `e8a5f5a0`:
+the three existing emergency confirmations now require an attack reason and
+current revision, and the reply strictly correlates request, reason, before/after
+clock, stage and revision. A changed GM instance cannot hydrate a late reply.
+The normal non-attack three-confirmation command retains its original payload.
+Ordinary cycle advance, timer override and +5 minute extension controls withdraw
+while an attack is declared. Native enforcement remains the attack worker's
+coupled scope and is not credited from disabled browser controls.
+
+All **379/379** current GM, service, recovery, timer and fleet-alert checks pass
+in `gm-attack-timer-current-consumers.reconciled-green.log`; typecheck passes.
+The first complete run exposed two older positive fixtures lacking the current
+server-freshness authority. Separate test-only `38b7f4dc` supplies that authority
+and real server-snapshot metadata without weakening their assertions. The
+original failing result remains outside Git. A pure recovery presenter preserves
+the actual GM form while its parent retains authority and mutation ownership.
+
+The separate committed geometry red test caught a real 11.52px textarea at
+320px. Scoped `e7b33b5a` repairs only the new recovery and emergency-reason forms:
+16px actual CIC mono textareas, 14px labels, 20px checkbox and reachable controls.
+All eight phone, desktop and short-landscape cases in normal/reduced motion pass
+(`gm-intervention-layout-green/summary.json`, October 3 07:21 UTC); the phone and
+short-landscape screenshots were visually inspected. This prepared geometry
+harness sends no native mutation and earns no gameplay closure. The unchanged
+font/palette ratchet additionally exposed six new fallback colors. Source repair
+`9069d6d8` uses established CIC tokens and actual families in the attack status
+and interstitial clearance surfaces; all **62/62** aesthetic checks pass.
+
+### Native player-taxi audit repair
+
+The split worker's legal authenticated player transfer reached the native
+handler but failed before any write because the audit included fuel-only fields
+with undefined values. Test-first `a6903e42` records a Firestore-style rejection
+and exact passenger replay/out-of-range write invariants; source `6749673a`
+conditionally adds those fields only to fuel audits. The owner integrated these
+as `64277561`/`2c3dea43`; all 39 current native transfer tests and Functions build
+pass. This is the first substantive committed repair attempt, and the original
+HTTP 500 is preserved rather than hidden by global undefined-field settings.
+
+With the worker explicitly paused, the owner exported its current Auth/Firestore
+state to `runtime-snapshot-2c3dea43`, stopped only owned backend session 9359 and
+restored that snapshot in session 22070 on the same reserved slot. A bounded
+normal authenticated Wing Commander passenger transfer then committed its
+receipt and audit and moved the Admiral from fleet-1 to fleet-2. Its persisted
+player audit has neither fuel-only field, discriminating the prior served 500.
+The expired cycle-2 airspace deadline was extended only in a labeled local
+emulator fixture for this call; that preparation is separate from the normal
+native operation. The owner acknowledged this successful repair before the
+worker resumed the remaining complete scenario. Full 21-row composition,
+final independent review, CI and deployment still remain open.

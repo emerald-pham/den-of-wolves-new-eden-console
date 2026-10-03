@@ -83,8 +83,11 @@ Direct chart, result, note and audit reads remain denied by Rules.
   strictly parsed scoped before/after receipt. Review exact replay and stale
   concurrent GM denial. The active-attack global emergency pause/resume path
   must use the same reasoned authority; the legacy non-attack clock endpoint
-  must not bypass attack intervention checks. Immutable committed rolls and
-  choices have no rollback permission.
+  must not bypass attack intervention checks. Ordinary phase extension and
+  skip/override commands must deny a declared attack even after its deadline.
+  Correlate nested pause/delta fields and forbid unexpected receipt fields;
+  current GM identity and attack revision also govern delayed client hydration.
+  Immutable committed rolls and choices have no rollback permission.
 - Gorgoneion's current admitted Captain makes the printed before-targeting
   use/pass and local target choice. Valid current-cycle server charge is the
   recovered projector readiness model; PC07 adds no small-ship damage deck.
