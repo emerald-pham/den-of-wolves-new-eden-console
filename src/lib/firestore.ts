@@ -3286,7 +3286,15 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     if (typeof scope.groupId !== 'string' || !/^(fleet-[1-9][0-9]*|gm)$/.test(scope.groupId) || !vesselIds || !craftIds) {
       throw new Error('The current member session scope is malformed.');
     }
-    return memberSessionProjection(session, { groupId: scope.groupId, vesselIds, craftIds }) as unknown as GameSession;
+    const projected = memberSessionProjection(session, { groupId: scope.groupId, vesselIds, craftIds });
+    // The server already bound this independent craft to the current Press
+    // actor. Keep its validated docking/history through the second local
+    // projection without giving Press any vessel operational maps.
+    if (vesselIds.length === 0 && craftIds.includes('snn-press-shuttle')) {
+      projected.shuttleDockings = shuttleManifest.dockings.filter(docking => docking.shuttleId === 'snn-press-shuttle');
+      projected.shuttleVisitLog = shuttleManifest.visits.filter(visit => visit.shuttleId === 'snn-press-shuttle');
+    }
+    return projected as unknown as GameSession;
   }
   return session;
 }

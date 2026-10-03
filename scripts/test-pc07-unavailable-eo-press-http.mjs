@@ -91,8 +91,17 @@ try {
   await page.getByLabel('Destination ship', { exact: true }).selectOption('icebreaker');
   await page.getByRole('button', { name: 'Request departure', exact: true }).click();
   await page.getByRole('button', { name: 'Begin transit', exact: true }).and(page.locator(':enabled')).click();
-  await page.waitForFunction(async () => (await import('/src/store/useSessionStore.ts')).useSessionStore.getState().session
-    ?.shuttleDockings?.some(dock => dock.shuttleId === 'snn-press-shuttle' && dock.shipId === 'icebreaker'), undefined, { timeout: 30000 });
+  // Wait for the real 60-second flight and the UI's authenticated automatic
+  // arrival; an async waitForFunction predicate is not an arrival assertion.
+  let arrived = false;
+  for (let i = 0; i < 360; i++) {
+    const serverDocked = (await session.get()).get('shuttleDockings')?.some(dock => dock.shuttleId === 'snn-press-shuttle' && dock.shipId === 'icebreaker');
+    const clientDocked = await page.evaluate(async () => Boolean((await import('/src/store/useSessionStore.ts')).useSessionStore.getState().session
+      ?.shuttleDockings?.some(dock => dock.shuttleId === 'snn-press-shuttle' && dock.shipId === 'icebreaker')));
+    if (serverDocked && clientDocked) { arrived = true; break; }
+    await page.waitForTimeout(250);
+  }
+  assert.ok(arrived, 'Normal server flight and client docking must both complete.');
   await page.waitForTimeout(5500);
   await page.getByRole('region', { name: 'Shuttle control', exact: true }).waitFor();
   const after = await command(press, 'getCurrentMemberSession');
