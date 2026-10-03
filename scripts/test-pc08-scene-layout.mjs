@@ -142,6 +142,9 @@ test('PC08 real-presenter review is isolated and usable in eight viewport and mo
               await page.getByRole('button', {name: 'rejoined sample', exact: true}).click();
               await dockedTagsContained();
             } else if (index === 1) {
+              await page.getByRole('button', {name: 'Enrich warheads // 5 ore', exact: true}).click();
+              assert.match(await page.getByRole('status', {name: 'Prepared warhead balance'}).textContent(), /4 ore remaining/);
+              assert.equal(await page.getByRole('button', {name: 'Enrich warheads // 5 ore', exact: true}).count(), 0);
               await page.getByRole('checkbox', {name: 'Missile launchers', exact: true}).check();
               await page.getByRole('button', {name: 'Use selected actions', exact: true}).click();
               await page.getByRole('combobox', {name: 'Missile launchers hit 1', exact: true}).selectOption('local-contact-1');
@@ -174,6 +177,9 @@ test('PC08 real-presenter review is isolated and usable in eight viewport and mo
               await page.getByRole('button', {name: 'Pass Short Range', exact: true}).click();
               assert.match(await page.getByRole('status', {name: 'Prepared fighter result'}).textContent(), /PDF Escort Wing passed Short Range/);
               await page.screenshot({path: `${directory}/${width}x${height}-${reducedMotion}-pdf-short-pass.png`, fullPage: true});
+              await page.getByRole('button', {name: 'Medium Range sample', exact: true}).click();
+              await page.getByRole('button', {name: 'Pass Medium Range', exact: true}).click();
+              assert.match(await page.getByRole('status', {name: 'Prepared fighter result'}).textContent(), /PDF Escort Wing passed Medium Range/);
               await page.getByRole('button', {name: 'Maliades sample', exact: true}).click();
               await page.getByRole('button', {name: 'Medium Range sample', exact: true}).click();
               await page.getByRole('button', {name: 'Launch Maliades', exact: true}).click();
@@ -202,9 +208,13 @@ test('PC08 real-presenter review is isolated and usable in eight viewport and mo
               assert.ok(await page.getByRole('button', {name: 'Move Pallas to Dione', exact: true}).isEnabled());
               await page.getByRole('button', {name: 'Move Pallas to Dione', exact: true}).click();
               await page.getByRole('button', {name: 'Militia sample', exact: true}).click();
-              await page.getByRole('checkbox', {name: 'Roll two dice per Security Team', exact: true}).check();
+              assert.equal(await page.getByRole('checkbox', {name: 'Roll two dice per Security Team', exact: true}).count(), 0);
               await page.getByRole('combobox', {name: 'Front-line dice', exact: true}).selectOption('2');
-              await page.getByRole('button', {name: 'Commit defence', exact: true}).click();
+              await page.getByRole('button', {name: 'Commit Militia risk', exact: true}).click();
+              await page.getByRole('button', {name: 'Outnumbered Militia sample', exact: true}).click();
+              await page.getByRole('checkbox', {name: 'Roll two dice per Security Team', exact: true}).check();
+              assert.equal(await page.getByRole('combobox', {name: 'Front-line dice', exact: true}).locator('option').count(), 1);
+              await page.getByRole('button', {name: 'Commit Militia risk', exact: true}).click();
               for (const source of ['AEGIS', 'Pallas']) {
                 await page.getByRole('button', {name: `${source} reroll sample`, exact: true}).click();
                 await page.getByRole('checkbox', {name: 'Aegis die 1: 1', exact: true}).check();
@@ -222,6 +232,11 @@ test('PC08 real-presenter review is isolated and usable in eight viewport and mo
               assert.match(await page.getByRole('region', {name: 'Wolf attack status'}).textContent(), /Attack complete/);
               await page.getByRole('button', {name: 'Reconnect sample', exact: true}).click();
               assert.match(await page.getByRole('status', {name: 'Prepared recovery result'}).textContent(), /same committed/);
+              await page.getByRole('button', {name: 'Prepare later attack sample', exact: true}).click();
+              const returnSample = page.getByRole('region', {name: 'Prepared surviving Wolf Wing return', exact: true});
+              assert.match(await returnSample.textContent(), /15 Wolf ships, including 2 returning Wings/);
+              assert.match(await returnSample.textContent(), /Wing 3: destroyed.*does not return/);
+              assert.ok(await page.getByRole('button', {name: 'Prepare later attack sample', exact: true}).isDisabled());
             }
             await page.screenshot({path: `${directory}/${width}x${height}-${reducedMotion}-step-${index + 1}.png`, fullPage: true});
           }
