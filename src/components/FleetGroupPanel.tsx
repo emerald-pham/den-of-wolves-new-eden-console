@@ -4,6 +4,7 @@ import type { FleetGroupNavigationProjection, FleetGroupNote, FleetTaxiPayload, 
 import './FleetGroupWorkspace.css';
 
 interface TaxiPlayer { readonly uid: string; readonly label: string }
+const EMPTY_OPTIONS = [] as const;
 interface Props {
   readonly groupId: string; readonly actorUid: string; readonly notes: readonly FleetGroupNote[];
   readonly draft: string; readonly busy: boolean; readonly notice: string;
@@ -27,7 +28,8 @@ function shipLabel(shipId: string): string {
 }
 
 export default function FleetGroupPanel({ groupId, actorUid, notes, draft, busy, notice, navigation = null,
-  scannedCoordinates = [], taxiDestinations = [], taxiShuttles = [], taxiPlayers = [], canShare = false, onDraft, onSend, onRefresh,
+  scannedCoordinates = EMPTY_OPTIONS, taxiDestinations = EMPTY_OPTIONS, taxiShuttles = EMPTY_OPTIONS,
+  taxiPlayers = EMPTY_OPTIONS, canShare = false, onDraft, onSend, onRefresh,
   onConfirm, onShare, onTaxi }: Props) {
   const [coordinate, setCoordinate] = useState('');
   const [recipientShipIds, setRecipientShipIds] = useState<readonly string[]>([]);
@@ -39,10 +41,16 @@ export default function FleetGroupPanel({ groupId, actorUid, notes, draft, busy,
   const [passengerUids, setPassengerUids] = useState<readonly string[]>([]);
   useEffect(() => {
     if (!scannedCoordinates.includes(coordinate)) setCoordinate(scannedCoordinates[0] ?? '');
-    setRecipientShipIds(current => current.filter(id => navigation?.ships.some(ship => ship.shipId === id)));
+    setRecipientShipIds(current => {
+      const valid = current.filter(id => navigation?.ships.some(ship => ship.shipId === id));
+      return valid.length === current.length ? current : valid;
+    });
     if (!taxiShuttles.includes(shuttleId as FleetTaxiShuttleId)) setShuttleId(taxiShuttles[0] ?? '');
     if (!taxiDestinations.includes(destinationShipId)) setDestinationShipId(taxiDestinations[0] ?? '');
-    setPassengerUids(current => current.filter(uid => taxiPlayers.some(player => player.uid === uid)));
+    setPassengerUids(current => {
+      const valid = current.filter(uid => taxiPlayers.some(player => player.uid === uid));
+      return valid.length === current.length ? current : valid;
+    });
   }, [scannedCoordinates, navigation, taxiShuttles, taxiDestinations, taxiPlayers, coordinate, shuttleId, destinationShipId]);
 
   const ships = navigation?.ships ?? [];
