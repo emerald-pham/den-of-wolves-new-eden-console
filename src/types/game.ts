@@ -795,7 +795,7 @@ export interface WolfBoardingDefenceChoiceView {
 export type WolfBoardingDefenceChoiceReadResult = WolfBoardingDefenceChoiceView | Readonly<{
   type: 'wolf-boarding-defence-choice-unavailable';
   sessionId: string;
-  reason: 'no-boarders';
+  reason: 'no-boarders' | 'not-your-choice';
 }>;
 
 export interface WolfBoardingDefenceChoiceResult {
@@ -827,6 +827,52 @@ export interface WolfFighterLaunchChoiceResult {
   readonly turn: number;
   readonly revision: number;
   readonly choiceStatus: 'passed';
+}
+
+export type WolfBoardingSpecialChoiceCommand =
+  | Readonly<{ kind: 'commander'; targetShipId: WolfAttackTargetId | null }>
+  | Readonly<{ kind: 'relocation'; craftId: 'pallas' | 'chepu'; targetShipId: WolfAttackTargetId | null;
+      expectedControlRevision: number }>
+  | Readonly<{ kind: 'militia'; targetShipId: WolfAttackTargetId; militiaDoubleTeams: boolean;
+      militiaFrontLineDice: number }>
+  | Readonly<{ kind: 'reroll'; source: 'aegis' | 'pallas'; targetShipId: WolfAttackTargetId;
+      dieIndexes: readonly number[] }>
+  | Readonly<{ kind: 'commander-ruling'; targetShipId: WolfAttackTargetId; rulingText: string }>;
+
+export type WolfBoardingSpecialChoiceView = Readonly<{
+  type: 'wolf-boarding-special-choice-view'; sessionId: string; turn: number; revision: number;
+  choice:
+    | Readonly<{ kind: 'commander'; targets: readonly Readonly<{
+        targetShipId: WolfAttackTargetId; boardingParties: number;
+      }>[] }>
+    | Readonly<{ kind: 'relocation'; craftId: 'pallas' | 'chepu'; currentHostId: WolfAttackTargetId;
+        fuelled: boolean; controlRevision: number; legalHostIds: readonly WolfAttackTargetId[] }>
+    | Readonly<{ kind: 'militia'; targetShipId: WolfAttackTargetId; boardingParties: number;
+        availableSecurityTeams: number; selectedSecurityTeams: number; maxFrontLineDice: number;
+        doubleDiceAvailable: boolean }>
+    | Readonly<{ kind: 'reroll'; source: 'aegis' | 'pallas'; targetShipId: WolfAttackTargetId;
+        dice: readonly Readonly<{ targetShipId: WolfAttackTargetId; dieIndex: number; value: number }>[];
+        alreadyRerolled: readonly Readonly<{ targetShipId: WolfAttackTargetId; dieIndex: number }>[];
+        maxRerolls: 3 }>
+    | Readonly<{ kind: 'commander-ruling'; targetShipId: WolfAttackTargetId;
+        condition: 'All Commander-led Wolf Boarding Parties were destroyed.' }>;
+}>;
+
+export type WolfBoardingSpecialChoiceReadResult = WolfBoardingSpecialChoiceView | Readonly<{
+  type: 'wolf-boarding-special-choice-unavailable'; sessionId: string;
+  reason: 'not-your-choice' | 'automatic-progress-pending' | 'no-special-choice';
+}>;
+
+export interface WolfBoardingSpecialChoiceResult {
+  readonly status: 'committed';
+  readonly type: 'wolf-boarding-special-choice';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly turn: number;
+  readonly revision: number;
+  readonly currentStep: 'boarding';
+  readonly choiceKind: WolfBoardingSpecialChoiceCommand['kind'];
+  readonly rerolledValues?: readonly number[];
 }
 
 export type DioneMaliadesLaunchReason =
