@@ -1,4 +1,5 @@
 import { FIGHTER_WING_IDS, type FighterWingId } from './fighterWings';
+import { applyWolfRangeTargetShift, type WolfTargetRing } from './wolfCombatMath';
 import type { WolfRandomInt } from './wolfCombatMath';
 
 export interface AegisFighterWingCombatState {
@@ -189,7 +190,7 @@ export function resolveAegisFighterWingMedium(
   state: AegisFighterWingCombatState,
   input: Readonly<{
     expectedRevision: unknown; attackId: unknown; cycle: unknown; wingId: FighterWingId;
-    targetRingLength: number; actions: readonly AegisFighterWingMediumAction[]; random: WolfRandomInt;
+    targetRing: WolfTargetRing; actions: readonly AegisFighterWingMediumAction[]; random: WolfRandomInt;
   }>,
 ): AegisFighterWingMediumResolution {
   validateIdentity(state, input);
@@ -197,8 +198,10 @@ export function resolveAegisFighterWingMedium(
   const wing = state.wings[input.wingId];
   if (!wing.launched) throw new Error('Launch this fighter wing before resolving Medium Range.');
   if (wing.mediumResolved) throw new Error('This fighter wing has already resolved Medium Range.');
-  safeInteger(input.targetRingLength, 'Wolf target-ring length', 2);
-  if (input.targetRingLength > 8) throw new Error('The Wolf target-ring length is outside the printed range.');
+  if (!Array.isArray(input.targetRing) || input.targetRing.length < 2 || input.targetRing.length > 7 ||
+      new Set(input.targetRing).size !== input.targetRing.length) {
+    throw new Error('The current Wolf target ring is unavailable.');
+  }
   if (!Array.isArray(input.actions)) throw new Error('Fighter Medium actions must be a list.');
   validateIndexes(input.actions.map(({ fighterIndex }) => fighterIndex), wing.fighters, 'Medium Range');
   const targetShifts: Array<{ fighterIndex: number; targetInstanceId: string; from: number; to: number }> = [];
@@ -208,14 +211,14 @@ export function resolveAegisFighterWingMedium(
       throw new Error('Every fighter Medium action requires a current Wolf contact.');
     }
     if (action.kind === 'target-shift') {
-      safeInteger(action.targetNumber, 'Current Wolf target number', 1);
-      if (action.targetNumber > input.targetRingLength || (action.shift !== -1 && action.shift !== 1)) {
-        throw new Error('The fighter target shift is outside the current Wolf target ring.');
-      }
+      safeInteger(action.targetNumber, 'Current Wolf target number');
       targetShifts.push({
         fighterIndex: action.fighterIndex, targetInstanceId: action.targetInstanceId,
         from: action.targetNumber,
-        to: ((action.targetNumber - 1 + action.shift + input.targetRingLength) % input.targetRingLength) + 1,
+        to: applyWolfRangeTargetShift(
+          input.wingId === 'fighter-wing-alpha' ? 'aegis-alpha-wing' : 'aegis-bravo-wing',
+          action.targetNumber, action.shift, input.targetRing,
+        ),
       });
     } else if (action.kind === 'attack') {
       const rolled = die(input.random);

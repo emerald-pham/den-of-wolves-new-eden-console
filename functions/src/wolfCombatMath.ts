@@ -298,6 +298,7 @@ export function applyWolfRangeTargetShift(
   if (!['aegis-alpha-wing', 'aegis-bravo-wing', 'maliades', 'pdf-escort-wing'].includes(sourceId)) {
     throw new Error('Unknown Wolf range target-shift source.');
   }
+  if (shift !== -1 && shift !== 1) throw new Error('Wolf target shifts must be -1 or 1.');
   const sixTargetEndpointRing = ring.length === CORE_WOLF_TARGET_RING.length;
   const normalizedDie = sixTargetEndpointRing && currentDie === 0 ? ring.length
     : sixTargetEndpointRing && currentDie === 7 ? 1 : currentDie;

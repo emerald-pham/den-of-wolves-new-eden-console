@@ -8,6 +8,12 @@
  * on a charged or launched wing.
  */
 
+import {
+  applyWolfRangeTargetShift,
+  CORE_WOLF_TARGET_RING,
+  type WolfTargetRing,
+} from './wolfCombatMath';
+
 export type PdfEscortWingRandomInt = (upperBound: number) => number;
 
 export type PdfEscortWingMediumAction =
@@ -350,13 +356,16 @@ export function launchPdfEscortWing(
 }
 
 /** Apply the printed ±1 shift; 0 reaches Refinery 124 and 7 reaches the AEGIS. */
-export function shiftPdfEscortTargetNumber(targetNumber: number, shift: -1 | 1): number {
+export function shiftPdfEscortTargetNumber(
+  targetNumber: number,
+  shift: -1 | 1,
+  ring: WolfTargetRing = CORE_WOLF_TARGET_RING,
+): number {
   requireSafeInteger(targetNumber, 'The PDF Escort Wing target number');
-  if (targetNumber < 1 || targetNumber > 6) {
-    throw new Error('The PDF Escort Wing target number must be from 1 through 6.');
+  if (targetNumber < 0 || targetNumber > 7) {
+    throw new Error('The PDF Escort Wing target number must be from 0 through 7.');
   }
-  if (shift !== -1 && shift !== 1) throw new Error('The PDF Escort Wing target shift must be -1 or 1.');
-  return targetNumber + shift;
+  return applyWolfRangeTargetShift('pdf-escort-wing', targetNumber, shift, ring);
 }
 
 /** Resolve each committed fighter's one printed Medium action. */
@@ -366,6 +375,7 @@ export function resolvePdfEscortWingMedium(
     expectedRevision: unknown;
     actions: readonly PdfEscortWingMediumAction[];
     random: PdfEscortWingRandomInt;
+    targetRing?: WolfTargetRing;
   }>,
 ): PdfEscortWingMediumResolution {
   requireExpectedRevision(state, input.expectedRevision);
@@ -386,7 +396,7 @@ export function resolvePdfEscortWingMedium(
         targetId: action.targetId,
         targetNumber: action.targetNumber,
         shift: action.shift,
-        shiftedTargetNumber: shiftPdfEscortTargetNumber(action.targetNumber, action.shift),
+        shiftedTargetNumber: shiftPdfEscortTargetNumber(action.targetNumber, action.shift, input.targetRing),
       });
       return;
     }
