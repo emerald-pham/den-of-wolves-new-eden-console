@@ -14,11 +14,6 @@ try{
  assert.match(origin,/^http:\/\/127\.0\.0\.1:\d+$/);
  await page.goto(origin);
  await page.getByRole('button',{name:/^REDUCED MOTION/i}).click();
- await page.getByRole('dialog',{name:'CODE OF CONDUCT',exact:true}).waitFor();
- for(const checkbox of await page.getByRole('checkbox',{name:/^Acknowledge regulation/}).all())await checkbox.check();
- const acknowledge=page.getByRole('button',{name:'Acknowledge regulations and continue',exact:true});
- await acknowledge.waitFor();await page.waitForFunction(()=>{const button=[...document.querySelectorAll('button')].find(b=>b.textContent==='Acknowledge regulations and continue');return button&&!button.disabled;});
- await acknowledge.click();
  await page.getByRole('button',{name:'Settings',exact:true}).click();
  await page.getByRole('button',{name:'Authorize local emulator GM',exact:true}).click();
  await page.getByText('GM access remains authorized on this device for 24 hours.',{exact:false}).waitFor();
@@ -26,6 +21,11 @@ try{
  const joinCode=(await f.session.get()).get('joinCode');
  await page.getByRole('textbox',{name:'Session code',exact:true}).fill(joinCode);
  await page.getByRole('button',{name:'Join a session',exact:true}).click();
+ await page.getByRole('dialog',{name:'CODE OF CONDUCT',exact:true}).waitFor();
+ for(const checkbox of await page.getByRole('checkbox',{name:/^Acknowledge regulation/}).all())await checkbox.check();
+ const acknowledge=page.getByRole('button',{name:'Acknowledge regulations and continue',exact:true});
+ await acknowledge.waitFor();await page.waitForFunction(()=>{const button=[...document.querySelectorAll('button')].find(b=>b.textContent==='Acknowledge regulations and continue');return button&&!button.disabled;});
+ await acknowledge.click();
  const clear=page.getByRole('button',{name:'Clear cycle briefing // resume clock',exact:true});
  await clear.waitFor({state:'visible',timeout:30000});
  const held=(await f.session.get()).get('turnPhase');assert.equal(held.timerPause.reason,'turn-interstitial');
@@ -38,14 +38,16 @@ try{
  await page.screenshot({path:`${directory}/phone-offline-clearance.png`,fullPage:true});
  await context.setOffline(false);
  await clear.waitFor({state:'visible'});await page.waitForFunction(()=>{const button=[...document.querySelectorAll('button')].find(b=>b.textContent==='Clear cycle briefing // resume clock');return button&&!button.disabled;});
- await clear.click();await clear.waitFor({state:'hidden'});
+ await clear.click();await page.getByText('Cycle clock held // preserved time resumes when this briefing clears.',{exact:true}).waitFor({state:'hidden'});
  const resumed=(await f.session.get()).get('turnPhase');assert.equal(resumed.timerPause,undefined);
  const hold=(await f.db.doc(`sessions/${f.sessionId}/turnInterstitials/1`).get()).data();
  assert.equal(Date.parse(resumed.teamPhaseEndsAt)-Date.parse(hold.clearedAt),600000);
  assert.equal(resumed.airspace.state,'restricted');
- await page.reload();await page.getByRole('link',{name:'GM join',exact:true}).waitFor({timeout:20000});
- await page.getByRole('link',{name:'GM join',exact:true}).click();
- await page.getByRole('textbox',{name:'Input GM Name',exact:true}).fill('PC07 UI facilitator');
+ await page.reload();await page.waitForTimeout(1000);
+ await writeFile(`${directory}/reload-link-state.json`,JSON.stringify({links:await page.locator('a').evaluateAll(elements=>elements.map(e=>({html:e.outerHTML,rect:{x:e.getBoundingClientRect().x,y:e.getBoundingClientRect().y,width:e.getBoundingClientRect().width,height:e.getBoundingClientRect().height},display:getComputedStyle(e).display,visibility:getComputedStyle(e).visibility,role:e.getAttribute('role')}))),accessibleLinks:await page.getByRole('link').allTextContents()},null,2)+'\n');
+ await page.getByRole('link',{name:/GM join/i}).waitFor({timeout:20000});
+ await page.getByRole('link',{name:/GM join/i}).click();
+ await page.getByRole('textbox',{name:/^Input GM Name$/i}).fill('PC07 UI facilitator');
  await page.getByRole('button',{name:'Join as GM',exact:true}).click();
  await page.getByRole('button',{name:'GM joined',exact:true}).waitFor();
  await page.goto(`${origin}/#/gm`);
@@ -55,4 +57,4 @@ try{
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth));
  await writeFile(`${directory}/summary.json`,JSON.stringify({kind:'normal-authenticated-local-emulator-ui',checks:{normalJoin:true,realServerHeldClock:true,offlineControlDisabled:true,reconnectRestoresClear:true,normalClearPreservesTenMinutes:true,restrictedTeamAfterClear:true,normalReload:true,ordinaryNamedGmJoin:true},productionGameplay:false,preparedReviewScene:false,identitiesRetained:false,completedAt:new Date().toISOString()},null,2)+'\n');
  console.log('PC07 normal local browser hold/reconnect/clear and named GM proof passed.');
-}catch(error){if(page){await page.screenshot({path:`${directory}/failure.png`,fullPage:true});await writeFile(`${directory}/failure-state.json`,JSON.stringify({message:error.message,url:page.url(),errors,body:await page.locator('body').innerText()},null,2)+'\n');}throw error;}finally{await browser?.close();await f.cleanup();}
+}catch(error){if(page){await page.screenshot({path:`${directory}/failure.png`,fullPage:true});await writeFile(`${directory}/failure-state.json`,JSON.stringify({message:error.message,url:page.url(),errors,body:await page.locator('body').innerText(),links:await page.locator('a').evaluateAll(elements=>elements.map(e=>({html:e.outerHTML,aria:e.closest('[aria-hidden]')?.outerHTML.slice(0,300),inert:e.closest('[inert]')?.tagName})))},null,2)+'\n');}throw error;}finally{await browser?.close();await f.cleanup();}
