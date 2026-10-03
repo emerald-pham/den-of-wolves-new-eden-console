@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import { collectWolfEscortRange } from './wolfEscortRange';
 import { beginPdfEscortWingAttack, initialPdfEscortWingState, launchPdfEscortWing } from './pdfEscortWingState';
 import { initialMaliadesState, launchMaliades } from './maliadesState';
-import { CORE_WOLF_TARGET_RING, lockWolfRangeActions, resolveWolfTargeting, wolfCombatRoster } from './wolfCombatMath';
+import { CORE_WOLF_TARGET_RING, lockWolfRangeActions, resolveWolfTargeting, wolfCombatRoster, wolfRangeFixedTargetInstanceIds } from './wolfCombatMath';
 import { firstTurnWolfAttackComposition } from './wolfAttackComposition';
 
 const attackId = 'escort-attack-1';
@@ -17,6 +17,13 @@ const marker = (sourceId: string, extra: object, range = 'medium-range') => ({
   type: 'wolf-escort-range-action-choice', status: 'committed', sourceId, range,
   attackId, turn: 1, revision: 5, actorUid: sourceId === 'maliades' ? 'engineer' : 'colonel',
   actorRoleId: sourceId === 'maliades' ? 'dione-engineer' : 'refinery-124-pdf-colonel', requestId: `escort-${sourceId}-1`, ...extra,
+});
+
+it('admits pre-roll Short targets only from live Wings, then admits other live nonimmune contacts when no Wing remains', () => {
+  expect(wolfRangeFixedTargetInstanceIds('short-range', roster)).toEqual(roster.slice(0, 10).map(({ instanceId }) => instanceId));
+  expect(wolfRangeFixedTargetInstanceIds('medium-range', roster)).toEqual(roster.map(({ instanceId }) => instanceId));
+  const afterWings = roster.map((ship) => ship.shipId === 'wolf-fighter-wing' ? { ...ship, destroyed: true } : ship);
+  expect(wolfRangeFixedTargetInstanceIds('short-range', afterWings)).toEqual(roster.slice(10).map(({ instanceId }) => instanceId));
 });
 
 it('waits for both assigned escort owners even while their consoles are disconnected', () => {
