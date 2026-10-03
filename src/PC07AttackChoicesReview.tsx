@@ -2,13 +2,28 @@ import { useState } from 'react';
 import { WolfForceFieldChoicePanelView } from '@/components/WolfForceFieldChoicePanel';
 import { WolfRangeActionPanelView } from '@/components/WolfRangeActionPanel';
 import { WolfBoardingDefencePanelView } from '@/components/WolfBoardingDefencePanel';
+import { WolfCommanderTargetingPanelView } from '@/components/WolfCommanderTargetingPanel';
+import { AegisCommandAndControlPanelView } from '@/components/AegisCommandAndControlPanel';
 import GmWolfDecisionSummary from '@/components/GmWolfDecisionSummary';
 import type {
-  Player, WolfAttackDecisionSummary, WolfAttackTargetId, WolfBoardingDefenceChoiceView,
+  AegisCommandAndControlView, WolfCommanderTargetingView, Player, WolfAttackDecisionSummary, WolfAttackTargetId, WolfBoardingDefenceChoiceView,
   WolfForceFieldChoiceView, WolfRangeActionChoiceView,
 } from '@/types/game';
 
 const deadline = '2026-10-03T12:10:00.000Z';
+const baseCommander: WolfCommanderTargetingView = {
+  type: 'wolf-commander-targeting-view', sessionId: 'prepared-pc07', turn: 2, revision: 3,
+  currentStep: 'targeting', rerollsFinalized: false,
+  rolls: [
+    { rosterIndex: 0, shipId: 'wolf-fighter-wing', die: 2, target: 'dione' },
+    { rosterIndex: 1, shipId: 'wolf-assault-transport', die: 5, target: 'shepherd' },
+  ], eligibleRerollIndexes: [0, 1], rerolledIndexes: [],
+};
+const baseCnc: AegisCommandAndControlView = {
+  type: 'aegis-command-and-control-view', sessionId: 'prepared-pc07', turn: 2, revision: 4,
+  eligible: true, commanderAssigned: true, rerollsFinalized: true,
+  targets: [{ rosterIndex: 0, shipId: 'wolf-fighter-wing' }, { rosterIndex: 1, shipId: 'wolf-assault-transport' }],
+};
 const baseCaptain: WolfForceFieldChoiceView = {
   type: 'wolf-force-field-choice-view', sessionId: 'prepared-pc07', turn: 2, revision: 2,
   attackId: 'prepared-choices', hostShipId: 'aegis', dockingRevision: 1, fleetGroupId: 'fleet-1',
@@ -34,6 +49,8 @@ const players: readonly Player[] = [{ uid: 'prepared-eo', displayName: 'Prepared
   sessionId: 'prepared-pc07', role: 'player', seatId: null, joinedAt: deadline }];
 
 export default function PC07AttackChoicesReview() {
+  const [commander, setCommander] = useState(baseCommander);
+  const [cnc, setCnc] = useState(baseCnc);
   const [captain, setCaptain] = useState(baseCaptain);
   const [range, setRange] = useState(baseRange);
   const [boarding, setBoarding] = useState(baseBoarding);
@@ -49,6 +66,7 @@ export default function PC07AttackChoicesReview() {
       actors: [{ uid: 'prepared-eo', connected: false }], actionCount: 2 },
   };
   const restore = () => {
+    setCommander(baseCommander); setCnc(baseCnc);
     setCaptain(baseCaptain); setRange(baseRange); setBoarding(baseBoarding); setCurrent(true);
     setResult('Prepared examples restored. No shared game state changed.');
   };
@@ -60,7 +78,7 @@ export default function PC07AttackChoicesReview() {
   return <section className="pc07-review__workspace pc07-review__choice-examples" aria-label="Actual prepared attack choices">
     <h3>Try the player and GM controls</h3>
     <p className="pc07-review__note" role="note" aria-label="Prepared choice examples">
-      Independent local examples // Captain before targeting; EO during Medium Range; crew during Boarding.
+      Independent local examples // Captain before targeting; Commander rerolls; optional EO redirect; range actions; crew during Boarding.
       These use the actual presenters with prepared data. They do not calculate or commit a game result.
     </p>
     <div className="pc07-review__controls">
@@ -72,6 +90,25 @@ export default function PC07AttackChoicesReview() {
       <button className="cic-action-button" type="button" onClick={() => setCurrent(false)}>Offline decision summary sample</button>
     </div>
     <WolfForceFieldChoicePanelView view={captain} onChoose={chooseCaptain} onPass={() => chooseCaptain(null)} />
+    <WolfCommanderTargetingPanelView view={commander} onReroll={(_turn, _revision, indexes) => {
+      setCommander({ ...commander, revision: commander.revision + 1,
+        eligibleRerollIndexes: commander.eligibleRerollIndexes.filter(index => !indexes.includes(index)),
+        rerolledIndexes: [...commander.rerolledIndexes, ...indexes] });
+      setResult(`Local Commander reroll: ${indexes.length} die. No native roll or game command.`);
+    }} onFinish={() => {
+      setCommander({ ...commander, revision: commander.revision + 1, rerollsFinalized: true });
+      setResult('Local Commander finish. No native game command.');
+    }} />
+    <AegisCommandAndControlPanelView view={cnc} onRedirect={(_turn, _revision, index) => {
+      const target = cnc.targets.find(candidate => candidate.rosterIndex === index);
+      if (!target) return;
+      setCnc({ ...cnc, revision: cnc.revision + 1, eligible: false, reason: 'already-used',
+        targets: [], redirectedShipId: target.shipId });
+      setResult('Local C&C redirect. No native targeting changed.');
+    }} onPass={() => {
+      setCnc({ ...cnc, revision: cnc.revision + 1, eligible: false, reason: 'passed', targets: [] });
+      setResult('Local C&C pass. No native target was redirected.');
+    }} />
     <WolfRangeActionPanelView view={range} onUseActions={actions => {
       setResult(`Local range actions: ${actions.length}. Charge remains available in its printed later range.`);
       setRange({ ...baseRange, revision: 5, choiceStatus: 'targets-required',

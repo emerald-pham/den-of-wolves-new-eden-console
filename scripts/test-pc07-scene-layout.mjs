@@ -65,6 +65,16 @@ test('PC07 prepared scene keeps all five checks usable and isolated in eight res
      }
      if(label.startsWith('4')){
       const choices=page.getByRole('region',{name:'Actual prepared attack choices'});
+      const commander=choices.getByRole('region',{name:'Targeting dice',exact:true});
+      await commander.getByRole('checkbox').first().check();
+      await commander.getByRole('button',{name:'Reroll selected dice',exact:true}).click();
+      assert.match(await choices.getByRole('status',{name:'Prepared choice callback result'}).textContent(),/Local Commander reroll: 1 die/);
+      await commander.getByRole('button',{name:'Finish rerolls',exact:true}).click();
+      assert.match(await commander.textContent(),/Reroll window is closed/);
+      const cnc=choices.getByRole('region',{name:'Command and Control',exact:true});
+      await cnc.getByRole('button',{name:'Pass Command and Control',exact:true}).click();
+      assert.match(await cnc.textContent(),/no redirect made/);
+      assert.equal(await cnc.getByRole('radio').count(),0);
       assert.match(await choices.getByRole('note',{name:'Prepared choice examples'}).textContent(),/Independent local examples/);
       for(const select of await choices.locator('select').all()){
        await select.scrollIntoViewIfNeeded();
