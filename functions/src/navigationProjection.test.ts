@@ -8,6 +8,7 @@ import {
   navigationState,
   navigationStateDocumentPath,
   playerDiscoveryProjection,
+  playerShipId,
   pursuitGroups,
   recordScoutedCoordinateForShip,
   splitPursuitGroup,
@@ -411,6 +412,11 @@ it('replacement entitlement supersedes historical assignment without a fallback'
     expect(revoked.knownCoordinates).toEqual(['0000']);
     expect(revoked.navigationLogs).toEqual([]);
   }
+});
+
+it('keeps a taxied passenger attached to the server-authoritative shuttle destination', () => {
+  expect(playerShipId(player({ assignedRoleId: 'wing-commander', fleetGroupId: 'fleet-2',
+    fleetTaxiHostShipId: 'shepherd' }) as never)).toBe('shepherd');
 });
 
 it('keeps mission exploration knowledge bound to a UID across navigation refreshes and role changes', () => {
