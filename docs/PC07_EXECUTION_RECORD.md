@@ -1,7 +1,15 @@
 # PC07 execution record
 
-Single accountable owner: `/root/pc07_owner`; canonical parent: `/root`.
-Owner checkout: `/Users/emeraldpham/.codex/worktrees/0ce4/den-of-wolves-new-eden-console`,
+Current checkpoint and release owner: orchestrator `/root`.
+Integrated implementation/local gameplay-proof owner: `/root/pc07_owner`;
+canonical parent: `/root`. On October 3 the user explicitly requested that the
+orchestrator thread own the checkpoint. The parent acknowledged and took final
+independent review, candidate reconciliation, CI, merge and deployment.
+Existing workers and bounded implementation/proof repairs continue unchanged.
+No new coordinator was created. The parent owns the separately isolated guidance
+update; this implementation checkout holds those files from further edits.
+
+Implementation checkout: `/Users/emeraldpham/.codex/worktrees/0ce4/den-of-wolves-new-eden-console`,
 branch `feat/pc07-execution`, baseline `5e3d09d56a50aa712406a6f3cb6b64a81e70418e`.
 Host-wide coordination entry: `1790988937677-46804-1ee274c6`; canonical ledger
 `/var/folders/0j/25gc_hjn45zdgs5p1dt2gwcr0000gn/T/den-of-wolves-new-eden-coordination.json`.
@@ -17,22 +25,24 @@ dependencies were changed.
 |---|---|---|
 | Split fleets and known-system sharing | 326, 336, 153, 337, 338, 152, 339, 340, 341, 342, 343, 344, 345, 346, 347, 348, 349, 350, 424, 678, 643 | Luna Max, `/Users/emeraldpham/.codex/worktrees/pc07-split-sharing/den-of-wolves-new-eden-console` |
 | Automatic attack lifecycle and audience contract | 428, 431, 432, 432a, 433, 433a, 433b, 434, 434a, 435, 436, 437, 438, 439, 440, 441, 442, 444, 523a | Luna Max, `/Users/emeraldpham/.codex/worktrees/pc07-attack-engine/den-of-wolves-new-eden-console` |
-| Airspace, maintenance proof and DRADIS integration | 140, 154, 155, 156, 158, 103a, 159, 351, 353 | Checkpoint owner, assigned checkout |
+| Airspace, maintenance proof and DRADIS integration | 140, 154, 155, 156, 158, 103a, 159, 351, 353 | Integrated implementation owner, assigned checkout |
 
 Each Luna worker owns a complete connected behavior, source reading, separate
 red tests and implementation commits, appropriate repairs and focused proof.
 Workers do not push, open PRs, bump versions, edit the catalog, run final CI or
 deploy. They return exact commits, source decisions, evidence and proof gaps.
-The owner integrates, obtains independent risk review and performs the one
-release. Full acceptance remains required even where existing foundations are
+The implementation owner integrates and returns complete local proof. Orchestrator
+`/root` owns final independent risk review, reconciliation and the one release.
+Full acceptance remains required even where existing foundations are
 already implemented.
 
 Split worker owns fleet partition/rejoin/taxi/known-system callables, services,
 projections and existing fleet group UI. Attack worker owns attack engine,
 audience endpoint, affected-player/GM controls and existing targeting code.
-Owner owns airspace interstitial/timer and ordinary movement restriction
-seams, local DRADIS composition, all-vessel proof, review scene, catalog,
-release metadata and deployment consumer inventory.
+Implementation owner owns airspace interstitial/timer and ordinary movement
+restriction seams, local DRADIS composition, all-vessel proof and review scene.
+The parent now owns final catalog/release metadata and deployment inventory;
+implementation source-consumer audits and evidence remain available for handback.
 
 Shared `functions/src/index.ts`, `src/lib/sessionService.ts`,
 `src/store/useSessionStore.ts`, `firestore.rules` and GMConsole edits are isolated
