@@ -75,6 +75,12 @@ it('renders committed safe attack results and offers genuine use, pass and recov
  expect(screen.getByRole('status',{name:'Attack sample result'})).toHaveTextContent('airspace opens');
  expect(screen.queryByText(/facilitator notes|unresolved dice|hidden composition/i)).not.toBeInTheDocument();
 });
+it('retains a reusable charged combat console in the prepared use result',()=>{
+ render(<PC07ReviewScene />);fireEvent.click(screen.getByRole('button',{name:'4 Attack lifecycle'}));
+ fireEvent.click(screen.getByRole('button',{name:'Declare attack sample'}));
+ fireEvent.click(screen.getByRole('button',{name:'Use charged weapon sample'}));
+ expect(screen.getByRole('status',{name:'Attack sample result'})).toHaveTextContent('Charge retained');
+});
 it('keeps the actual held-clock presentation isolated from an existing signed-in identity',()=>{
  const original=useSessionStore.getState();
  const stamp='2026-10-02T12:00:00.000Z';
