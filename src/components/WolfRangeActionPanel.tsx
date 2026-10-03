@@ -1,15 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { subscribeWolfAttackMemberView } from '@/lib/firestore';
 import {
   assignWolfRangeTargets,
   commitWolfRangeActionChoice,
   getWolfRangeActionChoice,
 } from '@/lib/sessionService';
-import { useSessionStore } from '@/store/useSessionStore';
 import type {
+  WolfAttackMemberView,
   WolfRangeActionChoiceReadResult,
   WolfRangeActionChoiceView,
 } from '@/types/game';
+import { useWolfAttackChoiceAuthority, useWolfAttackChoiceController } from '@/lib/wolfAttackChoiceController';
 import './WolfRangeActionPanel.css';
 
 type RangeAssignment = Readonly<{ actionId: string; contactIds: readonly string[] }>;
@@ -41,6 +42,16 @@ export function WolfRangeActionPanelView({
 }>) {
   const [selectedActions, setSelectedActions] = useState<readonly string[]>([]);
   const [assignmentsByAction, setAssignmentsByAction] = useState<Readonly<Record<string, readonly string[]>>>({});
+  const draftKey = JSON.stringify([
+    view.sessionId, view.turn, view.revision, view.currentStep, view.range, view.choiceStatus,
+    view.eligibleActions.map(({ actionId, sourceId, range }) => [actionId, sourceId, range]),
+    view.hitSlots.map(({ actionId, count }) => [actionId, count]),
+    view.contacts.map(({ contactId, targetShipId, available }) => [contactId, targetShipId, available]),
+  ]);
+  useEffect(() => {
+    setSelectedActions([]);
+    setAssignmentsByAction({});
+  }, [draftKey]);
   const availableContacts = useMemo(() => view.contacts.filter(({ available }) => available), [view.contacts]);
   const locked = view.choiceStatus !== 'pending';
   const needsTargets = view.choiceStatus === 'targets-required';
@@ -180,73 +191,36 @@ export default function WolfRangeActionPanel({
   sessionId?: string;
   subscribe?: typeof subscribeWolfAttackMemberView;
 }> = {}) {
-  const session = useSessionStore((state) => state.session);
-  const me = useSessionStore((state) => state.me);
-  const sessionId = suppliedSessionId ?? session?.id;
-  const [view, setView] = useState<WolfRangeActionViewState | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string>();
-  const [error, setError] = useState<string>();
+  const authority = useWolfAttackChoiceAuthority('executive-officer', suppliedSessionId);
+  const { memberView, view, busy, message, error, refresh, runMutation } = useWolfAttackChoiceController({
+    authority,
+    actor: 'executive-officer',
+    expectedStep: isWolfRangeMemberStep,
+    read: getWolfRangeActionChoice,
+    readMatches: rangeReadMatches,
+    subscribe,
+    readFailureMessage: 'Could not refresh this AEGIS range decision.',
+    mutationFailureMessage: 'The choice could not be committed. Refresh before retrying.',
+  });
+  const sessionId = authority.sessionId;
 
-  const refresh = useCallback(async () => {
-    if (!sessionId) return;
-    try {
-      const current = await getWolfRangeActionChoice();
-      setView(current);
-      setError(undefined);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not refresh this AEGIS range decision.');
-    }
-  }, [sessionId]);
-
-  useEffect(() => {
-    setView(null);
-    setMessage(undefined);
-    setError(undefined);
-    if (!sessionId || me?.role !== 'player' || me.activeConsoleRoleId !== 'executive-officer') return;
-    let live = true;
-    const update = async () => {
-      if (!live) return;
-      try {
-        const current: WolfRangeActionChoiceReadResult = await getWolfRangeActionChoice();
-        if (live) setView(current);
-      } catch (cause) {
-        if (live) setError(cause instanceof Error ? cause.message : 'Could not refresh this AEGIS range decision.');
-      }
-    };
-    const unsubscribe = subscribe(sessionId, () => { void update(); });
-    void update();
-    return () => { live = false; unsubscribe(); };
-  }, [me?.activeConsoleRoleId, me?.role, sessionId, subscribe]);
-
-  const runMutation = useCallback(async (action: () => Promise<unknown>) => {
-    if (!view || view.type !== 'wolf-range-action-choice-view' || busy) return;
-    setBusy(true);
-    setMessage(undefined);
-    setError(undefined);
-    try {
-      await action();
-      setMessage('Choice committed to the server. Reconnecting will restore the current step.');
-      await refresh();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'The choice could not be committed. Refresh before retrying.');
-      await refresh();
-    } finally {
-      setBusy(false);
-    }
-  }, [busy, refresh, view]);
-
-  if (!sessionId || me?.role !== 'player' || me.activeConsoleRoleId !== 'executive-officer') return null;
+  if (!sessionId || !authority.actorReady) return null;
+  if (!authority.ready) {
+    return <section className="wolf-range-action cic-frame" aria-label="AEGIS range weapons">
+      <p className="wolf-range-action__notice" role="status">Waiting for the live server session before showing AEGIS choices.</p>
+    </section>;
+  }
+  if (!memberView || !isWolfRangeMemberStep(memberView)) return null;
   if (!view) {
     return <section className="wolf-range-action cic-frame" aria-label="AEGIS range weapons">
       <p className="wolf-range-action__notice" role="status">{error ?? 'Checking the current server attack step…'}</p>
-      <button type="button" className="cic-action-button" onClick={() => void refresh()}>Refresh attack choice</button>
+      <button type="button" className="cic-action-button" disabled={busy} onClick={refresh}>Refresh attack choice</button>
     </section>;
   }
   if (view.type === 'wolf-range-action-choice-unavailable') {
     return view.reason === 'waiting' ? null : <section className="wolf-range-action cic-frame" aria-label="AEGIS range weapons">
       <p className="wolf-range-action__notice" role="status">{error ?? 'No weapon choice is open. The next step follows the server attack record.'}</p>
-      <button type="button" className="cic-action-button" onClick={() => void refresh()}>Refresh attack choice</button>
+      <button type="button" className="cic-action-button" disabled={busy} onClick={refresh}>Refresh attack choice</button>
     </section>;
   }
 
@@ -255,10 +229,29 @@ export default function WolfRangeActionPanel({
     view={view}
     busy={busy}
     {...(displayMessage ? { message: displayMessage } : {})}
-    onUseActions={(actionIds) => void runMutation(() => commitWolfRangeActionChoice(view.turn, view.revision, view.range, actionIds))}
-    onPass={() => void runMutation(() => commitWolfRangeActionChoice(view.turn, view.revision, view.range, []))}
-    onAssignTargets={(assignments) => void runMutation(() => assignWolfRangeTargets(view.turn, view.revision, view.range, assignments))}
+    onUseActions={(actionIds) => runMutation(
+      () => commitWolfRangeActionChoice(view.turn, view.revision, view.range, actionIds),
+      'Choice committed to the server. Reconnecting will restore the current step.',
+    )}
+    onPass={() => runMutation(
+      () => commitWolfRangeActionChoice(view.turn, view.revision, view.range, []),
+      'Choice committed to the server. Reconnecting will restore the current step.',
+    )}
+    onAssignTargets={(assignments) => runMutation(
+      () => assignWolfRangeTargets(view.turn, view.revision, view.range, assignments),
+      'Choice committed to the server. Reconnecting will restore the current step.',
+    )}
   />;
 }
 
-type WolfRangeActionViewState = WolfRangeActionChoiceReadResult;
+function isWolfRangeMemberStep(member: WolfAttackMemberView): boolean {
+  return member.currentStep === 'long-range' || member.currentStep === 'medium-range' ||
+    member.currentStep === 'short-range';
+}
+
+function rangeReadMatches(value: WolfRangeActionChoiceReadResult, member: WolfAttackMemberView): boolean {
+  if (value.type === 'wolf-range-action-choice-unavailable') return value.sessionId === member.sessionId;
+  return value.sessionId === member.sessionId && value.turn === member.turn &&
+    value.revision === member.revision && value.currentStep === member.currentStep &&
+    value.range === member.currentStep && isWolfRangeMemberStep(member);
+}

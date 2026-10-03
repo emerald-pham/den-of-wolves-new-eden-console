@@ -1,12 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { subscribeWolfAttackMemberView } from '@/lib/firestore';
 import { commitWolfBoardingDefenceChoice, getWolfBoardingDefenceChoice } from '@/lib/sessionService';
-import { useSessionStore } from '@/store/useSessionStore';
 import type {
   WolfAttackMemberView,
-  WolfAttackTargetId,
   WolfBoardingDefenceChoiceReadResult,
 } from '@/types/game';
+import { useWolfAttackChoiceAuthority, useWolfAttackChoiceController } from '@/lib/wolfAttackChoiceController';
 import './WolfBoardingDefencePanel.css';
 
 function shipLabel(shipId: string): string {
@@ -25,9 +24,13 @@ export function WolfBoardingDefencePanelView({
   message?: string;
 }>) {
   const [selectedTeams, setSelectedTeams] = useState('');
+  const draftKey = view.type === 'wolf-boarding-defence-choice-view'
+    ? JSON.stringify([view.sessionId, view.turn, view.revision, view.targetShipId, view.boardingParties,
+      view.availableSecurityTeams, view.choiceStatus, view.chosenSecurityTeams ?? null])
+    : JSON.stringify([view.sessionId, 'unavailable', view.reason]);
   useEffect(() => {
     setSelectedTeams('');
-  }, [view]);
+  }, [draftKey]);
 
   if (view.type === 'wolf-boarding-defence-choice-unavailable') {
     return <section className="wolf-boarding-defence cic-frame" aria-label="Boarding defence">
@@ -92,91 +95,55 @@ export default function WolfBoardingDefencePanel({
   sessionId?: string;
   subscribe?: typeof subscribeWolfAttackMemberView;
 }> = {}) {
-  const session = useSessionStore((state) => state.session);
-  const me = useSessionStore((state) => state.me);
-  const sessionId = suppliedSessionId ?? session?.id;
-  const [memberView, setMemberView] = useState<WolfAttackMemberView | null>(null);
-  const [view, setView] = useState<WolfBoardingDefenceChoiceReadResult | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string>();
-  const [error, setError] = useState<string>();
+  const authority = useWolfAttackChoiceAuthority('ship-crew', suppliedSessionId);
+  const { memberView, view, busy, message, error, refresh, runMutation } = useWolfAttackChoiceController({
+    authority,
+    actor: 'ship-crew',
+    expectedStep: isWolfBoardingStep,
+    read: getWolfBoardingDefenceChoice,
+    readMatches: boardingReadMatches,
+    subscribe,
+    readFailureMessage: 'Could not refresh boarding defence.',
+    mutationFailureMessage: 'Boarding defence could not be committed. Refresh before retrying.',
+  });
+  const sessionId = authority.sessionId;
 
-  const refresh = useCallback(async () => {
-    if (!sessionId || !memberView || memberView.currentStep !== 'boarding') return;
-    try {
-      const current = await getWolfBoardingDefenceChoice();
-      if (current.type === 'wolf-boarding-defence-choice-view' && current.revision < memberView.revision) return;
-      setView(current);
-      setError(undefined);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not refresh boarding defence.');
-    }
-  }, [memberView, sessionId]);
-
-  useEffect(() => {
-    setMemberView(null);
-    setView(null);
-    setError(undefined);
-    setMessage(undefined);
-    if (!sessionId || me?.role !== 'player' || me.replacementStatus != null) return;
-    let live = true;
-    let newestRead = 0;
-    const update = (next: WolfAttackMemberView | null) => {
-      if (!live) return;
-      setMemberView(next);
-      if (!next || next.currentStep !== 'boarding') {
-        newestRead += 1;
-        setView(null);
-        setError(undefined);
-        return;
-      }
-      const ticket = ++newestRead;
-      void getWolfBoardingDefenceChoice().then((current) => {
-        if (!live || ticket !== newestRead || current.type === 'wolf-boarding-defence-choice-view' &&
-            current.revision < next.revision) return;
-        setView(current);
-        setError(undefined);
-      }).catch((cause: unknown) => {
-        if (live && ticket === newestRead) {
-          setError(cause instanceof Error ? cause.message : 'Could not refresh boarding defence.');
-        }
-      });
-    };
-    const unsubscribe = subscribe(sessionId, update);
-    return () => { live = false; newestRead += 1; unsubscribe(); };
-  }, [me?.replacementStatus, me?.role, sessionId, subscribe]);
-
-  const runChoice = useCallback(async (securityTeams: number) => {
-    if (!view || view.type !== 'wolf-boarding-defence-choice-view' || view.choiceStatus !== 'pending' || busy) return;
-    setBusy(true);
-    setMessage(undefined);
-    setError(undefined);
-    try {
-      await commitWolfBoardingDefenceChoice(
-        view.turn, view.revision, view.targetShipId as WolfAttackTargetId, securityTeams,
-      );
-      setMessage('Boarding defence committed. The server will finish the attack after all required choices are recorded.');
-      await refresh();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Boarding defence could not be committed. Refresh before retrying.');
-      await refresh();
-    } finally {
-      setBusy(false);
-    }
-  }, [busy, refresh, view]);
-
-  if (!sessionId || me?.role !== 'player' || me.replacementStatus != null ||
-      !memberView || memberView.currentStep !== 'boarding') return null;
+  if (!sessionId || !authority.actorReady) return null;
+  if (!authority.ready) {
+    return <section className="wolf-boarding-defence cic-frame" aria-label="Boarding defence">
+      <p className="wolf-boarding-defence__notice" role="status">Waiting for the live server session before showing boarding defence.</p>
+    </section>;
+  }
+  if (!memberView || memberView.currentStep !== 'boarding') return null;
   if (!view) {
     return <section className="wolf-boarding-defence cic-frame" aria-label="Boarding defence">
       <p className="wolf-boarding-defence__notice" role="status">{error ?? 'Checking this ship’s current boarding choice…'}</p>
-      <button type="button" className="cic-action-button" disabled={busy} onClick={() => void refresh()}>
+      <button type="button" className="cic-action-button" disabled={busy} onClick={refresh}>
         Refresh boarding defence
       </button>
     </section>;
   }
+  if (view.type === 'wolf-boarding-defence-choice-unavailable') {
+    return <WolfBoardingDefencePanelView view={view} busy={busy}
+      {...(error ? { message: error } : {})} onChoose={() => undefined} />;
+  }
   const displayMessage = error ?? message;
   return <WolfBoardingDefencePanelView view={view} busy={busy}
     {...(displayMessage ? { message: displayMessage } : {})}
-    onChoose={(securityTeams) => void runChoice(securityTeams)} />;
+    onChoose={(securityTeams) => runMutation(
+      () => commitWolfBoardingDefenceChoice(
+        view.turn, view.revision, view.targetShipId, securityTeams,
+      ),
+      'Boarding defence committed. The server will finish the attack after all required choices are recorded.',
+    )} />;
+}
+
+function isWolfBoardingStep(member: WolfAttackMemberView): boolean {
+  return member.currentStep === 'boarding';
+}
+
+function boardingReadMatches(value: WolfBoardingDefenceChoiceReadResult, member: WolfAttackMemberView): boolean {
+  if (value.type === 'wolf-boarding-defence-choice-unavailable') return value.sessionId === member.sessionId;
+  return value.sessionId === member.sessionId && value.turn === member.turn &&
+    value.revision === member.revision && member.currentStep === 'boarding';
 }

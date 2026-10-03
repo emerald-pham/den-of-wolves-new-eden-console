@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { subscribeWolfAttackMemberView } from '@/lib/firestore';
 import { commitWolfForceFieldChoice, getWolfForceFieldChoice } from '@/lib/sessionService';
-import { useSessionStore } from '@/store/useSessionStore';
 import type {
   WolfAttackMemberView,
   WolfAttackTargetId,
   WolfForceFieldChoiceReadResult,
 } from '@/types/game';
+import { useWolfAttackChoiceAuthority, useWolfAttackChoiceController } from '@/lib/wolfAttackChoiceController';
 import './WolfForceFieldChoicePanel.css';
 
 function shipLabel(shipId: string): string {
@@ -37,10 +37,14 @@ export function WolfForceFieldChoicePanelView({
   message?: string;
 }>) {
   const [selectedTarget, setSelectedTarget] = useState<string>('');
+  const draftKey = view.type === 'wolf-force-field-choice-view'
+    ? JSON.stringify([view.sessionId, view.attackId, view.turn, view.revision, view.fleetGroupId,
+      view.hostShipId, view.dockingRevision, view.choiceStatus, view.targetShipId ?? null])
+    : JSON.stringify([view.sessionId, 'unavailable', view.reason]);
   useEffect(() => {
     setSelectedTarget(view.type === 'wolf-force-field-choice-view' && view.choiceStatus === 'selected'
       ? view.targetShipId ?? '' : '');
-  }, [view]);
+  }, [draftKey]);
 
   if (view.type === 'wolf-force-field-choice-unavailable') {
     return (
@@ -110,91 +114,56 @@ export default function WolfForceFieldChoicePanel({
   sessionId?: string;
   subscribe?: typeof subscribeWolfAttackMemberView;
 }> = {}) {
-  const session = useSessionStore((state) => state.session);
-  const me = useSessionStore((state) => state.me);
-  const sessionId = suppliedSessionId ?? session?.id;
-  const [memberView, setMemberView] = useState<WolfAttackMemberView | null>(null);
-  const [view, setView] = useState<WolfForceFieldChoiceReadResult | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string>();
-  const [error, setError] = useState<string>();
+  const authority = useWolfAttackChoiceAuthority('gorgoneion-captain', suppliedSessionId);
+  const { memberView, view, busy, message, error, refresh, runMutation } = useWolfAttackChoiceController({
+    authority,
+    actor: 'gorgoneion-captain',
+    expectedStep: isWolfTargetingStep,
+    read: getWolfForceFieldChoice,
+    readMatches: forceFieldReadMatches,
+    subscribe,
+    readFailureMessage: 'Could not refresh the Force Field choice.',
+    mutationFailureMessage: 'The choice could not be committed. Refresh before retrying.',
+  });
+  const sessionId = authority.sessionId;
 
-  const refresh = useCallback(async (minimumRevision = 0) => {
-    if (!sessionId || !memberView || memberView.currentStep !== 'targeting') return;
-    try {
-      const current = await getWolfForceFieldChoice();
-      if (current.type === 'wolf-force-field-choice-view' && current.revision < minimumRevision) return;
-      setView(current);
-      setError(undefined);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not refresh the Force Field choice.');
-    }
-  }, [memberView, sessionId]);
-
-  useEffect(() => {
-    setMemberView(null);
-    setView(null);
-    setError(undefined);
-    setMessage(undefined);
-    if (!sessionId || me?.role !== 'player' || me.replacementRoleId !== 'gorgoneion-captain' ||
-        me.replacementStatus != null) return;
-    let live = true;
-    let newestRead = 0;
-    const update = (next: WolfAttackMemberView | null) => {
-      if (!live) return;
-      setMemberView(next);
-      if (!next || next.currentStep !== 'targeting') {
-        newestRead += 1;
-        setView(null);
-        setError(undefined);
-        return;
-      }
-      const ticket = ++newestRead;
-      void getWolfForceFieldChoice().then((current) => {
-        if (!live || ticket !== newestRead || current.type === 'wolf-force-field-choice-view' &&
-            current.revision < next.revision) return;
-        setView(current);
-        setError(undefined);
-      }).catch((cause: unknown) => {
-        if (live && ticket === newestRead) {
-          setError(cause instanceof Error ? cause.message : 'Could not refresh the Force Field choice.');
-        }
-      });
-    };
-    const unsubscribe = subscribe(sessionId, update);
-    return () => { live = false; newestRead += 1; unsubscribe(); };
-  }, [me?.replacementRoleId, me?.replacementStatus, me?.role, sessionId, subscribe]);
-
-  const runMutation = useCallback(async (targetShipId: WolfAttackTargetId | null) => {
-    if (!view || view.type !== 'wolf-force-field-choice-view' || view.choiceStatus !== 'pending' || busy) return;
-    setBusy(true);
-    setMessage(undefined);
-    setError(undefined);
-    try {
-      await commitWolfForceFieldChoice(view.turn, view.revision, targetShipId);
-      setMessage('Choice committed. Targeting and later progress follow the server attack record.');
-      await refresh(view.revision + 1);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'The choice could not be committed. Refresh before retrying.');
-      await refresh(view.revision);
-    } finally {
-      setBusy(false);
-    }
-  }, [busy, refresh, view]);
-
-  if (!sessionId || me?.role !== 'player' || me.replacementRoleId !== 'gorgoneion-captain' ||
-      me.replacementStatus != null || !memberView || memberView.currentStep !== 'targeting') return null;
+  if (!sessionId || !authority.actorReady) return null;
+  if (!authority.ready) {
+    return <section className="wolf-force-field cic-frame" aria-label="Gorgoneion Force Field Projector">
+      <p className="wolf-force-field__notice" role="status">Waiting for the live server session before showing the Captain’s choice.</p>
+    </section>;
+  }
+  if (!memberView || memberView.currentStep !== 'targeting') return null;
   if (!view) {
     return <section className="wolf-force-field cic-frame" aria-label="Gorgoneion Force Field Projector">
       <p className="wolf-force-field__notice" role="status">{error ?? 'Checking the current server Force Field choice…'}</p>
-      <button type="button" className="cic-action-button" disabled={busy}
-        onClick={() => void refresh(memberView.revision)}>Refresh Force Field choice</button>
+      <button type="button" className="cic-action-button" disabled={busy} onClick={refresh}>Refresh Force Field choice</button>
     </section>;
+  }
+  if (view.type === 'wolf-force-field-choice-unavailable') {
+    return <WolfForceFieldChoicePanelView view={view} busy={busy}
+      {...(error ? { message: error } : {})} onChoose={() => undefined} onPass={() => undefined} />;
   }
 
   const displayMessage = error ?? message;
   return <WolfForceFieldChoicePanelView view={view} busy={busy}
     {...(displayMessage ? { message: displayMessage } : {})}
-    onChoose={(targetShipId) => void runMutation(targetShipId)}
-    onPass={() => void runMutation(null)} />;
+    onChoose={(targetShipId) => runMutation(
+      () => commitWolfForceFieldChoice(view.turn, view.revision, targetShipId),
+      'Choice committed. Targeting and later progress follow the server attack record.',
+    )}
+    onPass={() => runMutation(
+      () => commitWolfForceFieldChoice(view.turn, view.revision, null),
+      'Choice committed. Targeting and later progress follow the server attack record.',
+    )} />;
+}
+
+function isWolfTargetingStep(member: WolfAttackMemberView): boolean {
+  return member.currentStep === 'targeting';
+}
+
+function forceFieldReadMatches(value: WolfForceFieldChoiceReadResult, member: WolfAttackMemberView): boolean {
+  if (value.type === 'wolf-force-field-choice-unavailable') return value.sessionId === member.sessionId;
+  return value.sessionId === member.sessionId && value.attackId === member.attackId &&
+    value.turn === member.turn && value.revision === member.revision && member.currentStep === 'targeting';
 }

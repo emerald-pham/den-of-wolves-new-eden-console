@@ -4728,23 +4728,46 @@ export function subscribeWolfAttackMemberView(
   onView: (view: WolfAttackMemberView | null) => void,
 ): Unsubscribe {
   let subscribed = true;
-  const acceptsRevision = createMonotonicRevisionGate();
+  let latestRawRevision: number | undefined;
+  let invalidatedThroughRevision: number | undefined;
   const unsubscribe = onSnapshot(
     doc(db(), `sessions/${sessionId}/wolfAttackAudience/current`),
     { includeMetadataChanges: true },
     (snapshot) => {
-      if (!subscribed || snapshot.metadata?.fromCache === true) return;
       const value = snapshot.exists() ? snapshot.data() : null;
-      if (value === null) {
+      const rawRevision = typeof value === 'object' && value !== null && !Array.isArray(value) &&
+        Number.isSafeInteger((value as Record<string, unknown>).revision) &&
+        ((value as Record<string, unknown>).revision as number) >= 1
+        ? (value as Record<string, unknown>).revision as number
+        : undefined;
+      if (!subscribed) return;
+      if (snapshot.metadata?.fromCache === true) {
+        if (rawRevision !== undefined) latestRawRevision = Math.max(latestRawRevision ?? 0, rawRevision);
         onView(null);
         return;
       }
-      if (!isWolfAttackMemberView(value) || value.sessionId !== sessionId ||
-          !acceptsRevision(value.revision)) return;
+      const valid = value !== null && rawRevision !== undefined && isWolfAttackMemberView(value) &&
+        value.sessionId === sessionId;
+      if (!valid) {
+        latestRawRevision = Math.max(latestRawRevision ?? 0, rawRevision ?? 0);
+        invalidatedThroughRevision = Math.max(invalidatedThroughRevision ?? 0, latestRawRevision);
+        onView(null);
+        return;
+      }
+      if (latestRawRevision !== undefined && rawRevision < latestRawRevision) return;
+      latestRawRevision = Math.max(latestRawRevision ?? 0, rawRevision);
+      if (invalidatedThroughRevision !== undefined && rawRevision <= invalidatedThroughRevision) {
+        onView(null);
+        return;
+      }
+      invalidatedThroughRevision = undefined;
       onView(value as WolfAttackMemberView);
     },
     () => {
-      if (subscribed) onView(null);
+      if (subscribed) {
+        invalidatedThroughRevision = latestRawRevision ?? 0;
+        onView(null);
+      }
     },
   );
   return () => {
