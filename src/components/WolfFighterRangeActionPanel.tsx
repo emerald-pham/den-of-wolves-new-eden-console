@@ -242,12 +242,15 @@ export default function WolfFighterRangeActionPanel({
 }>) {
   const authority = useWolfAttackChoiceAuthority('wing-commander', suppliedSessionId);
   const read = useCallback(() => getWolfFighterRangeActionChoice(range, sourceId), [range, sourceId]);
+  const expectedStep = useCallback((member: WolfAttackMemberView) => member.currentStep === range, [range]);
+  const readMatches = useCallback((value: ConnectedWolfFighterRangeActionView, member: WolfAttackMemberView) =>
+    fighterRangeReadMatches(value, member, sourceId, range), [sourceId, range]);
   const { memberView, view, busy, message, error, refresh, runMutation } = useWolfAttackChoiceController({
     authority,
     actor: 'wing-commander',
-    expectedStep: (member) => member.currentStep === range,
+    expectedStep,
     read,
-    readMatches: (value, member) => fighterRangeReadMatches(value, member, sourceId, range),
+    readMatches,
     subscribe,
     readFailureMessage: 'Could not refresh this fighter range choice.',
     mutationFailureMessage: 'The fighter choice could not be committed. Refresh before retrying.',

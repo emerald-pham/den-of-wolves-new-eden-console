@@ -13,6 +13,7 @@ import WolfBoardingDefencePanel from './WolfBoardingDefencePanel';
 import AegisFighterWingLaunchPanel from './AegisFighterWingLaunchPanel';
 import WolfFighterRangeActionPanel from './WolfFighterRangeActionPanel';
 import WolfBoardingSpecialChoicePanel from './WolfBoardingSpecialChoicePanel';
+import WolfEscortRangeActionPanel from './WolfEscortRangeActionPanel';
 
 interface Props {
   readonly ship: Ship;
@@ -113,6 +114,9 @@ export default function FleetConsoleWorkspace({
     writable={writable}
       shipState={shipState}
     />
+    {writable && (role.id === 'refinery-124-pdf-colonel' || role.id === 'dione-engineer') &&
+      (['medium-range', 'short-range'] as const).map((range) => <WolfEscortRangeActionPanel key={range}
+        sourceId={role.id === 'dione-engineer' ? 'maliades' : 'pdf-escort-fighter-wing'} range={range} />)}
     {writable && <WolfBoardingDefencePanel />}
     {writable && <WolfBoardingSpecialChoicePanel />}
     <WolfAttackStatusPanel />

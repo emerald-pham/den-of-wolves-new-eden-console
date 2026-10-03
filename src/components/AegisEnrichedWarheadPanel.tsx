@@ -1,7 +1,12 @@
 import { subscribeWolfAttackMemberView } from '@/lib/firestore';
 import { commitAegisEnrichedWarheadChoice, getAegisEnrichedWarheadChoice } from '@/lib/sessionService';
 import { useWolfAttackChoiceAuthority, useWolfAttackChoiceController } from '@/lib/wolfAttackChoiceController';
-import type { AegisEnrichedWarheadView } from '@/types/game';
+import type { AegisEnrichedWarheadView, WolfAttackMemberView } from '@/types/game';
+
+const isTargetingStep = (member: WolfAttackMemberView) => member.currentStep === 'targeting';
+const warheadReadMatches = (value: AegisEnrichedWarheadView, member: WolfAttackMemberView) =>
+  value.sessionId === member.sessionId && value.attackId === member.attackId && value.turn === member.turn &&
+  value.revision === member.revision && isTargetingStep(member);
 
 export function AegisEnrichedWarheadPanelView({ view, onChoose, onRefresh, busy = false, message }: Readonly<{
   view: AegisEnrichedWarheadView;
@@ -30,10 +35,9 @@ export function AegisEnrichedWarheadPanelView({ view, onChoose, onRefresh, busy 
 export default function AegisEnrichedWarheadPanel({ consoleLocked = false }: Readonly<{ consoleLocked?: boolean }> = {}) {
   const authority = useWolfAttackChoiceAuthority('executive-officer', undefined, !consoleLocked);
   const { memberView, view, busy, message, error, refresh, runMutation } = useWolfAttackChoiceController({
-    authority, actor: 'executive-officer', expectedStep: member => member.currentStep === 'targeting',
+    authority, actor: 'executive-officer', expectedStep: isTargetingStep,
     read: getAegisEnrichedWarheadChoice,
-    readMatches: (value, member) => value.sessionId === member.sessionId && value.attackId === member.attackId &&
-      value.turn === member.turn && value.revision === member.revision && member.currentStep === 'targeting',
+    readMatches: warheadReadMatches,
     subscribe: subscribeWolfAttackMemberView, readFailureMessage: 'Could not refresh enriched warheads.',
     mutationFailureMessage: 'The warhead choice could not be committed. Refresh before retrying.',
   });
