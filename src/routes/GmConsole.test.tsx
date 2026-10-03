@@ -1300,6 +1300,13 @@ it('keeps Advance and Skip available for every numbered cycle', async () => {
   const turnControls = await screen.findByRole('region', { name: /cycle controls/i });
   const advance = within(turnControls).getByRole('button', { name: 'Advance to Cycle 3' });
   const skip = within(turnControls).getByRole('button', { name: 'Skip to Cycle 3' });
+  expect(advance).toBeDisabled();
+  const reason = within(preparation).getByRole('textbox', { name: 'Attack recovery reason' });
+  await user.type(reason, 'Retry the committed targeting transition.');
+  expect(advance).toBeDisabled();
+  await user.click(within(preparation).getByRole('checkbox', {
+    name: 'I confirm advancing the resolved targeting stage into Long Range.',
+  }));
   expect(advance).toBeEnabled();
   expect(skip).toBeEnabled();
 
@@ -3735,7 +3742,9 @@ it('lets the live GM close targeting and enter Long Range on the existing attack
   advance.focus();
   await user.keyboard('{Enter}');
 
-  await waitFor(() => expect(advanceWolfAttackToLongRange).toHaveBeenCalledWith(1, 4));
+  await waitFor(() => expect(advanceWolfAttackToLongRange).toHaveBeenCalledWith(
+    1, 4, 'Retry the committed targeting transition.', true,
+  ));
   expect(preparation).toHaveTextContent(`Targeting closed // Long Range // deadline ${deadlineAt}`);
 });
 
@@ -3775,8 +3784,15 @@ it('ignores a late Long Range receipt after the active GM instance changes', asy
 
   const preparation = await screen.findByRole('region', { name: 'Private Wolf attack preparation' });
   await user.click(within(preparation).getByText('Attack progress recovery'));
+  await user.type(within(preparation).getByRole('textbox', { name: 'Attack recovery reason' }),
+    'Retry the committed targeting transition.');
+  await user.click(within(preparation).getByRole('checkbox', {
+    name: 'I confirm advancing the resolved targeting stage into Long Range.',
+  }));
   await user.click(within(preparation).getByRole('button', { name: 'Recover targeting progress' }));
-  await waitFor(() => expect(advanceWolfAttackToLongRange).toHaveBeenCalledWith(1, 4));
+  await waitFor(() => expect(advanceWolfAttackToLongRange).toHaveBeenCalledWith(
+    1, 4, 'Retry the committed targeting transition.', true,
+  ));
   act(() => useSessionStore.getState().setGmInstance({ ...local, id: 'replacement-instance' }));
   await act(async () => resolveAdvance({
     status: 'committed', type: 'wolf-attack-stage-advance', sessionId: 's1',
