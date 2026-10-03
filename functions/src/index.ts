@@ -595,8 +595,6 @@ import {
   wolfAttackBlocksNormalMovement,
 } from './wolfAttackDeclaration';
 import {
-  CORE_WOLF_TARGET_RING,
-  EXPANDED_WOLF_TARGET_RING,
   WOLF_ATTACK_STEPS,
   resolveWolfTargeting,
   type WolfTargetRing,
@@ -617,6 +615,7 @@ import {
   commanderRerollsCompletionDecision,
 } from './wolfCommandAndControl';
 import { projectWolfAttackMemberView } from './wolfAttackAudience';
+import { configuredWolfAttackTargetRing } from './wolfAttackTargetRing';
 import { isWolfActionKind, wolfActionAuthorization } from './wolfActionAuthorization';
 import { resolveWolfSupplySabotage } from './wolfSupplySabotage';
 import {
@@ -19089,6 +19088,31 @@ function wolfAttackActiveVesselIds(session: DocumentSnapshot): readonly string[]
   return [...stored] as string[];
 }
 
+function configuredWolfTargetRingForSession(session: DocumentSnapshot): WolfTargetRing {
+  const activeVesselIds = wolfAttackActiveVesselIds(session);
+  const storedPlayerCount = session.get('playerCount');
+  const storedExpansion = session.get('expansion');
+  const hasStoredPlayerCount = Number.isSafeInteger(storedPlayerCount) &&
+    (storedPlayerCount as number) >= 8 && (storedPlayerCount as number) <= 20;
+  const legacyFullCapybara = !hasStoredPlayerCount && storedExpansion === undefined &&
+    activeVesselIds.includes('capybara');
+  const playerCount = hasStoredPlayerCount
+    ? storedPlayerCount as number
+    : legacyFullCapybara || storedExpansion === 'capybara' ? 19 : 18;
+  const expansion = storedExpansion === 'base' || storedExpansion === 'capybara' || storedExpansion === 'none'
+    ? storedExpansion
+    : playerCount >= 19 ? 'capybara' : 'base';
+  try {
+    return configuredWolfAttackTargetRing(activeVesselIds, { playerCount, expansion });
+  } catch (error) {
+    throw commandError(
+      'failed-precondition',
+      error instanceof Error ? error.message : 'The active fleet cannot supply a valid Wolf target ring.',
+      'conflict',
+    );
+  }
+}
+
 function validateWolfAttackDeclaration(
   session: DocumentSnapshot,
   player: DocumentSnapshot,
@@ -19170,16 +19194,7 @@ function validateWolfAttackDeclaration(
     );
   }
   const activeVesselIds = wolfAttackActiveVesselIds(session);
-  if (CORE_WOLF_TARGET_RING.some((shipId) => !activeVesselIds.includes(shipId))) {
-    throw commandError(
-      'failed-precondition',
-      'The base Wolf target ring is incomplete in the active fleet configuration.',
-      'conflict',
-    );
-  }
-  const targetRing: WolfTargetRing = activeVesselIds.includes('capybara')
-    ? EXPANDED_WOLF_TARGET_RING
-    : CORE_WOLF_TARGET_RING;
+  const targetRing = configuredWolfTargetRingForSession(session);
   requireSmallShipsDockedAtBoundary(session, 'Wolf attack');
   const activeRoleIds = sessionActiveRoleIds(session);
   const parking = requireWolfAttackParking(
@@ -19840,9 +19855,7 @@ function wolfCommanderTargetingInputs(
         composition.shipIds.some((shipId, index) => receipt.rolls[index]?.shipId !== shipId)) {
       throw new Error('The Wolf targeting receipt does not match its preparation.');
     }
-    const activeVesselIds = wolfAttackActiveVesselIds(session);
-    const expectedRing = activeVesselIds.includes('capybara')
-      ? EXPANDED_WOLF_TARGET_RING : CORE_WOLF_TARGET_RING;
+    const expectedRing = configuredWolfTargetRingForSession(session);
     if (JSON.stringify(receipt.ring) !== JSON.stringify(expectedRing)) {
       throw new Error('The Wolf targeting receipt does not match the active fleet.');
     }
