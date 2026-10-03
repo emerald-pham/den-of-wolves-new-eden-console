@@ -265,6 +265,22 @@ export interface WolfRangeReceipt {
   readonly destructionDamageByTarget: Readonly<Record<WolfFleetTargetId, number>>;
 }
 
+/** Private, immutable dice samples committed before any player target assignment. */
+export interface WolfRangeLockedRoll {
+  readonly actionId: string;
+  readonly sourceId: string;
+  readonly range: WolfCombatRange;
+  readonly rolls: readonly number[];
+  readonly successes: number;
+  readonly damage: number;
+  readonly damagePerHit: number;
+}
+
+export interface WolfRangeRollLock {
+  readonly range: WolfCombatRange;
+  readonly dice: readonly WolfRangeLockedRoll[];
+}
+
 function validateDicePool(pool: WolfDicePool): void {
   if (!Number.isSafeInteger(pool.sides) || pool.sides < 2 || pool.sides > 1000) {
     throw new Error('Dice sides must be 2..1000.');
@@ -283,6 +299,52 @@ function rollPool(pool: WolfDicePool, random: WolfRandomInt): { rolls: readonly 
   const rolls = Array.from({ length: pool.count }, () => boundedRandomInt(random, pool.sides) + 1);
   const successes = rolls.filter(roll => roll >= pool.successAt).length;
   return { rolls, successes, damage: successes * pool.damagePerSuccess };
+}
+
+/** Roll every selected action in a range together, before the actor assigns any target. */
+export function lockWolfRangeActions(
+  range: WolfCombatRange,
+  actions: readonly WolfRangeAction[],
+  random: WolfRandomInt = secureRandomInt,
+): WolfRangeRollLock {
+  if (range !== 'long-range' && range !== 'medium-range' && range !== 'short-range') {
+    throw new Error('Unknown Wolf combat range.');
+  }
+  const selected = actions.filter(action => action.range === range);
+  uniqueStrings(selected.map(action => action.actionId), 'Wolf range action IDs');
+  const dice = selected.map((action): WolfRangeLockedRoll => {
+    if (!action.actionId || !action.sourceId || action.range !== range ||
+        !Number.isSafeInteger(action.maxTargets) || action.maxTargets < 1) {
+      throw new Error('Wolf range actions require stable IDs and a valid target limit.');
+    }
+    const hasDice = action.dice !== undefined;
+    const hasFixed = action.fixedDamage !== undefined;
+    if (hasDice === hasFixed) throw new Error('A Wolf action must define either dice or fixed damage.');
+    if (hasFixed) {
+      requirePositiveInteger(action.fixedDamage!, 'fixedDamage');
+      return {
+        actionId: action.actionId,
+        sourceId: action.sourceId,
+        range,
+        rolls: [],
+        successes: 1,
+        damage: action.fixedDamage!,
+        damagePerHit: action.fixedDamage!,
+      };
+    }
+    const pool = action.dice!;
+    const rolled = rollPool(pool, random);
+    return {
+      actionId: action.actionId,
+      sourceId: action.sourceId,
+      range,
+      rolls: [...rolled.rolls],
+      successes: rolled.successes,
+      damage: rolled.damage,
+      damagePerHit: pool.damagePerSuccess,
+    };
+  });
+  return deepFreeze({ range, dice });
 }
 
 function rosterById(roster: readonly WolfCombatShip[]): Map<string, WolfCombatShip> {
@@ -403,6 +465,59 @@ export function resolveWolfRange(
       destructionDamageByTarget: fleetDamage,
     },
   };
+}
+
+/** Apply assignments to a committed range roll lock without drawing new randomness. */
+export function resolveLockedWolfRange(input: Readonly<{
+  range: WolfCombatRange;
+  actions: readonly WolfRangeAction[];
+  locked: WolfRangeRollLock;
+  assignments: readonly WolfRangeAssignment[];
+  roster: readonly WolfCombatShip[];
+}>): { readonly roster: readonly WolfCombatShip[]; readonly receipt: WolfRangeReceipt } {
+  const actions = input.actions.filter(action => action.range === input.range);
+  if (input.locked.range !== input.range || input.locked.dice.length !== actions.length ||
+      input.locked.dice.some((roll, index) => {
+        const action = actions[index];
+        return !action || roll.actionId !== action.actionId || roll.sourceId !== action.sourceId ||
+          roll.range !== input.range || !Number.isSafeInteger(roll.successes) || roll.successes < 0 ||
+          !Number.isSafeInteger(roll.damage) || roll.damage < 0 ||
+          !Number.isSafeInteger(roll.damagePerHit) || roll.damagePerHit < 1 ||
+          !Array.isArray(roll.rolls) || (action.dice
+            ? roll.rolls.length !== action.dice.count ||
+              roll.rolls.some(value => !Number.isSafeInteger(value) || value < 1 || value > action.dice!.sides) ||
+              roll.successes !== roll.rolls.filter(value => value >= action.dice!.successAt).length ||
+              roll.damage !== roll.successes * action.dice!.damagePerSuccess ||
+              roll.damagePerHit !== action.dice.damagePerSuccess
+            : action.fixedDamage !== roll.damage || roll.successes !== 1 ||
+              roll.rolls.length !== 0 || roll.damagePerHit !== action.fixedDamage)
+          ;
+      })) {
+    throw new Error('The committed Wolf range dice do not match the current action set.');
+  }
+  const samples = input.locked.dice.flatMap((roll, index) =>
+    actions[index]?.dice ? roll.rolls.map(value => value - 1) : []);
+  let cursor = 0;
+  const applied = resolveWolfRange(
+    input.range,
+    actions,
+    input.assignments,
+    input.roster,
+    upperBound => {
+      const sample = samples[cursor++];
+      if (sample === undefined || sample >= upperBound) {
+        throw new Error('The committed Wolf range dice are unavailable for this action set.');
+      }
+      return sample;
+    },
+  );
+  const lockedReceipt = input.locked.dice.map(({ actionId, sourceId, range, rolls, successes, damage }) => ({
+    actionId, sourceId, range, rolls, successes, damage,
+  }));
+  if (cursor !== samples.length || JSON.stringify(applied.receipt.dice) !== JSON.stringify(lockedReceipt)) {
+    throw new Error('The resolved Wolf range does not match its committed dice.');
+  }
+  return applied;
 }
 
 export interface WolfBoardingDefence {
