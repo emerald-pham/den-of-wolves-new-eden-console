@@ -393,3 +393,13 @@ the original assumption; append the resolution so the decision is traceable.
 | Chosen reading | The current admitted Captain makes the genuine use/pass and eligible local ship choice before targeting begins. The recovered server-owned current-cycle projector charge supplies readiness; current physical host/group, positive population and mutiny gates still apply, and any recognized explicit damage/destruction denial wins. |
 | Ambiguity and limits | The recovered small-ship state has no separate damage deck or projector-damage model. Adding one would expand PC07. This readiness foundation is an explicit digital assumption, not a claim that the printed projector ignores damage. No later damage mechanic receives closure credit. |
 | Effect and proof | A GM draft checkbox cannot fabricate this Captain choice. A configured disconnected Captain remains pending; an unavailable source action is recorded as unavailable. Current host/group privacy, stale offers, genuine choices, exact retries and the final two-point reduction require native composed proof and independent review. |
+
+### PC07-A6 — Retain successful hits beyond legal target capacity
+
+| Field | Decision |
+|---|---|
+| ID and checkpoint | PC07-A6, P438–440/P444; recorded 2026-10-03 under PC07 authorization. Future P447/P448/P455 consume this bounded engine rule within their own printed target limits. |
+| Source | Player's Guide v1.1 printed pp. 12–13 and the source-specific attack sheets govern range ordering and each action's legal target limits; the attack worker visually checked the primary pages. [The attack-engine source note](PC07_ATTACK_ENGINE_ASSUMPTIONS.md) records the routed mechanics. |
+| Ambiguity and alternatives | The printed distinct-target constraint does not define a digital assignment when successful hits exceed the remaining distinct live legal contacts. Reusing a target, inventing a contact or rerolling would alter the committed source result. |
+| Chosen reading | For each action whose printed rules limit hits to distinct targets, retain every committed die and success, accept no more assignments than its printed limit and current live legal contacts permit, and record every remainder as unused. With no legal contacts, retain the result without fabricating assignment or damage. |
+| Limits and proof | This is a digital excess-hit policy, not a new printed rule. It does not impose a shared limit across independent actions or change another action's printed target semantics. Private audit retains full generated and unused counts; entitled player controls explain unused hits. Exact retry samples no new dice and repeats no damage. Native proof, the current controls and independent review remain required. |

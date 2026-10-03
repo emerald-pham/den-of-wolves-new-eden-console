@@ -1,9 +1,11 @@
 # PC07 split fleets and automatic Wolf Attack
 
-**New assumptions come first.** [PC07-A1–A5](PRODUCT_MILESTONE_ASSUMPTIONS.md#pc07-a1--preserve-the-server-clock-behind-a-cycle-briefing)
+**New assumptions come first.** [PC07-A1–A6](PRODUCT_MILESTONE_ASSUMPTIONS.md#pc07-a1--preserve-the-server-clock-behind-a-cycle-briefing)
 record the shared briefing clearance, supported five-vessel attack ring,
 highest-pursuit rejoin result, taxi pilot remaining at the launch ship and
-Gorgoneion's recovered charged-readiness foundation for its Captain's choice.
+Gorgoneion's recovered charged-readiness foundation for its Captain's choice,
+and retained unused hits when a printed distinct-target action has too few
+live legal contacts.
 These are explicit digital choices where the printed procedure leaves a gap.
 Printed ship costs, console charges, attack effects, taxi capacity and range
 remain controlling. The split-fleet note records the route audience and

@@ -121,6 +121,11 @@ behavior; the owner is never asked to inspect code or perform rule arithmetic.
   modifiers, losses and destruction after player choices. When these normal
   paths ship, raw fighter-count edits become correction tools rather than a
   required battle procedure.
+- **P447, P448 and P455:** consume [PC07-A6](PRODUCT_MILESTONE_ASSUMPTIONS.md#pc07-a6--retain-successful-hits-beyond-legal-target-capacity)
+  wherever the source action requires distinct legal targets. Preserve all
+  committed successes and record excess hits unused; do not invent contacts,
+  repeat damage or reroll. Each action retains its own printed target limit;
+  this creates no shared deduplication across independent actions.
 - **P464:** the incomplete leadership consequence remains an explicit GM
   ruling, surrounded by automatic boarding calculations and a private receipt.
 - **P354–360, P423, P605 and P644:** preserve the DRADIS corrections through
