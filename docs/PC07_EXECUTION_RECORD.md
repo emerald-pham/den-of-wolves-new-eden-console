@@ -1,6 +1,8 @@
 # PC07 execution record
 
 Current checkpoint, implementation, integration and release owner: orchestrator `/root`.
+
+**Published core, October 3:** exact `d8f56eeea6d536f5e8da15d49b2ca965b38ed3bb` is released as0.5.65. Independent Sol6.1xhigh approval, all11 local gates, candidate [CI37132717748](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/37132717748) and exact-main [deployment37134010820](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/37134010820) passed. Hosting, Firestore rules and all105 audited named Functions were verified; five prepared review steps load on phone and desktop without writes or browser errors. The agent's deployed phone inspection then found a floating plot covering review instructions. Root owns the bounded0.5.66 layout follow-up before user handoff: test-only7253ac31 precedes source-onlye89d153e, and all eight responsive/motion cases pass. The production-only finding is the concrete reason for a second CI/deployment candidate; it credits no new prompt and changes no gameplay, Functions or Rules source. Earlier pending states below are chronological records, not the current release state. The final layout release will be recorded after its own gates pass.
 On October 3 the user ordered the delegated owner stopped. `/root/pc07_owner`,
 `/root/pc07_owner/attack_engine` and `/root/pc07_owner/split_sharing` are
 interrupted and must not resume. All retained work is preserved; the orchestrator
