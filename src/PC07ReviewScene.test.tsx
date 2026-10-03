@@ -99,3 +99,11 @@ it('keeps the actual held-clock presentation isolated from an existing signed-in
   expect(useSessionStore.getState().gmInstance).toBe(gmInstance);
  }finally{useSessionStore.setState(original);}
 });
+
+it('lets the owner see the prepared automatic Comms report and GM result log together',()=>{
+ render(<PC07ReviewScene />);
+ fireEvent.click(screen.getByRole('button',{name:'2 Known systems'}));
+ expect(screen.getByRole('region',{name:'Comms Officer scout report'})).toHaveTextContent('Prepared system detail');
+ expect(screen.getByRole('region',{name:'GM scouting result log'})).toHaveTextContent('Automatic server resolution');
+ expect(screen.getByRole('note',{name:'Prepared review boundary'})).toHaveTextContent('Controls change local samples only');
+});
