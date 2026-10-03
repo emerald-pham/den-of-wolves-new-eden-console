@@ -30,6 +30,8 @@ function seed(role = 'player') {
   useSessionStore.setState({ session: { id: 's1', phase: 'active', currentTurn: 3,
     activeVesselIds: ['aegis', 'quellon', 'capybara'],
     shuttleControl: { hummingbird: { shuttleId: 'hummingbird', ownerRoleId: 'quellon-explorer', ownerUid: 'alice', holderUid: 'alice', revision: 0 } },
+    shuttleDockings: [{ shuttleId: 'hummingbird', shipId: 'quellon', dockedAt: '2026-10-02T10:00:00Z' }],
+    shuttleFuelled: { hummingbird: true },
     shipResources: { quellon: { fuel: 3 } },
     playerDiscovery: { groupId: 'fleet-2', revision: 1, knownCoordinates: ['0000', '1413'],
       fleetGroupVesselIds: ['quellon', 'capybara'], fleetGroupPursuitValue: 2 } } as never,
@@ -57,7 +59,7 @@ it('shares only a known coordinate to selected ships from the fresh current-grou
   seed(); render(<FleetGroupWorkspace />);
   const system = await screen.findByLabelText('Scanned system to share');
   fireEvent.change(system, { target: { value: '1413' } });
-  fireEvent.click(screen.getByLabelText('Quellon'));
+  fireEvent.click(screen.getByLabelText(/quellon/i));
   fireEvent.click(screen.getByRole('button', { name: 'Share scanned system' }));
   await waitFor(() => expect(mocks.share).toHaveBeenCalledWith('1413', ['quellon']));
   expect(await screen.findByRole('status')).toHaveTextContent(/shared/i);
