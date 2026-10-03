@@ -31,7 +31,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isTargetRing(value: unknown): value is WolfTargetRing {
-  return JSON.stringify(value) === JSON.stringify(CORE_WOLF_TARGET_RING) ||
+  return JSON.stringify(value) === JSON.stringify(CORE_WOLF_TARGET_RING.filter(target => target !== 'dione')) ||
+    JSON.stringify(value) === JSON.stringify(CORE_WOLF_TARGET_RING) ||
     JSON.stringify(value) === JSON.stringify(EXPANDED_WOLF_TARGET_RING);
 }
 
