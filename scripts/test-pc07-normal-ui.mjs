@@ -4,16 +4,21 @@ import {chromium} from 'playwright';
 import {createPc07AuthenticatedSession} from './pc07-authenticated-session.mjs';
 const directory=process.env.PC07_UI_EVIDENCE_DIR;assert.ok(directory,'External evidence directory required.');
 const f=await createPc07AuthenticatedSession('PC07 normal local UI recovery',8,{clearBriefing:false});
-let browser;
+let browser,page;const errors=[];
 try{
  await mkdir(directory,{recursive:true});
  browser=await chromium.launch({channel:'chrome',headless:true});
  const context=await browser.newContext({viewport:{width:390,height:844},reducedMotion:'reduce'});
- const page=await context.newPage();const errors=[];page.on('pageerror',error=>errors.push(error.message));
+ page=await context.newPage();page.on('pageerror',error=>errors.push(error.message));
  const origin=process.env.PC07_LOCAL_UI_ORIGIN??'http://127.0.0.1:5174';
  assert.match(origin,/^http:\/\/127\.0\.0\.1:\d+$/);
  await page.goto(origin);
  await page.getByRole('button',{name:/^REDUCED MOTION/i}).click();
+ await page.getByRole('dialog',{name:'CODE OF CONDUCT',exact:true}).waitFor();
+ for(const checkbox of await page.getByRole('checkbox',{name:/^Acknowledge regulation/}).all())await checkbox.check();
+ const acknowledge=page.getByRole('button',{name:'Acknowledge regulations and continue',exact:true});
+ await acknowledge.waitFor();await page.waitForFunction(()=>{const button=[...document.querySelectorAll('button')].find(b=>b.textContent==='Acknowledge regulations and continue');return button&&!button.disabled;});
+ await acknowledge.click();
  await page.getByRole('button',{name:'Settings',exact:true}).click();
  await page.getByRole('button',{name:'Authorize local emulator GM',exact:true}).click();
  await page.getByText('GM access remains authorized on this device for 24 hours.',{exact:false}).waitFor();
@@ -27,6 +32,8 @@ try{
  await page.screenshot({path:`${directory}/phone-held-current-clock.png`,fullPage:true});
  await context.setOffline(true);
  await page.waitForTimeout(300);
+ await page.screenshot({path:`${directory}/phone-offline-before-assertion.png`,fullPage:true});
+ await writeFile(`${directory}/offline-browser-state.json`,JSON.stringify({url:page.url(),errors,body:await page.locator('body').innerText(),clearanceCount:await page.locator('button').filter({hasText:'Clear cycle briefing // resume clock'}).count()},null,2)+'\n');
  assert.ok(await clear.isDisabled(),'Actual offline browser withdraws the current clearance');
  await page.screenshot({path:`${directory}/phone-offline-clearance.png`,fullPage:true});
  await context.setOffline(false);
@@ -48,4 +55,4 @@ try{
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth));
  await writeFile(`${directory}/summary.json`,JSON.stringify({kind:'normal-authenticated-local-emulator-ui',checks:{normalJoin:true,realServerHeldClock:true,offlineControlDisabled:true,reconnectRestoresClear:true,normalClearPreservesTenMinutes:true,restrictedTeamAfterClear:true,normalReload:true,ordinaryNamedGmJoin:true},productionGameplay:false,preparedReviewScene:false,identitiesRetained:false,completedAt:new Date().toISOString()},null,2)+'\n');
  console.log('PC07 normal local browser hold/reconnect/clear and named GM proof passed.');
-}finally{await browser?.close();await f.cleanup();}
+}catch(error){if(page){await page.screenshot({path:`${directory}/failure.png`,fullPage:true});await writeFile(`${directory}/failure-state.json`,JSON.stringify({message:error.message,url:page.url(),errors,body:await page.locator('body').innerText()},null,2)+'\n');}throw error;}finally{await browser?.close();await f.cleanup();}
