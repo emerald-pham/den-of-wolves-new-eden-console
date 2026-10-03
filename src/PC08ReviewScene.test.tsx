@@ -47,6 +47,7 @@ it('shows committed boarding through the real crew presenter without accepting a
 it('uses independent real launch controls and one genuine Medium choice per fighter', () => {
   render(<PC08ReviewScene />);
   fireEvent.click(screen.getByRole('button', {name: '3 Fleet fighters'}));
+  expect(screen.getByRole('button', {name: 'Show Short Range loss sample'})).toBeDisabled();
   fireEvent.click(screen.getByRole('button', {name: 'Launch Fighter Wing Alpha'}));
   expect(screen.getByRole('button', {name: 'Launch Fighter Wing Alpha'})).toBeDisabled();
   expect(screen.getByRole('button', {name: 'Launch Fighter Wing Bravo'})).toBeEnabled();
@@ -61,6 +62,10 @@ it('uses independent real launch controls and one genuine Medium choice per figh
   expect(screen.getByRole('status', {name: 'Prepared fighter result'})).toHaveTextContent('Alpha choice committed');
   fireEvent.click(screen.getByRole('button', {name: 'Bravo sample'}));
   expect(screen.getByText('This wing did not launch for the current attack.')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', {name: 'Short Range sample'}));
+  expect(screen.getByRole('button', {name: 'Show Short Range loss sample'})).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', {name: 'Launch Fighter Wing Bravo'}));
+  expect(screen.getByRole('button', {name: 'Show Short Range loss sample'})).toBeEnabled();
 });
 
 it('presents actual Commander, support, Militia, independent reroll and ruling choices as isolated samples', () => {
