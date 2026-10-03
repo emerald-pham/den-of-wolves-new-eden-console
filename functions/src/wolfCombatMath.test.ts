@@ -20,6 +20,7 @@ import {
   wolfCombatRoster,
   type FleetCombatState,
   type WolfCombatShip,
+  type WolfBoardingDefence,
   type WolfFleetTargetId,
   type WolfRandomInt,
 } from './wolfCombatMath';
@@ -366,6 +367,60 @@ describe('central Wolf combat math', () => {
       survivingBoardingParties: 0,
       damage: 0,
     });
+  });
+
+  it('adds the Commander party bonus before the chosen target rolls defence', () => {
+    const boarding = resolveWolfBoarding(
+      firstTurnRoster(),
+      [{ target: 'aegis', securityTeams: 0, commanderLed: true } as unknown as WolfBoardingDefence],
+      samples([]),
+    );
+
+    expect(boarding[0]).toMatchObject({
+      target: 'aegis', boardingParties: 22, commanderBonus: 2,
+      survivingBoardingParties: 22, damage: 22,
+    });
+  });
+
+  it('resolves Militia double-team dice and front-line risk as separate logged outcomes', () => {
+    const boarding = resolveWolfBoarding(
+      firstTurnRoster(),
+      [{ target: 'aegis', securityTeams: 2, availableSecurityTeams: 2,
+        militiaDoubleTeams: true, militiaFrontLineDice: 2 } as unknown as WolfBoardingDefence],
+      samples([0, 3, 3, 5, 0, 3]),
+    );
+
+    expect(boarding[0]).toMatchObject({
+      rolls: [1, 4, 4, 6, 1, 4], securityCasualties: 2,
+      boarderCasualties: 3, survivingBoardingParties: 17,
+      frontLineDice: 2, militiaLeaderKilled: true,
+    });
+  });
+
+  it('keeps AEGIS and Pallas reroll grants independent while forbidding a repeated die', () => {
+    const first = resolveWolfBoarding(
+      firstTurnRoster(),
+      [{ target: 'aegis', securityTeams: 4, pallasRerollAvailable: true,
+        rerolls: [
+          { source: 'aegis', dieIndexes: [0, 1, 2] },
+          { source: 'pallas', dieIndexes: [3] },
+        ] } as unknown as WolfBoardingDefence],
+      samples([0, 0, 0, 0, 5, 5, 5, 5]),
+    );
+    expect(first[0]).toMatchObject({ rolls: [6, 6, 6, 6], boarderCasualties: 4 });
+    expect(first[0]?.rerolls).toEqual([
+      { source: 'aegis', dieIndexes: [0, 1, 2], rolls: [6, 6, 6] },
+      { source: 'pallas', dieIndexes: [3], rolls: [6] },
+    ]);
+    expect(() => resolveWolfBoarding(
+      firstTurnRoster(),
+      [{ target: 'aegis', securityTeams: 1, pallasRerollAvailable: true,
+        rerolls: [
+          { source: 'aegis', dieIndexes: [0] },
+          { source: 'pallas', dieIndexes: [0] },
+        ] } as unknown as WolfBoardingDefence],
+      samples([0, 5, 5]),
+    )).toThrow(/already been rerolled/i);
   });
 
   it('keeps expanded Capybara destruction, boarding, and fleet damage in the configured ring', () => {
