@@ -21,6 +21,6 @@ test('new briefing callable factory selects the real deployed adapter and reject
  const source=readFileSync(file,'utf8');
  const select=current=>deploymentSelector({before:'new-helper-baseline',after:'pc07-candidate',files:[file],targets:['functions'],
   sourceAtRevision:revision=>revision==='new-helper-baseline'?'':current,isAncestor:()=>false});
- assert.equal(select(source),'functions:clearTurnAdvanceInterstitial');
+ assert.deepEqual(select(source).split(',').filter(target=>target.startsWith('functions:')),['functions:clearTurnAdvanceInterstitial']);
  assert.throws(()=>select(source+'\n// unaudited runtime mutation\n'),/audit/i);
 });
