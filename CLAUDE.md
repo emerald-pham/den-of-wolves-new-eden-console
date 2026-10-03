@@ -342,8 +342,10 @@ Firestore rules. CI uses short-lived Workload Identity Federation credentials.
 - Disconnect queues or sends the server-aware presence update, clears local
   session/mode/route state, and returns to `/`. The visible Settings action uses
   the documented danger-red two-step confirmation.
-- Session headers are readable only by members and are never listable. Joining,
-  resuming, seat claims, and releases remain callable and transactional.
+- The authoritative session root is readable by current GMs and is never
+  listable. Ordinary players and Press receive the actor-derived current-member
+  callable projection; raw root reads cannot redact foreign group fields.
+  Joining, resuming, seat claims, and releases remain callable and transactional.
 
 Keep Firestore wiring in `src/lib/firestore.ts`; lazy imports protect the landing
 bundle. Preserve the one-seat-per-player pointer checks, live shared snapshots,
