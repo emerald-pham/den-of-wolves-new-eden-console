@@ -609,11 +609,10 @@ service cloud.firestore {
     match /sessions/{sessionId} {
       // Joining by code goes through the callable function, so session headers
       // never need to be exposed to strangers or enumerable from the client.
-      // During validated migration, only the facilitator may read a legacy
-      // header that still contains Voyage's private coordinate. Once the
-      // callable clears that field, normal member reads resume.
-      allow get: if isGm(sessionId) ||
-        (isMember(sessionId) && !resource.data.keys().hasAny(['voyage33Movement']));
+      // The root carries global server authority. Firestore cannot redact its
+      // foreign craft fields, so players use getCurrentMemberSession's atomic
+      // current-group allowlist. Clearing a legacy field never widens access.
+      allow get: if isGm(sessionId);
       allow list: if false;
       // Created, phased and closed only by callable functions.
       allow create, update, delete: if false;
