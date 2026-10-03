@@ -3803,6 +3803,34 @@ it('ignores a late Long Range receipt after the active GM instance changes', asy
   expect(preparation).not.toHaveTextContent(`Targeting closed // Long Range // deadline ${deadlineAt}`);
 });
 
+it('blocks ordinary cycle and window overrides while the attack is declared', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!, phase: 'active', currentTurn: 2,
+    turnPhase: { turn: 2, teamPhaseEndsAt: new Date(Date.now()+300_000).toISOString(),
+      openAirspaceEndsAt: new Date(Date.now()+900_000).toISOString(),
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false } },
+  } as never);
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  useSessionStore.getState().setGmInstance(local);streamInstances([local]);
+  vi.mocked(subscribeGmWolfAttackState).mockImplementation((_sessionId,onState) => {
+    onState({status:'declared',turn:2,revision:4,preparationRevision:2,currentStep:'long-range',
+      deadlineAt:new Date(Date.now()+900_000).toISOString(),airspaceLocked:true,parkedCraftIds:[],launchedCraftIds:[]});
+    return vi.fn();
+  });
+  renderConsole();
+  const controls = await screen.findByRole('region', { name: 'Cycle controls' });
+  const advance = within(controls).getByRole('button', { name: 'Advance to Cycle 3' });
+  const skip = within(controls).getByRole('button', { name: 'Skip to Cycle 3' });
+  const extension = within(controls).getByRole('button', { name: 'Add 5 minutes // Airspace restricted' });
+  expect(advance).toBeDisabled();expect(skip).toBeDisabled();expect(extension).toBeDisabled();
+  expect(controls).toHaveTextContent('Wait for the attack to finish before advancing cycles or extending ordinary airspace.');
+  await user.click(advance);await user.click(skip);await user.click(extension);
+  expect(advanceTurn).not.toHaveBeenCalled();expect(extendAirspaceWindow).not.toHaveBeenCalled();
+  expect(screen.getByRole('textbox', { name: 'Attack timer intervention reason' })).toBeVisible();
+});
+
 it('requires three deliberate confirmations to pause and resume the emergency timer', async () => {
   const user = userEvent.setup();
   const activeSession = useSessionStore.getState().session;
