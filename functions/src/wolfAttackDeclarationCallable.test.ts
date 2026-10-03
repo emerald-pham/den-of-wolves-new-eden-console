@@ -327,6 +327,30 @@ it('declares against the five configured active vessels in an ordinary eight-pla
   expect(cryptoMock.randomInt.mock.calls.filter(([upperBound]) => upperBound === 5)).toHaveLength(15);
 });
 
+it('parks targeting until the admitted charged Gorgoneion Captain records the pre-target choice', async () => {
+  session({ smallShipStates: {
+    gorgoneion: {
+      id: 'gorgoneion', hostShipId: 'aegis', dockingRevision: 1, population: 1_000, unrest: 0,
+      cycle: { step: 5, revision: 5, results: { '1': 'Ready.' },
+        charges: ['force-field-projector'], turn: 1 },
+    },
+  } });
+  put('sessions/s1/players/gorg-1', {
+    uid: 'gorg-1', role: 'player', connected: true, replacementRoleId: 'gorgoneion-captain',
+    replacementStatus: null, fleetGroupId: 'fleet-1',
+  });
+  fleetGroup('fleet-1', { memberUids: ['u1', 'gorg-1'],
+    memberShipIds: { 'u1': 'aegis', 'gorg-1': 'aegis' } });
+
+  await declareWolfAttack.run(request());
+
+  const state = mock.documents.get('sessions/s1/wolfAttackState/current')!;
+  expect(state).toMatchObject({ forceFieldChoice: { status: 'pending', configuredCaptainUid: 'gorg-1',
+    hostShipId: 'aegis', dockingRevision: 1, fleetGroupId: 'fleet-1' },
+    calculationReceipt: { step: 'pre-target-force-field', targetRing: expect.any(Array) } });
+  expect(state.calculationReceipt).not.toHaveProperty('targeting');
+});
+
 it('advances targeting only after the assigned Commander finishes and preserves the private receipt and deadline', async () => {
   await declareWolfAttack.run(request());
   const declarationState = mock.documents.get('sessions/s1/wolfAttackState/current')!;
