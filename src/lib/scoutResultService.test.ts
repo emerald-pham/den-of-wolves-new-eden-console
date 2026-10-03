@@ -5,7 +5,7 @@ vi.mock('firebase/functions', () => ({ httpsCallable: vi.fn() }));
 vi.mock('./firebase', () => ({ functions: vi.fn(() => ({ kind: 'functions' })) }));
 
 const { httpsCallable } = await import('firebase/functions');
-const { listMyScoutReports, readPrivateScoutResult, resolvePendingScoutRequest } =
+const { listMyScoutReports, readPrivateScoutResult, resolvePendingScoutRequest, listGmScoutResolutionLog } =
   await import('./scoutResultService');
 
 const result = {
@@ -90,4 +90,28 @@ it('sends GM reveal with the current instance and rejects chart-bearing replies'
   vi.mocked(httpsCallable).mockReturnValue(call as never);
   await expect(resolvePendingScoutRequest('r1')).rejects.toThrow(/invalid/i);
   expect(call).toHaveBeenCalledWith({ sessionId: 's1', requestId: 'r1', instanceId: 'browser-1' });
+});
+
+
+it('parses only the bounded GM scout log and rejects identity or chart fields and stale leases', async () => {
+  useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, uid: 'gm1', role: 'gm' });
+  useSessionStore.getState().setGmInstance({ id: 'browser-1', sessionId: 's1', uid: 'gm1' } as never);
+  const entry = { requestId: 'r1', cycle: 2, sourceId: 'comms-officer',
+    originShipId: 'aegis', receivingShipId: 'aegis', targetCoordinate: '0408',
+    systemFact: result.systemFact, recordedAt: '2026-09-27T21:40:00.000Z', resolutionMode: 'automatic' };
+  const call = vi.fn().mockResolvedValue({ data: [entry] });
+  vi.mocked(httpsCallable).mockReturnValue(call as never);
+  await expect(listGmScoutResolutionLog()).resolves.toEqual([entry]);
+  expect(call).toHaveBeenCalledWith({ sessionId: 's1', instanceId: 'browser-1' });
+  for (const value of [{ ...entry, requesterUid: 'u1' }, { ...entry, chartId: 'A' },
+    { ...entry, recordedAt: 'invalid' }, { ...entry, resolutionMode: 'invented' }]) {
+    call.mockResolvedValue({ data: [value] });
+    await expect(listGmScoutResolutionLog()).rejects.toThrow(/invalid/i);
+  }
+  let finish!: (value: unknown) => void;
+  call.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+  const delayed = listGmScoutResolutionLog();
+  useSessionStore.getState().setGmInstance({ id: 'browser-2', sessionId: 's1', uid: 'gm1' } as never);
+  finish({ data: [entry] });
+  await expect(delayed).rejects.toThrow(/changed|refresh|reconnect/i);
 });
