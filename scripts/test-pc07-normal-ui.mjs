@@ -98,7 +98,8 @@ try{
   await page.screenshot({path:`${directory}/phone-normal-aegis-maintenance.png`,fullPage:true});
   await page.getByRole('link',{name:/Change role/i}).click();
   await page.getByRole('link',{name:/Back to fleet/i}).click();
-  assert.ok(await page.getByRole('link',{name:'View AEGIS station overview',exact:true}).isVisible());
+  await page.getByRole('link',{name:'View AEGIS station overview',exact:true}).waitFor({state:'visible'});
+  assert.match(page.url(),/\/#\/console$/);
   maintenanceProof=true;
  }
  assert.deepEqual(errors,[]);
