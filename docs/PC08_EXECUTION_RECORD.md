@@ -101,6 +101,14 @@ without dropping its repair revision. Test-only commits b80bc6d7/f39e5680 preced
 implementation 10e1c5f2; focused privacy, repair, parser and hydration checks pass.
 
 The owner supplies the five-step real-component review scene and final report.
+The every-craft playthrough exposed the eight-player Union setup gap: existing
+policy required an explicit facilitator starting-host choice, but no normal
+authenticated path established it. Root adds the bounded setup choice for
+Wobbly and Ally, preserving printed paired-host restrictions and role ownership.
+The transaction changes only initial docking/history, the private starting
+manifest and setup revision; ordinary start derives owner control. Test-first
+commits 4b051fb5/47046997 precede b4c17fa8/9b591e62. Dradis owns the normal
+eight-player setup/travel/recovery proof; no admin seed substitutes for it.
 Final catalog closure, version/changelog, deployment consumers and release
 records are reconciled once after worker integration. The acceptance matrix
 tracks every ID and current gap; completion remains pending until all gates

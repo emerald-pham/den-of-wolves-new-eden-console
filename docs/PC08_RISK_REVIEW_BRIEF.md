@@ -6,6 +6,10 @@ filter and retained repair authority; no member target/dice details may survive.
 Target shifts preserve per-source/per-choice budgets, effective-target C&C
 ordering, canonical receipt replay and legitimate repeated wrapping, including
 the distinct seven-target expansion ring. Earlier range damage cannot change.
+Root also closes the Union craft setup gap with a current authenticated GM
+starting-host choice. Check the pre-start window, confirmed Union roster,
+paired active hosts, setup revision, exact private receipt, manifest/history
+consistency and unchanged automatic printed-role ownership at ordinary start.
 
 Root owns the checkpoint, all reconciliation, repairs and release. Independent
 review covers the complete reconciled candidate and does not transfer ownership.
