@@ -24,6 +24,7 @@ import {
   type WolfBoardingDefence,
   type WolfFleetTargetId,
   type WolfRandomInt,
+  type WolfTargetingReceipt,
 } from './wolfCombatMath';
 import { INITIAL_SHIP_SURVIVORS } from './shipPopulation';
 import { startTurnPhase } from './turnZero';
@@ -298,33 +299,33 @@ describe('central Wolf combat math', () => {
   it('applies Medium target shifts before that range destruction consequences while preserving Long targets', () => {
     const roster: WolfCombatShip[] = [
       { instanceId: '0:wolf-fighter-wing', shipId: 'wolf-fighter-wing', target: 'aegis', damageTaken: 0, destroyed: false },
-      { instanceId: '1:wolf-cruiser', shipId: 'wolf-cruiser', target: 'aegis', damageTaken: 2, destroyed: false },
-      { instanceId: '2:wolf-battlestation', shipId: 'wolf-battlestation', target: 'aegis', damageTaken: 5, destroyed: false },
+      { instanceId: '1:wolf-cruiser', shipId: 'wolf-cruiser', target: 'aegis', damageTaken: 0, destroyed: false },
+      { instanceId: '2:wolf-battlestation', shipId: 'wolf-battlestation', target: 'aegis', damageTaken: 0, destroyed: false },
     ];
     const cruiserIndex = 1;
     const stationIndex = 2;
     const longAction = {
       actionId: 'long-range-battlestation-destroyed', sourceId: 'aegis-missile-launchers',
-      range: 'long-range' as const, fixedDamage: 1, maxTargets: 1,
+      range: 'long-range' as const, fixedDamage: 6, maxTargets: 1,
     };
     const long = resolveLockedWolfRange({
       range: 'long-range', actions: [longAction],
       locked: { range: 'long-range', dice: [{
         actionId: longAction.actionId, sourceId: longAction.sourceId, range: 'long-range',
-        rolls: [], successes: 1, damage: 1, damagePerHit: 1,
+        rolls: [], successes: 1, damage: 6, damagePerHit: 6,
       }] },
       assignments: [{ actionId: longAction.actionId, targetInstanceIds: [roster[stationIndex]!.instanceId] }],
       roster,
     });
     const mediumAction = {
       actionId: 'medium-range-cruiser-destroyed', sourceId: 'aegis-missile-launchers',
-      range: 'medium-range' as const, fixedDamage: 1, maxTargets: 1,
+      range: 'medium-range' as const, fixedDamage: 3, maxTargets: 1,
     };
     const medium = resolveLockedWolfRange({
       range: 'medium-range', actions: [mediumAction],
       locked: { range: 'medium-range', dice: [{
         actionId: mediumAction.actionId, sourceId: mediumAction.sourceId, range: 'medium-range',
-        rolls: [], successes: 1, damage: 1, damagePerHit: 1,
+        rolls: [], successes: 1, damage: 3, damagePerHit: 3,
       }] },
       assignments: [{ actionId: mediumAction.actionId, targetInstanceIds: [roster[cruiserIndex]!.instanceId] }],
       roster: long.roster,
@@ -352,12 +353,12 @@ describe('central Wolf combat math', () => {
       range: 'short-range', actions: [], locked: { range: 'short-range', dice: [] },
       assignments: [], roster: medium.roster,
     });
-    const fullTargeting = resolveWolfTargeting(firstTurnWolfAttackComposition(), {}, CORE_WOLF_TARGET_RING, () => 0);
-    const targeting = {
-      ...fullTargeting,
+    const targeting: WolfTargetingReceipt = {
+      ring: CORE_WOLF_TARGET_RING,
+      modifierOrder: ['commander-reroll', 'target-shift', 'command-and-control-redirect'],
       rolls: ['wolf-fighter-wing', 'wolf-cruiser', 'wolf-battlestation'].map((shipId, rosterIndex) => ({
-        ...fullTargeting.rolls.find((roll) => roll.shipId === shipId)!,
-        rosterIndex, target: 'aegis' as const, finalDie: 1,
+        rosterIndex, shipId: shipId as WolfTargetingReceipt['rolls'][number]['shipId'],
+        initialDie: 1, finalDie: 1, target: 'aegis', modifiers: [],
       })),
     };
     const finalized = finalizeWolfAttack({
