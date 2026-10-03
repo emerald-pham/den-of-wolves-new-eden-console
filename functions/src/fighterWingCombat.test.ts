@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { CORE_WOLF_TARGET_RING, EXPANDED_WOLF_TARGET_RING } from './wolfCombatMath';
 import {
   initialAegisFighterWingAttack,
   launchAegisFighterWing,
@@ -44,7 +45,7 @@ describe('authoritative Alpha and Bravo fighter combat state', () => {
       expectedRevision: 0, ...identity, wingId: 'fighter-wing-alpha', bayCharged: true, bayDamaged: false,
     });
     const result = resolveAegisFighterWingMedium(launched, {
-      expectedRevision: 1, ...identity, wingId: 'fighter-wing-alpha', targetRingLength: 6,
+      expectedRevision: 1, ...identity, wingId: 'fighter-wing-alpha', targetRing: CORE_WOLF_TARGET_RING,
       actions: [
         { fighterIndex: 0, kind: 'target-shift', targetInstanceId: '2:wolf-frigate', targetNumber: 1, shift: -1 },
         { fighterIndex: 1, kind: 'attack', targetInstanceId: '3:wolf-dreadnought' },
@@ -53,14 +54,14 @@ describe('authoritative Alpha and Bravo fighter combat state', () => {
     });
 
     expect(result.targetShifts).toEqual([{
-      fighterIndex: 0, targetInstanceId: '2:wolf-frigate', from: 1, to: 6,
+      fighterIndex: 0, targetInstanceId: '2:wolf-frigate', from: 1, to: 0,
     }]);
     expect(result.attacks).toEqual([{
       fighterIndex: 1, targetInstanceId: '3:wolf-dreadnought', die: 5, hit: true, damage: 1,
     }]);
     expect(result.state.wings['fighter-wing-alpha']).toMatchObject({ mediumResolved: true, fighters: 2 });
     expect(() => resolveAegisFighterWingMedium(result.state, {
-      expectedRevision: 2, ...identity, wingId: 'fighter-wing-alpha', targetRingLength: 6,
+      expectedRevision: 2, ...identity, wingId: 'fighter-wing-alpha', targetRing: CORE_WOLF_TARGET_RING,
       actions: [{ fighterIndex: 0, kind: 'attack', targetInstanceId: '3:wolf-dreadnought' }], random: dice(5),
     })).toThrow(/already resolved/i);
   });
@@ -68,7 +69,7 @@ describe('authoritative Alpha and Bravo fighter combat state', () => {
   it('rejects using one fighter twice in a Medium choice and rejects an unlaunched wing', () => {
     const initial = initialAegisFighterWingAttack({ ...identity, counts: { 'fighter-wing-alpha': 2, 'fighter-wing-bravo': 2 } });
     expect(() => resolveAegisFighterWingMedium(initial, {
-      expectedRevision: 0, ...identity, wingId: 'fighter-wing-alpha', targetRingLength: 6,
+      expectedRevision: 0, ...identity, wingId: 'fighter-wing-alpha', targetRing: CORE_WOLF_TARGET_RING,
       actions: [{ fighterIndex: 0, kind: 'attack', targetInstanceId: '0:wolf-frigate' }], random: dice(5),
     })).toThrow(/launch/i);
 
@@ -76,7 +77,7 @@ describe('authoritative Alpha and Bravo fighter combat state', () => {
       expectedRevision: 0, ...identity, wingId: 'fighter-wing-alpha', bayCharged: true, bayDamaged: false,
     });
     expect(() => resolveAegisFighterWingMedium(launched, {
-      expectedRevision: 1, ...identity, wingId: 'fighter-wing-alpha', targetRingLength: 6,
+      expectedRevision: 1, ...identity, wingId: 'fighter-wing-alpha', targetRing: CORE_WOLF_TARGET_RING,
       actions: [
         { fighterIndex: 0, kind: 'attack', targetInstanceId: '0:wolf-frigate' },
         { fighterIndex: 0, kind: 'target-shift', targetInstanceId: '1:wolf-dreadnought', targetNumber: 2, shift: 1 },
@@ -114,9 +115,25 @@ describe('authoritative Alpha and Bravo fighter combat state', () => {
     });
     const random = vi.fn(dice(5));
     expect(() => resolveAegisFighterWingMedium(launched, {
-      expectedRevision: 1, attackId: 'old-attack', cycle: 3, wingId: 'fighter-wing-alpha', targetRingLength: 6,
+      expectedRevision: 1, attackId: 'old-attack', cycle: 3, wingId: 'fighter-wing-alpha', targetRing: CORE_WOLF_TARGET_RING,
       actions: [{ fighterIndex: 0, kind: 'attack', targetInstanceId: '0:wolf-frigate' }], random,
     })).toThrow(/different Wolf attack/i);
     expect(random).not.toHaveBeenCalled();
+  });
+
+  it('uses the configured seven-target ring instead of the six-target endpoint aliases', () => {
+    const initial = initialAegisFighterWingAttack({ ...identity, counts: { 'fighter-wing-alpha': 1, 'fighter-wing-bravo': 0 } });
+    const launched = launchAegisFighterWing(initial, {
+      expectedRevision: 0, ...identity, wingId: 'fighter-wing-alpha', bayCharged: true, bayDamaged: false,
+    });
+    const result = resolveAegisFighterWingMedium(launched, {
+      expectedRevision: 1, ...identity, wingId: 'fighter-wing-alpha', targetRing: EXPANDED_WOLF_TARGET_RING,
+      actions: [{ fighterIndex: 0, kind: 'target-shift', targetInstanceId: '0:wolf-frigate', targetNumber: 1, shift: -1 }],
+      random: dice(),
+    });
+
+    expect(result.targetShifts).toEqual([{
+      fighterIndex: 0, targetInstanceId: '0:wolf-frigate', from: 1, to: 7,
+    }]);
   });
 });

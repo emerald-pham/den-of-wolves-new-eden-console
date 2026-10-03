@@ -135,8 +135,10 @@ describe('authoritative PDF Escort Wing state', () => {
     })).toThrow(/exceeds/i);
     expect(shiftPdfEscortTargetNumber(6, 1)).toBe(7);
     expect(shiftPdfEscortTargetNumber(1, -1)).toBe(0);
-    expect(() => shiftPdfEscortTargetNumber(0, -1)).toThrow(/1 through 6/i);
-    expect(() => shiftPdfEscortTargetNumber(7, 1)).toThrow(/1 through 6/i);
+    expect(shiftPdfEscortTargetNumber(0, -1)).toBe(5);
+    expect(shiftPdfEscortTargetNumber(7, 1)).toBe(2);
+    expect(() => shiftPdfEscortTargetNumber(-1, -1)).toThrow(/0 through 7/i);
+    expect(() => shiftPdfEscortTargetNumber(8, 1)).toThrow(/0 through 7/i);
   });
 
   it('resolves Short attacks at 3+ and records one loss for each 1 or 2', () => {
