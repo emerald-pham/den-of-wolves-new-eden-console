@@ -48,19 +48,28 @@ files and renderings remain outside Git.
 
 ## Evidence and remaining work
 
-The first prepared scene passes all five steps at 320×844, 390×844, 844×390 and
+The current prepared scene passes all five steps at 320×844, 390×844, 844×390 and
 1440×900 in normal and reduced motion, with readable computed fonts, contained
-controls, Zoom, keyboard navigation and no live writes. Its complete new-choice
-presenters and final rendered inspection remain pending implementation handback.
+controls, Zoom, keyboard navigation and no live writes. It includes independent
+launch/pass and range choices, once-only enriched balance, valid Militia contexts
+and consumed surviving-Wing samples. The owner inspected the composed phone
+boarding/results and short-landscape fighter captures. This is presentation proof.
+
+The normal twenty-player DRADIS scenario exercised all fifteen standard shuttle
+paths, strict same-object first acquisition and eight viewport/motion states.
+Its last obsolete Union replay-label assertion is retained as a failure. The
+separate normal eight-player Union proof passes setup, travel in both directions,
+transfer, parking, retry and reconnect. The final composed attack/reopen proof
+remains pending source integration.
 
 The existing shared Maliades view now keeps target and dice details private while
 preserving the current damage and revision needed for repair. Its focused privacy,
 parser, repair and real-session hydration checks pass; combined release proof is
 still pending.
 
-Authenticated local/emulator gameplay, Firestore write denial, combined risk
-review, final validation, candidate CI and exact-main production deployment remain
-pending. Prepared rendering does not establish gameplay. Production gameplay or
+The remaining combined authenticated attack, risk review, final validation,
+candidate CI and exact-main production deployment remain pending. Prepared
+rendering does not establish gameplay. Production gameplay or
 a physical device test is not claimed.
 
 Every acceptance is tracked in [the matrix](PC08_ACCEPTANCE_MATRIX.md). Reasons

@@ -32,10 +32,18 @@ Their choices join the same locked dice batch as AEGIS: no early dice, duplicate
 fighter action, target override, second loss or second self-damage on retry.
 Medium shifts precede damage; Short PDF losses and Maliades self-risk consume
 the already locked dice. Explicit zero-action source passes are durable.
+Fixed contacts chosen before Short rolls must select live Wings while any
+remain, preventing a permanent immutable-choice deadlock. Post-lock EO choices
+retain optional contacts after lethal mandatory coverage. Safe coverage guidance
+must let the ordinary EO make a valid assignment without a private roster or
+the separately deferred plot visualization.
 Enriched Warheads holds the targeting boundary for a current entitled EO,
 spends five AEGIS ore once, and applies this attack's Long damage/Medium threshold.
 Reasoned GM recovery cannot bypass that pending choice. GM status is bounded
 and private, and cache/role/custody switches withdraw mounted client controls.
+Attack-bound Enriched Warhead markers reject wrong roles, empty actors and extra
+fields. Escort replay results also bind exact status, revision, action count and
+resolution status; a matching fingerprint alone cannot bless malformed output.
 Root also closes the Union craft setup gap with a current authenticated GM
 starting-host choice. Check the pre-start window, confirmed Union roster,
 paired active hosts, setup revision, exact private receipt, manifest/history

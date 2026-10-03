@@ -23,3 +23,11 @@ The Alpha/Bravo sheet says each fighter “can act” at both Medium and Short R
 ## Short Range Fighter Wing coverage
 
 The Player Guide's Short Range example (private primary `sources/base-v1.1/downe-player-guide-v1.1.pdf`, printed p. 13 / physical PDF p. 15; SHA-256 is recorded in `SOURCE_PROVENANCE.md`) and the routed `references/REFERENCE_ONLY_WOLF_ATTACKS.md` (Short Range rule, lines 57–58) establish Fighter Wings as the first Short Range damage recipients. The owner's bounded digital ordering is to assign enough aggregate hits to lethally cover every live Wing before assigning any remaining distinct hits to other eligible Wolf ships. This corrects the earlier overrestrictive implementation, which treated non-Wing ships as unavailable whenever any Wing survived. Short Range target contacts now include all live non-Battlestation ships; the combined batch rejects a Transport assignment if any live Wing would remain uncovered. Battlestations remain excluded by their printed immunity.
+
+For sources choosing a fixed contact before the shared dice lock, Short Range
+offers live Wings while any remain. Otherwise a fixed non-Wing choice could
+consume an immutable action before sufficient Wing hits exist, leaving no valid
+completion. Once rolls are locked, the EO's aggregate assignment still admits
+other legal contacts after mandatory Wing coverage. This distinction preserves
+the printed priority without drawing replacement dice or changing a committed
+source choice.
