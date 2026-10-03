@@ -72,6 +72,39 @@ const { doc, getDocFromServer, onSnapshot, Timestamp: FirestoreTimestamp, where 
   await import('firebase/firestore');
 const { httpsCallable } = await import('firebase/functions');
 
+it('does not invent foreign resources or Press docking from a current member session scope', () => {
+  const value = sessionFrom('scoped', {
+    ...sessionData(12), activeVesselIds: ['aegis', 'shepherd'],
+    memberSessionScope: { groupId: 'fleet-2', vesselIds: ['shepherd'], craftIds: ['endeavour'] },
+    shuttleDockings: [{ shuttleId: 'endeavour', shipId: 'shepherd', dockedAt: 'SESSION START' }],
+    shuttleVisitLog: [], shipResources: { shepherd: { fuel: 3 } },
+  });
+  expect(Object.keys(value.shipResources ?? {})).toEqual(['shepherd']);
+  expect(value.shuttleDockings?.map(entry => entry.shuttleId)).toEqual(['endeavour']);
+  expect(value.updatedAt).toBe('2026-01-01T00:00:00.000Z');
+});
+
+it('uses the current member read feed without subscribing to a raw session root', async () => {
+  const paths: string[] = [];
+  vi.mocked(doc).mockImplementation(((_db: unknown, path: string) => { paths.push(path); return { path }; }) as never);
+  vi.mocked(onSnapshot).mockImplementation(() => vi.fn());
+  const call = vi.fn().mockResolvedValue({ data: {
+    type: 'current-member-session', sessionId: 'member-feed', actorUid: 'u1', groupId: 'fleet-1',
+    connectionGeneration: 1, assignedRoleId: null, activeConsoleRoleId: null,
+    session: { ...sessionData(8), memberSessionScope: { groupId: 'fleet-1', vesselIds: ['aegis'], craftIds: [] },
+      shuttleDockings: [], shuttleVisitLog: [] },
+  } });
+  vi.mocked(httpsCallable).mockReturnValue(call as never);
+  const onSession = vi.fn();
+  const stop = subscribeSessionState('member-feed', 'u1', {
+    sessionReadAudience: 'member', onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+  });
+  await vi.waitFor(() => expect(onSession).toHaveBeenCalled());
+  expect(call).toHaveBeenCalledWith({ sessionId: 'member-feed' });
+  expect(paths).not.toContain('sessions/member-feed');
+  stop();
+});
+
 function mockGmInstanceProjection(instances: readonly Record<string, unknown>[]) {
   vi.mocked(httpsCallable).mockReturnValue((() => Promise.resolve({ data: { instances } })) as never);
 }
