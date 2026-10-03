@@ -5,7 +5,7 @@ import { useSessionStore } from '@/store/useSessionStore';
 const api = vi.hoisted(() => ({
   listMyScoutReports: vi.fn(), readPrivateScoutResult: vi.fn(),
   readMyScoutDiscoveryNote: vi.fn(), listPendingScoutRequests: vi.fn(),
-  resolvePendingScoutRequest: vi.fn(),
+  resolvePendingScoutRequest: vi.fn(), listGmScoutResolutionLog: vi.fn(),
 }));
 vi.mock('@/lib/scoutResultService', () => api);
 
@@ -20,6 +20,7 @@ const result = {
 
 beforeEach(() => {
   Object.values(api).forEach((fn) => fn.mockReset());
+  api.listGmScoutResolutionLog.mockResolvedValue([]);
   useSessionStore.getState().reset();
   useSessionStore.getState().setIdentity({
     id: 's1', name: 'Table', joinCode: '4821', phase: 'active', currentTurn: 2,
@@ -65,7 +66,7 @@ it('lets the Scientist revisit an older saved report one fact at a time', async 
     recordedAt: '2026-09-27T21:40:00.000Z',
   });
   render(<ScoutReportController refreshKey="" />);
-  await screen.findByText(/awaiting facilitator reveal/i);
+  await screen.findByText(/awaiting automatic scout result/i);
   fireEvent.change(screen.getByRole('combobox', { name: /saved scout request/i }),
     { target: { value: 'r1' } });
   await waitFor(() => expect(screen.getByRole('region', { name: 'Endeavour scout report' }))
@@ -102,4 +103,35 @@ it('clears a previous unavailable message when an ordinary queue refresh succeed
   fireEvent.click(screen.getByRole('button', { name: 'Refresh scout queue' }));
   await screen.findByRole('button', { name: /reveal endeavour scout at 0408/i });
   expect(screen.queryByText('Scout queue unavailable. Reconnect and refresh.')).not.toBeInTheDocument();
+});
+
+
+it('receives an automatic result without a player refresh or GM reveal', async () => {
+  api.listMyScoutReports.mockResolvedValueOnce([{ requestId: 'r1', cycle: 2,
+    entitlementId: 'endeavour', targetCoordinate: '0408', status: 'pending', noteId: null }])
+    .mockResolvedValue([{ requestId: 'r1', cycle: 2, entitlementId: 'endeavour',
+      targetCoordinate: '0408', status: 'resolved', noteId: 'a'.repeat(64) }]);
+  api.readPrivateScoutResult.mockResolvedValue(result);
+  api.readMyScoutDiscoveryNote.mockResolvedValue({ type: 'player-discovery-note',
+    id: 'a'.repeat(64), cycle: 2, targetCoordinate: '0408', systemFact: result.systemFact,
+    recordedAt: '2026-09-27T21:40:00.000Z' });
+  render(<ScoutReportController refreshKey="" />);
+  await screen.findByText(/awaiting automatic scout result/i);
+  await waitFor(() => expect(screen.getByText('Deep Nebula')).toBeVisible(), { timeout: 2500 });
+  expect(api.resolvePendingScoutRequest).not.toHaveBeenCalled();
+});
+
+it('shows the automatic GM result log and labels manual resolution as recovery', async () => {
+  useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, uid: 'gm1', role: 'gm' });
+  useSessionStore.getState().setGmInstance({ id: 'browser-1', sessionId: 's1', uid: 'gm1' } as never);
+  api.listPendingScoutRequests.mockResolvedValue([]);
+  api.listGmScoutResolutionLog.mockResolvedValue([{ requestId: 'r1', cycle: 2,
+    sourceId: 'comms-officer', originShipId: 'aegis', receivingShipId: 'aegis',
+    targetCoordinate: '0408', systemFact: result.systemFact,
+    recordedAt: '2026-09-27T21:40:00.000Z', resolutionMode: 'automatic' }]);
+  render(<GmScoutRevealController />);
+  await waitFor(() => expect(screen.getByRole('region', { name: 'GM scouting result log' }))
+    .toHaveTextContent('Comms Officer // 0408 // Deep Nebula'));
+  expect(screen.getByText(/automatic server resolution/i)).toBeVisible();
+  expect(screen.getByText(/use recovery only/i)).toBeVisible();
 });

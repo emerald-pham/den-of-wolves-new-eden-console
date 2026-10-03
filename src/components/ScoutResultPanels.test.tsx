@@ -16,7 +16,7 @@ describe('scout result presentational panels', () => {
   it('shows a pending Scientist request without a chart fact', () => {
     render(<ScoutResultPanel report={report} />);
     expect(screen.getByRole('region', { name: 'Endeavour scout report' })).toHaveTextContent('Cycle 4');
-    expect(screen.getByText(/awaiting facilitator reveal/i)).toBeVisible();
+    expect(screen.getByText(/awaiting automatic scout result/i)).toBeVisible();
     expect(screen.queryByText('Deep Nebula')).not.toBeInTheDocument();
   });
 

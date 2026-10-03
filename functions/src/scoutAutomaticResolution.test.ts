@@ -35,7 +35,7 @@ vi.mock('firebase-functions/v2/firestore', () => ({
 }));
 
 import { createAutomaticScoutResolver } from './scoutAutomaticResolution';
-import { createResolvePendingScoutRequest, readPrivateScoutResult } from './scoutResultCallable';
+import { createResolvePendingScoutRequest, readPrivateScoutResult, listGmScoutResolutionLog } from './scoutResultCallable';
 
 const commitMap = vi.fn(async () => undefined);
 const resolver = createAutomaticScoutResolver(commitMap);
@@ -157,5 +157,37 @@ describe('automatic committed scouting', () => {
       ...mock.documents.get('sessions/session-1/scoutResolutionAudits/scan-1'), facilitatorUid: 'other' });
     await expect(resolver.run(event())).rejects.toThrow();
     expect(mock.create).toHaveBeenCalledTimes(4); expect(commitMap).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+describe('private automatic scout GM log', () => {
+  it('returns a bounded result log to an owned live GM without chart or identity fields', async () => {
+    await resolver.run(event());
+    put('sessions/session-1/players/gm-1', { role: 'gm', connected: true, lastSeenAt: now });
+    put('sessions/session-1/gmInstances/gm-browser', { uid: 'gm-1', connected: true, lastSeenAt: now });
+    const log = await listGmScoutResolutionLog.run({ auth: { uid: 'gm-1' }, data: {
+      sessionId: 'session-1', instanceId: 'gm-browser' } } as never);
+    expect(log).toEqual([{ requestId: 'scan-1', cycle: 1, sourceId: 'comms-officer',
+      originShipId: 'aegis', receivingShipId: 'aegis', targetCoordinate: '0408',
+      systemFact: { coordinate: '0408', code: 'O', title: 'Deep Nebula' },
+      recordedAt: '2026-10-03T06:00:00.000Z', resolutionMode: 'automatic' }]);
+    expect(JSON.stringify(log)).not.toMatch(/Uid|chartId|organiser|accruedBonus/);
+  });
+
+  it('denies a player, wrong instance, stale GM and caller-chosen audience', async () => {
+    await resolver.run(event());
+    put('sessions/session-1/players/gm-1', { role: 'gm', connected: true, lastSeenAt: now });
+    put('sessions/session-1/gmInstances/gm-browser', { uid: 'gm-1', connected: true, lastSeenAt: now });
+    const data = { sessionId: 'session-1', instanceId: 'gm-browser' };
+    await expect(listGmScoutResolutionLog.run({ auth: { uid: 'comms-1' }, data } as never))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    await expect(listGmScoutResolutionLog.run({ auth: { uid: 'gm-1' },
+      data: { ...data, instanceId: 'other' } } as never)).rejects.toMatchObject({ code: 'permission-denied' });
+    await expect(listGmScoutResolutionLog.run({ auth: { uid: 'gm-1' },
+      data: { ...data, audience: 'player' } } as never)).rejects.toMatchObject({ code: 'invalid-argument' });
+    put('sessions/session-1/gmInstances/gm-browser', { uid: 'gm-1', connected: true, lastSeenAt: 0 });
+    await expect(listGmScoutResolutionLog.run({ auth: { uid: 'gm-1' }, data } as never))
+      .rejects.toMatchObject({ code: 'permission-denied' });
   });
 });
