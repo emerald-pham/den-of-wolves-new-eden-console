@@ -52,6 +52,8 @@ import {
   commitWolfRangeActionChoice,
   advanceWolfAttackLifecycle,
   getWolfRangeActionChoice,
+  getWolfBoardingDefenceChoice,
+  commitWolfBoardingDefenceChoice,
 } from './index';
 
 const targeting = resolveWolfTargeting(firstTurnWolfAttackComposition(), {}, undefined, () => 0);
@@ -356,4 +358,73 @@ it('does not leave charged Command and Control ownerless when no Executive Offic
   expect(testState.documents.get('sessions/s1').maintenanceCycles).toMatchObject({
     aegis: { charges: ['command-and-control'] },
   });
+});
+
+function openBoardingFixture(): void {
+  const targets = ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124'];
+  const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  const emptyRange = (range: string) => ({ range, dice: [], assignments: [], unusedHitsByAction: [],
+    damageByInstance: {}, destroyedInstanceIds: [], destructionDamageByTarget: Object.fromEntries(targets.map((id) => [id, 0])) });
+  const current = new Date();
+  const future = (milliseconds: number) => new Date(current.getTime() + milliseconds).toISOString();
+  put('sessions/s1', {
+    ...testState.documents.get('sessions/s1'),
+    shipResources: { aegis: { ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 4 } },
+    shipSurvivors: { aegis: 2500, dione: 100000, icebreaker: 40000, quellon: 30000, shepherd: 30000, 'refinery-124': 20000 },
+    shipDamage: Object.fromEntries(targets.map((id) => [id, { damagedSystemIds: [], destroyed: false }])),
+    shipUnrest: Object.fromEntries(targets.map((id) => [id, 0])),
+    turnPhase: { turn: 1, teamPhaseEndsAt: future(-1000), openAirspaceEndsAt: future(300000),
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false } },
+  });
+  put('sessions/s1/wolfAttackState/current', {
+    ...attack, currentStep: 'boarding', revision: 10, rangeReceipts: [
+      emptyRange('long-range'), emptyRange('medium-range'), emptyRange('short-range'),
+    ],
+    rangeDecisions: Object.fromEntries(['long-range', 'medium-range', 'short-range'].map((range) => [range, { status: 'committed' }])),
+    boardingDefenceChoices: {},
+  });
+}
+
+it('commits only the target ship crew boarding choice, reserves teams, then auto-resolves and reopens once', async () => {
+  openBoardingFixture();
+  const view = await getWolfBoardingDefenceChoice.run(request({ sessionId: 's1' }));
+  expect(view).toMatchObject({ type: 'wolf-boarding-defence-choice-view', turn: 1, revision: 10,
+    targetShipId: 'aegis', boardingParties: 5, availableSecurityTeams: 4, choiceStatus: 'pending' });
+  expect(view).not.toHaveProperty('combatRoster');
+  expect(view).not.toHaveProperty('rolls');
+
+  await expect(commitWolfBoardingDefenceChoice.run(request({
+    sessionId: 's1', requestId: 'boarding-wrong-actor', expectedTurn: 1, expectedRevision: 10,
+    targetShipId: 'dione', securityTeams: 2,
+  }, 'not-seated'))).rejects.toMatchObject({ code: 'permission-denied' });
+  await expect(commitWolfBoardingDefenceChoice.run(request({
+    sessionId: 's1', requestId: 'boarding-stale', expectedTurn: 1, expectedRevision: 9,
+    targetShipId: 'aegis', securityTeams: 2,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+
+  const payload = { sessionId: 's1', requestId: 'boarding-aegis-1', expectedTurn: 1,
+    expectedRevision: 10, targetShipId: 'aegis', securityTeams: 2 };
+  const committed = await commitWolfBoardingDefenceChoice.run(request(payload));
+  expect(committed).toMatchObject({ type: 'wolf-boarding-defence-choice', revision: 11,
+    targetShipId: 'aegis', securityTeams: 2, currentStep: 'boarding' });
+  expect((testState.documents.get('sessions/s1')!.shipResources as Fields).aegis)
+    .toMatchObject({ securityTeams: 2 });
+  expect(await commitWolfBoardingDefenceChoice.run(request(payload))).toEqual(committed);
+
+  const priorOpenDeadline = ((testState.documents.get('sessions/s1')!.turnPhase as Fields).openAirspaceEndsAt);
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  const state = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  const session = testState.documents.get('sessions/s1')!;
+  expect(state).toMatchObject({ status: 'resolved', currentStep: 'resolved', airspaceLocked: false,
+    parkingReleaseCondition: 'normal-movement-reopened', calculationReceipt: { type: 'wolf-combat-calculation',
+      boarding: [{ target: 'aegis', boardingParties: 5, securityTeams: 2, survivingBoardingParties: 3 }] } });
+  expect(session.turnPhase).toMatchObject({ turn: 1, airspace: { state: 'lifted', tickerActive: true } });
+  expect((session.turnPhase as Fields).openAirspaceEndsAt).toBe(priorOpenDeadline);
+  expect((session.shipResources as Fields).aegis).toMatchObject({ securityTeams: 4 });
+  expect(testState.documents.has('sessions/s1/events/wolf-attack-airspace-reopened-1')).toBe(true);
+  const revision = state.revision;
+  const drawCount = entropy.randomInt.mock.calls.length;
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current')!.revision).toBe(revision);
+  expect(entropy.randomInt).toHaveBeenCalledTimes(drawCount);
 });
