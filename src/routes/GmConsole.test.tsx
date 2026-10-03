@@ -4539,3 +4539,30 @@ it('ignores an abandoned GM attack callback after this browser claims another in
   expect(decisions).toHaveTextContent('Choice committed');
   expect(decisions).not.toHaveTextContent('Choice pending');
 });
+
+it('mounts the genuine private boarding ruling for the current live facilitator', async () => {
+  prepareLaterWolfAttackFixture('due', 'declared');
+  const { getWolfBoardingSpecialChoice } = await import('@/lib/sessionService');
+  const { subscribeWolfAttackMemberView } = await import('@/lib/firestore');
+  vi.mocked(subscribeGmWolfAttackState).mockImplementation((_id, onState) => {
+    onState({status: 'declared', turn: 4, revision: 9, preparationRevision: 1, currentStep: 'boarding',
+      deadlineAt: new Date(Date.now() + 300000).toISOString(), airspaceLocked: true,
+      parkedCraftIds: [], launchedCraftIds: [], attackId: 'current-attack'});
+    return vi.fn();
+  });
+  vi.mocked(subscribeWolfAttackMemberView).mockImplementation((_id, onView) => {
+    onView({type: 'wolf-attack-member-view', schemaVersion: 1, sessionId: 's1', attackId: 'current-attack',
+      turn: 4, revision: 9, status: 'declared', phase: 'active', currentStep: 'boarding', range: null,
+      deadlineAt: new Date(Date.now() + 300000).toISOString(), serverTime: new Date().toISOString(),
+      visibility: 'members', redaction: ['composition', 'unresolved-dice', 'facilitator-notes', 'intervention-state'], results: []});
+    return vi.fn();
+  });
+  vi.mocked(getWolfBoardingSpecialChoice).mockResolvedValue({type: 'wolf-boarding-special-choice-view',
+    sessionId: 's1', turn: 4, revision: 9,
+    choice: {kind: 'commander-ruling', targetShipId: 'aegis', condition: 'Commander-led parties lost; current ruling required.'}});
+  renderConsole();
+  expect(await screen.findByRole('textbox', {name: 'Facilitator ruling'})).toBeVisible();
+  expect(getWolfBoardingSpecialChoice).toHaveBeenCalled();
+  act(() => useSessionStore.getState().setSessionSnapshotFreshness('cache'));
+  expect(screen.queryByRole('textbox', {name: 'Facilitator ruling'})).toBeNull();
+});
