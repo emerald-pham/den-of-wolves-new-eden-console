@@ -46,7 +46,7 @@ const scan = { sourceId: 'comms-officer', attempt: 1, range: 1,
 const pending = {
   type: 'scout-request', status: 'requested', resolution: 'pending',
   sessionId: 'session-1', requestId: 'scan-1', actorUid: 'comms-1',
-  entitlementId: 'comms-officer', source: 'role', ownerRoleId: 'comms-officer',
+  entitlementId: 'comms-officer', source: 'replacement-role', ownerRoleId: 'comms-officer',
   anchorShipId: 'aegis', receivingShipId: 'aegis', cycle: 1,
   targetCoordinate: '0408', scan, createdAt: 'server-time',
 };
@@ -58,7 +58,7 @@ const receipt = () => ({ fingerprint: {
   instanceId: null, expectedRevision: null,
   payload: { entitlementId: 'comms-officer', targetCoordinate: '0408', cycle: 1 },
 }, result: { status: 'requested', resolution: 'pending', requestId: 'scan-1',
-  sessionId: 'session-1', cycle: 1, entitlementId: 'comms-officer', source: 'role',
+  sessionId: 'session-1', cycle: 1, entitlementId: 'comms-officer', source: 'replacement-role',
   ownerRoleId: 'comms-officer', anchorShipId: 'aegis', receivingShipId: 'aegis',
   targetCoordinate: '0408' } });
 
