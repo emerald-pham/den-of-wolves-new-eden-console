@@ -23737,6 +23737,48 @@ function requireCurrentWolfForceFieldCaptain(
   }
 }
 
+/** Recheck current ownership and physical context before returning a saved choice.
+ * Automatic combat progression may replace its calculation receipt, but a saved
+ * command must never bypass a Captain, group, host or docking change. */
+function requireWolfForceFieldCaptainContext(
+  session: DocumentSnapshot,
+  player: DocumentSnapshot,
+  uid: string,
+  groupSnapshot: DocumentSnapshot,
+  rawChoice: Record<string, unknown>,
+  turn: number,
+) {
+  if (rawChoice.turn !== turn) {
+    throw commandError('failed-precondition', 'The saved Force Field choice no longer belongs to this attack.', 'stale-revision');
+  }
+  if (!player.exists || player.id !== uid || !isActivePlayer(player) || player.get('role') !== 'player' ||
+      player.get('replacementRoleId') !== 'gorgoneion-captain' || player.get('replacementStatus') != null ||
+      rawChoice.configuredCaptainUid !== uid) {
+    throw new HttpsError('permission-denied', 'The current Gorgoneion Captain owns this choice.');
+  }
+  const groupId = currentPlayerFleetGroupId(player);
+  const group = groupSnapshot.exists ? fleetGroupRecord(groupSnapshot.data()) : undefined;
+  const hostShipId = rawChoice.hostShipId;
+  const dockingRevision = rawChoice.dockingRevision;
+  if (!group || group.id !== groupId ||
+      (rawChoice.fleetGroupId !== undefined && rawChoice.fleetGroupId !== groupId) ||
+      typeof hostShipId !== 'string' || !Number.isSafeInteger(dockingRevision) ||
+      fleetGroupMemberShipId([group], uid, groupId) !== hostShipId) {
+    throw new HttpsError('permission-denied', 'The Captain is no longer aboard the configured Gorgoneion host.');
+  }
+  const smallShip = storedSmallShipState(session, 'gorgoneion');
+  const admitted = isExtraShipAdmitted({
+    activeVesselIds: wolfAttackActiveVesselIds(session), smallShipStates: session.get('smallShipStates'),
+    smallShipId: 'gorgoneion', expansion: session.get('expansion'), capybaraEnabled: session.get('capybaraEnabled'),
+  });
+  if (!admitted || !smallShip || smallShip.hostShipId !== hostShipId ||
+      smallShip.dockingRevision !== dockingRevision || smallShip.population < 1 || isSmallShipInMutiny(smallShip) ||
+      smallShip.cycle.turn !== turn || !smallShip.cycle.charges.includes('force-field-projector')) {
+    throw commandError('failed-precondition', 'The current projector charge or Gorgoneion admission changed.', 'stale-revision');
+  }
+  return { groupId, group, hostShipId, dockingRevision };
+}
+
 function wolfForceFieldChoiceViewInputs(
   sessionId: string,
   session: DocumentSnapshot,
@@ -23778,31 +23820,9 @@ function wolfForceFieldChoiceViewInputs(
       : 'projector-not-ready';
     return { type: 'wolf-force-field-choice-unavailable', sessionId, reason };
   }
-  if (!player.exists || player.id !== uid || !isActivePlayer(player) || player.get('role') !== 'player' ||
-      player.get('replacementRoleId') !== 'gorgoneion-captain' || player.get('replacementStatus') != null ||
-      rawChoice.configuredCaptainUid !== uid) {
-    throw new HttpsError('permission-denied', 'The current Gorgoneion Captain owns this choice.');
-  }
-  const groupId = currentPlayerFleetGroupId(player);
-  const group = groupSnapshot.exists ? fleetGroupRecord(groupSnapshot.data()) : undefined;
-  const hostShipId = rawChoice.hostShipId;
-  const dockingRevision = rawChoice.dockingRevision;
-  if (!group || group.id !== groupId ||
-      (rawChoice.fleetGroupId !== undefined && rawChoice.fleetGroupId !== groupId) ||
-      typeof hostShipId !== 'string' || !Number.isSafeInteger(dockingRevision) ||
-      fleetGroupMemberShipId([group], uid, groupId) !== hostShipId) {
-    throw new HttpsError('permission-denied', 'The Captain is no longer aboard the configured Gorgoneion host.');
-  }
-  const smallShip = storedSmallShipState(session, 'gorgoneion');
-  const admitted = isExtraShipAdmitted({
-    activeVesselIds: wolfAttackActiveVesselIds(session), smallShipStates: session.get('smallShipStates'),
-    smallShipId: 'gorgoneion', expansion: session.get('expansion'), capybaraEnabled: session.get('capybaraEnabled'),
-  });
-  if (!admitted || !smallShip || smallShip.hostShipId !== hostShipId ||
-      smallShip.dockingRevision !== dockingRevision || smallShip.population < 1 || isSmallShipInMutiny(smallShip) ||
-      smallShip.cycle.turn !== turn || !smallShip.cycle.charges.includes('force-field-projector')) {
-    throw commandError('failed-precondition', 'The current projector charge or Gorgoneion admission changed.', 'stale-revision');
-  }
+  const { groupId, group, hostShipId, dockingRevision } = requireWolfForceFieldCaptainContext(
+    session, player, uid, groupSnapshot, rawChoice, turn as number,
+  );
   let targetRing: WolfTargetRing;
   try { targetRing = configuredWolfTargetRingForSession(session); } catch (error) {
     throw commandError('failed-precondition', error instanceof Error ? error.message : 'The active fleet target ring is unavailable.', 'conflict');
@@ -23909,15 +23929,19 @@ export const commitWolfForceFieldChoice = onCall<{
     requireCurrentWolfForceFieldCaptain(player, uid, players);
     const groupId = currentPlayerFleetGroupId(player);
     const groupSnapshot = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${groupId}`));
+    const replay = replayBoundCommand(receipt, fingerprint, isWolfForceFieldChoiceResult, 'Wolf Force Field choice');
+    if (replay) {
+      const savedChoice = state.get('forceFieldChoice');
+      if (!state.exists || state.get('type') !== 'wolf-attack-state' || !isRecord(savedChoice)) {
+        throw commandError('failed-precondition', 'The saved Force Field context is unavailable.', 'conflict');
+      }
+      requireWolfForceFieldCaptainContext(session, player, uid, groupSnapshot, savedChoice, replay.turn);
+      return replay;
+    }
     const view = wolfForceFieldChoiceViewInputs(sessionId, session, player, uid, groupSnapshot, state);
     if (view.type !== 'wolf-force-field-choice-view') {
       throw commandError('failed-precondition', 'The projector is unavailable for this attack.', 'invalid-phase');
     }
-    if (view.hostShipId !== (state.get('forceFieldChoice') as Record<string, unknown>).hostShipId) {
-      throw new HttpsError('permission-denied', 'The Captain is no longer aboard the configured Gorgoneion host.');
-    }
-    const replay = replayBoundCommand(receipt, fingerprint, isWolfForceFieldChoiceResult, 'Wolf Force Field choice');
-    if (replay) return replay;
     if (raw.expectedTurn !== view.turn || raw.expectedRevision !== view.revision) {
       throw commandError('failed-precondition', 'The Force Field choice is stale. Refresh the current attack.', 'stale-revision');
     }
