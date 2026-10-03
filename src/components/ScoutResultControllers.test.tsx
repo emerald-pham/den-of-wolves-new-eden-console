@@ -135,3 +135,17 @@ it('shows the automatic GM result log and labels manual resolution as recovery',
   expect(screen.getByText(/automatic server resolution/i)).toBeVisible();
   expect(screen.getByText(/use recovery only/i)).toBeVisible();
 });
+
+
+it('delivers the Comms Officer automatic report in its current replacement station', async () => {
+  useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, replacementRoleId: 'comms-officer' });
+  api.listMyScoutReports.mockResolvedValue([{ requestId: 'r1', cycle: 2,
+    entitlementId: 'comms-officer', targetCoordinate: '0408', status: 'resolved', noteId: 'a'.repeat(64) }]);
+  api.readPrivateScoutResult.mockResolvedValue({ ...result, sourceId: 'comms-officer' });
+  api.readMyScoutDiscoveryNote.mockResolvedValue({ type: 'player-discovery-note',
+    id: 'a'.repeat(64), cycle: 2, targetCoordinate: '0408', systemFact: result.systemFact,
+    recordedAt: '2026-09-27T21:40:00.000Z' });
+  render(<ScoutReportController refreshKey="" entitlementId="comms-officer" />);
+  await waitFor(() => expect(screen.getByRole('region', { name: 'Comms Officer scout report' }))
+    .toHaveTextContent('Deep Nebula'));
+});
