@@ -487,6 +487,35 @@ it('keeps boarding pending through disconnect and scopes the projection to the c
     .toMatchObject({ currentStep: 'boarding', boardingDefenceChoices: {} });
 });
 
+it('reads casualty alert audiences before any final boarding write under Firestore transaction ordering', async () => {
+  openBoardingFixture();
+  entropy.randomInt.mockReturnValue(0);
+  await commitWolfBoardingDefenceChoice.run(request({ sessionId: 's1', requestId: 'boarding-alert-order',
+    expectedTurn: 1, expectedRevision: 10, targetShipId: 'aegis', securityTeams: 0 }));
+  testState.runTransaction.mockImplementationOnce(async (callback: (tx: unknown) => unknown) => {
+    let wrote = false;
+    return callback({
+      get: async (target: { path: string }) => {
+        if (wrote) throw new Error('Firestore transactions require all reads before all writes.');
+        if (target.path.endsWith('/gmInstances')) return { docs: [{ id: 'gm-current' }] };
+        return testState.get(target);
+      },
+      set: (target: { path: string }, fields: Fields) => { wrote = true; testState.set(target, fields); },
+      update: (target: { path: string }, fields: Fields) => { wrote = true; testState.update(target, fields); },
+      delete: (target: { path: string }) => { wrote = true; testState.remove(target); },
+    });
+  });
+
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current'))
+    .toMatchObject({ status: 'resolved', currentStep: 'resolved', airspaceLocked: false });
+  expect(testState.documents.get('sessions/s1')).toMatchObject({
+    turnPhase: { airspace: { state: 'lifted' } },
+    populationAlerts: { aegis: { targetGmInstanceIds: ['gm-current'] } },
+  });
+});
+
 it('bounds the boarding choice by current resources and holds it during a session pause', async () => {
   openBoardingFixture();
   await expect(commitWolfBoardingDefenceChoice.run(request({
