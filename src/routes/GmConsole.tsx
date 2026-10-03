@@ -4,6 +4,7 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { Link, Navigate } from 'react-router-dom';
 import ArrestPosseCalculator from '@/components/ArrestPosseCalculator';
 import EmergencyTimerPauseControl from '@/components/EmergencyTimerPauseControl';
+import WolfAttackRecoveryControl from '@/components/WolfAttackRecoveryControl';
 import ShipPlot from '@/components/ShipPlot';
 import { useFleetGroupNavigation } from '@/lib/useFleetGroupNavigation';
 import GmMutinyRecovery from '@/components/GmMutinyRecovery';
@@ -3042,52 +3043,10 @@ export default function GmConsole() {
                 </button>
               </div>
               {wolfAttackState?.currentStep === 'targeting' && (
-                <details className="gm-wolf-preparation__recovery">
-                  <summary className="cic-action-button">Attack progress recovery</summary>
-                  <p className="gm-console__hint">
-                    Use only to retry legal server progress. Pending player choices, shared holds
-                    and current deadlines still govern this command.
-                  </p>
-                  <label className="gm-wolf-preparation__field gm-wolf-preparation__notes">
-                    <span>Attack recovery reason // 8–400 characters</span>
-                    <textarea
-                      aria-label="Attack recovery reason"
-                      rows={2}
-                      minLength={8}
-                      maxLength={400}
-                      value={wolfRecoveryReason}
-                      disabled={!wolfStageAdvanceAvailable || wolfStageAdvanceMutation}
-                      onChange={(event) => {
-                        setWolfRecoveryReason(event.target.value);
-                        setWolfRecoveryConfirmed(false);
-                      }}
-                    />
-                  </label>
-                  <label className="gm-wolf-preparation__check">
-                    <input
-                      type="checkbox"
-                      checked={wolfRecoveryConfirmed}
-                      disabled={!wolfStageAdvanceAvailable || wolfStageAdvanceMutation}
-                      onChange={(event) => setWolfRecoveryConfirmed(event.target.checked)}
-                    />
-                    <span>I confirm advancing the resolved targeting stage into Long Range.</span>
-                  </label>
-                  <p className="gm-console__hint">
-                    The private audit records this reason and the before/after revision, stage and deadline.
-                    Committed rolls and player choices cannot be rolled back.
-                  </p>
-                  <button
-                    className="cic-action-button"
-                    type="button"
-                    disabled={!wolfStageAdvanceAvailable || wolfStageAdvanceMutation ||
-                      wolfRecoveryReason.trim().length < 8 || !wolfRecoveryConfirmed}
-                    onClick={() => void closeWolfTargeting()}
-                  >
-                    {wolfStageAdvanceMutation
-                      ? 'Entering Long Range…'
-                      : 'Recover targeting progress'}
-                  </button>
-                </details>
+                <WolfAttackRecoveryControl available={wolfStageAdvanceAvailable} busy={wolfStageAdvanceMutation}
+                  reason={wolfRecoveryReason} confirmed={wolfRecoveryConfirmed}
+                  onReason={reason=>{setWolfRecoveryReason(reason);setWolfRecoveryConfirmed(false);}}
+                  onConfirm={setWolfRecoveryConfirmed} onRecover={()=>void closeWolfTargeting()} />
               )}
               <LiveChangeRegion
                 as="p"
