@@ -4,6 +4,7 @@ import { parseVoyage33MaintenanceState } from './voyage33Maintenance';
 import { parseVoyage33Admission, VOYAGE_33_ID } from './voyageAdmission';
 import { parseGorgoneionRepairDronesState } from './gorgoneionRepairDrones';
 import { parseWarriorRepairDronesState } from './warriorRepairDrones';
+import { parseShuttleControl } from './shuttleControl';
 
 export interface MemberSessionScope {
   readonly groupId: string;
@@ -119,9 +120,18 @@ export function memberSessionProjection(value: unknown, scope: MemberSessionScop
   const voyageAdmission = parseVoyage33Admission(root.voyage33Admission, String(root.id));
   if (voyage && voyageAdmission && Array.isArray(root.admittedVesselIds) && root.admittedVesselIds.includes(VOYAGE_33_ID) &&
       (scope.groupId === 'gm' || voyage.hostShipId && voyage.dockingRevision > 0 && coreHosts.has(voyage.hostShipId))) ships.add(VOYAGE_33_ID);
+  const snnId = 'snn-press-shuttle';
+  const snn = record(root.shuttleControl)[snnId];
+  // Press has no vessel-map audience. Its current holder still needs its own
+  // shuttle, including a docking outside the fleet group's vessel scope.
+  const pressCraft = new Set(scope.groupId !== 'gm' && scope.vesselIds.length === 0 &&
+    scope.actorUid && root.pressHolderUid === scope.actorUid && root.pressEnabled !== false &&
+    parseShuttleControl({ [snnId]: snn })?.[snnId]?.ownerRoleId === 'press-officer' &&
+    record(snn).holderUid === scope.actorUid ? [snnId] : []);
   const dockings = (Array.isArray(root.shuttleDockings) ? root.shuttleDockings : [])
-    .filter(entry => ships.has(String(record(entry).shipId)) && typeof record(entry).shuttleId === 'string');
-  const craft = new Set([...dockings.map(entry => String(record(entry).shuttleId)), ...(scope.craftIds ?? [])]);
+    .filter(entry => (ships.has(String(record(entry).shipId)) || pressCraft.has(String(record(entry).shuttleId))) &&
+      typeof record(entry).shuttleId === 'string');
+  const craft = new Set([...dockings.map(entry => String(record(entry).shuttleId)), ...(scope.craftIds ?? []), ...pressCraft]);
   for (const [id, retained] of Object.entries(record(root.retainedShuttles))) {
     if (scope.actorUid && record(retained).holderUid === scope.actorUid) craft.add(id);
   }
@@ -176,7 +186,8 @@ export function memberSessionProjection(value: unknown, scope: MemberSessionScop
     acceptedByShip: selectedMap(quarantine.acceptedByShip, ships) };
   result.shuttleDockings = dockings;
   result.shuttleVisitLog = (Array.isArray(root.shuttleVisitLog) ? root.shuttleVisitLog : [])
-    .filter(entry => craft.has(String(record(entry).shuttleId)) && ships.has(String(record(entry).shipId)));
+    .filter(entry => craft.has(String(record(entry).shuttleId)) &&
+      (ships.has(String(record(entry).shipId)) || pressCraft.has(String(record(entry).shuttleId))));
   result.confettiUsedShipIds = (Array.isArray(root.confettiUsedShipIds) ? root.confettiUsedShipIds : [])
     .filter(id => ships.has(String(id)) || craft.has(String(id)));
   result.memberSessionScope = { groupId: scope.groupId, vesselIds: [...ships], craftIds: [...craft] };

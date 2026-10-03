@@ -3606,6 +3606,19 @@ export function subscribeSessionState(
   let memberFeedRefresh: () => void = () => undefined;
   let memberActorFingerprint: string | undefined;
   let memberActorEpoch = 0;
+  let memberActorAvailable: boolean | undefined;
+  let memberPlayer: Player | undefined;
+  const revokeMemberActor = () => {
+    if (handlers.sessionReadAudience !== 'member') return;
+    memberActorAvailable = false;
+    memberActorEpoch += 1;
+    if (memberPlayer) {
+      memberPlayer = { ...memberPlayer, connected: false };
+      handlers.onPlayer(memberPlayer);
+    }
+    handlers.onPlayerFreshness?.(false);
+    handlers.onSessionFreshness?.(false);
+  };
   const actorFingerprint = (actor: { readonly fleetGroupId?: string | null; readonly connectionGeneration?: number;
       readonly assignedRoleId?: string | null; readonly activeConsoleRoleId?: string | null }) => JSON.stringify([
     actor.fleetGroupId, actor.connectionGeneration ?? 1, actor.assignedRoleId ?? null, actor.activeConsoleRoleId ?? null,
@@ -3616,7 +3629,8 @@ export function subscribeSessionState(
     let pending = false;
     let wanted = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const current = () => !stopped && subscribed && currentSessionSubscriptionToken === subscriptionToken;
+    const current = () => !stopped && subscribed && currentSessionSubscriptionToken === subscriptionToken &&
+      memberActorAvailable !== false;
     const refresh = () => {
       if (!current()) return;
       wanted = true;
@@ -3731,17 +3745,20 @@ export function subscribeSessionState(
       // A cached kickedAt is not enough to tear down the persisted identity;
       // wait for the server projection to confirm that terminal decision.
       if (snapshot.exists() && snapshot.get('kickedAt') && !fromCache) {
+        revokeMemberActor();
         handlers.onKicked();
       } else if (snapshot.exists() && snapshot.get('connected') === true) {
         const player = playerFrom(sessionId, uid, snapshot.data());
         if (!fromCache && handlers.sessionReadAudience === 'member') {
           const nextFingerprint = actorFingerprint(player);
-          if (nextFingerprint !== memberActorFingerprint) {
+          if (memberActorAvailable !== true || nextFingerprint !== memberActorFingerprint) {
+            memberActorAvailable = true;
             memberActorFingerprint = nextFingerprint;
             memberActorEpoch += 1;
             handlers.onSessionFreshness?.(false);
           }
         }
+        memberPlayer = player;
         handlers.onPlayer(player);
         if (!fromCache) memberFeedRefresh();
         handlers.onPlayerFreshness?.(!fromCache);
@@ -3749,8 +3766,15 @@ export function subscribeSessionState(
         // same-UID assignment updates this player projection atomically with
         // its private card, giving us a safe point to rebind that listener.
         startPrivateLoyaltyListener();
-      } else onError();
-    }, onError),
+      } else {
+        if (!fromCache) revokeMemberActor();
+        onError();
+      }
+    }, (error: { readonly code?: string }) => {
+      if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+      if (error.code === 'permission-denied' || error.code === 'not-found') revokeMemberActor();
+      onError();
+    }),
     ...(handlers.onPlayerDiscovery ? [onSnapshot(
       doc(database, `sessions/${sessionId}/playerDiscoveries/${uid}`),
       { includeMetadataChanges: true },

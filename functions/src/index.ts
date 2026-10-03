@@ -21549,7 +21549,7 @@ async function reconcileWolfAttackProgress(sessionId: string): Promise<void> {
         status: 'committed', range: step, sourceId: 'aegis-weapons', targetId: 'aegis', bearing: null,
         contactReference: 'AEGIS weapons',
         effect: `AEGIS ${step.replace('-range', ' Range')} weapons unavailable; no current Executive Officer can choose them`,
-        outcome: { damage: 0, availability: 'unavailable' }, serverTime: committedAt,
+        outcome: { damage: 0 }, serverTime: committedAt,
       });
       tx.update(stateRef, {
         revision: nextRevision, currentStep: nextStep,

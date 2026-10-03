@@ -33,7 +33,7 @@ function authorityFor(
   const { session, me, connection, freshness, identityRevision, online } = values;
   const sessionId = suppliedSessionId ?? session?.id;
   const baseActor = Boolean(sessionId && session?.id === sessionId && me?.sessionId === sessionId &&
-    me.role === 'player' && me.fleetGroupId && me.replacementStatus == null);
+    me.role === 'player' && me.connected !== false && me.fleetGroupId && me.replacementStatus == null);
   const actorReady = baseActor && (actor === 'gorgoneion-captain'
     ? me?.replacementRoleId === 'gorgoneion-captain'
     : actor === 'wolf-commander'
@@ -45,7 +45,7 @@ function authorityFor(
   const discovery = session?.playerDiscovery;
   const key = JSON.stringify([
     actor, sessionId ?? null, session?.id ?? null, session?.phase ?? null, session?.currentTurn ?? null,
-    me?.sessionId ?? null, me?.uid ?? null, me?.connectionGeneration ?? null, me?.role ?? null,
+    me?.sessionId ?? null, me?.uid ?? null, me?.connectionGeneration ?? null, me?.role ?? null, me?.connected ?? null,
     me?.replacementRoleId ?? null, me?.replacementStatus ?? null, me?.assignedRoleId ?? null,
     me?.activeConsoleRoleId ?? null, me?.seatId ?? null, me?.fleetGroupId ?? null, identityRevision,
     discovery?.groupId ?? null, discovery?.shipId ?? null, discovery?.revision ?? null,

@@ -26,7 +26,9 @@ export function planFleetPartition(navigation: NavigationState, groups: readonly
   let nextNavigation = navigation;
   const nextGroups: FleetGroupRecord[] = [];
   const memberGroups = new Map<string, string>();
-  const occupied = new Set(groups.map(group => group.id));
+  // Absorbed paths remain readable history. Never let a new audience write to
+  // an identity still retained by a previous audience.
+  const occupied = new Set(groups.flatMap(group => [group.id, ...(group.mergedGroupIds ?? [])]));
   let nextId = 1;
   const allocate = () => {
     while (occupied.has(`fleet-${nextId}`)) nextId += 1;
