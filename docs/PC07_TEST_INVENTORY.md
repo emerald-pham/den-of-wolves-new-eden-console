@@ -32,7 +32,11 @@ Updated cases (existing success/denial assertions remain):
 
 ## functions/src/fleetPartition.test.ts
 
-Updated suite: 0 new cases and 1 changed existing cases.
+Updated suite: 1 new cases and 1 changed existing cases.
+
+New cases:
+
+- never reuses an absorbed group identity when a reunited fleet splits again
 
 Updated cases (existing success/denial assertions remain):
 
@@ -92,9 +96,11 @@ New cases:
 
 ## functions/src/memberSessionCallable.test.ts
 
-Added suite: 3 new cases and 0 changed existing cases.
+Added suite: 4 new cases and 0 changed existing cases.
 
 New cases:
+
+- keeps only the current Press holder’s own SNN operations through docking and transit
 
 - reads live membership and state atomically with no caller-selected audience
 - denies wrong actor, disconnected actor, kicked actor and malformed membership
@@ -250,10 +256,11 @@ New cases:
 
 ## functions/src/wolfAttackRangeCallable.test.ts
 
-Added suite: 26 new cases and 0 changed existing cases.
+Added suite: 27 new cases and 0 changed existing cases.
 
 New cases:
 
+- continues a real five-ship targeting receipt into automatic unavailable EO ranges
 - returns only current source-derived actions and opaque target contacts to the entitled Executive Officer
 - publishes a private GM decision summary with configured-but-disconnected roles distinct from unavailable actions
 - denies the EO range projection after the current berth moves away from AEGIS
@@ -474,9 +481,11 @@ New cases:
 
 ## src/components/AegisCommandAndControlPanel.test.tsx
 
-Updated suite: 6 new cases and 0 changed existing cases.
+Updated suite: 7 new cases and 0 changed existing cases.
 
 New cases:
+
+- withdraws C&C targets after server disconnect despite a delayed live targeting callback
 
 - offers an explicit pass and records that no target was redirected
 - withdraws an old target list when the current EO identity changes
@@ -651,10 +660,11 @@ New cases:
 
 ## src/components/ShuttleMovementAuthority.test.tsx
 
-Added suite: 3 new cases and 0 changed existing cases.
+Added suite: 4 new cases and 0 changed existing cases.
 
 New cases:
 
+- rebinds a route listener denied before the flight existed after the holder commits its departure
 - withdraws a selected cached route and restores it only from current server clearance
 - keeps a mission-committed craft docked under otherwise open current airspace
 - shows a consumed service recharge without inventing a withheld host or console name
@@ -678,9 +688,11 @@ New cases:
 
 ## src/components/WolfAttackChoiceAuthority.test.tsx
 
-Added suite: 8 new cases and 0 changed existing cases.
+Added suite: 9 new cases and 0 changed existing cases.
 
 New cases:
+
+- withdraws $name controls on server disconnect even if a late callback reports live freshness (Captain, AEGIS range, boarding)
 
 - withdraws a displayed Force Field choice as soon as live authority or berth changes
 - ignores a Force Field mutation reply after its Captain authority is replaced
@@ -702,9 +714,11 @@ New cases:
 
 ## src/components/WolfCommanderTargetingPanel.test.tsx
 
-Updated suite: 5 new cases and 0 changed existing cases.
+Updated suite: 6 new cases and 0 changed existing cases.
 
 New cases:
+
+- withdraws Commander dice after server disconnect despite a delayed live targeting callback
 
 - does not let an enabled fixture prop grant Commander authority
 - withdraws private dice when the Commander connection or freshness is lost
@@ -765,9 +779,12 @@ New cases:
 
 ## src/lib/firestore.test.ts
 
-Updated suite: 11 new cases and 0 changed existing cases.
+Updated suite: 13 new cases and 0 changed existing cases.
 
 New cases:
+
+- hydrates the entitled independent SNN docking and visits without foreign vessel maps or invented transit docks
+- rejects a pending member reply after the server actor becomes %s and waits for current reconnect (disconnected, missing, kicked)
 
 - does not invent foreign resources or Press docking from a current member session scope
 - carries the current fleet partition revision through member hydration for real navigation commands
@@ -968,3 +985,23 @@ These nine previous names were replaced in test-only commits because PC07's auth
 | Rules / allows member reads but denies player and GM direct alert writes | `protects raw alert reads and denies player and GM direct alert writes`. GM root positive, ordinary root denial and both player/GM alert write denials remain; bounded current member alert presentation is covered separately. |
 
 The initial boarding-order test fixture did not reach the alert-audience read and failed only its intended alert expectation. That failure is retained as nondiscriminating evidence. Separate fixture-only615511e1 supplies the real250-population casualty boundary; its red fails on Firestore's read-after-write constraint before source931f78bc repairs ordering. The browser Commander proof likewise retains earlier harness failures for an extra unberthed actor and stale watched runtime; the passing final branch uses ordinary admission/physical berth and a fresh compiled backend.
+
+## Independent-review repair verification
+
+Test-only commit `080c38c4` preserves the first review's four defects before source repair `b517dc4f`: absorbed group-ID reuse, an audience-invalid automatic unavailable EO result, lost own SNN projection, and late member hydration after actor revocation. `review-repairs.red.log` records six failing expanded cases with218 passing; `review-disconnect-panels.red.log` records five failing real choice consumers with34 passing. The repaired eight focused suites pass276/276 in `review-repairs.green.log`. All evidence paths are under external `root-takeover/`.
+
+The existing unavailable-EO native handler case now passes its actual persisted result through the strict audience projector; it preserves the current range, audit, empty receipt and unspent charge assertions. The audience schema has not been widened.
+
+The split HTTP scenario adds ordinary split → rejoin → split, current local writes, acquired old history, and denial of new foreign notes. Two explicitly labeled ECM event fixtures test native Rules audiences; they do not claim an ECM activation. `test-pc07-unavailable-eo-press-http.mjs` covers a normal eight-station roster plus independently joined Press, ordinary phone conduct/join, its own SNN controls after polling and UI movement, and charged unavailable EO ranges through boarding, final atomic damage, exact replay and reopening. These scripts accelerate only disposable deadlines and use ordinary audited facilitator decisions. Their successful evidence is separate from mock-based tests and prepared scenes.
+
+The normal Press UI walk exposed the missing-flight listener termination under the existing strict route Rules. `9479d0db` reproduces it before `581fa75c` rebinds the exact private route after the authenticated departure commits. The original failed gameplay is retained; native rule permission is unchanged, and `press-departure-listener.green.log` passes6/6 focused movement/touch checks.
+
+The same Press walk discriminated a second local re-projection that discarded its server-entitled SNN docking/history. `a38b7cb2` preserves that red before `4cb06d7b`; the client keeps only SNN state already listed in the server craft entitlement, with no vessel maps or invented transit docking. `press-docking-hydration.green.log` passes190/190 client parsing and movement/touch checks.
+
+## functions/src/wolfCommanderRerolls.test.ts
+
+Updated suite: 1 new case and 0 changed existing cases.
+
+- accepts the canonical five-ship receipt while denying arbitrary subsets, reordered rings and out-of-ring dice
+
+The normal eight-station attack exposed the private targeting parser still denying the supported five-ship receipt. Test-only `df3cdb4c` records two discriminating failures before `e26b8f33` adds only the canonical five-ship ring. The native automatic continuation and all affected targeting/declaration/C&C/range suites pass110/110. Existing six/seven-ring validation and malformed-dice/privacy checks are preserved.

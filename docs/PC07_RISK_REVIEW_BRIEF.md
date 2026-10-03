@@ -165,3 +165,17 @@ The owner supplies the evidence root and exact candidate with the dispatch;
 if approved, return the structured independent review receipt bound to that
 SHA. Do not add a new gate or reopen a settled source decision without a
 specific code conflict.
+
+## Follow-up to the first complete independent review
+
+The complete review of `12114f33` returned four findings and no approval. Owner test-only commit `080c38c4` precedes source repair `b517dc4f`: reserve absorbed identities during every partition allocation; keep the automatic unavailable EO outcome inside the existing strict audience schema; retain only current actor-entitled SNN operations without foreign vessel maps; and revoke actor epoch, retained connected state and pending reads on server disconnect/removal/kick or authoritative listener denial. All five choice consumers include disconnected state in their current authority key. Red logs reproduce 11 expanded failures; eight repaired focused suites pass 276/276.
+
+The subsequent ordinary Press UI walk exposed a route listener denied while no departure exists. Its test-only `9479d0db` precedes `581fa75c`, which rebinds the exact route after the holder's authenticated departure commits; existing route Rules and server movement authority remain unchanged. Review this additional narrow client recovery, including late callbacks and current group/identity boundaries.
+
+Review the resolved findings and the additional route-listener, SNN hydration and five-ship parser repairs below, retaining the earlier full review's unaffected conclusions. Check `split-resplit-http.json` for normal second split/old-note retention/new-note denial plus two labeled ECM Rule fixtures, and `unavailable-eo-press-http-repaired.json` for ordinary SNN movement and the real unavailable EO continuation through publication/finalization. Verify the current105-consumer inventory source hashes and exact candidate SHA before writing an approval receipt. These are evidence pointers; their successful outcomes must be verified from the files.
+
+The same normal Press walk found the client’s second local projection removing SNN docking/history despite server craft entitlement. Test-only `a38b7cb2` precedes `4cb06d7b`. Review the narrow independent SNN preservation in `sessionFrom`: only the server-listed SNN craft and validated manifest survive, with empty vessel maps and no generated docking while in transit. The current 190 client parsing/movement/touch checks pass.
+
+The real eight-station attack further exposed `parseWolfTargetingReceipt` accepting only six/seven rings despite PC07's source-backed five-ship declaration. Test-only `df3cdb4c` precedes `e26b8f33`. The parser now also accepts the exact canonical base ring without Dione; arbitrary subsets, reordering and out-of-ring dice still deny.110 affected native checks pass. Review this additional shared targeting consumer, regenerate/verify its actual Functions inventory consumers, and require the new normal low-roster continuation evidence to finish.
+
+The new normal proof at served `1e0a707a` passes all four composed checks, including actual one-minute phone Press flight, canonical five-ship targeting, all three unavailable-EO results, normal boarding, exactly-once damage/reopening and a subsequent normal Press movement request. Browser errors are empty. The current inventory binds 20 changed runtime modules and 58 index exports to 105 named Functions; the selector passes 127 checks and classifies zero unknown files. Its exact source hashes must match the dispatched candidate.
