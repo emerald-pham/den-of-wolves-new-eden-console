@@ -1031,3 +1031,34 @@ it('sanitizes nested operational data on live refresh before applying the curren
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
 });
+
+it('retains only the current in-transit craft’s local history without inventing a docking', async () => {
+  const roles = [...recommendedRoleIds(18)];
+  const vessels = activeVesselIdsForRoles(roles);
+  const control = { shuttleId: 'starlight', ownerRoleId: 'wing-commander', ownerUid: 'u1', holderUid: 'u1', revision: 2 };
+  const visit = { id: 'own-departure', shuttleId: 'starlight', shipId: 'aegis', action: 'departed', occurredAt: '2026-10-03T12:00:00.000Z' };
+  const fields = { name: 'Table one', joinCode: '482109', phase: 'active', currentTurn: 2,
+    playerCount: 18, chartId: 'A', expansion: 'base', turnLimit: 8,
+    activeRoleIds: roles, activeVesselIds: vessels, shuttleDockings: [],
+    shuttleControl: { starlight: control },
+    shuttleVisitLog: [visit, { ...visit, id: 'foreign-history', shipId: 'shepherd' },
+      { ...visit, id: 'unknown-craft', shuttleId: 'private-craft' }],
+  };
+  mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'sessions/s1') return snapshot(fields);
+    if (path === 'sessions/s1/players/u1') return snapshot({ connected: true, role: 'player',
+      fleetGroupId: 'fleet-2', activeConsoleRoleId: 'wing-commander' });
+    if (path === 'sessions/s1/fleetGroups') return { docs: [
+      snapshot({ id: 'fleet-1', vesselIds: vessels.filter(id => id !== 'aegis'), memberUids: ['foreign'] }),
+      snapshot({ id: 'fleet-2', vesselIds: ['aegis'], memberUids: ['u1'] }),
+    ] };
+    if (path === 'sessions/s1/shuttleDepartures') return { docs: [{ ...snapshot({ status: 'in-transit', fleetGroupId: 'fleet-2' }), id: 'starlight' }] };
+    throw new Error(`Unexpected read: ${path}`);
+  });
+  const response = await getCurrentMemberSession.run({ auth: { uid: 'u1' }, data: { sessionId: 's1' } } as CallableRequest<{ sessionId: string }>) as { session: Record<string, unknown> };
+  expect(response.session.shuttleControl).toEqual({ starlight: control });
+  expect(response.session.shuttleDockings).toEqual([]);
+  expect(response.session.shuttleVisitLog).toEqual([visit]);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
