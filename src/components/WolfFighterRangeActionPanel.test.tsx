@@ -20,7 +20,7 @@ it('requires each Medium fighter to choose one attack or target shift', async ()
   render(<WolfFighterRangeActionPanelView view={mediumView}
     onResolveMedium={onResolveMedium} onResolveShort={vi.fn()} />);
 
-  expect(screen.getByText(/each fighter chooses one action/i)).toBeVisible();
+  expect(screen.getByText(/for each fighter you commit, choose one attack or one target shift/i)).toBeVisible();
   const submit = screen.getByRole('button', { name: /resolve medium actions/i });
   expect(submit).toBeDisabled();
 
@@ -35,6 +35,20 @@ it('requires each Medium fighter to choose one attack or target shift', async ()
   expect(onResolveMedium).toHaveBeenCalledWith([
     { fighterIndex: 0, kind: 'attack', targetInstanceId: 'roster-b' },
     { fighterIndex: 1, kind: 'target-shift', targetInstanceId: 'roster-a', targetNumber: 1, shift: 1 },
+  ]);
+});
+
+it('allows a wing commander to commit only the fighters selected for Medium Range', async () => {
+  const user = userEvent.setup();
+  const onResolveMedium = vi.fn();
+  render(<WolfFighterRangeActionPanelView view={mediumView}
+    onResolveMedium={onResolveMedium} onResolveShort={vi.fn()} />);
+
+  await user.selectOptions(screen.getByLabelText('Fighter 1 action'), 'attack');
+  await user.selectOptions(screen.getByLabelText('Fighter 1 target'), 'roster-b');
+  await user.click(screen.getByRole('button', { name: /resolve medium actions/i }));
+  expect(onResolveMedium).toHaveBeenCalledWith([
+    { fighterIndex: 0, kind: 'attack', targetInstanceId: 'roster-b' },
   ]);
 });
 
