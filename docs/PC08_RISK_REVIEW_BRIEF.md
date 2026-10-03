@@ -13,6 +13,10 @@ indexes, including a zero-fighter pass, before the server samples any dice.
 Its simultaneous assignment batch gives lethal coverage to live Wolf Fighter
 Wings before any other ship receives damage; the old Wings-only filter must
 not discard a valid remaining hit once that coverage is satisfied.
+For an attack crossing deployment, accept only a contiguous no-shift legacy
+receipt prefix before strict new snapshots. Validate its unchanged target map;
+reject reverse legacy order or snapshot-less shifts in both progression and
+finalization.
 Root also closes the Union craft setup gap with a current authenticated GM
 starting-host choice. Check the pre-start window, confirmed Union roster,
 paired active hosts, setup revision, exact private receipt, manifest/history

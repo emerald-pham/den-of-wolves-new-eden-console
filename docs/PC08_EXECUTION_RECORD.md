@@ -88,6 +88,13 @@ range decision aggregates the entitled sources' genuine choices before one
 server-locked roll/assignment batch; finalization consumes that post-range roster.
 Alpha and Bravo launch choices are independent and recorded during targeting.
 
+An attack can cross the deployment boundary after a legacy range has committed.
+A contiguous old receipt prefix with no target shifts preserves the initial
+targeting/C&C map; subsequent new snapshots must validate its carried targets.
+Legacy receipts after a new-format receipt and snapshot-less nonempty shifts
+fail closed. This preserves genuine in-progress attacks without permitting
+invented target history. Both range progression and finalization test the seam.
+
 A full-page check of original A4 single-sided page 36 and double-sided page 81 reconciled an
 extraction interpretation: both AEGIS Alpha/Bravo and the PDF Escort Wing use
 at most one Short Range die per fighter, hit on 3+, and lose a fighter on 1–2.
