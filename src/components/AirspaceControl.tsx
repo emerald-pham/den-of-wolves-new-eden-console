@@ -26,6 +26,8 @@ export default function AirspaceControl() {
   const restricted = phase?.airspace.state === 'restricted';
   const pressAccess = phase?.airspace.pressAccess === true;
   const current = connection === 'live' && freshness === 'server' && hasFreshSessionAuthority();
+  const clearanceCurrent = current && phase?.turn === session?.currentTurn && !phase?.timerPause &&
+    Date.now() < Date.parse(phase?.openAirspaceEndsAt ?? '');
   const canUnlock = restricted && !pressAccess && !phase?.timerPause && access.writable && current &&
     !unlocking && Date.now() < Date.parse(phase!.openAirspaceEndsAt);
 
@@ -55,7 +57,7 @@ export default function AirspaceControl() {
         <h3>Airspace control</h3>
         <AirspaceStatusView phase={phase} current={current} />
         <p>
-          Non-affiliated vessels // {pressAccess || phase?.airspace.state === 'lifted'
+          Non-affiliated vessels // {!current ? 'Await current clearance' : clearanceCurrent && (pressAccess || phase?.airspace.state === 'lifted')
             ? 'Press clearance authorized'
             : 'Closed'}
         </p>
