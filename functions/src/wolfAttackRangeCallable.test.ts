@@ -119,11 +119,10 @@ it('locks one server-generated Long Range attack once and assigns it without rer
   expect(state.rangeDecisions).toMatchObject({
     'long-range': { status: 'locked', actionIds: ['aegis-missile-launchers-long'], lock: { range: 'long-range' } },
   });
-  const contacts = state.combatRoster as Array<{ instanceId: string }>;
   const lockedRevision = state.revision as number;
   const applied = await assignWolfRangeTargets.run(request({
     sessionId: 's1', requestId: 'target-long-1', expectedTurn: 1, expectedRevision: lockedRevision,
-    range: 'long-range', assignments: [{ actionId: 'aegis-missile-launchers-long', contactIds: [contacts[0]!.instanceId] }],
+    range: 'long-range', assignments: [{ actionId: 'aegis-missile-launchers-long', contactIds: ['contact-1'] }],
   }));
   expect(applied).toMatchObject({ status: 'committed', type: 'wolf-range-target-assignment', currentStep: 'medium-range' });
   expect(entropy.randomInt).not.toHaveBeenCalled();

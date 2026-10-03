@@ -596,10 +596,22 @@ import {
 } from './wolfAttackDeclaration';
 import {
   WOLF_ATTACK_STEPS,
+  lockWolfRangeActions,
+  resolveLockedWolfRange,
+  wolfCombatRoster,
   resolveWolfTargeting,
-  type WolfTargetRing,
+  type WolfCombatRange,
+  type WolfCombatShip,
+  type WolfRangeAction,
+  type WolfRangeAssignment,
+  type WolfRangeRollLock,
   type WolfTargetingReceipt,
+  type WolfTargetRing,
 } from './wolfCombatMath';
+import {
+  aegisWolfRangeActions,
+  wolfAttackNextStep,
+} from './wolfAttackLifecycle';
 import {
   applyWolfCommanderRerolls,
   commanderTargetingView,
@@ -20702,6 +20714,473 @@ export const applyAegisCommandAndControl = onCall<{
       shipId: selected.shipId,
       commanderCompletion,
       createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+type WolfRangeActionChoiceView = Readonly<{
+  type: 'wolf-range-action-choice-view';
+  sessionId: string;
+  turn: number;
+  revision: number;
+  currentStep: 'long-range' | 'medium-range' | 'short-range';
+  range: WolfCombatRange;
+  choiceStatus: 'pending' | 'targets-required' | 'committed';
+  deadlineAt: string;
+  eligibleActions: readonly Readonly<{ actionId: string; sourceId: string; range: WolfCombatRange }>[];
+  hitSlots: readonly Readonly<{ actionId: string; count: number }>[];
+  contacts: readonly Readonly<{ contactId: string; targetShipId: string; available: boolean }>[];
+}>;
+
+type WolfRangeActionChoiceResult = Readonly<{
+  status: 'committed';
+  type: 'wolf-range-action-choice';
+  sessionId: string;
+  requestId: string;
+  turn: number;
+  revision: number;
+  range: WolfCombatRange;
+  choiceStatus: 'targets-required' | 'passed';
+  hitSlots: readonly Readonly<{ actionId: string; count: number }>[];
+}>;
+
+type WolfRangeTargetAssignmentResult = Readonly<{
+  status: 'committed';
+  type: 'wolf-range-target-assignment';
+  sessionId: string;
+  requestId: string;
+  turn: number;
+  revision: number;
+  fromStep: WolfCombatRange;
+  currentStep: 'medium-range' | 'short-range' | 'boarding';
+  committedContacts: number;
+}>;
+
+const WOLF_COMBAT_RANGES = ['long-range', 'medium-range', 'short-range'] as const;
+
+function isWolfCombatRange(value: unknown): value is WolfCombatRange {
+  return WOLF_COMBAT_RANGES.includes(value as WolfCombatRange);
+}
+
+function wolfRangeContactId(index: number): string {
+  return `contact-${index + 1}`;
+}
+
+function wolfRangeContacts(roster: readonly WolfCombatShip[], range: WolfCombatRange) {
+  return roster.map((ship, index) => ({
+    contactId: wolfRangeContactId(index),
+    targetShipId: ship.target,
+    available: !ship.destroyed && !(range === 'short-range' && ship.shipId === 'wolf-battlestation'),
+  }));
+}
+
+function requireWolfRangeState(
+  session: DocumentSnapshot,
+  state: DocumentSnapshot,
+  range: WolfCombatRange,
+): Readonly<{
+  turn: number;
+  revision: number;
+  deadlineAt: string;
+  receipt: WolfTargetingReceipt;
+  roster: readonly WolfCombatShip[];
+  actions: readonly WolfRangeAction[];
+}> {
+  requireActiveGameplayPhase(session);
+  if (!state.exists || state.get('type') !== 'wolf-attack-state' || state.get('status') !== 'declared' ||
+      state.get('airspaceLocked') !== true || state.get('currentStep') !== range) {
+    throw commandError('failed-precondition', 'This Wolf attack range is not currently open.', 'invalid-phase');
+  }
+  const turn = state.get('turn');
+  const revision = state.get('revision');
+  const deadlineAt = state.get('deadlineAt');
+  const phase = turnPhaseState(session.get('turnPhase'));
+  if (!Number.isSafeInteger(turn) || (turn as number) < 1 || turn !== sessionTurn(session.get('currentTurn')) ||
+      !Number.isSafeInteger(revision) || (revision as number) < 1 ||
+      typeof deadlineAt !== 'string' || !Number.isFinite(Date.parse(deadlineAt)) ||
+      !phase || phase.turn !== turn || phase.airspace.state !== 'restricted' || phase.timerPause !== undefined) {
+    throw commandError(
+      'failed-precondition',
+      'The current Wolf attack authority is paused, stale, or unavailable. Refresh after airspace resumes.',
+      'stale-revision',
+    );
+  }
+  const calculationReceipt = state.get('calculationReceipt');
+  if (!isRecord(calculationReceipt) || calculationReceipt.step !== WOLF_ATTACK_DECLARATION_STEP) {
+    throw commandError('failed-precondition', 'The private Wolf targeting receipt is unavailable.', 'conflict');
+  }
+  const receipt = parseWolfTargetingReceipt(calculationReceipt.targeting);
+  if (!receipt || JSON.stringify(receipt.ring) !== JSON.stringify(configuredWolfTargetRingForSession(session))) {
+    throw commandError('failed-precondition', 'The active Wolf targeting receipt is malformed or stale.', 'conflict');
+  }
+  const rawRoster = state.get('combatRoster');
+  const roster = rawRoster === undefined ? wolfCombatRoster(receipt) : rawRoster;
+  if (!Array.isArray(roster) || roster.length !== receipt.rolls.length ||
+      roster.some((ship, index) => !isRecord(ship) ||
+        ship.instanceId !== `${index}:${receipt.rolls[index]?.shipId}` ||
+        ship.shipId !== receipt.rolls[index]?.shipId || ship.target !== receipt.rolls[index]?.target ||
+        !Number.isSafeInteger(ship.damageTaken) || (ship.damageTaken as number) < 0 ||
+        typeof ship.destroyed !== 'boolean')) {
+    throw commandError('failed-precondition', 'The current private Wolf combat roster is malformed.', 'conflict');
+  }
+  const cycles = isRecord(session.get('maintenanceCycles')) ? session.get('maintenanceCycles') : {};
+  const cycle = parseMaintenanceCycle(isRecord(cycles) ? cycles.aegis : undefined);
+  if (!cycle || cycle.turn !== turn) {
+    throw commandError('failed-precondition', 'The current AEGIS maintenance authority is unavailable.', 'conflict');
+  }
+  const damageRoot = session.get('shipDamage');
+  const rawDamage = isRecord(damageRoot) ? damageRoot.aegis : undefined;
+  const knownDamageIds = new Set((SHIP_DAMAGE_DECKS.aegis ?? []).map(({ systemId }) => systemId));
+  if (!isRecord(rawDamage) || !Array.isArray(rawDamage.damagedSystemIds) ||
+      rawDamage.damagedSystemIds.some((id) => typeof id !== 'string' || !knownDamageIds.has(id)) ||
+      new Set(rawDamage.damagedSystemIds).size !== rawDamage.damagedSystemIds.length ||
+      typeof rawDamage.destroyed !== 'boolean') {
+    throw commandError('failed-precondition', 'The current AEGIS damage authority is malformed.', 'conflict');
+  }
+  const upgradesRoot = session.get('shipUpgrades');
+  const rawUpgrades = isRecord(upgradesRoot) ? upgradesRoot.aegis : undefined;
+  if (rawUpgrades !== undefined && (!Array.isArray(rawUpgrades) ||
+      rawUpgrades.some((upgrade) => typeof upgrade !== 'string') || new Set(rawUpgrades).size !== rawUpgrades.length)) {
+    throw commandError('failed-precondition', 'The current AEGIS upgrade authority is malformed.', 'conflict');
+  }
+  const actions = aegisWolfRangeActions({
+    range,
+    charges: cycle.charges,
+    damagedSystemIds: rawDamage.damagedSystemIds as string[],
+    destroyed: rawDamage.destroyed,
+    upgrades: (rawUpgrades ?? []) as string[],
+  });
+  return {
+    turn: turn as number,
+    revision: revision as number,
+    deadlineAt,
+    receipt,
+    roster: roster as readonly WolfCombatShip[],
+    actions,
+  };
+}
+
+function wolfRangeDecisionValue(state: DocumentSnapshot, range: WolfCombatRange): unknown {
+  const decisions = state.get('rangeDecisions');
+  return isRecord(decisions) ? decisions[range] : undefined;
+}
+
+function safeWolfRangeLock(value: unknown, actions: readonly WolfRangeAction[], range: WolfCombatRange): WolfRangeRollLock | null {
+  if (!isRecord(value) || value.range !== range || !Array.isArray(value.dice) || value.dice.length !== actions.length) return null;
+  const dice = value.dice;
+  if (dice.some((item, index) => !isRecord(item) || item.actionId !== actions[index]?.actionId ||
+      item.sourceId !== actions[index]?.sourceId || item.range !== range ||
+      !Array.isArray(item.rolls) || item.rolls.some((roll) => !Number.isSafeInteger(roll) || roll < 1 || roll > 6) ||
+      !Number.isSafeInteger(item.successes) || (item.successes as number) < 0 ||
+      !Number.isSafeInteger(item.damage) || (item.damage as number) < 0 ||
+      !Number.isSafeInteger(item.damagePerHit) || (item.damagePerHit as number) < 1)) return null;
+  return value as unknown as WolfRangeRollLock;
+}
+
+function wolfRangeChoiceView(
+  sessionId: string,
+  state: DocumentSnapshot,
+  range: WolfCombatRange,
+  inputs: ReturnType<typeof requireWolfRangeState>,
+): WolfRangeActionChoiceView {
+  const decision = wolfRangeDecisionValue(state, range);
+  const status = isRecord(decision) && decision.status === 'locked'
+    ? 'targets-required' as const
+    : isRecord(decision) && decision.status === 'committed'
+      ? 'committed' as const
+      : 'pending' as const;
+  const lock = isRecord(decision) ? safeWolfRangeLock(decision.lock, inputs.actions, range) : null;
+  const slots = lock?.dice.map(({ actionId, successes }) => ({ actionId, count: successes })) ?? [];
+  return {
+    type: 'wolf-range-action-choice-view', sessionId, turn: inputs.turn, revision: inputs.revision,
+    currentStep: range, range, choiceStatus: status, deadlineAt: inputs.deadlineAt,
+    eligibleActions: inputs.actions.map(({ actionId, sourceId, range: actionRange }) => ({ actionId, sourceId, range: actionRange })),
+    hitSlots: slots,
+    contacts: wolfRangeContacts(inputs.roster, range),
+  };
+}
+
+function rangeChoiceViewIsSafe(value: unknown): value is WolfRangeActionChoiceView {
+  if (!isRecord(value)) return false;
+  const allowed = new Set([
+    'type', 'sessionId', 'turn', 'revision', 'currentStep', 'range', 'choiceStatus', 'deadlineAt',
+    'eligibleActions', 'hitSlots', 'contacts',
+  ]);
+  return Object.keys(value).every((key) => allowed.has(key)) && value.type === 'wolf-range-action-choice-view' &&
+    typeof value.sessionId === 'string' && isWolfCombatRange(value.range) && value.currentStep === value.range &&
+    (value.choiceStatus === 'pending' || value.choiceStatus === 'targets-required' || value.choiceStatus === 'committed') &&
+    Number.isSafeInteger(value.turn) && Number.isSafeInteger(value.revision) &&
+    typeof value.deadlineAt === 'string' && Array.isArray(value.eligibleActions) && Array.isArray(value.hitSlots) &&
+    Array.isArray(value.contacts);
+}
+
+function isWolfRangeActionChoiceResult(value: unknown): value is WolfRangeActionChoiceResult {
+  if (!isRecord(value)) return false;
+  const allowed = new Set([
+    'status', 'type', 'sessionId', 'requestId', 'turn', 'revision', 'range', 'choiceStatus', 'hitSlots',
+  ]);
+  return Object.keys(value).every((key) => allowed.has(key)) && value.status === 'committed' &&
+    value.type === 'wolf-range-action-choice' && typeof value.sessionId === 'string' &&
+    isCanonicalRequestId(value.requestId) && Number.isSafeInteger(value.turn) &&
+    Number.isSafeInteger(value.revision) && isWolfCombatRange(value.range) &&
+    (value.choiceStatus === 'targets-required' || value.choiceStatus === 'passed') && Array.isArray(value.hitSlots);
+}
+
+function isWolfRangeTargetAssignmentResult(value: unknown): value is WolfRangeTargetAssignmentResult {
+  if (!isRecord(value)) return false;
+  const allowed = new Set([
+    'status', 'type', 'sessionId', 'requestId', 'turn', 'revision', 'fromStep', 'currentStep', 'committedContacts',
+  ]);
+  return Object.keys(value).every((key) => allowed.has(key)) && value.status === 'committed' &&
+    value.type === 'wolf-range-target-assignment' && typeof value.sessionId === 'string' &&
+    isCanonicalRequestId(value.requestId) && Number.isSafeInteger(value.turn) && Number.isSafeInteger(value.revision) &&
+    isWolfCombatRange(value.fromStep) && ['medium-range', 'short-range', 'boarding'].includes(String(value.currentStep)) &&
+    Number.isSafeInteger(value.committedContacts) && (value.committedContacts as number) >= 0;
+}
+
+/** Read source-derived AEGIS action availability without returning composition, dice, or facilitator notes. */
+export const getWolfRangeActionChoice = onCall<{ sessionId?: unknown }>(async (request) => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  if (isRecord(raw) && Object.keys(raw).some((key) => key !== 'sessionId')) {
+    throw new HttpsError('invalid-argument', 'The Wolf range action query accepts only sessionId.');
+  }
+  const sessionId = requireSessionRequest(isRecord(raw) ? raw : {}).sessionId;
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+  const stateRef = db.doc(`sessions/${sessionId}/wolfAttackState/current`);
+  const [session, player, state] = await Promise.all([sessionRef.get(), playerRef.get(), stateRef.get()]);
+  if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+  requireAegisExecutiveOfficerPlayer(player, uid);
+  requireUsableShip(session, 'aegis');
+  const step = state.get('currentStep');
+  if (!isWolfCombatRange(step)) {
+    return {
+      type: 'wolf-range-action-choice-unavailable', sessionId,
+      reason: state.exists ? 'not-in-range' : 'waiting',
+    };
+  }
+  const inputs = requireWolfRangeState(session, state, step);
+  const view = wolfRangeChoiceView(sessionId, state, step, inputs);
+  if (!rangeChoiceViewIsSafe(view)) throw new Error('The Wolf range choice projection is malformed.');
+  return view;
+});
+
+/** Lock an entitled AEGIS use/pass choice and any required dice before targets are assigned. */
+export const commitWolfRangeActionChoice = onCall<{
+  sessionId?: unknown; requestId?: unknown; expectedTurn?: unknown; expectedRevision?: unknown;
+  range?: unknown; actionIds?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = new Set(['sessionId', 'requestId', 'expectedTurn', 'expectedRevision', 'range', 'actionIds']);
+  if (!isRecord(raw) || Object.keys(raw).some((key) => !allowed.has(key)) || !isWolfCombatRange(raw.range) ||
+      !Array.isArray(raw.actionIds) || raw.actionIds.some((id) => typeof id !== 'string') ||
+      new Set(raw.actionIds).size !== raw.actionIds.length) {
+    throw new HttpsError('invalid-argument', 'A Wolf range choice requires a range and a unique selected action list.');
+  }
+  const sessionId = requireSessionRequest(raw).sessionId;
+  const requestId = isCanonicalRequestId(raw.requestId) ? raw.requestId : null;
+  if (!requestId || !Number.isSafeInteger(raw.expectedTurn) || !Number.isSafeInteger(raw.expectedRevision)) {
+    throw new HttpsError('invalid-argument', 'requestId, expectedTurn, and expectedRevision are required.');
+  }
+  const range = raw.range;
+  const actionIds = raw.actionIds as string[];
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+  const stateRef = db.doc(`sessions/${sessionId}/wolfAttackState/current`);
+  const receiptRef = commandReceiptRef(sessionId, requestId);
+  const auditRef = db.doc(`sessions/${sessionId}/wolfAttackState/current/audit/${requestId}`);
+  const fingerprint: CommandFingerprint = {
+    action: 'commit-wolf-range-action-choice', sessionId, requestId, actorUid: uid,
+    instanceId: null, expectedRevision: raw.expectedRevision as number,
+    payload: { expectedTurn: raw.expectedTurn as number, range, actionIds: [...actionIds] },
+  };
+  return db.runTransaction(async (tx: Transaction): Promise<WolfRangeActionChoiceResult> => {
+    const [session, player, state, receipt] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(stateRef), tx.get(receiptRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireAegisExecutiveOfficerPlayer(player, uid);
+    const replay = replayBoundCommand(receipt, fingerprint, isWolfRangeActionChoiceResult, 'Wolf range action choice');
+    if (replay) return replay;
+    requireUsableShip(session, 'aegis');
+    const inputs = requireWolfRangeState(session, state, range);
+    if (raw.expectedTurn !== inputs.turn || raw.expectedRevision !== inputs.revision) {
+      throw commandError('failed-precondition', 'The Wolf range choice is stale. Refresh the current attack.', 'stale-revision');
+    }
+    const previous = wolfRangeDecisionValue(state, range);
+    if (previous !== undefined) {
+      throw commandError('failed-precondition', 'An AEGIS range choice is already committed.', 'conflict');
+    }
+    const expectedActionIds = inputs.actions.map(({ actionId }) => actionId);
+    if (actionIds.some((id) => !expectedActionIds.includes(id))) {
+      throw commandError('failed-precondition', 'The selected AEGIS action is not currently available.', 'conflict');
+    }
+    if (expectedActionIds.length === 0 && actionIds.length > 0) {
+      throw commandError('failed-precondition', 'No AEGIS action is available in this range.', 'conflict');
+    }
+    const selectedActions = inputs.actions.filter(({ actionId }) => actionIds.includes(actionId));
+    let locked: WolfRangeRollLock;
+    try {
+      locked = lockWolfRangeActions(range, selectedActions, (upperBound) => randomInt(upperBound));
+    } catch (error) {
+      throw commandError('failed-precondition', error instanceof Error ? error.message : 'The range choice could not be locked.', 'conflict');
+    }
+    const hitSlots = locked.dice.map(({ actionId, successes }) => ({ actionId, count: successes }));
+    const nextRevision = inputs.revision + 1;
+    const passed = actionIds.length === 0;
+    const decision = {
+      status: passed ? 'committed' : 'locked', range, actorUid: uid,
+      actorRoleId: 'executive-officer', requestId, actionIds: [...actionIds], lock: locked,
+      ...(passed ? { assignments: [], receipt: { range, dice: [], assignments: [], damageByInstance: {},
+        destroyedInstanceIds: [], destructionDamageByTarget: {} }, committedAt: new Date().toISOString() } : {}),
+    };
+    const rangeDecisions = isRecord(state.get('rangeDecisions')) ? state.get('rangeDecisions') : {};
+    const result: WolfRangeActionChoiceResult = {
+      status: 'committed', type: 'wolf-range-action-choice', sessionId, requestId,
+      turn: inputs.turn, revision: nextRevision, range,
+      choiceStatus: passed ? 'passed' : 'targets-required', hitSlots,
+    };
+    tx.update(stateRef, {
+      revision: nextRevision,
+      rangeDecisions: { ...rangeDecisions, [range]: decision },
+      ...(passed ? { currentStep: wolfAttackNextStep(range) } : {}),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(auditRef, {
+      type: 'wolf-range-action-choice', range, turn: inputs.turn, revision: nextRevision,
+      actorUid: uid, actorRoleId: 'executive-officer', requestId,
+      actionIds: [...actionIds], result: passed ? 'passed' : 'dice-locked',
+      hitSlots, deadlineAt: inputs.deadlineAt, createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+/** Assign already-locked hits to opaque contacts; target submission never draws fresh dice. */
+export const assignWolfRangeTargets = onCall<{
+  sessionId?: unknown; requestId?: unknown; expectedTurn?: unknown; expectedRevision?: unknown;
+  range?: unknown; assignments?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = new Set(['sessionId', 'requestId', 'expectedTurn', 'expectedRevision', 'range', 'assignments']);
+  if (!isRecord(raw) || Object.keys(raw).some((key) => !allowed.has(key)) || !isWolfCombatRange(raw.range) ||
+      !Array.isArray(raw.assignments) || raw.assignments.some((assignment) => !isRecord(assignment) ||
+        typeof assignment.actionId !== 'string' || !Array.isArray(assignment.contactIds) ||
+        assignment.contactIds.some((id) => typeof id !== 'string'))) {
+    throw new HttpsError('invalid-argument', 'Target assignments must name selected actions and opaque contacts.');
+  }
+  const sessionId = requireSessionRequest(raw).sessionId;
+  const requestId = isCanonicalRequestId(raw.requestId) ? raw.requestId : null;
+  if (!requestId || !Number.isSafeInteger(raw.expectedTurn) || !Number.isSafeInteger(raw.expectedRevision)) {
+    throw new HttpsError('invalid-argument', 'requestId, expectedTurn, and expectedRevision are required.');
+  }
+  const range = raw.range;
+  const assignmentsInput = raw.assignments as Array<{ actionId: string; contactIds: string[] }>;
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+  const stateRef = db.doc(`sessions/${sessionId}/wolfAttackState/current`);
+  const receiptRef = commandReceiptRef(sessionId, requestId);
+  const auditRef = db.doc(`sessions/${sessionId}/wolfAttackState/current/audit/${requestId}`);
+  const fingerprint: CommandFingerprint = {
+    action: 'assign-wolf-range-targets', sessionId, requestId, actorUid: uid,
+    instanceId: null, expectedRevision: raw.expectedRevision as number,
+    payload: {
+      expectedTurn: raw.expectedTurn as number, range,
+      assignments: JSON.stringify(assignmentsInput.map(({ actionId, contactIds }) => ({ actionId, contactIds }))),
+    },
+  };
+  return db.runTransaction(async (tx: Transaction): Promise<WolfRangeTargetAssignmentResult> => {
+    const [session, player, state, receipt] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(stateRef), tx.get(receiptRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireAegisExecutiveOfficerPlayer(player, uid);
+    const replay = replayBoundCommand(receipt, fingerprint, isWolfRangeTargetAssignmentResult, 'Wolf range target assignment');
+    if (replay) return replay;
+    requireUsableShip(session, 'aegis');
+    const inputs = requireWolfRangeState(session, state, range);
+    if (raw.expectedTurn !== inputs.turn || raw.expectedRevision !== inputs.revision) {
+      throw commandError('failed-precondition', 'The Wolf target view is stale. Refresh before assigning hits.', 'stale-revision');
+    }
+    const decision = wolfRangeDecisionValue(state, range);
+    if (!isRecord(decision) || decision.status !== 'locked' || decision.actorUid !== uid ||
+        !Array.isArray(decision.actionIds) || !isRecord(decision.lock) || !Array.isArray(decision.lock.dice)) {
+      throw commandError('failed-precondition', 'Commit the AEGIS use/pass choice before assigning targets.', 'invalid-phase');
+    }
+    const actionIds = decision.actionIds as string[];
+    const selectedActions = inputs.actions.filter(({ actionId }) => actionIds.includes(actionId));
+    const lock = safeWolfRangeLock(decision.lock, selectedActions, range);
+    if (!lock || actionIds.length !== selectedActions.length ||
+        assignmentsInput.length !== actionIds.length ||
+        new Set(assignmentsInput.map(({ actionId }) => actionId)).size !== assignmentsInput.length ||
+        assignmentsInput.some(({ actionId }) => !actionIds.includes(actionId))) {
+      throw commandError('failed-precondition', 'The committed action and target assignments do not match.', 'conflict');
+    }
+    const contactToInstance = new Map(inputs.roster.map((ship, index) => [wolfRangeContactId(index), ship.instanceId]));
+    const assignments: WolfRangeAssignment[] = assignmentsInput.map(({ actionId, contactIds }) => ({
+      actionId,
+      targetInstanceIds: contactIds.map((contactId) => {
+        const instanceId = contactToInstance.get(contactId);
+        if (!instanceId) throw commandError('failed-precondition', 'A selected Wolf contact is no longer available.', 'conflict');
+        return instanceId;
+      }),
+    }));
+    let applied: ReturnType<typeof resolveLockedWolfRange>;
+    try {
+      applied = resolveLockedWolfRange({ range, actions: selectedActions, locked: lock, assignments, roster: inputs.roster });
+    } catch (error) {
+      throw commandError('failed-precondition', error instanceof Error ? error.message : 'The target assignments were rejected.', 'conflict');
+    }
+    const nextRevision = inputs.revision + 1;
+    const rangeDecisions = isRecord(state.get('rangeDecisions')) ? state.get('rangeDecisions') : {};
+    const rangeReceipts = Array.isArray(state.get('rangeReceipts')) ? state.get('rangeReceipts') : [];
+    const nextStep = wolfAttackNextStep(range) as 'medium-range' | 'short-range' | 'boarding';
+    const committedAt = new Date().toISOString();
+    const committedDecision = {
+      ...decision, status: 'committed', assignments, receipt: applied.receipt, committedAt,
+    };
+    const memberResults = Array.isArray(state.get('memberResults')) ? [...state.get('memberResults')] : [];
+    for (const assignment of assignments) {
+      const action = selectedActions.find(({ actionId }) => actionId === assignment.actionId)!;
+      const slots = assignment.targetInstanceIds;
+      const perHit = action.fixedDamage ?? action.dice?.damagePerSuccess ?? 1;
+      slots.forEach((instanceId) => {
+        const ship = inputs.roster.find((candidate) => candidate.instanceId === instanceId)!;
+        const index = inputs.roster.indexOf(ship);
+        const destroyed = applied.receipt.destroyedInstanceIds.includes(instanceId);
+        memberResults.push({
+          status: 'committed', range, sourceId: action.sourceId,
+          targetId: ship.target, bearing: null, contactReference: `Wolf contact ${index + 1}`,
+          effect: `${range.replace('-range', ' range')} AEGIS weapon hit`,
+          outcome: { damage: perHit, destroyed }, serverTime: committedAt,
+        });
+      });
+    }
+    const result: WolfRangeTargetAssignmentResult = {
+      status: 'committed', type: 'wolf-range-target-assignment', sessionId, requestId,
+      turn: inputs.turn, revision: nextRevision, fromStep: range, currentStep: nextStep,
+      committedContacts: assignments.reduce((total, assignment) => total + assignment.targetInstanceIds.length, 0),
+    };
+    tx.update(stateRef, {
+      revision: nextRevision,
+      currentStep: nextStep,
+      combatRoster: applied.roster,
+      rangeDecisions: { ...rangeDecisions, [range]: committedDecision },
+      rangeReceipts: [...rangeReceipts, applied.receipt],
+      memberResults,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(auditRef, {
+      type: 'wolf-range-target-assignment', range, turn: inputs.turn, revision: nextRevision,
+      fromStep: range, toStep: nextStep, actorUid: uid, actorRoleId: 'executive-officer', requestId,
+      assignments: assignments.map(({ actionId, targetInstanceIds }) => ({ actionId, targetInstanceIds })),
+      receipt: applied.receipt, deadlineAt: inputs.deadlineAt, createdAt: FieldValue.serverTimestamp(),
     });
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
