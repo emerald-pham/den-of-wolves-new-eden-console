@@ -85,4 +85,14 @@ describe('Wolf boarding support-craft authority', () => {
       control: { ...input.control, chepu: { ...input.control.chepu!, ownerUid: 'wrong-owner' } },
     })).toThrow(/owner/i);
   });
+
+  it('makes only a removed or replaced craft holder unavailable without blocking other support', () => {
+    const unavailable = deriveWolfBoardingSupportCraft({
+      ...input,
+      roleHolders: input.roleHolders.filter(({ uid }) => uid !== 'xo-owner'),
+      playerUids: input.playerUids.filter((uid) => uid !== 'xo-owner' && uid !== 'pallas-pilot'),
+    });
+
+    expect(unavailable.map(({ shuttleId }) => shuttleId)).toEqual(['philia', 'macaw', 'chepu']);
+  });
 });

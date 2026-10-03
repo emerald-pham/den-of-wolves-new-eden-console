@@ -51,7 +51,12 @@ vi.mock('firebase-functions/v2/https', () => ({
 vi.mock('firebase-functions/v2/firestore', () => ({ onDocumentWritten: (_path: string, handler: (event: unknown) => unknown) => ({ run: handler }) }));
 vi.mock('firebase-functions/v2/scheduler', () => ({ onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }) }));
 
-import { commitWolfBoardingSpecialChoice, getWolfBoardingSpecialChoice } from './index';
+import {
+  advanceWolfAttackLifecycle,
+  commitWolfBoardingDefenceChoice,
+  commitWolfBoardingSpecialChoice,
+  getWolfBoardingSpecialChoice,
+} from './index';
 
 const targeting = resolveWolfTargeting(firstTurnWolfAttackComposition(), {}, undefined, () => 0);
 function request(data: Record<string, unknown>, uid = 'commander-1') {
@@ -139,4 +144,59 @@ it('uses the committed Medium target shift for current boarding target choices',
     { targetShipId: 'aegis', boardingParties: 16 },
     { targetShipId: 'dione', boardingParties: 4 },
   ] } });
+});
+
+it('removes a kicked Commander from the current boarding authority instead of leaving their choice open', async () => {
+  const commander = testState.documents.get('sessions/s1/players/commander-1')!;
+  put('sessions/s1/players/commander-1', { ...commander, kickedAt: '2026-10-03T12:00:00.000Z' });
+
+  await expect(getWolfBoardingSpecialChoice.run(request({ sessionId: 's1' }, 'commander-1')))
+    .resolves.toMatchObject({ type: 'wolf-boarding-special-choice-unavailable', reason: 'not-your-choice' });
+});
+
+it('auto-records zero-team defence only when no current target-crew actor remains', async () => {
+  const session = testState.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session, activeRoleIds: [] });
+  const xo = testState.documents.get('sessions/s1/players/xo-1')!;
+  put('sessions/s1/players/xo-1', { ...xo, replacementStatus: 'awaiting-re-role' });
+  const state = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  put('sessions/s1/wolfAttackState/current', { ...state, boardingCommanderChoice: {
+    targetShipId: null, actorUid: 'commander-1', actorRoleId: 'wolf-commander',
+    requestId: 'commander-no-lead', turn: 1, revision: 9,
+  } });
+
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current'))
+    .toMatchObject({ revision: 11, boardingDefenceChoices: { aegis: {
+      type: 'wolf-boarding-defence-choice', status: 'unavailable', reason: 'no-current-crew-actor',
+      targetShipId: 'aegis', securityTeams: 0, actorUid: 'server', actorRoleId: 'server',
+    } } });
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current/audit/wolf-no-boarding-defence-aegis-1'))
+    .toMatchObject({ type: 'wolf-boarding-defence-unavailable', reason: 'no-current-crew-actor',
+      targetShipId: 'aegis', securityTeams: 0 });
+  expect((testState.documents.get('sessions/s1').shipResources as Fields).aegis)
+    .toMatchObject({ securityTeams: 4 });
+});
+
+it('does not turn a kicked Rosal Militia Leader into a pending special actor', async () => {
+  const statePath = 'sessions/s1/wolfAttackState/current';
+  const state = testState.documents.get(statePath)!;
+  put(statePath, { ...state, boardingCommanderChoice: {
+    targetShipId: null, actorUid: 'commander-1', actorRoleId: 'wolf-commander',
+    requestId: 'commander-no-lead', turn: 1, revision: 9,
+  }, boardingRelocationChoices: { pallas: { target: 'aegis' } } });
+  put('sessions/s1/players/militia-1', { uid: 'militia-1', role: 'player', connected: true,
+    replacementRoleId: 'rosal-militia-leader', replacementStatus: null, fleetGroupId: 'fleet-1' });
+  const group = testState.documents.get('sessions/s1/fleetGroups/fleet-1')!;
+  put('sessions/s1/fleetGroups/fleet-1', { ...group,
+    memberUids: [...(group.memberUids as string[]), 'militia-1'],
+    memberShipIds: { ...(group.memberShipIds as Fields), 'militia-1': 'aegis' } });
+  await commitWolfBoardingDefenceChoice.run(request({ sessionId: 's1', requestId: 'militia-target-defence',
+    expectedTurn: 1, expectedRevision: 10, targetShipId: 'aegis', securityTeams: 0 }, 'xo-1'));
+  const militia = testState.documents.get('sessions/s1/players/militia-1')!;
+  put('sessions/s1/players/militia-1', { ...militia, kickedAt: '2026-10-03T12:00:00.000Z' });
+
+  await expect(getWolfBoardingSpecialChoice.run(request({ sessionId: 's1' }, 'militia-1')))
+    .resolves.toMatchObject({ type: 'wolf-boarding-special-choice-unavailable', reason: 'automatic-progress-pending' });
 });
