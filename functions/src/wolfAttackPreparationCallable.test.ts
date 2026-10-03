@@ -114,6 +114,25 @@ it('writes a private validated draft and no player event', async () => {
   expect([...mock.documents.keys()].some((path) => path.includes('/events/'))).toBe(false);
 });
 
+it('audits legacy player-action preparation markers as inert choices', async () => {
+  const markers = [
+    'wolf-commander-target-reroll',
+    'aegis-command-and-control',
+    'gorgoneion-force-field-projector',
+  ] as const;
+  await expect(stageWolfAttackPreparation.run(request({
+    ...baseData, requestId: 'legacy-player-markers', modifiers: markers,
+  }))).resolves.toMatchObject({ modifiers: markers });
+
+  expect(mock.documents.get('sessions/s1/wolfAttackPreparation/current/audit/legacy-player-markers'))
+    .toMatchObject({
+      type: 'wolf-attack-preparation',
+      ignoredPlayerChoiceMarkers: [...markers].sort(),
+    });
+  expect(mock.documents.get('sessions/s1/wolfAttackPreparation/current'))
+    .not.toHaveProperty('forceFieldTargetId');
+});
+
 it('replays an exact request without rewriting the private projection', async () => {
   await stageWolfAttackPreparation.run(request());
   mock.update.mockClear();

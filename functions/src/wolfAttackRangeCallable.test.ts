@@ -561,3 +561,70 @@ it('records an explicit Force Field pass and denies stale or lost-host writes', 
     expectedTurn: 1, expectedRevision: 4, targetShipId: null }, 'gorg-1'));
   expect(result).toMatchObject({ choiceStatus: 'passed', targetShipId: null, revision: 5 });
 });
+
+it('limits Force Field targets to active ships in the current Captain group', async () => {
+  openForceFieldFixture();
+  const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  put('sessions/s1/wolfAttackState/current', {
+    ...attack,
+    preparation: { ...attack.preparation as Fields, notes: 'private facilitator text',
+      modifiers: ['gorgoneion-force-field-projector'] },
+  });
+  put('sessions/s1/fleetGroups/fleet-1', {
+    id: 'fleet-1', vesselIds: ['aegis', 'dione'], memberUids: ['gorg-1'],
+    memberShipIds: { 'gorg-1': 'aegis' }, privateCoordinates: { aegis: 'secret-local-position' },
+  });
+  put('sessions/s1/fleetGroups/fleet-2', {
+    id: 'fleet-2', vesselIds: ['icebreaker', 'quellon', 'shepherd', 'refinery-124'],
+    memberUids: ['other-group-player'], memberShipIds: { 'other-group-player': 'icebreaker' },
+    privateCoordinates: { icebreaker: 'secret-remote-position' },
+  });
+
+  const view = await getWolfForceFieldChoice.run(request({ sessionId: 's1' }, 'gorg-1'));
+  expect(view).toMatchObject({ fleetGroupId: 'fleet-1', hostShipId: 'aegis', targetShipIds: ['aegis', 'dione'] });
+  expect(JSON.stringify(view)).not.toContain('icebreaker');
+  expect(JSON.stringify(view)).not.toContain('secret-remote-position');
+  expect(JSON.stringify(view)).not.toContain('private facilitator text');
+
+  await expect(commitWolfForceFieldChoice.run(request({
+    sessionId: 's1', requestId: 'cross-group-force-field', expectedTurn: 1,
+    expectedRevision: 4, targetShipId: 'icebreaker',
+  }, 'gorg-1'))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(testState.documents.has('sessions/s1/commandReceipts/cross-group-force-field')).toBe(false);
+});
+
+it.each([
+  ['explicit small-ship destruction marker', { destroyed: true }],
+  ['explicit damaged-system marker', { damagedSystemIds: ['force-field-projector'] }],
+])('fails closed on an unsupported %s without spending or fabricating a projector use', async (_label, marker) => {
+  openForceFieldFixture();
+  const session = testState.documents.get('sessions/s1')!;
+  const smallShips = session.smallShipStates as Fields;
+  const gorgoneion = smallShips.gorgoneion as Fields;
+  put('sessions/s1', {
+    ...session,
+    smallShipStates: { ...smallShips, gorgoneion: { ...gorgoneion, ...marker } },
+  });
+
+  await expect(commitWolfForceFieldChoice.run(request({
+    sessionId: 's1', requestId: `unsupported-force-field-${_label.replaceAll(' ', '-')}`,
+    expectedTurn: 1, expectedRevision: 4, targetShipId: 'aegis',
+  }, 'gorg-1'))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current'))
+    .toMatchObject({ forceFieldChoice: { status: 'pending' } });
+});
+
+it('checks current Captain group authority before replaying an unchanged Force Field request', async () => {
+  openForceFieldFixture();
+  const payload = { sessionId: 's1', requestId: 'force-field-replay-after-move', expectedTurn: 1,
+    expectedRevision: 4, targetShipId: 'aegis' };
+  const committed = await commitWolfForceFieldChoice.run(request(payload, 'gorg-1'));
+  expect(committed).toMatchObject({ choiceStatus: 'selected', targetShipId: 'aegis' });
+
+  put('sessions/s1/fleetGroups/fleet-1', {
+    id: 'fleet-1', vesselIds: [...CORE_WOLF_TARGET_RING], memberUids: ['gorg-1'],
+    memberShipIds: { 'gorg-1': 'dione' },
+  });
+  await expect(commitWolfForceFieldChoice.run(request(payload, 'gorg-1')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+});
