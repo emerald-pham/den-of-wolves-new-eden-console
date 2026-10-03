@@ -3159,7 +3159,8 @@ function shipJumpStates(value: unknown): Record<string, JumpDriveState> {
 function nextNavigationRevision(snapshot: DocumentSnapshot): number {
   const stored = snapshot.get('revision');
   if (stored === undefined) return 1;
-  if (!Number.isSafeInteger(stored) || (stored as number) < 0) {
+  if (!Number.isSafeInteger(stored) || (stored as number) < 0 ||
+      (stored as number) >= Number.MAX_SAFE_INTEGER) {
     throw commandError('failed-precondition', 'The shared navigation revision is malformed.', 'malformed-input');
   }
   return (stored as number) + 1;
@@ -17288,6 +17289,7 @@ export const moveShipToLocation = onCall<{
     const chart = lockedNavigationChart(session);
     const activeVesselIds = activeVesselIdsForSession(session);
     const currentNavigation = navigationStateForSession(storedNavigation, session, activeVesselIds);
+    const navigationRevision = nextNavigationRevision(storedNavigation);
     let move;
     try {
       move = applyShipNavigationMove({
@@ -17356,9 +17358,8 @@ export const moveShipToLocation = onCall<{
       eventIdPrefix,
     );
     writeMissionOpportunity(tx, change.sessionId, missionOpportunity);
-    const nextRevision = currentRevision + 1;
     tx.set(navigationStateRef(change.sessionId), {
-      ...navigationProjectionFields(nextNavigation), revision: nextRevision,
+      ...navigationProjectionFields(nextNavigation), revision: navigationRevision,
       updatedAt: FieldValue.serverTimestamp(),
     });
     publishDiscoveryProjections(
@@ -17366,7 +17367,7 @@ export const moveShipToLocation = onCall<{
       change.sessionId,
       Array.isArray(players?.docs) ? players.docs : [player],
       nextNavigation,
-      nextRevision,
+      navigationRevision,
       chart,
       pursuitFleetGroups,
       false,
@@ -17389,7 +17390,7 @@ export const moveShipToLocation = onCall<{
       destination: move.destination,
       stardate: move.stardate,
       ...(missionOpportunity ? { missionOpportunityId: missionOpportunity.id } : {}),
-      ...vesselActionEnvelope(session, player, uid, change.shipId, nextRevision,
+      ...vesselActionEnvelope(session, player, uid, change.shipId, currentRevision + 1,
         identity.requestId, 'move-ship'),
     };
     txSetIfSupported(tx, receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
