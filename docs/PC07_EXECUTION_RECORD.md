@@ -658,3 +658,45 @@ short-landscape images were inspected. Typecheck initially caught an exact
 optional prepared summary field; `baac1465` uses the legal null representation,
 and the reconciled typecheck and 62 font checks pass. Prepared access establishes
 no gameplay closure; normal full-group native/HTTP/UI/Rules proof remains separate.
+
+### Current connected controls and normal custody proof
+
+The complete attack worker's authority/audience red and fixture-only migrations
+through `c090d9a7` integrate as `779cc740` through `1d27c71a`. Captain, range and
+boarding reads serialize against the exact current member checkpoint and actor,
+group, connection generation, berth, host, console and server freshness. Repeated
+identical data preserves a draft; a changed context/revision resets it. Cache,
+malformed and future audience schema withdraw old state and retain the raw
+revision fence. Owner self-review found that a current failed refresh retained
+an earlier bound read; separate red `1f22b209` then source `dfb9e136` withdraw it,
+while obsolete failures cannot clear a newer projection. The **212/212** current
+connected/audience/scene checks pass in
+`connected-choice-read-failure-reconciled.green.log`.
+
+Normal current-runtime repair proof is retained in the split-sharing evidence
+directory. `rejoined-mission-current-custody-native.json` retries the original
+no-receipt assignment after rejoin/resplit against its current physical holder,
+derives current Quellon/Shepherd delivery locations, denies foreign Aegis with
+unchanged pointer, then commits and exactly replays the Quellon drop-off. Player
+root and foreign-group reads are denied. `navigation-cursor-current-native.json`
+records a legal movement and exact retry while preserving the earlier rollback
+failure; its equal global/vessel cursors alone do not discriminate independence.
+The worker's complete scenario must also produce different cursors through
+earlier legal movement and prove the shared increment. Full group Comms/share/
+taxi/local DRADIS and final attack composition remain open.
+
+The current Comms holder in the preserved split session is outside the proof
+actor set. A new normal independent authenticated Comms branch was authorized,
+leaving the inaccessible holder unchanged and without impersonation or credential
+reconstruction. Its ordinary cast/replacement/current-console flow and final
+results must be labeled as a separate representative branch.
+
+Source review of P436 confirms optional EO Command and Control activation with
+a required target only when used. The existing charged EO can redirect but
+cannot decline, leaving the lifecycle pending. The attack worker owns a distinct
+audited current-EO pass and actual explicit Pass control, plus current-authority
+fencing for the two older private Commander/C&C targeting presenters. This is
+required fixed P435/P436 behavior. Test-first, normal use/pass/retry/stale/zero
+redirect, automatic continuation, all five choice consumers and final independent
+xhigh review remain required. The root's provisional 104-Function source manifest
+must be regenerated after this server change; it is not final evidence.
