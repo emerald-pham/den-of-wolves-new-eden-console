@@ -37,7 +37,7 @@ export function PC07GroupsReview() {
    <button className="cic-action-button" type="button" aria-pressed={current} onClick={()=>setCurrent(true)}>Current server sample</button>
   </div>
   <p className="pc07-review__note">Cycle 2 // one prepared clock for both groups. Fleet-1 pursuit 1; Fleet-2 pursuit 4. Changing perspective does not start a separate clock.</p>
-  <div className="pc07-review__plot">
+  <div className="pc07-review__plot gm-dradis">
    <ShipPlot hostile={false} aboard viewerId={ships[0]!} requireLocalAuthority localNavigation={current?projection:undefined}
     turnPhase={phase} showGmEffects={false} layout="gm" />
   </div>
