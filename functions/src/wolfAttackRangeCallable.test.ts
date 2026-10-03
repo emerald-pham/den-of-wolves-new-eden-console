@@ -18,7 +18,7 @@ const testState = vi.hoisted(() => {
     .filter((candidate) => candidate.startsWith(`${path}/`) &&
       !candidate.slice(path.length + 1).includes('/')).map(snapshot) });
   const get = vi.fn(async (target: { path: string }) =>
-    target.path.endsWith('/players') || target.path.endsWith('/fleetGroups')
+    target.path.endsWith('/players') || target.path.endsWith('/fleetGroups') || target.path.endsWith('/gmInstances')
       ? querySnapshot(target.path) : snapshot(target.path));
   const set = vi.fn((target: { path: string }, fields: Fields) => documents.set(target.path, { ...fields }));
   const update = vi.fn((target: { path: string }, fields: Fields) => {
