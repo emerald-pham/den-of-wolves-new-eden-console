@@ -23420,7 +23420,7 @@ export const commitAegisEnrichedWarheadChoice = onCall<{
     const result: AegisEnrichedWarheadResult = { type: 'aegis-enriched-warhead-result', status: 'committed',
       sessionId: change.sessionId, requestId: change.requestId, turn: inputs.turn, revision, view };
     const resources = session.get('shipResources') as Record<string, Record<string, unknown>>;
-    const oreBefore = resources.aegis.ore as number;
+    const oreBefore = resources.aegis!.ore as number;
     if (choice === 'enrich') tx.update(sessionRef, { 'shipResources.aegis.ore': oreBefore - 5,
       ...vesselActionRevisionPatch('aegis', vesselActionRevision(session, 'aegis') + 1),
       updatedAt: FieldValue.serverTimestamp() });
