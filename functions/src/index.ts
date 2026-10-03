@@ -21450,7 +21450,7 @@ async function reconcileWolfAttackProgress(sessionId: string): Promise<void> {
       const committedAt = new Date().toISOString();
       const reason = !executiveOfficerRoleConfigured ? 'no-configured-executive-officer' : 'no-current-executive-officer';
       const emptyReceipt: WolfRangeReceipt = {
-        range: step, dice: [], assignments: [], unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
+        range: step, dice: [], assignments: [], targetShifts: [], unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
         destructionDamageByTarget: Object.fromEntries(inputs.receipt.ring.map((target) => [target, 0])) as Record<WolfFleetTargetId, number>,
       };
       const unavailableDecision = {
@@ -21481,7 +21481,7 @@ async function reconcileWolfAttackProgress(sessionId: string): Promise<void> {
       return;
     }
     const emptyReceipt = {
-      range: step, dice: [], assignments: [], unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
+      range: step, dice: [], assignments: [], targetShifts: [], unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
       destructionDamageByTarget: Object.fromEntries(inputs.receipt.ring.map((target) => [target, 0])),
     };
     const decision = {
@@ -23353,7 +23353,7 @@ export const commitWolfRangeActionChoice = onCall<{
     const nextRevision = inputs.revision + 1;
     const passed = actionIds.length === 0;
     const emptyReceipt: WolfRangeReceipt = {
-      range, dice: [], assignments: [], unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
+      range, dice: [], assignments: [], targetShifts: [], unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
       destructionDamageByTarget: Object.fromEntries(EXPANDED_WOLF_TARGET_RING.map((target) => [target, 0])) as Record<WolfFleetTargetId, number>,
     };
     const committedAt = new Date().toISOString();

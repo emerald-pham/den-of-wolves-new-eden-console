@@ -247,6 +247,25 @@ export interface WolfRangeAssignment {
   readonly targetInstanceIds: readonly string[];
 }
 
+export type WolfRangeTargetShiftSourceId =
+  | 'aegis-alpha-wing'
+  | 'aegis-bravo-wing'
+  | 'maliades'
+  | 'pdf-escort-wing';
+
+export interface WolfRangeTargetShiftChoice {
+  readonly sourceId: WolfRangeTargetShiftSourceId;
+  /** Stable choice position: fighter index for a wing, zero for Maliades. */
+  readonly choiceIndex: number;
+  readonly rosterIndex: number;
+  readonly shift: -1 | 1;
+}
+
+export interface WolfRangeTargetShift extends WolfRangeTargetShiftChoice {
+  readonly fromDie: number;
+  readonly toDie: number;
+}
+
 export interface WolfDiceReceipt {
   readonly actionId: string;
   readonly sourceId: string;
@@ -260,11 +279,118 @@ export interface WolfRangeReceipt {
   readonly range: WolfCombatRange;
   readonly dice: readonly WolfDiceReceipt[];
   readonly assignments: readonly WolfRangeAssignment[];
+  /** Ordered server-resolved Medium fighter target changes. */
+  readonly targetShifts: readonly WolfRangeTargetShift[];
   /** Successful hits that had no distinct live, range-legal contact to receive them. */
   readonly unusedHitsByAction: readonly Readonly<{ actionId: string; count: number }>[];
   readonly damageByInstance: Readonly<Record<string, number>>;
   readonly destroyedInstanceIds: readonly string[];
   readonly destructionDamageByTarget: Readonly<Record<WolfFleetTargetId, number>>;
+}
+
+/** Resolve the printed ±1 target-number operation for one range source. */
+export function applyWolfRangeTargetShift(
+  sourceId: WolfRangeTargetShiftSourceId,
+  currentDie: number,
+  shift: -1 | 1,
+  ring: WolfTargetRing = CORE_WOLF_TARGET_RING,
+): number {
+  if (!['aegis-alpha-wing', 'aegis-bravo-wing', 'maliades', 'pdf-escort-wing'].includes(sourceId)) {
+    throw new Error('Unknown Wolf range target-shift source.');
+  }
+  const sixTargetEndpointRing = ring.length === CORE_WOLF_TARGET_RING.length;
+  const normalizedDie = sixTargetEndpointRing && currentDie === 0 ? ring.length
+    : sixTargetEndpointRing && currentDie === 7 ? 1 : currentDie;
+  const shiftedDie = shiftWolfTargetDie(normalizedDie, shift, ring);
+  if (sixTargetEndpointRing && normalizedDie === 1 && shift === -1) return 0;
+  if (sixTargetEndpointRing && normalizedDie === ring.length && shift === 1) return 7;
+  return shiftedDie;
+}
+
+/** Map a printed target number back to the target currently represented by it. */
+export function wolfTargetForRangeTargetNumber(
+  sourceId: WolfRangeTargetShiftSourceId,
+  targetNumber: number,
+  ring: WolfTargetRing = CORE_WOLF_TARGET_RING,
+): WolfFleetTargetId {
+  if (!['aegis-alpha-wing', 'aegis-bravo-wing', 'maliades', 'pdf-escort-wing'].includes(sourceId)) {
+    throw new Error('Unknown Wolf range target-shift source.');
+  }
+  if (ring.length === CORE_WOLF_TARGET_RING.length && targetNumber === 0) {
+    if (!ring.includes('refinery-124')) throw new Error('Refinery 124 is outside the configured Wolf target ring.');
+    return 'refinery-124';
+  }
+  if (ring.length === CORE_WOLF_TARGET_RING.length && targetNumber === 7) {
+    if (!ring.includes('aegis')) throw new Error('AEGIS is outside the configured Wolf target ring.');
+    return 'aegis';
+  }
+  return wolfTargetForDie(targetNumber, ring);
+}
+
+/** Return the effective die for a current target when a range source is about to shift it. */
+export function wolfTargetNumberForRangeSource(
+  sourceId: WolfRangeTargetShiftSourceId,
+  target: WolfFleetTargetId,
+  ring: WolfTargetRing = CORE_WOLF_TARGET_RING,
+): number {
+  if (!['aegis-alpha-wing', 'aegis-bravo-wing', 'maliades', 'pdf-escort-wing'].includes(sourceId)) {
+    throw new Error('Unknown Wolf range target-shift source.');
+  }
+  const index = ring.indexOf(target);
+  if (index < 0) throw new Error('The current Wolf target is outside the configured target ring.');
+  return index + 1;
+}
+
+/**
+ * Apply a server-owned set of fighter shifts to the current range targets.
+ * The target dice are carried forward independently from the original targeting receipt.
+ */
+export function resolveWolfRangeTargetShifts(input: Readonly<{
+  roster: readonly WolfCombatShip[];
+  currentDice: readonly number[];
+  choices: readonly WolfRangeTargetShiftChoice[];
+  ring: WolfTargetRing;
+}>): Readonly<{
+  roster: readonly WolfCombatShip[];
+  currentDice: readonly number[];
+  targetShifts: readonly WolfRangeTargetShift[];
+}> {
+  targetRingIsValid(input.ring);
+  if (!Array.isArray(input.roster) || !Array.isArray(input.currentDice) ||
+      input.currentDice.length !== input.roster.length || !Array.isArray(input.choices)) {
+    throw new Error('Wolf range shifts require a matching current roster and target-die list.');
+  }
+  input.currentDice.forEach((die) => {
+    if (!Number.isSafeInteger(die) || die < 0 || die > 7) {
+      throw new Error('A current Wolf target die is outside the supported range.');
+    }
+  });
+  const seenChoices = new Set<string>();
+  for (const choice of input.choices) {
+    if (!choice || !['aegis-alpha-wing', 'aegis-bravo-wing', 'maliades', 'pdf-escort-wing'].includes(choice.sourceId) ||
+        !Number.isSafeInteger(choice.choiceIndex) || choice.choiceIndex < 0 ||
+        !Number.isSafeInteger(choice.rosterIndex) || choice.rosterIndex < 0 || choice.rosterIndex >= input.roster.length ||
+        (choice.shift !== -1 && choice.shift !== 1) ||
+        (choice.sourceId === 'maliades' && choice.choiceIndex !== 0)) {
+      throw new Error('A Wolf range target shift choice is malformed.');
+    }
+    const key = `${choice.sourceId}:${choice.choiceIndex}`;
+    if (seenChoices.has(key)) throw new Error('A fighter choice may shift at most one Wolf target per range.');
+    seenChoices.add(key);
+  }
+  const orderedChoices = [...input.choices].sort((left, right) =>
+    left.sourceId.localeCompare(right.sourceId) || left.choiceIndex - right.choiceIndex);
+  const currentDice = [...input.currentDice];
+  const roster = [...input.roster];
+  const targetShifts = orderedChoices.map((choice): WolfRangeTargetShift => {
+    const fromDie = currentDice[choice.rosterIndex]!;
+    const toDie = applyWolfRangeTargetShift(choice.sourceId, fromDie, choice.shift, input.ring);
+    const target = wolfTargetForRangeTargetNumber(choice.sourceId, toDie, input.ring);
+    currentDice[choice.rosterIndex] = toDie;
+    roster[choice.rosterIndex] = { ...roster[choice.rosterIndex]!, target };
+    return { ...choice, fromDie, toDie };
+  });
+  return deepFreeze({ roster, currentDice, targetShifts });
 }
 
 /** Private, immutable dice samples committed before any player target assignment. */
@@ -492,6 +618,7 @@ export function resolveWolfRange(
           actionId: assignment.actionId,
           targetInstanceIds: [...assignment.targetInstanceIds],
         })),
+      targetShifts: [],
       unusedHitsByAction: rolledActions
         .filter(({ unusedHits }) => unusedHits > 0)
         .map(({ action: { actionId }, unusedHits }) => ({ actionId, count: unusedHits })),

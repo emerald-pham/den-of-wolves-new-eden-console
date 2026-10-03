@@ -35,6 +35,7 @@ export function aegisWolfRangeActions(input: Readonly<{
   damagedSystemIds: readonly string[];
   destroyed: boolean;
   upgrades: readonly string[];
+  enrichedWarheads?: boolean;
 }>): readonly WolfRangeAction[] {
   if (input.destroyed) return [];
   const charged = new Set(input.charges);
@@ -48,7 +49,7 @@ export function aegisWolfRangeActions(input: Readonly<{
         actionId: 'aegis-missile-launchers-long',
         sourceId: 'aegis-missile-launchers',
         range: input.range,
-        fixedDamage: upgraded.has('missile-launchers') ? 3 : 2,
+        fixedDamage: (upgraded.has('missile-launchers') ? 3 : 2) + (input.enrichedWarheads ? 1 : 0),
         maxTargets: 1,
       });
     } else if (input.range === 'medium-range') {
@@ -57,7 +58,7 @@ export function aegisWolfRangeActions(input: Readonly<{
         actionId: 'aegis-missile-launchers-medium',
         sourceId: 'aegis-missile-launchers',
         range: input.range,
-        dice: { sides: 6, count, successAt: 5, damagePerSuccess: 1 },
+        dice: { sides: 6, count, successAt: input.enrichedWarheads ? 4 : 5, damagePerSuccess: 1 },
         maxTargets: count,
       });
     }
@@ -83,6 +84,57 @@ export function aegisWolfRangeActions(input: Readonly<{
     }
   }
   return actions;
+}
+
+/** Gorgoneion's charged Missile Array fires once at each range with range-specific accuracy. */
+export function gorgoneionWolfRangeActions(input: Readonly<{
+  range: WolfCombatRange;
+  charged: boolean;
+  damaged: boolean;
+  destroyed: boolean;
+}>): readonly WolfRangeAction[] {
+  if (!input.charged || input.damaged || input.destroyed) return [];
+  const successAt = input.range === 'long-range' ? 6 : input.range === 'medium-range' ? 5 : 4;
+  return [{
+    actionId: `gorgoneion-missile-array-${input.range.replace('-range', '')}`,
+    sourceId: 'gorgoneion-missile-array',
+    range: input.range,
+    dice: { sides: 6, count: 3, successAt, damagePerSuccess: 1 },
+    maxTargets: 3,
+  }];
+}
+
+/** Highwall's fuelled cannon is available only at the two printed close ranges. */
+export function highwallWolfRangeActions(input: Readonly<{
+  range: WolfCombatRange;
+  fuelled: boolean;
+  destroyed: boolean;
+}>): readonly WolfRangeAction[] {
+  if (!input.fuelled || input.destroyed || input.range === 'long-range') return [];
+  return [{
+    actionId: `highwall-${input.range}`,
+    sourceId: 'highwall',
+    range: input.range,
+    dice: { sides: 6, count: 1, successAt: 5, damagePerSuccess: 3 },
+    maxTargets: 1,
+  }];
+}
+
+/** Boa's selected action spends one Scrap for one damage against a legal live contact. */
+export function boaWolfRangeActions(input: Readonly<{
+  range: WolfCombatRange;
+  scrapAvailable: number;
+  destroyed: boolean;
+}>): readonly WolfRangeAction[] {
+  if (!Number.isSafeInteger(input.scrapAvailable) || input.scrapAvailable < 0 ||
+      input.scrapAvailable < 1 || input.destroyed) return [];
+  return [{
+    actionId: `boa-${input.range}`,
+    sourceId: 'boa',
+    range: input.range,
+    fixedDamage: 1,
+    maxTargets: 1,
+  }];
 }
 
 /** Persist this result when the use/pass choice locks. It is never regenerated for target selection. */
