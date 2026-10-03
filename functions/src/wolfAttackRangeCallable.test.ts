@@ -1619,3 +1619,41 @@ it('rejects a forged Enriched Warhead marker before returning range actions', as
   await expect(getWolfRangeActionChoice.run(request({ sessionId: 's1' })))
     .rejects.toMatchObject({ code: 'failed-precondition' });
 });
+
+it.each([
+  ['wrong printed role', { actorRoleId: 'wing-commander' }],
+  ['empty actor identity', { actorUid: '' }],
+  ['unrecognized receipt field', { dice: [6] }],
+])('rejects an otherwise attack-bound Enriched Warhead marker with %s', async (_label, invalid) => {
+  enrichedWarheadFixture();
+  await commitAegisEnrichedWarheadChoice.run(request({ sessionId: 's1', requestId: 'enrich-marker-bound',
+    expectedTurn: 1, expectedRevision: 4, choice: 'enrich' }));
+  const state = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  put('sessions/s1/wolfAttackState/current', { ...state, currentStep: 'long-range',
+    enrichedWarheads: { ...(state.enrichedWarheads as Fields), ...invalid } });
+  await expect(getWolfRangeActionChoice.run(request({ sessionId: 's1' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+});
+
+it.each([
+  ['unrecognized status', { status: 'forged' }],
+  ['mismatched action count', { actionCount: 4 }],
+  ['mismatched revision', { revision: 90 }],
+  ['unrecognized resolution status', { choiceStatus: 'resolved' }],
+  ['unrecognized receipt field', { dice: [6] }],
+])('rejects a fingerprint-matching Escort replay with %s without consuming another die', async (_label, invalid) => {
+  admitEscortRange();
+  const payload = { sessionId: 's1', sourceId: 'pdf-escort-fighter-wing', range: 'medium-range',
+    requestId: 'escort-replay-bound', expectedTurn: 1, expectedRevision: 4,
+    actions: [{ fighterIndex: 0, kind: 'attack', targetContactId: 'contact-1' }] };
+  await commitWolfEscortRangeActionChoice.run(request(payload, 'colonel-1'));
+  const path = 'sessions/s1/commandReceipts/escort-replay-bound';
+  const receipt = testState.documents.get(path)!;
+  put(path, { ...receipt, result: { ...(receipt.result as Fields), ...invalid } });
+  entropy.randomInt.mockClear();
+  testState.update.mockClear();
+  await expect(commitWolfEscortRangeActionChoice.run(request(payload, 'colonel-1')))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(entropy.randomInt).not.toHaveBeenCalled();
+  expect(testState.update).not.toHaveBeenCalled();
+});
