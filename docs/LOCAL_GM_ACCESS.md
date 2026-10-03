@@ -4,6 +4,9 @@ This opt-in developer path authorizes the current **local Auth emulator** identi
 for the usual 24-hour GM lease. It does not replace production passwords, change
 production callables/rules, assign roles, or fabricate game/session state. The
 normal session join and named GM instance claim still apply.
+The October 2 repository-wide owner decision accepts normal authenticated
+local/emulator gameplay for future checkpoints, with independent review, CI
+and production deployment retained; see [the milestone guide](PRODUCT_MILESTONES.md).
 
 From this checkout, configure a free emulator row if it has none:
 
@@ -23,6 +26,9 @@ In another terminal, opt the development server into that same demo project:
 VITE_LOCAL_GM_ACCESS=1 VITE_FIREBASE_PROJECT_ID=demo-pc06-local npm run dev:emulators
 ```
 
+The example project name may be replaced by another isolated `demo-` project;
+both terminals and every client must use that same name and configured row.
+
 Open the loopback URL printed by Vite. Its port comes from the worktree's ignored
 `.env.emulators.local`. In Settings, choose **Authorize local emulator GM**. Create
 or join a local session, follow **GM join**, enter a GM name, and choose **Join as
@@ -34,6 +40,18 @@ tabs sharing Auth are not different actors.
 lease. Stopping the development server removes the helper endpoint; stopping
 emulators without export discards their temporary data. No production credential
 is required, retrieved, copied, or stored by this path.
+
+## Verify the loaded implementation
+
+After Functions source changes, a successful compilation alone does not prove
+the running emulator loaded the new handlers. Check a discriminating normal
+authenticated request against the intended behavior before collecting final
+gameplay evidence. If the runtime is stale, pause only actors using the owned
+row, export its disposable state outside Git when it is still needed, then
+restart that same row and import the export. Do not stop another task's runtime
+or discard an unfinished actor setup. Confirm a current-source request before
+resuming dependent scenarios. Keep stale-runtime failures separate from final
+native/HTTP/UI/Rules proof.
 
 ## Isolation and proof
 
