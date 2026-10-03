@@ -18,6 +18,7 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const context = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
 const page = await context.newPage();
 const browserErrors = [], checks = {}, actions = [], ranges = [], boarding = [], observations = [];
+const attackTurn = 2;
 page.on('pageerror', error => browserErrors.push(error.message));
 let f;
 async function snapshotIdentity() {
@@ -218,10 +219,20 @@ try {
   for (const shipId of ['aegis', 'dione', 'refinery-124', 'icebreaker', 'capybara']) {
     await command(f.gm, 'setGmShipConsoleWriteGrant', { instanceId: f.instanceId, shipId, enabled: true, claimedAt });
   }
+  // Optional ships are admitted in Coordination, then the next normal Team
+  // phase charges their systems. The GM explicitly defers the first window.
+  const firstPhase = (await f.session.get()).get('turnPhase');
+  await f.session.update({ turnPhase: { ...firstPhase, teamPhaseEndsAt: new Date(Date.now() - 1000).toISOString(),
+    openAirspaceEndsAt: new Date(Date.now() + 600_000).toISOString() } });
+  await command(wing, 'beginOpenAirspacePhase', { expectedTurn: 1 });
   await command(f.gm, 'setSmallShipDocking', { instanceId: f.instanceId, requestId: randomUUID(),
     smallShipId: 'gorgoneion', hostShipId: 'aegis', docked: true, expectedRevision: 0 });
   await replace(captain, 'gorgoneion-captain');
   await replace(commander, 'wolf-commander');
+  await command(f.gm, 'setWolfAttackWindow', { instanceId: f.instanceId, requestId: randomUUID(), expectedRevision: 0, status: 'deferred' });
+  await command(f.gm, 'advanceTurn', { instanceId: f.instanceId, requestId: randomUUID(), expectedTurn: 1, overridePhaseTimer: true });
+  const hold = (await f.session.get()).get('turnPhase').timerPause;
+  await command(eo, 'clearTurnAdvanceInterstitial', { requestId: randomUUID(), expectedCycle: attackTurn, expectedPausedAt: hold.pausedAt });
   await maintain('aegis', ['command-and-control', 'missile-launchers', 'point-defence-lasers', 'fighter-bay-alpha', 'fighter-bay-bravo'], ['pallas', 'starlight']);
   await maintain('dione', ['fighter-bay'], ['maliades']);
   await maintain('refinery-124', ['fighter-bay'], []);
@@ -241,16 +252,17 @@ try {
   // The only privileged fixture mutation accelerates this disposable clock.
   await f.session.update({ turnPhase: { ...phase, teamPhaseEndsAt: new Date(Date.now() - 1000).toISOString(),
     openAirspaceEndsAt: new Date(Date.now() + 600_000).toISOString() } });
-  await command(wing, 'beginOpenAirspacePhase', { expectedTurn: 1 });
+  await command(wing, 'beginOpenAirspacePhase', { expectedTurn: attackTurn });
   await command(f.gm, 'unlockPressAirspace', { instanceId: f.instanceId });
   const phaseBefore = (await f.session.get()).get('turnPhase');
   const departureId = randomUUID();
   await command(wing, 'requestShuttleDeparture', { requestId: departureId, shuttleId: 'starlight', destinationShipId: 'icebreaker',
-    expectedControlRevision: 0, expectedCycle: 1 });
+    expectedControlRevision: 0, expectedCycle: attackTurn });
   await command(wing, 'beginShuttleTransit', { requestId: randomUUID(), shuttleId: 'starlight',
-    expectedDepartureRequestId: departureId, expectedControlRevision: 0, expectedCycle: 1 });
+    expectedDepartureRequestId: departureId, expectedControlRevision: 0, expectedCycle: attackTurn });
+  await command(f.gm, 'setWolfAttackWindow', { instanceId: f.instanceId, requestId: randomUUID(), expectedRevision: 1, status: 'due' });
   const prep = await command(f.gm, 'stageWolfAttackPreparation', { instanceId: f.instanceId, requestId: randomUUID(),
-    expectedRevision: 0, turn: 1, shipIds: [...Array(10).fill('wolf-fighter-wing'), ...Array(5).fill('wolf-assault-transport')],
+    expectedRevision: 0, turn: attackTurn, shipIds: [...Array(10).fill('wolf-fighter-wing'), ...Array(5).fill('wolf-assault-transport')],
     targetMode: 'pre-rolled', targetAssignments: [], modifiers: [], notes: '' });
   const declareRequest = { instanceId: f.instanceId, requestId: randomUUID(), expectedRevision: prep.revision };
   const declaration = await command(f.gm, 'declareWolfAttack', declareRequest);
@@ -341,7 +353,7 @@ try {
   assert.deepEqual({ phase: replaySession.turnPhase, resources: replaySession.shipResources, damage: replaySession.shipDamage,
     population: replaySession.shipSurvivors, ticker: replaySession.fleetTicker }, snapshot);
   await command(wing, 'requestShuttleDeparture', { requestId: randomUUID(), shuttleId: 'starlight', destinationShipId: 'icebreaker',
-    expectedControlRevision: 0, expectedCycle: 1 });
+    expectedControlRevision: 0, expectedCycle: attackTurn });
   checks.finalReplayAndActualMovementAfterReopening = true;
   for (const path of ['', '/wolfAttackState/current', '/serverState/pdfEscortWing']) {
     const reply = await fetch(`http://127.0.0.1:${f.config.firestorePort}/v1/projects/${f.project}/databases/(default)/documents/sessions/${f.sessionId}${path}`,
@@ -357,7 +369,8 @@ try {
   assert.deepEqual(f.heartbeatFailures, []);
   await writeFile(evidencePath, `${JSON.stringify({ kind: 'normal-authenticated-local-emulator-ui-http-composed-gameplay',
     sourceCommit: process.env.PC08_SOURCE_COMMIT, ordinaryRoster: 20, preparedScene: false, productionGameplay: false,
-    fixtureChanges: ['disposable clock deadlines only'], normalFacilitatorDecisions: ['current replacement admission',
+    fixtureChanges: ['disposable clock deadlines only'], normalFacilitatorDecisions: ['Coordination-phase optional ship and replacement admission',
+      'explicitly deferred first window and ordinary early cycle advance',
       'current ship write grants', 'audited resource adjustment to nine AEGIS ore', 'audited maintenance damage correction if required',
       ...(boarding.some(item => item.kind === 'commander-ruling') ? ['explicit incomplete Commander consequence ruling'] : [])],
     checks, actions, ranges, boarding, identitiesRetained: false, completedAt: new Date().toISOString() }, null, 2)}\n`);
