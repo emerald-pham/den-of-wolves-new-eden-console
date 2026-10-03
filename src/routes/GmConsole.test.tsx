@@ -3724,7 +3724,9 @@ it('lets the live GM close targeting and enter Long Range on the existing attack
   renderConsole();
 
   const preparation = await screen.findByRole('region', { name: 'Private Wolf attack preparation' });
-  const advance = within(preparation).getByRole('button', { name: 'Close targeting and enter Long Range' });
+  expect(within(preparation).queryByRole('button', { name: 'Recover targeting progress' })).not.toBeInTheDocument();
+  await user.click(within(preparation).getByText('Attack progress recovery'));
+  const advance = within(preparation).getByRole('button', { name: 'Recover targeting progress' });
   expect(advance).toBeEnabled();
   expect(preparation).not.toHaveTextContent(/calculationReceipt|rosterIndex|die:/i);
   advance.focus();
@@ -3769,7 +3771,8 @@ it('ignores a late Long Range receipt after the active GM instance changes', asy
   renderConsole();
 
   const preparation = await screen.findByRole('region', { name: 'Private Wolf attack preparation' });
-  await user.click(within(preparation).getByRole('button', { name: 'Close targeting and enter Long Range' }));
+  await user.click(within(preparation).getByText('Attack progress recovery'));
+  await user.click(within(preparation).getByRole('button', { name: 'Recover targeting progress' }));
   await waitFor(() => expect(advanceWolfAttackToLongRange).toHaveBeenCalledWith(1, 4));
   act(() => useSessionStore.getState().setGmInstance({ ...local, id: 'replacement-instance' }));
   await act(async () => resolveAdvance({
@@ -4268,4 +4271,19 @@ it('enables production start for a confirmed empty roster still in the lobby', a
   await userEvent.setup().click(await screen.findByRole('button', { name: /^setup$/i }));
   expect(screen.getByRole('button', { name: /start production/i })).toBeEnabled();
   expect(screen.getByRole('group', { name: 'Ordinary production start' })).toHaveTextContent('Ready // confirmed roster');
+});
+
+
+it('normal preparation reserves source-owned targeting choices for the entitled players', async () => {
+  useSessionStore.getState().setSession({ ...useSessionStore.getState().session!, phase: 'active', currentTurn: 1 });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  useSessionStore.getState().setGmInstance(local); streamInstances([local]);
+  renderConsole();
+  const preparation = await screen.findByRole('region', { name: 'Private Wolf attack preparation' });
+  expect(within(preparation).queryByRole('checkbox', { name: /Wolf Commander.*targeting reroll/i })).not.toBeInTheDocument();
+  expect(within(preparation).queryByRole('checkbox', { name: /AEGIS.*Command and Control/i })).not.toBeInTheDocument();
+  expect(within(preparation).queryByRole('checkbox', { name: /Gorgoneion.*Force Field/i })).not.toBeInTheDocument();
+  expect(preparation).toHaveTextContent('Source-owned targeting choices remain with the Wolf Commander, Executive Officer and Gorgoneion Captain.');
+  expect(preparation).toHaveTextContent('The server advances legal stages after committed player choices.');
 });
