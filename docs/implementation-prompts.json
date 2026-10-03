@@ -6419,6 +6419,13 @@
       "language": "Fixed 49 behavior acceptances preserve7 ordinary production results and42 explicitly user-authorized representative local/emulator results. Native compiled transaction and actual Auth/HTTP/rules fixtures, local real UI, private reads, arithmetic, replay and denial evidence are distinguished individually. Catalog closures add 49 once; P343 remains PC07. Required final gates and exact-main deployment are separate release evidence, never inferred from a prepared review scene.",
       "source": "docs/PC06_ACCEPTANCE_MATRIX.md; docs/PC06_PLAYTEST_REPORT.md; docs/PC06_EXECUTION_RECORD.md; external evidence/pc06-49-acceptance-receipt.json; scripts/test-pc06-demo.emulator.mjs; scripts/test-pc06-mission-transaction.emulator.mjs",
       "type": "evidence / authority / release"
+    },
+    {
+      "direction": "PC07-A6 -> 447;448;455 future acceptance; no closures",
+      "id": "E-PC07-A6-FUTURE-TARGET-LIMITS-20261003",
+      "language": "Carry the bounded excess-hit digital assumption into the unstarted weapon consumers only where their printed action requires distinct targets. Original rolls and successes remain in the private audit; successes beyond legal distinct-contact capacity are unused, with no reroll or repeated damage from that action. Other actions retain their own target limits, and independent actions may share a contact where their source rules allow. Status, prerequisites, fixed checkpoint membership and closure totals are unchanged.",
+      "source": "docs/PRODUCT_MILESTONE_ASSUMPTIONS.md PC07-A6; docs/PC07_ATTACK_ENGINE_ASSUMPTIONS.md Excess hits; docs/PC07_PC10_ALIGNMENT.md; functions/src/wolfCombatMath.ts; functions/src/wolfCombatMath.test.ts",
+      "type": "evidence / source-backed-assumption / future-alignment / no-closure-credit"
     }
   ],
   "plan": {
@@ -18205,11 +18212,11 @@
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
-        "acceptance": "four server dice use 5+ and exact upgrade/warhead/target constraints. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
+        "acceptance": "four server dice use 5+ and exact upgrade/warhead/target constraints. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. When the printed action requires distinct targets, preserve every original roll and successful hit, assign only to its legal distinct contacts, and record any excess successes as unused without rerolls or duplicate damage (PC07-A6). Keep each action’s printed target limits; independent actions may share a contact when their own rules permit. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve AEGIS Missile Launchers at Medium Range."
       },
       "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-447",
+      "evidenceIds": "E-WOLF;E-AUDIT-447;E-PC07-A6-FUTURE-TARGET-LIMITS-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "441;182",
@@ -18228,11 +18235,11 @@
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
-        "acceptance": "the printed Medium and Short dice, thresholds, upgrade, and target limits resolve once. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
+        "acceptance": "the printed Medium and Short dice, thresholds, upgrade, and target limits resolve once. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. When the printed action requires distinct targets, preserve every original roll and successful hit, assign only to its legal distinct contacts, and record any excess successes as unused without rerolls or duplicate damage (PC07-A6). Keep each action’s printed target limits; independent actions may share a contact when their own rules permit. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve AEGIS Point Defence."
       },
       "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-448",
+      "evidenceIds": "E-WOLF;E-AUDIT-448;E-PC07-A6-FUTURE-TARGET-LIMITS-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "441;182",
@@ -18391,11 +18398,11 @@
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
-        "acceptance": "three dice use 6+/5+/4+ by range with at most one hit per target from the array each phase. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
+        "acceptance": "three dice use 6+/5+/4+ by range with at most one hit per target from the array each phase. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. When the printed action requires distinct targets, preserve every original roll and successful hit, assign only to its legal distinct contacts, and record any excess successes as unused without rerolls or duplicate damage (PC07-A6). Keep each action’s printed target limits; independent actions may share a contact when their own rules permit. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve the Gorgoneion Missile Array."
       },
       "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-455",
+      "evidenceIds": "E-WOLF;E-AUDIT-455;E-PC07-A6-FUTURE-TARGET-LIMITS-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "239;441",
