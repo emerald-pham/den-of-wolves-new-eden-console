@@ -119,6 +119,96 @@ it('requires a due marker before resolving and permits deferred Turn 2 recovery'
   }))).resolves.toEqual({ status: 'resolved', turn: 2, revision: 3 });
 });
 
+it('lets the facilitator select a later due window only after a finalized prior attack', async () => {
+  const priorReceipt = {
+    type: 'wolf-combat-calculation', version: 1, requestId: 'wolf-final-prior',
+    phase: { turn: 1, phase: 'coordination', serverTime: '2026-10-03T20:00:00.000Z',
+      deadlineAt: '2026-10-03T20:10:00.000Z', overrun: false },
+    targeting: { ring: ['aegis'], rolls: [] }, ranges: [
+      { range: 'long-range', targetSnapshot: [], targetShifts: [] },
+      { range: 'medium-range', targetSnapshot: [], targetShifts: [] },
+      { range: 'short-range', targetSnapshot: [], targetShifts: [] },
+    ], boarding: [], fleetDamage: [], forceField: { status: 'unavailable', preventedDamage: 0 },
+    returningInstanceIds: ['0:wolf-fighter-wing'],
+  };
+  session({ currentTurn: 2 });
+  put('sessions/s1/wolfAttackWindow/current', { status: 'resolved', turn: 1, revision: 2 });
+  put('sessions/s1/wolfAttackState/current', {
+    type: 'wolf-attack-state', status: 'resolved', currentStep: 'resolved',
+    attackId: 'wolf-attack-prior', announcementId: 'wolf-attack-prior', turn: 1,
+    attackNumber: 1, revision: 4, airspaceLocked: false,
+    parkingReleaseCondition: 'normal-movement-reopened', resolvedAt: '2026-10-03T20:00:00.000Z',
+    finalizationRequestId: 'wolf-final-prior', calculationReceipt: priorReceipt,
+  });
+  put('sessions/s1/wolfAttackState/current/audit/wolf-finalized-1', {
+    type: 'wolf-attack-finalization', turn: 1, revision: 4, actorUid: 'server',
+    attackId: 'wolf-attack-prior', requestId: 'wolf-final-prior', receipt: priorReceipt,
+    rangeReceipts: priorReceipt.ranges,
+  });
+
+  await expect(setWolfAttackWindow.run(request({
+    ...baseData, requestId: 'wolf-second-due', expectedRevision: 2,
+  }))).resolves.toEqual({ status: 'due', turn: 2, revision: 3 });
+  expect(mock.documents.get('sessions/s1/wolfAttackWindow/current/audit/wolf-second-due'))
+    .toMatchObject({ action: 'due', turn: 2, actorUid: 'u1' });
+});
+
+it('keeps a later attack window closed while the previous attack is unresolved', async () => {
+  session({ currentTurn: 2 });
+  put('sessions/s1/wolfAttackWindow/current', { status: 'resolved', turn: 1, revision: 2 });
+  put('sessions/s1/wolfAttackState/current', {
+    type: 'wolf-attack-state', status: 'declared', currentStep: 'medium-range',
+    attackId: 'wolf-attack-still-running', turn: 1, revision: 6, airspaceLocked: true,
+    parkingReleaseCondition: 'normal-movement-reopened',
+  });
+
+  await expect(setWolfAttackWindow.run(request({
+    ...baseData, requestId: 'wolf-unresolved-next', expectedRevision: 2,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/previous Wolf attack must finish/i),
+  });
+  expect(mock.documents.get('sessions/s1/wolfAttackWindow/current')).toEqual({
+    status: 'resolved', turn: 1, revision: 2,
+  });
+  expect(mock.documents.has('sessions/s1/wolfAttackWindow/current/audit/wolf-unresolved-next')).toBe(false);
+});
+
+it('does not open more than two additional facilitator-selected attacks', async () => {
+  session({ currentTurn: 4 });
+  put('sessions/s1/wolfAttackWindow/current', { status: 'resolved', turn: 3, revision: 8 });
+  const thirdReceipt = {
+    type: 'wolf-combat-calculation', version: 1, requestId: 'wolf-final-third',
+    phase: { turn: 3, phase: 'coordination', serverTime: '2026-10-03T20:00:00.000Z',
+      deadlineAt: '2026-10-03T20:10:00.000Z', overrun: false },
+    targeting: { ring: ['aegis'], rolls: [] }, ranges: [], boarding: [], fleetDamage: [],
+    forceField: { status: 'unavailable', preventedDamage: 0 }, returningInstanceIds: [],
+  };
+  put('sessions/s1/wolfAttackState/current', {
+    type: 'wolf-attack-state', status: 'resolved', currentStep: 'resolved',
+    attackId: 'wolf-attack-third', announcementId: 'wolf-attack-third', turn: 3,
+    attackNumber: 3, revision: 9, airspaceLocked: false,
+    parkingReleaseCondition: 'normal-movement-reopened', resolvedAt: '2026-10-03T20:00:00.000Z',
+    finalizationRequestId: 'wolf-final-third', calculationReceipt: thirdReceipt,
+  });
+  put('sessions/s1/wolfAttackState/current/audit/wolf-finalized-3', {
+    type: 'wolf-attack-finalization', turn: 3, revision: 9, actorUid: 'server',
+    attackId: 'wolf-attack-third', requestId: 'wolf-final-third', receipt: thirdReceipt,
+    rangeReceipts: [],
+  });
+
+  await expect(setWolfAttackWindow.run(request({
+    ...baseData, requestId: 'wolf-fourth-due', expectedRevision: 8,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/only one or two additional Wolf attacks/i),
+  });
+  expect(mock.documents.get('sessions/s1/wolfAttackWindow/current')).toEqual({
+    status: 'resolved', turn: 3, revision: 8,
+  });
+  expect(mock.documents.has('sessions/s1/wolfAttackWindow/current/audit/wolf-fourth-due')).toBe(false);
+});
+
 it('replays an exact request without a second projection or audit write', async () => {
   await setWolfAttackWindow.run(request());
   mock.update.mockClear();

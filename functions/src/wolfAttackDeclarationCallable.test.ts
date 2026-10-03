@@ -159,6 +159,51 @@ function dueWindow(fields: Fields = {}): void {
   put('sessions/s1/wolfAttackWindow/current', { status: 'due', turn: 1, revision: 1, ...fields });
 }
 
+function resolvedPriorAttack(fields: Fields = {}): Fields {
+  const combatRoster = firstTurnCards.map((shipId, index) => ({
+    instanceId: `${index}:${shipId}`,
+    shipId,
+    target: 'aegis',
+    damageTaken: 1,
+    destroyed: shipId === 'wolf-fighter-wing' ? index >= 2 : true,
+  }));
+  const returningInstanceIds = combatRoster
+    .filter((ship) => ship.shipId === 'wolf-fighter-wing' && !ship.destroyed)
+    .map((ship) => ship.instanceId);
+  const targetSnapshot = combatRoster.map(({ instanceId, target }) => ({ instanceId, target }));
+  const rangeReceipts = [
+    { range: 'long-range', targetSnapshot, targetShifts: [] },
+    { range: 'medium-range', targetSnapshot, targetShifts: [] },
+    { range: 'short-range', targetSnapshot, targetShifts: [] },
+  ];
+  const calculationReceipt = {
+    type: 'wolf-combat-calculation', version: 1, requestId: 'wolf-final-wolf-attack-prior',
+    phase: { turn: 1, phase: 'coordination', serverTime: '2026-10-03T20:00:00.000Z',
+      deadlineAt: '2026-10-03T20:10:00.000Z', overrun: false },
+    targeting: { ring: ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124'], rolls: [] },
+    ranges: rangeReceipts,
+    boarding: [], fleetDamage: [], forceField: { status: 'unavailable', preventedDamage: 0 },
+    returningInstanceIds,
+    ...fields.calculationReceipt as object,
+  };
+  const state: Fields = {
+    type: 'wolf-attack-state', status: 'resolved', currentStep: 'resolved',
+    attackId: 'wolf-attack-prior', announcementId: 'wolf-attack-prior', turn: 1,
+    attackNumber: 1, revision: 8, airspaceLocked: false,
+    parkingReleaseCondition: 'normal-movement-reopened', resolvedAt: '2026-10-03T20:00:00.000Z',
+    finalizationRequestId: calculationReceipt.requestId, calculationReceipt,
+    combatRoster, rangeReceipts, ...fields.state as object,
+  };
+  put('sessions/s1/wolfAttackState/current', state);
+  put('sessions/s1/wolfAttackState/current/audit/wolf-finalized-1', {
+    type: 'wolf-attack-finalization', turn: 1, revision: 8, actorUid: 'server',
+    attackId: state.attackId, requestId: calculationReceipt.requestId, receipt: calculationReceipt,
+    rangeReceipts, boardingChoices: {},
+    ...fields.audit as object,
+  });
+  return state;
+}
+
 function navigation(fields: Fields = {}): void {
   put('sessions/s1/serverState/navigation', {
     revision: 0,
@@ -302,6 +347,88 @@ it('atomically locks airspace, snapshots parked craft, records a hidden stage re
   expect([...mock.documents.keys()].filter((path) => path.includes('/events/'))).toEqual([
     'sessions/s1/events/wolf-attack-wolf-declare-1',
   ]);
+});
+
+it('consumes only the finalized prior attack survivors once and preserves its immutable attack audit', async () => {
+  const prior = resolvedPriorAttack();
+  const priorSnapshot = structuredClone(prior);
+  session({ currentTurn: 2, turnPhase: {
+    turn: 2,
+    teamPhaseEndsAt: new Date(Date.now() - 2_000).toISOString(),
+    openAirspaceEndsAt: new Date(Date.now() + 60_000).toISOString(),
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+  } });
+  preparation({
+    turn: 2, revision: 2,
+    shipIds: [...Array<string>(13).fill('wolf-fighter-wing'), 'wolf-assault-transport'],
+    targetAssignments: [], modifiers: [],
+  });
+  dueWindow({ status: 'due', turn: 2, revision: 3 });
+
+  const second = await declareWolfAttack.run(request({
+    ...baseData, requestId: 'wolf-declare-second', expectedRevision: 2,
+  }));
+  expect(second).toMatchObject({ status: 'committed', turn: 2, announcementId: 'wolf-attack-wolf-declare-second' });
+  const state = mock.documents.get('sessions/s1/wolfAttackState/current')!;
+  expect(state).toMatchObject({
+    attackNumber: 2,
+    previousAttackId: 'wolf-attack-prior',
+    carryover: {
+      sourceAttackId: 'wolf-attack-prior', sourceTurn: 1,
+      sourceInstanceIds: ['0:wolf-fighter-wing', '1:wolf-fighter-wing'],
+    },
+  });
+  expect((state.preparation as Fields).shipIds).toHaveLength(16);
+  expect((state.preparation as Fields).shipIds).toEqual([
+    ...Array<string>(13).fill('wolf-fighter-wing'), 'wolf-assault-transport',
+    'wolf-fighter-wing', 'wolf-fighter-wing',
+  ]);
+  expect((state.calculationReceipt as Fields).composition).toMatchObject({ damageCapacity: 17 });
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current/archives/wolf-attack-prior'))
+    .toEqual(priorSnapshot);
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current/audit/wolf-finalized-1'))
+    .toMatchObject({ attackId: 'wolf-attack-prior', requestId: 'wolf-final-wolf-attack-prior' });
+
+  const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
+  await expect(declareWolfAttack.run(request({
+    ...baseData, requestId: 'wolf-declare-second', expectedRevision: 2,
+  }))).resolves.toEqual(second);
+  expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current').carryover)
+    .toMatchObject({ sourceInstanceIds: ['0:wolf-fighter-wing', '1:wolf-fighter-wing'] });
+});
+
+it('rejects unresolved or forged prior carryover instead of reopening the current attack', async () => {
+  const prior = resolvedPriorAttack();
+  session({ currentTurn: 2, turnPhase: {
+    turn: 2,
+    teamPhaseEndsAt: new Date(Date.now() - 2_000).toISOString(),
+    openAirspaceEndsAt: new Date(Date.now() + 60_000).toISOString(),
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+  } });
+  preparation({
+    turn: 2, revision: 2,
+    shipIds: [...Array<string>(13).fill('wolf-fighter-wing'), 'wolf-assault-transport'],
+    targetAssignments: [], modifiers: [],
+  });
+  dueWindow({ status: 'due', turn: 2, revision: 3 });
+  const forged = structuredClone(prior);
+  (forged.calculationReceipt as Fields).returningInstanceIds = ['14:wolf-fighter-wing'];
+  put('sessions/s1/wolfAttackState/current', forged);
+  mock.update.mockClear();
+  mock.set.mockClear();
+
+  await expect(declareWolfAttack.run(request({
+    ...baseData, requestId: 'wolf-forged-carryover', expectedRevision: 2,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/previous Wolf attack is not a verifiable finalized attack/i),
+  });
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toEqual(forged);
+  expect(mock.documents.has('sessions/s1/wolfAttackState/current/archives/wolf-attack-prior')).toBe(false);
+  expect(mock.documents.has('sessions/s1/events/wolf-attack-wolf-forged-carryover')).toBe(false);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it('declares against the five configured active vessels in an ordinary eight-player base roster', async () => {
