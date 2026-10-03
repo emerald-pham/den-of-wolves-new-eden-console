@@ -88,6 +88,26 @@ test('PC08 real-presenter review is isolated and usable in eight viewport and mo
               await page.getByRole('combobox', {name: 'Security Teams committed', exact: true}).selectOption('2');
               await page.getByRole('button', {name: 'Commit defence', exact: true}).click();
               assert.match(await page.getByRole('status', {name: 'Prepared boarding result'}).textContent(), /2 Security Teams/);
+              await page.getByRole('button', {name: 'Commander sample', exact: true}).click();
+              await page.getByRole('button', {name: /Lead at Aegis/}).click();
+              await page.getByRole('button', {name: 'Support sample', exact: true}).click();
+              await page.getByRole('button', {name: 'Move Pallas to Dione', exact: true}).click();
+              await page.getByRole('button', {name: 'Militia sample', exact: true}).click();
+              await page.getByRole('checkbox', {name: 'Roll two dice per Security Team', exact: true}).check();
+              await page.getByRole('combobox', {name: 'Front-line dice', exact: true}).selectOption('2');
+              await page.getByRole('button', {name: 'Commit defence', exact: true}).click();
+              for (const source of ['AEGIS', 'Pallas']) {
+                await page.getByRole('button', {name: `${source} reroll sample`, exact: true}).click();
+                await page.getByRole('checkbox', {name: 'Aegis die 1: 1', exact: true}).check();
+                await page.getByRole('button', {name: 'Reroll selected dice', exact: true}).click();
+                assert.match(await page.getByRole('status', {name: 'Prepared boarding result'}).textContent(), new RegExp(`${source} chose 1`));
+              }
+              await page.getByRole('button', {name: 'Ruling sample', exact: true}).click();
+              assert.ok(await page.getByRole('button', {name: 'Record facilitator ruling', exact: true}).isDisabled());
+              await page.getByRole('textbox', {name: 'Facilitator ruling', exact: true}).fill('Prepared adjudication retained.');
+              await page.getByRole('button', {name: 'Record facilitator ruling', exact: true}).click();
+              assert.match(await page.getByRole('region', {name: 'Facilitator ruling for destroyed Commander-led parties'}).textContent(), /Prepared adjudication retained/);
+              assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), `${width}px full boarding choices: horizontal overflow`);
             } else {
               await page.getByRole('button', {name: 'Offline sample', exact: true}).click();
               assert.match(await page.getByRole('region', {name: 'Wolf attack status'}).textContent(), /Attack complete/);
