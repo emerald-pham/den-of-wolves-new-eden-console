@@ -84,6 +84,8 @@ const {
   createFailedJumpAdjudicationAttempt,
   isFailedJumpOutcomeUncertain,
   listUnresolvedJumpFailures,
+  getWolfBoardingDefenceChoice,
+  commitWolfBoardingDefenceChoice,
 } = await import('./sessionService');
 const { httpsCallable } = await import('firebase/functions');
 const { acceptCallableSessionAuthority, sessionSnapshotAuthorityFor } = await import('./firestore');
@@ -3790,6 +3792,41 @@ it('sends population changes and acknowledgement with the GM instance', async ()
   expect(call).toHaveBeenLastCalledWith(expect.objectContaining({
     sessionId: 's1', shipId: 'capybara', instanceId: 'gm1',
     requestId: expect.any(String), expectedRevision: 0,
+  }));
+});
+
+it('reads the current boarding choice and commits the exact entitled zero-team decision', async () => {
+  useSessionStore.getState().reset();
+  const liveSession = { ...session, phase: 'active' as const };
+  const activePlayer = { ...player, role: 'player' as const, activeConsoleRoleId: 'aegis-command' };
+  useSessionStore.getState().setIdentity(liveSession as never, activePlayer as never);
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+
+  const view = {
+    type: 'wolf-boarding-defence-choice-view', sessionId: 's1', turn: 1, revision: 12,
+    targetShipId: 'aegis', boardingParties: 3, availableSecurityTeams: 2,
+    choiceStatus: 'pending', deadlineAt: '2026-10-03T12:10:00.000Z',
+  };
+  const read = callableReturning({ data: view });
+  vi.mocked(httpsCallable).mockReturnValue(read as never);
+  await expect(getWolfBoardingDefenceChoice()).resolves.toEqual(view);
+  expect(httpsCallable).toHaveBeenLastCalledWith(expect.anything(), 'getWolfBoardingDefenceChoice');
+  expect(read).toHaveBeenCalledWith({ sessionId: 's1' });
+
+  const commit = vi.fn(async (payload: Record<string, unknown>) => ({ data: {
+    status: 'committed', type: 'wolf-boarding-defence-choice', sessionId: 's1',
+    requestId: payload.requestId, turn: 1, revision: 13, targetShipId: 'aegis',
+    securityTeams: 0, currentStep: 'boarding',
+  } }));
+  Object.assign(commit, { stream: vi.fn() });
+  vi.mocked(httpsCallable).mockReturnValue(commit as never);
+  await expect(commitWolfBoardingDefenceChoice(1, 12, 'aegis', 0)).resolves.toMatchObject({
+    status: 'committed', revision: 13, targetShipId: 'aegis', securityTeams: 0,
+  });
+  expect(commit).toHaveBeenCalledWith(expect.objectContaining({
+    sessionId: 's1', requestId: expect.any(String), expectedTurn: 1, expectedRevision: 12,
+    targetShipId: 'aegis', securityTeams: 0,
   }));
 });
 
