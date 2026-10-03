@@ -170,7 +170,7 @@ it('commits an explicit Short subset for a launched wing without drawing its rol
     activeRoleIds: ['executive-officer', 'wing-commander'],
     maintenanceCycles: { ...(session.maintenanceCycles as Fields), aegis: {
       ...(session.maintenanceCycles as Fields).aegis as Fields,
-      charges: ['missile-launchers', 'point-defence-lasers', 'fighter-bay-alpha', 'fighter-bay-bravo'],
+      charges: ['fighter-bay-alpha', 'fighter-bay-bravo'],
     } },
     fighterWingCounts: initialFighterWingCounts(),
   });
@@ -214,6 +214,7 @@ it('commits an explicit Short subset for a launched wing without drawing its rol
   expect(testState.documents.get('sessions/s1/wolfAttackState/current')?.fighterRangeChoices)
     .toMatchObject({ 'short-range': { 'fighter-wing-alpha': { fighterIndexes: [0, 2] } } });
   expect(entropy.randomInt).toHaveBeenCalledTimes(randomCallsBeforeChoice);
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current')?.currentStep).toBe('short-range');
   const revisionAfterChoice = testState.documents.get('sessions/s1/wolfAttackState/current')?.revision;
   await expect(commitWolfFighterRangeActionChoice.run(request({ sessionId: 's1', requestId: 'alpha-short-subset',
     expectedTurn: 1, expectedRevision: view.revision, range: 'short-range', sourceId: 'fighter-wing-alpha',
