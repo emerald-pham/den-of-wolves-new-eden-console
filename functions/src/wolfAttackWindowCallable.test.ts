@@ -181,7 +181,11 @@ it('does not open more than two additional facilitator-selected attacks', async 
     type: 'wolf-combat-calculation', version: 1, requestId: 'wolf-final-third',
     phase: { turn: 3, phase: 'coordination', serverTime: '2026-10-03T20:00:00.000Z',
       deadlineAt: '2026-10-03T20:10:00.000Z', overrun: false },
-    targeting: { ring: ['aegis'], rolls: [] }, ranges: [], boarding: [], fleetDamage: [],
+    targeting: { ring: ['aegis'], rolls: [] }, ranges: [
+      { range: 'long-range', targetSnapshot: [], targetShifts: [] },
+      { range: 'medium-range', targetSnapshot: [], targetShifts: [] },
+      { range: 'short-range', targetSnapshot: [], targetShifts: [] },
+    ], boarding: [], fleetDamage: [],
     forceField: { status: 'unavailable', preventedDamage: 0 }, returningInstanceIds: [],
   };
   put('sessions/s1/wolfAttackState/current', {
@@ -194,7 +198,7 @@ it('does not open more than two additional facilitator-selected attacks', async 
   put('sessions/s1/wolfAttackState/current/audit/wolf-finalized-3', {
     type: 'wolf-attack-finalization', turn: 3, revision: 9, actorUid: 'server',
     attackId: 'wolf-attack-third', requestId: 'wolf-final-third', receipt: thirdReceipt,
-    rangeReceipts: [],
+    rangeReceipts: thirdReceipt.ranges,
   });
 
   await expect(setWolfAttackWindow.run(request({
