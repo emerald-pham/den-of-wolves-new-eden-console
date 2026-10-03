@@ -652,6 +652,33 @@ it('checks current Captain group authority before replaying an unchanged Force F
     .rejects.toMatchObject({ code: 'permission-denied' });
 });
 
+it.each(['targeting', 'long-range', 'resolved'])('replays a committed Captain choice after automatic %s progression without new writes or dice', async (step) => {
+  openForceFieldFixture();
+  const payload = { sessionId: 's1', requestId: `force-retry-${step}`, expectedTurn: 1,
+    expectedRevision: 4, targetShipId: 'aegis' };
+  const committed = await commitWolfForceFieldChoice.run(request(payload, 'gorg-1'));
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  const progressed = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  put('sessions/s1/wolfAttackState/current', { ...progressed, currentStep: step,
+    status: step === 'resolved' ? 'resolved' : 'declared', airspaceLocked: step !== 'resolved' });
+  const savedDocuments = structuredClone([...testState.documents]);
+  const drawCount = entropy.randomInt.mock.calls.length;
+  testState.set.mockClear(); testState.update.mockClear(); testState.remove.mockClear();
+
+  expect(await commitWolfForceFieldChoice.run(request(payload, 'gorg-1'))).toEqual(committed);
+  expect([...testState.documents]).toEqual(savedDocuments);
+  expect(entropy.randomInt).toHaveBeenCalledTimes(drawCount);
+  expect(testState.set).not.toHaveBeenCalled(); expect(testState.update).not.toHaveBeenCalled();
+  expect(testState.remove).not.toHaveBeenCalled();
+
+  await expect(commitWolfForceFieldChoice.run(request({ ...payload, requestId: `new-${step}` }, 'gorg-1')))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  const group = testState.documents.get('sessions/s1/fleetGroups/fleet-1')!;
+  put('sessions/s1/fleetGroups/fleet-1', { ...group, memberShipIds: { 'gorg-1': 'dione' } });
+  await expect(commitWolfForceFieldChoice.run(request(payload, 'gorg-1')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+});
+
 it('rolls targeting once after the committed Captain choice and continues from the server receipt', async () => {
   openForceFieldFixture();
   const payload = { sessionId: 's1', requestId: 'force-field-auto-targeting', expectedTurn: 1,
