@@ -260,6 +260,7 @@ export default function ShuttleControl({ control }: Props) {
   const [status, setStatus] = useState('');
   const [destinationShipId, setDestinationShipId] = useState('');
   const [departure, setDeparture] = useState<ShuttleMovementState | null>(null);
+  const [departureReadRevision, setDepartureReadRevision] = useState(0);
   const [arrivalReadyKey, setArrivalReadyKey] = useState<string | null>(null);
   const [arrivalCompleteKey, setArrivalCompleteKey] = useState<string | null>(null);
   const [arrivalPendingKey, setArrivalPendingKey] = useState<string | null>(null);
@@ -529,7 +530,7 @@ export default function ShuttleControl({ control }: Props) {
     session.id,
     control.shuttleId,
     setDeparture,
-  ), [control.shuttleId, me.fleetGroupId, session.id]);
+  ), [control.shuttleId, departureReadRevision, me.fleetGroupId, session.id]);
   useEffect(() => {
     if (!retargetAttemptRef.current) return;
     retargetAttemptRef.current = null;
@@ -660,6 +661,9 @@ export default function ShuttleControl({ control }: Props) {
         control.revision,
         session.turnPhase.turn,
       );
+      // Rules can deny the listener while this private route does not exist.
+      // The committed request creates it; bind a fresh current-authority read.
+      setDepartureReadRevision(revision => revision + 1);
       setStatus(`Departure requested to ${findShip(destinationShipId)?.name ?? destinationShipId}.`);
     } catch (cause) {
       setStatus(cause instanceof Error ? cause.message : 'Shuttle departure request failed.');
