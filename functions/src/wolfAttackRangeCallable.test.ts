@@ -63,6 +63,8 @@ vi.mock('firebase-functions/v2/scheduler', () => ({ onSchedule: (_schedule: stri
 
 import {
   assignWolfRangeTargets,
+  getAegisFighterWingLaunch,
+  launchAegisFighterWing,
   commitWolfRangeActionChoice,
   advanceWolfAttackLifecycle,
   getWolfRangeActionChoice,
@@ -71,6 +73,7 @@ import {
   getWolfForceFieldChoice,
   commitWolfForceFieldChoice,
 } from './index';
+import { initialFighterWingCounts } from './fighterWings';
 
 const targeting = resolveWolfTargeting(firstTurnWolfAttackComposition(), {}, undefined, () => 0);
 
@@ -119,6 +122,41 @@ function resetFixture(): void {
 }
 
 beforeEach(resetFixture);
+
+it('lets the current Wing Commander launch each charged, operational AEGIS bay independently', async () => {
+  const session = testState.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session, activeRoleIds: ['executive-officer', 'wing-commander'],
+    maintenanceCycles: { aegis: { ...(session.maintenanceCycles as Fields).aegis as Fields,
+      charges: ['missile-launchers', 'point-defence-lasers', 'fighter-bay-alpha', 'fighter-bay-bravo'] } },
+    fighterWingCounts: initialFighterWingCounts() });
+  const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  put('sessions/s1/wolfAttackState/current', { ...attack, currentStep: 'targeting' });
+  put('sessions/s1/players/wc-1', { uid: 'wc-1', role: 'player', connected: true,
+    assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander', fleetGroupId: 'fleet-1' });
+  const view = await getAegisFighterWingLaunch.run(request({ sessionId: 's1', wingId: 'fighter-wing-alpha' }, 'wc-1'));
+  expect(view).toMatchObject({ type: 'aegis-fighter-wing-launch-view', wingId: 'fighter-wing-alpha',
+    fighters: 4, launched: false, eligible: true });
+  await expect(getAegisFighterWingLaunch.run(request({ sessionId: 's1', wingId: 'fighter-wing-alpha' }, 'xo-1')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+
+  const launched = await launchAegisFighterWing.run(request({ sessionId: 's1', requestId: 'launch-alpha-1',
+    expectedTurn: 1, expectedRevision: view.revision, expectedWingRevision: view.wingRevision,
+    wingId: 'fighter-wing-alpha' }, 'wc-1'));
+  expect(launched).toMatchObject({ status: 'committed', wingId: 'fighter-wing-alpha', launched: true });
+  const state = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  expect(state.aegisFighterWingState).toMatchObject({
+    attackId: 'wolf-attack-test-1', cycle: 1,
+    wings: {
+      'fighter-wing-alpha': { fighters: 4, launched: true },
+      'fighter-wing-bravo': { fighters: 4, launched: false },
+    },
+  });
+  const replay = await launchAegisFighterWing.run(request({ sessionId: 's1', requestId: 'launch-alpha-1',
+    expectedTurn: 1, expectedRevision: view.revision, expectedWingRevision: view.wingRevision,
+    wingId: 'fighter-wing-alpha' }, 'wc-1'));
+  expect(replay).toMatchObject({ status: 'replayed', launched: true });
+  expect(state.revision).toBe(5);
+});
 
 it('returns only current source-derived actions and opaque target contacts to the entitled Executive Officer', async () => {
   const view = await getWolfRangeActionChoice.run(request({ sessionId: 's1' }));
