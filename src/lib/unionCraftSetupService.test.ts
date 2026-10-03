@@ -13,7 +13,7 @@ beforeEach(() => {
     activeRoleIds: ['joint-engineering-quellon-refinery'], activeVesselIds: ['quellon', 'refinery-124'],
     shuttleDockings: [],
   }, { uid: 'gm', sessionId: 's1', displayName: 'GM', role: 'gm', seatId: null, joinedAt: '' });
-  useSessionStore.getState().setGmInstance({ id: 'bridge', sessionId: 's1', uid: 'gm', label: 'Bridge', joinedAt: '', lastSeenAt: '' });
+  useSessionStore.getState().setGmInstance({ id: 'bridge', sessionId: 's1', uid: 'gm', name: 'Bridge', deviceLabel: 'Test browser', claimedAt: '' });
   useSessionStore.getState().setConnection('live'); useSessionStore.getState().setSessionSnapshotFreshness('server');
   mocks.call.mockImplementation(async (payload: Record<string, unknown>) => ({ data: {
     status: 'committed', sessionId: payload.sessionId, requestId: payload.requestId, craftId: payload.craftId,
