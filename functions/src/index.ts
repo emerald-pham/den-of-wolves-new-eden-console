@@ -3565,9 +3565,10 @@ function publicShuttleVisitLog(
   value: unknown,
   dockings: readonly PublicShuttleDocking[],
   activeVesselIds: readonly string[],
+  knownShuttleIds: readonly string[] = [],
 ): readonly PublicShuttleVisit[] {
   if (!Array.isArray(value)) return initialShuttleVisitsForDockings(dockings);
-  const visibleShuttles = new Set(dockings.map((docking) => docking.shuttleId));
+  const visibleShuttles = new Set([...dockings.map((docking) => docking.shuttleId), ...knownShuttleIds]);
   const activeVessels = new Set(activeVesselIds);
   return value.flatMap((entry) => {
     if (!isRecord(entry) || typeof entry.id !== 'string' || typeof entry.shuttleId !== 'string' ||
@@ -15850,6 +15851,9 @@ function publicMemberSessionSource(sessionSnap: DocumentSnapshot, sessionId: str
   );
   const shuttleVisitLog = publicShuttleVisitLog(
     sessionSnap.get('shuttleVisitLog'), shuttleDockings, activeVesselIds,
+    // Parse known craft even during flight; the transactional member filter
+    // applies current craft and host entitlement after this sanitization.
+    [...AUTHORIZED_SHUTTLE_IDS],
   );
   const fighterWingCounts = publicFighterWingCounts(sessionSnap.get('fighterWingCounts'));
   const voyageAdmission = publicVoyage33Admission(sessionSnap.get('voyage33Admission'), sessionId);
