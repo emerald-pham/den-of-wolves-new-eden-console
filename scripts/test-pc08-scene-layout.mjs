@@ -91,6 +91,9 @@ test('PC08 real-presenter review is isolated and usable in eight viewport and mo
               await page.getByRole('button', {name: 'Resolve Medium actions', exact: true}).click();
               assert.match(await page.getByRole('status', {name: 'Prepared fighter result'}).textContent(), /Alpha choice committed/);
               await page.getByRole('button', {name: 'Bravo sample', exact: true}).click();
+              await page.getByRole('button', {name: 'Short Range sample', exact: true}).click();
+              assert.ok(await page.getByRole('button', {name: 'Show Short Range loss sample', exact: true}).isDisabled());
+              await page.getByRole('button', {name: 'Launch Fighter Wing Bravo', exact: true}).click();
               await page.getByRole('button', {name: 'Show Short Range loss sample', exact: true}).click();
               assert.match(await page.getByRole('status', {name: 'Prepared fighter result'}).textContent(), /Other wings retain/);
             } else if (index === 3) {
