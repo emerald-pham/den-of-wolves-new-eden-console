@@ -1144,9 +1144,11 @@ describe('session header', () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       await updateDoc(doc(ctx.firestore(), SESSION), { voyage33Movement: deleteField() });
     });
-    const migratedHeader = await assertSucceeds(getDoc(doc(as('alice'), SESSION)));
-    expect(migratedHeader.data()).not.toHaveProperty('voyage33Movement');
-    expect((await assertSucceeds(getDoc(doc(as('crossFleet'), SESSION)))).data())
+    // Ordinary players now use the authenticated, transaction-filtered reader.
+    // Removing one legacy private field must never restore a raw root read.
+    await assertFails(getDoc(doc(as('alice'), SESSION)));
+    await assertFails(getDoc(doc(as('crossFleet'), SESSION)));
+    expect((await assertSucceeds(getDoc(doc(as('gm1'), SESSION)))).data())
       .not.toHaveProperty('voyage33Movement');
   });
 
@@ -1171,11 +1173,11 @@ describe('session header', () => {
       });
     });
 
-    const snapshot = await assertSucceeds(getDoc(doc(as('alice'), SESSION)));
-    const data = snapshot.data()!;
-    for (const field of ['shuttleDockings', 'shuttleControl', 'shuttleCargo', 'shuttleVisitLog', 'missionCraftCommitments']) {
-      expect(data).not.toHaveProperty(field);
-    }
+    await assertFails(getDoc(doc(as('alice'), SESSION)));
+    await assertFails(getDoc(doc(as('bob'), SESSION)));
+    await assertFails(getDoc(doc(as('press'), SESSION)));
+    expect((await assertSucceeds(getDoc(doc(as('gm1'), SESSION)))).data())
+      .toHaveProperty('missionCraftCommitments.starlight.missionId', 'foreign-mission');
   });
 
   it('keeps fleet-group membership and vessel tuples server-only', async () => {
@@ -1357,8 +1359,10 @@ describe('session header', () => {
     await assertFails(setDoc(gmDraw, { card: 'A♠' }));
   });
 
-  it('is readable by a session member', async () => {
-    await assertSucceeds(getDoc(doc(as('alice'), SESSION)));
+  it('keeps raw roots GM-only while ordinary members use the current filtered callable', async () => {
+    await assertFails(getDoc(doc(as('alice'), SESSION)));
+    await assertFails(getDoc(doc(as('press'), SESSION)));
+    await assertSucceeds(getDoc(doc(as('gm1'), SESSION)));
   });
 
   it('is unreadable by a signed-in stranger', async () => {
