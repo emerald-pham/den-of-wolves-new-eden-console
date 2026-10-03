@@ -275,6 +275,51 @@ it('resolves an explicit whole-wing Medium pass without dice and advances the ra
   expect(entropy.randomInt).not.toHaveBeenCalled();
 });
 
+it('rolls committed fighter Medium attacks against the chosen Wolf contact and records the receipt', async () => {
+  const session = testState.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session, activeRoleIds: ['wing-commander'],
+    maintenanceCycles: { ...(session.maintenanceCycles as Fields), aegis: {
+      ...(session.maintenanceCycles as Fields).aegis as Fields, charges: ['fighter-bay-alpha'],
+    } }, fighterWingCounts: initialFighterWingCounts() });
+  const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  put('sessions/s1/wolfAttackState/current', { ...attack, currentStep: 'targeting' });
+  put('sessions/s1/players/wc-1', { uid: 'wc-1', role: 'player', connected: true,
+    assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander', fleetGroupId: 'fleet-1' });
+  put('sessions/s1/fleetGroups/fleet-1', { id: 'fleet-1',
+    vesselIds: ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124'],
+    memberUids: ['xo-1', 'wc-1'], memberShipIds: { 'xo-1': 'aegis', 'wc-1': 'aegis' } });
+  const launchView = await getAegisFighterWingLaunch.run(request({ sessionId: 's1', wingId: 'fighter-wing-alpha' }, 'wc-1'));
+  await launchAegisFighterWing.run(request({ sessionId: 's1', requestId: 'medium-attack-launch',
+    expectedTurn: 1, expectedRevision: launchView.revision, expectedWingRevision: launchView.wingRevision,
+    wingId: 'fighter-wing-alpha' }, 'wc-1'));
+
+  const launchedAttack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  const targetSnapshot = (launchedAttack.combatRoster as Array<{ instanceId: string; target: string }>)
+    .map(({ instanceId, target }) => ({ instanceId, target }));
+  const emptyLongReceipt = { range: 'long-range', targetSnapshot, dice: [], assignments: [], targetShifts: [],
+    unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
+    destructionDamageByTarget: Object.fromEntries(CORE_WOLF_TARGET_RING.map((target) => [target, 0])) };
+  put('sessions/s1/wolfAttackState/current', { ...launchedAttack, currentStep: 'medium-range',
+    rangeReceipts: [emptyLongReceipt] });
+  const view = await getWolfFighterRangeActionChoice.run(request({ sessionId: 's1', range: 'medium-range',
+    sourceId: 'fighter-wing-alpha' }, 'wc-1'));
+  entropy.randomInt.mockClear().mockReturnValue(5);
+  await commitWolfFighterRangeActionChoice.run(request({ sessionId: 's1', requestId: 'medium-attack-choice',
+    expectedTurn: 1, expectedRevision: view.revision, range: 'medium-range', sourceId: 'fighter-wing-alpha',
+    actions: [{ fighterIndex: 0, kind: 'attack', targetContactId: view.targets[0]!.instanceId }] }, 'wc-1'));
+
+  const resolved = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  expect(resolved.currentStep).toBe('short-range');
+  expect((resolved.combatRoster as Array<Fields>)[0]).toMatchObject({ damageTaken: 1, destroyed: false });
+  expect((resolved.rangeReceipts as Array<Fields>).at(-1)).toMatchObject({
+    range: 'medium-range',
+    dice: [{ actionId: 'aegis-alpha-wing-medium-0', sourceId: 'aegis-alpha-wing', rolls: [6], successes: 1, damage: 1 }],
+    assignments: [{ actionId: 'aegis-alpha-wing-medium-0', targetInstanceIds: [(resolved.combatRoster as Array<Fields>)[0]!.instanceId] }],
+    damageByInstance: { [(resolved.combatRoster as Array<Fields>)[0]!.instanceId]: 1 },
+  });
+  expect(entropy.randomInt).toHaveBeenCalledTimes(1);
+});
+
 it('keeps a launched wing pending at Medium Range while its assigned commander is disconnected', async () => {
   const session = testState.documents.get('sessions/s1')!;
   put('sessions/s1', { ...session, activeRoleIds: ['wing-commander'],
