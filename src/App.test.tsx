@@ -1050,7 +1050,7 @@ describe('App', () => {
       memberSessionScope: { groupId: 'fleet-1', vesselIds: ['aegis'], craftIds: ['starlight'] },
       shipResources: { aegis: { ore: 0, fuel: 9, food: 4, water: 3, materials: 2, securityTeams: 4 } },
       shuttleDockings: [{ shuttleId: 'starlight', shipId: 'aegis', dockedAt: 'now' }],
-      shuttleCargo: { starlight: { shuttleId: 'starlight', ore: 0, fuel: 2, food: 0, water: 0, materials: 0, securityTeams: 0, revision: 1 } } as unknown as GameSession['shuttleCargo'],
+      shuttleCargo: { starlight: { ore: 0, fuel: 2, food: 0, water: 0, materials: 0, securityTeams: 0 } },
     }, member);
     const { unmount } = render(<App />);
     await waitFor(() => expect(handlers).toBeDefined());
