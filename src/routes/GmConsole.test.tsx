@@ -4337,3 +4337,34 @@ it('normal preparation reserves source-owned targeting choices for the entitled 
   expect(preparation).toHaveTextContent('Source-owned targeting choices remain with the Wolf Commander, Executive Officer and Gorgoneion Captain.');
   expect(preparation).toHaveTextContent('The server advances legal stages after committed player choices.');
 });
+
+it('connects current server attack decisions to the GM and withdraws them when the snapshot goes offline', async () => {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected the GM session.');
+  useSessionStore.getState().setSession({ ...session, phase: 'active', currentTurn: 1 });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  useSessionStore.getState().setGmInstance(local); streamInstances([local]);
+  vi.mocked(subscribeSessionPlayers).mockImplementation((_sessionId, onPlayers) => {
+    onPlayers([{ uid: 'pending-commander-uid', displayName: 'Rowan', role: 'player', sessionId: 's1' }] as never);
+    return vi.fn();
+  });
+  vi.mocked(subscribeGmWolfAttackState).mockImplementation((_sessionId, onState) => {
+    onState({ status: 'declared', turn: 1, revision: 4, preparationRevision: 2,
+      currentStep: 'targeting', deadlineAt: '2026-10-03T09:00:00.000Z', airspaceLocked: true,
+      parkedCraftIds: [], launchedCraftIds: [], decisionSummary: {
+        commander: { status: 'pending', actors: [{ uid: 'pending-commander-uid', connected: false }] },
+        commandAndControl: { status: 'waiting-for-commander', actors: [] },
+        forceField: { status: 'unavailable', reason: 'no-current-captain' },
+      } } as never);
+    return vi.fn();
+  });
+  renderConsole();
+  const decisions = await screen.findByRole('region', { name: 'Current attack choices' });
+  expect(decisions).toHaveTextContent('Rowan // Reconnect pending');
+  expect(decisions).toHaveTextContent('No current Gorgoneion Captain');
+  expect(decisions).not.toHaveTextContent('pending-commander-uid');
+  act(() => useSessionStore.getState().setConnection('offline'));
+  expect(decisions).not.toHaveTextContent('Rowan');
+  expect(decisions).toHaveTextContent('Reconnect for current attack choices.');
+});
