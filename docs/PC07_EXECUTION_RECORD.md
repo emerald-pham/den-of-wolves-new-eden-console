@@ -75,6 +75,10 @@ future work uses local/emulator gameplay, replacing the PC07-only limit. All
 authenticated local/native/HTTP/UI/rules proof remains meaningful; review, CI,
 deployment, behavior targets and historical labels remain. No production-GM
 closure dependency exists.
+The owner also aligned outstanding-proof wording in 160 current future-row
+descriptions, including P541's explicit production-path prerequisite and P436's
+old live-game condition. P618's actual historical production observations keep
+their labels; its outstanding in-game coverage explicitly accepts local clients.
 
 ## Owner implementation evidence so far
 
