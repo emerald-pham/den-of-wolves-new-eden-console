@@ -4459,8 +4459,16 @@ function wolfAttackStageAdvanceReply(value: unknown): WolfAttackStageAdvanceResu
   const reply = value as Record<string, unknown>;
   const allowed = new Set([
     'status', 'type', 'sessionId', 'requestId', 'turn', 'revision',
-    'previousStep', 'currentStep', 'deadlineAt',
+    'previousStep', 'currentStep', 'deadlineAt', 'reason', 'dangerConfirmed', 'delta', 'rollback',
   ]);
+  const record = (candidate: unknown): Record<string, unknown> | null =>
+    typeof candidate === 'object' && candidate !== null && !Array.isArray(candidate)
+      ? candidate as Record<string, unknown> : null;
+  const delta = record(reply.delta);
+  const from = record(delta?.from);
+  const to = record(delta?.to);
+  const rollback = record(reply.rollback);
+  const scopedKeys = ['revision', 'currentStep', 'deadlineAt'];
   if (
     Object.keys(reply).some((key) => !allowed.has(key)) ||
     reply.status !== 'committed' || reply.type !== 'wolf-attack-stage-advance' ||
@@ -4469,13 +4477,29 @@ function wolfAttackStageAdvanceReply(value: unknown): WolfAttackStageAdvanceResu
     !Number.isSafeInteger(reply.turn) || (reply.turn as number) < 1 ||
     !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 2 ||
     reply.previousStep !== 'targeting' || reply.currentStep !== 'long-range' ||
-    typeof reply.deadlineAt !== 'string' || !Number.isFinite(Date.parse(reply.deadlineAt))
+    typeof reply.deadlineAt !== 'string' || !Number.isFinite(Date.parse(reply.deadlineAt)) ||
+    typeof reply.reason !== 'string' || reply.reason.trim() !== reply.reason ||
+    reply.reason.length < 8 || reply.reason.length > 400 || reply.dangerConfirmed !== true ||
+    !delta || Object.keys(delta).some((key) => key !== 'from' && key !== 'to') ||
+    !from || !to || Object.keys(from).some((key) => !scopedKeys.includes(key)) ||
+    Object.keys(to).some((key) => !scopedKeys.includes(key)) ||
+    !Number.isSafeInteger(from.revision) || (from.revision as number) < 1 ||
+    to.revision !== reply.revision || to.revision !== (from.revision as number) + 1 ||
+    from.currentStep !== 'targeting' || to.currentStep !== 'long-range' ||
+    typeof from.deadlineAt !== 'string' || !Number.isFinite(Date.parse(from.deadlineAt)) ||
+    to.deadlineAt !== reply.deadlineAt ||
+    !rollback || Object.keys(rollback).some((key) => key !== 'allowed') || rollback.allowed !== false
   ) return null;
   return {
     status: 'committed', type: 'wolf-attack-stage-advance',
     sessionId: reply.sessionId, requestId: reply.requestId,
     turn: reply.turn as number, revision: reply.revision as number,
     previousStep: 'targeting', currentStep: 'long-range', deadlineAt: reply.deadlineAt,
+    reason: reply.reason, dangerConfirmed: true,
+    delta: {
+      from: { revision: from.revision as number, currentStep: 'targeting', deadlineAt: from.deadlineAt },
+      to: { revision: reply.revision as number, currentStep: 'long-range', deadlineAt: reply.deadlineAt },
+    }, rollback: { allowed: false },
   };
 }
 
@@ -4592,6 +4616,13 @@ export interface WolfAttackStageAdvanceResult {
   readonly previousStep: 'targeting';
   readonly currentStep: 'long-range';
   readonly deadlineAt: string;
+  readonly reason: string;
+  readonly dangerConfirmed: true;
+  readonly delta: Readonly<{
+    from: Readonly<{ revision: number; currentStep: 'targeting'; deadlineAt: string }>;
+    to: Readonly<{ revision: number; currentStep: 'long-range'; deadlineAt: string }>;
+  }>;
+  readonly rollback: Readonly<{ allowed: false }>;
 }
 
 function wolfCommanderTargetingView(value: unknown): WolfCommanderTargetingView | null {
@@ -5005,7 +5036,14 @@ export async function declareWolfAttack(expectedRevision: number): Promise<WolfA
 export async function advanceWolfAttackToLongRange(
   expectedTurn: number,
   expectedRevision: number,
+  reason: string,
+  dangerConfirmed: true,
 ): Promise<WolfAttackStageAdvanceResult> {
+  const cleanReason = typeof reason === 'string' ? reason.trim() : '';
+  if (cleanReason.length < 8 || cleanReason.length > 400) {
+    throw new Error('Enter an attack recovery reason between 8 and 400 characters.');
+  }
+  if (dangerConfirmed !== true) throw new Error('Confirm the attack recovery before submitting it.');
   const store = useSessionStore.getState();
   if (!store.session || !store.gmInstance) {
     throw new Error('Claim GM before advancing the Wolf attack.');
@@ -5020,12 +5058,15 @@ export async function advanceWolfAttackToLongRange(
     requestId: commandId(),
     expectedTurn,
     expectedRevision,
+    reason: cleanReason,
+    dangerConfirmed,
   };
   const call = httpsCallable<typeof payload, unknown>(functions(), 'advanceWolfAttackToLongRange');
   try {
     const reply = wolfAttackStageAdvanceReply((await call(payload)).data);
     if (!reply || reply.sessionId !== sessionId || reply.requestId !== payload.requestId ||
-        reply.turn !== expectedTurn || reply.revision !== expectedRevision + 1) {
+        reply.turn !== expectedTurn || reply.revision !== expectedRevision + 1 ||
+        reply.delta.from.revision !== expectedRevision || reply.reason !== cleanReason) {
       throw new Error('The server returned an invalid Wolf attack stage receipt.');
     }
     if (!authorityCheckpointIsCurrent(checkpoint)) return reply;

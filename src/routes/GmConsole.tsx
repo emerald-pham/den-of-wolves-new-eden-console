@@ -479,6 +479,8 @@ export default function GmConsole() {
   const [wolfAttackState, setWolfAttackState] = useState<WolfAttackDeclarationState | null>(null);
   const [wolfStageAdvanceMutation, setWolfStageAdvanceMutation] = useState(false);
   const [wolfStageAdvanceMessage, setWolfStageAdvanceMessage] = useState<string | null>(null);
+  const [wolfRecoveryReason, setWolfRecoveryReason] = useState('');
+  const [wolfRecoveryConfirmed, setWolfRecoveryConfirmed] = useState(false);
   const [wolfAssignment, setWolfAssignment] = useState<WolfAssignment | null>(null);
   const [wolfActionReceipt, setWolfActionReceipt] = useState<WolfActionReceipt | null>(null);
   const [wolfSuspicionHistory, setWolfSuspicionHistory] = useState<readonly WolfSuspicionHistoryEntry[]>([]);
@@ -755,6 +757,11 @@ export default function GmConsole() {
     : wolfDeclarationMessage
       ? `message:${wolfDeclarationMessage}`
       : null;
+  useEffect(() => {
+    setWolfRecoveryReason('');
+    setWolfRecoveryConfirmed(false);
+  }, [session?.id, local?.id, wolfAttackState?.turn, wolfAttackState?.revision,
+    connection, sessionSnapshotFreshness]);
   const rosterConfigurationValid = isValidRoleConfiguration(draftRoleIds);
   const rosterQueued = setupQueued;
   const conditionalUnionRoles = JOINT_ENGINEERING_ROLE_IDS.flatMap((roleId) => {
@@ -2423,7 +2430,9 @@ export default function GmConsole() {
 
   async function closeWolfTargeting(): Promise<void> {
     const state = wolfAttackState;
-    if (!state || !local || !session || !me || !wolfStageAdvanceAvailable || wolfStageAdvanceMutation) return;
+    const reason = wolfRecoveryReason.trim();
+    if (!state || !local || !session || !me || !wolfStageAdvanceAvailable || wolfStageAdvanceMutation ||
+        reason.length < 8 || reason.length > 400 || !wolfRecoveryConfirmed) return;
     const requestSessionId = session.id;
     const requestInstanceId = local.id;
     const requestUid = me.uid;
@@ -2431,12 +2440,13 @@ export default function GmConsole() {
       const current = useSessionStore.getState();
       return current.session?.id === requestSessionId && current.me?.uid === requestUid &&
         current.me.role === 'gm' && current.gmInstance?.id === requestInstanceId &&
-        current.gmInstance.sessionId === requestSessionId && current.gmInstance.uid === requestUid;
+        current.gmInstance.sessionId === requestSessionId && current.gmInstance.uid === requestUid &&
+        current.connection === 'live' && current.sessionSnapshotFreshness === 'server';
     };
     setWolfStageAdvanceMutation(true);
     setWolfStageAdvanceMessage(null);
     try {
-      const result = await advanceWolfAttackToLongRangeCommand(state.turn, state.revision);
+      const result = await advanceWolfAttackToLongRangeCommand(state.turn, state.revision, reason, true);
       if (!stillAuthorized()) return;
       setWolfStageAdvanceMessage(`Targeting closed // Long Range // deadline ${result.deadlineAt}`);
     } catch {
@@ -3029,10 +3039,39 @@ export default function GmConsole() {
                     Use only to retry legal server progress. Pending player choices, shared holds
                     and current deadlines still govern this command.
                   </p>
+                  <label className="gm-wolf-preparation__field gm-wolf-preparation__notes">
+                    <span>Attack recovery reason // 8–400 characters</span>
+                    <textarea
+                      aria-label="Attack recovery reason"
+                      rows={2}
+                      minLength={8}
+                      maxLength={400}
+                      value={wolfRecoveryReason}
+                      disabled={!wolfStageAdvanceAvailable || wolfStageAdvanceMutation}
+                      onChange={(event) => {
+                        setWolfRecoveryReason(event.target.value);
+                        setWolfRecoveryConfirmed(false);
+                      }}
+                    />
+                  </label>
+                  <label className="gm-wolf-preparation__modifier">
+                    <input
+                      type="checkbox"
+                      checked={wolfRecoveryConfirmed}
+                      disabled={!wolfStageAdvanceAvailable || wolfStageAdvanceMutation}
+                      onChange={(event) => setWolfRecoveryConfirmed(event.target.checked)}
+                    />
+                    <span>I confirm advancing the resolved targeting stage into Long Range.</span>
+                  </label>
+                  <p className="gm-console__hint">
+                    The private audit records this reason and the before/after revision, stage and deadline.
+                    Committed rolls and player choices cannot be rolled back.
+                  </p>
                   <button
                     className="cic-action-button"
                     type="button"
-                    disabled={!wolfStageAdvanceAvailable || wolfStageAdvanceMutation}
+                    disabled={!wolfStageAdvanceAvailable || wolfStageAdvanceMutation ||
+                      wolfRecoveryReason.trim().length < 8 || !wolfRecoveryConfirmed}
                     onClick={() => void closeWolfTargeting()}
                   >
                     {wolfStageAdvanceMutation
