@@ -1159,26 +1159,33 @@ export function finalizeWolfAttack(input: WolfAttackFinalizationInput): WolfCalc
   }
   const rangeDestructionDamage = damageRecord();
   const actionIds = new Set<string>();
+  let snapshotBackedRangeSeen = false;
   for (const range of input.ranges) {
-    if (!Array.isArray(range.dice) || !Array.isArray(range.targetSnapshot) ||
-        !Array.isArray(range.targetShifts) || !Array.isArray(range.assignments) ||
+    const legacyRange = range.targetSnapshot === undefined && (range.targetShifts === undefined ||
+      Array.isArray(range.targetShifts) && range.targetShifts.length === 0);
+    const snapshotBackedRange = Array.isArray(range.targetSnapshot) && Array.isArray(range.targetShifts);
+    if ((!legacyRange && !snapshotBackedRange) || legacyRange && snapshotBackedRangeSeen ||
+        !Array.isArray(range.dice) || !Array.isArray(range.assignments) ||
         !Array.isArray(range.unusedHitsByAction) ||
         !assertRecord(range.damageByInstance) || !Array.isArray(range.destroyedInstanceIds) ||
         !assertRecord(range.destructionDamageByTarget)) {
       throw new Error('Committed Wolf range receipts are malformed or out of order.');
     }
-    const expectedSnapshot = replayRoster.map(({ instanceId, target }) => ({ instanceId, target }));
-    if (JSON.stringify(range.targetSnapshot) !== JSON.stringify(expectedSnapshot)) {
-      throw new Error(`The ${range.range} target snapshot does not match the preceding committed range.`);
+    if (snapshotBackedRange) {
+      snapshotBackedRangeSeen = true;
+      const expectedSnapshot = replayRoster.map(({ instanceId, target }) => ({ instanceId, target }));
+      if (JSON.stringify(range.targetSnapshot) !== JSON.stringify(expectedSnapshot)) {
+        throw new Error(`The ${range.range} target snapshot does not match the preceding committed range.`);
+      }
+      if (range.range !== 'medium-range' && range.targetShifts.length > 0) {
+        throw new Error('Wolf target shifts are only valid during Medium Range.');
+      }
+      const effectiveTargets = replayWolfRangeTargetSnapshot(range.targetSnapshot, range.targetShifts, targetRing);
+      if (range.targetShifts.some((shift: WolfRangeTargetShift) => replayRoster[shift.rosterIndex]?.destroyed)) {
+        throw new Error('A destroyed Wolf ship cannot have its target shifted.');
+      }
+      replayRoster = replayRoster.map((ship, index) => ({ ...ship, target: effectiveTargets[index]!.target }));
     }
-    if (range.range !== 'medium-range' && range.targetShifts.length > 0) {
-      throw new Error('Wolf target shifts are only valid during Medium Range.');
-    }
-    const effectiveTargets = replayWolfRangeTargetSnapshot(range.targetSnapshot, range.targetShifts, targetRing);
-    if (range.targetShifts.some((shift: WolfRangeTargetShift) => replayRoster[shift.rosterIndex]?.destroyed)) {
-      throw new Error('A destroyed Wolf ship cannot have its target shifted.');
-    }
-    replayRoster = replayRoster.map((ship, index) => ({ ...ship, target: effectiveTargets[index]!.target }));
 
     const rangeActionIds = new Set<string>();
     const successesByAction = new Map<string, number>();
