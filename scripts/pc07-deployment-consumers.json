@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "baseline": "5e3d09d56a50aa712406a6f3cb6b64a81e70418e",
+  "auditBoundary": "Owner exact-source consumer inventory; independent final security review still required.",
+  "modules": {
+    "functions/src/turnInterstitial.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "20c18b3866c3fa4af97665e37e1773fb4cb3f012e62d0be91a86eb1a6cc9d9d1",
+      "consumers": [
+        "advanceTurn",
+        "clearTurnAdvanceInterstitial",
+        "startGame",
+        "startSinglePlayerDemo"
+      ]
+    },
+    "functions/src/turnInterstitialCallable.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "28b1a0bddf50a62b0967a21bf8ad067614ba6ccbd53aceedf84a76253609959a",
+      "consumers": [
+        "clearTurnAdvanceInterstitial"
+      ]
+    }
+  }
+}

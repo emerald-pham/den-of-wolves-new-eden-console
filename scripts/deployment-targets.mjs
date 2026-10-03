@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import pc06DeploymentConsumers from './pc06-deployment-consumers.json' with { type: 'json' };
+import pc07DeploymentConsumers from './pc07-deployment-consumers.json' with { type: 'json' };
 import {
   classifyRiskGates,
   formatRiskGateOutputs,
@@ -20,6 +21,7 @@ const WEB_FILES = new Set([
   'pc03-review.html',
   'pc04-review.html',
   'pc06-review.html',
+  'pc07-review.html',
   'package.json',
   'package-lock.json',
 ]);
@@ -96,6 +98,19 @@ const MALIADE_REPAIR_REQUEST_ADDITIONS = Object.freeze([
 // Exact PC06 source transitions include factory wiring and transitive helpers.
 // This owner inventory selects deployment targets; it does not grant review approval.
 const PC06_DEPLOYMENT_CONSUMERS = pc06DeploymentConsumers;
+
+// Factory adapters and shared helpers are covered by exact source transitions.
+// A matching baseline with any unaudited edit is rejected, including comments.
+function pc07TransitionConsumers(file, previous, current) {
+  const transition = file === 'functions/src/index.ts'
+    ? pc07DeploymentConsumers.index : pc07DeploymentConsumers.modules[file];
+  const digest = source => createHash('sha256').update(source).digest('hex');
+  if (!transition || transition.before !== digest(previous)) return null;
+  if (transition.after !== digest(current)) {
+    throw new Error(`Cannot safely map PC07 ${file} outside its exact source consumer audit.`);
+  }
+  return [...transition.consumers];
+}
 
 function pc06TransitionConsumers(file, previous, current) {
   const digest = source => createHash('sha256').update(source).digest('hex');
@@ -663,6 +678,8 @@ function changedIndexCallables(before, after, cwd, sourceAtRevision = null) {
     }
     return [...new Set([...changed, ...PC05_INDEX_HELPER_TRANSITION.consumers])];
   }
+  const pc07Consumers = pc07TransitionConsumers('functions/src/index.ts', previousSource, currentSource);
+  if (pc07Consumers) return pc07Consumers;
   const pc06Consumers = pc06TransitionConsumers('functions/src/index.ts', previousSource, currentSource);
   if (pc06Consumers) return [...new Set([...changed, ...pc06Consumers])];
   return changed;
@@ -1352,6 +1369,24 @@ function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }
     file.startsWith('functions/src/') && !isTestFile(file) && /\.(?:ts|js|mjs|cjs)$/.test(file));
   const selected = new Set();
   for (const file of runtimeFiles) {
+    if (file !== 'functions/src/index.ts' && pc07DeploymentConsumers.modules[file]) {
+      const readAt = revision => {
+        if (sourceAtRevision) return sourceAtRevision(revision, file);
+        try {
+          return execFileSync('git', ['show', `${revision}:${file}`], {
+            cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 16 * 1024 * 1024,
+          });
+        } catch {
+          if (revision === before) return '';
+          throw new Error(`Cannot safely determine PC07 module source ${file}.`);
+        }
+      };
+      const consumers = pc07TransitionConsumers(file, readAt(before), readAt(after));
+      if (consumers) {
+        for (const name of consumers) selected.add(name);
+        continue;
+      }
+    }
     if (file !== 'functions/src/index.ts' && PC06_DEPLOYMENT_CONSUMERS.modules[file]) {
       const readAt = revision => {
         if (sourceAtRevision) return sourceAtRevision(revision, file);
