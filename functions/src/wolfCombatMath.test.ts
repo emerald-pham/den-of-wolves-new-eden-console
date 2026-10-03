@@ -561,7 +561,7 @@ describe('central Wolf combat math', () => {
     const resolved = finalizeWolfAttack({
       requestId: 'attack-legacy-final', targeting, roster, ranges: legacyRanges,
       boardingDefence: [{ target: 'aegis', securityTeams: 0 }],
-      targetRing: CORE_WOLF_TARGET_RING, phase, now: 2_000,
+      forceFieldTargetId: null, targetRing: CORE_WOLF_TARGET_RING, phase, now: 2_000,
       fleetState: completeFleetState(), randomInt: () => 0,
     });
 
@@ -591,7 +591,7 @@ describe('central Wolf combat math', () => {
     const resolved = finalizeWolfAttack({
       requestId: 'attack-legacy-prefix', targeting, roster, ranges: prefixRanges,
       boardingDefence: [{ target: 'aegis', securityTeams: 0 }],
-      targetRing: CORE_WOLF_TARGET_RING, phase: startTurnPhase(1, 1_000), now: 2_000,
+      forceFieldTargetId: null, targetRing: CORE_WOLF_TARGET_RING, phase: startTurnPhase(1, 1_000), now: 2_000,
       fleetState: completeFleetState(), randomInt: () => 0,
     });
     expect(resolved.type).toBe('wolf-combat-calculation');
@@ -615,7 +615,7 @@ describe('central Wolf combat math', () => {
     const common = {
       requestId: 'attack-reverse-range-receipts', targeting, roster,
       boardingDefence: [{ target: 'aegis' as const, securityTeams: 0 }],
-      targetRing: CORE_WOLF_TARGET_RING, phase: startTurnPhase(1, 1_000), now: 2_000,
+      forceFieldTargetId: null, targetRing: CORE_WOLF_TARGET_RING, phase: startTurnPhase(1, 1_000), now: 2_000,
       fleetState: completeFleetState(), randomInt: () => 0,
     };
 
