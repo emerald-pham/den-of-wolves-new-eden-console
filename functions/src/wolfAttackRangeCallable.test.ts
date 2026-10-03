@@ -290,6 +290,29 @@ it('rejects a range receipt whose pre-range target snapshot breaks target progre
     .rejects.toMatchObject({ code: 'failed-precondition' });
 });
 
+it('accepts a contiguous legacy range prefix but rejects legacy receipts after a new snapshot', async () => {
+  const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  const targetSnapshot = (attack.combatRoster as Array<{ instanceId: string; target: string }>)
+    .map(({ instanceId, target }) => ({ instanceId, target }));
+  const legacyLongReceipt = { range: 'long-range', dice: [], assignments: [], targetShifts: [],
+    unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
+    destructionDamageByTarget: Object.fromEntries(CORE_WOLF_TARGET_RING.map((target) => [target, 0])) };
+  const newLongReceipt = { ...legacyLongReceipt, targetSnapshot };
+  const newMediumReceipt = { ...newLongReceipt, range: 'medium-range' };
+  const legacyMediumReceipt = { ...legacyLongReceipt, range: 'medium-range' };
+
+  put('sessions/s1/wolfAttackState/current', { ...attack, currentStep: 'short-range', revision: 4,
+    rangeReceipts: [legacyLongReceipt, newMediumReceipt] });
+  await expect(getWolfRangeActionChoice.run(request({ sessionId: 's1' }))).resolves.toMatchObject({
+    range: 'short-range', currentStep: 'short-range',
+  });
+
+  put('sessions/s1/wolfAttackState/current', { ...attack, currentStep: 'short-range', revision: 4,
+    rangeReceipts: [newLongReceipt, legacyMediumReceipt] });
+  await expect(getWolfRangeActionChoice.run(request({ sessionId: 's1' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+});
+
 it('caps excess server hits at the live distinct contacts and preserves the private full-hit receipt', async () => {
   const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
   const targetSnapshot = (attack.combatRoster as Array<{ instanceId: string; target: string }>).map(({ instanceId, target }) => ({ instanceId, target }));
