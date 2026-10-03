@@ -167,6 +167,45 @@ function gmJoinState(id, route) {
   return fixture;
 }
 
+function dradisState() {
+  const fixture = playerState('pc04-dradis', '/ships/aegis/roles/admiral');
+  fixture.state.me.fleetGroupId = 'fleet-1';
+  return fixture;
+}
+
+// This prepared typography sample replaces only the local test server's read
+// hook. The real app keeps its fresh-server requirement and network boundary.
+// The accepted PC01 reference and every production build use their own source.
+function preparedDradisPlugin() {
+  const moduleId = '\0typography-prepared-dradis';
+  return {
+    name: 'typography-prepared-dradis',
+    enforce: 'pre',
+    resolveId(id) {
+      return id === '@/lib/useFleetGroupNavigation' ? moduleId : null;
+    },
+    load(id) {
+      if (id !== moduleId) return null;
+      return `
+        import { useSessionStore } from '@/store/useSessionStore';
+        export function useFleetGroupNavigation(enabled) {
+          const session = useSessionStore(state => state.session);
+          const me = useSessionStore(state => state.me);
+          if (!enabled || session?.id !== 'pc04-dradis' || me?.uid !== 'pc04-player' ||
+              me.sessionId !== session.id || me.fleetGroupId !== 'fleet-1') return undefined;
+          return {
+            groupId: 'fleet-1', navigationRevision: 1, fleetPartitionRevision: 1,
+            sampledAt: '${STAMP}', transits: [],
+            ships: session.activeVesselIds.map(shipId => ({
+              shipId, fleetGroupId: 'fleet-1', coordinate: '0000',
+            })),
+          };
+        }
+      `;
+    },
+  };
+}
+
 const SURFACES = [
   {
     id: 'entry-catalog', route: '/console', fixture: () => playerState('pc04-entry', '/console'),
@@ -195,7 +234,7 @@ const SURFACES = [
   },
   {
     id: 'dradis', route: '/ships/aegis/roles/admiral',
-    fixture: () => playerState('pc04-dradis', '/ships/aegis/roles/admiral'),
+    fixture: dradisState,
     expandDradis: true,
     targets: [
       ['dradis-label', '.ship-plot__label'],
@@ -377,6 +416,7 @@ async function startServer(root) {
       root,
       configFile: resolve(root, 'vite.config.ts'),
       cacheDir,
+      plugins: root === ROOT ? [preparedDradisPlugin()] : [],
       server: { host: '127.0.0.1', port: 0, strictPort: false },
       logLevel: 'silent',
     });
@@ -478,7 +518,19 @@ async function collectSurface(browser, appUrl, surface, viewport, motion, kind) 
     if (surface.expandDradis) {
       const expand = page.getByRole('button', { name: /zoom into dradis panel/i });
       if (await expand.count()) await expand.click();
-      await page.locator('.contact-plot__tag').first().waitFor({ state: 'visible', timeout: 10_000 });
+      if (kind === 'candidate') {
+        assert.equal(await page.locator('.ship-plot__label').innerText(), 'DRADIS // ORIENTATION LOCKED',
+          'The prepared contact sample must reach the actual local plot before typography measurement.');
+      }
+      try {
+        await page.locator('.contact-plot__tag').first().waitFor({ state: 'visible', timeout: 10_000 });
+      } catch (error) {
+        await page.screenshot({ path: screenshot, fullPage: true });
+        const body = await page.locator('body').innerText();
+        throw new Error(`${kind}/${surface.id}/${viewport.name}/${motion}: expanded DRADIS has no visible contact; ` +
+          `tags=${await page.locator('.contact-plot__tag').count()} body=${body.replace(/\s+/g, ' ').slice(0, 800)} ` +
+          `screenshot=${screenshot}`, { cause: error });
+      }
       await page.locator('.ship-plot').evaluate(async (element) => {
         const transitions = element.getAnimations()
           .filter((animation) => typeof animation.transitionProperty === 'string');
