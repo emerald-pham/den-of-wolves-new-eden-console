@@ -6,8 +6,8 @@ import { planKnownSystemSharing } from './fleetGroupOperations';
 it('automatically rejoins only groups at the same authoritative system and keeps the highest recorded pursuit', () => {
   const ships = ['aegis', 'dione', 'icebreaker'];
   const groups = [
-    { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['alice'] },
-    { id: 'fleet-2', vesselIds: ['dione'], memberUids: ['bob'] },
+    { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['alice'], memberShipIds: { alice: 'aegis' } },
+    { id: 'fleet-2', vesselIds: ['dione'], memberUids: ['bob'], memberShipIds: { bob: 'dione' } },
     { id: 'fleet-3', vesselIds: ['icebreaker'], memberUids: ['cara'] },
   ];
   const nav = navigationState({ shipGalacticCoordinates: { aegis: '1413', dione: '1413', icebreaker: '0000' },
@@ -16,7 +16,8 @@ it('automatically rejoins only groups at the same authoritative system and keeps
     [{ uid: 'alice', groupId: 'fleet-1', shipId: 'aegis' }, { uid: 'bob', groupId: 'fleet-2', shipId: 'dione' },
       { uid: 'cara', groupId: 'fleet-3', shipId: 'icebreaker' }], ships);
   expect(plan.groups).toEqual([
-    { id: 'fleet-1', vesselIds: ['aegis', 'dione'], memberUids: ['alice', 'bob'], mergedGroupIds: ['fleet-2'] },
+    { id: 'fleet-1', vesselIds: ['aegis', 'dione'], memberUids: ['alice', 'bob'],
+      memberShipIds: { alice: 'aegis', bob: 'dione' }, mergedGroupIds: ['fleet-2'] },
     { id: 'fleet-3', vesselIds: ['icebreaker'], memberUids: ['cara'] },
   ]);
   expect(plan.navigation.pursuitGroups).toEqual({ 'fleet-1': 5, 'fleet-3': 1 });

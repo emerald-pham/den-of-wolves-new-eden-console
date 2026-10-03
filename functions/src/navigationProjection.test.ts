@@ -414,9 +414,12 @@ it('replacement entitlement supersedes historical assignment without a fallback'
   }
 });
 
-it('keeps a taxied passenger attached to the server-authoritative shuttle destination', () => {
+it('uses server-only current-group berth for the passenger own discovery projection', () => {
+  const subject = player({ assignedRoleId: 'wing-commander', fleetGroupId: 'fleet-2' });
+  expect(playerDiscoveryProjection(subject, navigation, 5, ['shepherd'], undefined, 'alice', 'shepherd').shipId)
+    .toBe('shepherd');
   expect(playerShipId(player({ assignedRoleId: 'wing-commander', fleetGroupId: 'fleet-2',
-    fleetTaxiHostShipId: 'shepherd' }) as never)).toBe('shepherd');
+    fleetTaxiHostShipId: 'shepherd' }) as never)).toBe('aegis');
 });
 
 it('keeps mission exploration knowledge bound to a UID across navigation refreshes and role changes', () => {

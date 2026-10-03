@@ -32,6 +32,8 @@ describe('fleet-group identity', () => {
       vesselIds: ['aegis'],
       memberUids: ['gm-1', 'gm-1'],
     })).toBeUndefined();
+    expect(fleetGroupRecord({ id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['alice'],
+      memberShipIds: { bob: 'aegis' } })).toBeUndefined();
     expect(() => initialFleetGroup(['aegis', 'aegis'], ['gm-1'])).toThrow(/unique/);
     expect(() => assertFleetGroupMatches(group, ['icebreaker'], ['gm-1'])).toThrow(/canonical/);
     expect(withFleetGroupVessels(group, ['aegis', 'dione']).vesselIds).toEqual(['aegis', 'dione']);

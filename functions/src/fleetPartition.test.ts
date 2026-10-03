@@ -11,8 +11,8 @@ it('partitions the complete current group by authoritative coordinates and prese
   const state = { ...navigation, missionExploredCoordinatesByUid: { alice: ['1413'] } };
   const plan = planFleetPartition(state, groups, players, vessels);
   expect(plan.groups).toEqual([
-    { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['alice', 'gm'] },
-    { id: 'fleet-2', vesselIds: ['dione', 'icebreaker'], memberUids: ['bob'] },
+    { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['alice', 'gm'], memberShipIds: { alice: 'aegis' } },
+    { id: 'fleet-2', vesselIds: ['dione', 'icebreaker'], memberUids: ['bob'], memberShipIds: { bob: 'dione' } },
   ]);
   expect(plan.navigation.pursuitGroups).toEqual({ 'fleet-1': 2, 'fleet-2': 2 });
   expect(plan.navigation.missionExploredCoordinatesByUid).toEqual({ alice: ['1413'] });
