@@ -49,6 +49,13 @@ question and paraphrase concise findings.
   partition/rejoin must increment current topology even after a taxi changed
   membership without navigation. No-op/replay preserves both, and null,
   malformed or exhausted topology authority cannot commit unsafe writes.
+  Physical vessel movement must also advance shared navigation independently
+  of that vessel's cursor; an earlier taxi or split must not cause the global
+  revision to roll back. For mission lifecycle after an absorbed group, derive
+  the current holder's uniquely pointer-matched physical group, source lineage,
+  berth and navigation in the transaction. Shared historical lineage alone
+  must not grant a foreign descendant's delivery location. Preserve immutable
+  mission admission and deny absent/ambiguous custody before any write.
 - An in-flight route is visible only when both validated endpoints belong to
   the current group. Partition changes revoke/rebind its audience. Current
   group navigation emits sampled positions at one instant, never the private
@@ -108,6 +115,17 @@ Direct chart, result, note and audit reads remain denied by Rules.
   Missile/PDL actions remain reusable in their applicable ranges. Short Range
   fighter-first eligibility, destruction effects, full hit/unused-hit audit,
   survivor arithmetic and five-step order need complete source-consumer proof.
+  Review the actual three player choice panels and member-audience listener:
+  cache/offline, identity, group, generation, host and console changes withdraw
+  enabled controls immediately; manual reads and mutations bind their delayed
+  callbacks to current authority. Repeated identical revisions preserve drafts,
+  while a new attack/stage/revision resets them. Range reads must be serialized
+  and obsolete reads must not replace current choices. Malformed or future
+  audience schemas withdraw visible data and retain the raw revision fence.
+  The current GM decision summary uses entitled names and truthful pending,
+  disconnected, source-unavailable and completed status only. Its presence
+  caption is the last server reconciliation, and cached/offline/old-instance
+  callbacks must withdraw private status rather than imply current authority.
 - Any shared timer hold blocks progress. Final resolution and damage reopen
   movement and ticker atomically without resetting the preserved clock or
   Press grant. Attack replay cannot repeat damage, parking or reopening.
