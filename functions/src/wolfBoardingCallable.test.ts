@@ -79,7 +79,9 @@ beforeEach(() => {
     memberUids: ['xo-1'], memberShipIds: { 'xo-1': 'aegis' } });
   const roster = wolfCombatRoster(targeting);
   const targets = ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124'];
-  const emptyRange = (range: string) => ({ range, dice: [], assignments: [], unusedHitsByAction: [],
+  const emptyRange = (range: string, snapshot = roster) => ({ range,
+    targetSnapshot: snapshot.map(({ instanceId, target }) => ({ instanceId, target })),
+    targetShifts: [], dice: [], assignments: [], unusedHitsByAction: [],
     damageByInstance: {}, destroyedInstanceIds: [], destructionDamageByTarget: Object.fromEntries(targets.map((id) => [id, 0])) });
   put('sessions/s1/wolfAttackState/current', {
     type: 'wolf-attack-state', status: 'declared', currentStep: 'boarding', airspaceLocked: true,
@@ -107,4 +109,34 @@ it('offers and commits the Commander choice only to the assigned Commander with 
   expect(await commitWolfBoardingSpecialChoice.run(request(payload))).toEqual(committed);
   await expect(commitWolfBoardingSpecialChoice.run(request({ ...payload, requestId: 'not-commander' }, 'xo-1')))
     .rejects.toMatchObject({ code: 'permission-denied' });
+});
+
+it('uses the committed Medium target shift for current boarding target choices', async () => {
+  const statePath = 'sessions/s1/wolfAttackState/current';
+  const state = testState.documents.get(statePath)!;
+  const roster = state.combatRoster as ReturnType<typeof wolfCombatRoster>;
+  const beforeMedium = roster.map(({ instanceId, target }) => ({ instanceId, target }));
+  const medium = {
+    range: 'medium-range',
+    targetSnapshot: beforeMedium,
+    targetShifts: [{ sourceId: 'maliades' as const, choiceIndex: 0, rosterIndex: 10,
+      shift: 1 as const, fromDie: 1, toDie: 2 }],
+  };
+  const shiftedRoster = roster.map((ship, index) => index === 10 ? { ...ship, target: 'dione' as const } : ship);
+  const afterMedium = shiftedRoster.map(({ instanceId, target }) => ({ instanceId, target }));
+  const short = { range: 'short-range', targetSnapshot: afterMedium, targetShifts: [] };
+  testState.documents.set(statePath, {
+    ...state, combatRoster: shiftedRoster,
+    rangeReceipts: [
+      { range: 'long-range', targetSnapshot: beforeMedium, targetShifts: [] },
+      medium, short,
+    ],
+  });
+
+  const view = await getWolfBoardingSpecialChoice.run(request({ sessionId: 's1' }));
+
+  expect(view).toMatchObject({ choice: { kind: 'commander', targets: [
+    { targetShipId: 'aegis', boardingParties: 16 },
+    { targetShipId: 'dione', boardingParties: 4 },
+  ] } });
 });
