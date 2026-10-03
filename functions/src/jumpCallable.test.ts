@@ -640,13 +640,13 @@ it.each([
     ...data, requestId: `blocked-jump-${_label}`, destination: '5143',
   }))).rejects.toMatchObject({
     code: 'failed-precondition',
-    message: expect.stringMatching(/awaits facilitator resolution.*movement remains blocked/i),
+    message: expect.stringMatching(/Wolf attack is resolving automatically; normal movement remains blocked until server resolution/i),
   });
   await expect(moveShipToLocation.run(request({
     ...data, requestId: `blocked-move-${_label}`, destination: '5143',
   }))).rejects.toMatchObject({
     code: 'failed-precondition',
-    message: expect.stringMatching(/awaits facilitator resolution.*movement remains blocked/i),
+    message: expect.stringMatching(/Wolf attack is resolving automatically; normal movement remains blocked until server resolution/i),
   });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
