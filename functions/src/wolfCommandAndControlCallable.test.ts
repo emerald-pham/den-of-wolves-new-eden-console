@@ -30,7 +30,8 @@ const mock = vi.hoisted(() => {
   });
   const collection = (path: string) => ({ path, get: async () => querySnapshot(path) });
   const get = vi.fn(async (target: { path: string }) =>
-    target.path.endsWith('/players') ? querySnapshot(target.path) : snapshot(target.path));
+    target.path.endsWith('/players') || target.path.endsWith('/fleetGroups')
+      ? querySnapshot(target.path) : snapshot(target.path));
   const update = vi.fn((target: { path: string }, fields: Fields) => {
     documents.set(target.path, { ...(documents.get(target.path) ?? {}), ...fields });
   });
@@ -561,4 +562,21 @@ it('rejects a spoofed C&C outcome instead of accepting a client target or die', 
     sessionId: 's1', requestId: 'spoofed', expectedTurn: 1, expectedRevision: 1,
     rosterIndex: 0, target: 'aegis', die: 1,
   }))).rejects.toMatchObject({ code: 'invalid-argument' });
+});
+
+
+it('keeps an explicit C&C pass terminal before the automatic stage trigger runs', async () => {
+  currentGame({ commander: false });
+  await passAegisCommandAndControl.run(request({
+    sessionId: 's1', requestId: 'terminal-cnc-pass', expectedTurn: 1, expectedRevision: 1,
+  }));
+  const before = structuredClone([...mock.documents]);
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(applyAegisCommandAndControl.run(request({
+    sessionId: 's1', requestId: 'redirect-after-pass', expectedTurn: 1, expectedRevision: 2, rosterIndex: 0,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect([...mock.documents]).toEqual(before);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });

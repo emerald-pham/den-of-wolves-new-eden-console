@@ -285,3 +285,22 @@ it('rejects a callable reply bound to another session', async () => {
 
   await expect(getWolfCommanderTargeting()).rejects.toThrow(/another session/i);
 });
+
+
+it('rejects a C&C redirect receipt from a different submitted request', async () => {
+  const values = setFreshIdentity();
+  useSessionStore.getState().setMe({ ...values.player, replacementRoleId: undefined,
+    assignedRoleId: 'executive-officer', activeConsoleRoleId: 'executive-officer' });
+  const result = {
+    status: 'committed', type: 'aegis-command-and-control-result', sessionId: values.session.id,
+    requestId: 'unrelated-request', turn: 1, revision: 3, rosterIndex: 1, shipId: 'wolf-cruiser',
+    commanderCompletion: 'no-commander',
+    view: { type: 'aegis-command-and-control-view', sessionId: values.session.id,
+      turn: 1, revision: 3, eligible: false, commanderAssigned: false, rerollsFinalized: true,
+      reason: 'already-used', targets: [], redirectedShipId: 'wolf-cruiser' },
+  };
+  const call = Object.assign(vi.fn().mockResolvedValue({ data: result }), { stream: vi.fn() });
+  vi.mocked(httpsCallable).mockReturnValue(call as never);
+  await expect(applyAegisCommandAndControl(1, 2, 1))
+    .rejects.toThrow(/invalid AEGIS Command and Control receipt/i);
+});
