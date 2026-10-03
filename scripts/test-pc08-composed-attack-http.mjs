@@ -47,7 +47,9 @@ async function joinThroughUi(code) {
   await page.getByRole('button', { name: 'Join a session', exact: true }).click();
   const waiver = page.getByRole('dialog', { name: 'CODE OF CONDUCT', exact: true });
   await waiver.waitFor();
-  for (const checkbox of await waiver.getByRole('checkbox', { name: /^Acknowledge regulation/ }).all()) await checkbox.check();
+  const acknowledgements = waiver.getByRole('checkbox', { name: /^Acknowledge regulation/ });
+  await acknowledgements.first().waitFor();
+  for (const checkbox of await acknowledgements.all()) await checkbox.check();
   await waiver.getByRole('button', { name: 'Acknowledge regulations and continue', exact: true })
     .and(page.locator(':enabled')).click();
   await browserUntil('ordinary UI join', s => Boolean(s.uid && s.uid === s.memberUid));
