@@ -1,6 +1,8 @@
 import {useMemo, useState} from 'react';
 import ShipPlot from '@/components/ShipPlot';
 import {WolfRangeActionPanelView} from '@/components/WolfRangeActionPanel';
+import {AegisFighterWingLaunchPanelView, type AegisFighterWingLaunchViews} from '@/components/AegisFighterWingLaunchPanel';
+import {WolfFighterRangeActionPanelView, type WolfFighterRangeActionView} from '@/components/WolfFighterRangeActionPanel';
 import {WolfBoardingDefencePanelView} from '@/components/WolfBoardingDefencePanel';
 import {WolfBoardingSupportChoicePanelView, WolfBoardingCommanderChoicePanelView, WolfBoardingMilitiaChoicePanelView,
   WolfBoardingRerollChoicePanelView, WolfBoardingCommanderRulingPanelView} from '@/components/WolfBoardingChoicePanels';
@@ -79,23 +81,51 @@ function WeaponsReview() {
 function FightersReview() {
   const [wing, setWing] = useState('Alpha');
   const [counts, setCounts] = useState<Record<string, number>>({Alpha: 4, Bravo: 4, 'PDF Escort Wing': 4, Maliades: 1});
+  const [launches, setLaunches] = useState<Record<string, boolean>>({});
+  const [range, setRange] = useState<'medium-range' | 'short-range'>('medium-range');
+  const [maliadesDamage, setMaliadesDamage] = useState(0);
   const [message, setMessage] = useState('LOCAL SAMPLE // Wings keep their own choices and fighter counts.');
   const [committed, setCommitted] = useState<Record<string, boolean>>({});
-  const view: WolfRangeActionChoiceView = {...SAMPLE_RANGE, choiceStatus: committed[wing] ? 'committed' : 'pending',
-    eligibleActions: [{actionId: `prepared-${wing}`, sourceId: `${wing.toLowerCase().replaceAll(' ', '-')}-combat`, range: 'medium-range'}]};
+  const wingId = wing === 'Alpha' ? 'fighter-wing-alpha' : wing === 'Bravo' ? 'fighter-wing-bravo' : 'pdf-escort-fighter-wing';
+  const launchViews: AegisFighterWingLaunchViews = Object.fromEntries((['fighter-wing-alpha', 'fighter-wing-bravo'] as const).map(id => [id, {
+    type: 'aegis-fighter-wing-launch-view', sessionId: 'prepared-pc08', attackId: 'prepared-attack', turn: 2, revision: 4,
+    wingId: id, wingRevision: 1, fighters: counts[id === 'fighter-wing-alpha' ? 'Alpha' : 'Bravo'], launched: Boolean(launches[id]),
+    eligible: !launches[id], ...(launches[id] ? {reason: 'already-launched'} : {}),
+  }]));
+  const view: WolfFighterRangeActionView = {type: 'wolf-fighter-range-action-view', sessionId: 'prepared-pc08', attackId: 'prepared-attack',
+    turn: 2, revision: 4, wingId, wingLabel: wing === 'PDF Escort Wing' ? wing : `Fighter Wing ${wing}`, range,
+    choiceStatus: committed[`${wing}:${range}`] ? 'committed' : 'pending', launched: wing === 'PDF Escort Wing' || Boolean(launches[wingId]),
+    fighters: Array.from({length: counts[wing] ?? 0}, (_, fighterIndex) => ({fighterIndex})),
+    targets: [{instanceId: 'local-wolf-1', label: 'Local contact 1', targetNumber: 6}, {instanceId: 'local-wolf-2', label: 'Local contact 2', targetNumber: 1}]};
   return <section className="pc07-review__workspace pc07-review__choice-examples" aria-label="Prepared fleet fighter choices">
     <div className="pc07-review__controls">{Object.keys(counts).map(name => <button key={name} className="cic-action-button"
       type="button" aria-pressed={name === wing} onClick={() => setWing(name)}>{name} sample</button>)}
       <button className="cic-action-button" type="button" onClick={() => {
-        setCounts(current => ({...current, [wing]: Math.max(0, current[wing]! - 1)}));
-        setMessage(`LOCAL SIMULATION // One prepared ${wing} loss. Other wings retain their counts.`);
+        if (wing === 'Maliades') {
+          const damage = Math.min(3, maliadesDamage + 1); setMaliadesDamage(damage);
+          setCounts(current => ({...current, Maliades: damage === 3 ? 0 : 1}));
+          setMessage(`LOCAL SIMULATION // Maliades has ${damage}/3 damage. Other wings retain their counts.`);
+        } else {
+          setCounts(current => ({...current, [wing]: Math.max(0, current[wing]! - 1)}));
+          setMessage(`LOCAL SIMULATION // One prepared ${wing} loss. Other wings retain their counts.`);
+        }
       }}>Show Short Range loss sample</button>
+      <button className="cic-action-button" type="button" onClick={() => setRange('medium-range')}>Medium Range sample</button>
+      <button className="cic-action-button" type="button" onClick={() => setRange('short-range')}>Short Range sample</button>
     </div>
     <div className="pc07-review__panel cic-frame"><h3>{wing} // prepared state</h3><dl className="pc08-review__readouts">
       {Object.entries(counts).map(([name, count]) => <div key={name}><dt>{name}</dt><dd>{count} {name === 'Maliades' ? 'craft' : 'fighters'} remain</dd></div>)}
     </dl></div>
-    <WolfRangeActionPanelView key={wing} view={view} onUseActions={() => {setCommitted(current => ({...current, [wing]: true})); setMessage(`LOCAL SIMULATION // ${wing} choice committed in this prepared example.`);}}
-      onPass={() => {setCommitted(current => ({...current, [wing]: true})); setMessage(`LOCAL SIMULATION // ${wing} passed this prepared range.`);}} onAssignTargets={() => {}} />
+    <AegisFighterWingLaunchPanelView views={launchViews} onLaunch={id => {setLaunches(current => ({...current, [id]: true}));
+      setMessage(`LOCAL SIMULATION // ${id === 'fighter-wing-alpha' ? 'Alpha' : 'Bravo'} launched independently.`);}} />
+    {wing === 'Maliades' ? <section className="pc07-review__panel cic-frame" aria-label="Prepared Maliades condition">
+      <h3>Maliades condition</h3><p>{maliadesDamage}/3 damage. {maliadesDamage === 3 ? 'Destroyed.' : 'One craft; fighter losses do not remove it.'}</p>
+      <p>Fuelled readiness, durability and repair are separate from fighter counts.</p>
+    </section> : <WolfFighterRangeActionPanelView key={`${wing}:${range}`} view={view}
+      onResolveMedium={actions => {setCommitted(current => ({...current, [`${wing}:${range}`]: true}));
+        setMessage(`LOCAL SIMULATION // ${wing} choice committed: ${actions.length} independent fighter actions recorded.`);}}
+      onResolveShort={() => {setCommitted(current => ({...current, [`${wing}:${range}`]: true}));
+        setMessage(`LOCAL SIMULATION // ${wing} Short Range choice committed; prepared dice and losses are recorded separately.`);}} />}
     <p className="pc07-review__result" role="status" aria-label="Prepared fighter result">{message}</p>
   </section>;
 }
