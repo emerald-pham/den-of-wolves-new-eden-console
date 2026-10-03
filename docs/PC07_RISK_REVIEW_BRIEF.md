@@ -115,13 +115,19 @@ Direct chart, result, note and audit reads remain denied by Rules.
   Missile/PDL actions remain reusable in their applicable ranges. Short Range
   fighter-first eligibility, destruction effects, full hit/unused-hit audit,
   survivor arithmetic and five-step order need complete source-consumer proof.
-  Review the actual three player choice panels and member-audience listener:
+  Review all five player choice panels (Commander, C&C, Captain, range and
+  boarding) and member-audience listener:
   cache/offline, identity, group, generation, host and console changes withdraw
   enabled controls immediately; manual reads and mutations bind their delayed
   callbacks to current authority. Repeated identical revisions preserve drafts,
   while a new attack/stage/revision resets them. Range reads must be serialized
   and obsolete reads must not replace current choices. Malformed or future
   audience schemas withdraw visible data and retain the raw revision fence.
+  A current failed read withdraws the previous bound choices; an obsolete failure
+  cannot clear a newer read. Fixture-enabled props confer no live role authority.
+  Printed C&C activation is optional: explicit current-EO pass must be audited,
+  consume no charge or redirect, exactly replay, reject stale/wrong actors and
+  let the normal automatic targeting lifecycle continue.
   The current GM decision summary uses entitled names and truthful pending,
   disconnected, source-unavailable and completed status only. Its presence
   caption is the last server reconciliation, and cached/offline/old-instance

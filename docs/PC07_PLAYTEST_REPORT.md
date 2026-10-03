@@ -37,10 +37,13 @@ first result, while the protected GM recovery control remains available.
 The 120 current scout/request/map/report/log/wire checks pass. Ordinary
 composed Comms proof and final candidate review remain open.
 
-The attack foundation declares and parks craft atomically, exposes separate
-crew and facilitator views, and preserves genuine player choices. Full boarding,
-final damage and automatic airspace recovery are still being reconciled with
-the attack worker. P605a's future DRADIS attack visualization stays excluded.
+The attack engine declares and parks craft atomically, exposes separate crew
+and facilitator views, and advances source-defined range, boarding, damage
+and airspace recovery after genuine player choices. The current-authority
+Captain/range/boarding controls and GM readonly summary are integrated. The
+source-required explicit EO Command and Control pass, older targeting controls
+and complete normal attack proof remain with the attack worker. P605a's future
+DRADIS attack visualization stays excluded.
 
 Cycle briefings hold the actual shared server clock. A current connected
 participant clears the exact hold once, preserving its captured remaining time.
