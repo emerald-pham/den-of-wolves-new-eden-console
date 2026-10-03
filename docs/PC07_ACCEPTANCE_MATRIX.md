@@ -50,12 +50,12 @@ prove gameplay. Production behavior remains separately labeled.
 | 442 | Apply range-specific destruction effects. | Open | Open | Open | Open | Representative local gameplay pending; production not claimed |
 | 444 | Close each range with an audit result. | Open | Open | Open | Open | Representative local gameplay pending; production not claimed |
 | 523a | Configure Wolf Attack difficulty. | Open | Open | Open | Open | Representative local gameplay pending; production not claimed |
-| 140 | Run the all-vessel maintenance matrix. | Open | Open | Open | Open | Representative local gameplay pending; production not claimed |
+| 140 | Run the all-vessel maintenance matrix. | Recovered full, small and Voyage native handlers and current UI lanes | Native real-Firestore 12/12 printed paths, exact retries and second-cycle denial; maintenance-matrix.json | Open | Open | Native fixture proof passed; representative UI composition pending |
 | 154 | Model airspace transitions. | Open | Open | Open | Open | Representative local gameplay pending; production not claimed |
 | 155 | Announce airspace status truthfully. | Open | Open | Open | Open | Representative local gameplay pending; production not claimed |
 | 156 | Reopen movement authoritatively. | Open | Open | Open | Open | Representative local gameplay pending; production not claimed |
 | 158 | Reconnect during restricted airspace. | Open | Open | Open | Open | Representative local gameplay pending; production not claimed |
-| 103a | Hold the airspace deadline behind turn-advance interstitials. | Open | Open | Open | Open | Representative local gameplay pending; production not claimed |
+| 103a | Hold the airspace deadline behind turn-advance interstitials. | Committed hold, exact clear endpoint, recovered UI, hidden timer and emergency denial connected | Red/green domain, callable, delayed-client, current composition and eight render cases; clock-http.json | Open | Open | Normal authenticated local eight-player create/cast/seat/start and competing clear/Rules proof passed |
 | 159 | Run the start-to-airspace scenario. | Open | Open | Open | Open | Representative local gameplay pending; production not claimed |
-| 351 | Show only arrived local ships on DRADIS. | Open | Open | Open | Open | Representative local gameplay pending; production not claimed |
-| 353 | Publish sampled transit contacts. | Open | Open | Open | Open | Representative local gameplay pending; production not claimed |
+| 351 | Show only arrived local ships on DRADIS. | Actual ShipPlot/App/GM consumers wired to agreed local-navigation endpoint; worker endpoint integration pending | Red/green same-group plus coordinate filter and stale/cache/actor guard tests | Open | Open | Native composed projection and rendered current consumer pending |
+| 353 | Publish sampled transit contacts. | Plot consumes server-sampled points with no client movement/destination derivation; endpoint integration pending | Red/green server-point/current sample/group guard tests | Open | Open | Native sample and rendered transit composition pending |
