@@ -588,3 +588,17 @@ repairs for current mission custody/group/navigation and independent movement
 cursors. Immutable admission history must survive; ambiguous lineage alone
 must grant no foreign location or reward-delivery authority. The owner will
 export/restart only after committed source and explicit no-inflight handback.
+
+### Actual attack choice geometry
+
+Separate red `7cec473c` renders the actual Captain, EO action/target and current
+target-crew defence presenters, with local callbacks and no native/Auth/write
+request. It caught an **11.2px** target-select font at 320px. The scoped CSS
+repair retains current CIC styling, increases range/boarding selects to actual
+16px and body/labels to 14px, and supplies 20px checkboxes and reachable 44px
+labels/buttons. Force-field geometry already satisfied these criteria and its
+stylesheet is unchanged. All eight responsive/motion cases pass in
+`attack-choice-layout-green/summary.json`; phone and short-landscape screenshots
+were inspected. Geometry and callback accessibility are prepared evidence;
+connected authority/draft repairs and native gameplay remain distinct open
+requirements.
