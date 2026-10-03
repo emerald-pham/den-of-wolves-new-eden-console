@@ -28,9 +28,12 @@ beforeEach(() => {
 });
 function seed(role = 'player') {
   useSessionStore.setState({ session: { id: 's1', phase: 'active', currentTurn: 3,
+    activeVesselIds: ['aegis', 'quellon', 'capybara'],
+    shuttleControl: { hummingbird: { shuttleId: 'hummingbird', ownerRoleId: 'quellon-explorer', ownerUid: 'alice', holderUid: 'alice', revision: 0 } },
+    shipResources: { quellon: { fuel: 3 } },
     playerDiscovery: { groupId: 'fleet-2', revision: 1, knownCoordinates: ['0000', '1413'],
       fleetGroupVesselIds: ['quellon', 'capybara'], fleetGroupPursuitValue: 2 } } as never,
-    me: { uid: 'alice', sessionId: 's1', role, fleetGroupId: 'fleet-2' } as never,
+    me: { uid: 'alice', sessionId: 's1', role, fleetGroupId: 'fleet-2', assignedRoleId: 'quellon-explorer' } as never,
     connection: 'live', sessionSnapshotFreshness: 'server', gmInstance: role === 'gm' ? { id: 'bridge', sessionId: 's1', uid: 'alice' } as never : null });
 }
 it('renders own group notes and sends a bounded group note through the connected service', async () => {
