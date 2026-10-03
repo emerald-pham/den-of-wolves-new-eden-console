@@ -132,3 +132,37 @@ case drove the separately committed CSS repair. Eight additional long first-cycl
 offline/error cases then exposed narrow-phone recovery overlap, repaired by a
 shared layout with reserved action space. Raw evidence is preserved in
 `/Users/emeraldpham/Documents/PC07-evidence/`, with no credentials in Git.
+
+## Composed proof and current integration boundary
+
+The normal twelve-player local HTTP attack prelude now passes: anonymous
+authentication, real lobby casting and station claims, ordinary start and
+briefing clear, AEGIS maintenance and charging, refuelling, shuttle departure
+and transit, attack staging and declaration. Declaration parks the actual
+Starlight transit and records one safe fleet announcement. The deliberately
+accelerated disposable clock is labeled fixture preparation. This prelude is
+not yet proof of all automatic ranges, boarding or the final reopening.
+
+The eight-player prelude exposed a recovered fixed-six target-ring denial.
+The owner visually checked the printed facilitator roster exclusion and logged
+PC07-A2: valid eight-to-eleven-player base rosters use their five configured
+active targets with uniform server sampling. Six-target base and seven-target
+full Capybara rosters retain their printed rings; malformed omissions are denied.
+The worker's separately committed tests and implementation are integrated.
+No source text or private rendering is copied into the repository.
+
+Current AEGIS airspace controls also reject late denial replies from an old
+actor or cycle. Two discriminating failures precede the repair; all six current
+consumer tests pass. The owner deployment inventory covers every runtime
+consumer of the changed briefing and legacy ticker helpers, including presence,
+Press and declaration paths. Exact source hashes reject an unaudited entry-point
+edit. The inventory must be reconciled again after both complete worker groups
+are integrated; it is not an independent review approval.
+
+The attack group's coherent range slice through worker `7185eeb1` is integrated:
+server-derived entitled action availability, explicit use or pass, private dice
+locks before target assignment, opaque contact IDs, range results and safe member
+projection. Unattended targeting, boarding, final effects and composed HTTP/UI
+proof remain outstanding. The split worker's current navigation and privacy
+slice is still awaiting its cohesive compiling handback. Prepared solo-review
+controls do not earn these outstanding behavior closures.
