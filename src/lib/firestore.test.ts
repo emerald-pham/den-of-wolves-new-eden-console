@@ -5449,3 +5449,18 @@ it.each([true, false, 'true', undefined])('projects only an explicit server setu
   expect(onSession).toHaveBeenCalledTimes(1);
   expect(onSession.mock.lastCall?.[0].setupConfirmed).toBe(setupConfirmed === true ? true : undefined);
 });
+
+it('hydrates the operational Maliades member view through the real session parser and repeated audience filter', () => {
+  const operational = {type: 'maliades-operational-view', revision: 3, attackId: 'attack-2', attackCycle: 2,
+    launched: true, damage: 2, destroyed: false, mediumResolved: true, shortResolved: true};
+  const member = {id: 's1', name: 'Current fleet', joinCode: '1234', phase: 'active', currentTurn: 2,
+    activeVesselIds: ['dione'], activeRoleIds: ['dione-engineer'],
+    shuttleDockings: [{shuttleId: 'maliades', shipId: 'dione', dockedAt: '2026-10-03T12:00:00.000Z'}],
+    memberSessionScope: {groupId: 'fleet-2', vesselIds: ['dione'], craftIds: ['maliades']},
+    maliadesState: operational};
+  const session = sessionFrom('s1', member);
+  expect(session.maliadesState).toEqual(operational);
+  expect(session.maliadesState).not.toHaveProperty('medium');
+  expect(session.maliadesState).not.toHaveProperty('short');
+  expect(sessionFrom('s1', {...member, maliadesState: {...operational, targetId: 'private-wolf'}}).maliadesState).toBeUndefined();
+});
