@@ -672,7 +672,7 @@ it('denies ordinary timer extension and cycle-skip controls while an attack is d
   expect(mock.set).not.toHaveBeenCalled();
 });
 
-it('uses the current server-owned airspace deadline after a restricted-window extension', async () => {
+it('keeps the declaration clock authoritative and rejects post-declaration extension', async () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-09-24T19:00:00.000Z'));
   session({
@@ -685,43 +685,35 @@ it('uses the current server-owned airspace deadline after a restricted-window ex
   });
   await declareWolfAttack.run(request());
   const declarationDeadline = mock.documents.get('sessions/s1/wolfAttackState/current')?.deadlineAt;
-
-  // Model a still-live restricted phase so the ordinary server-owned extension
-  // callable can advance the airspace clock independently of the attack receipt.
-  patchSession({
-    turnPhase: {
-      turn: 1,
-      teamPhaseEndsAt: '2026-09-24T19:00:30.000Z',
-      openAirspaceEndsAt: '2026-09-24T19:01:00.000Z',
-      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
-    },
-  });
-  const extension = await extendAirspaceWindow.run(request({
+  const phaseBefore = structuredClone(mock.documents.get('sessions/s1')!.turnPhase);
+  await expect(extendAirspaceWindow.run(request({
     sessionId: 's1', instanceId: 'gm-1', expectedTurn: 1, window: 'restricted',
-  }));
-  const currentDeadline = extension.turnPhase.openAirspaceEndsAt;
-  expect(currentDeadline).toBe('2026-09-24T19:06:00.000Z');
-  expect(declarationDeadline).not.toBe(currentDeadline);
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/attack.*server|server.*attack/i),
+  });
+  const currentDeadline = (mock.documents.get('sessions/s1')!.turnPhase as Fields).openAirspaceEndsAt;
+  expect(currentDeadline).toBe(declarationDeadline);
 
   put('sessions/s1/players/u2', {
     uid: 'u2', role: 'player', connected: true, replacementRoleId: 'wolf-commander',
   });
   await finishWolfCommanderTargetingRerolls.run(request({
-    sessionId: 's1', requestId: 'finish-extension-targeting', expectedTurn: 1, expectedRevision: 1,
+    sessionId: 's1', requestId: 'finish-locked-clock-targeting', expectedTurn: 1, expectedRevision: 1,
   }, 'u2'));
   const readyState = mock.documents.get('sessions/s1/wolfAttackState/current')!;
   const readyRevision = readyState.revision as number;
 
   await expect(advanceWolfAttackToLongRange.run(request({
-    sessionId: 's1', instanceId: 'gm-1', requestId: 'advance-extension-stale',
+    sessionId: 's1', instanceId: 'gm-1', requestId: 'advance-locked-clock-stale',
     expectedTurn: 1, expectedRevision: readyRevision - 1,
     reason: 'Recover the already-completed targeting step.', dangerConfirmed: true,
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
-  expect(mock.documents.has('sessions/s1/commandReceipts/advance-extension-stale')).toBe(false);
-  expect(mock.documents.has('sessions/s1/wolfAttackState/current/audit/advance-extension-stale')).toBe(false);
+  expect(mock.documents.has('sessions/s1/commandReceipts/advance-locked-clock-stale')).toBe(false);
+  expect(mock.documents.has('sessions/s1/wolfAttackState/current/audit/advance-locked-clock-stale')).toBe(false);
 
   const result = await advanceWolfAttackToLongRange.run(request({
-    sessionId: 's1', instanceId: 'gm-1', requestId: 'advance-after-extension',
+    sessionId: 's1', instanceId: 'gm-1', requestId: 'advance-after-locked-clock',
     expectedTurn: 1, expectedRevision: readyRevision,
     reason: 'Recover the already-completed targeting step.', dangerConfirmed: true,
   }));
@@ -729,10 +721,11 @@ it('uses the current server-owned airspace deadline after a restricted-window ex
   expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
     currentStep: 'long-range', deadlineAt: currentDeadline,
   });
-  expect(mock.documents.get('sessions/s1/wolfAttackState/current/audit/advance-after-extension'))
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current/audit/advance-after-locked-clock'))
     .toMatchObject({ deadlineAt: currentDeadline });
-  expect(mock.documents.get('sessions/s1/commandReceipts/advance-after-extension'))
+  expect(mock.documents.get('sessions/s1/commandReceipts/advance-after-locked-clock'))
     .toMatchObject({ result: expect.objectContaining({ deadlineAt: currentDeadline }) });
+  expect(mock.documents.get('sessions/s1')!.turnPhase).toEqual(phaseBefore);
 });
 
 it('uses the resumed server-owned airspace deadline and rejects a paused advance without writes', async () => {
