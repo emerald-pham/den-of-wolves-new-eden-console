@@ -74,6 +74,11 @@ const transferData = { sessionId: 's1', requestId: 'transfer-1', shuttleId: 'hum
 
 function seedSplitNavigation() {
   Object.assign(mock.documents.get('sessions/s1')!, { fleetPartitionRevision: 1 });
+  Object.assign(mock.documents.get('sessions/s1')!, { shuttleDockings: [
+    { shuttleId: 'hummingbird', shipId: 'quellon', dockedAt: '2026-01-01T00:00:00Z' },
+    { shuttleId: 'endeavour', shipId: 'shepherd', dockedAt: '2026-01-01T00:00:00Z' },
+    { shuttleId: 'starlight', shipId: 'aegis', dockedAt: '2026-01-01T00:00:00Z' },
+  ] });
   put('sessions/s1/players/wing', { role: 'player', connected: true, fleetGroupId: 'fleet-1', assignedRoleId: 'wing-commander' });
   put('sessions/s1/players/explorer', { role: 'player', connected: true, fleetGroupId: 'fleet-2',
     assignedRoleId: 'quellon-explorer', seatId: 'quellon-explorer', activeConsoleRoleId: 'quellon-explorer' });
@@ -248,16 +253,23 @@ it.each([
   expect(mock.writes).not.toHaveBeenCalled();
 });
 
-it('returns server-current ships only for the requesting fleet group and denies a forged group', async () => {
+it('returns server-current ships and docked shuttle hosts only for the requesting fleet group', async () => {
   seedSplitNavigation();
   const call = (expectedGroupId = 'fleet-2') => calls.readFleetGroupNavigation.run(request({ sessionId: 's1', requestId: 'nav-1',
     expectedNavigationRevision: 2, expectedFleetPartitionRevision: 1, expectedGroupId }));
-  const reply = await call() as { groupId: string; ships: readonly { shipId: string; coordinate: string }[] };
+  const reply = await call() as { groupId: string; ships: readonly { shipId: string; coordinate: string }[];
+    dockedShuttles: readonly Record<string, unknown>[] };
   expect(reply.groupId).toBe('fleet-2');
   expect(reply.ships).toEqual([
     { shipId: 'quellon', fleetGroupId: 'fleet-2', coordinate: '0000' },
     { shipId: 'shepherd', fleetGroupId: 'fleet-2', coordinate: '5143' },
   ]);
+  expect(reply.dockedShuttles).toEqual([
+    { shuttleId: 'hummingbird', fleetGroupId: 'fleet-2', hostShipId: 'quellon' },
+    { shuttleId: 'endeavour', fleetGroupId: 'fleet-2', hostShipId: 'shepherd' },
+  ]);
+  expect(reply.dockedShuttles.every(shuttle => Object.keys(shuttle).sort().join(',') ===
+    'fleetGroupId,hostShipId,shuttleId')).toBe(true);
   expect(JSON.stringify(reply)).not.toContain('aegis');
   mock.writes.mockClear();
   await expect(call('fleet-1')).rejects.toMatchObject({ code: 'permission-denied' });

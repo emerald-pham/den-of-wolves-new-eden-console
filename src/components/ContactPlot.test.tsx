@@ -148,6 +148,19 @@ it('omits combat-range indicators for fleet ships and their shuttles only', () =
   ]);
 });
 
+it('keeps docked craft visibly attached to the host label without adding a plot contact', () => {
+  const { container } = render(<ContactPlot contacts={[
+    { id: 'ship:quellon', tag: 'QUELLON', x: 0, y: 0, z: 0, color: 'white',
+      showCombatRange: false, dockedCraftTags: ['DOCKED // HUMMINGBIRD', 'DOCKED // ENDEAVOUR'] },
+  ]} />);
+  const contacts = contactsIn(container);
+  expect(contacts).toHaveLength(1);
+  expect(contacts[0]?.querySelector('.contact-plot__tag')?.textContent)
+    .toContain('QUELLONDOCKED // HUMMINGBIRDDOCKED // ENDEAVOUR');
+  expect([...contacts[0]!.querySelectorAll('.contact-plot__docked-craft')].map(node => node.textContent))
+    .toEqual(['DOCKED // HUMMINGBIRD', 'DOCKED // ENDEAVOUR']);
+});
+
 it('places contacts through the volume of the sphere rather than on a single plane', () => {
   const { container } = render(<ContactPlot />);
   const contacts = contactsIn(container);

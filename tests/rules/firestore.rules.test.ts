@@ -1504,6 +1504,29 @@ describe('session header', () => {
     }));
   });
 
+  it('denies direct client writes to authoritative DRADIS fixes, transit, docking, and visit history', async () => {
+    for (const uid of ['alice', 'gm1']) {
+      const db = as(uid);
+      await assertFails(setDoc(doc(db, `${SESSION}/serverState/navigation`), {
+        revision: 999, shipGalacticCoordinates: { aegis: '5143' },
+      }));
+      await assertFails(updateDoc(doc(db, SESSION), {
+        shuttleDockings: [{ shuttleId: 'starlight', shipId: 'icebreaker', dockedAt: 'forged' }],
+      }));
+      await assertFails(updateDoc(doc(db, SESSION), {
+        shuttleVisitLog: [{ id: 'forged', shuttleId: 'starlight', shipId: 'icebreaker', action: 'docked' }],
+      }));
+      for (const path of [
+        `${SESSION}/shuttleDepartures/starlight`,
+        `${SESSION}/shuttleTransitChains/starlight`,
+        `${SESSION}/shuttleArrivalReceipts/arrival-forged`,
+      ]) {
+        await assertFails(setDoc(doc(db, path), { status: 'in-transit', currentPosition: { x: 99, y: 99, z: 99 } }));
+        await assertFails(deleteDoc(doc(db, path)));
+      }
+    }
+  });
+
   it('cannot change authoritative ship stores, jump state, unrest, or unrest alerts from the client', async () => {
     const session = doc(as('gm1'), SESSION);
     await assertFails(updateDoc(session, { 'shipResources.aegis.fuel': 99 }));
