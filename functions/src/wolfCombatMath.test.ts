@@ -197,7 +197,7 @@ describe('central Wolf combat math', () => {
       requestId: 'attack-small-ring', composition: firstTurnWolfAttackComposition(),
       phase: liftedPhase, now: 2_000,
       targetRing: smallRing,
-      rangeActions: [], rangeAssignments: [], boardingDefence: [],
+      rangeActions: [], rangeAssignments: [], boardingDefence: [{ target: 'aegis', securityTeams: 0 }],
       fleetState: smallState,
       randomInt: () => 0,
     } as Parameters<typeof calculateWolfAttack>[0]);
@@ -208,21 +208,29 @@ describe('central Wolf combat math', () => {
       ...baseState,
       capybara: { damage: { damagedSystemIds: [], destroyed: false }, population: INITIAL_SHIP_SURVIVORS.capybara! },
     };
+    const expandedComposition = firstTurnWolfAttackComposition();
+    const longActions = expandedComposition.shipIds.slice(0, -1).map((shipId, index) => ({
+      actionId: `expanded-kill-${index}`, sourceId: 'test-aegis-action', range: 'long-range' as const,
+      fixedDamage: shipId === 'wolf-fighter-wing' ? 1 : 2, maxTargets: 1,
+    }));
     const expanded = calculateWolfAttack({
-      requestId: 'attack-expanded-ring', composition: firstTurnWolfAttackComposition(),
+      requestId: 'attack-expanded-ring', composition: expandedComposition,
       phase: liftedPhase, now: 2_000,
       targetRing: EXPANDED_WOLF_TARGET_RING,
-      rangeActions: [], rangeAssignments: [],
+      rangeActions: longActions,
+      rangeAssignments: longActions.map((action, index) => ({
+        actionId: action.actionId, targetInstanceIds: [`${index}:${expandedComposition.shipIds[index]}`],
+      })),
       boardingDefence: [{ target: 'capybara', securityTeams: 0 }],
       fleetState: expandedState,
       randomInt: (upperBound) => upperBound === 8 ? 6 : 0,
     } as Parameters<typeof calculateWolfAttack>[0]);
     expect(expanded.targeting.ring).toEqual(EXPANDED_WOLF_TARGET_RING);
     expect(expanded.boarding).toEqual([expect.objectContaining({
-      target: 'capybara', boardingParties: 20, survivingBoardingParties: 20, damage: 20,
+      target: 'capybara', boardingParties: 4, survivingBoardingParties: 4, damage: 4,
     })]);
     expect(expanded.fleetDamage).toEqual(expect.arrayContaining([
-      expect.objectContaining({ target: 'capybara', amount: 30 }),
+      expect.objectContaining({ target: 'capybara', amount: 4 }),
     ]));
   });
 

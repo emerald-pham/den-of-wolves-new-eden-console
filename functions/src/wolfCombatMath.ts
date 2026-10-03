@@ -697,12 +697,14 @@ export interface WolfAttackCalculationInput {
   readonly phase: TurnPhase;
   readonly now?: number;
   readonly targetingModifiers?: WolfTargetingModifierInput;
+  /** The authoritative configured target ring (five/six/seven ships for PC07). */
+  readonly targetRing?: WolfTargetRing;
   /** Explicitly empty arrays mean this attack has no actions/defence choices. */
   readonly rangeActions: readonly WolfRangeAction[];
   readonly rangeAssignments: readonly WolfRangeAssignment[];
   readonly boardingDefence: readonly WolfBoardingDefence[];
   /** Every target in the printed ring must have an authoritative state. */
-  readonly fleetState: Readonly<Record<WolfFleetTargetId, FleetCombatState>>;
+  readonly fleetState: Readonly<Partial<Record<WolfFleetTargetId, FleetCombatState>>>;
   readonly randomInt?: WolfRandomInt;
 }
 
@@ -746,7 +748,15 @@ export function calculateWolfAttack(input: WolfAttackCalculationInput): WolfCalc
   if (!assertRecord(input.fleetState)) {
     throw new Error('fleetState must be provided as authoritative input.');
   }
-  for (const target of CORE_WOLF_TARGET_RING) {
+  const targetRing = input.targetRing ?? CORE_WOLF_TARGET_RING;
+  targetRingIsValid(targetRing);
+  const smallRing = CORE_WOLF_TARGET_RING.filter(target => target !== 'dione');
+  if (JSON.stringify(targetRing) !== JSON.stringify(smallRing) &&
+      JSON.stringify(targetRing) !== JSON.stringify(CORE_WOLF_TARGET_RING) &&
+      JSON.stringify(targetRing) !== JSON.stringify(EXPANDED_WOLF_TARGET_RING)) {
+    throw new Error('The configured Wolf target ring must match the supported five-, six-, or seven-ship order.');
+  }
+  for (const target of targetRing) {
     const state = input.fleetState[target];
     if (!assertRecord(state) || !assertRecord(state.damage) ||
         !Array.isArray(state.damage.damagedSystemIds) ||
@@ -768,7 +778,7 @@ export function calculateWolfAttack(input: WolfAttackCalculationInput): WolfCalc
   const targeting = resolveWolfTargeting(
     input.composition,
     input.targetingModifiers,
-    CORE_WOLF_TARGET_RING,
+    targetRing,
     random,
   );
   let roster = wolfCombatRoster(targeting);
@@ -792,23 +802,22 @@ export function calculateWolfAttack(input: WolfAttackCalculationInput): WolfCalc
   const damageTotals = damageRecord();
   [...ranges.flatMap(range => Object.entries(range.destructionDamageByTarget)),
     ...Object.entries(survival.fleetDamage)].forEach(([target, amount]) => {
-    if ((CORE_WOLF_TARGET_RING as readonly string[]).includes(target)) {
-      addFleetDamage(damageTotals, target as typeof CORE_WOLF_TARGET_RING[number], amount as number);
+    if ((targetRing as readonly string[]).includes(target)) {
+      addFleetDamage(damageTotals, target as WolfFleetTargetId, amount as number);
     }
   });
   boarding.forEach(result => {
-    // The current calculation entry point resolves the base six-ship fleet.
-    // Expansion targeting has its own ring and later damage contract; do not
-    // turn an unconfigured Capybara fleet state into an implicit crash here.
-    if ((CORE_WOLF_TARGET_RING as readonly string[]).includes(result.target)) {
-      addFleetDamage(damageTotals, result.target as typeof CORE_WOLF_TARGET_RING[number], result.damage);
+    if ((targetRing as readonly string[]).includes(result.target)) {
+      addFleetDamage(damageTotals, result.target, result.damage);
     }
   });
   const fleetDamage: WolfFleetDamageResult[] = [];
-  Object.entries(damageTotals).forEach(([target, amount]) => {
+  targetRing.forEach((target) => {
+    const amount = damageTotals[target];
     if (amount < 1) return;
-    const state = input.fleetState[target as WolfFleetTargetId];
-    const result = applyWolfFleetDamage(target as WolfFleetTargetId, amount, state, random);
+    const state = input.fleetState[target];
+    if (!state) throw new Error(`A complete authoritative fleet combat state is required for ${target}.`);
+    const result = applyWolfFleetDamage(target, amount, state, random);
     fleetDamage.push({ target: result.target, amount: result.amount, state: result.state, population: result.population, draws: result.draws });
   });
   return deepFreeze({
