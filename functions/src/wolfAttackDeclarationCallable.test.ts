@@ -302,6 +302,29 @@ it('atomically locks airspace, snapshots parked craft, records a hidden stage re
   ]);
 });
 
+it('declares against the five configured active vessels in an ordinary eight-player base roster', async () => {
+  const eightPlayerRoles = [
+    'admiral', 'wing-commander', 'icebreaker-miner', 'shepherd-scientist',
+    'quellon-explorer', 'refinery-124-pdf-colonel',
+    'joint-engineering-quellon-refinery', 'joint-engineering-shepherd-icebreaker',
+  ];
+  const eightPlayerFleet = ['aegis', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'];
+  session({
+    playerCount: 8, expansion: 'base', dioneEnabled: false,
+    activeRoleIds: eightPlayerRoles, activeVesselIds: eightPlayerFleet,
+  });
+  fleetGroup('fleet-1', { vesselIds: eightPlayerFleet });
+
+  const result = await declareWolfAttack.run(request({ ...baseData, requestId: 'wolf-declare-eight' }));
+  const state = mock.documents.get('sessions/s1/wolfAttackState/current')!;
+  const targeting = (state.calculationReceipt as Fields).targeting as Fields;
+
+  expect(result).toMatchObject({ status: 'committed', turn: 1 });
+  expect(targeting.ring).toEqual(eightPlayerFleet);
+  expect((targeting.rolls as Fields[]).every((roll) => eightPlayerFleet.includes(roll.target as string))).toBe(true);
+  expect(cryptoMock.randomInt.mock.calls.every(([upperBound]) => upperBound === 5)).toBe(true);
+});
+
 it('advances targeting only after the assigned Commander finishes and preserves the private receipt and deadline', async () => {
   await declareWolfAttack.run(request());
   const declarationState = mock.documents.get('sessions/s1/wolfAttackState/current')!;
