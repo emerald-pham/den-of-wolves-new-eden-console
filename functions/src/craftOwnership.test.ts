@@ -15,6 +15,26 @@ import {
 import { initialShuttleDockingsForRoles } from './shuttlecraft';
 
 describe('role-owned craft composition', () => {
+  it('declares boarding support from each printed craft, with relocation and rerolls distinct', () => {
+    const supports = ROLE_OWNED_CRAFT_CATALOG.flatMap((craft) => {
+      const boarding = (craft as unknown as { boardingSupport?: string }).boardingSupport;
+      return boarding ? [{ craftId: craft.id, boarding }] : [];
+    });
+
+    expect(supports).toEqual([
+      { craftId: 'pallas', boarding: 'security-teams+pallas-reroll+fuelled-relocation' },
+      { craftId: 'philia', boarding: 'security-teams' },
+      { craftId: 'blacksmith', boarding: 'security-teams' },
+      { craftId: 'macaw', boarding: 'security-teams' },
+      { craftId: 'black-sheep', boarding: 'security-teams' },
+      { craftId: 'condor', boarding: 'security-teams' },
+      { craftId: 'chacau', boarding: 'security-teams' },
+      { craftId: 'chepu', boarding: 'security-teams+fuelled-relocation' },
+      { craftId: 'wobbly', boarding: 'security-teams' },
+      { craftId: 'ally', boarding: 'security-teams' },
+    ]);
+  });
+
   it('marks only printed range-combat craft for Wolf battle-table actions', () => {
     expect(ROLE_OWNED_CRAFT_CATALOG
       .filter((craft) => craft.wolfAttackRole === 'battle-table')
