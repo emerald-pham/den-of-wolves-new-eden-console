@@ -280,3 +280,25 @@ it('keeps a charged range pending while the configured Executive Officer is disc
   expect(testState.documents.get('sessions/s1/wolfAttackState/current'))
     .toMatchObject({ currentStep: 'long-range', revision: 4 });
 });
+
+it('does not leave charged Command and Control ownerless when no Executive Officer is configured', async () => {
+  const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  put('sessions/s1/wolfAttackState/current', { ...attack, currentStep: 'targeting', revision: 4 });
+  const session = testState.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session, activeRoleIds: [], maintenanceCycles: {
+    ...session.maintenanceCycles as Fields,
+    aegis: { ...((session.maintenanceCycles as Fields).aegis as Fields), charges: ['command-and-control'] },
+  } });
+
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
+    currentStep: 'long-range', revision: 5,
+    targetingCompletion: { commandAndControl: 'unavailable' },
+  });
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current/audit/auto-targeting-1'))
+    .toMatchObject({ commandAndControl: 'unavailable', reason: 'no-configured-executive-officer' });
+  expect(testState.documents.get('sessions/s1').maintenanceCycles).toMatchObject({
+    aegis: { charges: ['command-and-control'] },
+  });
+});
