@@ -87,6 +87,8 @@ const {
   listUnresolvedJumpFailures,
   getWolfBoardingDefenceChoice,
   commitWolfBoardingDefenceChoice,
+  getWolfFighterRangeActionChoice,
+  commitWolfFighterRangeActionChoice,
 } = await import('./sessionService');
 const { httpsCallable } = await import('firebase/functions');
 const { acceptCallableSessionAuthority, sessionSnapshotAuthorityFor } = await import('./firestore');
@@ -3859,6 +3861,43 @@ it('reads the current boarding choice and commits the exact entitled zero-team d
   expect(commit).toHaveBeenCalledWith(expect.objectContaining({
     sessionId: 's1', requestId: expect.any(String), expectedTurn: 1, expectedRevision: 12,
     targetShipId: 'aegis', securityTeams: 0,
+  }));
+});
+
+it('reads and commits the current Wing Commander fighter range choice, including a zero-fighter pass', async () => {
+  useSessionStore.getState().reset();
+  useSessionStore.getState().setIdentity(
+    { ...session, phase: 'active' as const },
+    { ...player, role: 'player' as const, assignedRoleId: 'wing-commander',
+      activeConsoleRoleId: 'wing-commander' },
+  );
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  const view = {
+    type: 'wolf-fighter-range-action-view', sessionId: 's1', attackId: 'wolf-1', turn: 1, revision: 12,
+    wingId: 'fighter-wing-alpha', wingLabel: 'Fighter Wing Alpha', range: 'short-range',
+    choiceStatus: 'pending', launched: true,
+    fighters: [{ fighterIndex: 0 }, { fighterIndex: 1 }, { fighterIndex: 2 }],
+    targets: [{ instanceId: 'contact-1', label: 'Wolf contact 1', targetNumber: 3 }],
+  };
+  const read = callableReturning({ data: view });
+  vi.mocked(httpsCallable).mockReturnValue(read as never);
+  await expect(getWolfFighterRangeActionChoice('short-range', 'fighter-wing-alpha')).resolves.toEqual(view);
+  expect(httpsCallable).toHaveBeenLastCalledWith(expect.anything(), 'getWolfFighterRangeActionChoice');
+  expect(read).toHaveBeenCalledWith({ sessionId: 's1', range: 'short-range', sourceId: 'fighter-wing-alpha' });
+
+  const commit = vi.fn(async (payload: Record<string, unknown>) => ({ data: {
+    status: 'committed', type: 'wolf-fighter-range-action-choice', sessionId: 's1',
+    requestId: payload.requestId, turn: 1, revision: 13, range: 'short-range',
+    wingId: 'fighter-wing-alpha', choiceStatus: 'pending-resolution', selectedFighterIndexes: [], actionCount: 0,
+  } }));
+  Object.assign(commit, { stream: vi.fn() });
+  vi.mocked(httpsCallable).mockReturnValue(commit as never);
+  await expect(commitWolfFighterRangeActionChoice(1, 12, 'short-range', 'fighter-wing-alpha', []))
+    .resolves.toMatchObject({ status: 'committed', revision: 13, selectedFighterIndexes: [], actionCount: 0 });
+  expect(commit).toHaveBeenCalledWith(expect.objectContaining({
+    sessionId: 's1', requestId: expect.any(String), expectedTurn: 1, expectedRevision: 12,
+    range: 'short-range', sourceId: 'fighter-wing-alpha', fighterIndexes: [],
   }));
 });
 
