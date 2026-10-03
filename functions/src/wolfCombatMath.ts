@@ -357,7 +357,7 @@ function rosterById(roster: readonly WolfCombatShip[]): Map<string, WolfCombatSh
 }
 
 function damageRecord(): Record<WolfFleetTargetId, number> {
-  return Object.fromEntries(CORE_WOLF_TARGET_RING.map(id => [id, 0])) as Record<WolfFleetTargetId, number>;
+  return Object.fromEntries(EXPANDED_WOLF_TARGET_RING.map(id => [id, 0])) as Record<WolfFleetTargetId, number>;
 }
 
 function addFleetDamage(record: Record<WolfFleetTargetId, number>, target: WolfFleetTargetId, amount: number): void {
@@ -554,7 +554,7 @@ export function resolveWolfBoarding(
   const parties = boardersByTarget(roster);
   uniqueStrings(defence.map(value => value.target), 'Boarding defence targets');
   const defenceByTarget = new Map(defence.map(value => [value.target, value]));
-  return CORE_WOLF_TARGET_RING.flatMap(target => {
+  return EXPANDED_WOLF_TARGET_RING.flatMap(target => {
     const boardingParties = parties[target];
     if (boardingParties < 1) return [];
     const chosen = defenceByTarget.get(target);

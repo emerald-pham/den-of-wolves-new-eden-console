@@ -184,7 +184,7 @@ describe('central Wolf combat math', () => {
     const fleetDamage = applyWolfFleetDamage('capybara', destroyed.receipt.destructionDamageByTarget.capybara, {
       damage: { damagedSystemIds: [], destroyed: false }, population: INITIAL_SHIP_SURVIVORS.capybara!,
     }, () => 0);
-    expect(fleetDamage).toMatchObject({ target: 'capybara', amount: 3, population: 19_997 });
+    expect(fleetDamage).toMatchObject({ target: 'capybara', amount: 3, population: 16_000 });
   });
 
   it('reuses the existing damage deck and survivor-track casualty rules', () => {
