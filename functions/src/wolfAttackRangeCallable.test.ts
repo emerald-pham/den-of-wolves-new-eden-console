@@ -186,6 +186,16 @@ it('commits an explicit Short subset for a launched wing without drawing its rol
   expect(launched).toMatchObject({ launched: true });
   const stateAfterLaunch = testState.documents.get('sessions/s1/wolfAttackState/current')!;
   put('sessions/s1/wolfAttackState/current', { ...stateAfterLaunch, currentStep: 'short-range' });
+  const roster = stateAfterLaunch.combatRoster as Array<Fields>;
+  const startSnapshot = roster.map(({ instanceId, target }) => ({ instanceId, target }));
+  put('sessions/s1/wolfAttackState/current', {
+    ...testState.documents.get('sessions/s1/wolfAttackState/current'),
+    rangeReceipts: ['long-range', 'medium-range'].map((range) => ({
+      range, targetSnapshot: startSnapshot, targetShifts: [], dice: [], assignments: [],
+      unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
+      destructionDamageByTarget: Object.fromEntries(CORE_WOLF_TARGET_RING.map((target) => [target, 0])),
+    })),
+  });
 
   const view = await getWolfFighterRangeActionChoice.run(request({ sessionId: 's1', range: 'short-range',
     sourceId: 'fighter-wing-alpha' }, 'wc-1'));
