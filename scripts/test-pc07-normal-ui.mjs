@@ -48,6 +48,9 @@ try{
  await page.getByRole('link',{name:/GM join/i}).waitFor({timeout:20000});
  await page.getByRole('link',{name:/GM join/i}).click();
  await page.getByRole('textbox',{name:/^Input GM Name$/i}).fill('PC07 UI facilitator');
+ // Reload restores a cache first; wait for the ordinary member read to finish.
+ // This observes runtime freshness only. Identity and session writes stay in UI.
+ await page.waitForFunction(async()=>{const {useSessionStore}=await import('/src/store/useSessionStore.ts');const s=useSessionStore.getState();return s.connection==='live'&&s.sessionSnapshotFreshness==='server';},{},{timeout:20000});
  await page.getByRole('button',{name:'Join as GM',exact:true}).click();
  await page.getByRole('button',{name:'GM joined',exact:true}).waitFor();
  await page.goto(`${origin}/#/gm`);
