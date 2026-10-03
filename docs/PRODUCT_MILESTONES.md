@@ -395,8 +395,13 @@ be able to declare an attack, observe automatically committed range results,
 and intervene only for genuine choices or rulings. Recovery must preserve
 committed results, deadlines and audience boundaries. The execution record
 contains all assigned IDs, coherent behavior groups and integration contracts.
-This shape excludes PC08 weapon/boarding additions, PC09 aftermath and P605a
-activation; required foundational range receipts stay within the assigned scope.
+This shape excludes dedicated PC08 weapon/boarding additions, PC09 aftermath and
+P605a activation. P428 explicitly includes boarding defence and P441 includes
+Boarding: their required foundation includes the minimal entitled crew choice
+of zero through available Security Teams and its automatic source-defined
+consequences. P438–440 also resolve currently enabled base AEGIS weapon choices
+from actual charge/damage/upgrade state. Later weapon, support, modifier and
+aftermath prompts retain their own acceptance and receive no PC07 closure credit.
 
 **Sources.** The seven private v1.1 artifacts match the source provenance
 inventory checksums; both Capybara files are complementary. Source-specific

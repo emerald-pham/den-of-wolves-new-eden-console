@@ -102,8 +102,29 @@ consumer awaits current authority. Transit returns consume server points.
 The split worker owns the server endpoint and typed transport; the owner owns
 consumer reconciliation and composed evidence. Integration remains pending.
 
+The owner reconciled the attack foundation boundary on October 2. P428's
+explicit boarding-defence contract and P441's Boarding step require the minimal
+printed crew choice and automatic result even though dedicated PC08 additions
+remain excluded. Currently enabled base AEGIS actions likewise remain genuine
+entitled choices in P438–440; charged state alone cannot fabricate an action.
+The attack worker owns this bounded foundation. No future ID gains closure
+credit; its source citation and recovered integration are recorded at handback.
+
+P154–158 recover the current edge handlers, with 73 focused tests and normal
+authenticated eight-player local HTTP. Disposable, labeled fixtures accelerate
+the clock and supply split, mission, Wolf-lock and quarantine contexts. Normal
+commands prove Team denial, one authoritative reopening/audit/ticker, stale
+cycle denial, group and mission restrictions, pause/resume recovery, legal
+departure/exact replay, one quarantine inbound with denied second inbound,
+preserved communications, and Rules denial of a direct shared-clock write.
+New rendered consumer tests expose and repair cached flight controls, a
+mission-committed route, held Press clearance and unhandled denial. Actual
+browser gameplay composition and independent review remain pending.
+
 Responsive briefing evidence covers 320/390 phones, 844×390 landscape and
 1440×900 desktop in normal/reduced motion, initial focus, 44px controls,
 computed CIC font, paint order and nonoverlap. A failing landscape geometry
-case drove the separately committed CSS repair. Raw evidence is preserved in
+case drove the separately committed CSS repair. Eight additional long first-cycle
+offline/error cases then exposed narrow-phone recovery overlap, repaired by a
+shared layout with reserved action space. Raw evidence is preserved in
 `/Users/emeraldpham/Documents/PC07-evidence/`, with no credentials in Git.
