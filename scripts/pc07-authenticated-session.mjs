@@ -5,7 +5,7 @@ import {createRequire} from 'node:module';
 import {localGmAccessConfiguration,grantLocalGmAccess} from './local-gm-access.mjs';
 
 /** Normal local Auth/HTTP setup. Tokens stay in memory and never enter evidence. */
-export async function createPc07AuthenticatedSession(name) {
+export async function createPc07AuthenticatedSession(name,playerCount=8) {
  const env=Object.fromEntries((await readFile('.env.emulators.local','utf8')).trim().split('\n').map(line=>line.split('=')));
  const project=process.env.VITE_FIREBASE_PROJECT_ID;
  const config=localGmAccessConfiguration('serve',{...env,VITE_LOCAL_GM_ACCESS:'1',VITE_FIREBASE_PROJECT_ID:project});
@@ -20,14 +20,14 @@ export async function createPc07AuthenticatedSession(name) {
  async function actor(){const r=await fetch(`http://127.0.0.1:${config.authPort}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=${project}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({returnSecureToken:true})});assert.equal(r.status,200);return r.json();}
  async function call(actor,name,data){const r=await fetch(`http://127.0.0.1:${functionsPort}/${project}/us-central1/${name}`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${actor.idToken}`},body:JSON.stringify({data})});return{status:r.status,...await r.json()};}
  function ok(reply,step){assert.equal(reply.status,200,`${step}: ${reply.error?.message}`);return reply.result;}
- const gm=await actor(),players=await Promise.all(Array.from({length:8},actor));
+ const gm=await actor(),players=await Promise.all(Array.from({length:playerCount},actor));
  const created=ok(await call(gm,'createSession',{requestId:randomUUID(),joinCodeVersion:2,name}),'create');
  const sessionId=created.session.id,session=db.doc(`sessions/${sessionId}`),instanceId='pc07-local-proof';
  try{
   await grantLocalGmAccess(config,{method:'POST',host:'127.0.0.1:5174',origin:'http://127.0.0.1:5174',remoteAddress:'127.0.0.1',token:gm.idToken});
   ok(await call(gm,'claimGmInstance',{sessionId,instanceId,name:'Local facilitator',deviceLabel:'PC07 HTTP proof'}),'GM claim');
-  const roles=recommendedRoleIds(8);
-  ok(await call(gm,'confirmSetup',{sessionId,instanceId,requestId:randomUUID(),expectedSetupRevision:created.session.setupRevision??0,playerCount:8,chartId:'A',lockChart:true,expansion:'base',turnLimit:6,dioneEnabled:false,capybaraEnabled:false,universalArbourEnabled:false,wolfCultEnabled:false,activeRoleIds:roles}),'confirm');
+  const roles=recommendedRoleIds(playerCount);
+  ok(await call(gm,'confirmSetup',{sessionId,instanceId,requestId:randomUUID(),expectedSetupRevision:created.session.setupRevision??0,playerCount,chartId:'A',lockChart:true,expansion:'base',turnLimit:6,dioneEnabled:playerCount>=12,capybaraEnabled:false,universalArbourEnabled:false,wolfCultEnabled:false,activeRoleIds:roles}),'confirm');
   for(const [i,player]of players.entries()){
    ok(await call(player,'joinSession',{joinCode:created.session.joinCode,displayName:`Local actor ${i+1}`}), 'join');
    ok(await call(gm,'assignRole',{sessionId,instanceId,requestId:randomUUID(),targetUid:player.localId,roleId:roles[i]}),'cast');

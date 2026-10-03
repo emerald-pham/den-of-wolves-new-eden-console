@@ -354,3 +354,13 @@ the original assumption; append the resolution so the decision is traceable.
 | Chosen reading | Every newly committed, non-skipped cycle briefing captures its current Team window with a server-owned interstitial pause. One currently connected participant may clear the exact cycle/pause identity for every console. An explicit skipped briefing keeps the existing schedule. A replay of an already cleared transmission is presentation and never refreezes the clock. |
 | Alternatives and limits | Requiring only a GM to clear would add an unnecessary operator step; per-browser clock holds would violate the shared session clock. These clear authority and identity choices are digital product assumptions, not printed rules. Emergency and empty-session holds keep their distinct end conditions. |
 | Effect | Current member authority, exact transition, receipt/replay and atomic session/event ownership prevent a stale clear, retry, reconnect or competing device from resuming twice or changing a newer deadline. Every timing field remains server-owned. |
+
+### PC07-A2 — Targeting when the printed small roster removes Dione
+
+| Field | Decision |
+|---|---|
+| ID and checkpoint | PC07-A2, P428/P431/P432; owner integration decision, 2026-10-02. |
+| Source | Facilitator Guide v1.1 printed p. 5/PDF p. 7 removes Dione below twelve players; the full primary page was visually inspected. The base targeting table gives six vessels without a reduced-roster adaptation. |
+| Ambiguity and alternatives | The recovered preflight rejected every otherwise valid eight-to-eleven-player attack. Leaving that denial blocks supported gameplay; rerolling an unavailable printed result or compressing the active ordered ring both need a digital rule. |
+| Chosen reading | For a valid reduced roster only, filter Dione from the canonical ordered ring and draw uniformly from those five active targets. Target shifts wrap within that configured ring. This is a deliberate digital assumption, not a printed five-sided die instruction. |
+| Limits and proof | Six-target base and seven-target expansion behavior remains unchanged. Other missing required core vessels or malformed configurations remain denied. Red tests, actual native handler proof and independent authority review must cover the reduced roster; no foreign or inactive target may leak into member projections. |
