@@ -440,6 +440,56 @@ it('applies the Wing Commander Medium target and shift choices inside the EO ran
   expect(entropy.randomInt).not.toHaveBeenCalled();
 });
 
+it('commits a fighter-only Medium target shift in the EO pass receipt', async () => {
+  const session = testState.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session, activeRoleIds: ['executive-officer', 'wing-commander'],
+    maintenanceCycles: { ...(session.maintenanceCycles as Fields), aegis: {
+      ...(session.maintenanceCycles as Fields).aegis as Fields,
+      charges: ['missile-launchers', 'point-defence-lasers', 'fighter-bay-alpha'],
+    } }, fighterWingCounts: initialFighterWingCounts() });
+  const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  put('sessions/s1/wolfAttackState/current', { ...attack, currentStep: 'targeting' });
+  put('sessions/s1/players/wc-1', { uid: 'wc-1', role: 'player', connected: true,
+    assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander', fleetGroupId: 'fleet-1' });
+  put('sessions/s1/fleetGroups/fleet-1', { id: 'fleet-1',
+    vesselIds: ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124'],
+    memberUids: ['xo-1', 'wc-1'], memberShipIds: { 'xo-1': 'aegis', 'wc-1': 'aegis' } });
+  const launchView = await getAegisFighterWingLaunch.run(request({ sessionId: 's1', wingId: 'fighter-wing-alpha' }, 'wc-1'));
+  await launchAegisFighterWing.run(request({ sessionId: 's1', requestId: 'eo-shift-only-wing-launch',
+    expectedTurn: 1, expectedRevision: launchView.revision, expectedWingRevision: launchView.wingRevision,
+    wingId: 'fighter-wing-alpha' }, 'wc-1'));
+
+  const launchedAttack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  const targetSnapshot = (launchedAttack.combatRoster as Array<{ instanceId: string; target: string }>)
+    .map(({ instanceId, target }) => ({ instanceId, target }));
+  const emptyLongReceipt = { range: 'long-range', targetSnapshot, dice: [], assignments: [], targetShifts: [],
+    unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
+    destructionDamageByTarget: Object.fromEntries(CORE_WOLF_TARGET_RING.map((target) => [target, 0])) };
+  put('sessions/s1/wolfAttackState/current', { ...launchedAttack, currentStep: 'medium-range',
+    rangeReceipts: [emptyLongReceipt] });
+  const fighterView = await getWolfFighterRangeActionChoice.run(request({ sessionId: 's1', range: 'medium-range',
+    sourceId: 'fighter-wing-alpha' }, 'wc-1'));
+  const shiftedContact = fighterView.targets[0]!.instanceId;
+  const shiftedIndex = Number(shiftedContact.replace('contact-', '')) - 1;
+  const startingTarget = (testState.documents.get('sessions/s1/wolfAttackState/current')!.combatRoster as Array<Fields>)
+    [shiftedIndex]!.target;
+  await commitWolfFighterRangeActionChoice.run(request({ sessionId: 's1', requestId: 'eo-shift-only-wing-choice',
+    expectedTurn: 1, expectedRevision: fighterView.revision, range: 'medium-range', sourceId: 'fighter-wing-alpha',
+    actions: [{ fighterIndex: 0, kind: 'target-shift', targetContactId: shiftedContact, shift: 1 }],
+  }, 'wc-1'));
+
+  const eoView = await getWolfRangeActionChoice.run(request({ sessionId: 's1' }));
+  const passed = await commitWolfRangeActionChoice.run(request({ sessionId: 's1', requestId: 'eo-shift-only-pass',
+    expectedTurn: 1, expectedRevision: eoView.revision, range: 'medium-range', actionIds: [] }));
+  const resolved = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  const receipt = (resolved.rangeReceipts as Array<Fields>).at(-1)!;
+  expect(passed.choiceStatus).toBe('passed');
+  expect(receipt).toMatchObject({ range: 'medium-range', dice: [], assignments: [], targetShifts: [
+    { sourceId: 'aegis-alpha-wing', choiceIndex: 0, rosterIndex: shiftedIndex, shift: 1 },
+  ] });
+  expect((resolved.combatRoster as Array<Fields>)[shiftedIndex]!.target).not.toBe(startingTarget);
+});
+
 it('keeps a launched wing pending at Medium Range while its assigned commander is disconnected', async () => {
   const session = testState.documents.get('sessions/s1')!;
   put('sessions/s1', { ...session, activeRoleIds: ['wing-commander'],
