@@ -74,7 +74,7 @@ function player(overrides: Partial<Player> = {}): Player {
     uid: 'u1' as Player['uid'], sessionId: 's1' as Player['sessionId'], displayName: 'Captain',
     role: 'player', seatId: null, assignedRoleId: 'gorgoneion-captain',
     replacementRoleId: 'gorgoneion-captain', replacementStatus: null, activeConsoleRoleId: null,
-    fleetGroupId: 'fleet-1' as Player['fleetGroupId'], connectionGeneration: 1, joinedAt: 'now' as never,
+    fleetGroupId: 'fleet-1' as NonNullable<Player['fleetGroupId']>, connectionGeneration: 1, joinedAt: 'now' as never,
     ...overrides,
   };
 }
@@ -136,7 +136,7 @@ it('withdraws a displayed Force Field choice as soon as live authority or berth 
   act(() => useSessionStore.setState({ connection: 'live', sessionSnapshotFreshness: 'cache' }));
   expect(screen.queryByRole('button', { name: /pass force field/i })).not.toBeInTheDocument();
   act(() => useSessionStore.setState({ sessionSnapshotFreshness: 'server' }));
-  act(() => useSessionStore.getState().setMe(player({ fleetGroupId: 'fleet-2' as Player['fleetGroupId'] })));
+  act(() => useSessionStore.getState().setMe(player({ fleetGroupId: 'fleet-2' as NonNullable<Player['fleetGroupId']> })));
   expect(screen.queryByRole('button', { name: /pass force field/i })).not.toBeInTheDocument();
   act(() => useSessionStore.getState().setMe(player({ connectionGeneration: 2 })));
   expect(screen.queryByRole('button', { name: /pass force field/i })).not.toBeInTheDocument();
@@ -211,7 +211,7 @@ it('withdraws range controls when a current fleet-group berth or connection gene
 
   act(() => useSessionStore.getState().setMe(player({
     assignedRoleId: 'executive-officer', replacementRoleId: null, activeConsoleRoleId: 'executive-officer',
-    fleetGroupId: 'fleet-2' as Player['fleetGroupId'],
+    fleetGroupId: 'fleet-2' as NonNullable<Player['fleetGroupId']>,
   })));
   expect(screen.queryByRole('button', { name: /pass this range/i })).not.toBeInTheDocument();
   act(() => useSessionStore.getState().setMe(player({
@@ -235,7 +235,7 @@ it('ignores a boarding mutation reply after the attack or current fleet berth ch
   publish({ ...boarding, currentStep: 'resolved', range: null, revision: 8 });
   expect(screen.queryByRole('button', { name: /commit defence/i })).not.toBeInTheDocument();
   act(() => useSessionStore.getState().setMe(player({
-    replacementRoleId: null, assignedRoleId: 'aegis-engineer', fleetGroupId: 'fleet-2' as Player['fleetGroupId'],
+    replacementRoleId: null, assignedRoleId: 'aegis-engineer', fleetGroupId: 'fleet-2' as NonNullable<Player['fleetGroupId']>,
   })));
   await act(async () => delayedCommit.resolve(undefined));
   expect(screen.queryByText(/boarding defence committed/i)).not.toBeInTheDocument();
