@@ -245,7 +245,13 @@ it('locks one server-generated Long Range attack once and assigns it without rer
 
 it('reconstructs a partially selected Medium Range lock after an entitled reconnect', async () => {
   const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
-  put('sessions/s1/wolfAttackState/current', { ...attack, currentStep: 'medium-range', revision: 4 });
+  const targetSnapshot = (attack.combatRoster as Array<{ instanceId: string; target: string }>).map(({ instanceId, target }) => ({ instanceId, target }));
+  const emptyLongReceipt = { range: 'long-range', targetSnapshot, dice: [], assignments: [], targetShifts: [],
+    unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
+    destructionDamageByTarget: Object.fromEntries(CORE_WOLF_TARGET_RING.map((target) => [target, 0])) };
+  put('sessions/s1/wolfAttackState/current', {
+    ...attack, currentStep: 'medium-range', revision: 4, rangeReceipts: [emptyLongReceipt],
+  });
   const initial = await getWolfRangeActionChoice.run(request({ sessionId: 's1' }));
   expect(initial).toMatchObject({ eligibleActions: [
     { actionId: 'aegis-missile-launchers-medium' },
@@ -268,12 +274,33 @@ it('reconstructs a partially selected Medium Range lock after an entitled reconn
   expect(reconnected.hitSlots).not.toContainEqual(expect.objectContaining({ actionId: 'aegis-point-defence-lasers-medium' }));
 });
 
+it('rejects a range receipt whose pre-range target snapshot breaks target progression', async () => {
+  const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  const roster = attack.combatRoster as Array<{ instanceId: string; target: string }>;
+  const targetSnapshot = roster.map(({ instanceId, target }) => ({ instanceId, target }));
+  targetSnapshot[0] = { ...targetSnapshot[0]!, target: targetSnapshot[0]!.target === 'aegis' ? 'dione' : 'aegis' };
+  put('sessions/s1/wolfAttackState/current', {
+    ...attack, currentStep: 'medium-range', revision: 4,
+    rangeReceipts: [{ range: 'long-range', targetSnapshot, dice: [], assignments: [], targetShifts: [],
+      unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
+      destructionDamageByTarget: Object.fromEntries(CORE_WOLF_TARGET_RING.map((target) => [target, 0])) }],
+  });
+
+  await expect(getWolfRangeActionChoice.run(request({ sessionId: 's1' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+});
+
 it('caps excess server hits at the live distinct contacts and preserves the private full-hit receipt', async () => {
   const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  const targetSnapshot = (attack.combatRoster as Array<{ instanceId: string; target: string }>).map(({ instanceId, target }) => ({ instanceId, target }));
+  const emptyRangeReceipt = (range: string) => ({ range, targetSnapshot, dice: [], assignments: [], targetShifts: [],
+    unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
+    destructionDamageByTarget: Object.fromEntries(CORE_WOLF_TARGET_RING.map((target) => [target, 0])) });
   const roster = (attack.combatRoster as Array<Record<string, unknown>>).map((ship, index) => ({
     ...ship, destroyed: index !== 10,
   }));
-  put('sessions/s1/wolfAttackState/current', { ...attack, currentStep: 'medium-range', revision: 4, combatRoster: roster });
+  put('sessions/s1/wolfAttackState/current', { ...attack, currentStep: 'medium-range', revision: 4, combatRoster: roster,
+    rangeReceipts: [emptyRangeReceipt('long-range')] });
 
   const lock = await commitWolfRangeActionChoice.run(request({
     sessionId: 's1', requestId: 'lock-medium-overflow', expectedTurn: 1, expectedRevision: 4,
@@ -299,8 +326,13 @@ it('caps excess server hits at the live distinct contacts and preserves the priv
 
 it('commits an empty target assignment when Short Range has no legal live contacts', async () => {
   const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  const targetSnapshot = (attack.combatRoster as Array<{ instanceId: string; target: string }>).map(({ instanceId, target }) => ({ instanceId, target }));
+  const emptyRangeReceipt = (range: string) => ({ range, targetSnapshot, dice: [], assignments: [], targetShifts: [],
+    unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
+    destructionDamageByTarget: Object.fromEntries(CORE_WOLF_TARGET_RING.map((target) => [target, 0])) });
   const roster = (attack.combatRoster as Array<Record<string, unknown>>).map((ship) => ({ ...ship, destroyed: true }));
-  put('sessions/s1/wolfAttackState/current', { ...attack, currentStep: 'short-range', revision: 4, combatRoster: roster });
+  put('sessions/s1/wolfAttackState/current', { ...attack, currentStep: 'short-range', revision: 4, combatRoster: roster,
+    rangeReceipts: [emptyRangeReceipt('long-range'), emptyRangeReceipt('medium-range')] });
 
   const choice = await commitWolfRangeActionChoice.run(request({
     sessionId: 's1', requestId: 'lock-short-no-contact', expectedTurn: 1, expectedRevision: 4,
