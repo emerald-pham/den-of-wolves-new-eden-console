@@ -263,6 +263,6 @@ it('preserves choice drafts on same-revision refreshes and resets them when auth
   await user.click(screen.getByRole('checkbox', { name: /missile launchers/i }));
   rangeRerender.rerender(<WolfRangeActionPanelView view={{ ...rangeView }} onUseActions={vi.fn()} onPass={vi.fn()} onAssignTargets={vi.fn()} />);
   expect(screen.getByRole('checkbox', { name: /missile launchers/i })).toBeChecked();
-  rangeRerender.rerender(<WolfRangeActionPanelView view={{ ...rangeView, revision: 4 }} onUseActions={vi.fn()} onPass={vi.fn()} onAssignTargets={vi.fn()} />);
+  rangeRerender.rerender(<WolfRangeActionPanelView view={{ ...rangeView, revision: 5 }} onUseActions={vi.fn()} onPass={vi.fn()} onAssignTargets={vi.fn()} />);
   expect(screen.getByRole('checkbox', { name: /missile launchers/i })).not.toBeChecked();
 });
