@@ -429,8 +429,8 @@ the original assumption; append the resolution so the decision is traceable.
 |---|---|
 | ID and checkpoint | PC08-A3, independent fleet fighter launch and connected range actions; root integration decision, October 3, 2026. |
 | Source | The AEGIS Alpha/Bravo and PDF component sheets define independent launch and combat abilities (A4 single-sided p. 36 and double-sided p. 81). They do not prescribe an asynchronous digital choice window. The connected attack already makes targeting the launch boundary. |
-| Chosen reading | Hold targeting for every eligible source with a current entitled actor until its durable launch-or-pass choice is committed. An absent actor or ineligible source receives a server-recorded unavailable outcome, allowing deterministic progression. Independent wings do not consume each other's choice. |
-| Alternatives and limits | Advancing immediately would make a launch depend on racing the server trigger. An arbitrary delay would be unreliable. This is digital timing policy; it does not add a printed range action, consume a bay charge on pass, or give clients control over dice or range advancement. Authenticated proof must exercise the ordinary pending choice and exact retry. |
+| Chosen reading | Hold targeting for every eligible source with an entitled assigned holder until its durable launch-or-pass choice is committed. A genuinely unassigned, removed, replaced, dead or invalid holder, or an ineligible source, receives a server-recorded unavailable outcome. Independent wings do not consume each other's choice. |
+| Alternatives and limits | Advancing immediately would make a launch depend on racing the server trigger. An arbitrary delay would be unreliable. An entitled assigned holder who disconnects or navigates elsewhere remains pending; heartbeat expiry is not a pass. Fresh connected console authority is still required to commit. This digital timing policy does not add a printed range action, consume a bay charge on pass, or give clients control over dice or advancement. Authenticated proof must exercise pending/reconnect choice and exact retry. |
 
 ### PC08-A4 — Short Range priority within a simultaneous batch
 

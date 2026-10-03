@@ -10,6 +10,8 @@ Eligible launch choices must hold targeting until each independent wing or
 craft has launched or explicitly passed; proof cannot rely on beating the
 automatic targeting trigger. Short Range records only the selected fighter
 indexes, including a zero-fighter pass, before the server samples any dice.
+An entitled assigned holder remains pending while disconnected or away from
+the console; presence expiry must not silently turn any choice into a pass.
 Its simultaneous assignment batch gives lethal coverage to live Wolf Fighter
 Wings before any other ship receives damage; the old Wings-only filter must
 not discard a valid remaining hit once that coverage is satisfied.
