@@ -160,6 +160,33 @@ describe('central Wolf combat math', () => {
     });
   });
 
+  it('keeps expanded Capybara destruction, boarding, and fleet damage in the configured ring', () => {
+    const battlestation: WolfCombatShip = {
+      instanceId: 'expanded-battlestation:0', shipId: 'wolf-battlestation', target: 'capybara',
+      damageTaken: 0, destroyed: false,
+    };
+    const destroyed = resolveWolfRange('long-range', [{
+      actionId: 'expanded-long-shot', sourceId: 'aegis-missiles', range: 'long-range',
+      fixedDamage: 6, maxTargets: 1,
+    }], [{ actionId: 'expanded-long-shot', targetInstanceIds: [battlestation.instanceId] }],
+    [battlestation], samples([]));
+    expect(destroyed.receipt.destructionDamageByTarget.capybara).toBe(3);
+
+    const transport: WolfCombatShip = {
+      instanceId: 'expanded-transport:0', shipId: 'wolf-assault-transport', target: 'capybara',
+      damageTaken: 0, destroyed: false,
+    };
+    const boarding = resolveWolfBoarding([transport], [{ target: 'capybara', securityTeams: 0 }], samples([]));
+    expect(boarding).toEqual([expect.objectContaining({
+      target: 'capybara', boardingParties: 4, survivingBoardingParties: 4, damage: 4,
+    })]);
+
+    const fleetDamage = applyWolfFleetDamage('capybara', destroyed.receipt.destructionDamageByTarget.capybara, {
+      damage: { damagedSystemIds: [], destroyed: false }, population: INITIAL_SHIP_SURVIVORS.capybara!,
+    }, () => 0);
+    expect(fleetDamage).toMatchObject({ target: 'capybara', amount: 3, population: 19_997 });
+  });
+
   it('reuses the existing damage deck and survivor-track casualty rules', () => {
     const result = applyWolfFleetDamage('aegis', 2, {
       damage: { damagedSystemIds: [], destroyed: false },
