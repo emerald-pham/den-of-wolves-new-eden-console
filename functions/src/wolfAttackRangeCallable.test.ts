@@ -484,6 +484,7 @@ it('bounds the boarding choice by current resources and holds it during a sessio
 function openForceFieldFixture(): void {
   const session = testState.documents.get('sessions/s1')!;
   const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  const composition = firstTurnWolfAttackComposition();
   const turnPhase = session.turnPhase as Fields;
   put('sessions/s1', {
     ...session,
@@ -510,7 +511,8 @@ function openForceFieldFixture(): void {
       type: 'wolf-combat-calculation-stage', version: 1, turn: 1, step: 'pre-target-force-field',
       generatedAt: '2026-10-03T11:00:00.000Z', targetRing: [...CORE_WOLF_TARGET_RING],
       pursuitPressure: { navigationRevision: 1, groupValues: { 'fleet-1': 2 } },
-      composition: { shipIds: ['wolf-assault-transport'], counts: { 'wolf-assault-transport': 1 }, damageCapacity: 1 },
+      composition: { shipIds: [...composition.shipIds], counts: { ...composition.counts },
+        damageCapacity: composition.damageCapacity },
     },
     forceFieldChoice: {
       status: 'pending', turn: 1, revision: 4, hostShipId: 'aegis', dockingRevision: 1,
