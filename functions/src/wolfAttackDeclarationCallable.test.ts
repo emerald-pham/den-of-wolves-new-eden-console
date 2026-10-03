@@ -488,6 +488,42 @@ it('requires a reason and danger confirmation, then replays only the same scoped
     .not.toHaveProperty('calculationReceipt');
 });
 
+it('rejects a stored recovery receipt whose nested revision or rollback delta is malformed', async () => {
+  await declareWolfAttack.run(request());
+  put('sessions/s1/players/u2', {
+    uid: 'u2', role: 'player', connected: true, replacementRoleId: 'wolf-commander',
+  });
+  await finishWolfCommanderTargetingRerolls.run(request({
+    sessionId: 's1', requestId: 'finish-malformed-recovery', expectedTurn: 1, expectedRevision: 1,
+  }, 'u2'));
+  const readyRevision = mock.documents.get('sessions/s1/wolfAttackState/current')!.revision as number;
+  const payload = {
+    sessionId: 's1', instanceId: 'gm-1', requestId: 'malformed-recovery-receipt',
+    expectedTurn: 1, expectedRevision: readyRevision,
+    reason: 'Recover the already-completed targeting step.', dangerConfirmed: true,
+  };
+  await advanceWolfAttackToLongRange.run(request(payload));
+
+  const receiptPath = `sessions/s1/commandReceipts/${payload.requestId}`;
+  const stored = mock.documents.get(receiptPath)!;
+  const result = structuredClone(stored.result) as Fields;
+  const delta = result.delta as Fields;
+  const from = delta.from as Fields;
+  result.delta = {
+    ...delta,
+    from: { ...from, revision: (from.revision as number) + 1, injected: true },
+  };
+  result.rollback = { allowed: false, scope: 'all-prior-results' };
+  put(receiptPath, { ...stored, result });
+  const stateWriteCount = mock.update.mock.calls.filter(([target]) =>
+    target.path === 'sessions/s1/wolfAttackState/current').length;
+
+  await expect(advanceWolfAttackToLongRange.run(request(payload)))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update.mock.calls.filter(([target]) =>
+    target.path === 'sessions/s1/wolfAttackState/current')).toHaveLength(stateWriteCount);
+});
+
 it('rejects a reasoned recovery after the authoritative Coordination deadline', async () => {
   await declareWolfAttack.run(request());
   put('sessions/s1/players/u2', {
