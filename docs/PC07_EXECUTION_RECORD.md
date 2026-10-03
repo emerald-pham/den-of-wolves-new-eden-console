@@ -472,3 +472,34 @@ emulator fixture for this call; that preparation is separate from the normal
 native operation. The owner acknowledged this successful repair before the
 worker resumed the remaining complete scenario. Full 21-row composition,
 final independent review, CI and deployment still remain open.
+
+### Independent topology and navigation revisions
+
+The normal composed scenario subsequently exposed a distinct revision defect:
+after taxi transfers advanced `fleetPartitionRevision` to 4, a later physical
+partition confirmation overwrote it from navigation revision 2. The native
+4→2 trace is preserved. The checkpoint owner took the narrow repair scope;
+the group worker retained complete mission/rejoin proof ownership.
+
+Test-first `43e8134d` distinguishes topology 4→5 from navigation 1→2, exact
+replay with no writes, unchanged physical partitions and invalid/exhausted
+stored counters. It also catches null or exhausted taxi topology authority
+before any write. Source `d9047346` advances each independent server counter
+from its own current value, never infers topology revision from navigation and
+fails closed before unsafe counter updates. All **165/165** current native
+jump/taxi consumer checks and Functions build pass. Initial test-fixture errors
+(missing current GM berth and a nonexistent passenger) were corrected before
+the red commit; all original and discriminating red results remain outside Git.
+
+The worker acknowledged no call in flight. The owner exported its disposable
+state to `runtime-snapshot-partition-fix`, stopped only backend session 22070,
+and restored it in session 69536 on slot 1. The owner delivered a current-source
+boundary before normal scenario continuation. The old exported 4→2 result is
+not silently repaired or relabeled. A current native partition while the two
+counters differ and the complete mission/rejoin scenario are still pending;
+equal counter values alone do not distinguish this repair.
+
+The actual GM timing marker copy was separately corrected in red `67ce97c4`
+and source `f8b0f949`. It now distinguishes explicit declaration from automatic
+legal stage progress after current player choices. The existing mark/resolve
+test still proves those timing commands do not declare combat.

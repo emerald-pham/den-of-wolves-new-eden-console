@@ -45,6 +45,10 @@ question and paraphrase concise findings.
   mutation, private audit, receipts and audience projections commit together.
   No caller supplies hidden chart facts, arbitrary recipients, pursuit result
   or position. Exact replay must preserve its result without new writes.
+  Navigation and topology have independent monotonic counters: physical
+  partition/rejoin must increment current topology even after a taxi changed
+  membership without navigation. No-op/replay preserves both, and null,
+  malformed or exhausted topology authority cannot commit unsafe writes.
 - An in-flight route is visible only when both validated endpoints belong to
   the current group. Partition changes revoke/rebind its audience. Current
   group navigation emits sampled positions at one instant, never the private
