@@ -19,7 +19,7 @@ describe('fleet system reference workspaces', () => {
     useSessionStore.getState().setIdentity(
       { id: 's1', name: 'Table', joinCode: '1234', phase: 'active', ownerUid: 'gm1', createdAt: '', updatedAt: '' },
       { uid: 'xo1', sessionId: 's1', displayName: 'Executive Officer', role: 'player', seatId: null,
-        assignedRoleId: 'executive-officer', activeConsoleRoleId: 'executive-officer', connected: true, joinedAt: '' },
+        assignedRoleId: 'executive-officer', activeConsoleRoleId: 'executive-officer', fleetGroupId: 'fleet-1', connected: true, joinedAt: '' },
     );
     useSessionStore.getState().setConnection('offline');
 
