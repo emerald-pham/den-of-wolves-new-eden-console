@@ -36,7 +36,7 @@ it('offers only scanned locations and current local recipients in the known-syst
  const systems=screen.getByRole('combobox',{name:'Scanned system to share'});
  expect(within(systems).getAllByRole('option').map(option=>option.textContent)).toEqual(['3145','3155']);
  expect(screen.queryByRole('checkbox',{name:'DIONE'})).not.toBeInTheDocument();
- const send=screen.getByRole('button',{name:'Share scanned system',exact:true});
+ const send=screen.getByRole('button',{name:'Share scanned system'});
  expect(send).toBeDisabled();
  fireEvent.click(screen.getByRole('checkbox',{name:'ICEBREAKER'}));
  fireEvent.change(systems,{target:{value:'3155'}});fireEvent.click(send);
@@ -49,12 +49,12 @@ it('shows a bounded taxi payload, one-attempt recovery and an explicit rejoin re
  expect(within(screen.getByRole('combobox',{name:'Fuel units'})).getAllByRole('option')).toHaveLength(2);
  fireEvent.change(screen.getByRole('combobox',{name:'Taxi destination ship'}),{target:{value:'shepherd'}});
  fireEvent.change(screen.getByRole('combobox',{name:'Fuel units'}),{target:{value:'2'}});
- fireEvent.click(screen.getByRole('button',{name:'Send scout taxi',exact:true}));
+ fireEvent.click(screen.getByRole('button',{name:'Send scout taxi'}));
  expect(screen.getByRole('status',{name:'Taxi sample result'})).toHaveTextContent('2 fuel');
- expect(screen.getByRole('button',{name:'Send scout taxi',exact:true})).toBeDisabled();
+ expect(screen.getByRole('button',{name:'Send scout taxi'})).toBeDisabled();
  fireEvent.click(screen.getByRole('button',{name:'Restore taxi sample'}));
  fireEvent.click(screen.getByRole('button',{name:'Out-of-range destination sample'}));
- fireEvent.click(screen.getByRole('button',{name:'Send scout taxi',exact:true}));
+ fireEvent.click(screen.getByRole('button',{name:'Send scout taxi'}));
  expect(screen.getByRole('status',{name:'Taxi sample result'})).toHaveTextContent('Range denied');
  expect(screen.getByRole('button',{name:'Rejoin co-located sample'})).toBeDisabled();
  fireEvent.click(screen.getByRole('button',{name:'Arrival at the same fix sample'}));

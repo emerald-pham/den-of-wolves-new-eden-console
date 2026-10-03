@@ -44,7 +44,7 @@ it('withdraws a selected cached route and restores it only from current server c
 });
 it('keeps a mission-committed craft docked under otherwise open current airspace', () => {
  const current=useSessionStore.getState().session!;
- useSessionStore.getState().setSession({...current,missionCraftCommitments:{starlight:{missionId:'mission-1',sourceCycle:2}}});
+ useSessionStore.getState().setSession({...current,playerDiscovery:{...current.playerDiscovery!,missionCommittedCraftIds:['starlight']}});
  render(<ShuttleControl control={control} />);
  const panel=screen.getByRole('region',{name:'Shuttle departure'});
  expect(within(panel).getByRole('combobox')).toBeDisabled();

@@ -4233,6 +4233,27 @@ it('redacts cached candidate names, accepts only the exact code/title schema, an
   expect(onPlayerDiscovery).toHaveBeenLastCalledWith(null);
 });
 
+it('hydrates only a valid local mission craft allowlist from the private member discovery projection', () => {
+  const { callbacks } = captureSessionListener();
+  const onPlayerDiscovery = vi.fn();
+  const stop = subscribeSessionState('local-mission-craft', 'local-reader', {
+    onSession: vi.fn(), onPlayer: vi.fn(), onPlayerDiscovery,
+    onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+  });
+  const projection = { groupId: 'fleet-1', shipId: 'aegis', revision: 3,
+    fleetGroupVesselIds: ['aegis'], knownCoordinates: ['0000'], knownSystems: {}, navigationLogs: [],
+    missionCommittedCraftIds: ['starlight'], missionCraftCommitments: { foreign: { missionId: 'private-mission' } } };
+  const publish = (data: unknown) => callbacks[2]?.({ metadata: { fromCache: false }, exists: () => true, data: () => data });
+  publish(projection);
+  expect(onPlayerDiscovery).toHaveBeenLastCalledWith(expect.objectContaining({ missionCommittedCraftIds: ['starlight'] }));
+  expect(onPlayerDiscovery.mock.lastCall?.[0]).not.toHaveProperty('missionCraftCommitments');
+  for (const missionCommittedCraftIds of [['starlight','starlight'], ['bad/path'], [3], 'starlight']) {
+    publish({ ...projection, missionCommittedCraftIds });
+    expect(onPlayerDiscovery).toHaveBeenLastCalledWith(null);
+  }
+  stop();
+});
+
 it('clears the GM navigation projection when its protected listener loses permission', () => {
   const { errors } = captureSessionListener();
   const onGmDiscovery = vi.fn();

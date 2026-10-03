@@ -52,7 +52,7 @@ it('keeps a denial visible and allows a fresh explicit retry without announcing 
 });
 it.each(['actor','cycle'] as const)('withdraws a delayed denial when the current %s changes',async kind=>{
  let reject!: (error:Error)=>void;
- command.mockImplementationOnce(()=>new Promise<void>((_resolve,deny)=>{reject=deny;}));
+ command.mockImplementationOnce(()=>new Promise<undefined>((_resolve,deny)=>{reject=deny;}));
  render(<AirspaceControl />);fireEvent.click(screen.getByText('Systems control'));
  fireEvent.click(screen.getByRole('button',{name:'Unlock airspace // Press'}));
  act(()=>{
