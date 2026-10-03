@@ -52,9 +52,11 @@ try{
  await page.getByRole('button',{name:'GM joined',exact:true}).waitFor();
  await page.goto(`${origin}/#/gm`);
  await page.getByRole('heading',{name:/GM Console/i}).waitFor({timeout:20000});
+ await page.waitForFunction(()=>[...document.querySelectorAll('.ship-plot')].some(plot=>plot.textContent.includes('DRADIS // LOCAL PLOT')&&!plot.textContent.includes('UNAVAILABLE')));
  await page.screenshot({path:`${directory}/phone-normal-gm-console.png`,fullPage:true});
+ await page.screenshot({path:`${directory}/phone-normal-gm-viewport.png`});
  assert.deepEqual(errors,[]);
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth));
- await writeFile(`${directory}/summary.json`,JSON.stringify({kind:'normal-authenticated-local-emulator-ui',checks:{normalJoin:true,realServerHeldClock:true,offlineControlDisabled:true,reconnectRestoresClear:true,normalClearPreservesTenMinutes:true,restrictedTeamAfterClear:true,normalReload:true,ordinaryNamedGmJoin:true},productionGameplay:false,preparedReviewScene:false,identitiesRetained:false,completedAt:new Date().toISOString()},null,2)+'\n');
+ await writeFile(`${directory}/summary.json`,JSON.stringify({kind:'normal-authenticated-local-emulator-ui',checks:{normalJoin:true,realServerHeldClock:true,offlineControlDisabled:true,reconnectRestoresClear:true,normalClearPreservesTenMinutes:true,restrictedTeamAfterClear:true,normalReload:true,ordinaryNamedGmJoin:true,currentServerDradisComposed:true},productionGameplay:false,preparedReviewScene:false,identitiesRetained:false,completedAt:new Date().toISOString()},null,2)+'\n');
  console.log('PC07 normal local browser hold/reconnect/clear and named GM proof passed.');
 }catch(error){if(page){await page.screenshot({path:`${directory}/failure.png`,fullPage:true});await writeFile(`${directory}/failure-state.json`,JSON.stringify({message:error.message,url:page.url(),errors,body:await page.locator('body').innerText(),links:await page.locator('a').evaluateAll(elements=>elements.map(e=>({html:e.outerHTML,aria:e.closest('[aria-hidden]')?.outerHTML.slice(0,300),inert:e.closest('[inert]')?.tagName})))},null,2)+'\n');}throw error;}finally{await browser?.close();await f.cleanup();}
