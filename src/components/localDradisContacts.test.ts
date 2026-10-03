@@ -1,5 +1,5 @@
 import {expect,it} from 'vitest';
-import {localDradisContacts} from './localDradisContacts';
+import {localDradisCenterDockedCraftTags,localDradisContacts} from './localDradisContacts';
 const sampledAt='2026-10-03T01:00:00.000Z';
 const projection={groupId:'fleet-2',navigationRevision:5,fleetPartitionRevision:2,sampledAt,
  ships:[{shipId:'aegis',fleetGroupId:'fleet-2',coordinate:'1413'},
@@ -31,13 +31,15 @@ it('folds current docked craft into the visible host contact and lets transit wi
  const withDockings={...projection,dockedShuttles:[
   {shuttleId:'starlight',fleetGroupId:'fleet-2',hostShipId:'icebreaker'},
   {shuttleId:'endeavour',fleetGroupId:'fleet-2',hostShipId:'icebreaker'},
-  {shuttleId:'pallas',fleetGroupId:'fleet-1',hostShipId:'dione'},
+  {shuttleId:'pallas',fleetGroupId:'fleet-2',hostShipId:'aegis'},
+  {shuttleId:'boa',fleetGroupId:'fleet-1',hostShipId:'dione'},
  ]} as unknown as Parameters<typeof localDradisContacts>[1];
  const docked=localDradisContacts('aegis',withDockings);
  expect(docked.map(contact=>contact.id)).toEqual(['ship:icebreaker','transit:starlight']);
  const host=docked.find(contact=>contact.id==='ship:icebreaker');
  expect(host).toMatchObject({tag:'ICEBREAKER',dockedCraftTags:['DOCKED // ENDEAVOUR']});
  expect(docked.some(contact=>contact.id==='docked:starlight'||contact.id==='docked:endeavour'||contact.id==='docked:pallas')).toBe(false);
+ expect(localDradisCenterDockedCraftTags('aegis',withDockings)).toEqual(['DOCKED // PALLAS']);
 
  const competing={...withDockings,transits:[...projection.transits]} as unknown as Parameters<typeof localDradisContacts>[1];
  const current=localDradisContacts('aegis',competing);

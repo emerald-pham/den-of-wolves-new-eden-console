@@ -161,6 +161,16 @@ it('keeps docked craft visibly attached to the host label without adding a plot 
     .toEqual(['DOCKED // HUMMINGBIRD', 'DOCKED // ENDEAVOUR']);
 });
 
+it('keeps docked craft on the viewer ship attached to the existing origin marker', () => {
+  const { container } = render(<ContactPlot centerLabel="QUELLON"
+    centerDockedCraftTags={['DOCKED // HUMMINGBIRD']} contacts={[]} />);
+  const origin = container.querySelector('.contact-plot__origin')!;
+  expect(origin.querySelector(':scope > span')?.textContent).toBe('QUELLON');
+  expect([...origin.querySelectorAll('.contact-plot__docked-craft')].map(node => node.textContent))
+    .toEqual(['DOCKED // HUMMINGBIRD']);
+  expect(contactsIn(container)).toHaveLength(0);
+});
+
 it('places contacts through the volume of the sphere rather than on a single plane', () => {
   const { container } = render(<ContactPlot />);
   const contacts = contactsIn(container);

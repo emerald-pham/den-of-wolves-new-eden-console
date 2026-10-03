@@ -21,7 +21,7 @@ beforeEach(() => {
     sampledAt: '2026-10-02T10:00:00Z', ships: [
       { shipId: 'quellon', fleetGroupId: 'fleet-2', coordinate: '0000' },
       { shipId: 'capybara', fleetGroupId: 'fleet-2', coordinate: '1413' },
-    ], transits: [] });
+    ], dockedShuttles: [], transits: [] });
   mocks.share.mockReset().mockResolvedValue({ status: 'committed', requestId: 'share-1', groupId: 'fleet-2',
     coordinate: '1413', recipientShipIds: ['quellon'], navigationRevision: 2 });
   mocks.transferTaxi.mockReset().mockResolvedValue({ status: 'committed', requestId: 'taxi-1', kind: 'fuel',

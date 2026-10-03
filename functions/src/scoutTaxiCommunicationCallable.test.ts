@@ -276,6 +276,18 @@ it('returns server-current ships and docked shuttle hosts only for the requestin
   expect(mock.writes).not.toHaveBeenCalled();
 });
 
+it('suppresses a stale group docking while the latest server movement row says in transit', async () => {
+  seedSplitNavigation();
+  put('sessions/s1/shuttleDepartures/hummingbird', { status: 'in-transit', fleetGroupId: 'fleet-1' });
+  const navigation = await calls.readFleetGroupNavigation.run(request({ sessionId: 's1', requestId: 'nav-transit',
+    expectedNavigationRevision: 2, expectedFleetPartitionRevision: 1, expectedGroupId: 'fleet-2' })) as {
+      dockedShuttles: readonly Record<string, unknown>[]; transits: readonly Record<string, unknown>[];
+    };
+  expect(navigation.dockedShuttles.some(shuttle => shuttle.shuttleId === 'hummingbird')).toBe(false);
+  expect(navigation.transits.some(transit => transit.shuttleId === 'hummingbird')).toBe(false);
+  expect(navigation.dockedShuttles.map(shuttle => shuttle.shuttleId)).toEqual(['endeavour']);
+});
+
 it('delivers one separate courier note and consumes exactly one shared scouting attempt', async () => {
   const beforeSession = structuredClone(mock.documents.get('sessions/s1'));
   const beforeNavigation = structuredClone(mock.documents.get('sessions/s1/serverState/navigation'));
