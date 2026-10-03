@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { EXPANDED_WOLF_TARGET_RING } from './wolfCombatMath';
 import {
   authorizePdfEscortWingMission,
@@ -158,6 +158,19 @@ describe('authoritative PDF Escort Wing state', () => {
     expect(() => resolvePdfEscortWingShort(result.state, {
       expectedRevision: 2, fighterIndexes: [0], random: dice(3),
     })).toThrow(/already resolved/i);
+  });
+
+  it('allows an explicit Short Range pass without rolling or losing a fighter', () => {
+    const random = vi.fn(dice());
+    const result = resolvePdfEscortWingShort(launched(), {
+      expectedRevision: 1, fighterIndexes: [], random,
+    });
+
+    expect(result).toMatchObject({ losses: 0, rolls: [], state: {
+      revision: 2, fighters: 4, losses: 0, shortResolved: true, shortRollFighterIndexes: [],
+    } });
+    expect(random).not.toHaveBeenCalled();
+    expect(parsePdfEscortWingState(result.state)).toEqual(result.state);
   });
 
   it('uses the full configured target ring when the expansion target is active', () => {
