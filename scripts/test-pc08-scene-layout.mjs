@@ -8,6 +8,48 @@ const directory = process.env.PC08_SCENE_EVIDENCE_DIR;
 assert.ok(directory, 'An external evidence directory is required.');
 const labels = ['1 DRADIS and shuttles', '2 Weapons', '3 Fleet fighters', '4 Boarding defence', '5 Results and recovery'];
 
+test('PC08 return control opens the real parent at phone and desktop sizes', async () => {
+  const server = await createServer({server: {host: '127.0.0.1', port: 0}, logLevel: 'silent'});
+  let browser;
+  const cases = [];
+  try {
+    await mkdir(directory, {recursive: true});
+    await server.listen();
+    browser = await chromium.launch({channel: 'chrome', headless: true});
+    const address = server.httpServer.address();
+    for (const [width, height] of [[390, 844], [1440, 900]]) {
+      const page = await browser.newPage({viewport: {width, height}, reducedMotion: 'reduce'});
+      const errors = [], tourWrites = [];
+      let inTour = true;
+      page.on('pageerror', error => errors.push(error.message));
+      page.on('request', request => {
+        if (inTour && request.method() !== 'GET') tourWrites.push(request.method());
+      });
+      try {
+        await page.goto(`http://127.0.0.1:${address.port}/pc08-review.html`);
+        await page.getByRole('note', {name: 'Prepared review boundary'}).waitFor();
+        assert.deepEqual(tourWrites, []);
+        inTour = false;
+        await page.getByRole('link', {name: 'Return to station and console chooser', exact: true}).click();
+        await page.waitForURL(`http://127.0.0.1:${address.port}/#/`);
+        await page.getByRole('heading', {name: /Den of Wolves: New Eden/}).waitFor();
+        assert.equal(await page.locator('.pc08-review').count(), 0);
+        assert.ok(await page.getByRole('button', {name: 'Join a session', exact: true}).isVisible());
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth));
+        assert.deepEqual(errors, []);
+        await page.screenshot({path: `${directory}/${width}x${height}-returned-parent.png`, fullPage: true});
+        cases.push({width, height, returnedToParent: true, errors, tourWrites});
+      } finally {
+        await page.close();
+      }
+    }
+    await writeFile(`${directory}/parent-navigation.json`, `${JSON.stringify({boundary: 'prepared-tour-to-real-parent', cases, completedAt: new Date().toISOString()}, null, 2)}\n`);
+  } finally {
+    await browser?.close();
+    await server.close();
+  }
+});
+
 test('PC08 real-presenter review is isolated and usable in eight viewport and motion cases', async () => {
   const server = await createServer({server: {host: '127.0.0.1', port: 0}, logLevel: 'silent'});
   let browser;
