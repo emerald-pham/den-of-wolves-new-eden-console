@@ -275,6 +275,42 @@ it('resolves an explicit whole-wing Medium pass without dice and advances the ra
   expect(entropy.randomInt).not.toHaveBeenCalled();
 });
 
+it('keeps a launched wing pending at Medium Range while its assigned commander is disconnected', async () => {
+  const session = testState.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session, activeRoleIds: ['wing-commander'],
+    maintenanceCycles: { ...(session.maintenanceCycles as Fields), aegis: {
+      ...(session.maintenanceCycles as Fields).aegis as Fields, charges: ['fighter-bay-alpha'],
+    } }, fighterWingCounts: initialFighterWingCounts() });
+  const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  put('sessions/s1/wolfAttackState/current', { ...attack, currentStep: 'targeting' });
+  put('sessions/s1/players/wc-1', { uid: 'wc-1', role: 'player', connected: true,
+    assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander', fleetGroupId: 'fleet-1' });
+  put('sessions/s1/fleetGroups/fleet-1', { id: 'fleet-1',
+    vesselIds: ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124'],
+    memberUids: ['xo-1', 'wc-1'], memberShipIds: { 'xo-1': 'aegis', 'wc-1': 'aegis' } });
+  const launchView = await getAegisFighterWingLaunch.run(request({ sessionId: 's1', wingId: 'fighter-wing-alpha' }, 'wc-1'));
+  await launchAegisFighterWing.run(request({ sessionId: 's1', requestId: 'offline-medium-launch',
+    expectedTurn: 1, expectedRevision: launchView.revision, expectedWingRevision: launchView.wingRevision,
+    wingId: 'fighter-wing-alpha' }, 'wc-1'));
+
+  const launchedAttack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  const targetSnapshot = (launchedAttack.combatRoster as Array<{ instanceId: string; target: string }>)
+    .map(({ instanceId, target }) => ({ instanceId, target }));
+  const emptyLongReceipt = { range: 'long-range', targetSnapshot, dice: [], assignments: [], targetShifts: [],
+    unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
+    destructionDamageByTarget: Object.fromEntries(CORE_WOLF_TARGET_RING.map((target) => [target, 0])) };
+  put('sessions/s1/wolfAttackState/current', { ...launchedAttack, currentStep: 'medium-range',
+    rangeReceipts: [emptyLongReceipt] });
+  const commander = testState.documents.get('sessions/s1/players/wc-1')!;
+  put('sessions/s1/players/wc-1', { ...commander, connected: false });
+
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
+    currentStep: 'medium-range', rangeReceipts: [expect.objectContaining({ range: 'long-range' })],
+  });
+});
+
 it('holds completed targeting until each eligible AEGIS Fighter Bay is launched or passed', async () => {
   const session = testState.documents.get('sessions/s1')!;
   put('sessions/s1', { ...session, activeRoleIds: ['executive-officer', 'wing-commander'],
