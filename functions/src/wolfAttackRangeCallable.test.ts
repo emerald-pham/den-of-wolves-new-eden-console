@@ -628,3 +628,27 @@ it('checks current Captain group authority before replaying an unchanged Force F
   await expect(commitWolfForceFieldChoice.run(request(payload, 'gorg-1')))
     .rejects.toMatchObject({ code: 'permission-denied' });
 });
+
+it('rolls targeting once after the committed Captain choice and continues from the server receipt', async () => {
+  openForceFieldFixture();
+  const payload = { sessionId: 's1', requestId: 'force-field-auto-targeting', expectedTurn: 1,
+    expectedRevision: 4, targetShipId: 'aegis' };
+  await commitWolfForceFieldChoice.run(request(payload, 'gorg-1'));
+
+  const chosen = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  expect(chosen).toMatchObject({ currentStep: 'targeting', revision: 5,
+    calculationReceipt: { step: 'pre-target-force-field' },
+    forceFieldChoice: { status: 'selected', targetShipId: 'aegis' } });
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+
+  const targeted = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  expect(targeted).toMatchObject({ currentStep: 'targeting', revision: 6,
+    calculationReceipt: { step: 'targeting', targeting: { ring: CORE_WOLF_TARGET_RING } },
+    forceFieldChoice: { status: 'selected', targetShipId: 'aegis' } });
+  const targetingReceipt = (targeted.calculationReceipt as Fields).targeting;
+  const drawCount = entropy.randomInt.mock.calls.length;
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  const afterProgress = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  expect((afterProgress.calculationReceipt as Fields).targeting).toEqual(targetingReceipt);
+  expect(entropy.randomInt).toHaveBeenCalledTimes(drawCount);
+});
