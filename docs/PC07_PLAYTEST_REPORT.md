@@ -49,6 +49,8 @@ The final full attack exposed two further real defects. Captain exact retry coul
 
 The first independent review reproduced four findings before source repair: reuse of an absorbed group identity on a later split; an unavailable EO outcome outside the public schema; lost actor-entitled SNN state; and delayed member replies restoring controls after authoritative disconnect. The test-only repair commit precedes implementation, with eleven retained red failures and 276/276 focused checks green. The subsequent normal Press/five-ship branch exposed three additional defects: a listener denied before the first departure never rebound, a second client projection removed entitled SNN docking/history, and the targeting parser rejected the supported five-ship ring. Separate test-only commits reproduce each before source changes. Client parsing/movement/touch checks pass 190/190; affected targeting/range/lifecycle checks pass 110/110. The normal repaired branch verifies the full recovery through actual UI and automatic attack finalization. Follow-up independent review remains required.
 
+The first approved candidate's full gate stopped at four lint errors. Three parameterized test calls were reformatted without assertion changes, and an unused passenger-map binding was replaced with equivalent copy/removal. The failed gate is retained; the updated candidate renews exact review before final validation.
+
 Existing budget, motion, privacy, arithmetic, source-rule and authority checks are retained. Historical PC06 stays at 0.5.64 / 556; PC07 credits exactly its fixed49 and leaves P605a and later weapon/aftermath scope uncredited.
 
 ## Known boundaries and release state

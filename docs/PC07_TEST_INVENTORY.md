@@ -1005,3 +1005,7 @@ Updated suite: 1 new case and 0 changed existing cases.
 - accepts the canonical five-ship receipt while denying arbitrary subsets, reordered rings and out-of-ring dice
 
 The normal eight-station attack exposed the private targeting parser still denying the supported five-ship receipt. Test-only `df3cdb4c` records two discriminating failures before `e26b8f33` adds only the canonical five-ship ring. The native automatic continuation and all affected targeting/declaration/C&C/range suites pass110/110. Existing six/seven-ring validation and malformed-dice/privacy checks are preserved.
+
+## Final lint reconciliation
+
+The first final validation of approved `c88dcb0a` stopped at four lint errors. Test-only `790cf18a` moves three existing `it.each` invocations onto their call line in `jumpCallable.test.ts`, `scoutAutomaticResolution.test.ts` and `scoutTaxiCommunicationCallable.test.ts`; all parameters, case names and assertions are unchanged. Source-only `0a9774f0` replaces an unused rest-destructuring binding in `planFleetTaxiTransfer` with a copy and explicit removal of the same optional passenger map. The result still omits an empty source map and preserves current passenger membership. The lint failure and repaired lint log are retained externally. The five affected native suites pass 188/188 for the unchanged behavior, and the source-bound consumer hash is refreshed without expanding the 105-Function selector.
