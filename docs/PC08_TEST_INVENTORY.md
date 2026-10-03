@@ -26,3 +26,21 @@ is skipped or deleted to pass. Separate test-only commits precede behavior.
 
 External evidence root: `/Users/emeraldpham/Documents/PC08-evidence/`.
 Worker test inventories and final rendered/native/rules results remain pending.
+
+## Reconciled test-first history
+
+The owner separated three worker fixture corrections from their implementation
+commits before any push. Original worker commits and logs remain preserved;
+the accepted owner history places each correction first. Both history receipts
+verify an identical final source tree, so this correction changes provenance,
+not behavior or evidence outcomes. Full final validation remains required.
+
+| Owner test commit → implementation | Reason for the existing test change |
+|---|---|
+| 521ea519 → 09a80765, original boarding presenter 4a8792b6 | Select the exact accessible ruling textbox instead of an ambiguous label query; retain the same required-text and exact callback assertions. |
+| e208ea9e → f3ed9bfe, original range primitive d8f8242e | Supply explicit empty target-shift receipts in existing fixtures and match the duplicate-fighter error wording; retain the once-only rejection and existing consequence assertions. |
+| e94bf6dd → 4b9a6532, original snapshot resolver f4dca5ed | Supply the new immutable pre-range target snapshot in range fixtures and assertions, before the resolver implementation. |
+
+External mappings: `owner/receipt-fixture-history.json` and
+`owner/presenter-range-fixture-history.json`. Later test/source commits remain
+separate; no case is skipped, deleted or weakened to satisfy this history check.
