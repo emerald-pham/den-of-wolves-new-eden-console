@@ -15,8 +15,9 @@ const testState = vi.hoisted(() => {
   const querySnapshot = (path: string) => ({ docs: [...documents.keys()]
     .filter((candidate) => candidate.startsWith(`${path}/`) &&
       !candidate.slice(path.length + 1).includes('/')).map(snapshot) });
-  const get = vi.fn(async (target: { path: string }) => target.path.endsWith('/players')
-    ? querySnapshot(target.path) : snapshot(target.path));
+  const get = vi.fn(async (target: { path: string }) =>
+    target.path.endsWith('/players') || target.path.endsWith('/fleetGroups')
+      ? querySnapshot(target.path) : snapshot(target.path));
   const set = vi.fn((target: { path: string }, fields: Fields) => documents.set(target.path, { ...fields }));
   const update = vi.fn((target: { path: string }, fields: Fields) => documents.set(target.path,
     { ...(documents.get(target.path) ?? {}), ...fields }));
@@ -81,7 +82,12 @@ function resetFixture(): void {
     shipUpgrades: { aegis: ['missile-launchers'] },
   });
   put('sessions/s1/players/xo-1', { uid: 'xo-1', role: 'player', connected: true,
-    assignedRoleId: 'executive-officer', activeConsoleRoleId: 'executive-officer' });
+    assignedRoleId: 'executive-officer', activeConsoleRoleId: 'executive-officer', fleetGroupId: 'fleet-1' });
+  put('sessions/s1/fleetGroups/fleet-1', {
+    id: 'fleet-1',
+    vesselIds: ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124'],
+    memberUids: ['xo-1'], memberShipIds: { 'xo-1': 'aegis' },
+  });
   put('sessions/s1/wolfAttackState/current', {
     type: 'wolf-attack-state', status: 'declared', currentStep: 'long-range', airspaceLocked: true,
     turn: 1, revision: 4, attackId: 'wolf-attack-test-1', deadlineAt: '2026-10-02T12:10:00.000Z',
@@ -108,6 +114,25 @@ it('returns only current source-derived actions and opaque target contacts to th
   expect(view).not.toHaveProperty('combatRoster');
   await expect(getWolfRangeActionChoice.run(request({ sessionId: 's1' }, 'other')))
     .rejects.toMatchObject({ code: 'permission-denied' });
+});
+
+it('denies the EO range projection after the current berth moves away from AEGIS', async () => {
+  const group = testState.documents.get('sessions/s1/fleetGroups/fleet-1')!;
+  put('sessions/s1/fleetGroups/fleet-1', { ...group, memberShipIds: { 'xo-1': 'dione' } });
+
+  await expect(getWolfRangeActionChoice.run(request({ sessionId: 's1' })))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+});
+
+it('denies use/pass writes after the EO has taxied away from AEGIS', async () => {
+  const group = testState.documents.get('sessions/s1/fleetGroups/fleet-1')!;
+  put('sessions/s1/fleetGroups/fleet-1', { ...group, memberShipIds: { 'xo-1': 'dione' } });
+
+  await expect(commitWolfRangeActionChoice.run(request({
+    sessionId: 's1', requestId: 'taxied-eo-pass', expectedTurn: 1, expectedRevision: 4,
+    range: 'long-range', actionIds: [],
+  }))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(testState.documents.has('sessions/s1/commandReceipts/taxied-eo-pass')).toBe(false);
 });
 
 it('locks one server-generated Long Range attack once and assigns it without rerolling', async () => {
@@ -173,7 +198,7 @@ it('records an explicit range pass in the final receipt and member-safe results'
     range: 'long-range', dice: [], assignments: [],
   })]));
   expect(state.memberResults).toEqual(expect.arrayContaining([expect.objectContaining({
-    status: 'committed', range: 'long-range', sourceId: 'aegis-executive-officer',
+    status: 'committed', range: 'long-range', sourceId: 'aegis-weapons',
     effect: 'AEGIS passed Long Range weapons', outcome: { damage: 0, destroyed: false },
   })]));
 });
