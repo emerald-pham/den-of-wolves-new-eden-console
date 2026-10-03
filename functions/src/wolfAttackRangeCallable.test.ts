@@ -1037,7 +1037,8 @@ it('keeps an offline entitled Executive Officer Enriched Warhead choice pending'
   enrichedWarheadFixture();
   put('sessions/s1/players/xo-1', { ...testState.documents.get('sessions/s1/players/xo-1')!, connected: false });
   for (let index = 0; index < 4; index += 1) await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
-  expect(testState.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({ currentStep: 'targeting' });
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({ currentStep: 'targeting',
+    decisionSummary: { enrichedWarheads: { status: 'pending', actors: [{ uid: 'xo-1', connected: false }] } } });
 });
 
 it('passes Enriched Warheads with no cost and cannot enrich after Long Range begins', async () => {

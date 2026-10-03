@@ -101,3 +101,14 @@ it('labels a missing current summary as awaiting refresh and never substitutes a
   expect(screen.getByRole('region')).toHaveTextContent('Current decision details are waiting for a server refresh.');
   expect(screen.getByRole('region')).not.toHaveTextContent('Unavailable');
 });
+
+
+it('shows the offline EO start-of-attack warhead decision without a facilitator spend control', () => {
+  render(<GmWolfDecisionSummary summary={{ ...pending,
+    enrichedWarheads: { status: 'pending', actors: [{ uid: 'private-eo-uid', connected: false }] },
+  }} currentStep="targeting" players={players} available />);
+  const row = screen.getByRole('group', { name: 'Enriched warhead decisions' });
+  expect(row).toHaveTextContent('Choice pending');
+  expect(row).toHaveTextContent('Mira // Reconnect pending');
+  expect(within(row).queryByRole('button')).toBeNull();
+});

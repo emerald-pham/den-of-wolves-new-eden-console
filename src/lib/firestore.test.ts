@@ -3222,6 +3222,7 @@ it('strictly parses the private GM decision summary and rejects unknown decision
     commander: { status: 'pending', actors: [{ uid: 'commander-1', connected: false }] },
     commandAndControl: { status: 'unavailable', actors: [{ uid: 'xo-1', connected: true }], reason: 'uncharged' },
     forceField: { status: 'not-needed' },
+    enrichedWarheads: { status: 'pending', actors: [{ uid: 'xo-1', connected: false }] },
     range: { range: 'long-range', status: 'pending', actors: [{ uid: 'xo-1', connected: true }] },
   };
   const state = {
