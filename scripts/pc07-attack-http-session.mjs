@@ -4,7 +4,7 @@ import {createPc07AuthenticatedSession} from './pc07-authenticated-session.mjs';
 
 /** Real local commands compose maintenance, transit and declaration. Only the
  * disposable clock is accelerated; no resources, dice or attack results seed. */
-export async function createPc07AttackHttpSession() {
+export async function createPc07AttackHttpSession({beforeDeclaration}={}) {
  const f=await createPc07AuthenticatedSession('PC07 ordinary attack and airspace proof',12);
  const {db,gm,instanceId,session,sessionId,call,ok}=f;
  try {
@@ -28,6 +28,7 @@ export async function createPc07AttackHttpSession() {
   ok(await call(wing,'requestShuttleDeparture',{sessionId,requestId:departureId,shuttleId:'starlight',destinationShipId:'icebreaker',expectedControlRevision:0,expectedCycle:1}),'local departure');
   const transit=ok(await call(wing,'beginShuttleTransit',{sessionId,requestId:randomUUID(),shuttleId:'starlight',expectedDepartureRequestId:departureId,expectedControlRevision:0,expectedCycle:1}),'normal transit');
   assert.equal(transit.status,'in-transit');
+  if(beforeDeclaration)await beforeDeclaration({...f,wing,transit});
   ok(await call(gm,'setWolfAttackWindow',{sessionId,instanceId,requestId:randomUUID(),expectedRevision:0,status:'due'}),'Wolf window');
   const preparation=ok(await call(gm,'stageWolfAttackPreparation',{sessionId,instanceId,requestId:randomUUID(),expectedRevision:0,turn:1,
    shipIds:[...Array(10).fill('wolf-fighter-wing'),...Array(5).fill('wolf-assault-transport')],targetMode:'pre-rolled',targetAssignments:[],modifiers:[],notes:''}),'printed initial attack');
