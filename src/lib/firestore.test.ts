@@ -137,9 +137,9 @@ it('hydrates bounded craft histories without resetting usage or inventing foreig
   });
   for (const field of ['blacksmithRepairs','macawRepairs','chacauRepairs','allyRepairs'] as const) expect(value[field]).toEqual(repairs);
   for (const field of ['gorgoneionRepairDrones','warriorRepairDrones'] as const) {
-    expect(value[field]).toMatchObject({ cycle: 2, revision: 1, hostShipId: '', redacted: true });
+    expect(value[field]).toEqual(used);
   }
-  expect(value.serviceShuttleRecharges?.wobbly).toEqual({ cycle: 2, revision: 1, hostShipId: '', consoleId: '', redacted: true });
+  expect(value.serviceShuttleRecharges?.wobbly).toEqual(used);
 });
 
 it('rejects an old group response after the current player moves and accepts the new group read', async () => {

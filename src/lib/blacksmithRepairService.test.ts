@@ -78,6 +78,14 @@ it('accepts exact replay and rejects a response bound to another request', async
   await expect(repairConsolesFromBlacksmith(command)).rejects.toThrow(/malformed/i);
 });
 
+it('preserves current repair revision when earlier foreign host details are withheld', async () => {
+  const store = useSessionStore.getState();
+  store.setSession({ ...store.session!, blacksmithRepairs: { cycle: 4, revision: 2, hosts: [], totalHostsUsed: 1 } } as never);
+  mocks.call.mockResolvedValue(response('replayed'));
+  await expect(repairConsolesFromBlacksmith(command)).resolves.toMatchObject({ status: 'replayed', repairRevision: 3 });
+  expect(mocks.call).toHaveBeenCalledTimes(1);
+});
+
 it('allows a current fleet-group handoff holder and preserves their assigned role binding', async () => {
   const state = useSessionStore.getState();
   state.setMe({ ...state.me!, assignedRoleId: 'icebreaker-captain', activeConsoleRoleId: 'icebreaker-captain' });

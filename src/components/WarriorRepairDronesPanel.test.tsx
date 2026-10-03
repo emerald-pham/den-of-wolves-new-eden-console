@@ -69,6 +69,13 @@ beforeEach(() => {
 
 afterEach(() => vi.unstubAllGlobals());
 
+it('keeps current-cycle use consumed when previous foreign host details are withheld', () => {
+  installSession({ warriorRepairDrones: { cycle: 3, revision: 1, redacted: true } } as Partial<GameSession>);
+  render(<WarriorRepairDronesPanel />);
+  expect(screen.getByText(/already been used this cycle/i)).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Repair selected consoles' })).toBeDisabled();
+});
+
 it('exposes the charged repair and submits one or two selected current-host consoles', async () => {
   mocks.repair.mockResolvedValue({
     status: 'committed', hostShipId: 'icebreaker', systemIds: ['storage', 'reactor'],

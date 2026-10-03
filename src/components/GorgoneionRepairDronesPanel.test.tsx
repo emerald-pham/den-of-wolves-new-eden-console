@@ -69,6 +69,13 @@ beforeEach(() => {
 
 afterEach(() => vi.unstubAllGlobals());
 
+it('keeps current-cycle use consumed when previous foreign host details are withheld', () => {
+  installSession({ gorgoneionRepairDrones: { cycle: 3, revision: 1, redacted: true } } as Partial<GameSession>);
+  render(<GorgoneionRepairDronesPanel />);
+  expect(screen.getByText(/already been used this cycle/i)).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Repair one console' })).toBeDisabled();
+});
+
 it('exposes one source-charged repair and submits the selected current docked-host console', async () => {
   mocks.repair.mockResolvedValue({
     status: 'committed', hostShipId: 'aegis', systemId: 'reactor',
