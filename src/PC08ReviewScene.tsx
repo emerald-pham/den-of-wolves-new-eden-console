@@ -170,7 +170,9 @@ function FightersReview() {
         }} />
     </> : <WolfFighterRangeActionPanelView key={`${wing}:${range}`} view={view}
       onResolveMedium={actions => {setCommitted(current => ({...current, [`${wing}:${range}`]: true}));
-        setMessage(`LOCAL SIMULATION // ${wing} choice committed: ${actions.length} independent fighter actions recorded.`);}}
+        setMessage(actions.length
+          ? `LOCAL SIMULATION // ${wing} choice committed: ${actions.length} independent fighter actions recorded.`
+          : `LOCAL SIMULATION // ${wing} passed Medium Range.`);}}
       onResolveShort={indexes => {setCommitted(current => ({...current, [`${wing}:${range}`]: true}));
         setMessage(indexes.length > 0
           ? `LOCAL SIMULATION // ${wing} Short Range choice committed: fighters ${indexes.map(index => index + 1).join(', ')} selected.`
