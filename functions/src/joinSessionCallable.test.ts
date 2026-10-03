@@ -24,6 +24,7 @@ const mock = vi.hoisted(() => {
     update: vi.fn(),
     delete: vi.fn(),
     enforceReadOrder: false,
+    committedWrites: new Map<string, { fields: Record<string, unknown>; replace: boolean }>(),
     Timestamp: MockTimestamp,
   };
 });
@@ -41,19 +42,54 @@ vi.mock('firebase-admin/firestore', () => ({
     }),
     runTransaction: (callback: (tx: unknown) => unknown) => {
       let writeStarted = false;
+      const remember = (reference: { path: string }, fields: Record<string, unknown>, replace = false) => {
+        const prior = mock.committedWrites.get(reference.path);
+        mock.committedWrites.set(reference.path, {
+          fields: replace ? { ...fields } : { ...prior?.fields, ...fields },
+          replace: replace || prior?.replace === true,
+        });
+      };
+      const readFixture = async (reference: { path: string }) => {
+        let base;
+        try { base = await mock.get(reference); }
+        catch (error) {
+          if (reference.path !== 'sessions/s1/fleetGroups' && reference.path !== 'sessions/s1/shuttleDepartures') throw error;
+          base = { docs: [] };
+        }
+        if (reference.path === 'sessions/s1/fleetGroups' || reference.path === 'sessions/s1/shuttleDepartures') {
+          const byId = new Map<string, { id: string; data: () => Record<string, unknown>; get: (field: string) => unknown }>(
+            (base.docs ?? []).map((doc: { id: string }) => [doc.id, doc]),
+          );
+          for (const [path, write] of mock.committedWrites) {
+            if (!path.startsWith(reference.path + '/')) continue;
+            const id = path.split('/').at(-1)!;
+            const previous = byId.get(id)?.data() ?? {};
+            const fields = write.replace ? write.fields : { ...previous, ...write.fields };
+            byId.set(id, { id, data: () => fields, get: field => fields[field] });
+          }
+          return { docs: [...byId.values()] };
+        }
+        const write = mock.committedWrites.get(reference.path);
+        if (!write) return base;
+        const fields = write.replace ? { ...write.fields } : { ...base?.data?.(), ...write.fields };
+        for (const [field, value] of Object.entries(fields)) if (value === 'delete-field') delete fields[field];
+        return { exists: true, id: reference.path.split('/').at(-1)!, data: () => fields, get: (field: string) => fields[field] };
+      };
       return callback({
         get: (...args: unknown[]) => {
           if (mock.enforceReadOrder && writeStarted) {
             throw new Error('Firestore transactions require all reads to be executed before all writes.');
           }
-          return mock.get(...args);
+          return readFixture(args[0] as { path: string });
         },
         set: (...args: unknown[]) => {
           writeStarted = true;
+          remember(args[0] as { path: string }, args[1] as Record<string, unknown>, !(args[2] as { merge?: boolean } | undefined)?.merge);
           return mock.set(...args);
         },
         update: (...args: unknown[]) => {
           writeStarted = true;
+          remember(args[0] as { path: string }, args[1] as Record<string, unknown>);
           return mock.update(...args);
         },
         delete: (...args: unknown[]) => {
@@ -107,6 +143,7 @@ beforeEach(() => {
   mock.update.mockReset();
   mock.delete.mockReset();
   mock.enforceReadOrder = false;
+  mock.committedWrites.clear();
 });
 
 it('records an allowed code attempt before looking up the code', async () => {
@@ -133,7 +170,7 @@ it.each(['4821', '482109'])('redeems a valid %s legacy or current code', async (
     if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot({}, false);
     if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
     if (path === `joinCodes/${joinCode}`) return snapshot({ sessionId: 's1' });
-    if (path === 'sessions/s1') return snapshot({ name: 'Table one', phase: 'lobby' });
+    if (path === 'sessions/s1') return snapshot({ name: 'Table one', phase: 'lobby', joinCode });
     if (path === 'sessions/s1/players/u1') return snapshot({}, false);
     if (path === 'sessions/s1/players') return snapshot({}, true);
     if (path === 'activeMemberships/u1') return snapshot({}, false);
@@ -341,7 +378,7 @@ it('does not project a retained Press shuttle as docked when legacy docking fiel
       retainedShuttles: {
         'snn-press-shuttle': {
           status: 'retained', shuttleId: 'snn-press-shuttle', ownerRoleId: 'press-officer',
-          holderUid: 'press', destroyedHostShipId: 'dione', controlRevision: 1,
+          holderUid: 'u1', destroyedHostShipId: 'dione', controlRevision: 1,
           retainedAt: '2026-09-21T12:00:00.000Z',
         },
       },

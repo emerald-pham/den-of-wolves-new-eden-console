@@ -28,6 +28,7 @@ const mock = vi.hoisted(() => {
     update: vi.fn(),
     delete: vi.fn(),
     enforceReadOrder: false,
+    committedWrites: new Map<string, { fields: Record<string, unknown>; replace: boolean }>(),
     rateLimitMarkers: new Map<string, unknown>(),
     Timestamp: MockTimestamp,
   };
@@ -46,6 +47,39 @@ vi.mock('firebase-admin/firestore', () => ({
     }),
     runTransaction: (callback: (tx: unknown) => unknown) => {
       let writeStarted = false;
+      const remember = (reference: { path: string }, fields: Record<string, unknown>, replace = false) => {
+        const prior = mock.committedWrites.get(reference.path);
+        mock.committedWrites.set(reference.path, {
+          fields: replace ? { ...fields } : { ...prior?.fields, ...fields },
+          replace: replace || prior?.replace === true,
+        });
+      };
+      const readFixture = async (reference: { path: string }) => {
+        let base;
+        try { base = await mock.get(reference); }
+        catch (error) {
+          if (reference.path !== 'sessions/s1/fleetGroups' && reference.path !== 'sessions/s1/shuttleDepartures') throw error;
+          base = { docs: [] };
+        }
+        if (reference.path === 'sessions/s1/fleetGroups' || reference.path === 'sessions/s1/shuttleDepartures') {
+          const byId = new Map<string, { id: string; data: () => Record<string, unknown>; get: (field: string) => unknown }>(
+            (base.docs ?? []).map((doc: { id: string }) => [doc.id, doc]),
+          );
+          for (const [path, write] of mock.committedWrites) {
+            if (!path.startsWith(reference.path + '/')) continue;
+            const id = path.split('/').at(-1)!;
+            const previous = byId.get(id)?.data() ?? {};
+            const fields = write.replace ? write.fields : { ...previous, ...write.fields };
+            byId.set(id, { id, data: () => fields, get: field => fields[field] });
+          }
+          return { docs: [...byId.values()] };
+        }
+        const write = mock.committedWrites.get(reference.path);
+        if (!write) return base;
+        const fields = write.replace ? { ...write.fields } : { ...base?.data?.(), ...write.fields };
+        for (const [field, value] of Object.entries(fields)) if (value === 'delete-field') delete fields[field];
+        return { exists: true, id: reference.path.split('/').at(-1)!, data: () => fields, get: (field: string) => fields[field] };
+      };
       return callback({
         get: (...args: unknown[]) => {
           if (mock.enforceReadOrder && writeStarted) {
@@ -59,14 +93,16 @@ vi.mock('firebase-admin/firestore', () => ({
               data: () => marker,
             };
           }
-          return mock.get(...args);
+          return readFixture(args[0] as { path: string });
         },
         set: (...args: unknown[]) => {
           writeStarted = true;
+          remember(args[0] as { path: string }, args[1] as Record<string, unknown>, !(args[2] as { merge?: boolean } | undefined)?.merge);
           return mock.set(...args);
         },
         update: (...args: unknown[]) => {
           writeStarted = true;
+          remember(args[0] as { path: string }, args[1] as Record<string, unknown>);
           return mock.update(...args);
         },
         delete: (...args: unknown[]) => {
@@ -92,7 +128,7 @@ function request(sessionId: string) {
 }
 
 function snapshot(fields: Readonly<Record<string, unknown>>, exists = true) {
-  return { exists, docs: [], get: (field: string) => fields[field] };
+  return { exists, docs: [], data: () => fields, get: (field: string) => fields[field] };
 }
 
 function nonRateLimitSetCalls() {
@@ -108,6 +144,7 @@ function prepareResume(
   navigationExists = false,
   seatExists = true,
 ) {
+  mock.committedWrites.clear();
   const twoHoursAgo = mock.Timestamp.fromDate(new Date('2026-09-06T16:00:00.000Z'));
   const sessionData: Record<string, unknown> = {
     name: 'Table one',
@@ -178,6 +215,7 @@ beforeEach(() => {
   mock.update.mockReset();
   mock.delete.mockReset();
   mock.enforceReadOrder = false;
+  mock.committedWrites.clear();
   mock.set.mockImplementation((ref: { path: string }, value: unknown) => {
     if (ref.path.startsWith('sessions/s1/serverState/callableRateLimit-')) {
       mock.rateLimitMarkers.set(ref.path, value);
@@ -383,7 +421,7 @@ it('does not project a retained Press shuttle as docked when legacy docking fiel
       retainedShuttles: {
         'snn-press-shuttle': {
           status: 'retained', shuttleId: 'snn-press-shuttle', ownerRoleId: 'press-officer',
-          holderUid: 'press', destroyedHostShipId: 'dione', controlRevision: 1,
+          holderUid: 'u1', destroyedHostShipId: 'dione', controlRevision: 1,
           retainedAt: '2026-09-21T12:00:00.000Z',
         },
       },

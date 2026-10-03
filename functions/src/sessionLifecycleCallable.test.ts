@@ -172,11 +172,12 @@ const mock = vi.hoisted(() => {
     if (transactionDepth > 0) transactionWrote = true;
     documents.delete(target.path);
   });
-  const get = vi.fn(async (target: Ref | Query) => {
+  const get = vi.fn(async (target: Ref | Query | Collection) => {
     if (transactionDepth > 0 && rejectReadsAfterWrite && transactionWrote) {
       throw new Error('Firestore transaction read after write');
     }
-    return 'query' in target ? querySnapshot(target) : snapshot(target);
+    return 'query' in target ? querySnapshot(target)
+      : 'id' in target ? snapshot(target) : querySnapshot(query(target.path));
   });
   const runTransaction = vi.fn(async (callback: (tx: unknown) => unknown) => {
     const hook = beforeTransaction;

@@ -15,6 +15,12 @@ vi.mock('@/components/PermissionedDismantlingPanel', () => ({
 }));
 
 vi.mock('@/lib/sessionService', () => ({
+  getWolfBoardingDefenceChoice: vi.fn(async () => null),
+  getWolfRangeActionChoice: vi.fn(async () => null),
+  getWolfForceFieldChoice: vi.fn(async () => null),
+  commitWolfBoardingDefenceChoice: vi.fn(),
+  commitWolfRangeActionChoice: vi.fn(),
+  commitWolfForceFieldChoice: vi.fn(),
   refreshCommissarPurgeAuthority: vi.fn(async () => null),
   adjustShipResource: vi.fn(),
   adjustShipUnrest: vi.fn(),
@@ -1068,7 +1074,8 @@ it('tells a lone non-captain that a second person must fire the cannon', async (
   await user.click(screen.getByRole('button', { name: /activate emergency bridge confetti dispenser/i }));
 
   expect(popShipConfetti).toHaveBeenCalledWith('dione', 'dione-engineer');
-  expect(screen.getByRole('status')).toHaveTextContent(/second person.*fire.*cannon/i);
+  expect(within(screen.getByRole('region', { name: 'Emergency Bridge Confetti Dispenser' })).getByRole('status'))
+    .toHaveTextContent(/second person.*fire.*cannon/i);
   expect(screen.getByRole('button', { name: /activate emergency bridge confetti dispenser/i }))
     .toBeEnabled();
 });

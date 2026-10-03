@@ -15,6 +15,12 @@ import { recommendedRoleIds } from '@/data/rolePresets';
 import { normalizeCommandError } from '@/lib/commandErrors';
 
 vi.mock('@/lib/sessionService', () => ({
+  getWolfBoardingDefenceChoice: vi.fn(async () => null),
+  getWolfRangeActionChoice: vi.fn(async () => null),
+  getWolfForceFieldChoice: vi.fn(async () => null),
+  commitWolfBoardingDefenceChoice: vi.fn(),
+  commitWolfRangeActionChoice: vi.fn(),
+  commitWolfForceFieldChoice: vi.fn(),
   CONNECT_RETRY_INTERVAL_MS: 2_000,
   connectAutomatically: vi.fn().mockResolvedValue(undefined),
   beginOpenAirspacePhase: vi.fn().mockResolvedValue(undefined),

@@ -6,6 +6,12 @@ import { useSessionStore } from '@/store/useSessionStore';
 import ShipConsole from './ShipConsole';
 
 vi.mock('@/lib/sessionService', () => ({
+  getWolfBoardingDefenceChoice: vi.fn(async () => null),
+  getWolfRangeActionChoice: vi.fn(async () => null),
+  getWolfForceFieldChoice: vi.fn(async () => null),
+  commitWolfBoardingDefenceChoice: vi.fn(),
+  commitWolfRangeActionChoice: vi.fn(),
+  commitWolfForceFieldChoice: vi.fn(),
   refreshCommissarPurgeAuthority: vi.fn(async () => null),
   getAegisCommandAndControl: vi.fn(async () => ({
     type: 'aegis-command-and-control-view', sessionId: 's1', turn: 1, revision: 0,

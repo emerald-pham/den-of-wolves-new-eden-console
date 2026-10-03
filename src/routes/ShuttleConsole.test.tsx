@@ -39,6 +39,12 @@ vi.mock('@/lib/endeavourEcmDeviceService', () => ({
   retryEndeavourEcmDeviceAttempt: endeavourEcmMocks.activate,
 }));
 vi.mock('@/lib/sessionService', () => ({
+  getWolfBoardingDefenceChoice: vi.fn(async () => null),
+  getWolfRangeActionChoice: vi.fn(async () => null),
+  getWolfForceFieldChoice: vi.fn(async () => null),
+  commitWolfBoardingDefenceChoice: vi.fn(),
+  commitWolfRangeActionChoice: vi.fn(),
+  commitWolfForceFieldChoice: vi.fn(),
   popShipConfetti: vi.fn(),
   releaseConsoleRole: vi.fn().mockResolvedValue(undefined),
   selectConsoleRole: vi.fn().mockResolvedValue(undefined),
