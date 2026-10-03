@@ -4368,3 +4368,38 @@ it('connects current server attack decisions to the GM and withdraws them when t
   expect(decisions).not.toHaveTextContent('Rowan');
   expect(decisions).toHaveTextContent('Reconnect for current attack choices.');
 });
+
+it('ignores an abandoned GM attack callback after this browser claims another instance', async () => {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected the GM session.');
+  useSessionStore.getState().setSession({ ...session, phase: 'active', currentTurn: 1 });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  useSessionStore.getState().setGmInstance(local); streamInstances([local]);
+  const callbacks: Array<(state: never) => void> = [];
+  vi.mocked(subscribeGmWolfAttackState).mockImplementation((_sessionId, onState) => {
+    callbacks.push(onState);
+    onState(null);
+    return vi.fn();
+  });
+  renderConsole();
+  await waitFor(() => expect(callbacks).toHaveLength(1));
+  const nextInstance = { ...local, id: 'new-gm-instance' };
+  streamInstances([nextInstance]);
+  act(() => useSessionStore.getState().setGmInstance(nextInstance));
+  await waitFor(() => expect(callbacks).toHaveLength(2));
+  const attack = { status: 'declared', turn: 1, revision: 5, preparationRevision: 2,
+    currentStep: 'targeting', deadlineAt: '2026-10-03T09:00:00.000Z', airspaceLocked: true,
+    parkedCraftIds: [], launchedCraftIds: [], decisionSummary: {
+      commander: { status: 'committed', actors: [] },
+      commandAndControl: { status: 'passed', actors: [] }, forceField: { status: 'passed' },
+    } };
+  act(() => callbacks[1]!(attack as never));
+  expect(await screen.findByRole('region', { name: 'Current attack choices' })).toHaveTextContent('Choice committed');
+  act(() => callbacks[0]!({ ...attack, revision: 99, decisionSummary: {
+    ...attack.decisionSummary, commander: { status: 'pending', actors: [] },
+  } } as never));
+  const decisions = screen.getByRole('region', { name: 'Current attack choices' });
+  expect(decisions).toHaveTextContent('Choice committed');
+  expect(decisions).not.toHaveTextContent('Choice pending');
+});
