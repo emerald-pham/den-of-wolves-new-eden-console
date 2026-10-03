@@ -76,3 +76,13 @@ it('allows an explicit zero-fighter Short Range pass', async () => {
   await user.click(screen.getByRole('button', { name: /pass short range/i }));
   expect(onResolveShort).toHaveBeenCalledWith([]);
 });
+
+it('offers an explicit Medium Range pass to decline all fighter actions', async () => {
+  const user = userEvent.setup();
+  const onResolveMedium = vi.fn();
+  render(<WolfFighterRangeActionPanelView view={mediumView}
+    onResolveMedium={onResolveMedium} onResolveShort={vi.fn()} />);
+
+  await user.click(screen.getByRole('button', { name: /pass medium range/i }));
+  expect(onResolveMedium).toHaveBeenCalledWith([]);
+});
