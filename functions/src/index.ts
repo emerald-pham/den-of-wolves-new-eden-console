@@ -23346,18 +23346,21 @@ function wolfRangeTargetProgressionMatches(
   let expected: readonly Readonly<{ instanceId: string; target: WolfFleetTargetId }>[] = targeting.rolls.map((roll, index) => ({
     instanceId: `${index}:${roll.shipId}`, target: roll.target,
   }));
+  let newReceiptSeen = false;
   for (let index = 0; index < receipts.length; index += 1) {
     const receipt = receipts[index];
-    if (!isRecord(receipt) || receipt.range !== order[index] || !Array.isArray(receipt.targetShifts)) return false;
-    // Older in-progress attacks had no snapshot field. Accept only a no-shift
-    // receipt, whose target map is provably unchanged from the previous phase.
-    const snapshot = receipt.targetSnapshot === undefined
-      ? receipt.targetShifts.length === 0 ? expected : null
-      : receipt.targetSnapshot;
+    if (!isRecord(receipt) || receipt.range !== order[index]) return false;
+    const hasSnapshot = receipt.targetSnapshot !== undefined;
+    const shifts = receipt.targetShifts === undefined && !hasSnapshot ? [] : receipt.targetShifts;
+    if (!Array.isArray(shifts) || (!hasSnapshot && (newReceiptSeen || shifts.length > 0))) return false;
+    // In-progress attacks may retain a contiguous legacy prefix. Once a
+    // receipt uses the snapshot format, every later receipt must use it too.
+    const snapshot = hasSnapshot ? receipt.targetSnapshot : expected;
     if (!snapshot || !sameWolfTargetSnapshot(snapshot, expected)) return false;
+    if (hasSnapshot) newReceiptSeen = true;
     try {
       expected = replayWolfRangeTargetSnapshot(snapshot as WolfRangeReceipt['targetSnapshot'],
-        receipt.targetShifts as WolfRangeReceipt['targetShifts'], targeting.ring);
+        shifts as WolfRangeReceipt['targetShifts'], targeting.ring);
     } catch { return false; }
   }
   return roster.length === expected.length && roster.every((ship, index) =>
