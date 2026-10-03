@@ -43,7 +43,7 @@ export default function PC07AttackChoicesReview() {
     commander: { status: 'committed', actors: [] },
     commandAndControl: { status: 'passed', actors: [] },
     forceField: captain.choiceStatus === 'selected'
-      ? { status: 'selected', targetShipId: captain.targetShipId ?? undefined }
+      ? { status: 'selected', targetShipId: captain.targetShipId ?? null }
       : { status: captain.choiceStatus === 'passed' ? 'passed' : 'pending' },
     range: { range: 'medium-range', status: range.choiceStatus,
       actors: [{ uid: 'prepared-eo', connected: false }], actionCount: 2 },
