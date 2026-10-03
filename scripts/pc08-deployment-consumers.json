@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "baseline": "ebbad230b815e6962e35f303cb529b5612e1d046",
+  "auditBoundary": "Owner before/after AST runtime reachability, changed index definitions/imports/exports and manual consumer audit; independent exact-candidate review is separate.",
+  "modules": {
+    "functions/src/maliadesOperationalView.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "c2bdcfee9f5f53b0c74bdeccfa847677295ad9c2722a08a65f0e131a65de9625",
+      "consumers": [
+        "getCurrentMemberSession",
+        "joinSession",
+        "resumeSession"
+      ]
+    },
+    "functions/src/memberSession.ts": {
+      "before": "d437f969a359265e576490740b934d6b363da2c5e8ef905c54e9d4eda2f60e37",
+      "after": "12fc7d79aa0d479fdfb9bf4fdb5e37a3375b130320232ef1e688f7eb17c640fe",
+      "consumers": [
+        "getCurrentMemberSession",
+        "joinSession",
+        "resumeSession"
+      ]
+    },
+    "functions/src/unionCraftSetupCallable.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "7edd2e18b43e3e376c57b3f0625bfa36796a686b82752d90d512ae90bc224990",
+      "consumers": [
+        "setUnionCraftStartingHost"
+      ]
+    }
+  },
+  "index": {
+    "before": "0d76ca4d97bb27f2b9315440ae42338d001f3ea835d300c6b8f95a4fe24f1ace",
+    "after": "c1ac56c9b85e5c13fa3f22777695fc2c2b2fc59cbacf84d1881b3c44175bd823",
+    "consumers": [
+      "setUnionCraftStartingHost"
+    ]
+  }
+}

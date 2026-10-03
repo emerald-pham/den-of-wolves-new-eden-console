@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import pc06DeploymentConsumers from './pc06-deployment-consumers.json' with { type: 'json' };
 import pc07DeploymentConsumers from './pc07-deployment-consumers.json' with { type: 'json' };
+import pc08DeploymentConsumers from './pc08-deployment-consumers.json' with { type: 'json' };
 import {
   classifyRiskGates,
   formatRiskGateOutputs,
@@ -111,6 +112,19 @@ function pc07TransitionConsumers(file, previous, current) {
     throw new Error(`Cannot safely map PC07 ${file} outside its exact source consumer audit.`);
   }
   return [...transition.consumers];
+}
+
+// PC08 preserves historical transitions and audits its own exact runtime source.
+function pc08TransitionConsumers(file, previous, current) {
+  const audit = file === 'functions/src/index.ts'
+    ? pc08DeploymentConsumers.index : pc08DeploymentConsumers.modules[file];
+  if (!audit) return null;
+  const digest = source => createHash('sha256').update(source).digest('hex');
+  if (digest(previous) !== audit.before) return null;
+  if (digest(current) !== audit.after) {
+    throw new Error(`Cannot safely map PC08 ${file} outside its exact source consumer audit.`);
+  }
+  return audit.consumers;
 }
 
 function pc06TransitionConsumers(file, previous, current) {
@@ -639,6 +653,8 @@ function changedIndexCallables(before, after, cwd, sourceAtRevision = null) {
   };
   const previousSource = readAt(before);
   const currentSource = readAt(after);
+  const pc08Consumers = pc08TransitionConsumers('functions/src/index.ts', previousSource, currentSource);
+  if (pc08Consumers) return pc08Consumers;
   const pc07Consumers = pc07TransitionConsumers('functions/src/index.ts', previousSource, currentSource);
   if (pc07Consumers) return pc07Consumers;
   const previous = functionExports(previousSource);
@@ -1370,6 +1386,23 @@ function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }
     file.startsWith('functions/src/') && !isTestFile(file) && /\.(?:ts|js|mjs|cjs)$/.test(file));
   const selected = new Set();
   for (const file of runtimeFiles) {
+    if (file !== 'functions/src/index.ts' && pc08DeploymentConsumers.modules[file]) {
+      const readAt = (revision) => {
+        if (sourceAtRevision) return sourceAtRevision(revision, file);
+        try {
+          return execFileSync('git', ['show', `${revision}:${file}`], {
+            encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd, maxBuffer: 32 * 1024 * 1024,
+          });
+        } catch {
+          throw new Error(`Cannot safely determine PC08 module source ${file}.`);
+        }
+      };
+      const consumers = pc08TransitionConsumers(file, readAt(before), readAt(after));
+      if (consumers) {
+        for (const name of consumers) selected.add(name);
+        continue;
+      }
+    }
     if (file !== 'functions/src/index.ts' && pc07DeploymentConsumers.modules[file]) {
       const readAt = revision => {
         if (sourceAtRevision) return sourceAtRevision(revision, file);
