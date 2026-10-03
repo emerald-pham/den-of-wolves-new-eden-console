@@ -18,7 +18,7 @@ it('automatically rejoins only groups at the same authoritative system and keeps
   expect(plan.groups).toEqual([
     { id: 'fleet-1', vesselIds: ['aegis', 'dione'], memberUids: ['alice', 'bob'],
       memberShipIds: { alice: 'aegis', bob: 'dione' }, mergedGroupIds: ['fleet-2'] },
-    { id: 'fleet-3', vesselIds: ['icebreaker'], memberUids: ['cara'] },
+    { id: 'fleet-3', vesselIds: ['icebreaker'], memberUids: ['cara'], memberShipIds: { cara: 'icebreaker' } },
   ]);
   expect(plan.navigation.pursuitGroups).toEqual({ 'fleet-1': 5, 'fleet-3': 1 });
   expect(plan.rejoins).toEqual([{ coordinate: '1413', survivingGroupId: 'fleet-1', absorbedGroupIds: ['fleet-2'], pursuitBefore: { 'fleet-1': 3, 'fleet-2': 5 }, pursuitAfter: 5 }]);
