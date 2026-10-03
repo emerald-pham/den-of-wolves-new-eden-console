@@ -38,7 +38,7 @@ test('every PC08 runtime transition selects its exact consumers and rejects unau
         ? previous(path) : path === file ? candidate : current(path),
       isAncestor: () => false,
     });
-    assert.deepEqual(select(current(file)).split(','), [...audit.consumers].sort().map(name => `functions:${name}`),
+    assert.deepEqual(select(current(file)).split(',').sort(), ['hosting', ...audit.consumers.map(name => `functions:${name}`)].sort(),
       `${file}: exact bounded deployment`);
     assert.throws(() => select(current(file) + '\n// unaudited runtime mutation\n'), /PC08.*audit/i,
       `${file}: source drift must fail closed`);
@@ -50,6 +50,8 @@ test('every PC08 runtime transition selects its exact consumers and rejects unau
   }).split(',');
   const expected = [...new Set(files.flatMap(file => (file === 'functions/src/index.ts'
     ? inventory.index : inventory.modules[file]).consumers))].sort().map(name => `functions:${name}`);
-  assert.deepEqual(whole, expected, 'the reconciled release deploys all audited consumers exactly once');
+  assert.deepEqual(whole.sort(), ['hosting', ...expected].sort(), 'the reconciled release deploys all audited consumers exactly once with its required Hosting artifact');
   assert.equal(whole.includes('functions'), false, 'there is no broad Functions fallback');
+  const native = deploymentSelector({ before: baseline, after: 'HEAD', files, targets: ['functions'] }).split(',');
+  assert.deepEqual(native.sort(), ['hosting', ...expected].sort(), 'the real Git source reader audits newly added modules too');
 });

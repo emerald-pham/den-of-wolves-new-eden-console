@@ -3,9 +3,10 @@ import type { DocumentSnapshot, Firestore, Transaction } from 'firebase-admin/fi
 import { HttpsError } from 'firebase-functions/v2/https';
 import { craftStartingManifestForSetup, roleOwnedCraftManifestForSetup } from './craftOwnership';
 import { initialShuttleDockingsForRoles, initialShuttleVisitsForDockings } from './shuttlecraft';
+import { recommendedRoleIds } from './roleConfiguration';
 import { createUnionCraftStartingHostHandler } from './unionCraftSetupCallable';
 
-const roles = ['admiral', 'wing-commander', 'joint-engineering-quellon-refinery', 'joint-engineering-shepherd-icebreaker'];
+const roles = [...recommendedRoleIds(8)];
 const setup = { activeRoleIds: roles, activeVesselIds: ['aegis', 'quellon', 'refinery-124', 'shepherd', 'icebreaker'], vesselMode: 'core' };
 let docs: Record<string, Record<string, unknown>>;
 let writes: Array<{ path: string; data: Record<string, unknown> }>;
