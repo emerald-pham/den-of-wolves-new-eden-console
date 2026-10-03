@@ -106,7 +106,6 @@ import type {
   WolfAttackPreparation,
   WolfAttackDeclarationState,
   WolfAttackPreparationModifierId,
-  WolfAttackTargetMode,
   WolfAttackWindow,
   WolfAttackWindowStatus,
   WolfActionReceipt,
@@ -564,12 +563,10 @@ export default function GmConsole() {
   const [wolfPreparationMutation, setWolfPreparationMutation] = useState(false);
   const [wolfDeclarationMutation, setWolfDeclarationMutation] = useState(false);
   const [wolfDeclarationMessage, setWolfDeclarationMessage] = useState<string | null>(null);
-  const [wolfPreparationMode, setWolfPreparationMode] = useState<WolfAttackTargetMode>('manual');
   const [wolfPreparationCounts, setWolfPreparationCounts] = useState<Readonly<Record<string, string>>>(() => ({
     'wolf-fighter-wing': '10',
     'wolf-assault-transport': '5',
   }));
-  const [wolfPreparationTargets, setWolfPreparationTargets] = useState<Readonly<Record<number, string>>>({});
   const [wolfPreparationModifiers, setWolfPreparationModifiers] = useState<Readonly<Record<string, boolean>>>({});
   const [wolfPreparationNotes, setWolfPreparationNotes] = useState('');
   const [clock, setClock] = useState(() => Date.now());
@@ -758,9 +755,6 @@ export default function GmConsole() {
     : wolfDeclarationMessage
       ? `message:${wolfDeclarationMessage}`
       : null;
-  const wolfPreparationTargetOptions = activeShipIds.filter((shipId) =>
-    ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124', 'capybara'].includes(shipId),
-  );
   const rosterConfigurationValid = isValidRoleConfiguration(draftRoleIds);
   const rosterQueued = setupQueued;
   const conditionalUnionRoles = JOINT_ENGINEERING_ROLE_IDS.flatMap((roleId) => {
@@ -1428,10 +1422,6 @@ export default function GmConsole() {
     for (const { id } of WOLF_PREPARATION_CARD_TYPES) counts[id] = '';
     for (const id of wolfAttackPreparation.shipIds) counts[id] = String(Number(counts[id] ?? '0') + 1);
     setWolfPreparationCounts(counts);
-    setWolfPreparationMode(wolfAttackPreparation.targetMode);
-    setWolfPreparationTargets(Object.fromEntries(
-      wolfAttackPreparation.targetAssignments.map(({ cardIndex, targetShipId }) => [cardIndex, targetShipId]),
-    ));
     setWolfPreparationModifiers(Object.fromEntries(
       wolfAttackPreparation.modifiers.map((modifier) => [modifier, true]),
     ));
@@ -2400,11 +2390,8 @@ export default function GmConsole() {
       const next = await stageWolfAttackPreparation({
         turn: currentTurn,
         shipIds: wolfPreparationShipIds,
-        targetMode: wolfPreparationMode,
-        targetAssignments: wolfPreparationShipIds.flatMap((_, cardIndex) => {
-          const targetShipId = wolfPreparationTargets[cardIndex];
-          return targetShipId ? [{ cardIndex, targetShipId }] : [];
-        }),
+        targetMode: 'pre-rolled',
+        targetAssignments: [],
         modifiers: WOLF_PREPARATION_MODIFIERS.flatMap(({ id }) =>
           wolfPreparationModifiers[id] ? [id] : []),
         notes: wolfPreparationNotes,
@@ -2986,44 +2973,9 @@ export default function GmConsole() {
                   ))}
                 </div>
               </fieldset>
-              <label className="gm-wolf-preparation__field">
-                <span>Target preparation mode</span>
-                <select
-                  value={wolfPreparationMode}
-                  onChange={(event) => setWolfPreparationMode(event.target.value as WolfAttackTargetMode)}
-                  aria-label="Wolf attack target preparation mode"
-                >
-                  <option value="manual">Manual target plan</option>
-                  <option value="pre-rolled">Pre-rolled target plan</option>
-                </select>
-              </label>
-              {wolfPreparationShipIds.length > 0 && (
-                <fieldset className="gm-wolf-preparation__fieldset">
-                  <legend>Target plan // optional until declaration</legend>
-                  <div className="gm-wolf-preparation__targets">
-                    {wolfPreparationShipIds.map((shipId, cardIndex) => (
-                      <label className="gm-wolf-preparation__field" key={`${shipId}-${cardIndex}`}>
-                        <span>{cardIndex + 1}. {WOLF_PREPARATION_CARD_TYPES.find((card) => card.id === shipId)?.label}</span>
-                        <select
-                          value={wolfPreparationTargets[cardIndex] ?? ''}
-                          onChange={(event) => setWolfPreparationTargets((current) => ({
-                            ...current,
-                            [cardIndex]: event.target.value,
-                          }))}
-                          aria-label={`Target for Wolf card ${cardIndex + 1}`}
-                        >
-                          <option value="">Unassigned</option>
-                          {wolfPreparationTargetOptions.map((targetId) => (
-                            <option value={targetId} key={targetId}>
-                              {SHIPS.find((ship) => ship.id === targetId)?.name ?? targetId}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    ))}
-                  </div>
-                </fieldset>
-              )}
+              <p className="gm-console__hint">
+                Targeting is rolled by the server; no target transcription is required.
+              </p>
               <fieldset className="gm-wolf-preparation__fieldset">
                 <legend>Configured preparation markers</legend>
                 <div className="gm-wolf-preparation__modifiers">
