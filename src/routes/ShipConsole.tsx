@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import ShipSpecifications from '@/components/ShipSpecifications';
 import PopulationTrack from '@/components/PopulationTrack';
@@ -720,7 +721,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
             ? { pursuitDistance: session.playerDiscovery.pursuitDistance }
             : {})}
         />
-        {observer && observerWriteConfirm && (
+        {observer && observerWriteConfirm && createPortal((
           <div className="gm-write-confirm-backdrop" role="presentation" onClick={dismissObserverWriteConfirmation}>
             <section
               ref={observerWriteDialogRef}
@@ -756,7 +757,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
               </div>
             </section>
           </div>
-        )}
+        ), document.body)}
         <section id={`${ship.id}-shuttlebay`} className="ship-shuttlebay cic-frame" aria-label={`${ship.name} shuttlebay`}>
           <p className="ship-shuttlebay__eyebrow">Shuttlebay // docking manifest</p>
           <h2>Shuttle docking history</h2>

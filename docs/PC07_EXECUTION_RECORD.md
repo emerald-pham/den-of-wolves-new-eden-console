@@ -259,3 +259,24 @@ clock and untouched authoritative ledgers; member raw-root 403 versus GM 200;
 forged audience and disconnected denial; fresh reconnect read. The successful
 `member-history-http.json` names every disposable fixture and makes no normal
 history-creation or production gameplay claim.
+
+## Ordinary maintenance UI confirmation
+
+Extending the normal browser proof to the actual scoped GM ship grant exposed
+a blocked confirmation: the ship identity panel painted above the dialog and
+intercepted its button. Test-only `e3d1ea62` reproduces the pointer failure and
+adds the ordinary AEGIS seven-step UI sequence. The dialog now uses the shared
+body overlay layer and bounded scrolling, preserving current grant authority,
+keyboard dismissal and focus restoration. Six desktop/phone/short-landscape
+motion cases pass pointer and viewport geometry while DRADIS Zoom stays usable.
+
+The ship composition suites initially failed at newly connected attack
+subscriptions missing from their historical mocks. Separate test-only
+`682da26e` supplies a no-op current attack subscription without changing any
+assertion; **121/121** ship route/navigation cases then pass. The browser
+observes committed AEGIS storage, separate rations, server unrest/riot dice,
+reactor charge and both shuttle bays. Its final evidence waits for the native
+committed end ledger instead of counting a rendered intermediate snapshot.
+Test-only `01c64fed` follows the return links' actual accessible names including
+their arrow glyph. Normal return-navigation completion remains separately
+recorded when the browser summary finishes.
