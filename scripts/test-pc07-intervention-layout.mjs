@@ -15,12 +15,19 @@ test('actual GM attack intervention forms stay readable and reachable in eight r
  writeFileSync(source,`import {useState} from 'react';import {createRoot} from 'react-dom/client';
 import '@/index.css';import WolfAttackRecoveryControl from '@/components/WolfAttackRecoveryControl';
 import EmergencyTimerPauseControl from '@/components/EmergencyTimerPauseControl';
+import GmWolfDecisionSummary from '@/components/GmWolfDecisionSummary';
 function Scene(){const[reason,setReason]=useState(''),[confirmed,setConfirmed]=useState(false),[result,setResult]=useState('Prepared geometry only; no native command sent.');
 const now=Date.now(),phase={turn:2,teamPhaseEndsAt:new Date(now+300000).toISOString(),openAirspaceEndsAt:new Date(now+1200000).toISOString(),airspace:{state:'restricted' as const,tickerActive:true,pressAccess:false}};
 return <main className="gm-console" style={{width:'100%',minWidth:0,padding:'1rem',boxSizing:'border-box'}}>
 <section className="gm-console__module cic-frame"><h1 className="gm-console__section-title">Prepared intervention geometry</h1>
 <WolfAttackRecoveryControl available busy={false} reason={reason} confirmed={confirmed} onReason={value=>{setReason(value);setConfirmed(false);}} onConfirm={setConfirmed} onRecover={()=>setResult('Prepared scoped recovery accepted.')}/><p role="status" aria-label="Prepared recovery result">{result}</p></section>
-<EmergencyTimerPauseControl phase={phase} connection="live" attack={{turn:2,revision:4,currentStep:'targeting'}} authorityKey="prepared-gm"/></main>}
+<EmergencyTimerPauseControl phase={phase} connection="live" attack={{turn:2,revision:4,currentStep:'targeting'}} authorityKey="prepared-gm"/>
+<GmWolfDecisionSummary available currentStep="boarding" players={[{uid:'prepared-captain',displayName:'Captain Ari'}] as never}
+summary={{commander:{status:'committed',actors:[]},commandAndControl:{status:'passed',actors:[]},
+forceField:{status:'selected',targetShipId:'refinery-124',actor:{uid:'prepared-captain',connected:false}},
+boarding:{status:'pending',targets:[{targetShipId:'refinery-124',status:'pending',boardingParties:2,
+actors:[{uid:'prepared-captain',connected:false}]},{targetShipId:'shepherd',status:'committed',boardingParties:1,
+securityTeams:2,actors:[]}]}}}/></main>}
 createRoot(document.getElementById('root')!).render(<Scene/>);`);
  const server=await createServer({server:{host:'127.0.0.1',port:0},logLevel:'silent'});let browser;const cases=[];
  try{
@@ -56,10 +63,21 @@ createRoot(document.getElementById('root')!).render(<Scene/>);`);
     assert.match(await page.getByRole('status',{name:'Prepared recovery result'}).textContent(),/Prepared scoped recovery accepted/);
     await timer.fill('Safety pause requested for the current declared attack.');
     assert.ok(await page.getByRole('button',{name:'Disarm interlock // Pause timer'}).isEnabled());
+    const decisions=page.getByRole('region',{name:'Current attack choices'});
+    assert.match(await decisions.textContent(),/Protecting Refinery 124/);
+    assert.match(await decisions.textContent(),/Captain Ari \/\/ Reconnect pending/);
+    assert.equal(await decisions.locator('button,input,textarea,select').count(),0,'GM decision summary is read-only');
+    for(const element of await decisions.locator('p,h3,strong').all()){
+     const geometry=await element.evaluate(node=>{const s=getComputedStyle(node),r=node.getBoundingClientRect();
+      return{font:parseFloat(s.fontSize),family:s.fontFamily,expected:s.getPropertyValue(node.tagName==='H3'?'--cic-display':'--cic-mono'),left:r.left,right:r.right};});
+     const normalize=value=>value.replace(/["']/g,'').replace(/\s+/g,'').toLowerCase();
+     assert.ok(geometry.font>=14&&geometry.left>=-1&&geometry.right<=width+1,'GM decision copy remains readable without overflow');
+     assert.equal(normalize(geometry.family),normalize(geometry.expected),'GM decision summary uses actual CIC fonts');
+    }
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth),'No root overflow');
     assert.deepEqual(errors,[]);assert.deepEqual(writes,[],'Geometry fixture sends no native write');
     await page.screenshot({path:`${directory}/${width}x${height}-${reducedMotion}.png`,fullPage:true});
-    cases.push({width,height,reducedMotion,readableInputs:true,reachable:true,cicFont:true,nativeWrites:false});
+    cases.push({width,height,reducedMotion,readableInputs:true,reachable:true,cicFont:true,readOnlyDecisionSummary:true,nativeWrites:false});
    }catch(error){await page.screenshot({path:`${directory}/${width}x${height}-${reducedMotion}-failure.png`,fullPage:true});throw error;}
    finally{await page.close();}
   }
