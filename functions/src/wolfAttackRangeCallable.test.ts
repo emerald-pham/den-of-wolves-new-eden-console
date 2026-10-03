@@ -201,13 +201,24 @@ it('commits an explicit Short subset for a launched wing without drawing its rol
     sourceId: 'fighter-wing-alpha' }, 'wc-1'));
   expect(view).toMatchObject({ type: 'wolf-fighter-range-action-view', range: 'short-range',
     wingId: 'fighter-wing-alpha', fighters: [{ fighterIndex: 0 }, { fighterIndex: 1 }, { fighterIndex: 2 }, { fighterIndex: 3 }] });
+  await expect(getWolfFighterRangeActionChoice.run(request({ sessionId: 's1', range: 'short-range',
+    sourceId: 'fighter-wing-alpha' }, 'xo-1'))).rejects.toMatchObject({ code: 'permission-denied' });
   const randomCallsBeforeChoice = entropy.randomInt.mock.calls.length;
+  await expect(commitWolfFighterRangeActionChoice.run(request({ sessionId: 's1', requestId: 'alpha-short-duplicate',
+    expectedTurn: 1, expectedRevision: view.revision, range: 'short-range', sourceId: 'fighter-wing-alpha',
+    fighterIndexes: [0, 0] }, 'wc-1'))).rejects.toMatchObject({ code: 'invalid-argument' });
   const result = await commitWolfFighterRangeActionChoice.run(request({ sessionId: 's1', requestId: 'alpha-short-subset',
     expectedTurn: 1, expectedRevision: view.revision, range: 'short-range', sourceId: 'fighter-wing-alpha',
     fighterIndexes: [0, 2] }, 'wc-1'));
   expect(result).toMatchObject({ status: 'committed', choiceStatus: 'pending-resolution', selectedFighterIndexes: [0, 2] });
   expect(testState.documents.get('sessions/s1/wolfAttackState/current')?.fighterRangeChoices)
     .toMatchObject({ 'short-range': { 'fighter-wing-alpha': { fighterIndexes: [0, 2] } } });
+  expect(entropy.randomInt).toHaveBeenCalledTimes(randomCallsBeforeChoice);
+  const revisionAfterChoice = testState.documents.get('sessions/s1/wolfAttackState/current')?.revision;
+  await expect(commitWolfFighterRangeActionChoice.run(request({ sessionId: 's1', requestId: 'alpha-short-subset',
+    expectedTurn: 1, expectedRevision: view.revision, range: 'short-range', sourceId: 'fighter-wing-alpha',
+    fighterIndexes: [0, 2] }, 'wc-1'))).resolves.toMatchObject({ status: 'replayed', selectedFighterIndexes: [0, 2] });
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current')?.revision).toBe(revisionAfterChoice);
   expect(entropy.randomInt).toHaveBeenCalledTimes(randomCallsBeforeChoice);
 });
 
