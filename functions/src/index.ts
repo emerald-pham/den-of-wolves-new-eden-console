@@ -349,6 +349,7 @@ import {
   roleOwnedCraftForRoles,
   roleOwnedCraftManifestForSetup,
   roleOwnedCraftManifestMatches,
+  printedFighterWingHost,
   shuttleDockingsAreParked,
   shuttleDockingsAreKnownAndUnique,
   shuttleDockingsMatchActiveRoleOwnedSubset,
@@ -15315,8 +15316,31 @@ export const readFleetGroupNavigation = onCall(async request => {
           !group.vesselIds.includes(docking.shipId) || inTransitShuttleIds.has(docking.shuttleId)) return [];
       return [{ shuttleId: docking.shuttleId, fleetGroupId: group.id, hostShipId: docking.shipId }];
     });
+    const activeFighterWings = activeRoleIds
+      ? roleOwnedCraftForRoles(activeRoleIds).filter(craft => craft.kind === 'fighter-wing')
+      : [];
+    const needsPdfWingState = activeFighterWings.some(craft =>
+      craft.id === 'pdf-escort-fighter-wing' && printedFighterWingHost(craft.id) === 'refinery-124' &&
+      group.vesselIds.includes('refinery-124'));
+    const pdfWingSnapshot = needsPdfWingState
+      ? await tx.get(db.doc(`sessions/${data.sessionId}/serverState/pdfEscortWing`))
+      : undefined;
+    const parsedWingCounts = fighterWingCounts(session.get('fighterWingCounts'));
+    const pdfWingState = needsPdfWingState
+      ? parsePdfEscortWingState(pdfWingSnapshot?.exists ? pdfWingSnapshot.data() : undefined)
+      : undefined;
+    const dockedFighterWings = activeFighterWings.flatMap(craft => {
+      const hostShipId = printedFighterWingHost(craft.id);
+      if (!hostShipId || !group.vesselIds.includes(hostShipId)) return [];
+      const fighterCount = craft.id === 'pdf-escort-fighter-wing'
+        ? pdfWingState?.fighters
+        : parsedWingCounts[craft.id as FighterWingId]?.count;
+      if (!Number.isSafeInteger(fighterCount) || (fighterCount as number) <= 0) return [];
+      return [{ wingId: craft.id, fleetGroupId: group.id, hostShipId }];
+    });
     return { groupId: group.id, navigationRevision: data.expectedNavigationRevision,
-      fleetPartitionRevision: partitionRevision as number, sampledAt, ships, transits, dockedShuttles };
+      fleetPartitionRevision: partitionRevision as number, sampledAt, ships, transits, dockedShuttles,
+      dockedFighterWings };
   });
 });
 

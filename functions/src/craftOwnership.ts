@@ -109,11 +109,16 @@ export interface CraftStartingManifest {
 }
 
 /** Printed host facts for the fighter wings that have no shuttle docking row. */
-const PRINTED_FIGHTER_WING_HOSTS: Readonly<Record<string, string>> = {
+export const PRINTED_FIGHTER_WING_HOSTS: Readonly<Record<string, string>> = {
   'fighter-wing-alpha': 'aegis',
   'fighter-wing-bravo': 'aegis',
   'pdf-escort-fighter-wing': 'refinery-124',
 };
+
+/** Return only the printed berth for catalogued fighter wings. */
+export function printedFighterWingHost(craftId: string): string | null {
+  return PRINTED_FIGHTER_WING_HOSTS[craftId] ?? null;
+}
 
 /** Union craft may move only between the two ships assigned to their owner role. */
 const UNION_CRAFT_HOSTS: Readonly<Record<string, readonly string[]>> = {
@@ -148,7 +153,7 @@ export function craftStartingManifestForSetup(
     .map((craft) => ({
     ...craft,
     startingHostId: craft.kind === 'fighter-wing'
-      ? PRINTED_FIGHTER_WING_HOSTS[craft.id] ?? null
+      ? printedFighterWingHost(craft.id)
       : dockingHosts.get(craft.id) ?? null,
     }));
   return {

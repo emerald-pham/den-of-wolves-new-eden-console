@@ -31,6 +31,8 @@ export interface FleetGroupNavigationProjection {
   readonly sampledAt: string;
   readonly ships: readonly { readonly shipId: string; readonly fleetGroupId: string; readonly coordinate: string }[];
   readonly dockedShuttles: readonly { readonly shuttleId: string; readonly fleetGroupId: string; readonly hostShipId: string }[];
+  /** Absent only in older prepared fixtures; live Functions responses always include this list. */
+  readonly dockedFighterWings?: readonly { readonly wingId: string; readonly fleetGroupId: string; readonly hostShipId: string }[];
   readonly transits: readonly { readonly shuttleId: string; readonly fleetGroupId: string;
     readonly currentPosition: Readonly<{ x: number; y: number; z: number }>;
     readonly sampledAt: string; readonly destinationShipId: string; readonly arrivesAt: string }[];
@@ -56,7 +58,7 @@ function requireContext(context: FleetGroupContext) {
 function strictFleetGroupNavigationProjection(value: unknown): FleetGroupNavigationProjection {
   const point = (candidate: unknown): candidate is { x: number; y: number; z: number } => record(candidate) &&
     Object.keys(candidate).length === 3 && ['x', 'y', 'z'].every(key => typeof candidate[key] === 'number' && Number.isFinite(candidate[key]));
-  if (!record(value) || Object.keys(value).some(key => !['groupId', 'navigationRevision', 'fleetPartitionRevision', 'sampledAt', 'ships', 'transits', 'dockedShuttles'].includes(key)) ||
+  if (!record(value) || Object.keys(value).some(key => !['groupId', 'navigationRevision', 'fleetPartitionRevision', 'sampledAt', 'ships', 'transits', 'dockedShuttles', 'dockedFighterWings'].includes(key)) ||
       typeof value.groupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(value.groupId) ||
       !Number.isSafeInteger(value.navigationRevision) || (value.navigationRevision as number) < 0 ||
       !Number.isSafeInteger(value.fleetPartitionRevision) || (value.fleetPartitionRevision as number) < 0 ||
@@ -86,6 +88,27 @@ function strictFleetGroupNavigationProjection(value: unknown): FleetGroupNavigat
   if (new Set(dockedShuttles.map(docking => docking.shuttleId)).size !== dockedShuttles.length) {
     throw new Error('Current docked shuttle hosts are duplicated.');
   }
+  const knownFighterWingIds = new Set(['fighter-wing-alpha', 'fighter-wing-bravo', 'pdf-escort-fighter-wing']);
+  const printedFighterWingHosts: Readonly<Record<string, string>> = {
+    'fighter-wing-alpha': 'aegis', 'fighter-wing-bravo': 'aegis', 'pdf-escort-fighter-wing': 'refinery-124',
+  };
+  const rawFighterWings = value.dockedFighterWings ?? [];
+  if (!Array.isArray(rawFighterWings) || rawFighterWings.length > knownFighterWingIds.size) {
+    throw new Error('Current fleet navigation is unavailable.');
+  }
+  const dockedFighterWings = rawFighterWings.map(wing => {
+    if (!record(wing) || Object.keys(wing).some(key => !['wingId', 'fleetGroupId', 'hostShipId'].includes(key)) ||
+        typeof wing.wingId !== 'string' || !knownFighterWingIds.has(wing.wingId) ||
+        typeof wing.fleetGroupId !== 'string' || wing.fleetGroupId !== value.groupId ||
+        typeof wing.hostShipId !== 'string' || !shipIds.has(wing.hostShipId) ||
+        printedFighterWingHosts[wing.wingId] !== wing.hostShipId) {
+      throw new Error('Current docked fighter-wing host is malformed.');
+    }
+    return { wingId: wing.wingId, fleetGroupId: wing.fleetGroupId, hostShipId: wing.hostShipId };
+  });
+  if (new Set(dockedFighterWings.map(wing => wing.wingId)).size !== dockedFighterWings.length) {
+    throw new Error('Current docked fighter-wing hosts are duplicated.');
+  }
   const transitIds = new Set<string>();
   const transits = value.transits.map(transit => {
     if (!record(transit) || Object.keys(transit).some(key => !['shuttleId', 'fleetGroupId', 'currentPosition', 'sampledAt', 'destinationShipId', 'arrivesAt'].includes(key)) ||
@@ -106,7 +129,8 @@ function strictFleetGroupNavigationProjection(value: unknown): FleetGroupNavigat
     throw new Error('A shuttle cannot be docked and in transit in the same fleet sample.');
   }
   return { groupId: value.groupId, navigationRevision: value.navigationRevision as number,
-    fleetPartitionRevision: value.fleetPartitionRevision as number, sampledAt: value.sampledAt, ships, transits, dockedShuttles };
+    fleetPartitionRevision: value.fleetPartitionRevision as number, sampledAt: value.sampledAt, ships, transits, dockedShuttles,
+    dockedFighterWings };
 }
 
 export function createFleetGroupActions(getContext: () => FleetGroupContext, transport: Transport,

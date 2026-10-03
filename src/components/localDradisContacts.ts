@@ -1,5 +1,7 @@
 import type {PlotContact} from './ContactPlot';
 import {fleetOriginFor,fleetViewFrom} from '@/data/fleetFormation';
+import {AEGIS_ROLE_CONSOLES} from '@/data/aegisConsoles';
+import {PDF_ESCORT_FIGHTER_WING} from '@/data/pdfConsoles';
 import {SHUTTLECRAFT} from '@/data/shuttles';
 import type {GameSession} from '@/types/game';
 /** Consumer allowlist for the audience-safe server endpoint. No hidden navigation state enters the plot. */
@@ -10,11 +12,19 @@ export interface LocalDradisNavigation {
   readonly sampledAt:string;
   readonly ships:readonly {readonly shipId:string;readonly fleetGroupId:string;readonly coordinate:string}[];
   readonly dockedShuttles?:readonly {readonly shuttleId:string;readonly fleetGroupId:string;readonly hostShipId:string}[];
+  readonly dockedFighterWings?:readonly {readonly wingId:string;readonly fleetGroupId:string;readonly hostShipId:string}[];
   readonly transits:readonly {readonly shuttleId:string;readonly fleetGroupId:string;readonly sampledAt:string;
     readonly currentPosition:{readonly x:number;readonly y:number;readonly z:number};
     readonly destinationShipId:string;readonly arrivesAt:string}[];
 }
 const round=(value:number)=>Math.round(value*1e4)/1e4;
+const fighterWingCatalog=[
+ ...AEGIS_ROLE_CONSOLES['wing-commander'].craft.filter(craft=>craft.fighterWing),
+ PDF_ESCORT_FIGHTER_WING,
+];
+const printedFighterWingHosts:Readonly<Record<string,string>>={
+ 'fighter-wing-alpha':'aegis','fighter-wing-bravo':'aegis','pdf-escort-fighter-wing':'refinery-124',
+};
 function isCurrentGroupTransit(viewerId:string,projection:LocalDradisNavigation,transit:LocalDradisNavigation['transits'][number]):boolean{
  return transit.fleetGroupId===projection.groupId&&transit.sampledAt===projection.sampledAt&&
   Number.isFinite(Date.parse(transit.sampledAt))&&
@@ -26,13 +36,22 @@ function dockedCraftTagsForHost(hostShipId:string,projection:LocalDradisNavigati
  const inTransit=new Set(projection.transits.filter(transit=>isCurrentGroupTransit(hostShipId,projection,transit))
   .map(transit=>transit.shuttleId));
  const seen=new Set<string>();
- return (projection.dockedShuttles??[]).flatMap(docking=>{
+ const shuttleTags=(projection.dockedShuttles??[]).flatMap(docking=>{
   const shuttle=SHUTTLECRAFT.find(candidate=>candidate.id===docking.shuttleId);
   if(!shuttle||docking.fleetGroupId!==projection.groupId||docking.hostShipId!==hostShipId||
    inTransit.has(docking.shuttleId)||seen.has(docking.shuttleId))return[];
   seen.add(docking.shuttleId);
   return[`DOCKED // ${shuttle.shortName.toUpperCase()}`];
  });
+ const seenWings=new Set<string>();
+ const wingTags=(projection.dockedFighterWings??[]).flatMap(docking=>{
+  const wing=fighterWingCatalog.find(candidate=>candidate.id===docking.wingId);
+  if(!wing||docking.fleetGroupId!==projection.groupId||docking.hostShipId!==hostShipId||
+   printedFighterWingHosts[docking.wingId]!==hostShipId||seenWings.has(docking.wingId))return[];
+  seenWings.add(docking.wingId);
+  return[`DOCKED // ${wing.name.toUpperCase()}`];
+ });
+ return[...shuttleTags,...wingTags];
 }
 /** Attach the viewer's own docked craft to the existing DRADIS origin marker. */
 export function localDradisCenterDockedCraftTags(viewerId:string,projection:LocalDradisNavigation):readonly string[]{
