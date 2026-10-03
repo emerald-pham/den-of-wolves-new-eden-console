@@ -130,3 +130,23 @@ it('presents a locked AEGIS fighter Short hit as an automatic target slot', asyn
     { actionId: 'aegis-alpha-wing-short-0', contactIds: ['contact-1'] },
   ]);
 });
+
+it('keeps a Wing Commander Medium fighter target fixed during EO hit assignment', async () => {
+  const user = userEvent.setup();
+  const onAssignTargets = vi.fn();
+  render(<WolfRangeActionPanelView
+    view={{ ...pendingView, choiceStatus: 'targets-required', hitSlots: [
+      { actionId: 'aegis-alpha-wing-medium-0', count: 1 },
+    ], eligibleActions: [
+      { actionId: 'aegis-alpha-wing-medium-0', sourceId: 'aegis-alpha-wing', range: 'medium-range' },
+    ] }}
+    onUseActions={vi.fn()} onPass={vi.fn()} onAssignTargets={onAssignTargets}
+  />);
+
+  expect(screen.getByText(/target set by the Wing Commander/i)).toBeInTheDocument();
+  expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+  const commit = screen.getByRole('button', { name: /commit target assignments/i });
+  expect(commit).toBeEnabled();
+  await user.click(commit);
+  expect(onAssignTargets).toHaveBeenCalledWith([]);
+});
