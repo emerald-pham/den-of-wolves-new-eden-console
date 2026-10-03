@@ -5,7 +5,7 @@ import {createRequire} from 'node:module';
 import {localGmAccessConfiguration,grantLocalGmAccess} from './local-gm-access.mjs';
 
 /** Normal local Auth/HTTP setup. Tokens stay in memory and never enter evidence. */
-export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBriefing=true}={}) {
+export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBriefing=true,keepAlive=false,browserRoleId,joinBrowserPlayer}={}) {
  const env=Object.fromEntries((await readFile('.env.emulators.local','utf8')).trim().split('\n').map(line=>line.split('=')));
  const project=process.env.VITE_FIREBASE_PROJECT_ID;
  const config=localGmAccessConfiguration('serve',{...env,VITE_LOCAL_GM_ACCESS:'1',VITE_FIREBASE_PROJECT_ID:project});
@@ -18,7 +18,12 @@ export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBr
  process.env.FIRESTORE_EMULATOR_HOST=`127.0.0.1:${config.firestorePort}`;
  if(!getApps().length)initializeApp({projectId:project});const db=getFirestore();
  async function actor(){const r=await fetch(`http://127.0.0.1:${config.authPort}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=${project}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({returnSecureToken:true})});assert.equal(r.status,200);return r.json();}
- async function call(actor,name,data){const r=await fetch(`http://127.0.0.1:${functionsPort}/${project}/us-central1/${name}`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${actor.idToken}`},body:JSON.stringify({data})});return{status:r.status,...await r.json()};}
+ const consoleRoles=new Map(),disconnected=new Set();
+ async function call(actor,name,data){const r=await fetch(`http://127.0.0.1:${functionsPort}/${project}/us-central1/${name}`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${actor.idToken}`},body:JSON.stringify({data})});const reply={status:r.status,...await r.json()};
+  if(r.status===200){if(name==='disconnectFromSession')disconnected.add(actor.localId);if(name==='resumeSession')disconnected.delete(actor.localId);
+   if(name==='refreshPresence'&&Object.hasOwn(data,'activeConsoleRoleId'))consoleRoles.set(actor.localId,data.activeConsoleRoleId);
+   if(name==='assignReplacementRole')consoleRoles.set(data.targetUid,null);}
+  return reply;}
  function ok(reply,step){assert.equal(reply.status,200,`${step}: ${reply.error?.message}`);return reply.result;}
  const gm=await actor(),players=await Promise.all(Array.from({length:playerCount},actor));
  const created=ok(await call(gm,'createSession',{requestId:randomUUID(),joinCodeVersion:2,name}),'create');
@@ -28,8 +33,10 @@ export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBr
   ok(await call(gm,'claimGmInstance',{sessionId,instanceId,name:'Local facilitator',deviceLabel:'PC07 HTTP proof'}),'GM claim');
   const roles=recommendedRoleIds(playerCount);
   ok(await call(gm,'confirmSetup',{sessionId,instanceId,requestId:randomUUID(),expectedSetupRevision:created.session.setupRevision??0,playerCount,chartId:'A',lockChart:true,expansion:'base',turnLimit:6,dioneEnabled:playerCount>=12,capybaraEnabled:false,universalArbourEnabled:false,wolfCultEnabled:false,activeRoleIds:roles}),'confirm');
+  const browserIndex=browserRoleId?roles.indexOf(browserRoleId):-1;
+  if(joinBrowserPlayer){assert.ok(browserIndex>=0,'The browser fills a printed core station.');players[browserIndex]=await joinBrowserPlayer(created.session.joinCode);}
   for(const [i,player]of players.entries()){
-   ok(await call(player,'joinSession',{joinCode:created.session.joinCode,displayName:`Local actor ${i+1}`}), 'join');
+   if(i!==browserIndex)ok(await call(player,'joinSession',{joinCode:created.session.joinCode,displayName:`Local actor ${i+1}`}), 'join');
    ok(await call(gm,'assignRole',{sessionId,instanceId,requestId:randomUUID(),targetUid:player.localId,roleId:roles[i]}),'cast');
    const current=ok(await call(player,'resumeSession',{sessionId}),'resume');
    ok(await call(player,'claimSeat',{sessionId,seatId:roles[i],requestId:randomUUID(),expectedSetupRevision:current.session.setupRevision}),'seat');
@@ -39,7 +46,12 @@ export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBr
   ok(await call(gm,'startGame',{sessionId,instanceId,requestId:randomUUID(),expectedSetupRevision:current.session.setupRevision}),'start');
   const hold=(await session.get()).get('turnPhase').timerPause;
   if(clearBriefing)ok(await call(players[0],'clearTurnAdvanceInterstitial',{sessionId,expectedCycle:1,expectedPausedAt:hold.pausedAt,requestId:randomUUID()}),'briefing clear');
+  let heartbeat,heartbeatPending=Promise.resolve();
+  if(keepAlive)heartbeat=setInterval(()=>{heartbeatPending=heartbeatPending.then(async()=>{
+   for(const actor of [gm,...players].filter(actor=>!disconnected.has(actor.localId)))await call(actor,'refreshPresence',{sessionId,
+    ...(actor===gm?{instanceId}:{}),activeConsoleRoleId:consoleRoles.get(actor.localId)??null});
+  });},10000);
   return{db,config,project,gm,players,roles,sessionId,session,instanceId,call,ok,
-   byRole:role=>players[roles.indexOf(role)],cleanup:()=>db.recursiveDelete(session)};
+   byRole:role=>players[roles.indexOf(role)],cleanup:async()=>{clearInterval(heartbeat);await heartbeatPending;await db.recursiveDelete(session);}};
  }catch(error){await db.recursiveDelete(session);throw error;}
 }
