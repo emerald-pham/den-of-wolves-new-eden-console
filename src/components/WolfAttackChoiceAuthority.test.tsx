@@ -167,7 +167,21 @@ it('ignores a Force Field mutation reply after its Captain authority is replaced
   expect(screen.queryByText(/choice committed\. targeting/i)).not.toBeInTheDocument();
 });
 
-it('serializes range reads and applies only the latest matching attack step', async () => {
+it('withdraws an already displayed Force Field choice when a current server refresh is denied', async () => {
+  connectPlayer();
+  mocks.getForceField.mockResolvedValueOnce(forceFieldView)
+    .mockRejectedValueOnce(new Error('The current Captain authority expired.'));
+  render(<WolfForceFieldChoicePanel />);
+  publish(targeting);
+  await screen.findByRole('button', { name: /pass force field/i });
+
+  publish(targeting);
+  await screen.findByText('The current Captain authority expired.');
+  expect(screen.queryByRole('button', { name: /pass force field/i })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /refresh force field choice/i })).toBeInTheDocument();
+});
+
+it('serializes range reads and ignores obsolete failed reads while applying the latest matching step', async () => {
   connectPlayer({ assignedRoleId: 'executive-officer', replacementRoleId: null, activeConsoleRoleId: 'executive-officer' });
   const firstRead = deferred<WolfRangeActionChoiceView>();
   const secondRead = deferred<WolfRangeActionChoiceView>();
@@ -179,7 +193,7 @@ it('serializes range reads and applies only the latest matching attack step', as
   publish({ ...targeting, currentStep: 'medium-range', range: 'medium', revision: 9 });
   expect(mocks.getRange).toHaveBeenCalledTimes(1);
 
-  await act(async () => firstRead.resolve({ ...rangeView, revision: 8, currentStep: 'long-range', range: 'long-range' }));
+  await act(async () => firstRead.reject(new Error('The obsolete Long Range read lost authority.')));
   await waitFor(() => expect(mocks.getRange).toHaveBeenCalledTimes(2));
   expect(screen.queryByRole('button', { name: /pass this range/i })).not.toBeInTheDocument();
   await act(async () => secondRead.resolve({ ...rangeView, revision: 9 }));
