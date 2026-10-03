@@ -229,6 +229,52 @@ describe('central Wolf combat math', () => {
     )).toThrow(/Battlestation cannot take Short Range/i);
   });
 
+  it('assigns a second Short Range hit to a Transport once the only live Wing is lethally covered', () => {
+    const wing: WolfCombatShip = {
+      instanceId: 'short-wing:0', shipId: 'wolf-fighter-wing', target: 'aegis', damageTaken: 0, destroyed: false,
+    };
+    const transport: WolfCombatShip = {
+      instanceId: 'short-transport:0', shipId: 'wolf-assault-transport', target: 'aegis', damageTaken: 0, destroyed: false,
+    };
+    const battlestation: WolfCombatShip = {
+      instanceId: 'short-station:0', shipId: 'wolf-battlestation', target: 'aegis', damageTaken: 0, destroyed: false,
+    };
+    const action = {
+      actionId: 'short-two-hits', sourceId: 'gorgoneion-missile-array', range: 'short-range' as const,
+      dice: { sides: 6, count: 2, successAt: 2, damagePerSuccess: 1 }, maxTargets: 2,
+    };
+    const result = resolveWolfRange(
+      'short-range', [action], [{ actionId: action.actionId, targetInstanceIds: [wing.instanceId, transport.instanceId] }],
+      [wing, transport, battlestation], samples([1, 1]),
+    );
+
+    expect(result.receipt.assignments).toEqual([
+      { actionId: action.actionId, targetInstanceIds: [wing.instanceId, transport.instanceId] },
+    ]);
+    expect(result.receipt.damageByInstance).toEqual({ [wing.instanceId]: 1, [transport.instanceId]: 1 });
+    expect(result.receipt.destroyedInstanceIds).toContain(wing.instanceId);
+    expect(result.receipt.destroyedInstanceIds).not.toContain(transport.instanceId);
+    expect(result.receipt.unusedHitsByAction).toEqual([]);
+    expect(result.receipt.damageByInstance).not.toHaveProperty(battlestation.instanceId);
+  });
+
+  it('keeps all assigned Short hits on Wings until every live Wing is lethally covered', () => {
+    const wings: WolfCombatShip[] = ['alpha', 'bravo'].map((id) => ({
+      instanceId: `short-wing:${id}`, shipId: 'wolf-fighter-wing', target: 'aegis', damageTaken: 0, destroyed: false,
+    }));
+    const transport: WolfCombatShip = {
+      instanceId: 'short-transport:uncovered', shipId: 'wolf-assault-transport', target: 'aegis', damageTaken: 0, destroyed: false,
+    };
+    const action = {
+      actionId: 'short-insufficient-wing-coverage', sourceId: 'gorgoneion-missile-array', range: 'short-range' as const,
+      dice: { sides: 6, count: 2, successAt: 2, damagePerSuccess: 1 }, maxTargets: 2,
+    };
+    expect(() => resolveWolfRange(
+      'short-range', [action], [{ actionId: action.actionId, targetInstanceIds: [wings[0]!.instanceId, transport.instanceId] }],
+      [...wings, transport], samples([1, 1]),
+    )).toThrow(/Fighter Wings first/i);
+  });
+
   it('uses the catalog destruction effects and resolves boarding parties with server dice', () => {
     const roster = firstTurnRoster();
     const transport = roster[10]!;
