@@ -18,6 +18,8 @@ type RangeAssignment = Readonly<{ actionId: string; contactIds: readonly string[
 function actionLabel(sourceId: string): string {
   if (sourceId === 'aegis-missile-launchers') return 'Missile launchers';
   if (sourceId === 'aegis-point-defence-lasers') return 'Point-defence lasers';
+  if (sourceId === 'aegis-alpha-wing') return 'Alpha Fighter Wing';
+  if (sourceId === 'aegis-bravo-wing') return 'Bravo Fighter Wing';
   return sourceId.replaceAll('-', ' ');
 }
 
