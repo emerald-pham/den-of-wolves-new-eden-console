@@ -79,7 +79,7 @@ and precise authorized sources, record the chosen interpretation and its
 limits, and continue. Re-evaluate historical owner-decision holds against this
 standing instruction; do not perpetuate an obsolete question. Never invent
 source authority or claim an unavailable gameplay path was verified. Use
-supported authenticated access for live proof; do not bypass security or
+normal authenticated local/emulator gameplay for future proof; do not bypass security or
 copy credentials into repository files, reports, fixtures, or logs.
 
 If a genuine access, missing-source, or higher-priority permission requirement
@@ -213,7 +213,7 @@ review, repair every finding, then run one reconciled CI/release candidate and
 deployment. Verify normal authorized gameplay separately from tests, the
 synthetic PC06 scene, and deployment; report any unavailable production path
 without crediting its prompt. Do not start PC07 during this checkpoint.
-**PC06 verification authorization, October 2:** the user requested an emulator-only GM development path and explicitly accepted representative local/emulator gameplay to finish this checkpoint. The 49 criteria and target remain fixed. Preserve seven actual production proofs, label local/native/UI/rules evidence separately for the remaining rows, and retain mandatory review, CI and deployment. This PC06 authorization supersedes the unavailable production-GM hold above; prepared scenes alone do not prove behavior and future checkpoint requirements are unchanged.
+**PC06 verification authorization, October 2:** the user requested an emulator-only GM development path and explicitly accepted representative local/emulator gameplay to finish this checkpoint. The 49 criteria and target remain fixed. Preserve seven actual production proofs, label local/native/UI/rules evidence separately for the remaining rows, and retain mandatory review, CI and deployment. This PC06 authorization supersedes the unavailable production-GM hold above; prepared scenes alone do not prove behavior and later repo-wide evidence policy below supersedes only the future proof limitation.
 
 ## Future acceptance alignment — PC07–PC10 only
 
@@ -384,8 +384,9 @@ for current membership and targets.
 The transition review read the latest PC06 owner messages through “what broke?
 diagnose,” the explicit PC06 closure, the future acknowledged-handoff correction,
 and the earlier PC07–PC10 alignment. No new applicable game or presentation
-decision changes an unstarted criterion. The PC06-only local proof exception
-is not extended to PC07. PC06 remains closed at 556/751; this checkpoint must
+decision changes a game criterion. The subsequent October 2 owner decision below
+makes authenticated local/emulator proof the repository-wide standard. PC06
+remains closed at 556/751; this checkpoint must
 close exactly its fixed 49 IDs to reach 605/751 and 147/293 campaign closures.
 
 **Problem and frozen scope.** Players must act, move and learn within their
@@ -432,7 +433,37 @@ Inspect 320/390 phone, 844×390 landscape, 1440×900 desktop, reduced motion,
 keyboard, navigation, actual fonts and geometry. Obtain independent Sol 6.1
 review of the reconciled authority/privacy candidate. Run the appropriate final
 validation, font/typography, ticker, bundle and existing release gates, then
-one reconciled CI candidate and exact-main deployment checks. Ordinary
-authenticated gameplay remains a separate proof requirement. Current production
-browser access is player-only; the parent owns triaging that constraint while
-independent work continues. No unavailable proof receives closure credit.
+one reconciled CI candidate and exact-main deployment checks. Normal authenticated
+local/emulator gameplay supplies representative behavior proof under the owner
+decision below. Production behavior and deployment remain separately labeled;
+prepared scenes and unavailable proof receive no behavior closure credit.
+
+**PC07 verification authorization, October 2:** the owner explicitly selected
+“Use the same local/emulator approach” when asked whether PC07 should use the
+representative approach approved for PC06, with independent review, CI and
+production deployment still required. All 49 criteria and the 605/751 target
+remain fixed. Native handler, ordinary local HTTP/UI and rules evidence can
+prove these behaviors; scene presentation remains separate and never sufficient
+alone. Label local results separately from production behavior and deployment.
+The production-GM access dependency is closed. The later owner correction below
+supersedes the PC07-only limit.
+
+## Repository-wide gameplay verification — owner correction, October 2
+
+The owner corrected the PC07-only interpretation: **“that’s a new repo thing,
+all future will use local emulator.”** This supersedes the earlier limitation.
+All future work and unstarted PC08–PC10 use normal authenticated local/emulator
+gameplay as the completion standard; production-GM or live-production gameplay
+is not a closure prerequisite. The canonical acceptance of all 195 PC07–PC10
+IDs carries this decision. All functional criteria, fixed membership/targets,
+source rules, audience privacy, server authority, replay/recovery, independent
+risk review, CI and production deployment remain required.
+
+Use meaningful native handlers, normal HTTP/UI and Firestore rules evidence as
+appropriate, with separate current identities for distinct actors. Prepared
+synthetic tours are presentation evidence and cannot establish behavior alone.
+Distinguish local unit/native/HTTP/UI/rules, rendered QA, CI, deployment and any
+actual production behavior; never retroactively relabel historical evidence.
+PC10's full 20-player set, end-to-end loop and implemented game end remain
+functional obligations and may be demonstrated with local/emulator clients.
+This decision grants no 0.9.x/1.0.0 authorization or P605a activation.

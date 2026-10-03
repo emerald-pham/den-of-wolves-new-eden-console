@@ -62,3 +62,16 @@ message and acknowledgement before parking. Record exact branch/SHA/evidence,
 next-action owner and resume condition; use one long interruptible wait and one
 bounded follow-up if acknowledgement is absent. Ordinary work needs no repeated
 status messages.
+
+**Access dependency closed.** Parent `/root` delivered and acknowledged the
+explicit October 2 PC07 evidence decision recorded in feedback: use the same
+representative local/emulator approach, retaining independent review, CI,
+production deployment and all 49 criteria. Both workers were informed. No
+production-GM restoration or dependency parking is needed.
+
+**Superseding owner correction.** On October 2 the owner clarified that all
+future work uses local/emulator gameplay, replacing the PC07-only limit. All
+195 future catalog acceptances and affected guides were aligned. Normal
+authenticated local/native/HTTP/UI/rules proof remains meaningful; review, CI,
+deployment, behavior targets and historical labels remain. No production-GM
+closure dependency exists.

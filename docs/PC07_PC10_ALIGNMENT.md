@@ -173,7 +173,7 @@ behavior; the owner is never asked to inspect code or perform rule arithmetic.
 - **P651:** audit all 751 acceptances with current evidence, exact final build,
   truthful counts and no placeholder controls. Separate local tests, rendered
   QA, CI, deployment and ordinary authorized play. A tour is presentation
-  evidence; an unavailable live path remains an explicit evidence gap.
+  evidence; a missing authenticated local/emulator gameplay path remains an explicit evidence gap.
 - **Tour:** can the owner prepare each distinct candidate, understand why a
   choice succeeds or fails, recover a workspace after disconnection and read
   the permitted ending/history without accounts switching or a recruited table?
@@ -199,3 +199,15 @@ After catalog edits regenerate its Markdown views and the PC07–PC10 Gantt
 HTML/JSON/CSV. The chart remains a derived dependency projection; its status
 snapshot is not a second completion ledger. Preserve PC06 as the entry
 prerequisite and PC10 as the fixed endpoint.
+
+## Current proof standard — October 2 owner correction
+
+“All future will use local emulator” supersedes the earlier PC07-only evidence
+exception. Every current and future checkpoint criterion uses meaningful
+authenticated local/emulator native handlers, normal HTTP/UI and rules evidence
+as appropriate. Production-GM gameplay is not required for closure. Functional
+criteria, source/authority/privacy/recovery, fixed counts, independent risk
+review, CI and production deployment are retained. Synthetic review scenes
+remain presentation only. PC10's full-table, end-to-end and actual ending proof
+may use local/emulator clients; version authorization and P605a exclusion stay
+intact. See the current policy in Product Milestones.

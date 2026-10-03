@@ -344,3 +344,13 @@ the original assumption; append the resolution so the decision is traceable.
 | Chosen reading | Correct the visit to Coordination. The current President selects an eligible ship and commits the printed action; the server validates authority, phase, political capital and destination, then applies cost and unrest together. Do not invent a docking, console-browsing or second-GM prerequisite. A genuine physical ruling or intervention can use the existing GM path if needed. |
 | Product effect | P524c uses one replay-safe transaction and private GM receipt for the cost/effect, with entitled outcome/news projections. It does not borrow P517's Team Time confirmation or P524b's address timing and does not grant arbitrary resource or GM authority. No runtime behavior or completion is claimed. |
 | Review state | New source correction and digital action assumption under FUTURE-F01/FUTURE-F03 authorization; subject to optional owner correction at PC09 and reported first. PC06 is unaffected. |
+
+### PC07-A1 — Preserve the server clock behind a cycle briefing
+
+| Field | Decision |
+|---|---|
+| ID and checkpoint | PC07-A1, P103a and airspace recovery. |
+| Source | Player Guide printed p. 5/PDF p. 7 supplies Team/Coordination timing; the complete primary page was visually inspected. P103a explicitly supplies the interstitial hold and one clear action. |
+| Chosen reading | Every newly committed, non-skipped cycle briefing captures its current Team window with a server-owned interstitial pause. One currently connected participant may clear the exact cycle/pause identity for every console. An explicit skipped briefing keeps the existing schedule. A replay of an already cleared transmission is presentation and never refreezes the clock. |
+| Alternatives and limits | Requiring only a GM to clear would add an unnecessary operator step; per-browser clock holds would violate the shared session clock. These clear authority and identity choices are digital product assumptions, not printed rules. Emergency and empty-session holds keep their distinct end conditions. |
+| Effect | Current member authority, exact transition, receipt/replay and atomic session/event ownership prevent a stale clear, retry, reconnect or competing device from resuming twice or changing a newer deadline. Every timing field remains server-owned. |

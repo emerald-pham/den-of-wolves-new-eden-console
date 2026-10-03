@@ -40,7 +40,11 @@ gap, and owns the single release. This does not add child coordinators.
 Obtain independent Sol review of the reconciled shared-state and authority
 changes under the risk rules in `CLAUDE.md`. Review findings return to the
 responsible implementation owner. Preserve test-first commits, exact-candidate
-validation, ordinary authorized gameplay proof, and the fixed completion target.
+validation, authenticated local/emulator gameplay proof, and the fixed completion target.
+The October 2 owner correction makes this the future repository-wide standard;
+production-GM gameplay is not a closure dependency. Retain functional checks,
+independent review, CI and production deployment; prepared scenes alone do not
+prove gameplay and historical evidence labels remain intact.
 Use the currently authorized model versions and efforts; this structure does
 not authorize a model excluded by higher-priority working agreements.
 

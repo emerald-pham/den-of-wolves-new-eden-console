@@ -157,7 +157,7 @@ existing test to pass; leave a suspect test intact and flag it. Never modify
 an existing test in the code commit it covers. Record reasons for every test
 added, changed, skipped, or deleted in the nontechnical checkpoint report.
 Low-impact changes without new behavior need a focused or rendered check.
-Keep local tests, rendered QA, deployment, and live behavior distinct.
+Future gameplay proof uses normal authenticated local/emulator native, HTTP/UI and rules paths; prepared scenes alone do not establish behavior. Keep local tests, gameplay, rendered QA, CI, production deployment and actual production behavior distinct. Independent risk review, CI and deployment remain required; production-GM gameplay is not a closure prerequisite.
 
 Typical checks are:
 

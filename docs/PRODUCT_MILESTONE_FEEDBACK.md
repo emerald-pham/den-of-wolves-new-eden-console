@@ -200,3 +200,27 @@ presentation decision changes the 195 future acceptance criteria or the fixed
 allocation. The PC06 local verification exception remains PC06-only. Existing
 FUTURE-F01–F04 and PC03/PC05 corrections are adopted into the PC07 shape. No
 new owner UI feedback is pending cooldown.
+
+### PC07 verification decision — 2026-10-02
+
+The parent asked: “For PC07, should I use the same representative local/emulator
+gameplay verification you approved for PC06, with independent review, CI, and
+production deployment still required?” The owner explicitly selected **Use the
+same local/emulator approach**. This applies to PC07 only. It resolves the
+production-GM access dependency while preserving all 49 behavior criteria,
+605/751 target, review, CI and deployment. Native handler, normal HTTP/UI and
+rules proof remain distinct from prepared scenes, ordinary production behavior
+and deployment. Prepared scenes alone earn no closure. Future checkpoints
+retain their existing requirements. Latest owner message reviewed: this decision.
+
+### Repository-wide correction — 2026-10-02
+
+Latest owner message reviewed: **“that’s a new repo thing, all future will use
+local emulator.”** This corrects and supersedes the earlier PC07-only limit.
+Affected IDs: all 195 fixed PC07–PC10 catalog rows; future work repo-wide.
+Applied to the actual canonical acceptances, future operating/shape/completion
+guidance and workflow guide. Authenticated local/emulator native, HTTP/UI and
+rules evidence is now the gameplay completion standard. Counts, functional
+acceptance, independent review, CI, production deployment, full-table PC10
+and version/P605a boundaries are unchanged. Scene-only proof remains invalid;
+historical local and production evidence stays accurately labeled.

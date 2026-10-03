@@ -171,3 +171,14 @@ baseline and cannot silently disappear from PC10's obligation.
 ### PC10 — 48 assigned closures; 293/293 cumulative
 
 181, 215b, 223b, 233b, 576, 579, 581, 584, 585, 541, 542, 543, 544, 545, 546, 547, 548, 549, 593, 619, 550, 551, 552, 553, 554, 555, 556, 557, 558, 559, 563, 564, 565, 566, 647, 648, 649, 650, 618, 620, 629, 630, 631, 634, 635, 641, 642, 651.
+
+## Current future gameplay evidence standard — October 2
+
+The owner instructed that all future repository work use local/emulator
+gameplay. This applies to all fixed PC07–PC10 IDs; their canonical criteria
+carry the correction. Meaningful authenticated native/HTTP/UI/rules proof
+replaces a production-GM-only closure dependency, preserving every functional
+criterion and count, independent review, CI and production deployment.
+Prepared scenes remain presentation alone. Full-table PC10 and ending
+obligations remain and may use emulator clients; P605a and version
+authorization boundaries are unchanged. Historical evidence labels remain.
