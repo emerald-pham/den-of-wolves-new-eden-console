@@ -64,6 +64,8 @@ vi.mock('firebase-functions/v2/scheduler', () => ({ onSchedule: (_schedule: stri
 import {
   assignWolfRangeTargets,
   getAegisFighterWingLaunch,
+  getWolfFighterRangeActionChoice,
+  commitWolfFighterRangeActionChoice,
   launchAegisFighterWing,
   commitWolfRangeActionChoice,
   advanceWolfAttackLifecycle,
@@ -160,6 +162,111 @@ it('lets the current Wing Commander launch each charged, operational AEGIS bay i
     wingId: 'fighter-wing-alpha' }, 'wc-1'));
   expect(replay).toMatchObject({ status: 'replayed', launched: true });
   expect(state.revision).toBe(5);
+});
+
+it('commits an explicit Short subset for a launched wing without drawing its rolls early', async () => {
+  const session = testState.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session,
+    activeRoleIds: ['executive-officer', 'wing-commander'],
+    maintenanceCycles: { ...(session.maintenanceCycles as Fields), aegis: {
+      ...(session.maintenanceCycles as Fields).aegis as Fields,
+      charges: ['missile-launchers', 'point-defence-lasers', 'fighter-bay-alpha', 'fighter-bay-bravo'],
+    } },
+    fighterWingCounts: initialFighterWingCounts(),
+  });
+  const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  put('sessions/s1/wolfAttackState/current', { ...attack, currentStep: 'targeting' });
+  put('sessions/s1/players/wc-1', { uid: 'wc-1', role: 'player', connected: true,
+    assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander', fleetGroupId: 'fleet-1' });
+  put('sessions/s1/fleetGroups/fleet-1', { id: 'fleet-1',
+    vesselIds: ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124'],
+    memberUids: ['xo-1', 'wc-1'], memberShipIds: { 'xo-1': 'aegis', 'wc-1': 'aegis' } });
+  const launched = await launchAegisFighterWing.run(request({ sessionId: 's1', requestId: 'launch-alpha-short',
+    expectedTurn: 1, expectedRevision: 4, expectedWingRevision: 0, wingId: 'fighter-wing-alpha' }, 'wc-1'));
+  expect(launched).toMatchObject({ launched: true });
+  const stateAfterLaunch = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  put('sessions/s1/wolfAttackState/current', { ...stateAfterLaunch, currentStep: 'short-range' });
+
+  const view = await getWolfFighterRangeActionChoice.run(request({ sessionId: 's1', range: 'short-range',
+    sourceId: 'fighter-wing-alpha' }, 'wc-1'));
+  expect(view).toMatchObject({ type: 'wolf-fighter-range-action-view', range: 'short-range',
+    wingId: 'fighter-wing-alpha', fighters: [{ fighterIndex: 0 }, { fighterIndex: 1 }, { fighterIndex: 2 }, { fighterIndex: 3 }] });
+  const randomCallsBeforeChoice = entropy.randomInt.mock.calls.length;
+  const result = await commitWolfFighterRangeActionChoice.run(request({ sessionId: 's1', requestId: 'alpha-short-subset',
+    expectedTurn: 1, expectedRevision: view.revision, range: 'short-range', sourceId: 'fighter-wing-alpha',
+    fighterIndexes: [0, 2] }, 'wc-1'));
+  expect(result).toMatchObject({ status: 'committed', choiceStatus: 'pending-resolution', selectedFighterIndexes: [0, 2] });
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current')?.fighterRangeChoices)
+    .toMatchObject({ 'short-range': { 'fighter-wing-alpha': { fighterIndexes: [0, 2] } } });
+  expect(entropy.randomInt).toHaveBeenCalledTimes(randomCallsBeforeChoice);
+});
+
+it('holds completed targeting until each eligible AEGIS Fighter Bay is launched or passed', async () => {
+  const session = testState.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session, activeRoleIds: ['executive-officer', 'wing-commander'],
+    maintenanceCycles: { aegis: { ...(session.maintenanceCycles as Fields).aegis as Fields,
+      charges: ['missile-launchers', 'point-defence-lasers', 'fighter-bay-alpha', 'fighter-bay-bravo'] } },
+    fighterWingCounts: initialFighterWingCounts() });
+  const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  put('sessions/s1/wolfAttackState/current', { ...attack, currentStep: 'targeting' });
+  put('sessions/s1/players/wc-1', { uid: 'wc-1', role: 'player', connected: true,
+    assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander', fleetGroupId: 'fleet-1' });
+  put('sessions/s1/fleetGroups/fleet-1', { id: 'fleet-1',
+    vesselIds: ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124'],
+    memberUids: ['xo-1', 'wc-1'], memberShipIds: { 'xo-1': 'aegis', 'wc-1': 'aegis' } });
+
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
+    currentStep: 'targeting',
+  });
+});
+
+it('keeps an assigned offline Wing Commander choice pending and accepts a reconnect retry', async () => {
+  const session = testState.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session,
+    activeRoleIds: ['executive-officer', 'wing-commander'],
+    maintenanceCycles: { ...(session.maintenanceCycles as Fields), aegis: {
+      turn: 1, step: 7, revision: 3, results: { '5': 'Reactor powered up.' },
+      charges: ['missile-launchers', 'point-defence-lasers', 'fighter-bay-alpha', 'fighter-bay-bravo'], refuelled: [],
+    } },
+    shipDamage: { aegis: { damagedSystemIds: [], destroyed: false } },
+    fighterWingCounts: initialFighterWingCounts(),
+  });
+  const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  put('sessions/s1/wolfAttackState/current', { ...attack, currentStep: 'targeting', revision: 4 });
+  put('sessions/s1/players/wc-1', { uid: 'wc-1', role: 'player', connected: false,
+    assignedRoleId: 'wing-commander', seatId: 'wing-commander', activeConsoleRoleId: null,
+    fleetGroupId: 'fleet-1' });
+  put('sessions/s1/fleetGroups/fleet-1', { id: 'fleet-1',
+    vesselIds: ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124'],
+    memberUids: ['xo-1', 'wc-1'], memberShipIds: { 'xo-1': 'aegis', 'wc-1': 'aegis' } });
+
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
+    currentStep: 'targeting', revision: 4,
+  });
+  expect((testState.documents.get('sessions/s1/wolfAttackState/current')!.fighterLaunchChoices as Fields | undefined)?.['fighter-wing-alpha'])
+    .toBeUndefined();
+
+  put('sessions/s1/players/wc-1', { uid: 'wc-1', role: 'player', connected: true,
+    assignedRoleId: 'wing-commander', seatId: 'wing-commander', activeConsoleRoleId: 'wing-commander',
+    fleetGroupId: 'fleet-1' });
+  const view = await getAegisFighterWingLaunch.run(request({ sessionId: 's1', wingId: 'fighter-wing-alpha' }, 'wc-1'));
+  expect(view).toMatchObject({ eligible: true, launched: false, revision: 4, wingRevision: 0 });
+  const payload = { sessionId: 's1', requestId: 'reconnect-launch-alpha', expectedTurn: 1,
+    expectedRevision: 4, expectedWingRevision: 0, wingId: 'fighter-wing-alpha' };
+  await expect(launchAegisFighterWing.run(request(payload, 'wc-1'))).resolves.toMatchObject({
+    status: 'committed', choiceStatus: 'launched', launched: true,
+  });
+  await expect(launchAegisFighterWing.run(request(payload, 'wc-1'))).resolves.toMatchObject({
+    status: 'replayed', choiceStatus: 'launched', launched: true,
+  });
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
+    currentStep: 'targeting', fighterLaunchChoices: {
+      'fighter-wing-alpha': { sourceId: 'fighter-wing-alpha', status: 'launched', actorUid: 'wc-1' },
+    },
+  });
 });
 
 it('returns only current source-derived actions and opaque target contacts to the entitled Executive Officer', async () => {
