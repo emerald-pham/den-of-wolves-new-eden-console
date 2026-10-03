@@ -16,6 +16,10 @@ const mock = vi.hoisted(() => {
     }, set: (target: { path: string }, value: Fields) => queued.push([target.path, value]),
     update: (target: { path: string }, value: Fields) => queued.push([target.path, { ...documents.get(target.path), ...value }]),
     create: (target: { path: string }, value: Fields) => {
+      if (target.path.includes('/fleetTaxiTransferAudits/')) {
+        const invalidField = Object.entries(value).find(([, entry]) => entry === undefined)?.[0];
+        if (invalidField) throw new Error(`Cannot use undefined as a Firestore value (found in field "${invalidField}")`);
+      }
       if (documents.has(target.path)) throw new Error('already exists'); queued.push([target.path, value]);
     } });
     queued.forEach(([path, value]) => { writes(path, value); documents.set(path, value); });
@@ -84,6 +88,80 @@ function seedSplitNavigation() {
     scoutedCoordinatesByShip: { aegis: [], quellon: ['1413'], shepherd: [] },
     pursuitGroups: { 'fleet-1': 2, 'fleet-2': 4 } });
 }
+
+function seedPlayerTaxiScenario(targetCoordinate: string) {
+  const session = mock.documents.get('sessions/s1')!;
+  Object.assign(session, { fleetPartitionRevision: 1,
+    maintenanceCycles: { aegis: { turn: 3, step: 7, revision: 1, results: {}, charges: [], refuelled: ['starlight'] } },
+    shuttleFuelled: { starlight: true }, shuttleDockings: [
+      { shuttleId: 'starlight', shipId: 'aegis', dockedAt: '2026-01-01T00:00:00Z' },
+      { shuttleId: 'hummingbird', shipId: 'quellon', dockedAt: '2026-01-01T00:00:00Z' },
+      { shuttleId: 'endeavour', shipId: 'shepherd', dockedAt: '2026-01-01T00:00:00Z' },
+    ],
+    shuttleControl: {
+      starlight: { shuttleId: 'starlight', ownerRoleId: 'wing-commander', ownerUid: 'wing', holderUid: 'wing', revision: 0 },
+      hummingbird: { shuttleId: 'hummingbird', ownerRoleId: 'quellon-explorer', ownerUid: 'explorer', holderUid: 'explorer', revision: 0 },
+      endeavour: { shuttleId: 'endeavour', ownerRoleId: 'shepherd-scientist', ownerUid: 'shepherd-player', holderUid: 'shepherd-player', revision: 0 },
+    }, shipResources: {
+      aegis: { ore: 0, fuel: 4, food: 10, water: 8, materials: 12 },
+      quellon: { ore: 0, fuel: 2, food: 10, water: 8, materials: 12 },
+      shepherd: { ore: 0, fuel: 2, food: 10, water: 8, materials: 12 },
+    },
+  });
+  put('sessions/s1/players/wing', { role: 'player', connected: true, fleetGroupId: 'fleet-1',
+    assignedRoleId: 'wing-commander', seatId: 'wing-commander', activeConsoleRoleId: 'wing-commander' });
+  put('sessions/s1/players/admiral', { role: 'player', connected: true, fleetGroupId: 'fleet-1',
+    assignedRoleId: 'admiral', seatId: 'admiral', activeConsoleRoleId: 'admiral' });
+  put('sessions/s1/players/explorer', { role: 'player', connected: true, fleetGroupId: 'fleet-2',
+    assignedRoleId: 'quellon-explorer', seatId: 'quellon-explorer', activeConsoleRoleId: 'quellon-explorer' });
+  put('sessions/s1/players/shepherd-player', { role: 'player', connected: true, fleetGroupId: 'fleet-3',
+    assignedRoleId: 'shepherd-scientist', seatId: 'shepherd-scientist', activeConsoleRoleId: 'shepherd-scientist' });
+  put('sessions/s1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['wing', 'admiral'],
+    memberShipIds: { wing: 'aegis', admiral: 'aegis' } });
+  put('sessions/s1/fleetGroups/fleet-2', { id: 'fleet-2', vesselIds: ['quellon'], memberUids: ['explorer'],
+    memberShipIds: { explorer: 'quellon' } });
+  put('sessions/s1/fleetGroups/fleet-3', { id: 'fleet-3', vesselIds: ['shepherd'], memberUids: ['shepherd-player'],
+    memberShipIds: { 'shepherd-player': 'shepherd' } });
+  put('sessions/s1/serverState/navigation', { revision: 2,
+    shipGalacticCoordinates: { aegis: '1413', quellon: targetCoordinate, shepherd: '0000' },
+    shipNavigationLogs: { aegis: [], quellon: [], shepherd: [] }, scoutedCoordinatesByShip: {},
+    pursuitGroups: { 'fleet-1': 2, 'fleet-2': 4, 'fleet-3': 1 } });
+}
+
+it('commits one legal passenger taxi with a Firestore-safe audit and exact replay', async () => {
+  seedPlayerTaxiScenario('0000');
+  const taxi = { sessionId: 's1', requestId: 'players-transfer-1', shuttleId: 'starlight', targetShipId: 'quellon',
+    expectedCycle: 3, expectedControlRevision: 0, expectedNavigationRevision: 2,
+    expectedFleetPartitionRevision: 1, expectedGroupId: 'fleet-1',
+    payload: { kind: 'players', playerUids: ['admiral'] } };
+  const call = () => calls.sendScoutTaxiTransfer.run(request(taxi, 'wing'));
+  expect(await call()).toMatchObject({ status: 'committed', requestId: taxi.requestId, kind: 'players',
+    sourceGroupId: 'fleet-1', targetShipId: 'quellon', playerUids: ['admiral'], cycle: 3 });
+  expect(mock.documents.get(`sessions/s1/fleetTaxiTransferAudits/${taxi.requestId}`)).toMatchObject({
+    actorUid: 'wing', shuttleId: 'starlight', sourceGroupId: 'fleet-1', targetGroupId: 'fleet-2',
+    payload: { kind: 'players', playerUids: ['admiral'] },
+  });
+  expect(mock.documents.get(`sessions/s1/fleetTaxiTransferAudits/${taxi.requestId}`)).not.toHaveProperty('sourceFuelRemaining');
+  expect(mock.documents.get(`sessions/s1/fleetTaxiTransferAudits/${taxi.requestId}`)).not.toHaveProperty('targetFuelAfter');
+  expect(mock.documents.get('sessions/s1/players/admiral')?.fleetGroupId).toBe('fleet-2');
+  expect(mock.documents.get('sessions/s1')?.fleetPartitionRevision).toBe(2);
+  mock.writes.mockClear();
+  expect(await call()).toMatchObject({ status: 'replayed', requestId: taxi.requestId });
+  expect(mock.writes).not.toHaveBeenCalled();
+});
+
+it('denies an out-of-range passenger taxi without any write', async () => {
+  seedPlayerTaxiScenario('9997');
+  const taxi = { sessionId: 's1', requestId: 'players-transfer-out-of-range', shuttleId: 'starlight', targetShipId: 'quellon',
+    expectedCycle: 3, expectedControlRevision: 0, expectedNavigationRevision: 2,
+    expectedFleetPartitionRevision: 1, expectedGroupId: 'fleet-1',
+    payload: { kind: 'players', playerUids: ['admiral'] } };
+  await expect(calls.sendScoutTaxiTransfer.run(request(taxi, 'wing'))).rejects.toThrow();
+  expect(mock.writes).not.toHaveBeenCalled();
+  expect(mock.documents.has(`sessions/s1/fleetTaxiTransferAudits/${taxi.requestId}`)).toBe(false);
+  expect(mock.documents.has(`sessions/s1/commandReceipts/${taxi.requestId}`)).toBe(false);
+  expect(mock.documents.has('sessions/s1/scoutCadence/3-starlight')).toBe(false);
+});
 
 it('atomically taxis fuel only between current groups and reconciles an exact retry once', async () => {
   const session = mock.documents.get('sessions/s1')!;
