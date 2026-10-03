@@ -489,6 +489,8 @@ it('keeps boarding pending through disconnect and scopes the projection to the c
 
 it('reads casualty alert audiences before any final boarding write under Firestore transaction ordering', async () => {
   openBoardingFixture();
+  const session = testState.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session, shipSurvivors: { ...(session.shipSurvivors as Fields), aegis: 250 } });
   entropy.randomInt.mockReturnValue(0);
   await commitWolfBoardingDefenceChoice.run(request({ sessionId: 's1', requestId: 'boarding-alert-order',
     expectedTurn: 1, expectedRevision: 10, targetShipId: 'aegis', securityTeams: 0 }));
