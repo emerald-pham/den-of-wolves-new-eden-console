@@ -7,6 +7,7 @@ import {
   CORE_WOLF_TARGET_RING,
   EXPANDED_WOLF_TARGET_RING,
   isWolfCalculationReceipt,
+  lockWolfBoardingDefenceRolls,
   resolveWolfBoarding,
   resolveWolfRange,
   resolveWolfRangeTargetShifts,
@@ -421,6 +422,29 @@ describe('central Wolf combat math', () => {
         ] } as unknown as WolfBoardingDefence],
       samples([0, 5, 5]),
     )).toThrow(/already been rerolled/i);
+  });
+
+  it('locks server defence dice once and applies the persisted reroll outcomes without drawing again', () => {
+    const transport: WolfCombatShip = {
+      instanceId: 'locked-transport', shipId: 'wolf-assault-transport', target: 'aegis',
+      damageTaken: 0, destroyed: false,
+    };
+    const locked = lockWolfBoardingDefenceRolls(
+      [transport],
+      [{ target: 'aegis', securityTeams: 2, availableSecurityTeams: 2,
+        commanderLed: true, militiaDoubleTeams: true, militiaFrontLineDice: 1 }],
+      samples([0, 1, 2, 3, 4]),
+    );
+    let unexpectedDraw = false;
+    const resolved = resolveWolfBoarding([transport], [{
+      ...locked[0]!,
+      rerolls: [{ source: 'aegis', dieIndexes: [0], rolls: [6] }],
+    }], () => { unexpectedDraw = true; throw new Error('finalization redrew a locked die'); });
+
+    expect(locked[0]?.lockedRolls).toEqual([1, 2, 3, 4, 5]);
+    expect(resolved[0]?.rolls).toEqual([6, 2, 3, 4, 5]);
+    expect(resolved[0]?.rerolls).toEqual([{ source: 'aegis', dieIndexes: [0], rolls: [6] }]);
+    expect(unexpectedDraw).toBe(false);
   });
 
   it('keeps expanded Capybara destruction, boarding, and fleet damage in the configured ring', () => {
