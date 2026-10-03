@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   aegisWolfRangeActions,
+  boaWolfRangeActions,
+  gorgoneionWolfRangeActions,
+  highwallWolfRangeActions,
   lockWolfRangeActions,
   resolveLockedWolfRange,
   validateWolfBoardingDefenceChoice,
@@ -33,6 +36,44 @@ describe('resumable Wolf attack lifecycle primitives', () => {
       range: 'long-range', charges: ['missile-launchers'], damagedSystemIds: ['missile-launchers'],
       destroyed: false, upgrades: [],
     })).toEqual([]);
+  });
+
+  it('applies enriched warheads only to the current charged missile action', () => {
+    expect(aegisWolfRangeActions({
+      range: 'long-range', charges: ['missile-launchers'], damagedSystemIds: [], destroyed: false,
+      upgrades: [], enrichedWarheads: true,
+    })).toMatchObject([{ fixedDamage: 3 }]);
+    expect(aegisWolfRangeActions({
+      range: 'medium-range', charges: ['missile-launchers'], damagedSystemIds: [], destroyed: false,
+      upgrades: ['missile-launchers'], enrichedWarheads: true,
+    })).toMatchObject([{ dice: { count: 5, successAt: 4, damagePerSuccess: 1 } }]);
+    expect(aegisWolfRangeActions({
+      range: 'medium-range', charges: ['missile-launchers'], damagedSystemIds: [], destroyed: false,
+      upgrades: [], enrichedWarheads: false,
+    })).toMatchObject([{ dice: { count: 4, successAt: 5, damagePerSuccess: 1 } }]);
+  });
+
+  it('derives Gorgoneion, Highwall and Boa range actions from their own current prerequisites', () => {
+    expect(gorgoneionWolfRangeActions({ range: 'medium-range', charged: true, damaged: false, destroyed: false })).toEqual([
+      { actionId: 'gorgoneion-missile-array-medium', sourceId: 'gorgoneion-missile-array',
+        range: 'medium-range', dice: { sides: 6, count: 3, successAt: 5, damagePerSuccess: 1 }, maxTargets: 3 },
+    ]);
+    expect(gorgoneionWolfRangeActions({ range: 'short-range', charged: true, damaged: false, destroyed: false }))
+      .toMatchObject([{ dice: { count: 3, successAt: 4 } }]);
+    expect(gorgoneionWolfRangeActions({ range: 'long-range', charged: false, damaged: false, destroyed: false })).toEqual([]);
+
+    expect(highwallWolfRangeActions({ range: 'medium-range', fuelled: true, destroyed: false })).toEqual([
+      { actionId: 'highwall-medium-range', sourceId: 'highwall', range: 'medium-range',
+        dice: { sides: 6, count: 1, successAt: 5, damagePerSuccess: 3 }, maxTargets: 1 },
+    ]);
+    expect(highwallWolfRangeActions({ range: 'long-range', fuelled: true, destroyed: false })).toEqual([]);
+    expect(highwallWolfRangeActions({ range: 'short-range', fuelled: false, destroyed: false })).toEqual([]);
+
+    expect(boaWolfRangeActions({ range: 'short-range', scrapAvailable: 1, destroyed: false })).toEqual([
+      { actionId: 'boa-short-range', sourceId: 'boa', range: 'short-range', fixedDamage: 1, maxTargets: 1 },
+    ]);
+    expect(boaWolfRangeActions({ range: 'short-range', scrapAvailable: 0, destroyed: false })).toEqual([]);
+    expect(boaWolfRangeActions({ range: 'short-range', scrapAvailable: 1, destroyed: true })).toEqual([]);
   });
 
   it('locks all range dice before revealing only hit slots, then applies assignments without rerolling', () => {
