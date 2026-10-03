@@ -377,3 +377,62 @@ for current membership and targets.
 ## PC04 shape — Exploration and split-fleet map
 
 [Historical shape](archive/PRODUCT_CHECKPOINT_HISTORY.md#pc04-shape--exploration-and-split-fleet-map) · [Playtest report](PC04_PLAYTEST_REPORT.md).
+
+## PC07 shape — Airspace, split fleets and attack foundations
+
+**Authorized October 2, 2026.** The owner requested “execute pc07 please.”
+The transition review read the latest PC06 owner messages through “what broke?
+diagnose,” the explicit PC06 closure, the future acknowledged-handoff correction,
+and the earlier PC07–PC10 alignment. No new applicable game or presentation
+decision changes an unstarted criterion. The PC06-only local proof exception
+is not extended to PC07. PC06 remains closed at 556/751; this checkpoint must
+close exactly its fixed 49 IDs to reach 605/751 and 147/293 campaign closures.
+
+**Problem and frozen scope.** Players must act, move and learn within their
+current fleet group while sharing one session cycle clock. A facilitator must
+be able to declare an attack, observe automatically committed range results,
+and intervene only for genuine choices or rulings. Recovery must preserve
+committed results, deadlines and audience boundaries. The execution record
+contains all assigned IDs, coherent behavior groups and integration contracts.
+This shape excludes PC08 weapon/boarding additions, PC09 aftermath and P605a
+activation; required foundational range receipts stay within the assigned scope.
+
+**Sources.** The seven private v1.1 artifacts match the source provenance
+inventory checksums; both Capybara files are complementary. Source-specific
+sheets outrank generic guides. Workers read and visually check their routed
+source pages before changing game content. Source material and renderings stay
+outside Git. Existing printed taxi/maintenance/combat policies are recovered
+before adding behavior. Rejoin's pursuit policy is a deliberate digital
+assumption recorded separately, never attributed to print.
+
+**Feedback disposition.** Adopt all prior station chooser, cycle/console copy,
+exact Red Alert, live GM-only detail, truthful DRADIS names/Zoom, disconnect
+recovery, optional Press/extra-GM and rendered typography corrections. Preserve
+the existing safe ticker handoff and Wolf-humanity sentence. No new PC06 UI
+feedback requires cooldown. Owner feedback remains optional.
+
+**Solo UI checks.** A labeled scene using actual components with synthetic
+state and no live writes must let the owner review these five yes/no checks:
+
+1. Can I distinguish my group's ships, local notes and contacts from another
+   group's unavailable information under the shared cycle clock?
+2. Can I send one known scanned system to selected legal ships and see why an
+   unavailable recipient or unknown fact cannot be sent?
+3. Can I follow an eligible taxi or rejoin and understand the committed fuel,
+   membership and pursuit result without entering arithmetic?
+4. Can I follow declaration, targeting and automatic range progress, make an
+   entitled choice, and see the next genuine decision in my existing console?
+5. Can I recover after a restriction or interstitial, see preserved time and
+   resolved results, and return through the correct chooser?
+
+**Internal gates.** Separate failing test commits precede new behavior. Cover
+current callable/rules authority, hidden data, atomicity, replay, stale revision,
+wrong actor, reconnect, membership, deadline, range ordering and real consumers.
+Inspect 320/390 phone, 844×390 landscape, 1440×900 desktop, reduced motion,
+keyboard, navigation, actual fonts and geometry. Obtain independent Sol 6.1
+review of the reconciled authority/privacy candidate. Run the appropriate final
+validation, font/typography, ticker, bundle and existing release gates, then
+one reconciled CI candidate and exact-main deployment checks. Ordinary
+authenticated gameplay remains a separate proof requirement. Current production
+browser access is player-only; the parent owns triaging that constraint while
+independent work continues. No unavailable proof receives closure credit.

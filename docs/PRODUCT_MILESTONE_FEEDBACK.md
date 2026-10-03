@@ -189,3 +189,14 @@ This instruction changes preparation policy, so it requires no further catalog
 criteria amendment today. The existing 195 PC07–PC10 amendments remain in
 place. PC06 scope, all prompt definitions/statuses/evidence, fixed allocation
 and release facts are unchanged by this follow-up.
+
+## PC07 transition and authorization — 2026-10-02
+
+The owner requested “execute pc07 please.” Reviewed the latest PC06 thread
+through the “what broke? diagnose” message and the explicit “it’s done btw”
+closure, plus the earlier PC07–PC10 alignment. The future handoff correction is
+already in current repository guidance. No new applicable mechanic or
+presentation decision changes the 195 future acceptance criteria or the fixed
+allocation. The PC06 local verification exception remains PC06-only. Existing
+FUTURE-F01–F04 and PC03/PC05 corrections are adopted into the PC07 shape. No
+new owner UI feedback is pending cooldown.
