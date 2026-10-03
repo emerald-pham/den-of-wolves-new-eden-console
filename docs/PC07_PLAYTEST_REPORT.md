@@ -89,8 +89,13 @@ The candidate includes `pc07-review.html`, an isolated scene using the actual
 fleet-group, local DRADIS, attack-status, briefing and airspace presentations.
 Its five numbered checks are groups and DRADIS; known systems; taxi and rejoin;
 attack; and recovery. Every state and callback is labeled prepared. It sends
-no gameplay command and does not change a shared session. Final deployed
-access and final responsive checks will be recorded after release.
+no gameplay command and does not change a shared session. The attack check
+also lets the owner use the actual Captain, range and boarding presenters and
+read the current GM decision presentation in independent prepared examples.
+Twelve scene checks and eight responsive/motion cases pass, including target
+selection, unused-hit display, explicit zero defence and private-summary
+withdrawal. Actual selects use 16px CIC text. Final deployed access and exact
+candidate presentation checks will be recorded after release.
 
 ## Why tests changed
 

@@ -626,3 +626,35 @@ remains external. Functions build passed. These focused suites establish no
 served gameplay claim. The acknowledged runtime export contains both Auth and
 Firestore metadata at `runtime-snapshot-ceac3ace`; normal full-group native
 mission/scouting/attack proof remains the two workers' bounded deliverable.
+
+### Scoped guard and finished prepared choice access
+
+Orchestrator `/root` supplied `d63a8e73` then `1947b624`; integrated as test-only
+`4f3e08bb` then source `af930d9a`. The attack-specific timer envelope now lives in
+`wolfAttackTimerRequest.ts`, imported only by `setEmergencyTimerPaused`.
+`requestGuards.ts` is byte-identical to current main; the ordinary guard and
+scoped attack wrapper pass **80/80** focused checks. No backend rebuild or
+restart was performed during the workers' in-flight proof. The final acknowledged
+runtime restart/native reasoned intervention and final consumer inventory must
+include this wrapper before handback.
+
+The prepared solo attack check now includes the actual pure Captain, EO range,
+boarding crew and readonly GM decision presenters as independent local examples.
+It retains the five numbered checks and existing eight assertions. Separate new
+tests prove actual target/use/pass/explicit zero-defence/readonly presence and no
+native read, write or subscription. The first harness mock omitted unrelated
+DRADIS exports; that raw setup failure remains external, and separate test-only
+`98e3fd28` preserves those imports. The discriminating red run then failed all
+four missing presenter checks against the unchanged previous scene.
+
+All **12/12** current solo checks pass. Separate geometry red `99e2c30d` caught
+the scene's inherited **12px** choice select; source `3a5b19df` scopes actual
+16px selects, 14px labels and 20px radio/checkboxes to these examples. All eight
+five-check responsive/motion cases pass in
+`solo-actual-choices-layout-green/summary.json`, including local target assignment,
+overflow display, explicit zero boarding choice, private-summary withdrawal,
+navigation, no external/Auth/native request and actual CIC fonts. Phone and
+short-landscape images were inspected. Typecheck initially caught an exact
+optional prepared summary field; `baac1465` uses the legal null representation,
+and the reconciled typecheck and 62 font checks pass. Prepared access establishes
+no gameplay closure; normal full-group native/HTTP/UI/Rules proof remains separate.
