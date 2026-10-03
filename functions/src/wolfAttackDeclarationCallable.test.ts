@@ -376,14 +376,14 @@ it('consumes only the finalized prior attack survivors once and preserves its im
     carryover: {
       sourceAttackId: 'wolf-attack-prior', sourceTurn: 1,
       sourceInstanceIds: ['0:wolf-fighter-wing', '1:wolf-fighter-wing'],
+      rosterInstanceIds: ['0:wolf-fighter-wing', '1:wolf-fighter-wing'],
     },
   });
-  expect((state.preparation as Fields).shipIds).toHaveLength(16);
+  expect((state.preparation as Fields).shipIds).toHaveLength(14);
   expect((state.preparation as Fields).shipIds).toEqual([
     ...Array<string>(13).fill('wolf-fighter-wing'), 'wolf-assault-transport',
-    'wolf-fighter-wing', 'wolf-fighter-wing',
   ]);
-  expect((state.calculationReceipt as Fields).composition).toMatchObject({ damageCapacity: 17 });
+  expect((state.calculationReceipt as Fields).composition).toMatchObject({ damageCapacity: 15 });
   expect(mock.documents.get('sessions/s1/wolfAttackState/current/archives/wolf-attack-prior'))
     .toEqual(priorSnapshot);
   expect(mock.documents.get('sessions/s1/wolfAttackState/current/audit/wolf-finalized-1'))
@@ -396,6 +396,35 @@ it('consumes only the finalized prior attack survivors once and preserves its im
   expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
   expect(mock.documents.get('sessions/s1/wolfAttackState/current').carryover)
     .toMatchObject({ sourceInstanceIds: ['0:wolf-fighter-wing', '1:wolf-fighter-wing'] });
+});
+
+it('requires the next scheduled composition to contain every carried Wing', async () => {
+  resolvedPriorAttack();
+  session({ currentTurn: 2, turnPhase: {
+    turn: 2,
+    teamPhaseEndsAt: new Date(Date.now() - 2_000).toISOString(),
+    openAirspaceEndsAt: new Date(Date.now() + 60_000).toISOString(),
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+  } });
+  preparation({
+    turn: 2, revision: 2,
+    shipIds: ['wolf-fighter-wing', ...Array<string>(7).fill('wolf-destroyer')],
+    targetAssignments: [], modifiers: [],
+  });
+  dueWindow({ status: 'due', turn: 2, revision: 3 });
+  mock.update.mockClear();
+  mock.set.mockClear();
+
+  await expect(declareWolfAttack.run(request({
+    ...baseData, requestId: 'wolf-omits-returned-wing', expectedRevision: 2,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/include every surviving Fighter Wing from the previous attack/i),
+  });
+  expect(mock.documents.has('sessions/s1/wolfAttackState/current/archives/wolf-attack-prior')).toBe(false);
+  expect(mock.documents.has('sessions/s1/events/wolf-attack-wolf-omits-returned-wing')).toBe(false);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it('rejects unresolved or forged prior carryover instead of reopening the current attack', async () => {
