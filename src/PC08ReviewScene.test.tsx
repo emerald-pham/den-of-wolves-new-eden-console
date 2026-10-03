@@ -84,6 +84,21 @@ it('retains committed results through offline and reconnect samples', () => {
   expect(screen.getByRole('status', {name: 'Prepared recovery result'})).toHaveTextContent('same committed');
 });
 
+it('retains the actual prepared pass, stay and ruling rather than a preset chosen outcome', () => {
+  render(<PC08ReviewScene />);
+  fireEvent.click(screen.getByRole('button', {name: '4 Boarding defence'}));
+  fireEvent.click(screen.getByRole('button', {name: 'Commander sample'}));
+  fireEvent.click(screen.getByRole('button', {name: 'Do not lead'}));
+  expect(screen.getByRole('region', {name: 'Wolf Commander boarding leadership'})).toHaveTextContent('The Commander passed.');
+  fireEvent.click(screen.getByRole('button', {name: 'Support sample'}));
+  fireEvent.click(screen.getByRole('button', {name: 'Stay at Aegis'}));
+  expect(screen.getByRole('region', {name: 'Pallas boarding relocation'})).toHaveTextContent('stayed docked at Aegis');
+  fireEvent.click(screen.getByRole('button', {name: 'Ruling sample'}));
+  fireEvent.change(screen.getByRole('textbox', {name: 'Facilitator ruling'}), {target: {value: 'Keep this exact prepared ruling.'}});
+  fireEvent.click(screen.getByRole('button', {name: 'Record facilitator ruling'}));
+  expect(screen.getByRole('region', {name: 'Facilitator ruling for destroyed Commander-led parties'})).toHaveTextContent('Keep this exact prepared ruling.');
+});
+
 it('keeps every prepared interaction isolated from the current signed-in identity and session store', () => {
   const original = useSessionStore.getState();
   const me = {uid: 'existing-gm', sessionId: 'existing-session', displayName: 'Existing facilitator',
