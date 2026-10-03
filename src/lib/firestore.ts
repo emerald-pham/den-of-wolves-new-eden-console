@@ -70,6 +70,9 @@ import type {
   WolfAttackTargetMode,
   WolfAttackPreparationTargetAssignment,
   WolfAttackDeclarationState,
+  WolfAttackDecisionActor,
+  WolfAttackDecisionSummary,
+  WolfForceFieldPrivateStatus,
   WolfAttackMemberView,
   WolfAttackWindow,
   WolfActionReceipt,
@@ -1467,9 +1470,178 @@ function wolfAttackPreparation(value: unknown): WolfAttackPreparation | null {
   };
 }
 
+function wolfAttackDecisionSummary(value: unknown): WolfAttackDecisionSummary | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const onlyKeys = (record: Record<string, unknown>, allowed: readonly string[]) =>
+    Object.keys(record).every((key) => allowed.includes(key));
+  const record = (candidate: unknown, allowed: readonly string[]) =>
+    typeof candidate === 'object' && candidate !== null && !Array.isArray(candidate) &&
+    onlyKeys(candidate as Record<string, unknown>, allowed)
+      ? candidate as Record<string, unknown> : null;
+  const actor = (candidate: unknown): WolfAttackDecisionActor | null => {
+    const parsed = record(candidate, ['uid', 'connected']);
+    return parsed && typeof parsed.uid === 'string' && parsed.uid.length > 0 && typeof parsed.connected === 'boolean'
+      ? { uid: parsed.uid, connected: parsed.connected } : null;
+  };
+  const actors = (candidate: unknown): readonly WolfAttackDecisionActor[] | null => {
+    if (!Array.isArray(candidate)) return null;
+    const parsed = candidate.map(actor);
+    return parsed.some((item) => item === null) ? null : parsed as WolfAttackDecisionActor[];
+  };
+  const commander = record(raw.commander, ['status', 'actors', 'reason', 'completionRevision']);
+  const commandAndControl = record(raw.commandAndControl, ['status', 'actors', 'reason']);
+  const forceField = record(raw.forceField, ['status', 'actor', 'reason', 'targetShipId']);
+  const commanderActors = commander ? actors(commander.actors) : null;
+  const commandActors = commandAndControl ? actors(commandAndControl.actors) : null;
+  const ranges = ['long-range', 'medium-range', 'short-range'];
+  const targets = ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124', 'capybara'];
+  const commanderStatuses = ['pending', 'committed', 'no-commander', 'unavailable', 'waiting-for-force-field'];
+  const commanderReasons = ['no-configured-commander', 'waiting-for-force-field', 'missing-targeting-receipt'];
+  const commandStatuses = ['pending', 'redirected', 'passed', 'unavailable', 'not-needed',
+    'waiting-for-commander', 'waiting-for-force-field'];
+  const commandReasons = ['no-configured-executive-officer', 'executive-officer-disconnected',
+    'no-current-executive-officer', 'waiting-for-commander', 'waiting-for-force-field',
+    'no-targets', 'uncharged', 'damaged', 'damage-unknown'];
+  const forceStatuses = ['pending', 'selected', 'passed', 'unavailable', 'not-needed'];
+  const forceReasons = ['no-current-captain', 'ambiguous-current-captain', 'gorgoneion-not-admitted',
+    'projector-not-ready', 'captain-berth-unavailable', 'not-recorded'];
+  if (!onlyKeys(raw, ['commander', 'commandAndControl', 'forceField', 'range', 'boarding']) ||
+      !commander || !commandAndControl || !forceField || !commanderActors || !commandActors ||
+      !commanderStatuses.includes(String(commander.status)) || !commandStatuses.includes(String(commandAndControl.status)) ||
+      !forceStatuses.includes(String(forceField.status)) ||
+      (commander.reason !== undefined && !commanderReasons.includes(String(commander.reason))) ||
+      (commandAndControl.reason !== undefined && !commandReasons.includes(String(commandAndControl.reason))) ||
+      (commander.completionRevision !== undefined && (!Number.isSafeInteger(commander.completionRevision) ||
+        (commander.completionRevision as number) < 1)) ||
+      (forceField.reason !== undefined && !forceReasons.includes(String(forceField.reason))) ||
+      (forceField.actor !== undefined && !actor(forceField.actor)) ||
+      (forceField.targetShipId !== undefined && forceField.targetShipId !== null && !targets.includes(String(forceField.targetShipId)))) return null;
+
+  let parsedRange: WolfAttackDecisionSummary['range'];
+  if (raw.range !== undefined) {
+    const range = record(raw.range, ['range', 'status', 'actors', 'actionCount', 'selectedActionCount', 'reason']);
+    const rangeActors = range ? actors(range.actors) : null;
+    const rangeStatuses = ['pending', 'targets-required', 'committed', 'passed', 'unavailable', 'auto-passed'];
+    const rangeReasons = ['automatic-progress-pending', 'no-configured-executive-officer', 'malformed-current-range'];
+    if (!range || !rangeActors || !ranges.includes(String(range.range)) || !rangeStatuses.includes(String(range.status)) ||
+        (range.actionCount !== undefined && (!Number.isSafeInteger(range.actionCount) || (range.actionCount as number) < 0)) ||
+        (range.selectedActionCount !== undefined && (!Number.isSafeInteger(range.selectedActionCount) ||
+          (range.selectedActionCount as number) < 0)) ||
+        (range.reason !== undefined && !rangeReasons.includes(String(range.reason)))) return null;
+    parsedRange = {
+      range: range.range as NonNullable<WolfAttackDecisionSummary['range']>['range'],
+      status: range.status as NonNullable<WolfAttackDecisionSummary['range']>['status'],
+      actors: rangeActors,
+      ...(typeof range.actionCount === 'number' ? { actionCount: range.actionCount } : {}),
+      ...(typeof range.selectedActionCount === 'number' ? { selectedActionCount: range.selectedActionCount } : {}),
+      ...(range.reason === undefined ? {} : { reason: range.reason as NonNullable<NonNullable<WolfAttackDecisionSummary['range']>['reason']> }),
+    };
+  }
+
+  let parsedBoarding: WolfAttackDecisionSummary['boarding'];
+  if (raw.boarding !== undefined) {
+    const boarding = record(raw.boarding, ['status', 'targets']);
+    const targetEntries = Array.isArray(boarding?.targets) ? boarding!.targets : null;
+    if (!boarding || (boarding.status !== 'pending' && boarding.status !== 'resolved') || !targetEntries) return null;
+    const parsedTargets = targetEntries.map((entry) => {
+      const target = record(entry, ['targetShipId', 'status', 'actors', 'boardingParties', 'securityTeams', 'reason']);
+      const targetActors = target ? actors(target.actors) : null;
+      if (!target || !targetActors || !targets.includes(String(target.targetShipId)) ||
+          !['pending', 'committed', 'unavailable'].includes(String(target.status)) ||
+          !Number.isSafeInteger(target.boardingParties) || (target.boardingParties as number) < 1 ||
+          (target.securityTeams !== undefined && (!Number.isSafeInteger(target.securityTeams) ||
+            (target.securityTeams as number) < 0)) ||
+          (target.reason !== undefined && target.reason !== 'no-current-crew-actor')) return null;
+      return {
+        targetShipId: target.targetShipId as NonNullable<WolfAttackDecisionSummary['boarding']>['targets'][number]['targetShipId'],
+        status: target.status as NonNullable<WolfAttackDecisionSummary['boarding']>['targets'][number]['status'],
+        actors: targetActors,
+        boardingParties: target.boardingParties as number,
+        ...(typeof target.securityTeams === 'number' ? { securityTeams: target.securityTeams } : {}),
+        ...(target.reason === undefined ? {} : { reason: 'no-current-crew-actor' as const }),
+      };
+    });
+    if (parsedTargets.some((target) => target === null)) return null;
+    parsedBoarding = { status: boarding.status, targets: parsedTargets as NonNullable<WolfAttackDecisionSummary['boarding']>['targets'] };
+  }
+
+  return {
+    commander: {
+      status: commander.status as WolfAttackDecisionSummary['commander']['status'], actors: commanderActors,
+      ...(commander.reason === undefined ? {} : { reason: commander.reason as NonNullable<WolfAttackDecisionSummary['commander']['reason']> }),
+      ...(typeof commander.completionRevision === 'number' ? { completionRevision: commander.completionRevision } : {}),
+    },
+    commandAndControl: {
+      status: commandAndControl.status as WolfAttackDecisionSummary['commandAndControl']['status'], actors: commandActors,
+      ...(commandAndControl.reason === undefined ? {} : { reason: commandAndControl.reason as NonNullable<WolfAttackDecisionSummary['commandAndControl']['reason']> }),
+    },
+    forceField: {
+      status: forceField.status as WolfAttackDecisionSummary['forceField']['status'],
+      ...(forceField.actor === undefined ? {} : { actor: actor(forceField.actor)! }),
+      ...(forceField.reason === undefined ? {} : { reason: forceField.reason as NonNullable<WolfAttackDecisionSummary['forceField']['reason']> }),
+      ...(forceField.targetShipId === undefined ? {} : { targetShipId: forceField.targetShipId as Exclude<WolfAttackDecisionSummary['forceField']['targetShipId'], undefined> }),
+    },
+    ...(parsedRange ? { range: parsedRange } : {}),
+    ...(parsedBoarding ? { boarding: parsedBoarding } : {}),
+  };
+}
+
 function wolfAttackDeclarationState(value: unknown): WolfAttackDeclarationState | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const state = value as Record<string, unknown>;
+  const rawCalculationReceipt = state.calculationReceipt;
+  const calculationReceipt = typeof rawCalculationReceipt === 'object' && rawCalculationReceipt !== null &&
+    !Array.isArray(rawCalculationReceipt)
+    ? rawCalculationReceipt as Record<string, unknown>
+    : null;
+  const stagedTargeting = calculationReceipt?.targeting;
+  const stagedComposition = calculationReceipt?.composition;
+  const stagedPursuit = calculationReceipt?.pursuitPressure;
+  const preTargetRing = calculationReceipt?.targetRing;
+  const finalPhase = calculationReceipt?.phase;
+  const finalForceField = calculationReceipt?.forceField;
+  const validStagedCommon = calculationReceipt?.type === 'wolf-combat-calculation-stage' &&
+    calculationReceipt.version === 1 && calculationReceipt.turn === state.turn &&
+    ['pre-target-force-field', 'targeting', 'long-range', 'medium-range', 'short-range', 'boarding', 'resolved'].includes(String(calculationReceipt.step)) &&
+    typeof calculationReceipt.generatedAt === 'string' && Number.isFinite(Date.parse(calculationReceipt.generatedAt)) &&
+    typeof stagedPursuit === 'object' && stagedPursuit !== null && !Array.isArray(stagedPursuit) &&
+    Number.isSafeInteger((stagedPursuit as Record<string, unknown>).navigationRevision) &&
+    typeof (stagedPursuit as Record<string, unknown>).groupValues === 'object' &&
+    (stagedPursuit as Record<string, unknown>).groupValues !== null &&
+    !Array.isArray((stagedPursuit as Record<string, unknown>).groupValues) &&
+    typeof stagedComposition === 'object' && stagedComposition !== null && !Array.isArray(stagedComposition) &&
+    Array.isArray((stagedComposition as Record<string, unknown>).shipIds) &&
+    typeof (stagedComposition as Record<string, unknown>).counts === 'object' &&
+    (stagedComposition as Record<string, unknown>).counts !== null &&
+    !Array.isArray((stagedComposition as Record<string, unknown>).counts) &&
+    Number.isSafeInteger((stagedComposition as Record<string, unknown>).damageCapacity);
+  const validPreTargetReceipt = validStagedCommon && calculationReceipt?.step === 'pre-target-force-field' &&
+    Array.isArray(preTargetRing) && preTargetRing.length >= 5 &&
+    preTargetRing.every((shipId) => typeof shipId === 'string') && new Set(preTargetRing).size === preTargetRing.length &&
+    stagedTargeting === undefined;
+  const validTargetingReceipt = validStagedCommon && calculationReceipt?.step !== 'pre-target-force-field' &&
+    typeof stagedTargeting === 'object' && stagedTargeting !== null && !Array.isArray(stagedTargeting) &&
+    Array.isArray((stagedTargeting as Record<string, unknown>).ring) &&
+    Array.isArray((stagedTargeting as Record<string, unknown>).rolls) &&
+    Array.isArray((stagedTargeting as Record<string, unknown>).modifierOrder);
+  const validStagedReceipt = validPreTargetReceipt || validTargetingReceipt;
+  const validFinalReceipt = calculationReceipt?.type === 'wolf-combat-calculation' &&
+    calculationReceipt.version === 1 && typeof calculationReceipt.requestId === 'string' &&
+    calculationReceipt.requestId.length > 0 && typeof finalPhase === 'object' && finalPhase !== null &&
+    !Array.isArray(finalPhase) && (finalPhase as Record<string, unknown>).turn === state.turn &&
+    ['coordination', 'team'].includes(String((finalPhase as Record<string, unknown>).phase)) &&
+    typeof (finalPhase as Record<string, unknown>).serverTime === 'string' &&
+    typeof (finalPhase as Record<string, unknown>).deadlineAt === 'string' &&
+    typeof (finalPhase as Record<string, unknown>).overrun === 'boolean' &&
+    typeof calculationReceipt.targeting === 'object' && calculationReceipt.targeting !== null &&
+    !Array.isArray(calculationReceipt.targeting) && Array.isArray(calculationReceipt.ranges) &&
+    Array.isArray(calculationReceipt.boarding) && Array.isArray(calculationReceipt.fleetDamage) &&
+    typeof finalForceField === 'object' && finalForceField !== null && !Array.isArray(finalForceField) &&
+    (finalForceField as Record<string, unknown>).status !== undefined &&
+    Number.isSafeInteger((finalForceField as Record<string, unknown>).preventedDamage) &&
+    Array.isArray(calculationReceipt.returningInstanceIds);
+  const validCalculationReceipt = validStagedReceipt || validFinalReceipt;
   const preparation = wolfAttackPreparation(state.preparation);
   const parkedCraftIds = Array.isArray(state.parkedCraftIds)
     ? state.parkedCraftIds.filter((id): id is string => typeof id === 'string')
@@ -1479,6 +1651,12 @@ function wolfAttackDeclarationState(value: unknown): WolfAttackDeclarationState 
     ? rawLaunchedCraftIds.filter((id): id is string => typeof id === 'string')
     : [];
   const memberResults = state.memberResults === undefined ? [] : state.memberResults;
+  const forceFieldChoice = state.forceFieldChoice === undefined
+    ? undefined
+    : parseWolfForceFieldPrivateStatus(state.forceFieldChoice, state.turn, state.revision);
+  const decisionSummary = state.decisionSummary === undefined
+    ? undefined
+    : wolfAttackDecisionSummary(state.decisionSummary);
   if (
     state.type !== 'wolf-attack-state' ||
     (state.status !== 'declared' && state.status !== 'resolved') ||
@@ -1489,8 +1667,9 @@ function wolfAttackDeclarationState(value: unknown): WolfAttackDeclarationState 
     !Number.isSafeInteger(state.preparationRevision) || (state.preparationRevision as number) < 1 ||
     typeof state.deadlineAt !== 'string' || !state.deadlineAt ||
     typeof state.attackId !== 'string' || !state.attackId ||
-    !preparation || typeof state.calculationReceipt !== 'object' ||
-    state.calculationReceipt === null || Array.isArray(state.calculationReceipt) ||
+    !preparation || !validCalculationReceipt ||
+    (state.forceFieldChoice !== undefined && !forceFieldChoice) ||
+    (state.decisionSummary !== undefined && !decisionSummary) ||
     !Array.isArray(memberResults) ||
     !Array.isArray(state.parkedCraftIds) || parkedCraftIds.length !== state.parkedCraftIds.length ||
     !Array.isArray(rawLaunchedCraftIds) || launchedCraftIds.length !== rawLaunchedCraftIds.length ||
@@ -1508,8 +1687,66 @@ function wolfAttackDeclarationState(value: unknown): WolfAttackDeclarationState 
     launchedCraftIds,
     attackId: state.attackId,
     preparation,
-    calculationReceipt: state.calculationReceipt,
+    calculationReceipt: calculationReceipt!,
+    ...(forceFieldChoice ? { forceFieldChoice } : {}),
+    ...(decisionSummary ? { decisionSummary } : {}),
     memberResults: memberResults as readonly unknown[],
+  };
+}
+
+function parseWolfForceFieldPrivateStatus(
+  value: unknown,
+  turnValue: unknown,
+  revisionValue: unknown,
+): WolfForceFieldPrivateStatus | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value) ||
+      !Number.isSafeInteger(turnValue) || !Number.isSafeInteger(revisionValue)) return null;
+  const raw = value as Record<string, unknown>;
+  const allowed = new Set([
+    'status', 'turn', 'revision', 'configuredCaptainUid', 'hostShipId', 'dockingRevision', 'fleetGroupId',
+    'targetShipId', 'actorUid', 'requestId', 'committedAt', 'unavailableReason', 'determinedAt',
+  ]);
+  const targetIds = ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124', 'capybara'];
+  const reasons = ['no-current-captain', 'ambiguous-current-captain', 'gorgoneion-not-admitted',
+    'projector-not-ready', 'captain-berth-unavailable'];
+  if (Object.keys(raw).some((key) => !allowed.has(key)) || raw.turn !== turnValue ||
+      !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
+      (raw.revision as number) > (revisionValue as number) ||
+      (raw.status !== 'pending' && raw.status !== 'selected' && raw.status !== 'passed' && raw.status !== 'unavailable')) return null;
+  const optionalStringFields = ['configuredCaptainUid', 'hostShipId', 'fleetGroupId', 'actorUid', 'requestId',
+    'committedAt', 'determinedAt'];
+  if (optionalStringFields.some((key) => raw[key] !== undefined &&
+      (typeof raw[key] !== 'string' || raw[key] === '')) ||
+      (raw.dockingRevision !== undefined && (!Number.isSafeInteger(raw.dockingRevision) || (raw.dockingRevision as number) < 1)) ||
+      (raw.targetShipId !== undefined && raw.targetShipId !== null && !targetIds.includes(String(raw.targetShipId)))) return null;
+  if (raw.status === 'pending' && (typeof raw.configuredCaptainUid !== 'string' ||
+      typeof raw.hostShipId !== 'string' || !Number.isSafeInteger(raw.dockingRevision) ||
+      typeof raw.fleetGroupId !== 'string' || raw.targetShipId !== undefined || raw.actorUid !== undefined ||
+      raw.requestId !== undefined || raw.committedAt !== undefined)) return null;
+  if ((raw.status === 'selected' || raw.status === 'passed') &&
+      (typeof raw.configuredCaptainUid !== 'string' || typeof raw.hostShipId !== 'string' ||
+       !Number.isSafeInteger(raw.dockingRevision) || typeof raw.fleetGroupId !== 'string' ||
+       typeof raw.actorUid !== 'string' || typeof raw.requestId !== 'string' ||
+       typeof raw.committedAt !== 'string' || !Number.isFinite(Date.parse(raw.committedAt)) ||
+       (raw.status === 'selected' && (typeof raw.targetShipId !== 'string' || !targetIds.includes(raw.targetShipId))) ||
+       (raw.status === 'passed' && raw.targetShipId !== null))) return null;
+  if (raw.status === 'unavailable' && (!reasons.includes(String(raw.unavailableReason)) ||
+      typeof raw.determinedAt !== 'string' || !Number.isFinite(Date.parse(raw.determinedAt)))) return null;
+  return {
+    status: raw.status as WolfForceFieldPrivateStatus['status'], turn: raw.turn as number,
+    revision: raw.revision as number,
+    ...(typeof raw.configuredCaptainUid === 'string' ? { configuredCaptainUid: raw.configuredCaptainUid } : {}),
+    ...(typeof raw.hostShipId === 'string' ? { hostShipId: raw.hostShipId } : {}),
+    ...(typeof raw.dockingRevision === 'number' ? { dockingRevision: raw.dockingRevision } : {}),
+    ...(typeof raw.fleetGroupId === 'string' ? { fleetGroupId: raw.fleetGroupId } : {}),
+    ...(raw.targetShipId === null || typeof raw.targetShipId === 'string'
+      ? { targetShipId: raw.targetShipId as Exclude<WolfForceFieldPrivateStatus['targetShipId'], undefined> } : {}),
+    ...(typeof raw.actorUid === 'string' ? { actorUid: raw.actorUid } : {}),
+    ...(typeof raw.requestId === 'string' ? { requestId: raw.requestId } : {}),
+    ...(typeof raw.committedAt === 'string' ? { committedAt: raw.committedAt } : {}),
+    ...(reasons.includes(String(raw.unavailableReason))
+      ? { unavailableReason: raw.unavailableReason as NonNullable<WolfForceFieldPrivateStatus['unavailableReason']> } : {}),
+    ...(typeof raw.determinedAt === 'string' ? { determinedAt: raw.determinedAt } : {}),
   };
 }
 

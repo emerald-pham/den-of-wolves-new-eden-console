@@ -55,7 +55,12 @@ export const EXTRA_SHIP_CAPTAIN_WORKSPACES: readonly ExtraShipCaptainWorkspaceDe
         availability: 'Live server-owned repair control appears below when current authority permits.',
       },
       unavailable('missile-array', 'Missile Array', 'Wolf attack', 'When charged, roll three dice at each range using the printed 6+ / 5+ / 4+ thresholds.', 'reactor', 'Awaiting the authoritative range-phase resolver.'),
-      unavailable('force-field-projector', 'Force Field Projector', 'Wolf attack', 'When charged before targeting, protect one ship and reduce its final attack damage by 2.', 'reactor', 'Awaiting the authoritative before-targeting resolver.'),
+      {
+        id: 'force-field-projector', name: 'Force Field Projector', phase: 'Wolf attack',
+        effect: 'When charged before targeting, protect one ship and reduce its final attack damage by 2.',
+        charge: 'reactor', control: 'live-below',
+        availability: 'Choose a current fleet-group target or explicitly pass before targeting rolls are exposed.',
+      },
     ],
   },
   {

@@ -38,6 +38,8 @@ export interface WolfAttackStageState {
   readonly parkingDecisions: readonly WolfAttackParkingDecision[];
   /** Hidden GM state: targeting rolls remain outside member-readable events. */
   readonly calculationReceipt: unknown;
+  /** Current Gorgoneion Captain's source-printed pre-target choice, if available. */
+  readonly forceFieldChoice?: unknown;
   /** Hidden Maliades effects committed against this exact attack. */
   readonly maliadesRangeEffects: unknown;
   /** Server-owned consumed roster indexes; each may be used at most once. */

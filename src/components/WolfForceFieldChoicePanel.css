@@ -1,0 +1,117 @@
+.wolf-force-field {
+  display: grid;
+  gap: 0.85rem;
+  min-width: 0;
+  padding: clamp(0.9rem, 2.5vw, 1.35rem);
+  color: var(--cic-ink);
+}
+
+.wolf-force-field__header,
+.wolf-force-field__buttons {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.wolf-force-field__header h2 {
+  margin: 0.2rem 0 0;
+  font-family: var(--cic-display);
+  font-size: clamp(1.1rem, 4vw, 1.45rem);
+  letter-spacing: 0.045em;
+  line-height: 1.2;
+}
+
+.wolf-force-field__status,
+.wolf-force-field__deadline,
+.wolf-force-field__notice,
+.wolf-force-field__message,
+.wolf-force-field__target {
+  font-family: var(--cic-mono);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.wolf-force-field__status {
+  flex: 0 0 auto;
+  color: var(--cic-cyan);
+}
+
+.wolf-force-field__deadline,
+.wolf-force-field__notice,
+.wolf-force-field__message {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.wolf-force-field__deadline,
+.wolf-force-field__message {
+  color: var(--cic-muted);
+}
+
+.wolf-force-field__targets {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--cic-rule);
+  background: var(--cic-panel);
+}
+
+.wolf-force-field__targets legend {
+  padding: 0 0.35rem;
+  font-family: var(--cic-mono);
+  font-size: 0.9rem;
+  color: var(--cic-muted);
+}
+
+.wolf-force-field__target {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 2.75rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--cic-rule);
+  cursor: pointer;
+}
+
+.wolf-force-field__target input {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: 0 0 auto;
+  accent-color: var(--cic-cyan);
+}
+
+.wolf-force-field__buttons {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.wolf-force-field__buttons .cic-action-button,
+.wolf-force-field > .cic-action-button {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+}
+
+@media (max-width: 30rem), (max-height: 34rem) and (orientation: landscape) {
+  .wolf-force-field__header,
+  .wolf-force-field__buttons {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .wolf-force-field__buttons .cic-action-button {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wolf-force-field,
+  .wolf-force-field * {
+    scroll-behavior: auto;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

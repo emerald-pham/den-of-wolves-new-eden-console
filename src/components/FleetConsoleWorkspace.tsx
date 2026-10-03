@@ -7,6 +7,8 @@ import type { DamageDraw, ShipDamageState, ShipNavigationLogs } from '@/types/ga
 import type { ShipConsoleProjection } from '@/lib/shipStateProjection';
 import AegisCommandAndControlPanel from './AegisCommandAndControlPanel';
 import WolfAttackStatusPanel from './WolfAttackStatusPanel';
+import WolfRangeActionPanel from './WolfRangeActionPanel';
+import WolfBoardingDefencePanel from './WolfBoardingDefencePanel';
 
 interface Props {
   readonly ship: Ship;
@@ -61,6 +63,8 @@ export default function FleetConsoleWorkspace({
         shipState={shipState}
       />
       <AegisCommandAndControlPanel consoleLocked={projectedConsoleLock} />
+      {writable && <WolfRangeActionPanel />}
+      {writable && <WolfBoardingDefencePanel />}
       <WolfAttackStatusPanel />
     </>;
   }
@@ -78,6 +82,7 @@ export default function FleetConsoleWorkspace({
         consoleLocked={projectedConsoleLock}
         shipState={shipState}
       />
+      {writable && <WolfBoardingDefencePanel />}
       <WolfAttackStatusPanel />
     </>;
   }
@@ -95,8 +100,9 @@ export default function FleetConsoleWorkspace({
     knownSystems={knownSystems}
     consoleLocked={projectedConsoleLock}
     writable={writable}
-    shipState={shipState}
+      shipState={shipState}
     />
+    {writable && <WolfBoardingDefencePanel />}
     <WolfAttackStatusPanel />
   </>;
 }

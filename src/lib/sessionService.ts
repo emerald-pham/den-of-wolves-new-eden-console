@@ -27,6 +27,15 @@ import type {
   WolfAttackTargetMode,
   WolfAttackWindow,
   WolfAttackWindowStatus,
+  WolfAttackRange,
+  WolfAttackTargetId,
+  WolfRangeActionChoiceReadResult,
+  WolfRangeActionChoiceResult,
+  WolfRangeTargetAssignmentResult,
+  WolfForceFieldChoiceReadResult,
+  WolfForceFieldChoiceResult,
+  WolfBoardingDefenceChoiceReadResult,
+  WolfBoardingDefenceChoiceResult,
   WolfCultIntelligence,
   PendingWolfHackingAlert,
   AcknowledgeWolfHackingAlertResult,
@@ -403,6 +412,16 @@ function aegisExecutiveOfficerAuthorityCheckpointIsCurrent(
   return store.session?.id === sessionId && store.me?.sessionId === sessionId &&
     store.me?.role === 'player' && store.me?.activeConsoleRoleId === 'executive-officer' &&
     authorityCheckpointIsCurrent(checkpoint);
+}
+
+function gorgoneionCaptainAuthorityCheckpointIsCurrent(
+  sessionId: string,
+  checkpoint: SessionAuthorityCheckpoint | undefined,
+): boolean {
+  const store = useSessionStore.getState();
+  return store.session?.id === sessionId && store.me?.sessionId === sessionId &&
+    store.me?.role === 'player' && store.me?.replacementRoleId === 'gorgoneion-captain' &&
+    store.me.replacementStatus == null && authorityCheckpointIsCurrent(checkpoint);
 }
 
 function facilitatorRuleCallAuthorityCheckpointIsCurrent(
@@ -5369,6 +5388,472 @@ export async function applyAegisCommandAndControl(
     }
     if (!aegisExecutiveOfficerAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
       throw new Error('The AEGIS Executive Officer session or authority changed before this response arrived.');
+    }
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+function wolfRangeActionChoiceReadReply(value: unknown): WolfRangeActionChoiceReadResult | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const reply = value as Record<string, unknown>;
+  if (reply.type === 'wolf-range-action-choice-unavailable') {
+    const allowed = new Set(['type', 'sessionId', 'reason']);
+    return Object.keys(reply).every((key) => allowed.has(key)) && typeof reply.sessionId === 'string' &&
+      (reply.reason === 'waiting' || reply.reason === 'not-in-range')
+      ? { type: 'wolf-range-action-choice-unavailable', sessionId: reply.sessionId, reason: reply.reason }
+      : null;
+  }
+  const ranges: readonly WolfAttackRange[] = ['long-range', 'medium-range', 'short-range'];
+  const allowed = new Set([
+    'type', 'sessionId', 'turn', 'revision', 'currentStep', 'range', 'choiceStatus', 'deadlineAt',
+    'eligibleActions', 'hitSlots', 'contacts',
+  ]);
+  if (Object.keys(reply).some((key) => !allowed.has(key)) ||
+      reply.type !== 'wolf-range-action-choice-view' || typeof reply.sessionId !== 'string' ||
+      !Number.isSafeInteger(reply.turn) || (reply.turn as number) < 1 ||
+      !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 1 ||
+      !ranges.includes(reply.range as WolfAttackRange) || reply.currentStep !== reply.range ||
+      (reply.choiceStatus !== 'pending' && reply.choiceStatus !== 'targets-required' && reply.choiceStatus !== 'committed') ||
+      typeof reply.deadlineAt !== 'string' || !Number.isFinite(Date.parse(reply.deadlineAt)) ||
+      !Array.isArray(reply.eligibleActions) || !Array.isArray(reply.hitSlots) || !Array.isArray(reply.contacts)) return null;
+  const eligibleActions = reply.eligibleActions.flatMap((raw): Array<{
+    actionId: string; sourceId: string; range: WolfAttackRange;
+  }> => {
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return [];
+    const action = raw as Record<string, unknown>;
+    return typeof action.actionId === 'string' && typeof action.sourceId === 'string' &&
+      action.range === reply.range && Object.keys(action).length === 3
+      ? [{ actionId: action.actionId, sourceId: action.sourceId, range: action.range as WolfAttackRange }]
+      : [];
+  });
+  const hitSlots = reply.hitSlots.flatMap((raw) => {
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return [];
+    const slot = raw as Record<string, unknown>;
+    return typeof slot.actionId === 'string' && Number.isSafeInteger(slot.count) && (slot.count as number) >= 0 &&
+      Object.keys(slot).length === 2 ? [{ actionId: slot.actionId, count: slot.count as number }] : [];
+  });
+  const contacts = reply.contacts.flatMap((raw) => {
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return [];
+    const contact = raw as Record<string, unknown>;
+    return typeof contact.contactId === 'string' && /^contact-[1-9]\d*$/.test(contact.contactId) &&
+      typeof contact.targetShipId === 'string' && typeof contact.available === 'boolean' && Object.keys(contact).length === 3
+      ? [{ contactId: contact.contactId, targetShipId: contact.targetShipId, available: contact.available }]
+      : [];
+  });
+  if (eligibleActions.length !== reply.eligibleActions.length || hitSlots.length !== reply.hitSlots.length ||
+      contacts.length !== reply.contacts.length || new Set(eligibleActions.map(({ actionId }) => actionId)).size !== eligibleActions.length ||
+      new Set(hitSlots.map(({ actionId }) => actionId)).size !== hitSlots.length ||
+      new Set(contacts.map(({ contactId }) => contactId)).size !== contacts.length ||
+      hitSlots.some(({ actionId }) => !eligibleActions.some((action) => action.actionId === actionId)) ||
+      (reply.choiceStatus === 'pending' && hitSlots.length > 0) ||
+      (reply.choiceStatus === 'targets-required' && hitSlots.length === 0)) return null;
+  return {
+    type: 'wolf-range-action-choice-view', sessionId: reply.sessionId, turn: reply.turn as number,
+    revision: reply.revision as number, currentStep: reply.range as WolfAttackRange,
+    range: reply.range as WolfAttackRange, choiceStatus: reply.choiceStatus, deadlineAt: reply.deadlineAt,
+    eligibleActions, hitSlots, contacts,
+  };
+}
+
+function wolfRangeActionChoiceResultReply(value: unknown): WolfRangeActionChoiceResult | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const reply = value as Record<string, unknown>;
+  const allowed = new Set([
+    'status', 'type', 'sessionId', 'requestId', 'turn', 'revision', 'range', 'currentStep', 'choiceStatus', 'hitSlots',
+  ]);
+  const ranges: readonly WolfAttackRange[] = ['long-range', 'medium-range', 'short-range'];
+  const steps = ['targeting', 'long-range', 'medium-range', 'short-range', 'boarding', 'resolved'];
+  const hitSlots = Array.isArray(reply.hitSlots) ? reply.hitSlots.flatMap((raw) => {
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return [];
+    const slot = raw as Record<string, unknown>;
+    return typeof slot.actionId === 'string' && Number.isSafeInteger(slot.count) && (slot.count as number) >= 0 &&
+      Object.keys(slot).length === 2 ? [{ actionId: slot.actionId, count: slot.count as number }] : [];
+  }) : [];
+  if (Object.keys(reply).some((key) => !allowed.has(key)) || reply.status !== 'committed' ||
+      reply.type !== 'wolf-range-action-choice' || typeof reply.sessionId !== 'string' ||
+      typeof reply.requestId !== 'string' || !reply.requestId || !Number.isSafeInteger(reply.turn) ||
+      (reply.turn as number) < 1 || !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 1 ||
+      !ranges.includes(reply.range as WolfAttackRange) || !steps.includes(String(reply.currentStep)) ||
+      (reply.choiceStatus !== 'targets-required' && reply.choiceStatus !== 'passed') || !Array.isArray(reply.hitSlots) ||
+      hitSlots.length !== reply.hitSlots.length || new Set(hitSlots.map(({ actionId }) => actionId)).size !== hitSlots.length) return null;
+  return {
+    status: 'committed', type: 'wolf-range-action-choice', sessionId: reply.sessionId, requestId: reply.requestId,
+    turn: reply.turn as number, revision: reply.revision as number, range: reply.range as WolfAttackRange,
+    currentStep: reply.currentStep as WolfRangeActionChoiceResult['currentStep'],
+    choiceStatus: reply.choiceStatus, hitSlots,
+  };
+}
+
+function wolfRangeTargetAssignmentResultReply(value: unknown): WolfRangeTargetAssignmentResult | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const reply = value as Record<string, unknown>;
+  const allowed = new Set([
+    'status', 'type', 'sessionId', 'requestId', 'turn', 'revision', 'fromStep', 'currentStep', 'committedContacts',
+  ]);
+  const ranges: readonly WolfAttackRange[] = ['long-range', 'medium-range', 'short-range'];
+  if (Object.keys(reply).some((key) => !allowed.has(key)) || reply.status !== 'committed' ||
+      reply.type !== 'wolf-range-target-assignment' || typeof reply.sessionId !== 'string' ||
+      typeof reply.requestId !== 'string' || !reply.requestId || !Number.isSafeInteger(reply.turn) ||
+      (reply.turn as number) < 1 || !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 1 ||
+      !ranges.includes(reply.fromStep as WolfAttackRange) ||
+      !['medium-range', 'short-range', 'boarding'].includes(String(reply.currentStep)) ||
+      !Number.isSafeInteger(reply.committedContacts) || (reply.committedContacts as number) < 0) return null;
+  return {
+    status: 'committed', type: 'wolf-range-target-assignment', sessionId: reply.sessionId, requestId: reply.requestId,
+    turn: reply.turn as number, revision: reply.revision as number, fromStep: reply.fromStep as WolfAttackRange,
+    currentStep: reply.currentStep as WolfRangeTargetAssignmentResult['currentStep'],
+    committedContacts: reply.committedContacts as number,
+  };
+}
+
+const WOLF_FORCE_FIELD_TARGET_IDS: readonly WolfAttackTargetId[] = [
+  'aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124', 'capybara',
+];
+
+function wolfForceFieldChoiceReadReply(value: unknown): WolfForceFieldChoiceReadResult | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const reply = value as Record<string, unknown>;
+  if (reply.type === 'wolf-force-field-choice-unavailable') {
+    const allowed = new Set(['type', 'sessionId', 'reason']);
+    const reasons = ['no-current-captain', 'ambiguous-current-captain', 'gorgoneion-not-admitted',
+      'projector-not-ready', 'captain-berth-unavailable'];
+    return Object.keys(reply).every((key) => allowed.has(key)) && typeof reply.sessionId === 'string' &&
+      reasons.includes(String(reply.reason))
+      ? { type: 'wolf-force-field-choice-unavailable', sessionId: reply.sessionId,
+        reason: reply.reason as Extract<WolfForceFieldChoiceReadResult, { type: 'wolf-force-field-choice-unavailable' }>['reason'] }
+      : null;
+  }
+  const allowed = new Set([
+    'type', 'sessionId', 'turn', 'revision', 'attackId', 'hostShipId', 'dockingRevision',
+    'fleetGroupId', 'choiceStatus', 'targetShipIds', 'targetShipId', 'deadlineAt',
+  ]);
+  const targets = Array.isArray(reply.targetShipIds) ? reply.targetShipIds : [];
+  if (Object.keys(reply).some((key) => !allowed.has(key)) || reply.type !== 'wolf-force-field-choice-view' ||
+      typeof reply.sessionId !== 'string' || !Number.isSafeInteger(reply.turn) || (reply.turn as number) < 1 ||
+      !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 1 ||
+      typeof reply.attackId !== 'string' || !reply.attackId || typeof reply.hostShipId !== 'string' ||
+      !Number.isSafeInteger(reply.dockingRevision) || (reply.dockingRevision as number) < 1 ||
+      typeof reply.fleetGroupId !== 'string' || !/^fleet-[1-9]\d*$/.test(reply.fleetGroupId) ||
+      (reply.choiceStatus !== 'pending' && reply.choiceStatus !== 'selected' && reply.choiceStatus !== 'passed') ||
+      !Array.isArray(reply.targetShipIds) || targets.length < 1 ||
+      targets.some((target) => !WOLF_FORCE_FIELD_TARGET_IDS.includes(target as WolfAttackTargetId)) ||
+      new Set(targets).size !== targets.length || !targets.includes(reply.hostShipId) ||
+      (reply.targetShipId !== undefined && reply.targetShipId !== null &&
+       !WOLF_FORCE_FIELD_TARGET_IDS.includes(reply.targetShipId as WolfAttackTargetId)) ||
+      (reply.choiceStatus === 'selected' && (typeof reply.targetShipId !== 'string' || !targets.includes(reply.targetShipId))) ||
+      (reply.choiceStatus === 'passed' && reply.targetShipId !== null) ||
+      (reply.choiceStatus === 'pending' && reply.targetShipId !== undefined) ||
+      typeof reply.deadlineAt !== 'string' || !Number.isFinite(Date.parse(reply.deadlineAt))) return null;
+  return {
+    type: 'wolf-force-field-choice-view', sessionId: reply.sessionId, turn: reply.turn as number,
+    revision: reply.revision as number, attackId: reply.attackId, hostShipId: reply.hostShipId,
+    dockingRevision: reply.dockingRevision as number, fleetGroupId: reply.fleetGroupId,
+    choiceStatus: reply.choiceStatus, targetShipIds: targets as WolfAttackTargetId[],
+    ...(reply.targetShipId === undefined ? {} : { targetShipId: reply.targetShipId as WolfAttackTargetId | null }),
+    deadlineAt: reply.deadlineAt,
+  };
+}
+
+function wolfForceFieldChoiceResultReply(value: unknown): WolfForceFieldChoiceResult | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const reply = value as Record<string, unknown>;
+  const allowed = new Set([
+    'status', 'type', 'sessionId', 'requestId', 'turn', 'revision', 'targetShipId', 'choiceStatus', 'currentStep',
+  ]);
+  if (Object.keys(reply).some((key) => !allowed.has(key)) || reply.status !== 'committed' ||
+      reply.type !== 'wolf-force-field-choice' || typeof reply.sessionId !== 'string' ||
+      typeof reply.requestId !== 'string' || !reply.requestId || !Number.isSafeInteger(reply.turn) ||
+      (reply.turn as number) < 1 || !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 1 ||
+      (reply.targetShipId !== null && !WOLF_FORCE_FIELD_TARGET_IDS.includes(reply.targetShipId as WolfAttackTargetId)) ||
+      (reply.choiceStatus !== 'selected' && reply.choiceStatus !== 'passed') ||
+      (reply.choiceStatus === 'selected' && typeof reply.targetShipId !== 'string') ||
+      (reply.choiceStatus === 'passed' && reply.targetShipId !== null) || reply.currentStep !== 'targeting') return null;
+  return {
+    status: 'committed', type: 'wolf-force-field-choice', sessionId: reply.sessionId,
+    requestId: reply.requestId, turn: reply.turn as number, revision: reply.revision as number,
+    targetShipId: reply.targetShipId as WolfAttackTargetId | null,
+    choiceStatus: reply.choiceStatus, currentStep: 'targeting',
+  };
+}
+
+function wolfBoardingDefenceChoiceReadReply(value: unknown): WolfBoardingDefenceChoiceReadResult | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const reply = value as Record<string, unknown>;
+  if (reply.type === 'wolf-boarding-defence-choice-unavailable') {
+    return Object.keys(reply).every((key) => ['type', 'sessionId', 'reason'].includes(key)) &&
+      typeof reply.sessionId === 'string' && reply.reason === 'no-boarders'
+      ? { type: 'wolf-boarding-defence-choice-unavailable', sessionId: reply.sessionId, reason: 'no-boarders' }
+      : null;
+  }
+  const allowed = new Set([
+    'type', 'sessionId', 'turn', 'revision', 'targetShipId', 'boardingParties',
+    'availableSecurityTeams', 'choiceStatus', 'chosenSecurityTeams', 'deadlineAt',
+  ]);
+  const targetIds: readonly WolfAttackTargetId[] = [
+    'aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124', 'capybara',
+  ];
+  if (Object.keys(reply).some((key) => !allowed.has(key)) ||
+      reply.type !== 'wolf-boarding-defence-choice-view' || typeof reply.sessionId !== 'string' ||
+      !Number.isSafeInteger(reply.turn) || (reply.turn as number) < 1 ||
+      !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 1 ||
+      !targetIds.includes(reply.targetShipId as WolfAttackTargetId) ||
+      !Number.isSafeInteger(reply.boardingParties) || (reply.boardingParties as number) < 1 ||
+      !Number.isSafeInteger(reply.availableSecurityTeams) || (reply.availableSecurityTeams as number) < 0 ||
+      (reply.choiceStatus !== 'pending' && reply.choiceStatus !== 'committed') ||
+      typeof reply.deadlineAt !== 'string' || !Number.isFinite(Date.parse(reply.deadlineAt)) ||
+      (reply.choiceStatus === 'pending' && reply.chosenSecurityTeams !== undefined) ||
+      (reply.choiceStatus === 'committed' && (!Number.isSafeInteger(reply.chosenSecurityTeams) ||
+        (reply.chosenSecurityTeams as number) < 0))) return null;
+  return {
+    type: 'wolf-boarding-defence-choice-view', sessionId: reply.sessionId,
+    turn: reply.turn as number, revision: reply.revision as number,
+    targetShipId: reply.targetShipId as WolfAttackTargetId,
+    boardingParties: reply.boardingParties as number,
+    availableSecurityTeams: reply.availableSecurityTeams as number,
+    choiceStatus: reply.choiceStatus,
+    ...(reply.chosenSecurityTeams === undefined ? {} : { chosenSecurityTeams: reply.chosenSecurityTeams as number }),
+    deadlineAt: reply.deadlineAt,
+  };
+}
+
+function wolfBoardingDefenceChoiceResultReply(value: unknown): WolfBoardingDefenceChoiceResult | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const reply = value as Record<string, unknown>;
+  const allowed = new Set([
+    'status', 'type', 'sessionId', 'requestId', 'turn', 'revision', 'targetShipId', 'securityTeams', 'currentStep',
+  ]);
+  const targetIds: readonly WolfAttackTargetId[] = [
+    'aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124', 'capybara',
+  ];
+  if (Object.keys(reply).some((key) => !allowed.has(key)) || reply.status !== 'committed' ||
+      reply.type !== 'wolf-boarding-defence-choice' || typeof reply.sessionId !== 'string' ||
+      typeof reply.requestId !== 'string' || !reply.requestId || !Number.isSafeInteger(reply.turn) ||
+      (reply.turn as number) < 1 || !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 1 ||
+      !targetIds.includes(reply.targetShipId as WolfAttackTargetId) ||
+      !Number.isSafeInteger(reply.securityTeams) || (reply.securityTeams as number) < 0 ||
+      reply.currentStep !== 'boarding') return null;
+  return {
+    status: 'committed', type: 'wolf-boarding-defence-choice', sessionId: reply.sessionId,
+    requestId: reply.requestId, turn: reply.turn as number, revision: reply.revision as number,
+    targetShipId: reply.targetShipId as WolfAttackTargetId,
+    securityTeams: reply.securityTeams as number, currentStep: 'boarding',
+  };
+}
+
+function currentBoardingCrewAuthorityIsCurrent(
+  sessionId: string,
+  checkpoint: SessionAuthorityCheckpoint | undefined,
+): boolean {
+  const store = useSessionStore.getState();
+  return store.session?.id === sessionId && store.me?.sessionId === sessionId &&
+    store.me?.role === 'player' && store.me.replacementStatus == null && authorityCheckpointIsCurrent(checkpoint);
+}
+
+/** Read the current crew member's server-validated ship boarding choice. */
+export async function getWolfBoardingDefenceChoice(): Promise<WolfBoardingDefenceChoiceReadResult> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.role !== 'player' || store.me.replacementStatus != null) {
+    throw new Error('Only a current ship crew member may read boarding defence.');
+  }
+  requireFreshSessionAuthority('Reconnect before reading boarding defence.');
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const call = httpsCallable<{ sessionId: string }, unknown>(functions(), 'getWolfBoardingDefenceChoice');
+  try {
+    const reply = wolfBoardingDefenceChoiceReadReply((await call({ sessionId })).data);
+    if (!reply || reply.sessionId !== sessionId) {
+      throw new Error('The server returned an invalid boarding defence view.');
+    }
+    if (!currentBoardingCrewAuthorityIsCurrent(sessionId, checkpoint)) {
+      throw new Error('The current ship crew authority changed before this boarding view arrived.');
+    }
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Commit the ship crew's explicit 0..available Security Teams defence choice. */
+export async function commitWolfBoardingDefenceChoice(
+  turn: number, revision: number, targetShipId: WolfAttackTargetId, securityTeams: number,
+): Promise<WolfBoardingDefenceChoiceResult> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.role !== 'player' || store.me.replacementStatus != null) {
+    throw new Error('Only a current ship crew member may choose boarding defence.');
+  }
+  if (!Number.isSafeInteger(securityTeams) || securityTeams < 0) {
+    throw new Error('Choose a whole number of Security Teams from zero through the current ship inventory.');
+  }
+  requireFreshSessionAuthority('Reconnect before choosing boarding defence.');
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const requestId = commandId();
+  const payload = { sessionId, requestId, expectedTurn: turn, expectedRevision: revision, targetShipId, securityTeams };
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'commitWolfBoardingDefenceChoice');
+  try {
+    const reply = wolfBoardingDefenceChoiceResultReply((await call(payload)).data);
+    if (!reply || reply.sessionId !== sessionId || reply.requestId !== requestId || reply.turn !== turn ||
+        reply.revision !== revision + 1 || reply.targetShipId !== targetShipId || reply.securityTeams !== securityTeams) {
+      throw new Error('The server returned an invalid boarding defence receipt.');
+    }
+    if (!currentBoardingCrewAuthorityIsCurrent(sessionId, checkpoint)) {
+      throw new Error('The current ship crew authority changed before boarding defence committed.');
+    }
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Read the current Captain's private pre-target Force Field choice. */
+export async function getWolfForceFieldChoice(): Promise<WolfForceFieldChoiceReadResult> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.role !== 'player' ||
+      store.me.replacementRoleId !== 'gorgoneion-captain' || store.me.replacementStatus != null) {
+    throw new Error('Only the current Gorgoneion Captain may read the Force Field choice.');
+  }
+  requireFreshSessionAuthority('Reconnect before reading the Force Field choice.');
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const call = httpsCallable<{ sessionId: string }, unknown>(functions(), 'getWolfForceFieldChoice');
+  try {
+    const reply = wolfForceFieldChoiceReadReply((await call({ sessionId })).data);
+    if (!reply || reply.sessionId !== sessionId) throw new Error('The server returned an invalid Force Field choice view.');
+    if (!gorgoneionCaptainAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
+      throw new Error('The Gorgoneion Captain authority changed before this Force Field view arrived.');
+    }
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Commit the Captain's explicit target or pass, then let server progression expose targeting. */
+export async function commitWolfForceFieldChoice(
+  turn: number, revision: number, targetShipId: WolfAttackTargetId | null,
+): Promise<WolfForceFieldChoiceResult> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.role !== 'player' ||
+      store.me.replacementRoleId !== 'gorgoneion-captain' || store.me.replacementStatus != null) {
+    throw new Error('Only the current Gorgoneion Captain may choose the Force Field target.');
+  }
+  requireFreshSessionAuthority('Reconnect before choosing the Force Field target.');
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const requestId = commandId();
+  const payload = { sessionId, requestId, expectedTurn: turn, expectedRevision: revision, targetShipId };
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'commitWolfForceFieldChoice');
+  try {
+    const reply = wolfForceFieldChoiceResultReply((await call(payload)).data);
+    if (!reply || reply.sessionId !== sessionId || reply.requestId !== requestId || reply.turn !== turn ||
+        reply.revision !== revision + 1 || reply.targetShipId !== targetShipId ||
+        reply.choiceStatus !== (targetShipId === null ? 'passed' : 'selected')) {
+      throw new Error('The server returned an invalid Force Field choice receipt.');
+    }
+    if (!gorgoneionCaptainAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
+      throw new Error('The Gorgoneion Captain authority changed before the Force Field choice committed.');
+    }
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Read and commit the active AEGIS Executive Officer's current range choice. */
+export async function getWolfRangeActionChoice(): Promise<WolfRangeActionChoiceReadResult> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.role !== 'player' || store.me.activeConsoleRoleId !== 'executive-officer') {
+    throw new Error('Only the active AEGIS Executive Officer may read Wolf range choices.');
+  }
+  requireFreshSessionAuthority('Reconnect before reading Wolf range choices.');
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const call = httpsCallable<{ sessionId: string }, unknown>(functions(), 'getWolfRangeActionChoice');
+  try {
+    const reply = wolfRangeActionChoiceReadReply((await call({ sessionId })).data);
+    if (!reply || reply.sessionId !== sessionId) throw new Error('The server returned an invalid Wolf range choice view.');
+    if (!aegisExecutiveOfficerAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
+      throw new Error('The Executive Officer session or authority changed before this range view arrived.');
+    }
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Lock a use/pass selection; an empty action list is the explicit pass choice. */
+export async function commitWolfRangeActionChoice(
+  turn: number, revision: number, range: WolfAttackRange, actionIds: readonly string[],
+): Promise<WolfRangeActionChoiceResult> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.role !== 'player' || store.me.activeConsoleRoleId !== 'executive-officer') {
+    throw new Error('Only the active AEGIS Executive Officer may choose a Wolf range action.');
+  }
+  requireFreshSessionAuthority('Reconnect before choosing Wolf range actions.');
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const requestId = commandId();
+  const payload = { sessionId, requestId, expectedTurn: turn, expectedRevision: revision, range, actionIds: [...actionIds] };
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'commitWolfRangeActionChoice');
+  try {
+    const reply = wolfRangeActionChoiceResultReply((await call(payload)).data);
+    if (!reply || reply.sessionId !== sessionId || reply.requestId !== requestId || reply.turn !== turn ||
+        reply.revision !== revision + 1 || reply.range !== range ||
+        reply.choiceStatus !== (actionIds.length === 0 ? 'passed' : 'targets-required')) {
+      throw new Error('The server returned an invalid Wolf range choice receipt.');
+    }
+    if (!aegisExecutiveOfficerAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
+      throw new Error('The Executive Officer session or authority changed before the range choice committed.');
+    }
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Assign server-locked hits to available opaque contacts without supplying dice or damage. */
+export async function assignWolfRangeTargets(
+  turn: number, revision: number, range: WolfAttackRange,
+  assignments: readonly Readonly<{ actionId: string; contactIds: readonly string[] }>[],
+): Promise<WolfRangeTargetAssignmentResult> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.role !== 'player' || store.me.activeConsoleRoleId !== 'executive-officer') {
+    throw new Error('Only the active AEGIS Executive Officer may assign Wolf range targets.');
+  }
+  requireFreshSessionAuthority('Reconnect before assigning Wolf range targets.');
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const requestId = commandId();
+  const payload = {
+    sessionId, requestId, expectedTurn: turn, expectedRevision: revision, range,
+    assignments: assignments.map(({ actionId, contactIds }) => ({ actionId, contactIds: [...contactIds] })),
+  };
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'assignWolfRangeTargets');
+  try {
+    const reply = wolfRangeTargetAssignmentResultReply((await call(payload)).data);
+    if (!reply || reply.sessionId !== sessionId || reply.requestId !== requestId || reply.turn !== turn ||
+        reply.revision !== revision + 1 || reply.fromStep !== range ||
+        reply.committedContacts !== assignments.reduce((count, assignment) => count + assignment.contactIds.length, 0)) {
+      throw new Error('The server returned an invalid Wolf target assignment receipt.');
+    }
+    if (!aegisExecutiveOfficerAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
+      throw new Error('The Executive Officer session or authority changed before targets committed.');
     }
     return reply;
   } catch (cause) {

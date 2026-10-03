@@ -260,6 +260,8 @@ export interface WolfRangeReceipt {
   readonly range: WolfCombatRange;
   readonly dice: readonly WolfDiceReceipt[];
   readonly assignments: readonly WolfRangeAssignment[];
+  /** Successful hits that had no distinct live, range-legal contact to receive them. */
+  readonly unusedHitsByAction: readonly Readonly<{ actionId: string; count: number }>[];
   readonly damageByInstance: Readonly<Record<string, number>>;
   readonly destroyedInstanceIds: readonly string[];
   readonly destructionDamageByTarget: Readonly<Record<WolfFleetTargetId, number>>;
@@ -356,6 +358,20 @@ function rosterById(roster: readonly WolfCombatShip[]): Map<string, WolfCombatSh
   return map;
 }
 
+/** Contacts that remain legal targets at the start of the simultaneous range. */
+export function wolfRangeLegalTargetInstanceIds(
+  range: WolfCombatRange,
+  roster: readonly WolfCombatShip[],
+): readonly string[] {
+  const live = roster.filter(ship => !ship.destroyed);
+  const survivingFighters = range === 'short-range' && live.some(ship => ship.shipId === 'wolf-fighter-wing');
+  return live
+    .filter(ship => range !== 'short-range' || (
+      ship.shipId !== 'wolf-battlestation' && (!survivingFighters || ship.shipId === 'wolf-fighter-wing')
+    ))
+    .map(({ instanceId }) => instanceId);
+}
+
 function damageRecord(): Record<WolfFleetTargetId, number> {
   return Object.fromEntries(EXPANDED_WOLF_TARGET_RING.map(id => [id, 0])) as Record<WolfFleetTargetId, number>;
 }
@@ -388,6 +404,7 @@ export function resolveWolfRange(
   }
   const assignmentMap = new Map(assignments.map(assignment => [assignment.actionId, assignment]));
   const rosterMap = rosterById(roster);
+  const legalTargetIds = new Set(wolfRangeLegalTargetInstanceIds(range, roster));
   const dice: WolfDiceReceipt[] = [];
   const damageByInstance: Record<string, number> = {};
   const fleetDamage = damageRecord();
@@ -406,38 +423,54 @@ export function resolveWolfRange(
     if (hasFixed) requirePositiveInteger(action.fixedDamage!, 'fixedDamage');
     const assignment = assignmentMap.get(action.actionId);
     const targetInstanceIds = assignment?.targetInstanceIds ?? [];
-    if (targetInstanceIds.length > action.maxTargets) {
-      throw new Error('A Wolf action received more targets than its printed limit.');
+    const illegalTargetId = targetInstanceIds.find(instanceId => !legalTargetIds.has(instanceId));
+    if (illegalTargetId !== undefined) {
+      const illegalTarget = rosterMap.get(illegalTargetId);
+      if (range === 'short-range' && illegalTarget?.shipId === 'wolf-battlestation') {
+        throw new Error('A Battlestation cannot take Short Range damage.');
+      }
+      if (range === 'short-range' && illegalTarget?.shipId !== 'wolf-fighter-wing' &&
+          roster.some(ship => !ship.destroyed && ship.shipId === 'wolf-fighter-wing')) {
+        throw new Error('Short Range damage must be assigned to surviving Fighter Wings first.');
+      }
+      throw new Error('Wolf damage targeted an unavailable or range-ineligible ship.');
     }
-    const requiredTargets = hasDice ? roll.successes : 1;
+    const successfulHits = hasDice ? roll.successes : 1;
+    const requiredTargets = Math.min(successfulHits, action.maxTargets, legalTargetIds.size);
     if (targetInstanceIds.length !== requiredTargets) {
-      throw new Error('A Wolf action must assign one target per generated hit.');
+      throw new Error('A Wolf action must assign one target per generated hit, up to distinct live legal contacts.');
     }
     if (new Set(targetInstanceIds).size !== targetInstanceIds.length) {
       throw new Error('This Wolf action requires distinct target assignments.');
     }
     dice.push({ actionId: action.actionId, sourceId: action.sourceId, range, ...roll });
-    return { action, hasDice, roll, targetInstanceIds };
+    return {
+      action, hasDice, roll, targetInstanceIds,
+      unusedHits: Math.max(0, successfulHits - targetInstanceIds.length),
+    };
   });
 
   // The printed rules roll every action in a range simultaneously, then
-  // choose targets. Apply assignments only after every server roll is fixed.
+  // choose targets. Keep range eligibility fixed while accumulating damage,
+  // then apply it as one simultaneous damage batch.
+  const damageTakenByInstance: Record<string, number> = {};
   for (const { action, hasDice, targetInstanceIds } of rolledActions) {
     const perTargetDamage = hasDice ? action.dice!.damagePerSuccess : action.fixedDamage!;
     targetInstanceIds.forEach(instanceId => {
       const current = nextRoster.get(instanceId);
-      if (!current || current.destroyed) throw new Error('Wolf damage targeted an unavailable ship.');
-      if (range === 'short-range' && current.shipId === 'wolf-battlestation') {
-        throw new Error('A Battlestation cannot take Short Range damage.');
-      }
-      if (range === 'short-range' && current.shipId !== 'wolf-fighter-wing' &&
-          [...nextRoster.values()].some(ship => !ship.destroyed && ship.shipId === 'wolf-fighter-wing')) {
-        throw new Error('Short Range damage must be assigned to surviving Fighter Wings first.');
+      if (!current || current.destroyed || !legalTargetIds.has(instanceId)) {
+        throw new Error('Wolf damage targeted an unavailable ship.');
       }
       damageByInstance[instanceId] = (damageByInstance[instanceId] ?? 0) + perTargetDamage;
+      damageTakenByInstance[instanceId] = (damageTakenByInstance[instanceId] ?? 0) + perTargetDamage;
+    });
+  }
+  for (const [instanceId, damage] of Object.entries(damageTakenByInstance)) {
+    const current = nextRoster.get(instanceId);
+    if (!current || current.destroyed) throw new Error('Wolf damage targeted an unavailable ship.');
       const catalog = wolfShipForId(current.shipId);
       if (!catalog) throw new Error('Unknown Wolf ship catalog entry.');
-      const damageTaken = current.damageTaken + perTargetDamage;
+      const damageTaken = current.damageTaken + damage;
       const destroyed = damageTaken >= catalog.damageCapacity;
       nextRoster.set(instanceId, { ...current, damageTaken, destroyed });
       if (destroyed) {
@@ -445,7 +478,6 @@ export function resolveWolfRange(
         const effect = catalog.ranges[range === 'long-range' ? 'long' : range === 'medium-range' ? 'medium' : 'short'].ifDestroyed;
         if (effect.kind === 'target-damage') addFleetDamage(fleetDamage, current.target, effect.amount);
       }
-    });
   }
   return {
     roster: [...nextRoster.values()],
@@ -460,6 +492,9 @@ export function resolveWolfRange(
           actionId: assignment.actionId,
           targetInstanceIds: [...assignment.targetInstanceIds],
         })),
+      unusedHitsByAction: rolledActions
+        .filter(({ unusedHits }) => unusedHits > 0)
+        .map(({ action: { actionId }, unusedHits }) => ({ actionId, count: unusedHits })),
       damageByInstance,
       destroyedInstanceIds,
       destructionDamageByTarget: fleetDamage,
@@ -543,6 +578,10 @@ function boardersByTarget(roster: readonly WolfCombatShip[]): Record<WolfFleetTa
     if (effect?.kind === 'boarding-parties') addFleetDamage(parties, ship.target, effect.amount);
   });
   return parties;
+}
+
+export function wolfBoardingPartyCounts(roster: readonly WolfCombatShip[]): Readonly<Record<WolfFleetTargetId, number>> {
+  return Object.freeze(boardersByTarget(roster));
 }
 
 /** Resolve base boarding defence using server-owned d6s. */
@@ -688,7 +727,27 @@ export interface WolfCalculationReceipt {
   readonly ranges: readonly WolfRangeReceipt[];
   readonly boarding: readonly WolfBoardingReceipt[];
   readonly fleetDamage: readonly WolfFleetDamageResult[];
+  readonly forceField: Readonly<{
+    status: 'protected';
+    targetShipId: WolfFleetTargetId;
+    preventedDamage: number;
+  } | { status: 'unavailable'; preventedDamage: 0 }>;
   readonly returningInstanceIds: readonly string[];
+}
+
+export interface WolfAttackFinalizationInput {
+  readonly requestId: string;
+  readonly targeting: WolfTargetingReceipt;
+  readonly roster: readonly WolfCombatShip[];
+  /** The committed source/dice/target receipts, in printed range order. */
+  readonly ranges: readonly WolfRangeReceipt[];
+  readonly phase: TurnPhase;
+  readonly now?: number;
+  readonly targetRing?: WolfTargetRing;
+  readonly boardingDefence: readonly WolfBoardingDefence[];
+  readonly forceFieldTargetId: WolfFleetTargetId | null;
+  readonly fleetState: Readonly<Partial<Record<WolfFleetTargetId, FleetCombatState>>>;
+  readonly randomInt?: WolfRandomInt;
 }
 
 export interface WolfAttackCalculationInput {
@@ -703,29 +762,167 @@ export interface WolfAttackCalculationInput {
   readonly rangeActions: readonly WolfRangeAction[];
   readonly rangeAssignments: readonly WolfRangeAssignment[];
   readonly boardingDefence: readonly WolfBoardingDefence[];
+  /** Explicit null means the current session has no charged pre-target Force Field. */
+  readonly forceFieldTargetId?: WolfFleetTargetId | null;
   /** Every target in the printed ring must have an authoritative state. */
   readonly fleetState: Readonly<Partial<Record<WolfFleetTargetId, FleetCombatState>>>;
   readonly randomInt?: WolfRandomInt;
 }
 
-function phaseReceipt(phase: TurnPhase, now: number): WolfPhaseReceipt {
+function phaseReceipt(phase: TurnPhase, now: number, allowRestricted = false): WolfPhaseReceipt {
   const canonical = turnPhaseState(phase);
   if (!canonical || !Number.isFinite(Date.parse(canonical.openAirspaceEndsAt))) {
     throw new Error('The Wolf combat deadline is not a valid server instant.');
   }
+  if (canonical.timerPause !== undefined) throw new Error('Wolf attack resolution is paused by the shared session clock.');
   const overrun = now >= Date.parse(canonical.openAirspaceEndsAt);
-  if (canonical.airspace.state !== 'lifted' && !overrun) {
+  if (canonical.airspace.state !== 'lifted' && !overrun && !allowRestricted) {
     throw new Error('Wolf combat resolves during the Coordination phase.');
   }
   return {
     turn: canonical.turn,
-    phase: canonical.airspace.state === 'lifted' ? 'coordination' : 'team',
+    phase: overrun ? 'team' : 'coordination',
     serverTime: new Date(now).toISOString(),
     deadlineAt: canonical.openAirspaceEndsAt,
     // The routed rules allow a Wolf attack to overrun into Team Phase. Record
     // that fact for the receipt; do not invent a per-step deadline policy.
     overrun,
   };
+}
+
+/**
+ * Finish already committed targeting and range choices. This path never
+ * replays range randomness: it rolls only the entitled boarding defence and
+ * the final fleet damage deck, after all five printed attack steps are ready.
+ */
+export function finalizeWolfAttack(input: WolfAttackFinalizationInput): WolfCalculationReceipt {
+  if (!input.requestId || typeof input.requestId !== 'string') throw new Error('requestId is required.');
+  if (!Array.isArray(input.ranges) || !Array.isArray(input.boardingDefence) || !Array.isArray(input.roster) ||
+      !assertRecord(input.fleetState)) throw new Error('Committed Wolf finalization inputs are incomplete.');
+  const targetRing = input.targetRing ?? CORE_WOLF_TARGET_RING;
+  targetRingIsValid(targetRing);
+  const smallRing = CORE_WOLF_TARGET_RING.filter(target => target !== 'dione');
+  if (JSON.stringify(targetRing) !== JSON.stringify(smallRing) &&
+      JSON.stringify(targetRing) !== JSON.stringify(CORE_WOLF_TARGET_RING) &&
+      JSON.stringify(targetRing) !== JSON.stringify(EXPANDED_WOLF_TARGET_RING)) {
+    throw new Error('The configured Wolf target ring must match the supported five-, six-, or seven-ship order.');
+  }
+  if (!input.targeting || JSON.stringify(input.targeting.ring) !== JSON.stringify(targetRing) ||
+      !Array.isArray(input.targeting.rolls) || input.roster.length !== input.targeting.rolls.length ||
+      input.roster.some((ship, index) => !ship || ship.instanceId !== `${index}:${input.targeting.rolls[index]?.shipId}` ||
+        ship.shipId !== input.targeting.rolls[index]?.shipId || ship.target !== input.targeting.rolls[index]?.target ||
+        !targetRing.includes(ship.target) || !Number.isSafeInteger(ship.damageTaken) || ship.damageTaken < 0 ||
+        typeof ship.destroyed !== 'boolean')) {
+    throw new Error('The committed Wolf roster does not match its configured targeting receipt.');
+  }
+  const rangeOrder = WOLF_ATTACK_RANGES.map(value => `${value}-range`);
+  let lastRangeIndex = -1;
+  const actionIds = new Set<string>();
+  for (const range of input.ranges) {
+    const rangeIndex = rangeOrder.indexOf(range.range);
+    if (rangeIndex < 0 || rangeIndex <= lastRangeIndex || !Array.isArray(range.dice) ||
+        !Array.isArray(range.assignments) || !Array.isArray(range.unusedHitsByAction) ||
+        !assertRecord(range.damageByInstance) || !Array.isArray(range.destroyedInstanceIds) ||
+        !assertRecord(range.destructionDamageByTarget)) {
+      throw new Error('Committed Wolf range receipts are malformed or out of order.');
+    }
+    lastRangeIndex = rangeIndex;
+    for (const die of range.dice) {
+      if (!die.actionId || actionIds.has(die.actionId) || die.range !== range.range ||
+          !Number.isSafeInteger(die.successes) || die.successes < 0 ||
+          !Number.isSafeInteger(die.damage) || die.damage < 0 ||
+          !Array.isArray(die.rolls) || die.rolls.some((roll: number) =>
+            !Number.isSafeInteger(roll) || roll < 1 || roll > 1000)) {
+        throw new Error('A committed Wolf range dice receipt is malformed.');
+      }
+      actionIds.add(die.actionId);
+    }
+    if (range.assignments.some((assignment: WolfRangeAssignment) => !actionIds.has(assignment.actionId) ||
+        new Set(assignment.targetInstanceIds).size !== assignment.targetInstanceIds.length ||
+        assignment.targetInstanceIds.some((id: string) => !input.roster.some(ship => ship.instanceId === id)))) {
+      throw new Error('A committed Wolf range assignment is malformed.');
+    }
+    if (range.unusedHitsByAction.some(({ actionId, count }: { actionId: string; count: number }) => !actionIds.has(actionId) ||
+        !Number.isSafeInteger(count) || count < 1)) {
+      throw new Error('A committed Wolf unused-hit receipt is malformed.');
+    }
+    for (const [instanceId, damage] of Object.entries(range.damageByInstance)) {
+      if (!input.roster.some(ship => ship.instanceId === instanceId) ||
+          !Number.isSafeInteger(damage) || (damage as number) < 0) {
+        throw new Error('A committed Wolf damage receipt is malformed.');
+      }
+    }
+    for (const [target, damage] of Object.entries(range.destructionDamageByTarget)) {
+      if (!(EXPANDED_WOLF_TARGET_RING as readonly string[]).includes(target) ||
+          !Number.isSafeInteger(damage) || (damage as number) < 0 ||
+          !targetRing.includes(target as WolfFleetTargetId) && (damage as number) > 0) {
+        throw new Error('A committed Wolf destruction effect is malformed for the configured ring.');
+      }
+    }
+  }
+  const now = input.now ?? Date.now();
+  if (!Number.isFinite(now)) throw new Error('now must be a finite server instant.');
+  const phase = phaseReceipt(input.phase, now, true);
+  for (const target of targetRing) {
+    const state = input.fleetState[target];
+    if (!assertRecord(state) || !assertRecord(state.damage) || !Array.isArray(state.damage.damagedSystemIds) ||
+        !state.damage.damagedSystemIds.every(id => typeof id === 'string') ||
+        typeof state.damage.destroyed !== 'boolean') {
+      throw new Error(`A complete authoritative fleet combat state is required for ${target}.`);
+    }
+    requireNonNegativeInteger(state.population as number, `${target} population`);
+  }
+  if (input.forceFieldTargetId !== null && !targetRing.includes(input.forceFieldTargetId)) {
+    throw new Error('The committed Force Field target is outside the active fleet ring.');
+  }
+  const random = input.randomInt ?? secureRandomInt;
+  const partyCounts = boardersByTarget(input.roster);
+  const attackedTargets = targetRing.filter(target => partyCounts[target] > 0);
+  uniqueStrings(input.boardingDefence.map(({ target }) => target), 'Boarding defence targets');
+  if (input.boardingDefence.some(({ target, securityTeams }) => !attackedTargets.includes(target) ||
+      !Number.isSafeInteger(securityTeams) || securityTeams < 0) ||
+      attackedTargets.some(target => !input.boardingDefence.some(choice => choice.target === target))) {
+    throw new Error('Every attacked active fleet target requires its entitled Security Teams choice.');
+  }
+  const boarding = resolveWolfBoarding(input.roster, input.boardingDefence, random);
+  const survival = resolveSurvivorEffects(input.roster);
+  const damageTotals = damageRecord();
+  for (const range of input.ranges) {
+    for (const [target, amount] of Object.entries(range.destructionDamageByTarget)) {
+      if ((targetRing as readonly string[]).includes(target)) {
+        addFleetDamage(damageTotals, target as WolfFleetTargetId, amount as number);
+      }
+    }
+  }
+  for (const [target, amount] of Object.entries(survival.fleetDamage)) {
+    if ((targetRing as readonly string[]).includes(target)) addFleetDamage(damageTotals, target as WolfFleetTargetId, amount);
+  }
+  boarding.forEach(result => addFleetDamage(damageTotals, result.target, result.damage));
+
+  let forceField: WolfCalculationReceipt['forceField'] = { status: 'unavailable', preventedDamage: 0 };
+  if (input.forceFieldTargetId !== null) {
+    const target = input.forceFieldTargetId;
+    const preventedDamage = Math.min(2, damageTotals[target]);
+    damageTotals[target] -= preventedDamage;
+    forceField = { status: 'protected', targetShipId: target, preventedDamage };
+  }
+  const fleetDamage: WolfFleetDamageResult[] = [];
+  targetRing.forEach(target => {
+    const amount = damageTotals[target];
+    if (amount < 1) return;
+    const state = input.fleetState[target];
+    if (!state) throw new Error(`A complete authoritative fleet combat state is required for ${target}.`);
+    const result = applyWolfFleetDamage(target, amount, state, random);
+    fleetDamage.push({
+      target: result.target, amount: result.amount, state: result.state,
+      population: result.population, draws: result.draws,
+    });
+  });
+  return deepFreeze({
+    type: 'wolf-combat-calculation', version: 1, requestId: input.requestId, phase,
+    targeting: input.targeting, ranges: input.ranges, boarding, fleetDamage,
+    forceField, returningInstanceIds: survival.returningInstanceIds,
+  });
 }
 
 /**
@@ -770,6 +967,10 @@ export function calculateWolfAttack(input: WolfAttackCalculationInput): WolfCalc
   if (!Number.isFinite(now)) throw new Error('now must be a finite server instant.');
   const random = input.randomInt ?? secureRandomInt;
   const phase = phaseReceipt(input.phase, now);
+  if (input.forceFieldTargetId !== undefined && input.forceFieldTargetId !== null &&
+      !targetRing.includes(input.forceFieldTargetId)) {
+    throw new Error('The committed Force Field target is outside the active fleet ring.');
+  }
   const actionIds = input.rangeActions.map(action => action.actionId);
   uniqueStrings(actionIds, 'Wolf range action IDs');
   if (input.rangeAssignments.some(assignment => !actionIds.includes(assignment.actionId))) {
@@ -811,6 +1012,13 @@ export function calculateWolfAttack(input: WolfAttackCalculationInput): WolfCalc
       addFleetDamage(damageTotals, result.target, result.damage);
     }
   });
+  let forceField: WolfCalculationReceipt['forceField'] = { status: 'unavailable', preventedDamage: 0 };
+  if (input.forceFieldTargetId) {
+    const target = input.forceFieldTargetId;
+    const preventedDamage = Math.min(2, damageTotals[target]);
+    damageTotals[target] -= preventedDamage;
+    forceField = { status: 'protected', targetShipId: target, preventedDamage };
+  }
   const fleetDamage: WolfFleetDamageResult[] = [];
   targetRing.forEach((target) => {
     const amount = damageTotals[target];
@@ -829,6 +1037,7 @@ export function calculateWolfAttack(input: WolfAttackCalculationInput): WolfCalc
     ranges,
     boarding,
     fleetDamage,
+    forceField,
     returningInstanceIds: survival.returningInstanceIds,
   });
 }

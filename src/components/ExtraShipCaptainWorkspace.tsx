@@ -9,6 +9,7 @@ const GorgoneionRepairDronesPanel = lazy(() => import('./GorgoneionRepairDronesP
 const GorgoneionMissionSupportWorkspace = lazy(() => import('./GorgoneionMissionSupportWorkspace'));
 const WarriorRepairDronesPanel = lazy(() => import('./WarriorRepairDronesPanel'));
 const SmallShipJumpWorkspace = lazy(() => import('./SmallShipJumpWorkspace'));
+const WolfForceFieldChoicePanel = lazy(() => import('./WolfForceFieldChoicePanel'));
 
 export default function ExtraShipCaptainWorkspace({ roleId }: { readonly roleId: RoleId }) {
   const session = useSessionStore((state) => state.session);
@@ -77,6 +78,13 @@ export default function ExtraShipCaptainWorkspace({ roleId }: { readonly roleId:
               Loading Jump Drive controls…
             </p>}>
               <SmallShipJumpWorkspace smallShipId={workspace.vesselId} />
+            </Suspense>
+          )}
+          {workspace.roleId === 'gorgoneion-captain' && (
+            <Suspense fallback={<p className="console-workspace__status" role="status">
+              Loading Force Field choice…
+            </p>}>
+              <WolfForceFieldChoicePanel />
             </Suspense>
           )}
           {workspace.roleId === 'gorgoneion-captain' && (

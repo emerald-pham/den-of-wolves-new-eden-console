@@ -563,6 +563,9 @@ export interface WolfAttackPreparationTargetAssignment {
   readonly targetShipId: string;
 }
 
+export type WolfAttackTargetId =
+  | 'aegis' | 'dione' | 'icebreaker' | 'quellon' | 'shepherd' | 'refinery-124' | 'capybara';
+
 export interface WolfAttackPreparation {
   readonly turn: number;
   readonly revision: number;
@@ -587,7 +590,74 @@ export interface WolfAttackDeclarationState {
   readonly attackId?: string;
   readonly preparation?: WolfAttackPreparation;
   readonly calculationReceipt?: unknown;
+  readonly forceFieldChoice?: WolfForceFieldPrivateStatus;
+  readonly decisionSummary?: WolfAttackDecisionSummary;
   readonly memberResults?: readonly unknown[];
+}
+
+export interface WolfForceFieldPrivateStatus {
+  readonly status: 'pending' | 'selected' | 'passed' | 'unavailable';
+  readonly turn: number;
+  readonly revision: number;
+  readonly configuredCaptainUid?: string;
+  readonly hostShipId?: string;
+  readonly dockingRevision?: number;
+  readonly fleetGroupId?: string;
+  readonly targetShipId?: WolfAttackTargetId | null;
+  readonly actorUid?: string;
+  readonly requestId?: string;
+  readonly committedAt?: string;
+  readonly unavailableReason?: 'no-current-captain' | 'ambiguous-current-captain' |
+    'gorgoneion-not-admitted' | 'projector-not-ready' | 'captain-berth-unavailable';
+  readonly determinedAt?: string;
+}
+
+export interface WolfAttackDecisionSummary {
+  readonly commander: Readonly<{
+    status: 'pending' | 'committed' | 'no-commander' | 'unavailable' | 'waiting-for-force-field';
+    actors: readonly WolfAttackDecisionActor[];
+    reason?: 'no-configured-commander' | 'waiting-for-force-field' | 'missing-targeting-receipt';
+    completionRevision?: number;
+  }>;
+  readonly commandAndControl: Readonly<{
+    status: 'pending' | 'redirected' | 'passed' | 'unavailable' | 'not-needed' |
+      'waiting-for-commander' | 'waiting-for-force-field';
+    actors: readonly WolfAttackDecisionActor[];
+    reason?: 'no-configured-executive-officer' | 'executive-officer-disconnected' |
+      'no-current-executive-officer' | 'waiting-for-commander' | 'waiting-for-force-field' |
+      'no-targets' | 'uncharged' | 'damaged' | 'damage-unknown';
+  }>;
+  readonly forceField: Readonly<{
+    status: 'pending' | 'selected' | 'passed' | 'unavailable' | 'not-needed';
+    actor?: WolfAttackDecisionActor;
+    reason?: WolfForceFieldPrivateStatus['unavailableReason'] | 'not-recorded';
+    targetShipId?: WolfAttackTargetId | null;
+  }>;
+  readonly range?: Readonly<{
+    range: WolfAttackRange;
+    status: 'pending' | 'targets-required' | 'committed' | 'passed' | 'unavailable' | 'auto-passed';
+    actors: readonly WolfAttackDecisionActor[];
+    actionCount?: number;
+    selectedActionCount?: number;
+    reason?: 'automatic-progress-pending' | 'no-configured-executive-officer' | 'malformed-current-range';
+  }>;
+  readonly boarding?: Readonly<{
+    status: 'pending' | 'resolved';
+    targets: readonly Readonly<{
+      targetShipId: WolfAttackTargetId;
+      status: 'pending' | 'committed' | 'unavailable';
+      actors: readonly WolfAttackDecisionActor[];
+      boardingParties: number;
+      securityTeams?: number;
+      reason?: 'no-current-crew-actor';
+    }>[];
+  }>;
+}
+
+export interface WolfAttackDecisionActor {
+  readonly uid: string;
+  /** Fresh server presence as of the last decision-summary reconciliation. */
+  readonly connected: boolean;
 }
 
 /** Stable member-safe Wolf-attack endpoint; private dice and composition never cross this shape. */
@@ -620,6 +690,119 @@ export interface WolfAttackMemberView {
     'composition', 'unresolved-dice', 'facilitator-notes', 'intervention-state',
   ];
   readonly results: readonly WolfAttackMemberResult[];
+}
+
+export type WolfAttackRange = 'long-range' | 'medium-range' | 'short-range';
+
+/** Executive Officer-only safe range view; it contains no dice faces or force composition. */
+export interface WolfRangeActionChoiceView {
+  readonly type: 'wolf-range-action-choice-view';
+  readonly sessionId: string;
+  readonly turn: number;
+  readonly revision: number;
+  readonly currentStep: WolfAttackRange;
+  readonly range: WolfAttackRange;
+  readonly choiceStatus: 'pending' | 'targets-required' | 'committed';
+  readonly deadlineAt: string;
+  readonly eligibleActions: readonly Readonly<{ actionId: string; sourceId: string; range: WolfAttackRange }>[];
+  readonly hitSlots: readonly Readonly<{ actionId: string; count: number }>[];
+  readonly contacts: readonly Readonly<{ contactId: string; targetShipId: string; available: boolean }>[];
+}
+
+export type WolfRangeActionChoiceReadResult = WolfRangeActionChoiceView | Readonly<{
+  type: 'wolf-range-action-choice-unavailable';
+  sessionId: string;
+  reason: 'not-in-range' | 'waiting';
+}>;
+
+export interface WolfRangeActionChoiceResult {
+  readonly status: 'committed';
+  readonly type: 'wolf-range-action-choice';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly turn: number;
+  readonly revision: number;
+  readonly range: WolfAttackRange;
+  readonly currentStep: 'targeting' | 'long-range' | 'medium-range' | 'short-range' | 'boarding' | 'resolved';
+  readonly choiceStatus: 'targets-required' | 'passed';
+  readonly hitSlots: readonly Readonly<{ actionId: string; count: number }>[];
+}
+
+export interface WolfRangeTargetAssignmentResult {
+  readonly status: 'committed';
+  readonly type: 'wolf-range-target-assignment';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly turn: number;
+  readonly revision: number;
+  readonly fromStep: WolfAttackRange;
+  readonly currentStep: 'medium-range' | 'short-range' | 'boarding';
+  readonly committedContacts: number;
+}
+
+export interface WolfForceFieldChoiceView {
+  readonly type: 'wolf-force-field-choice-view';
+  readonly sessionId: string;
+  readonly turn: number;
+  readonly revision: number;
+  readonly attackId: string;
+  readonly hostShipId: string;
+  readonly dockingRevision: number;
+  readonly fleetGroupId: string;
+  readonly choiceStatus: 'pending' | 'selected' | 'passed';
+  readonly targetShipIds: readonly WolfAttackTargetId[];
+  readonly targetShipId?: WolfAttackTargetId | null;
+  readonly deadlineAt: string;
+}
+
+export type WolfForceFieldChoiceReadResult = WolfForceFieldChoiceView | Readonly<{
+  type: 'wolf-force-field-choice-unavailable';
+  sessionId: string;
+  reason: 'no-current-captain' | 'ambiguous-current-captain' | 'gorgoneion-not-admitted' |
+    'projector-not-ready' | 'captain-berth-unavailable';
+}>;
+
+export interface WolfForceFieldChoiceResult {
+  readonly status: 'committed';
+  readonly type: 'wolf-force-field-choice';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly turn: number;
+  readonly revision: number;
+  readonly targetShipId: WolfAttackTargetId | null;
+  readonly choiceStatus: 'selected' | 'passed';
+  readonly currentStep: 'targeting';
+}
+
+export interface WolfBoardingDefenceChoiceView {
+  readonly type: 'wolf-boarding-defence-choice-view';
+  readonly sessionId: string;
+  readonly turn: number;
+  readonly revision: number;
+  readonly targetShipId: WolfAttackTargetId;
+  readonly boardingParties: number;
+  readonly availableSecurityTeams: number;
+  readonly choiceStatus: 'pending' | 'committed';
+  readonly chosenSecurityTeams?: number;
+  readonly deadlineAt: string;
+}
+
+export type WolfBoardingDefenceChoiceReadResult = WolfBoardingDefenceChoiceView | Readonly<{
+  type: 'wolf-boarding-defence-choice-unavailable';
+  sessionId: string;
+  reason: 'no-boarders';
+}>;
+
+export interface WolfBoardingDefenceChoiceResult {
+  readonly status: 'committed';
+  readonly type: 'wolf-boarding-defence-choice';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly turn: number;
+  readonly revision: number;
+  readonly targetShipId: WolfAttackTargetId;
+  readonly securityTeams: number;
+  readonly currentStep: 'boarding';
 }
 
 export type DioneMaliadesLaunchReason =

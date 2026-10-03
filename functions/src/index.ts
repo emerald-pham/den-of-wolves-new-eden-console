@@ -231,7 +231,7 @@ import {
   isReplacementEligibilityReason,
   type ReplacementRoleDefinition,
 } from './replacementRoles';
-import { publicSmallShipStatesForSession } from './extraShipAdmission';
+import { isExtraShipAdmitted, publicSmallShipStatesForSession } from './extraShipAdmission';
 import {
   applyShipNavigationMove,
   isStarSystemCoordinate,
@@ -329,6 +329,7 @@ import { activeVesselRecord, initialSessionComposition } from './sessionComposit
 import { planFleetPartition, reconcilePartitionMember } from './fleetPartition';
 import {
   INITIAL_FLEET_GROUP_ID,
+  fleetGroupMemberShipId,
   fleetGroupRecord,
   initialFleetGroup,
   ordinaryFleetCommunicationGroup,
@@ -520,7 +521,7 @@ import {
   startTurnPhase,
   turnStateForPhaseContext,
   turnStateForPhase,
-  type turnStateState,
+  turnStateState,
   turnPhaseState,
   updateTurnStateForPhase,
 } from './turnZero';
@@ -603,19 +604,29 @@ import {
   WOLF_ATTACK_STEPS,
   lockWolfRangeActions,
   resolveLockedWolfRange,
+  wolfRangeLegalTargetInstanceIds,
   wolfCombatRoster,
   resolveWolfTargeting,
+  finalizeWolfAttack,
+  wolfBoardingPartyCounts,
+  EXPANDED_WOLF_TARGET_RING,
   type WolfCombatRange,
   type WolfCombatShip,
   type WolfRangeAction,
   type WolfRangeAssignment,
+  type WolfRangeReceipt,
   type WolfRangeRollLock,
+  type WolfBoardingDefence,
+  type WolfCalculationReceipt,
+  type FleetCombatState,
+  type WolfFleetTargetId,
   type WolfTargetingReceipt,
   type WolfTargetRing,
 } from './wolfCombatMath';
 import {
   aegisWolfRangeActions,
   wolfAttackNextStep,
+  type WolfAttackLifecycleStep,
 } from './wolfAttackLifecycle';
 import {
   applyWolfCommanderRerolls,
@@ -631,7 +642,7 @@ import {
   commanderRerollsAreClosed,
   commanderRerollsCompletionDecision,
 } from './wolfCommandAndControl';
-import { projectWolfAttackMemberView } from './wolfAttackAudience';
+import { isWolfAttackMemberView, projectWolfAttackMemberView } from './wolfAttackAudience';
 import { configuredWolfAttackTargetRing } from './wolfAttackTargetRing';
 import { isWolfActionKind, wolfActionAuthorization } from './wolfActionAuthorization';
 import { resolveWolfSupplySabotage } from './wolfSupplySabotage';
@@ -1416,7 +1427,7 @@ function requireWolfAttackMovementReleased(attackState: DocumentSnapshot): void 
   if (!attackState.exists || !wolfAttackBlocksNormalMovement(attackState.data())) return;
   throw commandError(
     'failed-precondition',
-    'The Wolf attack awaits facilitator resolution; normal movement remains blocked.',
+    'The Wolf attack is resolving automatically; normal movement remains blocked until server resolution.',
     'invalid-phase',
   );
 }
@@ -18858,6 +18869,13 @@ export const advanceTurn = onCall<{
     );
     const replay = replayBoundCommand(receipt, fingerprint, isTurnAdvanceResult, 'cycle advance');
     if (replay) return replay;
+    if (attackState.exists && wolfAttackBlocksNormalMovement(attackState.data())) {
+      throw commandError(
+        'failed-precondition',
+        'Cycle advancement and skip controls remain server-controlled while the Wolf attack resolves automatically.',
+        'invalid-phase',
+      );
+    }
     const demoState = session.get('singlePlayerDemo');
     if (demoState !== undefined && demoState !== null) {
       if (sessionTurn(session.get('currentTurn')) !== advance.expectedTurn) {
@@ -19184,7 +19202,7 @@ export const beginOpenAirspacePhase = onCall<{
     if (attackState.exists && wolfAttackBlocksNormalMovement(attackState.data())) {
       throw commandError(
         'failed-precondition',
-        'The Wolf attack awaits facilitator resolution; normal movement remains blocked.',
+        'The Wolf attack is resolving automatically; normal movement remains blocked until server resolution.',
         'invalid-phase',
       );
     }
@@ -19225,16 +19243,24 @@ export const extendAirspaceWindow = onCall<{
   const sessionRef = db.doc(`sessions/${requestData.sessionId}`);
   const playerRef = db.doc(`sessions/${requestData.sessionId}/players/${uid}`);
   const instanceRef = db.doc(`sessions/${requestData.sessionId}/gmInstances/${requestData.instanceId}`);
+  const attackStateRef = db.doc(`sessions/${requestData.sessionId}/wolfAttackState/current`);
 
   return db.runTransaction(async tx => {
-    const [session, player, instance] = await Promise.all([
-      tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef),
+    const [session, player, instance, attackState] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef), tx.get(attackStateRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isLiveGmInstance(instance, player, uid)) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
     requireActiveGameplayPhase(session);
+    if (attackState.exists && wolfAttackBlocksNormalMovement(attackState.data())) {
+      throw commandError(
+        'failed-precondition',
+        'Airspace timing remains server-controlled while the Wolf attack resolves automatically.',
+        'invalid-phase',
+      );
+    }
     const currentTurn = sessionTurn(session.get('currentTurn'));
     if (currentTurn !== requestData.expectedTurn) {
       throw commandError('failed-precondition', 'The cycle changed. Wait for the live update and try again.', 'stale-revision');
@@ -19257,19 +19283,148 @@ export const extendAirspaceWindow = onCall<{
   });
 });
 
+type WolfAttackTimerInterventionResult = Readonly<{
+  status: 'committed';
+  type: 'wolf-attack-timer-intervention';
+  sessionId: string;
+  requestId: string;
+  turn: number;
+  revision: number;
+  action: 'paused' | 'resumed';
+  reason: string;
+  dangerConfirmed: true;
+  delta: Readonly<{
+    from: Readonly<{
+      attackRevision: number;
+      currentStep: WolfAttackLifecycleStep;
+      teamPhaseEndsAt: string;
+      openAirspaceEndsAt: string;
+      timerPause: Readonly<Record<string, unknown>> | null;
+    }>;
+    to: Readonly<{
+      attackRevision: number;
+      currentStep: WolfAttackLifecycleStep;
+      teamPhaseEndsAt: string;
+      openAirspaceEndsAt: string;
+      timerPause: Readonly<Record<string, unknown>> | null;
+    }>;
+  }>;
+  rollback: Readonly<{ allowed: false }>;
+  turnPhase: ActiveTurnPhase;
+  turnState?: ActiveTurnState;
+}>;
+
+function isWolfAttackTimerInterventionResult(value: unknown): value is WolfAttackTimerInterventionResult {
+  if (!isRecord(value)) return false;
+  const onlyKeys = (record: Record<string, unknown> | undefined, expected: readonly string[]) =>
+    record !== undefined && Object.keys(record).length === expected.length &&
+      Object.keys(record).every((key) => expected.includes(key));
+  const allowed = new Set([
+    'status', 'type', 'sessionId', 'requestId', 'turn', 'revision', 'action', 'reason',
+    'dangerConfirmed', 'delta', 'rollback', 'turnPhase', 'turnState',
+  ]);
+  const delta = isRecord(value.delta) ? value.delta : undefined;
+  const from = delta && isRecord(delta.from) ? delta.from : undefined;
+  const to = delta && isRecord(delta.to) ? delta.to : undefined;
+  const turnPhase = turnPhaseState(value.turnPhase);
+  const timerPauseIsSafe = (candidate: unknown): boolean => candidate === null || (
+    isRecord(candidate) && (candidate.window === 'restricted' || candidate.window === 'open') &&
+    Number.isSafeInteger(candidate.remainingMs) && (candidate.remainingMs as number) >= 0 &&
+    typeof candidate.pausedAt === 'string' && Number.isFinite(Date.parse(candidate.pausedAt)) &&
+    (candidate.reason === undefined || typeof candidate.reason === 'string') &&
+    onlyKeys(candidate, candidate.reason === undefined
+      ? ['window', 'remainingMs', 'pausedAt'] : ['window', 'remainingMs', 'pausedAt', 'reason'])
+  );
+  const deltaSideIsSafe = (candidate: Record<string, unknown> | undefined): boolean => candidate !== undefined &&
+    onlyKeys(candidate, ['attackRevision', 'currentStep', 'teamPhaseEndsAt', 'openAirspaceEndsAt', 'timerPause']) &&
+    Number.isSafeInteger(candidate.attackRevision) &&
+    ['targeting', 'long-range', 'medium-range', 'short-range', 'boarding'].includes(String(candidate.currentStep)) &&
+    typeof candidate.teamPhaseEndsAt === 'string' && Number.isFinite(Date.parse(candidate.teamPhaseEndsAt)) &&
+    typeof candidate.openAirspaceEndsAt === 'string' && Number.isFinite(Date.parse(candidate.openAirspaceEndsAt)) &&
+    timerPauseIsSafe(candidate.timerPause);
+  const phase = isRecord(value.turnPhase) ? value.turnPhase : undefined;
+  const airspace = phase && isRecord(phase.airspace) ? phase.airspace : undefined;
+  const phaseHasOnlyKeys = onlyKeys(phase, phase?.timerPause === undefined
+    ? ['turn', 'teamPhaseEndsAt', 'openAirspaceEndsAt', 'airspace']
+    : ['turn', 'teamPhaseEndsAt', 'openAirspaceEndsAt', 'airspace', 'timerPause']);
+  const airspaceHasOnlyKeys = onlyKeys(airspace, ['state', 'tickerActive', 'pressAccess']);
+  const deltaMatches = Boolean(from && to && delta && onlyKeys(delta, ['from', 'to']) &&
+    deltaSideIsSafe(from) && deltaSideIsSafe(to) &&
+    (from.attackRevision as number) + 1 === (to.attackRevision as number) &&
+    to.attackRevision === value.revision && from.currentStep === to.currentStep &&
+    ((value.action === 'paused' && from.timerPause === null && to.timerPause !== null) ||
+      (value.action === 'resumed' && from.timerPause !== null && to.timerPause === null)) &&
+    turnPhase !== undefined && turnPhase.turn === value.turn &&
+    phaseHasOnlyKeys && airspaceHasOnlyKeys &&
+    to.teamPhaseEndsAt === turnPhase.teamPhaseEndsAt &&
+    to.openAirspaceEndsAt === turnPhase.openAirspaceEndsAt &&
+    (value.action === 'paused' ? turnPhase.timerPause !== undefined : turnPhase.timerPause === undefined));
+  return Object.keys(value).every((key) => allowed.has(key)) &&
+    value.status === 'committed' && value.type === 'wolf-attack-timer-intervention' &&
+    typeof value.sessionId === 'string' && value.sessionId.length > 0 &&
+    isCanonicalRequestId(value.requestId) && Number.isSafeInteger(value.turn) && (value.turn as number) >= 1 &&
+    Number.isSafeInteger(value.revision) && (value.revision as number) >= 2 &&
+    (value.action === 'paused' || value.action === 'resumed') &&
+    typeof value.reason === 'string' && value.reason === value.reason.trim() &&
+    value.reason.length >= 8 && value.reason.length <= 400 && value.dangerConfirmed === true &&
+    deltaMatches &&
+    isRecord(value.rollback) && onlyKeys(value.rollback, ['allowed']) && value.rollback.allowed === false &&
+    (value.turnState === undefined || turnStateState(value.turnState) !== undefined);
+}
+
 /** Hold or resume the live turn clock through the GM emergency interlock. */
 export const setEmergencyTimerPaused = onCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   expectedTurn?: unknown;
   paused?: unknown;
+  requestId?: unknown;
+  expectedAttackRevision?: unknown;
+  reason?: unknown;
+  dangerConfirmed?: unknown;
 }>(async request => {
   const uid = requireUid(request.auth);
-  const requestData = requireEmergencyTimerPauseRequest(request.data ?? {});
+  const raw = request.data ?? {};
+  const allowedRequestFields = new Set([
+    'sessionId', 'instanceId', 'expectedTurn', 'paused', 'requestId',
+    'expectedAttackRevision', 'reason', 'dangerConfirmed',
+  ]);
+  if (!isRecord(raw) || Object.keys(raw).some((key) => !allowedRequestFields.has(key))) {
+    throw new HttpsError('invalid-argument', 'The emergency timer accepts only its current scoped request.');
+  }
+  const requestData = requireEmergencyTimerPauseRequest(raw);
   const sessionRef = db.doc(`sessions/${requestData.sessionId}`);
   const playerRef = db.doc(`sessions/${requestData.sessionId}/players/${uid}`);
   const instanceRef = db.doc(`sessions/${requestData.sessionId}/gmInstances/${requestData.instanceId}`);
   const attackStateRef = db.doc(`sessions/${requestData.sessionId}/wolfAttackState/current`);
+  const hasAttackIntervention = requestData.requestId !== undefined;
+  const attackReceiptRef = hasAttackIntervention && requestData.requestId
+    ? commandReceiptRef(requestData.sessionId, requestData.requestId) : undefined;
+  const attackAuditRef = hasAttackIntervention && requestData.requestId
+    ? db.doc(`sessions/${requestData.sessionId}/wolfAttackState/current/audit/${requestData.requestId}`) : undefined;
+  const attackEventId = hasAttackIntervention && requestData.requestId
+    ? `wolf-attack-clock-${requestData.requestId}` : undefined;
+  const attackEventRef = attackEventId
+    ? db.doc(`sessions/${requestData.sessionId}/events/${attackEventId}`) : undefined;
+  const attackAudienceRef = hasAttackIntervention
+    ? db.doc(`sessions/${requestData.sessionId}/wolfAttackAudience/current`) : undefined;
+  const attackFingerprint: CommandFingerprint | undefined = hasAttackIntervention && requestData.requestId &&
+      requestData.expectedAttackRevision !== undefined && requestData.reason !== undefined
+    ? {
+      action: 'wolf-attack-timer-intervention',
+      sessionId: requestData.sessionId,
+      requestId: requestData.requestId,
+      actorUid: uid,
+      instanceId: requestData.instanceId,
+      expectedRevision: requestData.expectedAttackRevision,
+      payload: {
+        expectedTurn: requestData.expectedTurn,
+        paused: requestData.paused,
+        reason: requestData.reason,
+        dangerConfirmed: true,
+      },
+    }
+    : undefined;
   // Firestore may retry a transaction; one logical command must retain one audit id.
   const eventId = randomUUID();
   const transitionServerTime = new Date().toISOString();
@@ -19283,6 +19438,239 @@ export const setEmergencyTimerPaused = onCall<{
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
     requireActiveGameplayPhase(session);
+    const attackIsBlocking = attackState.exists && wolfAttackBlocksNormalMovement(attackState.data());
+    if (hasAttackIntervention) {
+      if (!attackReceiptRef || !attackAuditRef || !attackEventRef || !attackAudienceRef || !attackFingerprint) {
+        throw new HttpsError('invalid-argument', 'A complete reasoned attack-clock request is required.');
+      }
+      const [receipt, audit, event, audience] = await Promise.all([
+        tx.get(attackReceiptRef), tx.get(attackAuditRef), tx.get(attackEventRef), tx.get(attackAudienceRef),
+      ]);
+      const replay = replayBoundCommand(
+        receipt,
+        attackFingerprint,
+        (value): value is WolfAttackTimerInterventionResult =>
+          isWolfAttackTimerInterventionResult(value) && value.sessionId === requestData.sessionId &&
+          value.requestId === requestData.requestId && value.turn === requestData.expectedTurn &&
+          value.revision === (requestData.expectedAttackRevision as number) + 1 &&
+          value.action === (requestData.paused ? 'paused' : 'resumed') &&
+          value.reason === requestData.reason && value.dangerConfirmed === true &&
+          value.delta.from.attackRevision === requestData.expectedAttackRevision,
+        'Wolf attack timer intervention',
+      );
+      if (replay) return replay;
+      if (audit.exists || event.exists) {
+        throw commandError(
+          'failed-precondition',
+          'This attack-clock request id already has an audit or event without a replayable receipt.',
+          'conflict',
+        );
+      }
+      if (!attackState.exists || !attackIsBlocking || attackState.get('status') !== 'declared') {
+        throw commandError(
+          'failed-precondition',
+          'There is no active declared Wolf attack for this clock intervention.',
+          'invalid-phase',
+        );
+      }
+      const attack = attackState.data() as Record<string, unknown>;
+      const attackTurn = attack.turn;
+      const attackRevision = attack.revision;
+      const currentStep = attack.currentStep;
+      if (attack.airspaceLocked !== true || attack.parkingReleaseCondition !== WOLF_ATTACK_PARKING_RELEASE ||
+          typeof attack.attackId !== 'string' || attack.attackId.length === 0 ||
+          !Number.isSafeInteger(attackTurn) || !Number.isSafeInteger(attackRevision) ||
+          !WOLF_ATTACK_STEPS.includes(currentStep as typeof WOLF_ATTACK_STEPS[number])) {
+        throw commandError('failed-precondition', 'The current Wolf attack authority is malformed.', 'conflict');
+      }
+      if (requestData.expectedAttackRevision !== attackRevision) {
+        throw commandError(
+          'failed-precondition',
+          'The Wolf attack changed. Refresh the facilitator view before changing its clock.',
+          'stale-revision',
+        );
+      }
+      const currentTurn = sessionTurn(session.get('currentTurn'));
+      if (requestData.expectedTurn !== currentTurn || attackTurn !== currentTurn) {
+        throw commandError(
+          'failed-precondition',
+          'The cycle changed. Wait for the live attack update and try again.',
+          'stale-revision',
+        );
+      }
+      const phase = turnPhaseState(session.get('turnPhase'));
+      if (!phase || phase.turn !== currentTurn || phase.airspace.state !== 'restricted') {
+        throw commandError(
+          'failed-precondition',
+          'The active Wolf attack no longer matches the shared airspace clock.',
+          'invalid-phase',
+        );
+      }
+      if (!isWolfAttackMemberView(audience.exists ? audience.data() : undefined) ||
+          (audience.get('attackId') !== attack.attackId) ||
+          (audience.get('revision') as number) > (attackRevision as number)) {
+        throw commandError(
+          'failed-precondition',
+          'The member-safe Wolf attack projection is missing or ahead of server state.',
+          'conflict',
+        );
+      }
+      if (!requestData.paused && phase.timerPause?.reason !== undefined) {
+        throw commandError(
+          'failed-precondition',
+          'An automatic timer hold must be released by its owning presence or turn-advance authority.',
+          'invalid-phase',
+        );
+      }
+      if (requestData.paused === (phase.timerPause !== undefined)) {
+        throw commandError(
+          'failed-precondition',
+          requestData.paused ? 'The shared attack clock is already paused.' : 'The shared attack clock is not paused.',
+          'stale-revision',
+        );
+      }
+
+      const transition = requestData.paused
+        ? pauseActiveTurnPhase(phase)
+        : resumePausedTurnPhase(phase);
+      if (!transition) {
+        throw commandError(
+          'failed-precondition',
+          requestData.paused
+            ? 'The live cycle timer has already expired.'
+            : 'The emergency timer is not currently paused.',
+          'stale-revision',
+        );
+      }
+      const turnPhase = preserveWolfAttackAirspaceRestriction(transition, attackState);
+      if (requestData.paused ? turnPhase.timerPause === undefined : turnPhase.timerPause !== undefined) {
+        throw new HttpsError('internal', 'The attack-clock transition did not preserve its requested hold state.');
+      }
+      const window = requestData.paused
+        ? turnPhase.timerPause?.window
+        : phase.timerPause?.window;
+      if (!window) throw new HttpsError('internal', 'The attack-clock transition has no current timer window.');
+      const nextRevision = (attackRevision as number) + 1;
+      if (!Number.isSafeInteger(nextRevision)) {
+        throw commandError('failed-precondition', 'The Wolf attack revision cannot be advanced.', 'conflict');
+      }
+      const nextAttackState = {
+        ...attack,
+        revision: nextRevision,
+        deadlineAt: turnPhase.openAirspaceEndsAt,
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+      const turnState = updatedTurnState(session, turnPhase);
+      const fleetTicker = publishSessionFleetTicker(requestData.sessionId, session, turnPhase.timerPause ? {
+        source: 'automatic', priority: FLEET_TICKER_PRIORITIES.emergency,
+        text: FLEET_TICKER_COPY.emergency, tone: 'danger', gap: 'long',
+        sourceId: `emergency:${currentTurn}:${turnPhase.timerPause.pausedAt}`,
+      } : {
+        source: 'automatic', priority: FLEET_TICKER_PRIORITIES.airspace, passCount: 1,
+        text: FLEET_TICKER_COPY.airspaceClosed,
+        tone: 'normal', gap: 'long', sourceId: `airspace:${currentTurn}:restricted`,
+      }, transitionServerTime);
+      const pauseSnapshot = (candidate: ActiveTurnPhase['timerPause']) => candidate
+        ? { ...candidate } : null;
+      const delta = {
+        from: {
+          attackRevision: attackRevision as number,
+          currentStep: currentStep as WolfAttackLifecycleStep,
+          teamPhaseEndsAt: phase.teamPhaseEndsAt,
+          openAirspaceEndsAt: phase.openAirspaceEndsAt,
+          timerPause: pauseSnapshot(phase.timerPause),
+        },
+        to: {
+          attackRevision: nextRevision,
+          currentStep: currentStep as WolfAttackLifecycleStep,
+          teamPhaseEndsAt: turnPhase.teamPhaseEndsAt,
+          openAirspaceEndsAt: turnPhase.openAirspaceEndsAt,
+          timerPause: pauseSnapshot(turnPhase.timerPause),
+        },
+      };
+      const result: WolfAttackTimerInterventionResult = {
+        status: 'committed',
+        type: 'wolf-attack-timer-intervention',
+        sessionId: requestData.sessionId,
+        requestId: requestData.requestId!,
+        turn: currentTurn,
+        revision: nextRevision,
+        action: requestData.paused ? 'paused' : 'resumed',
+        reason: requestData.reason!,
+        dangerConfirmed: true,
+        delta,
+        rollback: { allowed: false },
+        turnPhase,
+        ...(turnState ? { turnState } : {}),
+      };
+      if (!isWolfAttackTimerInterventionResult(result)) {
+        throw new HttpsError('internal', 'The attack-clock intervention result is malformed.');
+      }
+      const eventServerTime = transitionServerTime;
+      const eventRecord = buildPrivacySafeEventRecord({
+        type: 'timer-pause',
+        envelope: buildAuthoritativeEventEnvelope({
+          sessionId: requestData.sessionId,
+          actorUid: uid,
+          actorRoleId: null,
+          turn: currentTurn,
+          phase: 'active',
+          type: 'timer-pause',
+          requestId: requestData.requestId!,
+          revision: nextRevision,
+          serverTime: eventServerTime,
+          visibility: EventVisibility.Member,
+        }),
+        payload: {
+          action: requestData.paused ? 'paused' : 'resumed',
+          turn: currentTurn,
+          window,
+          attackId: attack.attackId,
+          currentStep,
+        },
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      tx.update(sessionRef, {
+        turnPhase,
+        ...(turnState ? { turnState } : {}),
+        fleetTicker,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      tx.update(attackStateRef, nextAttackState);
+      tx.set(attackAudienceRef, projectWolfAttackMemberView({
+        sessionId: requestData.sessionId,
+        state: nextAttackState,
+        serverTime: eventServerTime,
+      }));
+      tx.set(attackAuditRef, {
+        type: 'wolf-attack-timer-intervention',
+        action: requestData.paused ? 'paused' : 'resumed',
+        turn: currentTurn,
+        attackId: attack.attackId,
+        currentStep,
+        revision: nextRevision,
+        actorUid: uid,
+        requestId: requestData.requestId,
+        reason: requestData.reason,
+        dangerConfirmed: true,
+        delta,
+        rollback: { allowed: false },
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      tx.set(attackEventRef, eventRecord);
+      tx.set(attackReceiptRef, {
+        fingerprint: attackFingerprint,
+        result,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      return result;
+    }
+    if (attackIsBlocking) {
+      throw new HttpsError(
+        'invalid-argument',
+        'A declared Wolf attack requires a reasoned, revision-bound timer intervention.',
+      );
+    }
     const currentTurn = sessionTurn(session.get('currentTurn'));
     if (currentTurn < 1) {
       throw commandError('failed-precondition', 'The emergency timer is unavailable during Cycle 0.', 'invalid-phase');
@@ -19535,6 +19923,11 @@ export const stageWolfAttackPreparation = onCall<{
   const canonicalAssignments = [...change.targetAssignments]
     .sort((left, right) => left.cardIndex - right.cardIndex)
     .map(({ cardIndex, targetShipId }) => `${cardIndex}:${targetShipId}`);
+  const ignoredPlayerChoiceMarkers = change.modifiers.filter((modifier) => [
+    'wolf-commander-target-reroll',
+    'aegis-command-and-control',
+    'gorgoneion-force-field-projector',
+  ].includes(modifier)).sort();
   const fingerprint: CommandFingerprint = {
     action: 'stage-wolf-attack-preparation',
     sessionId: change.sessionId,
@@ -19646,6 +20039,7 @@ export const stageWolfAttackPreparation = onCall<{
       turn: next.turn,
       revision: next.revision,
       actorUid: uid,
+      ...(ignoredPlayerChoiceMarkers.length ? { ignoredPlayerChoiceMarkers } : {}),
       createdAt: FieldValue.serverTimestamp(),
     });
     tx.set(receiptRef, { fingerprint, result: next, createdAt: FieldValue.serverTimestamp() });
@@ -19947,6 +20341,33 @@ function wolfTargetingStageReceipt(
   };
 }
 
+function wolfForceFieldPreTargetStageReceipt(
+  turn: number,
+  preparation: WolfAttackPreparation,
+  declaredAt: string,
+  targetRing: WolfTargetRing,
+  pursuit: WolfAttackPursuitSnapshot,
+): Record<string, unknown> {
+  const composition = scheduledWolfAttackComposition(turn, preparation.shipIds);
+  return {
+    type: 'wolf-combat-calculation-stage',
+    version: 1,
+    turn,
+    step: 'pre-target-force-field',
+    generatedAt: declaredAt,
+    pursuitPressure: {
+      navigationRevision: pursuit.navigationRevision,
+      groupValues: { ...pursuit.groupValues },
+    },
+    targetRing: [...targetRing],
+    composition: {
+      shipIds: [...composition.shipIds],
+      counts: { ...composition.counts },
+      damageCapacity: composition.damageCapacity,
+    },
+  };
+}
+
 /** Atomically begin the server-owned Wolf attack lifecycle. */
 export const declareWolfAttack = onCall<{
   sessionId?: unknown;
@@ -20038,9 +20459,17 @@ export const declareWolfAttack = onCall<{
   const preflightPursuit = wolfAttackPursuitSnapshot(
     preflightSession, preflightNavigation, preflightFleetGroups, preflightPlayers,
   );
-  const calculationReceipt = wolfTargetingStageReceipt(
-    preflight.phase.turn, preflight.preparation, declaredAt, preflight.targetRing, preflightPursuit,
+  const preflightForceFieldChoice = wolfForceFieldChoiceAtDeclaration(
+    preflightSession, preflightPlayers, preflightFleetGroups, preflight.targetRing,
+    preflight.phase.turn, 1, declaredAt,
   );
+  const calculationReceipt = preflightForceFieldChoice.status === 'pending'
+    ? wolfForceFieldPreTargetStageReceipt(
+      preflight.phase.turn, preflight.preparation, declaredAt, preflight.targetRing, preflightPursuit,
+    )
+    : wolfTargetingStageReceipt(
+      preflight.phase.turn, preflight.preparation, declaredAt, preflight.targetRing, preflightPursuit,
+    );
   const announcementId = `wolf-attack-${declaration.requestId}`;
   const result: WolfAttackDeclarationResult = {
     status: 'committed',
@@ -20078,6 +20507,9 @@ export const declareWolfAttack = onCall<{
       declaration.requestId,
     );
     const pursuit = wolfAttackPursuitSnapshot(session, navigation, fleetGroups, players);
+    const forceFieldChoice = wolfForceFieldChoiceAtDeclaration(
+      session, players, fleetGroups, inputs.targetRing, inputs.phase.turn, 1, declaredAt,
+    );
     if (inputs.phase.turn !== preflight.phase.turn ||
         inputs.phase.openAirspaceEndsAt !== preflight.phase.openAirspaceEndsAt ||
         inputs.window.revision !== preflight.window.revision ||
@@ -20086,7 +20518,8 @@ export const declareWolfAttack = onCall<{
         JSON.stringify(inputs.parkingDecisions) !== JSON.stringify(preflight.parkingDecisions) ||
         JSON.stringify(inputs.parkedShuttleDockings) !== JSON.stringify(preflight.parkedShuttleDockings) ||
         inputs.transitChainFingerprint !== preflight.transitChainFingerprint ||
-        JSON.stringify(inputs.targetRing) !== JSON.stringify(preflight.targetRing)) {
+        JSON.stringify(inputs.targetRing) !== JSON.stringify(preflight.targetRing) ||
+        JSON.stringify(forceFieldChoice) !== JSON.stringify(preflightForceFieldChoice)) {
       throw commandError(
         'failed-precondition',
         'The live attack authority or preparation changed while the declaration was being committed.',
@@ -20179,6 +20612,7 @@ export const declareWolfAttack = onCall<{
         tiedHostIds: [...decision.tiedHostIds],
       })),
       calculationReceipt,
+      forceFieldChoice,
       maliadesRangeEffects: {
         attackId: announcementId,
         cycle: inputs.phase.turn,
@@ -20294,6 +20728,858 @@ export const syncWolfAttackAudienceProjection = onDocumentWritten(
   },
 );
 
+/**
+ * Reconcile only decisions the source makes automatic. Genuine Commander,
+ * Executive Officer, weapon target, and boarding choices stay pending until
+ * their current entitled player commits them. This write-trigger is also
+ * safe on reconnect/retry because it rereads current session pause and attack
+ * revision inside the transaction.
+ */
+type WolfAttackFinalizationCache = {
+  fingerprint: string;
+  resolvedAt: string;
+  receipt: WolfCalculationReceipt;
+};
+
+type WolfAttackDecisionActorProjection = Readonly<{ uid: string; connected: boolean }>;
+
+function currentWolfAegisExecutiveOfficers(
+  players: readonly DocumentSnapshot[],
+  fleetGroupSnapshots: readonly DocumentSnapshot[],
+): readonly DocumentSnapshot[] {
+  const groups = fleetGroupSnapshots.flatMap((snapshot) => {
+    const group = fleetGroupRecord(snapshot.data());
+    return group ? [group] : [];
+  });
+  return players.filter((player) => {
+    if (player.get('role') !== 'player' || player.get('activeConsoleRoleId') !== 'executive-officer' ||
+        boundCoreConsoleRole(player.get('assignedRoleId'), player.get('seatId')) !== 'executive-officer') return false;
+    const groupId = player.get('fleetGroupId');
+    return typeof groupId === 'string' && fleetGroupMemberShipId(groups, player.id, groupId) === 'aegis';
+  });
+}
+
+/** Build the bounded GM-only decision status without copying combat inputs or dice. */
+function wolfAttackDecisionSummary(
+  session: DocumentSnapshot,
+  state: DocumentSnapshot,
+  players: readonly DocumentSnapshot[],
+  fleetGroupSnapshots: readonly DocumentSnapshot[],
+): Record<string, unknown> | undefined {
+  const turn = state.get('turn');
+  if (!Number.isSafeInteger(turn) || (turn as number) < 1) return undefined;
+  const currentStep = state.get('currentStep');
+  const calculation = state.get('calculationReceipt');
+  const preTargetForceField = isRecord(calculation) && calculation.step === 'pre-target-force-field';
+  const targeting = isRecord(calculation) && calculation.step === WOLF_ATTACK_DECLARATION_STEP
+    ? parseWolfTargetingReceipt(calculation.targeting) : undefined;
+  const groups = fleetGroupSnapshots.flatMap((snapshot) => {
+    const group = fleetGroupRecord(snapshot.data());
+    return group ? [group] : [];
+  });
+  const currentShipByUid = new Map<string, string>();
+  for (const player of players) {
+    const groupId = player.get('fleetGroupId');
+    if (typeof groupId !== 'string') continue;
+    const shipId = fleetGroupMemberShipId(groups, player.id, groupId);
+    if (shipId) currentShipByUid.set(player.id, shipId);
+  }
+  const actor = (player: DocumentSnapshot): WolfAttackDecisionActorProjection => ({
+    uid: player.id, connected: isActivePlayer(player),
+  });
+  const commanders = players.filter((player) => player.get('role') === 'player' &&
+    player.get('replacementRoleId') === 'wolf-commander');
+  const executiveOfficers = currentWolfAegisExecutiveOfficers(players, fleetGroupSnapshots);
+  const executiveOfficerRoleConfigured = sessionActiveRoleIds(session).includes('executive-officer');
+  const actorForUid = (uid: unknown): WolfAttackDecisionActorProjection | undefined =>
+    typeof uid === 'string' ? (() => {
+      const player = players.find((candidate) => candidate.id === uid);
+      return player ? actor(player) : undefined;
+    })() : undefined;
+  const rawForceField = state.get('forceFieldChoice');
+  let forceField: Record<string, unknown>;
+  if (isRecord(rawForceField) && rawForceField.turn === turn &&
+      ['pending', 'selected', 'passed', 'unavailable'].includes(String(rawForceField.status))) {
+    const mappedStatus = rawForceField.status as string;
+    const configuredActor = actorForUid(rawForceField.configuredCaptainUid ?? rawForceField.actorUid);
+    forceField = {
+      status: mappedStatus,
+      ...(configuredActor ? { actor: configuredActor } : {}),
+      ...(typeof rawForceField.unavailableReason === 'string' ? { reason: rawForceField.unavailableReason } : {}),
+      ...(typeof rawForceField.targetShipId === 'string' || rawForceField.targetShipId === null
+        ? { targetShipId: rawForceField.targetShipId } : {}),
+    };
+  } else if (preTargetForceField) {
+    forceField = { status: 'unavailable', reason: 'not-recorded' };
+  } else {
+    forceField = { status: 'not-needed' };
+  }
+
+  let commander: Record<string, unknown>;
+  if (preTargetForceField) {
+    commander = { status: 'waiting-for-force-field', actors: [], reason: 'waiting-for-force-field' };
+  } else if (!targeting) {
+    commander = { status: 'unavailable', actors: commanders.map(actor), reason: 'missing-targeting-receipt' };
+  } else {
+    const completion = commanderRerollsCompletionDecision(
+      state.get('commanderRerollCompletion'), turn as number,
+      Number.isSafeInteger(state.get('revision')) ? state.get('revision') as number : 0,
+      assignedWolfCommanderUidsFromPlayers({ docs: players }),
+    );
+    const marker = state.get('commanderRerollCompletion');
+    const waitingForChoice = currentStep === WOLF_ATTACK_DECLARATION_STEP && completion === 'pending';
+    commander = waitingForChoice
+      ? { status: 'pending', actors: commanders.map(actor) }
+      : completion === 'record-no-commander'
+        ? { status: 'pending', actors: [], reason: 'no-configured-commander' }
+        : completion === 'finished' && isRecord(marker) && marker.status === 'no-commander'
+          ? { status: 'no-commander', actors: [], completionRevision: marker.revision }
+          : { status: 'committed', actors: commanders.map(actor),
+            ...(isRecord(marker) && Number.isSafeInteger(marker.revision) ? { completionRevision: marker.revision } : {}) };
+  }
+
+  const rawRedirect = state.get('commandAndControl');
+  const rawPass = state.get('commandAndControlPass');
+  const redirected = isRecord(rawRedirect) && rawRedirect.turn === turn &&
+    typeof rawRedirect.actorUid === 'string' && isCanonicalRequestId(rawRedirect.requestId);
+  const passed = isRecord(rawPass) && rawPass.turn === turn && rawPass.action === 'pass' &&
+    typeof rawPass.actorUid === 'string' && isCanonicalRequestId(rawPass.requestId);
+  let commandAndControl: Record<string, unknown>;
+  if (preTargetForceField) {
+    commandAndControl = { status: 'waiting-for-force-field', actors: [], reason: 'waiting-for-force-field' };
+  } else if (redirected) {
+    commandAndControl = { status: 'redirected', actors: executiveOfficers.map(actor) };
+  } else if (passed) {
+    commandAndControl = { status: 'passed', actors: executiveOfficers.map(actor) };
+  } else if (currentStep !== WOLF_ATTACK_DECLARATION_STEP) {
+    const completion = state.get('targetingCompletion');
+    const recorded = isRecord(completion) && completion.turn === turn ? completion.commandAndControl : undefined;
+    const status = recorded === 'redirected' || recorded === 'passed' || recorded === 'unavailable'
+      ? recorded : 'unavailable';
+    commandAndControl = {
+      status, actors: executiveOfficers.map(actor),
+      ...(status === 'unavailable' ? { reason: !executiveOfficerRoleConfigured
+        ? 'no-configured-executive-officer' : 'no-current-executive-officer' } : {}),
+    };
+  } else if (!targeting) {
+    commandAndControl = { status: 'waiting-for-force-field', actors: [], reason: 'waiting-for-force-field' };
+  } else if (targeting.rolls.length === 0) {
+    commandAndControl = { status: 'not-needed', actors: [] , reason: 'no-targets' };
+  } else if (commander.status === 'pending' || commander.status === 'waiting-for-force-field') {
+    commandAndControl = { status: 'waiting-for-commander', actors: executiveOfficers.map(actor), reason: 'waiting-for-commander' };
+  } else if (!executiveOfficerRoleConfigured) {
+    commandAndControl = { status: 'unavailable', actors: [], reason: 'no-configured-executive-officer' };
+  } else if (executiveOfficers.length === 0) {
+    commandAndControl = { status: 'unavailable', actors: [], reason: 'no-current-executive-officer' };
+  } else if (!aegisCommandAndControlChargeState(session, turn as number)) {
+    commandAndControl = { status: 'unavailable', actors: executiveOfficers.map(actor), reason: 'uncharged' };
+  } else {
+    const damage = aegisCommandAndControlDamageState(session);
+    commandAndControl = damage === 'damaged'
+      ? { status: 'unavailable', actors: executiveOfficers.map(actor), reason: 'damaged' }
+      : damage === 'unknown'
+        ? { status: 'unavailable', actors: executiveOfficers.map(actor), reason: 'damage-unknown' }
+        : { status: 'pending', actors: executiveOfficers.map(actor),
+          ...(!executiveOfficers.some((player) => isActivePlayer(player))
+            ? { reason: 'executive-officer-disconnected' } : {}) };
+  }
+
+  let range: Record<string, unknown> | undefined;
+  if (isWolfCombatRange(currentStep)) {
+    const rawDecision = isRecord(state.get('rangeDecisions'))
+      ? (state.get('rangeDecisions') as Record<string, unknown>)[currentStep] : undefined;
+    let status: string = 'pending';
+    let selectedActionCount: number | undefined;
+    if (isRecord(rawDecision)) {
+      if (rawDecision.status === 'locked') status = 'targets-required';
+      else if (rawDecision.status === 'committed') {
+        status = Array.isArray(rawDecision.actionIds) && rawDecision.actionIds.length === 0 ? 'passed' : 'committed';
+      } else if (rawDecision.status === 'passed' || rawDecision.status === 'unavailable' || rawDecision.status === 'auto-passed') {
+        status = rawDecision.status;
+      }
+      if (Array.isArray(rawDecision.actionIds)) selectedActionCount = rawDecision.actionIds.length;
+    }
+    let actionCount: number | undefined;
+    try { actionCount = requireWolfRangeState(session, state, currentStep).actions.length; } catch { /* malformed or held state stays pending */ }
+    range = {
+      range: currentStep, status, actors: executiveOfficers.map(actor),
+      ...(actionCount === undefined ? {} : { actionCount }),
+      ...(selectedActionCount === undefined ? {} : { selectedActionCount }),
+      ...(status === 'pending' && actionCount === 0 ? { reason: 'automatic-progress-pending' } : {}),
+      ...(status === 'pending' && actionCount !== undefined && actionCount > 0 && executiveOfficers.length === 0
+        ? { reason: 'no-configured-executive-officer' } : {}),
+    };
+  }
+
+  let boarding: Record<string, unknown> | undefined;
+  if (currentStep === 'boarding' && targeting) {
+    let targetRing: WolfTargetRing;
+    try { targetRing = configuredWolfTargetRingForSession(session); } catch { targetRing = targeting.ring as WolfTargetRing; }
+    const rawRoster = state.get('combatRoster');
+    const roster = Array.isArray(rawRoster) ? rawRoster as readonly WolfCombatShip[] : wolfCombatRoster(targeting);
+    const parties = wolfBoardingPartyCounts(roster);
+    const choices = isRecord(state.get('boardingDefenceChoices')) ? state.get('boardingDefenceChoices') as Record<string, unknown> : {};
+    const targets: Array<Record<string, unknown>> = [];
+    for (const target of targetRing) {
+      const boardingParties = parties[target];
+      if (boardingParties < 1) continue;
+      const actors = players.filter((player) => player.get('role') === 'player' &&
+        player.get('replacementStatus') == null && currentShipByUid.get(player.id) === target).map(actor);
+      const choice = choices[target];
+      if (isRecord(choice) && choice.type === 'wolf-boarding-defence-choice' && choice.turn === turn &&
+          Number.isSafeInteger(choice.securityTeams)) {
+        targets.push({ targetShipId: target, status: 'committed', actors, boardingParties,
+          securityTeams: choice.securityTeams as number });
+        continue;
+      }
+      targets.push({ targetShipId: target, status: 'pending', actors, boardingParties,
+        ...(actors.length === 0 ? { reason: 'no-current-crew-actor' } : {}) });
+    }
+    boarding = { status: targets.some((entry) => entry.status === 'pending') ? 'pending' : 'resolved', targets };
+  }
+
+  return {
+    commander,
+    commandAndControl,
+    forceField,
+    ...(range ? { range } : {}),
+    ...(boarding ? { boarding } : {}),
+  };
+}
+
+async function reconcileWolfAttackBoarding(
+  tx: Transaction,
+  sessionId: string,
+  session: DocumentSnapshot,
+  state: DocumentSnapshot,
+  players: readonly DocumentSnapshot[],
+  finalizationCache: { current?: WolfAttackFinalizationCache },
+): Promise<void> {
+  const turn = state.get('turn');
+  const revision = state.get('revision');
+  const phase = turnPhaseState(session.get('turnPhase'));
+  if (!phase || phase.turn !== turn || phase.airspace.state !== 'restricted' || phase.timerPause !== undefined ||
+      !Number.isSafeInteger(turn) || turn !== sessionTurn(session.get('currentTurn')) ||
+      !Number.isSafeInteger(revision) || (revision as number) < 1) return;
+
+  let targetRing: WolfTargetRing;
+  try { targetRing = configuredWolfTargetRingForSession(session); } catch { return; }
+  const calculation = state.get('calculationReceipt');
+  const targeting = isRecord(calculation) && calculation.step === WOLF_ATTACK_DECLARATION_STEP
+    ? parseWolfTargetingReceipt(calculation.targeting) : undefined;
+  const rawRoster = state.get('combatRoster');
+  const roster = targeting && rawRoster === undefined ? wolfCombatRoster(targeting) : rawRoster;
+  if (!targeting || JSON.stringify(targeting.ring) !== JSON.stringify(targetRing) ||
+      !Array.isArray(roster) || roster.length !== targeting.rolls.length ||
+      roster.some((ship, index) => !isRecord(ship) ||
+        ship.instanceId !== `${index}:${targeting.rolls[index]?.shipId}` ||
+        ship.shipId !== targeting.rolls[index]?.shipId || ship.target !== targeting.rolls[index]?.target ||
+        !Number.isSafeInteger(ship.damageTaken) || (ship.damageTaken as number) < 0 ||
+        typeof ship.destroyed !== 'boolean')) return;
+
+  const rawRangeReceipts = state.get('rangeReceipts');
+  const expectedRanges: readonly WolfCombatRange[] = ['long-range', 'medium-range', 'short-range'];
+  if (!Array.isArray(rawRangeReceipts) || rawRangeReceipts.length !== expectedRanges.length ||
+      rawRangeReceipts.some((receipt, index) => !isRecord(receipt) || receipt.range !== expectedRanges[index])) return;
+  const rawChoices = state.get('boardingDefenceChoices');
+  if (rawChoices !== undefined && !isRecord(rawChoices)) return;
+  const choices = (rawChoices ?? {}) as Record<string, unknown>;
+  const partyCounts = wolfBoardingPartyCounts(roster as readonly WolfCombatShip[]);
+  const attackedTargets = targetRing.filter((target) => partyCounts[target] > 0);
+  if (Object.keys(choices).some((target) => !attackedTargets.includes(target as WolfFleetTargetId))) return;
+  const boardingDefence: WolfBoardingDefence[] = [];
+  for (const target of attackedTargets) {
+    const choice = choices[target];
+    if (!isRecord(choice) || choice.type !== 'wolf-boarding-defence-choice' || choice.turn !== turn ||
+        !Number.isSafeInteger(choice.securityTeams) || (choice.securityTeams as number) < 0 ||
+        typeof choice.actorUid !== 'string' || !isCanonicalRequestId(choice.requestId) ||
+        typeof choice.committedAt !== 'string' || !Number.isFinite(Date.parse(choice.committedAt))) return;
+    boardingDefence.push({ target, securityTeams: choice.securityTeams as number });
+  }
+
+  const currentDamage = shipDamage(session.get('shipDamage'));
+  const survivors = session.get('shipSurvivors');
+  const fleetState: Partial<Record<WolfFleetTargetId, FleetCombatState>> = {};
+  for (const target of targetRing) {
+    const damage = currentDamage[target];
+    const population = isRecord(survivors) ? populationForShip(target, survivors as Record<string, number>) : undefined;
+    if (!damage || population === undefined || !Number.isSafeInteger(population) || population < 0) return;
+    fleetState[target] = { damage, population };
+  }
+
+  const ranges = rawRangeReceipts as readonly WolfRangeReceipt[];
+  const attackId = state.get('attackId');
+  if (typeof attackId !== 'string' || !attackId) return;
+  const rawForceFieldChoice = state.get('forceFieldChoice');
+  let forceFieldTargetId: WolfFleetTargetId | null = null;
+  if (rawForceFieldChoice !== undefined) {
+    if (!isRecord(rawForceFieldChoice) || rawForceFieldChoice.turn !== turn ||
+        !Number.isSafeInteger(rawForceFieldChoice.revision) ||
+        (rawForceFieldChoice.revision as number) > (revision as number)) return;
+    if (rawForceFieldChoice.status === 'selected') {
+      if (typeof rawForceFieldChoice.targetShipId !== 'string' ||
+          !(targetRing as readonly string[]).includes(rawForceFieldChoice.targetShipId) ||
+          typeof rawForceFieldChoice.actorUid !== 'string' || !isCanonicalRequestId(rawForceFieldChoice.requestId)) return;
+      forceFieldTargetId = rawForceFieldChoice.targetShipId as WolfFleetTargetId;
+    } else if (rawForceFieldChoice.status === 'passed') {
+      if (rawForceFieldChoice.targetShipId !== null || typeof rawForceFieldChoice.actorUid !== 'string' ||
+          !isCanonicalRequestId(rawForceFieldChoice.requestId)) return;
+    } else if (rawForceFieldChoice.status === 'unavailable') {
+      if (typeof rawForceFieldChoice.unavailableReason !== 'string') return;
+    } else {
+      // A real configured Captain's pending decision cannot be defaulted at finalization.
+      return;
+    }
+  }
+  const resolvedAt = new Date().toISOString();
+  const fingerprint = JSON.stringify({
+    attackId, turn, revision, phase,
+    targetRing, targeting, roster, ranges, boardingDefence, forceFieldTargetId,
+    session: {
+      currentTurn: session.get('currentTurn'), activeVesselIds: session.get('activeVesselIds'),
+      shipDamage: session.get('shipDamage'), shipSurvivors: session.get('shipSurvivors'),
+      shipResources: session.get('shipResources'), shipUnrest: session.get('shipUnrest'),
+      shipMutinies: session.get('shipMutinies'), shuttleDockings: session.get('shuttleDockings'),
+      shuttleControl: session.get('shuttleControl'), retainedShuttles: session.get('retainedShuttles'),
+      populationAlerts: session.get('populationAlerts'), unrestAlerts: session.get('unrestAlerts'),
+    },
+    playerIds: players.map((player) => player.id),
+  });
+  let receipt = finalizationCache.current?.fingerprint === fingerprint
+    ? finalizationCache.current.receipt : undefined;
+  let committedAt = finalizationCache.current?.fingerprint === fingerprint
+    ? finalizationCache.current.resolvedAt : resolvedAt;
+  if (!receipt) {
+    try {
+      receipt = finalizeWolfAttack({
+        requestId: `wolf-final-${attackId}`,
+        targeting,
+        roster: roster as readonly WolfCombatShip[],
+        ranges,
+        phase,
+        now: Date.parse(committedAt),
+        targetRing,
+        boardingDefence,
+        forceFieldTargetId,
+        fleetState,
+        randomInt: (upperBound) => randomInt(0, upperBound),
+      });
+      finalizationCache.current = { fingerprint, resolvedAt: committedAt, receipt };
+    } catch (error) {
+      const message = error instanceof Error ? error.message.slice(0, 240) : 'Wolf attack resolution requires facilitator review.';
+      const priorBlocker = state.get('resolutionBlocker');
+      if (isRecord(priorBlocker) && priorBlocker.revision === revision && priorBlocker.message === message) return;
+      const blockerRevision = (revision as number) + 1;
+      tx.update(db.doc(`sessions/${sessionId}/wolfAttackState/current`), {
+        revision: blockerRevision,
+        resolutionBlocker: { revision: blockerRevision, message, turn, recordedAt: committedAt },
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      tx.set(db.doc(`sessions/${sessionId}/wolfAttackState/current/audit/wolf-finalization-blocked-${turn}`), {
+        type: 'wolf-attack-finalization-blocked', turn, revision: blockerRevision,
+        actorUid: 'server', message, createdAt: FieldValue.serverTimestamp(),
+      });
+      return;
+    }
+  }
+
+  const currentShipDamage = shipDamage(session.get('shipDamage'));
+  const nextShipDamage = { ...currentShipDamage };
+  const nextShipSurvivors: Record<string, number> = {};
+  const nextShipUnrest: Record<string, number> = {};
+  const nextResources: Record<string, number> = {};
+  const populationAlerts = isRecord(session.get('populationAlerts'))
+    ? { ...session.get('populationAlerts') as Record<string, StoredPopulationAlert> } : {};
+  const unrestAlerts = isRecord(session.get('unrestAlerts'))
+    ? { ...session.get('unrestAlerts') as Record<string, StoredUnrestAlert> } : {};
+  const casualtyAlerts: Array<Readonly<{ shipId: string; population: number; unrest: number; crossedPopulation: boolean; crossedUnrest: boolean }>> = [];
+  const destructionTargets: string[] = [];
+  const currentUnrestByShip = shipUnrest(session.get('shipUnrest'));
+  const currentResources = session.get('shipResources');
+  const boardingByTarget = new Map(receipt.boarding.map((entry) => [entry.target, entry]));
+  for (const target of targetRing) {
+    const boardChoice = choices[target];
+    if (isRecord(boardChoice)) {
+      const inventory = isRecord(currentResources) && isRecord(currentResources[target])
+        ? currentResources[target] : undefined;
+      const available = inventory?.securityTeams;
+      const boarding = boardingByTarget.get(target);
+      const casualties = boarding?.securityCasualties ?? 0;
+      if (!Number.isSafeInteger(available) || (available as number) < 0 ||
+          (available as number) + (boardChoice.securityTeams as number) < casualties) return;
+      nextResources[target] = (available as number) + (boardChoice.securityTeams as number) - casualties;
+    }
+  }
+  for (const result of receipt.fleetDamage) {
+    const previousDamage = currentShipDamage[result.target];
+    const beforePopulation = isRecord(survivors)
+      ? populationForShip(result.target, survivors as Record<string, number>) : undefined;
+    if (!previousDamage || beforePopulation === undefined || !Number.isSafeInteger(beforePopulation) || beforePopulation < 0) return;
+    let populationCheck = beforePopulation;
+    let crossedPopulation = false;
+    for (const draw of result.draws) {
+      if (!draw.casualty) continue;
+      const populationResult = populationChange(result.target, populationCheck, -1, false);
+      populationCheck = populationResult.amount;
+      crossedPopulation ||= populationResult.alertRaised;
+    }
+    if (populationCheck !== result.population) return;
+    const unrest = currentUnrestByShip[result.target] ?? 0;
+    const nextUnrest = beforePopulation > 0 && result.population === 0 ? Math.min(10, unrest + 2) : unrest;
+    const crossedUnrest = unrest < 8 && nextUnrest >= 8;
+    nextShipDamage[result.target] = result.state;
+    nextShipSurvivors[result.target] = result.population;
+    nextShipUnrest[result.target] = nextUnrest;
+    if (crossedPopulation || crossedUnrest) casualtyAlerts.push({
+      shipId: result.target, population: result.population, unrest: nextUnrest,
+      crossedPopulation, crossedUnrest,
+    });
+    if (!previousDamage.destroyed && result.state.destroyed) destructionTargets.push(result.target);
+  }
+
+  // All transaction reads, including alert audiences, are complete before the
+  // writes below. Results and card draws use the cached candidate if Firestore
+  // retries this same revision.
+  const gmInstances = casualtyAlerts.length > 0
+    ? await tx.get(db.collection(`sessions/${sessionId}/gmInstances`)) : undefined;
+  const targetGmInstanceIds = gmInstances?.docs.map((instance) => instance.id) ?? [];
+  const audienceAlert = (shipId: string) => ({
+    shipId, shipName: (FLEET_SHIP_NAMES as Readonly<Record<string, string>>)[shipId] ?? shipId,
+    targetGmInstanceIds, createdAt: committedAt,
+  });
+  for (const alert of casualtyAlerts) {
+    const value = audienceAlert(alert.shipId);
+    if (alert.crossedPopulation && targetGmInstanceIds.length > 0) {
+      populationAlerts[alert.shipId] = { ...value, population: alert.population };
+    }
+    if (alert.crossedUnrest && targetGmInstanceIds.length > 0) unrestAlerts[alert.shipId] = value;
+  }
+
+  const destroyedPlayers = players;
+  const shuttleTransitions = destructionTargets.map((target) => ({
+    target,
+    transition: retainedShuttleTransitionForDestruction(session, destroyedPlayers, target, committedAt),
+  })).filter(({ transition }) => transition !== undefined);
+  let shuttleDockings = session.get('shuttleDockings');
+  let shuttleControl = session.get('shuttleControl');
+  let retainedShuttles = session.get('retainedShuttles');
+  const retainedShuttleIds: string[] = [];
+  for (const { target, transition } of shuttleTransitions) {
+    if (!transition) continue;
+    const affectedIds = (Array.isArray(session.get('shuttleDockings')) ? session.get('shuttleDockings') as Array<{ shuttleId?: unknown; shipId?: unknown }> : [])
+      .filter((docking) => docking.shipId === target).map((docking) => docking.shuttleId)
+      .filter((id): id is string => typeof id === 'string');
+    const nextDockings = (Array.isArray(transition.dockings) ? transition.dockings : []) as Array<Record<string, unknown>>;
+    const nextById = new Map(nextDockings.flatMap((docking) => typeof docking.shuttleId === 'string'
+      ? [[docking.shuttleId, docking] as const] : []));
+    const currentDockings = Array.isArray(shuttleDockings) ? shuttleDockings as Array<Record<string, unknown>> : [];
+    shuttleDockings = [
+      ...currentDockings.filter((docking) => !affectedIds.includes(docking.shuttleId as string)),
+      ...affectedIds.flatMap((id) => nextById.has(id) ? [nextById.get(id)!] : []),
+    ];
+    shuttleControl = { ...(isRecord(shuttleControl) ? shuttleControl : {}), ...transition.control };
+    retainedShuttles = { ...(isRecord(retainedShuttles) ? retainedShuttles : {}), ...transition.retained };
+    retainedShuttleIds.push(...transition.retainedShuttleIds);
+  }
+
+  const memberResults = Array.isArray(state.get('memberResults')) ? [...state.get('memberResults')] : [];
+  for (const boarding of receipt.boarding) {
+    memberResults.push({
+      status: 'committed', range: 'boarding', sourceId: 'wolf-boarding', targetId: boarding.target,
+      bearing: null, contactReference: `${boarding.target} boarding parties`,
+      effect: `${boarding.survivingBoardingParties} surviving parties deal damage after defence`,
+      outcome: {
+        damage: boarding.damage, survivingBoardingParties: boarding.survivingBoardingParties,
+        securityCasualties: boarding.securityCasualties, boarderCasualties: boarding.boarderCasualties,
+      }, serverTime: committedAt,
+    });
+  }
+  for (const result of receipt.fleetDamage) {
+    const beforePopulation = isRecord(survivors)
+      ? populationForShip(result.target, survivors as Record<string, number>) ?? result.population : result.population;
+    memberResults.push({
+      status: 'committed', range: 'boarding', sourceId: 'wolf-attack-damage', targetId: result.target,
+      bearing: null, contactReference: `${result.target} damage record`,
+      effect: `Wolf attack applies ${result.amount} damage to ${result.target}`,
+      outcome: {
+        damage: result.amount, destroyed: result.state.destroyed,
+        populationLoss: Math.max(0, beforePopulation - result.population),
+      }, serverTime: committedAt,
+    });
+  }
+  if (receipt.forceField.status === 'protected') memberResults.push({
+    status: 'committed', range: 'boarding', sourceId: 'gorgoneion-force-field', targetId: receipt.forceField.targetShipId,
+    bearing: null, contactReference: `${receipt.forceField.targetShipId} damage record`,
+    effect: 'Gorgoneion Force Field prevents damage before final ship damage is applied',
+    outcome: { damage: receipt.forceField.preventedDamage }, serverTime: committedAt,
+  });
+
+  const nextRevision = (revision as number) + 1;
+  const resolvedState = {
+    ...state.data(), status: 'resolved', currentStep: 'resolved', revision: nextRevision,
+    airspaceLocked: false, parkingReleaseCondition: 'normal-movement-reopened',
+    calculationReceipt: receipt, memberResults, resolvedAt: committedAt,
+    finalizationRequestId: `wolf-final-${attackId}`,
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+  const reopenedPhase: ActiveTurnPhase = {
+    ...phase, airspace: { ...phase.airspace, state: 'lifted', tickerActive: true },
+  };
+  const turnState = phaseTransitionTurnState(session, reopenedPhase);
+  const fleetTicker = publishSessionFleetTicker(sessionId, session, {
+    source: 'automatic', priority: FLEET_TICKER_PRIORITIES.airspace, passCount: 1,
+    text: FLEET_TICKER_COPY.airspaceOpen, tone: 'normal', gap: 'long',
+    sourceId: `wolf-attack-airspace-reopened:${turn}`,
+  }, committedAt);
+  const terminalOutcome = totalFleetLossOutcome(
+    activeVesselIdsForSession(session), nextShipDamage, turn as number, committedAt,
+  );
+  const sessionPatch: Record<string, unknown> = {
+    turnPhase: reopenedPhase, ...(turnState ? { turnState } : {}), fleetTicker,
+    populationAlerts, unrestAlerts,
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+  for (const [target, damage] of Object.entries(nextShipDamage)) {
+    if (receipt.fleetDamage.some((result) => result.target === target)) {
+      sessionPatch[`shipDamage.${target}`] = damage;
+      if (!currentShipDamage[target]?.destroyed && damage.destroyed) {
+        Object.assign(sessionPatch, vesselActionRevisionPatch(target, vesselActionRevision(session, target) + 1));
+      }
+    }
+  }
+  for (const [target, population] of Object.entries(nextShipSurvivors)) sessionPatch[`shipSurvivors.${target}`] = population;
+  for (const [target, unrest] of Object.entries(nextShipUnrest)) {
+    sessionPatch[`shipUnrest.${target}`] = unrest;
+    Object.assign(sessionPatch, shipMutinyTransitionPatch(
+      session, target, currentUnrestByShip[target] ?? 0, unrest, committedAt,
+    ));
+  }
+  for (const [target, securityTeams] of Object.entries(nextResources)) {
+    sessionPatch[`shipResources.${target}.securityTeams`] = securityTeams;
+  }
+  if (shuttleTransitions.length > 0) {
+    sessionPatch.shuttleDockings = shuttleDockings;
+    sessionPatch.shuttleControl = shuttleControl;
+    sessionPatch.retainedShuttles = retainedShuttles;
+  }
+  if (terminalOutcome) {
+    sessionPatch.phase = 'failure';
+    sessionPatch.gameOutcome = terminalOutcome;
+    sessionPatch.survivorOutcome = survivorOutcomeForSession(
+      sessionId, session, nextShipDamage, terminalOutcome.cycle, terminalOutcome.occurredAt,
+    );
+    sessionPatch.turnPhase = FieldValue.delete();
+    sessionPatch.turnState = FieldValue.delete();
+    sessionPatch.turnStartAnnouncement = FieldValue.delete();
+  }
+
+  for (const target of destructionTargets) {
+    const destruction = destructionTransition(target, currentShipDamage[target]?.destroyed === true, false);
+    markPlayersForShipEscape(tx, destroyedPlayers, target, destruction.eventId, nextRevision);
+    for (const shuttleId of retainedShuttleIds) {
+      if (shuttleTransitions.some(({ target: host, transition }) => host === target && transition?.retainedShuttleIds.includes(shuttleId))) {
+        tx.delete(db.doc(`sessions/${sessionId}/shuttleDepartures/${shuttleId}`));
+        tx.delete(db.doc(`sessions/${sessionId}/shuttleTransitChains/${shuttleId}`));
+      }
+    }
+    tx.set(db.doc(`sessions/${sessionId}/damageDraws/${destruction.eventId}`), {
+      type: 'ship-destroyed', shipId: target,
+      podCapacity: destruction.capacity.podCapacity, createdAt: FieldValue.serverTimestamp(),
+    });
+  }
+  for (const result of receipt.fleetDamage) {
+    for (const [index, draw] of result.draws.entries()) {
+      if (draw.destroyed || !draw.card) continue;
+      tx.set(db.doc(`sessions/${sessionId}/damageDraws/${attackId}-${result.target}-${index + 1}`), {
+        type: 'ship-damage', shipId: result.target, card: draw.card.card,
+        systemId: draw.card.systemId, systemName: draw.card.systemName, recycled: draw.recycled === true,
+        attackId, createdAt: FieldValue.serverTimestamp(),
+      });
+    }
+    const previousPopulation = isRecord(survivors)
+      ? populationForShip(result.target, survivors as Record<string, number>) ?? result.population : result.population;
+    if (result.population !== previousPopulation) writePressLogEvent(tx, sessionId, buildSurvivorChangePressLogEntry({
+      sourceId: `wolf-attack:${attackId}:${result.target}`,
+      cause: 'ship-damage', vesselId: result.target, cycle: turn as number,
+      recordedAt: committedAt, fromPopulation: previousPopulation, toPopulation: result.population,
+    }));
+  }
+
+  tx.update(db.doc(`sessions/${sessionId}`), sessionPatch);
+  tx.update(db.doc(`sessions/${sessionId}/wolfAttackState/current`), resolvedState);
+  tx.set(db.doc(`sessions/${sessionId}/wolfAttackState/current/audit/wolf-finalized-${turn}`), {
+    type: 'wolf-attack-finalization', turn, revision: nextRevision, actorUid: 'server',
+    attackId, requestId: `wolf-final-${attackId}`, receipt,
+    boardingChoices: choices, rangeReceipts: ranges, createdAt: FieldValue.serverTimestamp(),
+  });
+  const eventId = `wolf-attack-resolved-${attackId}`;
+  tx.set(db.doc(`sessions/${sessionId}/events/${eventId}`), buildPrivacySafeEventRecord({
+    type: 'wolf-attack-resolved',
+    envelope: buildAuthoritativeEventEnvelope({
+      sessionId, actorUid: 'system', actorRoleId: null, turn: turn as number, phase: 'active',
+      type: 'wolf-attack-resolved', requestId: eventId, revision: nextRevision,
+      serverTime: committedAt, visibility: EventVisibility.Member,
+    }),
+    payload: {
+      attackId, turn, status: 'resolved', range: 'boarding',
+      destroyedShipIds: destructionTargets, overrun: receipt.phase.overrun,
+    },
+    createdAt: FieldValue.serverTimestamp(),
+  }));
+  const reopenedEventId = `wolf-attack-airspace-reopened-${turn}`;
+  tx.set(db.doc(`sessions/${sessionId}/events/${reopenedEventId}`), buildPrivacySafeEventRecord({
+    type: 'airspace-opened',
+    envelope: buildAuthoritativeEventEnvelope({
+      sessionId, actorUid: 'system', actorRoleId: null, turn: turn as number, phase: 'active',
+      type: 'airspace-opened', requestId: reopenedEventId, revision: nextRevision,
+      serverTime: committedAt, visibility: EventVisibility.Member,
+    }),
+    payload: { transition: 'restricted-to-lifted' },
+    createdAt: FieldValue.serverTimestamp(),
+  }));
+  const audience = projectWolfAttackMemberView({ sessionId, state: resolvedState, serverTime: committedAt });
+  tx.set(db.doc(`sessions/${sessionId}/wolfAttackAudience/current`), audience);
+}
+
+async function reconcileWolfAttackProgress(sessionId: string): Promise<void> {
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const stateRef = db.doc(`sessions/${sessionId}/wolfAttackState/current`);
+  const playersRef = db.collection(`sessions/${sessionId}/players`);
+  const fleetGroupsRef = db.collection(`sessions/${sessionId}/fleetGroups`);
+  const finalizationCache: { current?: WolfAttackFinalizationCache } = {};
+  await db.runTransaction(async (tx) => {
+    const [session, state, players, fleetGroups] = await Promise.all([
+      tx.get(sessionRef), tx.get(stateRef), tx.get(playersRef), tx.get(fleetGroupsRef),
+    ]);
+    if (!session.exists || !state.exists || state.get('status') !== 'declared' ||
+        state.get('airspaceLocked') !== true) return;
+    const decisionSummary = wolfAttackDecisionSummary(session, state, players.docs, fleetGroups.docs);
+    if (decisionSummary && JSON.stringify(state.get('decisionSummary')) !== JSON.stringify(decisionSummary)) {
+      tx.update(stateRef, { decisionSummary, updatedAt: FieldValue.serverTimestamp() });
+    }
+    const phase = turnPhaseState(session.get('turnPhase'));
+    const turn = state.get('turn');
+    const revision = state.get('revision');
+    if (!phase || phase.turn !== turn || phase.airspace.state !== 'restricted' || phase.timerPause !== undefined ||
+        !Number.isSafeInteger(turn) || turn !== sessionTurn(session.get('currentTurn')) ||
+        !Number.isSafeInteger(revision) || (revision as number) < 1) return;
+
+    if (state.get('currentStep') === WOLF_ATTACK_DECLARATION_STEP) {
+      const currentCalculation = state.get('calculationReceipt');
+      const forceFieldChoice = state.get('forceFieldChoice');
+      if (isRecord(currentCalculation) && currentCalculation.step === 'pre-target-force-field') {
+        if (!isRecord(forceFieldChoice) || forceFieldChoice.turn !== turn ||
+            (forceFieldChoice.status !== 'selected' && forceFieldChoice.status !== 'passed') ||
+            !isRecord(currentCalculation.composition) || !Array.isArray(currentCalculation.composition.shipIds) ||
+            !isRecord(currentCalculation.composition.counts) ||
+            !Number.isSafeInteger(currentCalculation.composition.damageCapacity) ||
+            !Array.isArray(currentCalculation.targetRing) || !isRecord(currentCalculation.pursuitPressure) ||
+            !Number.isSafeInteger(currentCalculation.pursuitPressure.navigationRevision) ||
+            !isRecord(currentCalculation.pursuitPressure.groupValues)) return;
+        let targetRing: WolfTargetRing;
+        try { targetRing = configuredWolfTargetRingForSession(session); } catch { return; }
+        if (JSON.stringify(currentCalculation.targetRing) !== JSON.stringify(targetRing) ||
+            (forceFieldChoice.status === 'selected' &&
+             (!(targetRing as readonly string[]).includes(String(forceFieldChoice.targetShipId)) ||
+              typeof forceFieldChoice.actorUid !== 'string' || !isCanonicalRequestId(forceFieldChoice.requestId))) ||
+            (forceFieldChoice.status === 'passed' && forceFieldChoice.targetShipId !== null)) return;
+        const preparation = wolfAttackPreparationState(state.get('preparation'));
+        if (!preparation || preparation.turn !== turn) return;
+        let composition: ReturnType<typeof scheduledWolfAttackComposition>;
+        try { composition = scheduledWolfAttackComposition(turn as number, preparation.shipIds); } catch { return; }
+        if (JSON.stringify(composition.shipIds) !== JSON.stringify(currentCalculation.composition.shipIds) ||
+            JSON.stringify(composition.counts) !== JSON.stringify(currentCalculation.composition.counts) ||
+            composition.damageCapacity !== currentCalculation.composition.damageCapacity) return;
+        const pursuit: WolfAttackPursuitSnapshot = {
+          navigationRevision: currentCalculation.pursuitPressure.navigationRevision as number,
+          groupValues: currentCalculation.pursuitPressure.groupValues as Record<string, number>,
+          fleetGroups: [],
+        };
+        const committedAt = new Date().toISOString();
+        const targetingReceipt = wolfTargetingStageReceipt(
+          turn as number, preparation, committedAt, targetRing, pursuit,
+        );
+        const nextRevision = (revision as number) + 1;
+        tx.update(stateRef, {
+          revision: nextRevision,
+          calculationReceipt: targetingReceipt,
+          forceFieldChoice: { ...forceFieldChoice, revision: nextRevision },
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        tx.set(db.doc(`${stateRef.path}/audit/auto-targeting-after-force-field-${turn}`), {
+          type: 'wolf-attack-force-field-targeting-auto-advance',
+          fromStep: 'pre-target-force-field', toStep: 'targeting', turn,
+          revision: nextRevision, actorUid: 'server', choiceStatus: forceFieldChoice.status,
+          targetShipId: forceFieldChoice.targetShipId ?? null,
+          generatedAt: committedAt, createdAt: FieldValue.serverTimestamp(),
+        });
+        return;
+      }
+      let inputs: WolfCommanderTargetingInputs;
+      try { inputs = wolfCommanderTargetingInputs(session, state); } catch { return; }
+      const assignedCommanders = assignedWolfCommanderUidsFromPlayers(players);
+      const completion = commanderRerollsCompletionDecision(
+        state.get('commanderRerollCompletion'), inputs.turn, inputs.revision, assignedCommanders,
+      );
+      if (completion === 'pending') return;
+      let usedRedirect: AegisCommandAndControlUse | undefined;
+      try {
+        usedRedirect = currentAegisCommandAndControlRedirect(
+          state.get('commandAndControl'), inputs, state.get('commanderRerollCompletion'),
+        );
+      } catch { return; }
+      const passed = state.get('commandAndControlPass');
+      const passCommitted = isRecord(passed) && passed.turn === inputs.turn &&
+        passed.action === 'pass' && typeof passed.actorUid === 'string' &&
+        Number.isSafeInteger(passed.revision) && (passed.revision as number) <= inputs.revision;
+      const isDamaged = aegisCommandAndControlDamageState(session);
+      if (isDamaged === 'unknown') return;
+      const isCharged = aegisCommandAndControlChargeState(session, inputs.turn);
+      const executiveOfficerRoleConfigured = sessionActiveRoleIds(session).includes('executive-officer');
+      const hasCurrentExecutiveOfficer = currentWolfAegisExecutiveOfficers(players.docs, fleetGroups.docs).length > 0;
+      const canRedirect = executiveOfficerRoleConfigured && hasCurrentExecutiveOfficer && isCharged &&
+        isDamaged === 'undamaged' && inputs.receipt.rolls.length > 0 &&
+        !usedRedirect && !passCommitted;
+      if (canRedirect) return;
+
+      const nextRevision = inputs.revision + 1;
+      const noCommanderMarker = completion === 'record-no-commander'
+        ? { status: 'no-commander' as const, turn: inputs.turn, revision: nextRevision,
+          actorUid: 'server', requestId: `wolf-no-commander-${inputs.turn}` }
+        : undefined;
+      const marker = noCommanderMarker ?? state.get('commanderRerollCompletion');
+      const auditId = `auto-targeting-${inputs.turn}`;
+      const commandAndControl = usedRedirect ? 'redirected' as const : passCommitted ? 'passed' as const
+        : !executiveOfficerRoleConfigured || !hasCurrentExecutiveOfficer ? 'unavailable' as const
+          : isCharged ? isDamaged : 'unavailable' as const;
+      const unavailableReason = !executiveOfficerRoleConfigured ? 'no-configured-executive-officer'
+        : !hasCurrentExecutiveOfficer ? 'no-current-executive-officer' : undefined;
+      tx.update(stateRef, {
+        revision: nextRevision,
+        currentStep: 'long-range',
+        ...(noCommanderMarker ? { commanderRerollCompletion: noCommanderMarker } : {}),
+        targetingCompletion: {
+          turn: inputs.turn, revision: nextRevision, status: completion === 'record-no-commander'
+            ? 'no-commander' : 'finished',
+          commandAndControl,
+          ...(unavailableReason ? { reason: unavailableReason } : {}),
+        },
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      tx.set(db.doc(`${stateRef.path}/audit/${auditId}`), {
+        type: 'wolf-attack-targeting-auto-advance', fromStep: 'targeting', toStep: 'long-range',
+        turn: inputs.turn, revision: nextRevision, actorUid: 'server',
+        commanderCompletion: marker, commandAndControl,
+        ...(unavailableReason ? { reason: unavailableReason } : {}),
+        deadlineAt: state.get('deadlineAt'), createdAt: FieldValue.serverTimestamp(),
+      });
+      return;
+    }
+
+    const step = state.get('currentStep');
+    if (step === 'boarding') {
+      await reconcileWolfAttackBoarding(tx, sessionId, session, state, players.docs, finalizationCache);
+      return;
+    }
+    if (!isWolfCombatRange(step)) return;
+    let inputs: ReturnType<typeof requireWolfRangeState>;
+    try { inputs = requireWolfRangeState(session, state, step); } catch { return; }
+    const prior = wolfRangeDecisionValue(state, step);
+    if (prior !== undefined) return;
+    const executiveOfficerRoleConfigured = sessionActiveRoleIds(session).includes('executive-officer');
+    const hasCurrentExecutiveOfficer = currentWolfAegisExecutiveOfficers(players.docs, fleetGroups.docs).length > 0;
+    if (inputs.actions.length > 0 && executiveOfficerRoleConfigured && hasCurrentExecutiveOfficer) return;
+    const nextRevision = inputs.revision + 1;
+    const nextStep = wolfAttackNextStep(step);
+    if (!nextStep) return;
+    const rangeDecisions = isRecord(state.get('rangeDecisions')) ? state.get('rangeDecisions') : {};
+    if (inputs.actions.length > 0) {
+      const committedAt = new Date().toISOString();
+      const reason = !executiveOfficerRoleConfigured ? 'no-configured-executive-officer' : 'no-current-executive-officer';
+      const emptyReceipt: WolfRangeReceipt = {
+        range: step, dice: [], assignments: [], unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
+        destructionDamageByTarget: Object.fromEntries(inputs.receipt.ring.map((target) => [target, 0])) as Record<WolfFleetTargetId, number>,
+      };
+      const unavailableDecision = {
+        status: 'unavailable', range: step, actorUid: 'server', actorRoleId: 'server',
+        requestId: `wolf-unavailable-${step}-${inputs.turn}`, actionIds: inputs.actions.map(({ actionId }) => actionId),
+        reason, committedAt, receipt: emptyReceipt,
+      };
+      const memberResults = Array.isArray(state.get('memberResults')) ? [...state.get('memberResults')] : [];
+      memberResults.push({
+        status: 'committed', range: step, sourceId: 'aegis-weapons', targetId: 'aegis', bearing: null,
+        contactReference: 'AEGIS weapons',
+        effect: `AEGIS ${step.replace('-range', ' Range')} weapons unavailable; no current Executive Officer can choose them`,
+        outcome: { damage: 0, availability: 'unavailable' }, serverTime: committedAt,
+      });
+      tx.update(stateRef, {
+        revision: nextRevision, currentStep: nextStep,
+        rangeDecisions: { ...rangeDecisions, [step]: unavailableDecision },
+        rangeReceipts: [...(Array.isArray(state.get('rangeReceipts')) ? state.get('rangeReceipts') : []), emptyReceipt],
+        memberResults,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      tx.set(db.doc(`${stateRef.path}/audit/auto-${step}-${inputs.turn}`), {
+        type: 'wolf-range-automatic-unavailable', range: step, fromStep: step, toStep: nextStep,
+        turn: inputs.turn, revision: nextRevision, actorUid: 'server', reason,
+        actionIds: inputs.actions.map(({ actionId }) => actionId), deadlineAt: inputs.deadlineAt,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      return;
+    }
+    const emptyReceipt = {
+      range: step, dice: [], assignments: [], unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
+      destructionDamageByTarget: Object.fromEntries(inputs.receipt.ring.map((target) => [target, 0])),
+    };
+    const decision = {
+      status: 'auto-passed', range: step, actorUid: 'server', actorRoleId: 'server',
+      requestId: `wolf-no-${step}-${inputs.turn}`, actionIds: [], lock: { range: step, dice: [] },
+      assignments: [], receipt: emptyReceipt, committedAt: new Date().toISOString(),
+      reason: 'no-charged-undamaged-base-AEGIS-action',
+    };
+    tx.update(stateRef, {
+      revision: nextRevision, currentStep: nextStep,
+      rangeDecisions: { ...rangeDecisions, [step]: decision },
+      rangeReceipts: [...(Array.isArray(state.get('rangeReceipts')) ? state.get('rangeReceipts') : []), emptyReceipt],
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(db.doc(`${stateRef.path}/audit/auto-${step}-${inputs.turn}`), {
+      type: 'wolf-range-automatic-no-action', range: step, fromStep: step, toStep: nextStep,
+      turn: inputs.turn, revision: nextRevision, actorUid: 'server', reason: decision.reason,
+      deadlineAt: inputs.deadlineAt, createdAt: FieldValue.serverTimestamp(),
+    });
+  });
+}
+
+export const advanceWolfAttackLifecycle = onDocumentWritten(
+  'sessions/{sessionId}/wolfAttackState/current',
+  async (event) => {
+    const sessionId = event.params.sessionId;
+    if (typeof sessionId === 'string' && sessionId.length > 0) {
+      await reconcileWolfAttackProgress(sessionId);
+    }
+  },
+);
+
+/** Refresh the facilitator's private actor-presence summary after seat or berth changes. */
+export const refreshWolfAttackDecisionSummaryOnPlayerChange = onDocumentWritten(
+  'sessions/{sessionId}/players/{playerUid}',
+  async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    if (!after) return;
+    const relevant = [
+      'connected', 'kickedAt', 'replacementRoleId', 'replacementStatus', 'activeConsoleRoleId',
+      'assignedRoleId', 'seatId', 'fleetGroupId',
+    ] as const;
+    if (before && relevant.every((key) => JSON.stringify(before[key]) === JSON.stringify(after[key]))) return;
+    const sessionId = event.params.sessionId;
+    if (typeof sessionId === 'string' && sessionId.length > 0) {
+      await reconcileWolfAttackProgress(sessionId);
+    }
+  },
+);
+
 type WolfAttackStageAdvanceResult = Readonly<{
   status: 'committed';
   type: 'wolf-attack-stage-advance';
@@ -20304,13 +21590,28 @@ type WolfAttackStageAdvanceResult = Readonly<{
   previousStep: 'targeting';
   currentStep: 'long-range';
   deadlineAt: string;
+  reason: string;
+  dangerConfirmed: true;
+  delta: Readonly<{
+    from: Readonly<{ revision: number; currentStep: 'targeting'; deadlineAt: string }>;
+    to: Readonly<{ revision: number; currentStep: 'long-range'; deadlineAt: string }>;
+  }>;
+  rollback: Readonly<{ allowed: false }>;
 }>;
 
 function isWolfAttackStageAdvanceResult(value: unknown): value is WolfAttackStageAdvanceResult {
   if (!isRecord(value)) return false;
+  const onlyKeys = (record: Record<string, unknown> | undefined, expected: readonly string[]) =>
+    record !== undefined && Object.keys(record).length === expected.length &&
+      Object.keys(record).every((key) => expected.includes(key));
   const allowed = new Set([
-    'status', 'type', 'sessionId', 'requestId', 'turn', 'revision', 'previousStep', 'currentStep', 'deadlineAt',
+    'status', 'type', 'sessionId', 'requestId', 'turn', 'revision', 'previousStep', 'currentStep',
+    'deadlineAt', 'reason', 'dangerConfirmed', 'delta', 'rollback',
   ]);
+  const delta = isRecord(value.delta) ? value.delta : undefined;
+  const from = delta && isRecord(delta.from) ? delta.from : undefined;
+  const to = delta && isRecord(delta.to) ? delta.to : undefined;
+  const rollback = isRecord(value.rollback) ? value.rollback : undefined;
   return Object.keys(value).every((key) => allowed.has(key)) &&
     value.status === 'committed' && value.type === 'wolf-attack-stage-advance' &&
     typeof value.sessionId === 'string' && value.sessionId.length > 0 &&
@@ -20319,7 +21620,23 @@ function isWolfAttackStageAdvanceResult(value: unknown): value is WolfAttackStag
     Number.isSafeInteger(value.revision) && (value.revision as number) >= 2 &&
     value.previousStep === WOLF_ATTACK_DECLARATION_STEP &&
     value.currentStep === WOLF_ATTACK_STEPS[1] &&
-    typeof value.deadlineAt === 'string' && Number.isFinite(Date.parse(value.deadlineAt));
+    typeof value.deadlineAt === 'string' && Number.isFinite(Date.parse(value.deadlineAt)) &&
+    typeof value.reason === 'string' && value.reason === value.reason.trim() &&
+    value.reason.length >= 8 && value.reason.length <= 400 &&
+    value.dangerConfirmed === true &&
+    delta !== undefined && from !== undefined && to !== undefined && onlyKeys(delta, ['from', 'to']) &&
+    onlyKeys(from, ['revision', 'currentStep', 'deadlineAt']) &&
+    onlyKeys(to, ['revision', 'currentStep', 'deadlineAt']) &&
+    Number.isSafeInteger(from.revision) &&
+    (from.revision as number) + 1 === to.revision &&
+    to.revision === value.revision &&
+    from.currentStep === 'targeting' && typeof from.deadlineAt === 'string' &&
+    Number.isFinite(Date.parse(from.deadlineAt)) &&
+    Number.isSafeInteger(to.revision) && to.currentStep === 'long-range' &&
+    typeof to.deadlineAt === 'string' &&
+    Date.parse(from.deadlineAt) === Date.parse(to.deadlineAt) &&
+    Date.parse(to.deadlineAt) === Date.parse(value.deadlineAt) &&
+    rollback !== undefined && onlyKeys(rollback, ['allowed']) && rollback.allowed === false;
 }
 
 /** Close the server-owned targeting step and enter the printed Long Range step. */
@@ -20329,12 +21646,16 @@ export const advanceWolfAttackToLongRange = onCall<{
   requestId?: unknown;
   expectedTurn?: unknown;
   expectedRevision?: unknown;
+  reason?: unknown;
+  dangerConfirmed?: unknown;
 }>(async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
-  const allowed = new Set(['sessionId', 'instanceId', 'requestId', 'expectedTurn', 'expectedRevision']);
+  const allowed = new Set([
+    'sessionId', 'instanceId', 'requestId', 'expectedTurn', 'expectedRevision', 'reason', 'dangerConfirmed',
+  ]);
   if (!isRecord(raw) || Object.keys(raw).some((key) => !allowed.has(key))) {
-    throw new HttpsError('invalid-argument', 'Targeting advancement accepts only the current facilitator revision.');
+    throw new HttpsError('invalid-argument', 'Targeting recovery accepts only its current reasoned request.');
   }
   const change = requireWolfAttackTargetingAdvanceRequest(raw);
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
@@ -20351,7 +21672,11 @@ export const advanceWolfAttackToLongRange = onCall<{
     actorUid: uid,
     instanceId: change.instanceId,
     expectedRevision: change.expectedRevision,
-    payload: { expectedTurn: change.expectedTurn },
+    payload: {
+      expectedTurn: change.expectedTurn,
+      reason: change.reason,
+      dangerConfirmed: change.dangerConfirmed,
+    },
   };
 
   return db.runTransaction(async (tx: Transaction): Promise<WolfAttackStageAdvanceResult> => {
@@ -20364,7 +21689,14 @@ export const advanceWolfAttackToLongRange = onCall<{
       throw new HttpsError('permission-denied', 'An active facilitator instance is required.');
     }
     const replay = replayBoundCommand(
-      receipt, fingerprint, isWolfAttackStageAdvanceResult, 'Wolf attack targeting advancement',
+      receipt,
+      fingerprint,
+      (value): value is WolfAttackStageAdvanceResult =>
+        isWolfAttackStageAdvanceResult(value) && value.sessionId === change.sessionId &&
+        value.requestId === change.requestId && value.turn === change.expectedTurn &&
+        value.revision === change.expectedRevision + 1 &&
+        value.delta.from.revision === change.expectedRevision,
+      'Wolf attack targeting advancement',
     );
     if (replay) return replay;
     if (audit.exists) {
@@ -20407,6 +21739,13 @@ export const advanceWolfAttackToLongRange = onCall<{
     // targeting stage remains open. The session's current server-owned phase
     // is authoritative; do not compare it to the declaration-time deadline.
     const deadlineAt = phase.openAirspaceEndsAt;
+    if (Date.now() >= Date.parse(deadlineAt)) {
+      throw commandError(
+        'failed-precondition',
+        'The Coordination deadline has elapsed; recovery cannot create another attack window.',
+        'stale-revision',
+      );
+    }
 
     const commanderUids = assignedWolfCommanderUidsFromPlayers(players);
     const completion = commanderRerollsCompletionDecision(
@@ -20438,6 +21777,17 @@ export const advanceWolfAttackToLongRange = onCall<{
       previousStep: WOLF_ATTACK_DECLARATION_STEP,
       currentStep: nextStep,
       deadlineAt,
+      reason: change.reason,
+      dangerConfirmed: true,
+      delta: {
+        from: {
+          revision: inputs.revision,
+          currentStep: WOLF_ATTACK_DECLARATION_STEP,
+          deadlineAt: declaredDeadlineAt,
+        },
+        to: { revision: nextRevision, currentStep: nextStep, deadlineAt },
+      },
+      rollback: { allowed: false },
     };
     tx.update(stateRef, {
       revision: nextRevision,
@@ -20447,12 +21797,16 @@ export const advanceWolfAttackToLongRange = onCall<{
     });
     tx.set(auditRef, {
       type: 'wolf-attack-stage-advance',
-      action: 'targeting-closed',
+      action: 'recovery',
       fromStep: WOLF_ATTACK_DECLARATION_STEP,
       toStep: nextStep,
       turn: inputs.turn,
       revision: nextRevision,
       deadlineAt,
+      reason: change.reason,
+      dangerConfirmed: true,
+      delta: result.delta,
+      rollback: { allowed: false, reason: 'Committed targeting rolls and player choices are immutable.' },
       actorUid: uid,
       instanceId: change.instanceId,
       requestId: change.requestId,
@@ -20594,6 +21948,26 @@ function requireAegisExecutiveOfficerPlayer(player: DocumentSnapshot, uid: strin
   requirePlayerShipActionAuthority(player);
 }
 
+function currentPlayerFleetGroupId(player: DocumentSnapshot): string {
+  const groupId = player.get('fleetGroupId');
+  if (typeof groupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(groupId)) {
+    throw new HttpsError('permission-denied', 'The current fleet group does not authorize this attack action.');
+  }
+  return groupId;
+}
+
+function requireAegisExecutiveOfficerCurrentBerth(
+  player: DocumentSnapshot,
+  uid: string,
+  groupSnapshot: DocumentSnapshot,
+): void {
+  const groupId = currentPlayerFleetGroupId(player);
+  const group = groupSnapshot.exists ? fleetGroupRecord(groupSnapshot.data()) : undefined;
+  if (!group || group.id !== groupId || fleetGroupMemberShipId([group], uid, groupId) !== 'aegis') {
+    throw new HttpsError('permission-denied', 'Current AEGIS berth authority is required for this attack action.');
+  }
+}
+
 function assignedWolfCommanderUidsFromPlayers(players: {
   readonly docs: readonly DocumentSnapshot[];
 }): readonly string[] {
@@ -20632,6 +22006,8 @@ function requireWolfAttackTargetingAdvanceRequest(raw: Record<string, unknown>):
   requestId: string;
   expectedTurn: number;
   expectedRevision: number;
+  reason: string;
+  dangerConfirmed: true;
 } {
   const { sessionId } = requireSessionRequest(raw);
   if (!isCanonicalRequestId(raw.instanceId)) {
@@ -20644,12 +22020,21 @@ function requireWolfAttackTargetingAdvanceRequest(raw: Record<string, unknown>):
       !Number.isSafeInteger(raw.expectedRevision) || (raw.expectedRevision as number) < 1) {
     throw new HttpsError('invalid-argument', 'expectedTurn and expectedRevision must be positive integers.');
   }
+  if (typeof raw.reason !== 'string' || raw.reason !== raw.reason.trim() ||
+      raw.reason.length < 8 || raw.reason.length > 400) {
+    throw new HttpsError('invalid-argument', 'A concise 8–400 character recovery reason is required.');
+  }
+  if (raw.dangerConfirmed !== true) {
+    throw new HttpsError('invalid-argument', 'Confirm the recovery risk before advancing targeting.');
+  }
   return {
     sessionId,
     instanceId: raw.instanceId,
     requestId: raw.requestId,
     expectedTurn: raw.expectedTurn as number,
     expectedRevision: raw.expectedRevision as number,
+    reason: raw.reason,
+    dangerConfirmed: true,
   };
 }
 
@@ -21165,82 +22550,87 @@ export const getAegisCommandAndControl = onCall<{ sessionId?: unknown }>(async r
   const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
   const stateRef = db.doc(`sessions/${sessionId}/wolfAttackState/current`);
   const playersRef = db.collection(`sessions/${sessionId}/players`);
-  const [session, player, state, players] = await Promise.all([
-    sessionRef.get(), playerRef.get(), stateRef.get(), playersRef.get(),
-  ]);
-  if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-  requireAegisExecutiveOfficerPlayer(player, uid);
-  requireActiveGameplayPhase(session);
-  requireUsableShip(session, 'aegis');
-  const commanderUids = assignedWolfCommanderUidsFromPlayers(players);
-  const currentTurn = sessionTurn(session.get('currentTurn'));
-  if (!state.exists) {
-    return aegisCommandAndControlView(sessionId, Math.max(1, currentTurn), 0, {
-      eligible: false, commanderAssigned: commanderUids.length > 0, rerollsFinalized: false,
-      reason: 'waiting', targets: [],
-    });
-  }
-  if (state.get('currentStep') !== WOLF_ATTACK_DECLARATION_STEP) {
-    const stateTurn = Number.isSafeInteger(state.get('turn')) && (state.get('turn') as number) >= 1
-      ? state.get('turn') as number : Math.max(1, currentTurn);
-    const stateRevision = Number.isSafeInteger(state.get('revision')) && (state.get('revision') as number) >= 0
-      ? state.get('revision') as number : 0;
-    return aegisCommandAndControlView(sessionId, stateTurn, stateRevision, {
-      eligible: false, commanderAssigned: commanderUids.length > 0, rerollsFinalized: false,
-      reason: 'not-targeting', targets: [],
-    });
-  }
-  const inputs = wolfCommanderTargetingInputs(session, state);
-  const committedRedirect = currentAegisCommandAndControlRedirect(
-    state.get('commandAndControl'), inputs, state.get('commanderRerollCompletion'),
-  );
-  if (committedRedirect) {
+  return db.runTransaction(async (tx: Transaction) => {
+    const [session, player, state, players] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(stateRef), tx.get(playersRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireAegisExecutiveOfficerPlayer(player, uid);
+    const groupId = currentPlayerFleetGroupId(player);
+    const group = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${groupId}`));
+    requireAegisExecutiveOfficerCurrentBerth(player, uid, group);
+    requireActiveGameplayPhase(session);
+    requireUsableShip(session, 'aegis');
+    const commanderUids = assignedWolfCommanderUidsFromPlayers(players);
+    const currentTurn = sessionTurn(session.get('currentTurn'));
+    if (!state.exists) {
+      return aegisCommandAndControlView(sessionId, Math.max(1, currentTurn), 0, {
+        eligible: false, commanderAssigned: commanderUids.length > 0, rerollsFinalized: false,
+        reason: 'waiting', targets: [],
+      });
+    }
+    if (state.get('currentStep') !== WOLF_ATTACK_DECLARATION_STEP) {
+      const stateTurn = Number.isSafeInteger(state.get('turn')) && (state.get('turn') as number) >= 1
+        ? state.get('turn') as number : Math.max(1, currentTurn);
+      const stateRevision = Number.isSafeInteger(state.get('revision')) && (state.get('revision') as number) >= 0
+        ? state.get('revision') as number : 0;
+      return aegisCommandAndControlView(sessionId, stateTurn, stateRevision, {
+        eligible: false, commanderAssigned: commanderUids.length > 0, rerollsFinalized: false,
+        reason: 'not-targeting', targets: [],
+      });
+    }
+    const inputs = wolfCommanderTargetingInputs(session, state);
+    const committedRedirect = currentAegisCommandAndControlRedirect(
+      state.get('commandAndControl'), inputs, state.get('commanderRerollCompletion'),
+    );
+    if (committedRedirect) {
+      return aegisCommandAndControlView(sessionId, inputs.turn, inputs.revision, {
+        eligible: false, commanderAssigned: commanderUids.length > 0, rerollsFinalized: true,
+        reason: 'already-used', targets: [], redirectedShipId: committedRedirect.shipId,
+      });
+    }
+    const completion = commanderRerollsCompletionDecision(
+      state.get('commanderRerollCompletion'), inputs.turn, inputs.revision, commanderUids,
+    );
+    if (completion === 'pending') {
+      return aegisCommandAndControlView(sessionId, inputs.turn, inputs.revision, {
+        eligible: false, commanderAssigned: true, rerollsFinalized: false,
+        reason: 'commander-pending', targets: [],
+      });
+    }
+    const rerollsFinalized = completion === 'finished';
+    if (!aegisCommandAndControlChargeState(session, inputs.turn)) {
+      return aegisCommandAndControlView(sessionId, inputs.turn, inputs.revision, {
+        eligible: false, commanderAssigned: commanderUids.length > 0, rerollsFinalized,
+        reason: 'uncharged', targets: [],
+      });
+    }
+    const damage = aegisCommandAndControlDamageState(session);
+    if (damage === 'unknown') {
+      return aegisCommandAndControlView(sessionId, inputs.turn, inputs.revision, {
+        eligible: false, commanderAssigned: commanderUids.length > 0, rerollsFinalized,
+        reason: 'damage-unknown', targets: [],
+      });
+    }
+    if (damage === 'damaged') {
+      return aegisCommandAndControlView(sessionId, inputs.turn, inputs.revision, {
+        eligible: false, commanderAssigned: commanderUids.length > 0, rerollsFinalized,
+        reason: 'damaged', targets: [],
+      });
+    }
+    const targets = inputs.receipt.rolls.map(({ rosterIndex, shipId }) => ({ rosterIndex, shipId }));
+    if (targets.length === 0) {
+      return aegisCommandAndControlView(sessionId, inputs.turn, inputs.revision, {
+        eligible: false, commanderAssigned: commanderUids.length > 0, rerollsFinalized,
+        reason: 'no-targets', targets: [],
+      });
+    }
     return aegisCommandAndControlView(sessionId, inputs.turn, inputs.revision, {
-      eligible: false, commanderAssigned: commanderUids.length > 0, rerollsFinalized: true,
-      reason: 'already-used', targets: [], redirectedShipId: committedRedirect.shipId,
+      eligible: true,
+      commanderAssigned: commanderUids.length > 0,
+      rerollsFinalized,
+      targets,
     });
-  }
-  const completion = commanderRerollsCompletionDecision(
-    state.get('commanderRerollCompletion'), inputs.turn, inputs.revision, commanderUids,
-  );
-  if (completion === 'pending') {
-    return aegisCommandAndControlView(sessionId, inputs.turn, inputs.revision, {
-      eligible: false, commanderAssigned: true, rerollsFinalized: false,
-      reason: 'commander-pending', targets: [],
-    });
-  }
-  const rerollsFinalized = completion === 'finished';
-  if (!aegisCommandAndControlChargeState(session, inputs.turn)) {
-    return aegisCommandAndControlView(sessionId, inputs.turn, inputs.revision, {
-      eligible: false, commanderAssigned: commanderUids.length > 0, rerollsFinalized,
-      reason: 'uncharged', targets: [],
-    });
-  }
-  const damage = aegisCommandAndControlDamageState(session);
-  if (damage === 'unknown') {
-    return aegisCommandAndControlView(sessionId, inputs.turn, inputs.revision, {
-      eligible: false, commanderAssigned: commanderUids.length > 0, rerollsFinalized,
-      reason: 'damage-unknown', targets: [],
-    });
-  }
-  if (damage === 'damaged') {
-    return aegisCommandAndControlView(sessionId, inputs.turn, inputs.revision, {
-      eligible: false, commanderAssigned: commanderUids.length > 0, rerollsFinalized,
-      reason: 'damaged', targets: [],
-    });
-  }
-  const targets = inputs.receipt.rolls.map(({ rosterIndex, shipId }) => ({ rosterIndex, shipId }));
-  if (targets.length === 0) {
-    return aegisCommandAndControlView(sessionId, inputs.turn, inputs.revision, {
-      eligible: false, commanderAssigned: commanderUids.length > 0, rerollsFinalized,
-      reason: 'no-targets', targets: [],
-    });
-  }
-  return aegisCommandAndControlView(sessionId, inputs.turn, inputs.revision, {
-    eligible: true,
-    commanderAssigned: commanderUids.length > 0,
-    rerollsFinalized,
-    targets,
   });
 });
 
@@ -21280,6 +22670,9 @@ export const applyAegisCommandAndControl = onCall<{
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     requireAegisExecutiveOfficerPlayer(player, uid);
+    const groupId = currentPlayerFleetGroupId(player);
+    const group = await tx.get(db.doc(`sessions/${change.sessionId}/fleetGroups/${groupId}`));
+    requireAegisExecutiveOfficerCurrentBerth(player, uid, group);
     const replay = replayBoundCommand(
       receipt, fingerprint, isAegisCommandAndControlResult,
       'AEGIS Command and Control',
@@ -21430,6 +22823,7 @@ type WolfRangeActionChoiceResult = Readonly<{
   turn: number;
   revision: number;
   range: WolfCombatRange;
+  currentStep: WolfAttackLifecycleStep;
   choiceStatus: 'targets-required' | 'passed';
   hitSlots: readonly Readonly<{ actionId: string; count: number }>[];
 }>;
@@ -21457,10 +22851,11 @@ function wolfRangeContactId(index: number): string {
 }
 
 function wolfRangeContacts(roster: readonly WolfCombatShip[], range: WolfCombatRange) {
+  const legalTargets = new Set(wolfRangeLegalTargetInstanceIds(range, roster));
   return roster.map((ship, index) => ({
     contactId: wolfRangeContactId(index),
     targetShipId: ship.target,
-    available: !ship.destroyed && !(range === 'short-range' && ship.shipId === 'wolf-battlestation'),
+    available: legalTargets.has(ship.instanceId),
   }));
 }
 
@@ -21574,12 +22969,23 @@ function wolfRangeChoiceView(
   inputs: ReturnType<typeof requireWolfRangeState>,
 ): WolfRangeActionChoiceView {
   const decision = wolfRangeDecisionValue(state, range);
-  const status = isRecord(decision) && decision.status === 'locked'
-    ? 'targets-required' as const
-    : isRecord(decision) && decision.status === 'committed'
-      ? 'committed' as const
-      : 'pending' as const;
-  const lock = isRecord(decision) ? safeWolfRangeLock(decision.lock, inputs.actions, range) : null;
+  let status: WolfRangeActionChoiceView['choiceStatus'] = 'pending';
+  let lock: WolfRangeRollLock | null = null;
+  if (decision !== undefined) {
+    if (!isRecord(decision) || (decision.status !== 'locked' && decision.status !== 'committed') ||
+        !Array.isArray(decision.actionIds) || decision.actionIds.some((id) => typeof id !== 'string') ||
+        new Set(decision.actionIds).size !== decision.actionIds.length) {
+      throw commandError('failed-precondition', 'The committed Wolf range choice is malformed.', 'conflict');
+    }
+    const selectedIds = decision.actionIds as string[];
+    const selectedActions = inputs.actions.filter(({ actionId }) => selectedIds.includes(actionId));
+    if (selectedActions.length !== selectedIds.length) {
+      throw commandError('failed-precondition', 'The committed Wolf range actions are no longer available.', 'conflict');
+    }
+    lock = safeWolfRangeLock(decision.lock, selectedActions, range);
+    if (!lock) throw commandError('failed-precondition', 'The private Wolf range dice lock is malformed.', 'conflict');
+    status = decision.status === 'locked' ? 'targets-required' : 'committed';
+  }
   const slots = lock?.dice.map(({ actionId, successes }) => ({ actionId, count: successes })) ?? [];
   return {
     type: 'wolf-range-action-choice-view', sessionId, turn: inputs.turn, revision: inputs.revision,
@@ -21607,12 +23013,13 @@ function rangeChoiceViewIsSafe(value: unknown): value is WolfRangeActionChoiceVi
 function isWolfRangeActionChoiceResult(value: unknown): value is WolfRangeActionChoiceResult {
   if (!isRecord(value)) return false;
   const allowed = new Set([
-    'status', 'type', 'sessionId', 'requestId', 'turn', 'revision', 'range', 'choiceStatus', 'hitSlots',
+    'status', 'type', 'sessionId', 'requestId', 'turn', 'revision', 'range', 'currentStep', 'choiceStatus', 'hitSlots',
   ]);
   return Object.keys(value).every((key) => allowed.has(key)) && value.status === 'committed' &&
     value.type === 'wolf-range-action-choice' && typeof value.sessionId === 'string' &&
     isCanonicalRequestId(value.requestId) && Number.isSafeInteger(value.turn) &&
     Number.isSafeInteger(value.revision) && isWolfCombatRange(value.range) &&
+    ['targeting', 'long-range', 'medium-range', 'short-range', 'boarding', 'resolved'].includes(String(value.currentStep)) &&
     (value.choiceStatus === 'targets-required' || value.choiceStatus === 'passed') && Array.isArray(value.hitSlots);
 }
 
@@ -21639,21 +23046,28 @@ export const getWolfRangeActionChoice = onCall<{ sessionId?: unknown }>(async (r
   const sessionRef = db.doc(`sessions/${sessionId}`);
   const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
   const stateRef = db.doc(`sessions/${sessionId}/wolfAttackState/current`);
-  const [session, player, state] = await Promise.all([sessionRef.get(), playerRef.get(), stateRef.get()]);
-  if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-  requireAegisExecutiveOfficerPlayer(player, uid);
-  requireUsableShip(session, 'aegis');
-  const step = state.get('currentStep');
-  if (!isWolfCombatRange(step)) {
-    return {
-      type: 'wolf-range-action-choice-unavailable', sessionId,
-      reason: state.exists ? 'not-in-range' : 'waiting',
-    };
-  }
-  const inputs = requireWolfRangeState(session, state, step);
-  const view = wolfRangeChoiceView(sessionId, state, step, inputs);
-  if (!rangeChoiceViewIsSafe(view)) throw new Error('The Wolf range choice projection is malformed.');
-  return view;
+  return db.runTransaction(async (tx: Transaction) => {
+    const [session, player, state] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(stateRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireAegisExecutiveOfficerPlayer(player, uid);
+    const groupId = currentPlayerFleetGroupId(player);
+    const group = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${groupId}`));
+    requireAegisExecutiveOfficerCurrentBerth(player, uid, group);
+    requireUsableShip(session, 'aegis');
+    const step = state.get('currentStep');
+    if (!isWolfCombatRange(step)) {
+      return {
+        type: 'wolf-range-action-choice-unavailable', sessionId,
+        reason: state.exists ? 'not-in-range' : 'waiting',
+      };
+    }
+    const inputs = requireWolfRangeState(session, state, step);
+    const view = wolfRangeChoiceView(sessionId, state, step, inputs);
+    if (!rangeChoiceViewIsSafe(view)) throw new Error('The Wolf range choice projection is malformed.');
+    return view;
+  });
 });
 
 /** Lock an entitled AEGIS use/pass choice and any required dice before targets are assigned. */
@@ -21692,6 +23106,9 @@ export const commitWolfRangeActionChoice = onCall<{
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     requireAegisExecutiveOfficerPlayer(player, uid);
+    const groupId = currentPlayerFleetGroupId(player);
+    const group = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${groupId}`));
+    requireAegisExecutiveOfficerCurrentBerth(player, uid, group);
     const replay = replayBoundCommand(receipt, fingerprint, isWolfRangeActionChoiceResult, 'Wolf range action choice');
     if (replay) return replay;
     requireUsableShip(session, 'aegis');
@@ -21720,22 +23137,38 @@ export const commitWolfRangeActionChoice = onCall<{
     const hitSlots = locked.dice.map(({ actionId, successes }) => ({ actionId, count: successes }));
     const nextRevision = inputs.revision + 1;
     const passed = actionIds.length === 0;
+    const emptyReceipt: WolfRangeReceipt = {
+      range, dice: [], assignments: [], unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
+      destructionDamageByTarget: Object.fromEntries(EXPANDED_WOLF_TARGET_RING.map((target) => [target, 0])) as Record<WolfFleetTargetId, number>,
+    };
+    const committedAt = new Date().toISOString();
     const decision = {
       status: passed ? 'committed' : 'locked', range, actorUid: uid,
       actorRoleId: 'executive-officer', requestId, actionIds: [...actionIds], lock: locked,
-      ...(passed ? { assignments: [], receipt: { range, dice: [], assignments: [], damageByInstance: {},
-        destroyedInstanceIds: [], destructionDamageByTarget: {} }, committedAt: new Date().toISOString() } : {}),
+      ...(passed ? { assignments: [], receipt: emptyReceipt, committedAt } : {}),
     };
     const rangeDecisions = isRecord(state.get('rangeDecisions')) ? state.get('rangeDecisions') : {};
+    const rangeReceipts = Array.isArray(state.get('rangeReceipts')) ? state.get('rangeReceipts') : [];
+    const memberResults = Array.isArray(state.get('memberResults')) ? [...state.get('memberResults')] : [];
+    const nextStep = passed ? wolfAttackNextStep(range) : range;
+    if (passed) memberResults.push({
+      status: 'committed', range, sourceId: 'aegis-weapons', targetId: 'aegis', bearing: null,
+      contactReference: 'AEGIS weapons', effect: `AEGIS passed ${range === 'long-range' ? 'Long' : range === 'medium-range' ? 'Medium' : 'Short'} Range weapons`,
+      outcome: { damage: 0, destroyed: false }, serverTime: committedAt,
+    });
     const result: WolfRangeActionChoiceResult = {
       status: 'committed', type: 'wolf-range-action-choice', sessionId, requestId,
-      turn: inputs.turn, revision: nextRevision, range,
+      turn: inputs.turn, revision: nextRevision, range, currentStep: nextStep ?? range,
       choiceStatus: passed ? 'passed' : 'targets-required', hitSlots,
     };
     tx.update(stateRef, {
       revision: nextRevision,
       rangeDecisions: { ...rangeDecisions, [range]: decision },
-      ...(passed ? { currentStep: wolfAttackNextStep(range) } : {}),
+      ...(passed ? {
+        currentStep: nextStep,
+        rangeReceipts: [...rangeReceipts, emptyReceipt],
+        memberResults,
+      } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
     tx.set(auditRef, {
@@ -21789,6 +23222,9 @@ export const assignWolfRangeTargets = onCall<{
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     requireAegisExecutiveOfficerPlayer(player, uid);
+    const groupId = currentPlayerFleetGroupId(player);
+    const group = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${groupId}`));
+    requireAegisExecutiveOfficerCurrentBerth(player, uid, group);
     const replay = replayBoundCommand(receipt, fingerprint, isWolfRangeTargetAssignmentResult, 'Wolf range target assignment');
     if (replay) return replay;
     requireUsableShip(session, 'aegis');
@@ -21869,6 +23305,631 @@ export const assignWolfRangeTargets = onCall<{
       fromStep: range, toStep: nextStep, actorUid: uid, actorRoleId: 'executive-officer', requestId,
       assignments: assignments.map(({ actionId, targetInstanceIds }) => ({ actionId, targetInstanceIds })),
       receipt: applied.receipt, deadlineAt: inputs.deadlineAt, createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+type WolfForceFieldUnavailableReason =
+  | 'no-current-captain'
+  | 'ambiguous-current-captain'
+  | 'gorgoneion-not-admitted'
+  | 'projector-not-ready'
+  | 'captain-berth-unavailable';
+
+type WolfForceFieldChoiceRecord = Readonly<{
+  status: 'pending' | 'selected' | 'passed' | 'unavailable';
+  turn: number;
+  revision: number;
+  configuredCaptainUid?: string;
+  hostShipId?: string;
+  dockingRevision?: number;
+  fleetGroupId?: string;
+  targetShipId?: WolfFleetTargetId | null;
+  actorUid?: string;
+  requestId?: string;
+  committedAt?: string;
+  unavailableReason?: WolfForceFieldUnavailableReason;
+  determinedAt?: string;
+}>;
+
+type WolfForceFieldChoiceView = Readonly<{
+  type: 'wolf-force-field-choice-view';
+  sessionId: string;
+  turn: number;
+  revision: number;
+  attackId: string;
+  hostShipId: string;
+  dockingRevision: number;
+  fleetGroupId: string;
+  choiceStatus: 'pending' | 'selected' | 'passed';
+  targetShipIds: readonly WolfFleetTargetId[];
+  targetShipId?: WolfFleetTargetId | null;
+  deadlineAt: string;
+}>;
+
+type WolfForceFieldChoiceReadResult = WolfForceFieldChoiceView | Readonly<{
+  type: 'wolf-force-field-choice-unavailable';
+  sessionId: string;
+  reason: WolfForceFieldUnavailableReason;
+}>;
+
+type WolfForceFieldChoiceResult = Readonly<{
+  status: 'committed';
+  type: 'wolf-force-field-choice';
+  sessionId: string;
+  requestId: string;
+  turn: number;
+  revision: number;
+  targetShipId: WolfFleetTargetId | null;
+  choiceStatus: 'selected' | 'passed';
+  currentStep: 'targeting';
+}>;
+
+function wolfForceFieldChoiceAtDeclaration(
+  session: DocumentSnapshot,
+  players: { readonly docs: readonly DocumentSnapshot[] },
+  fleetGroups: { readonly docs: readonly DocumentSnapshot[] },
+  targetRing: WolfTargetRing,
+  turn: number,
+  revision: number,
+  determinedAt: string,
+): WolfForceFieldChoiceRecord {
+  const captains = players.docs.filter((player) => player.get('role') === 'player' &&
+    player.get('replacementRoleId') === 'gorgoneion-captain' &&
+    player.get('replacementStatus') == null && player.get('kickedAt') == null);
+  const unavailable = (unavailableReason: WolfForceFieldUnavailableReason): WolfForceFieldChoiceRecord => ({
+    status: 'unavailable', turn, revision, unavailableReason, determinedAt,
+  });
+  if (captains.length === 0) return unavailable('no-current-captain');
+  if (captains.length !== 1) return unavailable('ambiguous-current-captain');
+
+  const captain = captains[0]!;
+  const activeVesselIds = wolfAttackActiveVesselIds(session);
+  const smallShipStates = session.get('smallShipStates');
+  const admitted = isExtraShipAdmitted({
+    activeVesselIds,
+    smallShipStates,
+    smallShipId: 'gorgoneion',
+    expansion: session.get('expansion'),
+    capybaraEnabled: session.get('capybaraEnabled'),
+  });
+  const gorgoneion = storedSmallShipState(session, 'gorgoneion');
+  if (!admitted || !gorgoneion?.hostShipId) return unavailable('gorgoneion-not-admitted');
+  if (gorgoneion.population < 1 || isSmallShipInMutiny(gorgoneion) ||
+      gorgoneion.cycle.turn !== turn || !gorgoneion.cycle.charges.includes('force-field-projector')) {
+    return unavailable('projector-not-ready');
+  }
+
+  let groupId: string;
+  try { groupId = currentPlayerFleetGroupId(captain); } catch {
+    return unavailable('captain-berth-unavailable');
+  }
+  const groupSnapshot = fleetGroups.docs.find((candidate) => candidate.id === groupId);
+  const group = groupSnapshot ? fleetGroupRecord(groupSnapshot.data()) : undefined;
+  const captainUid = captain.id;
+  if (!group || group.id !== groupId ||
+      fleetGroupMemberShipId([group], captainUid, groupId) !== gorgoneion.hostShipId ||
+      !group.vesselIds.includes(gorgoneion.hostShipId) ||
+      !(targetRing as readonly string[]).includes(gorgoneion.hostShipId)) {
+    return unavailable('captain-berth-unavailable');
+  }
+  return {
+    status: 'pending', turn, revision, configuredCaptainUid: captainUid,
+    hostShipId: gorgoneion.hostShipId, dockingRevision: gorgoneion.dockingRevision,
+    fleetGroupId: groupId, determinedAt,
+  };
+}
+
+function requireCurrentWolfForceFieldCaptain(
+  player: DocumentSnapshot,
+  uid: string,
+  players: { readonly docs: readonly DocumentSnapshot[] },
+): void {
+  if (!player.exists || player.id !== uid || !isActivePlayer(player) || player.get('role') !== 'player' ||
+      player.get('replacementRoleId') !== 'gorgoneion-captain' || player.get('replacementStatus') != null ||
+      player.get('kickedAt') != null) {
+    throw new HttpsError('permission-denied', 'The current Gorgoneion Captain replacement is required.');
+  }
+  const captains = players.docs.filter((candidate) => candidate.get('role') === 'player' &&
+    candidate.get('replacementRoleId') === 'gorgoneion-captain' &&
+    candidate.get('replacementStatus') == null && candidate.get('kickedAt') == null);
+  if (captains.length !== 1 || captains[0]?.id !== uid) {
+    throw new HttpsError('permission-denied', 'A unique current Gorgoneion Captain is required.');
+  }
+}
+
+function wolfForceFieldChoiceViewInputs(
+  sessionId: string,
+  session: DocumentSnapshot,
+  player: DocumentSnapshot,
+  uid: string,
+  groupSnapshot: DocumentSnapshot,
+  state: DocumentSnapshot,
+): WolfForceFieldChoiceReadResult {
+  requireActiveGameplayPhase(session);
+  if (!state.exists || state.get('type') !== 'wolf-attack-state' || state.get('status') !== 'declared' ||
+      state.get('currentStep') !== 'targeting' || state.get('airspaceLocked') !== true) {
+    throw commandError('failed-precondition', 'The Gorgoneion Force Field choice is not open.', 'invalid-phase');
+  }
+  const turn = state.get('turn');
+  const revision = state.get('revision');
+  const deadlineAt = state.get('deadlineAt');
+  const phase = turnPhaseState(session.get('turnPhase'));
+  if (!Number.isSafeInteger(turn) || (turn as number) < 1 || turn !== sessionTurn(session.get('currentTurn')) ||
+      !Number.isSafeInteger(revision) || (revision as number) < 1 ||
+      typeof deadlineAt !== 'string' || !Number.isFinite(Date.parse(deadlineAt)) ||
+      !phase || phase.turn !== turn || phase.airspace.state !== 'restricted' || phase.timerPause !== undefined) {
+    throw commandError('failed-precondition',
+      'The current Wolf attack is paused or stale. Refresh after the shared hold clears.', 'stale-revision');
+  }
+  const rawChoice = state.get('forceFieldChoice');
+  if (!isRecord(rawChoice) || rawChoice.turn !== turn || !Number.isSafeInteger(rawChoice.revision) ||
+      (rawChoice.revision as number) > (revision as number) ||
+      (rawChoice.status !== 'pending' && rawChoice.status !== 'selected' &&
+       rawChoice.status !== 'passed' && rawChoice.status !== 'unavailable')) {
+    throw commandError('failed-precondition', 'The private Force Field choice state is malformed.', 'conflict');
+  }
+  if (rawChoice.status === 'unavailable') {
+    const allowedReasons: readonly string[] = [
+      'no-current-captain', 'ambiguous-current-captain', 'gorgoneion-not-admitted',
+      'projector-not-ready', 'captain-berth-unavailable',
+    ];
+    const reason = allowedReasons.includes(String(rawChoice.unavailableReason))
+      ? rawChoice.unavailableReason as WolfForceFieldUnavailableReason
+      : 'projector-not-ready';
+    return { type: 'wolf-force-field-choice-unavailable', sessionId, reason };
+  }
+  if (!player.exists || player.id !== uid || !isActivePlayer(player) || player.get('role') !== 'player' ||
+      player.get('replacementRoleId') !== 'gorgoneion-captain' || player.get('replacementStatus') != null ||
+      rawChoice.configuredCaptainUid !== uid) {
+    throw new HttpsError('permission-denied', 'The current Gorgoneion Captain owns this choice.');
+  }
+  const groupId = currentPlayerFleetGroupId(player);
+  const group = groupSnapshot.exists ? fleetGroupRecord(groupSnapshot.data()) : undefined;
+  const hostShipId = rawChoice.hostShipId;
+  const dockingRevision = rawChoice.dockingRevision;
+  if (!group || group.id !== groupId ||
+      (rawChoice.fleetGroupId !== undefined && rawChoice.fleetGroupId !== groupId) ||
+      typeof hostShipId !== 'string' || !Number.isSafeInteger(dockingRevision) ||
+      fleetGroupMemberShipId([group], uid, groupId) !== hostShipId) {
+    throw new HttpsError('permission-denied', 'The Captain is no longer aboard the configured Gorgoneion host.');
+  }
+  const smallShip = storedSmallShipState(session, 'gorgoneion');
+  const admitted = isExtraShipAdmitted({
+    activeVesselIds: wolfAttackActiveVesselIds(session), smallShipStates: session.get('smallShipStates'),
+    smallShipId: 'gorgoneion', expansion: session.get('expansion'), capybaraEnabled: session.get('capybaraEnabled'),
+  });
+  if (!admitted || !smallShip || smallShip.hostShipId !== hostShipId ||
+      smallShip.dockingRevision !== dockingRevision || smallShip.population < 1 || isSmallShipInMutiny(smallShip) ||
+      smallShip.cycle.turn !== turn || !smallShip.cycle.charges.includes('force-field-projector')) {
+    throw commandError('failed-precondition', 'The current projector charge or Gorgoneion admission changed.', 'stale-revision');
+  }
+  let targetRing: WolfTargetRing;
+  try { targetRing = configuredWolfTargetRingForSession(session); } catch (error) {
+    throw commandError('failed-precondition', error instanceof Error ? error.message : 'The active fleet target ring is unavailable.', 'conflict');
+  }
+  const calculation = state.get('calculationReceipt');
+  const storedRing = isRecord(calculation) && Array.isArray(calculation.targetRing)
+    ? calculation.targetRing : undefined;
+  if (!storedRing || JSON.stringify(storedRing) !== JSON.stringify(targetRing)) {
+    throw commandError('failed-precondition', 'The pre-target Force Field receipt no longer matches the active fleet.', 'conflict');
+  }
+  const targetShipIds = targetRing.filter((target) => group.vesselIds.includes(target));
+  if (!targetShipIds.includes(hostShipId as WolfFleetTargetId)) {
+    throw new HttpsError('permission-denied', 'The configured host is not a current target in the Captain\'s group.');
+  }
+  const attackId = state.get('attackId');
+  if (typeof attackId !== 'string' || !attackId) {
+    throw commandError('failed-precondition', 'The current attack identity is malformed.', 'conflict');
+  }
+  return {
+    type: 'wolf-force-field-choice-view', sessionId, turn: turn as number, revision: revision as number,
+    attackId, hostShipId, dockingRevision: dockingRevision as number, fleetGroupId: groupId,
+    choiceStatus: rawChoice.status,
+    targetShipIds: targetShipIds as readonly WolfFleetTargetId[],
+    ...(rawChoice.targetShipId === null || typeof rawChoice.targetShipId === 'string'
+      ? { targetShipId: rawChoice.targetShipId as WolfFleetTargetId | null } : {}),
+    deadlineAt,
+  };
+}
+
+function isWolfForceFieldChoiceResult(value: unknown): value is WolfForceFieldChoiceResult {
+  if (!isRecord(value)) return false;
+  const allowed = new Set([
+    'status', 'type', 'sessionId', 'requestId', 'turn', 'revision', 'targetShipId', 'choiceStatus', 'currentStep',
+  ]);
+  return Object.keys(value).every((key) => allowed.has(key)) && value.status === 'committed' &&
+    value.type === 'wolf-force-field-choice' && typeof value.sessionId === 'string' &&
+    isCanonicalRequestId(value.requestId) && Number.isSafeInteger(value.turn) &&
+    Number.isSafeInteger(value.revision) &&
+    (value.targetShipId === null || (EXPANDED_WOLF_TARGET_RING as readonly string[]).includes(String(value.targetShipId))) &&
+    ((value.choiceStatus === 'selected' && typeof value.targetShipId === 'string') ||
+     (value.choiceStatus === 'passed' && value.targetShipId === null)) && value.currentStep === 'targeting';
+}
+
+/** Read the configured Captain's pre-target choice without exposing force composition or private notes. */
+export const getWolfForceFieldChoice = onCall<{ sessionId?: unknown }>(async (request) => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  if (isRecord(raw) && Object.keys(raw).some((key) => key !== 'sessionId')) {
+    throw new HttpsError('invalid-argument', 'The Force Field choice query accepts only sessionId.');
+  }
+  const sessionId = requireSessionRequest(isRecord(raw) ? raw : {}).sessionId;
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+  const stateRef = db.doc(`sessions/${sessionId}/wolfAttackState/current`);
+  const playersRef = db.collection(`sessions/${sessionId}/players`);
+  return db.runTransaction(async (tx: Transaction): Promise<WolfForceFieldChoiceReadResult> => {
+    const [session, player, state, players] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(stateRef), tx.get(playersRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!player.exists) throw new HttpsError('permission-denied', 'Join the session first.');
+    requireCurrentWolfForceFieldCaptain(player, uid, players);
+    const groupId = currentPlayerFleetGroupId(player);
+    const groupSnapshot = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${groupId}`));
+    return wolfForceFieldChoiceViewInputs(sessionId, session, player, uid, groupSnapshot, state);
+  });
+});
+
+/** Record the current Gorgoneion Captain's explicit Force Field target or pass. */
+export const commitWolfForceFieldChoice = onCall<{
+  sessionId?: unknown; requestId?: unknown; expectedTurn?: unknown; expectedRevision?: unknown; targetShipId?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = new Set(['sessionId', 'requestId', 'expectedTurn', 'expectedRevision', 'targetShipId']);
+  if (!isRecord(raw) || Object.keys(raw).some((key) => !allowed.has(key)) ||
+      !(raw.targetShipId === null || (EXPANDED_WOLF_TARGET_RING as readonly unknown[]).includes(raw.targetShipId))) {
+    throw new HttpsError('invalid-argument', 'Choose one active target ship or explicitly pass.');
+  }
+  const sessionId = requireSessionRequest(raw).sessionId;
+  const requestId = isCanonicalRequestId(raw.requestId) ? raw.requestId : null;
+  if (!requestId || !Number.isSafeInteger(raw.expectedTurn) || !Number.isSafeInteger(raw.expectedRevision)) {
+    throw new HttpsError('invalid-argument', 'requestId, expectedTurn, and expectedRevision are required.');
+  }
+  const requestedTarget = raw.targetShipId as WolfFleetTargetId | null;
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+  const stateRef = db.doc(`sessions/${sessionId}/wolfAttackState/current`);
+  const playersRef = db.collection(`sessions/${sessionId}/players`);
+  const receiptRef = commandReceiptRef(sessionId, requestId);
+  const auditRef = db.doc(`sessions/${sessionId}/wolfAttackState/current/audit/${requestId}`);
+  const fingerprint: CommandFingerprint = {
+    action: 'commit-wolf-force-field-choice', sessionId, requestId, actorUid: uid,
+    instanceId: null, expectedRevision: raw.expectedRevision as number,
+    payload: { expectedTurn: raw.expectedTurn as number, targetShipId: requestedTarget },
+  };
+  const committedAt = new Date().toISOString();
+  return db.runTransaction(async (tx: Transaction): Promise<WolfForceFieldChoiceResult> => {
+    const [session, player, state, receipt, players] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(stateRef), tx.get(receiptRef), tx.get(playersRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!player.exists) throw new HttpsError('permission-denied', 'Join the session first.');
+    requireCurrentWolfForceFieldCaptain(player, uid, players);
+    const groupId = currentPlayerFleetGroupId(player);
+    const groupSnapshot = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${groupId}`));
+    const view = wolfForceFieldChoiceViewInputs(sessionId, session, player, uid, groupSnapshot, state);
+    if (view.type !== 'wolf-force-field-choice-view') {
+      throw commandError('failed-precondition', 'The projector is unavailable for this attack.', 'invalid-phase');
+    }
+    if (view.hostShipId !== (state.get('forceFieldChoice') as Record<string, unknown>).hostShipId) {
+      throw new HttpsError('permission-denied', 'The Captain is no longer aboard the configured Gorgoneion host.');
+    }
+    const replay = replayBoundCommand(receipt, fingerprint, isWolfForceFieldChoiceResult, 'Wolf Force Field choice');
+    if (replay) return replay;
+    if (raw.expectedTurn !== view.turn || raw.expectedRevision !== view.revision) {
+      throw commandError('failed-precondition', 'The Force Field choice is stale. Refresh the current attack.', 'stale-revision');
+    }
+    if (view.choiceStatus !== 'pending') {
+      throw commandError('failed-precondition', 'The Captain has already committed this Force Field choice.', 'conflict');
+    }
+    if (requestedTarget !== null && !view.targetShipIds.includes(requestedTarget)) {
+      throw commandError('failed-precondition', 'Choose a live target in the current Captain group.', 'conflict');
+    }
+    const choiceStatus = requestedTarget === null ? 'passed' as const : 'selected' as const;
+    const nextRevision = view.revision + 1;
+    const result: WolfForceFieldChoiceResult = {
+      status: 'committed', type: 'wolf-force-field-choice', sessionId, requestId,
+      turn: view.turn, revision: nextRevision, targetShipId: requestedTarget,
+      choiceStatus, currentStep: 'targeting',
+    };
+    tx.update(stateRef, {
+      revision: nextRevision,
+      forceFieldChoice: {
+        ...(state.get('forceFieldChoice') as Record<string, unknown>),
+        status: choiceStatus, revision: nextRevision, targetShipId: requestedTarget,
+        actorUid: uid, requestId, committedAt,
+      },
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(auditRef, {
+      type: 'wolf-force-field-choice', turn: view.turn, revision: nextRevision,
+      actorUid: uid, actorRoleId: 'gorgoneion-captain', requestId,
+      hostShipId: view.hostShipId, dockingRevision: view.dockingRevision,
+      fleetGroupId: view.fleetGroupId, targetShipId: requestedTarget,
+      choiceStatus, deadlineAt: view.deadlineAt, createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+type WolfBoardingDefenceChoiceView = Readonly<{
+  type: 'wolf-boarding-defence-choice-view';
+  sessionId: string;
+  turn: number;
+  revision: number;
+  targetShipId: WolfFleetTargetId;
+  boardingParties: number;
+  availableSecurityTeams: number;
+  choiceStatus: 'pending' | 'committed';
+  chosenSecurityTeams?: number;
+  deadlineAt: string;
+}>;
+
+type WolfBoardingDefenceChoiceResult = Readonly<{
+  status: 'committed';
+  type: 'wolf-boarding-defence-choice';
+  sessionId: string;
+  requestId: string;
+  turn: number;
+  revision: number;
+  targetShipId: WolfFleetTargetId;
+  securityTeams: number;
+  currentStep: 'boarding';
+}>;
+
+function wolfBoardingDefenceInputs(
+  session: DocumentSnapshot,
+  state: DocumentSnapshot,
+): Readonly<{
+  turn: number;
+  revision: number;
+  deadlineAt: string;
+  targetRing: WolfTargetRing;
+  receipt: WolfTargetingReceipt;
+  roster: readonly WolfCombatShip[];
+  boardingParties: Readonly<Record<WolfFleetTargetId, number>>;
+  choices: Record<string, unknown>;
+}> {
+  requireActiveGameplayPhase(session);
+  if (!state.exists || state.get('type') !== 'wolf-attack-state' || state.get('status') !== 'declared' ||
+      state.get('airspaceLocked') !== true || state.get('currentStep') !== 'boarding') {
+    throw commandError('failed-precondition', 'Wolf boarding defence is not currently open.', 'invalid-phase');
+  }
+  const turn = state.get('turn');
+  const revision = state.get('revision');
+  const deadlineAt = state.get('deadlineAt');
+  const phase = turnPhaseState(session.get('turnPhase'));
+  if (!Number.isSafeInteger(turn) || (turn as number) < 1 || turn !== sessionTurn(session.get('currentTurn')) ||
+      !Number.isSafeInteger(revision) || (revision as number) < 1 ||
+      typeof deadlineAt !== 'string' || !Number.isFinite(Date.parse(deadlineAt)) ||
+      !phase || phase.turn !== turn || phase.airspace.state !== 'restricted' || phase.timerPause !== undefined) {
+    throw commandError('failed-precondition',
+      'The current Wolf attack authority is paused, stale, or unavailable. Refresh after airspace resumes.',
+      'stale-revision');
+  }
+  let targetRing: WolfTargetRing;
+  try { targetRing = configuredWolfTargetRingForSession(session); } catch (error) {
+    throw commandError('failed-precondition',
+      error instanceof Error ? error.message : 'The active fleet target ring is unavailable.', 'conflict');
+  }
+  const calculation = state.get('calculationReceipt');
+  const receipt = isRecord(calculation) && calculation.step === WOLF_ATTACK_DECLARATION_STEP
+    ? parseWolfTargetingReceipt(calculation.targeting) : undefined;
+  if (!receipt || JSON.stringify(receipt.ring) !== JSON.stringify(targetRing)) {
+    throw commandError('failed-precondition', 'The committed Wolf targeting receipt is malformed or stale.', 'conflict');
+  }
+  const rawRoster = state.get('combatRoster');
+  const roster = rawRoster === undefined ? wolfCombatRoster(receipt) : rawRoster;
+  if (!Array.isArray(roster) || roster.length !== receipt.rolls.length ||
+      roster.some((ship, index) => !isRecord(ship) ||
+        ship.instanceId !== `${index}:${receipt.rolls[index]?.shipId}` ||
+        ship.shipId !== receipt.rolls[index]?.shipId || ship.target !== receipt.rolls[index]?.target ||
+        !Number.isSafeInteger(ship.damageTaken) || (ship.damageTaken as number) < 0 ||
+        typeof ship.destroyed !== 'boolean')) {
+    throw commandError('failed-precondition', 'The current private Wolf combat roster is malformed.', 'conflict');
+  }
+  const rawChoices = state.get('boardingDefenceChoices');
+  if (rawChoices !== undefined && !isRecord(rawChoices)) {
+    throw commandError('failed-precondition', 'The committed Wolf boarding choices are malformed.', 'conflict');
+  }
+  return {
+    turn: turn as number,
+    revision: revision as number,
+    deadlineAt,
+    targetRing,
+    receipt,
+    roster: roster as readonly WolfCombatShip[],
+    boardingParties: wolfBoardingPartyCounts(roster as readonly WolfCombatShip[]),
+    choices: (rawChoices ?? {}) as Record<string, unknown>,
+  };
+}
+
+function wolfBoardingSecurityTeams(session: DocumentSnapshot, targetShipId: string): number {
+  const resources = session.get('shipResources');
+  const inventory = isRecord(resources) && isRecord(resources[targetShipId]) ? resources[targetShipId] : undefined;
+  const teams = inventory?.securityTeams;
+  if (!Number.isSafeInteger(teams) || (teams as number) < 0) {
+    throw commandError('failed-precondition',
+      `The current ${targetShipId} Security Teams inventory is unavailable.`, 'conflict');
+  }
+  return teams as number;
+}
+
+function requireWolfBoardingPlayerBerth(
+  player: DocumentSnapshot,
+  uid: string,
+  groupSnapshot: DocumentSnapshot,
+): Readonly<{ targetShipId: WolfFleetTargetId; groupId: string }> {
+  if (!player.exists || player.id !== uid || !isActivePlayer(player) || player.get('role') !== 'player' ||
+      player.get('replacementStatus') != null) {
+    throw new HttpsError('permission-denied', 'An active ship crew member is required to choose boarding defence.');
+  }
+  const groupId = currentPlayerFleetGroupId(player);
+  const group = groupSnapshot.exists ? fleetGroupRecord(groupSnapshot.data()) : undefined;
+  const targetShipId = group ? fleetGroupMemberShipId([group], uid, groupId) : undefined;
+  if (!group || group.id !== groupId || !targetShipId ||
+      !(EXPANDED_WOLF_TARGET_RING as readonly string[]).includes(targetShipId)) {
+    throw new HttpsError('permission-denied', 'A validated current fleet berth is required for boarding defence.');
+  }
+  return { targetShipId: targetShipId as WolfFleetTargetId, groupId };
+}
+
+function isWolfBoardingDefenceChoiceResult(value: unknown): value is WolfBoardingDefenceChoiceResult {
+  if (!isRecord(value)) return false;
+  const allowed = new Set([
+    'status', 'type', 'sessionId', 'requestId', 'turn', 'revision', 'targetShipId', 'securityTeams', 'currentStep',
+  ]);
+  return Object.keys(value).every((key) => allowed.has(key)) && value.status === 'committed' &&
+    value.type === 'wolf-boarding-defence-choice' && typeof value.sessionId === 'string' &&
+    isCanonicalRequestId(value.requestId) && Number.isSafeInteger(value.turn) &&
+    Number.isSafeInteger(value.revision) &&
+    (EXPANDED_WOLF_TARGET_RING as readonly string[]).includes(String(value.targetShipId)) &&
+    Number.isSafeInteger(value.securityTeams) && (value.securityTeams as number) >= 0 &&
+    value.currentStep === 'boarding';
+}
+
+/** Read only the current target ship's boarding choice and its team inventory. */
+export const getWolfBoardingDefenceChoice = onCall<{ sessionId?: unknown }>(async (request) => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  if (isRecord(raw) && Object.keys(raw).some((key) => key !== 'sessionId')) {
+    throw new HttpsError('invalid-argument', 'The boarding choice query accepts only sessionId.');
+  }
+  const sessionId = requireSessionRequest(isRecord(raw) ? raw : {}).sessionId;
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+  const stateRef = db.doc(`sessions/${sessionId}/wolfAttackState/current`);
+  return db.runTransaction(async (tx: Transaction) => {
+    const [session, player, state] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(stateRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!player.exists) throw new HttpsError('permission-denied', 'Join the session first.');
+    const groupId = currentPlayerFleetGroupId(player);
+    const groupSnapshot = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${groupId}`));
+    const berth = requireWolfBoardingPlayerBerth(player, uid, groupSnapshot);
+    const inputs = wolfBoardingDefenceInputs(session, state);
+    if (!inputs.targetRing.includes(berth.targetShipId)) {
+      throw new HttpsError('permission-denied', 'This ship is not an active Wolf attack target.');
+    }
+    const boardingParties = inputs.boardingParties[berth.targetShipId];
+    if (boardingParties < 1) {
+      return { type: 'wolf-boarding-defence-choice-unavailable', sessionId, reason: 'no-boarders' };
+    }
+    const existing = inputs.choices[berth.targetShipId];
+    let choiceStatus: WolfBoardingDefenceChoiceView['choiceStatus'] = 'pending';
+    let chosenSecurityTeams: number | undefined;
+    if (existing !== undefined) {
+      if (!isRecord(existing) || existing.type !== 'wolf-boarding-defence-choice' ||
+          existing.turn !== inputs.turn || !Number.isSafeInteger(existing.securityTeams) ||
+          (existing.securityTeams as number) < 0 || typeof existing.actorUid !== 'string' ||
+          !isCanonicalRequestId(existing.requestId) || typeof existing.committedAt !== 'string') {
+        throw commandError('failed-precondition', 'The committed target ship boarding choice is malformed.', 'conflict');
+      }
+      choiceStatus = 'committed';
+      chosenSecurityTeams = existing.securityTeams as number;
+    }
+    const view: WolfBoardingDefenceChoiceView = {
+      type: 'wolf-boarding-defence-choice-view', sessionId, turn: inputs.turn, revision: inputs.revision,
+      targetShipId: berth.targetShipId, boardingParties,
+      availableSecurityTeams: wolfBoardingSecurityTeams(session, berth.targetShipId),
+      choiceStatus, ...(chosenSecurityTeams === undefined ? {} : { chosenSecurityTeams }),
+      deadlineAt: inputs.deadlineAt,
+    };
+    return view;
+  });
+});
+
+/** Reserve the target ship crew's explicit 0..available Security Teams choice. */
+export const commitWolfBoardingDefenceChoice = onCall<{
+  sessionId?: unknown; requestId?: unknown; expectedTurn?: unknown; expectedRevision?: unknown;
+  targetShipId?: unknown; securityTeams?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = new Set(['sessionId', 'requestId', 'expectedTurn', 'expectedRevision', 'targetShipId', 'securityTeams']);
+  if (!isRecord(raw) || Object.keys(raw).some((key) => !allowed.has(key)) ||
+      !(EXPANDED_WOLF_TARGET_RING as readonly unknown[]).includes(raw.targetShipId) ||
+      !Number.isSafeInteger(raw.securityTeams) || (raw.securityTeams as number) < 0) {
+    throw new HttpsError('invalid-argument', 'A target ship and non-negative Security Teams choice are required.');
+  }
+  const sessionId = requireSessionRequest(raw).sessionId;
+  const requestId = isCanonicalRequestId(raw.requestId) ? raw.requestId : null;
+  if (!requestId || !Number.isSafeInteger(raw.expectedTurn) || !Number.isSafeInteger(raw.expectedRevision)) {
+    throw new HttpsError('invalid-argument', 'requestId, expectedTurn, and expectedRevision are required.');
+  }
+  const targetShipId = raw.targetShipId as WolfFleetTargetId;
+  const securityTeams = raw.securityTeams as number;
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+  const stateRef = db.doc(`sessions/${sessionId}/wolfAttackState/current`);
+  const receiptRef = commandReceiptRef(sessionId, requestId);
+  const auditRef = db.doc(`sessions/${sessionId}/wolfAttackState/current/audit/${requestId}`);
+  const fingerprint: CommandFingerprint = {
+    action: 'commit-wolf-boarding-defence-choice', sessionId, requestId, actorUid: uid,
+    instanceId: null, expectedRevision: raw.expectedRevision as number,
+    payload: { expectedTurn: raw.expectedTurn as number, targetShipId, securityTeams },
+  };
+  const committedAt = new Date().toISOString();
+  return db.runTransaction(async (tx: Transaction): Promise<WolfBoardingDefenceChoiceResult> => {
+    const [session, player, state, receipt] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(stateRef), tx.get(receiptRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!player.exists) throw new HttpsError('permission-denied', 'Join the session first.');
+    const groupId = currentPlayerFleetGroupId(player);
+    const groupSnapshot = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${groupId}`));
+    const berth = requireWolfBoardingPlayerBerth(player, uid, groupSnapshot);
+    if (targetShipId !== berth.targetShipId) {
+      throw new HttpsError('permission-denied', "Boarding defence applies only to the player's current ship.");
+    }
+    const replay = replayBoundCommand(receipt, fingerprint, isWolfBoardingDefenceChoiceResult,
+      'Wolf boarding defence choice');
+    if (replay) return replay;
+    const inputs = wolfBoardingDefenceInputs(session, state);
+    if (!inputs.targetRing.includes(targetShipId) || inputs.boardingParties[targetShipId] < 1) {
+      throw commandError('failed-precondition', 'This ship has no active Wolf boarding parties to defend against.', 'invalid-phase');
+    }
+    if (raw.expectedTurn !== inputs.turn || raw.expectedRevision !== inputs.revision) {
+      throw commandError('failed-precondition', 'The boarding choice is stale. Refresh the current attack.', 'stale-revision');
+    }
+    if (inputs.choices[targetShipId] !== undefined) {
+      throw commandError('failed-precondition', 'This ship has already committed its boarding defence choice.', 'conflict');
+    }
+    const availableSecurityTeams = wolfBoardingSecurityTeams(session, targetShipId);
+    if (securityTeams > availableSecurityTeams) {
+      throw commandError('failed-precondition', 'The chosen Security Teams exceed the current ship inventory.', 'conflict');
+    }
+    const nextRevision = inputs.revision + 1;
+    const result: WolfBoardingDefenceChoiceResult = {
+      status: 'committed', type: 'wolf-boarding-defence-choice', sessionId, requestId,
+      turn: inputs.turn, revision: nextRevision, targetShipId, securityTeams, currentStep: 'boarding',
+    };
+    tx.update(sessionRef, { [`shipResources.${targetShipId}.securityTeams`]: availableSecurityTeams - securityTeams,
+      updatedAt: FieldValue.serverTimestamp() });
+    tx.update(stateRef, {
+      revision: nextRevision,
+      boardingDefenceChoices: {
+        ...inputs.choices,
+        [targetShipId]: {
+          type: 'wolf-boarding-defence-choice', turn: inputs.turn, revision: nextRevision,
+          actorUid: uid, actorRoleId: player.get('activeConsoleRoleId') ?? player.get('assignedRoleId') ?? null,
+          requestId, securityTeams, committedAt,
+        },
+      },
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(auditRef, {
+      type: 'wolf-boarding-defence-choice', targetShipId, turn: inputs.turn, revision: nextRevision,
+      actorUid: uid, requestId, securityTeams, availableBefore: availableSecurityTeams,
+      availableAfter: availableSecurityTeams - securityTeams, deadlineAt: inputs.deadlineAt,
+      createdAt: FieldValue.serverTimestamp(),
     });
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;

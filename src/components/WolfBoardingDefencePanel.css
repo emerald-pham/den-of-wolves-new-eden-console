@@ -1,0 +1,95 @@
+.wolf-boarding-defence {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  margin-block: 1rem;
+  padding: clamp(0.8rem, 2vw, 1rem);
+  border: 1px solid var(--cic-rule);
+  background: var(--cic-panel);
+  color: var(--cic-ink);
+}
+
+.wolf-boarding-defence__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.wolf-boarding-defence__header h2 {
+  margin: 0.15rem 0 0;
+  color: var(--cic-ink);
+  font: clamp(1.05rem, 2vw, 1.3rem)/1.25 var(--cic-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.wolf-boarding-defence__status {
+  flex: 0 0 auto;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--cic-rule);
+  color: var(--cic-cyan);
+  font: 600 0.72rem/1.3 var(--cic-mono);
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.wolf-boarding-defence__detail,
+.wolf-boarding-defence__deadline,
+.wolf-boarding-defence__notice,
+.wolf-boarding-defence__message {
+  margin: 0;
+  color: var(--cic-muted);
+  font: 0.76rem/1.5 var(--cic-mono);
+  overflow-wrap: anywhere;
+}
+
+.wolf-boarding-defence__detail { color: var(--cic-ink); }
+.wolf-boarding-defence__deadline time { color: var(--cic-cyan); }
+.wolf-boarding-defence__message { color: var(--cic-cyan); }
+
+.wolf-boarding-defence__choice {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--cic-ink);
+  font: 0.78rem/1.45 var(--cic-mono);
+}
+
+.wolf-boarding-defence__choice select {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--cic-rule);
+  background: var(--cic-panel);
+  color: var(--cic-ink);
+  font: 0.78rem/1.4 var(--cic-mono);
+}
+
+.wolf-boarding-defence button { min-height: 2.75rem; }
+.wolf-boarding-defence button:disabled { color: var(--cic-muted); cursor: not-allowed; }
+.wolf-boarding-defence input:focus-visible,
+.wolf-boarding-defence select:focus-visible,
+.wolf-boarding-defence button:focus-visible {
+  outline: 2px solid var(--cic-cyan);
+  outline-offset: 2px;
+}
+
+@media (max-width: 520px) {
+  .wolf-boarding-defence__header { display: grid; }
+  .wolf-boarding-defence__status { justify-self: start; }
+}
+
+@media (max-height: 560px) and (orientation: landscape) {
+  .wolf-boarding-defence { gap: 0.5rem; padding: 0.65rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wolf-boarding-defence,
+  .wolf-boarding-defence * {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
