@@ -3,3 +3,9 @@
 .pc08-review__readouts dt {color:var(--cic-muted);font:14px/1.5 var(--cic-mono);}
 .pc08-review__readouts dd {margin:.3rem 0 0;color:var(--cic-cyan);font:16px/1.5 var(--cic-mono);}
 .pc08-review .wolf-range-action,.pc08-review .wolf-boarding-defence,.pc08-review .wolf-attack-status {min-width:0;max-width:100%;overflow-wrap:anywhere;}
+.pc08-review .boarding-choice-actions {display:flex;flex-wrap:wrap;gap:.6rem;}
+.pc08-review__boarding-support {display:grid;gap:1rem;}
+.pc08-review [aria-label="Prepared boarding choices"] section {min-width:0;overflow-wrap:anywhere;}
+.pc08-review [aria-label="Prepared boarding choices"] label {display:flex;align-items:center;flex-wrap:wrap;gap:.6rem;min-height:44px;margin:.6rem 0;}
+.pc08-review [aria-label="Prepared boarding choices"] button {min-height:44px;max-width:100%;}
+.pc08-review [aria-label="Prepared boarding choices"] select,.pc08-review [aria-label="Prepared boarding choices"] textarea {min-height:44px;max-width:100%;font:16px/1.5 var(--cic-mono);}

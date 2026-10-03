@@ -2,9 +2,11 @@ import {useMemo, useState} from 'react';
 import ShipPlot from '@/components/ShipPlot';
 import {WolfRangeActionPanelView} from '@/components/WolfRangeActionPanel';
 import {WolfBoardingDefencePanelView} from '@/components/WolfBoardingDefencePanel';
+import {WolfBoardingSupportChoicePanelView, WolfBoardingCommanderChoicePanelView, WolfBoardingMilitiaChoicePanelView,
+  WolfBoardingRerollChoicePanelView, WolfBoardingCommanderRulingPanelView} from '@/components/WolfBoardingChoicePanels';
 import {WolfAttackStatusView} from '@/components/WolfAttackStatusPanel';
 import type {LocalDradisNavigation} from '@/components/localDradisContacts';
-import type {WolfAttackMemberView, WolfBoardingDefenceChoiceView, WolfRangeActionChoiceView} from '@/types/game';
+import type {WolfAttackMemberView, WolfAttackTargetId, WolfBoardingDefenceChoiceView, WolfRangeActionChoiceView} from '@/types/game';
 import {APP_VERSION} from './version';
 import './PC07ReviewScene.css';
 import './PC08ReviewScene.css';
@@ -100,16 +102,48 @@ function FightersReview() {
 
 function BoardingReview() {
   const [view, setView] = useState(SAMPLE_BOARDING);
+  const [sample, setSample] = useState('Crew');
+  const [choices, setChoices] = useState<Record<string, boolean>>({});
+  const [commanderChoice, setCommanderChoice] = useState<WolfAttackTargetId | null>(null);
+  const [pallasChoice, setPallasChoice] = useState<WolfAttackTargetId | null>(null);
+  const [militiaChoice, setMilitiaChoice] = useState({securityTeams: 0, militiaDoubleTeams: false, militiaFrontLineDice: 0});
+  const [rulingChoice, setRulingChoice] = useState('');
   const [message, setMessage] = useState('LOCAL SAMPLE // Current host, support and available teams are prepared; no live relocation or roll.');
+  function commit(choice: string) {
+    setChoices(current => ({...current, [sample]: true}));
+    setMessage(`LOCAL SIMULATION // ${choice} This prepared receipt is retained; no live cost, roll or ruling is applied.`);
+  }
   return <section className="pc07-review__workspace pc07-review__choice-examples" aria-label="Prepared boarding choices">
     <p className="pc07-review__note">Support uses its actual owner, current dock and fuel. Deterministic party counts, dice and damage resolve automatically after genuine choices.
       The Wolf Commander’s incomplete printed consequence remains an explicit privately audited facilitator ruling.</p>
-    <WolfBoardingDefencePanelView view={view} onChoose={securityTeams => {
+    <div className="pc07-review__controls">{['Crew', 'Commander', 'Support', 'Militia', 'AEGIS reroll', 'Pallas reroll', 'Ruling'].map(name =>
+      <button className="cic-action-button" key={name} type="button" aria-pressed={sample === name} onClick={() => setSample(name)}>{name} sample</button>)}</div>
+    {sample === 'Crew' && <WolfBoardingDefencePanelView view={view} onChoose={securityTeams => {
       setView({...view, revision: view.revision + 1, choiceStatus: 'committed', chosenSecurityTeams: securityTeams});
       setMessage(`LOCAL SIMULATION // ${securityTeams} Security Teams committed. The prepared choice is retained; this scene does not roll defence or draw damage.`);
-    }} />
+    }} />}
+    {sample === 'Commander' && <WolfBoardingCommanderChoicePanelView view={{type: 'wolf-boarding-commander-choice-view',
+      status: choices[sample] ? 'committed' : 'pending', targets: [{targetShipId: 'aegis', boardingParties: 4}],
+      ...(choices[sample] ? {selectedTargetId: commanderChoice} : {})}} onChoose={target => {setCommanderChoice(target); commit(target ? 'The Commander added two parties at the chosen target.' : 'The Commander passed.');}} />}
+    {sample === 'Support' && <div className="pc08-review__boarding-support">
+      <WolfBoardingSupportChoicePanelView view={{type: 'wolf-boarding-support-choice-view', craftId: 'pallas', currentHostId: 'aegis',
+        fuelled: true, legalHostIds: ['aegis', 'dione'], status: choices[sample] ? 'committed' : 'pending',
+        ...(choices[sample] ? {selectedHostId: pallasChoice} : {})}} onChoose={target => {setPallasChoice(target); commit(target ? 'Pallas moved to its chosen host, using fuel.' : 'Pallas stayed at its host.');}} />
+      <WolfBoardingSupportChoicePanelView view={{type: 'wolf-boarding-support-choice-view', craftId: 'chepu', currentHostId: 'refinery-124',
+        fuelled: false, legalHostIds: ['refinery-124'], status: 'pending'}} onChoose={() => setMessage('LOCAL SIMULATION // Chepu stayed at Refinery 124; an unfuelled relocation is unavailable.')} />
+    </div>}
+    {sample === 'Militia' && <WolfBoardingMilitiaChoicePanelView view={{type: 'wolf-boarding-militia-choice-view', targetShipId: 'aegis',
+      status: choices[sample] ? 'committed' : 'pending', boardingParties: 4, availableSecurityTeams: 3, maxFrontLineDice: 3, doubleDiceAvailable: true,
+      ...(choices[sample] ? {selectedSecurityTeams: militiaChoice.securityTeams, ...militiaChoice} : {})}} onChoose={choice => {setMilitiaChoice(choice); commit(`${choice.securityTeams} Security Teams, ${choice.militiaDoubleTeams ? 'two dice per team' : 'one die per team'}, ${choice.militiaFrontLineDice} front-line dice committed.`);}} />}
+    {(sample === 'AEGIS reroll' || sample === 'Pallas reroll') && <WolfBoardingRerollChoicePanelView key={sample} view={{type: 'wolf-boarding-reroll-choice-view',
+      source: sample === 'AEGIS reroll' ? 'aegis' : 'pallas', status: choices[sample] ? 'committed' : 'pending', maxRerolls: 3,
+      dice: [{targetShipId: 'aegis', dieIndex: 0, value: 1}, {targetShipId: 'aegis', dieIndex: 1, value: 4}], alreadyRerolled: []}}
+      onChoose={dice => commit(`${sample === 'AEGIS reroll' ? 'AEGIS' : 'Pallas'} chose ${dice.length} indexed dice from its separate allowance.`)} />}
+    {sample === 'Ruling' && <WolfBoardingCommanderRulingPanelView view={{type: 'wolf-boarding-commander-ruling-view', targetShipId: 'aegis',
+      status: choices[sample] ? 'committed' : 'pending', condition: 'All Commander-led parties were lost. The printed consequence is incomplete; a facilitator ruling is required.',
+      ...(choices[sample] ? {rulingText: rulingChoice} : {})}} onChoose={text => {setRulingChoice(text); commit('The prepared facilitator ruling was recorded privately.');}} />}
     <p className="pc07-review__result" role="status" aria-label="Prepared boarding result">{message}</p>
-    <button className="cic-action-button" type="button" onClick={() => {setView(SAMPLE_BOARDING); setMessage('LOCAL SAMPLE RESTORED // No shared state changed.');}}>Restore defence sample</button>
+    <button className="cic-action-button" type="button" onClick={() => {setView(SAMPLE_BOARDING); setChoices({}); setMessage('LOCAL SAMPLE RESTORED // No shared state changed.');}}>Restore defence sample</button>
   </section>;
 }
 
