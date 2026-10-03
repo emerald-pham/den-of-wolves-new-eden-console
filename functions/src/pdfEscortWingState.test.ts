@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { EXPANDED_WOLF_TARGET_RING } from './wolfCombatMath';
 import {
   authorizePdfEscortWingMission,
   beginPdfEscortWingAttack,
@@ -157,6 +158,19 @@ describe('authoritative PDF Escort Wing state', () => {
     expect(() => resolvePdfEscortWingShort(result.state, {
       expectedRevision: 2, fighterIndexes: [0], random: dice(3),
     })).toThrow(/already resolved/i);
+  });
+
+  it('uses the full configured target ring when the expansion target is active', () => {
+    expect(shiftPdfEscortTargetNumber(1, -1, EXPANDED_WOLF_TARGET_RING)).toBe(7);
+    expect(shiftPdfEscortTargetNumber(7, 1, EXPANDED_WOLF_TARGET_RING)).toBe(1);
+    expect(resolvePdfEscortWingMedium(launched(), {
+      expectedRevision: 1,
+      targetRing: EXPANDED_WOLF_TARGET_RING,
+      actions: [{ fighterIndex: 0, kind: 'target-shift', targetId: 'wolf-1', targetNumber: 1, shift: -1 }],
+      random: dice(),
+    }).targetShifts).toEqual([{
+      fighterIndex: 0, targetId: 'wolf-1', targetNumber: 1, shift: -1, shiftedTargetNumber: 7,
+    }]);
   });
 
   it('keeps mission participation fuel-free and independent of launch or combat state', () => {
