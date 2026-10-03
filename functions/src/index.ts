@@ -21668,6 +21668,15 @@ async function reconcileWolfAttackProgress(sessionId: string): Promise<void> {
     try { inputs = requireWolfRangeState(session, state, step); } catch { return; }
     const prior = wolfRangeDecisionValue(state, step);
     if (prior !== undefined) return;
+    const fighterChoices = state.get('fighterRangeChoices');
+    const rangeFighterChoices = isRecord(fighterChoices) && isRecord(fighterChoices[step])
+      ? fighterChoices[step] : undefined;
+    // A committed fighter choice is a genuine range decision. Keep the
+    // lifecycle on this range until its source actions join the same private
+    // roll/assignment resolution instead of treating the EO's empty action
+    // list as permission to pass it.
+    if (rangeFighterChoices && Object.values(rangeFighterChoices).some((choice) =>
+      isRecord(choice) && choice.status === 'committed' && choice.range === step && choice.turn === inputs.turn)) return;
     const executiveOfficerRoleConfigured = sessionActiveRoleIds(session).includes('executive-officer');
     const hasCurrentExecutiveOfficer = currentWolfAegisExecutiveOfficers(players.docs, fleetGroups.docs).length > 0;
     if (inputs.actions.length > 0 && executiveOfficerRoleConfigured && hasCurrentExecutiveOfficer) return;
