@@ -50,3 +50,15 @@ it('keeps a mission-committed craft docked under otherwise open current airspace
  expect(within(panel).getByRole('combobox')).toBeDisabled();
  expect(screen.getByRole('status',{name:'Current airspace clearance'})).toHaveTextContent('committed to an away mission');
 });
+
+it('shows a consumed service recharge without inventing a withheld host or console name', () => {
+ const current=useSessionStore.getState().session!,service={...control,shuttleId:'wobbly',ownerRoleId:'quellon-engineer'};
+ useSessionStore.getState().setSession({...current,shuttleControl:{wobbly:service},
+  shuttleDockings:[{shuttleId:'wobbly',shipId:'aegis',dockedAt:'now'}],
+  serviceShuttleRecharges:{wobbly:{cycle:2,revision:1,redacted:true}}});
+ render(<ShuttleControl control={service} />);
+ const panel=screen.getByRole('region',{name:'Service shuttle recharge'});
+ expect(within(panel).getByText('Recharge already used this cycle.')).toBeVisible();
+ expect(within(panel).getByRole('combobox')).toBeDisabled();
+ expect(panel).not.toHaveTextContent('Recharged undefined');
+});
