@@ -6,6 +6,9 @@ import ScoutRequestControls from './ScoutRequestControls';
 
 const { request } = vi.hoisted(() => ({ request: vi.fn() }));
 vi.mock('@/lib/scoutRequestService', () => ({ requestScout: request }));
+// Request authority is isolated from the separately tested report delivery adapter.
+vi.mock('./ScoutReportController', () => ({ default: ({ entitlementId }: { entitlementId: string }) =>
+  <section aria-label={`Private ${entitlementId} report adapter`} /> }));
 
 function setOwner(entitlementId: string): void {
   const current = useSessionStore.getState();
@@ -72,7 +75,7 @@ beforeEach(() => {
   useSessionStore.getState().setSessionSnapshotFreshness('server');
 });
 
-it('records only a coordinate request and leaves follow-up with a facilitator', async () => {
+it('records only a coordinate request and awaits automatic private delivery', async () => {
   const user = userEvent.setup();
   setOwner('starlight');
   render(<ScoutRequestControls entitlementId="starlight" />);
@@ -88,7 +91,7 @@ it('records only a coordinate request and leaves follow-up with a facilitator', 
   await waitFor(() => expect(request).toHaveBeenCalledWith(expect.objectContaining({
     entitlementId: 'starlight', targetCoordinate: '5143', requestId: expect.any(String),
   })));
-  expect(await within(controls).findByRole('status')).toHaveTextContent(/request recorded.*facilitator/i);
+  expect(await within(controls).findByRole('status')).toHaveTextContent(/request recorded.*automatically/i);
 });
 
 it.each([

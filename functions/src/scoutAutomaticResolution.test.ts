@@ -191,3 +191,17 @@ describe('private automatic scout GM log', () => {
       .rejects.toMatchObject({ code: 'permission-denied' });
   });
 });
+
+
+it('replays the immutable resolution after a group merge without moving its original note or republishing', async () => {
+  await resolver.run(event());
+  const audit = mock.documents.get('sessions/session-1/scoutResolutionAudits/scan-1');
+  const note = [...mock.documents.values()].find(value => value.type === 'player-discovery-note');
+  mock.documents.delete('sessions/session-1/fleetGroups/fleet-1');
+  put('sessions/session-1/fleetGroups/fleet-2', { id: 'fleet-2', vesselIds: ['aegis'] });
+  vi.advanceTimersByTime(5_000);
+  await resolver.run(event());
+  expect(mock.documents.get('sessions/session-1/scoutResolutionAudits/scan-1')).toEqual(audit);
+  expect([...mock.documents.values()].find(value => value.type === 'player-discovery-note')).toEqual(note);
+  expect(mock.create).toHaveBeenCalledTimes(4); expect(commitMap).toHaveBeenCalledTimes(1);
+});
