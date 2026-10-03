@@ -4452,8 +4452,7 @@ export function subscribeGmWolfAttackPreparation(
   };
 }
 
-/** Subscribe to the facilitator-only declaration summary. The parser omits
- * the private preparation, target samples, and calculation receipt. */
+/** Subscribe to the complete facilitator-only private Wolf attack state. */
 export function subscribeGmWolfAttackState(
   sessionId: string,
   onState: (state: WolfAttackDeclarationState | null) => void,
@@ -4465,7 +4464,13 @@ export function subscribeGmWolfAttackState(
     { includeMetadataChanges: true },
     (snapshot) => {
       if (!subscribed || snapshot.metadata?.fromCache === true) return;
-      const state = snapshot.exists() ? wolfAttackDeclarationState(snapshot.data()) : null;
+      const raw = snapshot.exists() ? snapshot.data() : null;
+      if (typeof raw === 'object' && raw !== null && !Array.isArray(raw)) {
+        const rawRevision = (raw as Record<string, unknown>).revision;
+        if (Number.isSafeInteger(rawRevision) && (rawRevision as number) >= 1 &&
+            !acceptsRevision(rawRevision as number)) return;
+      }
+      const state = raw === null ? null : wolfAttackDeclarationState(raw);
       if (state && !acceptsRevision(state.revision)) return;
       onState(state);
     },
