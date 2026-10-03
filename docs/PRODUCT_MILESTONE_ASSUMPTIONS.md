@@ -440,3 +440,12 @@ the original assumption; append the resolution so the decision is traceable.
 | Source | Player Guide v1.1 printed pp. 12–13 (physical PDF pp. 14–15) rolls damage simultaneously, then assigns targets; its Wolf Fighter Wing card requires Short Range damage to reach Wings first. |
 | Chosen reading | Validate the combined committed assignments: every live Wolf Fighter Wing must receive lethal assigned damage before any non-Wing receives a hit. If that coverage is unavailable, all assigned hits stay on Wings. Other live Short-legal contacts remain selectable once coverage is satisfied; Battlestations remain immune. |
 | Alternatives and limits | The earlier Wings-only contact filter discarded a second distinct hit even when the sole remaining Wing was already covered. This correction preserves the printed priority without that extra restriction. Fixed one-target damage is not split, and each action retains its distinct-target limit, committed rolls and unused-hit policy. The whole-batch check is the digital expression of simultaneous resolution, not a new printed action. |
+
+### PC08-A5 — Boa targets a currently eligible live Wolf ship
+
+| Field | Decision |
+|---|---|
+| ID and checkpoint | PC08-A5, P459; bounded target-validity reading recorded in the range worker's source notes. |
+| Source | Capybara A4 duplex v1.1 expansion, printed p. 4, Boa Wolf Attack ability; the routed Capybara reference flags already-destroyed target validity as ambiguity AMB-06. Exact private provenance and routing remain in the source library. |
+| Chosen reading | At each range, the Recycler may choose one currently alive, range-legal Wolf contact and spend one Scrap for one damage. If there is no legal contact, record a pass and retain Scrap. |
+| Alternatives and limits | Selecting a previously destroyed ship would spend a resource without a defined new effect. This bounded reading does not settle other AMB-06 cases, waive Short Range Wing priority or Battlestation immunity, add a second use, or draw damage again on retry. The connected transaction and normal authenticated proof remain required. |

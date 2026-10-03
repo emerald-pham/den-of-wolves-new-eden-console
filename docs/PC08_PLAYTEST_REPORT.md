@@ -1,5 +1,14 @@
 # PC08 playtest report
 
+**New assumptions come first.** [PC08-A1–A5](PRODUCT_MILESTONE_ASSUMPTIONS.md#pc08-a1--explicit-union-craft-starting-hosts)
+record explicit Union starting hosts, current-range shift timing, durable
+launch-or-pass windows, simultaneous Short Range Wing priority and Boa's live
+target rule. These are bounded digital choices or source corrections; the
+printed component sheets still control costs, ranges, capacity and effects.
+The [range source notes](PC08_RANGE_ASSUMPTIONS.md) preserve precise references.
+The incomplete Commander consequence remains an explicit private facilitator
+ruling, with surrounding printed calculations automatic.
+
 Status: implementation and combined release in progress. The owner's October 3
 instruction authorizes execution and acceptance; playing the review scene is
 optional. No PC08 completion or deployment is claimed by this preparation record.
