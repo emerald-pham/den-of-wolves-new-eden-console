@@ -550,3 +550,41 @@ write. The phone and short-landscape renders were visually inspected. These
 are prepared geometry checks, not normal gameplay. The server type/parser and
 projection are still owned by the attack worker; final shared-type integration,
 native choices, independent review, CI and deployment remain open.
+
+### Complete attack source integration and remaining consumers
+
+The complete attack-worker source chain through `12bedd20` is integrated as
+`a29e5005`, preserving every separate test-first commit. The one test-fixture
+conflict reconciles its submitted reason literal and adds scoped receipt
+assertions without removing the old authority checks. Source conflicts preserve
+the owner's stricter nested allowlist, monotonic revision correlation, normalized
+client reason and cycle-briefing timer denial. Existing group, member projection,
+automatic Comms and CIC changes survive integration.
+
+Focused integrated checks pass: **135/135** native-handler tests, **565/565**
+current GM/service/parser/choice tests, four emergency/briefing UI checks,
+Functions build, typecheck and 62 font checks. The first typecheck exposed only
+an incomplete new GM display-name fixture; separate test-only `1bd7fafb` supplies
+the current roster fields without changing an assertion. The prior error is
+retained in external evidence. These local suites do not prove served native
+gameplay. The backend still serves `d9047346` pending the next acknowledged
+source export/restart.
+
+The integrated connected-player choice controls require a bounded consumer
+repair before handback: immediate withdrawal on cache/offline/identity/group/
+generation changes, delayed manual read/mutation fences, current stage ordering,
+serialized range reads and correct draft preservation/reset. The attack worker
+owns these cohesive repairs. The member-audience listener must also withdraw
+malformed/future-schema/cache state while retaining its raw revision fence.
+Normal full attack, Captain/range/boarding UI and reasoned recovery proof remain
+open. Orchestrator `/root` owns final independent review and release.
+
+The normal split scenario found two distinct additional integration failures:
+an absorbed immutable mission source group prevented later `assignCards`, and
+`moveShipToLocation` advanced a vessel cursor 1→2 while lowering shared navigation
+6→2. Both original failed operations and snapshots are preserved. The complete
+split worker acknowledged no action in flight and owns separate test/source
+repairs for current mission custody/group/navigation and independent movement
+cursors. Immutable admission history must survive; ambiguous lineage alone
+must grant no foreign location or reward-delivery authority. The owner will
+export/restart only after committed source and explicit no-inflight handback.
