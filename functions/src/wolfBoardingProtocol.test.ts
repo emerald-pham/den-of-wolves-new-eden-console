@@ -51,4 +51,15 @@ describe('Wolf boarding stage protocol', () => {
     expect(nextWolfBoardingStage({ ...noSpecialActors,
       attackedTargets: [], defenceChoices: {}, militiaChoices: {} })).toEqual({ kind: 'complete' });
   });
+
+  it('keeps ordinary ship-crew defence open even when no support shuttle is docked there', () => {
+    const unsupportedHost = {
+      ...base, commanderUid: undefined, commanderChoice: { target: null }, relocations: [],
+      supportTargets: [], defenceChoices: {}, militiaUidByTarget: {}, militiaChoices: {},
+      crewActorUidsByTarget: { aegis: ['crew-aegis'] },
+    };
+    expect(nextWolfBoardingStage(unsupportedHost)).toEqual({
+      kind: 'defence', actorUids: ['crew-aegis'], target: 'aegis',
+    });
+  });
 });
