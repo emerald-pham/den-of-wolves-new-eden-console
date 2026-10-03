@@ -66,3 +66,45 @@ it('restores fixed hit counts, hides unavailable contacts, and requires distinct
   expect(first).toBeInTheDocument();
   fireEvent.blur(first);
 });
+
+it('commits only distinct live contacts and clearly records over-limit hits as unused', async () => {
+  const user = userEvent.setup();
+  const onAssignTargets = vi.fn();
+  render(<WolfRangeActionPanelView
+    view={{ ...pendingView, choiceStatus: 'targets-required', hitSlots: [
+      { actionId: 'aegis-missile-launchers-medium', count: 5 },
+    ], contacts: [
+      { contactId: 'contact-1', targetShipId: 'aegis', available: true },
+      { contactId: 'contact-2', targetShipId: 'dione', available: false },
+    ] }}
+    onUseActions={vi.fn()} onPass={vi.fn()} onAssignTargets={onAssignTargets}
+  />);
+
+  expect(screen.getByLabelText(/missile launchers hit 1/i)).toBeInTheDocument();
+  expect(screen.queryByLabelText(/missile launchers hit 2/i)).not.toBeInTheDocument();
+  expect(screen.getByText(/4 hits have no additional distinct live legal contact/i)).toBeInTheDocument();
+  await user.selectOptions(screen.getByLabelText(/missile launchers hit 1/i), 'contact-1');
+  await user.click(screen.getByRole('button', { name: /commit target assignments/i }));
+
+  expect(onAssignTargets).toHaveBeenCalledWith([
+    { actionId: 'aegis-missile-launchers-medium', contactIds: ['contact-1'] },
+  ]);
+});
+
+it('allows an empty assignment only when every target is unavailable', async () => {
+  const user = userEvent.setup();
+  const onAssignTargets = vi.fn();
+  render(<WolfRangeActionPanelView
+    view={{ ...pendingView, choiceStatus: 'targets-required', hitSlots: [
+      { actionId: 'aegis-point-defence-lasers-medium', count: 2 },
+    ], contacts: [{ contactId: 'contact-1', targetShipId: 'aegis', available: false }] }}
+    onUseActions={vi.fn()} onPass={vi.fn()} onAssignTargets={onAssignTargets}
+  />);
+
+  expect(screen.getByText(/no live legal contacts remain/i)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /commit target assignments/i })).toBeEnabled();
+  await user.click(screen.getByRole('button', { name: /commit target assignments/i }));
+  expect(onAssignTargets).toHaveBeenCalledWith([
+    { actionId: 'aegis-point-defence-lasers-medium', contactIds: [] },
+  ]);
+});

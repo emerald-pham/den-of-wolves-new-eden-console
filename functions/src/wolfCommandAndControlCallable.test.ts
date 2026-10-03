@@ -257,7 +257,7 @@ it('finishes an empty Commander reroll window and consumes its exact private rec
 });
 
 it('preserves an authorized C&C redirect when the facilitator closes targeting', async () => {
-  const deadlineAt = '2026-09-24T20:00:00.000Z';
+  const deadlineAt = new Date(Date.now() + 60_000).toISOString();
   currentGame();
   session({
     turnPhase: {
