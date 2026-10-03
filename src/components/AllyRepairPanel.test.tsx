@@ -65,6 +65,13 @@ beforeEach(() => {
 
 afterEach(() => vi.unstubAllGlobals());
 
+it('keeps the second-host fuel requirement when the first host is in another group', () => {
+  installSession({ allyRepairs: { cycle: 3, revision: 1, hosts: [], totalHostsUsed: 1 } });
+  render(<AllyRepairPanel control={control} docking={docking} fuelled={false} />);
+  expect(screen.getByText(/Fuel Ally before repairing a second ship this cycle/i)).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Repair selected consoles' })).toBeDisabled();
+});
+
 it('submits the Union Ally repair authority and reports the server result', async () => {
   mocks.repair.mockResolvedValue({
     status: 'committed', hostShipId: 'shepherd', systemIds: ['reactor', 'storage'],

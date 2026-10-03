@@ -93,6 +93,13 @@ beforeEach(() => {
 
 afterEach(() => vi.unstubAllGlobals());
 
+it('retains the two-host limit when prior repair hosts are outside the current group', () => {
+  installSession({ chacauRepairs: { cycle: 3, revision: 2, hosts: [], totalHostsUsed: 2 } });
+  renderRepair();
+  expect(screen.getByText(/may repair at most two ships this cycle/i)).toBeVisible();
+  expect(screen.getByRole('button', { name: /^repair selected consoles$/i })).toBeDisabled();
+});
+
 it('uses the Refinery 124 Chacau control to submit the selected damaged consoles', async () => {
   mocks.repair.mockResolvedValue({
     status: 'committed', hostShipId: 'refinery-124', systemIds: ['reactor', 'storage'],

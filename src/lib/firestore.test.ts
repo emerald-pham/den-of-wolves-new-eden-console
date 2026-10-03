@@ -127,6 +127,21 @@ it('hydrates the bounded Philia repair receipt through the member wire parser', 
   expect(value.philiaRepairs).toEqual(philiaRepairs);
 });
 
+it('hydrates bounded craft histories without resetting usage or inventing foreign hosts', () => {
+  const repairs = { cycle: 2, revision: 3, hosts: [], totalHostsUsed: 2 };
+  const used = { cycle: 2, revision: 1, redacted: true };
+  const value = sessionFrom('member-history', { ...sessionData(12), currentTurn: 2,
+    memberSessionScope: { groupId: 'fleet-2', vesselIds: ['shepherd'], craftIds: ['blacksmith','macaw','chacau','ally','endeavour'] },
+    shuttleDockings: [], shuttleVisitLog: [], blacksmithRepairs: repairs, macawRepairs: repairs, chacauRepairs: repairs, allyRepairs: repairs,
+    gorgoneionRepairDrones: used, warriorRepairDrones: used, serviceShuttleRecharges: { endeavour: used },
+  });
+  for (const field of ['blacksmithRepairs','macawRepairs','chacauRepairs','allyRepairs'] as const) expect(value[field]).toEqual(repairs);
+  for (const field of ['gorgoneionRepairDrones','warriorRepairDrones'] as const) {
+    expect(value[field]).toMatchObject({ cycle: 2, revision: 1, hostShipId: '', redacted: true });
+  }
+  expect(value.serviceShuttleRecharges?.endeavour).toEqual({ cycle: 2, revision: 1, hostShipId: '', consoleId: '', redacted: true });
+});
+
 it('rejects an old group response after the current player moves and accepts the new group read', async () => {
   const listeners = new Map<string, (snapshot: unknown) => void>();
   vi.mocked(doc).mockImplementation(((_db: unknown, path: string) => ({ path })) as never);

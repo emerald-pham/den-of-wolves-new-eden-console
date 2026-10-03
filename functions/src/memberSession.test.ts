@@ -117,6 +117,29 @@ describe('current member session privacy', () => {
     expect(value.populationAlerts).toEqual({});
     expect(value.unrestAlerts).toEqual({});
   });
+
+  it.each([['blacksmithRepairs','blacksmith'],['macawRepairs','macaw'],['chacauRepairs','chacau'],['allyRepairs','ally']])(
+    'redacts previous foreign hosts in %s while retaining its printed usage count', (field, shuttleId) => {
+      const value = memberSessionProjection({ ...root,
+        shuttleDockings: [{ shuttleId, shipId: 'shepherd' }],
+        [field!]: { cycle: 2, revision: 2, hosts: [{ shipId: field === 'allyRepairs' ? 'shepherd' : 'aegis', systemIds: ['reactor'] }, { shipId: 'icebreaker', systemIds: ['storage'] }] },
+      }, memberSessionScope(player, groups));
+      expect(value[field!]).toEqual({ cycle: 2, revision: 2, totalHostsUsed: 2,
+        hosts: field === 'allyRepairs' ? [{ shipId: 'shepherd', systemIds: ['reactor'] }] : [] });
+    });
+
+  it('keeps prior drone/recharge usage without foreign host or system details', () => {
+    const value = memberSessionProjection({ ...root,
+      smallShipStates: { gorgoneion: { ...emptySmallShipState('gorgoneion', 'shepherd'), dockingRevision: 1 },
+        warrior: { ...emptySmallShipState('warrior', 'shepherd'), dockingRevision: 1 } },
+      gorgoneionRepairDrones: { cycle: 2, revision: 1, hostShipId: 'aegis', systemId: 'reactor' },
+      warriorRepairDrones: { cycle: 2, revision: 1, hostShipId: 'icebreaker', systemIds: ['storage'] },
+      serviceShuttleRecharges: { endeavour: { cycle: 2, revision: 1, hostShipId: 'aegis', consoleId: 'jump-drive' } },
+    }, memberSessionScope(player, groups));
+    expect(value.gorgoneionRepairDrones).toEqual({ cycle: 2, revision: 1, redacted: true });
+    expect(value.warriorRepairDrones).toEqual({ cycle: 2, revision: 1, redacted: true });
+    expect(value.serviceShuttleRecharges).toEqual({ endeavour: { cycle: 2, revision: 1, redacted: true } });
+  });
 });
 
 function recordScope(value: Record<string, unknown>) { return value.memberSessionScope as { vesselIds: string[] }; }

@@ -99,6 +99,13 @@ beforeEach(() => {
 
 afterEach(() => vi.unstubAllGlobals());
 
+it('retains the two-host limit when prior hosts are redacted after a split', () => {
+  installSession({ macawRepairs: { cycle: 3, revision: 2, hosts: [], totalHostsUsed: 2 } } as Partial<GameSession>);
+  renderMacaw();
+  expect(screen.getByText('Macaw may repair at most two ships this cycle.')).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Repair selected consoles' })).toBeDisabled();
+});
+
 it('renders a Scrap repair control and submits up to two selected consoles', async () => {
   const result: MacawRepairResult = {
     status: 'committed', hostShipId: 'capybara', systemIds: ['reactor', 'storage'],
