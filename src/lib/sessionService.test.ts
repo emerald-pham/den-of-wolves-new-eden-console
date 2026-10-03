@@ -87,6 +87,7 @@ const {
   listUnresolvedJumpFailures,
   getWolfBoardingDefenceChoice,
   commitWolfBoardingDefenceChoice,
+  commitWolfRangeActionChoice,
   getWolfFighterRangeActionChoice,
   commitWolfFighterRangeActionChoice,
 } = await import('./sessionService');
@@ -3898,6 +3899,32 @@ it('reads and commits the current Wing Commander fighter range choice, including
   expect(commit).toHaveBeenCalledWith(expect.objectContaining({
     sessionId: 's1', requestId: expect.any(String), expectedTurn: 1, expectedRevision: 12,
     range: 'short-range', sourceId: 'fighter-wing-alpha', fighterIndexes: [],
+  }));
+});
+
+it('accepts locked synthetic fighter hits when the Executive Officer passes AEGIS weapons', async () => {
+  useSessionStore.getState().reset();
+  useSessionStore.getState().setIdentity(
+    { ...session, phase: 'active' as const },
+    { ...player, role: 'player' as const, assignedRoleId: 'executive-officer',
+      activeConsoleRoleId: 'executive-officer' },
+  );
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  const commit = vi.fn(async (payload: Record<string, unknown>) => ({ data: {
+    status: 'committed', type: 'wolf-range-action-choice', sessionId: 's1', requestId: payload.requestId,
+    turn: 1, revision: 13, range: 'short-range', currentStep: 'short-range', choiceStatus: 'targets-required',
+    hitSlots: [{ actionId: 'aegis-alpha-wing-short-0', count: 1 }],
+  } }));
+  Object.assign(commit, { stream: vi.fn() });
+  vi.mocked(httpsCallable).mockReturnValue(commit as never);
+
+  await expect(commitWolfRangeActionChoice(1, 12, 'short-range', [])).resolves.toMatchObject({
+    status: 'committed', choiceStatus: 'targets-required',
+    hitSlots: [{ actionId: 'aegis-alpha-wing-short-0', count: 1 }],
+  });
+  expect(commit).toHaveBeenCalledWith(expect.objectContaining({
+    sessionId: 's1', expectedTurn: 1, expectedRevision: 12, range: 'short-range', actionIds: [],
   }));
 });
 
