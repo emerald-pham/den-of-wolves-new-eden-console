@@ -7,6 +7,8 @@ import { projectShipState } from './shipStateProjection';
 import { REPLACEMENT_ROLE_CATALOG, replacementRoleAvailableForSession } from '@/data/replacementRoles';
 import { MAINTENANCE_EVENT_ACTIONS as CLIENT_MAINTENANCE_EVENT_ACTIONS, MAINTENANCE_EVENT_RESULT_STEPS as CLIENT_MAINTENANCE_EVENT_RESULT_STEPS } from './maintenanceEvent';
 import { MAINTENANCE_EVENT_ACTIONS as SERVER_MAINTENANCE_EVENT_ACTIONS, MAINTENANCE_EVENT_RESULT_STEPS as SERVER_MAINTENANCE_EVENT_RESULT_STEPS } from '../../functions/src/maintenanceEvent';
+import { firstTurnWolfAttackComposition } from '../../functions/src/wolfAttackComposition';
+import { resolveWolfTargeting } from '../../functions/src/wolfCombatMath';
 
 vi.mock('firebase/firestore', () => ({
   collection: vi.fn(),
@@ -3032,15 +3034,25 @@ it('hydrates the complete GM-private attack state and keeps its revision monoton
   const { callbacks } = captureSessionListener();
   const onState = vi.fn();
   const unsubscribe = subscribeGmWolfAttackState('s1', onState);
+  const composition = firstTurnWolfAttackComposition();
+  const targetRing = ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124'] as const;
   const privatePreparation = {
-    turn: 1, revision: 2, shipIds: ['wolf-fighter-wing'], targetMode: 'pre-rolled',
+    turn: 1, revision: 2, shipIds: [...composition.shipIds], targetMode: 'pre-rolled' as const,
     targetAssignments: [], modifiers: [], notes: 'private facilitator note',
+  };
+  const calculationReceipt = {
+    type: 'wolf-combat-calculation-stage', version: 1, turn: 1, step: 'targeting',
+    generatedAt: '2026-09-12T22:00:00.000Z',
+    pursuitPressure: { navigationRevision: 0, groupValues: { 'fleet-1': 4 } },
+    composition: { shipIds: [...composition.shipIds], counts: { ...composition.counts }, damageCapacity: composition.damageCapacity },
+    targeting: resolveWolfTargeting(composition, {}, targetRing, () => 0),
   };
   const canonicalState = (revision: number, currentStep: string) => ({
     type: 'wolf-attack-state', status: 'declared', turn: 1, revision, preparationRevision: 2,
     currentStep, deadlineAt: '2026-09-12T23:00:00.000Z', airspaceLocked: true,
     parkedCraftIds: ['starlight'], launchedCraftIds: [], attackId: 'wolf-attack-1',
-    preparation: privatePreparation, calculationReceipt: { hidden: true }, memberResults: [],
+    parkingReleaseCondition: 'normal-movement-reopened',
+    preparation: privatePreparation, calculationReceipt, memberResults: [],
   });
 
   callbacks[0]?.({
@@ -3062,9 +3074,7 @@ it('hydrates the complete GM-private attack state and keeps its revision monoton
   callbacks[0]?.({
     metadata: { fromCache: false },
     exists: () => true,
-    data: () => ({ status: 'declared', turn: 1, revision: 1, preparationRevision: 2,
-      currentStep: 'targeting', deadlineAt: '2026-09-12T23:00:00.000Z', airspaceLocked: true,
-      parkedCraftIds: ['starlight'] }),
+    data: () => ({ ...canonicalState(1, 'targeting'), type: undefined }),
   });
 
   expect(onState).toHaveBeenCalledTimes(2);
@@ -3072,9 +3082,16 @@ it('hydrates the complete GM-private attack state and keeps its revision monoton
     status: 'declared', turn: 1, revision: 3, preparationRevision: 2,
     currentStep: 'long-range', deadlineAt: '2026-09-12T23:00:00.000Z',
     airspaceLocked: true, parkedCraftIds: ['starlight'], launchedCraftIds: [],
-    attackId: 'wolf-attack-1', preparation: privatePreparation,
-    calculationReceipt: { hidden: true }, memberResults: [],
+    attackId: 'wolf-attack-1', preparation: privatePreparation, calculationReceipt, memberResults: [],
   });
+
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({ ...canonicalState(4, 'long-range'), calculationReceipt: { malformed: true } }),
+  });
+  expect(onState).toHaveBeenLastCalledWith(null);
+  expect(onState).toHaveBeenCalledTimes(3);
   unsubscribe();
   expect(onState).toHaveBeenLastCalledWith(null);
 });
