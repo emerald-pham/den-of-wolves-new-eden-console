@@ -5,6 +5,7 @@ import { Link, Navigate } from 'react-router-dom';
 import ArrestPosseCalculator from '@/components/ArrestPosseCalculator';
 import EmergencyTimerPauseControl from '@/components/EmergencyTimerPauseControl';
 import WolfAttackRecoveryControl from '@/components/WolfAttackRecoveryControl';
+import GmWolfDecisionSummary from '@/components/GmWolfDecisionSummary';
 import ShipPlot from '@/components/ShipPlot';
 import { useFleetGroupNavigation } from '@/lib/useFleetGroupNavigation';
 import GmMutinyRecovery from '@/components/GmMutinyRecovery';
@@ -1182,6 +1183,7 @@ export default function GmConsole() {
       const stopWolfAttackState = subscribeGmWolfAttackState(
         sessionId,
         (next) => {
+          if (!currentAuthorityKey()) return;
           setWolfStageAdvanceMessage(null);
           setWolfAttackState((current) =>
             current && next && next.revision < current.revision ? current : next);
@@ -3055,6 +3057,11 @@ export default function GmConsole() {
                 changeKey={wolfDeclarationAnnouncementKey}
                 message={wolfDeclarationAnnouncement}
               />
+              {wolfAttackState && <GmWolfDecisionSummary
+                {...(wolfAttackState.decisionSummary ? { summary: wolfAttackState.decisionSummary } : {})}
+                currentStep={wolfAttackState.currentStep} players={allPlayers}
+                available={Boolean(local && isGm && connection === 'live' && sessionSnapshotFreshness === 'server' &&
+                  session?.phase === 'active' && wolfAttackState.turn === currentTurn)} />}
               {wolfAttackState && (
                 <details className="gm-wolf-preparation__receipt">
                   <summary>Private attack receipt // facilitator only</summary>
