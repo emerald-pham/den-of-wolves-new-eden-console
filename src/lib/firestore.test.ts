@@ -82,6 +82,13 @@ it('does not invent foreign resources or Press docking from a current member ses
   expect(Object.keys(value.shipResources ?? {})).toEqual(['shepherd']);
   expect(value.shuttleDockings?.map(entry => entry.shuttleId)).toEqual(['endeavour']);
   expect(value.updatedAt).toBe('2026-01-01T00:00:00.000Z');
+  const dione = sessionFrom('scoped-dione', {
+    ...sessionData(12), activeRoleIds: ['dione-captain', 'shepherd-captain'],
+    memberSessionScope: { groupId: 'fleet-2', vesselIds: ['dione'], craftIds: ['endeavour'] },
+    shuttleDockings: [{ shuttleId: 'endeavour', shipId: 'dione', dockedAt: 'SESSION START' }],
+    shuttleVisitLog: [],
+  });
+  expect(dione.shuttleDockings?.map(entry => entry.shuttleId)).toEqual(['endeavour']);
 });
 
 it('uses the current member read feed without subscribing to a raw session root', async () => {
