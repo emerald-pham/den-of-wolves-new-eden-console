@@ -1505,7 +1505,7 @@ function wolfAttackDecisionSummary(value: unknown): WolfAttackDecisionSummary | 
   const forceStatuses = ['pending', 'selected', 'passed', 'unavailable', 'not-needed'];
   const forceReasons = ['no-current-captain', 'ambiguous-current-captain', 'gorgoneion-not-admitted',
     'projector-not-ready', 'captain-berth-unavailable', 'not-recorded'];
-  if (!onlyKeys(raw, ['commander', 'commandAndControl', 'forceField', 'range', 'boarding']) ||
+  if (!onlyKeys(raw, ['commander', 'commandAndControl', 'forceField', 'range', 'boarding', 'enrichedWarheads']) ||
       !commander || !commandAndControl || !forceField || !commanderActors || !commandActors ||
       !commanderStatuses.includes(String(commander.status)) || !commandStatuses.includes(String(commandAndControl.status)) ||
       !forceStatuses.includes(String(forceField.status)) ||
@@ -1516,6 +1516,14 @@ function wolfAttackDecisionSummary(value: unknown): WolfAttackDecisionSummary | 
       (forceField.reason !== undefined && !forceReasons.includes(String(forceField.reason))) ||
       (forceField.actor !== undefined && !actor(forceField.actor)) ||
       (forceField.targetShipId !== undefined && forceField.targetShipId !== null && !targets.includes(String(forceField.targetShipId)))) return null;
+
+  let parsedWarheads: WolfAttackDecisionSummary['enrichedWarheads'];
+  if (raw.enrichedWarheads !== undefined) {
+    const warheads = record(raw.enrichedWarheads, ['status', 'actors']);
+    const warheadActors = warheads ? actors(warheads.actors) : null;
+    if (!warheads || !warheadActors || !['pending', 'enriched', 'passed', 'unavailable'].includes(String(warheads.status))) return null;
+    parsedWarheads = { status: warheads.status as NonNullable<WolfAttackDecisionSummary['enrichedWarheads']>['status'], actors: warheadActors };
+  }
 
   let parsedRange: WolfAttackDecisionSummary['range'];
   if (raw.range !== undefined) {
@@ -1581,6 +1589,7 @@ function wolfAttackDecisionSummary(value: unknown): WolfAttackDecisionSummary | 
       ...(forceField.reason === undefined ? {} : { reason: forceField.reason as NonNullable<WolfAttackDecisionSummary['forceField']['reason']> }),
       ...(forceField.targetShipId === undefined ? {} : { targetShipId: forceField.targetShipId as Exclude<WolfAttackDecisionSummary['forceField']['targetShipId'], undefined> }),
     },
+    ...(parsedWarheads ? { enrichedWarheads: parsedWarheads } : {}),
     ...(parsedRange ? { range: parsedRange } : {}),
     ...(parsedBoarding ? { boarding: parsedBoarding } : {}),
   };

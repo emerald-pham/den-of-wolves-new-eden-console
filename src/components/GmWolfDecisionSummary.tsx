@@ -62,6 +62,11 @@ export default function GmWolfDecisionSummary({ summary, currentStep, players, a
           {summary.commander.reason && <p>{REASON[summary.commander.reason]}</p>}
           <Actors actors={summary.commander.actors} players={players} />
         </div>
+        {summary.enrichedWarheads && <div role="group" aria-label="Enriched warhead decisions">
+          <strong>AEGIS Executive Officer // Enriched warheads</strong>
+          <p>{summary.enrichedWarheads.status === 'enriched' ? 'Five ore paid once // active for this attack' : STATUS[summary.enrichedWarheads.status]}</p>
+          <Actors actors={summary.enrichedWarheads.actors} players={players} />
+        </div>}
         <div role="group" aria-label="Command and Control decisions">
           <strong>AEGIS Executive Officer // Command and Control</strong><p>{STATUS[summary.commandAndControl.status]}</p>
           {summary.commandAndControl.reason && <p>{REASON[summary.commandAndControl.reason]}</p>}

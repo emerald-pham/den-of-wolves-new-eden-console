@@ -614,6 +614,10 @@ export interface WolfForceFieldPrivateStatus {
 }
 
 export interface WolfAttackDecisionSummary {
+  readonly enrichedWarheads?: Readonly<{
+    status: 'pending' | 'enriched' | 'passed' | 'unavailable';
+    actors: readonly WolfAttackDecisionActor[];
+  }>;
   readonly commander: Readonly<{
     status: 'pending' | 'committed' | 'no-commander' | 'unavailable' | 'waiting-for-force-field';
     actors: readonly WolfAttackDecisionActor[];
