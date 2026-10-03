@@ -5,6 +5,7 @@ import CycleBriefingClearanceView from '@/components/CycleBriefingClearanceView'
 import AirspaceStatusView from '@/components/AirspaceStatusView';
 import {ScoutResultPanel,GmScoutResolutionLog} from '@/components/ScoutResultPanels';
 import {WolfAttackStatusView} from '@/components/WolfAttackStatusPanel';
+import PC07AttackChoicesReview from './PC07AttackChoicesReview';
 import type {LocalDradisNavigation} from '@/components/localDradisContacts';
 import type {FleetGroupNavigationProjection,FleetGroupNote} from '@/lib/fleetGroupService';
 import type {TurnPhase,WolfAttackMemberView} from '@/types/game';
@@ -129,6 +130,7 @@ export function PC07AttackReview(){
   <WolfAttackStatusView view={view} />
   <p className="pc07-review__note">Five ordered steps: targeting, Long Range, Medium Range, Short Range, Boarding. This prepared sequence illustrates the current audience view; server calculations and genuine player decisions are proved separately.</p>
   <p className="pc07-review__result" role="status" aria-label="Attack sample result">{result}</p>
+  <PC07AttackChoicesReview />
  </section>;
 }
 

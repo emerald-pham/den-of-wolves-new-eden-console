@@ -28,6 +28,10 @@
 .pc07-review label:has(input[type='checkbox']) {display:flex;align-items:center;gap:.65rem;min-height:44px;}
 .pc07-review input[type='checkbox'] {width:1.25rem;height:1.25rem;min-height:0;flex:0 0 auto;padding:0;accent-color:var(--cic-cyan);}
 .pc07-review :focus-visible {outline:2px solid var(--cic-cyan);outline-offset:2px;}
+.pc07-review__choice-examples label {font:14px/1.5 var(--cic-mono);}
+.pc07-review__choice-examples select {font:16px/1.5 var(--cic-mono);min-height:44px;}
+.pc07-review__choice-examples input[type='radio'],.pc07-review__choice-examples input[type='checkbox'] {width:20px;height:20px;min-height:0;padding:0;flex:0 0 auto;accent-color:var(--cic-cyan);}
+.pc07-review__choice-examples .wolf-force-field__target {display:flex;align-items:center;gap:.65rem;min-height:44px;}
 @media(max-width:760px){.pc07-review__header {align-items:start;flex-direction:column;}.pc07-review__steps {grid-template-columns:repeat(2,minmax(0,1fr));}.pc07-review__steps button:last-child {grid-column:1/-1;}.pc07-review__step-controls {display:grid;grid-template-columns:1fr 1fr;}.pc07-review__step-controls p {grid-column:1/-1;grid-row:1;}.pc07-review__controls button {flex:1 1 10rem;}}
 @media(max-height:430px) and (orientation:landscape){.pc07-review__steps {grid-template-columns:repeat(5,minmax(8rem,1fr));overflow-x:auto;}.pc07-review__header {padding-block:.7rem;}.pc07-review__plot {height:22rem;}}
 @media(prefers-reduced-motion:reduce){.pc07-review *,.pc07-review *::before,.pc07-review *::after {animation:none!important;transition:none!important;scroll-behavior:auto!important;}}
