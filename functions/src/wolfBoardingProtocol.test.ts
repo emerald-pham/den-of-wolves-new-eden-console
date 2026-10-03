@@ -6,6 +6,7 @@ const base: WolfBoardingProtocolInput = {
   commanderUid: 'commander', commanderChoice: undefined,
   relocations: [{ craftId: 'pallas', holderUid: 'pilot', fuelled: true, host: 'aegis' }],
   relocationChoices: {},
+  crewActorUidByTarget: { aegis: 'crew-aegis', dione: 'crew-dione' },
   defenceChoices: {}, supportTargets: ['aegis', 'dione'],
   militiaUidByTarget: {}, militiaChoices: {},
   rollsLocked: false, diceCounts: { aegis: 2, dione: 1 },
@@ -46,7 +47,7 @@ describe('Wolf boarding stage protocol', () => {
       supportTargets: [], rollsLocked: true, diceCounts: { aegis: 0, dione: 0 },
       aegisRerollActorUid: undefined, pallasRerollActorUid: undefined,
     };
-    expect(nextWolfBoardingStage(noSpecialActors)).toEqual({ kind: 'defence', actorUid: 'crew-aegis', target: 'aegis' });
+    expect(nextWolfBoardingStage(noSpecialActors)).toEqual({ kind: 'complete' });
     expect(nextWolfBoardingStage({ ...noSpecialActors,
       attackedTargets: [], defenceChoices: {}, militiaChoices: {} })).toEqual({ kind: 'complete' });
   });
