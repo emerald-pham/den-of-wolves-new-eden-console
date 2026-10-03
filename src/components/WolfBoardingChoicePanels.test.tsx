@@ -59,6 +59,22 @@ describe('Wolf boarding decision presenters', () => {
     expect(onChoose).toHaveBeenCalledWith([{ targetShipId: 'aegis', dieIndex: 0 }]);
   });
 
+  it('lets a source reroll a die already rerolled by the other source', () => {
+    const onChoose = vi.fn();
+    render(<WolfBoardingRerollChoicePanelView view={{
+      type: 'wolf-boarding-reroll-choice-view', source: 'pallas', status: 'pending',
+      dice: [{ targetShipId: 'aegis', dieIndex: 0, value: 4 }],
+      alreadyRerolled: [], maxRerolls: 3,
+    }} onChoose={onChoose} />);
+
+    expect(screen.getByText('Choose up to 3 dice. Each die can be rerolled once by this source.')).toBeVisible();
+    const die = screen.getByRole('checkbox', { name: /aegis die 1: 4/i });
+    expect(die).toBeEnabled();
+    fireEvent.click(die);
+    fireEvent.click(screen.getByRole('button', { name: /reroll selected dice/i }));
+    expect(onChoose).toHaveBeenCalledWith([{ targetShipId: 'aegis', dieIndex: 0 }]);
+  });
+
   it('requires a non-empty GM ruling only when all Commander-led parties are lost', () => {
     const onChoose = vi.fn();
     render(<WolfBoardingCommanderRulingPanelView view={{
