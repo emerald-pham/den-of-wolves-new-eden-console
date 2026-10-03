@@ -82,6 +82,7 @@ import {
   getPdfEscortWingLaunch,
   launchDioneMaliades,
   launchPdfEscortWing,
+  passWolfFighterLaunchChoice,
   setEmergencyTimerPaused,
 } from './index';
 import { parseMaliadesState, resolveMaliadesMedium as resolveMaliadesStateMedium,
@@ -930,6 +931,39 @@ it('launches the PDF Escort Wing through the current Wolf attack and charged Ref
   mock.set.mockClear();
   await expect(launchPdfEscortWing.run(request(launchRequest))).resolves.toMatchObject({
     status: 'replayed', revision: 2, wingRevision: 1, launched: true,
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('records an explicit PDF fighter pass once and exposes the durable choice on retry', async () => {
+  await declareThenSeatPdfColonel();
+  const payload = {
+    sessionId: 's1', requestId: 'pass-pdf-launch-1', sourceId: 'pdf-escort-fighter-wing',
+    expectedTurn: 1, expectedRevision: 1, expectedWingRevision: 0,
+  };
+
+  await expect(passWolfFighterLaunchChoice.run(request(payload))).resolves.toMatchObject({
+    status: 'committed', type: 'wolf-fighter-launch-choice', sourceId: 'pdf-escort-fighter-wing',
+    choiceStatus: 'passed', turn: 1, revision: 2, actorRoleId: 'refinery-124-pdf-colonel',
+  });
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
+    fighterLaunchChoices: {
+      'pdf-escort-fighter-wing': {
+        sourceId: 'pdf-escort-fighter-wing', status: 'passed', turn: 1,
+        attackId: 'wolf-attack-wolf-declare-1', revision: 2,
+        actorUid: 'u1', actorRoleId: 'refinery-124-pdf-colonel', requestId: payload.requestId,
+      },
+    },
+  });
+  await expect(getPdfEscortWingLaunch.run(request({ sessionId: 's1' }))).resolves.toMatchObject({
+    choiceStatus: 'passed', eligible: false, reason: 'passed',
+  });
+
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(passWolfFighterLaunchChoice.run(request(payload))).resolves.toMatchObject({
+    status: 'replayed', choiceStatus: 'passed', revision: 2,
   });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
