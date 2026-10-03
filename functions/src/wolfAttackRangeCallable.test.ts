@@ -49,6 +49,7 @@ vi.mock('firebase-functions/v2/scheduler', () => ({ onSchedule: (_schedule: stri
 import {
   assignWolfRangeTargets,
   commitWolfRangeActionChoice,
+  advanceWolfAttackLifecycle,
   getWolfRangeActionChoice,
 } from './index';
 
@@ -155,4 +156,28 @@ it('records an explicit pass, rejects stale/wrong-phase/wrong-actor writes, and 
     range: 'long-range', actionIds: [],
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(testState.documents.has('sessions/s1/commandReceipts/paused-long')).toBe(false);
+});
+
+it('opens Long Range automatically when targeting has no Commander and no available C&C choice', async () => {
+  const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  put('sessions/s1/wolfAttackState/current', { ...attack, currentStep: 'targeting', revision: 4 });
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
+    currentStep: 'long-range', revision: 5,
+    commanderRerollCompletion: { status: 'no-commander', turn: 1, revision: 5, actorUid: 'server',
+      requestId: 'wolf-no-commander-1' },
+  });
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current/audit/auto-targeting-1'))
+    .toMatchObject({ type: 'wolf-attack-targeting-auto-advance', fromStep: 'targeting', toStep: 'long-range' });
+});
+
+it('does not run automatic attack progression through any current session pause', async () => {
+  const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  put('sessions/s1/wolfAttackState/current', { ...attack, currentStep: 'targeting', revision: 4 });
+  const session = testState.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session, turnPhase: { ...session.turnPhase as Fields,
+    timerPause: { reason: 'turn-interstitial', pausedAt: '2026-10-02T12:00:00.000Z', remainingMs: 5000 } } });
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current'))
+    .toMatchObject({ currentStep: 'targeting', revision: 4 });
 });
