@@ -8,7 +8,7 @@ it('automatically rejoins only groups at the same authoritative system and keeps
   const groups = [
     { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['alice'], memberShipIds: { alice: 'aegis' } },
     { id: 'fleet-2', vesselIds: ['dione'], memberUids: ['bob'], memberShipIds: { bob: 'dione' } },
-    { id: 'fleet-3', vesselIds: ['icebreaker'], memberUids: ['cara'] },
+    { id: 'fleet-3', vesselIds: ['icebreaker'], memberUids: ['cara'], memberShipIds: { cara: 'icebreaker' } },
   ];
   const nav = navigationState({ shipGalacticCoordinates: { aegis: '1413', dione: '1413', icebreaker: '0000' },
     pursuitGroups: { 'fleet-1': 3, 'fleet-2': 5, 'fleet-3': 1 } }, ships);
