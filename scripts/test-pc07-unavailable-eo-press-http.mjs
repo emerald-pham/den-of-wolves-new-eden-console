@@ -112,6 +112,12 @@ try {
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   await page.screenshot({ path: `${uiDirectory}/normal-press-after-poll-and-movement.png`, fullPage: true });
   checks.normalPressOwnConsolePersistsAcrossPollAndUiMovementWithoutVesselMaps = true;
+  await writeFile(`${uiDirectory}/normal-press-proof.json`, JSON.stringify({
+    kind: 'normal-authenticated-local-emulator-press-ui-gameplay', sourceCommit: process.env.PC07_SOURCE_COMMIT,
+    ordinaryRoster: 8, independentPress: true, checks: { ...checks }, browserErrors: errors,
+    actualTransitDurationMs: 60000, fixtureChanges: ['disposable cycle clock deadlines only'],
+    preparedScene: false, productionGameplay: false, identitiesRetained: false, completedAt: new Date().toISOString(),
+  }, null, 2) + '\n');
 
   await command(gm, 'setWolfAttackWindow', { instanceId, requestId: randomUUID(), expectedRevision: 0, status: 'deferred' });
   await command(gm, 'advanceTurn', { instanceId, requestId: randomUUID(), expectedTurn: 1, overridePhaseTimer: true });
@@ -123,7 +129,8 @@ try {
   const phaseBefore = (await session.get()).get('turnPhase');
   await command(gm, 'setWolfAttackWindow', { instanceId, requestId: randomUUID(), expectedRevision: 1, status: 'due' });
   const preparation = await command(gm, 'stageWolfAttackPreparation', { instanceId, requestId: randomUUID(), expectedRevision: 0, turn: 2,
-    shipIds: ['wolf-fighter-wing', 'wolf-fighter-wing', 'wolf-assault-transport'], targetMode: 'pre-rolled', targetAssignments: [], modifiers: [], notes: '' });
+    shipIds: [...Array(10).fill('wolf-fighter-wing'), ...Array(5).fill('wolf-assault-transport')],
+    targetMode: 'pre-rolled', targetAssignments: [], modifiers: [], notes: '' });
   const declarationRequest = { instanceId, requestId: randomUUID(), expectedRevision: preparation.revision };
   const declaration = await command(gm, 'declareWolfAttack', declarationRequest);
   await until(state => state?.currentStep === 'boarding' || state?.status === 'resolved', 'automatic ranges and boarding');
