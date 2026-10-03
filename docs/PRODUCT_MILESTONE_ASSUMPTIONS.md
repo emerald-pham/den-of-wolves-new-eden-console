@@ -449,3 +449,22 @@ the original assumption; append the resolution so the decision is traceable.
 | Source | Capybara A4 duplex v1.1 expansion, printed p. 4, Boa Wolf Attack ability; the routed Capybara reference flags already-destroyed target validity as ambiguity AMB-06. Exact private provenance and routing remain in the source library. |
 | Chosen reading | At each range, the Recycler may choose one currently alive, range-legal Wolf contact and spend one Scrap for one damage. If there is no legal contact, record a pass and retain Scrap. |
 | Alternatives and limits | Selecting a previously destroyed ship would spend a resource without a defined new effect. This bounded reading does not settle other AMB-06 cases, waive Short Range Wing priority or Battlestation immunity, add a second use, or draw damage again on retry. The connected transaction and normal authenticated proof remain required. |
+
+
+### PC08-A6 — Consume surviving Wings in a later facilitator-selected attack
+
+| Field | Decision |
+|---|---|
+| ID and checkpoint | PC08-A6, P469–P470; acknowledged by the owner during connected implementation. |
+| Source | Facilitator Guide v1.1 printed p. 10 (physical PDF p. 12) makes the frequency and size of one or two additional attacks a facilitator difficulty choice; the Wolf Fighter Wing card returns an undestroyed Wing in the next attack. Private source provenance remains in the routed library. |
+| Chosen reading | After complete prior resolution, the current live facilitator may select a new due window through an authenticated audited command. Surviving Wings occupy mandatory Fighter Wing slots within the selected composition's printed capacity, with a durable prior-instance-to-new-slot mapping. An undersized preparation fails. The next declaration consumes that exact carryover once and excludes destroyed Wings. |
+| Alternatives and limits | A saved return list without a declaration consumer cannot satisfy P470. There is no automatic frequency schedule, extra capacity above the printed composition, mutation of a prior final receipt, or reopening of an unresolved attack. The Battlestation's separate immediate-repeat consequence remains outside this minimal return consumer. |
+
+### PC08-A7 — Explicit Medium Range wing pass
+
+| Field | Decision |
+|---|---|
+| ID and checkpoint | PC08-A7, P396/P398/P450–P451/P457; a bounded digital extension selected by the owner. |
+| Source | Alpha/Bravo A4 single-sided v1.1 printed p. 36 says fighters can act at both ranges, with an either/or Medium attack or target shift. Its explicit up-to wording appears at Short Range. The PDF Escort Wing sheet supplies its corresponding independent choice. |
+| Chosen reading | Give the entitled wing holder an explicit whole-wing Medium pass when declining its available actions. Preserve one attack-or-shift per committed fighter. Record the pass against the current attack and revision before advancing. |
+| Alternatives and limits | The Medium whole-wing pass is a recorded digital choice where the sequence is silent; it is not attributed to explicit printed pass wording. It draws no dice, causes no losses, and cannot bypass another source's pending action. Source-owned validation and authenticated proof remain required. |

@@ -19,6 +19,13 @@ For an attack crossing deployment, accept only a contiguous no-shift legacy
 receipt prefix before strict new snapshots. Validate its unchanged target map;
 reject reverse legacy order or snapshot-less shifts in both progression and
 finalization.
+A later facilitator-selected due window may consume finalized surviving Wings.
+Review current GM lease, prior immutable final audit, composition capacity,
+mandatory return slots, exact prior-to-new instance mapping and atomic once-only
+consumption. Unresolved, fabricated, undersized and stale reopen paths fail
+closed; replay cannot alter the prior result or include destroyed Wings.
+An explicit Medium whole-wing pass draws no dice or losses and cannot skip
+another entitled source's pending action.
 Root also closes the Union craft setup gap with a current authenticated GM
 starting-host choice. Check the pre-start window, confirmed Union roster,
 paired active hosts, setup revision, exact private receipt, manifest/history

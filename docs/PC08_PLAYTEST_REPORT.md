@@ -1,9 +1,9 @@
 # PC08 playtest report
 
-**New assumptions come first.** [PC08-A1–A5](PRODUCT_MILESTONE_ASSUMPTIONS.md#pc08-a1--explicit-union-craft-starting-hosts)
+**New assumptions come first.** [PC08-A1–A7](PRODUCT_MILESTONE_ASSUMPTIONS.md#pc08-a1--explicit-union-craft-starting-hosts)
 record explicit Union starting hosts, current-range shift timing, durable
 launch-or-pass windows, simultaneous Short Range Wing priority and Boa's live
-target rule. These are bounded digital choices or source corrections; the
+target rule, a consumed next-attack return and an explicit Medium wing pass. These are bounded digital choices or source corrections; the
 printed component sheets still control costs, ranges, capacity and effects.
 The [range source notes](PC08_RANGE_ASSUMPTIONS.md) preserve precise references.
 The incomplete Commander consequence remains an explicit private facilitator
@@ -21,7 +21,7 @@ and 147/293 campaign items (50.17%); its required finish is 654/751 overall
 
 The separate `/pc08-review.html` scene uses the actual console presenters and
 local prepared actions. It visibly identifies its samples and preserves any
-signed-in live session. Its parent return opens the station and console chooser.
+signed-in live session. Its visible parent control returns to the app, which restores a connected player to the station and console chooser. A fresh device follows the normal motion-safety choice.
 Gameplay correctness remains the agents' responsibility.
 
 1. **DRADIS and shuttles:** follow docked, travelling, parked and rejoined craft;
