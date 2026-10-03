@@ -148,6 +148,7 @@ export interface WolfBoardingRerollChoiceView {
   readonly source: 'aegis' | 'pallas';
   readonly status: 'pending' | 'committed' | 'unavailable';
   readonly dice: readonly Readonly<{ targetShipId: WolfAttackTargetId; dieIndex: number; value: number }>[];
+  /** Only dice already spent in this source's independent allowance. */
   readonly alreadyRerolled: readonly Readonly<{ targetShipId: WolfAttackTargetId; dieIndex: number }>[];
   readonly maxRerolls: number;
   readonly selectedDice?: readonly Readonly<{ targetShipId: WolfAttackTargetId; dieIndex: number }>[];
@@ -177,7 +178,7 @@ export function WolfBoardingRerollChoicePanelView({
   return <section aria-label={`${title} boarding rerolls`}>
     <h3>{title} boarding rerolls</h3>
     {view.status === 'pending' ? <>
-      <p>Choose up to {view.maxRerolls} dice. Each die can be rerolled only once.</p>
+      <p>Choose up to {view.maxRerolls} dice. Each die can be rerolled once by this source.</p>
       <div>{view.dice.map((die) => {
         const key = selectedKey(die);
         return <label key={key}>
