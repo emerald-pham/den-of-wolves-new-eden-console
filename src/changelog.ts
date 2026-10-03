@@ -26,10 +26,9 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       completed: 605, total: 751, percentage: '80.56%',
       done: 605, partial: 15, active: 0, missing: 131, blocked: 0,
     },
-    implementationPrompts: [],
     changes: [
       'The PC07 review plot stays beside its group sample, keeping instructions and navigation clear.',
-      '605 of 751 planned items are complete in this release snapshot (80.56%).',
+      '605 of 751 planned items are complete in the catalog snapshot used to build this release (80.56%).',
     ],
   },
   {
