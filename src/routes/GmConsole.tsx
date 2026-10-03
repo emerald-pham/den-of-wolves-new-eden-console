@@ -3087,6 +3087,22 @@ export default function GmConsole() {
                 changeKey={wolfDeclarationAnnouncementKey}
                 message={wolfDeclarationAnnouncement}
               />
+              {wolfAttackState && (
+                <details className="gm-wolf-preparation__receipt">
+                  <summary>Private attack receipt // facilitator only</summary>
+                  <p className="gm-console__hint">
+                    Current revision {wolfAttackState.revision} // {wolfAttackState.currentStep} // deadline {wolfAttackState.deadlineAt}
+                  </p>
+                  <pre aria-label="Private Wolf attack calculation receipt">
+                    {JSON.stringify({
+                      attackId: wolfAttackState.attackId,
+                      preparation: wolfAttackState.preparation,
+                      calculationReceipt: wolfAttackState.calculationReceipt,
+                      committedAudienceResults: wolfAttackState.memberResults,
+                    }, null, 2)}
+                  </pre>
+                </details>
+              )}
             </section>
           </section>
           <section className="gm-console__module gm-crisis cic-frame" aria-label="Crisis state machine">

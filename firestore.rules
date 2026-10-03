@@ -995,6 +995,29 @@ service cloud.firestore {
         }
       }
 
+      // The attack audience endpoint is a server-filtered copy of progress and
+      // committed public outcomes. Its top-level allowlist prevents a future
+      // private calculation field from becoming readable by session members.
+      match /wolfAttackAudience/{projectionId} {
+        allow get: if projectionId == 'current' && isMember(sessionId) &&
+          resource != null &&
+          resource.data.keys().hasAll([
+            'type', 'schemaVersion', 'sessionId', 'attackId', 'turn', 'revision',
+            'status', 'phase', 'currentStep', 'range', 'deadlineAt', 'serverTime',
+            'visibility', 'redaction', 'results'
+          ]) &&
+          resource.data.keys().hasOnly([
+            'type', 'schemaVersion', 'sessionId', 'attackId', 'turn', 'revision',
+            'status', 'phase', 'currentStep', 'range', 'deadlineAt', 'serverTime',
+            'visibility', 'redaction', 'results'
+          ]) &&
+          resource.data.type == 'wolf-attack-member-view' &&
+          resource.data.schemaVersion == 1 &&
+          resource.data.sessionId == sessionId &&
+          resource.data.visibility == 'members';
+        allow list, write: if false;
+      }
+
       // Homing beacons and Wolf-base arrivals create immutable facilitator-visible
       // pressure schedules. Their target, timing, and required force are server
       // authored; players cannot read, enumerate, forge, or erase them.

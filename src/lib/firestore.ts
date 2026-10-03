@@ -20,6 +20,7 @@ import { app, functions } from './firebase';
 import { emulatorPorts, useEmulators } from './firebaseConfig';
 import { parsePdfEscortWingMemberView } from './pdfEscortWingProjection';
 import { parseVoyage33MovementState } from '../../functions/src/voyage33Movement';
+import { isWolfAttackMemberView } from '../../functions/src/wolfAttackAudience';
 import type {
   CommissarPurgeAuthority,
   CandidateReveal,
@@ -68,6 +69,7 @@ import type {
   WolfAttackTargetMode,
   WolfAttackPreparationTargetAssignment,
   WolfAttackDeclarationState,
+  WolfAttackMemberView,
   WolfAttackWindow,
   WolfActionReceipt,
   WolfSuspicionHistoryEntry,
@@ -1466,6 +1468,7 @@ function wolfAttackPreparation(value: unknown): WolfAttackPreparation | null {
 function wolfAttackDeclarationState(value: unknown): WolfAttackDeclarationState | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const state = value as Record<string, unknown>;
+  const preparation = wolfAttackPreparation(state.preparation);
   const parkedCraftIds = Array.isArray(state.parkedCraftIds)
     ? state.parkedCraftIds.filter((id): id is string => typeof id === 'string')
     : [];
@@ -1473,28 +1476,38 @@ function wolfAttackDeclarationState(value: unknown): WolfAttackDeclarationState 
   const launchedCraftIds = Array.isArray(rawLaunchedCraftIds)
     ? rawLaunchedCraftIds.filter((id): id is string => typeof id === 'string')
     : [];
+  const memberResults = state.memberResults === undefined ? [] : state.memberResults;
   if (
-    state.status !== 'declared' ||
-    (state.currentStep !== 'targeting' && state.currentStep !== 'long-range') ||
-    state.airspaceLocked !== true ||
+    state.type !== 'wolf-attack-state' ||
+    (state.status !== 'declared' && state.status !== 'resolved') ||
+    !['targeting', 'long-range', 'medium-range', 'short-range', 'boarding', 'resolved'].includes(String(state.currentStep)) ||
+    typeof state.airspaceLocked !== 'boolean' ||
     !Number.isSafeInteger(state.turn) || (state.turn as number) < 1 ||
     !Number.isSafeInteger(state.revision) || (state.revision as number) < 1 ||
     !Number.isSafeInteger(state.preparationRevision) || (state.preparationRevision as number) < 1 ||
     typeof state.deadlineAt !== 'string' || !state.deadlineAt ||
+    typeof state.attackId !== 'string' || !state.attackId ||
+    !preparation || typeof state.calculationReceipt !== 'object' ||
+    state.calculationReceipt === null || Array.isArray(state.calculationReceipt) ||
+    !Array.isArray(memberResults) ||
     !Array.isArray(state.parkedCraftIds) || parkedCraftIds.length !== state.parkedCraftIds.length ||
     !Array.isArray(rawLaunchedCraftIds) || launchedCraftIds.length !== rawLaunchedCraftIds.length ||
     new Set(launchedCraftIds).size !== launchedCraftIds.length
   ) return null;
   return {
-    status: 'declared',
+    status: state.status,
     turn: state.turn as number,
     revision: state.revision as number,
     preparationRevision: state.preparationRevision as number,
-    currentStep: state.currentStep,
+    currentStep: state.currentStep as WolfAttackDeclarationState['currentStep'],
     deadlineAt: state.deadlineAt,
-    airspaceLocked: true,
+    airspaceLocked: state.airspaceLocked,
     parkedCraftIds,
     launchedCraftIds,
+    attackId: state.attackId,
+    preparation,
+    calculationReceipt: state.calculationReceipt,
+    memberResults: memberResults as readonly unknown[],
   };
 }
 
@@ -4348,6 +4361,38 @@ export function subscribeGmWolfAttackState(
     subscribed = false;
     unsubscribe();
     onState(null);
+  };
+}
+
+/** Subscribe to the stable server-projected attack status/result shared by active session members. */
+export function subscribeWolfAttackMemberView(
+  sessionId: string,
+  onView: (view: WolfAttackMemberView | null) => void,
+): Unsubscribe {
+  let subscribed = true;
+  const acceptsRevision = createMonotonicRevisionGate();
+  const unsubscribe = onSnapshot(
+    doc(db(), `sessions/${sessionId}/wolfAttackAudience/current`),
+    { includeMetadataChanges: true },
+    (snapshot) => {
+      if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      const value = snapshot.exists() ? snapshot.data() : null;
+      if (value === null) {
+        onView(null);
+        return;
+      }
+      if (!isWolfAttackMemberView(value) || value.sessionId !== sessionId ||
+          !acceptsRevision(value.revision)) return;
+      onView(value as WolfAttackMemberView);
+    },
+    () => {
+      if (subscribed) onView(null);
+    },
+  );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+    onView(null);
   };
 }
 

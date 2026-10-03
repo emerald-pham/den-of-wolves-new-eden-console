@@ -1,0 +1,105 @@
+.wolf-attack-status {
+  display: grid;
+  gap: 0.8rem;
+  margin-block: 1rem;
+  padding: 1rem;
+  border: 1px solid rgba(127, 207, 218, 0.48);
+  background: rgba(5, 18, 28, 0.86);
+}
+
+.wolf-attack-status__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.wolf-attack-status__header h2 {
+  margin: 0.15rem 0 0;
+  color: var(--cic-text-primary, #e8f2f4);
+  font-family: var(--font-display, inherit);
+  font-size: clamp(1.05rem, 2vw, 1.35rem);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.wolf-attack-status__phase {
+  flex: 0 0 auto;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid rgba(127, 207, 218, 0.56);
+  color: var(--cic-accent, #9ce2e8);
+  font: 600 0.75rem/1.25 var(--font-console, monospace);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.wolf-attack-status__deadline,
+.wolf-attack-status__pending {
+  margin: 0;
+  color: var(--cic-text-secondary, #b7cbd0);
+  font: 0.78rem/1.5 var(--font-console, monospace);
+  overflow-wrap: anywhere;
+}
+
+.wolf-attack-status__results {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wolf-attack-status__results li {
+  display: grid;
+  gap: 0.18rem;
+  padding: 0.65rem 0.75rem;
+  border-left: 2px solid rgba(127, 207, 218, 0.76);
+  background: rgba(160, 198, 207, 0.06);
+  color: var(--cic-text-secondary, #b7cbd0);
+  font: 0.78rem/1.45 var(--font-console, monospace);
+  overflow-wrap: anywhere;
+}
+
+.wolf-attack-status__results strong {
+  color: var(--cic-accent, #9ce2e8);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.wolf-attack-status__results small {
+  color: var(--cic-text-muted, #8ca3a9);
+  font-size: 0.66rem;
+}
+
+@media (max-width: 520px) {
+  .wolf-attack-status__header {
+    display: grid;
+    gap: 0.6rem;
+  }
+
+  .wolf-attack-status__phase {
+    justify-self: start;
+  }
+}
+
+@media (max-height: 560px) and (orientation: landscape) {
+  .wolf-attack-status {
+    gap: 0.5rem;
+    padding: 0.7rem;
+  }
+
+  .wolf-attack-status__results {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wolf-attack-status,
+  .wolf-attack-status * {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

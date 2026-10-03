@@ -9,6 +9,7 @@ import {
   type WolfCombatShip,
   type WolfRandomInt,
 } from './wolfCombatMath';
+import { WOLF_ATTACK_TARGET_IDS, type WolfAttackTargetId } from './wolfAttackPreparation';
 
 export const WOLF_ATTACK_LIFECYCLE_STEPS = [
   'targeting', 'long-range', 'medium-range', 'short-range', 'boarding', 'resolved',
@@ -132,4 +133,23 @@ export function reduceWolfDamageForForceField(
     damageByTarget: { ...damageByTarget, [protectedTarget]: damage - prevented },
     prevented,
   };
+}
+
+export function chooseWolfForceFieldTarget(input: Readonly<{
+  charged: boolean;
+  targetShipId: string | null;
+  activeTargetIds: readonly string[];
+}>): Readonly<{ status: 'protected'; targetShipId: WolfAttackTargetId } | { status: 'unavailable' }> {
+  if (!input.charged) {
+    if (input.targetShipId !== null) {
+      throw new Error('The uncharged Force Field Projector cannot select a target.');
+    }
+    return { status: 'unavailable' };
+  }
+  if (input.targetShipId === null ||
+      !(WOLF_ATTACK_TARGET_IDS as readonly string[]).includes(input.targetShipId) ||
+      !input.activeTargetIds.includes(input.targetShipId)) {
+    throw new Error('Choose one active fleet target for the charged Force Field Projector.');
+  }
+  return { status: 'protected', targetShipId: input.targetShipId as WolfAttackTargetId };
 }

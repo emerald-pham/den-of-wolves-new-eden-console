@@ -40,6 +40,7 @@ import {
 } from 'firebase-admin/firestore';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { commandError } from './commandErrors';
 import {
@@ -615,6 +616,7 @@ import {
   commanderRerollsAreClosed,
   commanderRerollsCompletionDecision,
 } from './wolfCommandAndControl';
+import { projectWolfAttackMemberView } from './wolfAttackAudience';
 import { isWolfActionKind, wolfActionAuthorization } from './wolfActionAuthorization';
 import { resolveWolfSupplySabotage } from './wolfSupplySabotage';
 import {
@@ -19257,6 +19259,7 @@ export const declareWolfAttack = onCall<{
   const departuresRef = db.collection(`sessions/${declaration.sessionId}/shuttleDepartures`);
   const transitChainsRef = db.collection(`sessions/${declaration.sessionId}/shuttleTransitChains`);
   const stateRef = db.doc(`sessions/${declaration.sessionId}/wolfAttackState/current`);
+  const audienceRef = db.doc(`sessions/${declaration.sessionId}/wolfAttackAudience/current`);
   const pdfEscortWingRef = db.doc(`sessions/${declaration.sessionId}/serverState/pdfEscortWing`);
   const auditRef = db.doc(`sessions/${declaration.sessionId}/wolfAttackState/current/audit/${declaration.requestId}`);
   const receiptRef = commandReceiptRef(declaration.sessionId, declaration.requestId);
@@ -19495,6 +19498,11 @@ export const declareWolfAttack = onCall<{
       tx.delete(db.doc(`sessions/${declaration.sessionId}/shuttleTransitChains/${shuttleId}`));
     }
     tx.set(stateRef, { ...stageState, updatedAt: FieldValue.serverTimestamp() });
+    tx.set(audienceRef, projectWolfAttackMemberView({
+      sessionId: declaration.sessionId,
+      state: stageState,
+      serverTime: declaredAt,
+    }));
     if (nextPdfEscortWingState) {
       tx.set(pdfEscortWingRef, nextPdfEscortWingState);
     }
@@ -19535,6 +19543,41 @@ export const declareWolfAttack = onCall<{
     return result;
   });
 });
+
+/** Keep the stable audience endpoint current after private attack revisions commit. */
+export const syncWolfAttackAudienceProjection = onDocumentWritten(
+  'sessions/{sessionId}/wolfAttackState/current',
+  async (event) => {
+    const sessionId = event.params.sessionId;
+    if (typeof sessionId !== 'string' || !sessionId) return;
+    const stateRef = db.doc(`sessions/${sessionId}/wolfAttackState/current`);
+    const audienceRef = db.doc(`sessions/${sessionId}/wolfAttackAudience/current`);
+    await db.runTransaction(async (tx) => {
+      const current = await tx.get(stateRef);
+      if (!current.exists) {
+        tx.delete(audienceRef);
+        return;
+      }
+      let projection;
+      try {
+        projection = projectWolfAttackMemberView({
+          sessionId,
+          state: current.data(),
+          serverTime: new Date().toISOString(),
+        });
+      } catch {
+        // Keep the last valid public snapshot rather than leaking malformed
+        // private state or replacing a reconnect-safe view with empty data.
+        return;
+      }
+      const existing = await tx.get(audienceRef);
+      if (existing.exists && existing.get('attackId') === projection.attackId &&
+          Number.isSafeInteger(existing.get('revision')) &&
+          (existing.get('revision') as number) > projection.revision) return;
+      tx.set(audienceRef, projection);
+    });
+  },
+);
 
 type WolfAttackStageAdvanceResult = Readonly<{
   status: 'committed';

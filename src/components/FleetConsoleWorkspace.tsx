@@ -6,6 +6,7 @@ import { isImplementedAegisRole } from '@/data/aegisConsoles';
 import type { DamageDraw, ShipDamageState, ShipNavigationLogs } from '@/types/game';
 import type { ShipConsoleProjection } from '@/lib/shipStateProjection';
 import AegisCommandAndControlPanel from './AegisCommandAndControlPanel';
+import WolfAttackStatusPanel from './WolfAttackStatusPanel';
 
 interface Props {
   readonly ship: Ship;
@@ -60,10 +61,11 @@ export default function FleetConsoleWorkspace({
         shipState={shipState}
       />
       <AegisCommandAndControlPanel consoleLocked={projectedConsoleLock} />
+      <WolfAttackStatusPanel />
     </>;
   }
   if (ship.workspace === 'aegis' && isImplementedAegisRole(role.id)) {
-    return (
+    return <>
       <AegisConsoleWorkspace
         roleId={role.id}
         galacticCoordinate={projectedCoordinate}
@@ -76,9 +78,11 @@ export default function FleetConsoleWorkspace({
         consoleLocked={projectedConsoleLock}
         shipState={shipState}
       />
-    );
+      <WolfAttackStatusPanel />
+    </>;
   }
-  return <FleetSystemsWorkspace
+  return <>
+    <FleetSystemsWorkspace
     key={role.id}
     ship={ship}
     role={role}
@@ -92,5 +96,7 @@ export default function FleetConsoleWorkspace({
     consoleLocked={projectedConsoleLock}
     writable={writable}
     shipState={shipState}
-  />;
+    />
+    <WolfAttackStatusPanel />
+  </>;
 }

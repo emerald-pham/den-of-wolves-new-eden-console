@@ -571,18 +571,53 @@ export interface WolfAttackPreparation {
   readonly notes: string;
 }
 
-/** GM-only summary of an atomically declared Wolf attack. Hidden preparation,
- * targeting samples, and calculation receipts never cross this boundary. */
+/** GM-only attack view, including its private calculation and audit inputs. */
 export interface WolfAttackDeclarationState {
-  readonly status: 'declared';
+  readonly status: 'declared' | 'resolved';
   readonly turn: number;
   readonly revision: number;
   readonly preparationRevision: number;
-  readonly currentStep: 'targeting' | 'long-range';
+  readonly currentStep: 'targeting' | 'long-range' | 'medium-range' | 'short-range' | 'boarding' | 'resolved';
   readonly deadlineAt: string;
-  readonly airspaceLocked: true;
+  readonly airspaceLocked: boolean;
   readonly parkedCraftIds: readonly string[];
   readonly launchedCraftIds: readonly string[];
+  readonly attackId?: string;
+  readonly preparation?: WolfAttackPreparation;
+  readonly calculationReceipt?: unknown;
+  readonly memberResults?: readonly unknown[];
+}
+
+/** Stable member-safe Wolf-attack endpoint; private dice and composition never cross this shape. */
+export interface WolfAttackMemberResult {
+  readonly range: 'long' | 'medium' | 'short' | 'boarding';
+  readonly sourceId: string;
+  readonly targetId: string;
+  readonly bearing: number | null;
+  readonly contactReference: string;
+  readonly effect: string;
+  readonly outcome: Readonly<Record<string, number | boolean | string | null>>;
+  readonly serverTime: string;
+}
+
+export interface WolfAttackMemberView {
+  readonly type: 'wolf-attack-member-view';
+  readonly schemaVersion: 1;
+  readonly sessionId: string;
+  readonly attackId: string;
+  readonly turn: number;
+  readonly revision: number;
+  readonly status: 'declared' | 'resolved';
+  readonly phase: 'active';
+  readonly currentStep: 'targeting' | 'long-range' | 'medium-range' | 'short-range' | 'boarding' | 'resolved';
+  readonly range: 'long' | 'medium' | 'short' | null;
+  readonly deadlineAt: string;
+  readonly serverTime: string;
+  readonly visibility: 'members';
+  readonly redaction: readonly [
+    'composition', 'unresolved-dice', 'facilitator-notes', 'intervention-state',
+  ];
+  readonly results: readonly WolfAttackMemberResult[];
 }
 
 export type DioneMaliadesLaunchReason =
