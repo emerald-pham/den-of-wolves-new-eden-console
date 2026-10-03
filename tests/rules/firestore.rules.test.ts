@@ -2361,6 +2361,57 @@ describe('players', () => {
 });
 
 describe('shuttle departure privacy', () => {
+  it('moves a historical shuttle route with a rejoined group and revokes it when its endpoints split again', async () => {
+    const path = `${SESSION}/shuttleDepartures/starlight`;
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, `${SESSION}/players/bob`), {
+        uid: 'bob', role: 'player', displayName: 'Bob', seatId: null,
+        fleetGroupId: 'fleet-2', connected: true,
+      });
+      await setDoc(doc(db, `${SESSION}/fleetGroups/fleet-1`), {
+        id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['alice'], memberShipIds: { alice: 'aegis' },
+      });
+      await setDoc(doc(db, `${SESSION}/fleetGroups/fleet-2`), {
+        id: 'fleet-2', vesselIds: ['dione', 'shepherd'], memberUids: ['bob'],
+        memberShipIds: { bob: 'dione' },
+      });
+      await setDoc(doc(db, path), {
+        status: 'in-transit', shuttleId: 'starlight', fleetGroupId: 'fleet-2',
+        originShipId: 'dione', destinationShipId: 'shepherd',
+      });
+    });
+
+    await assertFails(getDoc(doc(as('alice'), path)));
+    await assertSucceeds(getDoc(doc(as('bob'), path)));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, `${SESSION}/fleetGroups/fleet-1`), {
+        id: 'fleet-1', vesselIds: ['aegis', 'dione', 'shepherd'], memberUids: ['alice', 'bob'],
+        memberShipIds: { alice: 'aegis', bob: 'dione' }, mergedGroupIds: ['fleet-2'],
+      });
+      await updateDoc(doc(db, `${SESSION}/players/bob`), { fleetGroupId: 'fleet-1' });
+      await deleteDoc(doc(db, `${SESSION}/fleetGroups/fleet-2`));
+    });
+    await assertSucceeds(getDoc(doc(as('alice'), path)));
+    await assertSucceeds(getDoc(doc(as('bob'), path)));
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, `${SESSION}/fleetGroups/fleet-1`), {
+        id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['alice'],
+        memberShipIds: { alice: 'aegis' }, mergedGroupIds: ['fleet-2'],
+      });
+      await setDoc(doc(db, `${SESSION}/fleetGroups/fleet-3`), {
+        id: 'fleet-3', vesselIds: ['dione', 'shepherd'], memberUids: ['bob'],
+        memberShipIds: { bob: 'dione' }, mergedGroupIds: ['fleet-2'],
+      });
+      await updateDoc(doc(db, `${SESSION}/players/bob`), { fleetGroupId: 'fleet-3' });
+    });
+    await assertFails(getDoc(doc(as('alice'), path)));
+    await assertSucceeds(getDoc(doc(as('bob'), path)));
+  });
+
   it('scopes an exact pending route to its fleet group and denies enumeration or client writes', async () => {
     const path = `${SESSION}/shuttleDepartures/starlight`;
     await env.withSecurityRulesDisabled(async (ctx) => {
