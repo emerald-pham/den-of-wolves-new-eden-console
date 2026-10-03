@@ -3028,32 +3028,36 @@ it('hydrates the facilitator-only Wolf preparation and keeps revisions monotonic
   expect(onPreparation).toHaveBeenLastCalledWith(null);
 });
 
-it('hydrates only the safe GM declaration summary and keeps its revision monotonic', () => {
+it('hydrates the complete GM-private attack state and keeps its revision monotonic', () => {
   const { callbacks } = captureSessionListener();
   const onState = vi.fn();
   const unsubscribe = subscribeGmWolfAttackState('s1', onState);
+  const privatePreparation = {
+    turn: 1, revision: 2, shipIds: ['wolf-fighter-wing'], targetMode: 'pre-rolled',
+    targetAssignments: [], modifiers: [], notes: 'private facilitator note',
+  };
+  const canonicalState = (revision: number, currentStep: string) => ({
+    type: 'wolf-attack-state', status: 'declared', turn: 1, revision, preparationRevision: 2,
+    currentStep, deadlineAt: '2026-09-12T23:00:00.000Z', airspaceLocked: true,
+    parkedCraftIds: ['starlight'], launchedCraftIds: [], attackId: 'wolf-attack-1',
+    preparation: privatePreparation, calculationReceipt: { hidden: true }, memberResults: [],
+  });
 
   callbacks[0]?.({
     metadata: { fromCache: true },
     exists: () => true,
-    data: () => ({ status: 'declared', turn: 1, revision: 1, preparationRevision: 2,
-      currentStep: 'targeting', deadlineAt: '2026-09-12T23:00:00.000Z', airspaceLocked: true,
-      parkedCraftIds: ['starlight'], calculationReceipt: { hidden: true }, preparation: { notes: 'hidden' } }),
+    data: () => canonicalState(1, 'targeting'),
   });
   expect(onState).not.toHaveBeenCalled();
   callbacks[0]?.({
     metadata: { fromCache: false },
     exists: () => true,
-    data: () => ({ status: 'declared', turn: 1, revision: 2, preparationRevision: 2,
-      currentStep: 'targeting', deadlineAt: '2026-09-12T23:00:00.000Z', airspaceLocked: true,
-      parkedCraftIds: ['starlight'], calculationReceipt: { hidden: true }, preparation: { notes: 'hidden' } }),
+    data: () => canonicalState(2, 'targeting'),
   });
   callbacks[0]?.({
     metadata: { fromCache: false },
     exists: () => true,
-    data: () => ({ status: 'declared', turn: 1, revision: 3, preparationRevision: 2,
-      currentStep: 'long-range', deadlineAt: '2026-09-12T23:00:00.000Z', airspaceLocked: true,
-      parkedCraftIds: ['starlight'], calculationReceipt: { hidden: true }, preparation: { notes: 'hidden' } }),
+    data: () => canonicalState(3, 'long-range'),
   });
   callbacks[0]?.({
     metadata: { fromCache: false },
@@ -3068,6 +3072,8 @@ it('hydrates only the safe GM declaration summary and keeps its revision monoton
     status: 'declared', turn: 1, revision: 3, preparationRevision: 2,
     currentStep: 'long-range', deadlineAt: '2026-09-12T23:00:00.000Z',
     airspaceLocked: true, parkedCraftIds: ['starlight'], launchedCraftIds: [],
+    attackId: 'wolf-attack-1', preparation: privatePreparation,
+    calculationReceipt: { hidden: true }, memberResults: [],
   });
   unsubscribe();
   expect(onState).toHaveBeenLastCalledWith(null);
