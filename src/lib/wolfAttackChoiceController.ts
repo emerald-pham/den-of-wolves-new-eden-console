@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeWolfAttackMemberView } from '@/lib/firestore';
 import { useSessionStore } from '@/store/useSessionStore';
-import type { GameSession, Player, WolfAttackMemberView } from '@/types/game';
+import type { GameSession, GmInstance, Player, WolfAttackMemberView } from '@/types/game';
 
 export type WolfAttackChoiceActor =
-  | 'gorgoneion-captain' | 'wolf-commander' | 'executive-officer' | 'wing-commander' | 'ship-crew';
+  | 'gorgoneion-captain' | 'wolf-commander' | 'executive-officer' | 'wing-commander' | 'ship-crew' | 'facilitator';
 
 export interface WolfAttackChoiceAuthority {
   readonly sessionId?: string;
@@ -25,17 +25,20 @@ function authorityFor(
   values: Readonly<{
     session: GameSession | null;
     me: Player | null;
+    gmInstance: GmInstance | null;
     connection: string;
     freshness: string;
     identityRevision: number;
     online: boolean;
   }>,
 ): WolfAttackChoiceAuthority {
-  const { session, me, connection, freshness, identityRevision, online } = values;
+  const { session, me, gmInstance, connection, freshness, identityRevision, online } = values;
   const sessionId = suppliedSessionId ?? session?.id;
-  const baseActor = Boolean(sessionId && session?.id === sessionId && me?.sessionId === sessionId &&
+  const basePlayerActor = Boolean(sessionId && session?.id === sessionId && me?.sessionId === sessionId &&
     me.role === 'player' && me.connected !== false && me.fleetGroupId && me.replacementStatus == null);
-  const actorReady = baseActor && (actor === 'gorgoneion-captain'
+  const baseFacilitatorActor = Boolean(sessionId && session?.id === sessionId && me?.sessionId === sessionId &&
+    me.role === 'gm' && me.connected !== false && gmInstance?.sessionId === sessionId && gmInstance.uid === me.uid);
+  const actorReady = actor === 'facilitator' ? baseFacilitatorActor : basePlayerActor && (actor === 'gorgoneion-captain'
     ? me?.replacementRoleId === 'gorgoneion-captain'
     : actor === 'wolf-commander'
       ? me?.replacementRoleId === 'wolf-commander'
@@ -51,6 +54,7 @@ function authorityFor(
     me?.sessionId ?? null, me?.uid ?? null, me?.connectionGeneration ?? null, me?.role ?? null, me?.connected ?? null,
     me?.replacementRoleId ?? null, me?.replacementStatus ?? null, me?.assignedRoleId ?? null,
     me?.activeConsoleRoleId ?? null, me?.seatId ?? null, me?.fleetGroupId ?? null, identityRevision,
+    gmInstance?.sessionId ?? null, gmInstance?.uid ?? null, gmInstance?.id ?? null,
     discovery?.groupId ?? null, discovery?.shipId ?? null, discovery?.revision ?? null,
     discovery?.fleetGroupVesselIds ?? [], gorgoneion?.hostShipId ?? null, gorgoneion?.dockingRevision ?? null,
     connection, freshness, online, enabled,
@@ -69,6 +73,7 @@ export function useWolfAttackChoiceAuthority(
 ): WolfAttackChoiceAuthority {
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
+  const gmInstance = useSessionStore((state) => state.gmInstance);
   const connection = useSessionStore((state) => state.connection);
   const freshness = useSessionStore((state) => state.sessionSnapshotFreshness);
   const identityRevision = useSessionStore((state) => state.identityHydrationRevision);
@@ -86,7 +91,7 @@ export function useWolfAttackChoiceAuthority(
   }, []);
 
   return authorityFor(actor, suppliedSessionId, enabled, {
-    session, me, connection, freshness, identityRevision, online,
+    session, me, gmInstance, connection, freshness, identityRevision, online,
   });
 }
 
@@ -100,6 +105,7 @@ export function wolfAttackChoiceAuthorityIsCurrent(
   const authority = authorityFor(actor, sessionId, enabled, {
     session: current.session,
     me: current.me,
+    gmInstance: current.gmInstance,
     connection: current.connection,
     freshness: current.sessionSnapshotFreshness,
     identityRevision: current.identityHydrationRevision,

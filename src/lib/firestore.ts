@@ -1665,6 +1665,39 @@ function wolfAttackDeclarationState(value: unknown): WolfAttackDeclarationState 
   const decisionSummary = state.decisionSummary === undefined
     ? undefined
     : wolfAttackDecisionSummary(state.decisionSummary);
+  const attackNumber = state.attackNumber === undefined ? 1 : state.attackNumber;
+  const previousAttackId = typeof state.previousAttackId === 'string' &&
+    /^wolf-attack-[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test(state.previousAttackId)
+    ? state.previousAttackId : undefined;
+  const rawCarryover = state.carryover;
+  const carryover = typeof rawCarryover === 'object' && rawCarryover !== null && !Array.isArray(rawCarryover) &&
+    typeof (rawCarryover as Record<string, unknown>).sourceAttackId === 'string' &&
+    /^wolf-attack-[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test((rawCarryover as Record<string, unknown>).sourceAttackId as string) &&
+    Number.isSafeInteger((rawCarryover as Record<string, unknown>).sourceTurn) &&
+    Array.isArray((rawCarryover as Record<string, unknown>).sourceInstanceIds) &&
+    Array.isArray((rawCarryover as Record<string, unknown>).rosterInstanceIds) &&
+    ((rawCarryover as Record<string, unknown>).sourceInstanceIds as unknown[]).every((id) =>
+      typeof id === 'string' && /^\d+:wolf-fighter-wing$/.test(id)) &&
+    ((rawCarryover as Record<string, unknown>).rosterInstanceIds as unknown[]).every((id) =>
+      typeof id === 'string' && /^\d+:wolf-fighter-wing$/.test(id))
+    ? {
+      sourceAttackId: (rawCarryover as Record<string, unknown>).sourceAttackId as string,
+      sourceTurn: (rawCarryover as Record<string, unknown>).sourceTurn as number,
+      sourceInstanceIds: [...(rawCarryover as Record<string, unknown>).sourceInstanceIds as string[]],
+      rosterInstanceIds: [...(rawCarryover as Record<string, unknown>).rosterInstanceIds as string[]],
+    }
+    : undefined;
+  const validAttackChain = Number.isSafeInteger(attackNumber) &&
+    (attackNumber as number) >= 1 && (attackNumber as number) <= 3 &&
+    (attackNumber === 1
+      ? previousAttackId === undefined && carryover === undefined &&
+        state.previousAttackId === undefined && state.carryover === undefined
+      : typeof state.previousAttackId === 'string' && previousAttackId !== undefined &&
+        carryover !== undefined && carryover.sourceAttackId === previousAttackId &&
+        carryover.sourceTurn < (state.turn as number) &&
+        carryover.sourceInstanceIds.length === carryover.rosterInstanceIds.length &&
+        new Set(carryover.sourceInstanceIds).size === carryover.sourceInstanceIds.length &&
+        new Set(carryover.rosterInstanceIds).size === carryover.rosterInstanceIds.length);
   if (
     state.type !== 'wolf-attack-state' ||
     (state.status !== 'declared' && state.status !== 'resolved') ||
@@ -1675,6 +1708,7 @@ function wolfAttackDeclarationState(value: unknown): WolfAttackDeclarationState 
     !Number.isSafeInteger(state.preparationRevision) || (state.preparationRevision as number) < 1 ||
     typeof state.deadlineAt !== 'string' || !state.deadlineAt ||
     typeof state.attackId !== 'string' || !state.attackId ||
+    !validAttackChain || (state.carryover !== undefined && carryover === undefined) ||
     !preparation || !validCalculationReceipt ||
     (state.forceFieldChoice !== undefined && !forceFieldChoice) ||
     (state.decisionSummary !== undefined && !decisionSummary) ||
@@ -1686,11 +1720,16 @@ function wolfAttackDeclarationState(value: unknown): WolfAttackDeclarationState 
   return {
     status: state.status,
     turn: state.turn as number,
+    attackNumber: attackNumber as number,
+    ...(previousAttackId ? { previousAttackId } : {}),
+    ...(carryover ? { carryover } : {}),
     revision: state.revision as number,
     preparationRevision: state.preparationRevision as number,
     currentStep: state.currentStep as WolfAttackDeclarationState['currentStep'],
     deadlineAt: state.deadlineAt,
     airspaceLocked: state.airspaceLocked,
+    ...(state.parkingReleaseCondition === 'normal-movement-reopened'
+      ? { parkingReleaseCondition: state.parkingReleaseCondition } : {}),
     parkedCraftIds,
     launchedCraftIds,
     attackId: state.attackId,

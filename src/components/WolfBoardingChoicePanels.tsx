@@ -81,9 +81,9 @@ export interface WolfBoardingMilitiaChoiceView {
   readonly targetShipId: WolfAttackTargetId;
   readonly boardingParties: number;
   readonly availableSecurityTeams: number;
+  readonly selectedSecurityTeams: number;
   readonly maxFrontLineDice: number;
   readonly doubleDiceAvailable: boolean;
-  readonly selectedSecurityTeams?: number;
   readonly militiaDoubleTeams?: boolean;
   readonly militiaFrontLineDice?: number;
   readonly militiaLeaderKilled?: boolean;
@@ -94,13 +94,11 @@ export function WolfBoardingMilitiaChoicePanelView({
 }: Readonly<{
   view: WolfBoardingMilitiaChoiceView;
   onChoose(choice: Readonly<{
-    securityTeams: number;
     militiaDoubleTeams: boolean;
     militiaFrontLineDice: number;
   }>): void;
   busy?: boolean;
 }>) {
-  const [securityTeams, setSecurityTeams] = useState(view.selectedSecurityTeams ?? view.availableSecurityTeams);
   const [doubleTeams, setDoubleTeams] = useState(view.militiaDoubleTeams ?? false);
   const [frontLineDice, setFrontLineDice] = useState(view.militiaFrontLineDice ?? 0);
   if (view.status !== 'pending') {
@@ -113,16 +111,7 @@ export function WolfBoardingMilitiaChoicePanelView({
   }
   return <section aria-label={`${shipName(view.targetShipId)} Militia defence`}>
     <h3>{shipName(view.targetShipId)} Militia defence</h3>
-    <p>{view.boardingParties} boarding parties face {view.availableSecurityTeams} Security Teams.</p>
-    <label>
-      Security Teams to commit
-      <select aria-label="Security Teams to commit" value={securityTeams} disabled={busy}
-        onChange={(event) => setSecurityTeams(Number(event.target.value))}>
-        {Array.from({ length: view.availableSecurityTeams + 1 }, (_, count) => (
-          <option key={count} value={count}>{count}</option>
-        ))}
-      </select>
-    </label>
+    <p>{view.boardingParties} boarding parties face {view.availableSecurityTeams} Security Teams. The ship crew committed {view.selectedSecurityTeams} Security Teams.</p>
     {view.doubleDiceAvailable && <label>
       <input type="checkbox" checked={doubleTeams} disabled={busy} onChange={(event) => setDoubleTeams(event.target.checked)} />
       Roll two dice per Security Team
@@ -138,8 +127,8 @@ export function WolfBoardingMilitiaChoicePanelView({
     </label>
     {view.maxFrontLineDice > 0 && <p>A front-line 1 costs a Security Team and kills the Militia Leader.</p>}
     <button type="button" disabled={busy} onClick={() => onChoose({
-      securityTeams, militiaDoubleTeams: doubleTeams, militiaFrontLineDice: frontLineDice,
-    })}>Commit defence</button>
+      militiaDoubleTeams: doubleTeams, militiaFrontLineDice: frontLineDice,
+    })}>Commit Militia risk</button>
   </section>;
 }
 

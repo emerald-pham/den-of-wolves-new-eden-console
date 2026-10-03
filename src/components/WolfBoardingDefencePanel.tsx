@@ -36,10 +36,14 @@ export function WolfBoardingDefencePanelView({
     return <section className="wolf-boarding-defence cic-frame" aria-label="Boarding defence">
       <header className="wolf-boarding-defence__header">
         <div><p className="eyebrow">Cycle // boarding</p><h2>Boarding defence</h2></div>
-        <span className="wolf-boarding-defence__status">No choice required</span>
+        <span className="wolf-boarding-defence__status">
+          {view.reason === 'no-boarders' ? 'No choice required' : 'Waiting for this ship’s choice'}
+        </span>
       </header>
       <p className="wolf-boarding-defence__notice" role="status">
-        No surviving boarding parties are present on this ship. No Security Teams choice is required.
+        {view.reason === 'no-boarders'
+          ? 'No surviving boarding parties are present on this ship. No Security Teams choice is required.'
+          : 'This ship’s defence choice is not open yet. It will remain pending for the current assigned crew when its stage begins.'}
       </p>
       {message && <p className="wolf-boarding-defence__message" role="status">{message}</p>}
     </section>;

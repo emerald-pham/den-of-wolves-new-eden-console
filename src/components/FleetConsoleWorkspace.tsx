@@ -12,6 +12,7 @@ import WolfRangeActionPanel from './WolfRangeActionPanel';
 import WolfBoardingDefencePanel from './WolfBoardingDefencePanel';
 import AegisFighterWingLaunchPanel from './AegisFighterWingLaunchPanel';
 import WolfFighterRangeActionPanel from './WolfFighterRangeActionPanel';
+import WolfBoardingSpecialChoicePanel from './WolfBoardingSpecialChoicePanel';
 
 interface Props {
   readonly ship: Ship;
@@ -69,6 +70,7 @@ export default function FleetConsoleWorkspace({
       <AegisCommandAndControlPanel consoleLocked={projectedConsoleLock} />
       {writable && <WolfRangeActionPanel />}
       {writable && <WolfBoardingDefencePanel />}
+      {writable && <WolfBoardingSpecialChoicePanel />}
       <WolfAttackStatusPanel />
     </>;
   }
@@ -91,6 +93,7 @@ export default function FleetConsoleWorkspace({
         (['medium-range', 'short-range'] as const).map((range) => <WolfFighterRangeActionPanel
           key={`${sourceId}-${range}`} sourceId={sourceId} range={range} />))}
       {writable && <WolfBoardingDefencePanel />}
+      {writable && <WolfBoardingSpecialChoicePanel />}
       <WolfAttackStatusPanel />
     </>;
   }
@@ -111,6 +114,7 @@ export default function FleetConsoleWorkspace({
       shipState={shipState}
     />
     {writable && <WolfBoardingDefencePanel />}
+    {writable && <WolfBoardingSpecialChoicePanel />}
     <WolfAttackStatusPanel />
   </>;
 }

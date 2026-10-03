@@ -974,6 +974,7 @@ service cloud.firestore {
           allow get, list: if projectionId == 'current' && isGm(sessionId);
           allow write: if false;
         }
+
       }
 
       // The current arrest-posse result is private facilitator guidance. The
@@ -1018,6 +1019,13 @@ service cloud.firestore {
         match /audit/{auditId} {
           allow get, list: if projectionId == 'current' && isGm(sessionId);
           allow write: if false;
+        }
+
+        // Prior resolved attacks remain available to facilitators as an
+        // immutable provenance record after the current projection advances.
+        match /archives/{archiveId} {
+          allow get: if projectionId == 'current' && isGm(sessionId);
+          allow list, write: if false;
         }
       }
 

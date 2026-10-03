@@ -581,11 +581,20 @@ export interface WolfAttackPreparation {
 export interface WolfAttackDeclarationState {
   readonly status: 'declared' | 'resolved';
   readonly turn: number;
+  readonly attackNumber?: number;
+  readonly previousAttackId?: string;
+  readonly carryover?: Readonly<{
+    sourceAttackId: string;
+    sourceTurn: number;
+    sourceInstanceIds: readonly string[];
+    rosterInstanceIds: readonly string[];
+  }>;
   readonly revision: number;
   readonly preparationRevision: number;
   readonly currentStep: 'targeting' | 'long-range' | 'medium-range' | 'short-range' | 'boarding' | 'resolved';
   readonly deadlineAt: string;
   readonly airspaceLocked: boolean;
+  readonly parkingReleaseCondition?: 'normal-movement-reopened';
   readonly parkedCraftIds: readonly string[];
   readonly launchedCraftIds: readonly string[];
   readonly attackId?: string;

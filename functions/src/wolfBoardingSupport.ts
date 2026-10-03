@@ -116,13 +116,20 @@ export function deriveWolfBoardingSupportCraft(
   for (const craft of supportCraft) {
     const hostShipId = dockById.get(craft.id);
     if (!hostShipId || retained[craft.id] || !shuttleHostIsAllowed(craft.id, hostShipId)) continue;
-    const entry = rawControl[craft.id];
     const roleOwners = input.roleHolders.filter(({ roleId }) => roleId === craft.ownerRoleId);
+    if (roleOwners.length === 0 || !playerUids.has(roleOwners[0]!.uid)) continue;
+    if (roleOwners.length !== 1) {
+      throw new Error(`The printed owner for ${craft.id} is ambiguous.`);
+    }
+    const entry = rawControl[craft.id];
     if (!entry || entry.shuttleId !== craft.id || entry.ownerRoleId !== craft.ownerRoleId ||
-        roleOwners.length !== 1 || entry.ownerUid !== roleOwners[0]?.uid ||
-        !playerUids.has(entry.ownerUid) || !playerUids.has(entry.holderUid)) {
+        entry.ownerUid !== roleOwners[0]!.uid) {
       throw new Error(`The printed owner or current holder for ${craft.id} is unavailable.`);
     }
+    // A removed, replaced, kicked, or otherwise unavailable holder removes
+    // only this craft's actor abilities. Disconnected current holders remain
+    // in playerUids and therefore keep their choice pending until reconnect.
+    if (!playerUids.has(entry.holderUid)) continue;
     result.push({
       shuttleId: craft.id,
       ownerRoleId: craft.ownerRoleId,

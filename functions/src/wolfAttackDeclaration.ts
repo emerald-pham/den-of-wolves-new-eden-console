@@ -1,5 +1,6 @@
 import type { WolfAttackPreparation } from './wolfAttackPreparation';
 import type { WolfAttackParkingDecision } from './wolfAttackParking';
+import type { WolfWingCarryoverReceipt } from './wolfAttackCarryover';
 
 /** The declaration boundary owns only the first printed attack step. */
 export const WOLF_ATTACK_DECLARATION_STEP = 'targeting' as const;
@@ -31,6 +32,12 @@ export interface WolfAttackStageState {
   /** Stable identity for this declared attack; range actions bind to it. */
   readonly attackId: string;
   readonly turn: number;
+  /** One first attack plus at most two facilitator-selected repeat attacks. */
+  readonly attackNumber?: number;
+  /** Immutable chain link when this attack consumes a prior finalized attack. */
+  readonly previousAttackId?: string;
+  /** Returned surviving Wings mapped to the prepared, attack-scoped roster. */
+  readonly carryover?: WolfWingCarryoverReceipt;
   readonly revision: number;
   readonly preparationRevision: number;
   readonly currentStep: WolfAttackDeclarationStep;

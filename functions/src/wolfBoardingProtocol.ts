@@ -1,7 +1,7 @@
 export type WolfBoardingProtocolStage =
   | Readonly<{ kind: 'commander'; actorUid: string }>
   | Readonly<{ kind: 'relocation'; actorUid: string; craftId: 'pallas' | 'chepu' }>
-  | Readonly<{ kind: 'defence'; actorUid: string; target: string }>
+  | Readonly<{ kind: 'defence'; actorUids: readonly string[]; target: string }>
   | Readonly<{ kind: 'militia'; actorUid: string; target: string }>
   | Readonly<{ kind: 'lock-rolls' }>
   | Readonly<{ kind: 'aegis-reroll'; actorUid: string }>
@@ -17,7 +17,7 @@ export interface WolfBoardingProtocolInput {
     craftId: 'pallas' | 'chepu'; holderUid: string; fuelled: boolean; host: string;
   }>[];
   readonly relocationChoices: Readonly<Record<string, Readonly<{ target: string | null }>>>;
-  readonly crewActorUidByTarget: Readonly<Record<string, string>>;
+  readonly crewActorUidsByTarget: Readonly<Record<string, readonly string[]>>;
   readonly defenceChoices: Readonly<Record<string, Readonly<{ actorUid: string }>>>;
   readonly supportTargets: readonly string[];
   readonly militiaUidByTarget: Readonly<Record<string, string>>;
@@ -26,7 +26,7 @@ export interface WolfBoardingProtocolInput {
   readonly diceCounts: Readonly<Record<string, number>>;
   readonly aegisRerollActorUid?: string;
   readonly pallasRerollActorUid?: string;
-  readonly rerollChoices: Readonly<Record<string, readonly unknown[]>>;
+  readonly rerollChoices: Readonly<Record<string, unknown>>;
   readonly commanderRulingRequiredTarget?: string;
   readonly commanderRuling?: Readonly<{ actorUid: string; text: string }>;
 }
@@ -44,11 +44,10 @@ export function nextWolfBoardingStage(input: WolfBoardingProtocolInput): WolfBoa
     return { kind: 'relocation', actorUid: relocation.holderUid, craftId: relocation.craftId };
   }
 
-  const supportTargets = new Set(input.supportTargets);
   for (const { target } of input.attackedTargets) {
-    if (supportTargets.has(target) && input.defenceChoices[target] === undefined) {
-      const actorUid = input.crewActorUidByTarget[target];
-      if (actorUid) return { kind: 'defence', actorUid, target };
+    if (input.defenceChoices[target] === undefined) {
+      const actorUids = input.crewActorUidsByTarget[target];
+      return { kind: 'defence', actorUids: actorUids ?? [], target };
     }
     const militiaUid = input.militiaUidByTarget[target];
     if (militiaUid && input.militiaChoices[target] === undefined) {

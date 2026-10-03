@@ -1,68 +1,35 @@
-# PC08 boarding assumptions
+# PC08 boarding assumptions and source routing
 
-This note records the source interpretations used for PC08 boarding. The
-private routed scans remain outside Git; the page references below identify
-the v1.1 primary artifacts and their physical PDF pages.
+This note records the source decisions used for the connected opening boarding
+and returning-Wing flow. The private source index and originals remain outside
+Git; this file paraphrases rather than reproduces them.
 
-## Printed rules and implementation choices
+## Printed rules routed to the assigned prompts
 
-- **Sequence.** Boarding starts after the three range steps. Only surviving
-  Assault Transports add four parties each; defence rolls then remove teams or
-  parties, and each surviving party contributes one ship damage. The
-  Wolf Commander makes the optional +2-party leadership choice before the
-  Pallas and Chepu abilities. (Player Guide p. 15 / printed p. 13; Facilitator
-  Guide p. 12 / printed p. 10.)
-- **Support craft.** A Pallas, Chepu, Macaw, Philia, Blacksmith, Black Sheep,
-  Condor, Chacau, Wobbly, or Ally enables its current host to contribute that
-  host ship's Security Teams while the craft is correctly docked there. The
-  shuttle's owner, control holder, current host, fuel state, and control
-  revision remain independent facts; boarding never transfers shuttle cargo.
-  Macaw support is available only at its authoritative dock. (A4 Double Sided
-  p. 1, 2, 3, 5, 7, 73, 75, 77, 79, 81, 83; Capybara A4 p. 4.)
-- **Pallas and Chepu.** Pallas is owned by the AEGIS Executive Officer and
-  Chepu by the Refinery 124 PDF Colonel. Either can relocate to one legal fleet
-  ship at Boarding start only while fuelled. Pallas grants up to three rerolls;
-  Chepu does not. Relocation changes only its docking/history and the craft's
-  control revision, not fuel, cargo, owner, or holder. (A4 Double Sided p. 73,
-  81; Player Guide p. 11 / printed p. 9.)
-- **Independent rerolls.** The AEGIS Battle Sheet and a docked Pallas each
-  grant up to three defence-die rerolls. The printed modifiers give no order or
-  restriction on choosing the same die in both windows, so the implementation
-  keeps each source's separate three-die allowance and applies a second choice
-  to the currently committed value. Each source can still name a die only once
-  in its own window. (A4 Double Sided p. 1; A4 Double Sided p. 73; Facilitator
-  Guide p. 12 / printed p. 10.)
-- **Security Teams.** Defence dice come from the chosen host ship's current
-  Security Team inventory. A roll of 1 costs one team, 2–3 has no effect, and
-  4+ removes one boarding party. Every chosen team rolls even when parties are
-  fewer; casualties are capped at the available parties. (Player Guide p. 15 /
-  printed p. 13; Facilitator Guide p. 12 / printed p. 10.)
-- **Rosal Militia Leader.** The active replacement holder must be at the
-  attacked ship. If boarding parties exceed the ship's available Security
-  Teams, the role may choose two dice per selected team. The role may also
-  choose up to three additional front-line dice; a 1 on those dice costs a
-  Security Team and kills the role-holder. The implementation treats each
-  selected team as one casualty even if both of its dice show 1, and treats
-  each front-line 1 as a separate team casualty, capped at the ship's current
-  team inventory. (Rosal Militia Leader card, A4 Single Sided p. 20.)
-- **Commander consequence.** The Commander may add two parties to one attacked
-  target before Pallas/Chepu choices. The role card's sentence about the
-  consequence when all Wolf Boarding Parties are destroyed is incomplete. The
-  application does not invent an automatic result: that condition holds for
-  an explicit facilitator ruling stored in the private GM audit. (Wolf
-  Commander card, A4 Single Sided p. 22; Facilitator Guide p. 14 / printed
-  p. 12.)
-- **Damage and carryover.** Range destruction damage follows each Wolf ship's
-  printed capacity and range row. Surviving effects use the authoritative
-  post-range roster: surviving Fighter Wings alone return for the next attack,
-  destroyed Wings do not, and the Strikecarrier bonus counts only Wings that
-  survive all ranges. No later-attack aftermath is implemented here. (Wolf ship
-  cards, A4 Double Sided p. 1–5; Facilitator Guide p. 12 / printed p. 10.)
+| Prompt IDs | Printed source and implemented behavior |
+| --- | --- |
+| 394, 395, 460 | Base home-printing A4 duplex PDF sheet pages 73 and 81, and Capybara home-printing A4 duplex sheet page 4: docked Pallas, Chepu, or Macaw lets its host ship use its Security Teams during boarding. The support choice is attached to the current craft control, not inferred from the ship's owner or fuel state. |
+| 461 | Base home-printing A4 duplex PDF sheet pages 73 and 81: only fuelled Pallas and Chepu may relocate at the beginning of Boarding; the choice is made after the attack target is known. |
+| 462 | Base home-printing A4 duplex PDF sheet pages 75, 77, 79 and 83: Blacksmith, Black Sheep, Condor, Chacau, Wobbly and Ally provide their docked host's Security Teams. Their service or engineering role, holder, host and fuel state remain separate. |
+| 463 | AEGIS Battle Sheet, printed p. 1, and base home-printing A4 duplex PDF sheet page 73: the AEGIS Executive Officer and Pallas each have their own allowance of up to three defence-die rerolls. |
+| 464 | Base home-printing A4 single-sided PDF pages 21–22: the Wolf Commander contributes two additional assault parties and commits before shuttle abilities. The exact consequence when the Commander is unavailable is not fully specified; the connected game requires an explicitly labelled, private, audited facilitator ruling instead of silently inventing one. |
+| 465–467 | Base Player's Guide, printed p. 13, and base home-printing A4 duplex PDF card sheets 1–7: count the attacking parties, resolve Security Team defence, then apply surviving boarder damage to the fleet. At Short Range, assign simultaneous damage to eligible Wings first; one hit remains a whole card hit. Destroyed cards use their printed destruction effect, and the later range or boarding phase sees only surviving cards. |
+| 468 | Rosal Militia role sheet, base home-printing A4 single-sided PDF page 20: when the attackers outnumber available Security Teams, the Militia may roll up to two defence dice per team; it may also expose up to three front-line dice when not outnumbered. Any rolled one carries the printed Militia Leader risk. |
+| 469, 469a–469e | Base home-printing A4 duplex PDF card sheets 1–7: use each exact Battlestation, Strikecarrier, Cruiser, Destroyer, Assault Transport and Fighter Wing destruction outcome. Apply the committed range target changes before that range's destruction consequences, without rewriting earlier range receipts. |
+| 470 | Facilitator Guide, printed p. 10: after an attack finishes, the facilitator chooses a later due window and whether the game has one or two additional attacks. The allowed total is the first attack plus at most two additional attacks (three total); a fourth total attack is rejected. The printed 15–24 threshold refers to total damage capacity of the prepared Wolf composition, not a ship count. Returning Wings occupy prepared Wing slots; the next attack records prior-instance to next-instance identity and consumes the prior result once. |
 
-## Source routing
+## Product-owner rulings and deliberate app behavior
 
-The Player Guide, Facilitator Guide, base ship sheets, and Capybara sheet are
-the routed v1.1 artifacts inventoried by the private reference provenance
-index. Relevant physical pages were visually checked against the routed text
-derivatives before implementation. Only the short paraphrases above are
-reproduced here; source scans and renderings remain private.
+- The AEGIS and Pallas reroll allowances are independent: both source windows may select the same defence die, with the later reroll using its current stored value. Each window has a three-die budget and cannot select the same die twice within that source. An immutable stored outcome is replayed rather than redrawn.
+- An assigned holder who is disconnected remains entitled and pending until reconnect. Automatic unavailability applies when there is no current assigned actor or the holder/craft is no longer eligible; heartbeat expiry alone does not resolve a choice.
+- A Commander consequence remains an explicit facilitator ruling with a private audit entry. The app does not turn missing printed wording into a fixed automatic penalty.
+- In the seven-target Capybara ring, a committed range shift is replayed against that configured ring. Its target is effective in the current range before destruction damage is attributed, and subsequent ranges begin from the resulting roster.
+- A repeat attack is a facilitator-selected later window, not an automatic schedule or immediate Wolf-station action. The previous finalization stays immutable; only verified surviving Wings can be mapped once into the next prepared Wing slots.
+- Private card identity, rolls and facilitator ruling remain GM-only. Crew-facing projections expose only the choices and outcomes that their audience may see. These authority, replay, and privacy guarantees are application behavior rather than additional printed game rules.
+
+## Deliberately outside this slice
+
+PC09 aftermath and the broader post-attack campaign remain outside this
+implementation. This note covers only the connected PC08 boarding, printed
+destruction outcomes and the bounded later-attack consumer required by prompt
+470.

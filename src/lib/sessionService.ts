@@ -46,6 +46,9 @@ import type {
   WolfForceFieldChoiceResult,
   WolfBoardingDefenceChoiceReadResult,
   WolfBoardingDefenceChoiceResult,
+  WolfBoardingSpecialChoiceCommand,
+  WolfBoardingSpecialChoiceReadResult,
+  WolfBoardingSpecialChoiceResult,
   WolfCultIntelligence,
   PendingWolfHackingAlert,
   AcknowledgeWolfHackingAlertResult,
@@ -5938,8 +5941,9 @@ function wolfBoardingDefenceChoiceReadReply(value: unknown): WolfBoardingDefence
   const reply = value as Record<string, unknown>;
   if (reply.type === 'wolf-boarding-defence-choice-unavailable') {
     return Object.keys(reply).every((key) => ['type', 'sessionId', 'reason'].includes(key)) &&
-      typeof reply.sessionId === 'string' && reply.reason === 'no-boarders'
-      ? { type: 'wolf-boarding-defence-choice-unavailable', sessionId: reply.sessionId, reason: 'no-boarders' }
+      typeof reply.sessionId === 'string' && (reply.reason === 'no-boarders' || reply.reason === 'not-your-choice')
+      ? { type: 'wolf-boarding-defence-choice-unavailable', sessionId: reply.sessionId,
+        reason: reply.reason as 'no-boarders' | 'not-your-choice' }
       : null;
   }
   const allowed = new Set([
@@ -6059,6 +6063,215 @@ export async function commitWolfBoardingDefenceChoice(
     if (!currentBoardingCrewAuthorityIsCurrent(sessionId, checkpoint)) {
       throw new Error('The current ship crew authority changed before boarding defence committed.');
     }
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+function wolfBoardingSpecialChoiceReadReply(value: unknown): WolfBoardingSpecialChoiceReadResult | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const reply = value as Record<string, unknown>;
+  if (reply.type === 'wolf-boarding-special-choice-unavailable') {
+    const allowed = new Set(['type', 'sessionId', 'reason']);
+    const reasons = ['not-your-choice', 'automatic-progress-pending', 'no-special-choice'];
+    return Object.keys(reply).every((key) => allowed.has(key)) && typeof reply.sessionId === 'string' &&
+      reasons.includes(String(reply.reason))
+      ? { type: 'wolf-boarding-special-choice-unavailable', sessionId: reply.sessionId,
+        reason: reply.reason as Extract<WolfBoardingSpecialChoiceReadResult, { type: 'wolf-boarding-special-choice-unavailable' }>['reason'] }
+      : null;
+  }
+  const rootAllowed = new Set(['type', 'sessionId', 'turn', 'revision', 'choice']);
+  if (Object.keys(reply).some((key) => !rootAllowed.has(key)) ||
+      reply.type !== 'wolf-boarding-special-choice-view' || typeof reply.sessionId !== 'string' ||
+      !Number.isSafeInteger(reply.turn) || (reply.turn as number) < 1 ||
+      !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 1 ||
+      typeof reply.choice !== 'object' || reply.choice === null || Array.isArray(reply.choice)) return null;
+  const choice = reply.choice as Record<string, unknown>;
+  const validTarget = (target: unknown): target is WolfAttackTargetId => WOLF_FORCE_FIELD_TARGET_IDS.includes(target as WolfAttackTargetId);
+  if (choice.kind === 'commander') {
+    if (Object.keys(choice).some((key) => !['kind', 'targets'].includes(key)) || !Array.isArray(choice.targets) ||
+        choice.targets.length === 0) return null;
+    const targets = choice.targets as unknown[];
+    if (targets.some((entry) => typeof entry !== 'object' || entry === null || Array.isArray(entry) ||
+        Object.keys(entry as Record<string, unknown>).some((key) => !['targetShipId', 'boardingParties'].includes(key)) ||
+        !validTarget((entry as Record<string, unknown>).targetShipId) ||
+        !Number.isSafeInteger((entry as Record<string, unknown>).boardingParties) ||
+        ((entry as Record<string, unknown>).boardingParties as number) < 1) ||
+        new Set(targets.map((entry) => (entry as Record<string, unknown>).targetShipId)).size !== targets.length) return null;
+    return { type: 'wolf-boarding-special-choice-view', sessionId: reply.sessionId,
+      turn: reply.turn as number, revision: reply.revision as number, choice: { kind: 'commander',
+        targets: targets as readonly Readonly<{ targetShipId: WolfAttackTargetId; boardingParties: number }>[] } };
+  }
+  if (choice.kind === 'relocation') {
+    const allowed = new Set(['kind', 'craftId', 'currentHostId', 'fuelled', 'controlRevision', 'legalHostIds']);
+    const legal = Array.isArray(choice.legalHostIds) ? choice.legalHostIds : [];
+    if (Object.keys(choice).some((key) => !allowed.has(key)) ||
+        (choice.craftId !== 'pallas' && choice.craftId !== 'chepu') || !validTarget(choice.currentHostId) ||
+        typeof choice.fuelled !== 'boolean' || !Number.isSafeInteger(choice.controlRevision) ||
+        (choice.controlRevision as number) < 0 || !Array.isArray(choice.legalHostIds) || legal.length === 0 ||
+        legal.some((target) => !validTarget(target)) || new Set(legal).size !== legal.length ||
+        !legal.includes(choice.currentHostId)) return null;
+    return { type: 'wolf-boarding-special-choice-view', sessionId: reply.sessionId,
+      turn: reply.turn as number, revision: reply.revision as number, choice: {
+        kind: 'relocation', craftId: choice.craftId, currentHostId: choice.currentHostId,
+        fuelled: choice.fuelled, controlRevision: choice.controlRevision as number,
+        legalHostIds: legal as readonly WolfAttackTargetId[],
+      } };
+  }
+  if (choice.kind === 'militia') {
+    const allowed = new Set(['kind', 'targetShipId', 'boardingParties', 'availableSecurityTeams',
+      'selectedSecurityTeams', 'maxFrontLineDice', 'doubleDiceAvailable']);
+    if (Object.keys(choice).some((key) => !allowed.has(key)) || !validTarget(choice.targetShipId) ||
+        !Number.isSafeInteger(choice.boardingParties) || (choice.boardingParties as number) < 1 ||
+        !Number.isSafeInteger(choice.availableSecurityTeams) || (choice.availableSecurityTeams as number) < 0 ||
+        !Number.isSafeInteger(choice.selectedSecurityTeams) || (choice.selectedSecurityTeams as number) < 0 ||
+        (choice.selectedSecurityTeams as number) > (choice.availableSecurityTeams as number) ||
+        !Number.isSafeInteger(choice.maxFrontLineDice) || (choice.maxFrontLineDice as number) < 0 ||
+        (choice.maxFrontLineDice as number) > Math.min(3, choice.availableSecurityTeams as number) ||
+        typeof choice.doubleDiceAvailable !== 'boolean') return null;
+    return { type: 'wolf-boarding-special-choice-view', sessionId: reply.sessionId,
+      turn: reply.turn as number, revision: reply.revision as number, choice: {
+        kind: 'militia', targetShipId: choice.targetShipId, boardingParties: choice.boardingParties as number,
+        availableSecurityTeams: choice.availableSecurityTeams as number,
+        selectedSecurityTeams: choice.selectedSecurityTeams as number,
+        maxFrontLineDice: choice.maxFrontLineDice as number, doubleDiceAvailable: choice.doubleDiceAvailable,
+      } };
+  }
+  if (choice.kind === 'reroll') {
+    const allowed = new Set(['kind', 'source', 'targetShipId', 'dice', 'maxRerolls', 'alreadyRerolled']);
+    const dice = Array.isArray(choice.dice) ? choice.dice : [];
+    const rawSpent = Array.isArray(choice.alreadyRerolled) ? choice.alreadyRerolled : [];
+    if (Object.keys(choice).some((key) => !allowed.has(key)) ||
+        (choice.source !== 'aegis' && choice.source !== 'pallas') || !validTarget(choice.targetShipId) ||
+        !Array.isArray(choice.dice) || !Number.isSafeInteger(choice.maxRerolls) || choice.maxRerolls !== 3 ||
+        !Array.isArray(choice.alreadyRerolled)) return null;
+    const parsedDice: { targetShipId: WolfAttackTargetId; dieIndex: number; value: number }[] = [];
+    for (const entry of dice) {
+      if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return null;
+      const die = entry as Record<string, unknown>;
+      if (Object.keys(die).some((key) => !['dieIndex', 'value'].includes(key)) ||
+          !Number.isSafeInteger(die.dieIndex) || (die.dieIndex as number) < 0 ||
+          !Number.isSafeInteger(die.value) || (die.value as number) < 1 || (die.value as number) > 6) return null;
+      parsedDice.push({ targetShipId: choice.targetShipId, dieIndex: die.dieIndex as number, value: die.value as number });
+    }
+    if (new Set(parsedDice.map(({ dieIndex }) => dieIndex)).size !== parsedDice.length ||
+        parsedDice.some(({ dieIndex }) => dieIndex >= 12) ||
+        rawSpent.some((index) => !Number.isSafeInteger(index) || (index as number) < 0 ||
+          !parsedDice.some((die) => die.dieIndex === index)) || new Set(rawSpent).size !== rawSpent.length) return null;
+    const alreadyRerolled = rawSpent.map((dieIndex) => ({ targetShipId: choice.targetShipId as WolfAttackTargetId,
+      dieIndex: dieIndex as number }));
+    return { type: 'wolf-boarding-special-choice-view', sessionId: reply.sessionId,
+      turn: reply.turn as number, revision: reply.revision as number, choice: { kind: 'reroll',
+        source: choice.source, targetShipId: choice.targetShipId,
+        dice: parsedDice, maxRerolls: 3, alreadyRerolled } };
+  }
+  if (choice.kind === 'commander-ruling') {
+    if (Object.keys(choice).some((key) => !['kind', 'targetShipId', 'condition'].includes(key)) ||
+        !validTarget(choice.targetShipId) || choice.condition !== 'All Commander-led Wolf Boarding Parties were destroyed.') return null;
+    return { type: 'wolf-boarding-special-choice-view', sessionId: reply.sessionId,
+      turn: reply.turn as number, revision: reply.revision as number, choice: {
+        kind: 'commander-ruling', targetShipId: choice.targetShipId,
+        condition: 'All Commander-led Wolf Boarding Parties were destroyed.',
+      } };
+  }
+  return null;
+}
+
+function wolfBoardingSpecialChoiceResultReply(value: unknown): WolfBoardingSpecialChoiceResult | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const reply = value as Record<string, unknown>;
+  const allowed = new Set(['status', 'type', 'sessionId', 'requestId', 'turn', 'revision', 'currentStep',
+    'choiceKind', 'rerolledValues']);
+  const kinds = ['commander', 'relocation', 'militia', 'reroll', 'commander-ruling'];
+  if (Object.keys(reply).some((key) => !allowed.has(key)) || reply.status !== 'committed' ||
+      reply.type !== 'wolf-boarding-special-choice' || typeof reply.sessionId !== 'string' ||
+      typeof reply.requestId !== 'string' || !reply.requestId || reply.requestId.length > 128 || reply.requestId.includes('/') ||
+      !Number.isSafeInteger(reply.turn) || (reply.turn as number) < 1 ||
+      !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 1 ||
+      reply.currentStep !== 'boarding' || !kinds.includes(String(reply.choiceKind)) ||
+      (reply.rerolledValues !== undefined && (!Array.isArray(reply.rerolledValues) ||
+        reply.rerolledValues.some((value) => !Number.isSafeInteger(value) || (value as number) < 1 || (value as number) > 6)))) return null;
+  return { status: 'committed', type: 'wolf-boarding-special-choice', sessionId: reply.sessionId,
+    requestId: reply.requestId, turn: reply.turn as number, revision: reply.revision as number,
+    currentStep: 'boarding', choiceKind: reply.choiceKind as WolfBoardingSpecialChoiceResult['choiceKind'],
+    ...(Array.isArray(reply.rerolledValues) ? { rerolledValues: reply.rerolledValues as number[] } : {}) };
+}
+
+function currentBoardingFacilitatorAuthorityIsCurrent(
+  sessionId: string, instanceId: string, uid: string, checkpoint: SessionAuthorityCheckpoint | undefined,
+): boolean {
+  const current = useSessionStore.getState();
+  return current.session?.id === sessionId && current.me?.sessionId === sessionId && current.me.role === 'gm' &&
+    current.me.uid === uid && current.gmInstance?.id === instanceId && current.gmInstance.sessionId === sessionId &&
+    current.gmInstance.uid === uid && authorityCheckpointIsCurrent(checkpoint);
+}
+
+/** Read the next boarding decision exposed to this connected player or facilitator. */
+export async function getWolfBoardingSpecialChoice(): Promise<WolfBoardingSpecialChoiceReadResult> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me) throw new Error('Join the current session before reading boarding choices.');
+  const sessionId = store.session.id;
+  const uid = sessionAuthorityUid(store);
+  const playerActor = store.me.role === 'player' && store.me.replacementStatus == null;
+  const gmActor = store.me.role === 'gm' && Boolean(store.gmInstance && store.gmInstance.sessionId === sessionId &&
+    store.gmInstance.uid === store.me.uid);
+  if (!playerActor && !gmActor) throw new Error('A current player or facilitator session is required.');
+  requireFreshSessionAuthority('Reconnect before reading boarding choices.');
+  const instanceId = gmActor ? store.gmInstance?.id : undefined;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, uid);
+  await ensureSignedIn();
+  const payload = { sessionId, ...(instanceId ? { instanceId } : {}) };
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'getWolfBoardingSpecialChoice');
+  try {
+    const reply = wolfBoardingSpecialChoiceReadReply((await call(payload)).data);
+    if (!reply || reply.sessionId !== sessionId) throw new Error('The server returned an invalid boarding choice view.');
+    const current = gmActor && instanceId && uid
+      ? currentBoardingFacilitatorAuthorityIsCurrent(sessionId, instanceId, uid, checkpoint)
+      : currentBoardingCrewAuthorityIsCurrent(sessionId, checkpoint);
+    if (!current) throw new Error('The current boarding authority changed before this choice view arrived.');
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Commit one current boarding decision; GM instance authority is required for a ruling. */
+export async function commitWolfBoardingSpecialChoice(
+  turn: number, revision: number, choice: WolfBoardingSpecialChoiceCommand,
+): Promise<WolfBoardingSpecialChoiceResult> {
+  const initial = useSessionStore.getState();
+  if (!initial.session || !initial.me || !Number.isSafeInteger(turn) || turn < 1 ||
+      !Number.isSafeInteger(revision) || revision < 1) throw new Error('A current boarding choice revision is required.');
+  const ruling = choice.kind === 'commander-ruling';
+  const sessionId = initial.session.id;
+  const uid = sessionAuthorityUid(initial);
+  const instance = ruling ? initial.gmInstance : null;
+  if (ruling
+      ? initial.me.role !== 'gm' || !instance || instance.sessionId !== sessionId || instance.uid !== initial.me.uid
+      : initial.me.role !== 'player' || initial.me.replacementStatus != null) {
+    throw new Error(ruling ? 'An active facilitator instance is required to record the ruling.'
+      : 'A current player with boarding authority is required.');
+  }
+  requireFreshSessionAuthority('Reconnect before committing the boarding choice.');
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, uid);
+  await ensureSignedIn();
+  const requestId = commandId();
+  const payload = { sessionId, requestId, expectedTurn: turn, expectedRevision: revision,
+    ...(instance ? { instanceId: instance.id } : {}), choice };
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'commitWolfBoardingSpecialChoice');
+  try {
+    const reply = wolfBoardingSpecialChoiceResultReply((await call(payload)).data);
+    if (!reply || reply.sessionId !== sessionId || reply.requestId !== requestId || reply.turn !== turn ||
+        reply.revision !== revision + 1 || reply.choiceKind !== choice.kind) {
+      throw new Error('The server returned an invalid boarding choice receipt.');
+    }
+    const current = instance && uid
+      ? currentBoardingFacilitatorAuthorityIsCurrent(sessionId, instance.id, uid, checkpoint)
+      : currentBoardingCrewAuthorityIsCurrent(sessionId, checkpoint);
+    if (!current) throw new Error('The current boarding authority changed before the choice committed.');
     return reply;
   } catch (cause) {
     useSessionStore.getState().setCommunicationError(interception(cause));
