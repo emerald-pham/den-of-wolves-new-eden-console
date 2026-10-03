@@ -139,6 +139,17 @@ it('retains the actual prepared pass, stay and ruling rather than a preset chose
   expect(screen.getByRole('region', {name: 'Facilitator ruling for destroyed Commander-led parties'})).toHaveTextContent('Keep this exact prepared ruling.');
 });
 
+it('retains Chepu stay independently while Pallas can still make its own support choice', () => {
+  render(<PC08ReviewScene />);
+  fireEvent.click(screen.getByRole('button', {name: '4 Boarding defence'}));
+  fireEvent.click(screen.getByRole('button', {name: 'Support sample'}));
+  const chepu = screen.getByRole('region', {name: 'Chepu boarding relocation'});
+  fireEvent.click(within(chepu).getByRole('button', {name: 'Stay at Refinery 124'}));
+  expect(chepu).toHaveTextContent('stayed docked at Refinery 124');
+  expect(within(chepu).queryByRole('button')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', {name: 'Move Pallas to Dione'})).toBeEnabled();
+});
+
 it('keeps every prepared interaction isolated from the current signed-in identity and session store', () => {
   const original = useSessionStore.getState();
   const me = {uid: 'existing-gm', sessionId: 'existing-session', displayName: 'Existing facilitator',
