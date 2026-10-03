@@ -715,7 +715,7 @@ export default function GmConsole() {
     : currentTurn === 2 && wolfAttackWindow?.status === 'deferred' && wolfWindowTurn === 2) || Boolean(
       local && isGm && connection === 'live' && sessionSnapshotFreshness === 'server' &&
       session?.phase === 'active' && wolfAttackWindow?.status === 'resolved' &&
-      wolfAttackState?.status === 'resolved' && currentTurn >= wolfAttackState.turn &&
+      wolfAttackState?.status === 'resolved' && (wolfAttackState.attackNumber ?? 1) < 3 && currentTurn >= wolfAttackState.turn &&
       currentTurn >= wolfWindowTurn && currentPhase?.turn === currentTurn &&
       currentPhase.airspace.state === 'lifted' && currentPhase.timerPause === undefined,
     );
@@ -2948,7 +2948,7 @@ export default function GmConsole() {
                   disabled={!wolfWindowDueAvailable || wolfWindowMutation !== null}
                   onClick={() => void changeWolfAttackWindow('due')}
                 >
-                  {wolfWindowMutation === 'due' ? 'Marking timing due…' : wolfAttackState?.status === 'resolved' ? 'Mark next attack window due' : 'Mark timing due'}
+                  {wolfWindowMutation === 'due' ? 'Marking timing due…' : wolfAttackState?.status === 'resolved' && (wolfAttackState.attackNumber ?? 1) < 3 ? 'Mark next attack window due' : 'Mark timing due'}
                 </button>
                 <button
                   className="cic-action-button"
