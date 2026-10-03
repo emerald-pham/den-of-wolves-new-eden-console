@@ -64,6 +64,33 @@ test('PC07 prepared scene keeps all five checks usable and isolated in eight res
       assert.match(await page.getByRole('status',{name:'Rejoin sample result'}).textContent(),/pursuit 4 retained/);
      }
      if(label.startsWith('4')){
+      const choices=page.getByRole('region',{name:'Actual prepared attack choices'});
+      assert.match(await choices.getByRole('note',{name:'Prepared choice examples'}).textContent(),/Independent local examples/);
+      for(const select of await choices.locator('select').all()){
+       await select.scrollIntoViewIfNeeded();
+       const size=await select.evaluate(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return {font:parseFloat(s.fontSize),height:r.height};});
+       assert.ok(size.font>=16&&size.height>=44,`${width}px solo actual choice select: ${size.font}px / ${size.height}px`);
+      }
+      for(const input of await choices.locator('input[type="radio"],input[type="checkbox"]').all()){
+       const size=await input.evaluate(e=>{const r=e.getBoundingClientRect();return {width:r.width,height:r.height,labelHeight:e.closest('label').getBoundingClientRect().height};});
+       assert.ok(size.width>=20&&size.height>=20&&size.labelHeight>=44,'Prepared choice checkbox/radio and label geometry');
+      }
+      await choices.getByRole('radio',{name:'AEGIS',exact:true}).check();
+      await choices.getByRole('button',{name:'Protect selected ship',exact:true}).click();
+      assert.match(await choices.getByRole('status',{name:'Prepared choice callback result'}).textContent(),/Local Captain choice: AEGIS/);
+      await choices.getByRole('button',{name:'Show locked hit targets sample',exact:true}).click();
+      await choices.getByRole('combobox',{name:'Missile launchers hit 1',exact:true}).selectOption('local-contact-1');
+      await choices.getByRole('combobox',{name:'Missile launchers hit 2',exact:true}).selectOption('local-contact-2');
+      await choices.getByRole('button',{name:'Commit target assignments',exact:true}).click();
+      assert.match(await choices.getByRole('status',{name:'Prepared choice callback result'}).textContent(),/2 local contacts; 1 hit unused/);
+      await choices.getByRole('combobox',{name:'Security Teams committed',exact:true}).selectOption('0');
+      await choices.getByRole('button',{name:'Commit defence',exact:true}).click();
+      assert.match(await choices.getByRole('region',{name:'AEGIS boarding defence'}).textContent(),/0 Security Teams committed/);
+      const summary=choices.getByRole('region',{name:'Current attack choices',exact:true});
+      await choices.getByRole('button',{name:'Offline decision summary sample',exact:true}).click();
+      assert.doesNotMatch(await summary.textContent(),/Prepared EO/);
+      await choices.getByRole('button',{name:'Restore choice examples',exact:true}).click();
+      assert.match(await summary.textContent(),/Prepared EO \/\/ Reconnect pending/);
       await page.getByRole('button',{name:'Declare attack sample',exact:true}).click();
       await page.getByRole('button',{name:'Pause attack sample',exact:true}).click();
       assert.ok(await page.getByRole('button',{name:'Pass charged weapon sample',exact:true}).isDisabled());
