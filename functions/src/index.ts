@@ -1,4 +1,5 @@
 import { holdTurnAdvancePhase } from './turnInterstitial';
+import { createCurrentMemberSessionReader } from './memberSessionCallable';
 import { createTurnInterstitialHandler } from './turnInterstitialCallable';
 import { captureMaintenanceUndo, restoreMaintenanceUndo, type MaintenanceUndoField } from './maintenanceRollback';
 import { projectMaintenanceEvent } from './maintenanceEvent';
@@ -15111,6 +15112,9 @@ export const confirmFleetPartition = onCall<{ sessionId: string; instanceId: str
 });
 
 /** Redeem a legacy four-digit or current six-digit code and register presence. */
+const currentMemberSessionReader = createCurrentMemberSessionReader({ db });
+export const getCurrentMemberSession = onCall(async request => currentMemberSessionReader(request));
+
 export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
   async (request) => {
     const uid = requireUid(request.auth);
@@ -15358,7 +15362,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
     const voyageMaintenance = publicVoyage33Maintenance(
       sessionSnap.get('voyage33Maintenance'), voyageAdmission, activeVesselIds,
     );
-    return {
+    const reply = {
       ...(joinResult.stationSelectionRequired ? { stationSelectionRequired: true } : {}),
       session: {
         id: sessionId,
@@ -15462,6 +15466,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         joinedAt: isoOf(playerSnap.get('joinedAt')),
       },
     };
+    return { ...reply, session: (await currentMemberSessionReader({ auth: { uid }, data: { sessionId } })).session };
   },
 );
 
@@ -15673,7 +15678,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
   const voyageMaintenance = publicVoyage33Maintenance(
     sessionSnap.get('voyage33Maintenance'), voyageAdmission, activeVesselIds,
   );
-  return {
+  const reply = {
     ...(resumeResult.stationSelectionRequired ? { stationSelectionRequired: true } : {}),
     session: {
       id: sessionId,
@@ -15777,6 +15782,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       joinedAt: isoOf(playerSnap.get('joinedAt')),
     },
   };
+  return { ...reply, session: (await currentMemberSessionReader({ auth: { uid }, data: { sessionId } })).session };
 });
 
 function gmShipConsoleWriteGrantRef(sessionId: string, instanceId: string): DocumentReference {

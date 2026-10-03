@@ -1093,6 +1093,7 @@ function applySession(reply: SessionReply, expectedDisplayedSessionId: string | 
     reply.session.activeRoleIds,
     reply.session.playerCount,
     Object.keys(reply.session.retainedShuttles ?? {}),
+    reply.session.memberSessionScope !== undefined,
   );
   const acceptedSession: GameSession = {
     ...reply.session,

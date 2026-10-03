@@ -1112,6 +1112,8 @@ export interface PdfEscortWingMemberView {
 }
 
 export interface GameSession {
+  /** Server-filtered current read; legacy defaults must not widen this operational subset. */
+  readonly memberSessionScope?: { readonly groupId: string; readonly vesselIds: readonly string[]; readonly craftIds: readonly string[] };
   /** Server-owned Cycle 1 cap for the optional single-player Demo. */
   readonly singlePlayerDemo?: {
     readonly status: 'active' | 'complete';

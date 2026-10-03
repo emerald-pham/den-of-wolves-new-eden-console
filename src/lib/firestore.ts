@@ -1,3 +1,4 @@
+import { memberSessionProjection } from '../../functions/src/memberSession';
 import { parseAwayMissionLifecyclePublicState } from './awayMissionLifecycleService';
 import {
   collection,
@@ -224,6 +225,7 @@ const CONFETTI_SOURCE_IDS: ReadonlySet<string> = new Set([
 ]);
 
 function iso(value: unknown): string {
+  if (typeof value === 'string' && Number.isFinite(Date.parse(value))) return value;
   if (
     typeof value === 'object' && value !== null && 'toDate' in value &&
     typeof value.toDate === 'function'
@@ -2910,9 +2912,10 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     hasActiveRoleIds ? activeRoleIds : undefined,
     playerCount,
     Object.keys(retained),
+    data.memberSessionScope !== undefined,
   );
   const emergencyWindow = pursuitEmergencyWindow(data.pursuitEmergencyWindow);
-  return {
+  const session: GameSession = {
     id: sessionId,
     name: data.name as string,
     joinCode: data.joinCode as string,
@@ -3024,6 +3027,16 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     createdAt: iso(data.createdAt),
     updatedAt: iso(data.updatedAt),
   };
+  const scope = recordValue(data.memberSessionScope);
+  if (scope) {
+    const vesselIds = parseEntityIdArray('vessel', scope.vesselIds);
+    const craftIds = parseEntityIdArray('shuttle', scope.craftIds);
+    if (typeof scope.groupId !== 'string' || !/^(fleet-[1-9][0-9]*|gm)$/.test(scope.groupId) || !vesselIds || !craftIds) {
+      throw new Error('The current member session scope is malformed.');
+    }
+    return memberSessionProjection(session, { groupId: scope.groupId, vesselIds, craftIds }) as unknown as GameSession;
+  }
+  return session;
 }
 
 function playerFrom(
@@ -3153,6 +3166,8 @@ function seatFrom(sessionId: string, id: string, data: DocumentData): Seat {
 }
 
 export interface SessionStateHandlers {
+  /** The app always chooses explicitly from the current authenticated player role. */
+  readonly sessionReadAudience?: 'member' | 'gm';
   readonly onSession: (session: GameSession) => void;
   /** Audience-scoped navigation/discovery projection for this member. */
   readonly onPlayerDiscovery?: (projection: PlayerDiscoveryProjection | null) => void;
@@ -3198,7 +3213,8 @@ export function subscribeSessionState(
   const subscriptionToken = Symbol('session-subscription');
   let gmDiscoveryTerminated = false;
   currentSessionSubscriptionToken = subscriptionToken;
-  const sessionDocument = doc(database, `sessions/${sessionId}`);
+  const sessionDocument = handlers.sessionReadAudience === 'member'
+    ? undefined : doc(database, `sessions/${sessionId}`);
   const sessionSnapshotAuthority =
     handlers.sessionSnapshotAuthority ?? createSessionSnapshotAuthority();
   let acceptsWolfCultRevision = createMonotonicRevisionGate();
@@ -3222,6 +3238,7 @@ export function subscribeSessionState(
   let sessionConfirmationInFlight = false;
   let sessionConfirmationWanted = false;
   const confirmAmbiguousSession = () => {
+    if (!sessionDocument) return;
     // A server-sourced listener event does not carry a public Firestore write
     // version. Some session writers leave updatedAt unchanged, so changed
     // equal/unversioned events may predate a callable reply or another event.
@@ -3334,8 +3351,76 @@ export function subscribeSessionState(
       unsubscribeAwayMissionHands.push(unsubscribe);
     });
   };
+  let memberFeedRefresh: () => void = () => undefined;
+  let memberActorFingerprint: string | undefined;
+  let memberActorEpoch = 0;
+  const actorFingerprint = (actor: { readonly fleetGroupId?: string | null; readonly connectionGeneration?: number;
+      readonly assignedRoleId?: string | null; readonly activeConsoleRoleId?: string | null }) => JSON.stringify([
+    actor.fleetGroupId, actor.connectionGeneration ?? 1, actor.assignedRoleId ?? null, actor.activeConsoleRoleId ?? null,
+  ]);
+  const startMemberSessionFeed = (): Unsubscribe => {
+    const read = httpsCallable<{ readonly sessionId: string }, unknown>(functions(), 'getCurrentMemberSession');
+    let stopped = false;
+    let pending = false;
+    let wanted = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const current = () => !stopped && subscribed && currentSessionSubscriptionToken === subscriptionToken;
+    const refresh = () => {
+      if (!current()) return;
+      wanted = true;
+      if (pending) return;
+      pending = true;
+      if (timer) clearTimeout(timer);
+      void (async () => {
+        while (wanted && current()) {
+          wanted = false;
+          const actorEpoch = memberActorEpoch;
+          const startingVersion = sessionSnapshotAuthorityVersion(sessionSnapshotAuthority);
+          try {
+            const response = recordValue((await read({ sessionId })).data);
+            if (!current()) break;
+            if (actorEpoch !== memberActorEpoch || startingVersion !== sessionSnapshotAuthorityVersion(sessionSnapshotAuthority)) {
+              wanted = true;
+              continue;
+            }
+            const data = recordValue(response?.session);
+            const scope = recordValue(data?.memberSessionScope);
+            if (response?.type !== 'current-member-session' || response.sessionId !== sessionId ||
+                response.actorUid !== uid || !data || !scope || response.groupId !== scope.groupId) {
+              throw new Error('The current member read is malformed.');
+            }
+            const fingerprint = actorFingerprint({ fleetGroupId: response.groupId as string,
+              connectionGeneration: response.connectionGeneration as number,
+              assignedRoleId: response.assignedRoleId as string | null,
+              activeConsoleRoleId: response.activeConsoleRoleId as string | null });
+            if (memberActorFingerprint !== undefined && memberActorFingerprint !== fingerprint) {
+              handlers.onSessionFreshness?.(false);
+              break;
+            }
+            const session = sessionFrom(sessionId, data);
+            // This serialized transaction read confirms current content even if a legacy
+            // writer did not advance its timestamp. A changed callable cursor fences it.
+            if (acceptServerSessionAuthority(sessionSnapshotAuthority, session, undefined, false, true)) {
+              handlers.onSession(session);
+              handlers.onSessionFreshness?.(true);
+            }
+          } catch {
+            if (current() && actorEpoch === memberActorEpoch) {
+              handlers.onSessionFreshness?.(false);
+              onError();
+            }
+          }
+        }
+        pending = false;
+        if (current()) timer = setTimeout(refresh, 5_000);
+      })();
+    };
+    memberFeedRefresh = refresh;
+    refresh();
+    return () => { stopped = true; if (timer) clearTimeout(timer); memberFeedRefresh = () => undefined; };
+  };
   const unsubscribes = [
-    onSnapshot(sessionDocument, { includeMetadataChanges: true }, (snapshot) => {
+    sessionDocument ? onSnapshot(sessionDocument, { includeMetadataChanges: true }, (snapshot) => {
       if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
       if (snapshot.exists()) {
         const fromCache = snapshot.metadata?.fromCache === true;
@@ -3383,7 +3468,7 @@ export function subscribeSessionState(
         }
       }
       else onError();
-    }, onError),
+    }, onError) : startMemberSessionFeed(),
     onSnapshot(doc(database, `sessions/${sessionId}/players/${uid}`), { includeMetadataChanges: true }, (snapshot) => {
       if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
       const fromCache = snapshot.metadata?.fromCache === true;
@@ -3396,7 +3481,17 @@ export function subscribeSessionState(
       if (snapshot.exists() && snapshot.get('kickedAt') && !fromCache) {
         handlers.onKicked();
       } else if (snapshot.exists() && snapshot.get('connected') === true) {
-        handlers.onPlayer(playerFrom(sessionId, uid, snapshot.data()));
+        const player = playerFrom(sessionId, uid, snapshot.data());
+        if (!fromCache && handlers.sessionReadAudience === 'member') {
+          const nextFingerprint = actorFingerprint(player);
+          if (nextFingerprint !== memberActorFingerprint) {
+            memberActorFingerprint = nextFingerprint;
+            memberActorEpoch += 1;
+            handlers.onSessionFreshness?.(false);
+          }
+        }
+        handlers.onPlayer(player);
+        if (!fromCache) memberFeedRefresh();
         handlers.onPlayerFreshness?.(!fromCache);
         // A legacy listener can terminate while the document is absent. A
         // same-UID assignment updates this player projection atomically with

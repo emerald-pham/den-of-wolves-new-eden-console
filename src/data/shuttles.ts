@@ -135,6 +135,7 @@ export function normalizeShuttleManifest(
   activeRoleIds?: readonly string[],
   playerCount?: number,
   retainedShuttleIds: readonly string[] = [],
+  authoritativeSubset = false,
 ): NormalizedShuttleManifest {
   const generatedDockings = initialShuttleDockingsForSession(activeRoleIds, playerCount);
   const generatedVisits = initialShuttleVisitsForDockings(generatedDockings);
@@ -144,7 +145,7 @@ export function normalizeShuttleManifest(
   const hadSnnDocking = normalizedDockings.some(
     (docking) => docking.shuttleId === 'snn-press-shuttle',
   );
-  const legacyDockingCanBeAdded = normalizedDockings.length > 0 && !hadSnnDocking &&
+  const legacyDockingCanBeAdded = !authoritativeSubset && normalizedDockings.length > 0 && !hadSnnDocking &&
     !retainedShuttleIds.includes('snn-press-shuttle');
   if (legacyDockingCanBeAdded) {
     const snnDocking = generatedDockings.find(
@@ -159,7 +160,7 @@ export function normalizeShuttleManifest(
   const hadSnnVisit = normalizedVisits.some(
     (visit) => visit.shuttleId === 'snn-press-shuttle',
   );
-  if ((legacyDockingCanBeAdded || (dockings === undefined && !hadSnnDocking &&
+  if ((legacyDockingCanBeAdded || (!authoritativeSubset && dockings === undefined && !hadSnnDocking &&
       !retained.has('snn-press-shuttle'))) && !hadSnnVisit) {
     const snnVisit = generatedVisits.find((visit) => visit.shuttleId === 'snn-press-shuttle');
     if (snnVisit) normalizedVisits.push(snnVisit);
@@ -173,6 +174,7 @@ interface ShuttleSessionState {
   readonly activeRoleIds?: readonly string[];
   readonly playerCount?: number;
   readonly retainedShuttles?: Readonly<Record<string, unknown>>;
+  readonly memberSessionScope?: { readonly groupId: string };
 }
 
 export function shuttlebayForShip(session: ShuttleSessionState, shipId: string) {
@@ -182,6 +184,7 @@ export function shuttlebayForShip(session: ShuttleSessionState, shipId: string) 
     session.activeRoleIds,
     session.playerCount,
     Object.keys(session.retainedShuttles ?? {}),
+    session.memberSessionScope !== undefined,
   );
   const dockings = manifest.dockings;
   const visits = manifest.visits;
@@ -208,6 +211,7 @@ export function dockingForShuttle(session: ShuttleSessionState, shuttleId: strin
     session.activeRoleIds,
     session.playerCount,
     Object.keys(session.retainedShuttles ?? {}),
+    session.memberSessionScope !== undefined,
   ).dockings
     .find((docking) => docking.shuttleId === shuttleId);
 }

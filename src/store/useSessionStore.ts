@@ -585,6 +585,7 @@ function normalizePersistedSession(session: GameSession | null | undefined): Gam
     session.activeRoleIds,
     session.playerCount,
     Object.keys(session.retainedShuttles ?? {}),
+    session.memberSessionScope !== undefined,
   );
   return {
     ...stripPersistedNavigationProjection(session),

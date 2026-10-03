@@ -546,6 +546,7 @@ function AppRoutes() {
       if (!active) return;
       subscribeLoyaltyCensusFn = subscribeLoyaltyCensus;
       unsubscribe = subscribeSessionState(sessionId, playerUid, {
+        sessionReadAudience: playerRole === 'gm' ? 'gm' : 'member',
         sessionSnapshotAuthority: sessionSnapshotAuthorityFor(sessionId, playerUid),
         onSession: (next) => {
           if (!callbackCurrent()) return;
