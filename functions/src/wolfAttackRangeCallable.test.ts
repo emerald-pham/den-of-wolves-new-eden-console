@@ -466,7 +466,8 @@ it('does not leave charged Command and Control ownerless when no Executive Offic
 function openBoardingFixture(): void {
   const targets = ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124'];
   const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
-  const emptyRange = (range: string) => ({ range, dice: [], assignments: [], targetShifts: [], unusedHitsByAction: [],
+  const targetSnapshot = (attack.combatRoster as Array<{ instanceId: string; target: string }>).map(({ instanceId, target }) => ({ instanceId, target }));
+  const emptyRange = (range: string) => ({ range, targetSnapshot, dice: [], assignments: [], targetShifts: [], unusedHitsByAction: [],
     damageByInstance: {}, destroyedInstanceIds: [], destructionDamageByTarget: Object.fromEntries(targets.map((id) => [id, 0])) });
   const current = new Date();
   const future = (milliseconds: number) => new Date(current.getTime() + milliseconds).toISOString();

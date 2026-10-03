@@ -11,6 +11,7 @@ import {
   resolveWolfRange,
   resolveWolfRangeTargetShifts,
   resolveLockedWolfRange,
+  replayWolfRangeTargetSnapshot,
   resolveWolfTargeting,
   applyWolfRangeTargetShift,
   shiftWolfTargetDie,
@@ -70,6 +71,9 @@ describe('central Wolf combat math', () => {
     ]);
     expect(result.currentDice[0]).toBe(3);
     expect(result.roster[0]?.target).toBe('icebreaker');
+    expect(replayWolfRangeTargetSnapshot(
+      roster.map(({ instanceId, target }) => ({ instanceId, target })), result.targetShifts, targeting.ring,
+    )[0]?.target).toBe('icebreaker');
     expect(roster[0]?.target).toBe('aegis');
     expect(targeting.rolls[0]?.target).toBe('aegis');
   });
@@ -276,24 +280,24 @@ describe('central Wolf combat math', () => {
       }] },
       assignments: [{ actionId: mediumAction.actionId, targetInstanceIds: [roster[cruiserIndex]!.instanceId] }],
       roster: long.roster,
-      targetShiftChoices: [{
-        sourceId: 'aegis-alpha-wing', choiceIndex: 0, rosterIndex: cruiserIndex, shift: 1,
-      }],
-      targetRing: CORE_WOLF_TARGET_RING,
+      targetShiftPlan: {
+        choices: [{ sourceId: 'aegis-alpha-wing', choiceIndex: 0, rosterIndex: cruiserIndex, shift: 1 }],
+        ring: CORE_WOLF_TARGET_RING,
+      },
     });
 
     expect(long.receipt.targetSnapshot).toHaveLength(roster.length);
     expect(long.receipt.targetSnapshot[stationIndex]).toEqual({ instanceId: roster[stationIndex]!.instanceId, target: 'aegis' });
     expect(long.receipt.destroyedInstanceIds).toContain(roster[stationIndex]!.instanceId);
-    expect(long.receipt.destructionDamageByTarget).toMatchObject({ aegis: 3, icebreaker: 0 });
+    expect(long.receipt.destructionDamageByTarget).toMatchObject({ aegis: 3, dione: 0 });
     expect(medium.receipt.targetSnapshot[cruiserIndex]).toEqual({ instanceId: roster[cruiserIndex]!.instanceId, target: 'aegis' });
     expect(medium.receipt.targetShifts).toEqual([{
       sourceId: 'aegis-alpha-wing', choiceIndex: 0, rosterIndex: cruiserIndex,
       shift: 1, fromDie: 1, toDie: 2,
     }]);
     expect(medium.receipt.destroyedInstanceIds).toContain(roster[cruiserIndex]!.instanceId);
-    expect(medium.receipt.destructionDamageByTarget).toMatchObject({ aegis: 0, icebreaker: 1 });
-    expect(medium.roster[cruiserIndex]?.target).toBe('icebreaker');
+    expect(medium.receipt.destructionDamageByTarget).toMatchObject({ aegis: 0, dione: 1 });
+    expect(medium.roster[cruiserIndex]?.target).toBe('dione');
     expect(medium.roster[stationIndex]?.target).toBe('aegis');
   });
 
@@ -352,7 +356,8 @@ describe('central Wolf combat math', () => {
       ...ship, destroyed: index !== selectedTransport,
     }));
     const ranges = (['long-range', 'medium-range', 'short-range'] as const).map((range) => ({
-      range, dice: [], assignments: [], targetShifts: [], unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
+      range, targetSnapshot: roster.map(({ instanceId, target }) => ({ instanceId, target })),
+      dice: [], assignments: [], targetShifts: [], unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
       destructionDamageByTarget: Object.fromEntries(CORE_WOLF_TARGET_RING.map((target) => [target, 0])),
     }));
     let randomCalls = 0;
