@@ -225,3 +225,21 @@ it('feeds truthful docked, travelling, parked and rejoined craft into the real p
   expect(screen.getByLabelText('Origin craft')).toBeEmptyDOMElement();
   expect(screen.queryAllByText(/^DOCKED \/\//)).toHaveLength(0);
 });
+
+
+it('commits the chosen Maliades Medium shift and separate attack, then an independent Short pass', () => {
+  render(<PC08ReviewScene />);
+  fireEvent.click(screen.getByRole('button', {name: '3 Fleet fighters'}));
+  fireEvent.click(screen.getByRole('button', {name: 'Maliades sample'}));
+  fireEvent.click(screen.getByRole('button', {name: 'Launch Maliades'}));
+  fireEvent.change(screen.getByRole('combobox', {name: 'Maliades Medium target shift target'}), {target: {value: 'local-wolf-1'}});
+  fireEvent.change(screen.getByRole('combobox', {name: 'Maliades Medium target shift'}), {target: {value: '1'}});
+  fireEvent.change(screen.getByRole('combobox', {name: 'Maliades Medium attack target'}), {target: {value: 'local-wolf-2'}});
+  fireEvent.click(screen.getByRole('button', {name: 'Commit Maliades Medium choices'}));
+  expect(screen.getByRole('status', {name: 'Prepared fighter result'})).toHaveTextContent('target shift +1 on Local contact 1; attack on Local contact 2');
+  expect(screen.queryByRole('button', {name: 'Commit Maliades Medium choices'})).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', {name: 'Short Range sample'}));
+  expect(screen.queryByRole('combobox', {name: 'Maliades Medium target shift'})).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', {name: 'Pass Maliades Short Range'}));
+  expect(screen.getByRole('status', {name: 'Prepared fighter result'})).toHaveTextContent('Maliades passed Short Range.');
+});
