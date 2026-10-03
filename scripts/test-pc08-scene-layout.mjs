@@ -32,6 +32,8 @@ test('PC08 return control opens the real parent at phone and desktop sizes', asy
         inTour = false;
         await page.getByRole('link', {name: 'Return to station and console chooser', exact: true}).click();
         await page.waitForURL(`http://127.0.0.1:${address.port}/#/`);
+        await page.getByRole('dialog', {name: 'MOTION SAFETY CHECK'}).waitFor();
+        await page.getByRole('button', {name: /REDUCED MOTION.*PLAYABLE MODE/}).click();
         await page.getByRole('heading', {name: /Den of Wolves: New Eden/}).waitFor();
         assert.equal(await page.locator('.pc08-review').count(), 0);
         assert.ok(await page.getByRole('button', {name: 'Join a session', exact: true}).isVisible());
