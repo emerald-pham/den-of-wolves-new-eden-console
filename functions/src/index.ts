@@ -919,17 +919,47 @@ const awayMissionLifecycleCallables = createAwayMissionLifecycleCallables({
       const missionCoordinate = mission.get('coordinate');
       const activeVesselIds = activeVesselIdsForSession(session);
       const tx = transaction as Transaction;
-      const [groupSnapshot, navigationSnapshot] = await Promise.all([
-        tx.get(db.doc(`sessions/${record.sessionId}/fleetGroups/${record.groupId}`)),
+      const [groupSnapshots, playerSnapshots, navigationSnapshot] = await Promise.all([
+        tx.get(db.collection(`sessions/${record.sessionId}/fleetGroups`)),
+        tx.get(db.collection(`sessions/${record.sessionId}/players`)),
         tx.get(navigationStateRef(record.sessionId)),
       ]);
-      const group = groupSnapshot.exists ? fleetGroupRecord(groupSnapshot.data()) : undefined;
-      if (!group || group.id !== record.groupId || !group.vesselIds.every((shipId) =>
-        activeVesselIds.includes(shipId)) || !navigationSnapshot.exists ||
-          typeof missionCoordinate !== 'string' || !/^\d{4}$/.test(missionCoordinate)) {
+      const rawNavigation = navigationSnapshot.exists ? navigationSnapshot.data() : undefined;
+      const navigationRevision = navigationSnapshot.get('revision');
+      if (!navigationSnapshot.exists || !Number.isSafeInteger(navigationRevision) ||
+          (navigationRevision as number) < 0 || !isRecord(rawNavigation) ||
+          !isRecord(rawNavigation.shipGalacticCoordinates) || typeof missionCoordinate !== 'string' ||
+          !isStarSystemCoordinate(missionCoordinate)) {
         throw new HttpsError('failed-precondition', 'Current mission-group ship locations are unavailable.');
       }
-      const navigation = navigationStateForSession(navigationSnapshot, session, activeVesselIds);
+      let currentGroups: readonly FleetGroupRecord[];
+      let navigation: NavigationState;
+      try {
+        currentGroups = movementPursuitFleetGroups(activeVesselIds, groupSnapshots, playerSnapshots);
+        navigation = navigationStateForSession(navigationSnapshot, session, activeVesselIds);
+      } catch {
+        throw new HttpsError('failed-precondition', 'Current mission-group ship locations are unavailable.');
+      }
+      const holderUid = record.custody.holderUid;
+      const holder = playerSnapshots.docs?.find((candidate) => candidate.exists && candidate.id === holderUid);
+      const holderMembership = currentGroups.filter((group) => group.memberUids.includes(holderUid));
+      const groupId = holder?.get('fleetGroupId');
+      const group = holderMembership.length === 1 && holderMembership[0]!.id === groupId
+        ? holderMembership[0] : undefined;
+      const groupSnapshot = groupSnapshots.docs?.find((candidate) => candidate.id === group?.id);
+      const storedGroup = groupSnapshot?.exists ? fleetGroupRecord(groupSnapshot.data()) : undefined;
+      const partitioned = hasFleetPartition(session);
+      const holderShipId = storedGroup?.memberShipIds?.[holderUid] ??
+        (!partitioned && holder ? playerShipId(holder) : undefined);
+      const hasSourceLineage = group?.id === record.groupId || group?.mergedGroupIds?.includes(record.groupId);
+      const rawCoordinates = rawNavigation.shipGalacticCoordinates;
+      if (!holder || isKickedPlayer(holder) || !group || !storedGroup || !hasSourceLineage ||
+          !storedGroup.memberUids.includes(holderUid) || !holderShipId ||
+          !activeVesselIds.includes(holderShipId) || !group.vesselIds.includes(holderShipId) ||
+          !group.vesselIds.every((shipId) => activeVesselIds.includes(shipId) &&
+            typeof rawCoordinates[shipId] === 'string' && isStarSystemCoordinate(rawCoordinates[shipId] as string))) {
+        throw new HttpsError('failed-precondition', 'Current mission-group ship locations are unavailable.');
+      }
       legalDropOffShipIds = group.vesselIds.filter((shipId) =>
         navigation.shipGalacticCoordinates[shipId] === missionCoordinate);
     }
