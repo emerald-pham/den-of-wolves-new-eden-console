@@ -31,7 +31,7 @@ describe('configured Wolf attack target ring', () => {
     ], { playerCount: 8, expansion: 'base' })).toThrow(/Dione is required/i);
     expect(() => configuredWolfAttackTargetRing([
       'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124',
-    ], { playerCount: 8, expansion: 'base' })).toThrow(/required active fleet vessels/i);
+    ], { playerCount: 8, expansion: 'base' })).toThrow(/configured active fleet vessels/i);
     expect(() => configuredWolfAttackTargetRing([
       'aegis', 'icebreaker', 'quellon', 'shepherd', 'refinery-124',
     ], { playerCount: 18, expansion: 'base' })).toThrow(/Dione is required/i);
