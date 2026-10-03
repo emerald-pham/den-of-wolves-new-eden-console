@@ -389,6 +389,14 @@ makes authenticated local/emulator proof the repository-wide standard. PC06
 remains closed at 556/751; this checkpoint must
 close exactly its fixed 49 IDs to reach 605/751 and 147/293 campaign closures.
 
+**Candidate preparation, October 3:** the orchestrator owns and has reconciled
+all49 representative local/emulator behavior acceptances for build0.5.65,
+605/751 and147/293. The delegated owner and workers are stopped. The
+[report](PC07_PLAYTEST_REPORT.md) and [matrix](PC07_ACCEPTANCE_MATRIX.md) retain
+normal gameplay, native fixtures and prepared scene boundaries. Independent
+review, final validation, CI and exact-main deployment remain pending release
+gates; this entry does not claim deployment or authorize a new checkpoint.
+
 **Problem and frozen scope.** Players must act, move and learn within their
 current fleet group while sharing one session cycle clock. A facilitator must
 be able to declare an attack, observe automatically committed range results,

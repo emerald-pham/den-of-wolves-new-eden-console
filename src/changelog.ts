@@ -23,6 +23,21 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     implementationProgress: {
+      completed: 605, total: 751, percentage: '80.56%',
+      done: 605, partial: 15, active: 0, missing: 131, blocked: 0,
+    },
+    implementationPrompts: ["326","336","153","337","338","152","339","340","341","342","343","344","345","346","347","348","349","350","424","678","643","140","154","155","156","158","103a","159","428","431","432","432a","433","433a","433b","434","434a","435","436","437","438","439","440","441","442","444","523a","351","353"],
+    changes: [
+      'PC07 is complete: separated fleets keep their own maps and notes while sharing one cycle clock.',
+      'Scans resolve automatically. Crews can share known systems, ferry passengers or fuel, and rejoin their fleet.',
+      'Wolf Attacks now carry player choices through targeting, combat, boarding and reopened airspace. Refreshing preserves committed results.',
+      '605 of 751 planned items are complete in the catalog snapshot used to build this release (80.56%).',
+      '147 of 293 remaining campaign items are complete (50.17%); 605 of 751 overall (80.56%).',
+    ],
+  },
+  {
+    version: '0.5.64',
+    implementationProgress: {
       completed: 556, total: 751, percentage: '74.03%',
       done: 556, partial: 21, active: 0, missing: 174, blocked: 0,
     },

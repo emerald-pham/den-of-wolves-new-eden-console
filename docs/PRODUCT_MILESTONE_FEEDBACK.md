@@ -224,3 +224,15 @@ rules evidence is now the gameplay completion standard. Counts, functional
 acceptance, independent review, CI, production deployment, full-table PC10
 and version/P605a boundaries are unchanged. Scene-only proof remains invalid;
 historical local and production evidence stays accurately labeled.
+
+### Orchestrator ownership and direct takeover — 2026-10-03
+
+The owner requested repository guidance making the orchestrator thread the
+checkpoint owner, then explicitly ordered: “force the other owner to stop.
+pick up where they left off.” The root interrupted the delegated owner and both
+workers, preserved their work and failing evidence, and completed the remaining
+implementation and normal gameplay proof directly. No implementation agent is
+resumed. `AGENTS.md`, `CLAUDE.md` and the execution policy carry orchestrator
+ownership for future checkpoints. Required independent Sol review remains a
+separate risk check before CI; it does not transfer implementation or release
+ownership. No new gameplay UI feedback or rules correction is pending cooldown.

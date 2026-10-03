@@ -6426,6 +6426,13 @@
       "language": "Carry the bounded excess-hit digital assumption into the unstarted weapon consumers only where their printed action requires distinct targets. Original rolls and successes remain in the private audit; successes beyond legal distinct-contact capacity are unused, with no reroll or repeated damage from that action. Other actions retain their own target limits, and independent actions may share a contact where their source rules allow. Status, prerequisites, fixed checkpoint membership and closure totals are unchanged.",
       "source": "docs/PRODUCT_MILESTONE_ASSUMPTIONS.md PC07-A6; docs/PC07_ATTACK_ENGINE_ASSUMPTIONS.md Excess hits; docs/PC07_PC10_ALIGNMENT.md; functions/src/wolfCombatMath.ts; functions/src/wolfCombatMath.test.ts",
       "type": "evidence / source-backed-assumption / future-alignment / no-closure-credit"
+    },
+    {
+      "direction": "PC07 fixed49 -> 605/751;147/293",
+      "id": "E-PC07-FINAL-20261003",
+      "language": "All fixed49 behavior acceptances have representative normal authenticated local/emulator proof. The 13-actor split branch uses normal admission, automatic Comms recovery, group-local rosters/notes/DRADIS, selected system sharing, passenger/fuel taxis, courier delivery, real independently charged jumps, exact retries and policy-based rejoin. Current native mission-custody and differing navigation-cursor branches retain their own source and fixture labels. The 18-actor attack branch composes setup, two maintenance cycles, real transit parking, disconnected pending choices, a reasoned hold, normal phone Commander reroll/finish, Captain choice/replay, explicit EO pass, three ranges, boarding, final damage and reopened movement. Twelve-vessel native maintenance, ordinary phone join/clear/maintenance/navigation and full Rules evidence cover the remaining foundations. Only disposable deadlines and separately labeled facilitator relocations accelerate these scenarios. No identity, dice, resource, role or result seeding is represented as ordinary play. Catalog closures add49 once and grant no PC08 or P605a credit. Independent review, final gates, CI and exact-main deployment remain separately recorded release evidence.",
+      "source": "docs/PC07_ACCEPTANCE_MATRIX.md; docs/PC07_PLAYTEST_REPORT.md; docs/PC07_EXECUTION_RECORD.md; docs/PC07_TEST_INVENTORY.md; scripts/test-pc07-split-http.mjs; scripts/test-pc07-full-attack-http.mjs; scripts/test-pc07-maintenance-matrix.emulator.mjs; external PC07-evidence/root-takeover/split-http.json and full-attack-ui-http.json; external PC07-evidence/split-sharing/rejoined-mission-current-custody-native.json and navigation-cursor-different-native.json",
+      "type": "evidence / authority / release / local-gameplay"
     }
   ],
   "plan": {
@@ -8925,8 +8932,8 @@
         "acceptance": "Given a committed turn advance with an uncleared turn-advance interstitial, the turn-advance screen hides the `AIRSPACE CLOSED` timer while the authoritative airspace timer/deadline remains frozen at its captured remaining time; only one explicit clear/dismiss action after the committed transition reveals/resumes it from that preserved remaining time, never resetting, extending, or advancing it early. Stale, replayed, retried, reconnecting, and multi-client clear/advance attempts cannot decrement, resume, duplicate, or overwrite a newer deadline or transition event. The preserved/resumed status is accessible, has truthful keyboard order/focus and touch targets, and remains readable under reduced motion. Dependencies: Prompts 091–096, 098, 101–103, 106b, 108–109, and 154–158. Apply the authorized core-rules and facilitation source areas and consume existing server-owned timing and broadcast precedence; do not invent a client timer or a new airspace rule. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Hold the airspace deadline behind turn-advance interstitials."
       },
-      "description": "Planned [NEW] prompt: hide AIRSPACE CLOSED on the turn-advance interstitial, freeze the authoritative deadline until clear/dismiss, resume from preserved remaining time, and cover stale/retry/reconnect/multi-client/accessibility behavior; no accepted gameplay proof has been recorded. Depends on Prompts 091–096, 098, 101–103, 106b, 108–109, and 154–158.",
-      "evidenceIds": "E-103A",
+      "description": "PC07 implements and connects shared-cycle maintenance, exact briefing clearance, movement restrictions and local server-sampled DRADIS. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-103A;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "091-096;098;101-103;106b;108-109;154-158",
@@ -8934,10 +8941,12 @@
       "milestoneHints": "M2",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -9952,8 +9961,8 @@
         "acceptance": "six core ships, four small ships, Voyage 33-0, and expansion Capybara each execute their own printed path. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Run the all-vessel maintenance matrix."
       },
-      "description": "Planned [PROVE] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-140",
+      "description": "PC07 implements and connects shared-cycle maintenance, exact briefing clearance, movement restrictions and local server-sampled DRADIS. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-AUDIT-140;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "114;171;183;194;204;216;224;235;241;242;246;250;571",
@@ -9961,10 +9970,12 @@
       "milestoneHints": "M2",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PROVE"
     },
     {
@@ -10411,8 +10422,8 @@
         "acceptance": "each group sees only its permitted local craft and cannot infer another group's position from counts or events. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Redact split-fleet shuttle state."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-152",
+      "description": "PC07 implements and connects split-fleet scouting, private current-group operations, printed taxi/courier capacity and range, independent charged jumps and policy-based rejoin. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-AUDIT-152;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "337;338",
@@ -10420,10 +10431,12 @@
       "milestoneHints": "M2",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -10434,8 +10447,8 @@
         "acceptance": "only a legal ferry capability can move people or fuel between separated groups. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Constrain cross-group docking."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-153",
+      "description": "PC07 implements and connects split-fleet scouting, private current-group operations, printed taxi/courier capacity and range, independent charged jumps and policy-based rejoin. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-AUDIT-153;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "143;336",
@@ -10443,10 +10456,12 @@
       "milestoneHints": "M2",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -10457,8 +10472,8 @@
         "acceptance": "normal, Team-docked, Wolf-locked, quarantined, split, and mission-committed states have explicit legal edges and audit events. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Model airspace transitions."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-154",
+      "description": "PC07 implements and connects shared-cycle maintenance, exact briefing clearance, movement restrictions and local server-sampled DRADIS. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-AUDIT-154;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "142;141;145;149;336;414",
@@ -10466,10 +10481,12 @@
       "milestoneHints": "M2",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -10480,8 +10497,8 @@
         "acceptance": "affected players receive one accessible locked, restricted, parked, or reopened status after authority commits. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Announce airspace status truthfully."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-155",
+      "description": "PC07 implements and connects shared-cycle maintenance, exact briefing clearance, movement restrictions and local server-sampled DRADIS. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-AUDIT-155;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "154",
@@ -10489,10 +10506,12 @@
       "milestoneHints": "M2",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -10503,8 +10522,8 @@
         "acceptance": "normal controls return only after the restriction's server-owned end condition. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Reopen movement authoritatively."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-156",
+      "description": "PC07 implements and connects shared-cycle maintenance, exact briefing clearance, movement restrictions and local server-sampled DRADIS. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-AUDIT-156;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "154",
@@ -10512,10 +10531,12 @@
       "milestoneHints": "M2",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -10551,8 +10572,8 @@
         "acceptance": "cached routes cannot restore prohibited controls and the current server restriction replaces local state. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Reconnect during restricted airspace."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-158",
+      "description": "PC07 implements and connects shared-cycle maintenance, exact briefing clearance, movement restrictions and local server-sampled DRADIS. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-AUDIT-158;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "154",
@@ -10560,10 +10581,12 @@
       "milestoneHints": "M2",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -10574,8 +10597,8 @@
         "acceptance": "one fixture starts a roster, resolves maintenance, changes phase, declares an attack, parks craft, and reopens movement. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Run the start-to-airspace scenario."
       },
-      "description": "Planned [PROVE] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-159",
+      "description": "PC07 implements and connects shared-cycle maintenance, exact briefing clearance, movement restrictions and local server-sampled DRADIS. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-AUDIT-159;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "140;145;156;373",
@@ -10583,10 +10606,12 @@
       "milestoneHints": "M2",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PROVE"
     },
     {
@@ -15058,8 +15083,8 @@
         "acceptance": "the valid replacement scouts one system within one jump of current AEGIS position. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve Comms Officer scouting."
       },
-      "description": "The server-side Comms Officer scan policy requires the exact current Comms Officer replacement assignment, a connected player, a valid active role/vessel configuration, no prior Comms scan in the cycle, the complete authoritative per-ship coordinate map, and a positive cycle. It derives origin only from current AEGIS position and returns one immutable request for a printed target at canonical graph distance 0 or 1. A second jump, unknown target or position, incomplete or extra fleet coordinates, used cadence, absent or different replacement authority, disconnected state, and malformed cycles fail closed. Historical core assignment/seat fields neither grant nor block the exact replacement path. Current source audit on 2026-09-28 confirms that the production requestScout transaction calls authorizeCurrentScoutScan, which consumes this resolver using current private ship coordinates, actor entitlement, fuel where required, and persisted cadence. It atomically writes the pending request, cadence, and replay receipt. The earlier statement that no production transaction consumes this resolver is superseded. This integration is already implemented; ordinary authorized released-session evidence for this entitlement and the remaining hard prerequisites are not established by this audit, so the prompt remains partial. Do not rebuild the existing integration merely to clear the stale description.",
-      "evidenceIds": "E-AUDIT-326;E-326-COMMS-SCAN;E-CHECKPOINT-RECORDING-AUDIT-20260928",
+      "description": "PC07 implements and connects split-fleet scouting, private current-group operations, printed taxi/courier capacity and range, independent charged jumps and policy-based rejoin. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-AUDIT-326;E-326-COMMS-SCAN;E-CHECKPOINT-RECORDING-AUDIT-20260928;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "321;280;177",
@@ -15067,10 +15092,12 @@
       "milestoneHints": "M4;M5;M8",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -15313,8 +15340,8 @@
         "acceptance": "ships that completed a destination form a group and ships left behind retain their original group and location. Retain one shared session cycle/phase clock while operations and knowledge remain group-local. Rejoin uses the documented policy chosen before resolution; the server computes and audits its consequences without manual score transcription. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Create a split after partial arrival."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-336",
+      "description": "PC07 implements and connects split-fleet scouting, private current-group operations, printed taxi/courier capacity and range, independent charged jumps and policy-based rejoin. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-AUDIT-336;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "285;286;294",
@@ -15322,10 +15349,12 @@
       "milestoneHints": "M4;M5;M8",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -15336,8 +15365,8 @@
         "acceptance": "members receive only their current group's operational roster except for explicit facilitator access. Retain one shared session cycle/phase clock while operations and knowledge remain group-local. Rejoin uses the documented policy chosen before resolution; the server computes and audits its consequences without manual score transcription. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Project a group-local roster."
       },
-      "description": "The server-owned fleetGroupId now bounds ordinary connected-player roster reads to the caller's current group, while a connected GM retains the explicit full connected-roster view. Member queries include the server-owned group and connected predicates, malformed or stale group membership fails closed in rules, and listener errors clear the prior projection so a split, role change, demotion, or reconnect cannot leave old-group data on screen. The current release still has one canonical fleet-1 group; split creation/rejoin and group-local isolation remain owned by Prompts 336 and 346–350. Prompt 107 is decided: all groups share one session cycle and phase clock; this timing policy does not grant cross-group roster access.",
-      "evidenceIds": "E-AUDIT-337;E-337-GROUP-ROSTER",
+      "description": "PC07 implements and connects split-fleet scouting, private current-group operations, printed taxi/courier capacity and range, independent charged jumps and policy-based rejoin. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-AUDIT-337;E-337-GROUP-ROSTER;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "286;006",
@@ -15345,10 +15374,12 @@
       "milestoneHints": "M4;M5;M8",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -15359,8 +15390,8 @@
         "acceptance": "another group's coordinates, pursuit, craft, missions, and hidden events cannot be queried or inferred. Retain one shared session cycle/phase clock while operations and knowledge remain group-local. Rejoin uses the documented policy chosen before resolution; the server computes and audits its consequences without manual score transcription. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Deny cross-group position reads."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-338",
+      "description": "PC07 implements and connects split-fleet scouting, private current-group operations, printed taxi/courier capacity and range, independent charged jumps and policy-based rejoin. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-AUDIT-338;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "337",
@@ -15368,10 +15399,12 @@
       "milestoneHints": "M4;M5;M8",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -15382,8 +15415,8 @@
         "acceptance": "ordinary messages fail across groups at the server boundary. Retain one shared session cycle/phase clock while operations and knowledge remain group-local. Rejoin uses the documented policy chosen before resolution; the server computes and audits its consequences without manual score transcription. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Deny cross-group communications."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-339",
+      "description": "PC07 implements and connects split-fleet scouting, private current-group operations, printed taxi/courier capacity and range, independent charged jumps and policy-based rejoin. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-AUDIT-339;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "337",
@@ -15391,10 +15424,12 @@
       "milestoneHints": "M4;M5;M8",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -15405,8 +15440,8 @@
         "acceptance": "eligible players in one group can exchange the intended message/status during the allowed phase. Retain one shared session cycle/phase clock while operations and knowledge remain group-local. Rejoin uses the documented policy chosen before resolution; the server computes and audits its consequences without manual score transcription. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Permit local Coordination communication."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-340",
+      "description": "PC07 implements and connects split-fleet scouting, private current-group operations, printed taxi/courier capacity and range, independent charged jumps and policy-based rejoin. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-AUDIT-340;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "337;339",
@@ -15414,10 +15449,12 @@
       "milestoneHints": "M4;M5;M8",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -15428,8 +15465,8 @@
         "acceptance": "maintenance continues within each group while prohibited movement and cross-group state remain unavailable. Retain one shared session cycle/phase clock while operations and knowledge remain group-local. Rejoin uses the documented policy chosen before resolution; the server computes and audits its consequences without manual score transcription. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Keep Team actions group-local."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-341",
+      "description": "PC07 implements and connects split-fleet scouting, private current-group operations, printed taxi/courier capacity and range, independent charged jumps and policy-based rejoin. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-AUDIT-341;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "337;099",
@@ -15437,10 +15474,12 @@
       "milestoneHints": "M4;M5;M8",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -15451,8 +15490,8 @@
         "acceptance": "relevant groups and facilitators see the proper departure/arrival without learning a forbidden destination. Retain one shared session cycle/phase clock while operations and knowledge remain group-local. Rejoin uses the documented policy chosen before resolution; the server computes and audits its consequences without manual score transcription. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Scope jump announcements by audience."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-342",
+      "description": "PC07 implements and connects split-fleet scouting, private current-group operations, printed taxi/courier capacity and range, independent charged jumps and policy-based rejoin. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-AUDIT-342;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "336;337",
@@ -15460,10 +15499,12 @@
       "milestoneHints": "M4;M5;M8",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -15474,8 +15515,8 @@
         "acceptance": "an eligible scout consumes one round-trip attempt and moves no more than two authorized players. Retain one shared session cycle/phase clock while operations and knowledge remain group-local. Rejoin uses the documented policy chosen before resolution; the server computes and audits its consequences without manual score transcription. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Ferry up to two players by scout taxi."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-343",
+      "description": "PC07 implements and connects split-fleet scouting, private current-group operations, printed taxi/courier capacity and range, independent charged jumps and policy-based rejoin. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-AUDIT-343;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "321;336",
@@ -15483,10 +15524,12 @@
       "milestoneHints": "M4;M5;M8",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -15497,8 +15540,8 @@
         "acceptance": "the same capacity carries fuel instead of players and inventory commits atomically. Retain one shared session cycle/phase clock while operations and knowledge remain group-local. Rejoin uses the documented policy chosen before resolution; the server computes and audits its consequences without manual score transcription. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Ferry up to two fuel by scout taxi."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-344",
+      "description": "PC07 implements and connects split-fleet scouting, private current-group operations, printed taxi/courier capacity and range, independent charged jumps and policy-based rejoin. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-AUDIT-344;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "343",
@@ -15506,10 +15549,12 @@
       "milestoneHints": "M4;M5;M8",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -15520,8 +15565,8 @@
         "acceptance": "no player, fuel, shuttle, attempt, or event changes on an illegal route. Retain one shared session cycle/phase clock while operations and knowledge remain group-local. Rejoin uses the documented policy chosen before resolution; the server computes and audits its consequences without manual score transcription. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Deny out-of-range taxi trips."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-345",
+      "description": "PC07 implements and connects split-fleet scouting, private current-group operations, printed taxi/courier capacity and range, independent charged jumps and policy-based rejoin. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-AUDIT-345;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "343",
@@ -15529,10 +15574,12 @@
       "milestoneHints": "M4;M5;M8",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -15543,8 +15590,8 @@
         "acceptance": "groups can merge only at the same authoritative system through the recorded facilitator policy. Retain one shared session cycle/phase clock while operations and knowledge remain group-local. Rejoin uses the documented policy chosen before resolution; the server computes and audits its consequences without manual score transcription. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Validate group rejoin eligibility."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-346",
+      "description": "PC07 implements and connects split-fleet scouting, private current-group operations, printed taxi/courier capacity and range, independent charged jumps and policy-based rejoin. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-AUDIT-346;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "285;336",
@@ -15552,10 +15599,12 @@
       "milestoneHints": "M4;M5;M8",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -15566,8 +15615,8 @@
         "acceptance": "ships, players, shuttles, discoveries, and events appear once in the surviving group. Retain one shared session cycle/phase clock while operations and knowledge remain group-local. Rejoin uses the documented policy chosen before resolution; the server computes and audits its consequences without manual score transcription. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Merge rejoined membership."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-347",
+      "description": "PC07 implements and connects split-fleet scouting, private current-group operations, printed taxi/courier capacity and range, independent charged jumps and policy-based rejoin. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-AUDIT-347;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "346",
@@ -15575,10 +15624,12 @@
       "milestoneHints": "M4;M5;M8",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -15589,8 +15640,8 @@
         "acceptance": "the selected product/facilitator policy combines independent scores explicitly and audibly. Retain one shared session cycle/phase clock while operations and knowledge remain group-local. Rejoin uses the documented policy chosen before resolution; the server computes and audits its consequences without manual score transcription. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve rejoined pursuit."
       },
-      "description": "Planned [DECISION] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "PC07 implements and connects split-fleet scouting, private current-group operations, printed taxi/courier capacity and range, independent charged jumps and policy-based rejoin. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -15598,10 +15649,12 @@
       "milestoneHints": "M4;M5;M8",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "DECISION"
     },
     {
@@ -15612,8 +15665,8 @@
         "acceptance": "messages cross the former boundary only after the group merge is authoritative. Retain one shared session cycle/phase clock while operations and knowledge remain group-local. Rejoin uses the documented policy chosen before resolution; the server computes and audits its consequences without manual score transcription. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Restore communication after commit."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-349",
+      "description": "PC07 implements and connects split-fleet scouting, private current-group operations, printed taxi/courier capacity and range, independent charged jumps and policy-based rejoin. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-AUDIT-349;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "339;347",
@@ -15621,10 +15674,12 @@
       "milestoneHints": "M4;M5;M8",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -15635,8 +15690,8 @@
         "acceptance": "duplicate requests cannot strand an entity, duplicate membership, expose early communication, or merge twice. Retain one shared session cycle/phase clock while operations and knowledge remain group-local. Rejoin uses the documented policy chosen before resolution; the server computes and audits its consequences without manual score transcription. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Make split/rejoin retries safe."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-350",
+      "description": "PC07 implements and connects split-fleet scouting, private current-group operations, printed taxi/courier capacity and range, independent charged jumps and policy-based rejoin. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-AUDIT-350;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "346;347",
@@ -15644,10 +15699,12 @@
       "milestoneHints": "M4;M5;M8",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -15658,8 +15715,8 @@
         "acceptance": "extend the current ship-local presentation primitive so a viewer sees ships whose authoritative coordinate and fleet group match their own; current catalog/filter rendering alone is not composed split-fleet proof. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Show only arrived local ships on DRADIS."
       },
-      "description": "Planned [EXTEND] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-433A;E-ATTACK-DRADIS",
+      "description": "PC07 implements and connects shared-cycle maintenance, exact briefing clearance, movement restrictions and local server-sampled DRADIS. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-433A;E-ATTACK-DRADIS;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "433a",
@@ -15667,10 +15724,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "ATTACK-DRADIS",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
@@ -15706,8 +15765,8 @@
         "acceptance": "DRADIS consumes server-owned samples and never derives hidden destination or movement authority from animation; later Wolf-attack contacts consume only Prompt 433a's audience-safe endpoint. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Publish sampled transit contacts."
       },
-      "description": "Planned [EXTEND] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-ATTACK-DRADIS;E-433A",
+      "description": "PC07 implements and connects shared-cycle maintenance, exact briefing clearance, movement restrictions and local server-sampled DRADIS. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-ATTACK-DRADIS;E-433A;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "433a",
@@ -15715,10 +15774,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "ATTACK-DRADIS",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
@@ -17588,8 +17649,8 @@
         "acceptance": "two groups scout, jump independently, hide contacts/comms, ferry a legal payload, complete a mission, rejoin, and retain correct pursuit. Prove independent group operations and information under the shared session clock, including automatic policy-based rejoin and one-facilitator recovery; optional additional GMs never become required operators. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Run the split-fleet exploration scenario."
       },
-      "description": "Planned [PROVE] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-424",
+      "description": "PC07 implements and connects split-fleet scouting, private current-group operations, printed taxi/courier capacity and range, independent charged jumps and policy-based rejoin. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-AUDIT-424;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "336;337;328;347;338;339;343;401;409;307",
@@ -17597,10 +17658,12 @@
       "milestoneHints": "M7;M8",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PROVE"
     },
     {
@@ -17680,8 +17743,8 @@
         "acceptance": "target selection, dice, modifier order, phase deadlines, damage, and casualties are server-generated/validated, recorded in a calculation receipt, and impossible to submit as outcomes. Source-defined calculations, randomness, committed consequences and GM-log receipts run automatically after required choices are resolved, with genuine adjudication boundaries left explicit and no routine per-roll GM confirmation. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Centralize combat math and randomness."
       },
-      "description": "The server-only Wolf math module defines the complete calculation contract: final targeting dice; Commander rerolls and target shifts before one Command and Control redirect; range dice generated before assignments; Short Range Fighter priority and Battlestation immunity; catalog destruction/survival and boarding defence; and the existing damage deck and survivor track for fleet damage and casualties. Its typed receipt can represent every server sample, modifier order, phase deadline/overrun, damage draw, and casualty, while P427 staged target assignments remain proposals. The production path currently persists only the targeting calculation in private attack state when P432 declares, then updates that targeting receipt for actual Commander rerolls and any AEGIS redirect. This slice adds a GM-console action and server transaction to close targeting and enter Long Range after an assigned Commander finishes. It keeps the targeting receipt and captures the current server-owned airspace deadline, including authorized pause/resume shifts, in the transitioned private state, audit, and replay result. A verified empty alert queue hides its empty panel so the control remains usable at short landscape sizes. Long Range and later range, boarding, damage, and casualty calculations are not yet produced or stored in the lifecycle, so the complete receipt is unavailable. P428 remains partial; later choices and outcomes are never manufactured at declaration.",
-      "evidenceIds": "E-WOLF;E-AUDIT-428;E-428-COMBAT-MATH",
+      "description": "PC07 implements and connects automatic Wolf Attack declaration, private entitled choices, printed range and boarding results, and atomic damage/movement recovery. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-WOLF;E-AUDIT-428;E-428-COMBAT-MATH;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "425;426",
@@ -17690,11 +17753,12 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.5.32"
+        "0.5.32",
+        "0.5.65"
       ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -17751,8 +17815,8 @@
         "acceptance": "every permitted ±1 shift uses the correct configured target ring and clients cannot select the final ship directly. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve target-number wraparound."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-431",
+      "description": "PC07 implements and connects automatic Wolf Attack declaration, private entitled choices, printed range and boarding results, and atomic damage/movement recovery. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-AUDIT-431;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "425;428",
@@ -17760,10 +17824,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -17774,8 +17840,8 @@
         "acceptance": "a GM-console declaration commits attack state, airspace lock, parked craft, current step/deadline, calculation receipt, and one announcement together. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Declare the attack atomically."
       },
-      "description": "Release 0.4.79 completes P373's atomic parking portion of declaration. The server-only callable validates the live GM instance, locked session configuration, current open-airspace deadline, due P427 preparation revision, authoritative target configuration, pursuit groups, represented craft, fighter-wing bay state, dockings, and transit authority. One transaction parks craft, restricts airspace, resolves the due timing marker, stores the GM-only targeting calculation and preparation snapshot, and emits one allowlisted member announcement. This prompt remains partial because its hard P428 combat-math prerequisite remains partial; range, boarding, damage, casualties, and later lifecycle stages stay with their action prompts.",
-      "evidenceIds": "E-WOLF;E-AUDIT-432;E-432-DECLARATION;E-373-WOLF-ATTACK-PARKING",
+      "description": "PC07 implements and connects automatic Wolf Attack declaration, private entitled choices, printed range and boarding results, and atomic damage/movement recovery. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-WOLF;E-AUDIT-432;E-432-DECLARATION;E-373-WOLF-ATTACK-PARKING;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "427;428",
@@ -17784,11 +17850,12 @@
       "relatedConsumes": "146;373;429;430",
       "releaseBoundaries": "none",
       "releases": [
-        "0.4.79"
+        "0.4.79",
+        "0.5.65"
       ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -17799,8 +17866,8 @@
         "acceptance": "one GM can declare, advance, pause, inspect, and resume the automatic lifecycle from the established GM surface; additional GMs observe the same authority and never become required operators. After the required choices lock or a documented authoritative deadline resolves them, legal step progression and source-defined calculations run automatically. The GM declares, observes and handles genuine rulings or interventions; routine per-step advance, roll entry and player-result relay are not required. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Operate the attack from the GM console."
       },
-      "description": "Planned [EXTEND] one-GM GM-console attack lifecycle. P432 supplies declaration and P428 now supplies the targeting-close action into Long Range; the full declare/advance/pause/inspect/resume flow remains incomplete, so this prompt stays missing.",
-      "evidenceIds": "E-WOLF;E-AUDIT-432A",
+      "description": "PC07 implements and connects automatic Wolf Attack declaration, private entitled choices, printed range and boarding results, and atomic damage/movement recovery. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-WOLF;E-AUDIT-432A;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "432",
@@ -17808,10 +17875,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
@@ -17822,8 +17891,8 @@
         "acceptance": "affected players see phase, deadlines, status, permitted actions, and audience-safe results; facilitators retain hidden composition, unresolved dice, notes, and intervention state. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Project attack state by audience."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-433",
+      "description": "PC07 implements and connects automatic Wolf Attack declaration, private entitled choices, printed range and boarding results, and atomic damage/movement recovery. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-WOLF;E-AUDIT-433;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "432",
@@ -17831,10 +17900,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -17845,8 +17916,8 @@
         "acceptance": "audience-safe endpoints/events expose canonical attack, source, target/contact, phase, server timestamp/deadline, range, bearing/contact reference, effect/outcome, visibility, and redaction fields with schema/privacy/reconnect tests; no new DRADIS attack visualization is implied. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Publish a stable DRADIS-ready attack contract."
       },
-      "description": "Planned [NEW] stable DRADIS-ready attack endpoint/event schema, privacy, reconnect, and projection contract; no attack visualization is implied.",
-      "evidenceIds": "E-WOLF;E-ATTACK-DRADIS;E-AUDIT-433A",
+      "description": "PC07 implements and connects automatic Wolf Attack declaration, private entitled choices, printed range and boarding results, and atomic damage/movement recovery. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-WOLF;E-ATTACK-DRADIS;E-AUDIT-433A;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "432;433",
@@ -17854,10 +17925,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK;ATTACK-DRADIS",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -17868,8 +17941,8 @@
         "acceptance": "each existing entitled console shows all and only the eligible attack information, choices, pending/timeout state, denial, and committed result without facilitator transcription or hidden-state leakage. Player choices stay with the entitled player and resume truthfully after reconnect; source-defined outcomes and their private GM-log receipts commit automatically without a routine facilitator relay or acknowledgement. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve choices in affected player consoles."
       },
-      "description": "Planned [EXTEND] affected-player-console choices/results prompt; existing consoles do not yet resolve a playable attack.",
-      "evidenceIds": "E-WOLF;E-AUDIT-433B",
+      "description": "PC07 implements and connects automatic Wolf Attack declaration, private entitled choices, printed range and boarding results, and atomic damage/movement recovery. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-WOLF;E-AUDIT-433B;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "433",
@@ -17877,10 +17950,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
@@ -17891,8 +17966,8 @@
         "acceptance": "duplicate declaration, roll, player action, timeout, or advancement returns one result and never resolves a step twice. Source-defined calculations, randomness, committed consequences and GM-log receipts run automatically after required choices are resolved, with genuine adjudication boundaries left explicit and no routine per-roll GM confirmation. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Make attack commands retry-safe."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-434",
+      "description": "PC07 implements and connects automatic Wolf Attack declaration, private entitled choices, printed range and boarding results, and atomic damage/movement recovery. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-WOLF;E-AUDIT-434;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "432",
@@ -17900,10 +17975,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -17914,8 +17991,8 @@
         "acceptance": "a GM pause, override, correction, or recovery requires a reason, danger confirmation when high impact, expected revision, idempotency key, scoped before/after delta, audit/replay, and bounded rollback where allowed; a concurrent stale GM cannot overwrite the winner. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Intervene and recover safely during an attack."
       },
-      "description": "Planned [EXTEND] reasoned CAS/idempotent danger-confirmed intervention/recovery/audit prompt; no composed attack override path exists yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-434A",
+      "description": "PC07 implements and connects automatic Wolf Attack declaration, private entitled choices, printed range and boarding results, and atomic damage/movement recovery. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-WOLF;E-AUDIT-434A;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "432a;434",
@@ -17923,10 +18000,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
@@ -17937,8 +18016,8 @@
         "acceptance": "the assigned Commander rerolls each eligible die no more than once before Command and Control. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve Wolf Commander target rerolls."
       },
-      "description": "The implemented production path lets the active player with P515's replacementRoleId Wolf Commander authority read a filtered current-dice view and submit selected rerolls against the successful private targeting receipt. The transaction uses shared command fingerprints, cycle/revision CAS, unique consumed indexes, server randomness, and a private audit while preserving initial and unselected outcomes; exact retries do not sample again. P373 has removed parking as a blocker, but this prompt remains partial while its hard P432 prerequisite remains partial behind P428. Printed Capybara 8 rerolls, timeout, auto-advance, Command and Control, range, and damage remain separate prompts.",
-      "evidenceIds": "E-WOLF;E-432-DECLARATION;E-515-REPLACEMENT;E-AUDIT-435;E-373-WOLF-ATTACK-PARKING",
+      "description": "PC07 implements and connects automatic Wolf Attack declaration, private entitled choices, printed range and boarding results, and atomic damage/movement recovery. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-WOLF;E-432-DECLARATION;E-515-REPLACEMENT;E-AUDIT-435;E-373-WOLF-ATTACK-PARKING;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "432;515",
@@ -17946,10 +18025,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -17960,8 +18041,8 @@
         "acceptance": "charged, undamaged authority may redirect one Wolf ship to AEGIS only after Commander rerolls. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve AEGIS Command and Control."
       },
-      "description": "The server-owned AEGIS Command and Control transaction and Commander reroll-finish action are implemented. P436 remains partial until normal authenticated local/emulator gameplay proves the declaration, explicit reroll completion, and redirect path. An assigned but disconnected Commander keeps the window pending until reconnect; no automatic or GM skip is supported.",
-      "evidenceIds": "E-436;E-WOLF;E-436-COMMAND-AND-CONTROL-PARTIAL",
+      "description": "PC07 implements and connects automatic Wolf Attack declaration, private entitled choices, printed range and boarding results, and atomic damage/movement recovery. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-436;E-WOLF;E-436-COMMAND-AND-CONTROL-PARTIAL;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -17970,11 +18051,12 @@
       "relatedConsumes": "435",
       "releaseBoundaries": "none",
       "releases": [
-        "0.5.21"
+        "0.5.21",
+        "0.5.65"
       ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -17985,8 +18067,8 @@
         "acceptance": "one ship is selected before targeting and receives exactly two less final damage. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Lock Gorgoneion Force Field timing."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-437",
+      "description": "PC07 implements and connects automatic Wolf Attack declaration, private entitled choices, printed range and boarding results, and atomic damage/movement recovery. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-WOLF;E-AUDIT-437;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "426;428;240",
@@ -17994,10 +18076,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18008,8 +18092,8 @@
         "acceptance": "all eligible actions lock, roll, and resolve as one range result before Medium begins. Source-defined calculations, randomness, committed consequences and GM-log receipts run automatically after required choices are resolved, with genuine adjudication boundaries left explicit and no routine per-roll GM confirmation. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve Long Range simultaneously."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-438",
+      "description": "PC07 implements and connects automatic Wolf Attack declaration, private entitled choices, printed range and boarding results, and atomic damage/movement recovery. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-WOLF;E-AUDIT-438;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "432;428",
@@ -18017,10 +18101,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18031,8 +18117,8 @@
         "acceptance": "target shifts and attacks lock and resolve together without client-controlled ordering. Source-defined calculations, randomness, committed consequences and GM-log receipts run automatically after required choices are resolved, with genuine adjudication boundaries left explicit and no routine per-roll GM confirmation. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve Medium Range simultaneously."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-439",
+      "description": "PC07 implements and connects automatic Wolf Attack declaration, private entitled choices, printed range and boarding results, and atomic damage/movement recovery. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-WOLF;E-AUDIT-439;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "432;428",
@@ -18040,10 +18126,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18054,8 +18142,8 @@
         "acceptance": "attacks resolve together and mandatory Wolf Fighter Wing priority is preserved. Source-defined calculations, randomness, committed consequences and GM-log receipts run automatically after required choices are resolved, with genuine adjudication boundaries left explicit and no routine per-roll GM confirmation. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve Short Range simultaneously."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-440",
+      "description": "PC07 implements and connects automatic Wolf Attack declaration, private entitled choices, printed range and boarding results, and atomic damage/movement recovery. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-WOLF;E-AUDIT-440;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "432;428",
@@ -18063,10 +18151,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18077,8 +18167,8 @@
         "acceptance": "Targeting, Long, Medium, Short, and Boarding commands fail outside their authoritative step. Source-defined calculations, randomness, committed consequences and GM-log receipts run automatically after required choices are resolved, with genuine adjudication boundaries left explicit and no routine per-roll GM confirmation. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Enforce the five-step attack order."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-441",
+      "description": "PC07 implements and connects automatic Wolf Attack declaration, private entitled choices, printed range and boarding results, and atomic damage/movement recovery. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-WOLF;E-AUDIT-441;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "438;439;440",
@@ -18086,10 +18176,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18100,8 +18192,8 @@
         "acceptance": "a Wolf card destroyed at each range produces only its printed effect for that step. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Apply range-specific destruction effects."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-442",
+      "description": "PC07 implements and connects automatic Wolf Attack declaration, private entitled choices, printed range and boarding results, and atomic damage/movement recovery. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-WOLF;E-AUDIT-442;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "438;439;440;130",
@@ -18109,10 +18201,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18146,8 +18240,8 @@
         "acceptance": "rolls, actors, targets, shifts, damage, destruction, and unresolved capacity are recorded with audience redaction. Source-defined calculations, randomness, committed consequences and GM-log receipts run automatically after required choices are resolved, with genuine adjudication boundaries left explicit and no routine per-roll GM confirmation. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Close each range with an audit result."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-444",
+      "description": "PC07 implements and connects automatic Wolf Attack declaration, private entitled choices, printed range and boarding results, and atomic damage/movement recovery. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-WOLF;E-AUDIT-444;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "441;442",
@@ -18155,10 +18249,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -20238,8 +20334,8 @@
         "acceptance": "facilitators adjust frequency/size through bounded pre-attack choices and the player UI cannot mutate the dial. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Configure Wolf Attack difficulty."
       },
-      "description": "Planned [DECISION] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-523A",
+      "description": "PC07 implements and connects automatic Wolf Attack declaration, private entitled choices, printed range and boarding results, and atomic damage/movement recovery. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-AUDIT-523A;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "522",
@@ -20247,10 +20343,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "DECISION"
     },
     {
@@ -23432,8 +23530,8 @@
         "acceptance": "independent jumps, contacts, communications, pursuit, taxi, local actions, rejoin, and failure recovery remain correct. Prove independent group operations and information under the shared session clock, including automatic policy-based rejoin and one-facilitator recovery; optional additional GMs never become required operators. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Run a complete split-fleet playthrough."
       },
-      "description": "Planned [PROVE] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-643",
+      "description": "PC07 implements and connects split-fleet scouting, private current-group operations, printed taxi/courier capacity and range, independent charged jumps and policy-based rejoin. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-AUDIT-643;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "424",
@@ -23441,10 +23539,12 @@
       "milestoneHints": "M13",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PROVE"
     },
     {
@@ -24350,8 +24450,8 @@
         "acceptance": "From a ship console, an entitled player can select a system their ship has scanned, inspect the details actually known to that ship, and transmit those details to all ships in the fleet or an explicit selected subset. The server resolves the sending ship, known system facts, current fleet/group recipient eligibility, and recipients' knowledge updates; a client cannot invent scan results, expose unknown or facilitator-only chart data, or add unauthorized recipients. Reuse the per-ship knowledge model so accepted transmitted coordinates and location facts become available to the chosen ships through their entitled projections while unselected ships receive no private data or revealing event payload. Preserve applicable communication rules, Ship View Privacy presentation choices, and existing jump/scout authority; make unavailable recipients and failed sends truthful in the UI. Record accepted sharing idempotently, survive retries/reconnect and concurrent discoveries without duplicate effects or lost knowledge, and test all/subset delivery, recipient exclusion, stale or unauthorized sends, known-fact-only payloads, and accessible responsive selection/confirmation controls. Recipient selection cannot bypass split-group communication restrictions. Deliver the accepted known facts directly to each selected entitled ship and record the sharing in the private GM log without requiring manual facilitator transcription. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Transmit scanned system details to all fleet ships or selected ships."
       },
-      "description": "Owner-requested ship-console sharing of selected scanned system information with the whole fleet or selected ships, using authoritative known facts, recipient eligibility, and per-ship knowledge.",
-      "evidenceIds": "E-678;E-678-DEPENDENCIES",
+      "description": "PC07 implements and connects split-fleet scouting, private current-group operations, printed taxi/courier capacity and range, independent charged jumps and policy-based rejoin. Its fixed acceptance is demonstrated through current production handlers with normal authenticated local/emulator native, HTTP/UI and Rules evidence, under the October 2 repository-wide owner decision. The complete acceptance mapping and precise fixture boundaries are in docs/PC07_ACCEPTANCE_MATRIX.md and docs/PC07_PLAYTEST_REPORT.md. Catalog completion is the 0.5.65 build snapshot; independent exact-candidate risk review, final validation, CI and exact-main production deployment are separate release evidence. Prepared scenes establish presentation only and production gameplay is not claimed.",
+      "evidenceIds": "E-678;E-678-DEPENDENCIES;E-PC07-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "328;339;340;677",
@@ -24359,10 +24459,12 @@
       "milestoneHints": "none",
       "relatedConsumes": "330;331",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.65"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

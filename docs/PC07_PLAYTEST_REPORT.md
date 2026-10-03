@@ -1,130 +1,53 @@
 # PC07 split fleets and automatic Wolf Attack
 
-**New assumptions come first.** [PC07-A1–A6](PRODUCT_MILESTONE_ASSUMPTIONS.md#pc07-a1--preserve-the-server-clock-behind-a-cycle-briefing)
-record the shared briefing clearance, supported five-vessel attack ring,
-highest-pursuit rejoin result, taxi pilot remaining at the launch ship and
-Gorgoneion's recovered charged-readiness foundation for its Captain's choice,
-and retained unused hits when a printed distinct-target action has too few
-live legal contacts.
-These are explicit digital choices where the printed procedure leaves a gap.
-Printed ship costs, console charges, attack effects, taxi capacity and range
-remain controlling. The split-fleet note records the route audience and
-known-system sharing boundaries. Final attack assumptions and their source
-references will be reconciled with the attack handback before release.
+**New assumptions come first.** [PC07-A1–A6](PRODUCT_MILESTONE_ASSUMPTIONS.md#pc07-a1--preserve-the-server-clock-behind-a-cycle-briefing) record shared briefing clearance, the supported five-vessel attack ring, highest-pursuit rejoin, taxi pilots staying at the launch ship, Gorgoneion's recovered charged readiness, and unused hits when a printed distinct-target action has too few live contacts. These are documented digital choices where print leaves a gap. Printed costs, range, capacity, charges, attack effects and source-specific sheets still control. The [attack](PC07_ATTACK_ENGINE_ASSUMPTIONS.md) and [split](PC07_SPLIT_SHARING_ASSUMPTIONS.md) notes retain precise source references and rejected alternatives.
 
-This is the in-progress PC07 report. Its fixed target is **49/49 assigned
-acceptances**, moving **556/751 to 605/751 overall** and **98/293 to 147/293
-campaign closures**. The catalog still records the opening baseline. Independent
-review, final validation, CI and deployment remain open; this report does not
-claim a released checkpoint. [The current acceptance matrix](PC07_ACCEPTANCE_MATRIX.md)
-records each implementation, test, review, deployment and gameplay gap.
+The **0.5.65 candidate** connects and demonstrates **49/49 fixed PC07 behavior acceptances**: **605/751 overall (80.56%)**, and **147/293 campaign closures (50.17%)**. This is the candidate build snapshot. Independent exact-candidate Sol review, final validation, CI and exact-main production deployment are release gates still pending at preparation. The [acceptance matrix](PC07_ACCEPTANCE_MATRIX.md) records these separately; this report does not claim a deployed checkpoint yet. The orchestrator `/root` owns all remaining work. The prior owner and both workers are stopped, their work and failures preserved.
 
-## What is connected
+## What changed
 
-Split fleets share one cycle and phase clock. Their rosters, positions, notes,
-scanned systems and shuttle routes follow current group authority. The GM
-confirms server-derived partitions and rejoins; scout taxis carry the printed
-passenger or fuel payload. Players receive a bounded current-member session
-read because a raw Firestore document cannot redact another group's fields.
-The ordinary player and Press root read is denied; entitled private projections
-and the GM root read remain available. Group changes immediately withdraw old
-operations while the new authorized read arrives.
+Separated fleets share one cycle clock and keep their own ships, positions, maps, notes and shuttle routes. Current membership governs every read and command. Scout taxis carry the printed passenger or fuel payload; couriers deliver one authorized message. Rejoin preserves known systems and applies the documented pursuit rule once. A legal Comms scan resolves automatically from the locked chart, with a private station report and facilitator result log. A committed scan survives disconnect and keeps its result on retry.
 
-A legal Comms scan now resolves automatically from the locked chart after the
-player chooses its target. The entitled station receives its private report;
-the GM sees the committed result log. Exact retry or reconnect preserves the
-first result, while the protected GM recovery control remains available.
-The 120 current scout/request/map/report/log/wire checks pass. Ordinary
-composed Comms proof and final candidate review remain open.
+Wolf Attacks declare and park moving craft together. The server performs targeting, three ranges, boarding, damage and reopening after required player choices. The Gorgoneion Captain chooses before targeting; the Wolf Commander chooses rerolls and finishes; the AEGIS EO may use or explicitly pass Command and Control. Current crew choose charged range actions, legal targets and zero through available boarding Security Teams. Configured disconnected choices stay pending. The facilitator sees a private, readonly decision summary and uses an explicit reason and danger confirmation for a genuine intervention.
 
-The attack engine declares and parks craft atomically, exposes separate crew
-and facilitator views, and advances source-defined range, boarding, damage
-and airspace recovery after genuine player choices. The current-authority
-Captain/range/boarding controls and GM readonly summary are integrated. The
-source-required explicit EO Command and Control pass, older targeting controls
-and complete normal attack proof remain with the attack worker. P605a's future
-DRADIS attack visualization stays excluded.
+Cycle briefings hold the shared server clock until a connected current participant clears the exact hold. Reconnect preserves time and committed outcomes. Local DRADIS uses current server-sampled ship and transit positions. Cached, offline, changed-role or changed-group views withdraw controls while current authority is recovered. Ordinary players read a bounded current-member projection; raw session, foreign group, hidden route and attack-state reads are denied. Repair history keeps printed usage limits while withholding earlier foreign hosts.
 
-Cycle briefings hold the actual shared server clock. A current connected
-participant clears the exact hold once, preserving its captured remaining time.
-Cached or offline controls wait for current authority. Actual DRADIS consumes
-one server-sampled local-group position stream and never derives another
-group's destination or a shuttle's private route in the browser.
+## Agent-owned gameplay verification
 
-## Gameplay and presentation evidence
+Normal authenticated local/emulator gameplay is the owner's repository-wide standard for future work. Native handler fixtures, ordinary Auth/HTTP commands, ordinary browser UI, Rules, prepared scenes, review, CI and deployment are distinct evidence classes. Production gameplay and physical-device behavior are not claimed.
 
-The October 2 owner correction makes authenticated local/emulator gameplay the
-future repository-wide verification standard. Native handler tests, normal
-Auth/HTTP commands, ordinary browser interaction, Firestore Rules, prepared
-scene rendering, CI and production deployment are recorded separately.
-Prepared scenes earn no behavior closure. Production gameplay and physical
-device behavior are not claimed.
+The external evidence root is `/Users/emeraldpham/Documents/PC07-evidence/`:
 
-The owner evidence root is outside Git at
-`/Users/emeraldpham/Documents/PC07-evidence/`. Current evidence includes:
+- **Split/exploration branch:** `root-takeover/split-http.json` records 13 ordinary actors, normal setup and maintenance, private local rosters/DRADIS/notes, automatic Comms scan after disconnect, private report and GM log, selected known-system sharing, passenger and fuel taxis, printed range/capacity denials, a courier round trip, two real independently charged jumps with exact retry, and policy-based rejoin. Facilitator relocations used to establish the initial split and final reunion are labeled separately from those real jumps. The shared cycle clock is unchanged between groups. No identity, role, resource, dice or outcome is injected into this ordinary branch.
+- **Mission and cursor branches:** `split-sharing/rejoined-mission-current-custody-native.json` proves current physical custody after absorbed-group rejoin/resplit, legal delivery, foreign delivery denial and exact retry against served source `ceac3ace`. `navigation-cursor-different-native.json` proves shared movement advances independently of a different vessel cursor; the nondiscriminating equal-cursor attempt is retained. These current native/HTTP branches supplement the complete split proof; the new split script does not claim to execute a mission.
+- **Full attack branch:** `root-takeover/full-attack-ui-http.json`, served source `931f78bc`, records 18 normal actors and two actual maintenance cycles, normal Captain/Commander replacement admission, an actual shuttle transit parked by declaration, disconnected pending choice, a reasoned shared hold, Captain choice and retry, **ordinary phone UI join/reroll/finish**, explicit EO pass/retry, all three range choices and target receipts, four boarding choices, atomic final damage and reopening, preserved clock and Press grant, private Rules denial and a new actual movement request. Only disposable deadlines accelerate the clock. Normal audited facilitator replacement, early advance, hold and damage correction are labeled decisions. Identities and tokens stay in memory and are not retained as evidence.
+- **Maintenance/airspace foundations:** twelve printed full-ship, small-ship and Voyage native transaction paths use real emulator Firestore. Ordinary eight-actor start/briefing/competing clear/reconnect and twelve-actor actual transit/current navigation pass in `clock-http.json`, `airspace-http.json` and `navigation-http.json`. `normal-ui/summary.json` records ordinary phone join, conduct, offline/reconnect, clear/reload, named GM and current DRADIS. `normal-ui-maintenance-complete/summary.json` records scoped GM access, all seven AEGIS maintenance steps, separate ration costs, server dice, retained charge, committed end, second-cycle denial and station return.
+- **History privacy:** `member-history-http.json` preserves all five repair limits, local details and used drone/service counters while withholding foreign hosts; reconnect and direct Rules denials pass. Disposable history/group/docking fixtures are explicitly labeled and do not claim normal creation of that history. The full 156 Rules checks passed locally before reconciliation; final full validation repeats the required candidate gate.
 
-- Twelve printed maintenance paths through compiled production transactions
-  and real emulator Firestore, with rations, server dice, charge retention,
-  exact replay and one maintenance cycle per game cycle.
-- Normal authenticated eight-player setup, casting, seats, start, briefing
-  hold, competing clearance, airspace denial/opening and reconnect. Disposable
-  deadline acceleration and restriction contexts are explicitly labeled.
-- Normal twelve-player maintenance/refuel, actual shuttle transit and current
-  member/GM navigation reads, including advanced server samples, stale and
-  forged-viewer denial and protected direct reads.
-- Ordinary phone browser join and conduct acknowledgement, actual offline
-  clearance disabling, reconnect, clear, reload, named GM join and current
-  server DRADIS. The reload harness waits for the ordinary current-member read;
-  it does not inject identity or session state.
-- Ordinary scoped GM ship access and all seven AEGIS maintenance steps in the
-  real phone browser, including separate ration costs, server dice, retained
-  charge, committed end, disabled second cycle and station-catalog return.
-- Current-member history reads keep the five repair limits, local details and
-  used drone/service counters while withholding earlier foreign hosts. Normal
-  Auth/HTTP, reconnect and direct Rules denials pass with explicitly labeled
-  disposable group/docking/history fixtures; these do not claim normal history
-  creation.
-- All 156 Rules checks and focused composed client authority checks. Full
-  split-fleet and full attack gameplay remain with their implementation owners
-  until their complete scenario evidence is reconciled.
+The fresh backend imported a positively exported Auth/Firestore snapshot before the final attack/UI proof. This avoids mixing watched Functions workers from different compiled revisions. Failed gameplay and harness runs remain outside Git with their exact boundary; the final proof is from the repaired runtime.
 
-## Finished solo review preparation
+## Five numbered in-app checks
 
-The candidate includes `pc07-review.html`, an isolated scene using the actual
-fleet-group, local DRADIS, attack-status, briefing and airspace presentations.
-Its five numbered checks are groups and DRADIS; known systems; taxi and rejoin;
-attack; and recovery. Every state and callback is labeled prepared. It sends
-no gameplay command and does not change a shared session. The attack check
-also lets the owner use the actual Captain, range and boarding presenters and
-read the current GM decision presentation in independent prepared examples.
-Twelve scene checks and eight responsive/motion cases pass, including target
-selection, unused-hit display, explicit zero defence and private-summary
-withdrawal. Actual selects use 16px CIC text. Final deployed access and exact
-candidate presentation checks will be recorded after release.
+Open `pc07-review.html` on the candidate/released host. This solo scene uses actual components with explicitly prepared state and local callbacks; it sends no gameplay command. It complements the ordinary gameplay evidence above.
 
-## Why tests changed
+1. **Groups and DRADIS:** select the first check, compare local contacts and unavailable foreign information, and enter a local note. Can you distinguish your group under the shared cycle clock?
+2. **Known systems:** choose one known system and a legal recipient; try the unavailable recipient and unknown fact. Is the delivery or denial clear?
+3. **Taxi and rejoin:** inspect the committed passenger/fuel trip and rejoin result. Are membership, fuel and pursuit understandable without entering arithmetic?
+4. **Attack:** follow declaration and range progress, use the actual prepared Captain, Commander, C&C, range and boarding examples, then inspect the readonly GM summary. Can you see the next genuine decision and the unused-hit result?
+5. **Recovery:** reconnect/clear the prepared restriction, inspect preserved time and final results, and return through the correct chooser. Does the recovered state make sense?
 
-Discriminating red commits cover the observed privacy bridge in the raw root,
-current-member allowlists, local hosted craft and Voyage admission, retained
-Philia usage limits, late actor/group replies, partition and GM navigation
-cursors, cached shuttle/airspace controls, exact briefing holds and reconnect,
-and the GM join button while reload authority is still cached. Existing success
-fixtures now supply their actual current authority rather than assuming it.
-Additional red tests catch earlier foreign craft histories, preserve total
-repair limits and second-host fuel, and prevent invented recharge labels.
-The real maintenance browser exposed a ship panel intercepting the GM grant
-confirmation. A separate render red proves the overlap; the dialog now paints
-above the console, and pointer/focus/viewport checks pass across six motion and
-device-size cases. Ship route mocks gained the actual connected attack
-subscription in a separate test-only migration, retaining all 121 assertions.
-Browser-only harness repairs wait for committed server end state, accessible
-return names and finished route transitions; failed raw runs are retained.
+All five actual choice presenters have local interaction checks. Four viewport sizes (320×844, 390×844, 844×390 and 1440×900), each in normal and reduced motion, pass the five-step geometry/navigation matrix in `root-takeover/solo-five-choice-layout/summary.json`. The narrow-phone image was inspected. Prepared geometry verifies CIC fonts, 16px selects, readable labels, touch controls and no horizontal overflow; it earns no gameplay closure. Deployed access is still a release gate.
 
-Rules positive controls were migrated to the GM root read while preserving
-ordinary member reads of entitled child documents and explicit player root
-denial. Rejoin route fixtures supply current server endpoint audiences. The
-historical PC06 selector checks use their actual published source revision;
-new PC07 checks require an exact source/hash consumer inventory and reject
-unaudited changes. No existing privacy, authority, arithmetic, motion or
-performance budget is weakened, skipped or deleted. Worker-specific reasons
-and final gate evidence will be added at reconciliation.
+## Tests and repairs
+
+[The complete test inventory](PC07_TEST_INVENTORY.md) lists every new/changed suite and named case, fixture migration and case-name/expectation correction. No case was skipped or deleted to pass. Discriminating test-only commits precede new behavior; separate fixture-only commits preserve established assertions while supplying actual authoritative context.
+
+Privacy, topology/navigation cursors, mission custody, stale callbacks, briefing identity and route recovery have retained red/green evidence. The ordinary maintenance browser exposed a facilitator grant dialog behind a ship panel; a render red proved the overlap before the paint-order repair. Targeting tests exposed a missing explicit EO pass, redirect-after-pass race, unrelated request receipt acceptance and stale controls after mutation. The fixes make pass terminal, correlate the exact receipt and require current authority for a fresh offer.
+
+The final full attack exposed two further real defects. Captain exact retry could fail after automatic targeting had advanced; the new regression proves replay through targeting/range/resolved while still rejecting current lost role/berth and new stale commands. Boarding finalization wrote a summary before reading the audience for a casualty alert; a strict transaction regression reproduces Firestore's read-after-write rejection, and the repair moves that write after the required reads. The corrected boarding red and the initial nondiscriminating fixture failure are both retained. The focused repaired native suites pass 95/95 and the final normal attack/UI branch resolves fully.
+
+Existing budget, motion, privacy, arithmetic, source-rule and authority checks are retained. Historical PC06 stays at 0.5.64 / 556; PC07 credits exactly its fixed49 and leaves P605a and later weapon/aftermath scope uncredited.
+
+## Known boundaries and release state
+
+There is no unresolved printed-rule question in the fixed PC07 scope. A configured disconnected actor can intentionally keep the attack pending; the current GM summary and reasoned recovery controls make this boundary explicit. Earlier native fixtures and prepared scenes do not claim normal identity admission or production gameplay. The final candidate still requires independent review, full validation, CI, exact-main deployment and deployed solo access; completion will be recorded in this report's release closeout after those gates actually pass.

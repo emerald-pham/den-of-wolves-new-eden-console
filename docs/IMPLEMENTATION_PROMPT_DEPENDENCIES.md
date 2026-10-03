@@ -199,7 +199,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 101 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Announce Team completion. |
 | 102 | PRESERVE | done | none | none | none | none | none | none | none | none | E-102-COORDINATION-COMPLETION | M2 | Announce Coordination completion. |
 | 103 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Initialize the next turn. |
-| 103a | NEW | missing | 091-096;098;101-103;106b;108-109;154-158 | none | none | none | none | none | none | none | E-103A | M2 | Hold the airspace deadline behind turn-advance interstitials. |
+| 103a | NEW | done | 091-096;098;101-103;106b;108-109;154-158 | none | none | none | none | none | none | none | E-103A;E-PC07-FINAL-20261003 | M2 | Hold the airspace deadline behind turn-advance interstitials. |
 | 104 | PROVE | done | 078;103 | none | none | none | none | none | none | none | E-104-FINAL-TURN;E-AUDIT-104 | M2 | Complete the configured final turn. |
 | 105 | NEW | done | 077;485 | none | none | none | none | none | none | none | E-AUDIT-105 | M2 | Trigger pursuit-10 failure. |
 | 106 | PRESERVE | done | none | none | none | none | none | none | none | none | E-106-LIFECYCLE-REPLAY | M2 | Replay lifecycle announcements. |
@@ -241,7 +241,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 138 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Make maintenance atomic and retry-safe. |
 | 138a | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Bound maintenance rollback. |
 | 139 | EXTEND | done | none | none | none | none | none | none | none | none | none | M2 | Publish maintenance results by audience. |
-| 140 | PROVE | missing | 114;171;183;194;204;216;224;235;241;242;246;250;571 | none | none | none | none | none | none | none | E-AUDIT-140 | M2 | Run the all-vessel maintenance matrix. |
+| 140 | PROVE | done | 114;171;183;194;204;216;224;235;241;242;246;250;571 | none | none | none | none | none | none | none | E-AUDIT-140;E-PC07-FINAL-20261003 | M2 | Run the all-vessel maintenance matrix. |
 | 140a | NEW | done | 111;164;361 | none | none | none | none | none | none | none | E-AUDIT-140A;E-140A-140B-140C-SHUTTLE-EVACUATION | M3;M11 | Evacuate survivors by cargo shuttle. |
 | 140b | NEW | done | 140a | none | none | none | none | none | none | none | E-AUDIT-140B;E-140A-140B-140C-SHUTTLE-EVACUATION | M3;M11 | Enforce destination population capacity. |
 | 140c | NEW | done | 140a;140b | none | none | none | none | none | none | none | E-AUDIT-140C;E-140A-140B-140C-SHUTTLE-EVACUATION | M3;M11 | Make evacuation retry-safe. |
@@ -260,14 +260,14 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 149 | NEW | done | 143 | none | none | none | none | none | none | none | E-AUDIT-149;E-149-150-531-QUARANTINE-DOCKING | M2 | Restrict quarantined docking. |
 | 150 | NEW | done | 149 | none | none | none | none | none | none | none | E-AUDIT-150;E-149-150-531-QUARANTINE-DOCKING | M2 | Prevent quarantine reset exploits. |
 | 151 | NEW | done | 286 | none | none | none | none | none | none | none | E-AUDIT-151;E-151-COMMUNICATION-BOUNDARY;E-PC06-FINAL-20261002 | M2 | Block split-fleet communications. |
-| 152 | NEW | missing | 337;338 | none | none | none | none | none | none | none | E-AUDIT-152 | M2 | Redact split-fleet shuttle state. |
-| 153 | NEW | missing | 143;336 | none | none | none | none | none | none | none | E-AUDIT-153 | M2 | Constrain cross-group docking. |
-| 154 | NEW | missing | 142;141;145;149;336;414 | none | none | none | none | none | none | none | E-AUDIT-154 | M2 | Model airspace transitions. |
-| 155 | NEW | missing | 154 | none | none | none | none | none | none | none | E-AUDIT-155 | M2 | Announce airspace status truthfully. |
-| 156 | NEW | missing | 154 | none | none | none | none | none | none | none | E-AUDIT-156 | M2 | Reopen movement authoritatively. |
+| 152 | NEW | done | 337;338 | none | none | none | none | none | none | none | E-AUDIT-152;E-PC07-FINAL-20261003 | M2 | Redact split-fleet shuttle state. |
+| 153 | NEW | done | 143;336 | none | none | none | none | none | none | none | E-AUDIT-153;E-PC07-FINAL-20261003 | M2 | Constrain cross-group docking. |
+| 154 | NEW | done | 142;141;145;149;336;414 | none | none | none | none | none | none | none | E-AUDIT-154;E-PC07-FINAL-20261003 | M2 | Model airspace transitions. |
+| 155 | NEW | done | 154 | none | none | none | none | none | none | none | E-AUDIT-155;E-PC07-FINAL-20261003 | M2 | Announce airspace status truthfully. |
+| 156 | NEW | done | 154 | none | none | none | none | none | none | none | E-AUDIT-156;E-PC07-FINAL-20261003 | M2 | Reopen movement authoritatively. |
 | 157 | NEW | done | 145 | none | none | none | none | none | none | none | E-AUDIT-157;E-157-ATTACK-OVERRUN-LOCK | M2 | Preserve an overrun attack into Team Phase. |
-| 158 | NEW | missing | 154 | none | none | none | none | none | none | none | E-AUDIT-158 | M2 | Reconnect during restricted airspace. |
-| 159 | PROVE | missing | 140;145;156;373 | none | none | none | none | none | none | none | E-AUDIT-159 | M2 | Run the start-to-airspace scenario. |
+| 158 | NEW | done | 154 | none | none | none | none | none | none | none | E-AUDIT-158;E-PC07-FINAL-20261003 | M2 | Reconnect during restricted airspace. |
+| 159 | PROVE | done | 140;145;156;373 | none | none | none | none | none | none | none | E-AUDIT-159;E-PC07-FINAL-20261003 | M2 | Run the start-to-airspace scenario. |
 | 160 | PROVE | done | none | none | none | none | 001-159:status,red-test,decision,proof | none | none | none | E-160-AUDIT;E-160-VERIFIED | M2 | Publish the foundation regression matrix. |
 | 161 | PRESERVE | done | none | none | none | none | none | none | none | none | E-AUDIT-161 | M3;M5 | Register every vessel variant. |
 | 162 | PRESERVE | done | 161 | none | none | none | none | none | none | none | E-AUDIT-162;E-AUDIT-162-STATS | M3;M5 | Encode printed vessel statistics. |
@@ -453,7 +453,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 323 | NEW | done | 321;322 | none | none | none | none | none | none | none | E-AUDIT-323;E-323-STARLIGHT-FUELLED-SECOND-SCAN;E-CHECKPOINT-RECORDING-AUDIT-20260928;E-PC06-FINAL-20261002 | M4;M5;M8 | Resolve Starlight's fuelled second scan. |
 | 324 | NEW | done | 321;216 | none | none | none | none | none | none | none | E-AUDIT-324;E-324-HUMMINGBIRD-SCAN;E-CHECKPOINT-RECORDING-AUDIT-20260928;E-PC06-FINAL-20261002 | M4;M5;M8 | Resolve Hummingbird scouting. |
 | 325 | NEW | done | 321;267 | none | none | none | none | none | none | none | E-AUDIT-325;E-325-ENDEAVOUR-SCAN;E-PC01-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M4;M5;M8 | Resolve Endeavour scouting. |
-| 326 | NEW | partial | 321;280;177 | none | none | none | none | none | none | none | E-AUDIT-326;E-326-COMMS-SCAN;E-CHECKPOINT-RECORDING-AUDIT-20260928 | M4;M5;M8 | Resolve Comms Officer scouting. |
+| 326 | NEW | done | 321;280;177 | none | none | none | none | none | none | none | E-AUDIT-326;E-326-COMMS-SCAN;E-CHECKPOINT-RECORDING-AUDIT-20260928;E-PC07-FINAL-20261003 | M4;M5;M8 | Resolve Comms Officer scouting. |
 | 327 | PROVE | done | 321;285 | none | none | none | none | none | none | none | E-AUDIT-327;E-327-CURRENT-SCOUT-AUTHORITY;E-PC01-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M4;M5;M8 | Measure scout range from current authority. |
 | 328 | NEW | done | 321;327;006 | none | none | none | none | none | none | none | E-AUDIT-328;E-328-PRIVATE-SCOUT-RESULT;E-PC01-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M4;M5;M8 | Deliver scout results privately. |
 | 329 | NEW | done | 283;328 | none | none | none | none | none | none | none | E-AUDIT-329;E-329-FACILITATOR-SCOUT-REVEAL;E-PC01-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M4;M5;M8 | Reveal a chart result as facilitator. |
@@ -463,24 +463,24 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 333 | NEW | done | 332 | none | none | none | none | none | none | none | E-AUDIT-333;E-PC01-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M4;M5;M8 | Hide the Deep Nebula total. |
 | 334 | NEW | done | 315;313;412 | none | none | none | none | none | none | none | E-AUDIT-334;E-PC06-FINAL-20261002 | M4;M5;M8 | Apply two-system exploration rewards. |
 | 335 | NEW | done | 315;313;334;412 | none | none | none | none | none | none | none | E-AUDIT-335;E-PC06-FINAL-20261002 | M4;M5;M8 | Constrain Athena's Wolf-system reveal. |
-| 336 | NEW | missing | 285;286;294 | none | none | none | none | none | none | none | E-AUDIT-336 | M4;M5;M8 | Create a split after partial arrival. |
-| 337 | NEW | partial | 286;006 | none | none | none | none | none | none | none | E-AUDIT-337;E-337-GROUP-ROSTER | M4;M5;M8 | Project a group-local roster. |
-| 338 | NEW | missing | 337 | none | none | none | none | none | none | none | E-AUDIT-338 | M4;M5;M8 | Deny cross-group position reads. |
-| 339 | NEW | missing | 337 | none | none | none | none | none | none | none | E-AUDIT-339 | M4;M5;M8 | Deny cross-group communications. |
-| 340 | NEW | missing | 337;339 | none | none | none | none | none | none | none | E-AUDIT-340 | M4;M5;M8 | Permit local Coordination communication. |
-| 341 | NEW | missing | 337;099 | none | none | none | none | none | none | none | E-AUDIT-341 | M4;M5;M8 | Keep Team actions group-local. |
-| 342 | NEW | missing | 336;337 | none | none | none | none | none | none | none | E-AUDIT-342 | M4;M5;M8 | Scope jump announcements by audience. |
-| 343 | NEW | missing | 321;336 | none | none | none | none | none | none | none | E-AUDIT-343 | M4;M5;M8 | Ferry up to two players by scout taxi. |
-| 344 | NEW | missing | 343 | none | none | none | none | none | none | none | E-AUDIT-344 | M4;M5;M8 | Ferry up to two fuel by scout taxi. |
-| 345 | NEW | missing | 343 | none | none | none | none | none | none | none | E-AUDIT-345 | M4;M5;M8 | Deny out-of-range taxi trips. |
-| 346 | NEW | missing | 285;336 | none | none | none | none | none | none | none | E-AUDIT-346 | M4;M5;M8 | Validate group rejoin eligibility. |
-| 347 | NEW | missing | 346 | none | none | none | none | none | none | none | E-AUDIT-347 | M4;M5;M8 | Merge rejoined membership. |
-| 348 | DECISION | missing | none | none | none | none | none | none | none | none | none | M4;M5;M8 | Resolve rejoined pursuit. |
-| 349 | NEW | missing | 339;347 | none | none | none | none | none | none | none | E-AUDIT-349 | M4;M5;M8 | Restore communication after commit. |
-| 350 | NEW | missing | 346;347 | none | none | none | none | none | none | none | E-AUDIT-350 | M4;M5;M8 | Make split/rejoin retries safe. |
-| 351 | EXTEND | missing | 433a | none | none | none | none | ATTACK-DRADIS | none | none | E-433A;E-ATTACK-DRADIS | M7 | Show only arrived local ships on DRADIS. |
+| 336 | NEW | done | 285;286;294 | none | none | none | none | none | none | none | E-AUDIT-336;E-PC07-FINAL-20261003 | M4;M5;M8 | Create a split after partial arrival. |
+| 337 | NEW | done | 286;006 | none | none | none | none | none | none | none | E-AUDIT-337;E-337-GROUP-ROSTER;E-PC07-FINAL-20261003 | M4;M5;M8 | Project a group-local roster. |
+| 338 | NEW | done | 337 | none | none | none | none | none | none | none | E-AUDIT-338;E-PC07-FINAL-20261003 | M4;M5;M8 | Deny cross-group position reads. |
+| 339 | NEW | done | 337 | none | none | none | none | none | none | none | E-AUDIT-339;E-PC07-FINAL-20261003 | M4;M5;M8 | Deny cross-group communications. |
+| 340 | NEW | done | 337;339 | none | none | none | none | none | none | none | E-AUDIT-340;E-PC07-FINAL-20261003 | M4;M5;M8 | Permit local Coordination communication. |
+| 341 | NEW | done | 337;099 | none | none | none | none | none | none | none | E-AUDIT-341;E-PC07-FINAL-20261003 | M4;M5;M8 | Keep Team actions group-local. |
+| 342 | NEW | done | 336;337 | none | none | none | none | none | none | none | E-AUDIT-342;E-PC07-FINAL-20261003 | M4;M5;M8 | Scope jump announcements by audience. |
+| 343 | NEW | done | 321;336 | none | none | none | none | none | none | none | E-AUDIT-343;E-PC07-FINAL-20261003 | M4;M5;M8 | Ferry up to two players by scout taxi. |
+| 344 | NEW | done | 343 | none | none | none | none | none | none | none | E-AUDIT-344;E-PC07-FINAL-20261003 | M4;M5;M8 | Ferry up to two fuel by scout taxi. |
+| 345 | NEW | done | 343 | none | none | none | none | none | none | none | E-AUDIT-345;E-PC07-FINAL-20261003 | M4;M5;M8 | Deny out-of-range taxi trips. |
+| 346 | NEW | done | 285;336 | none | none | none | none | none | none | none | E-AUDIT-346;E-PC07-FINAL-20261003 | M4;M5;M8 | Validate group rejoin eligibility. |
+| 347 | NEW | done | 346 | none | none | none | none | none | none | none | E-AUDIT-347;E-PC07-FINAL-20261003 | M4;M5;M8 | Merge rejoined membership. |
+| 348 | DECISION | done | none | none | none | none | none | none | none | none | E-PC07-FINAL-20261003 | M4;M5;M8 | Resolve rejoined pursuit. |
+| 349 | NEW | done | 339;347 | none | none | none | none | none | none | none | E-AUDIT-349;E-PC07-FINAL-20261003 | M4;M5;M8 | Restore communication after commit. |
+| 350 | NEW | done | 346;347 | none | none | none | none | none | none | none | E-AUDIT-350;E-PC07-FINAL-20261003 | M4;M5;M8 | Make split/rejoin retries safe. |
+| 351 | EXTEND | done | 433a | none | none | none | none | ATTACK-DRADIS | none | none | E-433A;E-ATTACK-DRADIS;E-PC07-FINAL-20261003 | M7 | Show only arrived local ships on DRADIS. |
 | 352 | EXTEND | done | 294 | none | none | none | none | none | none | none | E-AUDIT-352;E-PC06-FINAL-20261002 | M7 | Represent jumping ships in transition. |
-| 353 | EXTEND | missing | 433a | none | none | none | none | ATTACK-DRADIS | none | none | E-ATTACK-DRADIS;E-433A | M7 | Publish sampled transit contacts. |
+| 353 | EXTEND | done | 433a | none | none | none | none | ATTACK-DRADIS | none | none | E-ATTACK-DRADIS;E-433A;E-PC07-FINAL-20261003 | M7 | Publish sampled transit contacts. |
 | 354 | EXTEND | missing | 433a | none | none | none | none | ATTACK-DRADIS | none | none | E-ATTACK-DRADIS;E-433A | M7 | Remove stale contacts. |
 | 355 | EXTEND | missing | 433a | none | none | none | none | ATTACK-DRADIS | none | none | E-ATTACK-DRADIS;E-433A | M7 | Fold docked shuttles into host contacts. |
 | 356 | EXTEND | missing | 433a | none | none | none | none | ATTACK-DRADIS | none | none | E-ATTACK-DRADIS;E-433A | M7 | Show undocked shuttle samples. |
@@ -558,31 +558,31 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 421a | NEW | done | 281;283 | none | none | none | none | none | none | none | E-AUDIT-421A;E-421A-SOURCE-VERIFIED | M7 | Encode Active Wolf Fortress M. |
 | 422 | PROVE | done | 401;409;415;410;411;412;414;622 | none | none | none | none | none | none | none | E-AUDIT-422;E-PC06-FINAL-20261002 | M7 | Run the complete away-mission scenario. |
 | 423 | PROVE | missing | 361;367;371;373;352;353;368;377;156;380 | none | none | none | none | none | none | none | E-AUDIT-423 | M7;M6 | Run the shuttle-airspace scenario. |
-| 424 | PROVE | missing | 336;337;328;347;338;339;343;401;409;307 | none | none | none | none | none | none | none | E-AUDIT-424 | M7;M8 | Run the split-fleet exploration scenario. |
+| 424 | PROVE | done | 336;337;328;347;338;339;343;401;409;307 | none | none | none | none | none | none | none | E-AUDIT-424;E-PC07-FINAL-20261003 | M7;M8 | Run the split-fleet exploration scenario. |
 | 425 | NEW | done | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-425-WOLF-CATALOG | M9 | Define the Wolf ship catalog. |
 | 426 | NEW | done | 425 | none | none | none | none | WOLF-ATTACK | none | 427;312;421;421a;494 | E-WOLF;E-AUDIT-426;E-426-SCHEDULED-COMPOSITION | M9 | Define attack-composition rules. |
 | 427 | NEW | done | 426 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-427;E-427-PRIVATE-PREPARATION | M9 | Prepare an attack privately from the GM console. |
-| 428 | NEW | partial | 425;426 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-428;E-428-COMBAT-MATH | M9 | Centralize combat math and randomness. |
+| 428 | NEW | done | 425;426 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-428;E-428-COMBAT-MATH;E-PC07-FINAL-20261003 | M9 | Centralize combat math and randomness. |
 | 429 | NEW | done | 425 | none | none | none | none | none | none | 428 | E-AUDIT-429;E-429-DECLARATION-TARGETING | M9 | Encode base targeting. |
 | 430 | NEW | done | 425 | none | none | none | none | none | none | 428 | E-AUDIT-430;E-430-DECLARATION-TARGETING | M9 | Encode expansion targeting. |
-| 431 | NEW | missing | 425;428 | none | none | none | none | none | none | none | E-AUDIT-431 | M9 | Resolve target-number wraparound. |
-| 432 | NEW | partial | 427;428 | none | none | none | none | WOLF-ATTACK | none | 146;373;429;430 | E-WOLF;E-AUDIT-432;E-432-DECLARATION;E-373-WOLF-ATTACK-PARKING | M9 | Declare the attack atomically. |
-| 432a | EXTEND | missing | 432 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-432A | M9 | Operate the attack from the GM console. |
-| 433 | NEW | missing | 432 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-433 | M9 | Project attack state by audience. |
-| 433a | NEW | missing | 432;433 | none | none | none | none | WOLF-ATTACK;ATTACK-DRADIS | none | none | E-WOLF;E-ATTACK-DRADIS;E-AUDIT-433A | M9 | Publish a stable DRADIS-ready attack contract. |
-| 433b | EXTEND | missing | 433 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-433B | M9 | Resolve choices in affected player consoles. |
-| 434 | NEW | missing | 432 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-434 | M9 | Make attack commands retry-safe. |
-| 434a | EXTEND | missing | 432a;434 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-434A | M9 | Intervene and recover safely during an attack. |
-| 435 | NEW | partial | 432;515 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-432-DECLARATION;E-515-REPLACEMENT;E-AUDIT-435;E-373-WOLF-ATTACK-PARKING | M9 | Resolve Wolf Commander target rerolls. |
-| 436 | NEW | partial | none | none | none | none | none | WOLF-ATTACK | none | 435 | E-436;E-WOLF;E-436-COMMAND-AND-CONTROL-PARTIAL | M9 | Resolve AEGIS Command and Control. |
-| 437 | NEW | missing | 426;428;240 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-437 | M9 | Lock Gorgoneion Force Field timing. |
-| 438 | NEW | missing | 432;428 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-438 | M9 | Resolve Long Range simultaneously. |
-| 439 | NEW | missing | 432;428 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-439 | M9 | Resolve Medium Range simultaneously. |
-| 440 | NEW | missing | 432;428 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-440 | M9 | Resolve Short Range simultaneously. |
-| 441 | NEW | missing | 438;439;440 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-441 | M9 | Enforce the five-step attack order. |
-| 442 | NEW | missing | 438;439;440;130 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-442 | M9 | Apply range-specific destruction effects. |
+| 431 | NEW | done | 425;428 | none | none | none | none | none | none | none | E-AUDIT-431;E-PC07-FINAL-20261003 | M9 | Resolve target-number wraparound. |
+| 432 | NEW | done | 427;428 | none | none | none | none | WOLF-ATTACK | none | 146;373;429;430 | E-WOLF;E-AUDIT-432;E-432-DECLARATION;E-373-WOLF-ATTACK-PARKING;E-PC07-FINAL-20261003 | M9 | Declare the attack atomically. |
+| 432a | EXTEND | done | 432 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-432A;E-PC07-FINAL-20261003 | M9 | Operate the attack from the GM console. |
+| 433 | NEW | done | 432 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-433;E-PC07-FINAL-20261003 | M9 | Project attack state by audience. |
+| 433a | NEW | done | 432;433 | none | none | none | none | WOLF-ATTACK;ATTACK-DRADIS | none | none | E-WOLF;E-ATTACK-DRADIS;E-AUDIT-433A;E-PC07-FINAL-20261003 | M9 | Publish a stable DRADIS-ready attack contract. |
+| 433b | EXTEND | done | 433 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-433B;E-PC07-FINAL-20261003 | M9 | Resolve choices in affected player consoles. |
+| 434 | NEW | done | 432 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-434;E-PC07-FINAL-20261003 | M9 | Make attack commands retry-safe. |
+| 434a | EXTEND | done | 432a;434 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-434A;E-PC07-FINAL-20261003 | M9 | Intervene and recover safely during an attack. |
+| 435 | NEW | done | 432;515 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-432-DECLARATION;E-515-REPLACEMENT;E-AUDIT-435;E-373-WOLF-ATTACK-PARKING;E-PC07-FINAL-20261003 | M9 | Resolve Wolf Commander target rerolls. |
+| 436 | NEW | done | none | none | none | none | none | WOLF-ATTACK | none | 435 | E-436;E-WOLF;E-436-COMMAND-AND-CONTROL-PARTIAL;E-PC07-FINAL-20261003 | M9 | Resolve AEGIS Command and Control. |
+| 437 | NEW | done | 426;428;240 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-437;E-PC07-FINAL-20261003 | M9 | Lock Gorgoneion Force Field timing. |
+| 438 | NEW | done | 432;428 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-438;E-PC07-FINAL-20261003 | M9 | Resolve Long Range simultaneously. |
+| 439 | NEW | done | 432;428 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-439;E-PC07-FINAL-20261003 | M9 | Resolve Medium Range simultaneously. |
+| 440 | NEW | done | 432;428 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-440;E-PC07-FINAL-20261003 | M9 | Resolve Short Range simultaneously. |
+| 441 | NEW | done | 438;439;440 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-441;E-PC07-FINAL-20261003 | M9 | Enforce the five-step attack order. |
+| 442 | NEW | done | 438;439;440;130 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-442;E-PC07-FINAL-20261003 | M9 | Apply range-specific destruction effects. |
 | 443 | NEW | missing | 440;396 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-443 | M9 | Enforce Short Range fighter priority. |
-| 444 | NEW | missing | 441;442 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-444 | M9 | Close each range with an audit result. |
+| 444 | NEW | done | 441;442 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-444;E-PC07-FINAL-20261003 | M9 | Close each range with an audit result. |
 | 445 | NEW | missing | 441;182 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-445 | M9 | Resolve AEGIS Missile Launchers at Long Range. |
 | 446 | NEW | missing | 445 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-446 | M9 | Spend ore on enriched warheads. |
 | 447 | NEW | missing | 441;182 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-447;E-PC07-A6-FUTURE-TARGET-LIMITS-20261003 | M9 | Resolve AEGIS Missile Launchers at Medium Range. |
@@ -671,7 +671,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 521b | DECISION | missing | 521a | none | none | none | none | none | none | none | E-AUDIT-521B | M10 | Resolve Wolf Commander amnesty. |
 | 522 | REPAIR | done | 044;045 | none | none | none | none | none | none | none | E-AUDIT-522;E-522-GM-LEASE | M10 | Model one-facilitator ownership with optional GM lanes. |
 | 523 | DECISION | done | 522;167 | none | none | none | none | none | none | none | E-AUDIT-523;E-523-IMPLEMENTED;E-523-RELEASED | M10 | Record facilitator rule calls. |
-| 523a | DECISION | missing | 522 | none | none | none | none | none | none | none | E-AUDIT-523A | M10 | Configure Wolf Attack difficulty. |
+| 523a | DECISION | done | 522 | none | none | none | none | none | none | none | E-AUDIT-523A;E-PC07-FINAL-20261003 | M10 | Configure Wolf Attack difficulty. |
 | 523b | DECISION | missing | 522 | none | none | none | none | none | none | none | E-AUDIT-523B | M10 | Configure Crisis difficulty. |
 | 523c | DECISION | missing | 522 | none | none | none | none | none | none | none | E-AUDIT-523C | M10 | Configure emergency-jump severity. |
 | 524 | PROVE | missing | 485;497;522 | none | none | none | none | none | none | none | E-AUDIT-524 | M10 | Run the complete Wolf-and-deduction scenario. |
@@ -804,7 +804,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 640 | PROVE | done | 638;639 | none | none | none | none | none | none | none | E-AUDIT-640;E-640-CONCLUSIONS | X | Publish capacity conclusions. |
 | 641 | PROVE | missing | 159;320;422;524;540 | none | none | none | none | none | none | none | E-AUDIT-641 | M13 | Run a complete base-game playthrough. |
 | 642 | PROVE | missing | 584 | none | none | none | none | none | none | none | E-AUDIT-642 | M13 | Run a complete Capybara playthrough. |
-| 643 | PROVE | missing | 424 | none | none | none | none | none | none | none | E-AUDIT-643 | M13 | Run a complete split-fleet playthrough. |
+| 643 | PROVE | done | 424 | none | none | none | none | none | none | none | E-AUDIT-643;E-PC07-FINAL-20261003 | M13 | Run a complete split-fleet playthrough. |
 | 644 | PROVE | missing | 423 | none | none | none | none | none | none | none | E-AUDIT-644 | M13 | Run a complete shuttle-airspace playthrough. |
 | 645 | PROVE | missing | 524;484 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-645 | M13;M9 | Run a complete Wolf attack playthrough. |
 | 646 | PROVE | done | 422 | none | none | none | none | none | none | none | E-AUDIT-646;E-PC06-FINAL-20261002 | M13 | Run a complete away-mission playthrough. |
@@ -842,7 +842,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 675 | POLISH | done | 034;038;040;097;108 | none | none | none | none | none | none | 098 | E-675;E-675-DEPENDENCIES;E-675-PRESENCE-CLOCK | none | Pause an empty session timer and resume when someone rejoins. |
 | 676 | POLISH | done | none | none | none | none | none | none | none | none | E-676-SHIP-SCANLINE | none | Render the jump-map scanline beneath map content. |
 | 677 | NEW | done | 084;284;313;330 | none | none | none | none | none | none | 328 | E-677;E-677-DEPENDENCIES;E-PC01-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | none | Gate jump-map coordinates by ship knowledge and hide location details. |
-| 678 | NEW | missing | 328;339;340;677 | none | none | none | none | none | none | 330;331 | E-678;E-678-DEPENDENCIES | none | Transmit scanned system details to all fleet ships or selected ships. |
+| 678 | NEW | done | 328;339;340;677 | none | none | none | none | none | none | 330;331 | E-678;E-678-DEPENDENCIES;E-PC07-FINAL-20261003 | none | Transmit scanned system details to all fleet ships or selected ships. |
 | 679 | NEW | done | 281;282;285;294;304;677 | none | none | none | none | none | none | 283;313 | E-679;E-679-DEPENDENCIES;E-PC06-FINAL-20261002 | none | Allow blind jumps to a random adjacent system. |
 | 680 | POLISH | done | none | none | none | none | none | none | none | 178;262;396;449 | E-680-RELATED | none | Show authoritative live Alpha and Bravo fighter status. |
 | 681 | REPAIR | done | 045;084;281;282 | none | none | none | none | none | none | 048;283;313;330;677;678;679 | E-681-OWNER;E-681-DEPENDENCIES;E-681-VERIFIED | none | Restore all GM star-map coordinates while preserving ship knowledge limits. |
@@ -1785,6 +1785,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-PC05-FINAL-RELEASE-20260929 | evidence / complete / exact-candidate / independent-review / exact-main-deployment / ordinary-production-gameplay / responsive / authority / privacy / replay | 100;116;117;118;119;120;121;134;135;136;137;184;191;201;211;212;213;287;288;289;290;291;294;296;297;298;299;300;301;302;303;304;321;325;327;328;329;330;331;332;333;391;589;590;599;600;654;662;677 -> PC05 | docs/PC05_PLAYTEST_REPORT.md; docs/PC05_ACCEPTANCE_MATRIX.md; docs/PRODUCT_MILESTONE_FEEDBACK.md; d45b1266462ca74eecd39d23db1612b3e5346098; 4f2cd9a8c03e8970eae5dd9ad284c855cdb2d2b7; PR #5; workflow 36636882417; deployment 36639176688 | PC05 final candidate d45b1266462ca74eecd39d23db1612b3e5346098 passed 6,122 tests, 143 Firestore rules checks, typecheck, both builds, exact deployment selection, bundle, font, typography, ticker, responsive DRADIS/jump/mutiny, roadmap, dependency and documentation gates. Independent GPT-5.6 Sol xhigh review was clear. PR CI 36636882417 passed without retry; merge 4f2cd9a8c03e8970eae5dd9ad284c855cdb2d2b7 deployed build 0.5.57 through exact-main run 36639176688. Authorized production play verified confirmed empty-roster start with zero fabricated Wolves, the approved Wolf-humanity onboarding copy, Zoom-only compact DRADIS with contact-anchored names and no orphan name, and immediate station-select recovery with the persistent reselect-role notice after a live role release. Prompt-specific authority, privacy, replay, concurrency, resource and responsive edges not each repeated live are covered by deterministic tests and real Firestore emulator evidence on the exact deployed production tree. |
 | E-PC06-FINAL-20261002 | evidence / authority / release | PC06 fixed49 -> 556/751;98/293 | docs/PC06_ACCEPTANCE_MATRIX.md; docs/PC06_PLAYTEST_REPORT.md; docs/PC06_EXECUTION_RECORD.md; external evidence/pc06-49-acceptance-receipt.json; scripts/test-pc06-demo.emulator.mjs; scripts/test-pc06-mission-transaction.emulator.mjs | Fixed 49 behavior acceptances preserve7 ordinary production results and42 explicitly user-authorized representative local/emulator results. Native compiled transaction and actual Auth/HTTP/rules fixtures, local real UI, private reads, arithmetic, replay and denial evidence are distinguished individually. Catalog closures add 49 once; P343 remains PC07. Required final gates and exact-main deployment are separate release evidence, never inferred from a prepared review scene. |
 | E-PC07-A6-FUTURE-TARGET-LIMITS-20261003 | evidence / source-backed-assumption / future-alignment / no-closure-credit | PC07-A6 -> 447;448;455 future acceptance; no closures | docs/PRODUCT_MILESTONE_ASSUMPTIONS.md PC07-A6; docs/PC07_ATTACK_ENGINE_ASSUMPTIONS.md Excess hits; docs/PC07_PC10_ALIGNMENT.md; functions/src/wolfCombatMath.ts; functions/src/wolfCombatMath.test.ts | Carry the bounded excess-hit digital assumption into the unstarted weapon consumers only where their printed action requires distinct targets. Original rolls and successes remain in the private audit; successes beyond legal distinct-contact capacity are unused, with no reroll or repeated damage from that action. Other actions retain their own target limits, and independent actions may share a contact where their source rules allow. Status, prerequisites, fixed checkpoint membership and closure totals are unchanged. |
+| E-PC07-FINAL-20261003 | evidence / authority / release / local-gameplay | PC07 fixed49 -> 605/751;147/293 | docs/PC07_ACCEPTANCE_MATRIX.md; docs/PC07_PLAYTEST_REPORT.md; docs/PC07_EXECUTION_RECORD.md; docs/PC07_TEST_INVENTORY.md; scripts/test-pc07-split-http.mjs; scripts/test-pc07-full-attack-http.mjs; scripts/test-pc07-maintenance-matrix.emulator.mjs; external PC07-evidence/root-takeover/split-http.json and full-attack-ui-http.json; external PC07-evidence/split-sharing/rejoined-mission-current-custody-native.json and navigation-cursor-different-native.json | All fixed49 behavior acceptances have representative normal authenticated local/emulator proof. The 13-actor split branch uses normal admission, automatic Comms recovery, group-local rosters/notes/DRADIS, selected system sharing, passenger/fuel taxis, courier delivery, real independently charged jumps, exact retries and policy-based rejoin. Current native mission-custody and differing navigation-cursor branches retain their own source and fixture labels. The 18-actor attack branch composes setup, two maintenance cycles, real transit parking, disconnected pending choices, a reasoned hold, normal phone Commander reroll/finish, Captain choice/replay, explicit EO pass, three ranges, boarding, final damage and reopened movement. Twelve-vessel native maintenance, ordinary phone join/clear/maintenance/navigation and full Rules evidence cover the remaining foundations. Only disposable deadlines and separately labeled facilitator relocations accelerate these scenarios. No identity, dice, resource, role or result seeding is represented as ordinary play. Catalog closures add49 once and grant no PC08 or P605a credit. Independent review, final gates, CI and exact-main deployment remain separately recorded release evidence. |
 <!-- END GENERATED PROMPT CATALOG: dependency -->
 
 ## Shared integrity gate

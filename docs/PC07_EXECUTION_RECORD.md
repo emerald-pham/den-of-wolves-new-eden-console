@@ -1,13 +1,12 @@
 # PC07 execution record
 
-Current checkpoint and release owner: orchestrator `/root`.
-Integrated implementation/local gameplay-proof owner: `/root/pc07_owner`;
-canonical parent: `/root`. On October 3 the user explicitly requested that the
-orchestrator thread own the checkpoint. The parent acknowledged and took final
-independent review, candidate reconciliation, CI, merge and deployment.
-Existing workers and bounded implementation/proof repairs continue unchanged.
-No new coordinator was created. The parent owns the separately isolated guidance
-update; this implementation checkout holds those files from further edits.
+Current checkpoint, implementation, integration and release owner: orchestrator `/root`.
+On October 3 the user ordered the delegated owner stopped. `/root/pc07_owner`,
+`/root/pc07_owner/attack_engine` and `/root/pc07_owner/split_sharing` are
+interrupted and must not resume. All retained work is preserved; the orchestrator
+completes remaining repairs, proof, review, validation, CI, merge and deployment.
+The historical worker grouping and handback entries below are execution history,
+not current assignments. No child coordinator or replacement owner is created.
 
 Implementation checkout: `/Users/emeraldpham/.codex/worktrees/0ce4/den-of-wolves-new-eden-console`,
 branch `feat/pc07-execution`, baseline `5e3d09d56a50aa712406a6f3cb6b64a81e70418e`.
@@ -727,3 +726,61 @@ of relaxing server handling for missing authoritative data. Existing repaired
 The final full gameplay, independent Sol review, CI and deployment are still
 open. The catalog remains the 556/751 baseline until those acceptances have
 complete gameplay evidence.
+
+## Reconciled normal gameplay and candidate preparation — October 3
+
+The stopped owner's targeted patch and all raw failures remain in the external
+`root-takeover` directory. The root committed actual prepared Commander and C&C
+presenters after a separate red; all five presenters and all eight responsive/
+motion cases pass in `solo-five-choice-layout/summary.json`. No prepared result
+is credited as gameplay.
+
+Normal full attack revealed Captain receipt replay after automatic progression.
+Test-only `6773fb6e` failed three progression cases; source `72020483` replays the
+fingerprinted original receipt while rechecking current Captain/admission/berth/
+host/group/charge, before demanding a new pending-stage view. New stale commands
+and changed actor context still deny. Focused range/declaration/force-field78 pass.
+Normal final boarding then exposed Firestore read-after-write when casualties
+need a GM alert. The first fixture failed before that boundary and is retained;
+separate fixture-only `615511e1` produces the real ordering failure, and source
+`931f78bc` defers the summary write until the alert reads finish. The 95 repaired
+range/combat/declaration tests pass; source Functions build passes.
+
+The final backend imported the positively exported
+`runtime-snapshot-before-final-gameplay` into isolated slot1 so every Functions
+worker uses compiled931f78bc. `full-attack-ui-http.json` passes all11 composed
+checks with18 normal actors: real setup/two-cycle maintenance/transit, normal
+replacement admission, pending disconnected Captain, reasoned hold/resume,
+Captain use/replay, ordinary phone Commander join/reroll/finish, explicit EO pass,
+three source ranges, four boarding choices, exactly-once final damage/reopen,
+clock/Press retention, private direct-read denial and new movement. The browser
+must begin with a real printed station berth; an earlier harness-only extra
+unberthed actor could read its private role but correctly could not obtain a
+current-member session. The final harness uses ordinary browser join before
+casting/start, and normal replacement preserves that berth. It injects no
+identity/session and retains no tokens.
+
+`split-http.json` passes the13-normal-actor split/exploration branch, Comms
+recovery/report/GM log, selected known-system share, passenger and fuel taxi,
+range/capacity denial, courier, independently charged AEGIS and Icebreaker jumps,
+shared clock, current local plots/notes/private Rules and rejoin. Audited GM
+relocations establish initial/final positions and are not called jump proof.
+The earlier current-custody mission branch and discriminating different-cursor
+native branch remain current because their source is unchanged by targeting/
+boarding repair; they supplement S and are not claimed inside that script.
+Rate-limit429 uses the same immutable retry after its real window; no marker
+edit or budget change is made. Ordinary crew maintenance reduces the GM burst.
+
+The final before/after runtime AST/consumer audit binds58 index exports and19
+changed runtime modules to a union of105 exact Functions. Final bounded inventory
+is committed at4fd514ef; selector127 checks pass and stale hashes fail closed.
+No broad deployment fallback is introduced. Future P447/P448/P455 acceptance
+carries only the source distinct-target excess-hit assumption, with unchanged
+prerequisites/status/membership and no extra closure. The separate progress red
+fails3 and passes49 against556 before the candidate metadata; fixed49 build
+snapshot605 and historical0.5.64 preservation are prepared for0.5.65.
+
+All49 normal local behavior acceptances are reconciled. The exact-candidate
+independent Sol6.1xhigh review, final validation, one CI candidate, exact-main
+deployment and deployed review access still remain release gates. The root owns
+every next action and will record actual outcomes before claiming release.

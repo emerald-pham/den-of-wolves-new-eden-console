@@ -105,6 +105,11 @@ Direct chart, result, note and audit reads remain denied by Rules.
   Positive population, mutiny and any recognized explicit damage/destruction
   denial still gate use. Review current host/group privacy, stale offers,
   genuine disconnected pending choice, exact retry and final reduction once.
+  Exact Captain replay is checked before demanding a pending-stage view, but
+  after validating current Captain identity, admission, group, berth/host,
+  docking revision, population/mutiny and committed-cycle charge. It must replay
+  after automatic targeting/range/final progression with no new dice or writes;
+  a new command or lost current authority remains denied.
 - Declaration owns lock/parking/state/event atomically. Server randomness is
   committed before choices that depend on it; hidden assignments and modifiers
   remain private. Crew and GM projections are separate, direct privileged
@@ -132,6 +137,9 @@ Direct chart, result, note and audit reads remain denied by Rules.
   disconnected, source-unavailable and completed status only. Its presence
   caption is the last server reconciliation, and cached/offline/old-instance
   callbacks must withdraw private status rather than imply current authority.
+- Final boarding reads the current GM alert audience before any summary write.
+  Review the transaction ordering when a casualty threshold creates an alert;
+  final damage, decision summary, ticker and reopening remain one atomic result.
 - Any shared timer hold blocks progress. Final resolution and damage reopen
   movement and ticker atomically without resetting the preserved clock or
   Press grant. Attack replay cannot repeat damage, parking or reopening.
