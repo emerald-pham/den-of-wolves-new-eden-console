@@ -117,6 +117,17 @@ it('preserves the selected Short Range fighters and a separate zero-fighter pass
     .toHaveTextContent('PDF Escort Wing passed Short Range.');
 });
 
+it('retains an explicit Medium pass without using or changing another wing', () => {
+  render(<PC08ReviewScene />);
+  fireEvent.click(screen.getByRole('button', {name: '3 Fleet fighters'}));
+  fireEvent.click(screen.getByRole('button', {name: 'Launch Fighter Wing Alpha'}));
+  fireEvent.click(screen.getByRole('button', {name: 'Pass Medium Range'}));
+  expect(screen.getByRole('status', {name: 'Prepared fighter result'})).toHaveTextContent('Alpha passed Medium Range.');
+  expect(screen.getByRole('button', {name: 'Launch Fighter Wing Bravo'})).toBeEnabled();
+  expect(screen.queryByRole('button', {name: 'Pass Medium Range'})).not.toBeInTheDocument();
+  expect(screen.getAllByText('4 fighters remain')).toHaveLength(3);
+});
+
 it('retains committed results through offline and reconnect samples', () => {
   render(<PC08ReviewScene />);
   fireEvent.click(screen.getByRole('button', {name: '5 Results and recovery'}));
