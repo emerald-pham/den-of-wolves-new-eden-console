@@ -187,6 +187,61 @@ it('reconstructs a partially selected Medium Range lock after an entitled reconn
   expect(reconnected.hitSlots).not.toContainEqual(expect.objectContaining({ actionId: 'aegis-point-defence-lasers-medium' }));
 });
 
+it('caps excess server hits at the live distinct contacts and preserves the private full-hit receipt', async () => {
+  const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  const roster = (attack.combatRoster as Array<Record<string, unknown>>).map((ship, index) => ({
+    ...ship, destroyed: index !== 10,
+  }));
+  put('sessions/s1/wolfAttackState/current', { ...attack, currentStep: 'medium-range', revision: 4, combatRoster: roster });
+
+  const lock = await commitWolfRangeActionChoice.run(request({
+    sessionId: 's1', requestId: 'lock-medium-overflow', expectedTurn: 1, expectedRevision: 4,
+    range: 'medium-range', actionIds: ['aegis-missile-launchers-medium'],
+  }));
+  expect(lock.hitSlots).toEqual([{ actionId: 'aegis-missile-launchers-medium', count: 5 }]);
+  const committed = await assignWolfRangeTargets.run(request({
+    sessionId: 's1', requestId: 'assign-medium-overflow', expectedTurn: 1, expectedRevision: lock.revision,
+    range: 'medium-range', assignments: [{ actionId: 'aegis-missile-launchers-medium', contactIds: ['contact-11'] }],
+  }));
+
+  const state = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  const receipt = (state.rangeReceipts as Array<Record<string, unknown>>).find(({ range }) => range === 'medium-range')!;
+  expect(committed).toMatchObject({ currentStep: 'short-range', committedContacts: 1 });
+  expect(receipt).toMatchObject({
+    dice: [{ actionId: 'aegis-missile-launchers-medium', rolls: [6, 6, 6, 6, 6], successes: 5, damage: 5 }],
+    assignments: [{ actionId: 'aegis-missile-launchers-medium', targetInstanceIds: ['10:wolf-assault-transport'] }],
+    damageByInstance: { '10:wolf-assault-transport': 1 },
+    unusedHitsByAction: [{ actionId: 'aegis-missile-launchers-medium', count: 4 }],
+  });
+  expect(entropy.randomInt).toHaveBeenCalledTimes(5);
+});
+
+it('commits an empty target assignment when Short Range has no legal live contacts', async () => {
+  const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  const roster = (attack.combatRoster as Array<Record<string, unknown>>).map((ship) => ({ ...ship, destroyed: true }));
+  put('sessions/s1/wolfAttackState/current', { ...attack, currentStep: 'short-range', revision: 4, combatRoster: roster });
+
+  const choice = await commitWolfRangeActionChoice.run(request({
+    sessionId: 's1', requestId: 'lock-short-no-contact', expectedTurn: 1, expectedRevision: 4,
+    range: 'short-range', actionIds: ['aegis-point-defence-lasers-short'],
+  }));
+  expect(choice.hitSlots).toEqual([{ actionId: 'aegis-point-defence-lasers-short', count: 2 }]);
+  const committed = await assignWolfRangeTargets.run(request({
+    sessionId: 's1', requestId: 'assign-short-no-contact', expectedTurn: 1, expectedRevision: choice.revision,
+    range: 'short-range', assignments: [{ actionId: 'aegis-point-defence-lasers-short', contactIds: [] }],
+  }));
+
+  const state = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  const receipt = (state.rangeReceipts as Array<Record<string, unknown>>).find(({ range }) => range === 'short-range')!;
+  expect(committed).toMatchObject({ currentStep: 'boarding', committedContacts: 0 });
+  expect(receipt).toMatchObject({
+    dice: [{ actionId: 'aegis-point-defence-lasers-short', rolls: [6, 6], successes: 2, damage: 2 }],
+    assignments: [{ actionId: 'aegis-point-defence-lasers-short', targetInstanceIds: [] }],
+    damageByInstance: {},
+    unusedHitsByAction: [{ actionId: 'aegis-point-defence-lasers-short', count: 2 }],
+  });
+});
+
 it('records an explicit range pass in the final receipt and member-safe results', async () => {
   const pass = await commitWolfRangeActionChoice.run(request({
     sessionId: 's1', requestId: 'pass-long-1', expectedTurn: 1, expectedRevision: 4,
