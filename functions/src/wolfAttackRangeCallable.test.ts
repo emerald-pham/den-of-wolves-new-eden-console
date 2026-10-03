@@ -1,6 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 import { firstTurnWolfAttackComposition } from './wolfAttackComposition';
+import { CORE_WOLF_TARGET_RING } from './wolfCombatMath';
 import { resolveWolfTargeting, wolfCombatRoster } from './wolfCombatMath';
 
 type Fields = Record<string, unknown>;
@@ -66,6 +67,8 @@ import {
   getWolfRangeActionChoice,
   getWolfBoardingDefenceChoice,
   commitWolfBoardingDefenceChoice,
+  getWolfForceFieldChoice,
+  commitWolfForceFieldChoice,
 } from './index';
 
 const targeting = resolveWolfTargeting(firstTurnWolfAttackComposition(), {}, undefined, () => 0);
@@ -476,4 +479,85 @@ it('bounds the boarding choice by current resources and holds it during a sessio
     .rejects.toMatchObject({ code: 'failed-precondition' });
   expect((testState.documents.get('sessions/s1').shipResources as Fields).aegis)
     .toMatchObject({ securityTeams: 4 });
+});
+
+function openForceFieldFixture(): void {
+  const session = testState.documents.get('sessions/s1')!;
+  const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  const turnPhase = session.turnPhase as Fields;
+  put('sessions/s1', {
+    ...session,
+    activeRoleIds: [],
+    turnPhase: { ...turnPhase, airspace: { state: 'restricted', tickerActive: true, pressAccess: false } },
+    smallShipStates: {
+      gorgoneion: {
+        id: 'gorgoneion', hostShipId: 'aegis', dockingRevision: 1, population: 1_000, unrest: 0,
+        cycle: { step: 4, revision: 2, results: { '4': 'Reactor charged.' }, charges: ['force-field-projector'], turn: 1 },
+      },
+    },
+  });
+  put('sessions/s1/players/gorg-1', {
+    uid: 'gorg-1', role: 'player', connected: true, replacementRoleId: 'gorgoneion-captain',
+    replacementStatus: null, activeConsoleRoleId: null, seatId: null, fleetGroupId: 'fleet-1',
+  });
+  put('sessions/s1/fleetGroups/fleet-1', {
+    id: 'fleet-1', vesselIds: [...CORE_WOLF_TARGET_RING], memberUids: ['gorg-1'],
+    memberShipIds: { 'gorg-1': 'aegis' },
+  });
+  put('sessions/s1/wolfAttackState/current', {
+    ...attack, currentStep: 'targeting', revision: 4,
+    calculationReceipt: {
+      type: 'wolf-combat-calculation-stage', version: 1, turn: 1, step: 'pre-target-force-field',
+      generatedAt: '2026-10-03T11:00:00.000Z', targetRing: [...CORE_WOLF_TARGET_RING],
+      pursuitPressure: { navigationRevision: 1, groupValues: { 'fleet-1': 2 } },
+      composition: { shipIds: ['wolf-assault-transport'], counts: { 'wolf-assault-transport': 1 }, damageCapacity: 1 },
+    },
+    forceFieldChoice: {
+      status: 'pending', turn: 1, revision: 4, hostShipId: 'aegis', dockingRevision: 1,
+      configuredCaptainUid: 'gorg-1',
+    },
+  });
+}
+
+it('requires the current Gorgoneion Captain to choose or pass before targeting rolls are exposed', async () => {
+  openForceFieldFixture();
+  const view = await getWolfForceFieldChoice.run(request({ sessionId: 's1' }, 'gorg-1'));
+  expect(view).toMatchObject({
+    type: 'wolf-force-field-choice-view', turn: 1, revision: 4, attackId: 'wolf-attack-test-1',
+    hostShipId: 'aegis', dockingRevision: 1, choiceStatus: 'pending',
+    targetShipIds: CORE_WOLF_TARGET_RING,
+  });
+  expect(view).not.toHaveProperty('targeting');
+  expect(view).not.toHaveProperty('rolls');
+  await expect(getWolfForceFieldChoice.run(request({ sessionId: 's1' }, 'xo-1')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+
+  const payload = { sessionId: 's1', requestId: 'force-field-use', expectedTurn: 1,
+    expectedRevision: 4, targetShipId: 'aegis' };
+  const result = await commitWolfForceFieldChoice.run(request(payload, 'gorg-1'));
+  expect(result).toMatchObject({ type: 'wolf-force-field-choice', status: 'committed', turn: 1,
+    revision: 5, targetShipId: 'aegis', choiceStatus: 'selected' });
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current'))
+    .toMatchObject({ currentStep: 'targeting', calculationReceipt: { step: 'pre-target-force-field' },
+      forceFieldChoice: { status: 'selected', targetShipId: 'aegis', actorUid: 'gorg-1' } });
+  expect(await commitWolfForceFieldChoice.run(request(payload, 'gorg-1'))).toEqual(result);
+});
+
+it('records an explicit Force Field pass and denies stale or lost-host writes', async () => {
+  openForceFieldFixture();
+  await expect(commitWolfForceFieldChoice.run(request({ sessionId: 's1', requestId: 'force-stale',
+    expectedTurn: 1, expectedRevision: 3, targetShipId: null }, 'gorg-1')))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  put('sessions/s1/fleetGroups/fleet-1', {
+    id: 'fleet-1', vesselIds: [...CORE_WOLF_TARGET_RING], memberUids: ['gorg-1'], memberShipIds: { 'gorg-1': 'dione' },
+  });
+  await expect(commitWolfForceFieldChoice.run(request({ sessionId: 's1', requestId: 'force-lost-host',
+    expectedTurn: 1, expectedRevision: 4, targetShipId: 'aegis' }, 'gorg-1')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  put('sessions/s1/fleetGroups/fleet-1', {
+    id: 'fleet-1', vesselIds: [...CORE_WOLF_TARGET_RING], memberUids: ['gorg-1'], memberShipIds: { 'gorg-1': 'aegis' },
+  });
+  const result = await commitWolfForceFieldChoice.run(request({ sessionId: 's1', requestId: 'force-pass',
+    expectedTurn: 1, expectedRevision: 4, targetShipId: null }, 'gorg-1'));
+  expect(result).toMatchObject({ choiceStatus: 'passed', targetShipId: null, revision: 5 });
 });
