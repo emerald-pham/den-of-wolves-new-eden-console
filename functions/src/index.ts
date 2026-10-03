@@ -2,6 +2,7 @@ import { holdTurnAdvancePhase } from './turnInterstitial';
 import { parsedMemberSessionDetails } from './memberSession';
 import { createCurrentMemberSessionReader } from './memberSessionCallable';
 import { createTurnInterstitialHandler } from './turnInterstitialCallable';
+import { createUnionCraftStartingHostHandler } from './unionCraftSetupCallable';
 import { requireAttackAwareEmergencyTimerPauseRequest } from './wolfAttackTimerRequest';
 import { captureMaintenanceUndo, restoreMaintenanceUndo, type MaintenanceUndoField } from './maintenanceRollback';
 import { projectMaintenanceEvent } from './maintenanceEvent';
@@ -34957,5 +34958,15 @@ function requireMissionMovementAvailable(session: DocumentSnapshot, craftIds: re
 /** One active member clears the exact server-held cycle briefing for every console. */
 export const clearTurnAdvanceInterstitial = onCall(createTurnInterstitialHandler({
   db, requireUid, isActivePlayer, requireActiveGameplayPhase,
+  serverTimestamp: () => FieldValue.serverTimestamp(),
+}));
+
+/** Choose the unspecified initial host for an enabled printed Union craft. */
+export const setUnionCraftStartingHost = onCall(createUnionCraftStartingHostHandler({
+  db, requireUid, requireFacilitatorInstance, requireCastingWindow,
+  setupForSession: session => {
+    const setup = canonicalSetupForSession(session, sessionActiveRoleIds(session));
+    return { activeRoleIds: setup.activeRoleIds, activeVesselIds: setup.activeVesselIds, vesselMode: vesselModeForConfiguration(setup) };
+  },
   serverTimestamp: () => FieldValue.serverTimestamp(),
 }));
