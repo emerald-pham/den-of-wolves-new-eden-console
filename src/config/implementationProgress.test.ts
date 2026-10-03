@@ -34,7 +34,9 @@ describe('catalog-backed implementation progress', () => {
     expect(new Set(ids).size).toBe(49);
     expect(ids.map(id => catalog.prompts.find(row => row.id === id)?.status))
       .toEqual(ids.map(() => 'done'));
-    expect(CHANGELOG[0]?.implementationPrompts?.map(String)).toEqual(ids);
+    const pc07 = CHANGELOG.find(entry => entry.version === '0.5.65');
+    expect(pc07?.implementationPrompts?.map(String)).toEqual(ids);
+    expect(pc07?.implementationProgress?.completed).toBe(605);
     expect(catalog.prompts.filter(row => row.status === 'done')).toHaveLength(605);
     expect(catalog.prompts.find(row => row.id === '605a')?.status).not.toBe('done');
   });
