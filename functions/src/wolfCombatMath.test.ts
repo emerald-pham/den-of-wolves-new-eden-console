@@ -10,6 +10,7 @@ import {
   resolveWolfBoarding,
   resolveWolfRange,
   resolveWolfRangeTargetShifts,
+  resolveLockedWolfRange,
   resolveWolfTargeting,
   applyWolfRangeTargetShift,
   shiftWolfTargetDie,
@@ -240,6 +241,60 @@ describe('central Wolf combat math', () => {
 
     const boarding = resolveWolfBoarding(roster, [{ target: 'aegis', securityTeams: 4 }], samples([0, 1, 3, 5]));
     expect(boarding[0]).toMatchObject({ boardingParties: 20, securityCasualties: 1, boarderCasualties: 2, damage: 18 });
+  });
+
+  it('applies Medium target shifts before that range destruction consequences while preserving Long targets', () => {
+    const roster: WolfCombatShip[] = [
+      { instanceId: '0:wolf-fighter-wing', shipId: 'wolf-fighter-wing', target: 'aegis', damageTaken: 0, destroyed: false },
+      { instanceId: '1:wolf-cruiser', shipId: 'wolf-cruiser', target: 'aegis', damageTaken: 2, destroyed: false },
+      { instanceId: '2:wolf-battlestation', shipId: 'wolf-battlestation', target: 'aegis', damageTaken: 5, destroyed: false },
+    ];
+    const cruiserIndex = 1;
+    const stationIndex = 2;
+    const longAction = {
+      actionId: 'long-range-battlestation-destroyed', sourceId: 'aegis-missile-launchers',
+      range: 'long-range' as const, fixedDamage: 1, maxTargets: 1,
+    };
+    const long = resolveLockedWolfRange({
+      range: 'long-range', actions: [longAction],
+      locked: { range: 'long-range', dice: [{
+        actionId: longAction.actionId, sourceId: longAction.sourceId, range: 'long-range',
+        rolls: [], successes: 1, damage: 1, damagePerHit: 1,
+      }] },
+      assignments: [{ actionId: longAction.actionId, targetInstanceIds: [roster[stationIndex]!.instanceId] }],
+      roster,
+    });
+    const mediumAction = {
+      actionId: 'medium-range-cruiser-destroyed', sourceId: 'aegis-missile-launchers',
+      range: 'medium-range' as const, fixedDamage: 1, maxTargets: 1,
+    };
+    const medium = resolveLockedWolfRange({
+      range: 'medium-range', actions: [mediumAction],
+      locked: { range: 'medium-range', dice: [{
+        actionId: mediumAction.actionId, sourceId: mediumAction.sourceId, range: 'medium-range',
+        rolls: [], successes: 1, damage: 1, damagePerHit: 1,
+      }] },
+      assignments: [{ actionId: mediumAction.actionId, targetInstanceIds: [roster[cruiserIndex]!.instanceId] }],
+      roster: long.roster,
+      targetShiftChoices: [{
+        sourceId: 'aegis-alpha-wing', choiceIndex: 0, rosterIndex: cruiserIndex, shift: 1,
+      }],
+      targetRing: CORE_WOLF_TARGET_RING,
+    });
+
+    expect(long.receipt.targetSnapshot).toHaveLength(roster.length);
+    expect(long.receipt.targetSnapshot[stationIndex]).toEqual({ instanceId: roster[stationIndex]!.instanceId, target: 'aegis' });
+    expect(long.receipt.destroyedInstanceIds).toContain(roster[stationIndex]!.instanceId);
+    expect(long.receipt.destructionDamageByTarget).toMatchObject({ aegis: 3, icebreaker: 0 });
+    expect(medium.receipt.targetSnapshot[cruiserIndex]).toEqual({ instanceId: roster[cruiserIndex]!.instanceId, target: 'aegis' });
+    expect(medium.receipt.targetShifts).toEqual([{
+      sourceId: 'aegis-alpha-wing', choiceIndex: 0, rosterIndex: cruiserIndex,
+      shift: 1, fromDie: 1, toDie: 2,
+    }]);
+    expect(medium.receipt.destroyedInstanceIds).toContain(roster[cruiserIndex]!.instanceId);
+    expect(medium.receipt.destructionDamageByTarget).toMatchObject({ aegis: 0, icebreaker: 1 });
+    expect(medium.roster[cruiserIndex]?.target).toBe('icebreaker');
+    expect(medium.roster[stationIndex]?.target).toBe('aegis');
   });
 
   it('rolls every selected boarding defence team and caps casualties only at remaining boarders', () => {
