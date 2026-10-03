@@ -84,7 +84,13 @@ try{
   await clickCurrent('Proceed with refuelling');await clickCurrent('Proceed with refuelling');
   await clickCurrent('End maintenance cycle');
   await page.waitForFunction(async()=>{const{useSessionStore}=await import('/src/store/useSessionStore.ts');return Boolean(useSessionStore.getState().session?.maintenanceCycles?.aegis?.completedAt);});
-  const completed=(await f.session.get()).data();const ledger=completed.maintenanceCycles.aegis;
+  let completed=(await f.session.get()).data();
+  for(let attempt=0;!completed.maintenanceCycles.aegis.completedAt&&attempt<30;attempt++){
+   await new Promise(resolve=>setTimeout(resolve,100));completed=(await f.session.get()).data();
+  }
+  const ledger=completed.maintenanceCycles.aegis;
+  await writeFile(`${directory}/maintenance-authoritative-ledger.json`,JSON.stringify({ledger,
+   resourcesBefore:resources,resourcesAfter:completed.shipResources.aegis,identitiesRetained:false},null,2)+'\n');
   assert.equal(ledger.turn,1);assert.ok(ledger.completedAt);assert.ok(ledger.charges.includes('jump-drive'));
   for(const step of ['1','2','3','4','5','6','7'])assert.ok(ledger.results[step],`Actual UI committed printed step ${step}`);
   assert.ok(completed.shipResources.aegis.food<resources.food);assert.ok(completed.shipResources.aegis.water<resources.water);

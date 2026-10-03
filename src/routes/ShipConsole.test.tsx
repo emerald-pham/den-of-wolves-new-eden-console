@@ -33,6 +33,7 @@ vi.mock('@/lib/sessionService', () => ({
 }));
 
 vi.mock('@/lib/firestore', () => ({
+  subscribeWolfAttackMemberView: vi.fn(() => vi.fn()),
   subscribeShipConfetti: vi.fn(),
   subscribeDamageDraws: vi.fn(),
   subscribeConnectedPlayers: vi.fn(() => vi.fn()),
