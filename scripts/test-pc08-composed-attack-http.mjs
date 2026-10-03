@@ -218,10 +218,10 @@ try {
   for (const shipId of ['aegis', 'dione', 'refinery-124', 'icebreaker', 'capybara']) {
     await command(f.gm, 'setGmShipConsoleWriteGrant', { instanceId: f.instanceId, shipId, enabled: true, claimedAt });
   }
-  await replace(captain, 'gorgoneion-captain');
-  await replace(commander, 'wolf-commander');
   await command(f.gm, 'setSmallShipDocking', { instanceId: f.instanceId, requestId: randomUUID(),
     smallShipId: 'gorgoneion', hostShipId: 'aegis', docked: true, expectedRevision: 0 });
+  await replace(captain, 'gorgoneion-captain');
+  await replace(commander, 'wolf-commander');
   await maintain('aegis', ['command-and-control', 'missile-launchers', 'point-defence-lasers', 'fighter-bay-alpha', 'fighter-bay-bravo'], ['pallas', 'starlight']);
   await maintain('dione', ['fighter-bay'], ['maliades']);
   await maintain('refinery-124', ['fighter-bay'], []);
