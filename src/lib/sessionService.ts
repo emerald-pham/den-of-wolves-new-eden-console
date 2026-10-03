@@ -6474,9 +6474,11 @@ export async function commitWolfRangeActionChoice(
   const call = httpsCallable<typeof payload, unknown>(functions(), 'commitWolfRangeActionChoice');
   try {
     const reply = wolfRangeActionChoiceResultReply((await call(payload)).data);
+    const expectedChoiceStatus = reply && actionIds.length === 0 && reply.hitSlots.length === 0
+      ? 'passed' : 'targets-required';
     if (!reply || reply.sessionId !== sessionId || reply.requestId !== requestId || reply.turn !== turn ||
         reply.revision !== revision + 1 || reply.range !== range ||
-        reply.choiceStatus !== (actionIds.length === 0 ? 'passed' : 'targets-required')) {
+        reply.choiceStatus !== expectedChoiceStatus) {
       throw new Error('The server returned an invalid Wolf range choice receipt.');
     }
     if (!aegisExecutiveOfficerAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
