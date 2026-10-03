@@ -219,7 +219,9 @@ it('accepts only a privacy-safe committed redirect bound to current Executive Of
       reason: 'already-used', targets: [], redirectedShipId: 'wolf-cruiser',
     },
   };
-  const call = Object.assign(vi.fn().mockResolvedValue({ data: result }), { stream: vi.fn() });
+  const call = Object.assign(vi.fn((payload: { readonly requestId: string }) => Promise.resolve({
+    data: { ...result, requestId: payload.requestId },
+  })), { stream: vi.fn() });
   vi.mocked(httpsCallable).mockReturnValue(call as never);
 
   await expect(applyAegisCommandAndControl(1, 2, 1)).resolves.toMatchObject({
@@ -230,10 +232,10 @@ it('accepts only a privacy-safe committed redirect bound to current Executive Of
     expectedTurn: 1, expectedRevision: 2, rosterIndex: 1,
   }));
 
-  call.mockResolvedValueOnce({ data: {
-    ...result,
+  call.mockImplementationOnce((payload: { readonly requestId: string }) => Promise.resolve({ data: {
+    ...result, requestId: payload.requestId,
     targetingReceipt: { rolls: [{ die: 4, target: 'dione' }] },
-  } });
+  } as never }));
   await expect(applyAegisCommandAndControl(1, 2, 1))
     .rejects.toThrow(/invalid AEGIS Command and Control receipt/i);
 });
@@ -257,7 +259,9 @@ it('sends an explicit C&C pass and accepts only the correlated no-redirect recei
       reason: 'passed', targets: [],
     },
   };
-  const call = Object.assign(vi.fn().mockResolvedValue({ data: result }), { stream: vi.fn() });
+  const call = Object.assign(vi.fn((payload: { readonly requestId: string }) => Promise.resolve({
+    data: { ...result, requestId: payload.requestId },
+  })), { stream: vi.fn() });
   vi.mocked(httpsCallable).mockReturnValue(call as never);
 
   await expect(passAegisCommandAndControl(1, 2)).resolves.toMatchObject({
@@ -268,7 +272,9 @@ it('sends an explicit C&C pass and accepts only the correlated no-redirect recei
     sessionId: values.session.id, requestId: expect.any(String), expectedTurn: 1, expectedRevision: 2,
   });
 
-  call.mockResolvedValueOnce({ data: { ...result, shipId: 'wolf-cruiser' } });
+  call.mockImplementationOnce((payload: { readonly requestId: string }) => Promise.resolve({
+    data: { ...result, requestId: payload.requestId, shipId: 'wolf-cruiser' },
+  }));
   await expect(passAegisCommandAndControl(1, 2)).rejects.toThrow(/invalid AEGIS Command and Control pass receipt/i);
 });
 
