@@ -37,6 +37,10 @@ import type {
   WolfRangeActionChoiceReadResult,
   WolfRangeActionChoiceResult,
   WolfRangeTargetAssignmentResult,
+  WolfFighterRangeActionView,
+  WolfFighterRangeActionResult,
+  WolfFighterRangeSourceId,
+  WolfFighterMediumChoice,
   WolfForceFieldChoiceReadResult,
   WolfForceFieldChoiceResult,
   WolfBoardingDefenceChoiceReadResult,
@@ -416,6 +420,16 @@ function aegisExecutiveOfficerAuthorityCheckpointIsCurrent(
   const store = useSessionStore.getState();
   return store.session?.id === sessionId && store.me?.sessionId === sessionId &&
     store.me?.role === 'player' && store.me?.activeConsoleRoleId === 'executive-officer' &&
+    authorityCheckpointIsCurrent(checkpoint);
+}
+
+function aegisWingCommanderAuthorityCheckpointIsCurrent(
+  sessionId: string,
+  checkpoint: SessionAuthorityCheckpoint | undefined,
+): boolean {
+  const store = useSessionStore.getState();
+  return store.session?.id === sessionId && store.me?.sessionId === sessionId &&
+    store.me?.role === 'player' && store.me?.activeConsoleRoleId === 'wing-commander' &&
     authorityCheckpointIsCurrent(checkpoint);
 }
 
@@ -5647,6 +5661,94 @@ export async function passAegisCommandAndControl(
   }
 }
 
+function wolfFighterRangeActionViewReply(value: unknown): WolfFighterRangeActionView | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const reply = value as Record<string, unknown>;
+  const allowed = new Set([
+    'type', 'sessionId', 'attackId', 'turn', 'revision', 'wingId', 'wingLabel', 'range',
+    'choiceStatus', 'fighters', 'targets', 'launched', 'selectedFighterIndexes',
+  ]);
+  if (Object.keys(reply).some((key) => !allowed.has(key)) ||
+      reply.type !== 'wolf-fighter-range-action-view' || typeof reply.sessionId !== 'string' || !reply.sessionId ||
+      typeof reply.attackId !== 'string' || !reply.attackId ||
+      !Number.isSafeInteger(reply.turn) || (reply.turn as number) < 1 ||
+      !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 1 ||
+      (reply.wingId !== 'fighter-wing-alpha' && reply.wingId !== 'fighter-wing-bravo') ||
+      typeof reply.wingLabel !== 'string' || reply.wingLabel.length > 80 ||
+      (reply.range !== 'medium-range' && reply.range !== 'short-range') ||
+      (reply.choiceStatus !== 'pending' && reply.choiceStatus !== 'committed') ||
+      !Array.isArray(reply.fighters) || !Array.isArray(reply.targets) || typeof reply.launched !== 'boolean') return null;
+  const fighters = reply.fighters.flatMap((raw): Array<{ fighterIndex: number }> => {
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return [];
+    const fighter = raw as Record<string, unknown>;
+    return Object.keys(fighter).length === 1 && Number.isSafeInteger(fighter.fighterIndex) &&
+      (fighter.fighterIndex as number) >= 0 && (fighter.fighterIndex as number) < 64
+      ? [{ fighterIndex: fighter.fighterIndex as number }] : [];
+  });
+  const targets = reply.targets.flatMap((raw): Array<{ instanceId: string; label: string; targetNumber: number }> => {
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return [];
+    const target = raw as Record<string, unknown>;
+    return Object.keys(target).length === 3 && typeof target.instanceId === 'string' &&
+      /^contact-[1-9]\d*$/.test(target.instanceId) && typeof target.label === 'string' && target.label.length <= 100 &&
+      Number.isSafeInteger(target.targetNumber) && (target.targetNumber as number) >= 0 &&
+      (target.targetNumber as number) <= 7
+      ? [{ instanceId: target.instanceId, label: target.label, targetNumber: target.targetNumber as number }] : [];
+  });
+  const rawSelected = reply.selectedFighterIndexes;
+  if (rawSelected !== undefined && !Array.isArray(rawSelected)) return null;
+  const selected = Array.isArray(rawSelected)
+    ? rawSelected.filter((value): value is number => Number.isSafeInteger(value) && value >= 0 && value < 64)
+    : undefined;
+  const selectedLengthMismatch = Array.isArray(rawSelected) && selected !== undefined &&
+    selected.length !== rawSelected.length;
+  if (fighters.length !== reply.fighters.length || targets.length !== reply.targets.length ||
+      new Set(fighters.map(({ fighterIndex }) => fighterIndex)).size !== fighters.length ||
+      new Set(targets.map(({ instanceId }) => instanceId)).size !== targets.length ||
+      fighters.some(({ fighterIndex }, index) => fighterIndex !== index) ||
+      selectedLengthMismatch ||
+      (selected && (
+        selected.some((index, position) => index >= fighters.length || (position > 0 && index <= selected[position - 1]!)))) ||
+      (reply.choiceStatus === 'pending' && selected !== undefined) ||
+      (reply.choiceStatus === 'committed' && selected === undefined)) return null;
+  return {
+    type: 'wolf-fighter-range-action-view', sessionId: reply.sessionId, attackId: reply.attackId,
+    turn: reply.turn as number, revision: reply.revision as number,
+    wingId: reply.wingId as WolfFighterRangeSourceId, wingLabel: reply.wingLabel,
+    range: reply.range, choiceStatus: reply.choiceStatus, fighters, targets, launched: reply.launched,
+    ...(selected === undefined ? {} : { selectedFighterIndexes: selected }),
+  };
+}
+
+function wolfFighterRangeActionResultReply(value: unknown): WolfFighterRangeActionResult | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const reply = value as Record<string, unknown>;
+  const allowed = new Set([
+    'status', 'type', 'sessionId', 'requestId', 'turn', 'revision', 'range', 'wingId',
+    'choiceStatus', 'selectedFighterIndexes', 'actionCount',
+  ]);
+  const selected = Array.isArray(reply.selectedFighterIndexes)
+    ? reply.selectedFighterIndexes.filter((index): index is number => Number.isSafeInteger(index) && index >= 0 && index < 64)
+    : [];
+  if (Object.keys(reply).some((key) => !allowed.has(key)) ||
+      (reply.status !== 'committed' && reply.status !== 'replayed') ||
+      reply.type !== 'wolf-fighter-range-action-choice' || typeof reply.sessionId !== 'string' || !reply.sessionId ||
+      typeof reply.requestId !== 'string' || !reply.requestId ||
+      !Number.isSafeInteger(reply.turn) || (reply.turn as number) < 1 ||
+      !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 1 ||
+      (reply.range !== 'medium-range' && reply.range !== 'short-range') ||
+      (reply.wingId !== 'fighter-wing-alpha' && reply.wingId !== 'fighter-wing-bravo') ||
+      reply.choiceStatus !== 'pending-resolution' || !Array.isArray(reply.selectedFighterIndexes) ||
+      selected.length !== reply.selectedFighterIndexes.length ||
+      new Set(selected).size !== selected.length || selected.some((index, position) => position > 0 && index <= selected[position - 1]!) ||
+      !Number.isSafeInteger(reply.actionCount) || reply.actionCount !== selected.length) return null;
+  return {
+    status: reply.status, type: 'wolf-fighter-range-action-choice', sessionId: reply.sessionId,
+    requestId: reply.requestId, turn: reply.turn as number, revision: reply.revision as number,
+    range: reply.range, wingId: reply.wingId as WolfFighterRangeSourceId,
+    choiceStatus: 'pending-resolution', selectedFighterIndexes: selected, actionCount: reply.actionCount as number,
+  };
+}
+
 function wolfRangeActionChoiceReadReply(value: unknown): WolfRangeActionChoiceReadResult | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const reply = value as Record<string, unknown>;
@@ -6037,6 +6139,102 @@ export async function getWolfRangeActionChoice(): Promise<WolfRangeActionChoiceR
     if (!reply || reply.sessionId !== sessionId) throw new Error('The server returned an invalid Wolf range choice view.');
     if (!aegisExecutiveOfficerAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
       throw new Error('The Executive Officer session or authority changed before this range view arrived.');
+    }
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Read one current AEGIS Wing Commander's range choice without exposing hidden fighter state. */
+export async function getWolfFighterRangeActionChoice(
+  range: 'medium-range' | 'short-range',
+  wingId: WolfFighterRangeSourceId,
+): Promise<WolfFighterRangeActionView> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.role !== 'player' ||
+      store.me.activeConsoleRoleId !== 'wing-commander') {
+    throw new Error('Only the active AEGIS Wing Commander may read fighter range choices.');
+  }
+  requireFreshSessionAuthority('Reconnect before reading fighter range choices.');
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const payload = { sessionId, range, sourceId: wingId };
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'getWolfFighterRangeActionChoice');
+  try {
+    const reply = wolfFighterRangeActionViewReply((await call(payload)).data);
+    if (!reply || reply.sessionId !== sessionId || reply.range !== range || reply.wingId !== wingId) {
+      throw new Error('The server returned an invalid fighter range choice view.');
+    }
+    if (!aegisWingCommanderAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
+      throw new Error('The AEGIS Wing Commander session or authority changed before this range view arrived.');
+    }
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Commit an explicit subset or action list; the server owns all fighter rolls and losses. */
+export async function commitWolfFighterRangeActionChoice(
+  turn: number,
+  revision: number,
+  range: 'medium-range' | 'short-range',
+  wingId: WolfFighterRangeSourceId,
+  choices: readonly number[] | readonly WolfFighterMediumChoice[],
+): Promise<WolfFighterRangeActionResult> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.role !== 'player' ||
+      store.me.activeConsoleRoleId !== 'wing-commander') {
+    throw new Error('Only the active AEGIS Wing Commander may commit fighter range choices.');
+  }
+  requireFreshSessionAuthority('Reconnect before committing fighter range choices.');
+  let payloadChoice: Readonly<{ fighterIndexes: readonly number[] }> |
+    Readonly<{ actions: readonly Readonly<Record<string, unknown>>[] }>;
+  let expectedIndexes: readonly number[];
+  if (range === 'short-range') {
+    const indexes = [...choices as readonly number[]];
+    if (indexes.some((index) => !Number.isSafeInteger(index) || index < 0) ||
+        new Set(indexes).size !== indexes.length) throw new Error('Choose each available Short Range fighter at most once.');
+    expectedIndexes = [...indexes].sort((left, right) => left - right);
+    payloadChoice = { fighterIndexes: expectedIndexes };
+  } else {
+    const actions = [...choices as readonly WolfFighterMediumChoice[]];
+    if (actions.some((action) => !action || !Number.isSafeInteger(action.fighterIndex) || action.fighterIndex < 0 ||
+        typeof action.targetInstanceId !== 'string' || !/^contact-[1-9]\d*$/.test(action.targetInstanceId) ||
+        (action.kind !== 'attack' && action.kind !== 'target-shift') ||
+        (action.kind === 'target-shift' && action.shift !== -1 && action.shift !== 1)) ||
+        new Set(actions.map(({ fighterIndex }) => fighterIndex)).size !== actions.length) {
+      throw new Error('A fighter can make only one valid Medium Range choice.');
+    }
+    actions.sort((left, right) => left.fighterIndex - right.fighterIndex);
+    expectedIndexes = actions.map(({ fighterIndex }) => fighterIndex);
+    payloadChoice = { actions: actions.map((action) => ({
+      fighterIndex: action.fighterIndex, kind: action.kind,
+      targetContactId: action.targetInstanceId,
+      ...(action.kind === 'target-shift' ? { shift: action.shift } : {}),
+    })) };
+  }
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const requestId = commandId();
+  const payload = { sessionId, requestId, expectedTurn: turn, expectedRevision: revision, range, sourceId: wingId,
+    ...payloadChoice };
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'commitWolfFighterRangeActionChoice');
+  try {
+    const reply = wolfFighterRangeActionResultReply((await call(payload)).data);
+    if (!reply || reply.sessionId !== sessionId || reply.requestId !== requestId || reply.turn !== turn ||
+        reply.revision !== revision + 1 || reply.range !== range || reply.wingId !== wingId ||
+        reply.actionCount !== expectedIndexes.length ||
+        JSON.stringify(reply.selectedFighterIndexes) !== JSON.stringify(expectedIndexes)) {
+      throw new Error('The server returned an invalid fighter range choice receipt.');
+    }
+    if (!aegisWingCommanderAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
+      throw new Error('The AEGIS Wing Commander session or authority changed before the range choice committed.');
     }
     return reply;
   } catch (cause) {

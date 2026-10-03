@@ -10,6 +10,7 @@ import WolfAttackStatusPanel from './WolfAttackStatusPanel';
 import WolfRangeActionPanel from './WolfRangeActionPanel';
 import WolfBoardingDefencePanel from './WolfBoardingDefencePanel';
 import AegisFighterWingLaunchPanel from './AegisFighterWingLaunchPanel';
+import WolfFighterRangeActionPanel from './WolfFighterRangeActionPanel';
 
 interface Props {
   readonly ship: Ship;
@@ -84,6 +85,9 @@ export default function FleetConsoleWorkspace({
         shipState={shipState}
       />
       {writable && role.id === 'wing-commander' && <AegisFighterWingLaunchPanel />}
+      {writable && role.id === 'wing-commander' && (['fighter-wing-alpha', 'fighter-wing-bravo'] as const).flatMap((sourceId) =>
+        (['medium-range', 'short-range'] as const).map((range) => <WolfFighterRangeActionPanel
+          key={`${sourceId}-${range}`} sourceId={sourceId} range={range} />))}
       {writable && <WolfBoardingDefencePanel />}
       <WolfAttackStatusPanel />
     </>;

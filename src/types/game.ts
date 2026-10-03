@@ -898,6 +898,45 @@ export interface AegisFighterWingLaunchResult extends AegisFighterWingLaunchView
   readonly requestId: string;
 }
 
+export type WolfFighterRangeSourceId = 'fighter-wing-alpha' | 'fighter-wing-bravo';
+export type WolfFighterMediumChoice = Readonly<{
+  fighterIndex: number;
+  targetInstanceId: string;
+}> & (
+  | Readonly<{ kind: 'attack' }>
+  | Readonly<{ kind: 'target-shift'; shift: -1 | 1 }>
+);
+
+export interface WolfFighterRangeActionView {
+  readonly type: 'wolf-fighter-range-action-view';
+  readonly sessionId: string;
+  readonly attackId: string;
+  readonly turn: number;
+  readonly revision: number;
+  readonly wingId: WolfFighterRangeSourceId;
+  readonly wingLabel: string;
+  readonly range: 'medium-range' | 'short-range';
+  readonly choiceStatus: 'pending' | 'committed';
+  readonly fighters: readonly Readonly<{ fighterIndex: number }>[];
+  readonly targets: readonly Readonly<{ instanceId: string; label: string; targetNumber: number }>[];
+  readonly launched: boolean;
+  readonly selectedFighterIndexes?: readonly number[];
+}
+
+export interface WolfFighterRangeActionResult {
+  readonly status: 'committed' | 'replayed';
+  readonly type: 'wolf-fighter-range-action-choice';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly turn: number;
+  readonly revision: number;
+  readonly range: 'medium-range' | 'short-range';
+  readonly wingId: WolfFighterRangeSourceId;
+  readonly choiceStatus: 'pending-resolution';
+  readonly selectedFighterIndexes: readonly number[];
+  readonly actionCount: number;
+}
+
 /** Public callable receipt for the GM declaration control. */
 export interface WolfAttackDeclarationResult {
   readonly status: 'committed' | 'replayed';

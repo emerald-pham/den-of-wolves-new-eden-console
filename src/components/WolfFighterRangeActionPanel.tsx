@@ -1,4 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { subscribeWolfAttackMemberView } from '@/lib/firestore';
+import { commitWolfFighterRangeActionChoice, getWolfFighterRangeActionChoice } from '@/lib/sessionService';
+import { useWolfAttackChoiceAuthority, useWolfAttackChoiceController } from '@/lib/wolfAttackChoiceController';
+import type { WolfAttackMemberView, WolfFighterRangeActionView as ConnectedWolfFighterRangeActionView } from '@/types/game';
 import './WolfFighterRangeActionPanel.css';
 
 export type WolfFighterMediumAction = Readonly<{
@@ -187,6 +191,10 @@ export function WolfFighterRangeActionPanelView({
             onClick={() => onResolveMedium(mediumActions.filter((action): action is WolfFighterMediumAction => action !== null))}>
             Resolve Medium actions
           </button>
+          <button type="button" className="cic-action-button" disabled={busy}
+            onClick={() => onResolveMedium([])}>
+            Pass Medium Range
+          </button>
         </>
       ) : (
         <>
@@ -219,4 +227,67 @@ export function WolfFighterRangeActionPanelView({
       {message && <p className="wolf-fighter-range__message" role="status">{message}</p>}
     </section>
   );
+}
+
+export default function WolfFighterRangeActionPanel({
+  sourceId,
+  range,
+  sessionId: suppliedSessionId,
+  subscribe = subscribeWolfAttackMemberView,
+}: Readonly<{
+  sourceId: 'fighter-wing-alpha' | 'fighter-wing-bravo';
+  range: 'medium-range' | 'short-range';
+  sessionId?: string;
+  subscribe?: typeof subscribeWolfAttackMemberView;
+}>) {
+  const authority = useWolfAttackChoiceAuthority('wing-commander', suppliedSessionId);
+  const read = useCallback(() => getWolfFighterRangeActionChoice(range, sourceId), [range, sourceId]);
+  const { memberView, view, busy, message, error, refresh, runMutation } = useWolfAttackChoiceController({
+    authority,
+    actor: 'wing-commander',
+    expectedStep: (member) => member.currentStep === range,
+    read,
+    readMatches: (value, member) => fighterRangeReadMatches(value, member, sourceId, range),
+    subscribe,
+    readFailureMessage: 'Could not refresh this fighter range choice.',
+    mutationFailureMessage: 'The fighter choice could not be committed. Refresh before retrying.',
+  });
+
+  if (!authority.sessionId || !authority.actorReady) return null;
+  if (!authority.ready) return <section className="wolf-fighter-range cic-frame"
+    aria-label={`${sourceId} ${range} actions`}>
+    <p className="wolf-fighter-range__notice" role="status">Waiting for a live Wing Commander session before showing fighter actions.</p>
+  </section>;
+  if (!memberView || memberView.currentStep !== range) return null;
+  if (!view) return <section className="wolf-fighter-range cic-frame"
+    aria-label={`${sourceId} ${range} actions`}>
+    <p className="wolf-fighter-range__notice" role="status">{error ?? 'Checking the current fighter range…'}</p>
+    <button type="button" className="cic-action-button" disabled={busy} onClick={refresh}>Refresh fighter choice</button>
+  </section>;
+
+  const displayMessage = error ?? message;
+  return <WolfFighterRangeActionPanelView
+    view={view}
+    busy={busy}
+    {...(displayMessage ? { message: displayMessage } : {})}
+    onResolveMedium={(actions) => runMutation(
+      () => commitWolfFighterRangeActionChoice(view.turn, view.revision, range, sourceId, actions),
+      'Medium Range fighter choices committed to the server.',
+    )}
+    onResolveShort={(fighterIndexes) => runMutation(
+      () => commitWolfFighterRangeActionChoice(view.turn, view.revision, range, sourceId, fighterIndexes),
+      'Short Range fighter choices committed to the server.',
+    )}
+  />;
+}
+
+function fighterRangeReadMatches(
+  view: ConnectedWolfFighterRangeActionView,
+  member: WolfAttackMemberView,
+  sourceId: 'fighter-wing-alpha' | 'fighter-wing-bravo',
+  range: 'medium-range' | 'short-range',
+): boolean {
+  return view.sessionId === member.sessionId && view.turn === member.turn &&
+    view.revision === member.revision && view.attackId === member.attackId &&
+    view.wingId === sourceId && view.range === range && member.currentStep === range;
 }
