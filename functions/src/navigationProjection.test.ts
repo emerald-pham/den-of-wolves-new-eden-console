@@ -422,6 +422,14 @@ it('uses server-only current-group berth for the passenger own discovery project
     fleetTaxiHostShipId: 'shepherd' }) as never)).toBe('aegis');
 });
 
+it('projects only committed mission craft carried by the current fleet group', () => {
+  const state = { ...navigation, missionCommittedCraftIdsByHostShip: {
+    shepherd: ['shepherd', 'hummingbird'], dione: ['dione', 'starlight'],
+  } };
+  const result = playerDiscoveryProjection(player({ fleetGroupId: 'fleet-2' }), state, 5, ['shepherd'], undefined, 'alice', 'shepherd');
+  expect(result.missionCommittedCraftIds).toEqual(['shepherd', 'hummingbird']);
+});
+
 it('keeps mission exploration knowledge bound to a UID across navigation refreshes and role changes', () => {
   const state = navigationState({ ...navigation, missionExploredCoordinatesByUid: {
     alice: ['4454', '5143'], bob: ['1413'],
