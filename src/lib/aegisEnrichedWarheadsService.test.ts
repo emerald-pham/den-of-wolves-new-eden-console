@@ -19,7 +19,7 @@ beforeEach(() => {
 });
 it('reads only the EO safe status and rejects private fields in a response', async () => {
   const call = vi.fn().mockResolvedValue({ data: view });
-  vi.mocked(httpsCallable).mockReturnValue(call);
+  vi.mocked(httpsCallable).mockReturnValue(call as unknown as ReturnType<typeof httpsCallable>);
   expect(await getAegisEnrichedWarheadChoice()).toEqual(view);
   expect(call).toHaveBeenCalledWith({ sessionId: 's1' });
   call.mockResolvedValue({ data: { ...view, combatRoster: [{ private: true }] } });
@@ -29,7 +29,7 @@ it('sends only choice and CAS authority and verifies the exact payment receipt',
   const call = vi.fn(async payload => ({ data: { type: 'aegis-enriched-warhead-result', status: 'committed',
     sessionId: 's1', requestId: payload.requestId, turn: 2, revision: 6,
     view: { ...view, revision: 6, choiceStatus: 'enriched', eligible: false } } }));
-  vi.mocked(httpsCallable).mockReturnValue(call);
+  vi.mocked(httpsCallable).mockReturnValue(call as unknown as ReturnType<typeof httpsCallable>);
   await commitAegisEnrichedWarheadChoice(2, 5, 'enrich');
   expect(call).toHaveBeenCalledWith({ sessionId: 's1', requestId: expect.any(String),
     expectedTurn: 2, expectedRevision: 5, choice: 'enrich' });
