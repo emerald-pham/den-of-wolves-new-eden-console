@@ -29,7 +29,7 @@
   padding: 0.3rem 0.5rem;
   border: 1px solid var(--cic-rule);
   color: var(--cic-cyan);
-  font: 600 0.72rem/1.3 var(--cic-mono);
+  font: 600 14px/1.3 var(--cic-mono);
   letter-spacing: 0.035em;
   text-transform: uppercase;
 }
@@ -40,7 +40,7 @@
 .wolf-boarding-defence__message {
   margin: 0;
   color: var(--cic-muted);
-  font: 0.76rem/1.5 var(--cic-mono);
+  font: 14px/1.5 var(--cic-mono);
   overflow-wrap: anywhere;
 }
 
@@ -52,7 +52,7 @@
   display: grid;
   gap: 0.35rem;
   color: var(--cic-ink);
-  font: 0.78rem/1.45 var(--cic-mono);
+  font: 14px/1.45 var(--cic-mono);
 }
 
 .wolf-boarding-defence__choice select {
@@ -63,7 +63,7 @@
   border: 1px solid var(--cic-rule);
   background: var(--cic-panel);
   color: var(--cic-ink);
-  font: 0.78rem/1.4 var(--cic-mono);
+  font: 16px/1.4 var(--cic-mono);
 }
 
 .wolf-boarding-defence button { min-height: 2.75rem; }
