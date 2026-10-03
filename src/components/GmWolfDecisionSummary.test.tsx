@@ -7,7 +7,8 @@ const players = [
   { uid: 'private-commander-uid', displayName: 'Rowan' },
   { uid: 'private-eo-uid', displayName: 'Mira' },
   { uid: 'private-captain-uid', displayName: 'Ari' },
-] as readonly Player[];
+].map(player => ({ ...player, sessionId: 's1', role: 'player', seatId: null,
+  joinedAt: '2026-10-03T08:00:00.000Z' })) as readonly Player[];
 const pending: WolfAttackDecisionSummary = {
   commander: { status: 'pending', actors: [{ uid: 'private-commander-uid', connected: false }] },
   commandAndControl: { status: 'waiting-for-commander', actors: [] },
