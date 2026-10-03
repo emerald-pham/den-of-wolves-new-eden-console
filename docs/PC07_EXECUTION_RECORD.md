@@ -602,3 +602,27 @@ stylesheet is unchanged. All eight responsive/motion cases pass in
 were inspected. Geometry and callback accessibility are prepared evidence;
 connected authority/draft repairs and native gameplay remain distinct open
 requirements.
+
+### Current custody and independent navigation repair integration
+
+The split worker's separate red/source commits through `2f7b287f` are integrated
+through `ceac3ace`. Mission lifecycle authorization now derives the current
+physical holder's uniquely pointer-matched group, immutable source lineage,
+berth and navigation; co-located dropoff reads current custody rather than a
+deleted historical source group. Rejoined then resplit groups cannot use a
+foreign descendant's berth merely because they share lineage. Vessel movement
+advances the independent shared navigation counter without lowering it to the
+vessel cursor. Malformed/exhausted counters deny before writes, and exact retry
+preserves the completed result.
+
+The first integrated navigation/mission run preserved three failures caused by
+old facilitator-resolution copy assertions after automatic attack resolution
+was connected. Separate test-only `48d67b1c` matches the exact automatic/server
+resolution wording while retaining all three declared/legacy/malformed attack
+cases, failed-precondition and zero-write assertions. All **182/182** current
+navigation, mission and fleet-taxi checks pass in
+`current-navigation-mission-taxi-reconciled.green.log`; the prior failed log
+remains external. Functions build passed. These focused suites establish no
+served gameplay claim. The acknowledged runtime export contains both Auth and
+Firestore metadata at `runtime-snapshot-ceac3ace`; normal full-group native
+mission/scouting/attack proof remains the two workers' bounded deliverable.
