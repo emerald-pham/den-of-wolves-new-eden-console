@@ -50,6 +50,20 @@ it('keeps a denial visible and allows a fresh explicit retry without announcing 
  expect(screen.getByRole('status')).toHaveTextContent('Airspace restricted');
  expect(screen.getByRole('button',{name:'Unlock airspace // Press'})).toBeEnabled();
 });
+it('does not claim Press movement clearance from cached or globally held authority',()=>{
+ const current=useSessionStore.getState().session!;
+ useSessionStore.getState().setSession({...current,turnPhase:{...current.turnPhase!,airspace:{state:'restricted',tickerActive:true,pressAccess:true}}});
+ render(<AirspaceControl />);fireEvent.click(screen.getByText('Systems control'));
+ expect(screen.getByText(/Non-affiliated vessels/)).toHaveTextContent('Press clearance authorized');
+ act(()=>useSessionStore.getState().setSessionSnapshotFreshness('cache'));
+ expect(screen.getByText(/Non-affiliated vessels/)).toHaveTextContent('Await current clearance');
+ act(()=>{
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  useSessionStore.getState().setSession({...current,turnPhase:{...current.turnPhase!,airspace:{state:'restricted',tickerActive:true,pressAccess:true},
+   timerPause:{window:'restricted',remainingMs:60000,pausedAt:current.updatedAt}}});
+ });
+ expect(screen.getByText(/Non-affiliated vessels/)).toHaveTextContent('Closed');
+});
 it.each(['actor','cycle'] as const)('withdraws a delayed denial when the current %s changes',async kind=>{
  let reject!: (error:Error)=>void;
  command.mockImplementationOnce(()=>new Promise<undefined>((_resolve,deny)=>{reject=deny;}));
