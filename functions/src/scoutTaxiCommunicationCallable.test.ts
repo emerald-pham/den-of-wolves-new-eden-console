@@ -128,8 +128,7 @@ function seedPlayerTaxiScenario(targetCoordinate: string) {
     pursuitGroups: { 'fleet-1': 2, 'fleet-2': 4, 'fleet-3': 1 } });
 }
 
-it.each([['fuel',null],['players',null],['fuel',Number.MAX_SAFE_INTEGER],['players',Number.MAX_SAFE_INTEGER]] as const)
-('denies malformed or exhausted topology authority before a %s taxi can write (%s)',async(kind,revision)=>{
+it.each([['fuel',null],['players',null],['fuel',Number.MAX_SAFE_INTEGER],['players',Number.MAX_SAFE_INTEGER]] as const)('denies malformed or exhausted topology authority before a %s taxi can write (%s)',async(kind,revision)=>{
   seedPlayerTaxiScenario('1413');
   Object.assign(mock.documents.get('sessions/s1')!,{fleetPartitionRevision:revision});
   const before=structuredClone([...mock.documents.entries()]);

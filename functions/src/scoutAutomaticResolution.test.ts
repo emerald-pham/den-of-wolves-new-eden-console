@@ -124,8 +124,7 @@ describe('automatic committed scouting', () => {
     expect(commitMap).toHaveBeenCalledTimes(1);
   });
 
-  it.each(['missing receipt', 'receipt actor', 'receipt target', 'cadence actor', 'forged target', 'unlocked chart'])
-    ('fails closed before publication for %s', async fault => {
+  it.each(['missing receipt', 'receipt actor', 'receipt target', 'cadence actor', 'forged target', 'unlocked chart'])('fails closed before publication for %s', async fault => {
       if (fault === 'missing receipt') mock.documents.delete('sessions/session-1/commandReceipts/scan-1');
       if (fault === 'receipt actor' || fault === 'receipt target') {
         const r = receipt();

@@ -2730,8 +2730,7 @@ it('preserves both independent revisions when a physical partition confirmation 
   expect(mock.set.mock.calls.filter(([path])=>path!=='sessions/s1/commandReceipts/test-jump')).toEqual([]);
 });
 
-it.each([null,-1,1.5,'4',Number.MAX_SAFE_INTEGER,Number.MAX_SAFE_INTEGER+1])
-('denies a malformed or exhausted current topology revision (%s) before any partition write',async revision=>{
+it.each([null,-1,1.5,'4',Number.MAX_SAFE_INTEGER,Number.MAX_SAFE_INTEGER+1])('denies a malformed or exhausted current topology revision (%s) before any partition write',async revision=>{
   mock.coordinate='1413';mock.fleetPartitionRevision=revision;
   const call=(jumpCallables as unknown as {confirmFleetPartition:{run:(request:unknown)=>Promise<unknown>}}).confirmFleetPartition;
   await expect(call.run(request({sessionId:'s1',instanceId:'bridge',expectedNavigationRevision:0})))
