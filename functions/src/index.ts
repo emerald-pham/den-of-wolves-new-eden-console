@@ -15490,8 +15490,10 @@ export const sendScoutTaxiTransfer = onCall(async request => {
     if (attack.exists && wolfAttackBlocksNormalMovement(attack.data())) {
       throw new HttpsError('failed-precondition', 'Wait until the Wolf attack is resolved.');
     }
-    const partitionRevision = session.get('fleetPartitionRevision') ?? 0;
-    if (!Number.isSafeInteger(partitionRevision) || partitionRevision !== data.expectedFleetPartitionRevision ||
+    const storedPartitionRevision = session.get('fleetPartitionRevision');
+    const partitionRevision = storedPartitionRevision === undefined ? 0 : storedPartitionRevision;
+    if (!Number.isSafeInteger(partitionRevision) || (partitionRevision as number) < 0 ||
+        (partitionRevision as number) >= Number.MAX_SAFE_INTEGER || partitionRevision !== data.expectedFleetPartitionRevision ||
         actor.get('fleetGroupId') !== data.expectedGroupId || storedNavigation.get('revision') !== data.expectedNavigationRevision) {
       throw commandError('failed-precondition', 'Fleet membership or navigation changed; refresh before sending the taxi.', 'conflict');
     }
@@ -15664,6 +15666,12 @@ export const confirmFleetPartition = onCall<{ sessionId: string; instanceId: str
     if (!storedNavigation.exists || storedNavigation.get('revision') !== data.expectedNavigationRevision) {
       throw commandError('failed-precondition', 'Navigation changed; refresh before confirming the fleet partition.', 'conflict');
     }
+    const storedPartitionRevision = session.get('fleetPartitionRevision');
+    const partitionRevision = storedPartitionRevision === undefined ? 0 : storedPartitionRevision;
+    if (!Number.isSafeInteger(partitionRevision) || (partitionRevision as number) < 0 ||
+        (partitionRevision as number) >= Number.MAX_SAFE_INTEGER) {
+      throw commandError('failed-precondition', 'Fleet partition revision authority is malformed or exhausted.', 'conflict');
+    }
     const activeVesselIds = activeVesselIdsForSession(session);
     const groups = movementPursuitFleetGroups(activeVesselIds, groupSnapshots, playerSnapshots);
     requireMovementPursuitAuthority(storedNavigation, session);
@@ -15723,8 +15731,9 @@ export const confirmFleetPartition = onCall<{ sessionId: string; instanceId: str
     }
     const changed = !isDeepStrictEqual(groups, plan.groups) || missionMigrations.length > 0 || shuttleAudienceChanges.length > 0;
     const revision = data.expectedNavigationRevision + (changed ? 1 : 0);
+    const nextPartitionRevision = (partitionRevision as number) + (changed ? 1 : 0);
     if (changed) {
-      tx.update(db.doc(`sessions/${data.sessionId}`), { fleetPartitionRevision: revision, updatedAt: FieldValue.serverTimestamp() });
+      tx.update(db.doc(`sessions/${data.sessionId}`), { fleetPartitionRevision: nextPartitionRevision, updatedAt: FieldValue.serverTimestamp() });
       for (const group of plan.groups) tx.set(db.doc(`sessions/${data.sessionId}/fleetGroups/${group.id}`), {
         ...group, updatedAt: FieldValue.serverTimestamp(),
       });
