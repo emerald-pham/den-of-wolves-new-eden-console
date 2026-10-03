@@ -1339,12 +1339,21 @@ describe('session header', () => {
       await setDoc(doc(ctx.firestore(), `${SESSION}/wolfAttackState/current/audit/declaration-1`), {
         type: 'wolf-attack-declaration', actorUid: 'gm1',
       });
+      await setDoc(doc(ctx.firestore(), `${SESSION}/wolfAttackState/current/archives/wolf-attack-1`), {
+        type: 'wolf-attack-state', attackId: 'wolf-attack-1', status: 'resolved',
+      });
     });
+    const gmArchive = doc(as('gm1'), `${SESSION}/wolfAttackState/current/archives/wolf-attack-1`);
+    const playerArchive = doc(as('alice'), `${SESSION}/wolfAttackState/current/archives/wolf-attack-1`);
     await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/wolfAttackState/current`)));
     await assertFails(getDoc(doc(as('alice'), `${SESSION}/wolfAttackState/current`)));
     await assertSucceeds(getDocs(collection(as('gm1'), `${SESSION}/wolfAttackState/current/audit`)));
     await assertFails(getDocs(collection(as('alice'), `${SESSION}/wolfAttackState/current/audit`)));
     await assertFails(setDoc(doc(as('gm1'), `${SESSION}/wolfAttackState/current`), { status: 'forged' }));
+    await assertSucceeds(getDoc(gmArchive));
+    await assertFails(getDoc(playerArchive));
+    await assertFails(getDocs(collection(as('gm1'), `${SESSION}/wolfAttackState/current/archives`)));
+    await assertFails(setDoc(gmArchive, { status: 'forged' }));
     await assertFails(getDocs(collection(as('gm1'), `${SESSION}/wolfAttackState`)));
   });
 
