@@ -906,7 +906,6 @@ export function resolveWolfBoarding(
     const normalizedRerolls = [...(chosen.rerolls ?? [])].sort((left, right) =>
       left.source === right.source ? 0 : left.source === 'aegis' ? -1 : 1);
     uniqueStrings(normalizedRerolls.map(({ source }) => source), 'Boarding reroll sources');
-    const rerolledDice = new Set<number>();
     const rerolls = normalizedRerolls.map((choice) => {
       if (choice.source !== 'aegis' && choice.source !== 'pallas') {
         throw new Error('Unknown boarding reroll source.');
@@ -921,18 +920,16 @@ export function resolveWolfBoarding(
         throw new Error('Each boarding reroll source can choose up to three dice.');
       }
       uniqueStrings(choice.dieIndexes.map(String), 'Boarding reroll die indexes');
-      const rerollValues = choice.dieIndexes.map((dieIndex) => {
-        if (!Number.isSafeInteger(dieIndex) || dieIndex < 0 || dieIndex >= rolls.length) {
-          throw new Error('A boarding reroll names an unavailable defence die.');
-        }
-        if (rerolledDice.has(dieIndex)) throw new Error('A boarding die has already been rerolled.');
-        rerolledDice.add(dieIndex);
-        return choice.rolls?.[choice.dieIndexes.indexOf(dieIndex)] ?? boundedRandomInt(random, 6) + 1;
-      });
       if (choice.rolls !== undefined && (choice.rolls.length !== choice.dieIndexes.length ||
           choice.rolls.some((roll) => !Number.isSafeInteger(roll) || roll < 1 || roll > 6))) {
         throw new Error('The committed boarding reroll outcomes are malformed.');
       }
+      const rerollValues = choice.dieIndexes.map((dieIndex) => {
+        if (!Number.isSafeInteger(dieIndex) || dieIndex < 0 || dieIndex >= rolls.length) {
+          throw new Error('A boarding reroll names an unavailable defence die.');
+        }
+        return choice.rolls?.[choice.dieIndexes.indexOf(dieIndex)] ?? boundedRandomInt(random, 6) + 1;
+      });
       choice.dieIndexes.forEach((dieIndex, index) => { rolls[dieIndex] = rerollValues[index]!; });
       return { source: choice.source, dieIndexes: [...choice.dieIndexes], rolls: rerollValues };
     });
