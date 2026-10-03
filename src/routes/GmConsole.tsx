@@ -185,9 +185,6 @@ const WOLF_CLUE_TIER_LABELS: Readonly<Record<WolfClueDisclosure['clueTier'], str
   'traitor-name': 'Traitor name',
 };
 const WOLF_PREPARATION_MODIFIERS: readonly { id: WolfAttackPreparationModifierId; label: string }[] = [
-  { id: 'wolf-commander-target-reroll', label: 'Wolf Commander // targeting reroll' },
-  { id: 'aegis-command-and-control', label: 'AEGIS // Command and Control' },
-  { id: 'gorgoneion-force-field-projector', label: 'Gorgoneion // Force Field Projector' },
   { id: 'enriched-warheads', label: 'Enriched warheads' },
   { id: 'pallas-boarding-rerolls', label: 'Pallas // boarding rerolls' },
   { id: 'chepu-boarding-support', label: 'Chepu // boarding support' },
@@ -2957,10 +2954,14 @@ export default function GmConsole() {
                 GM-only staging // players receive no cards, targets, modifiers, or notes. Declaration,
                 dice, damage, and casualties remain separate server actions.
               </p>
+              <p className="gm-console__hint">
+                Source-owned targeting choices remain with the Wolf Commander, Executive Officer and Gorgoneion Captain.
+                The server advances legal stages after committed player choices.
+              </p>
               {wolfAttackState?.currentStep === 'targeting' && (
                 <p className="gm-console__hint">
-                  After the Wolf Commander finishes, the facilitator can close targeting and enter Long Range.
-                  Any AEGIS redirect already submitted is retained, and the current airspace deadline carries forward.
+                  Targeting awaits the current entitled player choices. Automatic progress retains
+                  committed redirects and the existing shared airspace deadline.
                 </p>
               )}
               <fieldset className="gm-wolf-preparation__fieldset">
@@ -3068,7 +3069,14 @@ export default function GmConsole() {
                 >
                   {wolfDeclarationMutation ? 'Declaring Wolf attack…' : 'Declare Wolf attack'}
                 </button>
-                {wolfAttackState?.currentStep === 'targeting' && (
+              </div>
+              {wolfAttackState?.currentStep === 'targeting' && (
+                <details className="gm-wolf-preparation__recovery">
+                  <summary className="cic-action-button">Attack progress recovery</summary>
+                  <p className="gm-console__hint">
+                    Use only to retry legal server progress. Pending player choices, shared holds
+                    and current deadlines still govern this command.
+                  </p>
                   <button
                     className="cic-action-button"
                     type="button"
@@ -3077,10 +3085,10 @@ export default function GmConsole() {
                   >
                     {wolfStageAdvanceMutation
                       ? 'Entering Long Range…'
-                      : 'Close targeting and enter Long Range'}
+                      : 'Recover targeting progress'}
                   </button>
-                )}
-              </div>
+                </details>
+              )}
               <LiveChangeRegion
                 as="p"
                 className="gm-console__status"
