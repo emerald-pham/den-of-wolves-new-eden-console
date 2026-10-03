@@ -427,7 +427,7 @@ it('projects only committed mission craft carried by the current fleet group', (
     shepherd: ['shepherd', 'hummingbird'], dione: ['dione', 'starlight'],
   } };
   const result = playerDiscoveryProjection(player({ fleetGroupId: 'fleet-2' }), state, 5, ['shepherd'], undefined, 'alice', 'shepherd');
-  expect(result.missionCommittedCraftIds).toEqual(['shepherd', 'hummingbird']);
+  expect(result.missionCommittedCraftIds).toEqual(['hummingbird', 'shepherd']);
 });
 
 it('keeps mission exploration knowledge bound to a UID across navigation refreshes and role changes', () => {
