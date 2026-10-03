@@ -25174,6 +25174,214 @@ export const commitWolfFighterRangeActionChoice = onCall<{
   return result;
 });
 
+type WolfEscortRangeActionResult = Readonly<{
+  type: 'wolf-escort-range-action-choice'; status: 'committed' | 'replayed'; sessionId: string;
+  requestId: string; attackId: string; turn: number; revision: number; range: WolfEscortRange;
+  sourceId: WolfEscortSourceId; choiceStatus: 'pending-resolution'; actionCount: number;
+}>;
+
+function wolfEscortSourceId(value: unknown): WolfEscortSourceId | null {
+  return value === 'pdf-escort-fighter-wing' || value === 'maliades' ? value : null;
+}
+
+function requireWolfEscortActor(session: DocumentSnapshot, player: DocumentSnapshot, uid: string,
+  groupSnapshot: DocumentSnapshot, sourceId: WolfEscortSourceId): void {
+  const roleId = sourceId === 'maliades' ? 'dione-engineer' : 'refinery-124-pdf-colonel';
+  const shipId = sourceId === 'maliades' ? 'dione' : 'refinery-124';
+  if (sourceId === 'maliades') requireDioneEngineer(player); else requirePdfColonel(player);
+  if (player.id !== uid || !sessionActiveRoleIds(session).includes(roleId)) {
+    throw new HttpsError('permission-denied', 'The current printed escort owner is required.');
+  }
+  const groupId = currentPlayerFleetGroupId(player);
+  const group = groupSnapshot.exists ? fleetGroupRecord(groupSnapshot.data()) : undefined;
+  if (!group || group.id !== groupId || !group.vesselIds.includes(shipId) ||
+      fleetGroupMemberShipId([group], uid, groupId) !== shipId) {
+    throw new HttpsError('permission-denied', 'The escort owner must be aboard the current host ship.');
+  }
+  if (sourceId === 'maliades') {
+    const control = parseShuttleControl(session.get('shuttleControl'))?.maliades;
+    if (!control || control.ownerRoleId !== roleId || control.holderUid !== uid) {
+      throw new HttpsError('permission-denied', 'Current Maliades custody is required.');
+    }
+  }
+  requireUsableShip(session, shipId);
+}
+
+function wolfEscortRangeState(session: DocumentSnapshot, attack: DocumentSnapshot,
+  pdfWing: DocumentSnapshot, sourceId: WolfEscortSourceId, turn: number) {
+  const attackId = attack.get('attackId');
+  const pdf = parsePdfEscortWingState(pdfWing.exists ? pdfWing.data() : undefined);
+  const maliades = parseMaliadesState(session.get('maliadesState'));
+  if (typeof attackId !== 'string' || !attackId || !pdf || !maliades) {
+    throw commandError('failed-precondition', 'The current escort combat state is malformed.', 'conflict');
+  }
+  const state = sourceId === 'maliades' ? maliades : pdf;
+  const launched = state.attackId === attackId && state.attackCycle === turn && state.launched;
+  if (launched) {
+    const choices = wolfFighterLaunchChoiceMap(attack, turn, attackId);
+    const rawLaunched = attack.get('launchedCraftIds');
+    if (choices[sourceId]?.status !== 'launched' || !Array.isArray(rawLaunched) || !rawLaunched.includes(sourceId)) {
+      throw commandError('failed-precondition', 'The escort launch records do not agree.', 'conflict');
+    }
+  }
+  return { attackId, pdf, maliades, launched };
+}
+
+function wolfEscortChoice(attack: DocumentSnapshot, range: WolfEscortRange, sourceId: WolfEscortSourceId): unknown {
+  const choices = attack.get('escortRangeChoices');
+  if (choices !== undefined && !isRecord(choices)) throw commandError('failed-precondition', 'Escort choices are malformed.', 'conflict');
+  const byRange = isRecord(choices) ? choices[range] : undefined;
+  if (byRange !== undefined && !isRecord(byRange)) throw commandError('failed-precondition', 'Escort range choices are malformed.', 'conflict');
+  return isRecord(byRange) ? byRange[sourceId] : undefined;
+}
+
+/** Read current source choices using opaque contacts; resolved dice remain private. */
+export const getWolfEscortRangeActionChoice = onCall<{ sessionId?: unknown; sourceId?: unknown; range?: unknown }>(async (request) => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const sourceId = isRecord(raw) ? wolfEscortSourceId(raw.sourceId) : null;
+  if (!isRecord(raw) || !sourceId || Object.keys(raw).some((key) => !['sessionId', 'sourceId', 'range'].includes(key)) ||
+      (raw.range !== 'medium-range' && raw.range !== 'short-range')) throw new HttpsError('invalid-argument', 'Choose a current escort source and range.');
+  const { sessionId } = requireSessionRequest(raw);
+  const range = raw.range;
+  return db.runTransaction(async (tx: Transaction) => {
+    const [session, player, attack, pdfWing] = await Promise.all([
+      tx.get(db.doc(`sessions/${sessionId}`)), tx.get(db.doc(`sessions/${sessionId}/players/${uid}`)),
+      tx.get(db.doc(`sessions/${sessionId}/wolfAttackState/current`)), tx.get(db.doc(`sessions/${sessionId}/serverState/pdfEscortWing`)),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const group = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${currentPlayerFleetGroupId(player)}`));
+    requireWolfEscortActor(session, player, uid, group, sourceId);
+    const inputs = requireWolfRangeState(session, attack, range);
+    const state = wolfEscortRangeState(session, attack, pdfWing, sourceId, inputs.turn);
+    const choice = wolfEscortChoice(attack, range, sourceId);
+    if (choice !== undefined && (!isRecord(choice) || choice.type !== 'wolf-escort-range-action-choice' ||
+        choice.status !== 'committed' || choice.attackId !== state.attackId || choice.turn !== inputs.turn ||
+        choice.sourceId !== sourceId || choice.range !== range)) {
+      throw commandError('failed-precondition', 'The current escort choice is malformed.', 'conflict');
+    }
+    const combatSource = sourceId === 'maliades' ? 'maliades' : 'pdf-escort-wing';
+    const targets = wolfRangeLegalTargetInstanceIds(range, inputs.roster).map((instanceId) => {
+      const index = inputs.roster.findIndex((ship) => ship.instanceId === instanceId);
+      return { instanceId: wolfRangeContactId(index), label: `Wolf contact ${index + 1}`,
+        targetNumber: wolfTargetNumberForRangeSource(combatSource, inputs.roster[index]!.target, inputs.receipt.ring) };
+    });
+    const common = { sessionId, attackId: state.attackId, turn: inputs.turn, revision: inputs.revision, range,
+      choiceStatus: choice === undefined ? 'pending' as const : 'committed' as const, targets, launched: state.launched };
+    return sourceId === 'maliades'
+      ? { type: 'dione-maliades-range-action-view', ...common, damage: state.maliades.damage, destroyed: state.maliades.destroyed }
+      : { type: 'wolf-fighter-range-action-view', ...common, wingId: sourceId, wingLabel: 'P.D.F. Escort Fighter Wing',
+        fighters: state.launched ? Array.from({ length: state.pdf.fighters }, (_, fighterIndex) => ({ fighterIndex })) : [] };
+  });
+});
+
+/** Save a zero-or-more-action choice; the complete shared range lock owns dice and costs. */
+export const commitWolfEscortRangeActionChoice = onCall<{
+  sessionId?: unknown; sourceId?: unknown; range?: unknown; requestId?: unknown;
+  expectedTurn?: unknown; expectedRevision?: unknown; actions?: unknown; fighterIndexes?: unknown; targetContactIds?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const sourceId = isRecord(raw) ? wolfEscortSourceId(raw.sourceId) : null;
+  if (!isRecord(raw) || !sourceId || (raw.range !== 'medium-range' && raw.range !== 'short-range') ||
+      !isCanonicalRequestId(raw.requestId) || !Number.isSafeInteger(raw.expectedTurn) || !Number.isSafeInteger(raw.expectedRevision)) {
+    throw new HttpsError('invalid-argument', 'The escort range choice needs its current revision.');
+  }
+  const { sessionId } = requireSessionRequest(raw);
+  const range = raw.range;
+  const requestId = raw.requestId;
+  const field = range === 'medium-range' ? 'actions' : sourceId === 'maliades' ? 'targetContactIds' : 'fighterIndexes';
+  const permitted = ['sessionId', 'sourceId', 'range', 'requestId', 'expectedTurn', 'expectedRevision', field];
+  const choices = raw[field];
+  if (Object.keys(raw).some((key) => !permitted.includes(key)) || !Array.isArray(choices)) throw new HttpsError('invalid-argument', 'The escort action list is malformed.');
+  if (range === 'medium-range') {
+    const seenTargets = new Set<string>();
+    const seenKinds = new Set<unknown>();
+    const seenFighters = new Set<unknown>();
+    if (choices.length > (sourceId === 'maliades' ? 2 : 4) || choices.some((action) => {
+      if (!isRecord(action) || (action.kind !== 'attack' && action.kind !== 'target-shift') ||
+          typeof action.targetContactId !== 'string' || !/^contact-[1-9]\d*$/.test(action.targetContactId)) return true;
+      const keys = ['kind', 'targetContactId', ...(sourceId === 'maliades' ? [] : ['fighterIndex']), ...(action.kind === 'target-shift' ? ['shift'] : [])];
+      if (JSON.stringify(Object.keys(action).sort()) !== JSON.stringify(keys.sort()) ||
+          (action.kind === 'target-shift' && action.shift !== -1 && action.shift !== 1)) return true;
+      if (sourceId === 'maliades') {
+        if (seenTargets.has(action.targetContactId) || seenKinds.has(action.kind)) return true;
+        seenTargets.add(action.targetContactId); seenKinds.add(action.kind);
+      } else {
+        if (!Number.isSafeInteger(action.fighterIndex) || (action.fighterIndex as number) < 0 || seenFighters.has(action.fighterIndex)) return true;
+        seenFighters.add(action.fighterIndex);
+      }
+      return false;
+    })) throw new HttpsError('invalid-argument', 'Use distinct valid escort actions at Medium Range.');
+  } else if (sourceId === 'maliades') {
+    if (choices.length > 2 || new Set(choices).size !== choices.length || choices.some((id) => typeof id !== 'string' || !/^contact-[1-9]\d*$/.test(id)))
+      throw new HttpsError('invalid-argument', 'Choose up to two distinct Maliades targets.');
+  } else if (new Set(choices).size !== choices.length || choices.some((index) => !Number.isSafeInteger(index) || (index as number) < 0)) {
+    throw new HttpsError('invalid-argument', 'Choose each PDF fighter at most once.');
+  }
+  const fingerprint: CommandFingerprint = { action: 'commit-wolf-escort-range-action', sessionId, requestId, actorUid: uid,
+    instanceId: sourceId, expectedRevision: raw.expectedRevision as number,
+    payload: { expectedTurn: raw.expectedTurn as number, range, choice: JSON.stringify(choices) } };
+  const result = await db.runTransaction(async (tx: Transaction): Promise<WolfEscortRangeActionResult> => {
+    const attackRef = db.doc(`sessions/${sessionId}/wolfAttackState/current`);
+    const receiptRef = commandReceiptRef(sessionId, requestId);
+    const auditRef = db.doc(`sessions/${sessionId}/wolfAttackState/current/audit/${requestId}`);
+    const [session, player, attack, pdfWing, receipt, audit] = await Promise.all([
+      tx.get(db.doc(`sessions/${sessionId}`)), tx.get(db.doc(`sessions/${sessionId}/players/${uid}`)), tx.get(attackRef),
+      tx.get(db.doc(`sessions/${sessionId}/serverState/pdfEscortWing`)), tx.get(receiptRef), tx.get(auditRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const group = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${currentPlayerFleetGroupId(player)}`));
+    requireWolfEscortActor(session, player, uid, group, sourceId);
+    const replay = replayBoundCommand(receipt, fingerprint, (value): value is WolfEscortRangeActionResult =>
+      isRecord(value) && value.type === 'wolf-escort-range-action-choice' && value.sessionId === sessionId &&
+      value.requestId === requestId && value.sourceId === sourceId && value.range === range &&
+      value.attackId === attack.get('attackId') && value.turn === sessionTurn(session.get('currentTurn')) &&
+      Number.isSafeInteger(value.revision) && Number.isSafeInteger(value.actionCount), 'Escort range choice');
+    if (replay) return { ...replay, status: 'replayed' };
+    if (audit.exists) rejectLegacyEventReplay('Escort range choice');
+    const inputs = requireWolfRangeState(session, attack, range);
+    if (raw.expectedTurn !== inputs.turn || raw.expectedRevision !== inputs.revision) throw commandError('failed-precondition', 'The escort range choice is stale.', 'stale-revision');
+    const state = wolfEscortRangeState(session, attack, pdfWing, sourceId, inputs.turn);
+    const resolved = sourceId === 'maliades' ? (range === 'medium-range' ? state.maliades.medium !== null : state.maliades.short !== null)
+      : (range === 'medium-range' ? state.pdf.mediumResolved : state.pdf.shortResolved);
+    if (!state.launched || resolved || (sourceId === 'maliades' ? state.maliades.destroyed : state.pdf.fighters < 1) ||
+        wolfEscortChoice(attack, range, sourceId) !== undefined) throw commandError('failed-precondition', 'This escort cannot make another action at this range.', 'conflict');
+    const legal = new Set(wolfRangeLegalTargetInstanceIds(range, inputs.roster).map((instanceId) => wolfRangeContactId(inputs.roster.findIndex((ship) => ship.instanceId === instanceId))));
+    const target = (id: string) => {
+      if (!legal.has(id)) throw commandError('failed-precondition', 'The escort target is no longer available.', 'conflict');
+      return inputs.roster[Number(id.slice('contact-'.length)) - 1]!;
+    };
+    let persisted: Fields;
+    if (range === 'medium-range') {
+      persisted = { actions: (choices as Fields[]).map((action) => {
+        if (sourceId !== 'maliades' && (action.fighterIndex as number) >= state.pdf.fighters) throw commandError('failed-precondition', 'The selected PDF fighter is no longer available.', 'conflict');
+        const ship = target(action.targetContactId as string);
+        return { ...(sourceId === 'maliades' ? {} : { fighterIndex: action.fighterIndex }), kind: action.kind, targetInstanceId: ship.instanceId,
+          ...(action.kind === 'target-shift' ? { shift: action.shift, targetNumber: wolfTargetNumberForRangeSource(sourceId === 'maliades' ? 'maliades' : 'pdf-escort-wing', ship.target, inputs.receipt.ring) } : {}) };
+      }) };
+    } else if (sourceId === 'maliades') persisted = { targetInstanceIds: (choices as string[]).map((id) => target(id).instanceId) };
+    else {
+      if ((choices as number[]).some((index) => index >= state.pdf.fighters)) throw commandError('failed-precondition', 'The selected PDF fighter is no longer available.', 'conflict');
+      persisted = { fighterIndexes: [...choices as number[]].sort((a, b) => a - b) };
+    }
+    const nextRevision = inputs.revision + 1;
+    const all = isRecord(attack.get('escortRangeChoices')) ? attack.get('escortRangeChoices') as Fields : {};
+    const byRange = isRecord(all[range]) ? all[range] : {};
+    const choice = { type: 'wolf-escort-range-action-choice', status: 'committed', sourceId, range,
+      attackId: state.attackId, turn: inputs.turn, revision: nextRevision, actorUid: uid,
+      actorRoleId: sourceId === 'maliades' ? 'dione-engineer' : 'refinery-124-pdf-colonel', requestId, ...persisted };
+    const result: WolfEscortRangeActionResult = { type: 'wolf-escort-range-action-choice', status: 'committed', sessionId, requestId,
+      attackId: state.attackId, turn: inputs.turn, revision: nextRevision, range, sourceId, choiceStatus: 'pending-resolution', actionCount: choices.length };
+    tx.update(attackRef, { revision: nextRevision, escortRangeChoices: { ...all, [range]: { ...(byRange as Fields), [sourceId]: choice } }, updatedAt: FieldValue.serverTimestamp() });
+    tx.set(auditRef, { ...choice, deadlineAt: inputs.deadlineAt, createdAt: FieldValue.serverTimestamp() });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+  await reconcileWolfAttackProgress(sessionId);
+  return result;
+});
+
 type WolfForceFieldUnavailableReason =
   | 'no-current-captain'
   | 'ambiguous-current-captain'
