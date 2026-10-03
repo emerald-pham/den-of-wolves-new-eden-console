@@ -44,7 +44,7 @@ describe('Wolf boarding decision presenters', () => {
     expect(screen.queryByLabelText(/security teams to commit/i)).toBeNull();
     fireEvent.click(screen.getByRole('checkbox', { name: /roll two dice per security team/i }));
     fireEvent.change(screen.getByLabelText(/front-line dice/i), { target: { value: '2' } });
-    fireEvent.click(screen.getByRole('button', { name: /commit defence/i }));
+    fireEvent.click(screen.getByRole('button', { name: /commit militia risk/i }));
     expect(onChoose).toHaveBeenCalledWith({ militiaDoubleTeams: true, militiaFrontLineDice: 2 });
   });
 

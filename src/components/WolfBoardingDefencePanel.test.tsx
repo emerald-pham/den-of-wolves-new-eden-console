@@ -45,6 +45,6 @@ it('explains when the current ship defence stage has not opened yet', () => {
     onChoose={vi.fn()}
   />);
 
-  expect(screen.getByRole('status')).toHaveTextContent(/this ship's defence choice is not open yet/i);
+  expect(screen.getByRole('status')).toHaveTextContent(/this ship.s defence choice is not open yet/i);
   expect(screen.queryByRole('button', { name: /commit defence/i })).not.toBeInTheDocument();
 });

@@ -4,13 +4,16 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { useSessionStore } from '@/store/useSessionStore';
 import type {
   GameSession,
+  GmInstance,
   Player,
   WolfAttackMemberView,
   WolfBoardingDefenceChoiceView,
+  WolfBoardingSpecialChoiceReadResult,
   WolfForceFieldChoiceView,
   WolfRangeActionChoiceView,
 } from '@/types/game';
 import WolfBoardingDefencePanel, { WolfBoardingDefencePanelView } from './WolfBoardingDefencePanel';
+import WolfBoardingSpecialChoicePanel from './WolfBoardingSpecialChoicePanel';
 import WolfForceFieldChoicePanel, { WolfForceFieldChoicePanelView } from './WolfForceFieldChoicePanel';
 import WolfRangeActionPanel, { WolfRangeActionPanelView } from './WolfRangeActionPanel';
 
@@ -23,6 +26,8 @@ const mocks = vi.hoisted(() => ({
   assignRange: vi.fn(),
   getBoarding: vi.fn(),
   commitBoarding: vi.fn(),
+  getBoardingSpecial: vi.fn(),
+  commitBoardingSpecial: vi.fn(),
 }));
 
 vi.mock('@/lib/firestore', () => ({ subscribeWolfAttackMemberView: mocks.subscribe }));
@@ -34,6 +39,8 @@ vi.mock('@/lib/sessionService', () => ({
   assignWolfRangeTargets: mocks.assignRange,
   getWolfBoardingDefenceChoice: mocks.getBoarding,
   commitWolfBoardingDefenceChoice: mocks.commitBoarding,
+  getWolfBoardingSpecialChoice: mocks.getBoardingSpecial,
+  commitWolfBoardingSpecialChoice: mocks.commitBoardingSpecial,
 }));
 
 const deadlineAt = '2026-10-03T12:10:00.000Z';
@@ -77,6 +84,15 @@ function player(overrides: Partial<Player> = {}): Player {
     fleetGroupId: 'fleet-1' as NonNullable<Player['fleetGroupId']>, connectionGeneration: 1, joinedAt: 'now' as never,
     ...overrides,
   };
+}
+
+function connectFacilitator(): void {
+  const currentSession = session();
+  const currentGm = player({ role: 'gm' });
+  useSessionStore.getState().setIdentity(currentSession, currentGm);
+  useSessionStore.getState().setGmInstance({ id: 'gm-1' as GmInstance['id'], sessionId: 's1',
+    uid: currentGm.uid, name: 'GM', deviceLabel: 'test', claimedAt: 'now' as never });
+  useSessionStore.setState({ connection: 'live', sessionSnapshotFreshness: 'server' });
 }
 
 const callbacks: Array<(view: WolfAttackMemberView | null) => void> = [];
@@ -140,6 +156,8 @@ beforeEach(() => {
   mocks.assignRange.mockReset().mockResolvedValue(undefined);
   mocks.getBoarding.mockReset().mockResolvedValue(boardingView);
   mocks.commitBoarding.mockReset().mockResolvedValue(undefined);
+  mocks.getBoardingSpecial.mockReset();
+  mocks.commitBoardingSpecial.mockReset().mockResolvedValue(undefined);
   Object.defineProperty(window.navigator, 'onLine', { configurable: true, value: true });
 });
 
@@ -272,6 +290,26 @@ it('ignores a boarding mutation reply after the attack or current fleet berth ch
   })));
   await act(async () => delayedCommit.resolve(undefined));
   expect(screen.queryByText(/boarding defence committed/i)).not.toBeInTheDocument();
+});
+
+it('shows the Commander ruling only to the current live GM instance and sends the explicit audit text', async () => {
+  connectFacilitator();
+  const rulingView: WolfBoardingSpecialChoiceReadResult = {
+    type: 'wolf-boarding-special-choice-view', sessionId: 's1', turn: 1, revision: 7,
+    choice: { kind: 'commander-ruling', targetShipId: 'aegis',
+      condition: 'All Commander-led Wolf Boarding Parties were destroyed.' },
+  };
+  mocks.getBoardingSpecial.mockResolvedValue(rulingView);
+  render(<WolfBoardingSpecialChoicePanel facilitator />);
+  publish(boarding);
+  const ruling = await screen.findByRole('textbox', { name: /facilitator ruling/i });
+  const user = userEvent.setup();
+  await user.type(ruling, 'The surviving transport remains in the next attack.');
+  await user.click(screen.getByRole('button', { name: /record facilitator ruling/i }));
+  await waitFor(() => expect(mocks.commitBoardingSpecial).toHaveBeenCalledWith(1, 7, {
+    kind: 'commander-ruling', targetShipId: 'aegis',
+    rulingText: 'The surviving transport remains in the next attack.',
+  }));
 });
 
 it('preserves choice drafts on same-revision refreshes and resets them when authority changes', async () => {
