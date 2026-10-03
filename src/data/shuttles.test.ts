@@ -16,8 +16,24 @@ import { SHIPS } from './ships';
 import { PDF_ESCORT_FIGHTER_WING } from './pdfConsoles';
 import { SHUTTLE_CARGO_TYPES as SERVER_SHUTTLE_CARGO_TYPES } from '../../functions/src/shuttleCargoTransfer';
 import { awayMissionCraftForRole } from '../../functions/src/awayMissionCards';
+import { ROLE_OWNED_CRAFT_CATALOG } from '../../functions/src/craftOwnership';
 
 describe('fleet shuttlebays', () => {
+  it('keeps the player shuttle board and server craft allowlist aligned for boarding support', () => {
+    const ids = [
+      'pallas', 'philia', 'blacksmith', 'macaw', 'black-sheep', 'condor', 'chacau', 'chepu', 'wobbly', 'ally',
+    ];
+    const client = SHUTTLECRAFT.flatMap((craft) => {
+      const boardingSupport = (craft as unknown as { boardingSupport?: string }).boardingSupport;
+      return boardingSupport ? [{ craftId: craft.id, boardingSupport }] : [];
+    }).filter(({ craftId }) => ids.includes(craftId));
+    const server = ROLE_OWNED_CRAFT_CATALOG.flatMap((craft) =>
+      craft.boardingSupport ? [{ craftId: craft.id, boardingSupport: craft.boardingSupport }] : []);
+
+    expect(client).toEqual(server);
+    expect(server.map(({ craftId }) => craftId)).toEqual(ids);
+  });
+
   it('keeps only printed range-combat shuttles on the Wolf battle table', () => {
     expect(BATTLE_TABLE_SHUTTLE_IDS).toEqual(['maliades', 'highwall', 'boa']);
     expect(SHUTTLECRAFT.filter((shuttle) => shuttle.wolfAttackRole === 'park-only')
