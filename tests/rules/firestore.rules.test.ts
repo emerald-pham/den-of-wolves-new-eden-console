@@ -1150,6 +1150,34 @@ describe('session header', () => {
       .not.toHaveProperty('voyage33Movement');
   });
 
+  it('does not expose cross-group craft, location, or mission maps in a split member root read', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await updateDoc(doc(db, SESSION), { phase: 'active', fleetPartitionRevision: 1,
+        shuttleDockings: [{ shuttleId: 'starlight', shipId: 'icebreaker', dockedAt: '2026-10-02T12:00:00.000Z' }],
+        shuttleControl: { starlight: { ownerUid: 'foreign-player', holderUid: 'foreign-player', revision: 2 } },
+        shuttleCargo: { starlight: { food: 2 } },
+        shuttleVisitLog: [{ id: 'visit-1', shuttleId: 'starlight', shipId: 'icebreaker', action: 'docked', occurredAt: '2026-10-02T12:00:00.000Z' }],
+        missionCraftCommitments: { starlight: { missionId: 'foreign-mission', sourceCycle: 2 } },
+      });
+      await setDoc(doc(db, `${SESSION}/players/bob`), {
+        uid: 'bob', role: 'player', displayName: 'Bob', fleetGroupId: 'fleet-2', connected: true,
+      });
+      await setDoc(doc(db, `${SESSION}/fleetGroups/fleet-1`), {
+        id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['alice'], memberShipIds: { alice: 'aegis' },
+      });
+      await setDoc(doc(db, `${SESSION}/fleetGroups/fleet-2`), {
+        id: 'fleet-2', vesselIds: ['icebreaker'], memberUids: ['bob'], memberShipIds: { bob: 'icebreaker' },
+      });
+    });
+
+    const snapshot = await assertSucceeds(getDoc(doc(as('alice'), SESSION)));
+    const data = snapshot.data()!;
+    for (const field of ['shuttleDockings', 'shuttleControl', 'shuttleCargo', 'shuttleVisitLog', 'missionCraftCommitments']) {
+      expect(data).not.toHaveProperty(field);
+    }
+  });
+
   it('keeps fleet-group membership and vessel tuples server-only', async () => {
     const group = `${SESSION}/fleetGroups/fleet-1`;
     await assertFails(getDoc(doc(as('alice'), group)));
