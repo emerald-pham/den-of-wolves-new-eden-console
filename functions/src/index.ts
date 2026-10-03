@@ -21080,7 +21080,7 @@ function wolfAttackDecisionSummary(
     boarding = { status: targets.some((entry) => entry.status === 'pending') ? 'pending' : 'resolved', targets };
   }
 
-  const warheadOwners = currentWolfRoleOwners(players, fleetGroups, 'executive-officer', 'aegis');
+  const warheadOwners = currentWolfRoleOwners(players, fleetGroupSnapshots, 'executive-officer', 'aegis');
   let warheadStatus: 'pending' | 'enriched' | 'passed' | 'unavailable' = 'unavailable';
   try { warheadStatus = currentAegisEnrichedWarheads(state) ??
     (currentStep === WOLF_ATTACK_DECLARATION_STEP && warheadOwners.length > 0 &&
