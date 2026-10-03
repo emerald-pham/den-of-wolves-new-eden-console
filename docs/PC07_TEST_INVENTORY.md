@@ -1177,3 +1177,9 @@ Changed cases:
 - ignores a deferred old-session automatic arrival %s and lets the new identity arrive
 
 - ignores a deferred manual retry after identity changes and preserves the new arrival pending state
+
+## In-transit history regression and ordinary proof
+
+Test-only `959fc990` adds `retains only the current in-transit craft’s local history without inventing a docking` to `functions/src/joinSessionCallable.test.ts`. The real exported reader must retain a valid AEGIS visit for its current in-transit Starlight craft while excluding a Shepherd visit and an unknown craft, keeping dockings empty and performing no writes. The retained red log fails with an empty history. Source-only `a5471669` lets the typed visit parser recognize printed craft during flight; the final transactional audience filter still applies current craft and host entitlement. All81 join, resume and member tests pass in `root-takeover/member-transit-history.green.log`.
+
+Test-only `7d738953` extends `scripts/test-pc07-unavailable-eo-press-http.mjs` to inspect a real server flight after normal phone Begin transit: retain actual preflight own history, empty vessel maps and no invented docking. Its first attempt also incorrectly demanded a newly written departed event, which the existing movement contract does not create. Separate test-only `1a46f91f` removes only that unsupported event expectation; it preserves the full meaningful flight/history assertions and every prior movement/attack check. The failed harness log and JSON remain external, alongside the corrected normal proof. This correction changes no gameplay source or established test expectation.
