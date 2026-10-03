@@ -25900,6 +25900,20 @@ function wolfBoardingResolutionChoices(
   const rerolls = isRecord(rawRerolls) ? rawRerolls : {};
   const locked = Array.isArray(rawLocked) ? rawLocked as readonly WolfBoardingDefence[] : [];
   const pallasHost = supportCraft.find(({ shuttleId }) => shuttleId === 'pallas')?.hostShipId ?? null;
+  const attackedTargetIds = new Set(attackedTargets.map(({ target }) => target));
+  if (Object.keys(rerolls).some((source) => source !== 'aegis' && source !== 'pallas')) return undefined;
+  for (const source of ['aegis', 'pallas'] as const) {
+    const value = rerolls[source];
+    if (value === undefined) continue;
+    if (!isRecord(value) || value.source !== source || typeof value.targetShipId !== 'string' ||
+        !attackedTargetIds.has(value.targetShipId) || !Array.isArray(value.dieIndexes) || !Array.isArray(value.rolls) ||
+        value.dieIndexes.length > 3 || value.dieIndexes.length !== value.rolls.length ||
+        value.dieIndexes.some((index) => !Number.isSafeInteger(index) || (index as number) < 0) ||
+        new Set(value.dieIndexes as number[]).size !== value.dieIndexes.length ||
+        value.rolls.some((roll) => !Number.isSafeInteger(roll) || (roll as number) < 1 || (roll as number) > 6) ||
+        source === 'aegis' && value.targetShipId !== 'aegis' ||
+        source === 'pallas' && pallasHost !== value.targetShipId) return undefined;
+  }
   const resolution: WolfBoardingDefence[] = [];
   for (const { target } of attackedTargets) {
     const choice = defence[target];
@@ -25932,13 +25946,7 @@ function wolfBoardingResolutionChoices(
     const sourceRerolls: WolfBoardingRerollChoice[] = [];
     for (const source of ['aegis', 'pallas'] as const) {
       const value = rerolls[source];
-      if (value === undefined) continue;
-      if (!isRecord(value) || value.source !== source || value.targetShipId !== target ||
-          !Array.isArray(value.dieIndexes) || !Array.isArray(value.rolls) ||
-          value.dieIndexes.length > 3 || value.dieIndexes.length !== value.rolls.length ||
-          value.dieIndexes.some((index) => !Number.isSafeInteger(index) || (index as number) < 0) ||
-          value.rolls.some((roll) => !Number.isSafeInteger(roll) || (roll as number) < 1 || (roll as number) > 6) ||
-          source === 'aegis' && target !== 'aegis' || source === 'pallas' && pallasHost !== target) return undefined;
+      if (value === undefined || !isRecord(value) || value.targetShipId !== target) continue;
       sourceRerolls.push({ source, dieIndexes: value.dieIndexes as number[], rolls: value.rolls as number[] });
     }
     resolution.push({
