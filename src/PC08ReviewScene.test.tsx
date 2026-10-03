@@ -3,8 +3,13 @@ import {expect, it, vi} from 'vitest';
 import PC08ReviewScene from './PC08ReviewScene';
 import {useSessionStore} from '@/store/useSessionStore';
 
-vi.mock('./components/ContactPlot', () => ({default: ({contacts}: {contacts: {tag: string}[]}) =>
-  <div>{contacts.map(contact => <span key={contact.tag}>{contact.tag}</span>)}</div>}));
+vi.mock('./components/ContactPlot', () => ({default: ({contacts, centerDockedCraftTags}: {
+  contacts: {tag: string; dockedCraftTags?: readonly string[]}[]; centerDockedCraftTags?: readonly string[];
+}) => <div>
+  <div aria-label="Origin craft">{centerDockedCraftTags?.map(tag => <span key={tag}>{tag}</span>)}</div>
+  {contacts.map(contact => <div key={contact.tag} aria-label={contact.tag}><span>{contact.tag}</span>
+    {contact.dockedCraftTags?.map(tag => <span key={tag}>{tag}</span>)}</div>)}
+</div>}));
 
 it('offers five keyboard-accessible checks and a visible route to the station chooser', () => {
   render(<PC08ReviewScene />);
@@ -199,4 +204,23 @@ it('retains independent launch or pass decisions through the actual Alpha, Bravo
   expect(screen.getByRole('button', {name: 'Show Short Range loss sample'})).toBeDisabled();
   fireEvent.click(screen.getByRole('button', {name: 'Bravo sample'}));
   expect(screen.getByRole('button', {name: 'Launch Fighter Wing Bravo'})).toBeEnabled();
+});
+
+
+it('feeds truthful docked, travelling, parked and rejoined craft into the real plot adapter', () => {
+  render(<PC08ReviewScene />);
+  const origin = screen.getByLabelText('Origin craft');
+  expect(origin).toHaveTextContent('DOCKED // STARLIGHT');
+  expect(origin).toHaveTextContent('DOCKED // FIGHTER WING ALPHA');
+  expect(origin).toHaveTextContent('DOCKED // FIGHTER WING BRAVO');
+  fireEvent.click(screen.getByRole('button', {name: 'travelling sample'}));
+  expect(screen.queryByText('DOCKED // STARLIGHT')).not.toBeInTheDocument();
+  expect(screen.getByText('STARLIGHT')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', {name: 'parked sample'}));
+  expect(screen.getByLabelText('ICEBREAKER')).toHaveTextContent('DOCKED // STARLIGHT');
+  expect(origin).not.toHaveTextContent('DOCKED // STARLIGHT');
+  fireEvent.click(screen.getByRole('button', {name: 'rejoined sample'}));
+  expect(screen.getByLabelText('DIONE')).toHaveTextContent('DOCKED // MALÍADES');
+  fireEvent.click(screen.getByRole('button', {name: 'Cached connection sample'}));
+  expect(screen.queryByLabelText('Origin craft')).not.toBeInTheDocument();
 });
