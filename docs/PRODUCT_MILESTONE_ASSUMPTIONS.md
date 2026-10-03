@@ -383,3 +383,13 @@ the original assumption; append the resolution so the decision is traceable.
 | Source | Facilitator Guide v1.1 printed p. 17/PDF p. 19 permits the scout-taxi round trip carrying up to two players or one or two fuel, within the craft's printed range and scouting allowance. It supplies no replacement-pilot procedure. |
 | Chosen reading | The current shuttle owner remains at the launch ship and cannot select themself as a passenger. Other currently connected players physically at that launch ship may travel within the printed limit. The server commits payload, destination and group membership together. |
 | Alternatives and limits | Moving the pilot would invent a control handoff and could strand the round trip. The taxi carries passengers or fuel, never both, and does not expose destination-group chart facts or notes to the pilot. |
+
+### PC07-A5 — Use current charged readiness for the Gorgoneion projector
+
+| Field | Decision |
+|---|---|
+| ID and checkpoint | PC07-A5, P437; owner integration decision, recorded 2026-10-03 under PC07 authorization. |
+| Source | Base A4 duplex v1.1 pack, PDF p. 23, Gorgoneion Captain sheet. The complete primary page was visually inspected privately. The Captain chooses one ship before targeting; its Force Field reduces that ship's final damage by two. |
+| Chosen reading | The current admitted Captain makes the genuine use/pass and eligible local ship choice before targeting begins. The recovered server-owned current-cycle projector charge supplies readiness; current physical host/group, positive population and mutiny gates still apply, and any recognized explicit damage/destruction denial wins. |
+| Ambiguity and limits | The recovered small-ship state has no separate damage deck or projector-damage model. Adding one would expand PC07. This readiness foundation is an explicit digital assumption, not a claim that the printed projector ignores damage. No later damage mechanic receives closure credit. |
+| Effect and proof | A GM draft checkbox cannot fabricate this Captain choice. A configured disconnected Captain remains pending; an unavailable source action is recorded as unavailable. Current host/group privacy, stale offers, genuine choices, exact retries and the final two-point reduction require native composed proof and independent review. |
