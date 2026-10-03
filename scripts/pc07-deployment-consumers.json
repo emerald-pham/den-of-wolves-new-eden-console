@@ -20,5 +20,28 @@
         "clearTurnAdvanceInterstitial"
       ]
     }
+  },
+  "index": {
+    "before": "2270c160ff8ee70f929bff6077dfdc1e8fa5e3d1eeaaaa480e9ef2cacd4a83a4",
+    "after": "5dd0a547c2851685c0f95561024ef8b38092a376ae4e01e4fb4aa79771a4c1f9",
+    "consumers": [
+      "advanceTurn",
+      "beginOpenAirspacePhase",
+      "clearTurnAdvanceInterstitial",
+      "declareWolfAttack",
+      "disconnectFromSession",
+      "dismissPressDispatch",
+      "expireStalePlayers",
+      "joinSession",
+      "publishPressDispatch",
+      "refreshPresence",
+      "resumeSession",
+      "setDebriefMode",
+      "setEmergencyTimerPaused",
+      "setFleetRedAlert",
+      "startGame",
+      "startSinglePlayerDemo",
+      "unlockPressAirspace"
+    ]
   }
 }

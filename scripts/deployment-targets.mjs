@@ -638,6 +638,8 @@ function changedIndexCallables(before, after, cwd, sourceAtRevision = null) {
   };
   const previousSource = readAt(before);
   const currentSource = readAt(after);
+  const pc07Consumers = pc07TransitionConsumers('functions/src/index.ts', previousSource, currentSource);
+  if (pc07Consumers) return pc07Consumers;
   const previous = functionExports(previousSource);
   const current = functionExports(currentSource);
   const names = new Set([...previous.keys(), ...current.keys()]);
@@ -678,8 +680,6 @@ function changedIndexCallables(before, after, cwd, sourceAtRevision = null) {
     }
     return [...new Set([...changed, ...PC05_INDEX_HELPER_TRANSITION.consumers])];
   }
-  const pc07Consumers = pc07TransitionConsumers('functions/src/index.ts', previousSource, currentSource);
-  if (pc07Consumers) return pc07Consumers;
   const pc06Consumers = pc06TransitionConsumers('functions/src/index.ts', previousSource, currentSource);
   if (pc06Consumers) return [...new Set([...changed, ...pc06Consumers])];
   return changed;
