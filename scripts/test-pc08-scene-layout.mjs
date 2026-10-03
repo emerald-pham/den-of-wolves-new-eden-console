@@ -81,6 +81,15 @@ test('PC08 real-presenter review is isolated and usable in eight viewport and mo
               await page.getByRole('button', {name: 'Damaged weapon sample', exact: true}).click();
               assert.ok(await page.getByRole('button', {name: 'Use selected actions', exact: true}).isDisabled());
             } else if (index === 2) {
+              await page.getByRole('button', {name: 'Launch Fighter Wing Alpha', exact: true}).click();
+              assert.ok(await page.getByRole('button', {name: 'Launch Fighter Wing Bravo', exact: true}).isEnabled());
+              for (let fighter = 1; fighter <= 4; fighter++) {
+                await page.getByRole('combobox', {name: `Fighter ${fighter} action`, exact: true}).selectOption(fighter === 1 ? 'target-shift' : 'attack');
+                await page.getByRole('combobox', {name: `Fighter ${fighter} target`, exact: true}).selectOption('local-wolf-1');
+                if (fighter === 1) await page.getByRole('combobox', {name: 'Fighter 1 shift', exact: true}).selectOption('1');
+              }
+              await page.getByRole('button', {name: 'Resolve Medium actions', exact: true}).click();
+              assert.match(await page.getByRole('status', {name: 'Prepared fighter result'}).textContent(), /Alpha choice committed/);
               await page.getByRole('button', {name: 'Bravo sample', exact: true}).click();
               await page.getByRole('button', {name: 'Show Short Range loss sample', exact: true}).click();
               assert.match(await page.getByRole('status', {name: 'Prepared fighter result'}).textContent(), /Other wings retain/);
