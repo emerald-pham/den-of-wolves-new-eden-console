@@ -87,7 +87,7 @@ it('withdraws malformed audience data without a raw revision and waits for a new
 
   expect(onView.mock.calls).toEqual([[memberView], [null]]);
   callbacks[0]?.(snapshot(memberView));
-  expect(onView).toHaveBeenCalledTimes(2);
+  expect(onView).toHaveBeenLastCalledWith(null);
   callbacks[0]?.(snapshot({ ...memberView, revision: 5 }));
   expect(onView).toHaveBeenLastCalledWith(expect.objectContaining({ revision: 5 }));
 });
