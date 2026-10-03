@@ -27,6 +27,13 @@ The ordinary player and Press root read is denied; entitled private projections
 and the GM root read remain available. Group changes immediately withdraw old
 operations while the new authorized read arrives.
 
+A legal Comms scan now resolves automatically from the locked chart after the
+player chooses its target. The entitled station receives its private report;
+the GM sees the committed result log. Exact retry or reconnect preserves the
+first result, while the protected GM recovery control remains available.
+The 120 current scout/request/map/report/log/wire checks pass. Ordinary
+composed Comms proof and final candidate review remain open.
+
 The attack foundation declares and parks craft atomically, exposes separate
 crew and facilitator views, and preserves genuine player choices. Full boarding,
 final damage and automatic airspace recovery are still being reconciled with

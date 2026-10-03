@@ -297,3 +297,40 @@ a read-only request. The refreshed `member-history-http.json` records this
 stronger normal recovery and labels the disconnected-state fixture explicitly.
 Harness failures from using the wrong reply field and comparing a legitimate
 resume timestamp as if it were read-only remain preserved outside Git.
+
+
+### Automatic Comms scouting reconciliation
+
+The fixed P326 reconciliation found that a legal committed scan still awaited a
+routine GM reveal although the locked chart determines its fact. This contradicted
+the existing PC07 operating contract. Separate red commits `7501e810`,
+`67095bc6`, `37ffb48b`, `629260ee` and `d9bf5cdb` cover automatic continuation,
+private/current GM logging, current Comms station delivery, forged receipt/cadence
+denial, first-result replay and group-merge recovery. `b7bc625f` corrects the new
+fixture to the existing `replacement-role` source identity. Existing request
+controller tests isolate the separately tested report adapter; their authority
+and late-response assertions remain, while the old manual-follow-up copy is
+replaced by the authorized automatic workflow. No old assertion was weakened to
+accept a missing result.
+
+Implementation `249d085b` and `da1fde6d` add a durable request-create server
+continuation, requiring an exact immutable command receipt and cadence before
+chart lookup. The first fact, private note, private GM audit, hidden Nebula marker
+and current ship-map fanout commit in one transaction. Repeated delivery and a
+group merge preserve that first result and timestamp without new map writes.
+A disconnected requester does not cancel an already committed legal scan; current
+reader authority still gates delivery on reconnect. The protected GM resolver
+remains recovery, and cannot fabricate an automatic audit's facilitator identity.
+The current owned GM receives a bounded, identity-free result log through a strict
+callable. Every legal scouting console mounts its private report; pending reads
+poll serially and withdraw on identity, group, generation or connection changes.
+
+Focused reconciliation passes **120/120** across ten current server, request,
+map, report, GM log and wire consumer files; Functions build and typecheck pass.
+Evidence is `scout-automatic-ui.complete-green.log` and the adjacent preserved
+red/build/typecheck logs outside Git. The first implementation exposed six
+existing malformed-input error-contract failures, repaired in source without
+editing those tests. Ordinary authenticated automatic Comms proof, final
+responsive candidate checks, independent review, CI and deployment remain open.
+The owner will acknowledge served source after preserving worker state and
+restarting the owned emulator; compiling alone is not runtime proof.

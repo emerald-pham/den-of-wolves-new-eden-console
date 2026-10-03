@@ -51,6 +51,21 @@ question and paraphrase concise findings.
   route chain or a foreign destination. Rejoin preserves per-ship knowledge
   and applies the logged highest-pursuit assumption once.
 
+## Automatic Comms scouting
+
+Review the internal committed-request continuation and its durable Firestore
+request-create trigger together with the original protected GM resolver. The
+server verifies the exact request fingerprint/reply and cadence before looking
+up one fact on the current locked chart. Result, note, audit, Nebula marker and
+ship-map fanout must be atomic and exactly replayable across event retry and
+group merge. A committed legal scan survives requester disconnect; current
+reader authority governs later delivery. The automatic path is not a callable
+client-selected authority. Its audit has no fabricated facilitator UID.
+Check `listGmScoutResolutionLog` and current GM/player report consumers for
+owned-instance authorization, bounded allowlists, delayed old responses,
+serial polling and withdrawal on group/identity/generation/connection changes.
+Direct chart, result, note and audit reads remain denied by Rules.
+
 ## Automatic attack, timing and recovery
 
 - Review attack math, ring configuration, lifecycle, target actions, boarding,
