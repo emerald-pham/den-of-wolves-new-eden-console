@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -61,6 +61,9 @@ function renderRoute(gmJoinIntent = false) {
 describe('RoleSelect', () => {
   beforeEach(() => {
     useSessionStore.getState().reset();
+    // Successful registration controls represent a current server session.
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
     vi.mocked(subscribeGmInstances).mockImplementation((_sessionId, onInstances) => {
       onInstances([]);
       return vi.fn();
@@ -202,6 +205,25 @@ describe('RoleSelect', () => {
     expect(screen.getByRole('button', { name: /gm joined/i })).toBeDisabled();
     expect(nameInput).toHaveAccessibleName('Name entered');
     expect(useSessionStore.getState().gmInstance?.name).toBe('Bridge laptop');
+  });
+
+  it('waits for current member authority before enabling a named GM claim after reload', async () => {
+    const user = userEvent.setup();
+    useSessionStore.getState().setSession(session);
+    useSessionStore.getState().setMe({ ...gm, role: 'player' });
+    useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
+    useSessionStore.getState().setSessionSnapshotFreshness('cache');
+    renderRoute(true);
+    await user.type(screen.getByRole('textbox', { name: /^input gm name$/i }), 'Recovered browser');
+    const claim = screen.getByRole('button', { name: /^join as gm/i });
+    expect(claim).toBeDisabled();
+    expect(screen.getByRole('status', { name: 'GM join availability' })).toHaveTextContent('Waiting for the current session');
+    await user.click(claim);
+    expect(claimGmInstance).not.toHaveBeenCalled();
+    act(() => useSessionStore.getState().setSessionSnapshotFreshness('server'));
+    expect(claim).toBeEnabled();
+    act(() => useSessionStore.getState().setConnection('offline'));
+    expect(claim).toBeDisabled();
   });
 
   it('keeps unauthenticated ordinary players out of the GM join route', () => {
