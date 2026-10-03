@@ -3799,7 +3799,7 @@ it('allows the current facilitator to select a later Wolf window after a resolve
   prepareLaterWolfAttackFixture('resolved');
   vi.mocked(setWolfAttackWindow).mockResolvedValue({status: 'due', turn: 4, revision: 4});
   renderConsole();
-  const due = await screen.findByRole('button', {name: 'Mark timing due'});
+  const due = await screen.findByRole('button', {name: 'Mark next attack window due'});
   expect(due).toBeEnabled();
   due.focus();
   await user.keyboard('{Enter}');
@@ -4559,7 +4559,7 @@ it('mounts the genuine private boarding ruling for the current live facilitator'
   });
   vi.mocked(getWolfBoardingSpecialChoice).mockResolvedValue({type: 'wolf-boarding-special-choice-view',
     sessionId: 's1', turn: 4, revision: 9,
-    choice: {kind: 'commander-ruling', targetShipId: 'aegis', condition: 'Commander-led parties lost; current ruling required.'}});
+    choice: {kind: 'commander-ruling', targetShipId: 'aegis', condition: 'All Commander-led Wolf Boarding Parties were destroyed.'}});
   renderConsole();
   expect(await screen.findByRole('textbox', {name: 'Facilitator ruling'})).toBeVisible();
   expect(getWolfBoardingSpecialChoice).toHaveBeenCalled();
