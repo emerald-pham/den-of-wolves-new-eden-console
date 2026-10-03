@@ -1,5 +1,12 @@
 # PC08 independent risk review brief
 
+The owner also repaired the existing Maliades member-session leak. Review the
+allowlisted operational view, full-versus-member parsing, repeated audience
+filter and retained repair authority; no member target/dice details may survive.
+Target shifts preserve per-source/per-choice budgets, effective-target C&C
+ordering, canonical receipt replay and legitimate repeated wrapping, including
+the distinct seven-target expansion ring. Earlier range damage cannot change.
+
 Root owns the checkpoint, all reconciliation, repairs and release. Independent
 review covers the complete reconciled candidate and does not transfer ownership.
 The exact reviewed SHA and outcome live in the external structured receipt.

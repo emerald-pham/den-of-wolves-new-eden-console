@@ -31,7 +31,7 @@ Gameplay correctness remains the agents' responsibility.
 Named printed component sheets control each craft. A full-page check resolved
 the fighter extraction question: both AEGIS wings and the PDF Escort Wing roll
 at most one die per fighter at Short Range, hit on 3+, and lose a fighter on 1–2.
-The printed Commander consequence has an incomplete part; its missing text must
+The checked pages are A4 single-sided 36 and double-sided 81. The printed Commander consequence has an incomplete part; its missing text must
 remain an explicit, privately recorded facilitator ruling. The final group notes
 will record Boa's source ambiguity and any deliberate extension. Private source
 files and renderings remain outside Git.
@@ -42,6 +42,11 @@ The first prepared scene passes all five steps at 320×844, 390×844, 844×390 a
 1440×900 in normal and reduced motion, with readable computed fonts, contained
 controls, Zoom, keyboard navigation and no live writes. Its complete new-choice
 presenters and final rendered inspection remain pending implementation handback.
+
+The existing shared Maliades view now keeps target and dice details private while
+preserving the current damage and revision needed for repair. Its focused privacy,
+parser, repair and real-session hydration checks pass; combined release proof is
+still pending.
 
 Authenticated local/emulator gameplay, Firestore write denial, combined risk
 review, final validation, candidate CI and exact-main production deployment remain

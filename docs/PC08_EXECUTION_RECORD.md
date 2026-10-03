@@ -88,10 +88,17 @@ range decision aggregates the entitled sources' genuine choices before one
 server-locked roll/assignment batch; finalization consumes that post-range roster.
 Alpha and Bravo launch choices are independent and recorded during targeting.
 
-A full-page check of original A4 single-sided pages 36 and 81 reconciled an
+A full-page check of original A4 single-sided page 36 and double-sided page 81 reconciled an
 extraction interpretation: both AEGIS Alpha/Bravo and the PDF Escort Wing use
 at most one Short Range die per fighter, hit on 3+, and lose a fighter on 1–2.
 The existing P452 catalog rule is retained. Private renderings remain external.
+
+Root owns the existing Maliades member-session privacy repair identified by the
+range worker. Members receive validated damage, revision, attack identity and
+range-completion markers; target IDs, rolls and detailed consequences stay in
+private receipts and GM state. Hydration filters the operational DTO again
+without dropping its repair revision. Test-only commits b80bc6d7/f39e5680 precede
+implementation 10e1c5f2; focused privacy, repair, parser and hydration checks pass.
 
 The owner supplies the five-step real-component review scene and final report.
 Final catalog closure, version/changelog, deployment consumers and release
