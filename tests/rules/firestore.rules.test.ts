@@ -1025,7 +1025,7 @@ describe('session header', () => {
     }
   });
 
-  it('keeps PDF Escort Wing attack state server-only while allowing the member-safe session projection', async () => {
+  it('keeps PDF Escort Wing state protected while the filtered reader supplies member views', async () => {
     const memberView = {
       type: 'pdf-escort-fighter-wing-view', revision: 1, cycle: 1,
       capacity: 4, fighters: 4, launched: true,
@@ -1040,7 +1040,8 @@ describe('session header', () => {
       });
     });
 
-    const sessionView = await assertSucceeds(getDoc(doc(as('alice'), SESSION)));
+    await assertFails(getDoc(doc(as('alice'), SESSION)));
+    const sessionView = await assertSucceeds(getDoc(doc(as('gm1'), SESSION)));
     expect(sessionView.data()?.pdfEscortWing).toEqual(memberView);
     for (const uid of ['alice', 'gm1']) {
       const hidden = doc(as(uid), `${SESSION}/serverState/pdfEscortWing`);
@@ -1526,10 +1527,11 @@ describe('session header', () => {
     }));
   });
 
-  it('allows members to read census but denies player and GM client mutations', async () => {
+  it('protects census root reads and denies player and GM client mutations', async () => {
     for (const uid of ['alice', 'gm1']) {
       const session = doc(as(uid), SESSION);
-      await assertSucceeds(getDoc(session));
+      if (uid === 'gm1') await assertSucceeds(getDoc(session));
+      else await assertFails(getDoc(session));
       await assertFails(updateDoc(session, { 'shipSurvivors.capybara': 0 }));
       await assertFails(updateDoc(session, { populationAlerts: {} }));
     }
@@ -3010,7 +3012,8 @@ describe('complete server-owned denial matrix', () => {
 it('denies player and GM client writes to maintenance, charges, cargo and shuttle fuel', async () => {
   for (const uid of ['alice', 'gm1']) {
     const db = env.authenticatedContext(uid).firestore();
-    await assertSucceeds(getDoc(doc(db, SESSION)));
+    if (uid === 'gm1') await assertSucceeds(getDoc(doc(db, SESSION)));
+    else await assertFails(getDoc(doc(db, SESSION)));
     for (const field of ['currentTurn', 'maintenanceCycles', 'voyage33Movement', 'voyage33Maintenance', 'shuttleCargo', 'shuttleFuelled', 'highwallMining', 'blacksmithRepairs', 'philiaRepairs', 'macawRepairs', 'boaRecycling', 'chacauRepairs', 'allyRepairs', 'maliadesState', 'baseCapybaraCargo', 'shipUpgrades', 'pressDispatch', 'fleetTicker', 'admiralDirectives']) {
       await assertFails(updateDoc(doc(db, SESSION), { [field]: { aegis: { step: 7 } } }));
     }
@@ -3018,8 +3021,9 @@ it('denies player and GM client writes to maintenance, charges, cargo and shuttl
 });
 
 describe('fleet red alert authority', () => {
-  it('allows member reads but denies player and GM direct alert writes', async () => {
-    await assertSucceeds(getDoc(doc(as('alice'), SESSION)));
+  it('protects raw alert reads and denies player and GM direct alert writes', async () => {
+    await assertFails(getDoc(doc(as('alice'), SESSION)));
+    await assertSucceeds(getDoc(doc(as('gm1'), SESSION)));
     for (const uid of ['alice', 'gm1']) {
       await assertFails(updateDoc(doc(as(uid), SESSION), { fleetRedAlert: { active: true, revision: 1, text: 'forged alert message' } }));
       await assertFails(updateDoc(doc(as(uid), SESSION), { fleetRedAlert: { active: false, revision: 2 } }));
