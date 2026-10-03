@@ -83,9 +83,10 @@ it('presents actual Commander, support, Militia, independent reroll and ruling c
   fireEvent.click(screen.getByRole('button', {name: /move pallas to dione/i}));
   expect(screen.getByRole('status', {name: 'Prepared boarding result'})).toHaveTextContent('Pallas');
   fireEvent.click(screen.getByRole('button', {name: 'Militia sample'}));
-  fireEvent.click(screen.getByRole('checkbox', {name: 'Roll two dice per Security Team'}));
+  expect(screen.queryByRole('checkbox', {name: 'Roll two dice per Security Team'})).toBeNull();
+  expect(screen.getByText(/crew committed 3 Security Teams/i)).toBeVisible();
   fireEvent.change(screen.getByRole('combobox', {name: 'Front-line dice'}), {target: {value: '2'}});
-  fireEvent.click(screen.getByRole('button', {name: 'Commit defence'}));
+  fireEvent.click(screen.getByRole('button', {name: 'Commit Militia risk'}));
   expect(screen.getByRole('status', {name: 'Prepared boarding result'})).toHaveTextContent('2 front-line');
   for (const source of ['AEGIS', 'Pallas']) {
     fireEvent.click(screen.getByRole('button', {name: `${source} reroll sample`}));
@@ -269,4 +270,25 @@ it('commits the chosen Maliades Medium shift and separate attack, then an indepe
   expect(screen.queryByRole('combobox', {name: 'Maliades Medium target shift'})).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', {name: 'Pass Maliades Short Range'}));
   expect(screen.getByRole('status', {name: 'Prepared fighter result'})).toHaveTextContent('Maliades passed Short Range.');
+});
+
+
+it('shows the warhead ore payment once through the actual Executive Officer presenter', () => {
+  render(<PC08ReviewScene />);
+  fireEvent.click(screen.getByRole('button', {name: '2 Weapons'}));
+  expect(screen.getByRole('status', {name: 'Prepared warhead balance'})).toHaveTextContent('9 ore');
+  fireEvent.click(screen.getByRole('button', {name: 'Enrich warheads // 5 ore'}));
+  expect(screen.getByRole('status', {name: 'Prepared warhead balance'})).toHaveTextContent('4 ore');
+  expect(screen.queryByRole('button', {name: 'Enrich warheads // 5 ore'})).toBeNull();
+  expect(screen.getByText(/Five ore paid once/)).toBeVisible();
+});
+
+it('keeps the outnumbered Militia option distinct from the front-line sample', () => {
+  render(<PC08ReviewScene />);
+  fireEvent.click(screen.getByRole('button', {name: '4 Boarding defence'}));
+  fireEvent.click(screen.getByRole('button', {name: 'Outnumbered Militia sample'}));
+  fireEvent.click(screen.getByRole('checkbox', {name: 'Roll two dice per Security Team'}));
+  expect(screen.getByRole('combobox', {name: 'Front-line dice'}).querySelectorAll('option')).toHaveLength(1);
+  fireEvent.click(screen.getByRole('button', {name: 'Commit Militia risk'}));
+  expect(screen.getByRole('status', {name: 'Prepared boarding result'})).toHaveTextContent('two dice per team');
 });
