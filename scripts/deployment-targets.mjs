@@ -1394,6 +1394,7 @@ function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }
             encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd, maxBuffer: 32 * 1024 * 1024,
           });
         } catch {
+          if (revision === before) return '';
           throw new Error(`Cannot safely determine PC08 module source ${file}.`);
         }
       };
