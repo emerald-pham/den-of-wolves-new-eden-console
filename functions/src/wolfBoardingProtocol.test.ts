@@ -41,13 +41,13 @@ describe('Wolf boarding stage protocol', () => {
       commanderRuling: { actorUid: 'gm-1', text: 'Ruling recorded.' } })).toEqual({ kind: 'complete' });
   });
 
-  it('skips absent actors and unavailable abilities without inventing a choice', () => {
+  it('keeps defence unresolved without an entitled actor and skips attacks with no boarders', () => {
     const noSpecialActors: WolfBoardingProtocolInput = {
       ...base, commanderUid: undefined, relocations: [],
       supportTargets: [], rollsLocked: true, diceCounts: { aegis: 0, dione: 0 },
       aegisRerollActorUid: undefined, pallasRerollActorUid: undefined,
     };
-    expect(nextWolfBoardingStage(noSpecialActors)).toEqual({ kind: 'complete' });
+    expect(nextWolfBoardingStage(noSpecialActors)).toEqual({ kind: 'defence', actorUids: [], target: 'aegis' });
     expect(nextWolfBoardingStage({ ...noSpecialActors,
       attackedTargets: [], defenceChoices: {}, militiaChoices: {} })).toEqual({ kind: 'complete' });
   });
