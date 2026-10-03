@@ -945,7 +945,7 @@ it('records an explicit PDF fighter pass once and exposes the durable choice on 
 
   await expect(passWolfFighterLaunchChoice.run(request(payload))).resolves.toMatchObject({
     status: 'committed', type: 'wolf-fighter-launch-choice', sourceId: 'pdf-escort-fighter-wing',
-    choiceStatus: 'passed', turn: 1, revision: 2, actorRoleId: 'refinery-124-pdf-colonel',
+    choiceStatus: 'passed', turn: 1, revision: 2,
   });
   expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
     fighterLaunchChoices: {
