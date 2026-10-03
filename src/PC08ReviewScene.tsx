@@ -128,7 +128,7 @@ function BoardingReview() {
     {sample === 'Support' && <div className="pc08-review__boarding-support">
       <WolfBoardingSupportChoicePanelView view={{type: 'wolf-boarding-support-choice-view', craftId: 'pallas', currentHostId: 'aegis',
         fuelled: true, legalHostIds: ['aegis', 'dione'], status: choices[sample] ? 'committed' : 'pending',
-        ...(choices[sample] ? {selectedHostId: pallasChoice} : {})}} onChoose={target => {setPallasChoice(target); commit(target ? 'Pallas moved to its chosen host, using fuel.' : 'Pallas stayed at its host.');}} />
+        ...(choices[sample] ? {selectedHostId: pallasChoice} : {})}} onChoose={target => {setPallasChoice(target); commit(target ? 'Fuelled Pallas moved to its chosen host.' : 'Pallas stayed at its host.');}} />
       <WolfBoardingSupportChoicePanelView view={{type: 'wolf-boarding-support-choice-view', craftId: 'chepu', currentHostId: 'refinery-124',
         fuelled: false, legalHostIds: ['refinery-124'], status: 'pending'}} onChoose={() => setMessage('LOCAL SIMULATION // Chepu stayed at Refinery 124; an unfuelled relocation is unavailable.')} />
     </div>}
