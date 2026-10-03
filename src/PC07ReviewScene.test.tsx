@@ -22,13 +22,44 @@ it('uses group-local contacts and notes and immediately removes contacts for a c
  expect(screen.getByText('ICEBREAKER')).toBeVisible();expect(screen.queryByText('DIONE')).not.toBeInTheDocument();
  fireEvent.change(screen.getByRole('textbox',{name:'Note to your fleet group'}),{target:{value:'HOLD AT LOCAL FIX'}});
  fireEvent.click(screen.getByRole('button',{name:'Send group note'}));
- expect(screen.getByRole('list',{name:'Current group notes'})).toHaveTextContent('HOLD AT LOCAL FIX');
+ expect(screen.getByRole('list',{name:'Current group announcements'})).toHaveTextContent('HOLD AT LOCAL FIX');
  fireEvent.click(screen.getByRole('button',{name:'View Fleet-2 sample'}));
  expect(screen.queryByText('ICEBREAKER')).not.toBeInTheDocument();expect(screen.getByText('DIONE')).toBeVisible();
- expect(screen.getByRole('list',{name:'Current group notes'})).not.toHaveTextContent('HOLD AT LOCAL FIX');
+ expect(screen.getByRole('list',{name:'Current group announcements'})).not.toHaveTextContent('HOLD AT LOCAL FIX');
  fireEvent.click(screen.getByRole('button',{name:'Cached connection sample'}));
  expect(screen.queryByText('DIONE')).not.toBeInTheDocument();
  fireEvent.click(screen.getByRole('button',{name:'Current server sample'}));expect(screen.getByText('DIONE')).toBeVisible();
+});
+it('offers only scanned locations and current local recipients in the known-system sample',()=>{
+ render(<PC07ReviewScene />);
+ fireEvent.click(screen.getByRole('button',{name:'2 Known systems'}));
+ const systems=screen.getByRole('combobox',{name:'Scanned system to share'});
+ expect(within(systems).getAllByRole('option').map(option=>option.textContent)).toEqual(['3145','3155']);
+ expect(screen.queryByRole('checkbox',{name:'DIONE'})).not.toBeInTheDocument();
+ const send=screen.getByRole('button',{name:'Share scanned system',exact:true});
+ expect(send).toBeDisabled();
+ fireEvent.click(screen.getByRole('checkbox',{name:'ICEBREAKER'}));
+ fireEvent.change(systems,{target:{value:'3155'}});fireEvent.click(send);
+ expect(screen.getByRole('status',{name:'Known system sample result'})).toHaveTextContent('3155 // ICEBREAKER');
+ fireEvent.click(screen.getByRole('button',{name:'Cached knowledge sample'}));
+ expect(send).toBeDisabled();
+});
+it('shows a bounded taxi payload, one-attempt recovery and an explicit rejoin result',()=>{
+ render(<PC07ReviewScene />);fireEvent.click(screen.getByRole('button',{name:'3 Taxi and rejoin'}));
+ expect(within(screen.getByRole('combobox',{name:'Fuel units'})).getAllByRole('option')).toHaveLength(2);
+ fireEvent.change(screen.getByRole('combobox',{name:'Taxi destination ship'}),{target:{value:'shepherd'}});
+ fireEvent.change(screen.getByRole('combobox',{name:'Fuel units'}),{target:{value:'2'}});
+ fireEvent.click(screen.getByRole('button',{name:'Send scout taxi',exact:true}));
+ expect(screen.getByRole('status',{name:'Taxi sample result'})).toHaveTextContent('2 fuel');
+ expect(screen.getByRole('button',{name:'Send scout taxi',exact:true})).toBeDisabled();
+ fireEvent.click(screen.getByRole('button',{name:'Restore taxi sample'}));
+ fireEvent.click(screen.getByRole('button',{name:'Out-of-range destination sample'}));
+ fireEvent.click(screen.getByRole('button',{name:'Send scout taxi',exact:true}));
+ expect(screen.getByRole('status',{name:'Taxi sample result'})).toHaveTextContent('Range denied');
+ expect(screen.getByRole('button',{name:'Rejoin co-located sample'})).toBeDisabled();
+ fireEvent.click(screen.getByRole('button',{name:'Arrival at the same fix sample'}));
+ fireEvent.click(screen.getByRole('button',{name:'Rejoin co-located sample'}));
+ expect(screen.getByRole('status',{name:'Rejoin sample result'})).toHaveTextContent('pursuit 4');
 });
 it('keeps the actual held-clock presentation isolated from an existing signed-in identity',()=>{
  const original=useSessionStore.getState();
