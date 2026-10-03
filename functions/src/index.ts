@@ -21514,7 +21514,7 @@ async function reconcileWolfAttackProgress(sessionId: string): Promise<void> {
       let warheadStatus: ReturnType<typeof currentAegisEnrichedWarheads>;
       try { warheadStatus = currentAegisEnrichedWarheads(state); } catch { return; }
       const warheadOwner = sessionActiveRoleIds(session).includes('executive-officer') &&
-        currentWolfAegisExecutiveOfficers(players.docs, fleetGroups.docs).length > 0;
+        currentWolfRoleOwners(players.docs, fleetGroups.docs, 'executive-officer', 'aegis').length > 0;
       if (!warheadStatus && warheadOwner && aegisEnrichedWarheadAvailable(session, turn as number)) return;
       const currentCalculation = state.get('calculationReceipt');
       const forceFieldChoice = state.get('forceFieldChoice');
@@ -21955,6 +21955,13 @@ export const advanceWolfAttackToLongRange = onCall<{
         'The assigned Wolf Commander must finish targeting before the attack can enter Long Range.',
         'invalid-phase',
       );
+    }
+    const warheadGroups = await tx.get(db.collection(`sessions/${change.sessionId}/fleetGroups`));
+    if (currentAegisEnrichedWarheads(state) === null &&
+        sessionActiveRoleIds(session).includes('executive-officer') &&
+        currentWolfRoleOwners(players.docs, warheadGroups.docs, 'executive-officer', 'aegis').length > 0 &&
+        aegisEnrichedWarheadAvailable(session, inputs.turn)) {
+      throw commandError('failed-precondition', 'The current Executive Officer must enrich warheads or pass before Long Range.', 'invalid-phase');
     }
     currentAegisCommandAndControlRedirect(
       state.get('commandAndControl'), inputs, state.get('commanderRerollCompletion'),
