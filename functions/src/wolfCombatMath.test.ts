@@ -540,6 +540,39 @@ describe('central Wolf combat math', () => {
     expect(Object.isFrozen(resolved)).toBe(true);
   });
 
+  it('preserves a wholly legacy in-progress attack without target snapshots or shifts', () => {
+    const fullTargeting = resolveWolfTargeting(firstTurnWolfAttackComposition(), {}, undefined, () => 0);
+    const selectedTransport = fullTargeting.rolls.find(({ shipId }) => shipId === 'wolf-assault-transport')!;
+    const targeting = { ...fullTargeting, rolls: [{ ...selectedTransport, rosterIndex: 0 }] };
+    const roster = wolfCombatRoster(targeting);
+    const currentRanges = (['long-range', 'medium-range', 'short-range'] as const).map((range) => ({
+      range, targetSnapshot: roster.map(({ instanceId, target }) => ({ instanceId, target })),
+      dice: [], assignments: [], targetShifts: [], unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
+      destructionDamageByTarget: Object.fromEntries(EXPANDED_WOLF_TARGET_RING.map((target) => [target, 0])),
+    }));
+    const legacyRanges = currentRanges.map((range) => {
+      const { targetSnapshot, targetShifts, ...legacy } = range;
+      void targetSnapshot;
+      void targetShifts;
+      return legacy;
+    }) as unknown as typeof currentRanges;
+    const phase = startTurnPhase(1, 1_000);
+
+    const resolved = finalizeWolfAttack({
+      requestId: 'attack-legacy-final', targeting, roster, ranges: legacyRanges,
+      boardingDefence: [{ target: 'aegis', securityTeams: 0 }],
+      targetRing: CORE_WOLF_TARGET_RING, phase, now: 2_000,
+      fleetState: completeFleetState(), randomInt: () => 0,
+    });
+
+    expect(resolved.type).toBe('wolf-combat-calculation');
+    expect(resolved.ranges).toEqual([
+      expect.objectContaining({ range: 'long-range' }),
+      expect.objectContaining({ range: 'medium-range' }),
+      expect.objectContaining({ range: 'short-range' }),
+    ]);
+  });
+
   it('calculates complete attack receipts over a configured five- or seven-target ring', () => {
     const baseState = completeFleetState();
     const phase = startTurnPhase(1, 1_000);
