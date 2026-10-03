@@ -121,7 +121,7 @@ it('requires a due marker before resolving and permits deferred Turn 2 recovery'
 
 it('lets the facilitator select a later due window only after a finalized prior attack', async () => {
   const priorReceipt = {
-    type: 'wolf-combat-calculation', version: 1, requestId: 'wolf-final-prior',
+    type: 'wolf-combat-calculation', version: 1, requestId: 'wolf-final-wolf-attack-prior',
     phase: { turn: 1, phase: 'coordination', serverTime: '2026-10-03T20:00:00.000Z',
       deadlineAt: '2026-10-03T20:10:00.000Z', overrun: false },
     targeting: { ring: ['aegis'], rolls: [] }, ranges: [
@@ -138,11 +138,11 @@ it('lets the facilitator select a later due window only after a finalized prior 
     attackId: 'wolf-attack-prior', announcementId: 'wolf-attack-prior', turn: 1,
     attackNumber: 1, revision: 4, airspaceLocked: false,
     parkingReleaseCondition: 'normal-movement-reopened', resolvedAt: '2026-10-03T20:00:00.000Z',
-    finalizationRequestId: 'wolf-final-prior', calculationReceipt: priorReceipt,
+    finalizationRequestId: 'wolf-final-wolf-attack-prior', calculationReceipt: priorReceipt,
   });
   put('sessions/s1/wolfAttackState/current/audit/wolf-finalized-1', {
     type: 'wolf-attack-finalization', turn: 1, revision: 4, actorUid: 'server',
-    attackId: 'wolf-attack-prior', requestId: 'wolf-final-prior', receipt: priorReceipt,
+    attackId: 'wolf-attack-prior', requestId: 'wolf-final-wolf-attack-prior', receipt: priorReceipt,
     rangeReceipts: priorReceipt.ranges,
   });
 
@@ -178,7 +178,7 @@ it('does not open more than two additional facilitator-selected attacks', async 
   session({ currentTurn: 4 });
   put('sessions/s1/wolfAttackWindow/current', { status: 'resolved', turn: 3, revision: 8 });
   const thirdReceipt = {
-    type: 'wolf-combat-calculation', version: 1, requestId: 'wolf-final-third',
+    type: 'wolf-combat-calculation', version: 1, requestId: 'wolf-final-wolf-attack-third',
     phase: { turn: 3, phase: 'coordination', serverTime: '2026-10-03T20:00:00.000Z',
       deadlineAt: '2026-10-03T20:10:00.000Z', overrun: false },
     targeting: { ring: ['aegis'], rolls: [] }, ranges: [
@@ -191,13 +191,21 @@ it('does not open more than two additional facilitator-selected attacks', async 
   put('sessions/s1/wolfAttackState/current', {
     type: 'wolf-attack-state', status: 'resolved', currentStep: 'resolved',
     attackId: 'wolf-attack-third', announcementId: 'wolf-attack-third', turn: 3,
-    attackNumber: 3, revision: 9, airspaceLocked: false,
+    attackNumber: 3, previousAttackId: 'wolf-attack-second', carryover: {
+      sourceAttackId: 'wolf-attack-second', sourceTurn: 2,
+      sourceInstanceIds: ['0:wolf-fighter-wing'], rosterInstanceIds: ['0:wolf-fighter-wing'],
+    }, revision: 9, airspaceLocked: false,
     parkingReleaseCondition: 'normal-movement-reopened', resolvedAt: '2026-10-03T20:00:00.000Z',
-    finalizationRequestId: 'wolf-final-third', calculationReceipt: thirdReceipt,
+    finalizationRequestId: 'wolf-final-wolf-attack-third', calculationReceipt: thirdReceipt,
   });
   put('sessions/s1/wolfAttackState/current/audit/wolf-finalized-3', {
     type: 'wolf-attack-finalization', turn: 3, revision: 9, actorUid: 'server',
-    attackId: 'wolf-attack-third', requestId: 'wolf-final-third', receipt: thirdReceipt,
+    attackId: 'wolf-attack-third', requestId: 'wolf-final-wolf-attack-third', receipt: thirdReceipt,
+    attackNumber: 3, previousAttackId: 'wolf-attack-second',
+    carryover: {
+      sourceAttackId: 'wolf-attack-second', sourceTurn: 2,
+      sourceInstanceIds: ['0:wolf-fighter-wing'], rosterInstanceIds: ['0:wolf-fighter-wing'],
+    },
     rangeReceipts: thirdReceipt.ranges,
   });
 
