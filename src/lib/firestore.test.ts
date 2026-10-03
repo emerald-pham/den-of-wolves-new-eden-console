@@ -121,6 +121,49 @@ it('hydrates the bounded Philia repair receipt through the member wire parser', 
   expect(value.philiaRepairs).toEqual(philiaRepairs);
 });
 
+it('rejects an old group response after the current player moves and accepts the new group read', async () => {
+  const listeners = new Map<string, (snapshot: unknown) => void>();
+  vi.mocked(doc).mockImplementation(((_db: unknown, path: string) => ({ path })) as never);
+  vi.mocked(onSnapshot).mockImplementation(((reference: { path?: string }, _options: unknown, callback: (snapshot: unknown) => void) => {
+    if (reference?.path) listeners.set(reference.path, callback);return vi.fn();
+  }) as never);
+  let resolveOld!: (value: unknown) => void;
+  const old = new Promise(resolve => { resolveOld = resolve; });
+  const reply = (groupId: string, generation: number, vessel: string) => ({ data: {
+    type: 'current-member-session', sessionId: 'moving-member', actorUid: 'u1', groupId,
+    connectionGeneration: generation, assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral',
+    session: { ...sessionData(8), activeVesselIds: ['aegis', 'shepherd'],
+      memberSessionScope: { groupId, vesselIds: [vessel], craftIds: [] },
+      shipResources: { [vessel]: { ore: 0, fuel: generation, food: 0, water: 0, materials: 0, securityTeams: 0 } }, shuttleDockings: [], shuttleVisitLog: [] },
+  } });
+  const call = vi.fn().mockReturnValueOnce(old).mockResolvedValue(reply('fleet-2', 2, 'shepherd'));
+  vi.mocked(httpsCallable).mockReturnValue(call as never);
+  const onSession = vi.fn();
+  const stop = subscribeSessionState('moving-member', 'u1', { sessionReadAudience: 'member',
+    onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn() });
+  const player = { connected: true, role: 'player', fleetGroupId: 'fleet-2', connectionGeneration: 2,
+    assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral', displayName: 'Crew', joinedAt: '2026-01-01T00:00:00.000Z' };
+  listeners.get('sessions/moving-member/players/u1')!({ exists: () => true, metadata: { fromCache: false },
+    data: () => player, get: (key: string) => player[key as keyof typeof player] });
+  resolveOld(reply('fleet-1', 1, 'aegis'));
+  await vi.waitFor(() => expect(onSession).toHaveBeenCalledTimes(1));
+  expect(onSession.mock.calls[0]![0].shipResources).toEqual({ shepherd: { ore: 0, fuel: 2, food: 0, water: 0, materials: 0, securityTeams: 0 } });
+  stop();
+});
+
+it('never hydrates a response for another authenticated actor', async () => {
+  vi.mocked(onSnapshot).mockImplementation(() => vi.fn());
+  vi.mocked(httpsCallable).mockReturnValue(vi.fn().mockResolvedValue({ data: {
+    type: 'current-member-session', sessionId: 'wrong-member', actorUid: 'other', groupId: 'fleet-1',
+    session: { ...sessionData(8), memberSessionScope: { groupId: 'fleet-1', vesselIds: ['aegis'], craftIds: [] } },
+  } }) as never);
+  const onSession = vi.fn(),onError = vi.fn();
+  const stop = subscribeSessionState('wrong-member', 'u1', { sessionReadAudience: 'member', onSession,
+    onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError });
+  await vi.waitFor(() => expect(onError).toHaveBeenCalled());
+  expect(onSession).not.toHaveBeenCalled();stop();
+});
+
 function mockGmInstanceProjection(instances: readonly Record<string, unknown>[]) {
   vi.mocked(httpsCallable).mockReturnValue((() => Promise.resolve({ data: { instances } })) as never);
 }
