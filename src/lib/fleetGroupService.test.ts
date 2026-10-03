@@ -2,7 +2,7 @@ import { expect, it, vi } from 'vitest';
 import { createFleetGroupActions } from './fleetGroupService';
 vi.mock('@/lib/firebase', () => ({ functions: {} }));
 let context = { sessionId: 's1', actorUid: 'alice', groupId: 'fleet-1', live: true, fresh: true, active: true,
-  gmInstanceId: 'bridge', navigationRevision: 4 };
+  gmInstanceId: 'bridge', navigationRevision: 4, fleetPartitionRevision: 1 };
 it('binds group notes to the current actor and group and retries an ambiguous send with the same request', async () => {
   context = { ...context, groupId: 'fleet-1', live: true };
   const transport = vi.fn().mockRejectedValueOnce({ code: 'functions/unavailable' }).mockResolvedValue({

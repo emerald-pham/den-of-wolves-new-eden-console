@@ -60,7 +60,7 @@ it('folds only current nonzero fighter wings onto their printed host without shu
  ]);
  const contacts=localDradisContacts('aegis',withWings);
  expect(contacts.map(contact=>contact.id)).toEqual(['ship:icebreaker','transit:starlight']);
- expect(contacts.find(contact=>contact.id==='ship:icebreaker')?.dockedCraftTags).toEqual([]);
+ expect(contacts.find(contact=>contact.id==='ship:icebreaker')?.dockedCraftTags).toBeUndefined();
  expect(localDradisCenterDockedCraftTags('shepherd',withWings)).toEqual([]);
  expect(localDradisCenterDockedCraftTags('dione',withWings)).toEqual([]);
 });
