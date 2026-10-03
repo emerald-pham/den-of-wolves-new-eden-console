@@ -1,5 +1,5 @@
-import { beforeEach, expect, it } from 'vitest';
-import type { Firestore } from 'firebase-admin/firestore';
+import { beforeEach, expect, it, vi } from 'vitest';
+import type { DocumentSnapshot, Firestore } from 'firebase-admin/firestore';
 import { createCurrentMemberSessionReader } from './memberSessionCallable';
 
 let records: Record<string, Record<string, unknown>>;
@@ -10,9 +10,14 @@ const db = { doc: (path: string) => ({ path }), collection: (path: string) => ({
     collection ? { docs: Object.keys(records).filter(key => key.startsWith(path + '/') && key.slice(path.length + 1).indexOf('/') < 0).map(snapshot) }
       : snapshot(path) }),
 } as unknown as Firestore;
-const read = createCurrentMemberSessionReader({ db });
+// These fixtures already represent parsed public operational values; this suite
+// isolates the transactional audience selector from the production index parser.
+const projectSession = vi.fn((source: DocumentSnapshot, sessionId: string) => ({ ...source.data(), id: sessionId }));
+const read = createCurrentMemberSessionReader({ db, projectSession });
 const request = (data: Record<string, unknown> = { sessionId: 's1' }, uid = 'u1') => ({ auth: { uid }, data });
 beforeEach(() => {
+  projectSession.mockClear();
+  projectSession.mockImplementation((source, sessionId) => ({ ...source.data(), id: sessionId }));
   records = {
     'sessions/s1': { name: 'Table', phase: 'active', currentTurn: 2, activeVesselIds: ['aegis', 'shepherd'],
       turnPhase: { turn: 2 }, shipResources: { aegis: { fuel: 90 }, shepherd: { fuel: 3 } },
@@ -82,4 +87,16 @@ it('keeps only the current Press holder’s own SNN operations through docking a
     expect((await read(request())).session.shuttleControl).toEqual({});
     records['sessions/s1'] = previous;
   }
+});
+
+
+it('uses the required public parser on the same transaction snapshot instead of spreading the stored root', async () => {
+  projectSession.mockImplementation((_source, sessionId) => ({ id: sessionId, phase: 'active',
+    activeVesselIds: ['aegis', 'shepherd'], shipResources: { shepherd: { fuel: 3 } } }));
+  records['sessions/s1']!.fleetTicker = { internal: 'server-private' };
+  const response = await read(request());
+  expect(projectSession).toHaveBeenCalledWith(expect.objectContaining({ exists: true }), 's1');
+  expect(response.session.shipResources).toEqual({ shepherd: { fuel: 3 } });
+  expect(response.session).not.toHaveProperty('fleetTicker');
+  expect(response.session).not.toHaveProperty('missionCraftCommitments');
 });

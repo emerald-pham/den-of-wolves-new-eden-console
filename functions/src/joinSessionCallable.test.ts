@@ -103,7 +103,7 @@ vi.mock('firebase-admin/firestore', () => ({
   Timestamp: mock.Timestamp,
 }));
 
-import { joinSession } from './index';
+import { getCurrentMemberSession, joinSession } from './index';
 import { activeVesselIdsForRoles } from './gameSetup';
 import { recommendedRoleIds } from './roleConfiguration';
 
@@ -975,4 +975,54 @@ it('joins an existing separated fleet without collapsing its partitions or chang
   expect(mock.set).not.toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1/fleetGroups/fleet-2' }), expect.anything());
   expect(mock.set).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1/serverState/navigation' }),
     expect.objectContaining({ pursuitGroups: { 'fleet-1': 2, 'fleet-2': 5 } }), expect.anything());
+});
+
+
+it('sanitizes nested operational data on live refresh before applying the current fleet audience', async () => {
+  const roles = [...recommendedRoleIds(18)];
+  const vessels = activeVesselIdsForRoles(roles);
+  const privateMarker = 'SERVER-PRIVATE-MARKER';
+  const fields = {
+    name: 'Table one', joinCode: '482109', phase: 'active', currentTurn: 2,
+    playerCount: 18, chartId: 'A', expansion: 'base', turnLimit: 8,
+    activeRoleIds: roles, activeVesselIds: vessels,
+    shipResources: { aegis: { fuel: 5, privateNotes: privateMarker }, shepherd: { fuel: 91 } },
+    shipDamage: { aegis: { damagedSystemIds: ['storage'], destroyed: false, deckOrder: [privateMarker] } },
+    maintenanceCycles: { aegis: { step: 2, revision: 1, results: { '1': 'Storage intact.' },
+      charges: [], refuelled: [], facilitatorNotes: privateMarker } },
+    shuttleDockings: [{ shuttleId: 'starlight', shipId: 'aegis', dockedAt: '2026-09-21T12:00:00.000Z', privateCard: privateMarker }],
+    shuttleVisitLog: [{ id: 'visit-1', shuttleId: 'starlight', shipId: 'aegis', action: 'docked',
+      occurredAt: '2026-09-21T12:00:00.000Z', privateCard: privateMarker }],
+    shuttleCargo: { starlight: { food: 3, privateCard: privateMarker } },
+    admiralDirectives: { revision: 1, entries: [{ id: 'directive-1', kind: 'fleet-policy',
+      text: 'Keep formation.', cycle: 2, publishedAt: '2026-09-21T12:00:00.000Z', privateNotes: privateMarker }] },
+    fleetTicker: { revision: 0, nextSequence: 0, replayCursor: 0, current: null,
+      queued: [], draining: [], dismissed: [], internal: privateMarker },
+    facilitatorNotes: privateMarker,
+  };
+  mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'sessions/s1') return snapshot(fields);
+    if (path === 'sessions/s1/players/u1') return snapshot({ connected: true, role: 'player',
+      fleetGroupId: 'fleet-2', connectionGeneration: 4, assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral' });
+    if (path === 'sessions/s1/fleetGroups') return { docs: [
+      snapshot({ id: 'fleet-1', vesselIds: vessels.filter(id => id !== 'aegis'), memberUids: ['foreign'] }),
+      snapshot({ id: 'fleet-2', vesselIds: ['aegis'], memberUids: ['u1'] }),
+    ] };
+    if (path === 'sessions/s1/shuttleDepartures') return { docs: [] };
+    throw new Error(`Unexpected read: ${path}`);
+  });
+  const response = await getCurrentMemberSession.run({ auth: { uid: 'u1' }, data: { sessionId: 's1' } } as CallableRequest<{ sessionId: string }>) as { session: Record<string, unknown> };
+  expect(JSON.stringify(response.session)).not.toContain(privateMarker);
+  expect(response.session).toMatchObject({
+    shipResources: { aegis: { fuel: 5 } },
+    maintenanceCycles: { aegis: { step: 2, revision: 1, results: { '1': 'Storage intact.' } } },
+    shipDamage: { aegis: { damagedSystemIds: ['storage'], destroyed: false } },
+    shuttleCargo: { starlight: { food: 3 } },
+    admiralDirectives: { revision: 1, entries: [{ id: 'directive-1', text: 'Keep formation.' }] },
+    pressEnabled: true,
+    memberSessionScope: { groupId: 'fleet-2', vesselIds: ['aegis'] },
+  });
+  expect(response.session.shipResources).not.toHaveProperty('shepherd');
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
