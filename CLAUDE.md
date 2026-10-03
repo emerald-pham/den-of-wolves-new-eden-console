@@ -81,18 +81,24 @@ prevented; fixes to broken existing tools remain allowed. For the first five
 prompts, use the existing task timestamps for a lightweight check; do not add a
 new telemetry system.
 
-New top-level coordinators default to `gpt-6-astra` with medium reasoning. The coordinator owns priorities, complete bounded task
-briefs, architecture decisions, and difficult blockers, and intervenes at meaningful boundaries rather than
-requesting repeated status, duplicating investigation, or reviewing every tool result. Do not create expensive child
-coordinators or a mandatory review stage. Only `gpt-6-luna` and `gpt-6.1-sol` may be delegated as subagents. Existing agents may finish their current assignments without interruption; apply this model policy to new agents and subsequent assignments.
+New top-level coordinators default to `gpt-6-astra` with medium reasoning.
+The top-level orchestrator thread receiving the user's request is the task and
+checkpoint owner. It owns priorities, architecture, complete bounded briefs,
+every acceptance, integration, required review, final validation, merge, push,
+deployment verification and the user handoff. Do not delegate checkpoint
+ownership to a child or create an extra coordinator layer. Only `gpt-6-luna` and
+`gpt-6.1-sol` may be delegated as subagents. Existing agents may finish current
+bounded implementation assignments without interruption; apply this model policy
+to new agents and subsequent assignments.
 
 Workers own task-specific documentation reading and code investigation. Beyond required agent instructions, the
-coordinator relies on concise worker findings, decisions needed, and evidence pointers; it does not duplicate their
+orchestrator relies on concise worker findings, decisions needed, and evidence pointers; it does not duplicate their
 document reading. Inspect source material only to resolve a concrete decision or blocker. Do not interrupt an active
-owner or request a rebase solely for routine guidance updates; let the owner encounter them at its next normal update
+worker or request a rebase solely for routine guidance updates; let the worker encounter them at its next normal update
 unless they materially affect the current work.
 
-One task owner carries a change through implementation, repairs, appropriate self-review and validation, merge, push,
+One task owner, the top-level orchestrator, carries a change through
+implementation, repairs, appropriate self-review and validation, merge, push,
 and deployment verification when applicable. For shaped checkpoints, one owner is accountable for every acceptance,
 integration, and release; separate Luna workers (Max almost always preferred) implement independent groups, with independent Sol review for
 shared-state and authority changes. Record groups, dependencies, isolated checkouts, and shared-file boundaries before
@@ -100,17 +106,15 @@ building; group coupled prompts together instead of assigning one agent per prom
 and reconcile at one release boundary. Delegated workers default to `gpt-6-luna`. Luna effort is discretionary; `max` is almost always preferred.
 Sol may use all supported effort levels. Keep explicit task-specific security review floors.
 
-Once the owner has the access, context, and authority to finish the checkpoint,
-the coordinator hands back full execution and steps back. The owner continues
-implementation, ordinary authorized gameplay verification, repairs, appropriate
-review, integration, and release autonomously. The coordinator intervenes only
-at meaningful boundaries requiring its judgment, irreducible blockers or
-approval needs, and final completion. Avoid routine polling, relaying every
-small update, duplicate investigation, and taking over ordinary owner work.
-Temporary coordinator help with a uniquely accessible authorized surface ends
-once that access boundary is resolved. Preserve the explicit canonical-parent
-collaboration messages below and do not create coordinator goals. The linked
-execution policy owns the complete handoff contract.
+Delegate bounded, complete behavior groups while retaining checkpoint ownership
+in the orchestrator thread. Workers implement, verify and repair their groups,
+then return commits, evidence and remaining gaps; the orchestrator does useful
+owner work in parallel and reconciles the single release. Keep conflicting
+shared-file work with one writer. Avoid routine polling, relaying every small
+update and duplicate investigation. Preserve explicit canonical-parent
+collaboration messages and do not create coordinator goals. The linked
+execution policy governs handbacks and safe transitions from an existing
+delegated-owner assignment.
 
 Use `gpt-6.1-sol` for independent review of shared session state, callable behavior
 (including authorization and rules), Firestore rules, deployment/auth
@@ -134,7 +138,7 @@ while an upstream release settles. Reconcile onto its settled result before
 finalizing release metadata and running final validation. Do not repeatedly run
 a full gate on a candidate already known to need another rebase.
 
-Delegated owners report requested checkpoints, blockers and material changes to
+Delegated workers report requested checkpoints, blockers and material changes to
 the canonical parent through collaboration. The [execution policy](docs/AGENT_EXECUTION_POLICY.md)
 owns batched dispatch and waits; the [campaign playbook](docs/AGENT_CAMPAIGN_PLAYBOOK.md#communication-and-stopping)
 owns parent communication and stopping. Keep a concrete owner and resume path.

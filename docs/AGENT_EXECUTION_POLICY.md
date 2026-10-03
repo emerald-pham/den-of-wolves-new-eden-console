@@ -20,6 +20,16 @@ tests written for test-first work do not count as failed attempts.
 
 ### Checkpoint ownership and implementation groups
 
+**Latest owner correction, 2026-10-03:** the top-level orchestrator thread
+receiving the user's request is the task and checkpoint owner. This supersedes
+the earlier coordinator-to-delegated-owner handoff. Do not delegate ownership
+of the whole checkpoint or add a child coordinator. The orchestrator owns
+priorities, architecture, all acceptances, integration, required independent
+review, final validation, merge, push, deployment verification and the user
+handoff. It may implement directly and delegate bounded, complete behavior
+groups; a worker's implementation ownership does not transfer checkpoint
+accountability or release ownership.
+
 Owner instruction, 2026-09-30: use one checkpoint owner accountable for every
 assigned prompt's acceptance, integration, and release; separate Luna workers (Max almost always preferred)
 for independent implementation groups; and independent Sol review for
@@ -48,21 +58,27 @@ prove gameplay and historical evidence labels remain intact.
 Use the currently authorized model versions and efforts; this structure does
 not authorize a model excluded by higher-priority working agreements.
 
-### Coordinator handoff and intervention
+### Orchestrator ownership and worker handbacks
 
-Once the checkpoint owner has the access, context, and authority to complete
-the checkpoint, the coordinator hands back full execution and steps back. The
-owner continues implementation, ordinary authorized gameplay verification,
-repairs, appropriate review, integration, and release autonomously.
+Workers carry their bounded groups through implementation, focused verification,
+self-review and ordinary repairs. They return exact commits, evidence, unresolved
+acceptances, resource state and a concrete integration handoff to the orchestrator.
+The orchestrator reconciles shared seams, obtains required independent review,
+repairs remaining integration gaps and completes the one release. It performs
+useful owner work while independent workers run; it waits at a genuine dependency
+boundary with a clear next action. Avoid routine polling, small-update relays
+and duplicate investigation. Keep explicit collaboration messages to the
+canonical parent for requested checkpoints, blockers, approval needs and material
+changes; ordinary commentary does not replace those messages. Do not create
+coordinator goals.
 
-The coordinator intervenes only at meaningful boundaries requiring its
-judgment, irreducible blockers or approval needs, and final completion. Avoid
-routine polling, relaying every small update, duplicate investigation, or
-taking over ordinary owner work. Temporary coordinator help with a uniquely
-accessible authorized surface ends once that access boundary is resolved.
-Keep the existing explicit collaboration messages to the canonical parent for
-requested checkpoints, blockers, approval needs, and material changes; ordinary
-commentary does not replace those messages. Do not create coordinator goals.
+When an in-progress checkpoint has a delegated owner, preserve its active work
+and obtain one concise handback at a safe boundary. Return checkpoint and release
+ownership to the orchestrator; turn any continuing implementation into a bounded
+worker assignment with exact remaining scope and shared-file boundaries. Do not
+restart completed work or create a replacement coordinator. Existing workers may
+finish their current bounded assignments; this transition is not a new default
+delegation pattern.
 
 ### Parent-only dependency handoff
 
@@ -90,12 +106,13 @@ non-actionable progress quiet.
 
 ### Ownership lessons from the PC06 audit
 
-Use Sol 6.1 for broad checkpoint ownership when shared integration, authority,
-acceptance accounting, and release decisions dominate. Luna remains useful for
-bounded coding groups, normally at Max. This is a task-fit decision based on
-[the PC06 owner audit](PC06_OWNER_AUDIT.md), not a claim that every Luna worker
-fails or that Sol automatically produces correct work. The implementation owner
-cannot provide their own independent risk review.
+The [PC06 owner audit](PC06_OWNER_AUDIT.md) informs complete behavior briefs,
+integration boundaries, acceptance accounting and risk review. Its historical
+recommendation to delegate broad ownership to Sol 6.1 is superseded by the
+2026-10-03 orchestrator-ownership correction. Luna remains useful for bounded
+coding groups, normally at Max; Sol 6.1 may handle a bounded complex implementation
+or justified diagnosis. Neither is an extra checkpoint owner. The implementation
+owner cannot provide their own independent risk review.
 
 Delegate complete behavior groups with agreed request/reply/projection contracts
 and an integration acceptance check where feasible. Do not reserve every adapter,

@@ -24,10 +24,13 @@ hint. Do not copy old counts, SHAs, versions, or statuses into a new task.
 When catalog facts change, run `node scripts/generate-prompt-views.mjs` and use
 `--check` to verify the generated Markdown views.
 
-Use one owner per task for implementation, required risk review, repairs,
-reconciliation, validation, merge, push and deployment verification. Give that
-owner a complete brief with accepted scope, affected surfaces, relevant tests,
-and shared session/callable/rules, deploy/auth, release or emulator hotspots.
+Use one owner per task: the top-level orchestrator thread receiving the user's
+request. It owns implementation, required independent risk review, repairs,
+reconciliation, final validation, merge, push and deployment verification.
+Do not delegate checkpoint ownership to a child or add a coordinator layer.
+Give each implementation worker a complete bounded brief with accepted scope,
+affected surfaces, relevant tests and shared session/callable/rules, deploy/auth,
+release or emulator hotspots.
 A separate sidecar is optional; there is no minimum-agent count.
 
 For a shaped checkpoint, assign independent work on the release's critical
@@ -47,8 +50,9 @@ still requires `xhigh` when the validator says so.
 Ask the reviewer for all findings in one pass. Escalate only after actual lack
 of progress or a material failed attempt; a typo, copy change, or test-count
 correction does not require a handoff. Do not force a Luna → Sol → Luna loop.
-Use Sol 6.1 for justified blocker diagnosis or ownership transfer only after the
-failed attempt and reason are recorded in the task discussion.
+Use Sol 6.1 for justified blocker diagnosis or transfer of a bounded implementation
+only after the failed attempt and reason are recorded in the task discussion.
+Checkpoint and release ownership remain with the orchestrator.
 
 ## Scope and concurrency
 
@@ -127,8 +131,8 @@ owner with the exact overlap and wait or choose a non-overlapping slice; do not
 edit through it. A CI visibility gap, ordinary test failure, external
 dependency, or pending user decision is not automatically an agent blocker.
 
-When the coordinator reaches a stopping point, open no new lanes. Finish active
-owners through their agreed commit/validation/merge path, or record a clear
+When the orchestrator reaches a stopping point, open no new lanes. Finish active
+workers through their agreed commit/evidence handback, or record a clear
 preserve/discard outcome, release only this campaign's resources, and report
 what remains. Do not claim campaign completion from a local branch or copied
 roadmap status.

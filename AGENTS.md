@@ -33,21 +33,22 @@ Batch all scoped PC work into one reconciled candidate and run one final
 appropriate validation after reconciliation. Prefer one exact-candidate CI and
 deployment run; rerun only for a failed gate, production-only finding, or
 material candidate change. The linked execution policy governs the details.
-Use one accountable checkpoint owner, separate Luna workers (Max almost always preferred) for independent
-implementation groups, and independent Sol review for shared-state and authority
-changes. Group coupled prompts by behavior rather than assigning one agent per
-prompt; record the concrete groups and integration boundaries before building.
+The top-level orchestrator thread receiving the user's request is the task and
+checkpoint owner. It carries every acceptance, integration, required review,
+final validation, merge, push, deployment verification and user handoff. Do not
+delegate checkpoint ownership to a child or add a coordinator above a delegated
+owner. Use separate Luna workers (Max almost always preferred) for bounded,
+complete implementation groups and independent Sol review for shared-state and
+authority changes. Group coupled prompts by behavior rather than assigning one
+agent per prompt; record concrete groups and integration boundaries before building.
 
-Once the owner has the access, context, and authority to finish the checkpoint,
-the coordinator hands back full execution and steps back. The owner completes
-implementation, ordinary verification, repairs, appropriate review, integration,
-and release autonomously. Coordinator intervention is limited to meaningful
-judgment boundaries, irreducible blockers or approval needs, and final completion;
-temporary help with a uniquely accessible authorized surface ends when that
-boundary is resolved. Avoid routine polling, small-update relays, duplicate
-investigation, and taking over ordinary owner work. Preserve explicit parent
-collaboration messages and do not create coordinator goals. The linked execution
-policy governs the complete handoff contract.
+Workers own implementation, ordinary verification and repairs within their
+briefs, then hand back commits, evidence and remaining gaps to the orchestrator.
+The orchestrator performs useful owner work while independent groups run and
+reconciles the single release. Avoid routine polling, small-update relays and
+duplicate investigation. Preserve explicit parent collaboration messages and
+do not create coordinator goals. The linked execution policy governs safe
+handoffs, including an in-progress transition from a previously delegated owner.
 
 For a parent-only dependency, send the canonical parent an actionable
 collaboration message and obtain acknowledgement before dependency parking.
