@@ -50,3 +50,16 @@ it('keeps a denial visible and allows a fresh explicit retry without announcing 
  expect(screen.getByRole('status')).toHaveTextContent('Airspace restricted');
  expect(screen.getByRole('button',{name:'Unlock airspace // Press'})).toBeEnabled();
 });
+it.each(['actor','cycle'] as const)('withdraws a delayed denial when the current %s changes',async kind=>{
+ let reject!: (error:Error)=>void;
+ command.mockImplementationOnce(()=>new Promise<void>((_resolve,deny)=>{reject=deny;}));
+ render(<AirspaceControl />);fireEvent.click(screen.getByText('Systems control'));
+ fireEvent.click(screen.getByRole('button',{name:'Unlock airspace // Press'}));
+ act(()=>{
+  const state=useSessionStore.getState();
+  if(kind==='actor')useSessionStore.setState({me:{...state.me!,uid:'new-admiral'}});
+  else state.setSession({...state.session!,currentTurn:2,turnPhase:{...state.session!.turnPhase!,turn:2}});
+ });
+ await act(async()=>reject(new Error('Old actor restriction denied.')));
+ expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+});
