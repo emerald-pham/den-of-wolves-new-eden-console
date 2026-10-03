@@ -9,6 +9,7 @@ import AegisCommandAndControlPanel from './AegisCommandAndControlPanel';
 import WolfAttackStatusPanel from './WolfAttackStatusPanel';
 import WolfRangeActionPanel from './WolfRangeActionPanel';
 import WolfBoardingDefencePanel from './WolfBoardingDefencePanel';
+import AegisFighterWingLaunchPanel from './AegisFighterWingLaunchPanel';
 
 interface Props {
   readonly ship: Ship;
@@ -82,6 +83,7 @@ export default function FleetConsoleWorkspace({
         consoleLocked={projectedConsoleLock}
         shipState={shipState}
       />
+      {writable && role.id === 'wing-commander' && <AegisFighterWingLaunchPanel />}
       {writable && <WolfBoardingDefencePanel />}
       <WolfAttackStatusPanel />
     </>;

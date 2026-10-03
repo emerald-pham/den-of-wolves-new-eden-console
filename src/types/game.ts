@@ -852,6 +852,28 @@ export interface PdfEscortWingLaunchResult extends PdfEscortWingLaunchView {
   readonly requestId: string;
 }
 
+export type AegisFighterWingLaunchReason =
+  | 'waiting' | 'uncharged' | 'damaged' | 'destroyed' | 'no-fighters' | 'already-launched';
+
+export interface AegisFighterWingLaunchView {
+  readonly type: 'aegis-fighter-wing-launch-view';
+  readonly sessionId: string;
+  readonly wingId: 'fighter-wing-alpha' | 'fighter-wing-bravo';
+  readonly turn: number;
+  readonly attackId: string;
+  readonly revision: number;
+  readonly wingRevision: number;
+  readonly fighters: number;
+  readonly launched: boolean;
+  readonly eligible: boolean;
+  readonly reason?: AegisFighterWingLaunchReason;
+}
+
+export interface AegisFighterWingLaunchResult extends AegisFighterWingLaunchView {
+  readonly status: 'committed' | 'replayed';
+  readonly requestId: string;
+}
+
 /** Public callable receipt for the GM declaration control. */
 export interface WolfAttackDeclarationResult {
   readonly status: 'committed' | 'replayed';

@@ -3,7 +3,8 @@ import { subscribeWolfAttackMemberView } from '@/lib/firestore';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { GameSession, Player, WolfAttackMemberView } from '@/types/game';
 
-export type WolfAttackChoiceActor = 'gorgoneion-captain' | 'wolf-commander' | 'executive-officer' | 'ship-crew';
+export type WolfAttackChoiceActor =
+  | 'gorgoneion-captain' | 'wolf-commander' | 'executive-officer' | 'wing-commander' | 'ship-crew';
 
 export interface WolfAttackChoiceAuthority {
   readonly sessionId?: string;
@@ -40,7 +41,9 @@ function authorityFor(
       ? me?.replacementRoleId === 'wolf-commander'
       : actor === 'executive-officer'
         ? me?.activeConsoleRoleId === 'executive-officer'
-        : true);
+        : actor === 'wing-commander'
+          ? me?.activeConsoleRoleId === 'wing-commander'
+          : true);
   const gorgoneion = session?.smallShipStates?.gorgoneion;
   const discovery = session?.playerDiscovery;
   const key = JSON.stringify([

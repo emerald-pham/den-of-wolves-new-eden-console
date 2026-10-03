@@ -19,6 +19,8 @@ import type {
   WolfAttackDeclarationResult,
   DioneMaliadesLaunchResult,
   DioneMaliadesLaunchView,
+  AegisFighterWingLaunchResult,
+  AegisFighterWingLaunchView,
   PdfEscortWingLaunchResult,
   PdfEscortWingLaunchView,
   WolfCommanderTargetingView,
@@ -4620,6 +4622,43 @@ function pdfEscortWingLaunchResultReply(value: unknown): PdfEscortWingLaunchResu
     : null;
 }
 
+function aegisFighterWingLaunchViewReply(value: unknown): AegisFighterWingLaunchView | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const reply = value as Record<string, unknown>;
+  const validWing = reply.wingId === 'fighter-wing-alpha' || reply.wingId === 'fighter-wing-bravo';
+  const validReason = reply.reason === undefined || reply.reason === 'waiting' || reply.reason === 'uncharged' ||
+    reply.reason === 'damaged' || reply.reason === 'destroyed' || reply.reason === 'no-fighters' ||
+    reply.reason === 'already-launched';
+  if (reply.type !== 'aegis-fighter-wing-launch-view' || typeof reply.sessionId !== 'string' || !reply.sessionId ||
+      !validWing || !Number.isSafeInteger(reply.turn) || (reply.turn as number) < 1 ||
+      typeof reply.attackId !== 'string' || !reply.attackId ||
+      !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 0 ||
+      !Number.isSafeInteger(reply.wingRevision) || (reply.wingRevision as number) < 0 ||
+      !Number.isSafeInteger(reply.fighters) || (reply.fighters as number) < 0 ||
+      typeof reply.launched !== 'boolean' || typeof reply.eligible !== 'boolean' || !validReason ||
+      (reply.eligible && (reply.launched || reply.reason !== undefined)) ||
+      (reply.launched && reply.reason !== 'already-launched') ||
+      (!reply.eligible && !reply.reason)) return null;
+  return {
+    type: 'aegis-fighter-wing-launch-view', sessionId: reply.sessionId,
+    wingId: reply.wingId as AegisFighterWingLaunchView['wingId'],
+    turn: reply.turn as number, attackId: reply.attackId, revision: reply.revision as number,
+    wingRevision: reply.wingRevision as number, fighters: reply.fighters as number,
+    launched: reply.launched, eligible: reply.eligible,
+    ...(reply.reason === undefined ? {} : { reason: reply.reason as NonNullable<AegisFighterWingLaunchView['reason']> }),
+  };
+}
+
+function aegisFighterWingLaunchResultReply(value: unknown): AegisFighterWingLaunchResult | null {
+  const view = aegisFighterWingLaunchViewReply(value);
+  if (!view || typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const reply = value as Record<string, unknown>;
+  return (reply.status === 'committed' || reply.status === 'replayed') &&
+    typeof reply.requestId === 'string' && reply.requestId.length > 0
+    ? { ...view, status: reply.status, requestId: reply.requestId }
+    : null;
+}
+
 export type WolfCommanderTargetingReadResult =
   | WolfCommanderTargetingView
   | Readonly<{
@@ -5253,6 +5292,74 @@ export async function launchPdfEscortWing(
         reply.turn !== expectedTurn || reply.revision !== expectedRevision + 1 ||
         reply.wingRevision !== expectedWingRevision + 1 || !reply.launched) {
       throw new Error('The server returned an invalid Escort Wing launch receipt.');
+    }
+    if (!authorityCheckpointIsCurrent(checkpoint)) return reply;
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Read the current Wing Commander's per-bay AEGIS launch choice. */
+export async function getAegisFighterWingLaunch(
+  wingId: 'fighter-wing-alpha' | 'fighter-wing-bravo',
+): Promise<AegisFighterWingLaunchView | null> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.sessionId !== store.session.id ||
+      store.me.activeConsoleRoleId !== 'wing-commander') {
+    throw new Error('Only the active AEGIS Wing Commander may read Fighter Bay launch authority.');
+  }
+  requireFreshSessionAuthority('Reconnect before reading Fighter Wing launch authority.');
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const call = httpsCallable<{ sessionId: string; wingId: typeof wingId }, unknown>(
+    functions(), 'getAegisFighterWingLaunch',
+  );
+  try {
+    const rawReply = (await call({ sessionId, wingId })).data;
+    const current = useSessionStore.getState();
+    if (!authorityCheckpointIsCurrent(checkpoint) || current.session?.id !== sessionId ||
+        current.me?.sessionId !== sessionId || current.me?.activeConsoleRoleId !== 'wing-commander') return null;
+    const reply = aegisFighterWingLaunchViewReply(rawReply);
+    if (!reply || reply.sessionId !== sessionId || reply.wingId !== wingId) {
+      throw new Error('The server returned an invalid AEGIS Fighter Wing launch view.');
+    }
+    return reply;
+  } catch (cause) {
+    const current = useSessionStore.getState();
+    if (!authorityCheckpointIsCurrent(checkpoint) || current.session?.id !== sessionId ||
+        current.me?.sessionId !== sessionId || current.me?.activeConsoleRoleId !== 'wing-commander') return null;
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Commit the Wing Commander's launch against the displayed attack and wing revisions. */
+export async function launchAegisFighterWing(
+  wingId: 'fighter-wing-alpha' | 'fighter-wing-bravo',
+  expectedTurn: number,
+  expectedRevision: number,
+  expectedWingRevision: number,
+): Promise<AegisFighterWingLaunchResult> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.sessionId !== store.session.id ||
+      store.me.activeConsoleRoleId !== 'wing-commander') {
+    throw new Error('Only the active AEGIS Wing Commander may launch a Fighter Wing.');
+  }
+  requireFreshSessionAuthority('Reconnect before launching the Fighter Wing.');
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const payload = { sessionId, requestId: commandId(), expectedTurn, expectedRevision, expectedWingRevision, wingId };
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'launchAegisFighterWing');
+  try {
+    const reply = aegisFighterWingLaunchResultReply((await call(payload)).data);
+    if (!reply || reply.sessionId !== sessionId || reply.requestId !== payload.requestId ||
+        reply.wingId !== wingId || reply.turn !== expectedTurn || reply.revision !== expectedRevision + 1 ||
+        reply.wingRevision !== expectedWingRevision + 1 || !reply.launched) {
+      throw new Error('The server returned an invalid AEGIS Fighter Wing launch receipt.');
     }
     if (!authorityCheckpointIsCurrent(checkpoint)) return reply;
     return reply;

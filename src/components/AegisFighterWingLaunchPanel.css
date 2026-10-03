@@ -1,0 +1,74 @@
+.aegis-fighter-launch {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.aegis-fighter-launch__header,
+.aegis-fighter-launch__wing {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.aegis-fighter-launch__header h2,
+.aegis-fighter-launch__wing h3,
+.aegis-fighter-launch__wing p {
+  margin: 0;
+}
+
+.aegis-fighter-launch__wings {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.aegis-fighter-launch__wing {
+  align-items: flex-start;
+  flex-wrap: wrap;
+  padding: 0.85rem;
+  border: 1px solid var(--cic-border, rgba(117, 185, 204, 0.45));
+  background: rgba(0, 18, 28, 0.55);
+}
+
+.aegis-fighter-launch__wing > div {
+  min-width: 10rem;
+  flex: 1 1 10rem;
+}
+
+.aegis-fighter-launch__wing h3 {
+  margin-bottom: 0.35rem;
+  font-size: 1rem;
+}
+
+.aegis-fighter-launch__wing p,
+.aegis-fighter-launch__notice {
+  color: var(--cic-muted, #c4d0d5);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.aegis-fighter-launch__status {
+  flex: 0 0 auto;
+  color: var(--cic-accent, #8bd8e8);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.aegis-fighter-launch__notice {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+@media (max-width: 42rem) {
+  .aegis-fighter-launch__wings {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .aegis-fighter-launch__header {
+    align-items: flex-start;
+  }
+}

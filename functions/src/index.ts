@@ -23085,7 +23085,7 @@ type AegisFighterWingLaunchView = Readonly<{
   fighters: number;
   launched: boolean;
   eligible: boolean;
-  reason: AegisFighterWingLaunchReason;
+  reason?: AegisFighterWingLaunchReason;
 }>;
 
 type AegisFighterWingLaunchResult = AegisFighterWingLaunchView & Readonly<{
@@ -23168,7 +23168,8 @@ function aegisFighterWingLaunchView(
   if (damage.destroyed) return { ...view, reason: 'destroyed' };
   if ((damage.damagedSystemIds as string[]).includes(bayId)) return { ...view, reason: 'damaged' };
   if (!cycle.charges.includes(bayId)) return { ...view, reason: 'uncharged' };
-  return { ...view, eligible: true, reason: 'waiting' };
+  const { reason: _reason, ...eligibleView } = view;
+  return { ...eligibleView, eligible: true };
 }
 
 function aegisFighterWingLaunchResultIsValid(value: unknown): value is AegisFighterWingLaunchResult {
