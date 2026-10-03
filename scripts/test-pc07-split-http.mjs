@@ -259,8 +259,35 @@ try {
   const finalDiscovery = await discovery(comms);
   assert.equal(new Set(finalDiscovery.knownCoordinates).size, finalDiscovery.knownCoordinates.length);
   checks.coLocatedRejoinMergesMembershipNotesAndKnowledgeWithMaximumPursuit = true;
+  // Repeat an actual GM-confirmed partition after the old groups became history.
+  await move('icebreaker', nearby);
+  await partition();
+  const currentOwn = await group(wing), currentOther = await group(iceCrew);
+  assert.notEqual(currentOwn, currentOther);
+  assert.notEqual(currentOther, otherGroup, 'An absorbed event/message path must never be reused.');
+  const newNote = { expectedGroupId: currentOther, requestId: randomUUID(), text: 'NEW SPLIT PRIVATE ICEBREAKER NOTE' };
+  await command(iceCrew, 'sendFleetGroupMessage', newNote);
+  const resplitHistory = await command(wing, 'readFleetGroupMessages', { expectedGroupId: currentOwn });
+  assert.ok(resplitHistory.messages.some(note => note.id === foreignNote.requestId));
+  assert.ok(!resplitHistory.messages.some(note => note.id === newNote.requestId));
+  assert.ok((await command(iceCrew, 'readFleetGroupMessages', { expectedGroupId: currentOther })).messages.some(note => note.id === newNote.requestId));
+  // These two records are labeled rule fixtures, not proof of an ECM activation.
+  // Membership, rejoin, re-split and both message writes above are normal commands.
+  async function eventProbe(groupId, eventId) {
+    const path = `sessions/${sessionId}/fleetGroupEvents/${groupId}/events/${eventId}`;
+    await db.doc(path).set({ type: 'endeavour-ecm-device-used', sessionId, groupId });
+    return async actor => (await fetch(`http://127.0.0.1:${f.config.firestorePort}/v1/projects/${f.project}/databases/(default)/documents/${path}`,
+      { headers: { Authorization: `Bearer ${actor.idToken}` } })).status;
+  }
+  const oldEvent = await eventProbe(otherGroup, 'acquired-history');
+  const newEvent = await eventProbe(currentOther, 'new-private-event');
+  assert.equal(await oldEvent(wing), 200);
+  assert.equal(await newEvent(wing), 403);
+  assert.equal(await newEvent(iceCrew), 200);
+  checks.rejoinThenResplitPreservesOldHistoryAndDeniesNewForeignNotesAndRuleEvents = true;
   await writeFile(evidencePath, JSON.stringify({ kind: 'normal-authenticated-local-emulator-http-composed-split-gameplay',
-    sourceCommit: process.env.PC07_SOURCE_COMMIT, checks, normalRoster: 13, fixtureChanges: ['disposable clock deadlines only'],
+    sourceCommit: process.env.PC07_SOURCE_COMMIT, checks, normalRoster: 13,
+    fixtureChanges: ['disposable clock deadlines only', 'two labeled ECM event records for the native Rules audience probe; no ECM activation claim'],
     normalFacilitatorDecisions: ['scoped console grants', 'replacement eligibility', 'physical navigation and partition confirmation', 'early cycle advancement', 'audited damage correction when random maintenance damages a required console'],
     sourceCoordinates: { origin, nearby, distant }, jumps, transferredPassengers: transferred.playerUids.length,
     finalShips: restored.ships.length, preparedScene: false, productionGameplay: false, identitiesRetained: false,

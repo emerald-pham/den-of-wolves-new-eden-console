@@ -5,7 +5,7 @@ import {createRequire} from 'node:module';
 import {localGmAccessConfiguration,grantLocalGmAccess} from './local-gm-access.mjs';
 
 /** Normal local Auth/HTTP setup. Tokens stay in memory and never enter evidence. */
-export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBriefing=true,keepAlive=false,browserRoleId,joinBrowserPlayer}={}) {
+export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBriefing=true,keepAlive=false,browserRoleId,joinBrowserPlayer,joinPressPlayer}={}) {
  const env=Object.fromEntries((await readFile('.env.emulators.local','utf8')).trim().split('\n').map(line=>line.split('=')));
  const project=process.env.VITE_FIREBASE_PROJECT_ID;
  const config=localGmAccessConfiguration('serve',{...env,VITE_LOCAL_GM_ACCESS:'1',VITE_FIREBASE_PROJECT_ID:project});
@@ -42,16 +42,18 @@ export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBr
    ok(await call(player,'claimSeat',{sessionId,seatId:roles[i],requestId:randomUUID(),expectedSetupRevision:current.session.setupRevision}),'seat');
    ok(await call(player,'refreshPresence',{sessionId,activeConsoleRoleId:roles[i]}),'console');
   }
+  const press=joinPressPlayer?await joinPressPlayer(created.session.joinCode):undefined;
+  if(press)ok(await call(press,'refreshPresence',{sessionId,activeConsoleRoleId:'press-officer'}),'Press claim');
   const current=ok(await call(gm,'resumeSession',{sessionId,instanceId}),'GM resume');
   ok(await call(gm,'startGame',{sessionId,instanceId,requestId:randomUUID(),expectedSetupRevision:current.session.setupRevision}),'start');
   const hold=(await session.get()).get('turnPhase').timerPause;
   if(clearBriefing)ok(await call(players[0],'clearTurnAdvanceInterstitial',{sessionId,expectedCycle:1,expectedPausedAt:hold.pausedAt,requestId:randomUUID()}),'briefing clear');
   let heartbeat,heartbeatPending=Promise.resolve();
   if(keepAlive)heartbeat=setInterval(()=>{heartbeatPending=heartbeatPending.then(async()=>{
-   for(const actor of [gm,...players].filter(actor=>!disconnected.has(actor.localId)))await call(actor,'refreshPresence',{sessionId,
+   for(const actor of [gm,...players,...(press?[press]:[])].filter(actor=>!disconnected.has(actor.localId)))await call(actor,'refreshPresence',{sessionId,
     ...(actor===gm?{instanceId}:{}),activeConsoleRoleId:consoleRoles.get(actor.localId)??null});
   });},10000);
-  return{db,config,project,gm,players,roles,sessionId,session,instanceId,call,ok,
+  return{db,config,project,gm,players,press,roles,sessionId,session,instanceId,call,ok,
    byRole:role=>players[roles.indexOf(role)],cleanup:async()=>{clearInterval(heartbeat);await heartbeatPending;await db.recursiveDelete(session);}};
  }catch(error){await db.recursiveDelete(session);throw error;}
 }
