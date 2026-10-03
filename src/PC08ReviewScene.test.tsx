@@ -1,0 +1,81 @@
+import {fireEvent, render, screen, within} from '@testing-library/react';
+import {expect, it, vi} from 'vitest';
+import PC08ReviewScene from './PC08ReviewScene';
+import {useSessionStore} from '@/store/useSessionStore';
+
+vi.mock('./components/ContactPlot', () => ({default: ({contacts}: {contacts: {tag: string}[]}) =>
+  <div>{contacts.map(contact => <span key={contact.tag}>{contact.tag}</span>)}</div>}));
+
+it('offers five keyboard-accessible checks and a visible route to the station chooser', () => {
+  render(<PC08ReviewScene />);
+  expect(screen.getByRole('note', {name: 'Prepared review boundary'})).toHaveTextContent('No live session writes');
+  const navigation = screen.getByRole('navigation', {name: 'PC08 review steps'});
+  expect(within(navigation).getAllByRole('button')).toHaveLength(5);
+  for (const button of within(navigation).getAllByRole('button')) {
+    fireEvent.click(button);
+    expect(button).toHaveAttribute('aria-pressed', 'true');
+  }
+  fireEvent.click(screen.getByRole('button', {name: 'Previous review step'}));
+  expect(within(navigation).getByRole('button', {name: '4 Boarding defence'})).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('link', {name: 'Return to station and console chooser'})).toHaveAttribute('href', '/#/');
+});
+
+it('uses the real range presenter for local use, target assignment and damaged-action denial', () => {
+  render(<PC08ReviewScene />);
+  fireEvent.click(screen.getByRole('button', {name: '2 Weapons'}));
+  fireEvent.click(screen.getByRole('checkbox', {name: 'Missile launchers'}));
+  fireEvent.click(screen.getByRole('button', {name: 'Use selected actions'}));
+  fireEvent.change(screen.getByRole('combobox', {name: 'Missile launchers hit 1'}), {target: {value: 'local-contact-1'}});
+  fireEvent.click(screen.getByRole('button', {name: 'Commit target assignments'}));
+  expect(screen.getByRole('status', {name: 'Prepared weapon result'})).toHaveTextContent('LOCAL SIMULATION');
+  expect(screen.getByRole('status', {name: 'Prepared weapon result'})).toHaveTextContent('committed');
+  fireEvent.click(screen.getByRole('button', {name: 'Damaged weapon sample'}));
+  expect(screen.queryByRole('checkbox', {name: 'Missile launchers'})).not.toBeInTheDocument();
+  expect(screen.getByRole('button', {name: 'Use selected actions'})).toBeDisabled();
+});
+
+it('shows committed boarding through the real crew presenter without accepting a second local choice', () => {
+  render(<PC08ReviewScene />);
+  fireEvent.click(screen.getByRole('button', {name: '4 Boarding defence'}));
+  const choices = screen.getByRole('combobox', {name: 'Security Teams to commit'});
+  fireEvent.change(choices, {target: {value: '2'}});
+  fireEvent.click(screen.getByRole('button', {name: 'Commit defence choice'}));
+  expect(screen.getByRole('status', {name: 'Prepared boarding result'})).toHaveTextContent('2 Security Teams');
+  expect(screen.queryByRole('button', {name: 'Commit defence choice'})).not.toBeInTheDocument();
+});
+
+it('retains committed results through offline and reconnect samples', () => {
+  render(<PC08ReviewScene />);
+  fireEvent.click(screen.getByRole('button', {name: '5 Results and recovery'}));
+  const result = screen.getByRole('region', {name: 'Wolf attack status'});
+  expect(result).toHaveTextContent('Attack complete');
+  fireEvent.click(screen.getByRole('button', {name: 'Offline sample'}));
+  expect(result).toHaveTextContent('Attack complete');
+  expect(screen.getByRole('status', {name: 'Prepared recovery result'})).toHaveTextContent('preserved');
+  fireEvent.click(screen.getByRole('button', {name: 'Reconnect sample'}));
+  expect(result).toHaveTextContent('Attack complete');
+  expect(screen.getByRole('status', {name: 'Prepared recovery result'})).toHaveTextContent('same committed');
+});
+
+it('keeps every prepared interaction isolated from the current signed-in identity and session store', () => {
+  const original = useSessionStore.getState();
+  const me = {uid: 'existing-gm', sessionId: 'existing-session', displayName: 'Existing facilitator',
+    role: 'gm' as const, seatId: null, joinedAt: '2026-10-03T12:00:00.000Z'};
+  const instance = {id: 'existing-instance', sessionId: me.sessionId, uid: me.uid,
+    name: 'Existing console', deviceLabel: 'Existing device', claimedAt: me.joinedAt};
+  useSessionStore.setState({me, gmInstance: instance});
+  try {
+    render(<PC08ReviewScene />);
+    expect(screen.queryByRole('button', {name: 'Trigger unknown contact'})).not.toBeInTheDocument();
+    for (const label of ['2 Weapons', '3 Fleet fighters', '4 Boarding defence', '5 Results and recovery']) {
+      fireEvent.click(screen.getByRole('button', {name: label}));
+    }
+    fireEvent.click(screen.getByRole('button', {name: 'Offline sample'}));
+    fireEvent.click(screen.getByRole('button', {name: 'Reconnect sample'}));
+    expect(useSessionStore.getState().session).toBe(original.session);
+    expect(useSessionStore.getState().me).toBe(me);
+    expect(useSessionStore.getState().gmInstance).toBe(instance);
+  } finally {
+    useSessionStore.setState(original);
+  }
+});
