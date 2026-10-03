@@ -79,6 +79,19 @@ export function resolveScoutChartResult(
   if (!isPermittedScoutFacilitator(facilitator, request.sessionId)) {
     throw new Error('A live same-session facilitator instance is required.');
   }
+  return resolveCommittedScoutChartResult(rawRequest, rawChartAuthority);
+}
+
+/** Server-only lookup after a committed request and cadence have been verified. */
+export function resolveCommittedScoutChartResult(
+  rawRequest: unknown,
+  rawChartAuthority: unknown,
+): PrivateScoutResult {
+  const request = parseResolutionRequest(rawRequest);
+  const chartAuthority = request ? parseChartAuthority(rawChartAuthority, request.sessionId) : null;
+  if (!request || !chartAuthority) {
+    throw new Error('Scout chart resolution request is malformed.');
+  }
   const site = organiserSitesForChart(chartAuthority.chartId)[request.targetCoordinate];
   if (!site || !/^[A-P]$/.test(site.code) || !site.name) {
     throw new Error('The requested coordinate has no booklet entry on the selected chart.');

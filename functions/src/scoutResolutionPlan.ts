@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
-import { resolveScoutChartResult } from './scoutChartResult';
+import { resolveScoutChartResult, resolveCommittedScoutChartResult } from './scoutChartResult';
 import { SCOUT_ENTITLEMENTS, type ScoutEntitlementId } from './scoutEntitlements';
 import type { PrivateScoutResult, ScoutResultViewerAuthority } from './scoutResultProjection';
 import { STAR_CHART_COORDINATES } from './starChartGraph';
@@ -11,7 +11,7 @@ export interface ScoutResolutionInput {
   readonly request: unknown;
   readonly cadence: unknown;
   readonly session: unknown;
-  readonly facilitator: ScoutResultViewerAuthority;
+  readonly facilitator: ScoutResultViewerAuthority | Readonly<{ type: 'automatic-server' }>;
   readonly fleetGroupId: unknown;
   readonly recordedAt: unknown;
 }
@@ -28,7 +28,7 @@ export interface ScoutResolutionPlan {
   }>;
   readonly audit: Readonly<{
     type: 'scout-resolution-audit'; sessionId: string; requestId: string;
-    requesterUid: string; facilitatorUid: string; sourceId: ScoutEntitlementId;
+    requesterUid: string; facilitatorUid: string | null; resolutionMode?: 'automatic'; sourceId: ScoutEntitlementId;
     originShipId: string; receivingShipId: string;
     originCoordinate: string | null; targetCoordinate: string;
     cycle: number; result: PrivateScoutResult['systemFact']; recordedAt: string;
@@ -127,17 +127,22 @@ export function buildScoutResolutionPlan(input: ScoutResolutionInput): ScoutReso
       !iso(input.recordedAt)) {
     throw new Error('The scout group or server timestamp is unavailable.');
   }
-  const result = resolveScoutChartResult({
+  const resolutionRequest = {
     type: 'scout-resolution-request', sessionId: request.sessionId,
     requestId: request.requestId, requesterUid: request.actorUid,
     sourceId: request.entitlementId, cycle: request.cycle,
     targetCoordinate: request.targetCoordinate,
-  }, {
+  };
+  const chartAuthority = {
     sessionId: (input.session as RecordValue).sessionId,
     phase: (input.session as RecordValue).phase,
     chartId: (input.session as RecordValue).chartId,
     chartSelectionLocked: (input.session as RecordValue).chartSelectionLocked,
-  }, input.facilitator);
+  };
+  const automatic = 'type' in input.facilitator && input.facilitator.type === 'automatic-server';
+  const result = automatic
+    ? resolveCommittedScoutChartResult(resolutionRequest, chartAuthority)
+    : resolveScoutChartResult(resolutionRequest, chartAuthority, input.facilitator as ScoutResultViewerAuthority);
   const recordedAt = input.recordedAt as string;
   const noteId = scoutDiscoveryNoteId(result.sessionId, result.requesterUid, result.requestId);
   const scan = request.scan as RecordValue;
@@ -154,7 +159,9 @@ export function buildScoutResolutionPlan(input: ScoutResolutionInput): ScoutReso
     }),
     audit: Object.freeze({
       type: 'scout-resolution-audit', sessionId: result.sessionId, requestId: result.requestId,
-      requesterUid: result.requesterUid, facilitatorUid: input.facilitator.uid as string,
+      requesterUid: result.requesterUid,
+      facilitatorUid: automatic ? null : (input.facilitator as ScoutResultViewerAuthority).uid as string,
+      ...(automatic ? { resolutionMode: 'automatic' as const } : {}),
       sourceId: result.sourceId, originShipId: request.anchorShipId as string,
       receivingShipId: request.receivingShipId as string,
       originCoordinate: typeof scan.originCoordinate === 'string' ? scan.originCoordinate : null,

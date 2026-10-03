@@ -434,7 +434,8 @@ export { repairConsolesFromAlly } from './allyRepairCallable';
 export { repairGorgoneionWithDrones } from './gorgoneionRepairDronesCallable';
 export { repairWarriorWithDrones } from './warriorRepairDronesCallable';
 export { transferBaseCapybaraCargo } from './baseCapybaraCargoTransferCallable';
-import { createResolvePendingScoutRequest } from './scoutResultCallable';
+import { createResolvePendingScoutRequest, type ScoutMapCommit } from './scoutResultCallable';
+import { createAutomaticScoutResolver } from './scoutAutomaticResolution';
 export {
   readPrivateScoutResult, listPendingScoutRequests,
   listMyScoutReports, readMyScoutDiscoveryNote,
@@ -2903,7 +2904,7 @@ function publishDiscoveryProjections(
   }
 }
 
-export const resolvePendingScoutRequest = createResolvePendingScoutRequest(async ({
+const commitScoutMapKnowledge: ScoutMapCommit = async ({
   tx, sessionId, session, groups: groupSnapshots, plan,
 }) => {
   const { activeVesselIds } = strictScoutRosters(session);
@@ -2978,7 +2979,10 @@ export const resolvePendingScoutRequest = createResolvePendingScoutRequest(async
       fleetGroupSnapshots: groupSnapshots,
     },
   );
-});
+ };
+
+export const resolvePendingScoutRequest = createResolvePendingScoutRequest(commitScoutMapKnowledge);
+export const automaticallyResolveScoutRequest = createAutomaticScoutResolver(commitScoutMapKnowledge);
 
 function activeShipSurvivors(value: unknown, activeVesselIds: readonly string[]): Record<string, number> {
   const stored: Record<string, number> = {};

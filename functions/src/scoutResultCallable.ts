@@ -127,11 +127,20 @@ export type ScoutMapCommit = (input: Readonly<{
 /** GM reveals one selected-chart fact from a committed, immutable legal request. */
 export function createResolvePendingScoutRequest(commitMapKnowledge: ScoutMapCommit) {
   return onCall(CALLABLE_RUNTIME_OPTIONS, async (request) => {
+    const actorUid = uid(request.auth);
+    const raw = command(request.data, ['sessionId', 'requestId', 'instanceId']);
+    return resolveCommittedScoutRequest(commitMapKnowledge, raw.sessionId as string,
+      raw.requestId as string, { actorUid, instanceId: raw.instanceId as string });
+  });
+}
+
+/** Internal worker: the automatic path requires the immutable player command receipt. */
+export async function resolveCommittedScoutRequest(
+  commitMapKnowledge: ScoutMapCommit, sessionId: string, requestId: string,
+  gm?: Readonly<{ actorUid: string; instanceId: string }>,
+) {
+  if (!id(sessionId) || !id(requestId)) throw new Error('Invalid committed scout identity.');
   const db = getFirestore();
-  const actorUid = uid(request.auth);
-  const raw = command(request.data, ['sessionId', 'requestId', 'instanceId']);
-  const sessionId = raw.sessionId as string;
-  const requestId = raw.requestId as string;
   const nowMs = Date.now();
   const serverTime = new Date(nowMs).toISOString();
   const sessionRef = db.doc(`sessions/${sessionId}`);
@@ -141,22 +150,45 @@ export function createResolvePendingScoutRequest(commitMapKnowledge: ScoutMapCom
   const deepRef = db.doc(`sessions/${sessionId}/deepNebulaScans/${requestId}`);
 
   return db.runTransaction(async (tx: Transaction) => {
-    const [session, player, instance, pending, priorResult, groups] = await Promise.all([
+    const [session, player, instance, pending, priorResult, groups, receipt] = await Promise.all([
       tx.get(sessionRef),
-      tx.get(db.doc(`sessions/${sessionId}/players/${actorUid}`)),
-      tx.get(db.doc(`sessions/${sessionId}/gmInstances/${raw.instanceId}`)),
+      gm ? tx.get(db.doc(`sessions/${sessionId}/players/${gm.actorUid}`)) : undefined,
+      gm ? tx.get(db.doc(`sessions/${sessionId}/gmInstances/${gm.instanceId}`)) : undefined,
       tx.get(requestRef), tx.get(resultRef),
       tx.get(db.collection(`sessions/${sessionId}/fleetGroups`)),
+      gm ? undefined : tx.get(db.doc(`sessions/${sessionId}/commandReceipts/${requestId}`)),
     ]);
     if (!session.exists || session.get('phase') !== 'active') {
+      if (!gm) return { status: 'unavailable' as const };
       throw new HttpsError('failed-precondition', 'This scouting session is not active.');
     }
-    const facilitator = gmViewer(sessionId, actorUid, player, instance, nowMs);
+    const facilitator = gm
+      ? gmViewer(sessionId, gm.actorUid, player!, instance!, nowMs)
+      : { type: 'automatic-server' as const };
     const pendingData = pending.data();
     if (!record(pendingData) || pendingData.requestId !== requestId ||
         pendingData.sessionId !== sessionId || !id(pendingData.entitlementId) ||
         !Number.isSafeInteger(pendingData.cycle)) {
       throw new HttpsError('failed-precondition', 'The pending scout request is unavailable.');
+    }
+    if (!gm) {
+      const expectedFingerprint = {
+        action: 'request-scout', sessionId, requestId, actorUid: pendingData.actorUid,
+        instanceId: null, expectedRevision: null,
+        payload: { entitlementId: pendingData.entitlementId,
+          targetCoordinate: pendingData.targetCoordinate, cycle: pendingData.cycle },
+      };
+      const expectedReply = {
+        status: 'requested', resolution: 'pending', requestId, sessionId,
+        cycle: pendingData.cycle, entitlementId: pendingData.entitlementId,
+        source: pendingData.source, ownerRoleId: pendingData.ownerRoleId,
+        anchorShipId: pendingData.anchorShipId, receivingShipId: pendingData.receivingShipId,
+        targetCoordinate: pendingData.targetCoordinate,
+      };
+      if (!receipt?.exists || !equal(receipt.get('fingerprint'), expectedFingerprint) ||
+          !equal(receipt.get('result'), expectedReply)) {
+        throw new HttpsError('failed-precondition', 'The scout request has no matching player command receipt.');
+      }
     }
     const cadenceRef = db.doc(`sessions/${sessionId}/scoutCadence/${pendingData.cycle}-${pendingData.entitlementId}`);
     const cadence = await tx.get(cadenceRef);
@@ -203,8 +235,7 @@ export function createResolvePendingScoutRequest(commitMapKnowledge: ScoutMapCom
         ),
         recordedAt: note.recordedAt,
       });
-      if (!id(audit.facilitatorUid) || !equal(note, replayPlan.note) ||
-          !equal({ ...audit, facilitatorUid: replayPlan.audit.facilitatorUid }, replayPlan.audit) ||
+      if (!validScoutAudit(audit, replayPlan.audit) || !equal(note, replayPlan.note) ||
           (replayPlan.deepNebulaScan ? !equal(priorDeep.data(), replayPlan.deepNebulaScan)
             : priorDeep.exists)) {
         throw new HttpsError('failed-precondition', 'The stored scout result has conflicting records.');
@@ -221,7 +252,16 @@ export function createResolvePendingScoutRequest(commitMapKnowledge: ScoutMapCom
     if (plan.deepNebulaScan) tx.create(deepRef, plan.deepNebulaScan);
     return { status: 'resolved' as const, result: plan.result };
   });
-  });
+}
+
+function validScoutAudit(audit: RecordValue, expected: ScoutResolutionPlan['audit']): boolean {
+  const automatic = audit.resolutionMode === 'automatic';
+  if (automatic ? audit.facilitatorUid !== null
+    : audit.resolutionMode !== undefined || !id(audit.facilitatorUid)) return false;
+  const normalized: RecordValue = { ...expected, facilitatorUid: audit.facilitatorUid };
+  if (automatic) normalized.resolutionMode = 'automatic';
+  else delete normalized.resolutionMode;
+  return equal(audit, normalized);
 }
 
 /** Return one fact; no endpoint accepts a chart selector or exports a chart. */
