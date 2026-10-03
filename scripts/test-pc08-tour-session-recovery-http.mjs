@@ -39,7 +39,7 @@ async function identity() {
     const {useSessionStore} = await import('/src/store/useSessionStore.ts');
     const state = useSessionStore.getState();
     return {uid: auth().currentUser?.uid, memberUid: state.me?.uid, sessionId: state.session?.id,
-      roleId: state.me?.roleId, connection: state.connection, freshness: state.sessionSnapshotFreshness};
+      roleId: state.me?.assignedRoleId, connection: state.connection, freshness: state.sessionSnapshotFreshness};
   });
 }
 try {
@@ -48,7 +48,7 @@ try {
   await page.waitForFunction(async ({sessionId}) => {
     const {useSessionStore} = await import('/src/store/useSessionStore.ts');
     const state = useSessionStore.getState();
-    return state.session?.id === sessionId && state.me?.roleId === 'executive-officer' && state.connection === 'live';
+    return state.session?.id === sessionId && state.me?.assignedRoleId === 'executive-officer' && state.connection === 'live';
   }, {sessionId: fixture.sessionId});
   const before = await identity();
   for (const [width, height] of [[390, 844], [1440, 900]]) {

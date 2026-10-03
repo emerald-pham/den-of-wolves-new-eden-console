@@ -30,7 +30,9 @@ test('PC08 return control opens the real parent at phone and desktop sizes', asy
         await page.getByRole('note', {name: 'Prepared review boundary'}).waitFor();
         assert.deepEqual(tourWrites, []);
         inTour = false;
-        await page.getByRole('link', {name: 'Return to station and console chooser', exact: true}).click();
+        const parentControl = page.getByRole('link', {name: 'Return to station and console chooser', exact: true});
+        if (width === 390) {await parentControl.focus(); await page.keyboard.press('Enter');}
+        else await parentControl.click();
         await page.waitForURL(`http://127.0.0.1:${address.port}/#/`);
         await page.getByRole('dialog', {name: 'MOTION SAFETY CHECK'}).waitFor();
         await page.getByRole('button', {name: /REDUCED MOTION.*PLAYABLE MODE/}).click();
@@ -79,6 +81,8 @@ test('PC08 real-presenter review is isolated and usable in eight viewport and mo
           await page.keyboard.press('Tab');
           assert.ok(await page.getByRole('link', {name: 'Skip to review workspace'}).evaluate(element =>
             document.activeElement === element && element.getBoundingClientRect().top >= 0));
+          await page.keyboard.press('Enter');
+          assert.ok(await page.locator('#pc08-review-content').evaluate(element => document.activeElement === element));
           const navigation = page.getByRole('navigation', {name: 'PC08 review steps'});
           for (const [index, label] of labels.entries()) {
             await navigation.getByRole('button', {name: label, exact: true}).click();
@@ -169,6 +173,21 @@ test('PC08 real-presenter review is isolated and usable in eight viewport and mo
               await page.getByRole('button', {name: 'Launch PDF Escort Wing', exact: true}).click();
               await page.getByRole('button', {name: 'Pass Short Range', exact: true}).click();
               assert.match(await page.getByRole('status', {name: 'Prepared fighter result'}).textContent(), /PDF Escort Wing passed Short Range/);
+              await page.screenshot({path: `${directory}/${width}x${height}-${reducedMotion}-pdf-short-pass.png`, fullPage: true});
+              await page.getByRole('button', {name: 'Maliades sample', exact: true}).click();
+              await page.getByRole('button', {name: 'Medium Range sample', exact: true}).click();
+              await page.getByRole('button', {name: 'Launch Maliades', exact: true}).click();
+              await page.getByRole('combobox', {name: 'Maliades Medium target shift target', exact: true}).selectOption('local-wolf-1');
+              await page.getByRole('combobox', {name: 'Maliades Medium target shift', exact: true}).selectOption('1');
+              await page.getByRole('combobox', {name: 'Maliades Medium attack target', exact: true}).selectOption('local-wolf-2');
+              await page.getByRole('button', {name: 'Commit Maliades Medium choices', exact: true}).click();
+              assert.match(await page.getByRole('status', {name: 'Prepared fighter result'}).textContent(), /target shift \+1 on Local contact 1; attack on Local contact 2/);
+              await page.screenshot({path: `${directory}/${width}x${height}-${reducedMotion}-maliades-medium.png`, fullPage: true});
+              await page.getByRole('button', {name: 'Short Range sample', exact: true}).click();
+              await page.getByRole('combobox', {name: 'Maliades Short attack 1 target', exact: true}).selectOption('local-wolf-1');
+              await page.getByRole('combobox', {name: 'Maliades Short attack 2 target', exact: true}).selectOption('local-wolf-2');
+              await page.getByRole('button', {name: 'Resolve Maliades Short attacks', exact: true}).click();
+              assert.match(await page.getByRole('status', {name: 'Prepared fighter result'}).textContent(), /Maliades Short Range choice committed: Local contact 1, Local contact 2/);
             } else if (index === 3) {
               await page.getByRole('combobox', {name: 'Security Teams committed', exact: true}).selectOption('2');
               await page.getByRole('button', {name: 'Commit defence', exact: true}).click();
