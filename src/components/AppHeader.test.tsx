@@ -636,8 +636,8 @@ it('opens a readable changelog in a bounded scroll region from settings', async 
   expect(toggle).toHaveAttribute('aria-expanded', 'true');
   expect(screen.getByRole('heading', { name: 'Changelog' })).toBeVisible();
   expect(screen.getByRole('region', { name: /changelog entries/i })).toBeVisible();
-  expect(await screen.findByText(/current build catalog: 556 of 751 complete \(74\.03%\)/i)).toBeVisible();
-  expect(screen.getByText(/21 partial · 174 not yet implemented/i)).toBeVisible();
+  expect(await screen.findByText(/current build catalog: 605 of 751 complete \(80\.56%\)/i)).toBeVisible();
+  expect(screen.getByText(/15 partial · 131 not yet implemented/i)).toBeVisible();
   expect(await screen.findByRole('heading', { name: `Build ${APP_VERSION}` })).toBeVisible();
   expect(screen.getByText(/read what changed without leaving your session/i)).toBeVisible();
   expect(screen.queryByText(/component|refactor|typescript/i)).not.toBeInTheDocument();
@@ -744,6 +744,11 @@ it('renders current and retained repair history with progress and keyboard stop 
     'A stale recharge does not spend resources or add a charge.',
   )).toBeVisible();
   expect(within(newestEntry).getByText(
+    '605 of 751 planned items are complete in the catalog snapshot used to build this release (80.56%).',
+  )).toBeVisible();
+  const completedPc06Entry = within(region).getByRole('heading', { name: 'Build 0.5.64' }).closest('article');
+  if (!completedPc06Entry) throw new Error('Expected the preserved 0.5.64 PC06 release entry.');
+  expect(within(completedPc06Entry).getByText(
     '556 of 751 planned items are complete in the catalog snapshot used to build this release (74.03%).',
   )).toBeVisible();
   const previousPc06Entry = within(region).getByRole('heading', { name: 'Build 0.5.63' }).closest('article');
