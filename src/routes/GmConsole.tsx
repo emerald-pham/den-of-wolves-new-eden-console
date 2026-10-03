@@ -708,10 +708,16 @@ export default function GmConsole() {
   const wolfWindowStatus = wolfAttackWindow?.status ?? 'planned';
   const wolfWindowTurn = wolfAttackWindow?.turn ?? 1;
   const wolfWindowRevision = wolfAttackWindow?.revision ?? 0;
-  const wolfWindowDueAvailable = currentTurn === 1
+  const wolfWindowDueAvailable = (currentTurn === 1
     ? wolfAttackWindow?.status !== 'due' && wolfAttackWindow?.status !== 'resolved' &&
       wolfAttackWindow?.status !== 'deferred'
-    : currentTurn === 2 && wolfAttackWindow?.status === 'deferred' && wolfWindowTurn === 2;
+    : currentTurn === 2 && wolfAttackWindow?.status === 'deferred' && wolfWindowTurn === 2) || Boolean(
+      local && isGm && connection === 'live' && sessionSnapshotFreshness === 'server' &&
+      session?.phase === 'active' && wolfAttackWindow?.status === 'resolved' &&
+      wolfAttackState?.status === 'resolved' && currentTurn >= wolfAttackState.turn &&
+      currentTurn >= wolfWindowTurn && currentPhase?.turn === currentTurn &&
+      currentPhase.airspace.state === 'lifted' && currentPhase.timerPause === undefined,
+    );
   const wolfWindowResolveAvailable = wolfAttackWindow?.status === 'due' &&
     wolfWindowTurn === currentTurn;
   const wolfWindowDeferAvailable = currentTurn === 1 &&
@@ -740,7 +746,9 @@ export default function GmConsole() {
   const wolfDeclarationAvailable = Boolean(
     local && wolfAttackWindow?.status === 'due' && wolfWindowTurn === currentTurn &&
     wolfAttackPreparation?.turn === currentTurn && wolfPreparationRevision > 0 &&
-    wolfAttackState === null && currentPhase?.airspace.state === 'lifted' &&
+    (wolfAttackState === null || (wolfAttackState.status === 'resolved' && isGm &&
+      connection === 'live' && sessionSnapshotFreshness === 'server' && session?.phase === 'active')) &&
+    currentPhase?.airspace.state === 'lifted' &&
     currentPhase.timerPause === undefined,
   );
   const wolfStageAdvanceAvailable = Boolean(
@@ -2917,6 +2925,10 @@ export default function GmConsole() {
                 Timing marker only // declaration requires a saved current draft.
                 Once declared, legal stages advance automatically after current player choices.
               </p>
+              {wolfAttackState?.status === 'resolved' && <p className="gm-console__hint">
+                You may choose a later attack window. Its composition must include the surviving
+                Fighter Wings from the completed attack; destroyed Wings do not return.
+              </p>}
               <p className="gm-console__hint gm-console__balance-guidance">
                 Extra-role balance // For each extra role introduced, consider roughly 3 additional
                 Wolf damage capacity per attack. The facilitator chooses the adjustment; this
