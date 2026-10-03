@@ -776,13 +776,43 @@ export function resolveLockedWolfRange(input: Readonly<{
 export interface WolfBoardingDefence {
   readonly target: WolfFleetTargetId;
   readonly securityTeams: number;
+  /** The private inventory total before the choice reserved its ordinary teams. */
+  readonly availableSecurityTeams?: number;
+  /** Commander leadership is committed for at most one attacked target. */
+  readonly commanderLed?: boolean;
+  /** Two dice per selected team, permitted only while parties outnumber teams. */
+  readonly militiaDoubleTeams?: boolean;
+  /** Up to three extra rolls chosen by the current Rosal Militia Leader. */
+  readonly militiaFrontLineDice?: number;
+  /** The docked Pallas is the only craft that grants this additional allowance. */
+  readonly pallasRerollAvailable?: boolean;
+  /** Initial d6 outcomes locked before reroll actors are asked to choose. */
+  readonly lockedRolls?: readonly number[];
+  readonly rerolls?: readonly WolfBoardingRerollChoice[];
+}
+
+export interface WolfBoardingRerollChoice {
+  readonly source: 'aegis' | 'pallas';
+  readonly dieIndexes: readonly number[];
+  /** Server-rolled values committed with the choice; absent only in pure legacy calculations. */
+  readonly rolls?: readonly number[];
 }
 
 export interface WolfBoardingReceipt {
   readonly target: WolfFleetTargetId;
+  readonly baseBoardingParties: number;
+  readonly commanderBonus: number;
   readonly boardingParties: number;
   readonly securityTeams: number;
+  readonly availableSecurityTeams: number;
   readonly rolls: readonly number[];
+  readonly frontLineDice: number;
+  readonly militiaLeaderKilled: boolean;
+  readonly rerolls: readonly Readonly<{
+    source: WolfBoardingRerollChoice['source'];
+    dieIndexes: readonly number[];
+    rolls: readonly number[];
+  }>[];
   readonly securityCasualties: number;
   readonly boarderCasualties: number;
   readonly survivingBoardingParties: number;
@@ -802,6 +832,22 @@ export function wolfBoardingPartyCounts(roster: readonly WolfCombatShip[]): Read
   return Object.freeze(boardersByTarget(roster));
 }
 
+/** Roll and persist boarding dice once, before any reroll actor is shown the outcomes. */
+export function lockWolfBoardingDefenceRolls(
+  roster: readonly WolfCombatShip[],
+  defence: readonly WolfBoardingDefence[],
+  random: WolfRandomInt = secureRandomInt,
+): readonly WolfBoardingDefence[] {
+  if (defence.some((choice) => choice.rerolls !== undefined && choice.rerolls.length > 0)) {
+    throw new Error('Boarding rerolls cannot be committed before defence dice are locked.');
+  }
+  const receipts = resolveWolfBoarding(roster, defence, random);
+  const rollsByTarget = new Map(receipts.map(({ target, rolls }) => [target, [...rolls]]));
+  return Object.freeze(defence.map((choice) => Object.freeze({
+    ...choice, lockedRolls: Object.freeze(rollsByTarget.get(choice.target) ?? []),
+  })));
+}
+
 /** Resolve base boarding defence using server-owned d6s. */
 export function resolveWolfBoarding(
   roster: readonly WolfCombatShip[],
@@ -810,32 +856,110 @@ export function resolveWolfBoarding(
 ): readonly WolfBoardingReceipt[] {
   const parties = boardersByTarget(roster);
   uniqueStrings(defence.map(value => value.target), 'Boarding defence targets');
+  if (defence.some((choice) => parties[choice.target] < 1)) {
+    throw new Error('Boarding defence cannot be committed for a target without live parties.');
+  }
+  if (defence.filter((choice) => choice.commanderLed === true).length > 1) {
+    throw new Error('The Wolf Commander may lead only one boarding action.');
+  }
   const defenceByTarget = new Map(defence.map(value => [value.target, value]));
   return EXPANDED_WOLF_TARGET_RING.flatMap(target => {
-    const boardingParties = parties[target];
-    if (boardingParties < 1) return [];
+    const baseBoardingParties = parties[target];
+    if (baseBoardingParties < 1) return [];
     const chosen = defenceByTarget.get(target);
     if (!chosen) {
       throw new Error(`Security-team defence is required for ${target}.`);
     }
     requireNonNegativeInteger(chosen.securityTeams, 'securityTeams');
-    // Every selected security team rolls. The number of boarders only caps the
-    // casualties they can inflict; it does not remove dice from the defence.
-    const rolls = Array.from({ length: chosen.securityTeams },
-      () => boundedRandomInt(random, 6) + 1);
-    const securityCasualties = rolls.filter(roll => roll === 1).length;
-    const boarderCasualties = Math.min(
+    const availableSecurityTeams = chosen.availableSecurityTeams ?? chosen.securityTeams;
+    requireNonNegativeInteger(availableSecurityTeams, 'availableSecurityTeams');
+    if (chosen.securityTeams > availableSecurityTeams) {
+      throw new Error('The selected Security Teams exceed the available host inventory.');
+    }
+    const militiaFrontLineDice = chosen.militiaFrontLineDice ?? 0;
+    if (!Number.isSafeInteger(militiaFrontLineDice) || militiaFrontLineDice < 0 || militiaFrontLineDice > 3) {
+      throw new Error('The Militia Leader may choose zero to three front-line dice.');
+    }
+    if (militiaFrontLineDice > availableSecurityTeams) {
+      throw new Error('The Militia Leader cannot risk more teams than the available inventory.');
+    }
+    const commanderBonus = chosen.commanderLed === true ? 2 : 0;
+    const boardingParties = baseBoardingParties + commanderBonus;
+    const militiaDoubleTeams = chosen.militiaDoubleTeams === true;
+    if (militiaDoubleTeams && !(boardingParties > availableSecurityTeams)) {
+      throw new Error('Two dice per Security Team are available only while boarding parties outnumber teams.');
+    }
+    const diceCount = chosen.militiaDoubleTeams === true ? 2 : 1;
+    const rollCount = chosen.securityTeams * diceCount + militiaFrontLineDice;
+    const rolls = chosen.lockedRolls === undefined
+      ? Array.from({ length: rollCount }, () => boundedRandomInt(random, 6) + 1)
+      : [...chosen.lockedRolls];
+    if (rolls.length !== rollCount || rolls.some((roll) => !Number.isSafeInteger(roll) || roll < 1 || roll > 6)) {
+      throw new Error('The locked boarding dice do not match the committed defence choice.');
+    }
+    const teamDice: number[][] = [];
+    for (let team = 0; team < chosen.securityTeams; team += 1) {
+      teamDice.push(rolls.slice(team * diceCount, (team + 1) * diceCount));
+    }
+    const securityTeamRollCount = teamDice.flat().length;
+    const frontLineStart = securityTeamRollCount;
+    const normalizedRerolls = [...(chosen.rerolls ?? [])].sort((left, right) =>
+      left.source === right.source ? 0 : left.source === 'aegis' ? -1 : 1);
+    uniqueStrings(normalizedRerolls.map(({ source }) => source), 'Boarding reroll sources');
+    const rerolledDice = new Set<number>();
+    const rerolls = normalizedRerolls.map((choice) => {
+      if (choice.source !== 'aegis' && choice.source !== 'pallas') {
+        throw new Error('Unknown boarding reroll source.');
+      }
+      if (choice.source === 'aegis' && target !== 'aegis') {
+        throw new Error('The AEGIS Battle Sheet can reroll only AEGIS defence dice.');
+      }
+      if (choice.source === 'pallas' && chosen.pallasRerollAvailable !== true) {
+        throw new Error('Pallas rerolls require its current docking host.');
+      }
+      if (!Array.isArray(choice.dieIndexes) || choice.dieIndexes.length > 3) {
+        throw new Error('Each boarding reroll source can choose up to three dice.');
+      }
+      uniqueStrings(choice.dieIndexes.map(String), 'Boarding reroll die indexes');
+      const rerollValues = choice.dieIndexes.map((dieIndex) => {
+        if (!Number.isSafeInteger(dieIndex) || dieIndex < 0 || dieIndex >= rolls.length) {
+          throw new Error('A boarding reroll names an unavailable defence die.');
+        }
+        if (rerolledDice.has(dieIndex)) throw new Error('A boarding die has already been rerolled.');
+        rerolledDice.add(dieIndex);
+        return choice.rolls?.[choice.dieIndexes.indexOf(dieIndex)] ?? boundedRandomInt(random, 6) + 1;
+      });
+      if (choice.rolls !== undefined && (choice.rolls.length !== choice.dieIndexes.length ||
+          choice.rolls.some((roll) => !Number.isSafeInteger(roll) || roll < 1 || roll > 6))) {
+        throw new Error('The committed boarding reroll outcomes are malformed.');
+      }
+      choice.dieIndexes.forEach((dieIndex, index) => { rolls[dieIndex] = rerollValues[index]!; });
+      return { source: choice.source, dieIndexes: [...choice.dieIndexes], rolls: rerollValues };
+    });
+    let teamDieIndex = 0;
+    const teamRollsAfterReroll = teamDice.map((teamValues) => teamValues.map(() => rolls[teamDieIndex++]!));
+    const currentFrontLineRolls = rolls.slice(frontLineStart);
+    const resolvedTeamCasualties = teamRollsAfterReroll.filter((teamRolls) => teamRolls.includes(1)).length;
+    const resolvedFrontLineCasualties = currentFrontLineRolls.filter((roll) => roll === 1).length;
+    const finalSecurityCasualties = Math.min(availableSecurityTeams, resolvedTeamCasualties + resolvedFrontLineCasualties);
+    const resolvedBoarderCasualties = Math.min(
       rolls.filter(roll => roll >= 4).length,
       boardingParties,
     );
-    const survivingBoardingParties = Math.max(0, boardingParties - boarderCasualties);
+    const survivingBoardingParties = Math.max(0, boardingParties - resolvedBoarderCasualties);
     return [{
       target,
+      baseBoardingParties,
+      commanderBonus,
       boardingParties,
       securityTeams: chosen.securityTeams,
+      availableSecurityTeams,
       rolls,
-      securityCasualties,
-      boarderCasualties,
+      frontLineDice: militiaFrontLineDice,
+      militiaLeaderKilled: currentFrontLineRolls.includes(1),
+      rerolls,
+      securityCasualties: finalSecurityCasualties,
+      boarderCasualties: resolvedBoarderCasualties,
       survivingBoardingParties,
       damage: survivingBoardingParties,
     }];
