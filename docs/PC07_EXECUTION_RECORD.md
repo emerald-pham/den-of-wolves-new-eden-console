@@ -399,3 +399,25 @@ prove the actual current form and source-owned targeting copy. Current
 Functions declarations retain server randomness and first-result replay; the
 worker's final P434a contract owns actual reasoned intervention. Typecheck is
 green, with final browser composition/review/deployment still pending.
+
+### Reasoned GM attack recovery
+
+The recovered targeting retry now requires a trimmed 8–400 character reason
+and an explicit high-impact confirmation in the actual GM form. The client
+binds its receipt to that reason, session, request, cycle and expected revision;
+both nested before/after deltas and the forbidden rollback are strictly parsed.
+Draft confirmation withdraws when the attack revision, GM instance, session or
+connection authority changes. Delayed receipts after instance replacement
+cannot report a successful recovery. Separate test-first commits precede
+`8e692501`; all 353 current GM/service/recovery checks and typecheck pass.
+The first test patch accidentally matched an ordinary cycle-advance assertion;
+separate test-only correction `1bad6470` restored it and put the new requirement
+only on attack recovery. That ordinary cycle control still passes unchanged.
+
+The native recovery contract is being completed by the attack owner. A further
+active-attack bypass in the legacy global `setEmergencyTimerPaused` command was
+identified and explicitly handed to that same owner: pause/resume during an
+attack must also require reason, expected attack revision, idempotency and a
+scoped audit. Its normal non-attack clock behavior remains the existing
+contract. P434a, native composed proof and independent review remain open;
+the reasoned client form alone is not completion evidence.

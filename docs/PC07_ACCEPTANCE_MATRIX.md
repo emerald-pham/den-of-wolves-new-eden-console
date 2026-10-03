@@ -39,7 +39,7 @@ prove gameplay. Production behavior remains separately labeled.
 | 433a | Publish a stable DRADIS-ready attack contract. | Open | Open | Open | Open | Representative local gameplay pending; production not claimed |
 | 433b | Resolve choices in affected player consoles. | Open | Open | Open | Open | Representative local gameplay pending; production not claimed |
 | 434 | Make attack commands retry-safe. | Open | Open | Open | Open | Representative local gameplay pending; production not claimed |
-| 434a | Intervene and recover safely during an attack. | Open | Open | Open | Open | Representative local gameplay pending; production not claimed |
+| 434a | Intervene and recover safely during an attack. | Actual GM targeting recovery reason/confirmation and strict client delta connected; native recovery and active-attack reasoned pause/resume reconciliation pending | 11 recovery-wire checks, actual GM recovery and delayed-instance checks; full current GM/service/recovery 353/353 and typecheck | Open | Open | Complete native reason/revision/replay/concurrent-GM and normal composed attack proof pending; production gameplay not claimed |
 | 435 | Resolve Wolf Commander target rerolls. | Recover existing partial integration | Open | Open | Open | Representative local gameplay pending; production not claimed |
 | 436 | Resolve AEGIS Command and Control. | Recover existing partial integration | Open | Open | Open | Representative local gameplay pending; production not claimed |
 | 437 | Lock Gorgoneion Force Field timing. | Open | Open | Open | Open | Representative local gameplay pending; production not claimed |

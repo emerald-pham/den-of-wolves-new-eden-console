@@ -78,6 +78,13 @@ Direct chart, result, note and audit reads remain denied by Rules.
   authority. The old stage retry is explicitly collapsed recovery, governed by
   real pending choices, shared holds, deadline and revision. Review the current
   GM form against the actual endpoint contract and readonly pending status.
+- Reasoned targeting recovery requires the actual 8–400 character reason and
+  explicit danger confirmation, expected revision, request identity and a
+  strictly parsed scoped before/after receipt. Review exact replay and stale
+  concurrent GM denial. The active-attack global emergency pause/resume path
+  must use the same reasoned authority; the legacy non-attack clock endpoint
+  must not bypass attack intervention checks. Immutable committed rolls and
+  choices have no rollback permission.
 - Gorgoneion's current admitted Captain makes the printed before-targeting
   use/pass and local target choice. Valid current-cycle server charge is the
   recovered projector readiness model; PC07 adds no small-ship damage deck.
