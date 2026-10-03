@@ -23,6 +23,7 @@ import type {
   PdfEscortWingLaunchView,
   WolfCommanderTargetingView,
   AegisCommandAndControlResult,
+  AegisCommandAndControlPassResult,
   AegisCommandAndControlView,
   WolfAttackTargetMode,
   WolfAttackWindow,
@@ -4730,7 +4731,7 @@ function wolfCommanderTargetingFinishReply(value: unknown): WolfCommanderTargeti
 }
 
 const AEGIS_CNC_REASONS = new Set([
-  'waiting', 'not-targeting', 'commander-pending', 'uncharged', 'damaged', 'damage-unknown', 'already-used', 'no-targets',
+  'waiting', 'not-targeting', 'commander-pending', 'uncharged', 'damaged', 'damage-unknown', 'already-used', 'passed', 'no-targets',
 ]);
 
 function aegisCommandAndControlViewReply(value: unknown): AegisCommandAndControlView | null {
@@ -4764,6 +4765,7 @@ function aegisCommandAndControlViewReply(value: unknown): AegisCommandAndControl
       (raw.eligible && targets.length === 0) || (!raw.eligible && targets.length !== 0) ||
       (raw.eligible && raw.commanderAssigned && !raw.rerollsFinalized) ||
       (raw.reason === 'commander-pending' && (!raw.commanderAssigned || raw.rerollsFinalized)) ||
+      (raw.reason === 'passed' && (!raw.rerollsFinalized || raw.redirectedShipId !== undefined)) ||
       (raw.reason === 'already-used' && !raw.rerollsFinalized) ||
       ((raw.reason === 'already-used') !== (raw.redirectedShipId !== undefined))) return null;
   return {
@@ -4806,6 +4808,31 @@ function aegisCommandAndControlResultReply(value: unknown): AegisCommandAndContr
     sessionId: raw.sessionId, requestId: raw.requestId,
     turn: raw.turn as number, revision: raw.revision as number,
     rosterIndex: raw.rosterIndex as number, shipId: raw.shipId,
+    commanderCompletion: raw.commanderCompletion, view,
+  };
+}
+
+function aegisCommandAndControlPassResultReply(value: unknown): AegisCommandAndControlPassResult | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const allowed = new Set([
+    'status', 'type', 'sessionId', 'requestId', 'turn', 'revision', 'commanderCompletion', 'view',
+  ]);
+  const view = aegisCommandAndControlViewReply(raw.view);
+  if (Object.keys(raw).some((key) => !allowed.has(key)) || raw.status !== 'committed' ||
+      raw.type !== 'aegis-command-and-control-pass-result' || typeof raw.sessionId !== 'string' || !raw.sessionId ||
+      typeof raw.requestId !== 'string' || !raw.requestId ||
+      !Number.isSafeInteger(raw.turn) || (raw.turn as number) < 1 ||
+      !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
+      (raw.commanderCompletion !== 'finished' && raw.commanderCompletion !== 'no-commander') ||
+      !view || view.sessionId !== raw.sessionId || view.turn !== raw.turn || view.revision !== raw.revision ||
+      view.eligible || view.reason !== 'passed' || !view.rerollsFinalized || view.targets.length !== 0 ||
+      view.redirectedShipId !== undefined ||
+      (raw.commanderCompletion === 'no-commander' && view.commanderAssigned)) return null;
+  return {
+    status: 'committed', type: 'aegis-command-and-control-pass-result',
+    sessionId: raw.sessionId, requestId: raw.requestId,
+    turn: raw.turn as number, revision: raw.revision as number,
     commanderCompletion: raw.commanderCompletion, view,
   };
 }
@@ -5383,8 +5410,43 @@ export async function applyAegisCommandAndControl(
   const call = httpsCallable<typeof payload, unknown>(functions(), 'applyAegisCommandAndControl');
   try {
     const reply = aegisCommandAndControlResultReply((await call(payload)).data);
-    if (!reply || reply.sessionId !== sessionId) {
+    if (!reply || reply.sessionId !== sessionId || reply.requestId !== payload.requestId ||
+        reply.turn !== expectedTurn || reply.revision !== expectedRevision + 1 || reply.rosterIndex !== rosterIndex) {
       throw new Error('The server returned an invalid AEGIS Command and Control receipt.');
+    }
+    if (!aegisExecutiveOfficerAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
+      throw new Error('The AEGIS Executive Officer session or authority changed before this response arrived.');
+    }
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Explicitly pass the optional C&C redirect for this targeting revision. */
+export async function passAegisCommandAndControl(
+  expectedTurn: number,
+  expectedRevision: number,
+): Promise<AegisCommandAndControlPassResult> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.role !== 'player' ||
+      store.me.activeConsoleRoleId !== 'executive-officer') {
+    throw new Error('Only the active AEGIS Executive Officer may pass Command and Control.');
+  }
+  requireFreshSessionAuthority('Reconnect before passing AEGIS Command and Control.');
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const payload = {
+    sessionId, requestId: commandId(), expectedTurn, expectedRevision,
+  };
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'passAegisCommandAndControl');
+  try {
+    const reply = aegisCommandAndControlPassResultReply((await call(payload)).data);
+    if (!reply || reply.sessionId !== sessionId || reply.requestId !== payload.requestId ||
+        reply.turn !== expectedTurn || reply.revision !== expectedRevision + 1) {
+      throw new Error('The server returned an invalid AEGIS Command and Control pass receipt.');
     }
     if (!aegisExecutiveOfficerAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
       throw new Error('The AEGIS Executive Officer session or authority changed before this response arrived.');

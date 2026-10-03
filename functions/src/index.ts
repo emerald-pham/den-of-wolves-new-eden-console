@@ -2855,7 +2855,8 @@ function navigationWithMissionCraftCommitments(
   session: Pick<DocumentSnapshot, 'get'>,
   activeVesselIds: readonly string[],
 ): NavigationState {
-  const { missionCommittedCraftIdsByHostShip: _discarded, ...withoutOldProjection } = navigation;
+  const withoutOldProjection = { ...navigation };
+  delete withoutOldProjection.missionCommittedCraftIdsByHostShip;
   const missionCommittedCraftIdsByHostShipValue = missionCommittedCraftIdsByHostShip(session, activeVesselIds);
   return missionCommittedCraftIdsByHostShipValue
     ? { ...withoutOldProjection, missionCommittedCraftIdsByHostShip: missionCommittedCraftIdsByHostShipValue }
@@ -20873,8 +20874,8 @@ function wolfAttackDecisionSummary(
   const rawPass = state.get('commandAndControlPass');
   const redirected = isRecord(rawRedirect) && rawRedirect.turn === turn &&
     typeof rawRedirect.actorUid === 'string' && isCanonicalRequestId(rawRedirect.requestId);
-  const passed = isRecord(rawPass) && rawPass.turn === turn && rawPass.action === 'pass' &&
-    typeof rawPass.actorUid === 'string' && isCanonicalRequestId(rawPass.requestId);
+  const parsedPass = aegisCommandAndControlPass(rawPass);
+  const passed = parsedPass?.turn === turn;
   let commandAndControl: Record<string, unknown>;
   if (preTargetForceField) {
     commandAndControl = { status: 'waiting-for-force-field', actors: [], reason: 'waiting-for-force-field' };
@@ -21078,7 +21079,7 @@ async function reconcileWolfAttackBoarding(
   });
   let receipt = finalizationCache.current?.fingerprint === fingerprint
     ? finalizationCache.current.receipt : undefined;
-  let committedAt = finalizationCache.current?.fingerprint === fingerprint
+  const committedAt = finalizationCache.current?.fingerprint === fingerprint
     ? finalizationCache.current.resolvedAt : resolvedAt;
   if (!receipt) {
     try {
@@ -21459,10 +21460,13 @@ async function reconcileWolfAttackProgress(sessionId: string): Promise<void> {
           state.get('commandAndControl'), inputs, state.get('commanderRerollCompletion'),
         );
       } catch { return; }
-      const passed = state.get('commandAndControlPass');
-      const passCommitted = isRecord(passed) && passed.turn === inputs.turn &&
-        passed.action === 'pass' && typeof passed.actorUid === 'string' &&
-        Number.isSafeInteger(passed.revision) && (passed.revision as number) <= inputs.revision;
+      let usedPass: AegisCommandAndControlPass | undefined;
+      try {
+        usedPass = currentAegisCommandAndControlPass(
+          state.get('commandAndControlPass'), inputs, state.get('commanderRerollCompletion'),
+        );
+      } catch { return; }
+      const passCommitted = usedPass !== undefined;
       const isDamaged = aegisCommandAndControlDamageState(session);
       if (isDamaged === 'unknown') return;
       const isCharged = aegisCommandAndControlChargeState(session, inputs.turn);
@@ -22083,6 +22087,15 @@ function requireWolfCommandAndControlRequest(raw: Record<string, unknown>): {
   return { ...base, rosterIndex: raw.rosterIndex as number };
 }
 
+function requireWolfCommandAndControlPassRequest(raw: Record<string, unknown>): {
+  sessionId: string;
+  requestId: string;
+  expectedTurn: number;
+  expectedRevision: number;
+} {
+  return requireWolfTargetingCompletionRequest(raw);
+}
+
 type WolfCommanderTargetingFinishResult = Readonly<{
   status: 'committed';
   type: 'wolf-commander-targeting-finish';
@@ -22143,7 +22156,7 @@ function isWolfCommanderTargetingFinishResult(value: unknown): value is WolfComm
 
 type AegisCommandAndControlReason =
   | 'waiting' | 'not-targeting' | 'commander-pending' | 'uncharged' | 'damaged'
-  | 'already-used' | 'no-targets' | 'damage-unknown';
+  | 'already-used' | 'passed' | 'no-targets' | 'damage-unknown';
 
 type AegisCommandAndControlTarget = Readonly<{ rosterIndex: number; shipId: string }>;
 
@@ -22173,6 +22186,17 @@ type AegisCommandAndControlResult = Readonly<{
   view: AegisCommandAndControlView;
 }>;
 
+type AegisCommandAndControlPassResult = Readonly<{
+  status: 'committed';
+  type: 'aegis-command-and-control-pass-result';
+  sessionId: string;
+  requestId: string;
+  turn: number;
+  revision: number;
+  commanderCompletion: 'finished' | 'no-commander';
+  view: AegisCommandAndControlView;
+}>;
+
 type AegisCommandAndControlUse = Readonly<{
   turn: number;
   revision: number;
@@ -22184,6 +22208,16 @@ type AegisCommandAndControlUse = Readonly<{
   commanderCompletion: 'finished' | 'no-commander';
 }>;
 
+type AegisCommandAndControlPass = Readonly<{
+  action: 'pass';
+  turn: number;
+  revision: number;
+  actorUid: string;
+  actorRoleId: 'executive-officer';
+  requestId: string;
+  commanderCompletion: 'finished' | 'no-commander';
+}>;
+
 function isAegisCommandAndControlView(value: unknown): value is AegisCommandAndControlView {
   if (!isRecord(value)) return false;
   const allowed = new Set([
@@ -22192,7 +22226,7 @@ function isAegisCommandAndControlView(value: unknown): value is AegisCommandAndC
   ]);
   const validReasons = new Set<AegisCommandAndControlReason>([
     'waiting', 'not-targeting', 'commander-pending', 'uncharged', 'damaged',
-    'already-used', 'no-targets', 'damage-unknown',
+    'already-used', 'passed', 'no-targets', 'damage-unknown',
   ]);
   const targets = Array.isArray(value.targets) ? value.targets : [];
   const reasonIsValid = value.reason === undefined ||
@@ -22213,6 +22247,7 @@ function isAegisCommandAndControlView(value: unknown): value is AegisCommandAndC
       : value.reason !== undefined && targets.length === 0) &&
     (!value.eligible || !value.commanderAssigned || value.rerollsFinalized) &&
     (value.reason !== 'commander-pending' || (value.commanderAssigned && !value.rerollsFinalized)) &&
+    (value.reason !== 'passed' || (value.rerollsFinalized && value.redirectedShipId === undefined)) &&
     (value.reason !== 'already-used' || (value.rerollsFinalized && value.redirectedShipId !== undefined)) &&
     ((value.reason === 'already-used') === (value.redirectedShipId !== undefined));
 }
@@ -22239,6 +22274,26 @@ function isAegisCommandAndControlResult(value: unknown): value is AegisCommandAn
     (value.commanderCompletion !== 'no-commander' || !view.commanderAssigned);
 }
 
+function isAegisCommandAndControlPassResult(value: unknown): value is AegisCommandAndControlPassResult {
+  if (!isRecord(value)) return false;
+  const allowed = new Set([
+    'status', 'type', 'sessionId', 'requestId', 'turn', 'revision', 'commanderCompletion', 'view',
+  ]);
+  const view = value.view;
+  return Object.keys(value).every((key) => allowed.has(key)) &&
+    value.status === 'committed' && value.type === 'aegis-command-and-control-pass-result' &&
+    typeof value.sessionId === 'string' && value.sessionId.length > 0 &&
+    typeof value.requestId === 'string' && isCanonicalRequestId(value.requestId) &&
+    Number.isSafeInteger(value.turn) && (value.turn as number) >= 1 &&
+    Number.isSafeInteger(value.revision) && (value.revision as number) >= 1 &&
+    (value.commanderCompletion === 'finished' || value.commanderCompletion === 'no-commander') &&
+    isAegisCommandAndControlView(view) && view.sessionId === value.sessionId &&
+    view.turn === value.turn && view.revision === value.revision && view.eligible === false &&
+    view.reason === 'passed' && view.rerollsFinalized && view.targets.length === 0 &&
+    view.redirectedShipId === undefined &&
+    (value.commanderCompletion !== 'no-commander' || !view.commanderAssigned);
+}
+
 function aegisCommandAndControlUse(value: unknown): AegisCommandAndControlUse | undefined | null {
   if (value === undefined || value === null) return undefined;
   if (!isRecord(value) || Object.keys(value).some((key) => ![
@@ -22258,6 +22313,23 @@ function aegisCommandAndControlUse(value: unknown): AegisCommandAndControlUse | 
     requestId: value.requestId,
     rosterIndex: value.rosterIndex as number,
     shipId: value.shipId,
+    commanderCompletion: value.commanderCompletion,
+  };
+}
+
+function aegisCommandAndControlPass(value: unknown): AegisCommandAndControlPass | undefined | null {
+  if (value === undefined || value === null) return undefined;
+  if (!isRecord(value) || Object.keys(value).some((key) => ![
+    'action', 'turn', 'revision', 'actorUid', 'actorRoleId', 'requestId', 'commanderCompletion',
+  ].includes(key)) || value.action !== 'pass' || !Number.isSafeInteger(value.turn) ||
+      (value.turn as number) < 1 || !Number.isSafeInteger(value.revision) || (value.revision as number) < 1 ||
+      typeof value.actorUid !== 'string' || value.actorUid.length === 0 ||
+      value.actorRoleId !== 'executive-officer' || typeof value.requestId !== 'string' ||
+      !isCanonicalRequestId(value.requestId) ||
+      (value.commanderCompletion !== 'finished' && value.commanderCompletion !== 'no-commander')) return null;
+  return {
+    action: 'pass', turn: value.turn as number, revision: value.revision as number,
+    actorUid: value.actorUid, actorRoleId: 'executive-officer', requestId: value.requestId,
     commanderCompletion: value.commanderCompletion,
   };
 }
@@ -22296,6 +22368,38 @@ function currentAegisCommandAndControlRedirect(
     throw commandError('failed-precondition', 'The Command and Control marker has no matching targeting redirect.', 'conflict');
   }
   return sameTurnUse;
+}
+
+function currentAegisCommandAndControlPass(
+  rawPass: unknown,
+  inputs: WolfCommanderTargetingInputs,
+  rawCompletion: unknown,
+): AegisCommandAndControlPass | undefined {
+  const marker = aegisCommandAndControlPass(rawPass);
+  if (marker === null) {
+    throw commandError('failed-precondition', 'The Command and Control pass marker is malformed.', 'conflict');
+  }
+  const sameTurnPass = marker?.turn === inputs.turn ? marker : undefined;
+  const hasRedirect = inputs.receipt.rolls.some((roll) => roll.modifiers.includes('command-and-control-redirect'));
+  if (sameTurnPass && (hasRedirect || sameTurnPass.revision > inputs.revision)) {
+    throw commandError('failed-precondition', 'The Command and Control pass conflicts with its targeting receipt.', 'conflict');
+  }
+  if (sameTurnPass) {
+    if (inputs.receipt.rolls.length === 0) {
+      throw commandError('failed-precondition', 'The Command and Control pass has no eligible Wolf target.', 'conflict');
+    }
+    const completion = isRecord(rawCompletion) ? rawCompletion : undefined;
+    const validFinished = sameTurnPass.commanderCompletion === 'finished' && completion?.turn === inputs.turn &&
+      completion.status === 'finished' && Number.isSafeInteger(completion.revision) &&
+      (completion.revision as number) < sameTurnPass.revision;
+    const validNoCommander = sameTurnPass.commanderCompletion === 'no-commander' && completion?.turn === inputs.turn &&
+      completion.status === 'no-commander' && completion.revision === sameTurnPass.revision &&
+      completion.actorUid === sameTurnPass.actorUid && completion.requestId === sameTurnPass.requestId;
+    if (!validFinished && !validNoCommander) {
+      throw commandError('failed-precondition', 'The Command and Control pass has no matching targeting completion.', 'conflict');
+    }
+  }
+  return sameTurnPass;
 }
 
 function aegisCommandAndControlView(
@@ -22614,10 +22718,19 @@ export const getAegisCommandAndControl = onCall<{ sessionId?: unknown }>(async r
     const committedRedirect = currentAegisCommandAndControlRedirect(
       state.get('commandAndControl'), inputs, state.get('commanderRerollCompletion'),
     );
+    const committedPass = currentAegisCommandAndControlPass(
+      state.get('commandAndControlPass'), inputs, state.get('commanderRerollCompletion'),
+    );
     if (committedRedirect) {
       return aegisCommandAndControlView(sessionId, inputs.turn, inputs.revision, {
         eligible: false, commanderAssigned: commanderUids.length > 0, rerollsFinalized: true,
         reason: 'already-used', targets: [], redirectedShipId: committedRedirect.shipId,
+      });
+    }
+    if (committedPass) {
+      return aegisCommandAndControlView(sessionId, inputs.turn, inputs.revision, {
+        eligible: false, commanderAssigned: commanderUids.length > 0, rerollsFinalized: true,
+        reason: 'passed', targets: [],
       });
     }
     const completion = commanderRerollsCompletionDecision(
@@ -22746,7 +22859,10 @@ export const applyAegisCommandAndControl = onCall<{
     const existingUse = currentAegisCommandAndControlRedirect(
       state.get('commandAndControl'), inputs, state.get('commanderRerollCompletion'),
     );
-    if (existingUse) {
+    const existingPass = currentAegisCommandAndControlPass(
+      state.get('commandAndControlPass'), inputs, state.get('commanderRerollCompletion'),
+    );
+    if (existingUse || existingPass) {
       throw commandError('failed-precondition', 'Command and Control has already been used for this Wolf attack.', 'conflict');
     }
     let targeting: WolfTargetingReceipt;
@@ -22824,6 +22940,156 @@ export const applyAegisCommandAndControl = onCall<{
       requestId: change.requestId,
       rosterIndex: change.rosterIndex,
       shipId: selected.shipId,
+      commanderCompletion,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+/** Explicitly decline the optional current-cycle C&C redirect without changing any target. */
+export const passAegisCommandAndControl = onCall<{
+  sessionId?: unknown;
+  requestId?: unknown;
+  expectedTurn?: unknown;
+  expectedRevision?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  if (!isRecord(raw) || Object.keys(raw).some((key) =>
+    !['sessionId', 'requestId', 'expectedTurn', 'expectedRevision'].includes(key))) {
+    throw new HttpsError('invalid-argument', 'Command and Control pass accepts the current targeting revision only.');
+  }
+  const change = requireWolfCommandAndControlPassRequest(raw);
+  const sessionRef = db.doc(`sessions/${change.sessionId}`);
+  const playerRef = db.doc(`sessions/${change.sessionId}/players/${uid}`);
+  const stateRef = db.doc(`sessions/${change.sessionId}/wolfAttackState/current`);
+  const playersRef = db.collection(`sessions/${change.sessionId}/players`);
+  const auditRef = db.doc(`sessions/${change.sessionId}/wolfAttackState/current/audit/${change.requestId}`);
+  const receiptRef = commandReceiptRef(change.sessionId, change.requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'pass-aegis-command-and-control',
+    sessionId: change.sessionId,
+    requestId: change.requestId,
+    actorUid: uid,
+    instanceId: null,
+    expectedRevision: change.expectedRevision,
+    payload: { expectedTurn: change.expectedTurn, action: 'pass' },
+  };
+  return db.runTransaction(async (tx: Transaction): Promise<AegisCommandAndControlPassResult> => {
+    const [session, player, state, players, receipt] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(stateRef), tx.get(playersRef), tx.get(receiptRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireAegisExecutiveOfficerPlayer(player, uid);
+    const groupId = currentPlayerFleetGroupId(player);
+    const group = await tx.get(db.doc(`sessions/${change.sessionId}/fleetGroups/${groupId}`));
+    requireAegisExecutiveOfficerCurrentBerth(player, uid, group);
+    const replay = replayBoundCommand(
+      receipt, fingerprint, isAegisCommandAndControlPassResult, 'AEGIS Command and Control pass',
+    );
+    if (replay) return replay;
+    requireActiveGameplayPhase(session);
+    requireUsableShip(session, 'aegis');
+    const inputs = wolfCommanderTargetingInputs(session, state);
+    if (change.expectedTurn !== inputs.turn || change.expectedRevision !== inputs.revision) {
+      throw commandError(
+        'failed-precondition',
+        'The Command and Control view is stale. Refresh the current targeting state.',
+        'stale-revision',
+      );
+    }
+    const commanderUids = assignedWolfCommanderUidsFromPlayers(players);
+    const completionDecision = commanderRerollsCompletionDecision(
+      state.get('commanderRerollCompletion'), inputs.turn, inputs.revision, commanderUids,
+    );
+    if (completionDecision === 'pending') {
+      throw commandError(
+        'failed-precondition',
+        'The assigned Wolf Commander must reconnect and finish targeting rerolls first.',
+        'invalid-phase',
+      );
+    }
+    if (!aegisCommandAndControlChargeState(session, inputs.turn)) {
+      throw commandError('failed-precondition', 'Charge Command and Control during this cycle before using it.', 'invalid-phase');
+    }
+    const damage = aegisCommandAndControlDamageState(session);
+    if (damage !== 'undamaged') {
+      throw commandError(
+        'failed-precondition',
+        damage === 'damaged'
+          ? 'Command and Control is damaged and cannot be used.'
+          : 'AEGIS damage status is unavailable; refresh before using Command and Control.',
+        'conflict',
+      );
+    }
+    const existingRedirect = currentAegisCommandAndControlRedirect(
+      state.get('commandAndControl'), inputs, state.get('commanderRerollCompletion'),
+    );
+    const existingPass = currentAegisCommandAndControlPass(
+      state.get('commandAndControlPass'), inputs, state.get('commanderRerollCompletion'),
+    );
+    if (existingRedirect || existingPass) {
+      throw commandError('failed-precondition', 'Command and Control has already been used for this Wolf attack.', 'conflict');
+    }
+    if (inputs.receipt.rolls.length === 0) {
+      throw commandError('failed-precondition', 'There are no Wolf targets for Command and Control to decline.', 'invalid-phase');
+    }
+    const nextRevision = inputs.revision + 1;
+    const storedCompletion = state.get('commanderRerollCompletion');
+    const finishedByCommander = completionDecision === 'finished' && isRecord(storedCompletion) &&
+      storedCompletion.status === 'finished' && storedCompletion.turn === inputs.turn;
+    const commanderCompletion = finishedByCommander ? 'finished' as const : 'no-commander' as const;
+    const completionMarker = finishedByCommander
+      ? storedCompletion
+      : {
+        status: 'no-commander' as const,
+        turn: inputs.turn,
+        revision: nextRevision,
+        actorUid: uid,
+        requestId: change.requestId,
+      };
+    const commandAndControlPass: AegisCommandAndControlPass = {
+      action: 'pass',
+      turn: inputs.turn,
+      revision: nextRevision,
+      actorUid: uid,
+      actorRoleId: 'executive-officer',
+      requestId: change.requestId,
+      commanderCompletion,
+    };
+    const view = aegisCommandAndControlView(change.sessionId, inputs.turn, nextRevision, {
+      eligible: false,
+      commanderAssigned: commanderUids.length > 0,
+      rerollsFinalized: true,
+      reason: 'passed',
+      targets: [],
+    });
+    const result: AegisCommandAndControlPassResult = {
+      status: 'committed',
+      type: 'aegis-command-and-control-pass-result',
+      sessionId: change.sessionId,
+      requestId: change.requestId,
+      turn: inputs.turn,
+      revision: nextRevision,
+      commanderCompletion,
+      view,
+    };
+    tx.update(stateRef, {
+      revision: nextRevision,
+      commanderRerollCompletion: completionMarker,
+      commandAndControlPass,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(auditRef, {
+      type: 'aegis-command-and-control-pass',
+      action: 'pass',
+      turn: inputs.turn,
+      revision: nextRevision,
+      actorUid: uid,
+      actorRoleId: 'executive-officer',
+      requestId: change.requestId,
       commanderCompletion,
       createdAt: FieldValue.serverTimestamp(),
     });

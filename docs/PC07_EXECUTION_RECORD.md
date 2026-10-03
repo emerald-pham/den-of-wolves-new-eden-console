@@ -700,3 +700,30 @@ required fixed P435/P436 behavior. Test-first, normal use/pass/retry/stale/zero
 redirect, automatic continuation, all five choice consumers and final independent
 xhigh review remain required. The root's provisional 104-Function source manifest
 must be regenerated after this server change; it is not final evidence.
+
+## Direct orchestrator takeover — October 3
+
+The owner explicitly ordered the delegated owner stopped. The orchestrator
+interrupted the owner and both implementation workers, preserved their commits
+and unfinished patch outside Git, and took all remaining implementation, proof,
+review, integration and release directly. No implementation worker is resumed.
+The obsolete interactive split proof processes were stopped; Auth and Firestore
+were positively exported to `runtime-snapshot-root-takeover` before restarting
+the isolated slot 1 backend. Existing evidence and sessions remain preserved.
+
+Recovered targeting tests exposed the optional C&C pass and both older targeting
+presenters' authority gaps. A further discriminating red proved a redirect could
+follow a committed pass before automatic advancement; a second red proved a
+redirect receipt for an unrelated request was accepted by the client. Separate
+test commits retain those failures. The repair makes the pass terminal, binds
+the redirect response to its submitted request/cycle/revision/selected roster
+entry, and withdraws old choices after a mutation until a newer member revision
+or explicit refresh. Current actor, connection, freshness and step guards apply
+to Commander and C&C controls. No printed target, resource or damage rule was
+changed. Mock queries now represent the actual fleet-group collection instead
+of relaxing server handling for missing authoritative data. Existing repaired
+14px typography was retained when recovering the older worker stylesheet.
+
+The final full gameplay, independent Sol review, CI and deployment are still
+open. The catalog remains the 556/751 baseline until those acceptances have
+complete gameplay evidence.

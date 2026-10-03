@@ -1,17 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { subscribeWolfAttackMemberView } from '@/lib/firestore';
 import {
   applyAegisCommandAndControl,
   getAegisCommandAndControl,
+  passAegisCommandAndControl,
 } from '@/lib/sessionService';
-import type { AegisCommandAndControlView } from '@/types/game';
-import { useSessionStore } from '@/store/useSessionStore';
-
-type Props = Readonly<{
-  sessionId?: string;
-  consoleLocked?: boolean;
-  readControl?: typeof getAegisCommandAndControl;
-  redirectShip?: typeof applyAegisCommandAndControl;
-}>;
+import type { AegisCommandAndControlView, WolfAttackMemberView } from '@/types/game';
+import { useWolfAttackChoiceAuthority, useWolfAttackChoiceController } from '@/lib/wolfAttackChoiceController';
 
 function displayName(value: string): string {
   return value.split('-').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
@@ -27,13 +22,6 @@ function targetName(
   return `${displayName(target.shipId)} ${ordinal}`;
 }
 
-function hasCurrentExecutiveOfficerAuthority(sessionId: string | undefined): boolean {
-  if (!sessionId) return false;
-  const state = useSessionStore.getState();
-  return state.session?.id === sessionId && state.me?.sessionId === sessionId &&
-    state.me?.role === 'player' && state.me.activeConsoleRoleId === 'executive-officer';
-}
-
 function statusFor(view: AegisCommandAndControlView): string {
   if (view.reason === 'waiting') return 'No Wolf targeting window is open.';
   if (view.reason === 'not-targeting') return 'Wolf targeting is no longer the active attack step.';
@@ -46,108 +34,41 @@ function statusFor(view: AegisCommandAndControlView): string {
   if (view.reason === 'already-used') {
     return `Command committed // ${displayName(view.redirectedShipId ?? 'wolf ship')} redirected to AEGIS.`;
   }
+  if (view.reason === 'passed') return 'Command and Control passed // no redirect made.';
   if (view.reason === 'no-targets') return 'Unavailable // no Wolf ships are available to redirect.';
   if (!view.commanderAssigned) {
-    return 'No Wolf Commander is assigned // this redirect will record targeting completion.';
+    return 'No Wolf Commander is assigned // this choice records targeting completion.';
   }
   if (!view.rerollsFinalized) return 'Waiting for the assigned Wolf Commander to finish rerolls.';
-  return 'Targeting rerolls complete // choose one Wolf ship to redirect to AEGIS.';
+  return 'Targeting rerolls complete // redirect one Wolf ship to AEGIS or pass Command and Control.';
 }
 
-/** Executive Officer control for one server-authorized, post-reroll redirect. */
-export default function AegisCommandAndControlPanel({
-  sessionId: suppliedSessionId,
-  consoleLocked = false,
-  readControl = getAegisCommandAndControl,
-  redirectShip = applyAegisCommandAndControl,
-}: Props) {
-  const storeSessionId = useSessionStore((state) => state.session?.id);
-  const isExecutiveOfficer = useSessionStore((state) => state.me?.role === 'player' &&
-      state.me.activeConsoleRoleId === 'executive-officer');
-  const connection = useSessionStore((state) => state.connection);
-  const freshness = useSessionStore((state) => state.sessionSnapshotFreshness);
-  const sessionId = suppliedSessionId ?? storeSessionId;
-  const authorizedPost = isExecutiveOfficer;
-  const live = connection === 'live' && freshness === 'server' && !consoleLocked;
-  const [view, setView] = useState<AegisCommandAndControlView | null>(null);
+export type AegisCommandAndControlPanelViewProps = Readonly<{
+  view: AegisCommandAndControlView;
+  onRedirect: (turn: number, revision: number, rosterIndex: number) => void;
+  onPass: (turn: number, revision: number) => void;
+  onRefresh?: () => void;
+  busy?: boolean;
+  message?: string;
+}>;
+
+/** Pure Executive Officer presenter; prepared reviews supply view data and callbacks. */
+export function AegisCommandAndControlPanelView({
+  view,
+  onRedirect,
+  onPass,
+  onRefresh,
+  busy = false,
+  message,
+}: AegisCommandAndControlPanelViewProps) {
   const [selected, setSelected] = useState<number | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState('Refresh after the GM declares a Wolf attack.');
-  const requestGeneration = useRef(0);
-
-  useEffect(() => {
-    requestGeneration.current += 1;
-    setView(null);
-    setSelected(null);
-    setBusy(false);
-    setLoading(false);
-  }, [authorizedPost, sessionId]);
-
-  const refresh = useCallback(async () => {
-    if (!authorizedPost || !sessionId) return;
-    if (!live) {
-      setView(null);
-      setSelected(null);
-      setStatus('Unavailable // reconnect to the live Executive Officer authority.');
-      return;
-    }
-    const generation = requestGeneration.current;
-    setLoading(true);
-    try {
-      const next = await readControl();
-      if (requestGeneration.current !== generation || next.sessionId !== sessionId ||
-          !hasCurrentExecutiveOfficerAuthority(sessionId)) return;
-      setView(next);
-      setSelected(null);
-      setStatus(statusFor(next));
-    } catch {
-      if (requestGeneration.current !== generation || !hasCurrentExecutiveOfficerAuthority(sessionId)) return;
-      setView(null);
-      setStatus('Command and Control unavailable // reconnect and refresh.');
-    } finally {
-      if (requestGeneration.current === generation) setLoading(false);
-    }
-  }, [authorizedPost, live, readControl, sessionId]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  if (!authorizedPost) return null;
-
-  async function redirect(): Promise<void> {
-    if (!view || !view.eligible || selected === null || busy || !live) return;
-    const generation = requestGeneration.current;
-    const requestSessionId = sessionId;
-    setBusy(true);
-    try {
-      const result = await redirectShip(view.turn, view.revision, selected);
-      if (requestGeneration.current !== generation || sessionId !== requestSessionId ||
-          !hasCurrentExecutiveOfficerAuthority(requestSessionId)) return;
-      const selectedTarget = view.targets.find((target) => target.rosterIndex === result.rosterIndex);
-      if (!selectedTarget || result.rosterIndex !== selected || selectedTarget.shipId !== result.shipId) {
-        setView(null);
-        setSelected(null);
-        setStatus('Redirect receipt did not match the selected ship // refresh the current targeting state.');
-        return;
-      }
-      setView(result.view);
-      setSelected(null);
-      setStatus(`Command committed // ${targetName(selectedTarget, view.targets)} redirected to AEGIS.`);
-    } catch {
-      if (requestGeneration.current !== generation || sessionId !== requestSessionId ||
-          !hasCurrentExecutiveOfficerAuthority(requestSessionId)) return;
-      setView(null);
-      setSelected(null);
-      setStatus('Redirect rejected // refresh the current targeting state and try again.');
-    } finally {
-      if (requestGeneration.current === generation) setBusy(false);
-    }
-  }
-
-  const targets = view?.targets ?? [];
-  const canRedirect = live && view?.eligible === true && selected !== null && !busy;
+  const draftKey = useMemo(() => JSON.stringify([
+    view.sessionId, view.turn, view.revision, view.eligible, view.reason,
+    view.targets.map(({ rosterIndex, shipId }) => [rosterIndex, shipId]),
+  ]), [view]);
+  useEffect(() => setSelected(null), [draftKey]);
+  const status = message ?? statusFor(view);
+  const canChoose = view.eligible && view.targets.length > 0;
 
   return (
     <section className="aegis-cnc-panel cic-frame" aria-labelledby="aegis-cnc-title">
@@ -156,44 +77,126 @@ export default function AegisCommandAndControlPanel({
           <p>Wolf attack // AEGIS defense</p>
           <h3 id="aegis-cnc-title">Command and Control</h3>
         </div>
-        {view && <span>Cycle {view.turn} // Rev {view.revision}</span>}
+        <span>Cycle {view.turn} // Rev {view.revision}</span>
       </header>
       <p className="aegis-cnc-panel__guidance">
-        After Wolf Commander rerolls finish, redirect one Wolf ship to AEGIS. This action does not resolve damage.
+        After Wolf Commander rerolls finish, redirect one Wolf ship to AEGIS or pass. This choice does not resolve damage.
       </p>
-      {targets.length > 0 && view?.eligible && (
-        <fieldset className="aegis-cnc-panel__targets">
-          <legend>Choose one Wolf ship</legend>
-          {targets.map((target) => (
+      {canChoose && (
+        <fieldset className="aegis-cnc-panel__targets" disabled={busy}>
+          <legend>Choose one Wolf ship to redirect</legend>
+          {view.targets.map((target) => (
             <label key={target.rosterIndex}>
               <input
                 type="radio"
                 name="aegis-cnc-target"
                 value={target.rosterIndex}
                 checked={selected === target.rosterIndex}
-                disabled={busy || !live}
                 onChange={() => setSelected(target.rosterIndex)}
               />
-              <span>{targetName(target, targets)}</span>
+              <span>{targetName(target, view.targets)}</span>
             </label>
           ))}
         </fieldset>
       )}
       <div className="aegis-cnc-panel__actions">
-        <button
-          className="cic-action-button cic-action-button--confirm"
-          type="button"
-          disabled={!canRedirect}
-          onClick={() => void redirect()}
-        >
-          {busy ? 'Redirecting…' : 'Redirect selected ship'}
+        <button className="cic-action-button cic-action-button--confirm" type="button"
+          disabled={!canChoose || selected === null || busy}
+          onClick={() => selected !== null && onRedirect(view.turn, view.revision, selected)}>
+          Redirect selected ship
         </button>
-        <button className="cic-text-button" type="button" disabled={loading || busy || !live}
-          onClick={() => void refresh()}>
-          {loading ? 'Refreshing…' : 'Refresh Command and Control'}
-        </button>
+        {canChoose && <button className="cic-action-button" type="button" disabled={busy}
+          onClick={() => onPass(view.turn, view.revision)}>
+          Pass Command and Control
+        </button>}
+        {onRefresh && <button className="cic-text-button" type="button" disabled={busy} onClick={onRefresh}>
+          Refresh Command and Control
+        </button>}
       </div>
       <p className="aegis-cnc-panel__status" role="status" aria-live="polite">{status}</p>
     </section>
   );
+}
+
+/** AEGIS choices are shown only for the current live EO and current attack step. */
+export default function AegisCommandAndControlPanel({
+  sessionId: suppliedSessionId,
+  consoleLocked = false,
+  subscribe = subscribeWolfAttackMemberView,
+}: Readonly<{
+  sessionId?: string;
+  consoleLocked?: boolean;
+  subscribe?: typeof subscribeWolfAttackMemberView;
+}> = {}) {
+  const authority = useWolfAttackChoiceAuthority('executive-officer', suppliedSessionId, !consoleLocked);
+  const { memberView, view, busy, message, error, refresh, runMutation } = useWolfAttackChoiceController({
+    authority,
+    actor: 'executive-officer',
+    expectedStep: isTargetingStep,
+    read: getAegisCommandAndControl,
+    readMatches: aegisReadMatches,
+    subscribe,
+    readFailureMessage: 'Could not refresh Command and Control.',
+    refreshAfterMutation: false,
+    mutationFailureMessage: 'The Executive Officer choice could not be committed. Refresh before retrying.',
+  });
+  const sessionId = authority.sessionId;
+
+  if (!sessionId || !authority.actorReady) return null;
+  if (consoleLocked) return (
+    <section className="aegis-cnc-panel cic-frame" aria-label="Command and Control">
+      <p className="aegis-cnc-panel__status" role="status">Command and Control is locked while this console’s authority is unavailable.</p>
+      <div className="aegis-cnc-panel__actions">
+        <button className="cic-action-button cic-action-button--confirm" type="button" disabled>Redirect selected ship</button>
+      </div>
+    </section>
+  );
+  if (!authority.ready) return (
+    <section className="aegis-cnc-panel cic-frame" aria-label="Command and Control">
+      <p className="aegis-cnc-panel__status" role="status">Reconnect to the live Executive Officer authority before showing Wolf targets.</p>
+    </section>
+  );
+  if (!memberView || memberView.currentStep !== 'targeting') return null;
+  if (!view) return (
+    <section className="aegis-cnc-panel cic-frame" aria-label="Command and Control">
+      <p className="aegis-cnc-panel__status" role="status">{error ?? message ?? 'Checking the current server Command and Control choice…'}</p>
+      <button className="cic-action-button" type="button" disabled>Redirect selected ship</button>
+      <button className="cic-action-button" type="button" disabled={busy} onClick={refresh}>Refresh Command and Control</button>
+    </section>
+  );
+
+  return <AegisCommandAndControlPanelView
+    view={view}
+    busy={busy}
+    {...((error ?? message) ? { message: error ?? message } : {})}
+    onRefresh={refresh}
+    onRedirect={(turn, revision, rosterIndex) => runMutation(
+      async () => {
+        try {
+          const result = await applyAegisCommandAndControl(turn, revision, rosterIndex);
+          const target = view.targets.find(candidate => candidate.rosterIndex === rosterIndex);
+          if (!target || result.sessionId !== view.sessionId || result.turn !== turn || result.revision !== revision + 1 ||
+              result.rosterIndex !== rosterIndex || result.shipId !== target.shipId) {
+            throw new Error('The receipt did not match the selected ship.');
+          }
+        } catch (cause) {
+          throw new Error(`${cause instanceof Error ? cause.message : 'Redirect rejected.'} Refresh the current targeting state before retrying.`);
+        }
+      },
+      `${targetName(view.targets.find(candidate => candidate.rosterIndex === rosterIndex)!, view.targets)} redirected to AEGIS.`,
+    )}
+    onPass={(turn, revision) => runMutation(
+      () => passAegisCommandAndControl(turn, revision),
+      'Command and Control passed // no redirect made.',
+    )}
+  />;
+}
+
+function isTargetingStep(member: WolfAttackMemberView): boolean {
+  return member.currentStep === 'targeting';
+}
+
+function aegisReadMatches(value: AegisCommandAndControlView, member: WolfAttackMemberView): boolean {
+  return value.sessionId === member.sessionId && value.turn === member.turn &&
+    value.revision === member.revision && member.currentStep === 'targeting';
 }

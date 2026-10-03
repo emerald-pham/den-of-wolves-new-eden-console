@@ -3,13 +3,14 @@ import { subscribeWolfAttackMemberView } from '@/lib/firestore';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { GameSession, Player, WolfAttackMemberView } from '@/types/game';
 
-export type WolfAttackChoiceActor = 'gorgoneion-captain' | 'executive-officer' | 'ship-crew';
+export type WolfAttackChoiceActor = 'gorgoneion-captain' | 'wolf-commander' | 'executive-officer' | 'ship-crew';
 
 export interface WolfAttackChoiceAuthority {
   readonly sessionId?: string;
   readonly key: string;
   readonly actorReady: boolean;
   readonly ready: boolean;
+  readonly enabled: boolean;
 }
 
 function browserIsOnline(): boolean {
@@ -19,6 +20,7 @@ function browserIsOnline(): boolean {
 function authorityFor(
   actor: WolfAttackChoiceActor,
   suppliedSessionId: string | undefined,
+  enabled: boolean,
   values: Readonly<{
     session: GameSession | null;
     me: Player | null;
@@ -34,9 +36,11 @@ function authorityFor(
     me.role === 'player' && me.fleetGroupId && me.replacementStatus == null);
   const actorReady = baseActor && (actor === 'gorgoneion-captain'
     ? me?.replacementRoleId === 'gorgoneion-captain'
-    : actor === 'executive-officer'
-      ? me?.activeConsoleRoleId === 'executive-officer'
-      : true);
+    : actor === 'wolf-commander'
+      ? me?.replacementRoleId === 'wolf-commander'
+      : actor === 'executive-officer'
+        ? me?.activeConsoleRoleId === 'executive-officer'
+        : true);
   const gorgoneion = session?.smallShipStates?.gorgoneion;
   const discovery = session?.playerDiscovery;
   const key = JSON.stringify([
@@ -46,11 +50,11 @@ function authorityFor(
     me?.activeConsoleRoleId ?? null, me?.seatId ?? null, me?.fleetGroupId ?? null, identityRevision,
     discovery?.groupId ?? null, discovery?.shipId ?? null, discovery?.revision ?? null,
     discovery?.fleetGroupVesselIds ?? [], gorgoneion?.hostShipId ?? null, gorgoneion?.dockingRevision ?? null,
-    connection, freshness, online,
+    connection, freshness, online, enabled,
   ]);
   return {
-    ...(sessionId ? { sessionId } : {}), key, actorReady,
-    ready: Boolean(actorReady && session?.phase === 'active' && connection === 'live' &&
+    ...(sessionId ? { sessionId } : {}), key, actorReady, enabled,
+    ready: Boolean(actorReady && enabled && session?.phase === 'active' && connection === 'live' &&
       freshness === 'server' && online),
   };
 }
@@ -58,6 +62,7 @@ function authorityFor(
 export function useWolfAttackChoiceAuthority(
   actor: WolfAttackChoiceActor,
   suppliedSessionId?: string,
+  enabled = true,
 ): WolfAttackChoiceAuthority {
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
@@ -77,7 +82,7 @@ export function useWolfAttackChoiceAuthority(
     };
   }, []);
 
-  return authorityFor(actor, suppliedSessionId, {
+  return authorityFor(actor, suppliedSessionId, enabled, {
     session, me, connection, freshness, identityRevision, online,
   });
 }
@@ -86,9 +91,10 @@ export function wolfAttackChoiceAuthorityIsCurrent(
   actor: WolfAttackChoiceActor,
   authorityKey: string,
   sessionId: string | undefined,
+  enabled = true,
 ): boolean {
   const current = useSessionStore.getState();
-  const authority = authorityFor(actor, sessionId, {
+  const authority = authorityFor(actor, sessionId, enabled, {
     session: current.session,
     me: current.me,
     connection: current.connection,
@@ -126,6 +132,7 @@ interface UseWolfAttackChoiceControllerOptions<T> {
   readonly subscribe?: typeof subscribeWolfAttackMemberView;
   readonly readFailureMessage: string;
   readonly mutationFailureMessage: string;
+  readonly refreshAfterMutation?: boolean;
 }
 
 type BoundMember = Readonly<{ authorityKey: string; member: WolfAttackMemberView }>;
@@ -142,6 +149,7 @@ export function useWolfAttackChoiceController<T>({
   subscribe = subscribeWolfAttackMemberView,
   readFailureMessage,
   mutationFailureMessage,
+  refreshAfterMutation = true,
 }: UseWolfAttackChoiceControllerOptions<T>): WolfAttackChoiceController<T> {
   const [memberState, setMemberState] = useState<BoundMember | null>(null);
   const [readState, setReadState] = useState<BoundRead<T> | null>(null);
@@ -150,6 +158,8 @@ export function useWolfAttackChoiceController<T>({
   const [busyState, setBusyState] = useState<BusyState | null>(null);
   const memberRef = useRef<BoundMember | null>(null);
   const readRef = useRef<BoundRead<T> | null>(null);
+  const mutationInFlightRef = useRef(false);
+  const blockedCheckpointRef = useRef<string | null>(null);
   const refreshRef = useRef<(() => void) | null>(null);
   const activeAuthorityRef = useRef(authority.key);
   activeAuthorityRef.current = authority.key;
@@ -174,10 +184,10 @@ export function useWolfAttackChoiceController<T>({
     const key = authority.key;
     const sessionId = authority.sessionId;
     const canContinue = () => live && activeAuthorityRef.current === key &&
-      wolfAttackChoiceAuthorityIsCurrent(actor, key, sessionId);
+      wolfAttackChoiceAuthorityIsCurrent(actor, key, sessionId, authority.enabled);
 
     const readLoop = async (): Promise<void> => {
-      if (reading) return;
+      if (reading || (!refreshAfterMutation && mutationInFlightRef.current)) return;
       reading = true;
       while (live && queuedMember) {
         const requestedMember = queuedMember;
@@ -185,7 +195,8 @@ export function useWolfAttackChoiceController<T>({
         const requestNumber = latestRequest;
         try {
           const value = await read();
-          if (!canContinue() || requestNumber !== latestRequest) continue;
+          if (!canContinue() || requestNumber !== latestRequest || (!refreshAfterMutation && mutationInFlightRef.current) ||
+              blockedCheckpointRef.current === `${key}:${memberCheckpoint(requestedMember)}`) continue;
           const currentMember = memberRef.current;
           if (!currentMember || currentMember.authorityKey !== key ||
               memberCheckpoint(currentMember.member) !== memberCheckpoint(requestedMember)) continue;
@@ -200,7 +211,8 @@ export function useWolfAttackChoiceController<T>({
             setErrorState({ authorityKey: key, message: 'The server attack step changed. Waiting for its current status.' });
           }
         } catch (cause) {
-          if (!canContinue() || requestNumber !== latestRequest) continue;
+          if (!canContinue() || requestNumber !== latestRequest || (!refreshAfterMutation && mutationInFlightRef.current) ||
+              blockedCheckpointRef.current === `${key}:${memberCheckpoint(requestedMember)}`) continue;
           const currentMember = memberRef.current;
           if (!currentMember || currentMember.authorityKey !== key ||
               memberCheckpoint(currentMember.member) !== memberCheckpoint(requestedMember)) continue;
@@ -217,6 +229,7 @@ export function useWolfAttackChoiceController<T>({
     };
 
     const requestRead = (member: WolfAttackMemberView) => {
+      if (blockedCheckpointRef.current === `${key}:${memberCheckpoint(member)}`) return;
       latestRequest += 1;
       queuedMember = member;
       if (!reading) void readLoop();
@@ -253,6 +266,7 @@ export function useWolfAttackChoiceController<T>({
     const unsubscribe = subscribe(sessionId, onView);
     refreshRef.current = () => {
       if (!canContinue()) return;
+      blockedCheckpointRef.current = null;
       const currentMember = memberRef.current;
       if (currentMember?.authorityKey === key && expectedStep(currentMember.member)) {
         requestRead(currentMember.member);
@@ -265,7 +279,7 @@ export function useWolfAttackChoiceController<T>({
       if (refreshRef.current) refreshRef.current = null;
       unsubscribe();
     };
-  }, [actor, authority.key, authority.ready, authority.sessionId, expectedStep, read, readFailureMessage, readMatches, subscribe]);
+  }, [actor, authority.enabled, authority.key, authority.ready, authority.sessionId, expectedStep, read, readFailureMessage, readMatches, refreshAfterMutation, subscribe]);
 
   const memberView = authority.ready && memberState?.authorityKey === authority.key
     ? memberState.member : null;
@@ -278,51 +292,64 @@ export function useWolfAttackChoiceController<T>({
   const message = authority.ready && messageState?.authorityKey === authority.key ? messageState.message : undefined;
 
   const refresh = useCallback(() => {
-    if (!authority.ready || !wolfAttackChoiceAuthorityIsCurrent(actor, authority.key, authority.sessionId)) return;
+    if (!authority.ready || !wolfAttackChoiceAuthorityIsCurrent(actor, authority.key, authority.sessionId, authority.enabled)) return;
     refreshRef.current?.();
-  }, [actor, authority.key, authority.ready, authority.sessionId]);
+  }, [actor, authority.enabled, authority.key, authority.ready, authority.sessionId]);
 
   const runMutation = useCallback((action: () => Promise<unknown>, successMessage: string) => {
     const boundRead = readRef.current;
     const boundMember = memberRef.current;
-    if (!authority.ready || !boundRead || !boundMember || boundRead.authorityKey !== authority.key ||
+    if (mutationInFlightRef.current || !authority.ready || !boundRead || !boundMember || boundRead.authorityKey !== authority.key ||
         boundMember.authorityKey !== authority.key ||
         boundRead.memberCheckpoint !== memberCheckpoint(boundMember.member) ||
-        !wolfAttackChoiceAuthorityIsCurrent(actor, authority.key, authority.sessionId)) return;
+        !wolfAttackChoiceAuthorityIsCurrent(actor, authority.key, authority.sessionId, authority.enabled)) return;
     const memberAtStart = boundMember.member;
     const checkpoint = memberCheckpoint(memberAtStart);
     const token = Symbol('wolf-attack-choice');
+    mutationInFlightRef.current = true;
+    if (!refreshAfterMutation) blockedCheckpointRef.current = `${authority.key}:${checkpoint}`;
     setBusyState({ authorityKey: authority.key, token });
     setErrorState(null);
     setMessageState(null);
     void (async () => {
       try {
         await action();
-        if (!wolfAttackChoiceAuthorityIsCurrent(actor, authority.key, authority.sessionId) ||
+        if (!wolfAttackChoiceAuthorityIsCurrent(actor, authority.key, authority.sessionId, authority.enabled) ||
             activeAuthorityRef.current !== authority.key) return;
         const latestMember = memberRef.current;
         if (!latestMember || latestMember.authorityKey !== authority.key ||
             memberCheckpoint(latestMember.member) !== checkpoint) return;
+        readRef.current = null;
+        setReadState(null);
         setMessageState({ authorityKey: authority.key, message: successMessage });
-        refreshRef.current?.();
+        if (refreshAfterMutation) {
+          mutationInFlightRef.current = false;
+          refreshRef.current?.();
+        }
       } catch (cause) {
-        if (!wolfAttackChoiceAuthorityIsCurrent(actor, authority.key, authority.sessionId) ||
+        if (!wolfAttackChoiceAuthorityIsCurrent(actor, authority.key, authority.sessionId, authority.enabled) ||
             activeAuthorityRef.current !== authority.key) return;
         const latestMember = memberRef.current;
         if (!latestMember || latestMember.authorityKey !== authority.key ||
             memberCheckpoint(latestMember.member) !== checkpoint) return;
+        readRef.current = null;
+        setReadState(null);
         setErrorState({
           authorityKey: authority.key,
           message: cause instanceof Error ? cause.message : mutationFailureMessage,
         });
-        refreshRef.current?.();
+        if (refreshAfterMutation) {
+          mutationInFlightRef.current = false;
+          refreshRef.current?.();
+        }
       } finally {
+        mutationInFlightRef.current = false;
         if (activeAuthorityRef.current === authority.key) {
           setBusyState((current) => current?.token === token ? null : current);
         }
       }
     })();
-  }, [actor, authority.key, authority.ready, authority.sessionId, mutationFailureMessage]);
+  }, [actor, authority.enabled, authority.key, authority.ready, authority.sessionId, mutationFailureMessage, refreshAfterMutation]);
 
   return { authority, memberView, view, busy, ...(error ? { error } : {}), ...(message ? { message } : {}), refresh, runMutation };
 }

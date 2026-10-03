@@ -894,6 +894,7 @@ export type AegisCommandAndControlReason =
   | 'damaged'
   | 'damage-unknown'
   | 'already-used'
+  | 'passed'
   | 'no-targets';
 
 export interface AegisCommandAndControlTarget {
@@ -924,6 +925,18 @@ export interface AegisCommandAndControlResult {
   readonly revision: number;
   readonly rosterIndex: number;
   readonly shipId: string;
+  readonly commanderCompletion: 'finished' | 'no-commander';
+  readonly view: AegisCommandAndControlView;
+}
+
+/** Current Executive Officer explicitly declined the optional redirect. */
+export interface AegisCommandAndControlPassResult {
+  readonly status: 'committed';
+  readonly type: 'aegis-command-and-control-pass-result';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly turn: number;
+  readonly revision: number;
   readonly commanderCompletion: 'finished' | 'no-commander';
   readonly view: AegisCommandAndControlView;
 }
