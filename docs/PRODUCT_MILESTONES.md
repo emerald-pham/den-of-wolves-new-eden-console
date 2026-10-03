@@ -483,3 +483,68 @@ actual production behavior; never retroactively relabel historical evidence.
 PC10's full 20-player set, end-to-end loop and implemented game end remain
 functional obligations and may be demonstrated with local/emulator clients.
 This decision grants no 0.9.x/1.0.0 authorization or P605a activation.
+
+## PC08 shape — Weapons, fighters, boarding and truthful DRADIS
+
+**Authorized October 3, 2026.** The owner requested PC08 with full execution
+authority. PC07 opens this tranche at 605/751 done and 147/293 campaign
+closures. Finish exactly the 49 assigned IDs to reach 654/751 and 196/293.
+The [execution record](PC08_EXECUTION_RECORD.md) fixes three complete behavior
+groups and their isolated implementation checkouts. Root owns every acceptance,
+integration, independent review and the single release.
+
+**Problem and frozen scope.** Fleet crews must make their entitled weapon,
+fighter and defence choices in their existing consoles. The server must apply
+the printed rolls, costs, modifiers, damage and loss consequences once, then
+advance automatically when genuine choices are settled. DRADIS must reflect
+current group-local ships, sampled transit, parked craft and committed rejoin
+without stale contacts, leaked metadata or clipped names. Complete shuttle
+scenarios must prove movement, actions, restriction/attack parking and recovery.
+This delivery excludes PC09 aftermath, specialist/crisis additions, PC10
+endings and the separately deferred P605a attack visualization.
+
+**Sources, assumptions and rabbit holes.** The seven primary v1.1 artifact
+checksums match the private provenance inventory; named component sheets
+outrank generic guides and both Capybara files apply. Each group reads its
+precise routed mechanics and inspects extraction-sensitive primary pages.
+Record source gaps, Boa ambiguity and the Wolf Commander incomplete consequence
+explicitly; keep an audited facilitator ruling where print requires one.
+Do not replace genuine choices with defaults, confuse correction controls
+with normal automation, merge independent wings, reuse charges/costs on retry,
+leak private enemy rosters into DRADIS, or broaden this checkpoint into later
+aftermath. New interpretations go first in the report.
+
+**Feedback disposition.** The latest transition review found no new UI note
+awaiting cooldown. Adopt all prior CIC typography, cycle/console wording,
+single station chooser, truthful contacts and minimized Zoom, full first-sweep
+duration, exact Red Alert/ticker, graceful restore, optional Press/extra-GM,
+private GM detail and automated deterministic procedure decisions. Apply the
+repository-wide emulator proof and root ownership corrections.
+
+**Owner-playable checks.** Provide a labeled synthetic scene using actual
+presenters, local simulated actions and no live writes. The owner may review
+these five yes/no checks in one sitting; gameplay proof remains agent-owned:
+
+1. Can I follow docked, travelling, parked and rejoined contacts, distinguish
+   current local information, use Zoom and read complete names at each size?
+2. Can I select an available weapon and target, understand its automatic
+   result and resource cost, and see a damaged/unavailable action clearly?
+3. Can I distinguish Alpha, Bravo, Maliades and the PDF Escort Wing, choose
+   their legal actions, and understand persisted fighter losses and recovery?
+4. Can I follow support relocation, security-team defence, rerolls and any
+   Militia Leader risk, with visible resolved damage and explicit genuine ruling?
+5. Can I see committed battle consequences and surviving-wing carryover,
+   recover after a disconnect, and return through the visible parent control?
+
+**Internal exit gates.** Commit meaningful failing tests before new code;
+exercise current callable/rules authority, costs/charges, per-wing limits,
+range priority, automatic advance, private audiences, stale revisions, retries,
+reconnect and direct-write denial. Prove assigned paths with normal authenticated
+local/emulator native, HTTP/UI and rules checks, separately from prepared scenes.
+Inspect narrow phone, wide desktop, short landscape, actual fonts, complete
+contact geometry, keyboard, return controls and reduced motion. Integrate all
+groups before independent Sol 6.1 authority/privacy review and appropriate
+final validation. Pass font, rendered typography, ticker, bundle and existing
+release gates, then candidate CI and exact-main deployment. Preserve exact
+evidence and fixed counts; no partial feature or presentation release completes
+PC08. Do not begin PC09 in this delivery.

@@ -250,3 +250,17 @@ No new gameplay decision or UI feedback is pending cooldown. Root remains
 checkpoint owner, all future gameplay proof uses local/emulator paths, and
 PC08–PC10 membership, targets, P605a activation and full 20-player PC10 boundaries
 remain unchanged.
+
+## PC08 transition and authorization — 2026-10-03
+
+Latest owner message reviewed: “Execute pc08 please, full authority granted to
+do whatever is needed to get it done.” This explicitly authorizes PC08 under
+the standing execution policy. The transition review read the preceding PC07
+conversation through the local/emulator correction, orchestrator ownership,
+takeover and completed release, plus the prior philosophical alignment.
+No new applicable gameplay or presentation decision changes an unstarted
+criterion; no UI feedback awaits cooldown. The existing 98 PC08–PC09 and 48
+PC10 criteria retain their local/emulator proof standard, fixed targets and
+source/authority/privacy requirements. P605a and release-version boundaries
+remain unchanged. The [PC08 execution record](PC08_EXECUTION_RECORD.md) and
+next checkpoint shape adopt every still-applicable prior feedback item.
