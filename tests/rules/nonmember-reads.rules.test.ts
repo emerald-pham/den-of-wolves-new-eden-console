@@ -70,7 +70,10 @@ afterAll(async () => { await env?.cleanup(); });
 it('keeps permitted member and facilitator reads available as positive controls', async () => {
   const member = env.authenticatedContext('member').firestore();
   const gm = env.authenticatedContext('gm').firestore();
-  expect((await getDoc(doc(member, sessionPath))).exists()).toBe(true);
+  // PC07 moves the session root behind the current-member callable because
+  // Firestore cannot redact another fleet group's private fields.
+  await expect(getDoc(doc(member, sessionPath))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect((await getDoc(doc(gm, sessionPath))).exists()).toBe(true);
   expect((await getDoc(doc(member, `${sessionPath}/crisisReports/current`))).exists()).toBe(true);
   expect((await getDoc(doc(gm, `${sessionPath}/crisisState/current`))).exists()).toBe(true);
 });
