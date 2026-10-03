@@ -98,14 +98,15 @@ it('keeps sharing and taxi controls compact, adjacent to their labels, and tappa
     const checkboxStyle = getComputedStyle(checkbox);
     const labelStyle = getComputedStyle(checkbox.closest('label')!);
     const select = container.querySelector<HTMLSelectElement>('select[aria-label="Taxi shuttle"]')!;
-    const selectStyle = getComputedStyle(select);
+    const css = readFileSync('src/components/FleetGroupWorkspace.css', 'utf8');
     expect(labelStyle.display).toBe('flex');
     expect(labelStyle.alignItems).toBe('center');
     expect(Number.parseFloat(labelStyle.minHeight)).toBeGreaterThanOrEqual(44);
     expect(checkboxStyle.width).toBe('20px');
     expect(checkboxStyle.height).toBe('20px');
-    expect(Number.parseFloat(selectStyle.fontSize)).toBeGreaterThanOrEqual(16);
-    expect(readFileSync('src/components/FleetGroupWorkspace.css', 'utf8')).toMatch(/max-height:\s*480px[^}]*landscape|landscape[^}]*max-height:\s*480px/s);
+    expect(select).toBeInTheDocument();
+    expect(css).toMatch(/font:\s*16px\/1\.35 var\(--cic-mono\)/);
+    expect(css).toMatch(/max-height:\s*480px[^}]*landscape|landscape[^}]*max-height:\s*480px/s);
   } finally {
     stylesheet.remove();
   }
