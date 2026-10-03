@@ -182,7 +182,8 @@ function preparedDradisPlugin() {
     name: 'typography-prepared-dradis',
     enforce: 'pre',
     resolveId(id) {
-      return id === '@/lib/useFleetGroupNavigation' || id === resolve(ROOT, 'src/lib/useFleetGroupNavigation.ts')
+      return id === '@/lib/useFleetGroupNavigation' || id === resolve(ROOT, 'src/lib/useFleetGroupNavigation') ||
+        id === resolve(ROOT, 'src/lib/useFleetGroupNavigation.ts')
         ? moduleId : null;
     },
     load(id) {
