@@ -73,6 +73,7 @@ vi.mock('firebase-functions/v2/scheduler', () => ({
 }));
 
 import {
+  advanceTurn,
   advanceWolfAttackToLongRange,
   declareWolfAttack,
   extendAirspaceWindow,
@@ -583,6 +584,48 @@ it('rejects an attack-clock intervention from a stale attack revision without a 
   expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toEqual(before);
   expect(mock.documents.has('sessions/s1/commandReceipts/stale-attack-clock-pause')).toBe(false);
   expect(mock.documents.has('sessions/s1/wolfAttackState/current/audit/stale-attack-clock-pause')).toBe(false);
+});
+
+it('denies ordinary timer extension and cycle-skip controls while an attack is declared', async () => {
+  session();
+  gm();
+  preparation();
+  dueWindow();
+  navigation();
+  fleetGroup();
+  await declareWolfAttack.run(request());
+  const currentPhase = mock.documents.get('sessions/s1')!.turnPhase as Fields;
+  patchSession({
+    turnPhase: {
+      ...currentPhase,
+      teamPhaseEndsAt: new Date(Date.now() + 60_000).toISOString(),
+      openAirspaceEndsAt: new Date(Date.now() + 120_000).toISOString(),
+    },
+  });
+  const phaseBefore = structuredClone(mock.documents.get('sessions/s1')!.turnPhase);
+  const attackBefore = structuredClone(mock.documents.get('sessions/s1/wolfAttackState/current'));
+  mock.update.mockClear();
+  mock.set.mockClear();
+
+  await expect(extendAirspaceWindow.run(request({
+    sessionId: 's1', instanceId: 'gm-1', expectedTurn: 1, window: 'restricted',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/attack.*server|server.*attack/i),
+  });
+  await expect(advanceTurn.run(request({
+    sessionId: 's1', instanceId: 'gm-1', requestId: 'skip-during-wolf-attack',
+    expectedTurn: 1, overridePhaseTimer: true, skipTurnStartAnnouncement: true,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/attack.*server|server.*attack/i),
+  });
+
+  expect(mock.documents.get('sessions/s1')!.turnPhase).toEqual(phaseBefore);
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toEqual(attackBefore);
+  expect(mock.documents.has('sessions/s1/commandReceipts/skip-during-wolf-attack')).toBe(false);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it('uses the current server-owned airspace deadline after a restricted-window extension', async () => {
