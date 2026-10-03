@@ -44,6 +44,25 @@ it('shows committed boarding through the real crew presenter without accepting a
   expect(screen.queryByRole('button', {name: 'Commit defence'})).not.toBeInTheDocument();
 });
 
+it('uses independent real launch controls and one genuine Medium choice per fighter', () => {
+  render(<PC08ReviewScene />);
+  fireEvent.click(screen.getByRole('button', {name: '3 Fleet fighters'}));
+  fireEvent.click(screen.getByRole('button', {name: 'Launch Fighter Wing Alpha'}));
+  expect(screen.getByRole('button', {name: 'Launch Fighter Wing Alpha'})).toBeDisabled();
+  expect(screen.getByRole('button', {name: 'Launch Fighter Wing Bravo'})).toBeEnabled();
+  const resolve = screen.getByRole('button', {name: 'Resolve Medium actions'});
+  expect(resolve).toBeDisabled();
+  for (let fighter = 1; fighter <= 4; fighter++) {
+    fireEvent.change(screen.getByRole('combobox', {name: `Fighter ${fighter} action`}), {target: {value: fighter === 1 ? 'target-shift' : 'attack'}});
+    fireEvent.change(screen.getByRole('combobox', {name: `Fighter ${fighter} target`}), {target: {value: 'local-wolf-1'}});
+    if (fighter === 1) fireEvent.change(screen.getByRole('combobox', {name: 'Fighter 1 shift'}), {target: {value: '1'}});
+  }
+  fireEvent.click(resolve);
+  expect(screen.getByRole('status', {name: 'Prepared fighter result'})).toHaveTextContent('Alpha choice committed');
+  fireEvent.click(screen.getByRole('button', {name: 'Bravo sample'}));
+  expect(screen.getByText('This wing did not launch for the current attack.')).toBeInTheDocument();
+});
+
 it('presents actual Commander, support, Militia, independent reroll and ruling choices as isolated samples', () => {
   render(<PC08ReviewScene />);
   fireEvent.click(screen.getByRole('button', {name: '4 Boarding defence'}));
