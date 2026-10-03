@@ -3096,6 +3096,59 @@ it('hydrates the complete GM-private attack state and keeps its revision monoton
   expect(onState).toHaveBeenLastCalledWith(null);
 });
 
+it('hydrates the pre-target Force Field decision without exposing targeting and validates its committed receipt', () => {
+  const { callbacks } = captureSessionListener();
+  const onState = vi.fn();
+  subscribeGmWolfAttackState('s1', onState);
+  const composition = firstTurnWolfAttackComposition();
+  const targetRing = ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124'] as const;
+  const preparation = { turn: 1, revision: 1, shipIds: [...composition.shipIds], targetMode: 'pre-rolled',
+    targetAssignments: [], modifiers: [], notes: '' };
+  const common = {
+    type: 'wolf-attack-state', status: 'declared', turn: 1, preparationRevision: 1,
+    currentStep: 'targeting', deadlineAt: '2026-10-03T12:10:00.000Z', airspaceLocked: true,
+    parkedCraftIds: [], launchedCraftIds: [], attackId: 'wolf-force-field-1', memberResults: [], preparation,
+  };
+  const preTargetReceipt = {
+    type: 'wolf-combat-calculation-stage', version: 1, turn: 1, step: 'pre-target-force-field',
+    generatedAt: '2026-10-03T12:00:00.000Z', targetRing,
+    pursuitPressure: { navigationRevision: 1, groupValues: { 'fleet-1': 2 } },
+    composition: { shipIds: [...composition.shipIds], counts: { ...composition.counts },
+      damageCapacity: composition.damageCapacity },
+  };
+  const pendingState = {
+    ...common, revision: 4, calculationReceipt: preTargetReceipt,
+    forceFieldChoice: { status: 'pending', turn: 1, revision: 4, configuredCaptainUid: 'gorg-1',
+      hostShipId: 'aegis', dockingRevision: 1, fleetGroupId: 'fleet-1', determinedAt: '2026-10-03T12:00:00.000Z' },
+  };
+
+  callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => pendingState });
+  expect(onState).toHaveBeenLastCalledWith(expect.objectContaining({
+    revision: 4, forceFieldChoice: expect.objectContaining({ status: 'pending', configuredCaptainUid: 'gorg-1' }),
+    calculationReceipt: expect.objectContaining({ step: 'pre-target-force-field' }),
+  }));
+  expect(onState.mock.calls[0]?.[0].calculationReceipt).not.toHaveProperty('targeting');
+
+  const targetingReceipt = {
+    ...preTargetReceipt, step: 'targeting',
+    targeting: resolveWolfTargeting(composition, {}, targetRing, () => 0),
+  };
+  callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => ({
+    ...common, revision: 5, calculationReceipt: targetingReceipt,
+    forceFieldChoice: { ...pendingState.forceFieldChoice, status: 'selected', revision: 5,
+      targetShipId: 'dione', actorUid: 'gorg-1', requestId: 'force-choice-1', committedAt: '2026-10-03T12:01:00.000Z' },
+  }) });
+  expect(onState).toHaveBeenLastCalledWith(expect.objectContaining({ revision: 5,
+    forceFieldChoice: expect.objectContaining({ status: 'selected', targetShipId: 'dione' }) }));
+
+  callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => ({
+    ...common, revision: 6, calculationReceipt: targetingReceipt,
+    forceFieldChoice: { ...pendingState.forceFieldChoice, status: 'selected', revision: 6,
+      targetShipId: 'foreign-vessel', actorUid: 'gorg-1', requestId: 'force-choice-1', committedAt: '2026-10-03T12:01:00.000Z' },
+  }) });
+  expect(onState).toHaveBeenLastCalledWith(null);
+});
+
 it('does not let a delayed older Wolf timing revision overwrite the newer server marker', () => {
   const { callbacks } = captureSessionListener();
   const onWindow = vi.fn();
