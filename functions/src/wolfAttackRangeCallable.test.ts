@@ -86,6 +86,8 @@ function resetFixture(): void {
     type: 'wolf-attack-state', status: 'declared', currentStep: 'long-range', airspaceLocked: true,
     turn: 1, revision: 4, attackId: 'wolf-attack-test-1', deadlineAt: '2026-10-02T12:10:00.000Z',
     commanderRerollIndexes: [],
+    preparation: { turn: 1, revision: 1, shipIds: [...firstTurnWolfAttackComposition().shipIds],
+      targetMode: 'pre-rolled', targetAssignments: [], modifiers: [], notes: '' },
     calculationReceipt: { type: 'wolf-combat-calculation-stage', version: 1, turn: 1, step: 'targeting', targeting },
     combatRoster: roster,
     privateNotes: 'never returned to AEGIS',
