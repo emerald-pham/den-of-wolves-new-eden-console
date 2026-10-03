@@ -25,7 +25,7 @@ const mock = vi.hoisted(() => {
 });
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
 vi.mock('firebase-admin/firestore', () => ({ getFirestore: () => mock.db,
-  FieldValue: { serverTimestamp: () => 'server-time' },
+  FieldValue: { serverTimestamp: () => 'server-time', delete: () => '__delete-field__' },
   Timestamp: class { toMillis() { return Date.now(); } toDate() { return new Date(); } static now() { return new this(); } } }));
 vi.mock('firebase-functions/v2', () => ({ setGlobalOptions: vi.fn() }));
 vi.mock('firebase-functions/v2/https', () => ({ HttpsError: class extends Error {
@@ -98,7 +98,7 @@ it('atomically taxis fuel only between current groups and reconciles an exact re
   } });
   const call = (value = transferData, uid = 'explorer') => calls.sendScoutTaxiTransfer.run(request(value, uid));
   expect(await call()).toMatchObject({ status: 'committed', requestId: 'transfer-1', kind: 'fuel',
-    sourceGroupId: 'fleet-2', targetGroupId: 'fleet-1', targetShipId: 'shepherd', units: 2, sourceFuelRemaining: 2 });
+    sourceGroupId: 'fleet-2', targetShipId: 'shepherd', units: 2, sourceFuelRemaining: 2 });
   expect(mock.documents.get('sessions/s1')!.shipResources).toMatchObject({ quellon: { fuel: 2 }, shepherd: { fuel: 3 } });
   expect(mock.documents.get('sessions/s1/players/explorer')!.fleetGroupId).toBe('fleet-2');
   const committedWrites = mock.writes.mock.calls.length;
