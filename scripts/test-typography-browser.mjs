@@ -929,6 +929,13 @@ try {
   const voyage33AuditIssues = auditVoyageSurface(voyage33);
 
   const report = {
+    preparedDradisBoundary: {
+      source: 'Explicit local-group sample installed only in the candidate typography Vite server',
+      actualComponents: true,
+      productionHookChanged: false,
+      authenticatedGameplay: false,
+      networkBoundary: 'Only the local Vite origin is permitted',
+    },
     reference: {
       sha: PC01_SHA,
       source: 'git archive from the exact PC01 commit',
