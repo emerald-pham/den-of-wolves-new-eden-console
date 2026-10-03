@@ -19,8 +19,20 @@ const testState = vi.hoisted(() => {
     target.path.endsWith('/players') || target.path.endsWith('/fleetGroups')
       ? querySnapshot(target.path) : snapshot(target.path));
   const set = vi.fn((target: { path: string }, fields: Fields) => documents.set(target.path, { ...fields }));
-  const update = vi.fn((target: { path: string }, fields: Fields) => documents.set(target.path,
-    { ...(documents.get(target.path) ?? {}), ...fields }));
+  const update = vi.fn((target: { path: string }, fields: Fields) => {
+    const value = { ...(documents.get(target.path) ?? {}) };
+    for (const [path, field] of Object.entries(fields)) {
+      const parts = path.split('.');
+      let cursor = value;
+      for (const part of parts.slice(0, -1)) {
+        const nested = cursor[part];
+        cursor[part] = { ...(nested && typeof nested === 'object' && !Array.isArray(nested) ? nested : {}) };
+        cursor = cursor[part] as Fields;
+      }
+      cursor[parts.at(-1)!] = field;
+    }
+    documents.set(target.path, value);
+  });
   const remove = vi.fn((target: { path: string }) => documents.delete(target.path));
   const ref = (path: string) => ({ path, id: path.split('/').at(-1) ?? '', get: async () => snapshot(path) });
   const collection = (path: string) => ({ path, get: async () => querySnapshot(path) });
@@ -423,7 +435,7 @@ it('commits only the target ship crew boarding choice, reserves teams, then auto
       boarding: [{ target: 'aegis', boardingParties: 20, securityTeams: 2, survivingBoardingParties: 18 }] } });
   expect(session.turnPhase).toMatchObject({ turn: 1, airspace: { state: 'lifted', tickerActive: true } });
   expect((session.turnPhase as Fields).openAirspaceEndsAt).toBe(priorOpenDeadline);
-  expect((session.shipResources as Fields).aegis).toMatchObject({ securityTeams: 2 });
+  expect((session.shipResources as Fields).aegis).toMatchObject({ securityTeams: 4 });
   expect(testState.documents.has('sessions/s1/events/wolf-attack-airspace-reopened-1')).toBe(true);
   const revision = state.revision;
   const drawCount = entropy.randomInt.mock.calls.length;
@@ -432,7 +444,7 @@ it('commits only the target ship crew boarding choice, reserves teams, then auto
   expect(entropy.randomInt).toHaveBeenCalledTimes(drawCount);
 });
 
-it('keeps boarding pending through disconnect and requires a current mapped berth', async () => {
+it('keeps boarding pending through disconnect and scopes the projection to the current mapped berth', async () => {
   openBoardingFixture();
   const player = testState.documents.get('sessions/s1/players/xo-1')!;
   put('sessions/s1/players/xo-1', { ...player, connected: false });
@@ -444,8 +456,9 @@ it('keeps boarding pending through disconnect and requires a current mapped bert
   await expect(getWolfBoardingDefenceChoice.run(request({ sessionId: 's1' })))
     .rejects.toMatchObject({ code: 'permission-denied' });
   put('sessions/s1/fleetGroups/fleet-1', { ...group, memberShipIds: { 'xo-1': 'dione' } });
-  await expect(getWolfBoardingDefenceChoice.run(request({ sessionId: 's1' })))
-    .rejects.toMatchObject({ code: 'permission-denied' });
+  const otherBerth = await getWolfBoardingDefenceChoice.run(request({ sessionId: 's1' }));
+  expect(otherBerth).toMatchObject({ type: 'wolf-boarding-defence-choice-unavailable', reason: 'no-boarders' });
+  expect(otherBerth).not.toHaveProperty('availableSecurityTeams');
   expect(testState.documents.get('sessions/s1/wolfAttackState/current'))
     .toMatchObject({ currentStep: 'boarding', boardingDefenceChoices: {} });
 });
