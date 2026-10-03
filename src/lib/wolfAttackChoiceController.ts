@@ -201,6 +201,11 @@ export function useWolfAttackChoiceController<T>({
           }
         } catch (cause) {
           if (!canContinue() || requestNumber !== latestRequest) continue;
+          const currentMember = memberRef.current;
+          if (!currentMember || currentMember.authorityKey !== key ||
+              memberCheckpoint(currentMember.member) !== memberCheckpoint(requestedMember)) continue;
+          readRef.current = null;
+          setReadState(null);
           setErrorState({
             authorityKey: key,
             message: cause instanceof Error ? cause.message : readFailureMessage,
