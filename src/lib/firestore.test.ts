@@ -3149,6 +3149,40 @@ it('hydrates the pre-target Force Field decision without exposing targeting and 
   expect(onState).toHaveBeenLastCalledWith(null);
 });
 
+it('strictly parses the private GM decision summary and rejects unknown decision fields', () => {
+  const { callbacks } = captureSessionListener();
+  const onState = vi.fn();
+  subscribeGmWolfAttackState('s1', onState);
+  const composition = firstTurnWolfAttackComposition();
+  const targetRing = ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124'] as const;
+  const summary = {
+    commander: { status: 'pending', actors: [{ uid: 'commander-1', connected: false }] },
+    commandAndControl: { status: 'unavailable', actors: [{ uid: 'xo-1', connected: true }], reason: 'uncharged' },
+    forceField: { status: 'not-needed' },
+    range: { range: 'long-range', status: 'pending', actors: [{ uid: 'xo-1', connected: true }] },
+  };
+  const state = {
+    type: 'wolf-attack-state', status: 'declared', turn: 1, revision: 2, preparationRevision: 1,
+    currentStep: 'targeting', deadlineAt: '2026-09-12T23:00:00.000Z', airspaceLocked: true,
+    parkedCraftIds: [], launchedCraftIds: [], attackId: 'wolf-attack-summary', memberResults: [], decisionSummary: summary,
+    preparation: { turn: 1, revision: 1, shipIds: [...composition.shipIds], targetMode: 'pre-rolled',
+      targetAssignments: [], modifiers: [], notes: '' },
+    calculationReceipt: {
+      type: 'wolf-combat-calculation-stage', version: 1, turn: 1, step: 'targeting',
+      generatedAt: '2026-09-12T22:00:00.000Z', pursuitPressure: { navigationRevision: 0, groupValues: {} },
+      composition: { shipIds: [...composition.shipIds], counts: { ...composition.counts }, damageCapacity: composition.damageCapacity },
+      targeting: resolveWolfTargeting(composition, {}, targetRing, () => 0),
+    },
+  };
+  const send = (value: unknown) => callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => value });
+
+  send(state);
+  expect(onState).toHaveBeenLastCalledWith(expect.objectContaining({ decisionSummary: summary }));
+
+  send({ ...state, revision: 3, decisionSummary: { ...summary, commander: { ...summary.commander, leakedDice: [6] } } });
+  expect(onState).toHaveBeenLastCalledWith(null);
+});
+
 it('does not let a delayed older Wolf timing revision overwrite the newer server marker', () => {
   const { callbacks } = captureSessionListener();
   const onWindow = vi.fn();
