@@ -249,6 +249,7 @@ import {
   assignLoyalty,
   adjustShipResource,
   beginOpenAirspacePhase,
+  clearTurnAdvanceInterstitial,
   beginShuttleTransit,
   claimGmInstance,
   claimSeat,
@@ -641,6 +642,17 @@ async function composeProductionSession(
   };
 }
 
+async function clearComposedBriefing(composition: Awaited<ReturnType<typeof composeProductionSession>>) {
+  const phase = read(`sessions/${composition.sessionId}`)?.turnPhase as StoredDocument;
+  const pause = phase.timerPause as StoredDocument;
+  expect(pause).toMatchObject({ reason: 'turn-interstitial', remainingMs: 300_000 });
+  await expect(clearTurnAdvanceInterstitial.run(request({
+    sessionId: composition.sessionId, expectedCycle: 1, expectedPausedAt: pause.pausedAt,
+    requestId: 'composed-cycle-one-briefing-clear',
+  }, composition.coreUids[0]!))).resolves.toMatchObject({ status: 'cleared', cycle: 1 });
+  expect((read(`sessions/${composition.sessionId}`)?.turnPhase as StoredDocument).timerPause).toBeUndefined();
+}
+
 describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
   beforeEach(() => mock.reset());
 
@@ -649,6 +661,7 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
     vi.setSystemTime(new Date('2026-09-23T16:00:00.000Z'));
     try {
       const composition = await composeProductionSession(8);
+      await clearComposedBriefing(composition);
       const sessionPath = `sessions/${composition.sessionId}`;
       const initial = read(sessionPath) as StoredDocument;
       const teamPhaseEndsAt = new Date(Date.parse('2026-09-23T16:00:00.000Z') + 2_000).toISOString();
@@ -729,6 +742,7 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
     vi.setSystemTime(new Date('2026-09-23T16:00:00.000Z'));
     try {
       const composition = await composeProductionSession(8);
+      await clearComposedBriefing(composition);
       const sessionPath = `sessions/${composition.sessionId}`;
       const initial = read(sessionPath) as StoredDocument;
       const teamPhaseEndsAt = new Date(Date.parse('2026-09-23T16:00:00.000Z') + 2_000).toISOString();
@@ -1253,6 +1267,7 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
     vi.setSystemTime(new Date('2026-09-12T16:00:00.000Z'));
     try {
       const composition = await composeProductionSession(8);
+      await clearComposedBriefing(composition);
       const sessionPath = `sessions/${composition.sessionId}`;
       const turnOne = read(sessionPath) as StoredDocument;
       const turnOnePhase = turnOne.turnPhase as { teamPhaseEndsAt: string; openAirspaceEndsAt: string };

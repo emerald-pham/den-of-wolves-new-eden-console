@@ -4,6 +4,7 @@ import type { CallableRequest } from 'firebase-functions/v2/https';
 const mock = vi.hoisted(() => ({
   get: vi.fn(),
   update: vi.fn(),
+  set: vi.fn(),
   currentTurn: 0,
   connectedIds: ['u1'] as string[],
   phase: 'lobby',
@@ -18,7 +19,7 @@ vi.mock('firebase-admin/firestore', () => ({
       where: () => ({ path: `${path}/connected` }),
     }),
     runTransaction: async (callback: (tx: unknown) => unknown) =>
-      callback({ get: mock.get, update: mock.update }),
+      callback({ get: mock.get, update: mock.update, set: mock.set }),
   }),
   FieldValue: { delete: () => 'delete-field', serverTimestamp: () => 'server-time' },
   Timestamp: { now: () => ({ toMillis: () => Date.now() }) },
@@ -77,6 +78,7 @@ beforeEach(() => {
   mock.connectedIds = ['u1'];
   mock.phase = 'lobby';
   mock.update.mockReset();
+  mock.set.mockReset();
   mock.get.mockImplementation(async (ref: string | { path: string }) =>
     snapshot(typeof ref === 'string' ? ref : ref.path));
 });
@@ -87,6 +89,7 @@ it('starts Turn One for the only connected player and writes the shared transiti
     turnStartAnnouncement: expect.objectContaining({ turn: 1 }),
     turnPhase: expect.objectContaining({ turn: 1 }),
   });
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/turnInterstitials/1', expect.objectContaining({ cycle: 1, status: 'held' }));
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({ currentTurn: 1 }));
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     singlePlayerDemo: expect.objectContaining({

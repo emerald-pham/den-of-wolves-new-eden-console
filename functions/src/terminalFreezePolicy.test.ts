@@ -11,6 +11,7 @@ const voyage33MovementSource = readFileSync(
 const gorgoneionSupportSource = readFileSync(new URL('./gorgoneionMissionSupportCallable.ts', import.meta.url), 'utf8');
 const missionLifecycleSource = readFileSync(new URL('./awayMissionLifecycleCallable.ts', import.meta.url), 'utf8');
 const smallShipJumpSource = readFileSync(new URL('./smallShipJump.ts', import.meta.url), 'utf8');
+const turnInterstitialSource = readFileSync(new URL('./turnInterstitialCallable.ts', import.meta.url), 'utf8');
 const callablePattern = /export const (\w+) = onCall/g;
 const matches = [...source.matchAll(callablePattern)];
 const highwallWindowGuardStart = source.indexOf('function requireLiveHighwallMiningWindow(');
@@ -43,6 +44,10 @@ const terminalGuardDelegates: Readonly<Record<string, {
   readonly source: string;
   readonly guard: string;
 }>> = {
+  clearTurnAdvanceInterstitial: {
+    target: 'createTurnInterstitialHandler({', source: turnInterstitialSource,
+    guard: 'deps.requireActiveGameplayPhase(session);',
+  },
   getGorgoneionMissionSupportProjection: {
     target: 'gorgoneionMissionSupportCallables.getGorgoneionMissionSupportProjection(request)',
     source: gorgoneionSupportSource, guard: "session.get('phase') !== 'active'",
