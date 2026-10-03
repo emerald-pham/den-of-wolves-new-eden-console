@@ -133,6 +133,27 @@ it('returns only current source-derived actions and opaque target contacts to th
     .rejects.toMatchObject({ code: 'permission-denied' });
 });
 
+it('publishes a private GM decision summary with configured-but-disconnected roles distinct from unavailable actions', async () => {
+  put('sessions/s1/players/wolf-commander-1', {
+    uid: 'wolf-commander-1', role: 'player', replacementRoleId: 'wolf-commander', connected: false,
+  });
+  const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  put('sessions/s1/wolfAttackState/current', { ...attack, currentStep: 'targeting' });
+
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
+    decisionSummary: {
+      commander: { status: 'pending', actors: [{ uid: 'wolf-commander-1', connected: false }] },
+      commandAndControl: { status: 'unavailable', reason: 'uncharged' },
+      forceField: { status: 'not-needed' },
+    },
+  });
+  const summary = testState.documents.get('sessions/s1/wolfAttackState/current')!.decisionSummary as Fields;
+  expect(summary).not.toHaveProperty('rolls');
+  expect(summary).not.toHaveProperty('composition');
+});
+
 it('denies the EO range projection after the current berth moves away from AEGIS', async () => {
   const group = testState.documents.get('sessions/s1/fleetGroups/fleet-1')!;
   put('sessions/s1/fleetGroups/fleet-1', { ...group, memberShipIds: { 'xo-1': 'dione' } });
