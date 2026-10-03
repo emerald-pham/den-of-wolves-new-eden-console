@@ -392,7 +392,7 @@ it('commits only the target ship crew boarding choice, reserves teams, then auto
   openBoardingFixture();
   const view = await getWolfBoardingDefenceChoice.run(request({ sessionId: 's1' }));
   expect(view).toMatchObject({ type: 'wolf-boarding-defence-choice-view', turn: 1, revision: 10,
-    targetShipId: 'aegis', boardingParties: 5, availableSecurityTeams: 4, choiceStatus: 'pending' });
+    targetShipId: 'aegis', boardingParties: 20, availableSecurityTeams: 4, choiceStatus: 'pending' });
   expect(view).not.toHaveProperty('combatRoster');
   expect(view).not.toHaveProperty('rolls');
 
@@ -420,10 +420,10 @@ it('commits only the target ship crew boarding choice, reserves teams, then auto
   const session = testState.documents.get('sessions/s1')!;
   expect(state).toMatchObject({ status: 'resolved', currentStep: 'resolved', airspaceLocked: false,
     parkingReleaseCondition: 'normal-movement-reopened', calculationReceipt: { type: 'wolf-combat-calculation',
-      boarding: [{ target: 'aegis', boardingParties: 5, securityTeams: 2, survivingBoardingParties: 3 }] } });
+      boarding: [{ target: 'aegis', boardingParties: 20, securityTeams: 2, survivingBoardingParties: 18 }] } });
   expect(session.turnPhase).toMatchObject({ turn: 1, airspace: { state: 'lifted', tickerActive: true } });
   expect((session.turnPhase as Fields).openAirspaceEndsAt).toBe(priorOpenDeadline);
-  expect((session.shipResources as Fields).aegis).toMatchObject({ securityTeams: 4 });
+  expect((session.shipResources as Fields).aegis).toMatchObject({ securityTeams: 2 });
   expect(testState.documents.has('sessions/s1/events/wolf-attack-airspace-reopened-1')).toBe(true);
   const revision = state.revision;
   const drawCount = entropy.randomInt.mock.calls.length;
