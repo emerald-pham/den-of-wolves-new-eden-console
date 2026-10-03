@@ -495,9 +495,16 @@ The worker acknowledged no call in flight. The owner exported its disposable
 state to `runtime-snapshot-partition-fix`, stopped only backend session 22070,
 and restored it in session 69536 on slot 1. The owner delivered a current-source
 boundary before normal scenario continuation. The old exported 4→2 result is
-not silently repaired or relabeled. A current native partition while the two
-counters differ and the complete mission/rejoin scenario are still pending;
-equal counter values alone do not distinguish this repair.
+not silently repaired or relabeled. On the restored `d9047346` backend, normal
+cycle-3 start/briefing clearance and Coordination opening preceded a genuine
+Shepherd mission. A labeled coherent Team deadline was the only clock
+preparation. A current out-of-range Starlight transfer returned HTTP 400 with
+no audit, receipt, cadence or revision write. Subsequent legal passenger trips
+and a normal Shepherd/Quellon rejoin advanced independent counters from
+navigation/topology **5/4 to 6/5**. The audit retained highest pursuit (1 and 3
+merged to 3), and both the mission start snapshot and mission state survived.
+The group worker retains complete lifecycle/full-merge/share proof ownership;
+the distinct counter repair is now verified natively.
 
 The actual GM timing marker copy was separately corrected in red `67ce97c4`
 and source `f8b0f949`. It now distinguishes explicit declaration from automatic
@@ -512,3 +519,24 @@ short-landscape attack result were visually inspected. Evidence is
 `solo-current-cic-comms/summary.json` (October 3 07:47 UTC); eight scene unit
 checks pass. This is explicitly prepared render evidence and not native attack
 or split acceptance. Final candidate gates remain separate.
+
+### Current GM decision summary
+
+Test-first `dcf039cd` adds eight discriminating display checks and the actual
+GM-route subscription/offline check. Separate `d8b45e68` exercises an abandoned
+callback after this browser claims a different GM instance. The readonly
+presenter connects the worker's strict optional server decision summary:
+current Commander, Command and Control, Captain, range and target-crew boarding
+status. Human names replace raw UIDs; source-unavailable reasons remain distinct
+from genuine disconnected pending choices. Presence is explicitly the last
+server reconciliation, not an instantaneous browser claim. Cached/offline
+snapshots withdraw all private choices, stale range stages are withheld, and
+abandoned GM callbacks cannot replace the current receipt.
+
+All **144/144** current GM/presenter checks pass. `dae6ca41` extends the actual
+intervention renderer; eight phone/desktop/short-landscape motion cases pass in
+`gm-decision-summary-render/summary.json`, with actual CIC fonts and no native
+write. The phone and short-landscape renders were visually inspected. These
+are prepared geometry checks, not normal gameplay. The server type/parser and
+projection are still owned by the attack worker; final shared-type integration,
+native choices, independent review, CI and deployment remain open.
