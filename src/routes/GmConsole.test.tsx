@@ -3691,6 +3691,70 @@ it('activates the GM declaration control with Enter after the due window and dra
   expect(declarationStatus).toHaveAttribute('aria-live', 'polite');
 });
 
+function prepareLaterWolfAttackFixture(windowStatus: 'due' | 'resolved', status: 'resolved' | 'declared' = 'resolved') {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({...session, phase: 'active', currentTurn: 4,
+    turnPhase: {turn: 4, teamPhaseEndsAt: new Date(Date.now() - 1000).toISOString(),
+      openAirspaceEndsAt: new Date(Date.now() + 300000).toISOString(),
+      airspace: {state: 'lifted', tickerActive: true, pressAccess: false}},
+  });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(subscribeGmWolfAttackWindow).mockImplementation((_id, onWindow) => {
+    onWindow({status: windowStatus, turn: windowStatus === 'due' ? 4 : 2, revision: 3});
+    return vi.fn();
+  });
+  vi.mocked(subscribeGmWolfAttackState).mockImplementation((_id, onState) => {
+    onState({status, turn: 2, revision: 9, preparationRevision: 1,
+      currentStep: status === 'resolved' ? 'resolved' : 'boarding',
+      deadlineAt: new Date(Date.now() + 300000).toISOString(), airspaceLocked: status === 'declared',
+      parkedCraftIds: [], launchedCraftIds: [], attackId: 'prior-attack'});
+    return vi.fn();
+  });
+  vi.mocked(subscribeGmWolfAttackPreparation).mockImplementation((_id, onPreparation) => {
+    onPreparation({turn: 4, revision: 2,
+      shipIds: [...Array<string>(10).fill('wolf-fighter-wing'), ...Array<string>(5).fill('wolf-assault-transport')],
+      targetMode: 'pre-rolled', targetAssignments: [], modifiers: [], notes: ''});
+    return vi.fn();
+  });
+}
+
+it('allows the current facilitator to select a later Wolf window after a resolved attack', async () => {
+  const user = userEvent.setup();
+  prepareLaterWolfAttackFixture('resolved');
+  vi.mocked(setWolfAttackWindow).mockResolvedValue({status: 'due', turn: 4, revision: 4});
+  renderConsole();
+  const due = await screen.findByRole('button', {name: 'Mark timing due'});
+  expect(due).toBeEnabled();
+  due.focus();
+  await user.keyboard('{Enter}');
+  expect(setWolfAttackWindow).toHaveBeenCalledWith('due', 3);
+});
+
+it('allows a later Wolf declaration from a fresh due window and saved draft after resolution', async () => {
+  const user = userEvent.setup();
+  prepareLaterWolfAttackFixture('due');
+  vi.mocked(declareWolfAttack).mockResolvedValue({status: 'committed', type: 'wolf-attack-declaration',
+    sessionId: 's1', requestId: 'later-ui', turn: 4, revision: 1, currentStep: 'targeting',
+    deadlineAt: new Date(Date.now() + 300000).toISOString(), airspaceLocked: true,
+    parkedCraftCount: 2, announcementId: 'later-ui'});
+  renderConsole();
+  const declare = await screen.findByRole('button', {name: 'Declare Wolf attack'});
+  expect(declare).toBeEnabled();
+  await user.click(declare);
+  expect(declareWolfAttack).toHaveBeenCalledWith(2);
+});
+
+it('keeps a later Wolf declaration disabled while the earlier attack remains unresolved', async () => {
+  prepareLaterWolfAttackFixture('due', 'declared');
+  renderConsole();
+  expect(await screen.findByRole('button', {name: 'Declare Wolf attack'})).toBeDisabled();
+  expect(declareWolfAttack).not.toHaveBeenCalled();
+});
+
 it('lets the live GM close targeting and enter Long Range on the existing attack deadline', async () => {
   const user = userEvent.setup();
   const deadlineAt = '2026-09-24T20:00:00.000Z';
