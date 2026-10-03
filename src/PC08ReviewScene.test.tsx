@@ -222,5 +222,6 @@ it('feeds truthful docked, travelling, parked and rejoined craft into the real p
   fireEvent.click(screen.getByRole('button', {name: 'rejoined sample'}));
   expect(screen.getByLabelText('DIONE')).toHaveTextContent('DOCKED // MALIADES');
   fireEvent.click(screen.getByRole('button', {name: 'Cached connection sample'}));
-  expect(screen.queryByLabelText('Origin craft')).not.toBeInTheDocument();
+  expect(screen.getByLabelText('Origin craft')).toBeEmptyDOMElement();
+  expect(screen.queryAllByText(/^DOCKED \/\//)).toHaveLength(0);
 });
