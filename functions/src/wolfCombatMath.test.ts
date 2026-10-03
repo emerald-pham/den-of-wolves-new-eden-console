@@ -398,7 +398,7 @@ describe('central Wolf combat math', () => {
     });
   });
 
-  it('keeps AEGIS and Pallas reroll grants independent while forbidding a repeated die', () => {
+  it('keeps AEGIS and Pallas reroll grants independent and applies a shared die sequentially', () => {
     const first = resolveWolfBoarding(
       firstTurnRoster(),
       [{ target: 'aegis', securityTeams: 4, pallasRerollAvailable: true,
@@ -413,15 +413,26 @@ describe('central Wolf combat math', () => {
       { source: 'aegis', dieIndexes: [0, 1, 2], rolls: [6, 6, 6] },
       { source: 'pallas', dieIndexes: [3], rolls: [6] },
     ]);
-    expect(() => resolveWolfBoarding(
+    const sequential = resolveWolfBoarding(
       firstTurnRoster(),
       [{ target: 'aegis', securityTeams: 1, pallasRerollAvailable: true,
         rerolls: [
-          { source: 'aegis', dieIndexes: [0] },
-          { source: 'pallas', dieIndexes: [0] },
+          { source: 'aegis', dieIndexes: [0], rolls: [4] },
+          { source: 'pallas', dieIndexes: [0], rolls: [6] },
         ] } as unknown as WolfBoardingDefence],
-      samples([0, 5, 5]),
-    )).toThrow(/already been rerolled/i);
+      samples([0]),
+    );
+    expect(sequential[0]?.rolls).toEqual([6]);
+    expect(sequential[0]?.rerolls).toEqual([
+      { source: 'aegis', dieIndexes: [0], rolls: [4] },
+      { source: 'pallas', dieIndexes: [0], rolls: [6] },
+    ]);
+    expect(() => resolveWolfBoarding(
+      firstTurnRoster(),
+      [{ target: 'aegis', securityTeams: 1, pallasRerollAvailable: true,
+        rerolls: [{ source: 'aegis', dieIndexes: [0, 0] }] } as unknown as WolfBoardingDefence],
+      samples([0, 4]),
+    )).toThrow(/duplicate/i);
   });
 
   it('locks server defence dice once and applies the persisted reroll outcomes without drawing again', () => {
