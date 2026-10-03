@@ -96,6 +96,13 @@ test('PC08 real-presenter review is isolated and usable in eight viewport and mo
               await page.getByRole('button', {name: 'Launch Fighter Wing Bravo', exact: true}).click();
               await page.getByRole('button', {name: 'Show Short Range loss sample', exact: true}).click();
               assert.match(await page.getByRole('status', {name: 'Prepared fighter result'}).textContent(), /Other wings retain/);
+              await page.getByRole('checkbox', {name: 'Fighter 1 Short attack', exact: true}).check();
+              await page.getByRole('checkbox', {name: 'Fighter 3 Short attack', exact: true}).check();
+              await page.getByRole('button', {name: 'Resolve selected Short attacks', exact: true}).click();
+              assert.match(await page.getByRole('status', {name: 'Prepared fighter result'}).textContent(), /Bravo Short Range choice committed: fighters 1, 3 selected/);
+              await page.getByRole('button', {name: 'PDF Escort Wing sample', exact: true}).click();
+              await page.getByRole('button', {name: 'Pass Short Range', exact: true}).click();
+              assert.match(await page.getByRole('status', {name: 'Prepared fighter result'}).textContent(), /PDF Escort Wing passed Short Range/);
             } else if (index === 3) {
               await page.getByRole('combobox', {name: 'Security Teams committed', exact: true}).selectOption('2');
               await page.getByRole('button', {name: 'Commit defence', exact: true}).click();
@@ -103,6 +110,11 @@ test('PC08 real-presenter review is isolated and usable in eight viewport and mo
               await page.getByRole('button', {name: 'Commander sample', exact: true}).click();
               await page.getByRole('button', {name: /Lead at Aegis/}).click();
               await page.getByRole('button', {name: 'Support sample', exact: true}).click();
+              const chepu = page.getByRole('region', {name: 'Chepu boarding relocation', exact: true});
+              await chepu.getByRole('button', {name: 'Stay at Refinery 124', exact: true}).click();
+              assert.match(await chepu.textContent(), /stayed docked at Refinery 124/);
+              assert.equal(await chepu.getByRole('button').count(), 0);
+              assert.ok(await page.getByRole('button', {name: 'Move Pallas to Dione', exact: true}).isEnabled());
               await page.getByRole('button', {name: 'Move Pallas to Dione', exact: true}).click();
               await page.getByRole('button', {name: 'Militia sample', exact: true}).click();
               await page.getByRole('checkbox', {name: 'Roll two dice per Security Team', exact: true}).check();
