@@ -250,3 +250,33 @@ it('does not run automatic attack progression through any current session pause'
   expect(testState.documents.get('sessions/s1/wolfAttackState/current'))
     .toMatchObject({ currentStep: 'targeting', revision: 4 });
 });
+
+it('marks a charged range unavailable and continues when the fleet configuration has no Executive Officer', async () => {
+  const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  put('sessions/s1/wolfAttackState/current', { ...attack, currentStep: 'long-range', revision: 4 });
+  const session = testState.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session, activeRoleIds: [] });
+
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+
+  const state = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  expect(state).toMatchObject({ currentStep: 'medium-range', revision: 5,
+    rangeDecisions: { 'long-range': { status: 'unavailable', reason: 'no-configured-executive-officer' } } });
+  expect(testState.documents.get('sessions/s1').maintenanceCycles).toMatchObject({
+    aegis: { charges: ['missile-launchers', 'point-defence-lasers'] },
+  });
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current/audit/auto-long-range-1'))
+    .toMatchObject({ type: 'wolf-range-automatic-unavailable', range: 'long-range', toStep: 'medium-range' });
+});
+
+it('keeps a charged range pending while the configured Executive Officer is disconnected', async () => {
+  const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  put('sessions/s1/wolfAttackState/current', { ...attack, currentStep: 'long-range', revision: 4 });
+  const player = testState.documents.get('sessions/s1/players/xo-1')!;
+  put('sessions/s1/players/xo-1', { ...player, connected: false });
+
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current'))
+    .toMatchObject({ currentStep: 'long-range', revision: 4 });
+});
