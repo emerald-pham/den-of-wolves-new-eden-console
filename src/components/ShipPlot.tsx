@@ -53,6 +53,7 @@ export default function ShipPlot({
   turnPhase,
   localNavigation,
   requireLocalAuthority = false,
+  showGmEffects = true,
   layout = 'ship',
   expanded: controlledExpanded,
   onExpandedChange,
@@ -71,6 +72,8 @@ export default function ShipPlot({
   turnPhase?: GameSession['turnPhase'] | undefined;
   localNavigation?: LocalDradisNavigation | undefined;
   requireLocalAuthority?: boolean;
+  /** Isolated prepared review surfaces must never expose live GM commands. */
+  showGmEffects?: boolean;
   /** GM embeds the same plot in its perspective panel while retaining its own expansion state. */
   layout?: 'ship' | 'gm';
   expanded?: boolean;
@@ -247,7 +250,7 @@ export default function ShipPlot({
               >
                 Close DRADIS
               </button>
-              <DradisEffectControls expanded={expanded} />
+              {showGmEffects && <DradisEffectControls expanded={expanded} />}
               <GalacticOrientationCompass />
             </>
           ) : (
