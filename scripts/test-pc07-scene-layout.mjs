@@ -35,6 +35,28 @@ test('PC07 prepared scene keeps all five checks usable and isolated in eight res
       const s=getComputedStyle(e),n=v=>v.replace(/["']/g,'').replace(/\s+/g,'').toLowerCase();return n(s.fontFamily)===n(s.getPropertyValue('--cic-display'));
      }));assert.ok(fonts.every(Boolean),'Actual CIC display font');
      if(label.startsWith('1')){
+      const assertPlotContained=async state=>{
+       const geometry=await page.locator('.pc07-review__plot').evaluate(host=>{
+        const plot=host.querySelector('.ship-plot');
+        const rect=e=>{const r=e.getBoundingClientRect();return {left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height};};
+        const frame=rect(plot),slot=rect(host);
+        const overlaps=[...document.querySelectorAll('.pc07-review__header,.pc07-review__boundary,.pc07-review__steps')].filter(e=>{
+         const r=rect(e);return frame.left<r.right&&frame.right>r.left&&frame.top<r.bottom&&frame.bottom>r.top;
+        }).map(e=>e.className);
+        return {frame,slot,overlaps};
+       });
+       const {frame,slot,overlaps}=geometry;
+       assert.ok(frame.width>100&&frame.height>100&&frame.left>=slot.left-1&&frame.top>=slot.top-1&&frame.right<=slot.right+1&&frame.bottom<=slot.bottom+1,
+        `${width}px ${reducedMotion} ${state}: DRADIS must stay inside the group sample ${JSON.stringify(geometry)}`);
+       assert.deepEqual(overlaps,[],`${state}: DRADIS must leave the instructions and navigation clear`);
+      };
+      await assertPlotContained('compact');
+      await page.locator('.pc07-review__plot .ship-plot__toggle').click();
+      await page.waitForFunction(()=>document.querySelector('.pc07-review__plot .ship-plot')?.dataset.expanded==='true');
+      await assertPlotContained('expanded');
+      await page.locator('.pc07-review__plot .ship-plot__close').click();
+      await page.waitForFunction(()=>document.querySelector('.pc07-review__plot .ship-plot')?.dataset.expanded==='false');
+      await assertPlotContained('restored compact');
       await page.getByRole('textbox',{name:'Note to your fleet group'}).fill('LOCAL GROUP NOTE');
       await page.getByRole('button',{name:'Send group note',exact:true}).click();
       assert.match(await page.getByRole('list',{name:'Current group announcements'}).textContent(),/LOCAL GROUP NOTE/);
