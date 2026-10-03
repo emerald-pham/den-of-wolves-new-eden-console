@@ -413,3 +413,12 @@ the original assumption; append the resolution so the decision is traceable.
 | Chosen reading | After confirming an enabled Union replacement station, a current authenticated facilitator explicitly chooses one active host from its existing pair. No arbitrary default is inferred. Ordinary game start derives the printed Union role holder as owner and current controller. |
 | Alternatives and limits | Picking a host automatically would invent an initial placement; admin seeding would fail the normal gameplay proof. The paired-host restriction is the existing digital roster contract, not a printed host list on the craft card. This setup path does not add unrestricted travel, a new crew operator or a post-start GM override. |
 | Effect and proof | One transaction binds the live GM instance, setup revision and exact request, validates the private manifest, and commits only initial docking/history and manifest. Exact replay cannot duplicate visits or control. Malformed, disabled, stale, foreign-host and locked-setup requests fail closed. Native tests and the complete authenticated eight-player scenario must establish the ordinary start and recovery path. |
+
+### PC08-A2 — Current-range target shifts and immutable earlier damage
+
+| Field | Decision |
+|---|---|
+| ID and checkpoint | PC08-A2, range actions and P469–470; root seam decision, October 3, 2026. |
+| Source | Player Guide v1.1 printed pp. 12–13 describes simultaneous damage rolls followed by target assignment and current-range destroyed-ship effects. Alpha/Bravo and PDF component sheets give the target-number choice at Medium Range (A4 single-sided p. 36 and double-sided p. 81). The precise digital ordering against the combined damage batch is not spelled out. |
+| Chosen reading | Collect genuine source choices, preserve the ordered pre-range target snapshot, and replay that range's committed shifts before attributing its destruction effects. A Medium shift therefore changes Medium and later target consequences, while the Long receipt retains its own damage target. |
+| Alternatives and limits | Applying shifts after all current damage would defer a Medium choice to Short; using the final target map for all ranges would rewrite Long. Neither preserves this immediate-effect reading. Snapshot validation, ordered shift receipts and next-range/final-roster comparison must reject fabricated or inconsistent carry-forward. |
