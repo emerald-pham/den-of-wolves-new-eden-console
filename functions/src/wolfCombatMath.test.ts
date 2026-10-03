@@ -347,6 +347,29 @@ describe('central Wolf combat math', () => {
     expect(medium.receipt.destructionDamageByTarget).toMatchObject({ aegis: 0, dione: 1 });
     expect(medium.roster[cruiserIndex]?.target).toBe('dione');
     expect(medium.roster[stationIndex]?.target).toBe('aegis');
+
+    const short = resolveLockedWolfRange({
+      range: 'short-range', actions: [], locked: { range: 'short-range', dice: [] },
+      assignments: [], roster: medium.roster,
+    });
+    const fullTargeting = resolveWolfTargeting(firstTurnWolfAttackComposition(), {}, CORE_WOLF_TARGET_RING, () => 0);
+    const targeting = {
+      ...fullTargeting,
+      rolls: ['wolf-fighter-wing', 'wolf-cruiser', 'wolf-battlestation'].map((shipId, rosterIndex) => ({
+        ...fullTargeting.rolls.find((roll) => roll.shipId === shipId)!,
+        rosterIndex, target: 'aegis' as const, finalDie: 1,
+      })),
+    };
+    const finalized = finalizeWolfAttack({
+      requestId: 'shifted-medium-finalization', targeting, roster: short.roster,
+      ranges: [long.receipt, medium.receipt, short.receipt], phase: startTurnPhase(1, 1_000), now: 2_000,
+      targetRing: CORE_WOLF_TARGET_RING, boardingDefence: [], forceFieldTargetId: null,
+      fleetState: completeFleetState(), randomInt: () => 0,
+    });
+    expect(finalized.fleetDamage).toEqual(expect.arrayContaining([
+      expect.objectContaining({ target: 'aegis', amount: 4 }),
+      expect.objectContaining({ target: 'dione', amount: 1 }),
+    ]));
   });
 
   it('rolls every selected boarding defence team and caps casualties only at remaining boarders', () => {
@@ -486,15 +509,14 @@ describe('central Wolf combat math', () => {
   });
 
   it('finalizes committed ranges without rerolls and applies the pre-target Force Field to final damage', () => {
-    const targeting = resolveWolfTargeting(firstTurnWolfAttackComposition(), {}, undefined, () => 0);
-    const selectedTransport = targeting.rolls.findIndex(({ shipId }) => shipId === 'wolf-assault-transport');
-    const roster = wolfCombatRoster(targeting).map((ship, index) => ({
-      ...ship, destroyed: index !== selectedTransport,
-    }));
+    const fullTargeting = resolveWolfTargeting(firstTurnWolfAttackComposition(), {}, undefined, () => 0);
+    const selectedTransport = fullTargeting.rolls.find(({ shipId }) => shipId === 'wolf-assault-transport')!;
+    const targeting = { ...fullTargeting, rolls: [{ ...selectedTransport, rosterIndex: 0 }] };
+    const roster = wolfCombatRoster(targeting);
     const ranges = (['long-range', 'medium-range', 'short-range'] as const).map((range) => ({
       range, targetSnapshot: roster.map(({ instanceId, target }) => ({ instanceId, target })),
       dice: [], assignments: [], targetShifts: [], unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
-      destructionDamageByTarget: Object.fromEntries(CORE_WOLF_TARGET_RING.map((target) => [target, 0])),
+      destructionDamageByTarget: Object.fromEntries(EXPANDED_WOLF_TARGET_RING.map((target) => [target, 0])),
     }));
     let randomCalls = 0;
     const phase = startTurnPhase(1, 1_000);
