@@ -437,7 +437,7 @@ export { transferBaseCapybaraCargo } from './baseCapybaraCargoTransferCallable';
 import { createResolvePendingScoutRequest, type ScoutMapCommit } from './scoutResultCallable';
 import { createAutomaticScoutResolver } from './scoutAutomaticResolution';
 export {
-  readPrivateScoutResult, listPendingScoutRequests,
+  readPrivateScoutResult, listPendingScoutRequests, listGmScoutResolutionLog,
   listMyScoutReports, readMyScoutDiscoveryNote,
 } from './scoutResultCallable';
 export { advanceEndeavourResearchTrack, readEndeavourResearchWorkspace } from './endeavourResearchWriter';

@@ -230,9 +230,7 @@ export async function resolveCommittedScoutRequest(
           sessionId, phase: session.get('phase'), chartId: session.get('chartId'),
           chartSelectionLocked: session.get('chartSelectionLocked'),
           currentCycle: session.get('currentTurn'),
-        }, facilitator, fleetGroupId: groupForShip(
-          groups.docs, pendingData.anchorShipId, session.get('activeVesselIds'),
-        ),
+        }, facilitator, fleetGroupId: note.fleetGroupId,
         recordedAt: note.recordedAt,
       });
       if (!validScoutAudit(audit, replayPlan.audit) || !equal(note, replayPlan.note) ||
@@ -325,6 +323,49 @@ export const listPendingScoutRequests = onCall(CALLABLE_RUNTIME_OPTIONS, async (
       anchorShipId: doc.get('anchorShipId') as string,
       targetCoordinate: doc.get('targetCoordinate') as string,
     }));
+  });
+});
+
+/** Current owned GM receives committed results, never a chart or player identity map. */
+export const listGmScoutResolutionLog = onCall(CALLABLE_RUNTIME_OPTIONS, async request => {
+  const actorUid = uid(request.auth);
+  const raw = command(request.data, ['sessionId', 'instanceId']);
+  const sessionId = raw.sessionId as string;
+  const nowMs = Date.now();
+  const db = getFirestore();
+  return db.runTransaction(async tx => {
+    const [session, player, instance, audits] = await Promise.all([
+      tx.get(db.doc(`sessions/${sessionId}`)),
+      tx.get(db.doc(`sessions/${sessionId}/players/${actorUid}`)),
+      tx.get(db.doc(`sessions/${sessionId}/gmInstances/${raw.instanceId}`)),
+      tx.get(db.collection(`sessions/${sessionId}/scoutResolutionAudits`)),
+    ]);
+    if (!session.exists || session.get('phase') !== 'active') {
+      throw new HttpsError('failed-precondition', 'This scouting session is not active.');
+    }
+    gmViewer(sessionId, actorUid, player, instance, nowMs);
+    return audits.docs.flatMap(snapshot => {
+      const audit = snapshot.data();
+      if (!record(audit) || audit.type !== 'scout-resolution-audit' ||
+          audit.sessionId !== sessionId || audit.requestId !== snapshot.id ||
+          !id(audit.originShipId) || !id(audit.receivingShipId) ||
+          typeof audit.recordedAt !== 'string' || !Number.isFinite(ms(audit.recordedAt)) ||
+          new Date(audit.recordedAt).toISOString() !== audit.recordedAt ||
+          (audit.resolutionMode === 'automatic' ? audit.facilitatorUid !== null
+            : audit.resolutionMode !== undefined || !id(audit.facilitatorUid))) return [];
+      const result = parsePrivateScoutResult({ type: 'private-scout-result',
+        sessionId, requestId: audit.requestId, requesterUid: audit.requesterUid,
+        sourceId: audit.sourceId, cycle: audit.cycle,
+        targetCoordinate: audit.targetCoordinate, systemFact: audit.result });
+      if (!result || !Number.isSafeInteger(session.get('currentTurn')) ||
+          result.cycle > session.get('currentTurn')) return [];
+      return [{ requestId: result.requestId, cycle: result.cycle, sourceId: result.sourceId,
+        originShipId: audit.originShipId, receivingShipId: audit.receivingShipId,
+        targetCoordinate: result.targetCoordinate, systemFact: result.systemFact,
+        recordedAt: audit.recordedAt,
+        resolutionMode: audit.resolutionMode === 'automatic' ? 'automatic' as const : 'gm-recovery' as const }];
+    }).sort((a, b) => b.cycle - a.cycle || b.recordedAt.localeCompare(a.recordedAt) ||
+      a.requestId.localeCompare(b.requestId)).slice(0, 50);
   });
 });
 

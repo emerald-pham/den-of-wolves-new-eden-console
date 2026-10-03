@@ -2,6 +2,7 @@ import { httpsCallable } from 'firebase/functions';
 import { useSessionStore } from '@/store/useSessionStore';
 import type {
   PendingScoutRequestView, PrivateScoutResultView, ScoutDiscoveryNoteView, ScoutReportView,
+  GmScoutResolutionLogView,
 } from '@/components/ScoutResultPanels';
 import { functions } from './firebase';
 import { scoutEntitlementDefinition, type ScoutEntitlementId } from './scoutRequestAuthority';
@@ -166,6 +167,27 @@ export async function listPendingScoutRequests(): Promise<readonly PendingScoutR
   const requests = data.map(parsePending);
   if (requests.some((entry) => entry === null)) throw new Error('The server returned an invalid GM scout queue.');
   return requests as PendingScoutRequestView[];
+}
+
+export async function listGmScoutResolutionLog(): Promise<readonly GmScoutResolutionLogView[]> {
+  const { sessionId, instanceId } = authority(true);
+  const data = await invoke('listGmScoutResolutionLog', { sessionId, instanceId }, true);
+  if (!Array.isArray(data) || data.length > 50) throw new Error('The server returned an invalid scouting log.');
+  return data.map(value => {
+    if (!record(value) || !exact(value, ['requestId', 'cycle', 'sourceId', 'originShipId',
+      'receivingShipId', 'targetCoordinate', 'systemFact', 'recordedAt', 'resolutionMode']) ||
+      !id(value.requestId) || !Number.isSafeInteger(value.cycle) || (value.cycle as number) < 1 ||
+      !source(value.sourceId) || !id(value.originShipId) || !id(value.receivingShipId) ||
+      !coordinate(value.targetCoordinate) || typeof value.recordedAt !== 'string' ||
+      !Number.isFinite(Date.parse(value.recordedAt)) ||
+      new Date(value.recordedAt).toISOString() !== value.recordedAt ||
+      (value.resolutionMode !== 'automatic' && value.resolutionMode !== 'gm-recovery')) {
+      throw new Error('The server returned an invalid scouting log.');
+    }
+    const systemFact = fact(value.systemFact, value.targetCoordinate);
+    if (!systemFact) throw new Error('The server returned an invalid scouting log.');
+    return { ...value, systemFact } as unknown as GmScoutResolutionLogView;
+  });
 }
 
 export async function resolvePendingScoutRequest(requestId: string): Promise<PrivateScoutResultView> {

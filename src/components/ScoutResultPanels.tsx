@@ -38,6 +38,18 @@ export interface PendingScoutRequestView {
   readonly targetCoordinate: string;
 }
 
+export interface GmScoutResolutionLogView {
+  readonly requestId: string;
+  readonly cycle: number;
+  readonly sourceId: ScoutEntitlementId;
+  readonly originShipId: string;
+  readonly receivingShipId: string;
+  readonly targetCoordinate: string;
+  readonly systemFact: PrivateScoutResultView['systemFact'];
+  readonly recordedAt: string;
+  readonly resolutionMode: 'automatic' | 'gm-recovery';
+}
+
 const LABELS: Readonly<Record<ScoutEntitlementId, string>> = {
   starlight: 'Starlight', hummingbird: 'Hummingbird',
   endeavour: 'Endeavour', 'comms-officer': 'Comms Officer',
@@ -67,7 +79,7 @@ export function ScoutResultPanel({ report, result = null, note = null, loading =
         <span>Cycle {report.cycle}</span>
       </div>
       <p>System {report.targetCoordinate}</p>
-      {report.status === 'pending' && <p role="status">Awaiting facilitator reveal.</p>}
+      {report.status === 'pending' && <p role="status">Awaiting automatic scout result.</p>}
       {report.status === 'resolved' && loading && <p role="status">Loading private scout result…</p>}
       {report.status === 'resolved' && !loading && !matchingResult &&
         <p role="status">Report unavailable. Refresh your session to retry.</p>}
@@ -95,7 +107,7 @@ export function GmScoutRevealPanel({ requests, revealingRequestId = null, onReve
   return (
     <section className="gm-console__module scout-reveal-panel cic-frame" aria-label="GM scout reveals">
       <h2>Scout requests</h2>
-      <p>Reveal one requested system from the locked organiser chart.</p>
+      <p>Scouting resolves automatically. Use recovery only if a committed report is still pending.</p>
       {requests.length === 0 && <p role="status">No scout requests are awaiting a reveal.</p>}
       {requests.length > 0 && <ul className="scout-reveal-panel__list">
         {requests.map((request) => <li key={request.requestId}>
@@ -107,11 +119,27 @@ export function GmScoutRevealPanel({ requests, revealingRequestId = null, onReve
             disabled={revealingRequestId !== null}
             onClick={() => onReveal(request.requestId)}
             aria-label={`Reveal ${LABELS[request.entitlementId]} scout at ${request.targetCoordinate}`}>
-            {revealingRequestId === request.requestId ? 'Revealing…' : 'Reveal report'}
+            {revealingRequestId === request.requestId ? 'Recovering…' : 'Recover report'}
           </button>
         </li>)}
       </ul>}
       {feedback && <p role="status">{feedback}</p>}
     </section>
   );
+}
+
+export function GmScoutResolutionLog({ entries }: { readonly entries: readonly GmScoutResolutionLogView[] }) {
+  return <section className="gm-console__module scout-reveal-panel cic-frame" aria-label="GM scouting result log">
+    <h2>Scouting result log</h2>
+    {entries.length === 0 && <p>No scouting results recorded yet.</p>}
+    <ul className="scout-reveal-panel__list">
+      {entries.map(entry => <li key={entry.requestId}>
+        <div>
+          <strong>{LABELS[entry.sourceId]} // {entry.targetCoordinate} // {entry.systemFact.title}</strong>
+          <span>Cycle {entry.cycle} · {entry.originShipId} → {entry.receivingShipId}</span>
+          <span>{entry.resolutionMode === 'automatic' ? 'Automatic server resolution' : 'GM recovery'} · {entry.recordedAt}</span>
+        </div>
+      </li>)}
+    </ul>
+  </section>;
 }

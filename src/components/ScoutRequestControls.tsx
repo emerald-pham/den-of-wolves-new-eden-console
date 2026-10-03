@@ -136,7 +136,7 @@ export default function ScoutRequestControls({ entitlementId }: Props) {
           currentScoutAuthorityKey(entitlementId) !== attempt.authorityKey) return;
       setRetryAttempt((current) => current?.requestId === attempt.requestId &&
         current.authorityKey === attempt.authorityKey ? null : current);
-      setConfirmation('Request recorded. Check with the facilitator for follow-up.');
+      setConfirmation('Request recorded. Your private scouting report will arrive automatically.');
     } catch (caught) {
       if (authorityEpoch.current !== attemptEpoch ||
           currentScoutAuthorityKey(entitlementId) !== attempt.authorityKey) return;
@@ -220,7 +220,7 @@ export default function ScoutRequestControls({ entitlementId }: Props) {
 
       {error && <p className="scout-request__notice scout-request__error" role="alert">{error}</p>}
       {confirmation && <p className="scout-request__notice" role="status">{confirmation}</p>}
-      {entitlementId === 'endeavour' && <ScoutReportController refreshKey={confirmation} />}
+      <ScoutReportController refreshKey={confirmation} entitlementId={entitlementId} />
     </section>
   );
 }
