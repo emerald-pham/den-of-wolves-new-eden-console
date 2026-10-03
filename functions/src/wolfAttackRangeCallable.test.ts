@@ -145,7 +145,7 @@ it('publishes a private GM decision summary with configured-but-disconnected rol
   expect(testState.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
     decisionSummary: {
       commander: { status: 'pending', actors: [{ uid: 'wolf-commander-1', connected: false }] },
-      commandAndControl: { status: 'unavailable', reason: 'uncharged' },
+      commandAndControl: { status: 'waiting-for-commander', reason: 'waiting-for-commander' },
       forceField: { status: 'not-needed' },
     },
   });
