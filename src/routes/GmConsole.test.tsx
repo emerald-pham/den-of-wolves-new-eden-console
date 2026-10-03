@@ -3724,7 +3724,9 @@ it('lets the live GM close targeting and enter Long Range on the existing attack
   renderConsole();
 
   const preparation = await screen.findByRole('region', { name: 'Private Wolf attack preparation' });
-  expect(within(preparation).queryByRole('button', { name: 'Recover targeting progress' })).not.toBeInTheDocument();
+  const recovery = within(preparation).getByRole('button', { name: 'Recover targeting progress' });
+  expect(recovery.closest('details')).not.toHaveAttribute('open');
+  expect(recovery).not.toBeVisible();
   await user.click(within(preparation).getByText('Attack progress recovery'));
   const advance = within(preparation).getByRole('button', { name: 'Recover targeting progress' });
   expect(advance).toBeEnabled();
