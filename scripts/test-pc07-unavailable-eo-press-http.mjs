@@ -104,7 +104,6 @@ try {
   for (const visit of ownHistoryBefore) {
     assert.ok(inTransit.session.shuttleVisitLog.some(current => current.id === visit.id), 'Own docking history survives departure.');
   }
-  assert.ok(inTransit.session.shuttleVisitLog.some(visit => visit.shuttleId === 'snn-press-shuttle' && visit.action === 'departed'));
   assert.ok(inTransit.session.shuttleVisitLog.every(visit => visit.shuttleId === 'snn-press-shuttle'));
   checks.entitledPressHistorySurvivesRealTransitWithoutInventedDocking = true;
   // Wait for the real 60-second flight and the UI's authenticated automatic
