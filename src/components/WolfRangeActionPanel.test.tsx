@@ -108,3 +108,25 @@ it('allows an empty assignment only when every target is unavailable', async () 
     { actionId: 'aegis-point-defence-lasers-medium', contactIds: [] },
   ]);
 });
+
+it('presents a locked AEGIS fighter Short hit as an automatic target slot', async () => {
+  const user = userEvent.setup();
+  const onAssignTargets = vi.fn();
+  render(<WolfRangeActionPanelView
+    view={{ ...pendingView, range: 'short-range', currentStep: 'short-range', choiceStatus: 'targets-required',
+      eligibleActions: [
+        { actionId: 'aegis-alpha-wing-short-0', sourceId: 'aegis-alpha-wing', range: 'short-range' },
+      ],
+      hitSlots: [{ actionId: 'aegis-alpha-wing-short-0', count: 1 }],
+    }}
+    onUseActions={vi.fn()} onPass={vi.fn()} onAssignTargets={onAssignTargets}
+  />);
+
+  expect(screen.getByText('Alpha Fighter Wing // 1 hits')).toBeInTheDocument();
+  expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+  await user.selectOptions(screen.getByRole('combobox', { name: /alpha fighter wing hit 1/i }), 'contact-1');
+  await user.click(screen.getByRole('button', { name: /commit target assignments/i }));
+  expect(onAssignTargets).toHaveBeenCalledWith([
+    { actionId: 'aegis-alpha-wing-short-0', contactIds: ['contact-1'] },
+  ]);
+});
