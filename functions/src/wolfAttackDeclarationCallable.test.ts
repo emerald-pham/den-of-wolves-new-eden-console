@@ -320,8 +320,9 @@ it('declares against the five configured active vessels in an ordinary eight-pla
   const targeting = (state.calculationReceipt as Fields).targeting as Fields;
 
   expect(result).toMatchObject({ status: 'committed', turn: 1 });
-  expect(targeting.ring).toEqual(eightPlayerFleet);
-  expect((targeting.rolls as Fields[]).every((roll) => eightPlayerFleet.includes(roll.target as string))).toBe(true);
+  const expectedRing = ['aegis', 'icebreaker', 'quellon', 'shepherd', 'refinery-124'];
+  expect(targeting.ring).toEqual(expectedRing);
+  expect((targeting.rolls as Fields[]).every((roll) => expectedRing.includes(roll.target as string))).toBe(true);
   expect(cryptoMock.randomInt.mock.calls.every(([upperBound]) => upperBound === 5)).toBe(true);
 });
 
