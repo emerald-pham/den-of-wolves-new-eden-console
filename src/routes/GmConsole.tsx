@@ -2911,7 +2911,8 @@ export default function GmConsole() {
                   : `${wolfWindowStatus} // Cycle ${wolfWindowTurn} // revision ${wolfWindowRevision}`}
               </p>
               <p className="gm-console__hint">
-                Approximate facilitator marker // no automatic attack, combat resolution, or cycle advance.
+                Timing marker only // declaration requires a saved current draft.
+                Once declared, legal stages advance automatically after current player choices.
               </p>
               <p className="gm-console__hint gm-console__balance-guidance">
                 Extra-role balance // For each extra role introduced, consider roughly 3 additional
