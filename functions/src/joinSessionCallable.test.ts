@@ -982,7 +982,11 @@ it('sanitizes nested operational data on live refresh before applying the curren
   const roles = [...recommendedRoleIds(18)];
   const vessels = activeVesselIdsForRoles(roles);
   const privateMarker = 'SERVER-PRIVATE-MARKER';
+  const escort = { type: 'pdf-escort-fighter-wing-view', revision: 1, cycle: 2, capacity: 4,
+    fighters: 4, launched: true, mediumResolved: false, mediumActionCount: 0,
+    shortResolved: false, shortRollCount: 0, losses: 0 };
   const fields = {
+    pdfEscortWing: escort,
     name: 'Table one', joinCode: '482109', phase: 'active', currentTurn: 2,
     playerCount: 18, chartId: 'A', expansion: 'base', turnLimit: 8,
     activeRoleIds: roles, activeVesselIds: vessels,
@@ -1019,6 +1023,7 @@ it('sanitizes nested operational data on live refresh before applying the curren
     shipDamage: { aegis: { damagedSystemIds: ['storage'], destroyed: false } },
     shuttleCargo: { starlight: { food: 3 } },
     admiralDirectives: { revision: 1, entries: [{ id: 'directive-1', text: 'Keep formation.' }] },
+    pdfEscortWing: escort,
     pressEnabled: true,
     memberSessionScope: { groupId: 'fleet-2', vesselIds: ['aegis'] },
   });
