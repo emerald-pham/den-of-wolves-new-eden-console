@@ -37,11 +37,11 @@ it('uses the real range presenter for local use, target assignment and damaged-a
 it('shows committed boarding through the real crew presenter without accepting a second local choice', () => {
   render(<PC08ReviewScene />);
   fireEvent.click(screen.getByRole('button', {name: '4 Boarding defence'}));
-  const choices = screen.getByRole('combobox', {name: 'Security Teams to commit'});
+  const choices = screen.getByRole('combobox', {name: 'Security Teams committed'});
   fireEvent.change(choices, {target: {value: '2'}});
-  fireEvent.click(screen.getByRole('button', {name: 'Commit defence choice'}));
+  fireEvent.click(screen.getByRole('button', {name: 'Commit defence'}));
   expect(screen.getByRole('status', {name: 'Prepared boarding result'})).toHaveTextContent('2 Security Teams');
-  expect(screen.queryByRole('button', {name: 'Commit defence choice'})).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', {name: 'Commit defence'})).not.toBeInTheDocument();
 });
 
 it('retains committed results through offline and reconnect samples', () => {
