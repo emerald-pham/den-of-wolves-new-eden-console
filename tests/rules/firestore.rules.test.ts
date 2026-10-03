@@ -2421,6 +2421,12 @@ describe('shuttle departure privacy', () => {
         uid: 'foreign', role: 'player', displayName: 'Foreign Group', seatId: null,
         fleetGroupId: 'fleet-2', connected: true,
       });
+      await setDoc(doc(db, `${SESSION}/fleetGroups/fleet-1`), {
+        id: 'fleet-1', vesselIds: ['aegis', 'icebreaker'], memberUids: ['alice', 'gm1'],
+      });
+      await setDoc(doc(db, `${SESSION}/fleetGroups/fleet-2`), {
+        id: 'fleet-2', vesselIds: ['dione'], memberUids: ['foreign'],
+      });
       await setDoc(doc(db, path), {
         status: 'requested', requestId: 'departure-1', shuttleId: 'starlight',
         holderUid: 'alice', fleetGroupId: 'fleet-1', originShipId: 'aegis',
@@ -2440,7 +2446,7 @@ describe('shuttle departure privacy', () => {
 
     await env.withSecurityRulesDisabled(async (ctx) => {
       await setDoc(doc(ctx.firestore(), path), {
-        status: 'in-transit', shuttleId: 'starlight', fleetGroupId: 'fleet-1',
+        status: 'in-transit', shuttleId: 'starlight', fleetGroupId: 'fleet-1', destinationShipId: 'icebreaker',
       });
     });
     await assertSucceeds(getDoc(doc(as('alice'), path)));
