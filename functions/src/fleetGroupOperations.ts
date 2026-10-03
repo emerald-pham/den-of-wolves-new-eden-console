@@ -198,7 +198,8 @@ export function planFleetTaxiTransfer(input: Readonly<{
   const nextGroups = groups.map(group => {
     if (group.id === source.id) {
       const memberShipIds = Object.fromEntries(Object.entries(group.memberShipIds ?? {}).filter(([uid]) => !transported.has(uid)));
-      const { memberShipIds: _priorMemberShipIds, ...sourceFields } = group;
+      const sourceFields = { ...group };
+      delete sourceFields.memberShipIds;
       return { ...sourceFields, memberUids: group.memberUids.filter(uid => !transported.has(uid)),
         ...(Object.keys(memberShipIds).length ? { memberShipIds } : {}) };
     }
