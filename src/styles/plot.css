@@ -103,6 +103,7 @@
   display: grid;
   gap: 0.14rem;
   width: max-content;
+  max-width: calc(var(--plot-size) / 2 - 0.8rem);
   height: auto;
   color: var(--plot-hot);
   font: 0.56rem/1 var(--cic-mono);
@@ -115,7 +116,15 @@
 .contact-plot__docked-craft {
   font-size: 0.86em;
   letter-spacing: 0.12em;
-  white-space: nowrap;
+  white-space: inherit;
+  overflow-wrap: inherit;
+}
+
+.contact-plot__origin > .contact-plot__docked-craft {
+  white-space: normal;
+  text-indent: 0;
+  padding-left: 0.8rem;
+  line-height: 1.25;
 }
 
 .contact-plot__origin::before {
