@@ -92,6 +92,49 @@ describe('central Wolf combat math', () => {
     )).toThrow(/one target per generated hit/i);
   });
 
+  it('caps excess range hits at distinct live contacts and records the unused hits', () => {
+    const onlyContact: WolfCombatShip = {
+      instanceId: 'transport:only-contact', shipId: 'wolf-assault-transport', target: 'aegis',
+      damageTaken: 0, destroyed: false,
+    };
+    const action = {
+      actionId: 'missiles-medium-overflow', sourceId: 'aegis-missiles', range: 'medium-range' as const,
+      dice: { sides: 6, count: 2, successAt: 5, damagePerSuccess: 1 }, maxTargets: 2,
+    };
+    const resolved = resolveWolfRange(
+      'medium-range', [action],
+      [{ actionId: action.actionId, targetInstanceIds: [onlyContact.instanceId] }],
+      [onlyContact], samples([4, 5]),
+    );
+
+    expect(resolved.receipt.dice[0]).toMatchObject({ rolls: [5, 6], successes: 2, damage: 2 });
+    expect(resolved.receipt.assignments).toEqual([
+      { actionId: action.actionId, targetInstanceIds: [onlyContact.instanceId] },
+    ]);
+    expect(resolved.receipt.damageByInstance).toEqual({ [onlyContact.instanceId]: 1 });
+    expect(resolved.receipt.unusedHitsByAction).toEqual([{ actionId: action.actionId, count: 1 }]);
+  });
+
+  it('records successful hits as unused when no live legal contact remains', () => {
+    const onlyBattlestation: WolfCombatShip = {
+      instanceId: 'battlestation:no-short-target', shipId: 'wolf-battlestation', target: 'aegis',
+      damageTaken: 0, destroyed: false,
+    };
+    const action = {
+      actionId: 'pdl-short-no-contact', sourceId: 'aegis-pdl', range: 'short-range' as const,
+      dice: { sides: 6, count: 1, successAt: 2, damagePerSuccess: 1 }, maxTargets: 1,
+    };
+    const resolved = resolveWolfRange(
+      'short-range', [action], [{ actionId: action.actionId, targetInstanceIds: [] }],
+      [onlyBattlestation], samples([1]),
+    );
+
+    expect(resolved.receipt.dice[0]).toMatchObject({ rolls: [2], successes: 1, damage: 1 });
+    expect(resolved.receipt.assignments).toEqual([{ actionId: action.actionId, targetInstanceIds: [] }]);
+    expect(resolved.receipt.damageByInstance).toEqual({});
+    expect(resolved.receipt.unusedHitsByAction).toEqual([{ actionId: action.actionId, count: 1 }]);
+  });
+
   it('enforces Short Range fighter-first priority and Battlestation immunity', () => {
     const roster = firstTurnRoster();
     const wing = roster[0]!;
