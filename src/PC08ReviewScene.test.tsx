@@ -95,6 +95,22 @@ it('presents actual Commander, support, Militia, independent reroll and ruling c
   expect(screen.getByRole('status', {name: 'Prepared boarding result'})).toHaveTextContent('LOCAL SIMULATION');
 });
 
+it('preserves the selected Short Range fighters and a separate zero-fighter pass', () => {
+  render(<PC08ReviewScene />);
+  fireEvent.click(screen.getByRole('button', {name: '3 Fleet fighters'}));
+  fireEvent.click(screen.getByRole('button', {name: 'Launch Fighter Wing Alpha'}));
+  fireEvent.click(screen.getByRole('button', {name: 'Short Range sample'}));
+  fireEvent.click(screen.getByRole('checkbox', {name: 'Fighter 1 Short attack'}));
+  fireEvent.click(screen.getByRole('checkbox', {name: 'Fighter 3 Short attack'}));
+  fireEvent.click(screen.getByRole('button', {name: 'Resolve selected Short attacks'}));
+  expect(screen.getByRole('status', {name: 'Prepared fighter result'}))
+    .toHaveTextContent('Alpha Short Range choice committed: fighters 1, 3 selected.');
+  fireEvent.click(screen.getByRole('button', {name: 'PDF Escort Wing sample'}));
+  fireEvent.click(screen.getByRole('button', {name: 'Pass Short Range'}));
+  expect(screen.getByRole('status', {name: 'Prepared fighter result'}))
+    .toHaveTextContent('PDF Escort Wing passed Short Range.');
+});
+
 it('retains committed results through offline and reconnect samples', () => {
   render(<PC08ReviewScene />);
   fireEvent.click(screen.getByRole('button', {name: '5 Results and recovery'}));
