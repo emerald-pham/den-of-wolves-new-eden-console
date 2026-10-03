@@ -5,6 +5,7 @@ import { turnPhaseState } from './turnPhase';
 import { useSessionStore } from '@/store/useSessionStore';
 import { CONSOLE_ROLES } from '@/data/roles';
 import type { GameSession, Player } from '@/types/game';
+import { memberPhiliaRepairLedger } from '../../functions/src/memberSession';
 
 const knownRoleIds = new Set(CONSOLE_ROLES.map(({ id }) => id));
 
@@ -66,6 +67,8 @@ function isSafeCounter(value: unknown): value is number {
 }
 
 function repairLedgerRevision(value: unknown): number | null {
+  const memberLedger = memberPhiliaRepairLedger(value);
+  if (memberLedger) return memberLedger.revision;
   if (value === undefined) return 0;
   if (!isRecord(value) || Object.keys(value).some((key) => !['cycle', 'revision', 'hosts'].includes(key)) ||
       !Number.isSafeInteger(value.cycle) || (value.cycle as number) < 1 ||

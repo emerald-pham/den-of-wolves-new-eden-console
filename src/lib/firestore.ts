@@ -1,4 +1,4 @@
-import { memberSessionProjection } from '../../functions/src/memberSession';
+import { memberPhiliaRepairLedger, memberSessionProjection } from '../../functions/src/memberSession';
 import { parseAwayMissionLifecyclePublicState } from './awayMissionLifecycleService';
 import {
   collection,
@@ -2904,6 +2904,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
   const quarantine = quarantineDocking(data.quarantineDocking);
   const currentHighwallMining = highwallMining(data.highwallMining);
   const currentBlacksmithRepairs = blacksmithRepairs(data.blacksmithRepairs);
+  const currentPhiliaRepairs = memberPhiliaRepairLedger(data.philiaRepairs);
   const currentMacawRepairs = macawRepairs(data.macawRepairs);
   const currentBoaRecycling = boaRecycling(data.boaRecycling, data.shuttleCargo);
   const currentChacauRepairs = chacauRepairs(data.chacauRepairs);
@@ -2994,6 +2995,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     shuttleEvacuations: shuttleEvacuations(data.shuttleEvacuations),
     serviceShuttleRecharges: serviceShuttleRecharges(data.serviceShuttleRecharges),
     ...(currentBlacksmithRepairs ? { blacksmithRepairs: currentBlacksmithRepairs } : {}),
+    ...(currentPhiliaRepairs ? { philiaRepairs: currentPhiliaRepairs } : {}),
     ...(currentMacawRepairs ? { macawRepairs: currentMacawRepairs } : {}),
     ...(currentBoaRecycling !== undefined ? { boaRecycling: currentBoaRecycling } : {}),
     ...(currentChacauRepairs ? { chacauRepairs: currentChacauRepairs } : {}),

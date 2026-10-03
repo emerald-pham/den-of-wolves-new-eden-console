@@ -931,6 +931,8 @@ export interface BlacksmithRepairLedger {
 export interface PhiliaRepairLedger {
   readonly cycle: number;
   readonly revision: number;
+  /** Member receipts preserve the global craft usage without foreign host details. */
+  readonly totalHostsUsed?: number;
   readonly hosts: readonly Readonly<{
     readonly shipId: VesselId;
     readonly systemIds: readonly string[];

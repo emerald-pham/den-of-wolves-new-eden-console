@@ -15,6 +15,7 @@ import {
 } from '@/lib/sessionMutationAuthority';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { GameSession, PhiliaRepairLedger, Player, ShuttleControlEntry, ShuttleDocking } from '@/types/game';
+import { memberPhiliaRepairLedger } from '../../functions/src/memberSession';
 
 interface Props {
   readonly control: ShuttleControlEntry;
@@ -27,6 +28,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isRepairLedger(value: unknown): value is PhiliaRepairLedger | undefined {
+  if (value !== undefined && memberPhiliaRepairLedger(value)) return true;
   if (value === undefined) return true;
   if (!isRecord(value) || Object.keys(value).some((key) => !['cycle', 'revision', 'hosts'].includes(key)) ||
       !Number.isSafeInteger(value.cycle) || (value.cycle as number) < 1 ||
@@ -87,12 +89,13 @@ export default function PhiliaRepairPanel({ control, docking, fuelled }: Props) 
   const ledger = repairHistoryValid ? session.philiaRepairs : undefined;
   const repairRevision = ledger?.revision ?? 0;
   const hostsThisCycle = ledger && ledger.cycle === session.currentTurn ? ledger.hosts : [];
+  const hostsUsedThisCycle = ledger && ledger.cycle === session.currentTurn ? ledger.totalHostsUsed ?? hostsThisCycle.length : 0;
   const repairedOnHost = docking
     ? hostsThisCycle.find((host) => host.shipId === docking.shipId)?.systemIds ?? [] : [];
   const hostAlreadyUsed = Boolean(docking &&
     hostsThisCycle.some((host) => host.shipId === docking.shipId));
-  const repairShipAvailable = hostAlreadyUsed || hostsThisCycle.length === 0 ||
-    (hostsThisCycle.length === 1 && fuelled);
+  const repairShipAvailable = hostAlreadyUsed || hostsUsedThisCycle === 0 ||
+    (hostsUsedThisCycle === 1 && fuelled);
   const repairSlotsRemaining = Math.max(0, 2 - repairedOnHost.length);
   const damage = docking ? session.shipDamage?.[docking.shipId] : undefined;
   const repairOptions = docking
@@ -266,9 +269,9 @@ export default function PhiliaRepairPanel({ control, docking, fuelled }: Props) 
       : <p>Dock Philia before repairing consoles.</p>}
     {!isHolder && <p>The current Dione Engineer holding Philia at its in-group dock controls repairs.</p>}
     {!repairWindowOpen && <p>Philia repairs open during Coordination Phase.</p>}
-    {hostsThisCycle.length === 1 && !hostAlreadyUsed && !fuelled &&
+    {hostsUsedThisCycle === 1 && !hostAlreadyUsed && !fuelled &&
       <p>Fuel Philia before repairing a second ship this cycle.</p>}
-    {hostsThisCycle.length >= 2 && !hostAlreadyUsed &&
+    {hostsUsedThisCycle >= 2 && !hostAlreadyUsed &&
       <p>Philia may repair at most two ships this cycle.</p>}
     {damage?.destroyed && <p>A destroyed host cannot receive Philia repairs.</p>}
     {repairOptions.length === 0 && <p>No damaged consoles are eligible on this ship.</p>}
