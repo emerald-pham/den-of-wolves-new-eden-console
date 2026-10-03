@@ -47,3 +47,20 @@ it('folds current docked craft into the visible host contact and lets transit wi
  expect(current.find(contact=>contact.id==='ship:icebreaker')).toMatchObject({dockedCraftTags:['DOCKED // ENDEAVOUR']});
  expect(JSON.stringify(current)).not.toContain('DOCKED // STARLIGHT');
 });
+
+it('folds only current nonzero fighter wings onto their printed host without shuttle blips',()=>{
+ const withWings={...projection,dockedShuttles:[{shuttleId:'pallas',fleetGroupId:'fleet-2',hostShipId:'aegis'}],
+  dockedFighterWings:[
+   {wingId:'fighter-wing-alpha',fleetGroupId:'fleet-2',hostShipId:'aegis'},
+   {wingId:'fighter-wing-bravo',fleetGroupId:'fleet-2',hostShipId:'aegis'},
+   {wingId:'pdf-escort-fighter-wing',fleetGroupId:'fleet-1',hostShipId:'dione'},
+  ]} as unknown as Parameters<typeof localDradisContacts>[1];
+ expect(localDradisCenterDockedCraftTags('aegis',withWings)).toEqual([
+  'DOCKED // PALLAS','DOCKED // FIGHTER WING ALPHA','DOCKED // FIGHTER WING BRAVO',
+ ]);
+ const contacts=localDradisContacts('aegis',withWings);
+ expect(contacts.map(contact=>contact.id)).toEqual(['ship:icebreaker','transit:starlight']);
+ expect(contacts.find(contact=>contact.id==='ship:icebreaker')?.dockedCraftTags).toEqual([]);
+ expect(localDradisCenterDockedCraftTags('shepherd',withWings)).toEqual([]);
+ expect(localDradisCenterDockedCraftTags('dione',withWings)).toEqual([]);
+});

@@ -53,6 +53,7 @@ beforeEach(() => {
   mock.documents.clear(); mock.writes.mockClear();
   put('sessions/s1', { phase: 'active', currentTurn: 3, chartId: 'A', chartSelectionLocked: true,
     activeRoleIds: ['wing-commander', 'quellon-explorer', 'shepherd-scientist'], activeVesselIds: ['aegis', 'quellon', 'shepherd'],
+    fighterWingCounts: { 'fighter-wing-alpha': { count: 4, revision: 0 }, 'fighter-wing-bravo': { count: 0, revision: 0 } },
     turnPhase: { turn: 3, teamPhaseEndsAt: '2026-01-01T00:00:00Z', openAirspaceEndsAt: '2099-01-01T00:00:00Z',
       airspace: { state: 'lifted', tickerActive: true, pressAccess: false } },
     shuttleDockings: [{ shuttleId: 'hummingbird', shipId: 'quellon', dockedAt: '2026-01-01T00:00:00Z' }],
@@ -258,7 +259,7 @@ it('returns server-current ships and docked shuttle hosts only for the requestin
   const call = (expectedGroupId = 'fleet-2') => calls.readFleetGroupNavigation.run(request({ sessionId: 's1', requestId: 'nav-1',
     expectedNavigationRevision: 2, expectedFleetPartitionRevision: 1, expectedGroupId }));
   const reply = await call() as { groupId: string; ships: readonly { shipId: string; coordinate: string }[];
-    dockedShuttles: readonly Record<string, unknown>[] };
+    dockedShuttles: readonly Record<string, unknown>[]; dockedFighterWings: readonly Record<string, unknown>[] };
   expect(reply.groupId).toBe('fleet-2');
   expect(reply.ships).toEqual([
     { shipId: 'quellon', fleetGroupId: 'fleet-2', coordinate: '0000' },
@@ -270,10 +271,19 @@ it('returns server-current ships and docked shuttle hosts only for the requestin
   ]);
   expect(reply.dockedShuttles.every(shuttle => Object.keys(shuttle).sort().join(',') ===
     'fleetGroupId,hostShipId,shuttleId')).toBe(true);
+  expect(reply.dockedFighterWings).toEqual([]);
   expect(JSON.stringify(reply)).not.toContain('aegis');
   mock.writes.mockClear();
   await expect(call('fleet-1')).rejects.toMatchObject({ code: 'permission-denied' });
   expect(mock.writes).not.toHaveBeenCalled();
+  const aegisMember = await calls.readFleetGroupNavigation.run(request({ sessionId: 's1', requestId: 'nav-aegis',
+    expectedNavigationRevision: 2, expectedFleetPartitionRevision: 1, expectedGroupId: 'fleet-1' }, 'wing')) as {
+      dockedFighterWings: readonly Record<string, unknown>[] };
+  expect(aegisMember.dockedFighterWings).toEqual([
+    { wingId: 'fighter-wing-alpha', fleetGroupId: 'fleet-1', hostShipId: 'aegis' },
+  ]);
+  expect(aegisMember.dockedFighterWings.every(wing => Object.keys(wing).sort().join(',') ===
+    'fleetGroupId,hostShipId,wingId')).toBe(true);
 });
 
 it('suppresses a stale group docking while the latest server movement row says in transit', async () => {
