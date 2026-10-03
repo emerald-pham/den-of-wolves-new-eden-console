@@ -86,8 +86,21 @@ function put(path: string, fields: Fields): void {
 }
 
 function player(uid: string, fields: Fields = {}): void {
-  put(`sessions/s1/players/${uid}`, {
-    uid, role: 'player', connected: true, ...fields,
+  const record = { uid, role: 'player', connected: true, ...fields };
+  put(`sessions/s1/players/${uid}`, record);
+  const roleId = record.activeConsoleRoleId ?? record.assignedRoleId;
+  if (roleId !== 'executive-officer') return;
+  const groupId = typeof record.fleetGroupId === 'string' ? record.fleetGroupId : 'fleet-1';
+  const current = mock.documents.get(`sessions/s1/fleetGroups/${groupId}`) ?? {
+    id: groupId,
+    vesselIds: ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124'],
+    memberUids: [], memberShipIds: {},
+  };
+  put(`sessions/s1/players/${uid}`, { ...record, fleetGroupId: groupId });
+  put(`sessions/s1/fleetGroups/${groupId}`, {
+    ...current,
+    memberUids: [...new Set([...(current.memberUids as string[]), uid])],
+    memberShipIds: { ...(current.memberShipIds as Record<string, string>), [uid]: 'aegis' },
   });
 }
 
@@ -269,6 +282,7 @@ it('preserves an authorized C&C redirect when the facilitator closes targeting',
   await expect(advanceWolfAttackToLongRange.run(request({
     sessionId: 's1', instanceId: 'gm-1', requestId: 'advance-after-redirect',
     expectedTurn: 1, expectedRevision: 3,
+    reason: 'Recover after the Commander and AEGIS choices committed.', dangerConfirmed: true,
   }, 'gm-1'))).resolves.toMatchObject({
     status: 'committed', previousStep: 'targeting', currentStep: 'long-range',
     revision: 4, deadlineAt,

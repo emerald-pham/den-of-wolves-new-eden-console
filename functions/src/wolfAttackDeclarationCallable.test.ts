@@ -337,6 +337,7 @@ it('advances targeting only after the assigned Commander finishes and preserves 
 
   const advance = (requestId: string, expectedRevision: number, uid = 'u1') => request({
     sessionId: 's1', instanceId: 'gm-1', requestId, expectedTurn: 1, expectedRevision,
+    reason: 'Recover the already-completed targeting step.', dangerConfirmed: true,
   }, uid);
   await expect(advanceWolfAttackToLongRange.run(advance('advance-before-commander', 1)))
     .rejects.toMatchObject({ code: 'failed-precondition' });
@@ -354,6 +355,12 @@ it('advances targeting only after the assigned Commander finishes and preserves 
     status: 'committed', type: 'wolf-attack-stage-advance', sessionId: 's1',
     requestId: 'advance-targeting', turn: 1, revision: readyRevision + 1,
     previousStep: 'targeting', currentStep: 'long-range', deadlineAt,
+    reason: 'Recover the already-completed targeting step.', dangerConfirmed: true,
+    delta: {
+      from: { revision: readyRevision, currentStep: 'targeting', deadlineAt },
+      to: { revision: readyRevision + 1, currentStep: 'long-range', deadlineAt },
+    },
+    rollback: { allowed: false },
   }));
   expect(result).not.toHaveProperty('targeting');
   expect(result).not.toHaveProperty('calculationReceipt');
@@ -363,7 +370,16 @@ it('advances targeting only after the assigned Commander finishes and preserves 
     calculationReceipt: targetingReceipt,
   });
   expect(mock.documents.get('sessions/s1/wolfAttackState/current/audit/advance-targeting'))
-    .toMatchObject({ type: 'wolf-attack-stage-advance', fromStep: 'targeting', toStep: 'long-range' });
+    .toMatchObject({
+      type: 'wolf-attack-stage-advance', action: 'recovery',
+      fromStep: 'targeting', toStep: 'long-range',
+      reason: 'Recover the already-completed targeting step.', dangerConfirmed: true,
+      delta: {
+        from: { revision: readyRevision, currentStep: 'targeting', deadlineAt },
+        to: { revision: readyRevision + 1, currentStep: 'long-range', deadlineAt },
+      },
+      rollback: { allowed: false },
+    });
   expect(mock.documents.get('sessions/s1/commandReceipts/advance-targeting'))
     .toMatchObject({ result });
   expect([...mock.documents.keys()].filter((path) => path.includes('/events/'))).toEqual([
@@ -384,6 +400,7 @@ it('rejects client outcomes, a stale GM instance, and a stale targeting revision
   await declareWolfAttack.run(request());
   const validRequest = {
     sessionId: 's1', instanceId: 'gm-1', requestId: 'advance-stale', expectedTurn: 1, expectedRevision: 2,
+    reason: 'Recover the already-completed targeting step.', dangerConfirmed: true,
   };
 
   await expect(advanceWolfAttackToLongRange.run(request({ ...validRequest, target: 'aegis' })))
@@ -419,11 +436,79 @@ it('does not advance targeting while the current emergency timer is paused', asy
   await expect(advanceWolfAttackToLongRange.run(request({
     sessionId: 's1', instanceId: 'gm-1', requestId: 'advance-paused',
     expectedTurn: 1, expectedRevision: 1,
+    reason: 'Recover the already-completed targeting step.', dangerConfirmed: true,
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
 
   expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toEqual(stateBefore);
   expect(mock.documents.has('sessions/s1/commandReceipts/advance-paused')).toBe(false);
   expect(mock.documents.has('sessions/s1/wolfAttackState/current/audit/advance-paused')).toBe(false);
+});
+
+it('requires a reason and danger confirmation, then replays only the same scoped recovery', async () => {
+  await declareWolfAttack.run(request());
+  put('sessions/s1/players/u2', {
+    uid: 'u2', role: 'player', connected: true, replacementRoleId: 'wolf-commander',
+  });
+  await finishWolfCommanderTargetingRerolls.run(request({
+    sessionId: 's1', requestId: 'finish-recovery-targeting', expectedTurn: 1, expectedRevision: 1,
+  }, 'u2'));
+  const readyRevision = mock.documents.get('sessions/s1/wolfAttackState/current')!.revision as number;
+  const payload = {
+    sessionId: 's1', instanceId: 'gm-1', requestId: 'reasoned-recovery',
+    expectedTurn: 1, expectedRevision: readyRevision,
+    reason: 'Recover the already-completed targeting step.', dangerConfirmed: true,
+  };
+
+  await expect(advanceWolfAttackToLongRange.run(request({ ...payload, reason: '  ' })))
+    .rejects.toMatchObject({ code: 'invalid-argument' });
+  await expect(advanceWolfAttackToLongRange.run(request({ ...payload, dangerConfirmed: false })))
+    .rejects.toMatchObject({ code: 'invalid-argument' });
+  expect(mock.documents.has('sessions/s1/commandReceipts/reasoned-recovery')).toBe(false);
+
+  const committed = await advanceWolfAttackToLongRange.run(request(payload));
+  const stateWriteCount = mock.update.mock.calls.filter(([target]) =>
+    target.path === 'sessions/s1/wolfAttackState/current').length;
+  await expect(advanceWolfAttackToLongRange.run(request(payload))).resolves.toEqual(committed);
+  expect(mock.update.mock.calls.filter(([target]) =>
+    target.path === 'sessions/s1/wolfAttackState/current')).toHaveLength(stateWriteCount);
+  await expect(advanceWolfAttackToLongRange.run(request({
+    ...payload, reason: 'The GM supplied a different recovery reason.',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current/audit/reasoned-recovery'))
+    .toMatchObject({
+      actorUid: 'u1', requestId: 'reasoned-recovery', reason: payload.reason,
+      dangerConfirmed: true,
+      delta: {
+        from: { revision: readyRevision, currentStep: 'targeting' },
+        to: { revision: readyRevision + 1, currentStep: 'long-range' },
+      },
+    });
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current/audit/reasoned-recovery'))
+    .not.toHaveProperty('calculationReceipt');
+});
+
+it('rejects a reasoned recovery after the authoritative Coordination deadline', async () => {
+  await declareWolfAttack.run(request());
+  put('sessions/s1/players/u2', {
+    uid: 'u2', role: 'player', connected: true, replacementRoleId: 'wolf-commander',
+  });
+  await finishWolfCommanderTargetingRerolls.run(request({
+    sessionId: 's1', requestId: 'finish-expired-recovery', expectedTurn: 1, expectedRevision: 1,
+  }, 'u2'));
+  const phase = mock.documents.get('sessions/s1')!.turnPhase as Fields;
+  const expiredDeadline = phase.openAirspaceEndsAt as string;
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date(Date.parse(expiredDeadline) + 1));
+  const stateBefore = structuredClone(mock.documents.get('sessions/s1/wolfAttackState/current'));
+
+  await expect(advanceWolfAttackToLongRange.run(request({
+    sessionId: 's1', instanceId: 'gm-1', requestId: 'recovery-after-deadline',
+    expectedTurn: 1, expectedRevision: 2,
+    reason: 'Recover the already-completed targeting step.', dangerConfirmed: true,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toEqual(stateBefore);
+  expect(mock.documents.has('sessions/s1/commandReceipts/recovery-after-deadline')).toBe(false);
+  expect(mock.documents.has('sessions/s1/wolfAttackState/current/audit/recovery-after-deadline')).toBe(false);
 });
 
 it('uses the current server-owned airspace deadline after a restricted-window extension', async () => {
@@ -469,6 +554,7 @@ it('uses the current server-owned airspace deadline after a restricted-window ex
   await expect(advanceWolfAttackToLongRange.run(request({
     sessionId: 's1', instanceId: 'gm-1', requestId: 'advance-extension-stale',
     expectedTurn: 1, expectedRevision: readyRevision - 1,
+    reason: 'Recover the already-completed targeting step.', dangerConfirmed: true,
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.documents.has('sessions/s1/commandReceipts/advance-extension-stale')).toBe(false);
   expect(mock.documents.has('sessions/s1/wolfAttackState/current/audit/advance-extension-stale')).toBe(false);
@@ -476,6 +562,7 @@ it('uses the current server-owned airspace deadline after a restricted-window ex
   const result = await advanceWolfAttackToLongRange.run(request({
     sessionId: 's1', instanceId: 'gm-1', requestId: 'advance-after-extension',
     expectedTurn: 1, expectedRevision: readyRevision,
+    reason: 'Recover the already-completed targeting step.', dangerConfirmed: true,
   }));
   expect(result).toMatchObject({ currentStep: 'long-range', deadlineAt: currentDeadline });
   expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
@@ -515,6 +602,7 @@ it('uses the resumed server-owned airspace deadline and rejects a paused advance
   await expect(advanceWolfAttackToLongRange.run(request({
     sessionId: 's1', instanceId: 'gm-1', requestId: 'advance-while-paused',
     expectedTurn: 1, expectedRevision: 2,
+    reason: 'Recover the already-completed targeting step.', dangerConfirmed: true,
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toEqual(stateWhilePaused);
   expect(mock.update).not.toHaveBeenCalled();
@@ -534,6 +622,7 @@ it('uses the resumed server-owned airspace deadline and rejects a paused advance
   const result = await advanceWolfAttackToLongRange.run(request({
     sessionId: 's1', instanceId: 'gm-1', requestId: 'advance-after-resume',
     expectedTurn: 1, expectedRevision: 2,
+    reason: 'Recover the already-completed targeting step.', dangerConfirmed: true,
   }));
   expect(result).toMatchObject({ currentStep: 'long-range', deadlineAt: resumedDeadline });
   expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
@@ -554,6 +643,7 @@ it('does not overwrite a private targeting audit when its command receipt is mis
   await expect(advanceWolfAttackToLongRange.run(request({
     sessionId: 's1', instanceId: 'gm-1', requestId: 'advance-audit-collision',
     expectedTurn: 1, expectedRevision: 1,
+    reason: 'Recover the already-completed targeting step.', dangerConfirmed: true,
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
 
   expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toEqual(stateBefore);
