@@ -112,6 +112,15 @@ it('uses the current member read feed without subscribing to a raw session root'
   stop();
 });
 
+it('hydrates the bounded Philia repair receipt through the member wire parser', () => {
+  const philiaRepairs = { cycle: 2, revision: 3, hosts: [], totalHostsUsed: 2 };
+  const value = sessionFrom('member-philia', { ...sessionData(12),
+    memberSessionScope: { groupId: 'fleet-2', vesselIds: ['dione'], craftIds: ['philia'] },
+    shuttleDockings: [{ shuttleId: 'philia', shipId: 'dione', dockedAt: 'now' }], shuttleVisitLog: [], philiaRepairs,
+  });
+  expect(value.philiaRepairs).toEqual(philiaRepairs);
+});
+
 function mockGmInstanceProjection(instances: readonly Record<string, unknown>[]) {
   vi.mocked(httpsCallable).mockReturnValue((() => Promise.resolve({ data: { instances } })) as never);
 }
