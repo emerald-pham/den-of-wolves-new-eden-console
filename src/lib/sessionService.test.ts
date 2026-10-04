@@ -88,6 +88,7 @@ const {
   getWolfBoardingDefenceChoice,
   commitWolfBoardingDefenceChoice,
   commitWolfRangeActionChoice,
+  assignWolfRangeTargets,
   getWolfRangeActionChoice,
   getWolfFighterRangeActionChoice,
   commitWolfFighterRangeActionChoice,
@@ -3975,6 +3976,49 @@ it('accepts locked synthetic fighter hits when the Executive Officer passes AEGI
   expect(commit).toHaveBeenCalledWith(expect.objectContaining({
     sessionId: 's1', expectedTurn: 1, expectedRevision: 12, range: 'short-range', actionIds: [],
   }));
+});
+
+it('accepts the server pass status when committed sources still have locked hits', async () => {
+  useSessionStore.getState().reset();
+  useSessionStore.getState().setIdentity(session, {
+    ...player, role: 'player', assignedRoleId: 'executive-officer', activeConsoleRoleId: 'executive-officer',
+  });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  const commit = vi.fn(async (payload: Record<string, unknown>) => ({ data: {
+    status: 'committed', type: 'wolf-range-action-choice', sessionId: 's1', requestId: payload.requestId,
+    turn: 1, revision: 13, range: 'short-range', currentStep: 'boarding', choiceStatus: 'passed',
+    hitSlots: [{ actionId: 'aegis-alpha-wing-short-0', count: 1, damagePerHit: 1 }],
+  } }));
+  Object.assign(commit, { stream: vi.fn() });
+  vi.mocked(httpsCallable).mockReturnValue(commit as never);
+
+  await expect(commitWolfRangeActionChoice(1, 12, 'short-range', [])).resolves.toMatchObject({
+    status: 'committed', choiceStatus: 'passed',
+    hitSlots: [{ actionId: 'aegis-alpha-wing-short-0', count: 1, damagePerHit: 1 }],
+  });
+});
+
+it('accepts server committed-contact totals that include fixed source assignments', async () => {
+  useSessionStore.getState().reset();
+  useSessionStore.getState().setIdentity(session, {
+    ...player, role: 'player', assignedRoleId: 'executive-officer', activeConsoleRoleId: 'executive-officer',
+  });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  const assignments = [{ actionId: 'aegis-short', contactIds: [
+    'contact-1', 'contact-2', 'contact-3', 'contact-4', 'contact-5',
+  ] }];
+  const assign = vi.fn(async (payload: Record<string, unknown>) => ({ data: {
+    status: 'committed', type: 'wolf-range-target-assignment', sessionId: 's1', requestId: payload.requestId,
+    turn: 1, revision: 13, fromStep: 'short-range', currentStep: 'boarding', committedContacts: 6,
+  } }));
+  Object.assign(assign, { stream: vi.fn() });
+  vi.mocked(httpsCallable).mockReturnValue(assign as never);
+
+  await expect(assignWolfRangeTargets(1, 12, 'short-range', assignments)).resolves.toMatchObject({
+    status: 'committed', committedContacts: 6, currentStep: 'boarding',
+  });
 });
 
 it('sends one ordered counter batch and applies only the server-confirmed amount', async () => {
