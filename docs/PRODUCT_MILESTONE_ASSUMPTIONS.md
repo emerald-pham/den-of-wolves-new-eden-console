@@ -389,6 +389,23 @@ the original assumption; append the resolution so the decision is traceable.
 | Product effect | P524b–P524d and P528/P529 connect secret once-only ballots, server tally, current elected authority and formal next-Team announcement. Office assignment grants neither GM/private access nor generic resource writes. Press publication remains optional and distinct from mandatory formal announcements. |
 | Review state | Source-backed bounded assumption under the PC09 dispatch; authority/ballot privacy, native and authenticated proof, independent review and release remain required. |
 
+**Owner resolution, October 4, 2026:** the owner approved the parent's explicit
+proposal to take the runner-up from the **VP ballot** when one UID uniquely wins
+both offices. Preserve the President winner and select the next eligible
+candidate from the VP tally. Existing configured tie handling still controls a
+tie among eligible VP candidates; no ordering is guessed. If no other eligible
+candidate exists, require an explicit in-game decision by the current GM before
+the election can finish. Do not invent an automatic replacement. An explicit
+recorded decision to leave VP vacant must explain that outcome in-game and must
+not silently change the configured procedure or confer new office powers.
+This is an owner-directed election policy, not a claimed printed rule. The
+parent forwarded approval from user message
+`Sentinel_003dede4c2448191b4ae98ee1b5255aa` ("yes to election fix") in response to
+the VP-ballot/no-other-candidate proposal
+`Sentinel_7584eace61c48191b3dd1c944e39e15c`. Implementation, regression, current
+authenticated proof and the existing independent review remain required. The
+broader future diegetic-rules PC11 does not enlarge this repair.
+
 ### PC09-A7 — Choose one Fighter Ace action per attack
 
 | Field | Record |

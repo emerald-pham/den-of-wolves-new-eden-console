@@ -34,8 +34,12 @@ assumed private merely because an entry control is gated.
 
 The one fresh independent review and its bounded repairs are recorded in
 [`PC09_RISK_REVIEW.md`](PC09_RISK_REVIEW.md). Election conflict handling remains
-fail-closed while the parent clarifies which ballot supplies the owner's
-requested runner-up VP. No expanded GM-choice rule is assumed.
+fail-closed until the approved bounded policy is implemented and verified. The
+owner has now approved preserving the President winner, taking the next eligible
+candidate from the VP ballot, retaining configured tie handling, and requiring
+an explicit current-GM in-game decision if no other eligible candidate exists.
+The exact resolution is recorded under PC09-A6; no automatic replacement or
+broader office powers are inferred.
 
 ## Complete behavior groups and integration handoffs
 

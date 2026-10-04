@@ -17,7 +17,7 @@ does not yet grant checkpoint, review, CI or release completion.
 | 2, P2: aftermath map ordering | Firestore reordered nested fingerprint map keys, making an otherwise identical exact retry fail. | Red `4e79e4cb`; product `8271a6c1` compares exact maps semantically. Extra fields remain rejected and ordered arrays remain bound. Focused checks pass. |
 | 3, P2: Doctor off-marker population | A legal 1100-to-1000 casualty step was reverse-stepped to 1250 and rejected during mitigation. | Red `3a333e0e`; product `54f7e647` validates and calculates forward from the exact pre-damage population. The 1100 result and the existing 500-floor control pass. |
 | 4, P2: early election tally | A live close-cycle Team deadline still allowed immediate resolution after only one ballot. | Red `2fe2e5cb`; product `acb42c1e` denies the live deadline and permits legitimate post-deadline/Coordination resolution. `3d581eca` makes the existing post-close fixture deterministic. |
-| 5, P2: one holder elected to both offices | Individually legal separate President and VP ballots could produce the same unique plurality winner for both offices. | `acb42c1e` rejects that outcome before any write. The owner requested a runner-up VP, with an explicit no-second-candidate case; which ballot supplies that runner-up is pending parent clarification. No GM-choice extension or guessed runner-up is activated. |
+| 5, P2: one holder elected to both offices | Individually legal separate President and VP ballots could produce the same unique plurality winner for both offices. | `acb42c1e` rejects that outcome before any write. The owner approved preserving President, taking the next eligible VP-ballot candidate, retaining configured tie handling and requiring an explicit current-GM in-game decision if none exists. The precise PC09-A6 resolution is recorded; implementation/current Auth proof and this reviewer's targeted verification remain. |
 | 6, P2: terminal election mutation | An already configured election accepted a fresh ballot or tally after failure/debrief. | Red `f616919c`; product `00fb7103` requires active gameplay before fresh mutation. All four terminal-phase regressions pass. |
 | 7, P3: historical replay applicability | VIP reroll acknowledged a revoked actor; ballot acknowledged a removed actor; Detector and aftermath acknowledged a different current cycle/attack. No extra spending, writes or entropy were demonstrated. | Ballot `acb42c1e`, aftermath red `98679b99` / product `f8bc87bd`, and specialist red `f4a61b4c` plus `c0ae8e2e` / product `d164af64` validate current actor and applicable cycle/attack before receipts. Valid same-operation retries after revision advances remain write-free and cost-free. |
 | 8, P2: queued discovery epoch | While the actor snapshot was pending, a group 1→2→1 change released an old queued discovery event without a new callback. | Red `1178873b`; product `f9191929` clears pending discovery whenever an established actor fingerprint changes, while preserving first-snapshot hydration. Nine discovery tests pass. |
@@ -87,9 +87,9 @@ client-recovery assignment own those remaining proofs.
 
 The original ten PC08 audit defects retain their exact definitions in
 `PC08_BUG_AUDIT.md`. Their PC09 regression/evidence dispositions belong in that
-report and the acceptance matrix, separately from these eight review findings.
+report and the acceptance matrix, separately from these nine review findings.
 Prepared five-step presentation passes eight viewport/motion cases; it does not
 replace ordinary authenticated combat, election, source-repeat or construction
-acceptance. Final ordinary evidence, the clarified election policy, targeted
+acceptance. Final ordinary evidence, the approved election repair, targeted
 verification by this same independent reviewer, final checks and actual release
 verification remain required before closure credit.

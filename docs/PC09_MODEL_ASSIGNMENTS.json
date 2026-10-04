@@ -344,7 +344,7 @@
       "taskId": "/root/pc09_risk_review",
       "model": "gpt-6.1-sol",
       "effort": "max",
-      "status": "One consolidated independent batch now contains nine findings; same reviewer awaits reconciled bounded repairs, final ordinary acceptance evidence and clarified election policy for targeted verification."
+      "status": "One consolidated independent batch contains nine findings; same reviewer awaits stable bounded repairs, final ordinary acceptance evidence and the now-approved election repair for targeted verification."
     }
   ],
   "findings": [
