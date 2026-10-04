@@ -184,10 +184,13 @@ try {
   assert.equal(await readings.evaluate(element => element === document.activeElement), false);
   checks.keyboardFocusContinues = true;
   for (const mode of ['reduced', 'normal']) {
+    await page.getByRole('button', { name: 'Close DRADIS', exact: true }).click();
     await page.emulateMedia({ reducedMotion: mode === 'reduced' ? 'reduce' : 'no-preference' });
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await page.getByRole('checkbox', { name: 'Reduce motion', exact: true }).setChecked(mode === 'reduced');
     await page.getByRole('button', { name: 'Close settings', exact: true }).click();
+    await page.getByRole('button', { name: 'Zoom into DRADIS panel', exact: true }).click();
+    await readings.waitFor({ state: 'visible' });
     for (const [width, height] of [[320, 740], [390, 844], [844, 390], [1440, 900]]) {
       await page.setViewportSize({ width, height });
       const metrics = await page.evaluate(() => {
