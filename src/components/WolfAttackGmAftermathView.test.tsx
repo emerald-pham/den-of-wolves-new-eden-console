@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
-import { WolfAttackGmAftermathView, type WolfAttackGmAftermathViewModel } from './WolfAttackGmAftermathView';
+import { WolfAttackGmAftermathView, projectWolfAttackGmAftermathView, type WolfAttackGmAftermathViewModel }
+  from './WolfAttackGmAftermathView';
+import type { WolfAttackDeclarationState } from '@/types/game';
 
 const view: WolfAttackGmAftermathViewModel = {
   attackId: 'wolf-attack-7', turn: 7,
@@ -37,8 +39,9 @@ describe('GM aftermath receipt view', () => {
   });
 
   it('shows real unresolved aftermath decisions as pending work', () => {
-    render(<WolfAttackGmAftermathView view={{ ...view,
-      doctor: undefined, warriorSalvage: undefined, scrapClaims: {},
+    const withoutCommittedActions = Object.fromEntries(Object.entries(view)
+      .filter(([key]) => key !== 'doctor' && key !== 'warriorSalvage')) as unknown as WolfAttackGmAftermathViewModel;
+    render(<WolfAttackGmAftermathView view={{ ...withoutCommittedActions, scrapClaims: {},
       pendingWork: { ...view.pendingWork, doctorShipIds: ['aegis'], salvageAvailable: true, scrapShipIds: ['aegis'] },
     }} />);
 
@@ -46,5 +49,22 @@ describe('GM aftermath receipt view', () => {
     expect(within(work).getByText(/Doctor Medical Aid.*AEGIS/i)).toBeVisible();
     expect(within(work).getByText(/Warrior Salvage Drones/i)).toBeVisible();
     expect(within(work).getByText(/collect Scrap.*AEGIS/i)).toBeVisible();
+  });
+
+  it('keeps historical damage draws while projecting pending repairs from the current ship state', () => {
+    const state = {
+      status: 'resolved', attackId: 'attack-7', turn: 7, memberResults: [],
+      calculationReceipt: { fleetDamage: [{ target: 'aegis', amount: 3, populationBefore: 2_500,
+        population: 2_000, state: { damagedSystemIds: ['storage'], destroyed: false },
+        draws: [{ destroyed: false, casualty: true, recycled: false,
+          card: { card: '8♥', systemId: 'storage', systemName: 'Storage' } }] }],
+        ranges: [], returningInstanceIds: ['wolf-1'] },
+    } as unknown as WolfAttackDeclarationState;
+    const projected = projectWolfAttackGmAftermathView(state, {
+      aegis: { damagedSystemIds: [], destroyed: false },
+    });
+
+    expect(projected?.damage[0]?.damagedSystemIds).toEqual(['storage']);
+    expect(projected?.pendingWork.damagedSystems).toEqual([]);
   });
 });

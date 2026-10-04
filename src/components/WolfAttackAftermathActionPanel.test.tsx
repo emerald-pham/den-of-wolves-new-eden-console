@@ -53,7 +53,7 @@ it('lets the current Doctor choose only a damaged ship and submits that server-r
   expect(await within(panel).findByRole('status')).toHaveTextContent(/Medical Aid committed/i);
 });
 
-it('offers server-owned Salvage Drones only to the charged current Warrior', () => {
+it('offers server-owned Salvage Drones only to the charged current Warrior', async () => {
   installIdentity('warrior-captain');
   const session = useSessionStore.getState().session!;
   useSessionStore.getState().setSession({ ...session, smallShipStates: { warrior: { id: 'warrior', hostShipId: 'aegis',
@@ -64,10 +64,10 @@ it('offers server-owned Salvage Drones only to the charged current Warrior', () 
   act(() => publish?.(member));
   fireEvent.click(screen.getByRole('button', { name: 'Resolve Salvage Drones' }));
 
-  expect(mocks.commit).toHaveBeenCalledWith('attack-7', { action: 'warrior-salvage' }, expect.any(String));
+  await waitFor(() => expect(mocks.commit).toHaveBeenCalledWith('attack-7', { action: 'warrior-salvage' }, expect.any(String)));
 });
 
-it('lets the current Macaw operator collect one threshold Scrap opportunity', () => {
+it('lets the current Macaw operator collect one threshold Scrap opportunity', async () => {
   installIdentity(null, 'capybara-captain', 'capybara-captain');
   const session = useSessionStore.getState().session!;
   useSessionStore.getState().setSession({ ...session, shuttleControl: { macaw: { shuttleId: 'macaw',
@@ -76,7 +76,7 @@ it('lets the current Macaw operator collect one threshold Scrap opportunity', ()
   act(() => publish?.(member));
   fireEvent.click(screen.getByRole('button', { name: 'Collect Scrap from AEGIS' }));
 
-  expect(mocks.commit).toHaveBeenCalledWith('attack-7', {
+  await waitFor(() => expect(mocks.commit).toHaveBeenCalledWith('attack-7', {
     action: 'collect-scrap', shuttleId: 'macaw', targetShipId: 'aegis',
-  }, expect.any(String));
+  }, expect.any(String)));
 });

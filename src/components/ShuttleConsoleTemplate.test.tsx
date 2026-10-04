@@ -86,14 +86,14 @@ it('renders a printed shuttle’s operational sheet through the shared ship work
   expect(within(workspace).queryByRole('region', { name: 'Press dispatch desk' })).not.toBeInTheDocument();
 });
 
-it.each(['macaw', 'boa'] as const)('mounts %s aftermath Scrap collection only in the live shuttle workspace', (id) => {
+it.each(['macaw', 'boa'] as const)('mounts %s aftermath Scrap collection only in the live shuttle workspace', async (id) => {
   const shuttle = SHUTTLECRAFT.find((craft) => craft.id === id)!;
   render(<MemoryRouter><ShuttleConsoleTemplate shuttle={shuttle} captainName="Recycler" canLeave={false}
     control={{ shuttleId: id, holderUid: 'captain' } as never}
     docking={{ shuttleId: id, shipId: 'capybara', dockedAt: 'SESSION START' }}
   /></MemoryRouter>);
 
-  expect(screen.getByRole('region', { name: `${id} aftermath controls` })).toBeInTheDocument();
+  expect(await screen.findByRole('region', { name: `${id} aftermath controls` })).toBeInTheDocument();
 });
 
 it('renders a presentation-only shuttle control snapshot without mounting live controls', () => {

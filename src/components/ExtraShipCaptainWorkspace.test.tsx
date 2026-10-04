@@ -53,7 +53,7 @@ beforeEach(() => {
 });
 
 describe('extra-ship Captain Jump Drive integration', () => {
-  it('mounts the authenticated Warrior aftermath action beside ordinary repair controls', () => {
+  it('mounts the authenticated Warrior aftermath action beside ordinary repair controls', async () => {
     installCaptain('warrior-captain', {
       ...baseSession,
       smallShipStates: { ...baseSession.smallShipStates, warrior: {
@@ -63,7 +63,7 @@ describe('extra-ship Captain Jump Drive integration', () => {
     } as GameSession);
     render(<ExtraShipCaptainWorkspace roleId={'warrior-captain' as never} />);
 
-    expect(screen.getByRole('region', { name: 'warrior aftermath controls' })).toBeInTheDocument();
+    expect(await screen.findByRole('region', { name: 'warrior aftermath controls' })).toBeInTheDocument();
   });
 
   it.each([
