@@ -180,7 +180,7 @@ function admitRangeSupportChoices(): void {
     unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
     destructionDamageByTarget: Object.fromEntries(CORE_WOLF_TARGET_RING.map((target) => [target, 0])) });
   put('sessions/s1', { ...session,
-    activeVesselIds: [...(session.activeVesselIds as string[]), 'capybara', 'gorgoneion'],
+    activeVesselIds: [...(session.activeVesselIds as string[]), 'capybara'],
     activeRoleIds: ['executive-officer', 'icebreaker-miner', 'capybara-recycler', 'gorgoneion-captain'],
     shuttleFuelled: { highwall: true, boa: false },
     shuttleDockings: [{ shuttleId: 'highwall', shipId: 'icebreaker' }, { shuttleId: 'boa', shipId: 'capybara' }],
