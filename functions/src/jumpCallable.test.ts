@@ -2467,7 +2467,7 @@ it('completes an exact under-fueled failure with available fuel and a full serve
   }));
   expect(mock.update).toHaveBeenCalledWith(
     'sessions/s1/jumpFailures/underfunded-failure',
-    expect.objectContaining({ status: 'resolved', resolution: 'full-d6-damage-facilitator-jump' }),
+    expect.objectContaining({ status: 'resolved', resolution: 'full-d6-damage' }),
   );
   expect(mock.set).toHaveBeenCalledWith(
     'sessions/s1/events/ship-jump-complete-underfunded',
