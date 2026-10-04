@@ -46,7 +46,7 @@ vi.mock('firebase-functions/v2/scheduler', () => ({
   onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }),
 }));
 
-import { setWolfAttackWindow } from './index';
+import { getWolfAttackThreatWindowOptions, setWolfAttackWindow } from './index';
 import { emptySmallShipState } from './smallShip';
 
 const baseData = {
@@ -60,6 +60,51 @@ const baseData = {
 function request(data: Record<string, unknown> = baseData, uid = 'u1') {
   return { data, auth: { uid } } as CallableRequest<Record<string, unknown>>;
 }
+
+it('projects only live source-backed threat choices to the active GM for the selected group', async () => {
+  session({ chartSelectionLocked: true, chartId: 'B', activeVesselIds: ['aegis', 'dione'] });
+  put('sessions/s1/fleetGroups/fleet-2', { id: 'fleet-2', vesselIds: ['aegis'], memberUids: [] });
+  put('sessions/s1/serverState/wolfArrivalPressure/groups/fleet-2', {
+    type: 'wolf-base-arrival-pressure-state', groupId: 'fleet-2', chart: 'B', revision: 2,
+    entries: [
+      { type: 'wolf-base-arrival-pressure', status: 'operational', groupId: 'fleet-2', chart: 'B',
+        coordinate: '1964', siteCode: 'L', sourceShipId: 'aegis', sourceTransitionId: 'jump-outpost',
+        cycle: 1, revision: 1, attackStatus: 'scheduled', arrivalTiming: 'immediate', minimumBattleStations: 1,
+        minimumOtherShipDamage: 20, missionAccess: 'blockedWhileWolfBaseOperational', recurringUntil: ['baseDestroyed', 'jumpAway'] },
+      { type: 'wolf-base-arrival-pressure', status: 'operational', groupId: 'fleet-2', chart: 'B',
+        coordinate: '1965', siteCode: 'M', sourceShipId: 'aegis', sourceTransitionId: 'jump-fortress',
+        cycle: 1, revision: 2, attackStatus: 'scheduled', arrivalTiming: 'immediate', minimumBattleStations: 2,
+        minimumOtherShipDamage: 25, missionAccess: 'blockedWhileWolfBaseOperational', recurringUntil: ['baseDestroyed', 'jumpAway'] },
+    ],
+  });
+  const schedule = {
+    type: 'wolf-base-arrival-pressure-schedule', status: 'scheduled', sessionId: 's1', groupId: 'fleet-2',
+    chart: 'B', coordinate: '1964', siteCode: 'L', sourceShipId: 'aegis', sourceTransitionId: 'jump-outpost',
+    sourceCycle: 1, arrivalTiming: 'immediate', minimumBattleStations: 1, minimumOtherShipDamage: 20,
+    recurringUntil: ['baseDestroyed', 'jumpAway'], missionAccess: 'blockedWhileWolfBaseOperational',
+  };
+  put('sessions/s1/wolfAttackPressure/arrival-jump-outpost', schedule);
+  put('sessions/s1/wolfAttackPressure/arrival-jump-fortress', {
+    ...schedule, coordinate: '1965', siteCode: 'M', sourceTransitionId: 'jump-fortress', sourceCycle: 1,
+    minimumBattleStations: 2, minimumOtherShipDamage: 25,
+  });
+
+  await expect(getWolfAttackThreatWindowOptions.run(request({ sessionId: 's1', instanceId: 'gm-1', targetGroupId: 'fleet-2' })))
+    .resolves.toEqual({
+      type: 'wolf-attack-threat-window-options', sessionId: 's1', targetGroupId: 'fleet-2', cycle: 1,
+      sources: [
+        { siteCode: 'L', sourceId: 'arrival-jump-outpost', sourceCycle: 1, coordinate: '1964' },
+        { siteCode: 'M', sourceId: 'arrival-jump-fortress', sourceCycle: 1, coordinate: '1965' },
+      ],
+    });
+});
+
+it('denies threat source choices to non-GM and non-live facilitator instances', async () => {
+  await expect(getWolfAttackThreatWindowOptions.run(request({ sessionId: 's1', instanceId: 'gm-1', targetGroupId: 'fleet-1' }, 'u2')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  await expect(getWolfAttackThreatWindowOptions.run(request({ sessionId: 's1', instanceId: 'gm-absent', targetGroupId: 'fleet-1' })))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+});
 
 function put(path: string, fields: Fields): void {
   mock.documents.set(path, { ...fields });
