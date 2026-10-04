@@ -1,8 +1,12 @@
 import { render, screen, within } from '@testing-library/react';
-import { beforeEach, expect, it } from 'vitest';
+import { beforeEach, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
 import ReplacementRoleWorkspace from './ReplacementRoleWorkspace';
+
+vi.mock('@/components/WolfAttackAftermathActionPanel', () => ({
+  default: ({ operator }: { operator: string }) => <section aria-label={`${operator} aftermath controls`} />,
+}));
 
 const replacements = [
   ['comms-officer', 'Comms Officer', 'AEGIS'],
@@ -61,6 +65,8 @@ it.each(replacements)('loads the reassigned %s shell with only its printed contr
   expect(workspace).toHaveTextContent('Facilitator reassignment confirmed');
   if (roleId === 'comms-officer') {
     expect(await within(workspace).findByRole('region', { name: 'Comms Officer scouting request' })).toBeVisible();
+  } else if (roleId === 'doctor') {
+    expect(await within(workspace).findByRole('region', { name: 'doctor aftermath controls' })).toBeVisible();
   } else {
     expect(within(workspace).queryByRole('region', { name: /scouting request/i })).not.toBeInTheDocument();
     expect(within(workspace).queryByRole('button')).not.toBeInTheDocument();

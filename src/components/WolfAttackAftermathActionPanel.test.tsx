@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { WolfAttackMemberView } from '@/types/game';
 
@@ -40,7 +40,7 @@ afterEach(() => { publish = undefined; });
 
 it('lets the current Doctor choose only a damaged ship and submits that server-receipted choice', async () => {
   render(<WolfAttackAftermathActionPanel operator="doctor" />);
-  publish?.(member);
+  act(() => publish?.(member));
 
   const panel = screen.getByRole('region', { name: 'Doctor Medical Aid' });
   const target = within(panel).getByRole('checkbox', { name: /AEGIS.*500 population loss/i });
@@ -61,7 +61,7 @@ it('offers server-owned Salvage Drones only to the charged current Warrior', () 
     cycle: { step: 5, revision: 2, results: {}, charges: ['salvage-drones'], turn: 7,
       rationBonus: 0, chargingSkipped: false } } } } as never);
   render(<WolfAttackAftermathActionPanel operator="warrior" />);
-  publish?.(member);
+  act(() => publish?.(member));
   fireEvent.click(screen.getByRole('button', { name: 'Resolve Salvage Drones' }));
 
   expect(mocks.commit).toHaveBeenCalledWith('attack-7', { action: 'warrior-salvage' }, expect.any(String));
@@ -73,7 +73,7 @@ it('lets the current Macaw operator collect one threshold Scrap opportunity', ()
   useSessionStore.getState().setSession({ ...session, shuttleControl: { macaw: { shuttleId: 'macaw',
     ownerRoleId: 'capybara-captain', ownerUid: 'actor-1', holderUid: 'actor-1', revision: 1 } } } as never);
   render(<WolfAttackAftermathActionPanel operator={{ shuttleId: 'macaw' }} />);
-  publish?.(member);
+  act(() => publish?.(member));
   fireEvent.click(screen.getByRole('button', { name: 'Collect Scrap from AEGIS' }));
 
   expect(mocks.commit).toHaveBeenCalledWith('attack-7', {

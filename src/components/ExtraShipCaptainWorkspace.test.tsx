@@ -9,6 +9,9 @@ vi.mock('@/lib/smallShipJumpService', () => ({
   jumpSmallShip: vi.fn(),
   chargeSmallShipJumpDrive: vi.fn(),
 }));
+vi.mock('@/components/WolfAttackAftermathActionPanel', () => ({
+  default: ({ operator }: { operator: string }) => <section aria-label={`${operator} aftermath controls`} />,
+}));
 
 const movementService = await import('@/lib/smallShipJumpService');
 
@@ -50,6 +53,19 @@ beforeEach(() => {
 });
 
 describe('extra-ship Captain Jump Drive integration', () => {
+  it('mounts the authenticated Warrior aftermath action beside ordinary repair controls', () => {
+    installCaptain('warrior-captain', {
+      ...baseSession,
+      smallShipStates: { ...baseSession.smallShipStates, warrior: {
+        id: 'warrior', hostShipId: 'aegis', dockingRevision: 1, population: 2000, unrest: 0,
+        cycle: { step: 0, revision: 1, results: {}, charges: ['salvage-drones'], turn: 4 },
+      } },
+    } as GameSession);
+    render(<ExtraShipCaptainWorkspace roleId={'warrior-captain' as never} />);
+
+    expect(screen.getByRole('region', { name: 'warrior aftermath controls' })).toBeInTheDocument();
+  });
+
   it.each([
     ['gorgoneion-captain', 'gorgoneion'],
     ['capybara-small-captain', 'capybara-small'],

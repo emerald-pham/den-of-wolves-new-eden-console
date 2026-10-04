@@ -15,6 +15,11 @@ vi.mock('./ShuttleControl', () => ({
 
 vi.mock('./PressConfetti', () => ({ default: () => <section aria-label="Newspaper confetti dispenser" /> }));
 vi.mock('./PressDispatch', () => ({ default: () => <section aria-label="Press dispatch desk" /> }));
+vi.mock('./MacawRepairPanel', () => ({ default: () => <section aria-label="Macaw repair controls" /> }));
+vi.mock('./BoaRecyclingPanel', () => ({ default: () => <section aria-label="Boa recycling controls" /> }));
+vi.mock('@/components/WolfAttackAftermathActionPanel', () => ({
+  default: ({ operator }: { operator: { shuttleId: string } }) => <section aria-label={`${operator.shuttleId} aftermath controls`} />,
+}));
 
 it('renders a second craft through the base with its own identity and opt-in equipment', () => {
   const shuttle = defineShuttle({
@@ -79,6 +84,16 @@ it('renders a printed shuttle’s operational sheet through the shared ship work
   expect(within(workspace).getAllByText('Airspace open')).toHaveLength(2);
   expect(within(workspace).getByText('Fuelled this cycle')).toBeInTheDocument();
   expect(within(workspace).queryByRole('region', { name: 'Press dispatch desk' })).not.toBeInTheDocument();
+});
+
+it.each(['macaw', 'boa'] as const)('mounts %s aftermath Scrap collection only in the live shuttle workspace', (id) => {
+  const shuttle = SHUTTLECRAFT.find((craft) => craft.id === id)!;
+  render(<MemoryRouter><ShuttleConsoleTemplate shuttle={shuttle} captainName="Recycler" canLeave={false}
+    control={{ shuttleId: id, holderUid: 'captain' } as never}
+    docking={{ shuttleId: id, shipId: 'capybara', dockedAt: 'SESSION START' }}
+  /></MemoryRouter>);
+
+  expect(screen.getByRole('region', { name: `${id} aftermath controls` })).toBeInTheDocument();
 });
 
 it('renders a presentation-only shuttle control snapshot without mounting live controls', () => {
