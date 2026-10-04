@@ -71,6 +71,17 @@ describe('attack-bound pre-range mutation composition', () => {
     expect(resolved.fighterAce).toMatchObject({ requestId: f.ace.requestId, rosterBefore: f.ace.rosterBefore });
   });
 
+  it('preserves a later Ace action after an ordinary earlier range overkills another contact', () => {
+    const f = fixture(false);
+    const current = f.roster.map((ship, index) => index === 0 ? { ...ship, damageTaken: 4, destroyed: true } : ship);
+    const ace = { ...f.ace, rosterBefore: current };
+    const replay = replayWolfPreRangeMutations(current, { attackId: f.attackId, turn: f.turn,
+      range: 'medium-range', targetRing: CORE_WOLF_TARGET_RING, fighterAceAction: ace,
+      persistedPermission: f.permission });
+    expect(replay.roster[0]).toEqual(current[0]);
+    expect(replay.roster[10]).toMatchObject({ target: 'dione', damageTaken: 1, destroyed: false });
+  });
+
   it.each(['attackId', 'turn', 'revision', 'instanceId', 'fromTarget', 'toTarget', 'fromTargetNumber', 'actorRoleId'])
   ('rejects a forged or stale Commander %s before advancing combat', (key) => {
     const f = fixture(true);
