@@ -206,6 +206,16 @@ export function isWolfAttackMemberView(value: unknown): value is WolfAttackMembe
     Array.isArray(value.redaction) && JSON.stringify(value.redaction) === JSON.stringify(REDACTED_FIELDS) &&
     Array.isArray(value.results) && value.results.every(result => {
       const safe = resultProjection({ ...(record(result) ? result : {}), status: 'committed' });
-      return safe !== undefined && JSON.stringify(safe) === JSON.stringify(result);
+      if (safe === undefined || !record(result) ||
+          Object.keys(result).length !== Object.keys(safe).length || !record(result.outcome)) return false;
+      const outcome = result.outcome;
+      // Firestore map ordering is not the producer's JavaScript insertion order.
+      // Compare the exact public fields and values without admitting extra keys.
+      return Object.entries(safe).every(([key, field]) => Object.hasOwn(result, key) &&
+        (key === 'outcome'
+          ? Object.keys(outcome).length === Object.keys(safe.outcome).length &&
+            Object.entries(safe.outcome).every(([name, value]) =>
+              Object.hasOwn(outcome, name) && outcome[name] === value)
+          : result[key] === field));
     });
 }
