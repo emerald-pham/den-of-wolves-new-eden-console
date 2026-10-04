@@ -15,7 +15,7 @@ function snapshot(state: 'lifted' | 'restricted', phaseRevision: number, second:
       openAirspaceEndsAt: '2026-10-04T12:20:00.000Z',
       airspace: { state, tickerActive: true, pressAccess: false } },
     turnState: { currentTurn: 2, maxTurn: 6, phase: state === 'lifted' ? 'coordination' : 'team',
-      phaseRevision, startedAt: '2026-10-04T12:00:00.000Z',
+      phaseRevision, startedAt: state === 'lifted' ? '2026-10-04T12:05:00.000Z' : '2026-10-04T12:00:00.000Z',
       endsAt: state === 'lifted' ? '2026-10-04T12:20:00.000Z' : '2026-10-04T12:05:00.000Z' },
   };
 }
