@@ -1134,13 +1134,15 @@ try {
   await commanderPage.goto(`${process.env.PC07_LOCAL_GM_ORIGIN ?? 'http://127.0.0.1:5178'}/#/console`);
   await commanderPage.getByRole('heading', { name: 'Stations and consoles', exact: true }).waitFor();
   await commanderPage.getByRole('link', { name: 'AEGIS // Wing Commander // HELD BY YOU', exact: true }).click();
-  const alphaHeading = commanderPage.getByRole('heading', { name: 'Fighter Wing Alpha', exact: true });
+  const alphaArticle = commanderPage.getByRole('article', { name: 'Fighter Wing Alpha', exact: true });
+  const alphaHeading = alphaArticle.getByRole('heading', { name: 'Fighter Wing Alpha', exact: true });
   await alphaHeading.waitFor({ state: 'visible', timeout: 30_000 });
   const alphaCard = alphaHeading.locator('xpath=ancestor::article[contains(concat(" ",normalize-space(@class)," ")," aegis-craft ")]');
   assert.equal(await alphaCard.count(), 1, 'The visible Alpha heading must identify exactly one AEGIS craft article.');
   const alphaButton = alphaCard.getByRole('button', { name: /Build 1 fighter \/\/ 1 material/i });
   await alphaButton.waitFor({ state: 'visible', timeout: 30_000 });
-  const bravoHeading = commanderPage.getByRole('heading', { name: 'Fighter Wing Bravo', exact: true });
+  const bravoArticle = commanderPage.getByRole('article', { name: 'Fighter Wing Bravo', exact: true });
+  const bravoHeading = bravoArticle.getByRole('heading', { name: 'Fighter Wing Bravo', exact: true });
   await bravoHeading.waitFor({ state: 'visible', timeout: 30_000 });
   const bravoCard = bravoHeading.locator('xpath=ancestor::article[contains(concat(" ",normalize-space(@class)," ")," aegis-craft ")]');
   assert.equal(await bravoCard.count(), 1);

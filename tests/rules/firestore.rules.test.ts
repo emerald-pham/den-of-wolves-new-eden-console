@@ -1423,6 +1423,25 @@ describe('session header', () => {
     await assertFails(getDocFromServer(doc(as('alice'), audiencePath)));
   });
 
+  it('lets current members observe an absent attack audience before its first server creation', async () => {
+    const audiencePath = `${SESSION}/wolfAttackAudience/current`;
+    for (const uid of ['alice', 'press', 'gm1']) {
+      const snapshot = await assertSucceeds(getDocFromServer(doc(as(uid), audiencePath)));
+      expect(snapshot.exists()).toBe(false);
+    }
+  });
+
+  it('denies absent attack audience reads to outsiders and disconnected members, plus client creation and listing', async () => {
+    const audiencePath = `${SESSION}/wolfAttackAudience/current`;
+    await assertFails(getDocFromServer(doc(as('stranger'), audiencePath)));
+    await assertFails(setDoc(doc(as('alice'), audiencePath), { status: 'declared' }));
+    await assertFails(getDocs(collection(as('alice'), `${SESSION}/wolfAttackAudience`)));
+    await env.withSecurityRulesDisabled(async ctx => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/alice`), { connected: false });
+    });
+    await assertFails(getDocFromServer(doc(as('alice'), audiencePath)));
+  });
+
   it('shares drawn damage cards with members but denies strangers and every client write', async () => {
     const playerDraw = doc(as('alice'), `${SESSION}/damageDraws/draw1`);
     const gmDraw = doc(as('gm1'), `${SESSION}/damageDraws/draw1`);
