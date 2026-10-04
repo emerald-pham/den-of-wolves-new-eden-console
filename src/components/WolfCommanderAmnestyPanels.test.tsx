@@ -97,6 +97,20 @@ it('requires a live address before offering the printed condition to an active s
   expect(screen.queryByText(/targetUid|damage capacity|fleet composition/i)).not.toBeInTheDocument();
 });
 
+it('shows the committed address when the initial private read loses its authority checkpoint', async () => {
+  mocks.get.mockRejectedValueOnce(new Error('The session or player authority changed before this private view arrived.'));
+  const user = userEvent.setup();
+  render(<WolfCommanderAddressAmnestyPanel />);
+
+  expect(await screen.findByRole('alert')).toHaveTextContent(/authority changed before this private view arrived/i);
+  await user.type(screen.getByRole('textbox', { name: 'Fleet address' }), 'The fleet has one chance to yield.');
+  await user.click(screen.getByRole('button', { name: 'Address fleet for 30 seconds' }));
+  await waitFor(() => expect(mocks.address).toHaveBeenCalledWith('The fleet has one chance to yield.', 4));
+  expect(await screen.findByText(/Fleet address published for 30 seconds/i)).toBeVisible();
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Offer amnesty' })).toBeVisible();
+});
+
 it('lets only the target captain answer and leaves the accepted offer pending for the facilitator', async () => {
   setCaptain();
   mocks.get.mockResolvedValue({ type: 'wolf-amnesty-view', sessionId: 's1', offer: currentOffer });
