@@ -1,6 +1,13 @@
-import type { WolfAttackPreparation } from './wolfAttackPreparation';
 import type { WolfAttackParkingDecision } from './wolfAttackParking';
-import type { WolfWingCarryoverReceipt } from './wolfAttackCarryover';
+import type { PStationRepeatContext, WolfWingCarryoverReceipt } from './wolfAttackCarryover';
+import {
+  WOLF_ATTACK_TARGET_IDS,
+  type WolfAttackCompositionKind,
+  type WolfAttackPreparation,
+} from './wolfAttackPreparation';
+import { organiserSitesForChart, type ChartId } from './starChartLookup';
+import { wolfShipForId, type WolfShipId } from './wolfShipCatalog';
+import type { WolfAttackWindow } from './wolfAttackWindow';
 
 /** The declaration boundary owns only the first printed attack step. */
 export const WOLF_ATTACK_DECLARATION_STEP = 'targeting' as const;
@@ -25,6 +32,22 @@ export interface WolfFighterLaunchChoiceRecord {
   readonly reason?: string;
 }
 
+/** Private, atomic once-per-cycle Commander dial identity carried to finalization. */
+export interface WolfCommanderCycleAttackMarker {
+  readonly type: 'wolf-commander-cycle-attack';
+  readonly cycle: number;
+  readonly ledgerId: string;
+  readonly groupId: string;
+  readonly targetGroupPursuit: number;
+  readonly navigationRevision: number;
+  readonly commanderUid: string;
+  readonly attackNumber: number;
+  readonly parentAttackId?: string;
+  readonly parentAttackNumber?: number;
+  readonly parentTurn?: number;
+  readonly requestId: string;
+}
+
 /** Private server state created by the atomic declaration transaction. */
 export interface WolfAttackStageState {
   readonly type: 'wolf-attack-state';
@@ -38,6 +61,23 @@ export interface WolfAttackStageState {
   readonly previousAttackId?: string;
   /** Returned surviving Wings mapped to the prepared, attack-scoped roster. */
   readonly carryover?: WolfWingCarryoverReceipt;
+  /** The selected independent pursuit scope is private attack authority. */
+  readonly targetGroupId?: string;
+  readonly targetGroupVesselIds?: readonly string[];
+  readonly threatSiteCode?: WolfAttackCompositionKind;
+  readonly threatSourceId?: string;
+  readonly pStationSequence?: Readonly<{
+    type: 'p-station-sequence';
+    sequenceId: string;
+    groupId: string;
+    chart: ChartId;
+    coordinate: string;
+    stationId: 'P';
+    sourceTransitionId: string;
+    sourceCycle: number;
+    attackNumber: number;
+  }>;
+  readonly commanderCycleAttack?: WolfCommanderCycleAttackMarker;
   readonly revision: number;
   readonly preparationRevision: number;
   readonly currentStep: WolfAttackDeclarationStep;
@@ -87,4 +127,149 @@ export function wolfAttackBlocksNormalMovement(value: unknown): boolean {
   const state = value as Record<string, unknown>;
   return state.status !== 'resolved' || state.airspaceLocked !== false ||
     state.parkingReleaseCondition !== WOLF_ATTACK_PARKING_RELEASE;
+}
+
+export interface WolfPStationRepeatPlanRevisions {
+  readonly windowRevision: number;
+  readonly preparationRevision: number;
+}
+
+export type WolfPStationRepeatFinalizationPlan = Readonly<{
+  status: 'stopped';
+  sequenceId: string;
+  groupId: string;
+  attackId: string;
+  attackNumber: number;
+  turn: number;
+}> | Readonly<{
+  status: 'repeat';
+  sequenceId: string;
+  context: PStationRepeatContext;
+  targetGroupId: string;
+  threatSourceId: string;
+  turn: number;
+  nextAttackNumber: number;
+  sourceInstanceIds: readonly string[];
+  survivors: readonly Readonly<{ instanceId: string; shipId: WolfShipId }>[];
+  window: Omit<WolfAttackWindow, 'revision'> & Readonly<{ revision: number }>;
+  preparation: WolfAttackPreparation;
+}>;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  return Object.keys(value).sort().join(',') === [...keys].sort().join(',');
+}
+
+/**
+ * Build the immutable next-window/restaging plan for a finalized P Station
+ * attack. The finalizer may apply the returned window and preparation in the
+ * same Firestore transaction that records the final receipt. Survivor order
+ * comes only from that receipt; clients never supply or reconstruct the force.
+ */
+export function pStationRepeatPlanForFinalization(
+  stateValue: unknown,
+  receiptValue: unknown,
+  revisions: WolfPStationRepeatPlanRevisions,
+): WolfPStationRepeatFinalizationPlan | undefined {
+  if (!isRecord(stateValue)) return undefined;
+  const rawSequence = stateValue.pStationSequence;
+  if (stateValue.threatSiteCode !== 'P' && rawSequence === undefined) return undefined;
+  if (!isRecord(rawSequence) || !isRecord(receiptValue) ||
+      !hasExactKeys(rawSequence, [
+        'type', 'sequenceId', 'groupId', 'chart', 'coordinate', 'stationId', 'sourceTransitionId',
+        'sourceCycle', 'attackNumber',
+      ]) || rawSequence.type !== 'p-station-sequence' || rawSequence.stationId !== 'P' ||
+      typeof rawSequence.sequenceId !== 'string' || typeof rawSequence.groupId !== 'string' ||
+      !/^fleet-[1-9][0-9]*$/.test(rawSequence.groupId) ||
+      (rawSequence.chart !== 'A' && rawSequence.chart !== 'B' && rawSequence.chart !== 'C') ||
+      typeof rawSequence.coordinate !== 'string' || !/^\d{4}$/.test(rawSequence.coordinate) ||
+      organiserSitesForChart(rawSequence.chart as ChartId)[rawSequence.coordinate]?.code !== 'P' ||
+      typeof rawSequence.sourceTransitionId !== 'string' ||
+      !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(rawSequence.sourceTransitionId) ||
+      rawSequence.sequenceId !== `wolf-p-station-${rawSequence.sourceTransitionId}` ||
+      !Number.isSafeInteger(rawSequence.sourceCycle) || (rawSequence.sourceCycle as number) < 1 ||
+      stateValue.status !== 'resolved' || stateValue.currentStep !== 'resolved' ||
+      typeof stateValue.attackId !== 'string' ||
+      !/^wolf-attack-[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test(stateValue.attackId) ||
+      !Number.isSafeInteger(stateValue.turn) || stateValue.turn !== rawSequence.sourceCycle ||
+      !Number.isSafeInteger(stateValue.attackNumber ?? 1) ||
+      rawSequence.attackNumber !== (stateValue.attackNumber ?? 1) ||
+      stateValue.targetGroupId !== rawSequence.groupId || stateValue.threatSiteCode !== 'P' ||
+      stateValue.threatSourceId !== `arrival-${rawSequence.sourceTransitionId}` ||
+      !Number.isSafeInteger(revisions.windowRevision) || revisions.windowRevision < 0 ||
+      !Number.isSafeInteger(revisions.preparationRevision) || revisions.preparationRevision < 0 ||
+      !Array.isArray(receiptValue.survivingWolfShips) || receiptValue.survivingWolfShips.length > 24) {
+    throw new Error('The finalized P Station survivor record is not bound to its attack sequence.');
+  }
+
+  const survivors: Array<Readonly<{ instanceId: string; shipId: WolfShipId }>> = [];
+  const seen = new Set<string>();
+  for (const rawShip of receiptValue.survivingWolfShips) {
+    if (!isRecord(rawShip) || !hasExactKeys(rawShip, ['instanceId', 'shipId', 'target']) ||
+        typeof rawShip.shipId !== 'string' || typeof rawShip.instanceId !== 'string' ||
+        typeof rawShip.target !== 'string' || !(WOLF_ATTACK_TARGET_IDS as readonly string[]).includes(rawShip.target)) {
+      throw new Error('The finalized P Station survivor record is malformed.');
+    }
+    const ship = wolfShipForId(rawShip.shipId);
+    if (!ship || !new RegExp(`^(0|[1-9]\\d*):${ship.id}$`).test(rawShip.instanceId) || seen.has(rawShip.instanceId)) {
+      throw new Error('The finalized P Station survivor identities are malformed.');
+    }
+    seen.add(rawShip.instanceId);
+    survivors.push({ instanceId: rawShip.instanceId, shipId: ship.id });
+  }
+
+  const sequenceId = rawSequence.sequenceId;
+  const groupId = rawSequence.groupId;
+  const attackId = stateValue.attackId;
+  const attackNumber = (stateValue.attackNumber ?? 1) as number;
+  const turn = stateValue.turn as number;
+  if (survivors.length === 0) {
+    return {
+      status: 'stopped', sequenceId, groupId, attackId, attackNumber, turn,
+    };
+  }
+
+  const threatSourceId = `arrival-${rawSequence.sourceTransitionId}`;
+  const nextAttackNumber = attackNumber + 1;
+  const context: PStationRepeatContext = {
+    type: 'p-station-repeat',
+    sequenceId,
+    groupId,
+    chart: rawSequence.chart as ChartId,
+    coordinate: rawSequence.coordinate,
+    stationId: 'P',
+    sourceTransitionId: rawSequence.sourceTransitionId,
+    sourceCycle: rawSequence.sourceCycle as number,
+    parentAttackId: attackId,
+    parentAttackNumber: attackNumber,
+    parentTurn: turn,
+    nextAttackNumber,
+  };
+  const preparation: WolfAttackPreparation = {
+    turn,
+    shipIds: survivors.map(({ shipId }) => shipId),
+    targetMode: 'pre-rolled',
+    targetAssignments: [],
+    modifiers: [],
+    notes: '',
+    revision: revisions.preparationRevision + 1,
+    compositionKind: 'p-station-repeat',
+    targetGroupId: groupId,
+  };
+  const window: WolfAttackWindow = {
+    status: 'due',
+    turn,
+    revision: revisions.windowRevision + 1,
+    targetGroupId: groupId,
+    threatSiteCode: 'P',
+    threatSourceId,
+  };
+  return {
+    status: 'repeat', sequenceId, context, targetGroupId: groupId, threatSourceId, turn,
+    nextAttackNumber, sourceInstanceIds: survivors.map(({ instanceId }) => instanceId), survivors,
+    window, preparation,
+  };
 }
