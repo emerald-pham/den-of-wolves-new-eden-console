@@ -536,6 +536,7 @@ describe('central Wolf combat math', () => {
         boarderCasualties: 1, survivingBoardingParties: 3, damage: 3 }],
       fleetDamage: [expect.objectContaining({ target: 'aegis', amount: 1 })],
     });
+    expect(resolved.fleetDamage[0]).toMatchObject({ populationBefore: INITIAL_SHIP_SURVIVORS.aegis });
     expect(randomCalls).toBe(2); // one defense die and one post-Force-Field damage draw
     expect(Object.isFrozen(resolved)).toBe(true);
   });
