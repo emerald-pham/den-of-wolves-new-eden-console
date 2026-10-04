@@ -14,6 +14,7 @@ const mock = vi.hoisted(() => ({
   turnPhase: undefined as unknown,
   turnState: undefined as unknown,
   activeVesselIds: ['dione'] as string[],
+  presidentialOffices: undefined as unknown,
   capitalState: undefined as unknown,
   entries: [] as Record<string, unknown>[],
   rawState: undefined as unknown,
@@ -42,8 +43,8 @@ const data = {
   sessionId: 's1', requestId: 'president-request-1', kind: 'fleet-policy',
   text: 'Preserve civilian fuel reserves.', expectedRevision: 0,
 };
-const request = (input: Record<string, unknown> = data) => ({
-  data: input, auth: { uid: 'u1' },
+const request = (input: Record<string, unknown> = data, uid = 'u1') => ({
+  data: input, auth: { uid },
 }) as CallableRequest<Record<string, unknown>>;
 
 beforeEach(() => {
@@ -54,6 +55,7 @@ beforeEach(() => {
     shipUnrest: undefined,
     vesselActionRevisions: undefined, unrestAlerts: undefined,
     turnPhase: undefined, turnState: undefined, activeVesselIds: ['dione'],
+    presidentialOffices: undefined,
     capitalState: undefined,
     politicalCapital: undefined, outcomeExists: true, outcomeId: 'crisis-1', outcomeRevision: 4,
     outcomeCapitalGranted: false,
@@ -112,6 +114,7 @@ beforeEach(() => {
       currentTurn: mock.currentTurn,
       activeRoleIds: ['dione-president', 'dione-captain', 'dione-engineer'],
       activeVesselIds: mock.activeVesselIds,
+      presidentialOffices: mock.presidentialOffices,
       presidentWorkspace: mock.rawState ?? { revision: mock.revision, entries: mock.entries },
       politicalCapital: mock.capitalState ?? mock.politicalCapital,
       shipUnrest: mock.shipUnrest,
@@ -346,6 +349,30 @@ it('denies other roles and a GM without scoped ship-console authority', async ()
     code: 'permission-denied',
   });
   expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('grants bounded President actions to the elected office holder across ship seats', async () => {
+  mock.post = 'icebreaker-captain';
+  mock.assignedRole = 'icebreaker-captain';
+  mock.seat = 'icebreaker-captain';
+  mock.presidentialOffices = { presidentUid: 'u1', vicePresidentUid: 'u3', revision: 1 };
+
+  await expect(recordPresidentActionCommand.run(request({ ...data, kind: 'fleet-policy' })))
+    .resolves.toMatchObject({ revision: 1, entries: [{ kind: 'fleet-policy' }] });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    presidentWorkspace: expect.objectContaining({ revision: 1 }),
+  }));
+});
+
+it.each([
+  ['replaced Dione station President', { presidentUid: 'u2', revision: 2 }],
+  ['Vice President without presidential authority', { presidentUid: 'u2', vicePresidentUid: 'u1', revision: 2 }],
+])('denies %s from using President powers', async (_label, offices) => {
+  mock.presidentialOffices = offices;
+  await expect(recordPresidentActionCommand.run(request({ ...data, kind: 'fleet-policy' })))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it('denies short-staff cover and mismatched President role pointers without a write', async () => {
