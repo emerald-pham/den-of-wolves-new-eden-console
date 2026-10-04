@@ -162,8 +162,9 @@ behavior; the owner is never asked to inspect code or perform rule arithmetic.
   the ID or lower 703/751, and does not block the playable attack exit gate.
   Continue independent work while resolving it under existing policy.
   **October 4 owner decision:** the owner explicitly activated this existing
-  P605a scope for PC09. Complete the checkpoint including visualization, then
-  hold for a new owner instruction. All P433a proof/privacy boundaries remain.
+  P605a scope for PC09. A later instruction on the same date superseded the
+  hold and authorized PC10 and post work through subsequent separate tasks.
+  This task completes PC09 only. All P433a proof/privacy boundaries remain.
 
 ### PC10 — Endings, integration and full-game proof
 

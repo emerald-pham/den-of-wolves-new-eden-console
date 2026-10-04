@@ -19,7 +19,9 @@ mixed-source receipts, result/projection accuracy and attack-bound retries.
 The owner explicitly activated P605a on October 4: “do visualization, hold after
 doing checkpoint with viz.” The parent conveyed that decision to this MacBook
 orchestrator. Complete its existing P433a-backed visualization/privacy acceptance
-within the fixed 49 IDs, then hold after PC09 until a new owner instruction.
+within the fixed 49 IDs. The later owner instruction “actually just proceed
+thru pc10 and post, ty” superseded the hold. This task still ends with PC09;
+the parent owns the subsequent revision and separate PC10 dispatch.
 Do not start or revise PC10, post-PC10 work or PC11 here. A brief disconnect
 does not authorize migration; the parent owns any backup decision after 25
 continuous hours of MacBook failure.

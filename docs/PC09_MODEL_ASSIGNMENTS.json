@@ -9,7 +9,7 @@
       "executionThreadId": "01a10709-1bca-70cd-a746-42e74c1fa010",
       "purpose": "PC09 orchestration, owner implementation/integration, proof, documentation and release",
       "scope": [
-        "PC09 only; complete then HOLD"
+        "PC09 only; return verified completion for separate PC10 task"
       ],
       "launchModel": "gpt-6.1-sol",
       "launchEffort": "max",
@@ -186,20 +186,34 @@
       "effectiveModelConfirmed": false,
       "modelChanges": [],
       "scopeChanges": [
-        "Interrupted at 2026-10-04 14:36:05 UTC; followup_task restricts work to tests/proof/documentation, with no model override"
+        "Interrupted at 2026-10-04 14:36:05 UTC; followup_task restricts work to tests/proof/documentation, with no model override",
+        "After Astra completed 52d0ee9c, followup_task resumed Luna validation/proof/documentation with no model override."
       ]
-    }
-  ],
-  "pending": [
+    },
     {
       "taskId": "/root/pc09_dradis_astra",
+      "executionThreadId": null,
+      "purpose": "P605a product implementation only; no tests/review/docs/orchestration or other prompts",
       "scope": [
         "605a product implementation only"
       ],
-      "model": "gpt-6-astra",
-      "effort": "max",
-      "status": "Not launched; awaiting Luna test-first snapshot. No duplicate visualization implementation is running."
-    },
+      "launchModel": "gpt-6-astra",
+      "launchEffort": "max",
+      "launchArguments": {
+        "task_name": "pc09_dradis_astra",
+        "model": "gpt-6-astra",
+        "reasoning_effort": "max",
+        "fork_turns": "none"
+      },
+      "launchEvidence": "Accepted collaboration.spawn_agent call returned /root/pc09_dradis_astra on October 4, after Luna ended its test-only snapshot turn. Separate worktree starts at 9348741cf8160672fe7f998e4257029443dcfbfc.",
+      "effectiveModelConfirmed": false,
+      "modelChanges": [],
+      "restrictionEvidence": "Dispatch explicitly forbids other prompts, coordinator/delegation/default changes, test edits/runs, repository documentation, proof/CI/release and parent messaging; user requires existing DRADIS design.",
+      "worktree": "/private/tmp/dow-pc09-dradis-astra-20261004",
+      "completionEvidence": "Code-only commit 52d0ee9c6c8bfd25ae6866a2cdbacf222076870f returned; worker stopped without tests, docs, review or release."
+    }
+  ],
+  "pending": [
     {
       "taskId": "independent reconciled risk reviewer",
       "model": "gpt-6.1-sol",
@@ -209,8 +223,9 @@
   ],
   "findings": [
     "No recorded model-change call or general model-default change.",
-    "No Astra launch has occurred at this snapshot.",
-    "The original Luna P605a delegate is now test-only; product implementation will be isolated in a separate Astra task.",
+    "Exactly one explicit Astra launch; isolated scope is P605a implementation only, with fresh history and no inherited exception.",
+    "The original Luna P605a delegate finished its committed failing-test snapshot before the Astra launch; it owns later proof/testing/documentation, with no duplicate product implementation.",
+    "Other five workers launched explicitly as Luna6 Max; root requested Sol6.1 Max and independent review remains Sol6.1.",
     "Effective runtime models are unexposed; launch settings are auditable, backend effective-model confirmation remains unavailable."
   ]
 }

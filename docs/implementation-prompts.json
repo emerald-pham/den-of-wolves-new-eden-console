@@ -6461,6 +6461,13 @@
       "language": "The owner explicitly instructed: do visualization, hold after doing checkpoint with viz. The parent conveyed that authorization to the MacBook PC09 orchestrator. This activates only the existing P605a scope after the released P433a contract/privacy foundation; fixed 49 IDs and 703/751 target remain. No hidden telemetry, preparation disclosure, rule changes or closure evidence are inferred. After PC09 including visualization, hold without starting or revising PC10 or later tasks until a new owner instruction. Cloud execution is only a parent-owned backup decision after 25 continuous hours of MacBook failure, not a brief disconnect.",
       "source": "docs/PRODUCT_MILESTONE_FEEDBACK.md; docs/PC09_EXECUTION_RECORD.md",
       "type": "owner decision / scope / stopping condition"
+    },
+    {
+      "direction": "PC09 completion -> separate PC10 revision/dispatch -> existing post-PC10 work",
+      "id": "E-PC09-CONTINUATION-20261004",
+      "language": "The later October 4 owner instruction, actually just proceed thru pc10 and post, ty, supersedes the earlier hold after PC09 visualization. Complete PC09 including its activated P605a and verify its single release first. Parent then revises PC10 and launches a separate Sol 6.1 Max orchestrator, followed by existing post-PC10 work. One checkpoint at a time; the PC09 execution task implements no future phase. Fixed assignments and targets, MacBook primary and 25-continuous-hour backup boundary, existing DRADIS design and the narrow Astra P605a product-implementation-only exception remain unchanged. This record grants sequencing authorization only, not completion credit.",
+      "source": "October 4 owner instruction conveyed in parent codex_delegation; docs/PC09_EXECUTION_RECORD.md; docs/PRODUCT_MILESTONE_FEEDBACK.md; docs/CHECKPOINT_COMPLETION_PLAN.md",
+      "type": "owner decision / sequence"
     }
   ],
   "plan": {

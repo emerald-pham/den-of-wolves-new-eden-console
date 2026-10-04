@@ -151,8 +151,10 @@ with its dependencies satisfied and another baseline ID replacing it; it
 cannot change any cumulative target or lose any baseline ID. The owner explicitly
 activated P605a on October 4 for PC09, preserving its existing P433a contract and
 privacy requirements. It remains in the 49-ID closure obligation and 703/751
-target. Complete PC09 including visualization, then hold; no PC10 revision,
-execution or later work starts until a new owner instruction.
+target. The later October 4 owner instruction “actually just proceed thru pc10
+and post, ty” supersedes the hold. Complete PC09 including visualization,
+then the parent revises PC10 and dispatches its separate orchestrator before
+existing post-PC10 work. One checkpoint at a time; no future execution here.
 
 The post-release audit records ten open runtime findings (one P1, seven P2,
 two P3). PC09 must first repair the shared progression/carryover blockers, then

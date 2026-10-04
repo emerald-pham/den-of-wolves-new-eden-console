@@ -608,7 +608,9 @@ The latest transition review found no new UI feedback awaiting cooldown.
 Adopt existing CIC/typography, truthful contacts, clock recovery, one-facilitator
 automation, private audiences and normal authenticated emulator proof decisions.
 The owner explicitly activated P605a on October 4 and instructed completion
-of PC09 including visualization, then hold. The existing P433a projection and
+of PC09 including visualization. A later October 4 instruction authorizes
+continuation through PC10 and post work via subsequent separate tasks. The
+parent owns the PC10 revision and dispatch after PC09 completion. The existing P433a projection and
 privacy contract remains; the visualization extends the established DRADIS
 design. The narrow Astra implementation exception and launch/change audit are
 recorded in the current feedback and model manifest; all tests, documentation,

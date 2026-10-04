@@ -367,6 +367,28 @@ the original assumption; append the resolution so the decision is traceable.
 | Product effect | P476 destruction, cards, casualties, escape implications and audience projections share the finalization transaction. Armour still follows its printed recycling and casualty protection. Regressions distinguish combat catastrophe from the unchanged noncombat ruling path; no card/deck contents enter the member view. |
 | Review state | New scope clarification under the PC09 dispatch. Root visually verified the primary damage page and failed-jump page for PC09-A3. Implementation, independent review, full gameplay and release evidence remain pending. |
 
+### PC09-A5 — Keep Approaching Vessel judgment explicit and privately bound
+
+| Field | Record |
+|---|---|
+| ID and milestone | PC09-A5; P537–P540; recorded 2026-10-04. |
+| Source passage | Home Printing A4 SS v1.1 PDF p. 11 supplies the Approaching Vessel card and four response postures. Facilitator's Guide v1.1 PDF p. 12 / printed p. 11 delegates the vessel's truth, trap and response to the facilitator according to the fleet's performance; PDF p. 11 / printed p. 10 supplies difficulty judgment. Exact sources were inspected by the crisis worker. |
+| Ambiguity and alternatives | The printed event does not define an automatic posture-to-trap algorithm or a universal pressure adjustment. Inventing one would change the rules. Merely storing a note without delivering the chosen consequence would leave the assigned event incomplete. |
+| Chosen reading | Record the facilitator's real/trap judgment, response, timing/deadline, pressure consequence and rationale against the current event before resolving it. Preserve the four printed choices. Approved public instructions reach their entitled audience; hidden truth, pressure reasoning and private receipt stay facilitator-only. A real vessel follows the existing Voyage admission path when that is the recorded ruling. |
+| Product effect | P537–P540 use current-event authority, immutable choice/receipt binding and once-only application. No client-invented global pressure or secret data is added to the member session. Retry, stale judgment and audience tests distinguish this explicit policy from automatic invented rules. |
+| Review state | Source-backed bounded assumption under the PC09 dispatch; native and authenticated proof, independent review and release remain required. |
+
+### PC09-A6 — Configure election policy before ballots and keep offices separate from seats
+
+| Field | Record |
+|---|---|
+| ID and milestone | PC09-A6; P524b–P524d and P528/P529; recorded 2026-10-04. |
+| Source passage | Home Printing A4 SS v1.1 PDF p. 12 supplies Presidential Election; PDF p. 37 supplies President Powers. The crisis worker inspected the exact pages. The table must settle electorate, voting procedure, timing, campaigning and supply use. Printed offices do not supply a Vice President console or automatic succession rule. |
+| Ambiguity and alternatives | The catalog requires configurable voting, tally and lawful successor authority, while existing core roles contain President and no Vice President seat. Replacing a core seat or inventing Vice President powers would expand scope. An election that changes a label without transferring the bounded President authority would be incomplete. |
+| Chosen reading | Fix a facilitator-authored policy before opening ballots. Resolve eligible active voters, optional one-ship/population weighting and tally on the server; keep voter identifiers and ballots private and expose opaque candidate labels. Follow the configured tie rule, retaining explicit facilitator resolution where selected. Campaign/supply policy records do not themselves spend unpriced resources. Publish elected offices in a session-scoped projection separate from core seat assignments. The elected President can use existing bounded President powers; the previous office holder loses that office authority. No Vice President powers or automatic succession are inferred. |
+| Product effect | P524b–P524d and P528/P529 connect secret once-only ballots, server tally, current elected authority and formal next-Team announcement. Office assignment grants neither GM/private access nor generic resource writes. Press publication remains optional and distinct from mandatory formal announcements. |
+| Review state | Source-backed bounded assumption under the PC09 dispatch; authority/ballot privacy, native and authenticated proof, independent review and release remain required. |
+
 ### PC07-A1 — Preserve the server clock behind a cycle briefing
 
 | Field | Decision |

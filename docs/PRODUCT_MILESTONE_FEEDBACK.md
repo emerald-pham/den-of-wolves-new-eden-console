@@ -328,3 +328,13 @@ remains on the MacBook; a brief disconnect does not authorize migration. The
 parent owns any backup decision after 25 continuous hours of MacBook failure.
 This record grants activation and scope only, not implementation or closure
 credit.
+
+## PC09 completion followed by separate PC10 and post work — 2026-10-04
+
+The owner's later instruction “actually just proceed thru pc10 and post, ty”
+supersedes the earlier hold after visualization. Complete and verify PC09 first.
+The parent then revises PC10 and launches its separate Sol 6.1 Max orchestrator,
+followed by existing post-PC10 work. The PC09 task implements no future phase.
+The narrow Astra P605a implementation-only exception, existing DRADIS design,
+MacBook execution and 25-continuous-hour backup boundary remain unchanged.
+This decision changes sequence authorization only and grants no closure credit.
