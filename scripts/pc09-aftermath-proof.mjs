@@ -31,6 +31,17 @@ export function normalizeFinalizationReceipt(value) {
   return normalized;
 }
 
+export function finalizationAudienceThreatCounts(receipt) {
+  assert.ok(isRecord(receipt) && Array.isArray(receipt.survivingWolfShips),
+    'A complete finalized survivor list is required to compare the member audience.');
+  const returningInstanceIds = receipt.returningInstanceIds === undefined ? [] : receipt.returningInstanceIds;
+  assert.ok(Array.isArray(returningInstanceIds), 'The finalized return list must be an array when present.');
+  return {
+    remainingThreatCount: receipt.survivingWolfShips.length,
+    returningThreatCount: returningInstanceIds.length,
+  };
+}
+
 function restValue(value) {
   if (!isRecord(value)) return undefined;
   if (Object.hasOwn(value, 'nullValue')) return null;
@@ -412,8 +423,9 @@ export async function runPc09AftermathProof(f, { directory, finalState, actorAll
     if (requested.has('warrior-salvage')) assert.ok(audience.results.some((row) => row.sourceId === 'warrior-salvage-drones'));
     if (requested.has('macaw-scrap')) assert.ok(audience.results.some((row) => row.sourceId === 'capybara-scrap-collection-macaw'));
     if (requested.has('boa-scrap')) assert.ok(audience.results.some((row) => row.sourceId === 'capybara-scrap-collection-boa'));
-    assert.equal(audience.remainingThreatCount, receipt.survivingWolfShips.length);
-    assert.equal(audience.returningThreatCount, receipt.returningInstanceIds.length);
+    const expectedThreatCounts = finalizationAudienceThreatCounts(receipt);
+    assert.equal(audience.remainingThreatCount, expectedThreatCounts.remainingThreatCount);
+    assert.equal(audience.returningThreatCount, expectedThreatCounts.returningThreatCount);
     checks.authenticatedImmediateAudienceHasOnlySafeResults = true;
   }
 
