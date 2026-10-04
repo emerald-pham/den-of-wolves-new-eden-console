@@ -23,6 +23,7 @@ const mock = vi.hoisted(() => ({
   capybaraEnabled: true, dioneEnabled: true,
   fleetSurvivorPopulationAdjustment: 0,
   turnStartAnnouncement: undefined as unknown,
+  pendingTeamAnnouncements: undefined as unknown,
   turnPhase: undefined as unknown, turnState: undefined as unknown, phase: 'active' as string,
   smallShipStates: {} as Record<string, unknown>,
   turnLimit: 6 as 6 | 7 | 8, pressDispatch: undefined as unknown,
@@ -496,6 +497,7 @@ beforeEach(() => {
   mock.smallShipStates = {};
   mock.fleetSurvivorPopulationAdjustment = 0;
   mock.turnStartAnnouncement = undefined;
+  mock.pendingTeamAnnouncements = undefined;
   mock.fleetTicker = undefined;
   mock.wolfAttackState = undefined;
   mock.navigation = undefined;
@@ -647,6 +649,7 @@ beforeEach(() => {
           shipUpgrades: mock.shipUpgrades,
           fleetSurvivorPopulationAdjustment: mock.fleetSurvivorPopulationAdjustment,
           turnStartAnnouncement: mock.turnStartAnnouncement,
+          pendingTeamAnnouncements: mock.pendingTeamAnnouncements,
           capybaraEnabled: mock.capybaraEnabled,
           dioneEnabled: mock.dioneEnabled,
           turnPhase: mock.turnPhase,
@@ -3140,6 +3143,42 @@ it('skips the numbered-turn fullscreen transmission when requested', async () =>
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     currentTurn: 2,
     turnStartAnnouncement: 'delete-field',
+  }));
+});
+
+it('delivers queued formal outcomes at the next Team start even when the ordinary briefing is skipped', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-06T12:00:00.000Z'));
+  mock.currentTurn = 1;
+  mock.pendingTeamAnnouncements = [{
+    id: 'crisis-law-1', kind: 'binding-resolution', title: 'New fleet law',
+    details: 'Every ship will publish its supply requests.', decidedCycle: 1,
+  }];
+  mock.capybaraEnabled = false;
+  mock.shipSurvivors = {
+    aegis: 1_000, dione: 90_000, icebreaker: 30_000, capybara: 20_000,
+    shepherd: 20_000, quellon: 10_000, 'refinery-124': 5_000,
+  };
+  mock.turnPhase = {
+    turn: 1,
+    teamPhaseEndsAt: '2026-09-06T11:55:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T11:59:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+  };
+  const decision = {
+    id: 'crisis-law-1', kind: 'binding-resolution', title: 'New fleet law',
+    details: 'Every ship will publish its supply requests.', decidedCycle: 1,
+  };
+
+  await expect(advanceTurn.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 1, skipTurnStartAnnouncement: true,
+  }))).resolves.toMatchObject({
+    currentTurn: 2,
+    turnStartAnnouncement: { turn: 2, formalOnly: true, formalAnnouncements: [decision] },
+  });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    pendingTeamAnnouncements: 'delete-field',
+    turnStartAnnouncement: { turn: 2, survivorPopulation: expect.any(Number), formalOnly: true, formalAnnouncements: [decision] },
   }));
 });
 
