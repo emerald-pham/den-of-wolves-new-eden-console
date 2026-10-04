@@ -46,3 +46,16 @@ it('renders the real President workspace from props and calls injected actions',
   await user.click(screen.getByRole('button', { name: 'Gain 1' }));
   await waitFor(() => expect(onChangePoliticalCapital).toHaveBeenCalledWith('gain'));
 });
+
+it('explains when the resolved-crisis capital award was handled at the ledger cap', () => {
+  const cappedCrisisSession = {
+    ...session,
+    politicalCapital: { revision: 8, balance: 8, entries: [] },
+    resolvedCrisisOutcome: { crisisId: 'c1', revision: 2, title: 'Settlement', capitalApplied: false, capitalDelta: 0 },
+  } as unknown as GameSession;
+  render(<PresidentWorkspaceView session={cappedCrisisSession} live
+    onRecordPresidentAction={vi.fn().mockResolvedValue(undefined)}
+    onChangePoliticalCapital={vi.fn().mockResolvedValue(undefined)}
+    onPresidentialVisit={vi.fn().mockResolvedValue(undefined)} />);
+  expect(screen.getByText(/capital award was recorded but not added because the ledger is at its maximum/i)).toBeVisible();
+});
