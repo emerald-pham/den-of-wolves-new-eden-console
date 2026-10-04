@@ -185,7 +185,10 @@ function admitRangeSupportChoices(): void {
     activeVesselIds: [...(session.activeVesselIds as string[]), 'capybara'],
     activeRoleIds: ['executive-officer', 'icebreaker-miner', 'capybara-recycler', 'gorgoneion-captain'],
     shuttleFuelled: { highwall: true, boa: false },
-    shuttleDockings: [{ shuttleId: 'highwall', shipId: 'icebreaker' }, { shuttleId: 'boa', shipId: 'capybara' }],
+    shuttleDockings: [
+      { shuttleId: 'highwall', shipId: 'icebreaker', dockedAt: '2026-10-02T12:00:00.000Z' },
+      { shuttleId: 'boa', shipId: 'capybara', dockedAt: '2026-10-02T12:00:00.000Z' },
+    ],
     shuttleControl: {
       highwall: { shuttleId: 'highwall', ownerRoleId: 'icebreaker-miner', ownerUid: 'miner-1', holderUid: 'miner-1', revision: 2 },
       boa: { shuttleId: 'boa', ownerRoleId: 'capybara-recycler', ownerUid: 'recycler-1', holderUid: 'recycler-1', revision: 3 },
