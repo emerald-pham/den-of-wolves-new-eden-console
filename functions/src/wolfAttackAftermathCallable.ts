@@ -35,6 +35,19 @@ function record(value: unknown): value is RecordValue {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function fingerprintValuesEqual(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return Array.isArray(left) && Array.isArray(right) && left.length === right.length &&
+      left.every((value, index) => fingerprintValuesEqual(value, right[index]));
+  }
+  if (!record(left) || !record(right)) return false;
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+  return leftKeys.length === rightKeys.length &&
+    leftKeys.every((key) => Object.hasOwn(right, key) && fingerprintValuesEqual(left[key], right[key]));
+}
+
 function canonicalId(value: unknown, max = 128): value is string {
   return typeof value === 'string' && value.length > 0 && value.length <= max && /^[\w-]+$/.test(value);
 }
@@ -113,7 +126,7 @@ function replayResult(snapshot: DocumentSnapshot, fingerprint: RecordValue): Rec
   if (prior.actorUid !== fingerprint.actorUid) {
     throw new HttpsError('permission-denied', 'This request id belongs to a different player.');
   }
-  if (JSON.stringify(prior) !== JSON.stringify(fingerprint)) {
+  if (!fingerprintValuesEqual(prior, fingerprint)) {
     throw new HttpsError('failed-precondition', 'This aftermath request id is bound to a different choice.');
   }
   const result = snapshot.get('result');
