@@ -478,7 +478,7 @@ it('resolves a finalized same-cycle P Station repeat from its complete immutable
     .map(({ instanceId, shipId, target }) => ({ instanceId, shipId, target }));
   const returningInstanceIds = [...(prior.calculationReceipt as Fields).returningInstanceIds as string[], battlestation.instanceId];
   const marker = { type: 'p-station-sequence', sequenceId: 'wolf-p-station-transition-1',
-    groupId: 'fleet-1', chart: 'A', coordinate: '0102', stationId: 'P', sourceTransitionId: 'transition-1',
+    groupId: 'fleet-1', chart: 'A', coordinate: '4888', stationId: 'P', sourceTransitionId: 'transition-1',
     sourceCycle: 1, attackNumber: 4 };
   const receipt = { ...(prior.calculationReceipt as Fields), ranges: rangeReceipts, returningInstanceIds, survivingWolfShips };
   const carryover = { sourceAttackId: 'wolf-attack-prior-3', sourceTurn: 1,
