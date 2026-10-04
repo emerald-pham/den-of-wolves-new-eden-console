@@ -3,6 +3,16 @@
   "baseline": "ebbad230b815e6962e35f303cb529b5612e1d046",
   "auditBoundary": "Owner before/after AST runtime reachability, changed index definitions/imports/exports and manual consumer audit; independent exact-candidate review is separate.",
   "modules": {
+    "functions/src/consoleMetadata.ts": {
+      "before": "6c1522e159d019caf977d85ede4f93d1bc75ef01257224144bae82f113679335",
+      "after": "9884d283e3347b5196753f1906d96b9f077f9aa97e9eeb9bf45cb5580873a97f",
+      "consumers": [
+        "readEndeavourResearchWorkspace",
+        "rechargeHostConsoleFromShuttle",
+        "runVulcanAdditionalLabour",
+        "upgradeEndeavourFieldTargets"
+      ]
+    },
     "functions/src/craftOwnership.ts": {
       "before": "c2a1d064c0710d0991de6305b715fca7a6db751b6987bdf79cc65747897a4cbd",
       "after": "d18fd6e8dfa01ef54dbfa62bc04f3856851ae9c2032d4a0523fdead3c14aa9de",
