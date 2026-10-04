@@ -62,7 +62,8 @@ export default function FleetSystemsWorkspace({
 }) {
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
-  const [page, setPage] = useState<'systems' | 'navigation'>('systems');
+  const [page, setPage] = useState<'systems' | 'maintenance' | 'navigation'>('systems');
+  const executiveMaintenance = ship.id === 'aegis' && role.id === 'executive-officer';
   const maintenance = ship.maintenance;
   const population = shipState?.population ?? session?.shipSurvivors?.[ship.id] ?? ship.initialSurvivors;
   const capybaraPopulationOffTrack = ship.id === 'capybara' &&
@@ -124,13 +125,15 @@ export default function FleetSystemsWorkspace({
     (me.assignedRoleId === PDF_ROLE_CONSOLE.roleId || me.seatId === PDF_ROLE_CONSOLE.roleId) &&
     (!me.assignedRoleId || !me.seatId || me.assignedRoleId === me.seatId);
   return <FleetRoleConsoleTemplate shipName={ship.name} roleName={role.name}
-    title={page === 'systems' ? 'Ship systems' : 'Navigation'}
+    title={page === 'maintenance' ? 'Maintenance' : page === 'systems' ? 'Ship systems' : 'Navigation'}
     galacticCoordinate={galacticCoordinate} fuel={fuel}
     reactorCapacity={commandMetrics.reactorCapacity}
     jumpCosts={[commandMetrics.jumpCosts.short, commandMetrics.jumpCosts.medium, commandMetrics.jumpCosts.long]}
     jumpDriveUpgraded={upgrades.includes('jump-drive')}
     damage={damage}
-    pages={[{ id: 'systems', label: 'Ship systems' }, { id: 'navigation', label: 'Navigation' }]}
+    pages={[{ id: 'systems', label: 'Ship systems' },
+      ...(executiveMaintenance ? [{ id: 'maintenance' as const, label: 'Maintenance' }] : []),
+      { id: 'navigation', label: 'Navigation' }]}
     activePage={page} onPageChange={setPage}>
     {page === 'navigation' ? <ShipNavigationWorkspace
       shipId={ship.id}
@@ -140,10 +143,11 @@ export default function FleetSystemsWorkspace({
       knownCoordinates={knownCoordinates}
       knownSystems={knownSystems}
       consoleLocked={consoleLocked}
-    /> : <>
-      {ship.id === 'aegis' && role.id === 'executive-officer' &&
+    /> : page === 'maintenance' && executiveMaintenance
+      ?
         <AegisMaintenanceSystems galacticCoordinate={galacticCoordinate} fuel={fuel}
-          damage={damage} damageDraws={damageDraws} consoleLocked={consoleLocked} shipState={shipState} />}
+          damage={damage} damageDraws={damageDraws} consoleLocked={consoleLocked} shipState={shipState} />
+      : <>
       {maintenance
       ? <MaintenanceSystems shipId={ship.id} name={ship.name} systems={systems} renderSystem={renderSystem} damageDraws={damageDraws} shipState={shipState} rations={<>
       <div className="aegis-ration-table"><table aria-label={`${ship.name} ${ship.id === 'capybara' ? 'active' : 'initial'} ration schedule`}>
