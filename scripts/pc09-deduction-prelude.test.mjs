@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { runPc09DeductionPrelude } from './pc09-deduction-prelude.mjs';
 
 function field(value) {
@@ -32,6 +35,9 @@ function fixture() {
       investigatorUid: field(intelligenceAgent.localId), targetUid: field(wolfAgent.localId),
       reportedWolf: field(true), revision: field(1),
     } };
+    if (String(url).includes('/wolfHackingAlerts/') && options?.headers?.Authorization !== 'Bearer gm-token') {
+      return { status: 403, json: async () => ({}) };
+    }
     if (String(url).includes('/intelligenceInvestigations/') && options?.headers?.Authorization === 'Bearer token-1') {
       return { status: 403, json: async () => ({}) };
     }
@@ -43,9 +49,9 @@ function fixture() {
       config: { firestorePort: 8090 }, session: { get: async () => ({ get: key => key === 'currentTurn' ? 1 : undefined }) },
       loyaltyActors: { wolfAgent, wolfCult, intelligenceAgent },
       explicitLoyaltySetupProof: [
-        { roleId: wolfAgent.roleId, kind: 'wolf-agent' },
-        { roleId: wolfCult.roleId, kind: 'wolf-cult' },
-        { roleId: intelligenceAgent.roleId, kind: 'intelligence-agent' },
+        { roleId: wolfAgent.roleId, targetUid: wolfAgent.localId, kind: 'wolf-agent' },
+        { roleId: wolfCult.roleId, targetUid: wolfCult.localId, kind: 'wolf-cult' },
+        { roleId: intelligenceAgent.roleId, targetUid: intelligenceAgent.localId, kind: 'intelligence-agent' },
       ],
       call: async (actor, name, data) => {
         callLog.push({ actor: actor.localId, name, data });
@@ -71,6 +77,11 @@ function fixture() {
           requestId: data.requestId, alertId: data.alertId, noticeId: 'notice-000000000001',
           noticeSequence: 1, revision: 2,
         } };
+        if (name === 'calculateArrestPosse') return { status: 200, result: {
+          type: 'arrest-posse-calculation', sessionId: 'session-1', revision: 1,
+          requestId: data.requestId, targetUid: wolfAgent.localId, defenders: 0,
+          requiredPlayers: 6, censusRevision: 21,
+        } };
         throw new Error(`Unexpected authenticated action: ${name}`);
       },
       ok: (reply, name) => { assert.equal(reply.status, 200, name); return reply.result; },
@@ -80,10 +91,20 @@ function fixture() {
 
 test('runs investigator, physical Wolf sabotage, facilitator review, and proves private/public projections separately', async () => {
   const { f, callLog, urlLog } = fixture();
-  const result = await runPc09DeductionPrelude(f, { directory: '/tmp/pc09-proof' });
+  const previousFetch = globalThis.fetch;
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'pc09-prelude-test-'));
+  let result;
+  try {
+    result = await runPc09DeductionPrelude(f, { directory });
+    const evidence = await readFile(path.join(directory, 'pc09-deduction-prelude.json'), 'utf8');
+    assert.equal(evidence.includes('token-'), false);
+  } finally {
+    globalThis.fetch = previousFetch;
+    await rm(directory, { recursive: true, force: true });
+  }
   assert.deepEqual(callLog.map(entry => entry.name), [
     'investigateAsIntelligenceAgent', 'startWolfConsoleVisit',
-    'resolveWolfConsoleSabotage', 'acknowledgeWolfHackingAlert',
+    'resolveWolfConsoleSabotage', 'acknowledgeWolfHackingAlert', 'calculateArrestPosse',
   ]);
   assert.equal(callLog[0].actor, 'uid-8');
   assert.equal(callLog[0].data.targetUid, 'uid-6');
