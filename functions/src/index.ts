@@ -660,6 +660,7 @@ import {
   type WolfBoardingDefence,
   type WolfBoardingRerollChoice,
   type WolfCalculationReceipt,
+  type WolfFighterAceActionReceipt,
   type FleetCombatState,
   type WolfFleetTargetId,
   type WolfTargetingReceipt,
@@ -22468,6 +22469,9 @@ async function reconcileWolfAttackBoarding(
   const ranges = rawRangeReceipts as readonly WolfRangeReceipt[];
   const attackId = state.get('attackId');
   if (typeof attackId !== 'string' || !attackId) return;
+  const rawFighterAceAction = state.get('pdfFighterAceAction');
+  const fighterAceAction = isRecord(rawFighterAceAction) && rawFighterAceAction.attackId === attackId
+    ? rawFighterAceAction as unknown as WolfFighterAceActionReceipt : undefined;
   const rawForceFieldChoice = state.get('forceFieldChoice');
   let forceFieldTargetId: WolfFleetTargetId | null = null;
   if (rawForceFieldChoice !== undefined) {
@@ -22492,7 +22496,7 @@ async function reconcileWolfAttackBoarding(
   const resolvedAt = new Date().toISOString();
   const fingerprint = JSON.stringify({
     attackId, turn: currentTurn, revision: currentRevision, phase,
-    targetRing, targeting, roster, ranges, boardingDefence, forceFieldTargetId,
+    targetRing, targeting, roster, ranges, boardingDefence, forceFieldTargetId, fighterAceAction,
     session: {
       currentTurn: session.get('currentTurn'), activeVesselIds: session.get('activeVesselIds'),
       shipDamage: session.get('shipDamage'), shipSurvivors: session.get('shipSurvivors'),
@@ -22511,6 +22515,8 @@ async function reconcileWolfAttackBoarding(
     try {
       receipt = finalizeWolfAttack({
         requestId: `wolf-final-${attackId}`,
+        attackId,
+        ...(fighterAceAction ? { fighterAceAction } : {}),
         targeting,
         roster: roster as readonly WolfCombatShip[],
         ranges,
