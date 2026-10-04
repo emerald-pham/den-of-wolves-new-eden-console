@@ -72,6 +72,7 @@ import { normalizePressDispatch } from './pressDispatchState';
 import { parseArrestPosseCalculation } from './firestore';
 import {
   acceptCallableSessionAuthority,
+  sessionSnapshotAuthorityFor,
 } from './sessionSnapshotAuthority';
 import {
   captureSessionAuthority,
@@ -423,11 +424,16 @@ function authorityCheckpointIsCurrent(
 function wolfCommanderAuthorityCheckpointIsCurrent(
   sessionId: string,
   checkpoint: SessionAuthorityCheckpoint | undefined,
+  expectedCycle?: number,
 ): boolean {
   const store = useSessionStore.getState();
-  return store.session?.id === sessionId && store.me?.sessionId === sessionId &&
+  return checkpoint !== undefined && checkpoint.sessionId === sessionId &&
+    store.session?.id === sessionId && store.me?.sessionId === sessionId &&
+    store.me?.uid === checkpoint.uid && store.me?.role === 'player' &&
     store.me?.replacementRoleId === 'wolf-commander' && store.me.replacementStatus == null &&
-    authorityCheckpointIsCurrent(checkpoint);
+    (expectedCycle === undefined || store.session.currentTurn === expectedCycle) &&
+    sessionSnapshotAuthorityFor(sessionId, checkpoint.uid) === checkpoint.authority &&
+    hasFreshSessionAuthority();
 }
 
 function aegisExecutiveOfficerAuthorityCheckpointIsCurrent(
@@ -5987,6 +5993,7 @@ export async function getWolfCommanderTargeting(): Promise<WolfCommanderTargetin
   }
   requireFreshSessionAuthority('Reconnect before reading Wolf targeting dice.');
   const sessionId = store.session.id;
+  const expectedCycle = store.session.currentTurn;
   const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
   await ensureSignedIn();
   const payload = { sessionId };
@@ -5994,10 +6001,11 @@ export async function getWolfCommanderTargeting(): Promise<WolfCommanderTargetin
   try {
     const reply = wolfCommanderTargetingReadReply((await call(payload)).data);
     if (!reply) throw new Error('The server returned an invalid Wolf Commander targeting view.');
-    if (reply.sessionId !== sessionId) {
+    if (reply.sessionId !== sessionId ||
+        (reply.type === 'wolf-commander-targeting-view' && reply.turn !== expectedCycle)) {
       throw new Error('The server returned a Wolf Commander targeting view for another session.');
     }
-    if (!wolfCommanderAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
+    if (!wolfCommanderAuthorityCheckpointIsCurrent(sessionId, checkpoint, expectedCycle)) {
       throw new Error('The Wolf Commander session or authority changed before this response arrived.');
     }
     return reply;
@@ -6016,6 +6024,7 @@ export async function getWolfCommanderCycleAttackDial(): Promise<WolfCommanderCy
   }
   requireFreshSessionAuthority('Reconnect before reading the Commander attack dial.');
   const sessionId = store.session.id;
+  const expectedCycle = store.session.currentTurn;
   const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
   await ensureSignedIn();
   const call = httpsCallable<{ sessionId: string }, unknown>(functions(), 'getWolfCommanderCycleAttackDial');
@@ -6024,7 +6033,7 @@ export async function getWolfCommanderCycleAttackDial(): Promise<WolfCommanderCy
     if (!view || view.sessionId !== sessionId || view.cycle !== store.session.currentTurn) {
       throw new Error('The server returned an invalid Commander pursuit dial.');
     }
-    if (!wolfCommanderAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
+    if (!wolfCommanderAuthorityCheckpointIsCurrent(sessionId, checkpoint, expectedCycle)) {
       throw new Error('The Wolf Commander session or authority changed before this response arrived.');
     }
     return view;
@@ -6060,7 +6069,7 @@ export async function commitWolfCommanderAttackDial(
         result.navigationRevision !== expectedNavigationRevision || result.attackNumber < 1) {
       throw new Error('The server returned an invalid Commander attack dial receipt.');
     }
-    if (!wolfCommanderAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
+    if (!wolfCommanderAuthorityCheckpointIsCurrent(sessionId, checkpoint, expectedCycle)) {
       throw new Error('The Wolf Commander session or authority changed before this dial was confirmed.');
     }
     return result;
@@ -6079,15 +6088,16 @@ export async function getWolfCommanderRangeTargetDial(): Promise<WolfCommanderRa
   }
   requireFreshSessionAuthority('Reconnect before reading the Commander range target dial.');
   const sessionId = store.session.id;
+  const expectedCycle = store.session.currentTurn;
   const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
   await ensureSignedIn();
   const call = httpsCallable<{ sessionId: string }, unknown>(functions(), 'getWolfCommanderRangeTargetDial');
   try {
     const view = wolfCommanderRangeTargetDialViewReply((await call({ sessionId })).data);
-    if (!view || view.sessionId !== sessionId) {
+    if (!view || view.sessionId !== sessionId || view.turn !== expectedCycle) {
       throw new Error('The server returned an invalid Commander range target dial.');
     }
-    if (!wolfCommanderAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
+    if (!wolfCommanderAuthorityCheckpointIsCurrent(sessionId, checkpoint, expectedCycle)) {
       throw new Error('The Wolf Commander session or authority changed before this response arrived.');
     }
     return view;
@@ -6133,7 +6143,7 @@ export async function applyWolfCommanderRangeTargetAdjustment(
         view.ring[result.toTargetNumber - 1]?.targetId !== result.toTarget || result.delta !== delta) {
       throw new Error('The server returned an invalid Commander target adjustment receipt.');
     }
-    if (!wolfCommanderAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
+    if (!wolfCommanderAuthorityCheckpointIsCurrent(sessionId, checkpoint, view.turn)) {
       throw new Error('The Wolf Commander session or authority changed before the target adjustment was confirmed.');
     }
     return result;
@@ -6170,7 +6180,7 @@ export async function publishWolfCommanderAddress(
         result.cycle !== expectedCycle) {
       throw new Error('The server returned an invalid Commander address receipt.');
     }
-    if (!wolfCommanderAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
+    if (!wolfCommanderAuthorityCheckpointIsCurrent(sessionId, checkpoint, expectedCycle)) {
       throw new Error('The Wolf Commander session or authority changed before this address was confirmed.');
     }
     return result;
@@ -6210,7 +6220,7 @@ export async function createWolfAmnestyOffer(
         result.targetShipId !== targetShipId || result.status !== 'offered') {
       throw new Error('The server returned an invalid Commander amnesty offer.');
     }
-    if (!wolfCommanderAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
+    if (!wolfCommanderAuthorityCheckpointIsCurrent(sessionId, checkpoint, expectedCycle)) {
       throw new Error('The Wolf Commander session or authority changed before this offer was confirmed.');
     }
     return result;
@@ -6355,7 +6365,7 @@ export async function applyWolfCommanderTargetRerolls(
     if (reply.sessionId !== sessionId) {
       throw new Error('The server returned a Wolf Commander reroll receipt for another session.');
     }
-    if (!wolfCommanderAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
+    if (!wolfCommanderAuthorityCheckpointIsCurrent(sessionId, checkpoint, expectedTurn)) {
       throw new Error('The Wolf Commander session or authority changed before this response arrived.');
     }
     return reply;
@@ -6386,7 +6396,7 @@ export async function finishWolfCommanderTargetingRerolls(
     if (!reply || reply.sessionId !== sessionId) {
       throw new Error('The server returned an invalid Wolf Commander finish receipt.');
     }
-    if (!wolfCommanderAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
+    if (!wolfCommanderAuthorityCheckpointIsCurrent(sessionId, checkpoint, expectedTurn)) {
       throw new Error('The Wolf Commander session or authority changed before this response arrived.');
     }
     return reply;
