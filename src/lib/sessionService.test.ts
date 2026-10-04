@@ -88,11 +88,60 @@ const {
   getWolfBoardingDefenceChoice,
   commitWolfBoardingDefenceChoice,
   commitWolfRangeActionChoice,
+  getWolfRangeActionChoice,
   getWolfFighterRangeActionChoice,
   commitWolfFighterRangeActionChoice,
 } = await import('./sessionService');
 const { httpsCallable } = await import('firebase/functions');
 const { acceptCallableSessionAuthority, sessionSnapshotAuthorityFor } = await import('./firestore');
+
+describe('Wolf range contact guidance DTO', () => {
+  beforeEach(() => {
+    useSessionStore.getState().reset();
+    useSessionStore.getState().setIdentity(session, { ...player, activeConsoleRoleId: 'executive-officer' });
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  const shortAssignmentView = {
+    type: 'wolf-range-action-choice-view', sessionId: 's1', turn: 1, revision: 9,
+    currentStep: 'short-range', range: 'short-range', choiceStatus: 'targets-required',
+    deadlineAt: '2026-10-03T12:10:00.000Z',
+    eligibleActions: [{ actionId: 'highwall-short-range', sourceId: 'highwall', range: 'short-range' }],
+    hitSlots: [{ actionId: 'highwall-short-range', count: 1, damagePerHit: 3 }],
+    contacts: [
+      { contactId: 'contact-1', targetShipId: 'aegis', available: true, requiredCoverageDamage: 0 },
+      { contactId: 'contact-2', targetShipId: 'dione', available: true, requiredCoverageDamage: null },
+    ],
+  };
+
+  it('accepts public damage guidance for Wing-first Short assignments', async () => {
+    const callable = callableReturning({ data: shortAssignmentView });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+
+    await expect(getWolfRangeActionChoice()).resolves.toMatchObject({
+      range: 'short-range',
+      hitSlots: [{ actionId: 'highwall-short-range', count: 1, damagePerHit: 3 }],
+      contacts: [
+        { contactId: 'contact-1', targetShipId: 'aegis', requiredCoverageDamage: 0 },
+        { contactId: 'contact-2', targetShipId: 'dione', requiredCoverageDamage: null },
+      ],
+    });
+  });
+
+  it.each([
+    { ...shortAssignmentView, hitSlots: [{ actionId: 'highwall-short-range', count: 1, damagePerHit: 0 }] },
+    { ...shortAssignmentView, contacts: [{ contactId: 'contact-1', targetShipId: 'aegis', available: true }] },
+    { ...shortAssignmentView, contacts: [{ ...shortAssignmentView.contacts[0], requiredCoverageDamage: -1 }] },
+  ])('rejects malformed Short damage guidance: %o', async (reply) => {
+    const callable = callableReturning({ data: reply });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+
+    await expect(getWolfRangeActionChoice()).rejects.toThrow(/invalid Wolf range choice view/i);
+  });
+});
 const authorityService = await import('./sessionService') as unknown as {
   confirmSetup: (setup: {
     playerCount: number;
