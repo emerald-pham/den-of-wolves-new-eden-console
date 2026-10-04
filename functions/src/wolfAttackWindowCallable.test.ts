@@ -106,6 +106,24 @@ it('marks the private Turn 1 window with a monotonic revision and GM-only audit'
   expect([...mock.documents.keys()].some((path) => path.includes('/events/'))).toBe(false);
 });
 
+it('binds a threat timing marker to its selected fleet group and server source', async () => {
+  const sourceData = {
+    ...baseData,
+    requestId: 'wolf-station-window',
+    targetGroupId: 'fleet-2',
+    threatSiteCode: 'P',
+    threatSourceId: 'arrival-jump-station',
+  };
+  await expect(setWolfAttackWindow.run(request(sourceData))).resolves.toEqual({
+    status: 'due', turn: 1, revision: 1,
+    targetGroupId: 'fleet-2', threatSiteCode: 'P', threatSourceId: 'arrival-jump-station',
+  });
+  expect(mock.documents.get('sessions/s1/wolfAttackWindow/current/audit/wolf-station-window'))
+    .toMatchObject({ targetGroupId: 'fleet-2', threatSiteCode: 'P', threatSourceId: 'arrival-jump-station' });
+  expect(mock.documents.get('sessions/s1/commandReceipts/wolf-station-window'))
+    .toMatchObject({ result: { targetGroupId: 'fleet-2', threatSiteCode: 'P' } });
+});
+
 it('requires a due marker before resolving and permits deferred Turn 2 recovery', async () => {
   await expect(setWolfAttackWindow.run(request({ ...baseData, status: 'deferred', requestId: 'wolf-defer' })))
     .resolves.toEqual({ status: 'deferred', turn: 2, revision: 1 });
