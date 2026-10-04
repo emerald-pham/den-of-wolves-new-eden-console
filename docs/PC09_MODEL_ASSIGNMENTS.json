@@ -192,7 +192,7 @@
     },
     {
       "taskId": "/root/pc09_dradis_astra",
-      "executionThreadId": null,
+      "executionThreadId": "01a10762-f9a3-72b8-b8a9-a326c4dc100a",
       "purpose": "P605a product implementation only; no tests/review/docs/orchestration or other prompts",
       "scope": [
         "605a product implementation only"
@@ -210,7 +210,16 @@
       "modelChanges": [],
       "restrictionEvidence": "Dispatch explicitly forbids other prompts, coordinator/delegation/default changes, test edits/runs, repository documentation, proof/CI/release and parent messaging; user requires existing DRADIS design.",
       "worktree": "/private/tmp/dow-pc09-dradis-astra-20261004",
-      "completionEvidence": "Code-only commit 52d0ee9c6c8bfd25ae6866a2cdbacf222076870f returned; worker stopped without tests, docs, review or release."
+      "completionEvidence": "Code-only commit 52d0ee9c6c8bfd25ae6866a2cdbacf222076870f returned; worker stopped without tests, docs, review or release.",
+      "threadIdEvidence": "Read-only read_thread metadata on the PC09 owner exposes the started/interacted/completed agentThreadId; this does not expose effective model.",
+      "handoffInteractionAudit": {
+        "classification": "Bounded P605a implementation dependency report to the PC09 owner; not another prompt or checkpoint coordination.",
+        "receivedContentSummary": "The worker identified that Luna\u2019s new session-switch test kept visibleTargetIds=[aegis] while expecting a Dione result in the replacement session. It reported the contradictory fixture without editing or running tests. Root separately corrected only that fixture in test-only commit 8346e4b2, preserving visibility and foreign-session assertions.",
+        "effect": "Root retained test ownership; Astra continued only the four P605a product files and ended with implementation commit 52d0ee9c.",
+        "evidenceBoundary": "Summary of the message received by root and its separately committed disposition. Read-only worker transcript shows one interaction with /root but omits its raw payload; the final implementation handoff explicitly confirms the fixture remained untouched. No exact quote or effective-runtime confirmation is claimed.",
+        "readOnlyInspectedThreadId": "01a10762-f9a3-72b8-b8a9-a326c4dc100a",
+        "workerRestartedOrMessagedForAudit": false
+      }
     }
   ],
   "pending": [
