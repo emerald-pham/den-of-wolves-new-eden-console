@@ -297,3 +297,45 @@ Review this bounded workflow delta and chronological docs, keeping every
 earlier approved scope closed. Renew the actual structured exact receipt before
 the five selected local repair gates and next candidate/release runs. The
 failed run is retained, deployment never starts, and production stays 0.5.66.
+
+## Exact-main mobile failure and reconciled repair
+
+Exact `6ee3e4f9` passed candidate CI and every exact-main verification job
+except P637. Workflow 37186344694 measured 88 long mobile frames against the
+unchanged 70 limit. A single failed-job retry at the same source measured 73;
+production deployment did not start. Both raw logs and measurement artifacts
+are preserved. Root then owned a bounded production rendering repair instead
+of repeating the unchanged candidate.
+
+The first Luna diagnostic candidate `f6b8c376` passed local P637 but did not
+reduce layout work, so it is preserved as ineffective. The test-first stages
+`9c261378` and `8fd73978` precede the final worker repair `12825d4e`, now
+reconciled as `9c7c1673`. It defers only names hidden by the current
+acquisition mask, keeps every contact mark as a collision obstacle, preserves
+reduced-motion/full-board visibility, binds leader lines by contact identity
+and clears stale lines. Geometry, viewport, font, style and acquisition changes
+retain the full layout path. ContactPlot/ShipPlot/sweep pass 95 checks; the
+actual desktop, phone and short-landscape matrix passes in both motion modes.
+Local P637 reduces DRADIS label reads from 5,175 to 1,142 and mobile reads from
+22,088 to 5,871. DRADIS p95/work p95 are 33.7/6.2 ms; mobile p95 is 16.7 ms,
+maximum 16.8 ms, with zero long frames. This remains local timing evidence;
+fresh hosted CI and exact-main deployment are pending.
+
+Root also reproduced the UI-only web type-check with absent Functions
+dependencies: the same committed graph fails with Firebase Admin/Functions
+TS2307 errors and passes when those dependencies are supplied. Commit
+`a5e6dae6` adds web-build selection to the verify job's dependency-install
+condition. Parsed YAML confirms that this condition is its only workflow
+delta; permissions, WIF, IAM, target selection and gates are unchanged.
+The unchanged 44 loading and 39 composed artifact hashes are verified in
+`owner/mobile-repair-gameplay-continuity.json`; this is source/built-artifact
+continuity and does not claim a new runtime replay. The new UI is awaiting
+exact review and final appropriate validation before the one candidate push.
+
+Evidence: `owner/main-performance-attempt-one.json`,
+`owner/main-performance-attempt-two.json`,
+`owner/mobile-performance-repair/`,
+`owner/ci-web-shared-type-dependency-probe/result.json` and
+`owner/verify-web-dependency-install-repair.json`. The production check at
+08:35 UTC still reports 0.5.66. The unreleased PC08 version remains 0.5.67,
+with exactly 49 acceptances and no PC09 scope.
