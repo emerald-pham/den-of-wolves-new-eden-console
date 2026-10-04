@@ -21442,6 +21442,10 @@ function persistWolfEscortState(
   fighterState?: AegisFighterWingCombatState,
   session?: DocumentSnapshot,
 ): void {
+  const pdfMemberView = state?.pdfState ? projectPdfEscortWingMemberView(state.pdfState) : undefined;
+  if (state?.pdfState && !pdfMemberView) {
+    throw commandError('failed-precondition', 'The resolved PDF Escort Wing member view is malformed.', 'conflict');
+  }
   if (state?.pdfState) tx.set(pdfWingRef, state.pdfState);
   const fighterCountPatch: Record<string, unknown> = {};
   if (fighterState && session) {
@@ -21461,8 +21465,9 @@ function persistWolfEscortState(
       }
     }
   }
-  if (state?.maliadesState || Object.keys(fighterCountPatch).length > 0) {
+  if (pdfMemberView || state?.maliadesState || Object.keys(fighterCountPatch).length > 0) {
     tx.update(sessionRef, {
+      ...(pdfMemberView ? { pdfEscortWing: pdfMemberView } : {}),
       ...(state?.maliadesState ? { maliadesState: state.maliadesState } : {}),
       ...fighterCountPatch,
       updatedAt: FieldValue.serverTimestamp(),
