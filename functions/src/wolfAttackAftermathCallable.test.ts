@@ -74,6 +74,13 @@ const resetFixture = () => {
   });
 };
 
+function reverseMapKeyOrder(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(reverseMapKeyOrder);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.entries(value as Fields).reverse()
+    .map(([key, entry]) => [key, reverseMapKeyOrder(entry)]));
+}
+
 beforeEach(resetFixture);
 
 describe('Wolf attack aftermath command contract', () => {
@@ -124,6 +131,43 @@ describe('Wolf attack aftermath command contract', () => {
       expect.objectContaining({ sourceId: 'doctor-medical-aid', outcome: { casualtiesPrevented: 1, foodSpent: 0, waterSpent: 0 } }),
     ]);
     expect(mock.documents.get('sessions/s-1/wolfAttackAudience/current')).not.toHaveProperty('calculationReceipt');
+  });
+
+  it('replays semantic Doctor fingerprints across map ordering but binds exact fields and array order', async () => {
+    const session = mock.documents.get('sessions/s-1')!;
+    (session.shipSurvivors as Fields).dione = 95_000;
+    (session.shipResources as Fields).dione = { food: 9, water: 9 };
+    const attack = mock.documents.get('sessions/s-1/wolfAttackState/current')!;
+    const receipt = attack.calculationReceipt as Fields;
+    (receipt.fleetDamage as Fields[]).push({ target: 'dione', amount: 1, populationBefore: 100_000,
+      population: 95_000, state: { damagedSystemIds: [], destroyed: false }, draws: [{ casualty: true }] });
+    const command = { sessionId: 's-1', attackId: 'attack-7', requestId: 'doctor-order-7',
+      action: 'doctor', selectedShipIds: ['aegis', 'dione'] };
+    const first = await resolveWolfAttackAftermath.run(request(command));
+    const receiptDoc = mock.documents.get('sessions/s-1/commandReceipts/doctor-order-7')!;
+    receiptDoc.fingerprint = reverseMapKeyOrder(receiptDoc.fingerprint);
+    mock.set.mockClear();
+    mock.update.mockClear();
+
+    await expect(resolveWolfAttackAftermath.run(request(command)))
+      .resolves.toEqual({ ...first, status: 'replayed' });
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+
+    receiptDoc.fingerprint = { ...(receiptDoc.fingerprint as Fields), extraAuthority: true };
+    await expect(resolveWolfAttackAftermath.run(request(command)))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+
+    const reorderedFingerprint = reverseMapKeyOrder(receiptDoc.fingerprint) as Fields;
+    delete reorderedFingerprint.extraAuthority;
+    const payload = reorderedFingerprint.payload as Fields;
+    receiptDoc.fingerprint = { ...reorderedFingerprint, payload: { ...payload, selectedShipIds: ['dione', 'aegis'] } };
+    await expect(resolveWolfAttackAftermath.run(request(command)))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
   });
 
   it('denies Doctor commands from another role without mutating results or stores', async () => {
