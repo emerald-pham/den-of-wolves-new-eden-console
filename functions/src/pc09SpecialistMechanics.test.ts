@@ -97,3 +97,40 @@ it('consumes a hosted maintenance reroll exactly once in its bound ship and cycl
   expect(() => consumeHostedMaintenanceGrant({ ...grant, status: 'consumed' },
     { sessionId: 'session-1', shipId: 'aegis', cycle: 3 })).toThrow(/already been consumed/i);
 });
+
+it('binds an explicit commander permission to one live source slot and the current Ace', () => {
+  const createPdfFighterAcePermission = specialistFunctions.createPdfFighterAcePermission as
+    (input: Record<string, unknown>) => Record<string, unknown>;
+  const requirePdfFighterAcePermission = specialistFunctions.requirePdfFighterAcePermission as
+    (permission: unknown, expected: Record<string, unknown>) => Record<string, unknown>;
+  const permission = createPdfFighterAcePermission({
+    attackId: 'attack-1', turn: 4, sourceId: 'fighter-wing-alpha', fighterIndex: 2,
+    aceUid: 'ace-1', actorUid: 'commander-1', actorRoleId: 'wing-commander',
+    requestId: 'permission-1', revision: 1, fighters: 4, launched: true,
+  });
+  expect(permission).toMatchObject({ type: 'pdf-fighter-ace-permission', attackId: 'attack-1', turn: 4,
+    sourceId: 'fighter-wing-alpha', fighterIndex: 2, aceUid: 'ace-1', actorUid: 'commander-1',
+    actorRoleId: 'wing-commander', requestId: 'permission-1', revision: 1 });
+  expect(requirePdfFighterAcePermission(permission, {
+    attackId: 'attack-1', turn: 4, sourceId: 'fighter-wing-alpha', fighterIndex: 2,
+    aceUid: 'ace-1', actorUid: 'commander-1', actorRoleId: 'wing-commander',
+  })).toEqual(permission);
+  expect(() => requirePdfFighterAcePermission(permission, { attackId: 'attack-2' })).toThrow(/attack/i);
+  expect(() => requirePdfFighterAcePermission(permission, { sourceId: 'fighter-wing-bravo' })).toThrow(/source/i);
+  expect(() => requirePdfFighterAcePermission(permission, { fighterIndex: 1 })).toThrow(/slot/i);
+  expect(() => createPdfFighterAcePermission({
+    attackId: 'attack-1', turn: 4, sourceId: 'fighter-wing-alpha', fighterIndex: 4,
+    aceUid: 'ace-1', actorUid: 'commander-1', actorRoleId: 'wing-commander',
+    requestId: 'permission-2', revision: 1, fighters: 4, launched: true,
+  })).toThrow(/slot/i);
+  expect(() => createPdfFighterAcePermission({
+    attackId: 'attack-1', turn: 4, sourceId: 'pdf-escort-fighter-wing', fighterIndex: 0,
+    aceUid: 'ace-1', actorUid: 'colonel-1', actorRoleId: 'wing-commander',
+    requestId: 'permission-3', revision: 1, fighters: 4, launched: true,
+  })).toThrow(/current.*permission|role/i);
+  expect(() => createPdfFighterAcePermission({
+    attackId: 'attack-1', turn: 4, sourceId: 'fighter-wing-alpha', fighterIndex: 0,
+    aceUid: 'ace-1', actorUid: 'commander-1', actorRoleId: 'wing-commander',
+    requestId: 'permission-4', revision: 1, fighters: 4, launched: false,
+  })).toThrow(/launched/i);
+});
