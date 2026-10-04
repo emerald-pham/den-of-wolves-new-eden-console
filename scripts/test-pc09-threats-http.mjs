@@ -28,6 +28,35 @@ const checks = {};
 const commanderRequests = [];
 const commanderResponses = [];
 
+async function observeCommanderState() {
+  await page.evaluate(async moduleUrl => {
+    const { useSessionStore } = await import(moduleUrl);
+    const trace = [];
+    let previous;
+    const record = () => {
+      const s = useSessionStore.getState();
+      const next = { route: location.hash, connection: s.connection,
+        freshness: s.sessionSnapshotFreshness, cycle: s.session?.currentTurn,
+        identityRevision: s.identityHydrationRevision, snapshotVersion: s.sessionSnapshotVersion,
+        generation: s.me?.connectionGeneration, roleId: s.me?.replacementRoleId,
+        activeConsoleRoleId: s.me?.activeConsoleRoleId, replacementStatus: s.me?.replacementStatus,
+        briefRoleId: s.roleBrief?.roleId, ownBrief: s.roleBrief?.assignmentUid === s.me?.uid,
+        communicationError: s.communicationError?.kind };
+      const key = JSON.stringify(next);
+      if (key === previous) return;
+      previous = key;
+      trace.push({ at: new Date().toISOString(), ...next });
+      if (trace.length > 160) trace.shift();
+    };
+    // This observes the genuine store; it does not patch identity, authority,
+    // tokens, storage, callable services, or any gameplay projection.
+    useSessionStore.subscribe(record);
+    window.addEventListener('hashchange', record);
+    window.__pc09CommanderStateTrace = trace;
+    record();
+  }, sessionStoreModuleUrl);
+}
+
 async function joinCommander(joinCode) {
   await mkdir(uiDirectory, { recursive: true });
   browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -56,32 +85,6 @@ async function joinCommander(joinCode) {
   });
   page.on('pageerror', error => browserErrors.push(error.message));
   await page.goto(uiOrigin);
-  await page.evaluate(async moduleUrl => {
-    const { useSessionStore } = await import(moduleUrl);
-    const trace = [];
-    let previous;
-    const record = () => {
-      const s = useSessionStore.getState();
-      const next = { route: location.hash, connection: s.connection,
-        freshness: s.sessionSnapshotFreshness, cycle: s.session?.currentTurn,
-        identityRevision: s.identityHydrationRevision, snapshotVersion: s.sessionSnapshotVersion,
-        generation: s.me?.connectionGeneration, roleId: s.me?.replacementRoleId,
-        activeConsoleRoleId: s.me?.activeConsoleRoleId, replacementStatus: s.me?.replacementStatus,
-        briefRoleId: s.roleBrief?.roleId, ownBrief: s.roleBrief?.assignmentUid === s.me?.uid,
-        communicationError: s.communicationError?.kind };
-      const key = JSON.stringify(next);
-      if (key === previous) return;
-      previous = key;
-      trace.push({ at: new Date().toISOString(), ...next });
-      if (trace.length > 160) trace.shift();
-    };
-    // This observes the genuine store; it does not patch identity, authority,
-    // tokens, storage, callable services, or any gameplay projection.
-    useSessionStore.subscribe(record);
-    window.addEventListener('hashchange', record);
-    window.__pc09CommanderStateTrace = trace;
-    record();
-  }, sessionStoreModuleUrl);
   await page.getByRole('button', { name: /^REDUCED MOTION/i }).click();
   await page.getByRole('textbox', { name: 'Session code', exact: true }).fill(joinCode);
   await page.getByRole('button', { name: 'Join a session', exact: true }).click();
@@ -150,6 +153,7 @@ try {
   const wing = fixture.byRole('wing-commander');
   await commanderContext.setOffline(false);
   await page.reload();
+  await observeCommanderState();
   await page.waitForFunction(async ({ moduleUrl, uid }) => {
     const { auth } = await import('/src/lib/firebase.ts');
     const { useSessionStore } = await import(moduleUrl);
