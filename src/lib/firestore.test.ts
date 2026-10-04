@@ -93,6 +93,22 @@ it('does not invent foreign resources or Press docking from a current member ses
   expect(dione.shuttleDockings?.map(entry => entry.shuttleId)).toEqual(['endeavour']);
 });
 
+it('hydrates the elected President’s capped crisis-award status from the member projection', () => {
+  const value = sessionFrom('president-crisis-award', {
+    ...sessionData(8), phase: 'active', currentTurn: 2,
+    memberSessionScope: { groupId: 'fleet-2', vesselIds: ['shepherd'], craftIds: [] },
+    currentMemberIsPresident: true,
+    presidentialOffices: { electionId: 'current', revision: 2,
+      presidentCandidateId: 'candidate-amber', presidentDisplayName: 'Candidate A', decidedCycle: 2 },
+    politicalCapital: { revision: 8, balance: 8, entries: [] },
+    resolvedCrisisOutcome: { crisisId: 'crisis-1', revision: 4, title: 'Approaching Vessel',
+      capitalApplied: false, capitalDelta: 0 },
+  });
+  expect(value.resolvedCrisisOutcome).toEqual({ crisisId: 'crisis-1', revision: 4,
+    title: 'Approaching Vessel', capitalApplied: false, capitalDelta: 0 });
+  expect(value.presidentialOffices).not.toHaveProperty('presidentUid');
+});
+
 it('hydrates the entitled independent SNN docking and visits without foreign vessel maps or invented transit docks', () => {
   const snn = { shuttleId: 'snn-press-shuttle', ownerRoleId: 'press-officer', ownerUid: 'press', holderUid: 'press', revision: 0 };
   const source = { ...sessionData(8), activeVesselIds: ['aegis', 'icebreaker'],
