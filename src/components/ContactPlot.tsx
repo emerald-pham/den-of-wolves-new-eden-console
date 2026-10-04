@@ -1434,15 +1434,18 @@ export default function ContactPlot({
     }
     let observedWidth = node.clientWidth;
     let observedHeight = node.clientHeight;
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(([entry]) => {
-      if (!entry) return;
-      const { width, height } = entry.contentRect;
-      if (width === observedWidth && height === observedHeight) return;
-      observedWidth = width;
-      observedHeight = height;
-      clamp();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver((entries) => {
+      const entry = entries.find((candidate) => candidate.target === node);
+      const plotResized = entry && (entry.contentRect.width !== observedWidth || entry.contentRect.height !== observedHeight);
+      if (entry) {
+        observedWidth = entry.contentRect.width;
+        observedHeight = entry.contentRect.height;
+      }
+      if (plotResized || entries.some((candidate) => candidate.target !== node)) clamp();
     });
     observer?.observe(node);
+    // Readouts may arrive after the plot mounts. Their occupied space changes labels, never acquisition.
+    for (const obstacle of labelObstacleElements(node)) observer?.observe(obstacle);
     const styleObserver = typeof MutationObserver === 'undefined' ? null : new MutationObserver(() => {
       const nextStyleScope = labelWidthStyleScope(node);
       if (nextStyleScope !== observedStyleScope) clamp();

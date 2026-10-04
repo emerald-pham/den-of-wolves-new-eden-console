@@ -10,6 +10,7 @@ import {
 import ContactPlot from './ContactPlot';
 import GalacticOrientationCompass from './GalacticOrientationCompass';
 import DradisEffectControls from './DradisEffectControls';
+import WolfAttackDradisPanel from './WolfAttackDradis';
 import { DradisAirspaceTimer } from './TurnPhaseTimer';
 import { DRADIS_RESIZE_MS } from './dradisMotion';
 import { fleetOriginFor, fleetViewFrom } from '@/data/fleetFormation';
@@ -186,6 +187,11 @@ export default function ShipPlot({
   const contacts = jumpInProgress ? [] : localNavigation
     ? localDradisContacts(effectiveViewerId, localNavigation, shipDamage)
     : requireLocalAuthority ? [] : catalogContacts;
+  const attackEnabled = aboard && !jumpInProgress && Boolean(ambientSession?.id &&
+    localNavigation?.ships.some((ship) => ship.shipId === effectiveViewerId && ship.fleetGroupId === localNavigation.groupId));
+  const visibleAttackTargetIds = localNavigation ? contacts.flatMap((contact) =>
+    'id' in contact && typeof contact.id === 'string' && contact.id.startsWith('ship:')
+      ? [contact.id.slice('ship:'.length)] : []) : [];
 
   return (
     <div
@@ -221,6 +227,14 @@ export default function ShipPlot({
           <span className="ship-plot__label dradis-label" aria-hidden="true">
             {requireLocalAuthority && !localNavigation ? 'DRADIS // LOCAL FIX UNAVAILABLE' : expanded ? 'DRADIS // ORIENTATION LOCKED' : 'DRADIS // LOCAL PLOT'}
           </span>
+          <div className="ship-plot__attack-readout" data-plot-obstacle>
+            <WolfAttackDradisPanel
+              key={`${ambientSession?.id ?? ''}:${effectiveViewerId}:${localNavigation?.groupId ?? ''}`}
+              sessionId={ambientSession?.id}
+              visibleTargetIds={visibleAttackTargetIds}
+              enabled={attackEnabled}
+            />
+          </div>
           {expanded ? (
             <>
               <span className="ship-plot__galactic-coordinate">

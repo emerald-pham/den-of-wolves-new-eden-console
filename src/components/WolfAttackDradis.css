@@ -1,0 +1,226 @@
+.wolf-attack-dradis {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  color: var(--cic-ink);
+  background: var(--cic-void);
+  font: 0.875rem/1.45 var(--cic-mono);
+  overflow-wrap: anywhere;
+}
+
+.wolf-attack-dradis__header {
+  flex: 0 0 auto;
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.7rem 0.8rem;
+  border-bottom: 1px solid var(--cic-rule);
+}
+
+.wolf-attack-dradis__identity,
+.wolf-attack-dradis__result-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.75rem;
+}
+
+.wolf-attack-dradis__identity h2 {
+  margin: 0;
+  color: var(--cic-ember);
+  font: 600 0.875rem/1.4 var(--cic-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.wolf-attack-dradis[data-complete='true'] .wolf-attack-dradis__identity h2 {
+  color: var(--cic-amber);
+}
+
+.wolf-attack-dradis__cycle,
+.wolf-attack-dradis__phase-label,
+.wolf-attack-dradis__stamp > span,
+.wolf-attack-dradis__values dt {
+  color: var(--cic-amber);
+}
+
+.wolf-attack-dradis__phase {
+  margin: 0;
+  color: var(--cic-cyan-hot);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.wolf-attack-dradis__readings {
+  min-height: 0;
+  padding: 0.65rem 0.8rem 0.8rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--cic-amber-dim) var(--cic-void);
+}
+
+.wolf-attack-dradis__readings:focus-visible {
+  outline: 2px solid var(--cic-amber);
+  outline-offset: -3px;
+}
+
+.wolf-attack-dradis__stamp,
+.wolf-attack-dradis__empty {
+  margin: 0;
+}
+
+.wolf-attack-dradis__stamp {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.35rem;
+  color: var(--cic-cyan);
+  font-variant-numeric: tabular-nums;
+}
+
+.wolf-attack-dradis__empty {
+  padding-top: 0.7rem;
+  color: var(--cic-muted);
+}
+
+.wolf-attack-dradis__results {
+  display: grid;
+  gap: 0;
+  margin: 0.65rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wolf-attack-dradis__result {
+  min-width: 0;
+  padding: 0.65rem 0 0.8rem;
+  border-top: 1px solid var(--cic-rule);
+}
+
+.wolf-attack-dradis__result:last-child { padding-bottom: 0; }
+
+.wolf-attack-dradis__result-header {
+  padding-left: 0.5rem;
+  border-left: 2px solid var(--cic-cyan);
+  color: var(--cic-amber);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.wolf-attack-dradis__committed {
+  color: var(--cic-cyan);
+}
+
+.wolf-attack-dradis__values {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.6rem 0 0;
+}
+
+.wolf-attack-dradis__values > div {
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr);
+  gap: 0.45rem;
+}
+
+.wolf-attack-dradis__values dt {
+  font-weight: 400;
+}
+
+.wolf-attack-dradis__values dd {
+  min-width: 0;
+  margin: 0;
+}
+
+.wolf-attack-dradis__bearing[data-known='true'],
+.wolf-attack-dradis__outcome {
+  color: var(--cic-cyan-hot);
+}
+
+.wolf-attack-dradis__bearing[data-known='false'],
+.wolf-attack-dradis__result-time {
+  color: var(--cic-muted);
+}
+
+.wolf-attack-dradis__result-time {
+  display: block;
+  margin-top: 0.55rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A readout on the existing instrument, outside the sphere's spatial rig. */
+.ship-plot__attack-readout {
+  position: absolute;
+  z-index: 4;
+  top: max(6.25rem, calc(env(safe-area-inset-top) + 5.5rem));
+  right: max(0.75rem, env(safe-area-inset-right));
+  width: min(23rem, 32%);
+}
+
+.ship-plot__attack-readout > .wolf-attack-dradis {
+  max-height: min(33rem, calc(100cqb - 14rem));
+}
+
+.ship-plot[data-expanded='false'] .ship-plot__attack-readout {
+  top: 1.75rem;
+  left: 0.65rem;
+  right: 0.65rem;
+  width: auto;
+  pointer-events: none;
+}
+
+.ship-plot[data-expanded='false'] .wolf-attack-dradis {
+  max-height: none;
+  border: 0;
+  border-left: 2px solid var(--cic-amber-dim);
+}
+
+.ship-plot[data-expanded='false'] .wolf-attack-dradis::before,
+.ship-plot[data-expanded='false'] .wolf-attack-dradis__readings,
+.ship-plot[data-expanded='false'] .wolf-attack-dradis__cycle,
+.ship-plot[data-expanded='false'] .wolf-attack-dradis__phase-label {
+  display: none;
+}
+
+.ship-plot[data-expanded='false'] .wolf-attack-dradis__header {
+  gap: 0.2rem;
+  padding: 0.25rem 0.4rem;
+  border: 0;
+}
+
+.ship-plot[data-expanded='false'] .wolf-attack-dradis__identity h2,
+.ship-plot[data-expanded='false'] .wolf-attack-dradis__phase {
+  font: 600 0.6rem/1.3 var(--cic-mono);
+  letter-spacing: 0.08em;
+}
+
+@media (max-width: 520px) {
+  .ship-plot[data-expanded='true'] .ship-plot__attack-readout {
+    left: max(0.75rem, env(safe-area-inset-left));
+    right: max(0.75rem, env(safe-area-inset-right));
+    width: auto;
+  }
+
+  .ship-plot[data-expanded='true'] .wolf-attack-dradis {
+    max-height: min(15rem, calc(100cqb - 18rem));
+  }
+}
+
+@media (max-height: 560px) and (orientation: landscape) {
+  .ship-plot[data-expanded='true'] .ship-plot__attack-readout {
+    top: max(5.75rem, calc(env(safe-area-inset-top) + 5rem));
+    width: min(22rem, 35%);
+  }
+
+  .ship-plot[data-expanded='true'] .wolf-attack-dradis {
+    max-height: calc(100cqb - 12rem);
+  }
+
+  .wolf-attack-dradis__header {
+    gap: 0.2rem;
+    padding-block: 0.5rem;
+  }
+}
