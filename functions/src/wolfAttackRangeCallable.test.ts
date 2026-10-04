@@ -71,6 +71,7 @@ import {
   getWolfFighterRangeActionChoice,
   commitWolfFighterRangeActionChoice,
   launchAegisFighterWing,
+  passWolfFighterLaunchChoice,
   commitWolfRangeActionChoice,
   getWolfRangeSupportActionChoice,
   commitWolfRangeSupportActionChoice,
@@ -2150,4 +2151,119 @@ it.each([
     .rejects.toMatchObject({ code: 'failed-precondition' });
   expect(entropy.randomInt).not.toHaveBeenCalled();
   expect(testState.update).not.toHaveBeenCalled();
+});
+
+it('publishes each assigned support hit once with its printed source label', async () => {
+  admitRangeSupportChoices();
+  for (const [sourceId, uid] of [
+    ['highwall', 'miner-1'], ['gorgoneion-missile-array', 'gorg-captain-1'], ['boa', 'recycler-1'],
+  ] as const) {
+    const view = await getWolfRangeSupportActionChoice.run(request({ sessionId: 's1', sourceId,
+      range: 'short-range' }, uid));
+    await commitWolfRangeSupportActionChoice.run(request({ sessionId: 's1', sourceId,
+      range: 'short-range', requestId: `support-results-${sourceId}`, expectedTurn: 1,
+      expectedRevision: view.revision, use: sourceId !== 'boa' }, uid));
+  }
+  const view = await getWolfRangeActionChoice.run(request({ sessionId: 's1' }));
+  const locked = await commitWolfRangeActionChoice.run(request({ sessionId: 's1',
+    requestId: 'support-results-lock', expectedTurn: 1, expectedRevision: view.revision,
+    range: 'short-range', actionIds: [] }));
+  const payload = { sessionId: 's1', requestId: 'support-results-assign', expectedTurn: 1,
+    expectedRevision: locked.revision, range: 'short-range', assignments: locked.hitSlots.map(slot => ({
+      actionId: slot.actionId, contactIds: slot.actionId === 'highwall-short-range'
+        ? ['contact-1'] : ['contact-2', 'contact-3', 'contact-4'],
+    })) };
+  const committed = await assignWolfRangeTargets.run(request(payload));
+  const state = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  const results = (state.memberResults as Fields[]).filter(row =>
+    row.sourceId === 'highwall' || row.sourceId === 'gorgoneion-missile-array');
+  expect(results.map(row => ({ sourceId: row.sourceId, effect: row.effect }))).toEqual([
+    { sourceId: 'highwall', effect: 'Highwall Cannon hit' },
+    ...Array.from({ length: 3 }, () => ({ sourceId: 'gorgoneion-missile-array', effect: 'Gorgoneion Missile Array hit' })),
+  ]);
+  expect(results.map(row => (row.outcome as Fields).damage)).toEqual([1, 1, 1, 1]);
+  const saved = structuredClone([...testState.documents]);
+  expect(await assignWolfRangeTargets.run(request(payload))).toEqual(committed);
+  expect([...testState.documents]).toEqual(saved);
+});
+
+const reviewReplayKinds = ['enriched', 'fighter-launch', 'fighter-range', 'fighter-pass'] as const;
+type ReviewReplayKind = typeof reviewReplayKinds[number];
+
+async function commitReviewReplayChoice(kind: ReviewReplayKind) {
+  if (kind === 'enriched') {
+    enrichedWarheadFixture();
+    const payload = { sessionId: 's1', requestId: 'review-enriched-replay', expectedTurn: 1,
+      expectedRevision: 4, choice: 'enrich' };
+    const replay = () => commitAegisEnrichedWarheadChoice.run(request(payload));
+    return { committed: await replay(), replay };
+  }
+  const session = testState.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session, activeRoleIds: ['executive-officer', 'wing-commander'],
+    fighterWingCounts: initialFighterWingCounts(),
+    maintenanceCycles: { ...(session.maintenanceCycles as Fields), aegis: {
+      ...(session.maintenanceCycles as Fields).aegis as Fields,
+      charges: ['fighter-bay-alpha', 'fighter-bay-bravo'],
+    } } });
+  put('sessions/s1/players/wc-1', { uid: 'wc-1', role: 'player', connected: true,
+    assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander', fleetGroupId: 'fleet-1' });
+  const group = testState.documents.get('sessions/s1/fleetGroups/fleet-1')!;
+  put('sessions/s1/fleetGroups/fleet-1', { ...group, memberUids: ['xo-1', 'wc-1'],
+    memberShipIds: { 'xo-1': 'aegis', 'wc-1': 'aegis' } });
+  const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  put('sessions/s1/wolfAttackState/current', { ...attack, currentStep: 'targeting' });
+  if (kind === 'fighter-pass') {
+    const payload = { sessionId: 's1', requestId: 'review-fighter-pass-replay', sourceId: 'fighter-wing-alpha',
+      expectedTurn: 1, expectedRevision: 4, expectedWingRevision: 0 };
+    const replay = () => passWolfFighterLaunchChoice.run(request(payload, 'wc-1'));
+    return { committed: await replay(), replay };
+  }
+  const launchPayload = { sessionId: 's1', requestId: 'review-fighter-launch-replay', wingId: 'fighter-wing-alpha',
+    expectedTurn: 1, expectedRevision: 4, expectedWingRevision: 0 };
+  const launchReplay = () => launchAegisFighterWing.run(request(launchPayload, 'wc-1'));
+  const launch = await launchReplay();
+  if (kind === 'fighter-launch') return { committed: launch, replay: launchReplay };
+  const current = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  const targetSnapshot = (current.combatRoster as Array<{ instanceId: string; target: string }>)
+    .map(({ instanceId, target }) => ({ instanceId, target }));
+  put('sessions/s1/wolfAttackState/current', { ...current, currentStep: 'short-range',
+    rangeReceipts: ['long-range', 'medium-range'].map(range => ({ range, targetSnapshot, targetShifts: [],
+      dice: [], assignments: [], unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
+      destructionDamageByTarget: Object.fromEntries(CORE_WOLF_TARGET_RING.map(target => [target, 0])),
+    })) });
+  const payload = { sessionId: 's1', requestId: 'review-fighter-range-replay', sourceId: 'fighter-wing-alpha',
+    expectedTurn: 1, expectedRevision: current.revision, range: 'short-range', fighterIndexes: [0, 2] };
+  const replay = () => commitWolfFighterRangeActionChoice.run(request(payload, 'wc-1'));
+  return { committed: await replay(), replay };
+}
+
+it.each(reviewReplayKinds.flatMap(kind => ['session-cycle', 'attack-cycle', 'attack-identity']
+  .map(drift => ({ kind, drift }))))('rejects a saved $kind receipt after $drift changes', async ({ kind, drift }) => {
+  const { replay } = await commitReviewReplayChoice(kind);
+  const session = testState.documents.get('sessions/s1')!;
+  const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  if (drift === 'session-cycle') put('sessions/s1', { ...session, currentTurn: 2,
+    turnPhase: { ...(session.turnPhase as Fields), turn: 2 } });
+  else put('sessions/s1/wolfAttackState/current', { ...attack,
+    ...(drift === 'attack-cycle' ? { turn: 2 } : { attackId: 'wolf-attack-replacement-same-cycle' }) });
+  const saved = structuredClone([...testState.documents]);
+  entropy.randomInt.mockClear(); testState.set.mockClear(); testState.update.mockClear(); testState.remove.mockClear();
+  await expect(replay()).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect([...testState.documents]).toEqual(saved);
+  expect(entropy.randomInt).not.toHaveBeenCalled();
+  expect(testState.set).not.toHaveBeenCalled(); expect(testState.update).not.toHaveBeenCalled();
+  expect(testState.remove).not.toHaveBeenCalled();
+});
+
+it.each(reviewReplayKinds)('keeps an authorized %s exact retry after its attack resolves', async kind => {
+  const { committed, replay } = await commitReviewReplayChoice(kind);
+  const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  put('sessions/s1/wolfAttackState/current', { ...attack, status: 'resolved', currentStep: 'resolved', airspaceLocked: false });
+  const saved = structuredClone([...testState.documents]);
+  entropy.randomInt.mockClear(); testState.set.mockClear(); testState.update.mockClear(); testState.remove.mockClear();
+  expect(await replay()).toEqual({ ...committed, status: kind === 'enriched' ? 'committed' : 'replayed' });
+  expect([...testState.documents]).toEqual(saved);
+  expect(entropy.randomInt).not.toHaveBeenCalled();
+  expect(testState.set).not.toHaveBeenCalled(); expect(testState.update).not.toHaveBeenCalled();
+  expect(testState.remove).not.toHaveBeenCalled();
 });

@@ -1127,8 +1127,9 @@ async function declareThenSeatPdfColonel(options: Readonly<{
   });
   put('sessions/s1/players/u1', {
     uid: 'u1', role: 'player', connected: true,
-    assignedRoleId: pdfRole, seatId: pdfRole, activeConsoleRoleId: pdfRole,
+    assignedRoleId: pdfRole, seatId: pdfRole, activeConsoleRoleId: pdfRole, fleetGroupId: 'fleet-1',
   });
+  fleetGroup('fleet-1', { memberShipIds: { u1: 'refinery-124' } });
 }
 
 it('launches the PDF Escort Wing through the current Wolf attack and charged Refinery bay transaction', async () => {
@@ -2135,3 +2136,54 @@ it('does not let facilitator targeting recovery bypass a current EO enriched war
     .rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({ currentStep: 'targeting' });
 });
+
+it.each(['pdf-escort-fighter-wing', 'maliades'] as const)(
+  'allows the current %s owner to pass once at its actual berth', async sourceId => {
+    if (sourceId === 'maliades') {
+      await declareThenSeatDioneEngineer();
+      fleetGroup('fleet-1', { memberShipIds: { u1: 'dione' } });
+    } else await declareThenSeatPdfColonel();
+    const payload = { sessionId: 's1', requestId: `review-pass-valid-${sourceId}`, sourceId,
+      expectedTurn: 1, expectedRevision: 1,
+      ...(sourceId === 'maliades' ? {} : { expectedWingRevision: 0 }) };
+    await expect(passWolfFighterLaunchChoice.run(request(payload))).resolves.toMatchObject({
+      status: 'committed', sourceId, choiceStatus: 'passed', revision: 2,
+    });
+    mock.update.mockClear(); mock.set.mockClear();
+    await expect(passWolfFighterLaunchChoice.run(request(payload))).resolves.toMatchObject({
+      status: 'replayed', sourceId, choiceStatus: 'passed', revision: 2,
+    });
+    expect(mock.update).not.toHaveBeenCalled(); expect(mock.set).not.toHaveBeenCalled();
+  });
+
+it.each((['pdf-escort-fighter-wing', 'maliades'] as const).flatMap(sourceId =>
+  (['fresh', 'replay'] as const).flatMap(attempt =>
+    ['wrong-berth', 'removed-member', 'mismatched-group', 'missing-group', 'absent-host']
+      .map(drift => ({ sourceId, attempt, drift })))))
+  ('rejects $attempt $sourceId launch passes with $drift authority', async ({ sourceId, attempt, drift }) => {
+    const host = sourceId === 'maliades' ? 'dione' : 'refinery-124';
+    if (sourceId === 'maliades') {
+      await declareThenSeatDioneEngineer();
+      fleetGroup('fleet-1', { memberShipIds: { u1: host } });
+    } else await declareThenSeatPdfColonel();
+    const payload = { sessionId: 's1', requestId: `review-pass-${sourceId}`, sourceId,
+      expectedTurn: 1, expectedRevision: 1,
+      ...(sourceId === 'maliades' ? {} : { expectedWingRevision: 0 }) };
+    if (attempt === 'replay') await passWolfFighterLaunchChoice.run(request(payload));
+    const group = mock.documents.get('sessions/s1/fleetGroups/fleet-1')!;
+    if (drift === 'missing-group') {
+      const actor = { ...mock.documents.get('sessions/s1/players/u1') };
+      delete actor.fleetGroupId;
+      put('sessions/s1/players/u1', actor);
+    } else put('sessions/s1/fleetGroups/fleet-1', { ...group,
+      ...(drift === 'wrong-berth' ? { memberShipIds: { u1: host === 'dione' ? 'refinery-124' : 'dione' } }
+        : drift === 'removed-member' ? { memberUids: [] }
+          : drift === 'mismatched-group' ? { id: 'fleet-2' }
+            : { vesselIds: (group.vesselIds as string[]).filter(shipId => shipId !== host) }),
+    });
+    const saved = structuredClone([...mock.documents]);
+    mock.update.mockClear(); mock.set.mockClear();
+    await expect(passWolfFighterLaunchChoice.run(request(payload))).rejects.toMatchObject({ code: 'permission-denied' });
+    expect([...mock.documents]).toEqual(saved);
+    expect(mock.update).not.toHaveBeenCalled(); expect(mock.set).not.toHaveBeenCalled();
+  });
