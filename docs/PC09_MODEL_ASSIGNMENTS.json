@@ -245,14 +245,35 @@
       "effectiveModelConfirmed": false,
       "modelChanges": [],
       "scopeChanges": []
+    },
+    {
+      "taskId": "/root/pc09_risk_review",
+      "executionThreadId": null,
+      "purpose": "One fresh independent reconciled PC09 authority/privacy/release review",
+      "scope": [
+        "All 49 PC09 product IDs and ten PC08 audit repairs; review only"
+      ],
+      "launchModel": "gpt-6.1-sol",
+      "launchEffort": "max",
+      "launchArguments": {
+        "task_name": "pc09_risk_review",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "max",
+        "fork_turns": "none"
+      },
+      "launchEvidence": "Accepted collaboration.spawn_agent returned /root/pc09_risk_review at the explicit requested settings; effective runtime model is unexposed.",
+      "effectiveModelConfirmed": false,
+      "modelChanges": [],
+      "worktree": "/private/tmp/dow-pc09-risk-review-20261004",
+      "candidateCommit": "c123368c77f0f5a072785263d94c67fdeb4af9ca"
     }
   ],
   "pending": [
     {
-      "taskId": "independent reconciled risk reviewer",
+      "taskId": "/root/pc09_risk_review",
       "model": "gpt-6.1-sol",
       "effort": "max",
-      "status": "Not launched; waits for complete reconciled PC09 candidate."
+      "status": "Launched against reconciled product candidate c123368c; final ordinary acceptance proofs supplied while review is running."
     }
   ],
   "findings": [

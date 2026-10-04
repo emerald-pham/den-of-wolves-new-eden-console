@@ -4,8 +4,13 @@ Review owner: separate Sol 6.1 reviewer at the reconciled candidate. This brief
 does not constitute review, acceptance, CI or deployment evidence.
 
 Starting main: `b36119e9cdcf43e65bdfc00538b67115b0214ee2`, v0.5.67.
-The reviewed candidate SHA and evidence index will be added when every bounded
-group is reconciled. Read `CLAUDE.md`, `AGENT_EXECUTION_POLICY.md`, the exact
+The initial reviewed product candidate is
+`c123368c77f0f5a072785263d94c67fdeb4af9ca`, reviewed independently in
+`/private/tmp/dow-pc09-risk-review-20261004` by `/root/pc09_risk_review`
+(Sol 6.1 Max launch, runtime effective-model field unexposed). All bounded
+product groups are reconciled. Final ordinary acceptance proofs are supplied
+while review runs; catalog and release credits remain pending. The evidence
+index is the acceptance matrix plus the linked group handoffs. Read `CLAUDE.md`, `AGENT_EXECUTION_POLICY.md`, the exact
 49 catalog rows, `PC08_BUG_AUDIT.md`, `PC09_ACCEPTANCE_MATRIX.md` and group
 handoffs. Review changes against the settled baseline, not worker summaries.
 
