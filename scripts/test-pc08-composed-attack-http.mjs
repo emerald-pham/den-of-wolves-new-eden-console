@@ -368,13 +368,17 @@ try {
     const lockedDice = lockedState.rangeDecisions?.[range]?.lock?.dice;
     if (locked.choiceStatus === 'targets-required') {
       const assignmentView = await command(eo, 'getWolfRangeActionChoice');
+      const assignments = safeTargetAssignments(assignmentView);
+      observations.push({ range, assignmentView, assignments });
       await exactRetry(eo, 'assignWolfRangeTargets', { requestId: randomUUID(), expectedTurn: assignmentView.turn,
-        expectedRevision: assignmentView.revision, range, assignments: safeTargetAssignments(assignmentView) });
+        expectedRevision: assignmentView.revision, range, assignments });
     }
     const resolved = await attackState();
     const receipt = resolved.rangeReceipts.find(item => item.range === range);
     assert.ok(receipt, 'Each range retains one committed immutable receipt.');
-    if (lockedDice) assert.deepEqual(receipt.dice, lockedDice, 'Assignment must consume the same source dice.');
+    if (lockedDice) assert.deepEqual(receipt.dice, lockedDice.map(die => ({ actionId: die.actionId, sourceId: die.sourceId,
+      range: die.range, rolls: die.rolls, successes: die.successes, damage: die.damage })),
+    'Assignment must consume the same source dice in the canonical final receipt.');
     ranges.push({ range, support, sourceIds: [...new Set(receipt.dice.map(die => die.sourceId))],
       diceCount: receipt.dice.reduce((sum, die) => sum + die.rolls.length, 0), targetShiftCount: receipt.targetShifts.length });
   }

@@ -1928,7 +1928,7 @@ it('combines source choices in one locked range and guides Short Wing coverage a
   expect(assignmentView.contacts[1]).toMatchObject({ contactId: 'contact-2', available: true, requiredCoverageDamage: 1 });
   expect(assignmentView.contacts[10]).toMatchObject({ contactId: 'contact-11', available: true, requiredCoverageDamage: null });
   const lockedDice = (testState.documents.get('sessions/s1/wolfAttackState/current')!.rangeDecisions as
-    Record<string, { lock: { dice: unknown[] } }>)['short-range']!.lock.dice;
+    Record<string, { lock: { dice: Fields[] } }>)['short-range']!.lock.dice;
   expect(lockedDice).toContainEqual(expect.objectContaining({ actionId: 'boa-short-range', successes: 1 }));
   const assigned = await assignWolfRangeTargets.run(request({ sessionId: 's1', requestId: 'ordinary-support-short-assign',
     expectedTurn: 1, expectedRevision: assignmentView.revision, range: 'short-range',
@@ -1938,7 +1938,8 @@ it('combines source choices in one locked range and guides Short Wing coverage a
   expect(assigned).toMatchObject({ currentStep: 'boarding' });
   const resolved = testState.documents.get('sessions/s1/wolfAttackState/current')!;
   const rangeReceipt = (resolved.rangeReceipts as Array<Fields>).at(-1)!;
-  expect(rangeReceipt.dice).toEqual(lockedDice);
+  expect(rangeReceipt.dice).toEqual(lockedDice.map(die => ({ actionId: die.actionId, sourceId: die.sourceId,
+    range: die.range, rolls: die.rolls, successes: die.successes, damage: die.damage })));
   expect(rangeReceipt.assignments).toContainEqual(expect.objectContaining({ actionId: 'boa-short-range',
     targetInstanceIds: [(resolved.combatRoster as Array<Fields>)[0]!.instanceId] }));
   expect(entropy.randomInt).toHaveBeenCalledTimes(4);
