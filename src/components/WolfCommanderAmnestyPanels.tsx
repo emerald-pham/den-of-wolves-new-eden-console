@@ -89,7 +89,13 @@ export function WolfCommanderAddressAmnestyPanel() {
     setNotice(null);
     try {
       const result = await publishWolfCommanderAddress(message, currentCycle);
-      setView((current) => current ? { ...current, commanderAddressPublished: true } : current);
+      setView((current) => ({
+        type: 'wolf-amnesty-view',
+        sessionId: result.sessionId,
+        offer: current?.offer ?? null,
+        commanderAddressPublished: true,
+      }));
+      setLoadError(null);
       setNotice(`Fleet address published for 30 seconds // expires ${formatDeadline(result.expiresAt)}.`);
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : 'The fleet address could not be published.');
