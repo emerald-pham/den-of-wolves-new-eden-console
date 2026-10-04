@@ -163,6 +163,7 @@ function ElectionReview() {
   return <section className="pc07-review__workspace" aria-label="Prepared election and crisis">
     <div className="pc09-review__columns">
       <PresidentialElectionWorkspaceView projection={projection} live currentUserUid="prepared-voter" isFacilitator={false}
+        currentCycle={7} ballotSubmitted={projection.state !== 'open'}
         onConfigurePolicy={async () => {}} onResolveElection={async () => {}}
         onCastBallot={async ({presidentCandidateId, vicePresidentCandidateId}) => setProjection(current => ({...current,
           revision: current.revision + 1, state: 'resolved', presidentCandidateId, vicePresidentCandidateId, decidedCycle: 7,
