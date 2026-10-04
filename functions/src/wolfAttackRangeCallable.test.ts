@@ -2267,3 +2267,22 @@ it.each(reviewReplayKinds)('keeps an authorized %s exact retry after its attack 
   expect(testState.set).not.toHaveBeenCalled(); expect(testState.update).not.toHaveBeenCalled();
   expect(testState.remove).not.toHaveBeenCalled();
 });
+
+it.each(['missing', 'actor', 'request', 'range', 'revision'])(
+  'rejects fighter range receipt replay with a %s committed choice binding', async drift => {
+    const { replay } = await commitReviewReplayChoice('fighter-range');
+    const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+    const all = attack.fighterRangeChoices as Fields;
+    const current = all['short-range'] as Fields;
+    const choice = current['fighter-wing-alpha'] as Fields;
+    const changed = drift === 'missing' ? {} : { 'fighter-wing-alpha': { ...choice,
+      ...(drift === 'actor' ? { actorUid: 'another-commander' }
+        : drift === 'request' ? { requestId: 'another-request' }
+          : drift === 'range' ? { range: 'medium-range' } : { revision: 900 }),
+    } };
+    put('sessions/s1/wolfAttackState/current', { ...attack,
+      fighterRangeChoices: { ...all, 'short-range': changed } });
+    const saved = structuredClone([...testState.documents]);
+    await expect(replay()).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect([...testState.documents]).toEqual(saved);
+  });
