@@ -470,10 +470,24 @@ try {
   const preparation2 = await command(gm, 'stageWolfAttackPreparation', { instanceId, requestId: randomUUID(),
     expectedRevision: currentPreparation.revision, turn: 3, shipIds: secondComposition,
     targetMode: 'pre-rolled', targetAssignments: [], modifiers: [], notes: 'Authenticated surviving-Wing carryover proof' });
+  const beforeSecondDeclaration = (await session.get()).data();
+  const retainedBeforeDeclaration = beforeSecondDeclaration.retainedShuttles ?? {};
   const declaration2Request = { instanceId, requestId: randomUUID(), expectedRevision: preparation2.revision };
   const declaration2 = await command(gm, 'declareWolfAttack', declaration2Request);
   assert.equal(declaration2.turn, 3);
   const secondState = (await stateRef.get()).data();
+  const afterSecondDeclaration = (await session.get()).data();
+  assert.deepEqual(afterSecondDeclaration.retainedShuttles ?? {}, retainedBeforeDeclaration);
+  for (const retainedId of Object.keys(retainedBeforeDeclaration)) {
+    assert.deepEqual(afterSecondDeclaration.shuttleControl[retainedId],
+      beforeSecondDeclaration.shuttleControl[retainedId], 'Retained craft custody must not change.');
+    assert.ok(!afterSecondDeclaration.shuttleDockings.some(row => row.shuttleId === retainedId),
+      'Declaring the next attack must not redock retained craft.');
+    assert.ok(!secondState.parkedCraftIds.includes(retainedId));
+    assert.ok(!secondState.parkedShuttleDockings.some(row => row.shuttleId === retainedId));
+    assert.ok(!secondState.battleTableCraftActions.some(row => row.craftId === retainedId));
+  }
+  if (Object.keys(retainedBeforeDeclaration).length > 0) checks.retainedCustodyPreservedWithoutNewParkingOrCombat = true;
   assert.equal(secondState.attackNumber, 2);
   assert.equal(secondState.previousAttackId, priorAttackState.attackId);
   assert.deepEqual(secondState.carryover.sourceInstanceIds, returningWings);
