@@ -2048,6 +2048,7 @@ it('lets the assigned Commander commit ten plus the selected group pursuit once 
     openAirspaceEndsAt: new Date(Date.now() + 600_000).toISOString(),
     airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
   } });
+  mock.documents.delete('sessions/s1/wolfAttackWindow/current');
   navigation({ revision: 7, pursuitGroups: { 'fleet-1': 2, 'fleet-2': 8 } });
   splitFleet();
   put('sessions/s1/players/wolfcmd', {
