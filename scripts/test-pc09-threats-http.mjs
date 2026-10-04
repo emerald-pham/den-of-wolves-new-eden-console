@@ -49,13 +49,39 @@ async function joinCommander(joinCode) {
     const body = await response.json().catch(() => ({}));
     sessionNetwork.push({ name, status: response.status(), at: new Date().toISOString(),
       ...(body.error ? { error: body.error } : {}),
-      ...(body.result ? { type: body.result.type, status: body.result.status,
+      ...(body.result ? { type: body.result.type, resultStatus: body.result.status,
         cycle: body.result.cycle ?? body.result.session?.currentTurn,
         connectionGeneration: body.result.player?.connectionGeneration } : {}) });
     if (sessionNetwork.length > 120) sessionNetwork.shift();
   });
   page.on('pageerror', error => browserErrors.push(error.message));
   await page.goto(uiOrigin);
+  await page.evaluate(async moduleUrl => {
+    const { useSessionStore } = await import(moduleUrl);
+    const trace = [];
+    let previous;
+    const record = () => {
+      const s = useSessionStore.getState();
+      const next = { route: location.hash, connection: s.connection,
+        freshness: s.sessionSnapshotFreshness, cycle: s.session?.currentTurn,
+        identityRevision: s.identityHydrationRevision, snapshotVersion: s.sessionSnapshotVersion,
+        generation: s.me?.connectionGeneration, roleId: s.me?.replacementRoleId,
+        activeConsoleRoleId: s.me?.activeConsoleRoleId, replacementStatus: s.me?.replacementStatus,
+        briefRoleId: s.roleBrief?.roleId, ownBrief: s.roleBrief?.assignmentUid === s.me?.uid,
+        communicationError: s.communicationError?.kind };
+      const key = JSON.stringify(next);
+      if (key === previous) return;
+      previous = key;
+      trace.push({ at: new Date().toISOString(), ...next });
+      if (trace.length > 160) trace.shift();
+    };
+    // This observes the genuine store; it does not patch identity, authority,
+    // tokens, storage, callable services, or any gameplay projection.
+    useSessionStore.subscribe(record);
+    window.addEventListener('hashchange', record);
+    window.__pc09CommanderStateTrace = trace;
+    record();
+  }, sessionStoreModuleUrl);
   await page.getByRole('button', { name: /^REDUCED MOTION/i }).click();
   await page.getByRole('textbox', { name: 'Session code', exact: true }).fill(joinCode);
   await page.getByRole('button', { name: 'Join a session', exact: true }).click();
@@ -351,6 +377,7 @@ try {
   const evidence = {
     kind: 'pc09-normal-authenticated-local-emulator-commander-threat-and-amnesty-ui-http',
     sourceCommit, functionsRuntime, sessionNetwork,
+    stateTrace: await page.evaluate(() => window.__pc09CommanderStateTrace ?? []),
     fixtureChanges: ['disposable Auth/Firestore emulator session', 'browser joins through the normal session flow',
       'replacement role assignment through authenticated GM callables',
       'Admin-only deadline time-travel for the unanswered-expiry case'],
@@ -393,6 +420,7 @@ try {
   }
   await writeFile(`${evidencePath}.failure.json`, `${JSON.stringify({
     sourceCommit, functionsRuntime, sessionNetwork,
+    stateTrace: await page?.evaluate(() => window.__pc09CommanderStateTrace ?? []).catch(() => []),
     message: error instanceof Error ? error.message : String(error), checks, calls, commanderRequests,
     commanderResponses, savedAddressRecord, savedAddressEvent, browserErrors, currentPage,
     completedAt: new Date().toISOString(),
