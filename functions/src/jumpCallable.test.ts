@@ -2688,6 +2688,31 @@ it.each([
     expect.objectContaining({ status: 'resolved', resolution: consequence }));
 });
 
+it('rounds half of an odd d6 failed-jump damage roll down before drawing cards', async () => {
+  mock.fuel = 1;
+  mock.jumpStates = { aegis: { lastFailureRequestId: 'odd-half-failure' } };
+  mock.jumpFailures = {
+    'odd-half-failure': {
+      type: 'ship-jump-failure', status: 'unresolved', adjudicable: true,
+      requestId: 'odd-half-failure', shipId: 'aegis', origin: '0000', destination: '9997',
+      failureStatus: 'fuel-shortage', failureRevision: 0, currentTurn: 1, fuelAtFailure: 1,
+      requiredFuel: 3,
+    },
+  };
+  mock.randomInt.mockReturnValue(5);
+
+  const reply = await adjudicateFailedJump.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'odd-half-resolution',
+    expectedRevision: 0, failureRequestId: 'odd-half-failure', destination: '5143',
+    consequence: 'half-d6-damage',
+  }));
+
+  expect(reply).toMatchObject({ status: 'jumped', consequence: 'half-d6-damage', failureRoll: 5, damageCount: 2 });
+  expect((reply as { damageDraws: unknown[] }).damageDraws).toHaveLength(2);
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1/jumpFailures/odd-half-failure',
+    expect.objectContaining({ resolution: 'half-d6-damage', damageRoll: 5, appliedDamageCount: 2 }));
+});
+
 it('commits the documented no-jump delay without fuel, movement, or damage mutations', async () => {
   mock.jumpStates = { aegis: { lastFailureRequestId: 'delay-failure' } };
   mock.jumpFailures = {
