@@ -478,17 +478,21 @@ it('resolves a finalized same-cycle P Station repeat from its complete immutable
     .map(({ instanceId, shipId, target }) => ({ instanceId, shipId, target }));
   const returningInstanceIds = [...(prior.calculationReceipt as Fields).returningInstanceIds as string[], battlestation.instanceId];
   const marker = { type: 'p-station-sequence', sequenceId: 'wolf-p-station-transition-1',
-    groupId: 'fleet-1', chart: 'A', coordinate: '0102', sourceTransitionId: 'transition-1',
-    sourceCycle: 1, attackNumber: 1 };
+    groupId: 'fleet-1', chart: 'A', coordinate: '0102', stationId: 'P', sourceTransitionId: 'transition-1',
+    sourceCycle: 1, attackNumber: 4 };
   const receipt = { ...(prior.calculationReceipt as Fields), ranges: rangeReceipts, returningInstanceIds, survivingWolfShips };
-  const state = { ...prior, combatRoster, rangeReceipts, pStationSequence: marker, calculationReceipt: receipt };
-  const audit = { ...auditBefore, pStationSequence: marker, receipt, rangeReceipts };
+  const carryover = { sourceAttackId: 'wolf-attack-prior-3', sourceTurn: 1,
+    sourceInstanceIds: returningInstanceIds, rosterInstanceIds: returningInstanceIds };
+  const state = { ...prior, attackNumber: 4, previousAttackId: carryover.sourceAttackId, carryover,
+    combatRoster, rangeReceipts, pStationSequence: marker, calculationReceipt: receipt };
+  const audit = { ...auditBefore, attackNumber: 4, previousAttackId: carryover.sourceAttackId,
+    carryover, pStationSequence: marker, receipt, rangeReceipts };
   mock.documents.set(statePath, state);
   mock.documents.set(auditPath, audit);
   const repeatContext = { type: 'p-station-repeat', sequenceId: marker.sequenceId, groupId: marker.groupId,
-    chart: marker.chart, coordinate: marker.coordinate, sourceTransitionId: marker.sourceTransitionId,
-    sourceCycle: marker.sourceCycle, parentAttackId: prior.attackId, parentAttackNumber: 1,
-    parentTurn: 1, nextAttackNumber: 2 };
+    chart: marker.chart, coordinate: marker.coordinate, stationId: marker.stationId,
+    sourceTransitionId: marker.sourceTransitionId, sourceCycle: marker.sourceCycle,
+    parentAttackId: prior.attackId, parentAttackNumber: 4, parentTurn: 1, nextAttackNumber: 5 };
   const readRepeat = resolvedWolfAttackForCarryover as unknown as (
     stateValue: unknown, finalizationAuditValue: unknown, currentTurn: number, context: Fields,
   ) => { survivingShips: readonly { instanceId: string; shipId: string }[] };
