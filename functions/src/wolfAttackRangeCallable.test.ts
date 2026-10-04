@@ -72,6 +72,8 @@ import {
   commitWolfFighterRangeActionChoice,
   launchAegisFighterWing,
   commitWolfRangeActionChoice,
+  getWolfRangeSupportActionChoice,
+  commitWolfRangeSupportActionChoice,
   advanceWolfAttackLifecycle,
   getWolfRangeActionChoice,
   getWolfBoardingDefenceChoice,
@@ -167,6 +169,49 @@ function admitEscortRange(): void {
     rangeReceipts: [{ range: 'long-range', targetSnapshot, targetShifts: [], dice: [], assignments: [],
       unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
       destructionDamageByTarget: Object.fromEntries(CORE_WOLF_TARGET_RING.map((target) => [target, 0])) }] });
+}
+
+function admitRangeSupportChoices(): void {
+  const session = testState.documents.get('sessions/s1')!;
+  const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  const targetSnapshot = (attack.combatRoster as Array<{ instanceId: string; target: string }>)
+    .map(({ instanceId, target }) => ({ instanceId, target }));
+  const emptyReceipt = (range: string) => ({ range, targetSnapshot, targetShifts: [], dice: [], assignments: [],
+    unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
+    destructionDamageByTarget: Object.fromEntries(CORE_WOLF_TARGET_RING.map((target) => [target, 0])) });
+  put('sessions/s1', { ...session,
+    activeVesselIds: [...(session.activeVesselIds as string[]), 'capybara', 'gorgoneion'],
+    activeRoleIds: ['executive-officer', 'icebreaker-miner', 'capybara-recycler', 'gorgoneion-captain'],
+    shuttleFuelled: { highwall: true, boa: false },
+    shuttleDockings: [{ shuttleId: 'highwall', shipId: 'icebreaker' }, { shuttleId: 'boa', shipId: 'capybara' }],
+    shuttleControl: {
+      highwall: { shuttleId: 'highwall', ownerRoleId: 'icebreaker-miner', ownerUid: 'miner-1', holderUid: 'miner-1', revision: 2 },
+      boa: { shuttleId: 'boa', ownerRoleId: 'capybara-recycler', ownerUid: 'recycler-1', holderUid: 'recycler-1', revision: 3 },
+    },
+    shuttleCargo: { boa: { scrap: 3 } }, capybaraEnabled: true,
+    smallShipStates: { gorgoneion: { id: 'gorgoneion', hostShipId: 'aegis', dockingRevision: 1,
+      population: 1000, unrest: 0, cycle: { step: 5, revision: 4, results: { '4': 'Reactor charged.' },
+        charges: ['missile-array'], turn: 1 } } },
+  });
+  const group = testState.documents.get('sessions/s1/fleetGroups/fleet-1')!;
+  put('sessions/s1/fleetGroups/fleet-1', { ...group,
+    vesselIds: [...(group.vesselIds as string[]), 'capybara'],
+    memberUids: ['xo-1', 'miner-1', 'recycler-1', 'gorg-captain-1'],
+    memberShipIds: { 'xo-1': 'aegis', 'miner-1': 'icebreaker', 'recycler-1': 'capybara', 'gorg-captain-1': 'aegis' },
+  });
+  put('sessions/s1/players/miner-1', { uid: 'miner-1', role: 'player', connected: true,
+    assignedRoleId: 'icebreaker-miner', activeConsoleRoleId: 'icebreaker-miner', fleetGroupId: 'fleet-1' });
+  put('sessions/s1/players/recycler-1', { uid: 'recycler-1', role: 'player', connected: true,
+    assignedRoleId: 'capybara-recycler', activeConsoleRoleId: 'capybara-recycler', fleetGroupId: 'fleet-1' });
+  put('sessions/s1/players/gorg-captain-1', { uid: 'gorg-captain-1', role: 'player', connected: true,
+    assignedRoleId: 'gorgoneion-captain', replacementRoleId: 'gorgoneion-captain', fleetGroupId: 'fleet-1' });
+  const emptyLong = emptyReceipt('long-range');
+  const emptyMedium = emptyReceipt('medium-range');
+  put('sessions/s1/wolfAttackState/current', { ...attack, currentStep: 'short-range', revision: 7,
+    battleTableCraftActions: [
+      { craftId: 'highwall', kind: 'shuttle', ownerRoleId: 'icebreaker-miner' },
+      { craftId: 'boa', kind: 'shuttle', ownerRoleId: 'capybara-recycler' },
+    ], rangeReceipts: [emptyLong, emptyMedium] });
 }
 
 it('returns only safe escort contacts and operational durability to the assigned current role', async () => {
@@ -1770,6 +1815,90 @@ it('rejects insufficient Enriched Warhead funds and a stale or foreign-role purc
   await expect(commitAegisEnrichedWarheadChoice.run(request(payload, 'wrong-role')))
     .rejects.toMatchObject({ code: 'permission-denied' });
   expect(testState.update).not.toHaveBeenCalled();
+});
+
+it('offers current Highwall, Gorgoneion and Boa choices through private actor views with Short Wing-first contacts', async () => {
+  admitRangeSupportChoices();
+  const highwall = await getWolfRangeSupportActionChoice.run(request({ sessionId: 's1', sourceId: 'highwall', range: 'short-range' }, 'miner-1'));
+  expect(highwall).toMatchObject({ type: 'wolf-range-support-action-choice-view', sourceId: 'highwall',
+    actorRoleId: 'icebreaker-miner', eligible: true, actionAvailable: true, choiceStatus: 'pending' });
+  const gorgoneion = await getWolfRangeSupportActionChoice.run(request({ sessionId: 's1', sourceId: 'gorgoneion-missile-array', range: 'short-range' }, 'gorg-captain-1'));
+  expect(gorgoneion).toMatchObject({ sourceId: 'gorgoneion-missile-array', actorRoleId: 'gorgoneion-captain',
+    eligible: true, actionAvailable: true, choiceStatus: 'pending' });
+  const boa = await getWolfRangeSupportActionChoice.run(request({ sessionId: 's1', sourceId: 'boa', range: 'short-range' }, 'recycler-1'));
+  expect(boa).toMatchObject({ sourceId: 'boa', actorRoleId: 'capybara-recycler', eligible: true,
+    actionAvailable: true, scrapAvailable: 3, choiceStatus: 'pending' });
+  expect(boa.contacts.slice(0, 10).every((contact: Fields) => contact.available)).toBe(true);
+  expect(boa.contacts.slice(10).every((contact: Fields) => !contact.available)).toBe(true);
+  for (const view of [highwall, gorgoneion, boa]) {
+    expect(Object.keys(view).sort()).toEqual([
+      'type', 'sessionId', 'attackId', 'turn', 'revision', 'range', 'sourceId', 'actorRoleId',
+      'choiceStatus', 'eligible', 'actionAvailable', 'deadlineAt', 'contacts',
+      ...(view.sourceId === 'boa' ? ['scrapAvailable'] : []),
+    ].sort());
+    expect(view).not.toHaveProperty('combatRoster');
+    expect(view).not.toHaveProperty('targetInstanceIds');
+    expect(view).not.toHaveProperty('dice');
+    expect(view).not.toHaveProperty('privateNotes');
+  }
+  await expect(getWolfRangeSupportActionChoice.run(request({ sessionId: 's1', sourceId: 'boa', range: 'short-range' }, 'xo-1')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+});
+
+it('holds an entitled disconnected range-source owner until reconnect and a fresh explicit pass', async () => {
+  admitRangeSupportChoices();
+  const session = testState.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session, shuttleFuelled: { highwall: true, boa: false },
+    shuttleCargo: { boa: { scrap: 0 } },
+    smallShipStates: { gorgoneion: { id: 'gorgoneion', hostShipId: 'aegis', dockingRevision: 1,
+      population: 1000, unrest: 0, cycle: { step: 5, revision: 4, results: { '4': 'Reactor charged.' }, charges: [], turn: 1 } } },
+  });
+  const miner = testState.documents.get('sessions/s1/players/miner-1')!;
+  put('sessions/s1/players/miner-1', { ...miner, connected: false, activeConsoleRoleId: undefined });
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({ currentStep: 'short-range' });
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current')?.rangeDecisions).toBeUndefined();
+  await expect(commitWolfRangeSupportActionChoice.run(request({ sessionId: 's1', sourceId: 'highwall', range: 'short-range',
+    requestId: 'offline-highwall', expectedTurn: 1, expectedRevision: 7, use: false }, 'miner-1')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  put('sessions/s1/players/miner-1', { ...miner, connected: true, activeConsoleRoleId: 'icebreaker-miner' });
+  const view = await getWolfRangeSupportActionChoice.run(request({ sessionId: 's1', sourceId: 'highwall', range: 'short-range' }, 'miner-1'));
+  await expect(commitWolfRangeSupportActionChoice.run(request({ sessionId: 's1', sourceId: 'highwall', range: 'short-range',
+    requestId: 'reconnected-highwall-pass', expectedTurn: 1, expectedRevision: view.revision, use: false }, 'miner-1')))
+    .resolves.toMatchObject({ status: 'committed', choiceStatus: 'passed' });
+  expect(entropy.randomInt).not.toHaveBeenCalled();
+});
+
+it('combines source choices in one locked range and guides Short Wing coverage after fixed Boa damage', async () => {
+  admitRangeSupportChoices();
+  const highwallView = await getWolfRangeSupportActionChoice.run(request({ sessionId: 's1', sourceId: 'highwall', range: 'short-range' }, 'miner-1'));
+  await commitWolfRangeSupportActionChoice.run(request({ sessionId: 's1', sourceId: 'highwall', range: 'short-range',
+    requestId: 'highwall-short-use', expectedTurn: 1, expectedRevision: highwallView.revision, use: true }, 'miner-1'));
+  const gorgView = await getWolfRangeSupportActionChoice.run(request({ sessionId: 's1', sourceId: 'gorgoneion-missile-array', range: 'short-range' }, 'gorg-captain-1'));
+  await commitWolfRangeSupportActionChoice.run(request({ sessionId: 's1', sourceId: 'gorgoneion-missile-array', range: 'short-range',
+    requestId: 'gorg-short-use', expectedTurn: 1, expectedRevision: gorgView.revision, use: true }, 'gorg-captain-1'));
+  const boaView = await getWolfRangeSupportActionChoice.run(request({ sessionId: 's1', sourceId: 'boa', range: 'short-range' }, 'recycler-1'));
+  const payload = { sessionId: 's1', sourceId: 'boa', range: 'short-range', requestId: 'boa-short-use',
+    expectedTurn: 1, expectedRevision: boaView.revision, use: true, targetContactId: 'contact-1' };
+  await commitWolfRangeSupportActionChoice.run(request(payload, 'recycler-1'));
+  await expect(commitWolfRangeSupportActionChoice.run(request(payload, 'recycler-1'))).resolves.toMatchObject({ status: 'replayed' });
+  expect(testState.documents.get('sessions/s1')?.shuttleCargo).toMatchObject({ boa: { scrap: 2 } });
+  expect(entropy.randomInt).not.toHaveBeenCalled();
+
+  const eo = await getWolfRangeActionChoice.run(request({ sessionId: 's1' }));
+  const locked = await commitWolfRangeActionChoice.run(request({ sessionId: 's1', requestId: 'eo-support-short-lock',
+    expectedTurn: 1, expectedRevision: eo.revision, range: 'short-range', actionIds: [] }));
+  expect(locked).toMatchObject({ choiceStatus: 'targets-required', hitSlots: [
+    { actionId: 'highwall-short-range', count: 1, damagePerHit: 3 },
+    { actionId: 'gorgoneion-missile-array-short', count: 3, damagePerHit: 1 },
+    { actionId: 'boa-short-range', count: 1, damagePerHit: 1 },
+  ] });
+  expect(entropy.randomInt).toHaveBeenCalledTimes(4);
+  const assignmentView = await getWolfRangeActionChoice.run(request({ sessionId: 's1' }));
+  expect(assignmentView.hitSlots).toEqual(locked.hitSlots);
+  expect(assignmentView.contacts[0]).toMatchObject({ contactId: 'contact-1', available: true, requiredCoverageDamage: 0 });
+  expect(assignmentView.contacts[1]).toMatchObject({ contactId: 'contact-2', available: true, requiredCoverageDamage: 1 });
+  expect(assignmentView.contacts[10]).toMatchObject({ contactId: 'contact-11', available: true, requiredCoverageDamage: null });
 });
 
 it('keeps an offline entitled Executive Officer Enriched Warhead choice pending', async () => {

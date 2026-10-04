@@ -25,19 +25,19 @@ beforeEach(() => {
   } as never);
 });
 
-it('shows the registered Missile Array rule while withholding its future firing action', () => {
+it('shows the registered Missile Array rule and points its charged firing choice to the Captain panel', () => {
   render(<SmallShipOperations />);
 
   const gorgoneion = screen.getByRole('region', { name: 'Gorgoneion small-ship operations' });
   const systems = within(gorgoneion).getByRole('region', { name: 'Gorgoneion registered systems' });
   const missileArray = within(systems).getByRole('article', {
-    name: 'Missile Array system // unavailable',
+    name: 'Missile Array system // live-below',
   });
   expect(missileArray).toHaveTextContent('Wolf attack // not charged');
-  expect(missileArray).toHaveTextContent('3 dice total: one at long, one at medium, and one at short range');
+  expect(missileArray).toHaveTextContent('At each range, roll 3 dice');
   expect(missileArray).toHaveTextContent('6+ / 5+ / 4+');
   expect(missileArray).toHaveTextContent('each target at most once per phase');
-  expect(missileArray).toHaveTextContent(/action unavailable.*range-phase.*prompt 455/i);
+  expect(missileArray).toHaveTextContent(/live control.*Captain workspace/i);
   expect(within(missileArray).queryByRole('button')).not.toBeInTheDocument();
 });
 

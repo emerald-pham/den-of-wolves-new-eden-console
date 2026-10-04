@@ -130,7 +130,7 @@ describe('server-only console metadata', () => {
     expect(UNREGISTERED_VESSEL_CONSOLES.vulcan).toEqual(['246', '248']);
   });
 
-  it('registers Gorgoneion Missile Array while keeping firing fail closed for Prompt 455', () => {
+  it('registers Gorgoneion Missile Array with its connected range resolver', () => {
     expect(Object.keys(SUPPLEMENTAL_CONSOLE_METADATA)).toEqual([
       'gorgoneion:missile-array', 'gorgoneion:force-field-projector', 'vulcan:laser-cannon',
     ]);
@@ -141,11 +141,8 @@ describe('server-only console metadata', () => {
       phase: 'Wolf attack',
       maintenanceStep: 4,
       charge: { status: 'printed', text: 'Requires one console charge from the small-ship Reactor.' },
-      effect: 'Roll 3 dice total: one at long, one at medium, and one at short range. Each 6+ / 5+ / 4+ deals 1 damage at that range; the array can damage each target at most once per phase.',
-      resolver: {
-        status: 'unavailable', id: 'fail-closed.unavailable', followOnPrompts: ['455'],
-        reason: 'Missile Array firing is unavailable until the authoritative range-phase resolver lands.',
-      },
+      effect: 'At each range, roll 3 dice. Each 6+ / 5+ / 4+ deals 1 damage at Long / Medium / Short range; the array can damage each target at most once per phase.',
+      resolver: { status: 'implemented', id: 'wolf-attack.range-actions' },
     });
     expect(supplementalConsoleMetadataFor('gorgoneion', 'force-field-projector')).toEqual({
       consoleId: 'gorgoneion:force-field-projector',

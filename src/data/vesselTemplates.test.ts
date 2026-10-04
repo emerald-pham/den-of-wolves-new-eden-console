@@ -117,15 +117,14 @@ describe('shared vessel templates', () => {
     expect(JSON.stringify(SHIPS)).not.toMatch(/[♥♦♣♠]|damageDeck|"card"/);
   });
 
-  it('registers the Gorgoneion combat systems without exposing their deferred actions', () => {
+  it('registers Gorgoneion combat systems and routes the charged Missile Array to its live range panel', () => {
     expect(findVessel('gorgoneion')?.systems).toEqual([
       {
         id: 'missile-array', name: 'Missile Array', phase: 'Wolf attack', charge: 'reactor',
-        effect: 'Roll 3 dice total: one at long, one at medium, and one at short range. Each 6+ / 5+ / 4+ deals 1 damage at that range; the array can damage each target at most once per phase.',
+        effect: 'At each range, roll 3 dice. Each 6+ / 5+ / 4+ deals 1 damage at Long / Medium / Short range; the array can damage each target at most once per phase.',
         action: {
-          status: 'unavailable',
-          reason: 'Range-phase firing is unavailable until the authoritative Missile Array resolver lands.',
-          followOnPrompts: ['455'],
+          status: 'live-below',
+          reason: 'The live server-owned range choice panel appears below when the current Captain and charge permit.',
         },
       },
       {

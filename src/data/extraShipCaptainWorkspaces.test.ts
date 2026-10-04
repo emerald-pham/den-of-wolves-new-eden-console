@@ -71,6 +71,15 @@ describe('extra-ship Captain workspace catalog', () => {
       });
   });
 
+  it('connects the charged Gorgoneion Missile Array to its live range choice panel', () => {
+    expect(extraShipCaptainWorkspaceFor('gorgoneion-captain')?.actions.find(({ id }) => id === 'missile-array'))
+      .toMatchObject({
+        phase: 'Wolf attack', charge: 'reactor', control: 'live-below',
+        effect: expect.stringMatching(/at each range.*three dice.*6\+.*5\+.*4\+/i),
+        availability: expect.stringMatching(/live server-owned range choice panel/i),
+      });
+  });
+
   it('connects base Capybara Cargo Transfer to the server-owned transfer control', () => {
     expect(extraShipCaptainWorkspaceFor('capybara-small-captain')?.actions.find(({ id }) => id === 'cargo-transfer'))
       .toMatchObject({

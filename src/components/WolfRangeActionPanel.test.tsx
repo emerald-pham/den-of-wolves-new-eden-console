@@ -150,3 +150,30 @@ it('keeps a Wing Commander Medium fighter target fixed during EO hit assignment'
   await user.click(commit);
   expect(onAssignTargets).toHaveBeenCalledWith([]);
 });
+
+it('guides the EO through remaining Short Wing damage and labels a three-damage Highwall hit', () => {
+  const shortView = {
+    ...pendingView,
+    range: 'short-range' as const,
+    currentStep: 'short-range' as const,
+    choiceStatus: 'targets-required' as const,
+    eligibleActions: [
+      { actionId: 'highwall-short-range', sourceId: 'highwall', range: 'short-range' as const },
+      { actionId: 'gorgoneion-missile-array-short', sourceId: 'gorgoneion-missile-array', range: 'short-range' as const },
+    ],
+    hitSlots: [
+      { actionId: 'highwall-short-range', count: 1, damagePerHit: 3 },
+      { actionId: 'gorgoneion-missile-array-short', count: 2, damagePerHit: 1 },
+    ],
+    contacts: [
+      { contactId: 'contact-1', targetShipId: 'aegis', available: true, requiredCoverageDamage: 2 },
+      { contactId: 'contact-2', targetShipId: 'dione', available: true, requiredCoverageDamage: null },
+    ],
+  } as unknown as WolfRangeActionChoiceView;
+  render(<WolfRangeActionPanelView view={shortView} onUseActions={vi.fn()} onPass={vi.fn()} onAssignTargets={vi.fn()} />);
+
+  expect(screen.getByText(/cover first.*2 damage remains/i)).toBeInTheDocument();
+  expect(screen.getByText(/available after all fighter wings are covered/i)).toBeInTheDocument();
+  expect(screen.getByRole('combobox', { name: /highwall hit 1/i })).toBeInTheDocument();
+  expect(screen.getByText(/highwall cannon.*3 damage per hit/i)).toBeInTheDocument();
+});
