@@ -286,3 +286,21 @@ Affected future checkpoints: PC09 repair/dependency ordering and the later PC10
 revision. Fixed membership, closure targets, P605a activation and release-version
 authority remain intact. The audit report supplies findings, proof limitations
 and the next owner's readiness/blockers.
+
+## PC09 transition and authorization — 2026-10-04
+
+Latest owner message reviewed: the separate PC09 dispatch authorizes end-to-end
+implementation, regression proof, independent review, commit, push, merge and
+release verification. It explicitly accepts all ten audit repairs into the
+existing PC09 prompt scope and prioritizes the three progression blockers.
+No new gameplay/UI decision changes the current criteria. The
+[execution record](PC09_EXECUTION_RECORD.md) and PC09 shape adopt all existing
+audience, CIC, automation, visit and emulator-proof requirements.
+
+The parent acknowledged continuing the other 48 assigned IDs and audit repairs,
+and requested a concrete P605a activation brief before asking the owner. The
+brief identifies the deferred Wolf-attack DRADIS visualization, its current
+P433a projection/privacy prerequisite and exact functional scope. P605a remains
+deferred until an explicit owner decision returns; no activation is inferred.
+Fixed IDs and 703/751 target remain intact. The later PC10 revision and dispatch
+belong to the parent after PC09; no future checkpoint is started here.

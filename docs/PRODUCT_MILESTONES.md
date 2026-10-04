@@ -585,3 +585,31 @@ PC11. [The feedback record](PRODUCT_MILESTONE_FEEDBACK.md#pc08-audit-and-checkpo
 preserves this instruction and its disposition. This section records sequence
 and the later revision requirement; it supplies no implementation or closure
 credit and no P605a or 0.9.x/1.0.0 authorization.
+
+## PC09 shape — Battle aftermath, deduction and crises
+
+Authorized October 4 by the separate PC09 execution dispatch. Current main
+opens at 654/751 and 196/293 campaign closures; the fixed 49-ID target is
+703/751 and 245/293. The [execution record](PC09_EXECUTION_RECORD.md) fixes
+five complete implementation groups, isolated checkouts, shared-file boundaries,
+integration ownership and five optional owner-playable UI checks. Root retains
+all acceptance, integration, review and single-release accountability.
+
+The scope includes all ten PC08 audit repair/proof requirements, with the three
+progression blockers first. Battle consequences, salvage, ordinary repairs and
+fighter construction must compose with current authority and durable inventory.
+Investigation, arrest, specialist benefits, Commander powers, President and
+crisis flows retain genuine choices, private calculation receipts, entitled
+results and optional Press publication. Follow PC09-A1/A2 for the distinct
+VIP Host and presidential visit policies. Source-backed ambiguity is recorded
+before closure; private source material stays outside Git.
+
+The latest transition review found no new UI feedback awaiting cooldown.
+Adopt existing CIC/typography, truthful contacts, clock recovery, one-facilitator
+automation, private audiences and normal authenticated emulator proof decisions.
+P605a remains separately owner-deferred pending explicit activation; the parent
+owns that decision while independent work continues. Its deferral cannot lower
+the fixed target or earn completion. Prepared solo review access is presentation
+only. Required independent Sol review, final focused/responsive/release checks,
+exact-candidate CI and production deployment remain separate from gameplay proof.
+PC10 revision and later work remain outside this delivery.
