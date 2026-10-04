@@ -3,6 +3,7 @@ import {
   calculateElectionTally,
   normalizeElectionPolicy,
   resolveElectionWinner,
+  resolveVicePresidentElection,
   type ElectionPolicy,
 } from './presidentialElection';
 
@@ -88,5 +89,41 @@ it('uses the recorded voting system and configured GM tie choice without exposin
   });
   expect(resolveElectionWinner(tally.president, 'u1', 'current-office-remains')).toEqual({
     status: 'winner', winnerUid: 'u1', source: 'current-office-remains',
+  });
+});
+
+it('uses only the VP ballot runner-up when one candidate uniquely wins both offices', () => {
+  const vpTally = {
+    totalVotes: 6, totalWeight: 6, scores: { u2: 3, u3: 2, u4: 1 },
+    tiedCandidates: [], winnerUid: 'u2',
+  };
+  expect(resolveVicePresidentElection(vpTally, 'u2', undefined, 'facilitator-choice')).toEqual({
+    status: 'winner', winnerUid: 'u3', source: 'vp-ballot-runner-up',
+  });
+});
+
+it('applies the configured tie rule to a VP-ballot runner-up tie and never keeps the President in both offices', () => {
+  const vpTally = {
+    totalVotes: 5, totalWeight: 5, scores: { u2: 3, u3: 1, u4: 1 },
+    tiedCandidates: [], winnerUid: 'u2',
+  };
+  expect(resolveVicePresidentElection(vpTally, 'u2', undefined, 'facilitator-choice')).toEqual({
+    status: 'tie-pending', candidateUids: ['u3', 'u4'], source: 'vp-ballot-runner-up',
+  });
+  expect(resolveVicePresidentElection(vpTally, 'u2', undefined, 'facilitator-choice', 'u4')).toEqual({
+    status: 'winner', winnerUid: 'u4', source: 'facilitator-tie-choice',
+  });
+  expect(resolveVicePresidentElection(vpTally, 'u2', 'u2', 'current-office-remains')).toEqual({
+    status: 'conflict-pending', candidateUids: ['u3', 'u4'], reason: 'incumbent-would-hold-both-offices',
+  });
+});
+
+it('requires explicit GM vacancy confirmation when the VP ballot has no distinct eligible runner-up', () => {
+  const vpTally = {
+    totalVotes: 1, totalWeight: 1, scores: { u2: 1 },
+    tiedCandidates: [], winnerUid: 'u2',
+  };
+  expect(resolveVicePresidentElection(vpTally, 'u2', undefined, 'facilitator-choice')).toEqual({
+    status: 'vacancy-required',
   });
 });

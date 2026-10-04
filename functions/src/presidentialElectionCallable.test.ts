@@ -242,7 +242,8 @@ it('does not finalize at the start of the configured close cycle while Team voti
   expect(JSON.stringify([...mock.documents])).toBe(before);
 });
 
-it('does not commit the same candidate to both offices when independent tallies conflict', async () => {
+it('resolves a shared top candidate from the distinct VP-ballot runner-up and preserves audited tie handling', async () => {
+  provision();
   put('sessions/s1/players/u5', { uid: 'u5', role: 'player', connected: true, assignedRoleId: 'executive-officer' });
   put('sessions/s1/players/u6', { uid: 'u6', role: 'player', connected: true, assignedRoleId: 'quellon-explorer' });
   (mock.documents.get('sessions/s1')!.activeRoleIds as string[]).push('executive-officer', 'quellon-explorer');
@@ -258,20 +259,86 @@ it('does not commit the same candidate to both offices when independent tallies 
       sessionId: 's1', requestId: `conflicting-offices-${voterUid}`, expectedRevision: 1, presidentUid, vicePresidentUid,
     }, voterUid));
   }
-  const before = JSON.stringify([...mock.documents]);
+  const resolutionSession = mock.documents.get('sessions/s1')!;
+  const turnPhase = resolutionSession.turnPhase as Fields;
+  (turnPhase.airspace as Fields).state = 'lifted';
+  (turnPhase.airspace as Fields).pressAccess = true;
+  const turnState = resolutionSession.turnState as Fields;
+  turnState.phase = 'coordination';
+  turnState.startedAt = turnPhase.teamPhaseEndsAt;
+  turnState.endsAt = turnPhase.openAirspaceEndsAt;
+  const initial = await resolvePresidentialElection.run(request({
+    sessionId: 's1', instanceId: 'gm-instance', requestId: 'resolve-conflicting-offices', expectedRevision: 1,
+  }));
+  const election = mock.documents.get('sessions/s1/presidentialElections/current')!;
+  expect(initial).toMatchObject({ status: 'committed', state: 'tie-pending', revision: 2,
+    vicePresidentOutcome: 'runner-up-pending', pendingVicePresidentTie: [
+      election.candidateIdsByUid && (election.candidateIdsByUid as Fields).u3,
+    election.candidateIdsByUid && (election.candidateIdsByUid as Fields).u4,
+  ] });
+  expect(mock.documents.get('sessions/s1')).not.toHaveProperty('presidentialOffices');
+  const beforeInvalidVacancyChoice = JSON.stringify([...mock.documents]);
   mock.set.mockClear();
   mock.update.mockClear();
-
   await expect(resolvePresidentialElection.run(request({
-    sessionId: 's1', instanceId: 'gm-instance', requestId: 'resolve-conflicting-offices', expectedRevision: 1,
+    sessionId: 's1', instanceId: 'gm-instance', requestId: 'vacate-with-runner-up-tie', expectedRevision: 2,
+    confirmVicePresidentVacancy: true,
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
-
   expect(mock.set).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();
-  expect(JSON.stringify([...mock.documents])).toBe(before);
-  expect(mock.documents.get('sessions/s1')).not.toHaveProperty('presidentialOffices');
-  expect(mock.documents.has('sessions/s1/commandReceipts/resolve-conflicting-offices')).toBe(false);
-  expect(mock.documents.has('sessions/s1/presidentialElections/current/audit/resolve-conflicting-offices')).toBe(false);
+  expect(JSON.stringify([...mock.documents])).toBe(beforeInvalidVacancyChoice);
+
+  const resolution = {
+    sessionId: 's1', instanceId: 'gm-instance', requestId: 'choose-vp-ballot-runner-up', expectedRevision: 2,
+    vicePresidentCandidateId: (election.candidateIdsByUid as Fields).u3,
+  };
+  mock.set.mockClear();
+  mock.update.mockClear();
+  const result = await resolvePresidentialElection.run(request(resolution));
+  expect(result).toMatchObject({ status: 'committed', state: 'resolved', revision: 3,
+    presidentUid: 'u2', vicePresidentUid: 'u3', vicePresidentOutcome: 'runner-up' });
+  expect(mock.documents.get('sessions/s1')).toMatchObject({
+    presidentialOffices: { presidentUid: 'u2', vicePresidentUid: 'u3' },
+    pendingTeamAnnouncements: [{ details: expect.stringMatching(/next eligible.*Vice President ballot/i) }],
+  });
+  expect(mock.documents.get('sessions/s1/presidentialElections/current/audit/choose-vp-ballot-runner-up'))
+    .toMatchObject({ action: 'resolve', offices: { presidentUid: 'u2', vicePresidentUid: 'u3' } });
+  expect(result).not.toHaveProperty('ballots');
+  expect(result).not.toHaveProperty('voterUids');
+
+  const committedDocuments = JSON.stringify([...mock.documents]);
+  const sets = mock.set.mock.calls.length;
+  const updates = mock.update.mock.calls.length;
+  const replay = await resolvePresidentialElection.run(request(resolution));
+  expect(replay).toEqual(result);
+  expect(mock.set).toHaveBeenCalledTimes(sets);
+  expect(mock.update).toHaveBeenCalledTimes(updates);
+  expect(JSON.stringify([...mock.documents])).toBe(committedDocuments);
+
+  const gmInstance = mock.documents.get('sessions/s1/gmInstances/gm-instance')!;
+  gmInstance.connected = false;
+  const beforeRevokedReplay = JSON.stringify([...mock.documents]);
+  mock.set.mockClear(); mock.update.mockClear();
+  await expect(resolvePresidentialElection.run(request(resolution))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+  expect(JSON.stringify([...mock.documents])).toBe(beforeRevokedReplay);
+
+  gmInstance.connected = true;
+  const session = mock.documents.get('sessions/s1')!;
+  session.phase = 'success';
+  const beforeTerminalReplay = JSON.stringify([...mock.documents]);
+  await expect(resolvePresidentialElection.run(request(resolution))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+  expect(JSON.stringify([...mock.documents])).toBe(beforeTerminalReplay);
+
+  session.phase = 'active';
+  session.currentTurn = 1;
+  session.turnState = { ...(session.turnState as Fields), currentTurn: 1, phase: 'team' };
+  session.turnPhase = { ...(session.turnPhase as Fields), turn: 1 };
+  const beforeWrongCycleReplay = JSON.stringify([...mock.documents]);
+  await expect(resolvePresidentialElection.run(request(resolution))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+  expect(JSON.stringify([...mock.documents])).toBe(beforeWrongCycleReplay);
 });
 
 it('checks current membership before ballot replay and preserves a valid retry after revision advances', async () => {
@@ -285,6 +352,18 @@ it('checks current membership before ballot replay and preserves a valid retry a
   election.revision = 2;
   const replay = await castPresidentialBallot.run(request(ballot, 'u2'));
   expect(replay).toMatchObject({ status: 'committed', electionRevision: 1, requestId: ballot.requestId });
+
+  const session = mock.documents.get('sessions/s1')!;
+  session.turnState = { ...(session.turnState as Fields), phase: 'coordination' };
+  const beforeWrongPhaseReplay = JSON.stringify([...mock.documents]);
+  mock.set.mockClear();
+  mock.update.mockClear();
+  await expect(castPresidentialBallot.run(request(ballot, 'u2'))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(JSON.stringify([...mock.documents])).toBe(beforeWrongPhaseReplay);
+
+  session.turnState = { ...(session.turnState as Fields), phase: 'team' };
 
   const player = mock.documents.get('sessions/s1/players/u2')!;
   player.connected = false;

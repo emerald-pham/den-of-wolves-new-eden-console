@@ -109,6 +109,19 @@ it('hydrates the elected President’s capped crisis-award status from the membe
   expect(value.presidentialOffices).not.toHaveProperty('presidentUid');
 });
 
+it('hydrates the explicit vacant Vice President office marker from a member projection', () => {
+  const value = sessionFrom('vp-office-vacancy', {
+    ...sessionData(8), phase: 'active', currentTurn: 3,
+    memberSessionScope: { groupId: 'fleet-2', vesselIds: ['shepherd'], craftIds: [] },
+    presidentialOffices: { electionId: 'current', revision: 4,
+      presidentCandidateId: 'candidate-amber', presidentDisplayName: 'Candidate A',
+      vicePresidentVacant: true, decidedCycle: 3 },
+  });
+  expect(value.presidentialOffices).toMatchObject({ electionId: 'current', revision: 4,
+    presidentCandidateId: 'candidate-amber', vicePresidentVacant: true, decidedCycle: 3 });
+  expect(value.presidentialOffices).not.toHaveProperty('vicePresidentCandidateId');
+});
+
 it('hydrates the entitled independent SNN docking and visits without foreign vessel maps or invented transit docks', () => {
   const snn = { shuttleId: 'snn-press-shuttle', ownerRoleId: 'press-officer', ownerUid: 'press', holderUid: 'press', revision: 0 };
   const source = { ...sessionData(8), activeVesselIds: ['aegis', 'icebreaker'],

@@ -249,11 +249,14 @@ try {
   const president = fixture.byRole('dione-president');
   const captain = fixture.byRole('icebreaker-captain');
   const scientist = fixture.byRole('shepherd-scientist');
-  assert.ok(president && captain && scientist, 'The ordinary 18-person roster includes the three configured electoral roles.');
+  const admiral = fixture.byRole('admiral');
+  const explorer = fixture.byRole('quellon-explorer');
+  assert.ok(president && captain && scientist && admiral && explorer,
+    'The ordinary 18-person roster includes five authenticated electoral roles from distinct ships.');
   const originalRoot = (await fixture.session.get()).data();
   assert.equal(originalRoot.singlePlayerDemo, undefined, 'The scenario must use a normal roster, never the single-player demo.');
 
-  const voterUids = [president.localId, captain.localId, scientist.localId];
+  const voterUids = [president.localId, captain.localId, scientist.localId, admiral.localId, explorer.localId];
   const policy = {
     eligibleVoterUids: voterUids,
     votingSystem: 'plurality',
@@ -281,9 +284,11 @@ try {
   const electionStored = (await fixture.db.doc(`sessions/${fixture.sessionId}/presidentialElections/current`).get()).data();
   const candidateIdFor = uid => electionStored.candidateIdsByUid[uid];
   const ballots = [
-    { actor: president, presidentCandidateId: candidateIdFor(captain.localId), vicePresidentCandidateId: candidateIdFor(president.localId) },
-    { actor: captain, presidentCandidateId: candidateIdFor(captain.localId), vicePresidentCandidateId: candidateIdFor(president.localId) },
-    { actor: scientist, presidentCandidateId: candidateIdFor(president.localId), vicePresidentCandidateId: candidateIdFor(scientist.localId) },
+    { actor: president, presidentCandidateId: candidateIdFor(captain.localId), vicePresidentCandidateId: candidateIdFor(explorer.localId) },
+    { actor: captain, presidentCandidateId: candidateIdFor(scientist.localId), vicePresidentCandidateId: candidateIdFor(captain.localId) },
+    { actor: scientist, presidentCandidateId: candidateIdFor(explorer.localId), vicePresidentCandidateId: candidateIdFor(captain.localId) },
+    { actor: admiral, presidentCandidateId: candidateIdFor(captain.localId), vicePresidentCandidateId: candidateIdFor(scientist.localId) },
+    { actor: explorer, presidentCandidateId: candidateIdFor(admiral.localId), vicePresidentCandidateId: candidateIdFor(captain.localId) },
   ];
   activeStage = 'normal authenticated secret ballots and server tally';
   const firstBallotData = { sessionId: fixture.sessionId, requestId: requestId(), expectedRevision: 1,
@@ -313,9 +318,11 @@ try {
   checks.oneSecretBallotPerEligibleActorAndMemberProjection = true;
 
   const populationByRole = {
+    admiral: Number(originalRoot.shipSurvivors.aegis),
     'dione-president': Number(originalRoot.shipSurvivors.dione),
     'icebreaker-captain': Number(originalRoot.shipSurvivors.icebreaker),
     'shepherd-scientist': Number(originalRoot.shipSurvivors.shepherd),
+    'quellon-explorer': Number(originalRoot.shipSurvivors.quellon),
   };
   assert.ok(Object.values(populationByRole).every(value => Number.isSafeInteger(value) && value > 0));
 
@@ -530,9 +537,11 @@ try {
   }));
   assert.equal(election.state, 'resolved');
   assert.equal(election.tally.president.winnerUid, captain.localId);
-  assert.equal(election.tally.vicePresident.winnerUid, president.localId);
-  assert.equal(election.tally.president.totalVotes, 3);
-  assert.equal(election.tally.vicePresident.totalVotes, 3);
+  assert.equal(election.tally.vicePresident.winnerUid, captain.localId);
+  assert.equal(election.vicePresidentCandidateId, candidateIdFor(scientist.localId));
+  assert.equal(election.vicePresidentOutcome, 'runner-up');
+  assert.equal(election.tally.president.totalVotes, 5);
+  assert.equal(election.tally.vicePresident.totalVotes, 5);
   assert.equal(election.tally.president.totalWeight, Object.values(populationByRole).reduce((sum, value) => sum + value, 0));
   assert.equal(election.tally.vicePresident.totalWeight, Object.values(populationByRole).reduce((sum, value) => sum + value, 0));
   const electionAuditQuery = await fixture.db.collection(`sessions/${fixture.sessionId}/presidentialElections/current/audit`).get();
@@ -543,9 +552,10 @@ try {
   assert.equal(Object.hasOwn(election, 'voterUids'), false);
   const memberElectionProjection = (await member(captain)).presidentialElection;
   assert.equal(memberElectionProjection.tally.president.winnerId, candidateIdFor(captain.localId));
-  assert.equal(memberElectionProjection.tally.vicePresident.winnerId, candidateIdFor(president.localId));
+  assert.equal(memberElectionProjection.tally.vicePresident.winnerId, candidateIdFor(captain.localId));
   assert.equal(memberElectionProjection.presidentCandidateId, candidateIdFor(captain.localId));
-  assert.equal(memberElectionProjection.vicePresidentCandidateId, candidateIdFor(president.localId));
+  assert.equal(memberElectionProjection.vicePresidentCandidateId, candidateIdFor(scientist.localId));
+  assert.equal(memberElectionProjection.vicePresidentOutcome, 'runner-up');
   assert.doesNotMatch(JSON.stringify(memberElectionProjection), /winnerUid|candidateIdsByUid|voterShipIds|ballot\s*:/);
   const electedRoot = (await fixture.session.get()).data();
   assert.equal(electedRoot.presidentialOffices.presidentUid, captain.localId);

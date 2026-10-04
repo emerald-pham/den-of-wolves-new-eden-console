@@ -90,6 +90,33 @@ describe('current member session privacy', () => {
     expect(value.presidentialOffices).not.toHaveProperty('vicePresidentUid');
   });
 
+  it('projects the VP-ballot runner-up outcome and an explicitly recorded vacant office without ballot identities', () => {
+    const value = memberSessionProjection({ ...root,
+      presidentialElection: {
+        type: 'presidential-election', revision: 3, state: 'resolved',
+        policy: { votingSystem: 'plurality', populationWeighting: 'equal', openCycle: 2, closeCycle: 2,
+          vicePresidentEnabled: true, campaigning: 'prohibited', supplyUse: 'prohibited',
+          campaignInstructions: 'No supplies.', tieRule: 'facilitator-choice' },
+        candidates: [{ id: 'candidate-amber', displayName: 'Candidate A' },
+          { id: 'candidate-cyan', displayName: 'Candidate B' }],
+        presidentCandidateId: 'candidate-amber', vicePresidentCandidateId: 'candidate-cyan',
+        vicePresidentOutcome: 'runner-up', decidedCycle: 2,
+      },
+      presidentialOffices: { electionId: 'current', revision: 3, presidentCandidateId: 'candidate-amber',
+        presidentDisplayName: 'Candidate A', vicePresidentCandidateId: 'candidate-cyan',
+        vicePresidentDisplayName: 'Candidate B', decidedCycle: 2 },
+    }, memberSessionScope(player, groups));
+    expect(value.presidentialElection).toMatchObject({ vicePresidentOutcome: 'runner-up',
+      presidentCandidateId: 'candidate-amber', vicePresidentCandidateId: 'candidate-cyan' });
+
+    const vacant = memberSessionProjection({ ...root,
+      presidentialOffices: { electionId: 'current', revision: 4, presidentCandidateId: 'candidate-amber',
+        presidentDisplayName: 'Candidate A', vicePresidentVacant: true, decidedCycle: 3 },
+    }, memberSessionScope(player, groups));
+    expect(vacant.presidentialOffices).toMatchObject({ presidentCandidateId: 'candidate-amber', vicePresidentVacant: true });
+    expect(JSON.stringify(vacant)).not.toMatch(/ballots|voterUids|voterShipIds|presidentUid|vicePresidentUid/);
+  });
+
   it('keeps validated hosted small vessels with their current group and withdraws foreign hosts', () => {
     const local = { ...emptySmallShipState('gorgoneion', 'shepherd'), dockingRevision: 1 };
     const foreign = { ...emptySmallShipState('warrior', 'aegis'), dockingRevision: 1 };
