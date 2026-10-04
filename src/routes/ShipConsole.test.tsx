@@ -5,6 +5,7 @@ import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
 import ShipConsole from './ShipConsole';
 import type { Player, WolfAttackMemberView, WolfRangeActionChoiceView } from '@/types/game';
+import * as maintenanceService from '@/lib/maintenanceService';
 
 const dismantlingPanelMock = vi.hoisted(() => ({ render: vi.fn() }));
 vi.mock('@/components/PermissionedDismantlingPanel', () => ({
@@ -1182,6 +1183,48 @@ it('shows Admiral ship systems alongside the maintenance cycle', () => {
     .toHaveTextContent(/1.*Storage.*2.*Rations.*3.*Unrest check.*4.*Riot check.*5.*Reactor.*6.*Shuttle Bay Zeta.*7.*Shuttle Bay Omega/i);
   expect(within(workspace).getByRole('table', { name: 'AEGIS ration schedule' }))
     .toHaveTextContent(/Food.*0.*3.*5.*8.*Water.*0.*2.*3.*6/i);
+});
+
+it('routes the held Executive Officer maintenance sequence to the current AEGIS action', async () => {
+  const state = useSessionStore.getState();
+  if (!state.session || !state.me) throw new Error('Expected the live fixture.');
+  state.setSession({ ...state.session, phase: 'active', currentTurn: 2,
+    activeRoleIds: ['admiral', 'executive-officer', 'wing-commander'], activeVesselIds: ['aegis'],
+    maintenanceCycles: { aegis: { turn: 2, step: 1, revision: 7, charges: [], refuelled: [], results: {} } },
+  });
+  state.setMe({ ...state.me, assignedRoleId: 'executive-officer', seatId: 'executive-officer',
+    activeConsoleRoleId: 'executive-officer' });
+  state.setConnection('live');
+  state.setSessionSnapshotFreshness('server');
+  const command = vi.spyOn(maintenanceService, 'runMaintenance').mockResolvedValue({ status: 'committed' });
+  try {
+    render(<MemoryRouter initialEntries={['/ships/aegis/roles/executive-officer']}>
+      <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>);
+    const workspace = within(screen.getByRole('region', { name: 'AEGIS Executive Officer console' }));
+    expect(workspace.getByRole('list', { name: 'AEGIS maintenance sequence' }))
+      .toHaveTextContent(/Storage.*Rations.*Unrest check.*Riot check.*Reactor.*Shuttle Bay Zeta.*Shuttle Bay Omega/i);
+    expect(workspace.getByRole('table', { name: 'AEGIS ration schedule' }))
+      .toHaveTextContent(/Food.*0.*3.*5.*8.*Water.*0.*2.*3.*6/i);
+    await userEvent.setup().click(workspace.getByRole('button', { name: 'Check storage', exact: true }));
+    expect(command).toHaveBeenCalledExactlyOnceWith('aegis', 'storage', 7, {}, 'executive-officer');
+  } finally { command.mockRestore(); }
+});
+
+it('keeps Executive Officer maintenance read-only for a foreign held station', () => {
+  const state = useSessionStore.getState();
+  if (!state.session || !state.me) throw new Error('Expected the live fixture.');
+  state.setSession({ ...state.session, phase: 'active', currentTurn: 2,
+    activeRoleIds: ['admiral', 'executive-officer', 'wing-commander'], activeVesselIds: ['aegis'],
+    maintenanceCycles: { aegis: { turn: 2, step: 1, revision: 7, charges: [], refuelled: [], results: {} } },
+  });
+  state.setMe({ ...state.me, assignedRoleId: 'admiral', seatId: 'admiral', activeConsoleRoleId: 'admiral' });
+  state.setConnection('live');
+  state.setSessionSnapshotFreshness('server');
+  render(<MemoryRouter initialEntries={['/ships/aegis/roles/executive-officer']}>
+    <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+  </MemoryRouter>);
+  expect(screen.getByRole('button', { name: 'Check storage', exact: true })).toBeDisabled();
 });
 
 it('freezes ship gameplay controls while showing the final-turn evaluation state', async () => {
