@@ -68,6 +68,43 @@ starting-host choice. Check the pre-start window, confirmed Union roster,
 paired active hosts, setup revision, exact private receipt, manifest/history
 consistency and unchanged automatic printed-role ownership at ordinary start.
 
+Highwall, Gorgoneion and Boa have connected range read/commit callables and
+mounted actor panels. Review charged/current-host availability, every printed
+range/target/damage limit and Boa's atomic one-Scrap cargo cost. Their choices
+join the existing EO lock and automatic reconciliation path. Retries must
+revalidate current actor/console, cycle, source host and control revision before
+returning a saved receipt. Entitled disconnected/away holders remain pending;
+absent or ineligible sources receive audited unavailable choices. The safe
+Short DTO exposes per-hit damage and residual mandatory Wing coverage without
+private dice/roster details. Fixed-target damage and EO-assigned damage must
+together satisfy that coverage without losing a remaining legal ship target.
+Actual destroyed AEGIS must be unavailable before requiring a current charge;
+healthy carriers still require the strict same-cycle maintenance view.
+Gorgoneion's normal replacement Captain and admitted small-ship state do not
+add an extra entry to the core setup role/vessel roster. Its source gate and
+mounted panel must accept that ordinary admission, retain current host/group
+and unique Captain checks, and deny replay immediately after role removal.
+The locked EO assignment view contains only editable hits. Fixed Boa and
+precommitted Medium fighter targets stay in the same private locked/final
+receipt; an ordinary EO must never be offered a second assignment which the
+handler correctly rejects. Keep every zero-hit editable slot and the canonical
+final roll/amount identity, without rerolling or spending again.
+
+Support misses and unused hits carry a truthful null target. The exact shared
+server/client projection admits this only for Highwall/Gorgoneion/Boa, their
+public source label, a range, null bearing, the producer's exact miss/unused-hit
+effect and exactly zero damage. Positive targetless native and client hydration
+checks retain strict negatives for foreign, private, boarding and malformed
+variants. The actual producer-to-atomic-finalization regression precedes the
+repair; all ten normal composed checks and real browser result hydration pass.
+
+The final owner AST and manual consumer audit covers seventeen changed runtime
+modules, 32 changed-index consumers and 107 unique named Functions. Factory
+reachability, transitive imports and before/after exports are included. Changed
+modules have no top-level side effects or dynamic runtime imports; unchanged
+index initialization still uses the existing runtime options. Review the final
+exact-digest deployment map and its drift/duplicate/broad-fallback denials.
+
 Root owns the checkpoint, all reconciliation, repairs and release. Independent
 review covers the complete reconciled candidate and does not transfer ownership.
 The exact reviewed SHA and outcome live in the external structured receipt.

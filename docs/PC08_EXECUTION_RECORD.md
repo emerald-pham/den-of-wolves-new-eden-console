@@ -2,6 +2,9 @@
 
 Checkpoint, integration and release owner: orchestrator `/root`.
 
+This is a chronological record. Later reconciled results supersede the earlier
+pending boundaries while retaining failures, exact provenance and proof classes.
+
 Authorized October 3, 2026: “Execute pc08 please, full authority granted to do
 whatever is needed to get it done.” The opening catalog is 605/751 done and
 147/293 campaign closures; exactly the 49 assigned PC08 IDs must close to
@@ -193,3 +196,116 @@ Parking, Maintenance and Declaration checks pass. Sol's row 4 processes stopped,
 its terminal result was retrieved and only its own reservation was released.
 Both original and repair branches, external evidence and dependency symlinks
 remain preserved under root ownership until release.
+
+The Range continuation completes at `170aef7e`; root integrates its seventeen
+test-first/source commits through `ec95ecbd`. Highwall, Gorgoneion and Boa now
+have current-holder read/commit callables, mounted player controls and the same
+single range lock as all other sources. Boa spends one current cargo Scrap only
+on use; retries bind the current actor, console, source host/control revision
+and attack cycle. The EO's safe Short guide exposes each hit's damage and only
+the remaining mandatory Wing coverage. It does not reveal the private roster.
+The worker reports 329 focused checks and builds/typecheck; root's reconciled
+156 native range/declaration checks and 277 client/presenter checks also pass.
+Thirty-two metadata/ship-template checks and focused lint pass. Row 2 is
+released; both Range branches, its checkout/configurations and shared dependency
+links remain preserved under root ownership.
+
+Root's last destroyed-AEGIS check exposed a new-cycle launch classification
+error: a wrecked carrier could wait for a charge from its prior maintenance
+cycle. Test-only `fab9d4ea` produces two failures with 63 existing cases green;
+`debe5c4b` classifies actual destruction before the healthy-carrier charge check.
+All 65 focused cases pass. Fresh launch stays denied, malformed damage remains
+an error and no choice, cost, entropy or shared write is fabricated.
+
+The complete support tour uses the actual presenters, two source-defined
+one-damage Wolf Wings and per-hit damage. Test-only `d67d8701` produces two
+failures with 17 existing scene cases green before `5c7643ec`; all 19 scene
+cases now pass. The final eight-case browser matrix is extended to exercise
+Highwall/Gorgoneion/Boa, once-only Scrap and mandatory Short coverage, including
+the actual pending controls' touch geometry before they are consumed.
+
+The first fully integrated twenty-player run at `5c7643ec` proves four-source
+launch, paid warheads, actual transit parking and normal Boa cargo/retry, then
+fails at the Gorgoneion range gate. That gate incorrectly required a replacement
+Captain to appear in the core setup role roster. Test-only `10ff7fcc` reproduces
+the native denial and missing mounted panel with 85 existing cases green;
+`fb084331` uses actual optional-ship admission and current unique Captain/host
+authority instead. All 87 cases pass, including denial after role removal.
+Attempt 9 and its runtime attestation remain preserved. The resumed traversal
+uses newly compiled Functions and a complete emulator restart.
+
+Attempt 10 then rejects an ordinary EO assignment containing Boa's already
+fixed target. Test-only `a8cfe766` extends the source DTO check through the actual
+assignment handler; `2a3e568e` offers only editable locked hits while preserving
+every fixed strike in the private receipt. `6c18038e` compares the established
+canonical final dice fields, which intentionally omit lock-only damagePerHit;
+the first overly strict serialization assertion remains a preserved failure.
+All 157 focused checks pass. Attempt 11 now completes all three ordinary ranges,
+paid source choices, disconnect/reconnect and same-dice assignments, then reaches
+all genuine boarding choices. Its finalization fails with a malformed committed
+audience result; no complete-attack or release claim is made from that attempt.
+
+After these two substantive combined-source repairs, the remaining composed
+acceptance transfers to bounded Sol 6.1 xhigh `/root/composed_repair`. Root parks
+the server/client-transport seam and retains checkpoint/release ownership.
+Sol reuses the closed Range checkout on `feat/pc08-composed-audience-repair`
+from exact `2a3e568e`, preserving the original branches and unique files. Its
+new entry `1791080189632-43337-74f65b8e` owns free row 2; root's row 3 is untouched.
+The diagnosis identifies legitimate missed/unused support summaries with no
+target, which the strict audience parser rejects. The agreed repair permits a
+null target only for the three named range sources with their public labels,
+null bearing and exactly zero damage, including the actual client parser.
+Hits, boarding results, privacy and malformed-input denials remain strict.
+This repairer cannot provide the independent final review.
+
+The finished tour separately passes the complete eight viewport/motion cases,
+actual pending support-control touch geometry, printed one-damage Wing coverage,
+Zoom, keyboard and phone/desktop parent navigation, with no errors or live writes.
+`owner/final-scene-render/` retains all five steps and special interactions.
+Root visually inspects the composed phone support and Short assignment captures;
+these are prepared presentation evidence, not the missing finalization proof.
+
+## Reconciled final candidate
+
+Sol completes the bounded composed repair at `98f08cf7`, after test-only
+`28955aff` and `d00c258d`, source `c719c232`, then harmless test/harness lint.
+Six discriminating audience failures precede the exact null-target repair;
+138 focused checks, typecheck and Functions build pass. The fresh authenticated
+twenty-player run passes all ten checks, all ranges and genuine boarding,
+atomic finalization/reopening, final replay, actual Starlight departure and
+private Rules denials. The actual browser member subscription receives revision
+41 with 41 safe results, including three genuine targetless misses. Browser and
+heartbeat failures are zero. Root acknowledges the completed proof and takes
+integration/release ownership; row 2 stops and releases only its own resources,
+preserving its branch, configuration copies, evidence and dependency links.
+Root integrates the four ordered commits as `a37a828d`, `35d4fad7`, `de4d1c5e`
+and `b00a6f72`. The final lint-only commit leaves the attested production bytes
+unchanged. `owner/authenticated-composed-complete/` holds a copy of the verified
+result, runtime attestation and cleanup; original evidence remains intact.
+
+Root adds a rendered heading-font regression before replacing Maliades' serif
+fallback with the existing CIC display typeface. Red reproduces the defect;
+the full eight-case matrix and actual parent navigation pass after repair.
+Phone results and short-landscape fighter captures are visually inspected.
+Root also commits progress tests before closing the exact fixed49 catalog rows
+and preparing 0.5.67. Three initial failures and the intermediate changelog
+wording mismatch are preserved; all 53 progress/header checks pass. Historical
+PC06/PC07/0.5.66 snapshots remain intact and P605a receives no closure credit.
+The candidate totals are 654/751 (87.08%) and 196/293 campaign closures (66.89%).
+
+The final owner consumer audit includes seventeen runtime modules, 32 changed
+index consumers and 107 unique Functions. The newly changed pure audience
+module includes its twelve actual consumers. AST reachability and manual
+factory/side-effect review preserve exact source digests; all seven current
+PC07/PC08 selector tests pass with drift, duplicate and broad-fallback denials.
+The generated roadmap and dependency views agree with the canonical catalog.
+A Gantt check correctly rejects provenance generated before the catalog commit;
+regeneration against that committed catalog passes. The final test-first
+history reconciliation also requires regenerating its commit-based provenance.
+
+The final normal eighteen-player tour-return scenario at `1dd40471` passes
+phone and desktop on 0.5.67: actual UI join and role assignment, same identity,
+session and role, cache-to-fresh-server restoration and no prepared writes or
+browser errors. Owner Functions were freshly built and fully restarted before
+this run. Final independent review, full validation, CI, exact-main deployment
+and actual deployed presentation remain separate pending release steps.
