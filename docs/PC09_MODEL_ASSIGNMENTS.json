@@ -187,7 +187,11 @@
       "modelChanges": [],
       "scopeChanges": [
         "Interrupted at 2026-10-04 14:36:05 UTC; followup_task restricts work to tests/proof/documentation, with no model override",
-        "After Astra completed 52d0ee9c, followup_task resumed Luna validation/proof/documentation with no model override."
+        "After Astra completed 52d0ee9c, followup_task resumed Luna validation/proof/documentation with no model override.",
+        {
+          "event": "Bounded validation finished; repeated same-identity P605 reconnect gate returned to root for Sol recovery",
+          "evidence": "0cfab70a authenticated harness and e3ca9497 handoff; canonical final task result reports no closure and stopped own services"
+        }
       ]
     },
     {
@@ -220,6 +224,27 @@
         "readOnlyInspectedThreadId": "01a10762-f9a3-72b8-b8a9-a326c4dc100a",
         "workerRestartedOrMessagedForAudit": false
       }
+    },
+    {
+      "taskId": "/root/pc09_dradis_recovery",
+      "executionThreadId": null,
+      "purpose": "Bounded P605a normal authenticated reconnect diagnosis, test-first repair and proof after repeated Luna gate failures",
+      "scope": [
+        "605a",
+        "621 directly blocking reconnect seam only"
+      ],
+      "launchModel": "gpt-6.1-sol",
+      "launchEffort": "max",
+      "launchArguments": {
+        "task_name": "pc09_dradis_recovery",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "max",
+        "fork_turns": "none"
+      },
+      "launchEvidence": "Accepted collaboration.spawn_agent call returned /root/pc09_dradis_recovery; no effective-model field was exposed. Isolated worktree feat/pc09-dradis-recovery-20261004 starts db0daeb8.",
+      "effectiveModelConfirmed": false,
+      "modelChanges": [],
+      "scopeChanges": []
     }
   ],
   "pending": [

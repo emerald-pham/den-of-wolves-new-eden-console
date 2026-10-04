@@ -2,7 +2,7 @@
 
 ## Disposition
 
-**HOLD.** The owner activated the bounded P605a visualization, and the
+**Pending root recovery follow-up.** The owner activated the bounded P605a visualization, and the
 candidate implementation is present, but this handoff does not claim P605a
 closure or a PC09 release. The normal authenticated recovery proof repeatedly
 fails to reacquire the panel after offline recovery, same-identity reload and
@@ -10,8 +10,8 @@ ordinary console reselection. The checkpoint owner retains the repair,
 catalog, integrated review, final validation and release decisions. Prepared
 review scenes are presentation evidence only.
 
-P605a remains conditional on P433a's audience-safe member view and does not
-block the playable Wolf-attack exit gate. Its assigned ID and PC09 target stay
+P605a consumes P433a's audience-safe member view. Its explicit activation makes
+its acceptance required for the full PC09 exit gate. Its assigned ID and PC09 target stay
 with the checkpoint; the catalog and generated views were not changed here.
 
 ## Scope and implementation
@@ -115,6 +115,8 @@ current `ShipPlot` attack panel does not return; preserve the current row-5
 evidence and do not seed a projection or widen endpoint visibility. Then rerun
 only the discriminating recovery case on the reconciled candidate and update
 this handoff. Root owns independent review, exact-candidate validation, CI,
-catalog status and the PC09 release boundary. The checkpoint stopping state
-remains **HOLD** until the owner resolves this and all other assigned
-acceptances.
+catalog status and the PC09 release boundary. This handoff records an unresolved
+acceptance gate, not an owner instruction to stop the task. Root transferred
+the bounded recovery work to a separate Sol 6.1 Max worker after the repeated
+Luna gate failures. The original Astra implementation worker remains finished
+and receives no new assignment.
