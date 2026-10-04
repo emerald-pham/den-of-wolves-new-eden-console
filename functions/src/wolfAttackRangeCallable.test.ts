@@ -2102,6 +2102,10 @@ it('automatically opens and restages the exact surviving P Station force in the 
     assignments: [{ actionId: longAction.actionId, targetInstanceIds: targetIds }] });
   const marker = { type: 'p-station-sequence', sequenceId: 'wolf-p-station-transition-1', groupId: 'fleet-1',
     chart: 'B', coordinate: '1964', stationId: 'P', sourceTransitionId: 'transition-1', sourceCycle: 1, attackNumber: 1 };
+  const repeatContext = { type: 'p-station-repeat', sequenceId: marker.sequenceId, groupId: marker.groupId,
+    chart: marker.chart, coordinate: marker.coordinate, stationId: marker.stationId,
+    sourceTransitionId: marker.sourceTransitionId, sourceCycle: marker.sourceCycle,
+    parentAttackId: 'wolf-attack-test-1', parentAttackNumber: 1, parentTurn: 1, nextAttackNumber: 2 };
   put(statePath, { ...state, announcementId: state.attackId, attackNumber: 1,
     preparationRevision: 2, preparation: { ...(state.preparation as Fields), revision: 2,
       shipIds: composition.shipIds, compositionKind: 'P', targetGroupId: 'fleet-1' },
@@ -2120,15 +2124,13 @@ it('automatically opens and restages the exact surviving P Station force in the 
   const survivingWolfShips = (finalized.calculationReceipt as Fields).survivingWolfShips as Array<Fields>;
   expect(finalized).toMatchObject({ status: 'resolved', currentStep: 'resolved', attackNumber: 1,
     targetGroupId: 'fleet-1', threatSiteCode: 'P', threatSourceId: 'arrival-transition-1', pStationSequence: marker,
-    pStationRepeat: expect.objectContaining({ status: 'repeat', context: {
-      type: 'p-station-repeat', parentAttackId: 'wolf-attack-test-1', nextAttackNumber: 2,
-    } }) });
+    pStationRepeat: expect.objectContaining({ status: 'repeat', context: repeatContext }) });
   expect(survivingWolfShips).toHaveLength(1);
   expect(survivingWolfShips[0]).toMatchObject({ instanceId: roster.at(-1)!.instanceId, shipId: 'wolf-assault-transport' });
   expect(testState.documents.get(`${statePath}/audit/wolf-finalized-1`)).toMatchObject({
     pStationSequence: marker, survivingWolfShips,
     pStationRepeat: expect.objectContaining({ status: 'repeat', sequenceId: marker.sequenceId,
-      context: { type: 'p-station-repeat', parentAttackId: 'wolf-attack-test-1', nextAttackNumber: 2 },
+      context: repeatContext,
       sourceInstanceIds: [roster.at(-1)!.instanceId], nextAttackNumber: 2 }),
   });
   expect(finalized.pStationRepeat).toEqual(
