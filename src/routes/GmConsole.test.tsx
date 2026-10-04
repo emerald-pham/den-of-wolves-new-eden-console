@@ -4448,10 +4448,11 @@ it('allows removing an affected ship disabled after drafting before delivering t
   await user.click(inactive);
   expect(within(panel).queryByRole('checkbox', { name: /Dione/i })).not.toBeInTheDocument();
   await user.click(within(panel).getByRole('checkbox', { name: /AEGIS/ }));
+  await user.selectOptions(within(panel).getByRole('combobox', { name: 'Crisis delivery pressure' }), 'hold');
   await user.click(within(panel).getByRole('button', { name: 'Mark delivered' }));
   await waitFor(() => expect(transitionCrisis).toHaveBeenCalledWith(
     liveCrisis.crisisId, 'delivered', liveCrisis.title, liveCrisis.details,
-    { crisisKind: 'disease-outbreak', configurationOverride: '', diseaseOutbreak: { ...diseaseOutbreak, affectedShipIds: ['aegis'] } },
+    { crisisKind: 'disease-outbreak', configurationOverride: '', deliveryPressure: 'hold', diseaseOutbreak: { ...diseaseOutbreak, affectedShipIds: ['aegis'] } },
   ));
 });
 
