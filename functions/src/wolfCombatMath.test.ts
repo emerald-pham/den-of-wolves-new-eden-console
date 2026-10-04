@@ -19,6 +19,7 @@ import {
   wolfTargetForRangeTargetNumber,
   wolfTargetNumberForRangeSource,
   wolfCombatRoster,
+  replayWolfFighterAceBeforeRange,
   type FleetCombatState,
   type WolfCombatShip,
   type WolfBoardingDefence,
@@ -554,13 +555,6 @@ describe('central Wolf combat math', () => {
       actionId: 'ordinary-long-hit', sourceId: 'aegis-missile-launchers',
       range: 'long-range' as const, fixedDamage: 1, maxTargets: 1,
     };
-    const long = resolveLockedWolfRange({
-      range: 'long-range', actions: [longAction],
-      locked: { range: 'long-range', dice: [{ actionId: longAction.actionId, sourceId: longAction.sourceId,
-        range: longAction.range, rolls: [], successes: 1, damage: 1, damagePerHit: 1 }] },
-      assignments: [{ actionId: longAction.actionId, targetInstanceIds: [initial[0]!.instanceId] }],
-      roster: initial,
-    });
     const permission = { type: 'pdf-fighter-ace-permission', attackId: 'attack-ace-replay', turn: 1,
       sourceId: 'pdf-escort-fighter-wing', fighterIndex: 0, aceUid: 'ace-actor', actorUid: 'colonel-actor',
       actorRoleId: 'refinery-124-pdf-colonel', requestId: 'ace-permission-replay', revision: 2 };
@@ -579,11 +573,19 @@ describe('central Wolf combat math', () => {
       targetResults: [{ instanceId: initial[0]!.instanceId, shipId: initial[0]!.shipId, damage: 2, destroyed: false }],
       requestId: 'ace-action-replay', committedAt: new Date(2_000).toISOString(),
     };
-    const afterAce = long.roster.map((ship) => ship.instanceId === initial[0]!.instanceId
-      ? { ...ship, damageTaken: 3, destroyed: true } : ship);
+    const aceReplay = replayWolfFighterAceBeforeRange(initial, fighterAceAction, {
+      attackId: 'attack-ace-replay', turn: 1, targetRing: CORE_WOLF_TARGET_RING, persistedPermission: permission,
+    });
+    const long = resolveLockedWolfRange({
+      range: 'long-range', actions: [longAction],
+      locked: { range: 'long-range', dice: [{ actionId: longAction.actionId, sourceId: longAction.sourceId,
+        range: longAction.range, rolls: [], successes: 1, damage: 1, damagePerHit: 1 }] },
+      assignments: [{ actionId: longAction.actionId, targetInstanceIds: [initial[0]!.instanceId] }],
+      roster: aceReplay.roster,
+    });
     const medium = resolveLockedWolfRange({
       range: 'medium-range', actions: [], locked: { range: 'medium-range', dice: [] },
-      assignments: [], roster: afterAce,
+      assignments: [], roster: long.roster,
     });
     const short = resolveLockedWolfRange({
       range: 'short-range', actions: [], locked: { range: 'short-range', dice: [] },
