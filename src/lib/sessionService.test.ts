@@ -97,6 +97,11 @@ const {
   getWolfCommanderRangeTargetDial,
   applyWolfCommanderRangeTargetAdjustment,
   getWolfAttackThreatWindowOptions,
+  publishWolfCommanderAddress,
+  createWolfAmnestyOffer,
+  getWolfAmnestyView,
+  respondToWolfAmnesty,
+  recordWolfAmnestyConsequence,
 } = await import('./sessionService');
 const { httpsCallable } = await import('firebase/functions');
 const { acceptCallableSessionAuthority, sessionSnapshotAuthorityFor } = await import('./firestore');
@@ -256,6 +261,113 @@ describe('GM Wolf threat source options service', () => {
       sources: [{ siteCode: 'P', sourceId: 'arrival-x', sourceCycle: 3, coordinate: '0101' }],
     } }) as never);
     await expect(getWolfAttackThreatWindowOptions('fleet-2')).rejects.toThrow(/invalid.*threat source options/i);
+  });
+});
+
+describe('Commander address and private amnesty services', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('publishes an addressed message and creates a condition-bound offer with a response deadline', async () => {
+    useSessionStore.getState().reset();
+    useSessionStore.getState().setIdentity(
+      { ...session, phase: 'active', currentTurn: 4 },
+      { ...player, replacementRoleId: 'wolf-commander' },
+    );
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    const address = callableReturning({ data: {
+      type: 'wolf-commander-address-result', status: 'committed', sessionId: 's1',
+      requestId: 'address-4', cycle: 4, actorRoleId: 'wolf-commander',
+      eventId: 'wolf-commander-address-4', expiresAt: '2026-10-04T12:00:30.000Z',
+    } });
+    vi.mocked(httpsCallable).mockReturnValue(address as never);
+    await expect(publishWolfCommanderAddress('Fleet, stand down.', 4)).resolves.toMatchObject({
+      cycle: 4, actorRoleId: 'wolf-commander', eventId: 'wolf-commander-address-4',
+    });
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'publishWolfCommanderAddress');
+    expect(address).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 's1', expectedCycle: 4, message: 'Fleet, stand down.', requestId: expect.any(String),
+    }));
+
+    const offer = callableReturning({ data: {
+      type: 'wolf-amnesty-offer', status: 'offered', sessionId: 's1', offerId: 'amnesty-4-a',
+      requestId: 'offer-4', cycle: 4, revision: 1, commanderUid: 'u1',
+      targetShipId: 'dione', targetUid: 'captain', condition: 'surrender-by-medium-jump-to-0101',
+      responseDeadline: '2026-10-04T12:10:00.000Z',
+    } });
+    vi.mocked(httpsCallable).mockReturnValue(offer as never);
+    await expect(createWolfAmnestyOffer('dione', 4, 10)).resolves.toMatchObject({
+      status: 'offered', targetShipId: 'dione', revision: 1,
+    });
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'createWolfAmnestyOffer');
+    expect(offer).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 's1', expectedCycle: 4, targetShipId: 'dione', responseDeadlineMinutes: 10,
+      requestId: expect.any(String),
+    }));
+  });
+
+  it('reads only the private offer view and sends an explicit target-captain response', async () => {
+    useSessionStore.getState().reset();
+    useSessionStore.getState().setIdentity(
+      { ...session, phase: 'active', currentTurn: 4 },
+      { ...player, assignedRoleId: 'dione-captain', activeConsoleRoleId: 'dione-captain' },
+    );
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    const view = {
+      type: 'wolf-amnesty-view', sessionId: 's1', offer: {
+        type: 'wolf-amnesty-offer', offerId: 'amnesty-4-a', cycle: 4, revision: 1,
+        targetShipId: 'dione', condition: 'surrender-by-medium-jump-to-0101',
+        responseDeadline: '2026-10-04T12:10:00.000Z', status: 'offered',
+      },
+    };
+    const read = callableReturning({ data: view });
+    vi.mocked(httpsCallable).mockReturnValue(read as never);
+    await expect(getWolfAmnestyView()).resolves.toEqual(view);
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'getWolfAmnestyView');
+    expect(read).toHaveBeenCalledWith({ sessionId: 's1' });
+
+    const respond = callableReturning({ data: {
+      type: 'wolf-amnesty-offer', status: 'accepted-pending-facilitator', sessionId: 's1',
+      requestId: 'response-4', offerId: 'amnesty-4-a', cycle: 4, revision: 2,
+      commanderUid: 'commander', targetShipId: 'dione', targetUid: 'u1',
+      condition: 'surrender-by-medium-jump-to-0101', responseDeadline: '2026-10-04T12:10:00.000Z',
+      response: 'accept',
+    } });
+    vi.mocked(httpsCallable).mockReturnValue(respond as never);
+    await expect(respondToWolfAmnesty(1, 'accept')).resolves.toMatchObject({
+      status: 'accepted-pending-facilitator', response: 'accept', revision: 2,
+    });
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'respondToWolfAmnesty');
+    expect(respond).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 's1', expectedRevision: 1, answer: 'accept', requestId: expect.any(String),
+    }));
+  });
+
+  it('sends a human-authored facilitator consequence without inventing an automatic bargain', async () => {
+    useSessionStore.getState().reset();
+    useSessionStore.getState().setIdentity({ ...session, phase: 'active', currentTurn: 4 }, { ...player, role: 'gm' });
+    useSessionStore.getState().setGmInstance({
+      id: 'gm-4', sessionId: 's1', uid: 'u1', name: 'GM', deviceLabel: 'Test', claimedAt: 'now',
+    });
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    const text = 'The ship remains under the stated surrender condition pending review.';
+    const consequence = callableReturning({ data: {
+      type: 'wolf-amnesty-offer', status: 'facilitator-ruled', sessionId: 's1',
+      requestId: 'ruling-4', offerId: 'amnesty-4-a', cycle: 4, revision: 3,
+      commanderUid: 'commander', targetShipId: 'dione', targetUid: 'captain',
+      condition: 'surrender-by-medium-jump-to-0101', responseDeadline: '2026-10-04T12:10:00.000Z',
+      response: 'accept', ruling: text,
+    } });
+    vi.mocked(httpsCallable).mockReturnValue(consequence as never);
+    await expect(recordWolfAmnestyConsequence(2, text)).resolves.toMatchObject({
+      status: 'facilitator-ruled', ruling: text,
+    });
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'recordWolfAmnestyConsequence');
+    expect(consequence).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 's1', instanceId: 'gm-4', expectedRevision: 2, text, requestId: expect.any(String),
+    }));
   });
 });
 const authorityService = await import('./sessionService') as unknown as {
