@@ -37,7 +37,23 @@ describe('catalog-backed implementation progress', () => {
     const pc07 = CHANGELOG.find(entry => entry.version === '0.5.65');
     expect(pc07?.implementationPrompts?.map(String)).toEqual(ids);
     expect(pc07?.implementationProgress?.completed).toBe(605);
-    expect(catalog.prompts.filter(row => row.status === 'done')).toHaveLength(605);
+    expect(catalog.prompts.find(row => row.id === '605a')?.status).not.toBe('done');
+  });
+
+  it('closes exactly the fixed PC08 allocation while preserving earlier snapshots', () => {
+    const ids = '231 389 396 397 398 443 445 446 447 448 449 450 451 452 453 454 455 456 457 458 459 394 395 460 461 462 463 464 465 466 467 468 469 469a 469b 469c 469d 469e 470 354 355 356 357 358 359 360 423 605 644'.split(' ');
+    expect(ids).toHaveLength(49);
+    expect(new Set(ids).size).toBe(49);
+    expect(ids.map(id => catalog.prompts.find(row => row.id === id)?.status))
+      .toEqual(ids.map(() => 'done'));
+    const pc08 = CHANGELOG.find(entry => entry.version === '0.5.67');
+    expect(pc08?.implementationPrompts?.map(String)).toEqual(ids);
+    expect(pc08?.implementationProgress).toMatchObject({
+      completed: 654, total: 751, percentage: '87.08%', partial: 10, missing: 87,
+    });
+    expect(catalog.prompts.filter(row => row.status === 'done')).toHaveLength(654);
+    expect(CHANGELOG.find(entry => entry.version === '0.5.65')?.implementationProgress?.completed).toBe(605);
+    expect(CHANGELOG.find(entry => entry.version === '0.5.66')?.implementationProgress?.completed).toBe(605);
     expect(catalog.prompts.find(row => row.id === '605a')?.status).not.toBe('done');
   });
 
