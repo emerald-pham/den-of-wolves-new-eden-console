@@ -433,6 +433,108 @@ it('consumes only the finalized prior attack survivors once and preserves its im
     .toMatchObject({ sourceInstanceIds: ['0:wolf-fighter-wing', '1:wolf-fighter-wing'] });
 });
 
+it('declares a fourth same-cycle P Station attack from the immutable survivor roster only', async () => {
+  const sequence = {
+    type: 'p-station-sequence', sequenceId: 'wolf-p-station-jump-station', groupId: 'fleet-1',
+    chart: 'B', coordinate: '1964', stationId: 'P', sourceTransitionId: 'jump-station',
+    sourceCycle: 1, attackNumber: 3,
+  };
+  const survivors = [
+    { instanceId: '0:wolf-battlestation', shipId: 'wolf-battlestation', target: 'aegis' },
+    { instanceId: '1:wolf-fighter-wing', shipId: 'wolf-fighter-wing', target: 'aegis' },
+  ];
+  const ranges = [
+    { range: 'long-range', targetSnapshot: [], targetShifts: [], destroyedInstanceIds: ['2:wolf-destroyer'] },
+    { range: 'medium-range', targetSnapshot: [], targetShifts: [], destroyedInstanceIds: [] },
+    { range: 'short-range', targetSnapshot: [], targetShifts: [], destroyedInstanceIds: [] },
+  ];
+  const receipt = {
+    type: 'wolf-combat-calculation', version: 1, requestId: 'wolf-final-wolf-attack-station-3',
+    phase: { turn: 1, phase: 'coordination', serverTime: '2026-10-03T20:00:00.000Z',
+      deadlineAt: '2026-10-03T20:10:00.000Z', overrun: false },
+    targeting: { ring: ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124'], rolls: [] },
+    ranges, boarding: [], fleetDamage: [], forceField: { status: 'unavailable', preventedDamage: 0 },
+    returningInstanceIds: survivors.map(({ instanceId }) => instanceId),
+    survivingWolfShips: survivors,
+  };
+  const carryover = {
+    sourceAttackId: 'wolf-attack-station-2', sourceTurn: 1,
+    sourceInstanceIds: [], rosterInstanceIds: [],
+  };
+  const prior: Fields = {
+    type: 'wolf-attack-state', status: 'resolved', currentStep: 'resolved',
+    attackId: 'wolf-attack-station-3', announcementId: 'wolf-attack-station-3', turn: 1,
+    attackNumber: 3, previousAttackId: 'wolf-attack-station-2', carryover,
+    revision: 9, airspaceLocked: false, parkingReleaseCondition: 'normal-movement-reopened',
+    resolvedAt: '2026-10-03T20:00:00.000Z', finalizationRequestId: receipt.requestId,
+    calculationReceipt: receipt,
+    combatRoster: [
+      { ...survivors[0], damageTaken: 0, destroyed: false },
+      { ...survivors[1], damageTaken: 0, destroyed: false },
+      { instanceId: '2:wolf-destroyer', shipId: 'wolf-destroyer', target: 'aegis', damageTaken: 2, destroyed: true },
+    ],
+    rangeReceipts: ranges,
+    pStationSequence: sequence,
+  };
+  const audit = {
+    type: 'wolf-attack-finalization', turn: 1, revision: 9, actorUid: 'server',
+    attackId: prior.attackId, requestId: receipt.requestId, receipt,
+    attackNumber: 3, previousAttackId: prior.previousAttackId, carryover,
+    pStationSequence: sequence, rangeReceipts: ranges,
+  };
+  put('sessions/s1/wolfAttackState/current', prior);
+  put('sessions/s1/wolfAttackState/current/audit/wolf-finalized-1', audit);
+  session({ chartSelectionLocked: true, chartId: 'B' });
+  put('sessions/s1/serverState/navigation', { revision: 0, pursuitGroups: { 'fleet-1': 4 } });
+  put('sessions/s1/serverState/wolfArrivalPressure/groups/fleet-1', {
+    type: 'wolf-base-arrival-pressure-state', groupId: 'fleet-1', chart: 'B', revision: 1,
+    entries: [{
+      type: 'wolf-base-arrival-pressure', status: 'operational', groupId: 'fleet-1', chart: 'B',
+      coordinate: '1964', siteCode: 'P', sourceShipId: 'aegis', sourceTransitionId: 'jump-station',
+      cycle: 1, revision: 1, attackStatus: 'scheduled', arrivalTiming: 'immediate',
+      minimumBattleStations: 1, minimumOtherShipDamage: 20,
+      missionAccess: 'blockedWhileWolfForcesRemain', recurringUntil: ['allWolfForcesDestroyed'],
+    }],
+  });
+  put('sessions/s1/wolfAttackPressure/arrival-jump-station', {
+    type: 'wolf-base-arrival-pressure-schedule', status: 'scheduled', sessionId: 's1',
+    groupId: 'fleet-1', chart: 'B', coordinate: '1964', siteCode: 'P', sourceShipId: 'aegis',
+    sourceTransitionId: 'jump-station', sourceCycle: 1, arrivalTiming: 'immediate',
+    minimumBattleStations: 1, minimumOtherShipDamage: 20,
+    recurringUntil: ['allWolfForcesDestroyed'], missionAccess: 'blockedWhileWolfForcesRemain',
+  });
+  dueWindow({ status: 'due', turn: 1, revision: 4, targetGroupId: 'fleet-1',
+    threatSiteCode: 'P', threatSourceId: 'arrival-jump-station' });
+  preparation({
+    turn: 1, revision: 6, shipIds: survivors.map(({ shipId }) => shipId),
+    compositionKind: 'p-station-repeat', targetGroupId: 'fleet-1',
+    targetAssignments: [], modifiers: [], notes: '',
+  });
+
+  await expect(declareWolfAttack.run(request({
+    ...baseData, requestId: 'wolf-station-attack-four', expectedRevision: 6,
+  }))).resolves.toMatchObject({ status: 'committed', turn: 1, announcementId: 'wolf-attack-wolf-station-attack-four' });
+  const state = mock.documents.get('sessions/s1/wolfAttackState/current')!;
+  expect(state).toMatchObject({
+    attackNumber: 4,
+    previousAttackId: 'wolf-attack-station-3',
+    pStationSequence: { ...sequence, attackNumber: 4 },
+    carryover: {
+      sourceAttackId: 'wolf-attack-station-3', sourceTurn: 1,
+      sourceInstanceIds: ['0:wolf-battlestation', '1:wolf-fighter-wing'],
+      rosterInstanceIds: ['0:wolf-battlestation', '1:wolf-fighter-wing'],
+    },
+  });
+  expect((state.calculationReceipt as Fields).composition).toMatchObject({
+    shipIds: ['wolf-battlestation', 'wolf-fighter-wing'], damageCapacity: 7,
+  });
+  const publicState = mock.documents.get('sessions/s1/wolfAttackAudience/current')!;
+  expect(publicState).not.toHaveProperty('pStationSequence');
+  expect(publicState).not.toHaveProperty('targetGroupId');
+  expect(mock.documents.get('sessions/s1/events/wolf-attack-wolf-station-attack-four'))
+    .not.toHaveProperty('pStationSequence');
+});
+
 it('requires the next scheduled composition to contain every carried Wing', async () => {
   resolvedPriorAttack();
   session({ currentTurn: 2, turnPhase: {
