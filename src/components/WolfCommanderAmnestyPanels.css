@@ -3,9 +3,9 @@
   gap: 1rem;
   margin-block: 1.25rem;
   padding: clamp(1rem, 3vw, 1.5rem);
-  border: 1px solid var(--cic-border, #557185);
-  background: var(--cic-panel, #0b1720);
-  color: var(--cic-text, #e6eef2);
+  border: 1px solid var(--cic-amber-dim);
+  background: var(--cic-panel);
+  color: var(--cic-ink);
 }
 
 .wolf-amnesty__header {
@@ -48,10 +48,10 @@
   width: 100%;
   min-height: 2.75rem;
   padding: 0.65rem 0.75rem;
-  border: 1px solid var(--cic-border, #8298a4);
-  border-radius: 0.25rem;
-  background: #101f29;
-  color: var(--cic-text, #e6eef2);
+  border: 1px solid var(--cic-amber-dim);
+  border-radius: var(--cic-radius);
+  background: var(--cic-void);
+  color: var(--cic-ink);
   font: inherit;
 }
 
@@ -72,7 +72,7 @@
 }
 
 .wolf-amnesty__details dt {
-  color: var(--cic-muted, #a9bbc5);
+  color: var(--cic-muted);
   font-size: 0.85rem;
 }
 

@@ -106,7 +106,7 @@
 }
 
 .pc09-specialist-panel__message {
-  color: var(--cic-alert, #ffb4a9);
+  color: var(--cic-scream);
   font: 0.76rem/1.5 var(--cic-mono);
 }
 

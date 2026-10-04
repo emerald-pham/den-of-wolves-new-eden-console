@@ -31,9 +31,7 @@ export default function PdfFighterAcePermissionControl({
   </section>;
 
   return <PdfFighterAcePermissionPanel view={view} onGrant={async (input) => {
-    try {
-      await grantPdfFighterAcePermission(input);
-      await refresh();
-    } catch (cause) { throw cause; }
+    await grantPdfFighterAcePermission(input);
+    await refresh();
   }} />;
 }

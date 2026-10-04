@@ -36,6 +36,8 @@ const ROUTES = [
   { slug: 'gm', path: '/gm', label: 'Back to role selection', expectedPath: '/console', gm: true },
   { slug: 'fleet', path: '/console', label: 'Back to roles', expectedPath: '/roles' },
   { slug: 'press', path: '/press', label: 'Back to Independent Stations', expectedPath: '/console', mode: 'press' },
+  { slug: 'president', path: '/president', label: 'Back to stations', expectedPath: '/console' },
+  { slug: 'election', path: '/election', label: 'Back to stations', expectedPath: '/console' },
   { slug: 'shuttle', path: '/shuttles/wobbly', label: 'Back to Joint Engineering Union', expectedPath: '/union/roles/joint-engineering-quellon-refinery', activeRoleId: 'joint-engineering-quellon-refinery', roles: UNION_ROLES },
   { slug: 'ship-roles', path: '/ships/aegis/roles', label: 'Back to fleet', expectedPath: '/console', activeRoleId: 'admiral' },
   { slug: 'ship-role', path: '/ships/aegis/roles/admiral', label: 'View ship consoles', expectedPath: '/ships/aegis/roles', activeRoleId: 'admiral' },
