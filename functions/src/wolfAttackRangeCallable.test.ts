@@ -1746,7 +1746,10 @@ function openForceFieldFixture(): void {
     calculationReceipt: {
       type: 'wolf-combat-calculation-stage', version: 1, turn: 1, step: 'pre-target-force-field',
       generatedAt: '2026-10-03T11:00:00.000Z', targetRing: [...CORE_WOLF_TARGET_RING],
-      pursuitPressure: { navigationRevision: 1, groupValues: { 'fleet-1': 2 } },
+      pursuitPressure: {
+        navigationRevision: 1, targetGroupId: 'fleet-1', targetGroupValue: 2,
+        groupValues: { 'fleet-1': 2 },
+      },
       composition: { shipIds: [...composition.shipIds], counts: { ...composition.counts },
         damageCapacity: composition.damageCapacity },
     },
