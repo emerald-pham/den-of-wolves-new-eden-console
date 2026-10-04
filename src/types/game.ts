@@ -678,7 +678,7 @@ export interface WolfAttackDecisionActor {
 export interface WolfAttackMemberResult {
   readonly range: 'long' | 'medium' | 'short' | 'boarding';
   readonly sourceId: string;
-  readonly targetId: string;
+  readonly targetId: string | null;
   readonly bearing: number | null;
   readonly contactReference: string;
   readonly effect: string;

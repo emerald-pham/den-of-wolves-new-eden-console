@@ -10,7 +10,7 @@ export type WolfAttackPublicRange = 'long' | 'medium' | 'short' | null;
 export interface WolfAttackMemberResult {
   readonly range: 'long' | 'medium' | 'short' | 'boarding';
   readonly sourceId: string;
-  readonly targetId: string;
+  readonly targetId: string | null;
   readonly bearing: number | null;
   readonly contactReference: string;
   readonly effect: string;
@@ -62,11 +62,24 @@ function canonicalRange(value: unknown): WolfAttackMemberResult['range'] | undef
   return value === 'boarding' ? 'boarding' : undefined;
 }
 
+/** A committed support miss or unused hit has no target to publish. */
+function targetlessSupportResult(value: Record<string, unknown>): boolean {
+  const label = value.sourceId === 'highwall' ? 'Highwall Cannon'
+    : value.sourceId === 'gorgoneion-missile-array' ? 'Gorgoneion Missile Array'
+      : value.sourceId === 'boa' ? 'Boa Scrap Strike' : undefined;
+  const range = canonicalRange(value.range);
+  return label !== undefined && range !== undefined && range !== 'boarding' &&
+    value.targetId === null && value.bearing === null && value.contactReference === label &&
+    (value.effect === `${label} missed` || value.effect === `${label} hit had no distinct live contact`) &&
+    record(value.outcome) && Object.keys(value.outcome).length === 1 && value.outcome.damage === 0;
+}
+
 function resultProjection(value: unknown): WolfAttackMemberResult | undefined {
   const range = record(value) ? canonicalRange(value.range) : undefined;
   if (!record(value) || value.status !== 'committed' || range === undefined ||
       typeof value.sourceId !== 'string' || value.sourceId.length < 1 || value.sourceId.length > 128 ||
-      typeof value.targetId !== 'string' || value.targetId.length < 1 || value.targetId.length > 128 ||
+      !((typeof value.targetId === 'string' && value.targetId.length >= 1 && value.targetId.length <= 128) ||
+        targetlessSupportResult(value)) ||
       !(value.bearing === null || (typeof value.bearing === 'number' && Number.isFinite(value.bearing) &&
         value.bearing >= 0 && value.bearing < 360)) ||
       typeof value.contactReference !== 'string' || value.contactReference.length < 1 ||
@@ -84,7 +97,7 @@ function resultProjection(value: unknown): WolfAttackMemberResult | undefined {
   return {
     range,
     sourceId: value.sourceId,
-    targetId: value.targetId,
+    targetId: value.targetId as string | null,
     bearing: value.bearing,
     contactReference: value.contactReference,
     effect: value.effect,
