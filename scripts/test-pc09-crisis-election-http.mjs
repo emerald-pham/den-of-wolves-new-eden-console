@@ -37,6 +37,7 @@ const setupDisclosure = {
   fixtureStateGrants: [],
   facilitatorScenarioChoices: [],
   visitAttestation: 'The Coordination visit is a digital callable record; no physical visit is attested.',
+  ballotInput: null,
 };
 
 const pregameSettingsNote = 'Awaiting CIC authentication means waiting for the GM to start the game.';
@@ -340,6 +341,14 @@ try {
     'The ordinary 18-person roster includes five authenticated electoral roles from distinct ships.');
   const originalRoot = (await fixture.session.get()).data();
   assert.equal(originalRoot.singlePlayerDemo, undefined, 'The scenario must use a normal roster, never the single-player demo.');
+  const populationByRole = {
+    admiral: Number(originalRoot.shipSurvivors.aegis),
+    'dione-president': Number(originalRoot.shipSurvivors.dione),
+    'icebreaker-captain': Number(originalRoot.shipSurvivors.icebreaker),
+    'shepherd-scientist': Number(originalRoot.shipSurvivors.shepherd),
+    'quellon-explorer': Number(originalRoot.shipSurvivors.quellon),
+  };
+  assert.ok(Object.values(populationByRole).every(value => Number.isSafeInteger(value) && value > 0));
 
   const voterUids = [president.localId, captain.localId, scientist.localId, admiral.localId, explorer.localId];
   const policy = {
@@ -369,11 +378,31 @@ try {
   const electionStored = (await fixture.db.doc(`sessions/${fixture.sessionId}/presidentialElections/current`).get()).data();
   const candidateIdFor = uid => electionStored.candidateIdsByUid[uid];
   const ballots = [
-    { actor: president, presidentCandidateId: candidateIdFor(captain.localId), vicePresidentCandidateId: candidateIdFor(explorer.localId) },
-    { actor: captain, presidentCandidateId: candidateIdFor(scientist.localId), vicePresidentCandidateId: candidateIdFor(captain.localId) },
-    { actor: scientist, presidentCandidateId: candidateIdFor(explorer.localId), vicePresidentCandidateId: candidateIdFor(captain.localId) },
-    { actor: admiral, presidentCandidateId: candidateIdFor(captain.localId), vicePresidentCandidateId: candidateIdFor(scientist.localId) },
-    { actor: explorer, presidentCandidateId: candidateIdFor(admiral.localId), vicePresidentCandidateId: candidateIdFor(captain.localId) },
+    {
+      actor: president,
+      presidentCandidateId: candidateIdFor(scientist.localId),
+      vicePresidentCandidateId: candidateIdFor(captain.localId),
+    },
+    {
+      actor: captain,
+      presidentCandidateId: candidateIdFor(captain.localId),
+      vicePresidentCandidateId: candidateIdFor(scientist.localId),
+    },
+    {
+      actor: scientist,
+      presidentCandidateId: candidateIdFor(captain.localId),
+      vicePresidentCandidateId: candidateIdFor(explorer.localId),
+    },
+    {
+      actor: admiral,
+      presidentCandidateId: candidateIdFor(captain.localId),
+      vicePresidentCandidateId: candidateIdFor(president.localId),
+    },
+    {
+      actor: explorer,
+      presidentCandidateId: candidateIdFor(captain.localId),
+      vicePresidentCandidateId: candidateIdFor(admiral.localId),
+    },
   ];
   activeStage = 'normal authenticated secret ballots and server tally';
   const firstBallotData = { sessionId: fixture.sessionId, requestId: requestId(), expectedRevision: 1,
@@ -400,16 +429,12 @@ try {
   assert.equal(memberBeforeResolve.currentMemberBallotSubmitted, true);
   assert.doesNotMatch(JSON.stringify(memberBeforeResolve), /candidateIdsByUid|voterShipIds|ballot\s*:/,
     'The ordinary member projection reveals neither ballot contents nor private voter mappings.');
+  setupDisclosure.ballotInput = [
+    'Five ordinary Auth actors each submitted one legal ballot through castPresidentialBallot.',
+    'The test choices intentionally produce a unique shared weighted leader and a distinct VP-ballot runner-up.',
+    'No ballot document or vote mapping was pre-seeded.',
+  ].join(' ');
   checks.oneSecretBallotPerEligibleActorAndMemberProjection = true;
-
-  const populationByRole = {
-    admiral: Number(originalRoot.shipSurvivors.aegis),
-    'dione-president': Number(originalRoot.shipSurvivors.dione),
-    'icebreaker-captain': Number(originalRoot.shipSurvivors.icebreaker),
-    'shepherd-scientist': Number(originalRoot.shipSurvivors.shepherd),
-    'quellon-explorer': Number(originalRoot.shipSurvivors.quellon),
-  };
-  assert.ok(Object.values(populationByRole).every(value => Number.isSafeInteger(value) && value > 0));
 
   activeStage = 'Approaching Vessel delivery, private ruling, and Voyage admission';
   const approach = await openCrisis('pc09-approaching-vessel', 'approaching-vessel', 'Approaching vessel',
@@ -626,6 +651,13 @@ try {
   assert.equal(election.state, 'resolved');
   assert.equal(election.tally.president.winnerUid, captain.localId);
   assert.equal(election.tally.vicePresident.winnerUid, captain.localId);
+  assert.equal(election.tally.president.scores[candidateIdFor(captain.localId)],
+    populationByRole['icebreaker-captain'] + populationByRole['shepherd-scientist'] +
+      populationByRole.admiral + populationByRole['quellon-explorer']);
+  assert.equal(election.tally.president.scores[candidateIdFor(scientist.localId)],
+    populationByRole['dione-president']);
+  assert.equal(election.tally.vicePresident.scores[candidateIdFor(captain.localId)], populationByRole['dione-president']);
+  assert.equal(election.tally.vicePresident.scores[candidateIdFor(scientist.localId)], populationByRole['icebreaker-captain']);
   assert.equal(election.vicePresidentCandidateId, candidateIdFor(scientist.localId));
   assert.equal(election.vicePresidentOutcome, 'runner-up');
   assert.equal(election.tally.president.totalVotes, 5);
