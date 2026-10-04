@@ -4773,12 +4773,12 @@ it('captures and exactly retries one GM adjudication while applying its authorit
     requestId: 'failure-1', shipId: 'aegis', origin: '0000', destination: '5143',
     failureStatus: 'drive-failure' as const, failureRevision: 7, currentTurn: 2, fuelAtFailure: 3,
   };
-  const attempt = createFailedJumpAdjudicationAttempt(failure, '5143');
+  const attempt = createFailedJumpAdjudicationAttempt(failure, '5143', 'full-d6-damage');
   const callable = Object.assign(
     vi.fn()
       .mockRejectedValueOnce({ code: 'functions/unavailable', message: 'Transport interrupted.' })
       .mockResolvedValueOnce({ data: {
-        status: 'jumped', shipId: 'aegis', origin: '0000', destination: '5143',
+        status: 'jumped', shipId: 'aegis', consequence: 'full-d6-damage', origin: '0000', destination: '5143',
         remainingFuel: 1, fuelSpent: 2, damage: { damagedSystemIds: ['reactor'], destroyed: false },
         state: { lastJumpTurn: 2 }, transition: { id: 'jump-1', shipId: 'aegis', origin: '0000', destination: '5143' },
         revision: 8,
@@ -4789,7 +4789,7 @@ it('captures and exactly retries one GM adjudication while applying its authorit
 
   expect(attempt).toEqual({
     sessionId: 's1', instanceId: 'bridge', requestId, expectedRevision: 7,
-    failureRequestId: 'failure-1', shipId: 'aegis', destination: '5143',
+    failureRequestId: 'failure-1', shipId: 'aegis', destination: '5143', consequence: 'full-d6-damage',
   });
   await expect(adjudicateFailedJump(attempt)).rejects.toMatchObject({ code: 'functions/unavailable' });
   await expect(adjudicateFailedJump(attempt)).resolves.toMatchObject({ status: 'jumped', destination: '5143' });
@@ -4797,7 +4797,7 @@ it('captures and exactly retries one GM adjudication while applying its authorit
   expect(callable).toHaveBeenCalledTimes(2);
   expect(callable.mock.calls[0]?.[0]).toEqual({
     sessionId: 's1', instanceId: 'bridge', requestId,
-    expectedRevision: 7, failureRequestId: 'failure-1', destination: '5143',
+    expectedRevision: 7, failureRequestId: 'failure-1', destination: '5143', consequence: 'full-d6-damage',
   });
   expect(callable.mock.calls[1]?.[0]).toEqual(callable.mock.calls[0]?.[0]);
   expect(useSessionStore.getState().session).toMatchObject({
@@ -4825,7 +4825,7 @@ it('does not apply a delayed adjudication over a newer ship projection', async (
     requestId: 'delayed-failure', shipId: 'aegis', origin: '0000', destination: '5143',
     failureStatus: 'drive-failure' as const, failureRevision: 7, currentTurn: 1, fuelAtFailure: 4,
   };
-  const attempt = createFailedJumpAdjudicationAttempt(failure, '5143');
+  const attempt = createFailedJumpAdjudicationAttempt(failure, '5143', 'full-d6-damage');
   let finish!: (value: { data: Record<string, unknown> }) => void;
   const callable = Object.assign(vi.fn(() => new Promise<{ data: Record<string, unknown> }>((resolve) => {
     finish = resolve;
@@ -4844,7 +4844,7 @@ it('does not apply a delayed adjudication over a newer ship projection', async (
   };
   useSessionStore.getState().setSession(newerSession);
   finish({ data: {
-    status: 'jumped', shipId: 'aegis', origin: '0000', destination: '5143',
+    status: 'jumped', shipId: 'aegis', consequence: 'full-d6-damage', origin: '0000', destination: '5143',
     remainingFuel: 2, fuelSpent: 2,
     damage: { damagedSystemIds: ['storage'], destroyed: false },
     state: { lastJumpTurn: 1 },
