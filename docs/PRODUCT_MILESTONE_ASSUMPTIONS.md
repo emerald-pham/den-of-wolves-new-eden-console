@@ -356,6 +356,17 @@ the original assumption; append the resolution so the decision is traceable.
 | Product effect | P523c's current-context transaction records the choice before mutation and applies exactly the selected branch. The server owns the random draw, damage, destination validation and immutable receipt. Odd-roll, wrong-location-only, combined-branch, stale/change and retry regressions distinguish the alternatives. No general jump redesign or different emergency price is inferred. |
 | Review state | New source-backed assumption under the PC09 dispatch. Exact source was inspected by the crisis worker; implementation and proof are in progress. Independent review, final validation and release remain required. |
 
+### PC09-A4 — Apply the printed exhausted-deck catastrophe in combat
+
+| Field | Record |
+|---|---|
+| ID and milestone | PC09-A4; P476 and its finalization consumers; recorded 2026-10-04. |
+| Source passage | Player's Guide v1.1, printed p. 6 (PDF p. 8), Ships / Consoles / Damage. A required damage draw with no remaining card destroys the ship; engineering craft provide repairs. The passage supplies no separate Capybara exception. |
+| Ambiguity and alternatives | The existing implementation treats exhausted Capybara damage as a pending facilitator ruling. Keeping that exception during attack finalization would block the assigned P476 acceptance. Rewriting every noncombat caller would expand the checkpoint. |
+| Chosen reading | A combat finalization explicitly applies the printed exhausted-deck destruction to every required fleet draw, including Capybara, within its committed result. Keep the older default ruling path for noncombat callers within this bounded change. The retained noncombat implementation is not presented as a printed exception or awarded new closure credit. |
+| Product effect | P476 destruction, cards, casualties, escape implications and audience projections share the finalization transaction. Armour still follows its printed recycling and casualty protection. Regressions distinguish combat catastrophe from the unchanged noncombat ruling path; no card/deck contents enter the member view. |
+| Review state | New scope clarification under the PC09 dispatch. Root visually verified the primary damage page and failed-jump page for PC09-A3. Implementation, independent review, full gameplay and release evidence remain pending. |
+
 ### PC07-A1 — Preserve the server clock behind a cycle briefing
 
 | Field | Decision |
