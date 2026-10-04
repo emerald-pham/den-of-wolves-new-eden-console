@@ -37,6 +37,8 @@ const mock = vi.hoisted(() => ({
   discoveryPlayers: [] as Array<{ id: string; fields: Record<string, unknown> }>,
   activeVesselIds: undefined as readonly string[] | undefined,
   shuttleDockings: undefined as readonly unknown[] | undefined,
+  shuttleControl: undefined as unknown,
+  retainedShuttles: undefined as unknown,
   commandReceipts: {} as Record<string, Record<string, unknown>>,
   race: undefined as {
     attempts: number;
@@ -273,6 +275,9 @@ vi.mock('firebase-admin/firestore', () => ({
             activeVesselIds: mock.activeVesselIds,
             pursuitEmergencyWindow: mock.pursuitEmergencyWindow,
             shuttleDockings: mock.shuttleDockings,
+            shuttleControl: mock.shuttleControl,
+            retainedShuttles: mock.retainedShuttles,
+            shipDamage: mock.damage,
             pursuitGroups: mock.legacyPursuitGroups,
           };
           const updates: Array<readonly [string, Record<string, unknown>]> = [];
@@ -448,6 +453,7 @@ import {
 } from './index';
 import { recommendedRoleIds } from './roleConfiguration';
 import { initialShuttleDockingsForRoles } from './shuttlecraft';
+import { roleOwnedCraftForRoles } from './craftOwnership';
 import { emptySmallShipState } from './smallShip';
 
 let advanceRequestSequence = 0;
@@ -507,6 +513,8 @@ beforeEach(() => {
     shipNavigationLogs: {},
   };
   mock.shuttleDockings = undefined;
+  mock.shuttleControl = undefined;
+  mock.retainedShuttles = undefined;
   mock.turnPhase = {
     turn: 1,
     airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
@@ -653,6 +661,8 @@ beforeEach(() => {
           chartId: mock.chartId,
           chartSelectionLocked: mock.chartSelectionLocked,
           shuttleDockings: mock.shuttleDockings,
+          shuttleControl: mock.shuttleControl,
+          retainedShuttles: mock.retainedShuttles,
           pursuitGroups: mock.legacyPursuitGroups,
         };
     return { exists: true, get: (key: string) => fields[key] };
@@ -2694,6 +2704,70 @@ it('rejects an unknown shuttle host even when a corrupted active-vessel roster n
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
 });
+
+function destroyedHostTeamBoundaryFixture() {
+  mock.currentTurn = 2;
+  mock.activeRoleIds = recommendedRoleIds(18);
+  const dockings = initialShuttleDockingsForRoles(mock.activeRoleIds);
+  const affected = dockings.filter(({ shipId }) => shipId === 'quellon');
+  expect(affected.map(({ shuttleId }) => shuttleId).sort()).toEqual(['condor', 'hummingbird']);
+  const catalog = new Map(roleOwnedCraftForRoles(mock.activeRoleIds).map(craft => [craft.id, craft]));
+  mock.shuttleDockings = dockings.filter(({ shipId }) => shipId !== 'quellon');
+  mock.damage = { quellon: { destroyed: true, damagedSystemIds: [] } };
+  mock.shuttleControl = Object.fromEntries(affected.map(({ shuttleId }) => [shuttleId, {
+    shuttleId, ownerRoleId: catalog.get(shuttleId)!.ownerRoleId,
+    ownerUid: `owner-${shuttleId}`, holderUid: `holder-${shuttleId}`, revision: 4,
+  }]));
+  mock.retainedShuttles = Object.fromEntries(affected.map(({ shuttleId }) => [shuttleId, {
+    status: 'retained', shuttleId, ownerRoleId: catalog.get(shuttleId)!.ownerRoleId,
+    holderUid: `holder-${shuttleId}`, controlRevision: 4, destroyedHostShipId: 'quellon',
+    retainedAt: '2026-09-06T11:55:00.000Z',
+  }]));
+  mock.turnPhase = { turn: 2, teamPhaseEndsAt: '2026-09-06T11:55:00.000Z',
+    openAirspaceEndsAt: '2099-09-06T11:59:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false } };
+  return dockings;
+}
+
+it('advances with properly retained destroyed-host craft without redocking or changing their custody', async () => {
+  destroyedHostTeamBoundaryFixture();
+  const retained = structuredClone(mock.retainedShuttles);
+  const control = structuredClone(mock.shuttleControl);
+  const dockings = structuredClone(mock.shuttleDockings);
+  await expect(advanceTurn.run(request({ sessionId: 's1', instanceId: 'bridge', expectedTurn: 2,
+    overridePhaseTimer: true }))).resolves.toMatchObject({ currentTurn: 3 });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({ currentTurn: 3 }));
+  expect(mock.retainedShuttles).toEqual(retained);
+  expect(mock.shuttleControl).toEqual(control);
+  expect(mock.shuttleDockings).toEqual(dockings);
+  for (const [path, update] of mock.update.mock.calls) if (path === 'sessions/s1') {
+    expect(update).not.toHaveProperty('retainedShuttles');
+    expect(update).not.toHaveProperty('shuttleControl');
+    expect(update).not.toHaveProperty('shuttleDockings');
+  }
+});
+
+it.each(['missing-retention', 'live-host', 'wrong-holder', 'stale-control', 'wrong-owner',
+  'duplicate-docking', 'extra-private-field', 'unknown-host'])(
+  'rejects %s at the retained-craft Team boundary without advancing', async kind => {
+    const originalDockings = destroyedHostTeamBoundaryFixture();
+    const retained = mock.retainedShuttles as Record<string, Record<string, unknown>>;
+    const control = mock.shuttleControl as Record<string, Record<string, unknown>>;
+    if (kind === 'missing-retention') delete retained.condor;
+    if (kind === 'live-host') mock.damage = {};
+    if (kind === 'wrong-holder') retained.condor!.holderUid = 'foreign-holder';
+    if (kind === 'stale-control') retained.condor!.controlRevision = 3;
+    if (kind === 'wrong-owner') {
+      retained.condor!.ownerRoleId = 'wing-commander'; control.condor!.ownerRoleId = 'wing-commander';
+    }
+    if (kind === 'duplicate-docking') mock.shuttleDockings = originalDockings;
+    if (kind === 'extra-private-field') retained.condor!.dice = [6];
+    if (kind === 'unknown-host') retained.condor!.destroyedHostShipId = 'unknown-host';
+    await expect(advanceTurn.run(request({ sessionId: 's1', instanceId: 'bridge', expectedTurn: 2,
+      overridePhaseTimer: true }))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.update).not.toHaveBeenCalled(); expect(mock.set).not.toHaveBeenCalled();
+  },
+);
 
 it('advances a legacy session whose stored role tuple still includes Press', async () => {
   mock.currentTurn = 1;
