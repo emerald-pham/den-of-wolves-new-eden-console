@@ -250,7 +250,7 @@ it('requires the Commander composition to match ten plus only the selected group
   });
   put('sessions/s1/fleetGroups/fleet-1', {
     id: 'fleet-1', vesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
-    memberUids: ['u1'],
+    memberUids: ['u1', 'wolfcmd'],
   });
   put('sessions/s1/players/u1', { uid: 'u1', role: 'gm', connected: true, fleetGroupId: 'fleet-1' });
   put('sessions/s1/players/wolfcmd', {

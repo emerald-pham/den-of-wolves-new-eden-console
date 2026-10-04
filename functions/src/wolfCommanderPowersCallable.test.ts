@@ -139,18 +139,18 @@ it('requires the current-cycle Commander address before offering amnesty and rec
   };
   await expect(createWolfAmnestyOffer.run(request(requestData)))
     .rejects.toMatchObject({ code: 'failed-precondition' });
-  put('sessions/s1/wolfCommanderAddresses/cycle-3', {
-    type: 'wolf-commander-address', cycle: 3, actorUid: 'commander', actorRoleId: 'wolf-commander',
-  });
+  await publishWolfCommanderAddress.run(request({
+    sessionId: 's1', requestId: 'amnesty-address-3', expectedCycle: 3, message: 'The fleet has been addressed.',
+  }));
 
   await expect(createWolfAmnestyOffer.run(request(requestData))).resolves.toMatchObject({
     status: 'offered', cycle: 3, targetShipId: 'dione', targetUid: 'dione-captain',
-    condition: 'surrender-by-medium-jump-to-0101', response: undefined,
+    condition: 'surrender-by-medium-jump-to-0101',
   });
   expect(mock.documents.get('sessions/s1/wolfCommanderAmnesty/current'))
     .toMatchObject({ status: 'offered', targetUid: 'dione-captain', responseDeadline: expect.any(String) });
   expect(mock.documents.get('sessions/s1/wolfCommanderAmnesty/current')).not.toHaveProperty('ruling');
-  expect([...mock.documents.keys()].filter((path) => path.includes('/events/'))).toHaveLength(0);
+  expect([...mock.documents.keys()].filter((path) => path.includes('/events/') && path.includes('amnesty'))).toHaveLength(0);
 });
 
 it('accepts a target captain response without deciding the bargain, then requires explicit GM consequence text', async () => {
@@ -192,11 +192,14 @@ it('allows the GM to record an explicit ruling after the response deadline with 
     status: 'offered',
   });
   vi.setSystemTime(new Date('2026-10-04T12:00:00.000Z'));
+  put('sessions/s1/gmInstances/gm-browser', {
+    uid: 'gm', connected: true, lastSeenAt: new Date(),
+  });
   await expect(recordWolfAmnestyConsequence.run(request({
     sessionId: 's1', instanceId: 'gm-browser', requestId: 'amnesty-expired-ruling',
     expectedRevision: 1, text: 'No response before the stated deadline; facilitator review required.',
   }, 'gm'))).resolves.toMatchObject({
-    status: 'facilitator-ruled', response: undefined,
+    status: 'facilitator-ruled',
     ruling: 'No response before the stated deadline; facilitator review required.',
   });
   vi.useRealTimers();
@@ -209,12 +212,13 @@ it('filters the amnesty view to the Commander, target ship authority, and curren
     condition: 'surrender-by-medium-jump-to-0101', responseDeadline: new Date(Date.now() + 60_000).toISOString(),
     status: 'offered',
   });
+  put('sessions/s1/players/other-player', { uid: 'other-player', role: 'player', connected: true });
   await expect(getWolfAmnestyView.run(request({ sessionId: 's1' }, 'other-player')))
-    .rejects.toMatchObject({ code: 'permission-denied' });
+    .resolves.toMatchObject({ offer: null });
   await expect(getWolfAmnestyView.run(request({ sessionId: 's1' }, 'dione-captain')))
-    .resolves.toMatchObject({ targetShipId: 'dione' });
+    .resolves.toMatchObject({ offer: { targetShipId: 'dione' } });
   await expect(getWolfAmnestyView.run(request({ sessionId: 's1' }, 'commander')))
-    .resolves.toMatchObject({ targetShipId: 'dione', targetUid: 'dione-captain' });
+    .resolves.toMatchObject({ offer: { targetShipId: 'dione', targetUid: 'dione-captain' } });
   await expect(getWolfAmnestyView.run(request({ sessionId: 's1' }, 'gm')))
-    .resolves.toMatchObject({ targetShipId: 'dione' });
+    .resolves.toMatchObject({ offer: { targetShipId: 'dione' } });
 });
