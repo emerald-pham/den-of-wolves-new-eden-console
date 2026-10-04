@@ -12,6 +12,13 @@ export const CRISIS_STATES = [
 
 export type CrisisStateName = (typeof CRISIS_STATES)[number];
 
+export const CRISIS_DELIVERY_PRESSURES = ['decrease', 'hold', 'increase'] as const;
+export type CrisisDeliveryPressure = (typeof CRISIS_DELIVERY_PRESSURES)[number];
+
+export function isCrisisDeliveryPressure(value: unknown): value is CrisisDeliveryPressure {
+  return typeof value === 'string' && (CRISIS_DELIVERY_PRESSURES as readonly string[]).includes(value);
+}
+
 export const CRISIS_TRANSITIONS: Readonly<Record<CrisisStateName, readonly CrisisStateName[]>> = {
   draft: ['delivered'],
   delivered: ['debated'],
@@ -31,6 +38,7 @@ export interface CrisisStateProjection {
   readonly details: string;
   readonly crisisKind?: CrisisKind;
   readonly configurationOverride?: string;
+  readonly deliveryPressure?: CrisisDeliveryPressure;
   readonly diseaseOutbreak?: DiseaseOutbreakDetails;
   readonly updatedAt?: string;
 }
@@ -81,6 +89,47 @@ export interface ZealotryResponse {
 }
 
 /** Member-readable report; no facilitator notes or hidden decisions. */
+export const APPROACHING_VESSEL_RESPONSE_CHOICES = [
+  'jump-away-soon', 'wait-briefly-then-leave', 'prepare-attack-or-jump', 'prepare-medical-and-wait',
+] as const;
+export type ApproachingVesselResponseChoice = (typeof APPROACHING_VESSEL_RESPONSE_CHOICES)[number];
+export const APPROACHING_VESSEL_COORDINATION_ACTIONS = [
+  'security', 'medical', 'research', 'quarantine', 'contingency-objectives',
+] as const;
+export type ApproachingVesselCoordinationAction = (typeof APPROACHING_VESSEL_COORDINATION_ACTIONS)[number];
+
+export interface ApproachingVesselResponseInput {
+  readonly vesselReality: 'real' | 'trap';
+  readonly responseChoices: readonly ApproachingVesselResponseChoice[];
+  readonly coordinationActions: readonly ApproachingVesselCoordinationAction[];
+  readonly responseInstructions: string;
+  readonly quarantineInstructions?: string;
+  readonly contingencyObjectives?: string;
+  readonly rationale: string;
+}
+
+/** GM-only recorded ruling. This type must never be used as the player report. */
+export interface ApproachingVesselResponse extends ApproachingVesselResponseInput {
+  readonly sessionId: string;
+  readonly crisisId: string;
+  readonly crisisRevision: number;
+  readonly state: 'debated';
+  readonly revision: number;
+  readonly actorUid?: string;
+  readonly updatedAt?: string;
+}
+
+/** Fleet-safe response instructions; hidden truth and GM rationale are excluded. */
+export interface ApproachingVesselResponseProjection {
+  readonly crisisId: string;
+  readonly revision: number;
+  readonly responseChoices: readonly ApproachingVesselResponseChoice[];
+  readonly coordinationActions: readonly ApproachingVesselCoordinationAction[];
+  readonly responseInstructions: string;
+  readonly quarantineInstructions?: string;
+  readonly contingencyObjectives?: string;
+}
+
 export interface CrisisReport {
   readonly sessionId: string;
   readonly crisisId: string;
@@ -89,6 +138,8 @@ export interface CrisisReport {
   readonly title: string;
   readonly body: string;
   readonly crisisKind?: CrisisKind;
+  readonly deliveryPressure?: CrisisDeliveryPressure;
+  readonly approachingVesselResponse?: ApproachingVesselResponseProjection;
 }
 
 export type CivilUnrestGrievanceVisibility = 'private' | 'public';

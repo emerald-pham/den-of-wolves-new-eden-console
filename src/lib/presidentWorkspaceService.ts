@@ -34,3 +34,17 @@ export async function updatePoliticalCapital(action: PoliticalCapitalAction): Pr
     ...(gmInstance ? { instanceId: gmInstance.id } : {}),
   });
 }
+
+export async function recordPresidentialVisit(shipId: string): Promise<void> {
+  const { session, gmInstance } = useSessionStore.getState();
+  if (!session) throw new Error('Reconnect before recording a presidential visit.');
+  requireFreshSessionAuthority();
+  await httpsCallable(functions(), 'recordPresidentialVisit')({
+    sessionId: session.id,
+    requestId: window.crypto.randomUUID(),
+    shipId,
+    expectedCapitalRevision: session.politicalCapital?.revision ?? 0,
+    expectedVesselRevision: session.vesselActionRevisions?.[shipId] ?? 0,
+    ...(gmInstance ? { instanceId: gmInstance.id } : {}),
+  });
+}

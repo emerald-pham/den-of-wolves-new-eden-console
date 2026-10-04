@@ -32,7 +32,12 @@ const MEMBER_EVENT_FIELDS: Readonly<Record<string, readonly string[]>> = {
   'maintenance': ['shipId', 'shipName', 'action', 'results'],
   'ship-repaired': ['actorUid', 'shipId'],
   'maintenance-rollback': ['actorUid', 'requestId', 'eventId', 'shipId', 'revision'],
-  'crisis-state': ['crisisId', 'state', 'title'],
+  'crisis-state': [
+    'crisisId', 'state', 'title', 'deliveryPressure', 'politicalCapitalAction',
+    'politicalCapitalAmount', 'politicalCapitalApplied', 'politicalCapitalDelta',
+    'politicalCapitalBalance', 'politicalCapitalRevision',
+  ],
+  'presidential-visit': ['shipId', 'turn', 'unrest', 'politicalCapitalRevision', 'politicalCapitalBalance', 'vesselRevision'],
   'voyage-admitted': ['crisisId', 'crisisRevision', 'vesselId', 'population', 'commitments'],
   'shuttle-survivor-evacuation': [
     'shuttleId', 'sourceShipId', 'destinationShipId', 'amount',

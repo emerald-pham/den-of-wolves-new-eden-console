@@ -8,6 +8,7 @@ import { DradisAirspaceTimer } from './TurnPhaseTimer';
 import LiveChangeRegion from './LiveChangeRegion';
 import { clearTurnAdvanceInterstitial, type ClearCycleBriefingRequest } from '@/lib/turnInterstitialService';
 import CycleBriefingClearanceView from './CycleBriefingClearanceView';
+import { TeamStartFormalAnnouncementsView } from './TeamStartFormalAnnouncementsView';
 
 export const TURN_START_SLIDE_MS = 2_400;
 export const TURN_START_EXIT_MS = 320;
@@ -23,6 +24,8 @@ type TurnStartTransmission = {
   readonly revision: number;
   readonly localReplayToken?: number;
   readonly heldAt?: string;
+  readonly formalAnnouncements: NonNullable<GameSession['turnStartAnnouncement']>['formalAnnouncements'];
+  readonly formalOnly?: boolean;
 };
 
 function currentAnnouncement(session: GameSession | null | undefined): TurnStartTransmission | null {
@@ -37,6 +40,8 @@ function currentAnnouncement(session: GameSession | null | undefined): TurnStart
     turn: announcement.turn,
     survivorPopulation: announcement.survivorPopulation,
     revision: announcement.revision ?? 0,
+    formalAnnouncements: announcement.formalAnnouncements,
+    ...(announcement.formalOnly ? { formalOnly: true } : {}),
     ...(session.turnPhase?.timerPause?.reason === 'turn-interstitial'
       ? { heldAt: session.turnPhase.timerPause.pausedAt } : {}),
   };
@@ -63,8 +68,12 @@ function FleetTransmission({
   const { reducedMotion } = useMotionPreference();
   const phase = phaseForSession(useSessionStore((state) => state.session));
   const isFirstTurn = transmission.turn === 1;
-  const slideCount = isFirstTurn ? 7 : 4;
-  const isPopulationSlide = !isFirstTurn ? slide === 2 : slide === 6;
+  const regularSlideCount = isFirstTurn ? 7 : 4;
+  const formalAnnouncements = transmission.formalAnnouncements ?? [];
+  const slideCount = transmission.formalOnly ? formalAnnouncements.length : regularSlideCount + formalAnnouncements.length;
+  const isFormalSlide = transmission.formalOnly || slide >= regularSlideCount;
+  const formalIndex = transmission.formalOnly ? slide : slide - regularSlideCount;
+  const isPopulationSlide = !transmission.formalOnly && (!isFirstTurn ? slide === 2 : slide === 6);
   const showsPopulationLoss = isPopulationSlide && populationLossShown;
   const survivorPopulation = new Intl.NumberFormat('en-US').format(
     showsPopulationLoss ? Math.max(0, transmission.survivorPopulation - 1) : transmission.survivorPopulation,
@@ -112,7 +121,10 @@ function FleetTransmission({
     return () => window.clearTimeout(timer);
   }, [isFirstTurn, isPopulationSlide, slide]);
 
-  const message = !isFirstTurn ? (
+  const message = isFormalSlide ? (
+    <TeamStartFormalAnnouncementsView announcements={formalAnnouncements[formalIndex]
+      ? [formalAnnouncements[formalIndex]!] : []} />
+  ) : !isFirstTurn ? (
     slide === 0
       ? <p className="turn-start-announcement__turn">CYCLE {transmission.turn}</p>
       : slide === 1
@@ -247,6 +259,7 @@ export default function TurnStartAnnouncement() {
       survivorPopulation: localReplay.survivorPopulation,
       revision: localReplay.token,
       localReplayToken: localReplay.token,
+      formalAnnouncements: undefined,
     });
   }, [localReplay, session?.id]);
 

@@ -1,4 +1,4 @@
-const SESSION_ROUTES = new Set(['/roles', '/gm', '/console', '/press']);
+const SESSION_ROUTES = new Set(['/roles', '/gm', '/console', '/press', '/president', '/election']);
 
 /** Routes that can be restored only after the current session identity exists. */
 export function isSessionRoute(path: string): boolean {

@@ -97,6 +97,7 @@ import {
   type PresidentActionKind,
 } from './presidentWorkspace';
 import {
+  MAX_POLITICAL_CAPITAL,
   POLITICAL_CAPITAL_ACTIONS,
   applyPoliticalCapital,
   politicalCapitalState,
@@ -112,6 +113,12 @@ import {
   type PressLogEvent,
 } from './pressLogEvent';
 import { isWireSafeEntityId } from './identifiers';
+import { appendPendingTeamAnnouncement, parsePendingTeamAnnouncements, type TeamStartFormalAnnouncement } from './teamAnnouncements';
+import {
+  calculateElectionTally, normalizeElectionPolicy, resolveElectionWinner,
+  type ElectionBallot, type ElectionEligibleVoter, type ElectionOfficeTally,
+  type ElectionPolicy, type ElectionTally,
+} from './presidentialElection';
 import { canClaimSeat, shouldClearSeatPointer } from './seatPolicy';
 import {
   boundCoreConsoleRole,
@@ -164,6 +171,7 @@ import {
   isCanonicalRequestId,
   requireCrisisTransitionRequest,
   requireVoyage33AdmissionRequest,
+  requireApproachingVesselResponseRequest,
   requireZealotryResponseRequest,
   requireCivilUnrestGrievanceRequest,
   requireCivilUnrestResolutionRequest,
@@ -560,10 +568,15 @@ import { reconcileAirspaceClosureTasks } from './airspaceClosureTaskReconciler';
 import { ordinaryAirspaceClosureWindow } from './airspaceClosureTasks';
 import { parseStoredZealotryResponse, type ZealotryResponseAction } from './zealotryResponse';
 import {
+  parseStoredApproachingVesselResponse,
+  publicApproachingVesselResponse,
+  type StoredApproachingVesselResponse,
+} from './approachingVesselResponse';
+import {
   CIVIL_UNREST_RESOLUTION_SHIP_IDS,
   parseStoredCivilUnrestResolution,
 } from './civilUnrestResolution';
-import { civilUnrestReport, diseaseOutbreakReport, parseDiseaseOutbreak, APPROACHING_VESSEL_REPORT, PRESIDENTIAL_ELECTION_REPORT, RELIGIOUS_ZEALOTRY_REPORT, canTransitionCrisis, crisisConfigurationBlocker, isCrisisKind, isCrisisState, type CrisisStateName } from './crisisState';
+import { civilUnrestReport, diseaseOutbreakReport, parseDiseaseOutbreak, APPROACHING_VESSEL_REPORT, PRESIDENTIAL_ELECTION_REPORT, RELIGIOUS_ZEALOTRY_REPORT, canTransitionCrisis, crisisConfigurationBlocker, isCrisisDeliveryPressure, isCrisisKind, isCrisisState, type CrisisDeliveryPressure, type CrisisStateName } from './crisisState';
 import { buildVesselActionEnvelope, type VesselActionEnvelope } from './vesselActionEnvelope';
 import {
   isShipInMutiny, mutinyAfterUnrestChange,
@@ -3997,6 +4010,8 @@ type TurnStartAnnouncement = {
   readonly turn: number;
   readonly survivorPopulation: number;
   readonly revision?: number;
+  readonly formalAnnouncements?: readonly TeamStartFormalAnnouncement[];
+  readonly formalOnly?: boolean;
 };
 
 function turnStartAnnouncement(value: unknown): TurnStartAnnouncement | undefined {
@@ -4007,6 +4022,14 @@ function turnStartAnnouncement(value: unknown): TurnStartAnnouncement | undefine
     typeof value.survivorPopulation !== 'number' ||
     !Number.isSafeInteger(value.survivorPopulation) || value.survivorPopulation < 0
   ) return undefined;
+  const formalAnnouncements = parsePendingTeamAnnouncements(
+    'formalAnnouncements' in value ? value.formalAnnouncements : undefined,
+  );
+  const formalOnlyValue = 'formalOnly' in value ? value.formalOnly : undefined;
+  if (!formalAnnouncements || (formalOnlyValue !== undefined && typeof formalOnlyValue !== 'boolean') ||
+      (formalOnlyValue === true && formalAnnouncements.length === 0)) return undefined;
+  const parsedFormal = formalAnnouncements.length > 0 ? { formalAnnouncements } : {};
+  const formalOnly = formalOnlyValue === true ? { formalOnly: true } : {};
   if ('revision' in value && value.revision !== undefined) {
     if (
       typeof value.revision !== 'number' ||
@@ -4017,11 +4040,15 @@ function turnStartAnnouncement(value: unknown): TurnStartAnnouncement | undefine
       turn: value.turn,
       survivorPopulation: value.survivorPopulation,
       revision: value.revision,
+      ...parsedFormal,
+      ...formalOnly,
     };
   }
   return {
     turn: value.turn,
     survivorPopulation: value.survivorPopulation,
+    ...parsedFormal,
+    ...formalOnly,
   };
 }
 
@@ -4374,9 +4401,15 @@ function advanceTurnInTransaction(
     ? currentFleetPopulation + 42
     : currentFleetPopulation;
   const nextFleetPopulation = Math.max(0, announcementPopulation - 1);
+  const pendingFormalAnnouncements = parsePendingTeamAnnouncements(session.get('pendingTeamAnnouncements'));
+  if (!pendingFormalAnnouncements) {
+    throw commandError('failed-precondition', 'Pending formal Team announcements are malformed; recover the facilitator record before advancing.', 'conflict');
+  }
   const announcement = {
     turn: nextTurn,
     survivorPopulation: announcementPopulation,
+    ...(pendingFormalAnnouncements.length > 0 ? { formalAnnouncements: pendingFormalAnnouncements } : {}),
+    ...(skipTurnStartAnnouncement && pendingFormalAnnouncements.length > 0 ? { formalOnly: true } : {}),
   };
   const phaseStartedAt = Date.now();
   const initialTurnPhase = startTurnPhase(nextTurn, phaseStartedAt);
@@ -4411,6 +4444,7 @@ function advanceTurnInTransaction(
       turnPhase: FieldValue.delete(),
       turnState: FieldValue.delete(),
       turnStartAnnouncement: FieldValue.delete(),
+      pendingTeamAnnouncements: FieldValue.delete(),
       fleetTicker,
       survivorOutcome: survivorOutcomeForSession(
         sessionId,
@@ -4486,6 +4520,7 @@ function advanceTurnInTransaction(
       turnPhase: FieldValue.delete(),
       turnState: FieldValue.delete(),
       turnStartAnnouncement: FieldValue.delete(),
+      pendingTeamAnnouncements: FieldValue.delete(),
       pursuitEmergencyWindow: FieldValue.delete(),
       ...(expiredTurnResources
         ? {
@@ -4519,8 +4554,9 @@ function advanceTurnInTransaction(
   tx.update(sessionRef, {
     currentTurn: nextTurn,
     turnStartAnnouncement: skipTurnStartAnnouncement
-      ? FieldValue.delete()
+      ? pendingFormalAnnouncements.length > 0 ? announcement : FieldValue.delete()
       : announcement,
+    pendingTeamAnnouncements: FieldValue.delete(),
     fleetSurvivorPopulationAdjustment: nextFleetPopulation - fleetShipSurvivorPopulation(session),
     turnPhase,
     ...(pendingEmergencyWindow ? {
@@ -4546,7 +4582,8 @@ function advanceTurnInTransaction(
   return {
     currentTurn: nextTurn,
     ...(turnState ? { turnState } : {}),
-    ...(skipTurnStartAnnouncement ? {} : { turnStartAnnouncement: announcement }),
+    ...(!skipTurnStartAnnouncement || pendingFormalAnnouncements.length > 0
+      ? { turnStartAnnouncement: announcement } : {}),
     turnPhase,
     ...(pendingEmergencyWindow ? {
       pursuitEmergencyWindow: publicPursuitEmergencyWindow(pendingEmergencyWindow),
@@ -12784,6 +12821,7 @@ type CrisisTransitionResult = Readonly<{
   state: CrisisStateName;
   revision: number;
   title: string;
+  deliveryPressure?: CrisisDeliveryPressure;
 }>;
 
 type ZealotryResponseResult = Readonly<{
@@ -12843,10 +12881,13 @@ export const transitionCrisis = onCall<{
   crisisKind?: unknown;
   configurationOverride?: unknown;
   diseaseOutbreak?: unknown;
+  deliveryPressure?: unknown;
+  formalAnnouncement?: unknown;
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const crisis = requireCrisisTransitionRequest(request.data ?? {});
   const currentRef = db.doc(`sessions/${crisis.sessionId}/crisisState/current`);
+  const approachingVesselResponseRef = db.doc(`sessions/${crisis.sessionId}/approachingVesselResponses/current`);
   const zealotryResponseRef = db.doc(`sessions/${crisis.sessionId}/zealotryResponses/current`);
   const civilUnrestResolutionRef = db.doc(`sessions/${crisis.sessionId}/civilUnrestResolutions/current`);
   const outcomeRef = db.doc(`sessions/${crisis.sessionId}/crisisOutcomes/${crisis.crisisId}`);
@@ -12874,13 +12915,19 @@ export const transitionCrisis = onCall<{
         diseaseWorkRestrictions: crisis.diseaseOutbreak?.workRestrictions ?? '',
         diseaseEscalationRisk: crisis.diseaseOutbreak?.escalationRisk ?? '',
       }),
+      ...(crisis.deliveryPressure === undefined ? {} : { deliveryPressure: crisis.deliveryPressure }),
+      ...(crisis.formalAnnouncement ? {
+        formalAnnouncementTitle: crisis.formalAnnouncement.title,
+        formalAnnouncementDetails: crisis.formalAnnouncement.details,
+      } : {}),
     },
   };
 
   return db.runTransaction(async (tx): Promise<CrisisTransitionResult> => {
-    const [authority, current, receipt, audit] = await Promise.all([
+    const [authority, current, approachingVesselResponseSnapshot, receipt, audit] = await Promise.all([
       requireFacilitatorInstance(tx, crisis.sessionId, uid, crisis.instanceId),
       tx.get(currentRef),
+      tx.get(approachingVesselResponseRef),
       tx.get(receiptRef),
       tx.get(auditRef),
     ]);
@@ -12938,6 +12985,19 @@ export const transitionCrisis = onCall<{
     const sameCrisis = current.exists && previousCrisisId === crisis.crisisId;
     const storedKind = current.get('crisisKind');
     const storedOverride = current.get('configurationOverride');
+    const storedDeliveryPressure = current.get('deliveryPressure');
+    if (storedDeliveryPressure !== undefined && !isCrisisDeliveryPressure(storedDeliveryPressure)) {
+      throw commandError('failed-precondition', 'The crisis delivery-pressure record is malformed; refresh before retrying.', 'malformed-input');
+    }
+    const deliveryPressure = crisis.deliveryPressure ?? (sameCrisis && isCrisisDeliveryPressure(storedDeliveryPressure)
+      ? storedDeliveryPressure : undefined);
+    if (crisis.state === 'delivered' && !deliveryPressure) {
+      throw commandError('failed-precondition', 'Choose a delivery-pressure policy before delivering a crisis.', 'conflict');
+    }
+    if (sameCrisis && storedDeliveryPressure !== undefined && crisis.deliveryPressure !== undefined &&
+        crisis.deliveryPressure !== storedDeliveryPressure) {
+      throw commandError('failed-precondition', 'Delivery pressure is fixed after delivery.', 'conflict');
+    }
     const crisisKind = request.data?.crisisKind === undefined && sameCrisis && isCrisisKind(storedKind)
       ? storedKind : crisis.crisisKind;
     const configurationOverride = request.data?.configurationOverride === undefined && sameCrisis && typeof storedOverride === 'string'
@@ -12968,6 +13028,15 @@ export const transitionCrisis = onCall<{
     if ((crisis.state === 'draft' || crisis.state === 'delivered') && blocker && !configurationOverride) {
       throw commandError('failed-precondition', blocker, 'conflict');
     }
+    if (crisis.state === 'resolved' && crisisKind === 'approaching-vessel') {
+      const vesselResponse = approachingVesselResponseSnapshot.exists
+        ? parseStoredApproachingVesselResponse(approachingVesselResponseSnapshot.data()) : null;
+      if (!vesselResponse || vesselResponse.sessionId !== crisis.sessionId || vesselResponse.crisisId !== crisis.crisisId ||
+          vesselResponse.crisisRevision !== currentRevision) {
+        throw commandError('failed-precondition',
+          'Record the response and current vessel adjudication during the debated crisis before resolving it.', 'conflict');
+      }
+    }
     const storedDisease = sameCrisis ? current.get('diseaseOutbreak') : undefined;
     const diseaseValue = request.data?.diseaseOutbreak === undefined ? storedDisease : crisis.diseaseOutbreak;
     const disease = diseaseValue === undefined ? undefined : parseDiseaseOutbreak(diseaseValue);
@@ -12994,7 +13063,60 @@ export const transitionCrisis = onCall<{
       state: crisis.state,
       revision,
       title: crisis.title,
+      ...(deliveryPressure ? { deliveryPressure } : {}),
     };
+    let resolvedCapitalAward: { readonly state: PoliticalCapitalState; readonly applied: boolean } | undefined;
+    if (crisis.state === 'resolved') {
+      let currentCapital: PoliticalCapitalState;
+      try {
+        currentCapital = politicalCapitalState(authority.session.get('politicalCapital'));
+      } catch {
+        throw commandError('failed-precondition',
+          'Stored political capital is invalid; recover it before resolving this crisis.', 'conflict');
+      }
+      const applied = currentCapital.balance < MAX_POLITICAL_CAPITAL;
+      let capital = currentCapital;
+      if (applied) {
+        try {
+          capital = applyPoliticalCapital({
+            current: currentCapital, expectedRevision: currentCapital.revision,
+            id: `political-capital:crisis-${crisis.crisisId}-${revision}`, action: 'gain',
+            crisisId: crisis.crisisId, crisisRevision: revision, crisisTitle: crisis.title,
+            cycle: sessionTurn(authority.session.get('currentTurn')), recordedAt: new Date().toISOString(),
+          });
+        } catch (error) {
+          throw commandError('failed-precondition', error instanceof Error ? error.message
+            : 'Political capital could not be awarded with this resolution.', 'conflict');
+        }
+      }
+      resolvedCapitalAward = { state: capital, applied };
+      const pendingTeamAnnouncements = crisis.formalAnnouncement
+        ? appendPendingTeamAnnouncement(authority.session.get('pendingTeamAnnouncements'), {
+          id: `crisis-${crisis.crisisId}-${revision}`,
+          kind: 'binding-resolution',
+          title: crisis.formalAnnouncement.title,
+          details: crisis.formalAnnouncement.details,
+          decidedCycle: sessionTurn(authority.session.get('currentTurn')),
+        })
+        : undefined;
+      if (crisis.formalAnnouncement && !pendingTeamAnnouncements) {
+        throw commandError('failed-precondition', 'Pending formal Team announcements cannot accept another record.', 'conflict');
+      }
+      const outcome = {
+        type: 'crisis-outcome', sessionId: crisis.sessionId, crisisId: crisis.crisisId,
+        revision, title: crisis.title, capitalGranted: true, capitalApplied: applied,
+        capitalDelta: applied ? 1 : 0, capitalBalance: capital.balance, capitalRevision: capital.revision,
+        resolvedAt: FieldValue.serverTimestamp(), capitalGrantedAt: FieldValue.serverTimestamp(),
+      };
+      tx.set(outcomeRef, outcome);
+      tx.update(db.doc(`sessions/${crisis.sessionId}`), {
+        politicalCapital: capital,
+        resolvedCrisisOutcome: { crisisId: crisis.crisisId, revision, title: crisis.title,
+          capitalApplied: applied, capitalDelta: applied ? 1 : 0 },
+        ...(pendingTeamAnnouncements ? { pendingTeamAnnouncements } : {}),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
     tx.set(currentRef, {
       type: 'crisis-state',
       sessionId: crisis.sessionId,
@@ -13005,23 +13127,13 @@ export const transitionCrisis = onCall<{
       details: crisis.details,
       crisisKind,
       configurationOverride,
+      ...(deliveryPressure ? { deliveryPressure } : {}),
+      ...(crisis.formalAnnouncement ? { formalAnnouncement: crisis.formalAnnouncement } : {}),
       ...(disease ? { diseaseOutbreak: disease } : {}),
       actorUid: uid,
       instanceId: crisis.instanceId,
       updatedAt: FieldValue.serverTimestamp(),
     });
-    if (crisis.state === 'resolved') {
-      const outcome = {
-        type: 'crisis-outcome', sessionId: crisis.sessionId, crisisId: crisis.crisisId,
-        revision, title: crisis.title, capitalGranted: false,
-        resolvedAt: FieldValue.serverTimestamp(),
-      };
-      tx.set(outcomeRef, outcome);
-      tx.update(db.doc(`sessions/${crisis.sessionId}`), {
-        resolvedCrisisOutcome: { crisisId: crisis.crisisId, revision, title: crisis.title },
-        updatedAt: FieldValue.serverTimestamp(),
-      });
-    }
     tx.set(auditRef, {
       type: 'crisis-state',
       action: 'transition',
@@ -13033,6 +13145,11 @@ export const transitionCrisis = onCall<{
       details: crisis.details,
       crisisKind,
       configurationOverride,
+      ...(deliveryPressure ? { deliveryPressure } : {}),
+      ...(resolvedCapitalAward ? { capitalAction: 'gain', capitalAmount: 1,
+        capitalApplied: resolvedCapitalAward.applied, capitalDelta: resolvedCapitalAward.applied ? 1 : 0,
+        capitalBalance: resolvedCapitalAward.state.balance, capitalRevision: resolvedCapitalAward.state.revision } : {}),
+      ...(crisis.formalAnnouncement ? { formalAnnouncement: crisis.formalAnnouncement } : {}),
       ...(disease ? { diseaseOutbreak: disease } : {}),
       actorUid: uid,
       instanceId: crisis.instanceId,
@@ -13053,6 +13170,8 @@ export const transitionCrisis = onCall<{
     if (crisis.state === 'draft') {
       // A new draft must never retain the previously delivered crisis report.
       tx.delete(reportRef);
+      // Hidden truth and facilitator rationale never bleed into a new crisis.
+      tx.delete(approachingVesselResponseRef);
       if (replacingClosedCrisis) {
         // The current facilitator decision belongs to the closed crisis. Keep
         // immutable history and audit, but force a fresh decision for the new
@@ -13073,6 +13192,8 @@ export const transitionCrisis = onCall<{
         tx.delete(civilUnrestResolutionRef);
       }
       if (playerReport) {
+        const approachingResponse = crisisKind === 'approaching-vessel' && approachingVesselResponseSnapshot.exists
+          ? parseStoredApproachingVesselResponse(approachingVesselResponseSnapshot.data()) : null;
         // Only this fixed player report crosses the private crisis boundary.
         // The facilitator's reality, difficulty and override notes stay private.
         tx.set(reportRef, {
@@ -13082,6 +13203,12 @@ export const transitionCrisis = onCall<{
           state: crisis.state,
           revision,
           ...playerReport,
+          ...(deliveryPressure ? { deliveryPressure,
+            deliveryPressureLabel: deliveryPressure === 'increase' ? 'Increase urgency'
+              : deliveryPressure === 'decrease' ? 'Decrease urgency' : 'Hold steady' } : {}),
+          ...(approachingResponse && approachingResponse.crisisId === crisis.crisisId
+            ? { approachingVesselResponse: publicApproachingVesselResponse(approachingResponse) } : {}),
+          body: `${playerReport.body}${deliveryPressure ? `\n\nFacilitator delivery pressure: ${deliveryPressure === 'increase' ? 'increase urgency' : deliveryPressure === 'decrease' ? 'decrease urgency' : 'hold steady'}.` : ''}`,
           updatedAt: FieldValue.serverTimestamp(),
       });
       }
@@ -13101,7 +13228,15 @@ export const transitionCrisis = onCall<{
           serverTime: new Date(),
           visibility: EventVisibility.Member,
         }),
-        payload: { crisisId: crisis.crisisId, state: crisis.state, title: crisis.title, details: crisis.details },
+      payload: {
+        crisisId: crisis.crisisId, state: crisis.state, title: crisis.title, details: crisis.details,
+        ...(deliveryPressure ? { deliveryPressure } : {}),
+        ...(resolvedCapitalAward ? { politicalCapitalAction: 'gain', politicalCapitalAmount: 1,
+          politicalCapitalApplied: resolvedCapitalAward.applied,
+          politicalCapitalDelta: resolvedCapitalAward.applied ? 1 : 0,
+          politicalCapitalBalance: resolvedCapitalAward.state.balance,
+          politicalCapitalRevision: resolvedCapitalAward.state.revision } : {}),
+      },
         createdAt: FieldValue.serverTimestamp(),
       }));
     }
@@ -13373,6 +13508,7 @@ export const admitVoyage33 = onCall<{
   const sessionRef = db.doc(`sessions/${admissionRequest.sessionId}`);
   const crisisRef = db.doc(`sessions/${admissionRequest.sessionId}/crisisState/current`);
   const admissionRef = db.doc(`sessions/${admissionRequest.sessionId}/voyage33Admission/current`);
+  const approachingResponseRef = db.doc(`sessions/${admissionRequest.sessionId}/approachingVesselResponses/current`);
   const auditRef = db.doc(`sessions/${admissionRequest.sessionId}/voyage33Admission/current/audit/${admissionRequest.requestId}`);
   const arrivalRef = voyage33ArrivalRef(admissionRequest.sessionId);
   const playersRef = db.collection(`sessions/${admissionRequest.sessionId}/players`);
@@ -13389,10 +13525,11 @@ export const admitVoyage33 = onCall<{
   };
 
   return db.runTransaction(async (tx): Promise<Voyage33AdmissionResult> => {
-    const [authority, crisisSnapshot, storedAdmission, receipt, audit, storedArrival, players] = await Promise.all([
+    const [authority, crisisSnapshot, storedAdmission, approachingResponseSnapshot, receipt, audit, storedArrival, players] = await Promise.all([
       requireFacilitatorInstance(tx, admissionRequest.sessionId, uid, admissionRequest.instanceId),
       tx.get(crisisRef),
       tx.get(admissionRef),
+      tx.get(approachingResponseRef),
       tx.get(receiptRef),
       tx.get(auditRef),
       tx.get(arrivalRef),
@@ -13477,6 +13614,14 @@ export const admitVoyage33 = onCall<{
     if (!Number.isSafeInteger(crisisRevision) || (crisisRevision as number) !== admissionRequest.expectedRevision) {
       throw commandError('failed-precondition', 'The crisis changed. Refresh the facilitator projection and retry the admission.', 'stale-revision');
     }
+    const approachingResponse = approachingResponseSnapshot.exists
+      ? parseStoredApproachingVesselResponse(approachingResponseSnapshot.data()) : null;
+    if (!approachingResponse || approachingResponse.sessionId !== admissionRequest.sessionId ||
+        approachingResponse.crisisId !== admissionRequest.crisisId || approachingResponse.vesselReality !== 'real' ||
+        approachingResponse.crisisRevision > (crisisRevision as number)) {
+      throw commandError('failed-precondition',
+        'Record the Approaching Vessel as real before admitting Voyage 33-0.', 'conflict');
+    }
 
     const admission: Voyage33Admission = {
       type: 'voyage-admission',
@@ -13557,6 +13702,124 @@ export const admitVoyage33 = onCall<{
       },
       createdAt: FieldValue.serverTimestamp(),
     }));
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+type ApproachingVesselResponseResult = Readonly<{
+  status: 'committed' | 'replayed';
+  sessionId: string;
+  crisisId: string;
+  crisisRevision: number;
+  revision: number;
+  vesselReality: 'real' | 'trap';
+  responseChoices: readonly string[];
+  coordinationActions: readonly string[];
+}>;
+
+function isApproachingVesselResponseResult(value: unknown, sessionId: string): value is ApproachingVesselResponseResult {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const result = value as Record<string, unknown>;
+  return (result.status === 'committed' || result.status === 'replayed') && result.sessionId === sessionId &&
+    typeof result.crisisId === 'string' && Number.isSafeInteger(result.crisisRevision) && Number(result.crisisRevision) >= 1 &&
+    Number.isSafeInteger(result.revision) && Number(result.revision) >= 1 &&
+    (result.vesselReality === 'real' || result.vesselReality === 'trap') && Array.isArray(result.responseChoices) &&
+    result.responseChoices.length >= 1 && result.responseChoices.every((choice) => typeof choice === 'string') &&
+    Array.isArray(result.coordinationActions) && result.coordinationActions.every((action) => typeof action === 'string');
+}
+
+/** Record a private reality adjudication and the bounded fleet-facing response to Approaching Vessel. */
+export const recordApproachingVesselResponse = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedCrisisRevision?: unknown;
+  expectedResponseRevision?: unknown;
+  crisisId?: unknown;
+  vesselReality?: unknown;
+  responseChoices?: unknown;
+  coordinationActions?: unknown;
+  responseInstructions?: unknown;
+  quarantineInstructions?: unknown;
+  contingencyObjectives?: unknown;
+  rationale?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const decision = requireApproachingVesselResponseRequest(request.data ?? {});
+  const crisisRef = db.doc(`sessions/${decision.sessionId}/crisisState/current`);
+  const responseRef = db.doc(`sessions/${decision.sessionId}/approachingVesselResponses/current`);
+  const historyRef = db.doc(`sessions/${decision.sessionId}/approachingVesselResponses/history-${decision.requestId}`);
+  const auditRef = db.doc(`sessions/${decision.sessionId}/approachingVesselResponses/audit-${decision.requestId}`);
+  const reportRef = db.doc(`sessions/${decision.sessionId}/crisisReports/current`);
+  const receiptRef = commandReceiptRef(decision.sessionId, decision.requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'record-approaching-vessel-response', sessionId: decision.sessionId,
+    requestId: decision.requestId, actorUid: uid, instanceId: decision.instanceId,
+    expectedRevision: decision.expectedCrisisRevision,
+    payload: {
+      expectedResponseRevision: decision.expectedResponseRevision, crisisId: decision.crisisId,
+      vesselReality: decision.response.vesselReality, responseChoices: decision.response.responseChoices,
+      coordinationActions: decision.response.coordinationActions,
+      responseInstructions: decision.response.responseInstructions,
+      ...(decision.response.quarantineInstructions ? { quarantineInstructions: decision.response.quarantineInstructions } : {}),
+      ...(decision.response.contingencyObjectives ? { contingencyObjectives: decision.response.contingencyObjectives } : {}),
+      rationale: decision.response.rationale,
+    },
+  };
+
+  return db.runTransaction(async (tx): Promise<ApproachingVesselResponseResult> => {
+    const [authority, crisisSnapshot, currentResponseSnapshot, reportSnapshot, receipt, audit] = await Promise.all([
+      requireFacilitatorInstance(tx, decision.sessionId, uid, decision.instanceId),
+      tx.get(crisisRef), tx.get(responseRef), tx.get(reportRef), tx.get(receiptRef), tx.get(auditRef),
+    ]);
+    await rejectForeignLegacyM1Command(tx, decision.sessionId, decision.requestId, 'Approaching Vessel response', []);
+    const replay = replayBoundCommand(receipt, fingerprint,
+      (value): value is ApproachingVesselResponseResult => isApproachingVesselResponseResult(value, decision.sessionId),
+      'Approaching Vessel response');
+    if (replay) return { ...replay, status: 'replayed' };
+    if (audit.exists) rejectLegacyEventReplay('Approaching Vessel response');
+    requireActiveGameplayPhase(authority.session);
+
+    if (!crisisSnapshot.exists || crisisSnapshot.get('type') !== 'crisis-state' ||
+        crisisSnapshot.get('sessionId') !== decision.sessionId || crisisSnapshot.get('crisisId') !== decision.crisisId ||
+        crisisSnapshot.get('crisisKind') !== 'approaching-vessel' || crisisSnapshot.get('state') !== 'debated') {
+      throw commandError('failed-precondition', 'Record the response only for the current debated Approaching Vessel crisis.', 'invalid-phase');
+    }
+    if (!Number.isSafeInteger(crisisSnapshot.get('revision')) || crisisSnapshot.get('revision') !== decision.expectedCrisisRevision) {
+      throw commandError('failed-precondition', 'The Approaching Vessel crisis changed. Refresh before recording this response.', 'stale-revision');
+    }
+    if (!reportSnapshot.exists || reportSnapshot.get('sessionId') !== decision.sessionId ||
+        reportSnapshot.get('crisisId') !== decision.crisisId || reportSnapshot.get('crisisKind') !== 'approaching-vessel') {
+      throw commandError('failed-precondition', 'The member crisis report is unavailable; refresh before recording this response.', 'conflict');
+    }
+    const prior = currentResponseSnapshot.exists
+      ? parseStoredApproachingVesselResponse(currentResponseSnapshot.data()) : null;
+    if (currentResponseSnapshot.exists && (!prior || prior.sessionId !== decision.sessionId || prior.crisisId !== decision.crisisId)) {
+      throw commandError('failed-precondition', 'The current Approaching Vessel response is malformed; refresh before retrying.', 'malformed-input');
+    }
+    const priorRevision = prior?.revision ?? 0;
+    if (priorRevision !== decision.expectedResponseRevision) {
+      throw commandError('failed-precondition', 'The facilitator response changed. Refresh and review the recorded decision.', 'stale-revision');
+    }
+    const revision = priorRevision + 1;
+    const stored: StoredApproachingVesselResponse = {
+      type: 'approaching-vessel-response', sessionId: decision.sessionId, crisisId: decision.crisisId,
+      crisisRevision: decision.expectedCrisisRevision, state: 'debated', revision,
+      ...decision.response, actorUid: uid, instanceId: decision.instanceId,
+    };
+    const result: ApproachingVesselResponseResult = {
+      status: 'committed', sessionId: decision.sessionId, crisisId: decision.crisisId,
+      crisisRevision: decision.expectedCrisisRevision, revision,
+      vesselReality: stored.vesselReality, responseChoices: stored.responseChoices,
+      coordinationActions: stored.coordinationActions,
+    };
+    tx.set(responseRef, { ...stored, updatedAt: FieldValue.serverTimestamp() });
+    tx.set(historyRef, { ...stored, requestId: decision.requestId, createdAt: FieldValue.serverTimestamp() });
+    tx.set(auditRef, { ...stored, action: 'record', requestId: decision.requestId, createdAt: FieldValue.serverTimestamp() });
+    tx.update(reportRef, {
+      approachingVesselResponse: publicApproachingVesselResponse(stored), updatedAt: FieldValue.serverTimestamp(),
+    });
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
   });
@@ -16033,6 +16296,8 @@ function publicMemberSessionSource(sessionSnap: DocumentSnapshot, sessionId: str
     createdAt: isoOf(sessionSnap.get('createdAt')),
     updatedAt: isoOf(sessionSnap.get('updatedAt')),
     ...parsedMemberSessionDetails(sessionSnap.data(), activeVesselIds),
+    ...(isRecord(sessionSnap.get('presidentialOffices')) && typeof (sessionSnap.get('presidentialOffices') as Record<string, unknown>).presidentUid === 'string'
+      ? { presidentialOfficeOwnerUid: (sessionSnap.get('presidentialOffices') as Record<string, unknown>).presidentUid } : {}),
     ...(isPursuitEmergencyWindowMarker(sessionSnap.get('pursuitEmergencyWindow'))
       ? { pursuitEmergencyWindow: sessionSnap.get('pursuitEmergencyWindow') } : {}),
   };
@@ -18459,6 +18724,7 @@ export const adjudicateFailedJump = onCall<{
   expectedRevision?: number;
   failureRequestId?: string;
   destination?: string;
+  consequence?: string;
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const change = requireFailedJumpAdjudicationRequest(request.data ?? {});
@@ -18468,7 +18734,11 @@ export const adjudicateFailedJump = onCall<{
   const fingerprint = vesselActionFingerprint(
     'adjudicate-failed-jump', change.sessionId, change.requestId, uid, change.instanceId,
     change.expectedRevision,
-    { failureRequestId: change.failureRequestId, destination: change.destination },
+    {
+      failureRequestId: change.failureRequestId,
+      destination: change.destination ?? null,
+      consequence: change.consequence,
+    },
   );
   let stableDamageRoll: number | undefined;
   const stableDamageEntropy: number[] = [];
@@ -18544,11 +18814,61 @@ export const adjudicateFailedJump = onCall<{
     if (currentJumpState.lastJumpTurn === currentTurn) {
       throw commandError('failed-precondition', 'This ship has already jumped this cycle.', 'conflict');
     }
+    const damage = shipDamage(session.get('shipDamage'))[shipId] ?? { damagedSystemIds: [], destroyed: false };
+    const isDamageConsequence = change.consequence === 'full-d6-damage' ||
+      change.consequence === 'half-d6-damage' ||
+      change.consequence === 'wrong-location-full-d6-damage' ||
+      change.consequence === 'wrong-location-half-d6-damage';
+    const isWrongLocation = change.consequence === 'wrong-location' ||
+      change.consequence === 'wrong-location-full-d6-damage' ||
+      change.consequence === 'wrong-location-half-d6-damage';
+    if (change.consequence === 'nothing-happens' &&
+        !['fuel-shortage', 'drive-failure'].includes(failure.failureStatus)) {
+      throw commandError('failed-precondition', 'The no-jump delay does not match this recorded failure.', 'conflict');
+    }
+    if (change.consequence === 'wrong-location' && (
+      failure.failureStatus !== 'wrong-destination' ||
+      damage.damagedSystemIds.includes('jump-drive') ||
+      !charges.includes('jump-drive')
+    )) {
+      throw commandError('failed-precondition', 'A normal wrong-location jump requires a charged, undamaged drive and a coordinate failure.', 'conflict');
+    }
+    if (change.consequence === 'nothing-happens') {
+      const revision = currentRevision + 1;
+      const retainedJumpState = jumpStateWithoutFields(currentJumpState, ['lastFailureRequestId', 'integrityLockedUntil']);
+      const jumpState = { ...retainedJumpState, lastJumpTurn: currentTurn };
+      tx.update(sessionRef, {
+        [`shipJumpStates.${shipId}`]: jumpState,
+        ...vesselActionRevisionPatch(shipId, revision),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      tx.update(failureRef, {
+        status: 'resolved', resolution: change.consequence,
+        resolvedBy: uid, resolvedAt: FieldValue.serverTimestamp(), adjudicationRequestId: change.requestId,
+      });
+      writeShipJumpEvent(tx, {
+        sessionId: change.sessionId, actorUid: uid, actorRoleId: null,
+        shipId, requestId: change.requestId, turn: currentTurn,
+        phase: vesselActionPhase(session), revision, outcome: 'facilitator-adjudication',
+        occurredAt, payload: { consequence: change.consequence, delayedUntilNextCycle: true, damageCount: 0 },
+      });
+      const delayed = {
+        status: 'delayed' as const, outcome: 'facilitator-adjudication',
+        consequence: change.consequence, shipId, origin, destination: origin,
+        damageDraws: [], damageCount: 0, state: jumpState,
+        ...vesselActionEnvelope(session, player, uid, shipId, revision,
+          change.requestId, 'adjudicate-failed-jump', undefined, null),
+      };
+      txSetIfSupported(tx, receiptRef, { fingerprint, result: delayed, createdAt: FieldValue.serverTimestamp() });
+      return delayed;
+    }
+    if (!change.destination) {
+      throw new HttpsError('invalid-argument', 'A printed destination is required for this jump consequence.');
+    }
     const length = jumpLengthBetween(origin, change.destination);
     if (!length) {
       throw commandError('failed-precondition', 'Choose a reachable printed destination for the adjudication.', 'conflict');
     }
-    const damage = shipDamage(session.get('shipDamage'))[shipId] ?? { damagedSystemIds: [], destroyed: false };
     const upgrades = isRecord(session.get('shipUpgrades')) ? session.get('shipUpgrades') : {};
     const upgradeList = upgrades[shipId];
     const upgraded = Array.isArray(upgradeList) && upgradeList.includes('jump-drive');
@@ -18556,11 +18876,18 @@ export const adjudicateFailedJump = onCall<{
     const fuelSpent = failure.failureStatus === 'fuel-shortage'
       ? inventory.fuel
       : Math.min(inventory.fuel, requiredFuel);
+    if (change.consequence === 'wrong-location' && inventory.fuel < requiredFuel) {
+      throw commandError('failed-precondition', 'A normal wrong-location jump requires enough fuel for the selected printed route.', 'conflict');
+    }
     const remainingFuel = inventory.fuel - fuelSpent;
-    stableDamageRoll ??= randomInt(1, 7);
+    if (isDamageConsequence) stableDamageRoll ??= randomInt(1, 7);
+    const appliedDamageCount = stableDamageRoll === undefined ? 0
+      : change.consequence === 'half-d6-damage' || change.consequence === 'wrong-location-half-d6-damage'
+        ? Math.floor(stableDamageRoll / 2)
+        : stableDamageRoll;
     let nextDamage: ShipDamageState = damage;
     const damageDraws: Array<{ card: string; systemId: string; systemName: string; recycled: boolean }> = [];
-    for (let index = 0; index < stableDamageRoll; index += 1) {
+    for (let index = 0; index < appliedDamageCount; index += 1) {
       const draw = drawShipDamage(shipId, nextDamage, (upperBound) => {
         const entropy = stableDamageEntropy[index] ??= randomInt(0, 0x1_0000_0000);
         return Math.floor((entropy / 0x1_0000_0000) * upperBound);
@@ -18654,7 +18981,7 @@ export const adjudicateFailedJump = onCall<{
       ...(currentCycle.turn === currentTurn ? { charges: charges.filter((charge) => charge !== 'jump-drive') } : {}),
       results: {
         ...(isRecord(currentCycle.results) ? currentCycle.results : {}),
-        ftl: `GM failed-jump adjudication // ${origin} → ${move.destination} // ${length.toUpperCase()} // ${fuelSpent} fuel and ${stableDamageRoll} damage draws.`,
+        ftl: `GM failed-jump adjudication (${change.consequence}) // ${origin} → ${move.destination} // ${length.toUpperCase()} // ${fuelSpent} fuel and ${damageDraws.length} damage draws.`,
       },
     };
     const retainedJumpState = jumpStateWithoutFields(
@@ -18683,20 +19010,28 @@ export const adjudicateFailedJump = onCall<{
       { type: 'ship-damage', shipId, ...draw, source: 'failed-jump-adjudication', createdAt: FieldValue.serverTimestamp() },
     ));
     tx.update(failureRef, {
-      status: 'resolved', resolution: 'full-d6-damage-facilitator-jump',
+      status: 'resolved', resolution: change.consequence,
+      ...(stableDamageRoll === undefined ? {} : { damageRoll: stableDamageRoll, appliedDamageCount }),
       resolvedBy: uid, resolvedAt: FieldValue.serverTimestamp(), adjudicationRequestId: change.requestId,
     });
     writeShipJumpEvent(tx, {
       sessionId: change.sessionId, actorUid: uid, actorRoleId: null,
       shipId, requestId: change.requestId, turn: currentTurn,
       phase: vesselActionPhase(session), revision, outcome: 'facilitator-adjudication',
-      occurredAt, payload: { length, failureRoll: stableDamageRoll, fuelSpent, damageCount: damageDraws.length },
+      occurredAt, payload: {
+        length, consequence: change.consequence,
+        ...(isWrongLocation ? { wrongLocation: true } : {}),
+        ...(stableDamageRoll === undefined ? {} : { failureRoll: stableDamageRoll }),
+        fuelSpent, damageCount: damageDraws.length,
+      },
     });
     const reply = {
       status: 'jumped' as const, outcome: 'facilitator-adjudication', shipId,
+      consequence: change.consequence,
       origin, destination: move.destination, length, fuelCost: fuelSpent,
       fuelSpent, remainingFuel, failureRequestId: change.failureRequestId,
-      failureRoll: stableDamageRoll, damageDraws, damage: nextDamage,
+      ...(stableDamageRoll === undefined ? {} : { failureRoll: stableDamageRoll }),
+      damageCount: damageDraws.length, damageDraws, damage: nextDamage,
       state: jumpState, transition: jumpTransition,
       ...(missionOpportunity ? { missionOpportunityId: missionOpportunity.id } : {}),
       ...(!damageTerminal && movementDecision.window
@@ -19189,6 +19524,8 @@ export const replayTurnStartAnnouncement = onCall<{
       turn: current.turn,
       survivorPopulation: current.survivorPopulation,
       revision: (current.revision ?? 0) + 1,
+      ...(current.formalAnnouncements ? { formalAnnouncements: current.formalAnnouncements } : {}),
+      ...(current.formalOnly ? { formalOnly: true } : {}),
     };
     tx.update(sessionRef, {
       turnStartAnnouncement: next,
@@ -32548,17 +32885,24 @@ async function requirePresidentActionAuthority(
   player: DocumentSnapshot,
   instanceId?: string,
 ): Promise<void> {
-  if (player.get('role') !== 'gm' && (
-    player.get('role') !== 'player' ||
-    player.get('activeConsoleRoleId') !== 'dione-president' ||
-    boundCoreConsoleRole(player.get('assignedRoleId'), player.get('seatId')) !== 'dione-president'
-  )) {
+  const session = await tx.get(db.doc(`sessions/${sessionId}`));
+  if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+  const offices = session.get('presidentialOffices');
+  const electedOfficeExists = isRecord(offices) && typeof offices.presidentUid === 'string';
+  const isCurrentElectedPresident = electedOfficeExists && offices.presidentUid === player.id &&
+    player.get('role') === 'player' && player.get('replacementStatus') == null && player.get('escapeState') == null;
+  const isStationPresident = !electedOfficeExists && player.get('role') === 'player' &&
+    player.get('activeConsoleRoleId') === 'dione-president' &&
+    boundCoreConsoleRole(player.get('assignedRoleId'), player.get('seatId')) === 'dione-president';
+  if (player.get('role') !== 'gm' && !isCurrentElectedPresident && !isStationPresident) {
     throw new HttpsError(
       'permission-denied',
-      'Only the active Dione President may record President actions.',
+      'Only the current elected President may use these office powers.',
     );
   }
-  await requireConsoleAuthority(tx, sessionId, player, 'dione-president', instanceId);
+  if (player.get('role') === 'gm' || isStationPresident) {
+    await requireConsoleAuthority(tx, sessionId, player, 'dione-president', instanceId);
+  }
 }
 
 type StoredUnrestAlert = {
@@ -38205,6 +38549,16 @@ export const recordPresidentActionCommand = onCall<{
       );
     }
     requireTurnOneForGameplay(session);
+    if (data.kind === 'address') {
+      const phase = turnPhaseState(session.get('turnPhase'));
+      const turnState = turnStateForPhaseContext(
+        session.get('turnState'), phase, session.get('currentTurn'), sessionTurnLimit(session),
+      );
+      if (!phase || !turnState || phase.turn !== sessionTurn(session.get('currentTurn')) ||
+          phase.airspace.state !== 'restricted' || turnState.phase !== 'team') {
+        throw commandError('failed-precondition', 'A presidential fleet address is available only during Team Phase.', 'invalid-phase');
+      }
+    }
     let current: ReturnType<typeof presidentWorkspaceState>;
     try {
       current = presidentWorkspaceState(session.get('presidentWorkspace'));
@@ -38221,6 +38575,9 @@ export const recordPresidentActionCommand = onCall<{
         'President workspace changed. Wait for the live update and try again.',
         'stale-revision',
       );
+    }
+    if (data.kind === 'address' && current.entries.some(entry => entry.kind === 'address' && entry.cycle === sessionTurn(session.get('currentTurn')))) {
+      throw commandError('failed-precondition', 'The President has already given this cycle’s fleet address.', 'conflict');
     }
     if (event.exists) rejectLegacyEventReplay('President action');
     const next = recordPresidentAction({
@@ -38271,6 +38628,570 @@ function isPoliticalCapitalStateResult(value: unknown): value is PoliticalCapita
     return false;
   }
 }
+
+type PresidentialVisitResult = Readonly<{
+  status: 'committed' | 'replayed';
+  sessionId: string;
+  requestId: string;
+  shipId: string;
+  turn: number;
+  unrest: number;
+  vesselRevision: number;
+  politicalCapital: PoliticalCapitalState;
+}>;
+
+function isPresidentialVisitResult(value: unknown, sessionId: string): value is PresidentialVisitResult {
+  if (!isRecord(value) || (value.status !== 'committed' && value.status !== 'replayed') ||
+      value.sessionId !== sessionId || typeof value.requestId !== 'string' ||
+      typeof value.shipId !== 'string' || !isResourceShipId(value.shipId) || !Number.isSafeInteger(value.turn) ||
+      !Number.isSafeInteger(value.unrest) || !Number.isSafeInteger(value.vesselRevision)) return false;
+  try {
+    const capital = politicalCapitalState(value.politicalCapital);
+    return capital.revision >= 1;
+  } catch {
+    return false;
+  }
+}
+
+/** Spend exactly one capital during Coordination to reduce one active ship's unrest by one. */
+export const recordPresidentialVisit = onCall<{
+  sessionId?: unknown;
+  requestId?: unknown;
+  shipId?: unknown;
+  expectedCapitalRevision?: unknown;
+  expectedVesselRevision?: unknown;
+  instanceId?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = ['sessionId', 'requestId', 'shipId', 'expectedCapitalRevision', 'expectedVesselRevision', 'instanceId'];
+  if (!isRecord(raw) || Object.keys(raw).some(key => !allowed.includes(key)) ||
+      typeof raw.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(raw.sessionId) ||
+      typeof raw.requestId !== 'string' || !isCanonicalRequestId(raw.requestId) ||
+      typeof raw.shipId !== 'string' || !isResourceShipId(raw.shipId) ||
+      !Number.isSafeInteger(raw.expectedCapitalRevision) || Number(raw.expectedCapitalRevision) < 0 ||
+      Number(raw.expectedCapitalRevision) >= Number.MAX_SAFE_INTEGER ||
+      !Number.isSafeInteger(raw.expectedVesselRevision) || Number(raw.expectedVesselRevision) < 0 ||
+      Number(raw.expectedVesselRevision) >= Number.MAX_SAFE_INTEGER ||
+      (raw.instanceId !== undefined && (typeof raw.instanceId !== 'string' || !/^[\w-]{1,128}$/.test(raw.instanceId)))) {
+    throw new HttpsError('invalid-argument', 'Invalid presidential visit request.');
+  }
+  const data = {
+    sessionId: raw.sessionId, requestId: raw.requestId, shipId: raw.shipId,
+    expectedCapitalRevision: Number(raw.expectedCapitalRevision),
+    expectedVesselRevision: Number(raw.expectedVesselRevision), instanceId: raw.instanceId as string | undefined,
+  };
+  const sessionRef = db.doc(`sessions/${data.sessionId}`);
+  const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
+  const eventRef = db.doc(`sessions/${data.sessionId}/events/presidential-visit-${data.requestId}`);
+  const auditRef = db.doc(`sessions/${data.sessionId}/presidentialVisits/${data.requestId}`);
+  const fingerprint: CommandFingerprint = {
+    action: 'record-presidential-visit', sessionId: data.sessionId,
+    requestId: data.requestId, actorUid: uid, instanceId: data.instanceId ?? null,
+    expectedRevision: data.expectedCapitalRevision,
+    payload: { shipId: data.shipId, expectedVesselRevision: data.expectedVesselRevision },
+  };
+  const serverTime = new Date().toISOString();
+  return db.runTransaction(async tx => {
+    const player = await tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`));
+    if (!isActivePlayer(player) || !['player', 'gm'].includes(String(player.get('role')))) {
+      throw new HttpsError('permission-denied', 'Only the active Dione President may make a presidential visit.');
+    }
+    await requirePresidentActionAuthority(tx, data.sessionId, player, data.instanceId);
+    const [session, receipt, event, audit] = await Promise.all([
+      tx.get(sessionRef), tx.get(receiptRef), tx.get(eventRef), tx.get(auditRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    await rejectForeignLegacyM1Command(tx, data.sessionId, data.requestId, 'presidential visit', []);
+    const replay = replayBoundCommand(
+      receipt, fingerprint,
+      (value): value is PresidentialVisitResult => isPresidentialVisitResult(value, data.sessionId),
+      'presidential visit',
+    );
+    if (replay) return replay;
+    if (event.exists || audit.exists) rejectLegacyEventReplay('presidential visit');
+    requireActiveGameplayPhase(session);
+    requireTurnOneForGameplay(session);
+    const phase = turnPhaseState(session.get('turnPhase'));
+    const turnState = turnStateForPhaseContext(
+      session.get('turnState'), phase, session.get('currentTurn'), sessionTurnLimit(session),
+    );
+    if (!phase || !turnState || phase.turn !== sessionTurn(session.get('currentTurn')) || turnState.phase !== 'coordination') {
+      throw commandError('failed-precondition', 'A presidential visit is available only during Coordination.', 'invalid-phase');
+    }
+    if (!activeVesselIdsForSession(session).includes(data.shipId)) {
+      throw commandError('failed-precondition', 'That ship is not active in this session.', 'conflict');
+    }
+    const currentVesselRevision = vesselActionRevision(session, data.shipId);
+    if (currentVesselRevision !== data.expectedVesselRevision) {
+      throw commandError('failed-precondition', 'That ship changed. Refresh before recording the visit.', 'stale-revision');
+    }
+    const currentUnrest = shipUnrest(session.get('shipUnrest'))[data.shipId] ?? 0;
+    if (currentUnrest <= 0) {
+      throw commandError('failed-precondition', 'This ship has no unrest to reduce.', 'conflict');
+    }
+    const unrestAlerts = isRecord(session.get('unrestAlerts'))
+      ? session.get('unrestAlerts') as Record<string, StoredUnrestAlert> : {};
+    const unrestResult = unrestChange(currentUnrest, -1, Boolean(unrestAlerts[data.shipId]));
+    if (unrestResult.kind === 'blocked' || unrestResult.amount !== currentUnrest - 1) {
+      throw commandError('failed-precondition', 'Resolve the current unrest alert before the visit can reduce unrest.', 'conflict');
+    }
+    let currentCapital: PoliticalCapitalState;
+    try {
+      currentCapital = politicalCapitalState(session.get('politicalCapital'));
+    } catch {
+      throw commandError('failed-precondition', 'Stored political capital is invalid. Ask the facilitator to recover the session.', 'conflict');
+    }
+    if (currentCapital.revision !== data.expectedCapitalRevision) {
+      throw commandError('failed-precondition', 'Political capital changed. Wait for the live update and try again.', 'stale-revision');
+    }
+    let nextCapital: PoliticalCapitalState;
+    try {
+      const turn = sessionTurn(session.get('currentTurn'));
+      nextCapital = applyPoliticalCapital({
+        current: currentCapital, expectedRevision: data.expectedCapitalRevision,
+        id: `political-capital:${data.requestId}`, action: 'spend',
+        crisisId: `presidential-visit-${turn}-${data.shipId}`, crisisRevision: 1,
+        crisisTitle: `Presidential visit // ${(FLEET_SHIP_NAMES as Readonly<Record<string, string>>)[data.shipId] ?? data.shipId}`,
+        cycle: turn, recordedAt: serverTime,
+      });
+    } catch (error) {
+      throw commandError('failed-precondition', error instanceof Error ? error.message : 'Political capital could not be spent.', 'conflict');
+    }
+    if (event.exists || audit.exists) rejectLegacyEventReplay('presidential visit');
+    const vesselRevision = currentVesselRevision + 1;
+    const result: PresidentialVisitResult = {
+      status: 'committed', sessionId: data.sessionId, requestId: data.requestId,
+      shipId: data.shipId, turn: turnState.currentTurn, unrest: unrestResult.amount,
+      vesselRevision, politicalCapital: nextCapital,
+    };
+    tx.update(sessionRef, {
+      politicalCapital: nextCapital,
+      [`shipUnrest.${data.shipId}`]: unrestResult.amount,
+      unrestAlerts,
+      ...shipMutinyTransitionPatch(session, data.shipId, currentUnrest, unrestResult.amount, serverTime),
+      ...vesselActionRevisionPatch(data.shipId, vesselRevision),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    const record = {
+      type: 'presidential-visit', sessionId: data.sessionId, requestId: data.requestId,
+      shipId: data.shipId, turn: turnState.currentTurn, unrest: unrestResult.amount,
+      politicalCapitalRevision: nextCapital.revision, politicalCapitalBalance: nextCapital.balance,
+      vesselRevision, actorUid: uid, createdAt: FieldValue.serverTimestamp(),
+    };
+    tx.set(auditRef, record);
+    tx.set(eventRef, buildPrivacySafeEventRecord({
+      type: 'presidential-visit',
+      envelope: buildAuthoritativeEventEnvelope({
+        sessionId: data.sessionId, actorUid: uid, actorRoleId: 'dione-president',
+        turn: turnState.currentTurn, phase: 'active', type: 'presidential-visit',
+        requestId: data.requestId, revision: nextCapital.revision,
+        serverTime: new Date(serverTime), visibility: EventVisibility.Member,
+      }),
+      payload: {
+        shipId: data.shipId, turn: turnState.currentTurn, unrest: unrestResult.amount,
+        politicalCapitalRevision: nextCapital.revision, politicalCapitalBalance: nextCapital.balance,
+        vesselRevision,
+      },
+      createdAt: FieldValue.serverTimestamp(),
+    }));
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+type StoredPresidentialElection = Readonly<{
+  type: 'presidential-election';
+  sessionId: string;
+  revision: number;
+  state: 'scheduled' | 'open' | 'tie-pending' | 'resolved' | 'no-winner';
+  policy: ElectionPolicy;
+  candidateIdsByUid: Readonly<Record<string, string>>;
+  candidateNamesByUid: Readonly<Record<string, string>>;
+  tally?: ElectionTally;
+  presidentUid?: string;
+  vicePresidentUid?: string;
+  pendingPresidentTie?: readonly string[];
+  pendingVicePresidentTie?: readonly string[];
+  decidedCycle?: number;
+}>;
+
+function publicElectionTallyOffice(
+  tally: ElectionOfficeTally,
+  candidateIdsByUid: Readonly<Record<string, string>>,
+): Record<string, unknown> {
+  const scores = Object.fromEntries(Object.entries(tally.scores).flatMap(([uid, score]) =>
+    candidateIdsByUid[uid] ? [[candidateIdsByUid[uid]!, score]] : []));
+  return {
+    totalVotes: tally.totalVotes, totalWeight: tally.totalWeight, scores,
+    tiedCandidateIds: tally.tiedCandidates.flatMap(uid => candidateIdsByUid[uid] ? [candidateIdsByUid[uid]!] : []),
+    ...(tally.winnerUid && candidateIdsByUid[tally.winnerUid]
+      ? { winnerId: candidateIdsByUid[tally.winnerUid] } : {}),
+  };
+}
+
+/** Public session projection excludes voter identities, ship mappings and every ballot. */
+function publicElectionProjection(value: StoredPresidentialElection): Record<string, unknown> {
+  const candidates = value.policy.eligibleVoterUids.flatMap(uid => {
+    const id = value.candidateIdsByUid[uid];
+    return id ? [{ id, displayName: value.candidateNamesByUid[uid] ?? 'Fleet member' }] : [];
+  });
+  const candidateIdsByUid = value.candidateIdsByUid;
+  return {
+    type: 'presidential-election', revision: value.revision, state: value.state,
+    policy: {
+      votingSystem: value.policy.votingSystem,
+      populationWeighting: value.policy.populationWeighting,
+      openCycle: value.policy.openCycle, closeCycle: value.policy.closeCycle,
+      vicePresidentEnabled: value.policy.vicePresidentEnabled,
+      campaigning: value.policy.campaigning, supplyUse: value.policy.supplyUse,
+      campaignInstructions: value.policy.campaignInstructions, tieRule: value.policy.tieRule,
+    },
+    candidates,
+    ...(value.tally ? { tally: {
+      president: publicElectionTallyOffice(value.tally.president, candidateIdsByUid),
+      ...(value.tally.vicePresident ? { vicePresident: publicElectionTallyOffice(value.tally.vicePresident, candidateIdsByUid) } : {}),
+    } } : {}),
+    ...(value.presidentUid && candidateIdsByUid[value.presidentUid]
+      ? { presidentCandidateId: candidateIdsByUid[value.presidentUid] } : {}),
+    ...(value.vicePresidentUid && candidateIdsByUid[value.vicePresidentUid]
+      ? { vicePresidentCandidateId: candidateIdsByUid[value.vicePresidentUid] } : {}),
+    ...(value.pendingPresidentTie ? { pendingPresidentTie: value.pendingPresidentTie.flatMap(uid => candidateIdsByUid[uid] ? [candidateIdsByUid[uid]!] : []) } : {}),
+    ...(value.pendingVicePresidentTie ? { pendingVicePresidentTie: value.pendingVicePresidentTie.flatMap(uid => candidateIdsByUid[uid] ? [candidateIdsByUid[uid]!] : []) } : {}),
+    ...(value.decidedCycle === undefined ? {} : { decidedCycle: value.decidedCycle }),
+  };
+}
+
+function storedElection(value: unknown, sessionId: string): StoredPresidentialElection | undefined {
+  if (!isRecord(value) || value.type !== 'presidential-election' || value.sessionId !== sessionId ||
+      !Number.isSafeInteger(value.revision) || Number(value.revision) < 1 ||
+      !['scheduled', 'open', 'tie-pending', 'resolved', 'no-winner'].includes(String(value.state)) ||
+      !isRecord(value.policy) || !isRecord(value.candidateIdsByUid) || !isRecord(value.candidateNamesByUid)) return undefined;
+  return value as unknown as StoredPresidentialElection;
+}
+
+function electionRoster(players: readonly DocumentSnapshot[], session: DocumentSnapshot): ElectionEligibleVoter[] {
+  const activeRoles = sessionActiveRoleIds(session);
+  return players.flatMap(player => {
+    if (!isActivePlayer(player) || player.get('role') !== 'player' ||
+        player.get('replacementStatus') != null || player.get('escapeState') != null) return [];
+    const roleId = boundCoreConsoleRole(player.get('assignedRoleId'), player.get('seatId'));
+    if (!roleId || roleId === 'press-officer' || !activeRoles.includes(roleId)) return [];
+    const shipId = shipForRole(roleId);
+    return shipId ? [{ uid: player.id, shipId }] : [];
+  });
+}
+
+async function requireElectionFacilitator(
+  tx: Transaction, sessionId: string, uid: string, instanceId: string,
+): Promise<{ player: DocumentSnapshot; session: DocumentSnapshot }> {
+  const [player, instance, session] = await Promise.all([
+    tx.get(db.doc(`sessions/${sessionId}/players/${uid}`)),
+    tx.get(db.doc(`sessions/${sessionId}/gmInstances/${instanceId}`)),
+    tx.get(db.doc(`sessions/${sessionId}`)),
+  ]);
+  if (!isActivePlayer(player) || player.get('role') !== 'gm' || !isLiveGmInstance(instance, player, uid)) {
+    throw new HttpsError('permission-denied', 'An active facilitator instance is required for this election decision.');
+  }
+  if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+  return { player, session };
+}
+
+function electionRequestBase(raw: unknown, action: string): {
+  sessionId: string; requestId: string; expectedRevision: number;
+} {
+  if (!isRecord(raw) || typeof raw.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(raw.sessionId) ||
+      typeof raw.requestId !== 'string' || !isCanonicalRequestId(raw.requestId) ||
+      !Number.isSafeInteger(raw.expectedRevision) || Number(raw.expectedRevision) < 0 ||
+      Number(raw.expectedRevision) >= Number.MAX_SAFE_INTEGER) {
+    throw new HttpsError('invalid-argument', `Invalid ${action} request.`);
+  }
+  return { sessionId: raw.sessionId, requestId: raw.requestId, expectedRevision: Number(raw.expectedRevision) };
+}
+
+function isElectionCommandReply(value: unknown): value is Record<string, unknown> {
+  return isRecord(value) && (value.status === 'committed' || value.status === 'replayed') &&
+    Number.isSafeInteger(value.revision) && Number(value.revision) >= 1 &&
+    ['scheduled', 'open', 'tie-pending', 'resolved', 'no-winner'].includes(String(value.state));
+}
+
+/** Freeze roster-derived voting policy once, before the first ballot exists. */
+export const configurePresidentialElection = onCall<{
+  sessionId?: unknown; instanceId?: unknown; requestId?: unknown; expectedRevision?: unknown; policy?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth), raw = request.data;
+  const base = electionRequestBase(raw, 'election policy');
+  if (!isRecord(raw) || Object.keys(raw).some(key => !['sessionId','instanceId','requestId','expectedRevision','policy'].includes(key)) ||
+      typeof raw.instanceId !== 'string' || !/^[\w-]{1,128}$/.test(raw.instanceId) || !isRecord(raw.policy)) {
+    throw new HttpsError('invalid-argument', 'Invalid election policy request.');
+  }
+  const data = { ...base, instanceId: raw.instanceId, policy: raw.policy };
+  const sessionRef = db.doc(`sessions/${data.sessionId}`);
+  const electionRef = db.doc(`sessions/${data.sessionId}/presidentialElections/current`);
+  const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
+  const auditRef = db.doc(`sessions/${data.sessionId}/presidentialElections/current/audit/${data.requestId}`);
+  const fingerprint: CommandFingerprint = { action: 'configure-presidential-election', sessionId: data.sessionId,
+    requestId: data.requestId, actorUid: uid, instanceId: data.instanceId, expectedRevision: data.expectedRevision,
+    payload: {
+      eligibleVoterUids: Array.isArray(data.policy.eligibleVoterUids)
+        ? data.policy.eligibleVoterUids.filter((entry): entry is string => typeof entry === 'string') : [],
+      votingSystem: typeof data.policy.votingSystem === 'string' ? data.policy.votingSystem : '',
+      populationWeighting: typeof data.policy.populationWeighting === 'string' ? data.policy.populationWeighting : '',
+      openCycle: Number.isSafeInteger(data.policy.openCycle) ? Number(data.policy.openCycle) : -1,
+      closeCycle: Number.isSafeInteger(data.policy.closeCycle) ? Number(data.policy.closeCycle) : -1,
+      vicePresidentEnabled: data.policy.vicePresidentEnabled === true,
+      campaigning: typeof data.policy.campaigning === 'string' ? data.policy.campaigning : '',
+      supplyUse: typeof data.policy.supplyUse === 'string' ? data.policy.supplyUse : '',
+      campaignInstructions: typeof data.policy.campaignInstructions === 'string' ? data.policy.campaignInstructions : '',
+      tieRule: typeof data.policy.tieRule === 'string' ? data.policy.tieRule : '',
+    } };
+  return db.runTransaction(async tx => {
+    const { session } = await requireElectionFacilitator(tx, data.sessionId, uid, data.instanceId);
+    const [election, receipt, audit, players] = await Promise.all([
+      tx.get(electionRef), tx.get(receiptRef), tx.get(auditRef), tx.get(db.collection(`sessions/${data.sessionId}/players`)),
+    ]);
+    const replay = replayBoundCommand(receipt, fingerprint, isElectionCommandReply, 'election policy');
+    if (replay) return replay;
+    if (audit.exists) rejectLegacyEventReplay('election policy');
+    if (session.get('phase') !== 'active') throw commandError('failed-precondition', 'Configure elections during active gameplay.', 'invalid-phase');
+    if (election.exists || data.expectedRevision !== 0) throw commandError('failed-precondition', 'Election procedure is already fixed; refresh the current revision.', 'stale-revision');
+    const voters = electionRoster(players.docs, session);
+    const policy = normalizeElectionPolicy(data.policy, voters, sessionTurn(session.get('currentTurn')));
+    if (!policy) throw new HttpsError('invalid-argument', 'Choose eligible active players and a complete bounded election procedure.');
+    if (policy.vicePresidentEnabled && policy.eligibleVoterUids.length < 3) {
+      throw new HttpsError('invalid-argument', 'A President and distinct Vice President election require at least three eligible candidates.');
+    }
+    const profileByUid = new Map(players.docs.map(player => [player.id, player]));
+    const candidateIdsByUid = Object.fromEntries(policy.eligibleVoterUids.map(candidateUid => [candidateUid, `candidate-${randomUUID()}`]));
+    const candidateNamesByUid = Object.fromEntries(policy.eligibleVoterUids.map(candidateUid => {
+      const name = profileByUid.get(candidateUid)?.get('displayName');
+      return [candidateUid, typeof name === 'string' && name.trim() ? cleanName(name, 'Fleet member', 40) : 'Fleet member'];
+    }));
+    const stored: StoredPresidentialElection = { type: 'presidential-election', sessionId: data.sessionId,
+      revision: 1, state: 'scheduled', policy, candidateIdsByUid, candidateNamesByUid };
+    const projection = publicElectionProjection(stored);
+    // The facilitator sees the voter list they selected; the member session projection deliberately omits it.
+    const result = { status: 'committed', ...projection, policy: {
+      ...(projection.policy as Record<string, unknown>), eligibleVoterUids: [...policy.eligibleVoterUids],
+    } };
+    tx.set(electionRef, { ...stored, createdBy: uid, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+    tx.update(sessionRef, { presidentialElection: projection, updatedAt: FieldValue.serverTimestamp() });
+    tx.set(auditRef, { type: 'presidential-election-audit', action: 'configure', sessionId: data.sessionId,
+      requestId: data.requestId, actorUid: uid, revision: 1, policy, createdAt: FieldValue.serverTimestamp() });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+/** Store one secret ballot under a server-only per-voter path; no vote returns to the caller. */
+export const castPresidentialBallot = onCall<{
+  sessionId?: unknown; requestId?: unknown; expectedRevision?: unknown;
+  presidentCandidateId?: unknown; vicePresidentCandidateId?: unknown;
+  presidentUid?: unknown; vicePresidentUid?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth), raw: unknown = request.data;
+  const base = electionRequestBase(raw, 'secret ballot');
+  if (!isRecord(raw) || Object.keys(raw).some(key => !['sessionId','requestId','expectedRevision',
+    'presidentCandidateId','vicePresidentCandidateId','presidentUid','vicePresidentUid'].includes(key))) {
+    throw new HttpsError('invalid-argument', 'Invalid secret ballot request.');
+  }
+  const presidentChoice = raw.presidentCandidateId ?? raw.presidentUid;
+  const vicePresidentChoice = raw.vicePresidentCandidateId ?? raw.vicePresidentUid;
+  if (typeof presidentChoice !== 'string' || !/^[\w-]{1,128}$/.test(presidentChoice) ||
+      (vicePresidentChoice !== undefined && (typeof vicePresidentChoice !== 'string' || !/^[\w-]{1,128}$/.test(vicePresidentChoice)))) {
+    throw new HttpsError('invalid-argument', 'Choose a President and any configured Vice President candidate.');
+  }
+  const sessionRef = db.doc(`sessions/${base.sessionId}`), electionRef = db.doc(`sessions/${base.sessionId}/presidentialElections/current`);
+  const ballotRef = db.doc(`sessions/${base.sessionId}/presidentialElections/current/ballots/${uid}`);
+  const receiptRef = commandReceiptRef(base.sessionId, base.requestId), auditRef = db.doc(`sessions/${base.sessionId}/presidentialElections/current/audit/${base.requestId}`);
+  const fingerprint: CommandFingerprint = { action: 'cast-presidential-ballot', sessionId: base.sessionId,
+    requestId: base.requestId, actorUid: uid, instanceId: null, expectedRevision: base.expectedRevision,
+    payload: { presidentChoice, vicePresidentChoice: vicePresidentChoice ?? null } };
+  const result = { status: 'committed', electionRevision: base.expectedRevision, requestId: base.requestId };
+  return db.runTransaction(async tx => {
+    const [player, session, electionSnap, ballot, receipt, audit] = await Promise.all([
+      tx.get(db.doc(`sessions/${base.sessionId}/players/${uid}`)), tx.get(sessionRef), tx.get(electionRef),
+      tx.get(ballotRef), tx.get(receiptRef), tx.get(auditRef),
+    ]);
+    const replay = replayBoundCommand(receipt, fingerprint, (value): value is typeof result => isRecord(value) &&
+      value.status === 'committed' && value.electionRevision === base.expectedRevision && value.requestId === base.requestId, 'secret ballot');
+    if (replay) return replay;
+    if (!session.exists || !electionSnap.exists) throw new HttpsError('not-found', 'No active presidential election.');
+    const election = storedElection(electionSnap.data(), base.sessionId);
+    if (!election) throw commandError('failed-precondition', 'Stored election procedure is invalid.', 'malformed-input');
+    if (!isActivePlayer(player) || player.get('role') !== 'player' || player.get('replacementStatus') != null || player.get('escapeState') != null) {
+      throw new HttpsError('permission-denied', 'Only a current connected player may submit a ballot.');
+    }
+    const cycle = sessionTurn(session.get('currentTurn'));
+    const phase = turnStateForPhaseContext(session.get('turnState'), turnPhaseState(session.get('turnPhase')),
+      session.get('currentTurn'), sessionTurnLimit(session));
+    if (!phase || phase.phase !== 'team' || cycle < election.policy.openCycle || cycle > election.policy.closeCycle ||
+        !['scheduled', 'open'].includes(election.state)) {
+      throw commandError('failed-precondition', 'Ballots are available only during the configured Team cycles.', 'invalid-phase');
+    }
+    if (election.revision !== base.expectedRevision) throw commandError('failed-precondition', 'Election procedure changed; refresh before voting.', 'stale-revision');
+    if (!election.policy.eligibleVoterUids.includes(uid)) throw new HttpsError('permission-denied', 'You are not in the configured electorate.');
+    const candidateIds = election.candidateIdsByUid;
+    const uidForChoice = (choice: string): string | undefined =>
+      Object.entries(candidateIds).find(([candidateUid, candidateId]) => candidateId === choice || candidateUid === choice)?.[0];
+    const presidentUid = uidForChoice(presidentChoice);
+    const vicePresidentUid = vicePresidentChoice === undefined ? undefined : uidForChoice(vicePresidentChoice);
+    if (!presidentUid || (election.policy.vicePresidentEnabled && !vicePresidentUid) ||
+        (!election.policy.vicePresidentEnabled && vicePresidentChoice !== undefined) ||
+        (vicePresidentUid && vicePresidentUid === presidentUid)) {
+      throw new HttpsError('invalid-argument', 'Ballot choices do not match the configured candidates and offices.');
+    }
+    if (base.expectedRevision !== election.revision) throw commandError('failed-precondition', 'Election procedure changed; refresh before voting.', 'stale-revision');
+    if (ballot.exists || audit.exists) throw commandError('failed-precondition', 'A secret ballot can be submitted only once.', 'conflict');
+    const nextElection: StoredPresidentialElection = { ...election, state: 'open' };
+    tx.set(ballotRef, { type: 'presidential-election-ballot', sessionId: base.sessionId, electionRevision: election.revision,
+      voterUid: uid, ballot: { presidentUid, ...(vicePresidentUid ? { vicePresidentUid } : {}) }, createdAt: FieldValue.serverTimestamp() });
+    tx.set(auditRef, { type: 'presidential-election-audit', action: 'ballot', sessionId: base.sessionId,
+      requestId: base.requestId, actorUid: uid, candidateChoices: { presidentUid, ...(vicePresidentUid ? { vicePresidentUid } : {}) },
+      createdAt: FieldValue.serverTimestamp() });
+    tx.update(electionRef, { state: 'open', updatedAt: FieldValue.serverTimestamp() });
+    tx.update(sessionRef, { presidentialElection: publicElectionProjection(nextElection), updatedAt: FieldValue.serverTimestamp() });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+/** Tally server-owned ballots and commit the elected session offices once. */
+export const resolvePresidentialElection = onCall<{
+  sessionId?: unknown; instanceId?: unknown; requestId?: unknown; expectedRevision?: unknown;
+  presidentCandidateId?: unknown; vicePresidentCandidateId?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth), raw: unknown = request.data;
+  const base = electionRequestBase(raw, 'election resolution');
+  if (!isRecord(raw) || Object.keys(raw).some(key => !['sessionId','instanceId','requestId','expectedRevision',
+    'presidentCandidateId','vicePresidentCandidateId'].includes(key)) || typeof raw.instanceId !== 'string' ||
+      !/^[\w-]{1,128}$/.test(raw.instanceId) ||
+      ['presidentCandidateId','vicePresidentCandidateId'].some(key => raw[key] !== undefined &&
+        (typeof raw[key] !== 'string' || !/^[\w-]{1,128}$/.test(String(raw[key]))))) {
+    throw new HttpsError('invalid-argument', 'Invalid election resolution request.');
+  }
+  const data = { ...base, instanceId: raw.instanceId,
+    presidentCandidateId: raw.presidentCandidateId as string | undefined,
+    vicePresidentCandidateId: raw.vicePresidentCandidateId as string | undefined };
+  const sessionRef = db.doc(`sessions/${data.sessionId}`), electionRef = db.doc(`sessions/${data.sessionId}/presidentialElections/current`);
+  const ballotsRef = db.collection(`sessions/${data.sessionId}/presidentialElections/current/ballots`);
+  const playersRef = db.collection(`sessions/${data.sessionId}/players`), receiptRef = commandReceiptRef(data.sessionId, data.requestId);
+  const auditRef = db.doc(`sessions/${data.sessionId}/presidentialElections/current/audit/${data.requestId}`);
+  const fingerprint: CommandFingerprint = { action: 'resolve-presidential-election', sessionId: data.sessionId,
+    requestId: data.requestId, actorUid: uid, instanceId: data.instanceId, expectedRevision: data.expectedRevision,
+    payload: { presidentCandidateId: data.presidentCandidateId ?? null, vicePresidentCandidateId: data.vicePresidentCandidateId ?? null } };
+  return db.runTransaction(async tx => {
+    const { session } = await requireElectionFacilitator(tx, data.sessionId, uid, data.instanceId);
+    const [electionSnap, receipt, audit, ballots, players] = await Promise.all([
+      tx.get(electionRef), tx.get(receiptRef), tx.get(auditRef), tx.get(ballotsRef), tx.get(playersRef),
+    ]);
+    const replay = replayBoundCommand(receipt, fingerprint, isElectionCommandReply, 'election resolution');
+    if (replay) return replay;
+    if (audit.exists) rejectLegacyEventReplay('election resolution');
+    if (!electionSnap.exists) throw new HttpsError('not-found', 'No configured presidential election.');
+    const election = storedElection(electionSnap.data(), data.sessionId);
+    if (!election || !['scheduled','open','tie-pending'].includes(election.state)) throw commandError('failed-precondition', 'This election is already resolved or invalid.', 'conflict');
+    if (election.revision !== data.expectedRevision) throw commandError('failed-precondition', 'Election changed; refresh before resolving.', 'stale-revision');
+    if (sessionTurn(session.get('currentTurn')) < election.policy.closeCycle) throw commandError('failed-precondition', 'The configured close cycle has not finished.', 'invalid-phase');
+    const storedBallots: ElectionBallot[] = ballots.docs.map(document => {
+      const value = document.data(), rawBallot = value?.ballot;
+      if (!isRecord(value) || value.type !== 'presidential-election-ballot' || value.sessionId !== data.sessionId ||
+          typeof value.voterUid !== 'string' || !isRecord(rawBallot) || typeof rawBallot.presidentUid !== 'string' ||
+          Object.keys(rawBallot).some(key => key !== 'presidentUid' && key !== 'vicePresidentUid') ||
+          (rawBallot.vicePresidentUid !== undefined && typeof rawBallot.vicePresidentUid !== 'string')) {
+        throw commandError('failed-precondition', 'A private ballot record is malformed; ask the facilitator to recover the election.', 'malformed-input');
+      }
+      return { voterUid: value.voterUid, presidentUid: rawBallot.presidentUid,
+        ...(rawBallot.vicePresidentUid ? { vicePresidentUid: rawBallot.vicePresidentUid } : {}) };
+    });
+    const shipPopulations = isRecord(session.get('shipSurvivors'))
+      ? session.get('shipSurvivors') as Record<string, number> : {};
+    let tally: ElectionTally;
+    try { tally = calculateElectionTally({ policy: election.policy, ballots: storedBallots, shipPopulations }); }
+    catch (error) { throw commandError('failed-precondition', error instanceof Error ? error.message : 'Election ballots are invalid.', 'malformed-input'); }
+    const currentOfficeRaw = session.get('presidentialOffices');
+    const currentPresident = isRecord(currentOfficeRaw) && typeof currentOfficeRaw.presidentUid === 'string'
+      ? currentOfficeRaw.presidentUid
+      : players.docs.find(player => player.get('role') === 'player' &&
+        boundCoreConsoleRole(player.get('assignedRoleId'), player.get('seatId')) === 'dione-president')?.id;
+    const uidForAlias = (alias: string | undefined) => alias
+      ? Object.entries(election.candidateIdsByUid).find(([, candidateId]) => candidateId === alias)?.[0]
+      : undefined;
+    const presidentChoiceUid = uidForAlias(data.presidentCandidateId) ?? data.presidentCandidateId;
+    const viceChoiceUid = uidForAlias(data.vicePresidentCandidateId) ?? data.vicePresidentCandidateId;
+    const presidentDecision = resolveElectionWinner(tally.president, currentPresident, election.policy.tieRule, presidentChoiceUid);
+    const viceDecision = election.policy.vicePresidentEnabled && tally.vicePresident
+      ? resolveElectionWinner(tally.vicePresident,
+        isRecord(currentOfficeRaw) && typeof currentOfficeRaw.vicePresidentUid === 'string' ? currentOfficeRaw.vicePresidentUid : undefined,
+        election.policy.tieRule, viceChoiceUid)
+      : undefined;
+    const unresolvedPresidentTie = presidentDecision.status === 'tie-pending' ? presidentDecision.candidateUids : undefined;
+    const unresolvedVicePresidentTie = viceDecision?.status === 'tie-pending' ? viceDecision.candidateUids : undefined;
+    const nextRevision = election.revision + 1;
+    const electionWithoutPendingTies = { ...election };
+    delete electionWithoutPendingTies.pendingPresidentTie;
+    delete electionWithoutPendingTies.pendingVicePresidentTie;
+    if (unresolvedPresidentTie || unresolvedVicePresidentTie) {
+      const next: StoredPresidentialElection = { ...electionWithoutPendingTies, state: 'tie-pending', revision: nextRevision, tally,
+        ...(unresolvedPresidentTie ? { pendingPresidentTie: unresolvedPresidentTie } : {}),
+        ...(unresolvedVicePresidentTie ? { pendingVicePresidentTie: unresolvedVicePresidentTie } : {}) };
+      const projection = publicElectionProjection(next);
+      const result = { status: 'committed', ...projection, tally };
+      tx.set(electionRef, { ...next, updatedAt: FieldValue.serverTimestamp() });
+      tx.update(sessionRef, { presidentialElection: projection, updatedAt: FieldValue.serverTimestamp() });
+      tx.set(auditRef, { type: 'presidential-election-audit', action: 'tally-tie-pending', sessionId: data.sessionId,
+        requestId: data.requestId, actorUid: uid, revision: nextRevision, tally, createdAt: FieldValue.serverTimestamp() });
+      tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+      return result;
+    }
+    if (presidentDecision.status === 'tie-pending' || viceDecision?.status === 'tie-pending') {
+      throw commandError('failed-precondition', 'A valid facilitator tie choice is required for each tied office.', 'conflict');
+    }
+    const presidentUid = presidentDecision.status === 'winner' ? presidentDecision.winnerUid : undefined;
+    const vicePresidentUid = viceDecision?.status === 'winner' ? viceDecision.winnerUid : undefined;
+    const hasPresidentWinner = Boolean(presidentUid);
+    const state = hasPresidentWinner ? 'resolved' as const : 'no-winner' as const;
+    const next: StoredPresidentialElection = { ...electionWithoutPendingTies, revision: nextRevision, state, tally,
+      ...(presidentUid ? { presidentUid } : {}), ...(vicePresidentUid ? { vicePresidentUid } : {}),
+      decidedCycle: sessionTurn(session.get('currentTurn')) };
+    const projection = publicElectionProjection(next);
+    const result = { status: 'committed', ...projection, tally,
+      ...(presidentUid ? { presidentUid } : {}), ...(vicePresidentUid ? { vicePresidentUid } : {}) };
+    const oldOffices = isRecord(currentOfficeRaw) ? currentOfficeRaw : {};
+    const officeProjection = {
+      electionId: 'current', revision: Number.isSafeInteger(oldOffices.revision) ? Number(oldOffices.revision) + 1 : 1,
+      ...(presidentUid ? { presidentUid, presidentCandidateId: election.candidateIdsByUid[presidentUid] } :
+        typeof oldOffices.presidentUid === 'string' ? { presidentUid: oldOffices.presidentUid, presidentCandidateId: oldOffices.presidentCandidateId } : {}),
+      ...(presidentUid ? { presidentDisplayName: election.candidateNamesByUid[presidentUid] ?? 'Fleet member' } :
+        typeof oldOffices.presidentDisplayName === 'string' ? { presidentDisplayName: oldOffices.presidentDisplayName } : {}),
+      ...(vicePresidentUid ? { vicePresidentUid, vicePresidentCandidateId: election.candidateIdsByUid[vicePresidentUid] } :
+        typeof oldOffices.vicePresidentUid === 'string' ? { vicePresidentUid: oldOffices.vicePresidentUid, vicePresidentCandidateId: oldOffices.vicePresidentCandidateId } : {}),
+      ...(vicePresidentUid ? { vicePresidentDisplayName: election.candidateNamesByUid[vicePresidentUid] ?? 'Fleet member' } :
+        typeof oldOffices.vicePresidentDisplayName === 'string' ? { vicePresidentDisplayName: oldOffices.vicePresidentDisplayName } : {}),
+      decidedCycle: sessionTurn(session.get('currentTurn')),
+    };
+    const details = presidentUid
+      ? `President: ${election.candidateNamesByUid[presidentUid] ?? 'Fleet member'}${vicePresidentUid ? ` // Vice President: ${election.candidateNamesByUid[vicePresidentUid] ?? 'Fleet member'}` : ''}.`
+      : 'The configured election concluded without selecting a President.';
+    const pendingTeamAnnouncements = appendPendingTeamAnnouncement(session.get('pendingTeamAnnouncements'), {
+      id: `presidential-election-${nextRevision}`, kind: 'presidential-election',
+      title: presidentUid ? 'Presidential election result' : 'Presidential election concluded', details,
+      decidedCycle: sessionTurn(session.get('currentTurn')),
+    });
+    if (!pendingTeamAnnouncements) throw commandError('failed-precondition', 'Pending formal Team announcements cannot accept the election outcome.', 'conflict');
+    tx.set(electionRef, { ...next, updatedAt: FieldValue.serverTimestamp() });
+    tx.update(sessionRef, { presidentialElection: projection,
+      ...(hasPresidentWinner ? { presidentialOffices: officeProjection } : {}),
+      pendingTeamAnnouncements, updatedAt: FieldValue.serverTimestamp() });
+    tx.set(auditRef, { type: 'presidential-election-audit', action: 'resolve', sessionId: data.sessionId,
+      requestId: data.requestId, actorUid: uid, revision: nextRevision, tally,
+      presidentDecision, vicePresidentDecision: viceDecision ?? null,
+      offices: { presidentUid: presidentUid ?? null, vicePresidentUid: vicePresidentUid ?? null },
+      createdAt: FieldValue.serverTimestamp() });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
 
 /** Apply one President-authorized point against an exact resolved crisis outcome. */
 export const updatePoliticalCapital = onCall<{

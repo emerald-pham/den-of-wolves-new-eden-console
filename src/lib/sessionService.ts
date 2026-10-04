@@ -66,7 +66,7 @@ import { AEGIS_FIGHTER_WING_CAPACITY } from '@/data/aegisConsoles';
 import type { VesselActionEnvelope } from '@/types/vesselAction';
 import { resourcesForShip, type ResourceId, type ShipResourceInventory } from '@/data/resources';
 import type { CounterStep } from './counterPreview';
-import type { DiseaseOutbreakDetails, CrisisKind, CrisisStateName, ZealotryResponseAction, CivilUnrestResolution } from '@/types/crisis';
+import type { DiseaseOutbreakDetails, CrisisDeliveryPressure, CrisisKind, CrisisStateName, ZealotryResponseAction, CivilUnrestResolution } from '@/types/crisis';
 import { normalizeShuttleManifest } from '@/data/shuttles';
 import { normalizePressDispatch } from './pressDispatchState';
 import { parseArrestPosseCalculation } from './firestore';
@@ -281,10 +281,20 @@ let localTurnStartReplayToken = 0;
 function isTurnStartAnnouncement(value: unknown): value is NonNullable<GameSession['turnStartAnnouncement']> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const announcement = value as Readonly<Record<string, unknown>>;
+  const formal = announcement.formalAnnouncements;
+  const formalIsValid = formal === undefined || (Array.isArray(formal) && formal.length > 0 && formal.length <= 20 &&
+    formal.every((entry) => typeof entry === 'object' && entry !== null && !Array.isArray(entry) &&
+      typeof (entry as Record<string, unknown>).id === 'string' &&
+      ((entry as Record<string, unknown>).kind === 'binding-resolution' || (entry as Record<string, unknown>).kind === 'presidential-election') &&
+      typeof (entry as Record<string, unknown>).title === 'string' &&
+      typeof (entry as Record<string, unknown>).details === 'string' &&
+      Number.isSafeInteger((entry as Record<string, unknown>).decidedCycle)));
   return (
     typeof announcement.turn === 'number' && Number.isSafeInteger(announcement.turn) && announcement.turn >= 1 &&
     typeof announcement.survivorPopulation === 'number' &&
     Number.isSafeInteger(announcement.survivorPopulation) && announcement.survivorPopulation >= 0 &&
+    formalIsValid && (announcement.formalOnly === undefined || typeof announcement.formalOnly === 'boolean') &&
+    (announcement.formalOnly !== true || (Array.isArray(formal) && formal.length > 0)) &&
     (announcement.revision === undefined ||
       (typeof announcement.revision === 'number' && Number.isSafeInteger(announcement.revision) && announcement.revision >= 0))
   );
@@ -2232,7 +2242,7 @@ export async function transitionCrisis(
   state: CrisisStateName,
   title: string,
   details: string,
-  configuration?: { crisisKind: CrisisKind; configurationOverride: string; diseaseOutbreak?: DiseaseOutbreakDetails },
+  configuration?: { crisisKind: CrisisKind; configurationOverride: string; diseaseOutbreak?: DiseaseOutbreakDetails; deliveryPressure?: CrisisDeliveryPressure; formalAnnouncement?: { title: string; details: string } },
 ): Promise<CommandDisposition> {
   const store = useSessionStore.getState();
   if (!store.session || !store.gmInstance) {
@@ -2251,6 +2261,8 @@ export async function transitionCrisis(
       title: title.trim(),
       details: details.trim(),
       ...(configuration ? { crisisKind: configuration.crisisKind, configurationOverride: configuration.configurationOverride.trim(), ...(configuration.diseaseOutbreak ? { diseaseOutbreak: configuration.diseaseOutbreak } : {}) } : {}),
+      ...(configuration?.deliveryPressure ? { deliveryPressure: configuration.deliveryPressure } : {}),
+      ...(configuration?.formalAnnouncement ? { formalAnnouncement: configuration.formalAnnouncement } : {}),
     },
     createdAt: new Date().toISOString(),
   });
@@ -3394,6 +3406,16 @@ export interface UnresolvedJumpFailuresReply {
   readonly stale?: boolean;
 }
 
+export const FAILED_JUMP_CONSEQUENCES = [
+  'nothing-happens',
+  'full-d6-damage',
+  'half-d6-damage',
+  'wrong-location',
+  'wrong-location-full-d6-damage',
+  'wrong-location-half-d6-damage',
+] as const;
+export type FailedJumpConsequence = (typeof FAILED_JUMP_CONSEQUENCES)[number];
+
 export interface FailedJumpAdjudicationAttempt {
   readonly sessionId: string;
   readonly instanceId: string;
@@ -3401,12 +3423,14 @@ export interface FailedJumpAdjudicationAttempt {
   readonly expectedRevision: number;
   readonly failureRequestId: string;
   readonly shipId: string;
-  readonly destination: string;
+  readonly destination?: string;
+  readonly consequence: FailedJumpConsequence;
 }
 
 export interface FailedJumpAdjudicationReply extends Partial<VesselActionEnvelope> {
-  readonly status: 'jumped' | 'stale';
+  readonly status: 'jumped' | 'delayed' | 'stale';
   readonly shipId: string;
+  readonly consequence?: FailedJumpConsequence;
   readonly origin?: string;
   readonly destination?: string;
   readonly remainingFuel?: number;
@@ -3414,6 +3438,7 @@ export interface FailedJumpAdjudicationReply extends Partial<VesselActionEnvelop
   readonly failureRoll?: number;
   readonly damage?: ShipDamageState;
   readonly damageDraws?: readonly { readonly card: string; readonly systemId: string; readonly systemName: string }[];
+  readonly damageCount?: number;
   readonly state?: ShipJumpState;
   readonly transition?: ShipJumpTransition;
   readonly currentRevision?: number;
@@ -3465,11 +3490,17 @@ export async function listUnresolvedJumpFailures(): Promise<UnresolvedJumpFailur
 
 export function createFailedJumpAdjudicationAttempt(
   failure: FailedJumpSummary,
-  destination: string,
+  destination: string | undefined,
+  consequence: FailedJumpConsequence,
 ): FailedJumpAdjudicationAttempt {
   const store = useSessionStore.getState();
   if (!store.session || !store.gmInstance || store.me?.role !== 'gm') {
     throw new Error('Claim GM before adjudicating a failed jump.');
+  }
+  if (!FAILED_JUMP_CONSEQUENCES.includes(consequence) ||
+      (consequence === 'nothing-happens' ? destination !== undefined :
+        typeof destination !== 'string' || !/^\d{4}$/.test(destination))) {
+    throw new Error('Choose a documented consequence and any required printed destination before adjudicating.');
   }
   requireFreshSessionAuthority();
   return {
@@ -3479,7 +3510,8 @@ export function createFailedJumpAdjudicationAttempt(
     expectedRevision: failure.failureRevision,
     failureRequestId: failure.requestId,
     shipId: failure.shipId,
-    destination,
+    ...(destination === undefined ? {} : { destination }),
+    consequence,
   };
 }
 
@@ -3505,7 +3537,8 @@ export async function adjudicateFailedJump(
     requestId: attempt.requestId,
     expectedRevision: attempt.expectedRevision,
     failureRequestId: attempt.failureRequestId,
-    destination: attempt.destination,
+    ...(attempt.destination === undefined ? {} : { destination: attempt.destination }),
+    consequence: attempt.consequence,
   };
   const checkpoint = sessionAuthorityCheckpoint(payload.sessionId, sessionAuthorityUid(store));
   try {
@@ -3529,7 +3562,8 @@ export async function adjudicateFailedJump(
         recordStaleAuthorityReply();
         return reply;
       }
-      if (reply.shipId !== attempt.shipId || reply.destination !== attempt.destination) {
+      if (reply.shipId !== attempt.shipId || reply.consequence !== attempt.consequence ||
+          (reply.status === 'jumped' && reply.destination !== attempt.destination)) {
         throw new Error('The server returned an adjudication for a different jump.');
       }
       const localRevision = current.vesselActionRevisions?.[attempt.shipId] ?? 0;
@@ -3540,10 +3574,10 @@ export async function adjudicateFailedJump(
       const normalizedResource = resource ? resourcesForShip(attempt.shipId, current.shipResources) : undefined;
       const nextSession: GameSession = {
         ...current,
-        shipGalacticCoordinates: {
-          ...current.shipGalacticCoordinates,
-          [attempt.shipId]: reply.destination,
-        },
+        ...(reply.status === 'jumped' ? { shipGalacticCoordinates: {
+          ...(current.shipGalacticCoordinates ?? {}),
+          [attempt.shipId]: reply.destination!,
+        } } : {}),
         ...(current.shipResources && normalizedResource && reply.remainingFuel !== undefined ? {
           shipResources: {
             ...current.shipResources,

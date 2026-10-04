@@ -42,6 +42,8 @@ import PrivateLoyaltyPanel from '@/components/PrivateLoyaltyPanel';
 import EndgameDialog from '@/components/EndgameDialog';
 import EscapeState from '@/routes/EscapeState';
 import ReplacementRoleWorkspace from '@/routes/ReplacementRoleWorkspace';
+import PresidentOffice from '@/routes/PresidentOffice';
+import ElectionWorkspace from '@/routes/ElectionWorkspace';
 import type {
   ArbourVision,
   CommissarPurgeAuthority,
@@ -1156,6 +1158,8 @@ function AppRoutes() {
                   <SessionMode mode="press" />
                 </Suspense>
               )} />
+              <Route path="/president" element={<PresidentOffice />} />
+              <Route path="/election" element={<ElectionWorkspace />} />
               <Route path="/shuttles/:shuttleId" element={(
                 <Suspense fallback={<main className="session-mode"><p role="status">Opening shuttle console…</p></main>}>
                   <ShuttleConsole />

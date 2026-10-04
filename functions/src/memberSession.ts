@@ -18,6 +18,7 @@ export interface MemberSessionScope {
   readonly vesselIds: readonly string[];
   readonly craftIds?: readonly string[];
   readonly actorUid?: string;
+  readonly presidentialBallotSubmitted?: boolean;
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -50,6 +51,7 @@ const PUBLIC_FIELDS = [
   'wolfCultEnabled', 'pressEnabled', 'pressClaimed', 'pressAvailabilityRevision', 'gmControlsLocked',
   'turnPhase', 'turnState', 'turnStartAnnouncement', 'pursuitEmergencyWindow', 'gameOutcome',
   'survivorOutcome', 'fleetRedAlert', 'fleetTicker', 'pressDispatch', 'debriefMode', 'singlePlayerDemo',
+  'presidentialElection', 'presidentialOffices', 'currentMemberBallotSubmitted',
   'createdAt', 'updatedAt', 'ownerUid', 'dradisContactTriggeredAt',
 ] as const;
 export const MEMBER_VESSEL_MAP_FIELDS = [
@@ -144,6 +146,43 @@ export function memberSessionProjection(value: unknown, scope: MemberSessionScop
   }
   const result: Record<string, unknown> = Object.fromEntries(PUBLIC_FIELDS
     .filter(key => root[key] !== undefined).map(key => [key, root[key]]));
+  if (typeof scope.presidentialBallotSubmitted === 'boolean') {
+    result.currentMemberBallotSubmitted = scope.presidentialBallotSubmitted;
+  } else if (typeof root.currentMemberBallotSubmitted === 'boolean') {
+    result.currentMemberBallotSubmitted = root.currentMemberBallotSubmitted;
+  } else delete result.currentMemberBallotSubmitted;
+  const electionView = publicElectionView(root.presidentialElection);
+  if (electionView) result.presidentialElection = electionView;
+  else delete result.presidentialElection;
+  const office = record(result.presidentialOffices);
+  const hasOfficeOwnerUid = typeof office.presidentUid === 'string';
+  const isAlreadySanitizedMemberOffice = scope.actorUid === undefined &&
+    typeof root.currentMemberIsPresident === 'boolean' && !hasOfficeOwnerUid;
+  delete result.currentMemberIsPresident;
+  if (office.electionId === 'current' && Number.isSafeInteger(office.revision) && Number(office.revision) >= 1 &&
+      (hasOfficeOwnerUid || isAlreadySanitizedMemberOffice) && typeof office.presidentCandidateId === 'string' &&
+      /^candidate-[\w-]{1,128}$/.test(office.presidentCandidateId) && typeof office.presidentDisplayName === 'string' &&
+      office.presidentDisplayName.trim() && office.presidentDisplayName.length <= 40 &&
+      Number.isSafeInteger(office.decidedCycle) && Number(office.decidedCycle) >= 1 &&
+      (office.vicePresidentUid === undefined || typeof office.vicePresidentUid === 'string') &&
+      (office.vicePresidentCandidateId === undefined || typeof office.vicePresidentCandidateId === 'string' &&
+        /^candidate-[\w-]{1,128}$/.test(office.vicePresidentCandidateId)) &&
+      (office.vicePresidentDisplayName === undefined || typeof office.vicePresidentDisplayName === 'string' &&
+        office.vicePresidentDisplayName.trim() && office.vicePresidentDisplayName.length <= 40)) {
+    result.presidentialOffices = {
+      electionId: 'current', revision: office.revision,
+      presidentCandidateId: office.presidentCandidateId,
+      presidentDisplayName: office.presidentDisplayName.trim(),
+      ...(typeof office.vicePresidentCandidateId === 'string'
+        ? { vicePresidentCandidateId: office.vicePresidentCandidateId,
+          ...(typeof office.vicePresidentDisplayName === 'string' ? { vicePresidentDisplayName: office.vicePresidentDisplayName.trim() } : {}) } : {}),
+      decidedCycle: office.decidedCycle,
+    };
+    result.currentMemberIsPresident = scope.actorUid && hasOfficeOwnerUid
+      ? root.presidentialOfficeOwnerUid === scope.actorUid
+      : root.currentMemberIsPresident === true;
+  } else { delete result.presidentialOffices;delete result.currentMemberIsPresident; }
+  const currentMemberIsPresident = result.currentMemberIsPresident === true;
   result.pressClaimed = root.pressClaimed === true || typeof root.pressHolderUid === 'string';
   for (const key of MEMBER_VESSEL_MAP_FIELDS) result[key] = selectedMap(root[key], ships);
   result.smallShipStates = selectedMap(smallShips, ships);
@@ -163,7 +202,8 @@ export function memberSessionProjection(value: unknown, scope: MemberSessionScop
       hosts: scope.groupId === 'gm' ? ledger.hosts : ledger.hosts.filter(host => ships.has(host.shipId)) };
   }
   for (const [key, id] of Object.entries(VESSEL_DETAIL_FIELDS)) {
-    if (ships.has(id) && root[key] !== undefined) result[key] = root[key];
+    if ((ships.has(id) || currentMemberIsPresident &&
+        ['presidentWorkspace','politicalCapital','resolvedCrisisOutcome'].includes(key)) && root[key] !== undefined) result[key] = root[key];
   }
   if (scope.groupId !== 'gm') {
     for (const [key, id, parse] of [
@@ -209,6 +249,92 @@ export function memberSessionProjection(value: unknown, scope: MemberSessionScop
 function safelyParsed<T>(value: unknown, parse: (value: unknown) => T): T | undefined {
   if (value === undefined) return undefined;
   try { return parse(value); } catch { return undefined; }
+}
+
+function publicElectionView(value: unknown): Record<string, unknown> | undefined {
+  const raw = record(value);
+  const stateNames = ['scheduled', 'open', 'tie-pending', 'resolved', 'no-winner'];
+  if (raw.type !== 'presidential-election' || Object.keys(raw).some(key => ![
+    'type','revision','state','policy','candidates','tally','presidentCandidateId','vicePresidentCandidateId',
+    'pendingPresidentTie','pendingVicePresidentTie','decidedCycle',
+  ].includes(key)) || !Number.isSafeInteger(raw.revision) || Number(raw.revision) < 1 ||
+      !stateNames.includes(String(raw.state)) || !Array.isArray(raw.candidates) || raw.candidates.length < 2 ||
+      raw.candidates.length > 300) return undefined;
+  const candidateIds = new Set<string>();
+  const candidates: { id: string; displayName: string }[] = [];
+  for (const entry of raw.candidates) {
+    const candidate = record(entry);
+    if (Object.keys(candidate).length !== 2 || typeof candidate.id !== 'string' ||
+        !/^candidate-[\w-]{1,128}$/.test(candidate.id) || candidateIds.has(candidate.id) ||
+        typeof candidate.displayName !== 'string' || !candidate.displayName.trim() || candidate.displayName.length > 40) return undefined;
+    candidateIds.add(candidate.id);
+    candidates.push({ id: candidate.id, displayName: candidate.displayName.trim() });
+  }
+  const policy = record(raw.policy);
+  if (Object.keys(policy).length !== 9 || Object.keys(policy).some(key => ![
+    'votingSystem','populationWeighting','openCycle','closeCycle','vicePresidentEnabled','campaigning','supplyUse',
+    'campaignInstructions','tieRule',
+  ].includes(key)) || !['plurality','majority'].includes(String(policy.votingSystem)) ||
+      !['equal','ship-population'].includes(String(policy.populationWeighting)) ||
+      !Number.isSafeInteger(policy.openCycle) || Number(policy.openCycle) < 1 ||
+      !Number.isSafeInteger(policy.closeCycle) || Number(policy.closeCycle) < Number(policy.openCycle) ||
+      typeof policy.vicePresidentEnabled !== 'boolean' || !['open','structured','prohibited'].includes(String(policy.campaigning)) ||
+      !['prohibited','facilitator-approved'].includes(String(policy.supplyUse)) ||
+      typeof policy.campaignInstructions !== 'string' || !policy.campaignInstructions.trim() || policy.campaignInstructions.length > 1200 ||
+      !['current-office-remains','facilitator-choice'].includes(String(policy.tieRule))) return undefined;
+  const idList = (input: unknown): string[] | undefined => {
+    if (!Array.isArray(input) || input.length > 300 || input.some(id => typeof id !== 'string' || !candidateIds.has(id)) ||
+        new Set(input).size !== input.length) return undefined;
+    return [...input] as string[];
+  };
+  const parseOfficeTally = (value: unknown): Record<string, unknown> | undefined => {
+    const tally = record(value);
+    if (Object.keys(tally).some(key => !['totalVotes','totalWeight','scores','tiedCandidateIds','winnerId'].includes(key)) ||
+        !Number.isSafeInteger(tally.totalVotes) || Number(tally.totalVotes) < 0 || Number(tally.totalVotes) > 300 ||
+        !Number.isSafeInteger(tally.totalWeight) || Number(tally.totalWeight) < 0 || typeof tally.scores !== 'object' ||
+        tally.scores === null || Array.isArray(tally.scores)) return undefined;
+    const rawScores = record(tally.scores);
+    const scores = Object.fromEntries(Object.entries(rawScores).filter(([id, score]) => candidateIds.has(id) &&
+      Number.isSafeInteger(score) && Number(score) >= 0));
+    if (Object.keys(scores).length !== Object.keys(rawScores).length) return undefined;
+    const tiedCandidateIds = idList(tally.tiedCandidateIds);
+    if (!tiedCandidateIds || (tally.winnerId !== undefined &&
+      (typeof tally.winnerId !== 'string' || !candidateIds.has(tally.winnerId)))) return undefined;
+    return { totalVotes: Number(tally.totalVotes), totalWeight: Number(tally.totalWeight), scores, tiedCandidateIds,
+      ...(tally.winnerId === undefined ? {} : { winnerId: tally.winnerId }) };
+  };
+  let tally: Record<string, unknown> | undefined;
+  if (raw.tally !== undefined) {
+    const source = record(raw.tally), president = parseOfficeTally(source.president);
+    const vicePresident = source.vicePresident === undefined ? undefined : parseOfficeTally(source.vicePresident);
+    if (Object.keys(source).some(key => key !== 'president' && key !== 'vicePresident') || !president ||
+        (source.vicePresident !== undefined && !vicePresident) ||
+        (Boolean(policy.vicePresidentEnabled) !== Boolean(source.vicePresident))) return undefined;
+    tally = { president, ...(vicePresident ? { vicePresident } : {}) };
+  }
+  const pendingPresidentTie = raw.pendingPresidentTie === undefined ? undefined : idList(raw.pendingPresidentTie);
+  const pendingVicePresidentTie = raw.pendingVicePresidentTie === undefined ? undefined : idList(raw.pendingVicePresidentTie);
+  const validPresident = raw.presidentCandidateId === undefined ||
+    typeof raw.presidentCandidateId === 'string' && candidateIds.has(raw.presidentCandidateId);
+  const validVicePresident = raw.vicePresidentCandidateId === undefined ||
+    typeof raw.vicePresidentCandidateId === 'string' && candidateIds.has(raw.vicePresidentCandidateId);
+  if ((raw.pendingPresidentTie !== undefined && !pendingPresidentTie) ||
+      (raw.pendingVicePresidentTie !== undefined && !pendingVicePresidentTie) ||
+      !validPresident || !validVicePresident ||
+      (raw.decidedCycle !== undefined && (!Number.isSafeInteger(raw.decidedCycle) || Number(raw.decidedCycle) < 1))) return undefined;
+  return {
+    type: 'presidential-election', revision: Number(raw.revision), state: raw.state,
+    policy: {
+      votingSystem: policy.votingSystem, populationWeighting: policy.populationWeighting,
+      openCycle: Number(policy.openCycle), closeCycle: Number(policy.closeCycle),
+      vicePresidentEnabled: policy.vicePresidentEnabled, campaigning: policy.campaigning,
+      supplyUse: policy.supplyUse, campaignInstructions: policy.campaignInstructions.trim(), tieRule: policy.tieRule,
+    }, candidates, ...(tally ? { tally } : {}),
+    ...(typeof raw.presidentCandidateId === 'string' ? { presidentCandidateId: raw.presidentCandidateId } : {}),
+    ...(typeof raw.vicePresidentCandidateId === 'string' ? { vicePresidentCandidateId: raw.vicePresidentCandidateId } : {}),
+    ...(pendingPresidentTie ? { pendingPresidentTie } : {}), ...(pendingVicePresidentTie ? { pendingVicePresidentTie } : {}),
+    ...(raw.decidedCycle === undefined ? {} : { decidedCycle: Number(raw.decidedCycle) }),
+  };
 }
 
 /** Additional PC07 feed fields use the same domain parsers as their write authorities. */
@@ -267,10 +393,39 @@ export function parsedMemberSessionDetails(value: unknown, activeVesselIds: read
     result.pdfEscortWing = Object.fromEntries(wingFields.map(key => [key, wing[key]]));
   }
   const crisis = record(root.resolvedCrisisOutcome);
-  if (Object.keys(crisis).length === 3 && typeof crisis.crisisId === 'string' && /^[\w-]{1,80}$/.test(crisis.crisisId) &&
+  const crisisKeys = Object.keys(crisis);
+  const includesCapitalAward = Object.hasOwn(crisis, 'capitalApplied') || Object.hasOwn(crisis, 'capitalDelta');
+  const validCapitalAward = !includesCapitalAward ||
+    typeof crisis.capitalApplied === 'boolean' && (crisis.capitalDelta === 0 || crisis.capitalDelta === 1) &&
+    crisis.capitalApplied === (crisis.capitalDelta === 1);
+  if ((crisisKeys.length === 3 || crisisKeys.length === 5) &&
+      crisisKeys.every(key => ['crisisId', 'revision', 'title', 'capitalApplied', 'capitalDelta'].includes(key)) &&
+      validCapitalAward && typeof crisis.crisisId === 'string' && /^[\w-]{1,80}$/.test(crisis.crisisId) &&
       Number.isSafeInteger(crisis.revision) && Number(crisis.revision) >= 1 &&
       typeof crisis.title === 'string' && crisis.title.trim() && crisis.title.length <= 160) {
-    result.resolvedCrisisOutcome = { crisisId: crisis.crisisId, revision: crisis.revision, title: crisis.title };
+    result.resolvedCrisisOutcome = { crisisId: crisis.crisisId, revision: crisis.revision, title: crisis.title,
+      ...(includesCapitalAward ? { capitalApplied: crisis.capitalApplied as boolean,
+        capitalDelta: crisis.capitalDelta as 0 | 1 } : {}) };
+  }
+  const election = publicElectionView(root.presidentialElection);
+  if (election) result.presidentialElection = election;
+  const offices = record(root.presidentialOffices);
+  if (offices.electionId === 'current' && Number.isSafeInteger(offices.revision) && Number(offices.revision) >= 1 &&
+      typeof offices.presidentUid === 'string' && /^candidate-[\w-]{1,128}$/.test(String(offices.presidentCandidateId)) &&
+      typeof offices.presidentDisplayName === 'string' && offices.presidentDisplayName.trim() && offices.presidentDisplayName.length <= 40 &&
+      (offices.vicePresidentUid === undefined || typeof offices.vicePresidentUid === 'string') &&
+      (offices.vicePresidentCandidateId === undefined || /^candidate-[\w-]{1,128}$/.test(String(offices.vicePresidentCandidateId))) &&
+      (offices.vicePresidentDisplayName === undefined || typeof offices.vicePresidentDisplayName === 'string' &&
+        offices.vicePresidentDisplayName.trim() && offices.vicePresidentDisplayName.length <= 40) &&
+      Number.isSafeInteger(offices.decidedCycle) && Number(offices.decidedCycle) >= 1) {
+    result.presidentialOffices = {
+      electionId: 'current', revision: Number(offices.revision), presidentUid: offices.presidentUid,
+      presidentCandidateId: offices.presidentCandidateId, presidentDisplayName: offices.presidentDisplayName.trim(),
+      ...(offices.vicePresidentCandidateId ? { vicePresidentUid: offices.vicePresidentUid,
+        vicePresidentCandidateId: offices.vicePresidentCandidateId,
+        ...(typeof offices.vicePresidentDisplayName === 'string' ? { vicePresidentDisplayName: offices.vicePresidentDisplayName.trim() } : {}) } : {}),
+      decidedCycle: Number(offices.decidedCycle),
+    };
   }
   const outcome = record(root.gameOutcome);
   if (outcome.type === 'game-outcome' && outcome.result === 'failure' &&

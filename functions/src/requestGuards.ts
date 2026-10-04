@@ -18,8 +18,9 @@ import {
   type WolfAttackTargetMode,
 } from './wolfAttackPreparation';
 import { isReplacementEligibilityReason } from './replacementRoles';
-import { parseDiseaseOutbreak, type DiseaseOutbreakDetails, isCrisisKind, isCrisisState, type CrisisKind, type CrisisStateName } from './crisisState';
+import { parseDiseaseOutbreak, type DiseaseOutbreakDetails, isCrisisDeliveryPressure, type CrisisDeliveryPressure, isCrisisKind, isCrisisState, type CrisisKind, type CrisisStateName } from './crisisState';
 import { parseZealotryResponseInput, type ZealotryResponseAction } from './zealotryResponse';
+import { parseApproachingVesselResponseInput } from './approachingVesselResponse';
 import { parseCivilUnrestResolutionInput } from './civilUnrestResolution';
 import type { WolfAttackThreatSiteCode } from './wolfAttackWindow';
 
@@ -1765,6 +1766,8 @@ export function requireCrisisTransitionRequest(data: {
   crisisKind?: unknown;
   configurationOverride?: unknown;
   diseaseOutbreak?: unknown;
+  deliveryPressure?: unknown;
+  formalAnnouncement?: unknown;
 }): {
   sessionId: string;
   instanceId: string;
@@ -1777,6 +1780,8 @@ export function requireCrisisTransitionRequest(data: {
   crisisKind: CrisisKind;
   configurationOverride: string;
   diseaseOutbreak?: DiseaseOutbreakDetails;
+  deliveryPressure?: CrisisDeliveryPressure;
+  formalAnnouncement?: { readonly title: string; readonly details: string };
 } {
   if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
     throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
@@ -1802,6 +1807,28 @@ export function requireCrisisTransitionRequest(data: {
     ? '' : requiredText(data.configurationOverride, 'configurationOverride', 1000);
   const diseaseOutbreak = data.diseaseOutbreak === undefined ? undefined : parseDiseaseOutbreak(data.diseaseOutbreak);
   if (diseaseOutbreak === null) throw new HttpsError('invalid-argument', 'Complete the affected ships, work restrictions and escalation risk (maximum 1000 characters each).');
+  if (data.deliveryPressure !== undefined && !isCrisisDeliveryPressure(data.deliveryPressure)) {
+    throw new HttpsError('invalid-argument', 'deliveryPressure must be decrease, hold or increase.');
+  }
+  if (data.state === 'delivered' && !isCrisisDeliveryPressure(data.deliveryPressure)) {
+    throw new HttpsError('invalid-argument', 'Choose a delivery-pressure policy before delivering a crisis.');
+  }
+  let formalAnnouncement: { title: string; details: string } | undefined;
+  if (data.formalAnnouncement !== undefined) {
+    if (!data.formalAnnouncement || typeof data.formalAnnouncement !== 'object' || Array.isArray(data.formalAnnouncement)) {
+      throw new HttpsError('invalid-argument', 'formalAnnouncement must contain a public title and details.');
+    }
+    const raw = data.formalAnnouncement as Record<string, unknown>;
+    if (Object.keys(raw).some((key) => key !== 'title' && key !== 'details') ||
+        typeof raw.title !== 'string' || !raw.title.trim() || raw.title.trim().length > 120 ||
+        typeof raw.details !== 'string' || !raw.details.trim() || raw.details.trim().length > 700) {
+      throw new HttpsError('invalid-argument', 'Enter a public announcement title and details (maximum 120 and 700 characters).');
+    }
+    if (data.state !== 'resolved') {
+      throw new HttpsError('invalid-argument', 'A formal announcement may be attached only to a resolved crisis.');
+    }
+    formalAnnouncement = { title: raw.title.trim(), details: raw.details.trim() };
+  }
   return {
     ...requireGmInstanceRequest(data),
     requestId: requiredId(data.requestId, 'requestId'),
@@ -1813,6 +1840,8 @@ export function requireCrisisTransitionRequest(data: {
     crisisKind,
     configurationOverride,
     ...(diseaseOutbreak ? { diseaseOutbreak } : {}),
+    ...(isCrisisDeliveryPressure(data.deliveryPressure) ? { deliveryPressure: data.deliveryPressure } : {}),
+    ...(formalAnnouncement ? { formalAnnouncement } : {}),
   };
 }
 
@@ -1843,6 +1872,50 @@ export function requireVoyage33AdmissionRequest(data: {
     expectedRevision: data.expectedRevision as number,
     crisisId,
   };
+}
+
+/** Record the facilitator's private truth adjudication and fleet response plan. */
+export function requireApproachingVesselResponseRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedCrisisRevision?: unknown;
+  expectedResponseRevision?: unknown;
+  crisisId?: unknown;
+  vesselReality?: unknown;
+  responseChoices?: unknown;
+  coordinationActions?: unknown;
+  responseInstructions?: unknown;
+  quarantineInstructions?: unknown;
+  contingencyObjectives?: unknown;
+  rationale?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  expectedCrisisRevision: number;
+  expectedResponseRevision: number;
+  crisisId: string;
+  response: ReturnType<typeof parseApproachingVesselResponseInput>;
+} {
+  if (!Number.isSafeInteger(data.expectedCrisisRevision) || Number(data.expectedCrisisRevision) < 1 ||
+      !Number.isSafeInteger(data.expectedResponseRevision) || Number(data.expectedResponseRevision) < 0) {
+    throw new HttpsError('invalid-argument', 'Crisis and response revisions must be current non-negative integers.');
+  }
+  const crisisId = requiredText(data.crisisId, 'crisisId', 80);
+  if (!/^[A-Za-z0-9_-]+$/.test(crisisId)) {
+    throw new HttpsError('invalid-argument', 'crisisId contains invalid characters.');
+  }
+  try {
+    const response = parseApproachingVesselResponseInput(data);
+    return {
+      ...requireGmInstanceRequest(data), requestId: requiredId(data.requestId, 'requestId'),
+      expectedCrisisRevision: Number(data.expectedCrisisRevision), expectedResponseRevision: Number(data.expectedResponseRevision),
+      crisisId, response,
+    };
+  } catch (cause) {
+    throw new HttpsError('invalid-argument', cause instanceof Error ? cause.message : 'The vessel response is not valid.');
+  }
 }
 
 export function requireZealotryResponseRequest(data: {
@@ -2211,13 +2284,30 @@ export function requireFailedJumpAdjudicationRequest(data: {
   expectedRevision?: unknown;
   failureRequestId?: unknown;
   destination?: unknown;
+  consequence?: unknown;
 }): {
   sessionId: string; instanceId: string; requestId: string; expectedRevision: number;
-  failureRequestId: string; destination: string;
+  failureRequestId: string; destination?: string;
+  consequence: 'nothing-happens' | 'full-d6-damage' | 'half-d6-damage' | 'wrong-location' |
+    'wrong-location-full-d6-damage' | 'wrong-location-half-d6-damage';
 } {
-  const destination = requiredText(data.destination, 'destination', 4);
-  if (!/^\d{4}$/.test(destination)) {
-    throw new HttpsError('invalid-argument', 'destination must be exactly four digits.');
+  const consequences = [
+    'nothing-happens', 'full-d6-damage', 'half-d6-damage', 'wrong-location',
+    'wrong-location-full-d6-damage', 'wrong-location-half-d6-damage',
+  ] as const;
+  if (!consequences.includes(data.consequence as typeof consequences[number])) {
+    throw new HttpsError('invalid-argument', 'Choose a documented failed-jump consequence before adjudicating.');
+  }
+  const consequence = data.consequence as typeof consequences[number];
+  let destination: string | undefined;
+  if (data.destination !== undefined) {
+    destination = requiredText(data.destination, 'destination', 4);
+    if (!/^\d{4}$/.test(destination)) {
+      throw new HttpsError('invalid-argument', 'destination must be exactly four digits.');
+    }
+  }
+  if (consequence !== 'nothing-happens' && destination === undefined) {
+    throw new HttpsError('invalid-argument', 'A printed destination is required for a jump consequence.');
   }
   if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
     throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
@@ -2228,7 +2318,8 @@ export function requireFailedJumpAdjudicationRequest(data: {
     requestId: requiredId(data.requestId, 'requestId'),
     expectedRevision: data.expectedRevision as number,
     failureRequestId: requiredId(data.failureRequestId, 'failureRequestId'),
-    destination,
+    ...(destination === undefined ? {} : { destination }),
+    consequence,
   };
 }
 

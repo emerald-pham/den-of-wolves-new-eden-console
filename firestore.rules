@@ -1143,6 +1143,32 @@ service cloud.firestore {
         }
       }
 
+      // Approaching Vessel adjudication carries hidden reality and facilitator
+      // rationale. Only the separately allowlisted report projection is public.
+      match /approachingVesselResponses/{documentId} {
+        allow get: if isGm(sessionId) && resource.data.type == 'approaching-vessel-response' &&
+          resource.data.sessionId == sessionId &&
+          (documentId == 'current' || documentId.matches('history-.*') || documentId.matches('audit-.*'));
+        allow list, write: if false;
+      }
+
+      // Election procedures also contain the server-owned voter mapping. Each
+      // secret ballot is stored separately by voter UID; neither ballots nor
+      // private election audits are ever directly readable from a client.
+      // Members receive only the allowlisted aggregate through the current
+      // member-session callable projection.
+      match /presidentialElections/{electionId} {
+        allow read, write: if false;
+
+        match /ballots/{ballotUid} {
+          allow read, write: if false;
+        }
+
+        match /audit/{auditId} {
+          allow read, write: if false;
+        }
+      }
+
       // Religious Zealotry outcomes are explicit facilitator decisions. They
       // retain a private current record and request history; no member may
       // enumerate, read, or write the response or its rationale.

@@ -169,9 +169,11 @@ export default function FleetSystemsWorkspace({
       />}
       {role.id === 'dione-president' && <PresidentWorkspace
         writable={writable && (me?.role === 'gm' || (
-          me?.role === 'player' && me.activeConsoleRoleId === 'dione-president' &&
-          (me.assignedRoleId === 'dione-president' || me.seatId === 'dione-president') &&
-          (!me.assignedRoleId || !me.seatId || me.assignedRoleId === me.seatId)
+          me?.role === 'player' && (session?.presidentialOffices
+            ? session.currentMemberIsPresident === true
+            : me.activeConsoleRoleId === 'dione-president' &&
+              (me.assignedRoleId === 'dione-president' || me.seatId === 'dione-president') &&
+              (!me.assignedRoleId || !me.seatId || me.assignedRoleId === me.seatId))
         ))}
         consoleLocked={consoleLocked}
       />}

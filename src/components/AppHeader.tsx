@@ -314,6 +314,8 @@ export default function AppHeader() {
   const joinCode = useSessionStore((state) => state.session?.joinCode);
   const hasSession = sessionId !== undefined && joinCode !== undefined;
   const currentTurn = useSessionStore((state) => state.session?.currentTurn);
+  const electionAvailable = useSessionStore((state) => state.session?.presidentialElection !== undefined);
+  const currentMemberIsPresident = useSessionStore((state) => state.session?.currentMemberIsPresident === true);
   const singlePlayerDemo = useSessionStore((state) => state.session?.singlePlayerDemo);
   const gmInstance = useSessionStore((state) => state.gmInstance);
   const gmAccessAuthenticated = useSessionStore(selectGmAccessAuthenticated);
@@ -493,6 +495,10 @@ export default function AppHeader() {
         </aside>
       )}
       {rank !== null && <p className="player-rank">Rank: {rank}</p>}
+      {hasSession && electionAvailable && <button className="cic-text-button" type="button"
+        onClick={() => navigate('/election')}>Election</button>}
+      {hasSession && currentMemberIsPresident && <button className="cic-text-button" type="button"
+        onClick={() => navigate('/president')}>President&apos;s office</button>}
       <ConnectionIndicator
         status={indicatorStatus}
         sessionRecovery={Boolean(sessionId && !playerUid && connection === 'connecting')}

@@ -21,6 +21,7 @@ import type {
   SupplementalVesselId,
   VesselId,
 } from './identifiers';
+import type { PresidentialElectionProjection, PresidentialOfficesProjection } from './presidentialElection';
 import type { ResourceId } from '@/data/resources';
 import type { CrisisStateName } from './crisis';
 
@@ -1201,11 +1202,23 @@ export interface TurnState {
   readonly endsAt: Timestamp;
 }
 
+export interface TeamStartFormalAnnouncement {
+  readonly id: string;
+  readonly kind: 'binding-resolution' | 'presidential-election';
+  readonly title: string;
+  readonly details: string;
+  readonly decidedCycle: number;
+}
+
 export interface TurnStartAnnouncement {
   readonly turn: number;
   readonly survivorPopulation: number;
   /** Increments when the GM deliberately replays this transmission. */
   readonly revision?: number;
+  /** Public formal outcomes attached to this Team-start transmission. */
+  readonly formalAnnouncements?: readonly TeamStartFormalAnnouncement[];
+  /** When a regular briefing is skipped, deliver any required formal outcomes alone. */
+  readonly formalOnly?: boolean;
 }
 
 export type AdmiralDirectiveKind = 'fleet-policy' | 'defence-coordination';
@@ -1263,6 +1276,9 @@ export interface ResolvedCrisisOutcome {
   readonly crisisId: string;
   readonly revision: number;
   readonly title: string;
+  /** Whether the source award increased political capital under the eight-point cap. */
+  readonly capitalApplied?: boolean;
+  readonly capitalDelta?: 0 | 1;
 }
 
 /** A browser-local GM replay; it is intentionally never persisted or shared. */
@@ -1589,6 +1605,14 @@ export interface GameSession {
   readonly politicalCapital?: PoliticalCapitalState;
   /** Latest server-recorded crisis resolution available to the President ledger. */
   readonly resolvedCrisisOutcome?: ResolvedCrisisOutcome;
+  /** Public policy and aggregate result; individual presidential ballots remain private. */
+  readonly presidentialElection?: PresidentialElectionProjection;
+  /** Current elected office holders, independent from station seats and ship roles. */
+  readonly presidentialOffices?: PresidentialOfficesProjection;
+  /** Computed by the authenticated member-session projection, never stored on the public session root. */
+  readonly currentMemberIsPresident?: boolean;
+  /** Actor-scoped receipt status; never includes the actor's selected candidates. */
+  readonly currentMemberBallotSubmitted?: boolean;
   /** GM-controlled presentation state for the shared end-of-session finale. */
   readonly debriefMode?: {
     readonly active: boolean;

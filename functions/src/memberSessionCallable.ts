@@ -26,11 +26,13 @@ export function createCurrentMemberSessionReader({ db, projectSession }: {
     const sessionId = data.sessionId;
     const actorUid = request.auth.uid;
     return db.runTransaction(async tx => {
-      const [session, actor, groups, departures] = await Promise.all([
+      const [session, actor, groups, departures, election, ballot] = await Promise.all([
         tx.get(db.doc(`sessions/${sessionId}`)),
         tx.get(db.doc(`sessions/${sessionId}/players/${actorUid}`)),
         tx.get(db.collection(`sessions/${sessionId}/fleetGroups`)),
         tx.get(db.collection(`sessions/${sessionId}/shuttleDepartures`)),
+        tx.get(db.doc(`sessions/${sessionId}/presidentialElections/current`)),
+        tx.get(db.doc(`sessions/${sessionId}/presidentialElections/current/ballots/${actorUid}`)),
       ]);
       if (!session.exists) throw new HttpsError('not-found', 'No such session.');
       if (!actor.exists || actor.get('connected') !== true || actor.get('kickedAt')) {
@@ -55,7 +57,8 @@ export function createCurrentMemberSessionReader({ db, projectSession }: {
         connectionGeneration: actor.get('connectionGeneration') ?? 1,
         assignedRoleId: actor.get('assignedRoleId') ?? null,
         activeConsoleRoleId: actor.get('activeConsoleRoleId') ?? null,
-        session: wire(memberSessionProjection(raw, { ...scope, actorUid, craftIds })) as Record<string, unknown>,
+        session: wire(memberSessionProjection(raw, { ...scope, actorUid, craftIds,
+          presidentialBallotSubmitted: election.exists && ballot.exists && ballot.get('voterUid') === actorUid })) as Record<string, unknown>,
       };
     });
   };

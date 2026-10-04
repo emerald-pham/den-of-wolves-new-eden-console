@@ -16,6 +16,22 @@ export function CrisisReportContent({ report }: { report: CrisisReport }) {
         {expanded ? 'Hide report' : 'Read report'}
       </button>
       {expanded && <p id="fleet-crisis-report-body" className="crisis-report__body">{report.body}</p>}
+      {report.approachingVesselResponse && <section aria-label="Committed Approaching Vessel response">
+        <h3>Fleet response</h3>
+        <p>{report.approachingVesselResponse.responseInstructions}</p>
+        <h4>Response timing and posture</h4>
+        <ul>{report.approachingVesselResponse.responseChoices.map((choice) => <li key={choice}>{choice.replaceAll('-', ' ')}</li>)}</ul>
+        {report.approachingVesselResponse.coordinationActions.length > 0 && <>
+          <h4>Coordination</h4>
+          <ul>{report.approachingVesselResponse.coordinationActions.map((action) => <li key={action}>{action.replaceAll('-', ' ')}</li>)}</ul>
+        </>}
+        {report.approachingVesselResponse.quarantineInstructions && <p>
+          Quarantine staffing and enforcement: {report.approachingVesselResponse.quarantineInstructions}
+        </p>}
+        {report.approachingVesselResponse.contingencyObjectives && <p>
+          Contingency objectives: {report.approachingVesselResponse.contingencyObjectives}
+        </p>}
+      </section>}
       {report.crisisKind === 'civil-unrest' && (
         <CivilUnrestGrievancePanel crisisId={report.crisisId} crisisRevision={report.revision} crisisState={report.state} />
       )}

@@ -20,6 +20,7 @@ import { httpsCallable } from 'firebase/functions';
 import { app, functions } from './firebase';
 import { emulatorPorts, useEmulators } from './firebaseConfig';
 import { parsePdfEscortWingMemberView } from './pdfEscortWingProjection';
+import { parsePresidentialElectionProjection, parsePresidentialOfficesProjection } from './presidentialElectionProjection';
 import { parseVoyage33MovementState } from '../../functions/src/voyage33Movement';
 import { isWolfAttackMemberView } from '../../functions/src/wolfAttackAudience';
 import type {
@@ -45,6 +46,7 @@ import type {
   SessionChartId,
   SessionExpansionMode,
   SessionEvent,
+  TeamStartFormalAnnouncement,
   SmallShipId,
   SmallShipState,
   ShuttleDocking,
@@ -99,7 +101,11 @@ import type {
   VipCardName,
   VipHand,
 } from '@/types/game';
-import { parseDiseaseOutbreak, isCrisisKind, ZEALOTRY_RESPONSE_ACTIONS, CIVIL_UNREST_SHIP_IDS, type CrisisReport, type CrisisStateProjection, type CrisisStateName, type ZealotryResponse, type CivilUnrestGrievance, type CivilUnrestPublicProjection, type CivilUnrestResolution } from '@/types/crisis';
+import { parseDiseaseOutbreak, isCrisisDeliveryPressure, isCrisisKind, ZEALOTRY_RESPONSE_ACTIONS, CIVIL_UNREST_SHIP_IDS,
+  APPROACHING_VESSEL_RESPONSE_CHOICES, APPROACHING_VESSEL_COORDINATION_ACTIONS,
+  type CrisisReport, type CrisisStateProjection, type CrisisStateName, type ZealotryResponse,
+  type ApproachingVesselResponse, type ApproachingVesselResponseProjection,
+  type CivilUnrestGrievance, type CivilUnrestPublicProjection, type CivilUnrestResolution } from '@/types/crisis';
 import { isWireSafeEntityId, type EntityId, type EntityKind } from '@/types/identifiers';
 import { DEFAULT_ACTIVE_ROLE_IDS, findConsoleRole } from '@/data/roles';
 import {
@@ -1376,17 +1382,37 @@ function turnStartAnnouncement(value: unknown): GameSession['turnStartAnnounceme
   const turn = announcement.turn;
   const survivorPopulation = announcement.survivorPopulation;
   const revision = announcement.revision;
+  const formal = announcement.formalAnnouncements;
+  const formalOnly = announcement.formalOnly;
+  const formalAnnouncements: NonNullable<GameSession['turnStartAnnouncement']>['formalAnnouncements'] | null | undefined = formal === undefined ? undefined : Array.isArray(formal) && formal.length <= 20
+    ? formal.flatMap((item) => {
+      if (typeof item !== 'object' || item === null || Array.isArray(item)) return [];
+      const raw = item as Record<string, unknown>;
+      if (Object.keys(raw).some((key) => !['id', 'kind', 'title', 'details', 'decidedCycle'].includes(key)) ||
+          typeof raw.id !== 'string' || !/^[\w-]{1,160}$/.test(raw.id) ||
+          (raw.kind !== 'binding-resolution' && raw.kind !== 'presidential-election') ||
+          typeof raw.title !== 'string' || !raw.title.trim() || raw.title.length > 120 ||
+          typeof raw.details !== 'string' || !raw.details.trim() || raw.details.length > 700 ||
+          !Number.isSafeInteger(raw.decidedCycle) || Number(raw.decidedCycle) < 1) return [];
+      return [{ id: raw.id, kind: raw.kind as TeamStartFormalAnnouncement['kind'], title: raw.title.trim(), details: raw.details.trim(), decidedCycle: Number(raw.decidedCycle) }];
+    }) : null;
   if (
     typeof turn !== 'number' || !Number.isSafeInteger(turn) || turn < 1 ||
     typeof survivorPopulation !== 'number' || !Number.isSafeInteger(survivorPopulation) ||
     survivorPopulation < 0 ||
     (revision !== undefined &&
-      (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 0))
+      (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 0)) ||
+    (formal !== undefined && (!Array.isArray(formal) || !formalAnnouncements || formalAnnouncements.length !== formal.length ||
+      new Set(formalAnnouncements.map(({ id }) => id)).size !== formalAnnouncements.length)) ||
+    (formalOnly !== undefined && typeof formalOnly !== 'boolean') ||
+    (formalOnly === true && (!formalAnnouncements || formalAnnouncements.length === 0))
   ) return undefined;
   return {
     turn,
     survivorPopulation,
     ...(revision === undefined ? {} : { revision }),
+    ...(formalAnnouncements && formalAnnouncements.length > 0 ? { formalAnnouncements } : {}),
+    ...(formalOnly === true ? { formalOnly: true } : {}),
   };
 }
 
@@ -2178,6 +2204,7 @@ function crisisStateProjection(value: unknown, sessionId: string): CrisisStatePr
       typeof raw.title !== 'string' || raw.title.length === 0 || raw.title.length > 160 ||
       typeof raw.details !== 'string' || raw.details.length > 2_000 ||
       (raw.crisisKind !== undefined && !isCrisisKind(raw.crisisKind)) ||
+      (raw.deliveryPressure !== undefined && !isCrisisDeliveryPressure(raw.deliveryPressure)) ||
       (raw.configurationOverride !== undefined && (typeof raw.configurationOverride !== 'string' || raw.configurationOverride.length > 1000))) return null;
   return {
     sessionId: parsedSessionId,
@@ -2188,6 +2215,7 @@ function crisisStateProjection(value: unknown, sessionId: string): CrisisStatePr
     details: raw.details,
     crisisKind: isCrisisKind(raw.crisisKind) ? raw.crisisKind : (isCrisisKind(raw.crisisId) ? raw.crisisId : 'custom'),
     configurationOverride: typeof raw.configurationOverride === 'string' ? raw.configurationOverride : '',
+    ...(isCrisisDeliveryPressure(raw.deliveryPressure) ? { deliveryPressure: raw.deliveryPressure } : {}),
     ...(disease ? { diseaseOutbreak: disease } : {}),
     ...(raw.updatedAt === undefined ? {} : { updatedAt: iso(raw.updatedAt) }),
   };
@@ -2223,6 +2251,48 @@ function zealotryResponse(value: unknown, sessionId: string): ZealotryResponse |
     ...(typeof raw.customResponse === 'string' ? { customResponse: raw.customResponse } : {}),
     rationale: raw.rationale,
     loyaltyCensusRevision: raw.loyaltyCensusRevision as number | null,
+    ...(typeof raw.actorUid === 'string' ? { actorUid: parseEntityId('player', raw.actorUid)! } : {}),
+    ...(optionalIso(raw.updatedAt) ? { updatedAt: optionalIso(raw.updatedAt)! } : {}),
+  };
+}
+
+function approachingVesselResponse(value: unknown, sessionId: string): ApproachingVesselResponse | null {
+  const raw = recordValue(value);
+  const parsedSessionId = parseEntityId('session', raw?.sessionId ?? sessionId);
+  const crisisSessionId = parseEntityId('session', sessionId);
+  const crisisRevision = nonNegativeInteger(raw?.crisisRevision);
+  const revision = nonNegativeInteger(raw?.revision);
+  if (!raw || Object.keys(raw).some((key) => ![
+    'type','sessionId','crisisId','crisisRevision','state','revision','vesselReality','responseChoices','coordinationActions',
+    'responseInstructions','quarantineInstructions','contingencyObjectives','rationale','actorUid','instanceId','updatedAt',
+  ].includes(key)) || !parsedSessionId || !crisisSessionId || parsedSessionId !== crisisSessionId ||
+      raw.type !== 'approaching-vessel-response' || typeof raw.crisisId !== 'string' ||
+      !/^[A-Za-z0-9_-]{1,80}$/.test(raw.crisisId) || raw.state !== 'debated' ||
+      crisisRevision === undefined || crisisRevision < 1 || revision === undefined || revision < 1 ||
+      !['real','trap'].includes(String(raw.vesselReality)) || !Array.isArray(raw.responseChoices) ||
+      raw.responseChoices.length < 1 || raw.responseChoices.length > APPROACHING_VESSEL_RESPONSE_CHOICES.length ||
+      raw.responseChoices.some((choice) => !APPROACHING_VESSEL_RESPONSE_CHOICES.includes(choice as never)) ||
+      new Set(raw.responseChoices).size !== raw.responseChoices.length || !Array.isArray(raw.coordinationActions) ||
+      raw.coordinationActions.length > APPROACHING_VESSEL_COORDINATION_ACTIONS.length ||
+      raw.coordinationActions.some((action) => !APPROACHING_VESSEL_COORDINATION_ACTIONS.includes(action as never)) ||
+      new Set(raw.coordinationActions).size !== raw.coordinationActions.length ||
+      typeof raw.responseInstructions !== 'string' || !raw.responseInstructions.trim() || raw.responseInstructions.length > 1200 ||
+      typeof raw.rationale !== 'string' || raw.rationale.length > 2000 ||
+      (raw.quarantineInstructions !== undefined && (typeof raw.quarantineInstructions !== 'string' || !raw.quarantineInstructions.trim() || raw.quarantineInstructions.length > 700)) ||
+      (raw.contingencyObjectives !== undefined && (typeof raw.contingencyObjectives !== 'string' || !raw.contingencyObjectives.trim() || raw.contingencyObjectives.length > 700)) ||
+      raw.coordinationActions.includes('quarantine') !== (typeof raw.quarantineInstructions === 'string') ||
+      raw.coordinationActions.includes('contingency-objectives') !== (typeof raw.contingencyObjectives === 'string') ||
+      (raw.actorUid !== undefined && !parseEntityId('player', raw.actorUid)) ||
+      typeof raw.instanceId !== 'string' || !raw.instanceId) return null;
+  return {
+    sessionId: parsedSessionId, crisisId: raw.crisisId, crisisRevision, state: 'debated', revision,
+    vesselReality: raw.vesselReality as ApproachingVesselResponse['vesselReality'],
+    responseChoices: raw.responseChoices as ApproachingVesselResponse['responseChoices'],
+    coordinationActions: raw.coordinationActions as ApproachingVesselResponse['coordinationActions'],
+    responseInstructions: raw.responseInstructions,
+    ...(typeof raw.quarantineInstructions === 'string' ? { quarantineInstructions: raw.quarantineInstructions } : {}),
+    ...(typeof raw.contingencyObjectives === 'string' ? { contingencyObjectives: raw.contingencyObjectives } : {}),
+    rationale: raw.rationale,
     ...(typeof raw.actorUid === 'string' ? { actorUid: parseEntityId('player', raw.actorUid)! } : {}),
     ...(optionalIso(raw.updatedAt) ? { updatedAt: optionalIso(raw.updatedAt)! } : {}),
   };
@@ -3140,6 +3210,23 @@ function hummingbirdHarvest(value: unknown, sessionId: string, uid: string): Hum
   };
 }
 
+function resolvedCrisisOutcomeFrom(value: unknown): GameSession['resolvedCrisisOutcome'] {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  const crisis = value as Record<string, unknown>;
+  const keys = Object.keys(crisis);
+  const hasCapitalAward = Object.hasOwn(crisis, 'capitalApplied') || Object.hasOwn(crisis, 'capitalDelta');
+  const validCapitalAward = !hasCapitalAward ||
+    typeof crisis.capitalApplied === 'boolean' && (crisis.capitalDelta === 0 || crisis.capitalDelta === 1) &&
+    crisis.capitalApplied === (crisis.capitalDelta === 1);
+  if ((keys.length !== 3 && keys.length !== 5) ||
+      keys.some(key => !['crisisId', 'revision', 'title', 'capitalApplied', 'capitalDelta'].includes(key)) ||
+      !validCapitalAward || typeof crisis.crisisId !== 'string' || !/^[\w-]{1,80}$/.test(crisis.crisisId) ||
+      !Number.isSafeInteger(crisis.revision) || Number(crisis.revision) < 1 ||
+      typeof crisis.title !== 'string' || !crisis.title.trim() || crisis.title.length > 160) return undefined;
+  return { crisisId: crisis.crisisId, revision: Number(crisis.revision), title: crisis.title,
+    ...(hasCapitalAward ? { capitalApplied: crisis.capitalApplied as boolean, capitalDelta: crisis.capitalDelta as 0 | 1 } : {}) };
+}
+
 export function sessionFrom(id: string, data: DocumentData): GameSession {
   const sessionId = entityId('session', id);
   const rawDemo = data.singlePlayerDemo;
@@ -3155,6 +3242,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     ? data.playerCount as number
     : undefined;
   const setup = sessionSetup(data.setup);
+  const resolvedCrisisOutcome = resolvedCrisisOutcomeFrom(data.resolvedCrisisOutcome);
   const currentTurn = Number.isSafeInteger(data.currentTurn) && data.currentTurn >= 0
     ? data.currentTurn as number
     : 1;
@@ -3309,6 +3397,8 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     data.memberSessionScope !== undefined,
   );
   const emergencyWindow = pursuitEmergencyWindow(data.pursuitEmergencyWindow);
+  const presidentialElection = parsePresidentialElectionProjection(data.presidentialElection);
+  const presidentialOffices = parsePresidentialOfficesProjection(data.presidentialOffices);
   const session: GameSession = {
     id: sessionId,
     name: data.name as string,
@@ -3362,17 +3452,13 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     admiralDirectives: normalizeAdmiralDirectives(data.admiralDirectives),
     presidentWorkspace: normalizePresidentWorkspace(data.presidentWorkspace),
     politicalCapital: normalizePoliticalCapital(data.politicalCapital),
-    ...(typeof data.resolvedCrisisOutcome === 'object' && data.resolvedCrisisOutcome !== null &&
-      !Array.isArray(data.resolvedCrisisOutcome) &&
-      Object.keys(data.resolvedCrisisOutcome as object).length === 3 &&
-      typeof (data.resolvedCrisisOutcome as Record<string, unknown>).crisisId === 'string' &&
-      /^[\w-]{1,80}$/.test((data.resolvedCrisisOutcome as Record<string, unknown>).crisisId as string) &&
-      Number.isSafeInteger((data.resolvedCrisisOutcome as Record<string, unknown>).revision) &&
-      Number((data.resolvedCrisisOutcome as Record<string, unknown>).revision) >= 1 &&
-      typeof (data.resolvedCrisisOutcome as Record<string, unknown>).title === 'string' &&
-      Boolean(((data.resolvedCrisisOutcome as Record<string, unknown>).title as string).trim()) &&
-      ((data.resolvedCrisisOutcome as Record<string, unknown>).title as string).length <= 160
-      ? { resolvedCrisisOutcome: data.resolvedCrisisOutcome as NonNullable<GameSession['resolvedCrisisOutcome']> } : {}),
+    ...(presidentialElection ? { presidentialElection } : {}),
+    ...(presidentialOffices ? { presidentialOffices } : {}),
+    ...(typeof data.currentMemberIsPresident === 'boolean'
+      ? { currentMemberIsPresident: data.currentMemberIsPresident } : {}),
+    ...(typeof data.currentMemberBallotSubmitted === 'boolean'
+      ? { currentMemberBallotSubmitted: data.currentMemberBallotSubmitted } : {}),
+    ...(resolvedCrisisOutcome ? { resolvedCrisisOutcome } : {}),
     debriefMode: debriefMode(data.debriefMode),
     pressDispatch: normalizePressDispatch(data.pressDispatch),
     fleetTicker: fleetTickerState(data.fleetTicker),
@@ -5503,6 +5589,29 @@ export function subscribeSessionEvents(
   };
 }
 
+function approachingVesselResponseProjection(value: unknown, crisisId: string): ApproachingVesselResponseProjection | undefined {
+  const raw = recordValue(value);
+  if (!raw || Object.keys(raw).some((key) => ![
+    'crisisId','revision','responseChoices','coordinationActions','responseInstructions','quarantineInstructions','contingencyObjectives',
+  ].includes(key)) || raw.crisisId !== crisisId || !Number.isSafeInteger(raw.revision) || Number(raw.revision) < 1 ||
+      !Array.isArray(raw.responseChoices) || raw.responseChoices.length < 1 ||
+      raw.responseChoices.some((value) => !APPROACHING_VESSEL_RESPONSE_CHOICES.includes(value as never)) ||
+      new Set(raw.responseChoices).size !== raw.responseChoices.length ||
+      !Array.isArray(raw.coordinationActions) || raw.coordinationActions.some((value) => !APPROACHING_VESSEL_COORDINATION_ACTIONS.includes(value as never)) ||
+      new Set(raw.coordinationActions).size !== raw.coordinationActions.length ||
+      typeof raw.responseInstructions !== 'string' || !raw.responseInstructions.trim() || raw.responseInstructions.length > 1200 ||
+      (raw.quarantineInstructions !== undefined && (typeof raw.quarantineInstructions !== 'string' || !raw.quarantineInstructions.trim() || raw.quarantineInstructions.length > 700)) ||
+      (raw.contingencyObjectives !== undefined && (typeof raw.contingencyObjectives !== 'string' || !raw.contingencyObjectives.trim() || raw.contingencyObjectives.length > 700)) ||
+      raw.coordinationActions.includes('quarantine') !== (typeof raw.quarantineInstructions === 'string') ||
+      raw.coordinationActions.includes('contingency-objectives') !== (typeof raw.contingencyObjectives === 'string')) return undefined;
+  return { crisisId, revision: Number(raw.revision),
+    responseChoices: [...raw.responseChoices] as ApproachingVesselResponseProjection['responseChoices'],
+    coordinationActions: [...raw.coordinationActions] as ApproachingVesselResponseProjection['coordinationActions'],
+    responseInstructions: raw.responseInstructions.trim(),
+    ...(typeof raw.quarantineInstructions === 'string' ? { quarantineInstructions: raw.quarantineInstructions.trim() } : {}),
+    ...(typeof raw.contingencyObjectives === 'string' ? { contingencyObjectives: raw.contingencyObjectives.trim() } : {}) };
+}
+
 /** Read only the server-published report, never the private crisis document. */
 export function subscribeCrisisReport(
   sessionId: string,
@@ -5524,9 +5633,13 @@ export function subscribeCrisisReport(
         onReport(null);
         return;
       }
+      const approachingResponse = raw.crisisKind === 'approaching-vessel'
+        ? approachingVesselResponseProjection(raw.approachingVesselResponse, raw.crisisId) : undefined;
       onReport({
         sessionId, crisisId: raw.crisisId, state: raw.state, revision, title: raw.title, body: raw.body,
         ...(isCrisisKind(raw.crisisKind) ? { crisisKind: raw.crisisKind } : {}),
+        ...(isCrisisDeliveryPressure(raw.deliveryPressure) ? { deliveryPressure: raw.deliveryPressure } : {}),
+        ...(approachingResponse ? { approachingVesselResponse: approachingResponse } : {}),
       });
     },
     () => { if (subscribed) { onReport(null); onError(); } },
@@ -5680,6 +5793,33 @@ export function subscribeGmZealotryResponse(
     unsubscribe();
     onResponse(null);
   };
+}
+
+/** Subscribe to the facilitator-private vessel truth adjudication and response record. */
+export function subscribeGmApproachingVesselResponse(
+  sessionId: string,
+  onResponse: (response: ApproachingVesselResponse | null) => void,
+): Unsubscribe {
+  let subscribed = true;
+  let acceptsRevision = createMonotonicRevisionGate();
+  const publishResponse = createDistinctProjectionPublisher(onResponse);
+  const unsubscribe = onSnapshot(
+    doc(db(), `sessions/${sessionId}/approachingVesselResponses/current`),
+    { includeMetadataChanges: true },
+    (snapshot) => {
+      if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      if (!snapshot.exists()) acceptsRevision = createMonotonicRevisionGate();
+      const response = snapshot.exists() ? approachingVesselResponse(snapshot.data(), sessionId) : null;
+      if (response && !acceptsRevision(response.revision)) return;
+      publishResponse(response);
+    },
+    (error: { readonly code?: string }) => {
+      if (!subscribed) return;
+      if (error.code === 'permission-denied' || error.code === 'not-found') { onResponse(null); return; }
+      onResponse(null);
+    },
+  );
+  return () => { subscribed = false; unsubscribe(); onResponse(null); };
 }
 
 /** Subscribe to the facilitator-only current Civil Unrest resolution. */

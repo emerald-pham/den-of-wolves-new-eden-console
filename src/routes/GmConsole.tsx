@@ -19,6 +19,8 @@ import PursuitEmergencyWindowPanel from '@/components/PursuitEmergencyWindowPane
 import LiveChangeRegion from '@/components/LiveChangeRegion';
 import DecisionAttribution from '@/components/DecisionAttribution';
 import RoleConsoleTemplate from '@/components/RoleConsoleTemplate';
+import { PresidentialElectionWorkspaceView } from '@/components/PresidentialElectionWorkspace';
+import { ApproachingVesselResponseWorkspaceView } from '@/components/ApproachingVesselResponseWorkspace';
 import ResourceIcon from '@/components/ResourceIcon';
 import { DRADIS_RESIZE_MS } from '@/components/dradisMotion';
 import { normalizeDisplayName } from '@/lib/displayName';
@@ -80,6 +82,12 @@ import {
   type CommandDisposition,
   type WolfConsoleVisitReply,
 } from '@/lib/sessionService';
+import { recordApproachingVesselResponse } from '@/lib/approachingVesselResponseService';
+import {
+  castPresidentialBallot,
+  configurePresidentialElection,
+  resolvePresidentialElection,
+} from '@/lib/presidentialElectionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import { useMotionPreference } from '@/lib/motionPreference';
 import { hasActiveTurnTimer, phaseForSession, turnPhaseReadout } from '@/lib/turnPhase';
@@ -124,12 +132,16 @@ import type {
 import {
   CRISIS_KINDS,
   CRISIS_KIND_LABELS,
+  CRISIS_DELIVERY_PRESSURES,
   ZEALOTRY_RESPONSE_ACTIONS,
   isCrisisKind,
   nextCrisisStates,
   type CrisisKind,
+  type CrisisDeliveryPressure,
   type CrisisStateName,
   type ZealotryResponseAction,
+  type ApproachingVesselResponse,
+  type ApproachingVesselResponseInput,
 } from '@/types/crisis';
 import { isWireSafeEntityId } from '@/types/identifiers';
 import {
@@ -461,6 +473,15 @@ export default function GmConsole() {
   const [instances, setInstances] = useState<readonly GmInstance[]>([]);
   const [connectedPlayers, setConnectedPlayers] = useState<readonly Player[]>([]);
   const [allPlayers, setAllPlayers] = useState<readonly Player[]>([]);
+  const electionVoters = useMemo(() => connectedPlayers.flatMap(player => {
+    if (player.role !== 'player' || !player.connected || player.replacementStatus != null || player.escapeState) return [];
+    const assigned = player.assignedRoleId && player.assignedRoleId !== 'press-officer' ? player.assignedRoleId : undefined;
+    const seat = player.seatId && player.seatId !== 'press-officer' ? player.seatId : undefined;
+    if (assigned && seat && assigned !== seat) return [];
+    const roleId = assigned ?? seat;
+    if (!roleId || !activeRoleIds.includes(roleId)) return [];
+    return [{ uid: player.uid, displayName: player.displayName || 'Fleet member' }];
+  }), [activeRoleIds, connectedPlayers]);
   const [replacementEligibility, setReplacementEligibilityEntries] = useState<
     readonly ReplacementEligibilityProjection[]
   >([]);
@@ -529,10 +550,15 @@ export default function GmConsole() {
   const gmCrisisState = useSessionStore((state) => state.gmCrisisState);
   const gmZealotryResponse = useSessionStore((state) => state.gmZealotryResponse);
   const gmCivilUnrestResolution = useSessionStore((state) => state.gmCivilUnrestResolution);
+  const [gmApproachingVesselResponse, setGmApproachingVesselResponse] = useState<ApproachingVesselResponse | null>(null);
   const [crisisIdDraft, setCrisisIdDraft] = useState('crisis-1');
   const [crisisTitleDraft, setCrisisTitleDraft] = useState('');
   const [crisisDetailsDraft, setCrisisDetailsDraft] = useState('');
   const [crisisKindDraft, setCrisisKindDraft] = useState<CrisisKind>('custom');
+  const [deliveryPressureDraft, setDeliveryPressureDraft] = useState<CrisisDeliveryPressure | ''>('');
+  const [formalResolutionDraft, setFormalResolutionDraft] = useState(false);
+  const [formalResolutionTitleDraft, setFormalResolutionTitleDraft] = useState('');
+  const [formalResolutionDetailsDraft, setFormalResolutionDetailsDraft] = useState('');
   const [diseaseShipIds, setDiseaseShipIds] = useState<string[]>([]);
   const [diseaseWork, setDiseaseWork] = useState('');
   const [diseaseRisk, setDiseaseRisk] = useState('');
@@ -929,6 +955,7 @@ export default function GmConsole() {
     let crisisSubscribed = false;
     let stopInstances: () => void = () => undefined;
     let stopCrisisState: () => void = () => undefined;
+    let stopApproachingVesselResponse: () => void = () => undefined;
     let stopZealotryResponse: () => void = () => undefined;
     let stopCivilUnrestResolution: () => void = () => undefined;
     let stopArrestPosseCalculation: () => void = () => undefined;
@@ -960,6 +987,8 @@ export default function GmConsole() {
       verifiedCrisisAuthorityKey.current = null;
       stopCrisisState();
       stopCrisisState = () => undefined;
+      stopApproachingVesselResponse();
+      stopApproachingVesselResponse = () => undefined;
       stopZealotryResponse();
       stopZealotryResponse = () => undefined;
       stopCivilUnrestResolution();
@@ -977,6 +1006,7 @@ export default function GmConsole() {
       setCrisisMessage(null);
       const store = useSessionStore.getState();
       store.setGmCrisisState(null);
+      setGmApproachingVesselResponse(null);
       store.setGmZealotryResponse(null);
       store.setGmCivilUnrestResolution(null);
       clearArrestPosseCalculation();
@@ -1007,6 +1037,7 @@ export default function GmConsole() {
       subscribeGmArbourVision,
       subscribeGmFacilitatorRuleCall,
       subscribeGmCrisisState,
+      subscribeGmApproachingVesselResponse,
       subscribeGmZealotryResponse,
       subscribeGmCivilUnrestResolution,
       subscribeGmArrestPosseCalculation,
@@ -1115,6 +1146,12 @@ export default function GmConsole() {
               revokeAuthority();
             })
             : () => undefined;
+          stopApproachingVesselResponse = typeof subscribeGmApproachingVesselResponse === 'function'
+            ? subscribeGmApproachingVesselResponse(sessionId, (response) => {
+              const currentKey = currentAuthorityKey();
+              if (!currentKey || currentKey !== verifiedCrisisAuthorityKey.current) return;
+              setGmApproachingVesselResponse(response);
+            }) : () => undefined;
           stopCivilUnrestResolution = typeof subscribeGmCivilUnrestResolution === 'function'
             ? subscribeGmCivilUnrestResolution(sessionId, (resolution) => {
               const currentKey = currentAuthorityKey();
@@ -1292,6 +1329,7 @@ export default function GmConsole() {
         stopArbourVision();
         stopFacilitatorRuleCall();
         stopCrisisState();
+        stopApproachingVesselResponse();
         stopZealotryResponse();
         stopCivilUnrestResolution();
         stopArrestPosseCalculation();
@@ -1312,6 +1350,7 @@ export default function GmConsole() {
       verifiedCrisisAuthorityKey.current = null;
       unsubscribe();
       stopCrisisState();
+      stopApproachingVesselResponse();
       stopZealotryResponse();
       stopCivilUnrestResolution();
       stopArrestPosseCalculation();
@@ -2060,8 +2099,17 @@ export default function GmConsole() {
       ? gmCrisisState.title : crisisTitleDraft).trim();
     const details = (gmCrisisState && gmCrisisState.state !== 'closed'
       ? gmCrisisState.details : crisisDetailsDraft).trim();
+    if (state === 'delivered' && !(gmCrisisState?.deliveryPressure || deliveryPressureDraft)) {
+      setCrisisMessage('Choose the delivery-pressure framing before delivering this crisis.');
+      return;
+    }
     if (!crisisId || !title) {
       setCrisisMessage('Add a crisis identifier and title before creating the draft.');
+      return;
+    }
+    if (state === 'resolved' && formalResolutionDraft &&
+        (!formalResolutionTitleDraft.trim() || !formalResolutionDetailsDraft.trim())) {
+      setCrisisMessage('Enter the public title and details for the next Team-start announcement.');
       return;
     }
     setCrisisMutationState(state);
@@ -2071,6 +2119,11 @@ export default function GmConsole() {
       const disposition = await transitionCrisis(crisisId, state, title, details, {
         crisisKind: locked ? (locked.crisisKind ?? (isCrisisKind(locked.crisisId) ? locked.crisisId : 'custom')) : crisisKindDraft,
         configurationOverride: locked && state !== 'delivered' ? locked.configurationOverride ?? '' : crisisOverrideDraft,
+        ...((locked?.deliveryPressure || (state === 'delivered' && deliveryPressureDraft))
+          ? { deliveryPressure: locked?.deliveryPressure ?? deliveryPressureDraft as CrisisDeliveryPressure } : {}),
+        ...(state === 'resolved' && formalResolutionDraft ? { formalAnnouncement: {
+          title: formalResolutionTitleDraft.trim(), details: formalResolutionDetailsDraft.trim(),
+        } } : {}),
         ...(crisisKindDraft === 'disease-outbreak' && (state !== 'draft' || diseaseShipIds.length || diseaseWork || diseaseRisk)
           ? { diseaseOutbreak: locked && state !== 'delivered' ? locked.diseaseOutbreak : {
               affectedShipIds: diseaseShipIds, workRestrictions: diseaseWork, escalationRisk: diseaseRisk,
@@ -2133,11 +2186,29 @@ export default function GmConsole() {
     }
   }
 
+  async function saveApproachingVesselResponse(
+    response: ApproachingVesselResponseInput,
+    expectedResponseRevision: number,
+  ): Promise<void> {
+    const crisis = useSessionStore.getState().gmCrisisState;
+    const authorityKey = currentCrisisAuthorityKey();
+    if (!crisis || crisis.crisisKind !== 'approaching-vessel' || crisis.state !== 'debated' ||
+        !authorityKey || verifiedCrisisAuthorityKey.current !== authorityKey) {
+      throw new Error('Record the response only for the current debated Approaching Vessel crisis with live GM authority.');
+    }
+    await recordApproachingVesselResponse(response, expectedResponseRevision);
+  }
+
   async function admitVoyage33FromCrisis(): Promise<void> {
     const crisis = useSessionStore.getState().gmCrisisState;
     if (voyageAdmissionMutation || !crisis || crisis.crisisKind !== 'approaching-vessel' ||
         crisis.state === 'draft' || crisis.state === 'closed') {
       setCrisisMessage('Admit Voyage 33-0 only while an active Approaching Vessel crisis is open.');
+      return;
+    }
+    const response = gmApproachingVesselResponse;
+    if (!response || response.crisisId !== crisis.crisisId || response.vesselReality !== 'real') {
+      setCrisisMessage('Record the vessel as real before admitting Voyage 33-0.');
       return;
     }
     if (useSessionStore.getState().session?.voyage33Admission) {
@@ -3118,7 +3189,7 @@ export default function GmConsole() {
             <label className="gm-wolf-preparation__field">
               <span>Crisis kind</span>
               <select aria-label="Crisis kind" value={crisisKindDraft}
-                disabled={Boolean(gmCrisisState && gmCrisisState.state !== 'closed') || crisisMutationState !== null}
+                disabled={Boolean(gmCrisisState && gmCrisisState.state !== 'closed' && gmCrisisState.state !== 'draft') || crisisMutationState !== null}
                 onChange={(event) => { if (isCrisisKind(event.target.value)) setCrisisKindDraft(event.target.value); }}>
                 {CRISIS_KINDS.map((kind) => <option key={kind} value={kind}>{CRISIS_KIND_LABELS[kind]}</option>)}
               </select>
@@ -3127,6 +3198,24 @@ export default function GmConsole() {
               Presidential Election requires the President role. Religious Zealotry requires the Universal Arbour or Wolf Cult configuration.
               Other crisis kinds may be used without the President. Record a private override to adapt an incompatible crisis.
             </p>
+            <label className="gm-wolf-preparation__field">
+              <span>Crisis delivery pressure // explicit facilitator framing</span>
+              <select aria-label="Crisis delivery pressure"
+                value={gmCrisisState?.deliveryPressure ?? deliveryPressureDraft}
+                disabled={Boolean(gmCrisisState && gmCrisisState.state !== 'closed' && gmCrisisState.state !== 'draft') || crisisMutationState !== null}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (value === '' || CRISIS_DELIVERY_PRESSURES.includes(value as CrisisDeliveryPressure)) {
+                    setDeliveryPressureDraft(value as CrisisDeliveryPressure | '');
+                  }
+                }}>
+                <option value="">Choose before delivery</option>
+                <option value="decrease">Decrease urgency</option>
+                <option value="hold">Hold steady</option>
+                <option value="increase">Increase urgency</option>
+              </select>
+              <small>One-crisis public framing only; this does not alter a fleet-wide pressure meter or apply automatic mechanics.</small>
+            </label>
             <label className="gm-wolf-preparation__field gm-wolf-preparation__notes">
               <span>Facilitator configuration override (optional, private)</span>
               <textarea rows={2} maxLength={1000} aria-label="Crisis configuration override"
@@ -3194,6 +3283,23 @@ export default function GmConsole() {
                 aria-label="Crisis facilitator notes"
               />
             </label>
+            {nextCrisisStates(gmCrisisState).includes('resolved') && <fieldset className="gm-wolf-preparation__field">
+              <legend>Formal outcome // next Team start</legend>
+              <label>
+                <input type="checkbox" checked={formalResolutionDraft}
+                  onChange={(event) => setFormalResolutionDraft(event.target.checked)} />
+                Announce a binding outcome at the next Team start
+              </label>
+              {formalResolutionDraft && <>
+                <label htmlFor="crisis-formal-title">Public outcome title</label>
+                <input id="crisis-formal-title" type="text" maxLength={120}
+                  value={formalResolutionTitleDraft} onChange={(event) => setFormalResolutionTitleDraft(event.target.value)} />
+                <label htmlFor="crisis-formal-details">Public outcome details</label>
+                <textarea id="crisis-formal-details" rows={3} maxLength={700}
+                  value={formalResolutionDetailsDraft} onChange={(event) => setFormalResolutionDetailsDraft(event.target.value)} />
+                <small>Only this explicit public decision is announced. Keep secret votes, causes and facilitator notes out.</small>
+              </>}
+            </fieldset>}
             <div className="gm-turn-control__actions">
               {nextCrisisStates(gmCrisisState).map((state) => (
                 <button
@@ -3207,6 +3313,20 @@ export default function GmConsole() {
                 </button>
               ))}
             </div>
+            {gmCrisisState?.crisisKind === 'approaching-vessel' && gmCrisisState.state !== 'draft' && (
+              <ApproachingVesselResponseWorkspaceView
+                crisisId={gmCrisisState.crisisId}
+                projection={gmApproachingVesselResponse?.crisisId === gmCrisisState.crisisId
+                  ? gmApproachingVesselResponse : null}
+                canEdit={gmCrisisState.state === 'debated' && Boolean(local && isGm && me?.role === 'gm' &&
+                  me.sessionId === session?.id && local.sessionId === session?.id && local.uid === me.uid &&
+                  connection === 'live' && sessionSnapshotFreshness === 'server')}
+                live={Boolean(local && isGm && me?.role === 'gm' && me.sessionId === session?.id &&
+                  local.sessionId === session?.id && local.uid === me.uid &&
+                  connection === 'live' && sessionSnapshotFreshness === 'server')}
+                onRecord={saveApproachingVesselResponse}
+              />
+            )}
             {gmCrisisState?.crisisKind === 'approaching-vessel' && gmCrisisState.state !== 'draft' && (
               <section className="gm-crisis__admission" aria-label="Voyage 33-0 admission">
                 <h3 className="gm-console__section-title">Voyage 33-0</h3>
@@ -3225,7 +3345,7 @@ export default function GmConsole() {
                     <button
                       className="cic-action-button"
                       type="button"
-                      disabled={!local || voyageAdmissionMutation}
+                      disabled={!local || voyageAdmissionMutation || gmApproachingVesselResponse?.crisisId !== gmCrisisState.crisisId || gmApproachingVesselResponse?.vesselReality !== 'real'}
                       onClick={() => void admitVoyage33FromCrisis()}
                     >
                       {voyageAdmissionMutation ? 'Admitting Voyage 33-0…' : 'Admit Voyage 33-0'}
@@ -3401,6 +3521,27 @@ export default function GmConsole() {
                 )}
               </section>
             )}
+          </section>
+          <section className="gm-console__module gm-crisis cic-frame" aria-label="Election procedure and outcome">
+            <h2 className="gm-console__section-title">Presidential election</h2>
+            <p className="gm-console__hint">
+              Configure eligible voters, voting method, population weighting, timing, campaigning, supply use, and tie policy before ballots open.
+              The server stores ballots privately and calculates every tally.
+            </p>
+            <PresidentialElectionWorkspaceView
+              projection={session?.presidentialElection ?? null}
+              live={Boolean(local && isGm && me?.role === 'gm' && me.sessionId === session?.id &&
+                local.sessionId === session?.id && local.uid === me.uid &&
+                connection === 'live' && sessionSnapshotFreshness === 'server')}
+              currentUserUid={me?.uid ?? null}
+              isFacilitator={isGm}
+              currentCycle={session?.currentTurn ?? 1}
+              ballotSubmitted={session?.currentMemberBallotSubmitted === true}
+              facilitatorVoters={electionVoters}
+              onConfigurePolicy={configurePresidentialElection}
+              onCastBallot={castPresidentialBallot}
+              onResolveElection={resolvePresidentialElection}
+            />
           </section>
           <EmergencyTimerPauseControl
             phase={currentPhase}

@@ -10,6 +10,14 @@ export const CRISIS_STATES = [
 
 export type CrisisStateName = (typeof CRISIS_STATES)[number];
 
+/** A facilitator-selected delivery framing, scoped to one crisis and never a fleet-wide modifier. */
+export const CRISIS_DELIVERY_PRESSURES = ['decrease', 'hold', 'increase'] as const;
+export type CrisisDeliveryPressure = (typeof CRISIS_DELIVERY_PRESSURES)[number];
+
+export function isCrisisDeliveryPressure(value: unknown): value is CrisisDeliveryPressure {
+  return typeof value === 'string' && (CRISIS_DELIVERY_PRESSURES as readonly string[]).includes(value);
+}
+
 /**
  * The facilitator advances a manually authored crisis through this durable
  * lifecycle. The product source defines the facilitator's delivery and
