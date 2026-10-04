@@ -85,6 +85,7 @@ import {
   getWolfForceFieldChoice,
   commitWolfForceFieldChoice,
   applyWolfCommanderRangeTargetAdjustment,
+  getWolfCommanderRangeTargetDial,
 } from './index';
 import { initialFighterWingCounts } from './fighterWings';
 import { beginPdfEscortWingAttack, initialPdfEscortWingState, launchPdfEscortWing } from './pdfEscortWingState';
@@ -185,11 +186,11 @@ it('records one private Commander target adjustment bound to the current attack 
 
   const result = await applyWolfCommanderRangeTargetAdjustment.run(request({
     sessionId: 's1', requestId: 'commander-shift-long', attackId: attack.attackId,
-    expectedTurn: 1, expectedRevision: 7, range: 'long-range', rosterIndex: 0, delta: 1,
+    expectedTurn: 1, expectedRevision: 4, range: 'long-range', rosterIndex: 0, delta: 1,
   }, 'wolf-commander'));
   expect(result).toMatchObject({
     status: 'committed', type: 'wolf-commander-range-target-adjustment',
-    turn: 1, attackId: attack.attackId, revision: 8, range: 'long-range', rosterIndex: 0,
+    turn: 1, attackId: attack.attackId, revision: 5, range: 'long-range', rosterIndex: 0,
     fromTarget: 'aegis', toTarget: 'dione', fromTargetNumber: 1, toTargetNumber: 2, delta: 1,
   });
   expect((testState.documents.get(attackPath)!.commanderRangeAdjustments as Fields)['long-range']).toMatchObject({
@@ -204,6 +205,29 @@ it('records one private Commander target adjustment bound to the current attack 
   expect(testState.documents.get('sessions/s1/wolfAttackAudience/current')).toBeUndefined();
 });
 
+it('returns a private selected-group dial only to the current Wolf Commander', async () => {
+  const attackPath = 'sessions/s1/wolfAttackState/current';
+  const attack = testState.documents.get(attackPath)!;
+  put(attackPath, { ...attack, currentStep: 'long-range' });
+  put('sessions/s1/players/wolf-commander', {
+    uid: 'wolf-commander', role: 'player', connected: true, replacementRoleId: 'wolf-commander',
+  });
+  put('sessions/s1/players/other', { uid: 'other', role: 'player', connected: true });
+  const dial = await getWolfCommanderRangeTargetDial.run(request({ sessionId: 's1' }, 'wolf-commander'));
+  expect(dial).toMatchObject({
+    type: 'wolf-commander-range-target-dial-view', sessionId: 's1', attackId: attack.attackId,
+    turn: 1, revision: 4, range: 'long-range',
+    ring: [{ targetId: 'aegis', targetNumber: 1 }, { targetId: 'dione', targetNumber: 2 }],
+    ships: [expect.objectContaining({ rosterIndex: 0, shipId: 'wolf-fighter-wing', currentTarget: 'aegis', currentTargetNumber: 1 })],
+    adjustmentUsed: false,
+  });
+  expect(JSON.stringify(dial)).not.toMatch(/privateNotes|calculationReceipt|combatRoster/);
+  await expect(getWolfCommanderRangeTargetDial.run(request({ sessionId: 's1' }, 'other')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  await expect(getWolfCommanderRangeTargetDial.run(request({ sessionId: 's1' }, 'xo-1')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+});
+
 it('rejects a duplicate range use, stale attack, wrong role, and client-authored target outcome', async () => {
   const attackPath = 'sessions/s1/wolfAttackState/current';
   const attack = testState.documents.get(attackPath)!;
@@ -216,19 +240,19 @@ it('rejects a duplicate range use, stale attack, wrong role, and client-authored
   });
   const payload = {
     sessionId: 's1', requestId: 'commander-shift-once', attackId: attack.attackId,
-    expectedTurn: 1, expectedRevision: 7, range: 'long-range', rosterIndex: 0, delta: -1,
+    expectedTurn: 1, expectedRevision: 4, range: 'long-range', rosterIndex: 0, delta: -1,
   };
   await applyWolfCommanderRangeTargetAdjustment.run(request(payload, 'wolf-commander'));
   const saved = testState.documents.get(attackPath)!;
   const writeCount = testState.set.mock.calls.length;
   await expect(applyWolfCommanderRangeTargetAdjustment.run(request({
-    ...payload, requestId: 'commander-shift-repeat', expectedRevision: 8,
+    ...payload, requestId: 'commander-shift-repeat', expectedRevision: 5,
   }, 'wolf-commander'))).rejects.toMatchObject({ code: 'failed-precondition' });
   await expect(applyWolfCommanderRangeTargetAdjustment.run(request({
-    ...payload, requestId: 'commander-shift-stale', attackId: 'stale-attack', expectedRevision: 8,
+    ...payload, requestId: 'commander-shift-stale', attackId: 'stale-attack', expectedRevision: 5,
   }, 'wolf-commander'))).rejects.toMatchObject({ code: 'failed-precondition' });
   await expect(applyWolfCommanderRangeTargetAdjustment.run(request({
-    ...payload, requestId: 'commander-shift-old-role', expectedRevision: 8,
+    ...payload, requestId: 'commander-shift-old-role', expectedRevision: 5,
   }, 'old-wolf'))).rejects.toMatchObject({ code: 'permission-denied' });
   await expect(applyWolfCommanderRangeTargetAdjustment.run(request({
     ...payload, requestId: 'commander-shift-forged', target: 'dione',
