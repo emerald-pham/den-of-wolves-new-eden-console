@@ -9,10 +9,17 @@ pending. Root owns reconciliation and release; the catalog is status authority.
 All seven findings from the first independent review are repaired. Worker
 boarding checks pass 317/317; the final reconciled Boarding/Range/Declaration
 checks pass 258/258, including historical Militia commitment before and after
-dice lock without revoking a subsequent character. The fresh reconciled gameplay
-run and exact-candidate follow-up review remain required for the repaired bytes.
+dice lock without revoking a subsequent character. Fresh reconciled gameplay
+passes thirteen checks at `6c708aff`; the bounded independent source follow-up
+has no remaining findings. Exact-commit approval and release gates remain pending.
 The bounded follow-up resolves R1–R4/R6/R7 and finds an additional PDF Short R5
 row duplication, now covered by a discriminating red test and `552017d0` repair.
+Its final independent probe passes, and the actual member subscription publishes
+the one assigned PDF Short hit once at revision 41. The fresh twenty-player
+result and 39-artifact runtime attestation are retained in
+`owner/authenticated-composed-reconciled-final/`; this supersedes older composed
+range/boarding proof for the repaired source. Closed DRADIS, destruction/carryover
+and tour-return branches retain their separately identified source evidence.
 
 Normal authenticated local/emulator behavior evidence, prepared rendering,
 independent exact-candidate review, final validation, CI and exact-main production

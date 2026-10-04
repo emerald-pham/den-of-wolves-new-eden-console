@@ -193,6 +193,16 @@ publisher exclusion. The existing escort summary owns both fixed and editable
 PDF/Maliades outcomes. Review this exact last repair against the discriminating
 stored/projected result, fixed Medium and Alpha/Bravo controls, and exact retry.
 Current native reconciliation passes 258/258; source-map digests are renewed.
+The final bounded independent probe is source-clear at `51f0629c`, with six
+focused native checks and seven selectors passing. The final normal twenty-player
+run at `6c708aff` now passes thirteen checks on freshly compiled/restarted
+repaired bytes. Its 39-artifact runtime attestation matches the committed source
+and live owned row-3 runtime. Actual member results are safe at revision 41,
+including exactly one assigned PDF Short hit; genuine boarding finalizes and
+movement reopens, with zero browser/presence errors. Result and attestation:
+`owner/authenticated-composed-reconciled-final/`. The only subsequent driver
+change explicitly waits for the EO console and uses its offered ordinary read
+refresh after a hydration rejection; no production source or consumer map changes.
 The live gameplay proof uses actual server targeting and unchanged server dice;
 preparation draft annotations are not claimed to control those results.
 

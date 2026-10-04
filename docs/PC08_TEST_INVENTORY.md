@@ -112,10 +112,10 @@ The first fresh repaired-source composed run at `3ab3a6cb` completes setup,
 all three ranges and five actual boarding decisions, then its random twelve
 parties on Capybara hit the existing undefined damage-deck exhaustion blocker.
 The failed result, private state and logs remain preserved; no authority failure
-or browser error is reported. The subsequent proof keeps full damage capacity
-20 with fourteen Wings and three Transports, uses the supported authenticated
-GM pre-rolled-target preparation route to spread the attack, and records every
-input. It adds exact canonical-target and actual Commander/relocation/defence
+or browser error is reported. The subsequent proof proposes full damage capacity
+20 with fourteen Wings and three Transports and draft GM target annotations,
+recording every input. The later failed attempt disproves the assumption that
+those annotations control live targeting. It adds actual Commander/relocation/defence
 traversal assertions. No dice, damage, printed limit or production behavior is
 changed; no failed assertion is removed. Its final result remains pending.
 The added canonical-roster assertion initially runs too early at declaration,
@@ -131,6 +131,19 @@ committed Long Range target snapshot to the actual immutable server targeting
 receipt. Full capacity 20 and genuine boarding assertions remain; target and
 combat dice are never seeded or overridden. The earlier proposed annotation
 control is not claimed as tested or implemented behavior.
+
+The `51f0629c` fresh attempt retains an ordinary warhead read rejected while
+console hydration changes the snapshot cursor, before any purchase. Driver-only
+`6c708aff` waits for current EO console authority and uses the existing visible
+refresh if that read is rejected. It preserves all purchase/cost/retry and
+gameplay assertions. The final normal twenty-player result now passes thirteen
+checks, with genuine boarding, safe live member revision 41, unique support
+rows and one PDF Short hit for one canonical assignment, exact final retry and
+actual movement reopening. Browser and heartbeat errors are zero. Result,
+fresh 39-artifact runtime attestation and owned-process cleanup are in
+`owner/authenticated-composed-reconciled-final/`; the failed attempt remains in
+the separate `-authority-hydration/` directory. This supersedes the earlier
+pending repaired-source boundary without deleting its failures or weakening tests.
 
 | Final reconciled checks | Reason and retained evidence |
 |---|---|

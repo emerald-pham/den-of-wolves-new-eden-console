@@ -15,8 +15,9 @@ complete independent review identified seven correctness and authority defects.
 All seven repairs are integrated. The boarding owner's ten focused suites pass
 317 checks; the reconciled Boarding/Range/Declaration suites pass 258, including
 committed Militia risk before and after dice lock when its character changes.
-Fresh reconciled gameplay, follow-up review, final validation, CI and deployment
-remain pending. The owner's October 3 instruction authorizes execution and
+The fresh reconciled twenty-player run passes thirteen checks, and the bounded
+follow-up has no remaining source findings. Exact-commit approval, final
+validation, CI and deployment remain pending. The owner's October 3 instruction authorizes execution and
 acceptance; playing the review scene is optional.
 
 PC08 contains the fixed 49 assigned items. Its catalog candidate moves from
@@ -113,15 +114,33 @@ off-console holders remain pending; Commander parties affect Militia eligibility
 printed death enters the existing replacement workflow. A committed old
 character's risk still resolves without revoking a later character's authority.
 Support rows retain their printed labels once, and current cycle/attack/berth
-guards reject stale retries. Final follow-up review, validation, candidate CI and
-exact-main production deployment remain pending. Prepared rendering does not establish gameplay.
+guards reject stale retries. The bounded source follow-up is clear; exact-commit
+approval, validation, candidate CI and exact-main production deployment remain
+pending. Prepared rendering does not establish gameplay.
 Production gameplay or a physical device test is not claimed.
 
 The bounded follow-up resolves R1–R4/R6/R7 and the historical Militia race, but
 finds a further R5 PDF Short duplicate. `c234e214` reproduces it with one failure
 and 257 passing controls; `552017d0` routes all escort outcomes through their
 printed summary once. All 258 reconciled checks, Functions build and scoped lint
-pass. The last PDF follow-up and fresh compiled/restarted gameplay remain pending.
+pass. The final independent PDF follow-up passes its six focused native checks
+and seven deployment selectors, with no remaining findings.
+
+The final repaired-source normal twenty-player run at `6c708aff` passes all
+thirteen checks after a fresh compile and restart. It uses full printed capacity
+20 with fourteen Wings and three Transports; actual server targeting and dice
+remain authoritative. The actual phone warhead purchase costs five ore once,
+all four flight sources launch independently, all ranges consume one lock,
+disconnected entitled flights remain pending, and genuine Commander,
+relocation, crew defence and reroll choices reach atomic finalization. The live
+member subscription hydrates revision 41 with thirty safe results, including
+one correctly labeled PDF Short hit matching its committed assignment. Support
+rows are unique, final retry preserves the receipt, actual movement reopens,
+and private Rules writes are denied. Browser and heartbeat errors are zero.
+`owner/authenticated-composed-reconciled-final/` retains the result, exact
+39-artifact runtime attestation and owned-process cleanup. The prior ordinary
+browser read rejection during console hydration is retained separately; the
+driver now uses the offered ordinary refresh when that response is rejected.
 
 The final normal eighteen-player tour-return proof uses the 0.5.67 candidate at
 `1dd40471`, freshly compiled/restarted owner Functions and the actual loaded

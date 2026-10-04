@@ -390,10 +390,10 @@ concentrate twelve parties on Capybara, whose exhausted seven-card deck has no
 printed automatic consequence; the existing facilitator blocker correctly
 preserves unresolved authority. This failed branch remains external in
 `owner/authenticated-composed-reconciled-final-damage-deck-blocker/`.
-The owner adapts only the proof's supported GM preparation inputs: full damage
-capacity 20, fourteen Wings and three Transports, explicit pre-rolled targets
-spread across the fleet with Transports on AEGIS, Dione and Refinery. Every
-input and its exact canonical target is asserted and recorded. Genuine
+The owner proposes adapting the proof's GM preparation inputs: full damage
+capacity 20, fourteen Wings and three Transports, with draft target annotations
+spread across the fleet. The later attempt below disproves and withdraws the
+assumption that those annotations control live targeting. Genuine
 Commander, relocation and defence traversal is also required. No server dice,
 damage, source limit, authority or production behavior changes. The subsequent
 fresh build/restart and complete result remain pending.
@@ -427,3 +427,27 @@ and scoped lint pass, including fixed Medium, Alpha/Bravo and unchanged retry.
 The ordinary composed assertion also compares published PDF Short hits with
 the actual canonical assignment count and rejects escort AEGIS labels. The
 same 17-module/32-index/107-Function audit is renewed with exact source digests.
+
+The bounded independent PDF follow-up at `51f0629c` is source-clear: the
+preserved Short probe and adjacent controls pass six selected native checks,
+and seven selectors pass. All earlier resolved findings remain closed.
+The fresh run at this source retains an ordinary EO read rejection during
+console hydration before any purchase. Its screenshot, pending attack state
+and failed log remain in `owner/authenticated-composed-reconciled-final-authority-hydration/`.
+Test-driver-only `6c708aff` waits for the current EO console and uses the visible
+ordinary refresh if the initial read loses its snapshot cursor. Purchase,
+five-ore cost, exact retry, genuine boarding and all existing assertions remain.
+
+The final normal twenty-player run at `6c708aff` passes all thirteen checks,
+including all three ranges, independently launched flight sources, real
+Commander/relocation/defence/reroll choices, atomic boarding and actual movement
+reopening. The live member subscription hydrates revision 41 and thirty safe
+results, including one printed PDF Short hit for its one canonical assignment;
+support results are unique. Browser and heartbeat errors are zero. The fresh
+Functions compile and owned runtime restart are verified by a 39-artifact
+attestation while row 3 is live. `owner/authenticated-composed-reconciled-final/`
+retains the result, attestation and successful owned-process cleanup. Row-3
+configuration remains reserved for final Rules validation; foreign resources
+are untouched. A documentation-only freeze follows. Exact-commit independent
+approval, complete final validation, one candidate CI and exact-main deployment
+remain pending until their actual results are recorded.
