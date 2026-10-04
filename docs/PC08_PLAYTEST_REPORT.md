@@ -10,11 +10,13 @@ The [range source notes](PC08_RANGE_ASSUMPTIONS.md) preserve precise references.
 The incomplete Commander consequence remains an explicit private facilitator
 ruling, with surrounding printed calculations automatic.
 
-Status: all 49 functional acceptances have passed representative normal
-authenticated local/emulator evidence and are reconciled into the 0.5.67
-candidate. Independent final review, final validation, CI and deployment remain
-pending. The owner's October 3 instruction authorizes execution and acceptance;
-playing the review scene is optional.
+Status: the fixed 49 items are integrated into the 0.5.67 candidate. The first
+complete independent review identified seven correctness and authority defects.
+Root's support-result, stale-receipt and launch-pass repairs pass all 195 native
+Range/Declaration checks; the bounded boarding repair is in progress. Fresh
+reconciled gameplay, follow-up review, final validation, CI and deployment
+remain pending. The owner's October 3 instruction authorizes execution and
+acceptance; playing the review scene is optional.
 
 PC08 contains the fixed 49 assigned items. Its catalog candidate moves from
 605/751 overall (80.56%) and 147/293 campaign items (50.17%) to 654/751 overall
@@ -100,8 +102,13 @@ parser accepts a null target only for the exact named support miss/unused-hit
 variant with zero damage; malformed, private, foreign or boarding variants stay
 rejected.
 
-Independent risk review, final validation, candidate CI and exact-main production
-deployment remain pending. Prepared rendering does not establish gameplay.
+The first independent review is recorded with changes required at `f2987486`.
+Its seven findings cover revoked boarding retries, an off-console EO's pending
+choice, Commander-adjusted Militia eligibility, the printed Militia death,
+duplicated support results, earlier-attack retries, and actual PDF/Maliades pass
+berths. These are agent-owned correctness repairs; they add no PC09 scope or
+owner approval step. Final follow-up review, validation, candidate CI and
+exact-main production deployment remain pending. Prepared rendering does not establish gameplay.
 Production gameplay or a physical device test is not claimed.
 
 The final normal eighteen-player tour-return proof uses the 0.5.67 candidate at

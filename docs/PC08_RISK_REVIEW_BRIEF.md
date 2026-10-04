@@ -109,6 +109,19 @@ Root owns the checkpoint, all reconciliation, repairs and release. Independent
 review covers the complete reconciled candidate and does not transfer ownership.
 The exact reviewed SHA and outcome live in the external structured receipt.
 
+The first complete independent review at `f2987486` requires seven repairs.
+Its external report names R1–R7 together; it is not an approval receipt. The
+targeted follow-up must assess current boarding authority before saved output,
+off-console EO entitlement and unavailable auditing, preserved already committed
+Pallas outcomes after holder removal, Commander-adjusted Militia eligibility,
+atomic once-only character death through the existing re-role workflow, unique
+printed support results, cycle/attack/committed-choice receipt binding, and
+current PDF/Maliades launch-pass group/member/berth guards. Valid same-attack
+retries after a choice stage closes must remain immutable and cost no more.
+Root renews source digests and one fresh ordinary twenty-player composed proof
+after reconciliation; the existing DRADIS branch remains applicable without a
+DRADIS behavior change. Full final validation and release remain separate.
+
 Opening baseline: `ebbad230b815e6962e35f303cb529b5612e1d046`, 605/751 done.
 Fixed target: 49 assigned IDs, 654/751 and 196/293 campaign closures. The
 [acceptance matrix](PC08_ACCEPTANCE_MATRIX.md) names every assigned criterion.

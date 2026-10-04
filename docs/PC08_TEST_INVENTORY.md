@@ -96,6 +96,15 @@ separate; no case is skipped, deleted or weakened to satisfy this history check.
 
 ## Changed-suite coverage
 
+| Review repair test commit → source | Reason and evidence |
+|---|---|
+| `0889ef1f` / `0bfdb9bf` / `15edf16e` → `70db7e59` | Reproduce duplicated support rows, reject current-session/current-attack cycle and attack-identity drift in four receipt paths, bind fighter replay to its committed actor/request/range/revision, and reject fresh or saved PDF/Maliades launch passes after current group/member/berth removal. Retain valid after-resolution exact retries and no-write/no-new-dice assertions. Thirty failures with 160 controls, then five binding failures are preserved in `owner/range-review-red.log` and `range-review-binding-red.log`; all 195 cases pass in `range-review-green.log`. The separately corrected new Highwall assertion uses its printed three damage, with the first repair failure retained. |
+| `4b96ba1b`, composed support outcome assertion | Observe the actual member subscription after an ordinary attack and require one result per source/contact/range and printed support labels. Native duplicate-row red evidence already precedes the product repair. The fresh reconciled run remains required. |
+
+The harmless `ef0421c9` const/interface/draft-copy lint cleanup has no new
+behavior or weakened assertion; all eight affected presenter checks and lint
+pass in `owner/range-review-ui-green.log` and `range-review-lint-green.log`.
+
 | Final reconciled checks | Reason and retained evidence |
 |---|---|
 | `c2568b55` → `a995eb37`, actual Maliades heading | The eight-case browser matrix now checks the nested real presenter's computed CIC font. Red fails on the prior Georgia fallback; green passes both browser checks and all eight cases. `owner/maliades-font-red.log` and `owner/maliades-font-green.log`; actual phone results and landscape fighter images were inspected. |

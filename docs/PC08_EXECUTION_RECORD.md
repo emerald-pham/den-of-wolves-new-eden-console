@@ -318,3 +318,39 @@ rewritten descendants. Historical proof SHAs and worker branches remain intact.
 The Gantt is regenerated against the rewritten catalog commit and its check
 passes. These provenance-only changes do not replace or reinterpret gameplay
 results. The reconciled candidate is then frozen for fresh independent review.
+
+## Independent review repairs
+
+Sol 6.1 at xhigh reviewed the frozen `f2987486` candidate and returned seven
+actionable findings together. Its correctly mocked local probes reproduce all
+seven; earlier external mock-resolution failures are excluded from defect
+evidence. No approval receipt was issued. Root owns every repair and the final
+review, validation and release. The full report is retained externally as
+`owner/independent-security-review-f2987486-report.md` and `.json`.
+
+The findings concern boarding special replay authority (R1), the assigned EO's
+off-console reroll entitlement (R2), Commander-adjusted Militia parties (R3),
+authoritative Militia death (R4), duplicate/mislabeled support results (R5),
+earlier-cycle/attack receipts (R6), and current PDF/Maliades pass berth/group
+authority (R7). The existing boarding repairer owns the coupled R1–R4 group on
+`feat/pc08-review-boarding-repair`; Root owns R5–R7. The reviewer remains
+independent and returns only for unresolved findings or materially changed risk.
+
+Root commits discriminating tests at `0889ef1f` and `0bfdb9bf`: thirty failures
+with 160 passing controls, then five committed-choice binding failures. A new
+Highwall damage assertion is corrected separately at `15edf16e` to the printed
+three damage; the first repair's failed assertion is retained rather than
+changing the product calculation. `70db7e59` prevents the generic weapon result
+loop from publishing support actions a second time, validates current cycle
+and attack identity before saved receipts, binds fighter replay to the committed
+actor/request/range/revision, and checks PDF/Maliades current member berth
+before a fresh or replayed launch pass. All 195 native Range/Declaration checks
+pass, including authorized exact retries after resolution and revoked/stale
+requests with no writes or extra dice.
+
+`ef0421c9` clears existing static errors with equivalent const/interface syntax
+and an equivalent copied-draft shift deletion. The eight fighter/Maliades
+presenter checks and lint pass. `4b96ba1b` adds an ordinary composed-session
+assertion that each support contact is published once with its printed label.
+It extends the retained gameplay harness; it does not replace native red tests.
+A fresh compiled/restarted twenty-player run follows boarding reconciliation.
