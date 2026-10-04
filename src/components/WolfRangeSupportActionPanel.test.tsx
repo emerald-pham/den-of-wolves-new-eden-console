@@ -25,6 +25,7 @@ it('offers a source action or a deliberate pass using the current range choice',
   render(<WolfRangeSupportActionPanelView view={supportView('highwall')} onUse={onUse} onPass={onPass} />);
 
   expect(screen.getByText(/three damage/i)).toBeInTheDocument();
+  expect(screen.queryByText(/attack-1/i)).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: /use Highwall Cannon/i }));
   fireEvent.click(screen.getByRole('button', { name: /pass this range/i }));
   expect(onUse).toHaveBeenCalledTimes(1);

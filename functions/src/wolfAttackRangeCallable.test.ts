@@ -1924,6 +1924,22 @@ it('rechecks the current support holder before returning an exact replay', async
     .rejects.toMatchObject({ code: 'permission-denied' });
 });
 
+it('rejects a malformed support replay receipt without exposing added fields', async () => {
+  admitRangeSupportChoices();
+  const view = await getWolfRangeSupportActionChoice.run(request({
+    sessionId: 's1', sourceId: 'highwall', range: 'short-range',
+  }, 'miner-1'));
+  const payload = { sessionId: 's1', requestId: 'highwall-shape-replay', expectedTurn: 1,
+    expectedRevision: view.revision, sourceId: 'highwall', range: 'short-range', use: true };
+  await commitWolfRangeSupportActionChoice.run(request(payload, 'miner-1'));
+  const receiptPath = 'sessions/s1/commandReceipts/highwall-shape-replay';
+  const receipt = testState.documents.get(receiptPath)!;
+  put(receiptPath, { ...receipt, result: { ...(receipt.result as Fields), privateReceipt: 'must-not-leak' } });
+
+  await expect(commitWolfRangeSupportActionChoice.run(request(payload, 'miner-1')))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+});
+
 it('keeps an offline entitled Executive Officer Enriched Warhead choice pending', async () => {
   enrichedWarheadFixture();
   put('sessions/s1/players/xo-1', { ...testState.documents.get('sessions/s1/players/xo-1')!, connected: false });
