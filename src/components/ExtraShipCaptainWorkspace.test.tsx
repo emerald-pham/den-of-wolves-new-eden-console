@@ -31,7 +31,7 @@ const baseSession = {
   },
 } as GameSession;
 
-function installCaptain(roleId: 'gorgoneion-captain' | 'capybara-small-captain', session = baseSession) {
+function installCaptain(roleId: 'gorgoneion-captain' | 'capybara-small-captain' | 'warrior-captain', session = baseSession) {
   useSessionStore.getState().reset();
   useSessionStore.getState().setIdentity(session, {
     uid: 'captain-1', sessionId: session.id, displayName: 'Captain', role: 'player', seatId: null,
@@ -61,7 +61,7 @@ describe('extra-ship Captain Jump Drive integration', () => {
         cycle: { step: 0, revision: 1, results: {}, charges: ['salvage-drones'], turn: 4 },
       } },
     } as GameSession);
-    render(<ExtraShipCaptainWorkspace roleId={'warrior-captain' as never} />);
+    render(<ExtraShipCaptainWorkspace roleId="warrior-captain" />);
 
     expect(await screen.findByRole('region', { name: 'warrior aftermath controls' })).toBeInTheDocument();
   });
