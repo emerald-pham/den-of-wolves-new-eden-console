@@ -300,11 +300,25 @@ try {
   await command(wing, 'beginShuttleTransit', { requestId: randomUUID(), shuttleId: 'starlight',
     expectedDepartureRequestId: departureId, expectedControlRevision: 0, expectedCycle: attackTurn });
   await command(f.gm, 'setWolfAttackWindow', { instanceId: f.instanceId, requestId: randomUUID(), expectedRevision: 1, status: 'due' });
+  // Use the supported GM pre-rolled-target route for this full-capacity attack.
+  // Spreading the transport targets keeps the source's undefined Capybara deck
+  // exhaustion consequence outside this automatic-finalization scenario.
+  const fleetTargets = ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'];
+  const shipIds = [...Array(14).fill('wolf-fighter-wing'), ...Array(3).fill('wolf-assault-transport')];
+  const targetAssignments = [
+    ...Array.from({ length: 14 }, (_, cardIndex) => ({ cardIndex, targetShipId: fleetTargets[cardIndex % fleetTargets.length] })),
+    ...['aegis', 'dione', 'refinery-124'].map((targetShipId, index) => ({ cardIndex: 14 + index, targetShipId })),
+  ];
   const prep = await command(f.gm, 'stageWolfAttackPreparation', { instanceId: f.instanceId, requestId: randomUUID(),
-    expectedRevision: 0, turn: attackTurn, shipIds: [...Array(10).fill('wolf-fighter-wing'), ...Array(5).fill('wolf-assault-transport')],
-    targetMode: 'pre-rolled', targetAssignments: [], modifiers: [], notes: '' });
+    expectedRevision: 0, turn: attackTurn, shipIds,
+    targetMode: 'pre-rolled', targetAssignments, modifiers: [], notes: 'Disposable composed proof: explicit GM pre-rolled targets.' });
   const declareRequest = { instanceId: f.instanceId, requestId: randomUUID(), expectedRevision: prep.revision };
   const declaration = await command(f.gm, 'declareWolfAttack', declareRequest);
+  const declaredState = await attackState();
+  assert.deepEqual(declaredState.combatRoster.map(({ shipId, target }, cardIndex) => ({ shipId, cardIndex, targetShipId: target })),
+    targetAssignments.map(({ cardIndex, targetShipId }) => ({ shipId: shipIds[cardIndex], cardIndex, targetShipId })),
+    'The current GM pre-rolled inputs enter the canonical combat roster through the ordinary declaration.');
+  checks.normalFacilitatorPreRolledTargets = true;
   assert.equal((await f.db.doc(`sessions/${f.sessionId}/shuttleTransitChains/starlight`).get()).exists, false);
   checks.normalTwentyPlayerPreparationAndActualTransitParking = true;
   const force = await command(captain, 'getWolfForceFieldChoice');
@@ -385,6 +399,9 @@ try {
   checks.allSourcesUseOneLockAndCurrentActorChoices = true;
   checks.disconnectedEntitledFlightsRemainPending = true;
   const finalState = await completeBoarding();
+  for (const kind of ['commander', 'relocation', 'defence']) {
+    assert.ok(boarding.some(choice => choice.kind === kind), `The ordinary attack traverses a genuine ${kind} decision.`);
+  }
   const finalSession = (await f.session.get()).data();
   assert.equal(finalState.currentStep, 'resolved');
   assert.equal(finalState.airspaceLocked, false);
@@ -449,10 +466,10 @@ try {
   await writeFile(evidencePath, `${JSON.stringify({ kind: 'normal-authenticated-local-emulator-ui-http-composed-gameplay',
     sourceCommit, ordinaryRoster: 20, preparedScene: false, productionGameplay: false,
     fixtureChanges: ['disposable clock deadlines only'], normalFacilitatorDecisions: ['Coordination-phase optional ship and replacement admission',
-      'explicitly deferred first window and ordinary early cycle advance',
+      'explicitly deferred first window and ordinary early cycle advance', 'explicit GM pre-rolled targets through the supported preparation callable',
       'current ship write grants', 'audited resource adjustment to nine AEGIS ore', 'audited maintenance damage correction if required',
       ...(boarding.some(item => item.kind === 'commander-ruling') ? ['explicit incomplete Commander consequence ruling'] : [])],
-    checks, actions, ranges, boarding, audience, targetlessResultCount: targetlessResults.length,
+    checks, actions, ranges, boarding, audience, preparationInputs: { shipIds, targetAssignments }, targetlessResultCount: targetlessResults.length,
     sessionStoreModuleUrl, firestoreModuleUrl, browserErrors, heartbeatFailures: f.heartbeatFailures,
     identitiesRetained: false, completedAt: new Date().toISOString() }, null, 2)}\n`);
   console.log('PC08 ordinary composed source attack and live phone warhead proof passed.');

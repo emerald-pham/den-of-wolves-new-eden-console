@@ -107,6 +107,17 @@ The harmless `ef0421c9` const/interface/draft-copy lint cleanup has no new
 behavior or weakened assertion; all eight affected presenter checks and lint
 pass in `owner/range-review-ui-green.log` and `range-review-lint-green.log`.
 
+The first fresh repaired-source composed run at `3ab3a6cb` completes setup,
+all three ranges and five actual boarding decisions, then its random twelve
+parties on Capybara hit the existing undefined damage-deck exhaustion blocker.
+The failed result, private state and logs remain preserved; no authority failure
+or browser error is reported. The subsequent proof keeps full damage capacity
+20 with fourteen Wings and three Transports, uses the supported authenticated
+GM pre-rolled-target preparation route to spread the attack, and records every
+input. It adds exact canonical-target and actual Commander/relocation/defence
+traversal assertions. No dice, damage, printed limit or production behavior is
+changed; no failed assertion is removed. Its final result remains pending.
+
 | Final reconciled checks | Reason and retained evidence |
 |---|---|
 | `c2568b55` → `a995eb37`, actual Maliades heading | The eight-case browser matrix now checks the nested real presenter's computed CIC font. Red fails on the prior Georgia fallback; green passes both browser checks and all eight cases. `owner/maliades-font-red.log` and `owner/maliades-font-green.log`; actual phone results and landscape fighter images were inspected. |

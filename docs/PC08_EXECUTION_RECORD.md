@@ -382,3 +382,18 @@ modules, 32 changed index consumers and 107 unique Functions. AST and renewed
 manual initialization/import review agree; no broad deployment fallback is
 introduced. Fresh composed gameplay, bounded independent follow-up, full final
 validation, candidate CI and exact-main deployment remain pending.
+
+The fresh `3ab3a6cb` run first retains a startup project-endpoint mismatch, then
+restarts explicitly in `demo-pc08-owner`. Its normal twenty-player traversal
+passes six checks and commits five boarding decisions. Three random Transports
+concentrate twelve parties on Capybara, whose exhausted seven-card deck has no
+printed automatic consequence; the existing facilitator blocker correctly
+preserves unresolved authority. This failed branch remains external in
+`owner/authenticated-composed-reconciled-final-damage-deck-blocker/`.
+The owner adapts only the proof's supported GM preparation inputs: full damage
+capacity 20, fourteen Wings and three Transports, explicit pre-rolled targets
+spread across the fleet with Transports on AEGIS, Dione and Refinery. Every
+input and its exact canonical target is asserted and recorded. Genuine
+Commander, relocation and defence traversal is also required. No server dice,
+damage, source limit, authority or production behavior changes. The subsequent
+fresh build/restart and complete result remain pending.
