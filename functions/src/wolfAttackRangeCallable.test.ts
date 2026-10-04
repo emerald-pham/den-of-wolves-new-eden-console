@@ -84,6 +84,7 @@ import {
   commitWolfBoardingSpecialChoice,
   getWolfForceFieldChoice,
   commitWolfForceFieldChoice,
+  applyWolfCommanderRangeTargetAdjustment,
 } from './index';
 import { initialFighterWingCounts } from './fighterWings';
 import { beginPdfEscortWingAttack, initialPdfEscortWingState, launchPdfEscortWing } from './pdfEscortWingState';
@@ -173,6 +174,68 @@ function admitEscortRange(): void {
       unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
       destructionDamageByTarget: Object.fromEntries(CORE_WOLF_TARGET_RING.map((target) => [target, 0])) }] });
 }
+
+it('records one private Commander target adjustment bound to the current attack and range', async () => {
+  const attackPath = 'sessions/s1/wolfAttackState/current';
+  const attack = testState.documents.get(attackPath)!;
+  put(attackPath, { ...attack, currentStep: 'long-range' });
+  put('sessions/s1/players/wolf-commander', {
+    uid: 'wolf-commander', role: 'player', connected: true, replacementRoleId: 'wolf-commander',
+  });
+
+  const result = await applyWolfCommanderRangeTargetAdjustment.run(request({
+    sessionId: 's1', requestId: 'commander-shift-long', attackId: attack.attackId,
+    expectedTurn: 1, expectedRevision: 7, range: 'long-range', rosterIndex: 0, delta: 1,
+  }, 'wolf-commander'));
+  expect(result).toMatchObject({
+    status: 'committed', type: 'wolf-commander-range-target-adjustment',
+    turn: 1, attackId: attack.attackId, revision: 8, range: 'long-range', rosterIndex: 0,
+    fromTarget: 'aegis', toTarget: 'dione', fromTargetNumber: 1, toTargetNumber: 2, delta: 1,
+  });
+  expect((testState.documents.get(attackPath)!.commanderRangeAdjustments as Fields)['long-range']).toMatchObject({
+    attackId: attack.attackId, range: 'long-range', rosterIndex: 0,
+    instanceId: '0:wolf-fighter-wing', shipId: 'wolf-fighter-wing',
+    fromTarget: 'aegis', toTarget: 'dione', actorUid: 'wolf-commander',
+  });
+  expect(testState.documents.get(`${attackPath}/audit/commander-shift-long`)).toMatchObject({
+    type: 'wolf-commander-range-target-adjustment', actorRoleId: 'wolf-commander',
+    attackId: attack.attackId, range: 'long-range',
+  });
+  expect(testState.documents.get('sessions/s1/wolfAttackAudience/current')).toBeUndefined();
+});
+
+it('rejects a duplicate range use, stale attack, wrong role, and client-authored target outcome', async () => {
+  const attackPath = 'sessions/s1/wolfAttackState/current';
+  const attack = testState.documents.get(attackPath)!;
+  put(attackPath, { ...attack, currentStep: 'long-range' });
+  put('sessions/s1/players/wolf-commander', {
+    uid: 'wolf-commander', role: 'player', connected: true, replacementRoleId: 'wolf-commander',
+  });
+  put('sessions/s1/players/old-wolf', {
+    uid: 'old-wolf', role: 'player', connected: true, assignedRoleId: 'wolf-commander',
+  });
+  const payload = {
+    sessionId: 's1', requestId: 'commander-shift-once', attackId: attack.attackId,
+    expectedTurn: 1, expectedRevision: 7, range: 'long-range', rosterIndex: 0, delta: -1,
+  };
+  await applyWolfCommanderRangeTargetAdjustment.run(request(payload, 'wolf-commander'));
+  const saved = testState.documents.get(attackPath)!;
+  const writeCount = testState.set.mock.calls.length;
+  await expect(applyWolfCommanderRangeTargetAdjustment.run(request({
+    ...payload, requestId: 'commander-shift-repeat', expectedRevision: 8,
+  }, 'wolf-commander'))).rejects.toMatchObject({ code: 'failed-precondition' });
+  await expect(applyWolfCommanderRangeTargetAdjustment.run(request({
+    ...payload, requestId: 'commander-shift-stale', attackId: 'stale-attack', expectedRevision: 8,
+  }, 'wolf-commander'))).rejects.toMatchObject({ code: 'failed-precondition' });
+  await expect(applyWolfCommanderRangeTargetAdjustment.run(request({
+    ...payload, requestId: 'commander-shift-old-role', expectedRevision: 8,
+  }, 'old-wolf'))).rejects.toMatchObject({ code: 'permission-denied' });
+  await expect(applyWolfCommanderRangeTargetAdjustment.run(request({
+    ...payload, requestId: 'commander-shift-forged', target: 'dione',
+  }, 'wolf-commander'))).rejects.toMatchObject({ code: 'invalid-argument' });
+  expect(testState.documents.get(attackPath)).toEqual(saved);
+  expect(testState.set.mock.calls.length).toBe(writeCount);
+});
 
 function admitRangeSupportChoices(): void {
   const session = testState.documents.get('sessions/s1')!;
