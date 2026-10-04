@@ -1,5 +1,10 @@
 import { randomInt } from 'node:crypto';
-import { drawShipDamage, type ShipDamageState, type DamageCard } from './shipDamage';
+import {
+  drawShipDamage,
+  type ShipDamageState,
+  type DamageCard,
+  type DamageDeckExhaustionPolicy,
+} from './shipDamage';
 import { populationChange } from './shipPopulation';
 import {
   WOLF_ATTACK_RANGES,
@@ -999,6 +1004,7 @@ export function applyWolfFleetDamage(
   amount: number,
   current: FleetCombatState,
   random: WolfRandomInt = secureRandomInt,
+  options: { readonly exhaustedDeckPolicy?: 'facilitator-ruling' | 'destroy' } = {},
 ): FleetDamageDrawReceipt {
   requireNonNegativeInteger(amount, 'amount');
   let state = current.damage;
@@ -1006,7 +1012,10 @@ export function applyWolfFleetDamage(
   requireNonNegativeInteger(population, 'population');
   const draws: FleetDamageDrawReceipt['draws'][number][] = [];
   for (let index = 0; index < amount; index += 1) {
-    const draw = drawShipDamage(target, state, upperBound => boundedRandomInt(random, upperBound));
+    const exhaustionPolicy: DamageDeckExhaustionPolicy = options.exhaustedDeckPolicy === 'destroy'
+      ? 'destroy-on-required-draw'
+      : 'facilitator-ruling';
+    const draw = drawShipDamage(target, state, upperBound => boundedRandomInt(random, upperBound), undefined, exhaustionPolicy);
     if (draw.destroyed) {
       state = draw.state;
       draws.push({ destroyed: true, casualty: false });
@@ -1084,6 +1093,12 @@ export interface WolfCalculationReceipt {
     preventedDamage: number;
   } | { status: 'unavailable'; preventedDamage: 0 }>;
   readonly returningInstanceIds: readonly string[];
+  /** Private post-range survivor roster used to validate subsequent-attack lookups. */
+  readonly survivingWolfShips?: readonly {
+    readonly instanceId: string;
+    readonly shipId: WolfShipId;
+    readonly target: WolfFleetTargetId;
+  }[];
 }
 
 export interface WolfAttackFinalizationInput {
@@ -1334,7 +1349,7 @@ export function finalizeWolfAttack(input: WolfAttackFinalizationInput): WolfCalc
     if (amount < 1) return;
     const state = input.fleetState[target];
     if (!state) throw new Error(`A complete authoritative fleet combat state is required for ${target}.`);
-    const result = applyWolfFleetDamage(target, amount, state, random);
+    const result = applyWolfFleetDamage(target, amount, state, random, { exhaustedDeckPolicy: 'destroy' });
     fleetDamage.push({
       target: result.target, amount: result.amount, state: result.state,
       population: result.population, draws: result.draws,
@@ -1343,7 +1358,10 @@ export function finalizeWolfAttack(input: WolfAttackFinalizationInput): WolfCalc
   return deepFreeze({
     type: 'wolf-combat-calculation', version: 1, requestId: input.requestId, phase,
     targeting: input.targeting, ranges: input.ranges, boarding, fleetDamage,
-    forceField, returningInstanceIds: survival.returningInstanceIds,
+    forceField,
+    returningInstanceIds: survival.returningInstanceIds,
+    survivingWolfShips: replayRoster.filter(({ destroyed }) => !destroyed)
+      .map(({ instanceId, shipId, target }) => ({ instanceId, shipId, target })),
   });
 }
 
@@ -1447,7 +1465,7 @@ export function calculateWolfAttack(input: WolfAttackCalculationInput): WolfCalc
     if (amount < 1) return;
     const state = input.fleetState[target];
     if (!state) throw new Error(`A complete authoritative fleet combat state is required for ${target}.`);
-    const result = applyWolfFleetDamage(target, amount, state, random);
+    const result = applyWolfFleetDamage(target, amount, state, random, { exhaustedDeckPolicy: 'destroy' });
     fleetDamage.push({ target: result.target, amount: result.amount, state: result.state, population: result.population, draws: result.draws });
   });
   return deepFreeze({
@@ -1461,6 +1479,8 @@ export function calculateWolfAttack(input: WolfAttackCalculationInput): WolfCalc
     fleetDamage,
     forceField,
     returningInstanceIds: survival.returningInstanceIds,
+    survivingWolfShips: roster.filter(({ destroyed }) => !destroyed)
+      .map(({ instanceId, shipId, target }) => ({ instanceId, shipId, target })),
   });
 }
 
@@ -1471,5 +1491,8 @@ export function isWolfCalculationReceipt(value: unknown): value is WolfCalculati
       (value.phase.phase !== 'coordination' && value.phase.phase !== 'team') || !Array.isArray(value.ranges) ||
       !Array.isArray(value.boarding) || !Array.isArray(value.fleetDamage) ||
       !Array.isArray(value.returningInstanceIds) || !assertRecord(value.targeting)) return false;
+  if (value.survivingWolfShips !== undefined && (!Array.isArray(value.survivingWolfShips) ||
+      value.survivingWolfShips.some((ship) => !assertRecord(ship) || typeof ship.instanceId !== 'string' ||
+        typeof ship.shipId !== 'string' || typeof ship.target !== 'string'))) return false;
   return true;
 }

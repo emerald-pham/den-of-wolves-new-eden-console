@@ -126,6 +126,8 @@ export type DamageDrawResult =
     readonly recycled: boolean;
   };
 
+export type DamageDeckExhaustionPolicy = 'facilitator-ruling' | 'destroy-on-required-draw';
+
 export class CapybaraDamageDeckExhaustedError extends Error {
   constructor() {
     super('Capybara damage deck exhausted; facilitator ruling required.');
@@ -138,6 +140,7 @@ export function drawShipDamage(
   state: ShipDamageState,
   randomIndex: (upperBound: number) => number,
   eligibleSystemIds?: ReadonlySet<string>,
+  exhaustionPolicy: DamageDeckExhaustionPolicy = 'facilitator-ruling',
 ): DamageDrawResult {
   const deck = SHIP_DAMAGE_DECKS[shipId];
   if (!deck) throw new Error('This ship has no implemented damage deck.');
@@ -147,9 +150,12 @@ export function drawShipDamage(
   const remaining = deck.filter(({ systemId }) =>
     !damaged.has(systemId) && (!eligibleSystemIds || eligibleSystemIds.has(systemId)));
   if (remaining.length === 0) {
-    // The expansion does not define an outcome for Capybara's exhausted deck.
-    // Leave the authoritative state untouched until that ruling is recorded.
+    // Non-combat damage preserves the facilitator ruling; required combat
+    // draws use the base combat catastrophe when the deck is empty.
     if (shipId === 'capybara') {
+      if (exhaustionPolicy === 'destroy-on-required-draw') {
+        return { state: { ...state, destroyed: true }, destroyed: true };
+      }
       throw new CapybaraDamageDeckExhaustedError();
     }
     return { state: { ...state, destroyed: true }, destroyed: true };
