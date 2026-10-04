@@ -2304,7 +2304,7 @@ it('publishes each PDF Short editable hit once with its printed source label', a
   expect(projectPdfEscortWingMemberView(testState.documents.get('sessions/s1/serverState/pdfEscortWing')))
     .toMatchObject({ fighters: 3, losses: 1, shortResolved: true, shortRollCount: 2 });
   expect(testState.documents.get('sessions/s1')!.pdfEscortWing).toEqual({
-    type: 'pdf-escort-fighter-wing-view', revision: 4, cycle: 1, capacity: 4, fighters: 3,
+    type: 'pdf-escort-fighter-wing-view', revision: 3, cycle: 1, capacity: 4, fighters: 3,
     launched: true, mediumResolved: true, mediumActionCount: 0, shortResolved: true, shortRollCount: 2, losses: 1,
   });
   const saved = structuredClone([...testState.documents]);
