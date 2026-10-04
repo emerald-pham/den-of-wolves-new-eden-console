@@ -20,7 +20,7 @@ describe('group-bound Wolf threat protocol', () => {
 
   it.each([
     ['L', 1, 20],
-    ['M', 1, 20],
+    ['M', 2, 25],
     ['P', 1, 20],
   ] as const)('enforces the printed %s entry force using separate station and other-ship capacity',
     (siteCode, stations, otherCapacity) => {
@@ -36,6 +36,14 @@ describe('group-bound Wolf threat protocol', () => {
       });
       expect(() => wolfThreatComposition(siteCode, shipIds.slice(0, -1))).toThrow(/entry attack/i);
     });
+
+  it('keeps the M fortress minimum at two Battlestations plus 25 other capacity', () => {
+    const weakerFortress = [
+      'wolf-battlestation',
+      ...Array<string>(4).fill('wolf-strikecarrier'),
+    ];
+    expect(() => wolfThreatComposition('M', weakerFortress)).toThrow(/2 Battlestation\(s\).*25 other/i);
+  });
 
   it('requires the Commander dial to cover ten capacity plus only the target group pursuit', () => {
     expect(commanderAttackRequirement(7)).toBe(17);
