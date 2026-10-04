@@ -194,6 +194,56 @@ it('accepts the published P arrival composition and binds it to the selected Sta
   });
 });
 
+it('keeps a same-cycle P Station repeat roster under server authority', async () => {
+  session({ chartSelectionLocked: true, chartId: 'B' });
+  put('sessions/s1/wolfAttackWindow/current', {
+    status: 'due', turn: 1, revision: 4,
+    targetGroupId: 'fleet-1', threatSiteCode: 'P', threatSourceId: 'arrival-jump-station',
+  });
+  put('sessions/s1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1'] });
+  put('sessions/s1/wolfAttackState/current', {
+    type: 'wolf-attack-state', status: 'resolved', turn: 1, attackNumber: 3,
+    attackId: 'wolf-attack-station-3', pStationSequence: {
+      type: 'p-station-sequence', sequenceId: 'wolf-p-station-jump-station', groupId: 'fleet-1',
+      chart: 'B', coordinate: '1964', stationId: 'P', sourceTransitionId: 'jump-station',
+      sourceCycle: 1, attackNumber: 3,
+    },
+  });
+  put('sessions/s1/wolfAttackPreparation/current', {
+    turn: 1, revision: 6, shipIds: ['wolf-battlestation', 'wolf-fighter-wing'],
+    targetMode: 'pre-rolled', targetAssignments: [], modifiers: [], notes: '',
+    compositionKind: 'p-station-repeat', targetGroupId: 'fleet-1',
+  });
+  put('sessions/s1/serverState/wolfArrivalPressure/groups/fleet-1', {
+    type: 'wolf-base-arrival-pressure-state', groupId: 'fleet-1', chart: 'B', revision: 1,
+    entries: [{
+      type: 'wolf-base-arrival-pressure', status: 'operational', groupId: 'fleet-1', chart: 'B',
+      coordinate: '1964', siteCode: 'P', sourceShipId: 'aegis', sourceTransitionId: 'jump-station',
+      cycle: 1, revision: 1, attackStatus: 'scheduled', arrivalTiming: 'immediate',
+      minimumBattleStations: 1, minimumOtherShipDamage: 20,
+      missionAccess: 'blockedWhileWolfForcesRemain', recurringUntil: ['allWolfForcesDestroyed'],
+    }],
+  });
+  put('sessions/s1/wolfAttackPressure/arrival-jump-station', {
+    type: 'wolf-base-arrival-pressure-schedule', status: 'scheduled', sessionId: 's1',
+    groupId: 'fleet-1', chart: 'B', coordinate: '1964', siteCode: 'P', sourceShipId: 'aegis',
+    sourceTransitionId: 'jump-station', sourceCycle: 1, arrivalTiming: 'immediate',
+    minimumBattleStations: 1, minimumOtherShipDamage: 20,
+    recurringUntil: ['allWolfForcesDestroyed'], missionAccess: 'blockedWhileWolfForcesRemain',
+  });
+
+  await expect(stageWolfAttackPreparation.run(request({
+    ...baseData, requestId: 'p-repeat-forged-roster', expectedRevision: 6,
+    shipIds: ['wolf-battlestation', ...Array<string>(10).fill('wolf-strikecarrier')],
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/survivor|server-generated|repeat/i),
+  });
+  expect(mock.documents.get('sessions/s1/wolfAttackPreparation/current')).toMatchObject({
+    compositionKind: 'p-station-repeat', shipIds: ['wolf-battlestation', 'wolf-fighter-wing'],
+  });
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('requires the Commander composition to match ten plus only the selected group pursuit', async () => {
   put('sessions/s1/wolfAttackWindow/current', {
     status: 'due', turn: 1, revision: 1, targetGroupId: 'fleet-1', threatSiteCode: 'commander',
