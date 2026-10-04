@@ -61,6 +61,9 @@ export function WolfRangeActionPanelView({
 }>) {
   const [selectedActions, setSelectedActions] = useState<readonly string[]>([]);
   const [assignmentsByAction, setAssignmentsByAction] = useState<Readonly<Record<string, readonly string[]>>>({});
+  const selectableActions = useMemo(() => view.eligibleActions.filter(({ sourceId }) =>
+    sourceId.startsWith('aegis-')),
+  [view.eligibleActions]);
   const draftKey = JSON.stringify([
     view.sessionId, view.turn, view.revision, view.currentStep, view.range, view.choiceStatus,
     view.eligibleActions.map(({ actionId, sourceId, range }) => [actionId, sourceId, range]),
@@ -133,10 +136,10 @@ export function WolfRangeActionPanelView({
       </p>
       {!locked ? (
         <>
-          {view.eligibleActions.length > 0 ? (
+          {selectableActions.length > 0 ? (
             <fieldset className="wolf-range-action__choices" disabled={busy}>
               <legend>Available range actions</legend>
-              {view.eligibleActions.map((action) => (
+              {selectableActions.map((action) => (
                 <label key={action.actionId} className="wolf-range-action__choice">
                   <input
                     type="checkbox"
@@ -150,7 +153,7 @@ export function WolfRangeActionPanelView({
               ))}
             </fieldset>
           ) : (
-            <p className="wolf-range-action__notice">No charged range actions are available. You can still pass this range.</p>
+            <p className="wolf-range-action__notice">No selectable AEGIS weapons are available. You can still pass this range.</p>
           )}
           <p className="wolf-range-action__notice">No automatic pass is applied at the deadline. Reconnect to make the current choice.</p>
           <div className="wolf-range-action__buttons">
