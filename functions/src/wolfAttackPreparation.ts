@@ -1,8 +1,8 @@
 import {
   scheduledWolfAttackComposition,
-  type ScheduledWolfAttackComposition,
 } from './wolfAttackComposition';
-import { WOLF_SHIP_IDS, type WolfShipId } from './wolfShipCatalog';
+import { WOLF_SHIP_IDS, type WolfShipId, wolfShipForId } from './wolfShipCatalog';
+import { commanderAttackRequirement, wolfThreatComposition, type WolfThreatSiteCode } from './wolfThreatProtocol';
 
 /** Fleet targets that may be named in a private preparation draft. */
 export const WOLF_ATTACK_TARGET_IDS = [
@@ -37,6 +37,13 @@ export type WolfAttackPreparationModifierId = typeof WOLF_ATTACK_PREPARATION_MOD
 
 export const WOLF_ATTACK_TARGET_MODES = ['manual', 'pre-rolled'] as const;
 export type WolfAttackTargetMode = typeof WOLF_ATTACK_TARGET_MODES[number];
+export type WolfAttackCompositionKind = WolfThreatSiteCode | 'commander' | 'p-station-repeat';
+
+export interface WolfAttackPreparationCompositionRule {
+  readonly kind: WolfAttackCompositionKind;
+  readonly targetGroupId: string;
+  readonly targetGroupPursuit?: number;
+}
 
 export interface WolfAttackTargetAssignment {
   readonly cardIndex: number;
@@ -55,6 +62,9 @@ export interface WolfAttackPreparationInput {
 export interface WolfAttackPreparation extends Omit<WolfAttackPreparationInput, 'shipIds'> {
   readonly shipIds: readonly WolfShipId[];
   readonly revision: number;
+  readonly compositionKind?: WolfAttackCompositionKind;
+  readonly targetGroupId?: string;
+  readonly targetGroupPursuit?: number;
 }
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -71,6 +81,93 @@ function isModifierId(value: unknown): value is WolfAttackPreparationModifierId 
     (WOLF_ATTACK_PREPARATION_MODIFIER_IDS as readonly string[]).includes(value);
 }
 
+export interface WolfPreparedComposition {
+  readonly shipIds: readonly WolfShipId[];
+  readonly counts: Readonly<Record<WolfShipId, number>>;
+  readonly damageCapacity: number;
+}
+
+/** Validate the private roster under its server-selected ordinary, entry, or Commander rule. */
+export function wolfAttackCompositionForRule(
+  turn: number,
+  shipIds: readonly string[],
+  rule?: WolfAttackPreparationCompositionRule,
+): WolfPreparedComposition {
+  if (!rule) return scheduledWolfAttackComposition(turn, shipIds);
+  if (!Number.isSafeInteger(turn) || turn < 1 || !Array.isArray(shipIds) || shipIds.length < 1 || shipIds.length > 24 ||
+      !/^fleet-[1-9][0-9]*$/.test(rule.targetGroupId)) {
+    throw new Error('Invalid threat attack preparation.');
+  }
+  if (rule.kind === 'L' || rule.kind === 'M' || rule.kind === 'P') {
+    return wolfThreatComposition(rule.kind, shipIds);
+  }
+  if (rule.kind === 'p-station-repeat') {
+    const counts: Record<WolfShipId, number> = {
+      'wolf-fighter-wing': 0,
+      'wolf-assault-transport': 0,
+      'wolf-destroyer': 0,
+      'wolf-cruiser': 0,
+      'wolf-strikecarrier': 0,
+      'wolf-battlestation': 0,
+    };
+    const canonicalShipIds: WolfShipId[] = [];
+    let damageCapacity = 0;
+    for (const shipId of shipIds) {
+      const ship = typeof shipId === 'string' ? wolfShipForId(shipId) : undefined;
+      if (!ship) throw new Error('The P Station repeat composition contains an unknown surviving ship.');
+      canonicalShipIds.push(ship.id);
+      counts[ship.id] += 1;
+      damageCapacity += ship.damageCapacity;
+    }
+    return Object.freeze({
+      shipIds: Object.freeze(canonicalShipIds),
+      counts: Object.freeze(counts),
+      damageCapacity,
+    });
+  }
+  if (rule.kind !== 'commander' || !Number.isSafeInteger(rule.targetGroupPursuit) ||
+      (rule.targetGroupPursuit as number) < 0 || (rule.targetGroupPursuit as number) > 10) {
+    throw new Error("The Commander attack dial is not bound to the selected group's current pursuit.");
+  }
+  const counts: Record<WolfShipId, number> = {
+    'wolf-fighter-wing': 0,
+    'wolf-assault-transport': 0,
+    'wolf-destroyer': 0,
+    'wolf-cruiser': 0,
+    'wolf-strikecarrier': 0,
+    'wolf-battlestation': 0,
+  };
+  const canonicalShipIds: WolfShipId[] = [];
+  let damageCapacity = 0;
+  for (const shipId of shipIds) {
+    const ship = typeof shipId === 'string' ? wolfShipForId(shipId) : undefined;
+    if (!ship) throw new Error('The Commander attack composition contains an unknown ship.');
+    canonicalShipIds.push(ship.id);
+    counts[ship.id] += 1;
+    damageCapacity += ship.damageCapacity;
+  }
+  if (damageCapacity !== commanderAttackRequirement(rule.targetGroupPursuit as number)) {
+    throw new Error('The Commander attack composition must exactly match ten plus the selected group pursuit.');
+  }
+  return Object.freeze({
+    shipIds: Object.freeze(canonicalShipIds),
+    counts: Object.freeze(counts),
+    damageCapacity,
+  });
+}
+
+export function wolfAttackCompositionForPreparation(preparation: WolfAttackPreparation): WolfPreparedComposition {
+  const rule = preparation.compositionKind
+    ? {
+      kind: preparation.compositionKind,
+      targetGroupId: preparation.targetGroupId ?? '',
+      ...(preparation.compositionKind === 'commander' && Number.isSafeInteger(preparation.targetGroupPursuit)
+        ? { targetGroupPursuit: preparation.targetGroupPursuit } : {}),
+    } as WolfAttackPreparationCompositionRule
+    : undefined;
+  return wolfAttackCompositionForRule(preparation.turn, preparation.shipIds, rule);
+}
+
 /** Read a private draft without trusting malformed legacy data. */
 export function wolfAttackPreparationState(value: unknown): WolfAttackPreparation | undefined {
   if (!record(value) || !Number.isSafeInteger(value.revision) || (value.revision as number) < 0 ||
@@ -82,9 +179,24 @@ export function wolfAttackPreparationState(value: unknown): WolfAttackPreparatio
   }
   const shipIds = value.shipIds.filter((id): id is string => typeof id === 'string');
   if (shipIds.length !== value.shipIds.length) return undefined;
-  let composition: ScheduledWolfAttackComposition;
+  let composition: WolfPreparedComposition;
+  const compositionKind = value.compositionKind;
+  const targetGroupId = value.targetGroupId;
+  const targetGroupPursuit = value.targetGroupPursuit;
+  const validKind = compositionKind === 'L' || compositionKind === 'M' ||
+    compositionKind === 'P' || compositionKind === 'commander' || compositionKind === 'p-station-repeat';
+  if ((compositionKind !== undefined && !validKind) ||
+      (compositionKind === undefined && (targetGroupId !== undefined || targetGroupPursuit !== undefined)) ||
+      (compositionKind !== undefined && (typeof targetGroupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(targetGroupId))) ||
+      (compositionKind !== 'commander' && targetGroupPursuit !== undefined)) return undefined;
   try {
-    composition = scheduledWolfAttackComposition(value.turn as number, shipIds);
+    composition = wolfAttackCompositionForRule(value.turn as number, shipIds, compositionKind === undefined
+      ? undefined
+      : {
+        kind: compositionKind as WolfAttackCompositionKind,
+        targetGroupId: targetGroupId as string,
+        ...(Number.isSafeInteger(targetGroupPursuit) ? { targetGroupPursuit: targetGroupPursuit as number } : {}),
+      });
   } catch {
     return undefined;
   }
@@ -111,6 +223,10 @@ export function wolfAttackPreparationState(value: unknown): WolfAttackPreparatio
     targetAssignments: targetAssignments as WolfAttackTargetAssignment[],
     modifiers: [...new Set(modifiers)],
     notes: value.notes,
+    ...(validKind && typeof targetGroupId === 'string'
+      ? { compositionKind: compositionKind as WolfAttackCompositionKind, targetGroupId } : {}),
+    ...(compositionKind === 'commander' && Number.isSafeInteger(targetGroupPursuit)
+      ? { targetGroupPursuit: targetGroupPursuit as number } : {}),
   };
 }
 
@@ -122,9 +238,10 @@ export function wolfAttackPreparationState(value: unknown): WolfAttackPreparatio
 export function validateWolfAttackPreparation(
   input: WolfAttackPreparationInput,
   activeVesselIds: readonly string[],
+  rule?: WolfAttackPreparationCompositionRule,
 ): Omit<WolfAttackPreparation, 'revision'> {
   if (!Number.isSafeInteger(input.turn) || input.turn < 1) throw new Error('Invalid attack cycle.');
-  const composition = scheduledWolfAttackComposition(input.turn, input.shipIds);
+  const composition = wolfAttackCompositionForRule(input.turn, input.shipIds, rule);
   if (!WOLF_ATTACK_TARGET_MODES.includes(input.targetMode)) throw new Error('Invalid targeting mode.');
   if (input.notes.length > 2_000) throw new Error('Preparation notes are too long.');
   const activeTargets = new Set(activeVesselIds.filter((id): id is WolfAttackTargetId => isTargetId(id)));
@@ -152,6 +269,11 @@ export function validateWolfAttackPreparation(
     targetAssignments,
     modifiers: [...input.modifiers],
     notes: input.notes.trim(),
+    ...(rule ? {
+      compositionKind: rule.kind,
+      targetGroupId: rule.targetGroupId,
+      ...(rule.targetGroupPursuit === undefined ? {} : { targetGroupPursuit: rule.targetGroupPursuit }),
+    } : {}),
   };
 }
 
