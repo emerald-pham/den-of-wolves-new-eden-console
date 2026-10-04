@@ -172,11 +172,11 @@ async function verifyPressFacts(f, press, attacks) {
  * Prove normal, authenticated PC09 consequences after an ordinary attack.
  * `actorAllocations` contains real authenticated actor objects, not uid strings:
  * doctor, warrior, macaw, boa, wingCommander, press, and optionally
- * `advanceNextTeam({ f, attackTurn })` for the caller-owned ordinary turn/maintenance path.
+ * The separate `advanceNextTeam({ f, attackTurn })` callback owns the caller's ordinary turn/maintenance path.
  * Set `requiredBranches` only when deliberately splitting a bounded proof across
  * distinct normal attacks; omitted means every assigned branch is mandatory.
  */
-export async function runPc09AftermathProof(f, { directory, finalState, actorAllocations = {} } = {}) {
+export async function runPc09AftermathProof(f, { directory, finalState, actorAllocations = {}, advanceNextTeam } = {}) {
   assert.ok(f?.sessionId && f?.session && f?.config?.firestorePort && f?.project,
     'A live authenticated PC09 session fixture is required.');
   assert.ok(isRecord(finalState) && finalState.status === 'resolved' && finalState.currentStep === 'resolved' &&
@@ -250,15 +250,27 @@ export async function runPc09AftermathProof(f, { directory, finalState, actorAll
   if (requested.has('press-publication') && !rows.some((row) => row.population !== row.populationBefore)) {
     blocker('press-publication', 'the attack must produce an actual survivor-count change');
   }
-  if (requested.has('fighter-build') && typeof actorAllocations.advanceNextTeam !== 'function') {
+  if (requested.has('fighter-build') && typeof advanceNextTeam !== 'function') {
     blocker('fighter-build', 'the root driver must supply its ordinary next-Team transition and charged AEGIS maintenance callback');
   }
   const initialGm = await gmStateRead(f, f.gm);
   assert.equal(initialGm.attackId, finalState.attackId, 'The authenticated GM reader must expose this current attack.');
+  assert.deepEqual(initialGm.calculationReceipt, receipt,
+    'The authenticated GM reader must expose the complete immutable server receipt, including every card, casualty, and survivor result.');
   assert.ok(Array.isArray(initialGm.calculationReceipt.fleetDamage) &&
     Array.isArray(initialGm.calculationReceipt.ranges) &&
     Array.isArray(initialGm.calculationReceipt.boarding),
   'The authenticated GM receipt must expose its complete ranges, damage cards, and boarding outcomes.');
+  for (const row of initialGm.calculationReceipt.fleetDamage) {
+    assert.ok(isRecord(row) && Array.isArray(row.draws), 'The GM receipt must retain each damage draw.');
+    for (const draw of row.draws) {
+      assert.ok(isRecord(draw) && typeof draw.destroyed === 'boolean' && typeof draw.casualty === 'boolean',
+        'The GM receipt must retain the complete outcome for every required draw.');
+      if (!draw.destroyed) assert.ok(isRecord(draw.card) && typeof draw.card.card === 'string' &&
+        typeof draw.card.systemId === 'string' && typeof draw.card.systemName === 'string' &&
+        typeof draw.recycled === 'boolean', 'A non-catastrophe GM damage draw must retain its card and recycling result.');
+    }
+  }
   assert.equal(initialGm.calculationReceipt.survivingWolfShips?.length,
     receipt.survivingWolfShips?.length, 'Finalization must persist every surviving Wolf ship in its immutable receipt.');
   if (blockers.length) return failWithBlockers(directory, blockers);
@@ -421,7 +433,7 @@ export async function runPc09AftermathProof(f, { directory, finalState, actorAll
   }
 
   if (requested.has('fighter-build')) {
-    const transitionResult = await actorAllocations.advanceNextTeam({ f, attackTurn: finalState.turn });
+    const transitionResult = await advanceNextTeam({ f, attackTurn: finalState.turn });
     assert.notEqual(transitionResult?.status, 'blocked', 'The ordinary next-Team callback must complete.');
     const current = (await f.session.get()).data();
     const { fighterWingCapacity } = createRequire(new URL('../functions/package.json', import.meta.url))('../functions/lib/fighterWings.js');
