@@ -86,6 +86,9 @@ import {
   commitWolfForceFieldChoice,
   applyWolfCommanderRangeTargetAdjustment,
   getWolfCommanderRangeTargetDial,
+  getPdfFighterAceCombatView,
+  grantPdfFighterAcePermission,
+  commitPdfFighterAceCombat,
 } from './index';
 import { initialFighterWingCounts } from './fighterWings';
 import { beginPdfEscortWingAttack, initialPdfEscortWingState, launchPdfEscortWing } from './pdfEscortWingState';
@@ -2793,4 +2796,127 @@ it('keeps the next live range available after a canonical Ace Medium hit and tar
   const state = testState.documents.get(f.path)!;
   put(f.path, { ...state, fighterAcePermissions: { [f.permission.sourceId]: { ...f.permission, attackId: 'old-attack' } } });
   await expect(getWolfRangeActionChoice.run(request({ sessionId: 's1' }))).rejects.toMatchObject({ code: 'failed-precondition' });
+});
+
+/** Actual source-officer/Ace handlers share the ordinary live range fixture. */
+function admitCurrentAce(sourceId = 'pdf-escort-fighter-wing', range = 'medium-range') {
+  admitEscortRange();
+  const path = 'sessions/s1/wolfAttackState/current';
+  const session = testState.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session, activeRoleIds: [...session.activeRoleIds as string[], 'wing-commander'],
+    fighterWingCounts: initialFighterWingCounts() });
+  put('sessions/s1/players/ace-current', { uid: 'ace-current', role: 'player', connected: true,
+    replacementRoleId: 'pdf-fighter-ace', replacementStatus: null, activeConsoleRoleId: null,
+    fleetGroupId: 'fleet-1' });
+  put('sessions/s1/players/wc-1', { uid: 'wc-1', role: 'player', connected: true,
+    assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander', fleetGroupId: 'fleet-1' });
+  put('sessions/s1/players/wolf-commander', { uid: 'wolf-commander', role: 'player', connected: true,
+    replacementRoleId: 'wolf-commander', activeConsoleRoleId: null, fleetGroupId: 'fleet-1' });
+  const group = testState.documents.get('sessions/s1/fleetGroups/fleet-1')!;
+  put('sessions/s1/fleetGroups/fleet-1', { ...group,
+    memberUids: [...group.memberUids as string[], 'ace-current', 'wc-1', 'wolf-commander'],
+    memberShipIds: { ...group.memberShipIds as Fields, 'ace-current': 'refinery-124', 'wc-1': 'aegis', 'wolf-commander': 'aegis' } });
+  const attack = testState.documents.get(path)!;
+  const snapshot = (attack.combatRoster as Array<Fields>).map(({ instanceId, target }) => ({ instanceId, target }));
+  const emptyRange = (atRange: string) => ({ range: atRange, targetSnapshot: snapshot, targetShifts: [],
+    dice: [], assignments: [], unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
+    destructionDamageByTarget: Object.fromEntries(CORE_WOLF_TARGET_RING.map(target => [target, 0])) });
+  put(path, { ...attack, currentStep: range,
+    ...(range === 'short-range' ? { rangeReceipts: [emptyRange('long-range'), emptyRange('medium-range')] } : {}),
+    aegisFighterWingState: { type: 'aegis-fighter-wing-combat-state', attackId: attack.attackId, cycle: 1, revision: 1,
+      wings: { 'fighter-wing-alpha': { fighters: 4, launched: true, mediumResolved: range === 'short-range', shortResolved: false, losses: 0 },
+        'fighter-wing-bravo': { fighters: 4, launched: false, mediumResolved: false, shortResolved: false, losses: 0 } } },
+    fighterLaunchChoices: { ...attack.fighterLaunchChoices as Fields, 'fighter-wing-alpha': {
+      type: 'wolf-fighter-launch-choice', status: 'launched', sourceId: 'fighter-wing-alpha',
+      attackId: attack.attackId, turn: 1, revision: 4, actorUid: 'wc-1', actorRoleId: 'wing-commander', requestId: 'ace-alpha-launch',
+    } } });
+  const permissionPayload = () => ({ sessionId: 's1', requestId: `ace-permission-${sourceId}`,
+    attackId: attack.attackId, expectedRevision: testState.documents.get(path)!.revision, sourceId, fighterIndex: 0 });
+  return { path, sourceId, officer: sourceId === 'pdf-escort-fighter-wing' ? 'colonel-1' : 'wc-1',
+    permissionPayload, actionPayload: () => ({ sessionId: 's1', requestId: `ace-action-${sourceId}`,
+      attackId: attack.attackId, expectedRevision: testState.documents.get(path)!.revision,
+      targetId: 'contact-11', range: range.replace('-range', ''), sourceId, fighterIndex: 0,
+      permissionRequestId: `ace-permission-${sourceId}`, permissionRevision: 1 }) };
+}
+
+it('captures the earlier Commander adjustment in the actual Ace action and preserves the next range', async () => {
+  const f = admitCurrentAce();
+  await applyWolfCommanderRangeTargetAdjustment.run(request({ sessionId: 's1', requestId: 'commander-before-real-ace',
+    attackId: 'wolf-attack-test-1', expectedTurn: 1, expectedRevision: 4, range: 'medium-range', rosterIndex: 10, delta: 1 }, 'wolf-commander'));
+  await grantPdfFighterAcePermission.run(request(f.permissionPayload(), f.officer));
+  await commitPdfFighterAceCombat.run(request({ ...f.actionPayload(), targetShift: 1 }, 'ace-current'));
+  const state = testState.documents.get(f.path)!;
+  expect((state.pdfFighterAceAction as Fields).rosterBefore).toMatchObject([
+    ...Array.from({ length: 10 }, () => expect.anything()), expect.objectContaining({ target: 'dione' }),
+    ...Array.from({ length: targeting.rolls.length - 11 }, () => expect.anything()),
+  ]);
+  expect((state.combatRoster as Array<Fields>)[10]).toMatchObject({ target: 'icebreaker', damageTaken: 1 });
+  await expect(getWolfRangeActionChoice.run(request({ sessionId: 's1' }))).resolves.toMatchObject({ range: 'medium-range' });
+});
+
+it.each(['pdf-escort-fighter-wing', 'fighter-wing-alpha'])('excludes the surviving Ace fighter from ordinary %s range actions', async sourceId => {
+  const f = admitCurrentAce(sourceId);
+  await grantPdfFighterAcePermission.run(request(f.permissionPayload(), f.officer));
+  await commitPdfFighterAceCombat.run(request(f.actionPayload(), 'ace-current'));
+  const read = sourceId === 'pdf-escort-fighter-wing' ? getWolfEscortRangeActionChoice : getWolfFighterRangeActionChoice;
+  const commit = sourceId === 'pdf-escort-fighter-wing' ? commitWolfEscortRangeActionChoice : commitWolfFighterRangeActionChoice;
+  const view = await read.run(request({ sessionId: 's1', sourceId, range: 'medium-range' }, f.officer));
+  expect(view.fighters.map(({ fighterIndex }: { fighterIndex: number }) => fighterIndex)).toEqual([1, 2, 3]);
+  const saved = structuredClone([...testState.documents]);
+  await expect(commit.run(request({ sessionId: 's1', requestId: 'double-spend-ace-fighter', sourceId,
+    expectedTurn: 1, expectedRevision: view.revision, range: 'medium-range',
+    actions: [{ fighterIndex: 0, kind: 'attack', targetContactId: 'contact-11' }] }, f.officer)))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect([...testState.documents]).toEqual(saved);
+});
+
+it('rejects an Ace action using a fighter already committed to ordinary range combat', async () => {
+  const f = admitCurrentAce();
+  await grantPdfFighterAcePermission.run(request(f.permissionPayload(), f.officer));
+  await commitWolfEscortRangeActionChoice.run(request({ sessionId: 's1', requestId: 'ordinary-before-ace',
+    expectedTurn: 1, expectedRevision: testState.documents.get(f.path)!.revision, sourceId: f.sourceId,
+    range: 'medium-range', actions: [{ fighterIndex: 0, kind: 'attack', targetContactId: 'contact-11' }] }, f.officer));
+  const saved = structuredClone([...testState.documents]);
+  await expect(commitPdfFighterAceCombat.run(request(f.actionPayload(), 'ace-current')))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect([...testState.documents]).toEqual(saved);
+});
+
+it('persists one Ace loss and three ordinary AEGIS Short losses without charging the Ace loss twice', async () => {
+  const f = admitCurrentAce('fighter-wing-alpha', 'short-range');
+  await grantPdfFighterAcePermission.run(request(f.permissionPayload(), f.officer));
+  const payload = { ...f.actionPayload(), extraTargetId: 'contact-11' };
+  await expect(commitPdfFighterAceCombat.run(request(payload, 'ace-current')))
+    .resolves.toMatchObject({ fighterDestroyed: true, escaped: true, aceDied: false });
+  expect(testState.documents.get('sessions/s1')!.fighterWingCounts).toMatchObject({ 'fighter-wing-alpha': { count: 3, revision: 1 } });
+  const view = await getWolfFighterRangeActionChoice.run(request({ sessionId: 's1', sourceId: f.sourceId, range: 'short-range' }, f.officer));
+  expect(view.fighters.map(({ fighterIndex }: { fighterIndex: number }) => fighterIndex)).toEqual([0, 1, 2]);
+  await commitWolfFighterRangeActionChoice.run(request({ sessionId: 's1', sourceId: f.sourceId,
+    requestId: 'remaining-alpha-short', expectedTurn: 1, expectedRevision: view.revision, range: 'short-range', fighterIndexes: [0, 1, 2] }, f.officer));
+  for (const [sourceId, uid] of [['pdf-escort-fighter-wing', 'colonel-1'], ['maliades', 'engineer-1']]) {
+    await commitWolfEscortRangeActionChoice.run(request({ sessionId: 's1', sourceId, requestId: `ace-short-pass-${sourceId}`,
+      expectedTurn: 1, expectedRevision: testState.documents.get(f.path)!.revision, range: 'short-range',
+      ...(sourceId === 'maliades' ? { targetContactIds: [] } : { fighterIndexes: [] }) }, uid));
+  }
+  entropy.randomInt.mockReset().mockReturnValue(0);
+  const lock = { sessionId: 's1', requestId: 'ace-short-lock', expectedTurn: 1,
+    expectedRevision: testState.documents.get(f.path)!.revision, range: 'short-range', actionIds: [] };
+  await expect(commitWolfRangeActionChoice.run(request(lock))).resolves.toMatchObject({ currentStep: 'boarding' });
+  expect(testState.documents.get('sessions/s1')!.fighterWingCounts).toMatchObject({
+    'fighter-wing-alpha': { count: 0, revision: 2 }, 'fighter-wing-bravo': { count: 4, revision: 0 } });
+  const saved = structuredClone([...testState.documents]);
+  await expect(commitWolfRangeActionChoice.run(request(lock))).resolves.toMatchObject({ status: 'replayed' });
+  expect([...testState.documents]).toEqual(saved);
+  expect(entropy.randomInt).toHaveBeenCalledTimes(3);
+});
+
+it('rejects future Commander revisions before the Ace captures a malformed combat ledger', async () => {
+  const f = admitCurrentAce();
+  await applyWolfCommanderRangeTargetAdjustment.run(request({ sessionId: 's1', requestId: 'commander-future-ace',
+    attackId: 'wolf-attack-test-1', expectedTurn: 1, expectedRevision: 4, range: 'medium-range', rosterIndex: 10, delta: 1 }, 'wolf-commander'));
+  const state = testState.documents.get(f.path)!;
+  const all = state.commanderRangeAdjustments as Fields;
+  put(f.path, { ...state, commanderRangeAdjustments: { ...all, 'medium-range': { ...all['medium-range'] as Fields, revision: 99 } } });
+  await expect(getPdfFighterAceCombatView.run(request({ sessionId: 's1' }, 'ace-current')))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
 });
