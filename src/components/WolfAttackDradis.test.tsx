@@ -173,7 +173,7 @@ describe('Wolf attack DRADIS live adapter', () => {
       <WolfAttackDradisPanel
         sessionId="session-2"
         enabled
-        visibleTargetIds={['aegis']}
+        visibleTargetIds={['dione']}
         subscribe={subscribe}
       />,
     );
