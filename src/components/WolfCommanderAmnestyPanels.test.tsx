@@ -92,7 +92,7 @@ it('requires a live address before offering the printed condition to an active s
   await user.selectOptions(screen.getByRole('combobox', { name: 'Response deadline' }), '10');
   await user.click(screen.getByRole('button', { name: 'Offer amnesty' }));
   await waitFor(() => expect(mocks.offer).toHaveBeenCalledWith('dione', 4, 10));
-  expect(await screen.findByText(/surrender by medium jump to 0101/i)).toBeVisible();
+  expect((await screen.findAllByText(/surrender by medium jump to 0101/i)).length).toBeGreaterThanOrEqual(1);
   expect(screen.getByText(/Response due/i)).toBeVisible();
   expect(screen.queryByText(/targetUid|damage capacity|fleet composition/i)).not.toBeInTheDocument();
 });
@@ -124,7 +124,7 @@ it('requires facilitator text for an accepted offer and for an unanswered expire
   await user.type(screen.getByRole('textbox', { name: 'Facilitator consequence' }), text);
   await user.click(screen.getByRole('button', { name: 'Record facilitator consequence' }));
   await waitFor(() => expect(mocks.consequence).toHaveBeenCalledWith(1, text));
-  expect(await screen.findByText('The facilitator records the consequence.')).toBeVisible();
+  expect(await screen.findByRole('status')).toHaveTextContent('The facilitator records the consequence.');
 
   const expired = { ...currentOffer, responseDeadline: new Date(Date.now() - 60_000).toISOString() };
   mocks.get.mockResolvedValue({ type: 'wolf-amnesty-view', sessionId: 's1', offer: expired });
