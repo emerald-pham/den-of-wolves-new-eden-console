@@ -4095,6 +4095,9 @@ export function subscribeSessionState(
         if (!fromCache && handlers.sessionReadAudience === 'member') {
           const nextFingerprint = actorFingerprint(player);
           if (memberActorAvailable !== true || nextFingerprint !== memberActorFingerprint) {
+            if (memberActorFingerprint !== undefined && nextFingerprint !== memberActorFingerprint) {
+              pendingMemberDiscovery = undefined;
+            }
             memberActorAvailable = true;
             memberSessionConfirmed = false;
             memberActorFingerprint = nextFingerprint;
