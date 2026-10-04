@@ -1414,7 +1414,7 @@ describe('session header', () => {
       });
       const read = await getDocFromServer(doc(as('alice'), audiencePath))
         .then((snapshot) => ({ allowed: true, data: snapshot.data() }), () => ({ allowed: false }));
-      expect(read.allowed, `Malformed counts were readable: ${JSON.stringify(invalidCounts)} ${JSON.stringify(read.data)}`).toBe(false);
+      expect(read.allowed, `Malformed counts were readable: ${JSON.stringify(invalidCounts)} ${JSON.stringify('data' in read ? read.data : null)}`).toBe(false);
     }
 
     await env.withSecurityRulesDisabled(async (ctx) => {
