@@ -100,6 +100,10 @@ describe('current member session privacy', () => {
         candidates: [{ id: 'candidate-amber', displayName: 'Candidate A' },
           { id: 'candidate-cyan', displayName: 'Candidate B' }],
         presidentCandidateId: 'candidate-amber', vicePresidentCandidateId: 'candidate-cyan',
+        tally: { president: { totalVotes: 3, totalWeight: 3, scores: { 'candidate-amber': 2, 'candidate-cyan': 1 },
+          tiedCandidateIds: [], winnerId: 'candidate-amber' },
+        vicePresident: { totalVotes: 3, totalWeight: 3, scores: { 'candidate-amber': 2, 'candidate-cyan': 1 },
+          tiedCandidateIds: [], winnerId: 'candidate-amber' } },
         vicePresidentOutcome: 'runner-up', decidedCycle: 2,
       },
       presidentialOffices: { electionId: 'current', revision: 3, presidentCandidateId: 'candidate-amber',
@@ -111,7 +115,7 @@ describe('current member session privacy', () => {
 
     const vacant = memberSessionProjection({ ...root,
       presidentialOffices: { electionId: 'current', revision: 4, presidentCandidateId: 'candidate-amber',
-        presidentDisplayName: 'Candidate A', vicePresidentVacant: true, decidedCycle: 3 },
+        presidentUid: 'crew', presidentDisplayName: 'Candidate A', vicePresidentVacant: true, decidedCycle: 3 },
     }, memberSessionScope(player, groups));
     expect(vacant.presidentialOffices).toMatchObject({ presidentCandidateId: 'candidate-amber', vicePresidentVacant: true });
     expect(JSON.stringify(vacant)).not.toMatch(/ballots|voterUids|voterShipIds|presidentUid|vicePresidentUid/);

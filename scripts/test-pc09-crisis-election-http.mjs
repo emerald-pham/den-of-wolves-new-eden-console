@@ -547,7 +547,7 @@ try {
   const electionAuditQuery = await fixture.db.collection(`sessions/${fixture.sessionId}/presidentialElections/current/audit`).get();
   const resolveAudit = electionAuditQuery.docs.find(doc => doc.get('action') === 'resolve');
   assert.ok(resolveAudit, 'The private election audit records the server tally and office transition.');
-  assert.equal((await fixture.db.collection(`sessions/${fixture.sessionId}/presidentialElections/current/ballots`).get()).size, 3);
+  assert.equal((await fixture.db.collection(`sessions/${fixture.sessionId}/presidentialElections/current/ballots`).get()).size, ballots.length);
   assert.equal(Object.hasOwn(election, 'ballots'), false);
   assert.equal(Object.hasOwn(election, 'voterUids'), false);
   const memberElectionProjection = (await member(captain)).presidentialElection;
@@ -649,7 +649,7 @@ try {
     outcome: {
       crisisKindsResolved: ['Approaching Vessel', 'Disease Outbreak', 'Religious Zealotry', 'Civil Unrest', 'Presidential Election', 'four custom crisis outcomes'],
       capital: { reachedCap: true, atCapResolutionApplied: false, atCapDelta: 0, retryNoChange: true },
-      election: { voters: 3, tally: 'server-computed population weighting', presidentChanged: true, vicePresidentChanged: true,
+      election: { voters: voterUids.length, tally: 'server-computed population weighting', presidentChanged: true, vicePresidentChanged: true,
         ballotsPrivate: true, directReadsDenied: true, directWritesDenied: true },
       voyage33: { admitted: true, arrivalActivatedOnce: true, exactRetryStable: true },
       formalAnnouncements: { queuedBeforeNextTeam: announceCountBefore, deliveredAtCycle: 2, reconnectPreserved: true },
