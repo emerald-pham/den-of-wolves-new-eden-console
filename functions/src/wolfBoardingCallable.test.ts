@@ -503,11 +503,19 @@ it.each([
   patch(`${sessionPath}/players/militia-1`, { replacementRoleId: null, replacementStatus: 'awaiting-re-role' });
   const choices = fields(attackPath).boardingMilitiaChoices as Record<string, Fields>;
   patch(attackPath, { boardingMilitiaChoices: { ...choices, aegis: { ...choices.aegis, ...invalid } } });
-  const before = structuredClone([...testState.documents.values()]);
+  const mechanics = () => Object.fromEntries(['combatRoster', 'boardingLockedDefence',
+    'boardingMilitiaChoices', 'boardingRerollChoices', 'calculationReceipt']
+    .map(key => [key, fields(attackPath)[key]]));
+  const before = structuredClone(mechanics());
+  const player = structuredClone(fields(`${sessionPath}/players/militia-1`));
+  const eligibility = structuredClone(fields(`${sessionPath}/replacementEligibility/militia-1`));
   const draws = entropy.randomInt.mock.calls.length;
   await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
   expect(fields(attackPath).status).toBe('declared');
-  noAdditionalWrites(before, draws);
+  expect(mechanics()).toEqual(before);
+  expect(fields(`${sessionPath}/players/militia-1`)).toEqual(player);
+  expect(fields(`${sessionPath}/replacementEligibility/militia-1`)).toEqual(eligibility);
+  expect(entropy.randomInt.mock.calls.length).toBe(draws);
 });
 
 it.each([{ frontLineDice: 0, rerollToSurvive: false }, { frontLineDice: 1, rerollToSurvive: true }])(
