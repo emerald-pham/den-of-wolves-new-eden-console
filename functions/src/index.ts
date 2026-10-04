@@ -26880,21 +26880,28 @@ function wolfBoardingResolutionChoices(
         wolfBoardingSecurityTeams(session, target) + selectedTeams !== storedAvailable) return undefined;
     const availableSecurityTeams = storedAvailable as number;
     const militiaChoice = militia[target];
+    const lockedChoice = locked.find((entry) => entry.target === target);
     let militiaDoubleTeams = false;
     let militiaFrontLineDice = 0;
-    if (militiaUidByTarget[target]) {
+    if (militiaUidByTarget[target] || militiaChoice !== undefined) {
       if (!isRecord(militiaChoice) || militiaChoice.targetShipId !== target ||
-          militiaChoice.actorUid !== militiaUidByTarget[target] || typeof militiaChoice.militiaDoubleTeams !== 'boolean' ||
+          typeof militiaChoice.militiaDoubleTeams !== 'boolean' ||
           !Number.isSafeInteger(militiaChoice.militiaFrontLineDice) ||
           (militiaChoice.militiaFrontLineDice as number) < 0 || (militiaChoice.militiaFrontLineDice as number) > 3) {
         return undefined;
       }
+      if (militiaChoice.actorUid !== militiaUidByTarget[target] && (
+        typeof militiaChoice.actorUid !== 'string' || !militiaChoice.actorUid ||
+        militiaChoice.actorRoleId !== 'rosal-militia-leader' || !isCanonicalRequestId(militiaChoice.requestId) ||
+        militiaChoice.turn !== inputs.turn || !Number.isSafeInteger(militiaChoice.revision) ||
+        (militiaChoice.revision as number) > inputs.revision ||
+        militiaChoice.attackId !== undefined && militiaChoice.attackId !== state.get('attackId') ||
+        requireLockedRolls && (!lockedChoice ||
+          lockedChoice.militiaDoubleTeams !== militiaChoice.militiaDoubleTeams ||
+          lockedChoice.militiaFrontLineDice !== militiaChoice.militiaFrontLineDice))) return undefined;
       militiaDoubleTeams = militiaChoice.militiaDoubleTeams;
       militiaFrontLineDice = militiaChoice.militiaFrontLineDice as number;
-    } else if (militiaChoice !== undefined) {
-      return undefined;
     }
-    const lockedChoice = locked.find((entry) => entry.target === target);
     if (requireLockedRolls && (!lockedChoice || !Array.isArray(lockedChoice.lockedRolls))) return undefined;
     const sourceRerolls: WolfBoardingRerollChoice[] = [];
     for (const source of ['aegis', 'pallas'] as const) {
