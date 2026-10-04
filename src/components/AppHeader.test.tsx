@@ -139,7 +139,7 @@ it('explains awaiting CIC authentication before the GM starts Cycle 1', async ()
     'Fleet link connected // awaiting CIC authentication',
   );
 
-  await userEvent.setup().click(screen.getByRole('button', { name: 'Settings', exact: true }));
+  await userEvent.setup().click(screen.getByRole('button', { name: /^Settings$/ }));
   const settings = screen.getByRole('dialog', { name: 'Session settings' });
   expect(within(settings).getByText('Awaiting CIC authentication means waiting for the GM to start the game.')).toBeVisible();
 
