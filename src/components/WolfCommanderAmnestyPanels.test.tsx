@@ -66,7 +66,8 @@ beforeEach(() => {
   mocks.get.mockReset().mockResolvedValue({
     type: 'wolf-amnesty-view', sessionId: 's1', offer: null, commanderAddressPublished: false,
   });
-  mocks.address.mockReset().mockResolvedValue({ cycle: 4, eventId: 'wolf-commander-address-4' });
+  mocks.address.mockReset().mockResolvedValue({ cycle: 4, eventId: 'wolf-commander-address-4',
+    expiresAt: new Date(Date.now() + 30_000).toISOString() });
   mocks.offer.mockReset().mockResolvedValue({ status: 'offered', cycle: 4, targetShipId: 'dione', revision: 1 });
   mocks.respond.mockReset().mockResolvedValue({ status: 'accepted-pending-facilitator', revision: 2, response: 'accept' });
   mocks.consequence.mockReset().mockResolvedValue({ status: 'facilitator-ruled', revision: 3,
@@ -81,12 +82,11 @@ it('requires a live address before offering the printed condition to an active s
   render(<WolfCommanderAddressAmnestyPanel />);
 
   expect(await screen.findByRole('heading', { name: 'Commander address and amnesty' })).toBeVisible();
-  const offerButton = screen.getByRole('button', { name: 'Offer amnesty' });
-  expect(offerButton).toBeDisabled();
+  expect(screen.queryByRole('button', { name: 'Offer amnesty' })).not.toBeInTheDocument();
   await user.type(screen.getByRole('textbox', { name: 'Fleet address' }), 'The fleet has one chance to yield.');
   await user.click(screen.getByRole('button', { name: 'Address fleet for 30 seconds' }));
   await waitFor(() => expect(mocks.address).toHaveBeenCalledWith('The fleet has one chance to yield.', 4));
-  expect(await screen.findByText(/address is live for 30 seconds/i)).toBeVisible();
+  expect(await screen.findByText(/Fleet address published for 30 seconds/i)).toBeVisible();
 
   await user.selectOptions(screen.getByRole('combobox', { name: 'Target ship' }), 'dione');
   await user.selectOptions(screen.getByRole('combobox', { name: 'Response deadline' }), '10');
@@ -107,7 +107,7 @@ it('lets only the target captain answer and leaves the accepted offer pending fo
   expect(screen.getByText(/Response due/i)).toBeVisible();
   await user.click(screen.getByRole('button', { name: 'Accept offer' }));
   await waitFor(() => expect(mocks.respond).toHaveBeenCalledWith(1, 'accept'));
-  expect(await screen.findByText(/awaiting facilitator ruling/i)).toBeVisible();
+  expect(await screen.findByText(/facilitator still needs to rule on the consequence/i)).toBeVisible();
   expect(screen.queryByText(/surrender completed|ship state changed/i)).not.toBeInTheDocument();
 });
 
@@ -124,7 +124,7 @@ it('requires facilitator text for an accepted offer and for an unanswered expire
   await user.type(screen.getByRole('textbox', { name: 'Facilitator consequence' }), text);
   await user.click(screen.getByRole('button', { name: 'Record facilitator consequence' }));
   await waitFor(() => expect(mocks.consequence).toHaveBeenCalledWith(1, text));
-  expect(await screen.findByText(text)).toBeVisible();
+  expect(await screen.findByText('The facilitator records the consequence.')).toBeVisible();
 
   const expired = { ...currentOffer, responseDeadline: new Date(Date.now() - 60_000).toISOString() };
   mocks.get.mockResolvedValue({ type: 'wolf-amnesty-view', sessionId: 's1', offer: expired });
