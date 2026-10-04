@@ -134,6 +134,8 @@ The final history audit also finds original mixed commits `7d06a1d0` (printed
 craft fixture capabilities), `aba97e13` (legacy range fixture snapshots) and
 `93c5adbe` (unopened boarding fixture and DTO types). Before final review, the
 owner separates their tests ahead of source while preserving the exact final
-tree and original refs. `owner/test-first-history-reconciliation.json` records
+tree and original refs. This is complete: `2f1c0283` → `808683de`,
+`4f8640d5` → `cd2b5c04` and `78724896` → `4594f079` are the respective
+test/source pairs. `owner/test-first-history-reconciliation.json` records
 every old-to-new SHA; original evidence SHAs above remain provenance, not a
 claim that the tree-changing work was repeated.

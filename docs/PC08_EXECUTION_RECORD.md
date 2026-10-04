@@ -309,3 +309,12 @@ session and role, cache-to-fresh-server restoration and no prepared writes or
 browser errors. Owner Functions were freshly built and fully restarted before
 this run. Final independent review, full validation, CI, exact-main deployment
 and actual deployed presentation remain separate pending release steps.
+
+The final test-first history pass splits the three remaining mixed worker
+commits into `2f1c0283` → `808683de`, `4f8640d5` → `cd2b5c04` and
+`78724896` → `4594f079`. Its receipt verifies the final tree is identical,
+preserves `refs/pc08-preserved/pre-test-first-split` at `3069e888`, and maps all
+rewritten descendants. Historical proof SHAs and worker branches remain intact.
+The Gantt is regenerated against the rewritten catalog commit and its check
+passes. These provenance-only changes do not replace or reinterpret gameplay
+results. The reconciled candidate is then frozen for fresh independent review.
