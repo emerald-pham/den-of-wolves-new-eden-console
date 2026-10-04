@@ -168,7 +168,10 @@ export function memberSessionProjection(value: unknown, scope: MemberSessionScop
       (office.vicePresidentCandidateId === undefined || typeof office.vicePresidentCandidateId === 'string' &&
         /^candidate-[\w-]{1,128}$/.test(office.vicePresidentCandidateId)) &&
       (office.vicePresidentDisplayName === undefined || typeof office.vicePresidentDisplayName === 'string' &&
-        office.vicePresidentDisplayName.trim() && office.vicePresidentDisplayName.length <= 40)) {
+        office.vicePresidentDisplayName.trim() && office.vicePresidentDisplayName.length <= 40) &&
+      (office.vicePresidentVacant === undefined || office.vicePresidentVacant === true) &&
+      (office.vicePresidentVacant !== true || office.vicePresidentUid === undefined &&
+        office.vicePresidentCandidateId === undefined && office.vicePresidentDisplayName === undefined)) {
     result.presidentialOffices = {
       electionId: 'current', revision: office.revision,
       presidentCandidateId: office.presidentCandidateId,
@@ -176,6 +179,7 @@ export function memberSessionProjection(value: unknown, scope: MemberSessionScop
       ...(typeof office.vicePresidentCandidateId === 'string'
         ? { vicePresidentCandidateId: office.vicePresidentCandidateId,
           ...(typeof office.vicePresidentDisplayName === 'string' ? { vicePresidentDisplayName: office.vicePresidentDisplayName.trim() } : {}) } : {}),
+      ...(office.vicePresidentVacant === true ? { vicePresidentVacant: true } : {}),
       decidedCycle: office.decidedCycle,
     };
     result.currentMemberIsPresident = scope.actorUid && hasOfficeOwnerUid
@@ -256,7 +260,7 @@ function publicElectionView(value: unknown): Record<string, unknown> | undefined
   const stateNames = ['scheduled', 'open', 'tie-pending', 'resolved', 'no-winner'];
   if (raw.type !== 'presidential-election' || Object.keys(raw).some(key => ![
     'type','revision','state','policy','candidates','tally','presidentCandidateId','vicePresidentCandidateId',
-    'pendingPresidentTie','pendingVicePresidentTie','decidedCycle',
+    'pendingPresidentTie','pendingVicePresidentTie','vicePresidentOutcome','decidedCycle',
   ].includes(key)) || !Number.isSafeInteger(raw.revision) || Number(raw.revision) < 1 ||
       !stateNames.includes(String(raw.state)) || !Array.isArray(raw.candidates) || raw.candidates.length < 2 ||
       raw.candidates.length > 300) return undefined;
@@ -318,8 +322,24 @@ function publicElectionView(value: unknown): Record<string, unknown> | undefined
     typeof raw.presidentCandidateId === 'string' && candidateIds.has(raw.presidentCandidateId);
   const validVicePresident = raw.vicePresidentCandidateId === undefined ||
     typeof raw.vicePresidentCandidateId === 'string' && candidateIds.has(raw.vicePresidentCandidateId);
+  const viceOutcome = raw.vicePresidentOutcome;
+  const publicTally = record(tally);
+  const presidentTally = record(publicTally.president);
+  const vicePresidentTally = record(publicTally.vicePresident);
+  const sharedBallotLeader = typeof presidentTally.winnerId === 'string' &&
+    presidentTally.winnerId === vicePresidentTally.winnerId;
+  const validViceOutcome = viceOutcome === undefined || (viceOutcome === 'runner-up' &&
+    raw.state === 'resolved' && policy.vicePresidentEnabled === true &&
+    typeof raw.presidentCandidateId === 'string' && typeof raw.vicePresidentCandidateId === 'string' &&
+    raw.presidentCandidateId !== raw.vicePresidentCandidateId && sharedBallotLeader) || (viceOutcome === 'runner-up-pending' &&
+    raw.state === 'tie-pending' && policy.vicePresidentEnabled === true && sharedBallotLeader &&
+    pendingVicePresidentTie !== undefined && pendingVicePresidentTie.length >= 2 &&
+    raw.vicePresidentCandidateId === undefined) || (viceOutcome === 'vacant' &&
+    raw.state === 'resolved' && policy.vicePresidentEnabled === true &&
+    typeof raw.presidentCandidateId === 'string' && raw.vicePresidentCandidateId === undefined && sharedBallotLeader);
   if ((raw.pendingPresidentTie !== undefined && !pendingPresidentTie) ||
       (raw.pendingVicePresidentTie !== undefined && !pendingVicePresidentTie) ||
+      !validViceOutcome ||
       !validPresident || !validVicePresident ||
       (raw.decidedCycle !== undefined && (!Number.isSafeInteger(raw.decidedCycle) || Number(raw.decidedCycle) < 1))) return undefined;
   return {
@@ -333,6 +353,7 @@ function publicElectionView(value: unknown): Record<string, unknown> | undefined
     ...(typeof raw.presidentCandidateId === 'string' ? { presidentCandidateId: raw.presidentCandidateId } : {}),
     ...(typeof raw.vicePresidentCandidateId === 'string' ? { vicePresidentCandidateId: raw.vicePresidentCandidateId } : {}),
     ...(pendingPresidentTie ? { pendingPresidentTie } : {}), ...(pendingVicePresidentTie ? { pendingVicePresidentTie } : {}),
+    ...(typeof raw.vicePresidentOutcome === 'string' ? { vicePresidentOutcome: raw.vicePresidentOutcome } : {}),
     ...(raw.decidedCycle === undefined ? {} : { decidedCycle: Number(raw.decidedCycle) }),
   };
 }
@@ -417,6 +438,9 @@ export function parsedMemberSessionDetails(value: unknown, activeVesselIds: read
       (offices.vicePresidentCandidateId === undefined || /^candidate-[\w-]{1,128}$/.test(String(offices.vicePresidentCandidateId))) &&
       (offices.vicePresidentDisplayName === undefined || typeof offices.vicePresidentDisplayName === 'string' &&
         offices.vicePresidentDisplayName.trim() && offices.vicePresidentDisplayName.length <= 40) &&
+      (offices.vicePresidentVacant === undefined || offices.vicePresidentVacant === true) &&
+      (offices.vicePresidentVacant !== true || offices.vicePresidentUid === undefined &&
+        offices.vicePresidentCandidateId === undefined && offices.vicePresidentDisplayName === undefined) &&
       Number.isSafeInteger(offices.decidedCycle) && Number(offices.decidedCycle) >= 1) {
     result.presidentialOffices = {
       electionId: 'current', revision: Number(offices.revision), presidentUid: offices.presidentUid,
@@ -424,6 +448,7 @@ export function parsedMemberSessionDetails(value: unknown, activeVesselIds: read
       ...(offices.vicePresidentCandidateId ? { vicePresidentUid: offices.vicePresidentUid,
         vicePresidentCandidateId: offices.vicePresidentCandidateId,
         ...(typeof offices.vicePresidentDisplayName === 'string' ? { vicePresidentDisplayName: offices.vicePresidentDisplayName.trim() } : {}) } : {}),
+      ...(offices.vicePresidentVacant === true ? { vicePresidentVacant: true } : {}),
       decidedCycle: Number(offices.decidedCycle),
     };
   }

@@ -115,7 +115,8 @@ import {
 import { isWireSafeEntityId } from './identifiers';
 import { appendPendingTeamAnnouncement, parsePendingTeamAnnouncements, type TeamStartFormalAnnouncement } from './teamAnnouncements';
 import {
-  calculateElectionTally, normalizeElectionPolicy, resolveElectionWinner,
+  calculateElectionTally, normalizeElectionPolicy, resolveElectionWinner, resolveVicePresidentElection,
+  type ElectionVicePresidentDecision,
   type ElectionBallot, type ElectionEligibleVoter, type ElectionOfficeTally,
   type ElectionPolicy, type ElectionTally,
 } from './presidentialElection';
@@ -42437,6 +42438,7 @@ type StoredPresidentialElection = Readonly<{
   vicePresidentUid?: string;
   pendingPresidentTie?: readonly string[];
   pendingVicePresidentTie?: readonly string[];
+  vicePresidentOutcome?: 'runner-up' | 'runner-up-pending' | 'vacant';
   decidedCycle?: number;
 }>;
 
@@ -42482,6 +42484,7 @@ function publicElectionProjection(value: StoredPresidentialElection): Record<str
       ? { vicePresidentCandidateId: candidateIdsByUid[value.vicePresidentUid] } : {}),
     ...(value.pendingPresidentTie ? { pendingPresidentTie: value.pendingPresidentTie.flatMap(uid => candidateIdsByUid[uid] ? [candidateIdsByUid[uid]!] : []) } : {}),
     ...(value.pendingVicePresidentTie ? { pendingVicePresidentTie: value.pendingVicePresidentTie.flatMap(uid => candidateIdsByUid[uid] ? [candidateIdsByUid[uid]!] : []) } : {}),
+    ...(value.vicePresidentOutcome ? { vicePresidentOutcome: value.vicePresidentOutcome } : {}),
     ...(value.decidedCycle === undefined ? {} : { decidedCycle: value.decidedCycle }),
   };
 }
@@ -42689,39 +42692,39 @@ export const castPresidentialBallot = onCall<{
 export const resolvePresidentialElection = onCall<{
   sessionId?: unknown; instanceId?: unknown; requestId?: unknown; expectedRevision?: unknown;
   presidentCandidateId?: unknown; vicePresidentCandidateId?: unknown;
+  confirmVicePresidentVacancy?: unknown;
 }>(async request => {
   const uid = requireUid(request.auth), raw: unknown = request.data;
   const base = electionRequestBase(raw, 'election resolution');
   if (!isRecord(raw) || Object.keys(raw).some(key => !['sessionId','instanceId','requestId','expectedRevision',
-    'presidentCandidateId','vicePresidentCandidateId'].includes(key)) || typeof raw.instanceId !== 'string' ||
+    'presidentCandidateId','vicePresidentCandidateId','confirmVicePresidentVacancy'].includes(key)) || typeof raw.instanceId !== 'string' ||
       !/^[\w-]{1,128}$/.test(raw.instanceId) ||
       ['presidentCandidateId','vicePresidentCandidateId'].some(key => raw[key] !== undefined &&
-        (typeof raw[key] !== 'string' || !/^[\w-]{1,128}$/.test(String(raw[key]))))) {
+        (typeof raw[key] !== 'string' || !/^[\w-]{1,128}$/.test(String(raw[key])))) ||
+      (raw.confirmVicePresidentVacancy !== undefined && raw.confirmVicePresidentVacancy !== true)) {
     throw new HttpsError('invalid-argument', 'Invalid election resolution request.');
   }
   const data = { ...base, instanceId: raw.instanceId,
     presidentCandidateId: raw.presidentCandidateId as string | undefined,
-    vicePresidentCandidateId: raw.vicePresidentCandidateId as string | undefined };
+    vicePresidentCandidateId: raw.vicePresidentCandidateId as string | undefined,
+    confirmVicePresidentVacancy: raw.confirmVicePresidentVacancy === true };
   const sessionRef = db.doc(`sessions/${data.sessionId}`), electionRef = db.doc(`sessions/${data.sessionId}/presidentialElections/current`);
   const ballotsRef = db.collection(`sessions/${data.sessionId}/presidentialElections/current/ballots`);
   const playersRef = db.collection(`sessions/${data.sessionId}/players`), receiptRef = commandReceiptRef(data.sessionId, data.requestId);
   const auditRef = db.doc(`sessions/${data.sessionId}/presidentialElections/current/audit/${data.requestId}`);
   const fingerprint: CommandFingerprint = { action: 'resolve-presidential-election', sessionId: data.sessionId,
     requestId: data.requestId, actorUid: uid, instanceId: data.instanceId, expectedRevision: data.expectedRevision,
-    payload: { presidentCandidateId: data.presidentCandidateId ?? null, vicePresidentCandidateId: data.vicePresidentCandidateId ?? null } };
+    payload: { presidentCandidateId: data.presidentCandidateId ?? null, vicePresidentCandidateId: data.vicePresidentCandidateId ?? null,
+      ...(data.confirmVicePresidentVacancy ? { confirmVicePresidentVacancy: true } : {}) } };
   return db.runTransaction(async tx => {
     const { session } = await requireElectionFacilitator(tx, data.sessionId, uid, data.instanceId);
     const [electionSnap, receipt, audit, ballots, players] = await Promise.all([
       tx.get(electionRef), tx.get(receiptRef), tx.get(auditRef), tx.get(ballotsRef), tx.get(playersRef),
     ]);
-    const replay = replayBoundCommand(receipt, fingerprint, isElectionCommandReply, 'election resolution');
-    if (replay) return replay;
-    if (audit.exists) rejectLegacyEventReplay('election resolution');
     requireActiveGameplayPhase(session);
     if (!electionSnap.exists) throw new HttpsError('not-found', 'No configured presidential election.');
     const election = storedElection(electionSnap.data(), data.sessionId);
-    if (!election || !['scheduled','open','tie-pending'].includes(election.state)) throw commandError('failed-precondition', 'This election is already resolved or invalid.', 'conflict');
-    if (election.revision !== data.expectedRevision) throw commandError('failed-precondition', 'Election changed; refresh before resolving.', 'stale-revision');
+    if (!election) throw commandError('failed-precondition', 'Stored election procedure is invalid.', 'conflict');
     const currentCycle = sessionTurn(session.get('currentTurn'));
     if (currentCycle < election.policy.closeCycle) throw commandError('failed-precondition', 'The configured close cycle has not finished.', 'invalid-phase');
     if (currentCycle === election.policy.closeCycle) {
@@ -42731,6 +42734,11 @@ export const resolvePresidentialElection = onCall<{
         throw commandError('failed-precondition', 'The configured close-cycle Team window is still open.', 'invalid-phase');
       }
     }
+    const replay = replayBoundCommand(receipt, fingerprint, isElectionCommandReply, 'election resolution');
+    if (replay) return replay;
+    if (audit.exists) rejectLegacyEventReplay('election resolution');
+    if (!['scheduled','open','tie-pending'].includes(election.state)) throw commandError('failed-precondition', 'This election is already resolved or invalid.', 'conflict');
+    if (election.revision !== data.expectedRevision) throw commandError('failed-precondition', 'Election changed; refresh before resolving.', 'stale-revision');
     const storedBallots: ElectionBallot[] = ballots.docs.map(document => {
       const value = document.data(), rawBallot = value?.ballot;
       if (!isRecord(value) || value.type !== 'presidential-election-ballot' || value.sessionId !== data.sessionId ||
@@ -42758,21 +42766,43 @@ export const resolvePresidentialElection = onCall<{
     const presidentChoiceUid = uidForAlias(data.presidentCandidateId) ?? data.presidentCandidateId;
     const viceChoiceUid = uidForAlias(data.vicePresidentCandidateId) ?? data.vicePresidentCandidateId;
     const presidentDecision = resolveElectionWinner(tally.president, currentPresident, election.policy.tieRule, presidentChoiceUid);
-    const viceDecision = election.policy.vicePresidentEnabled && tally.vicePresident
-      ? resolveElectionWinner(tally.vicePresident,
-        isRecord(currentOfficeRaw) && typeof currentOfficeRaw.vicePresidentUid === 'string' ? currentOfficeRaw.vicePresidentUid : undefined,
-        election.policy.tieRule, viceChoiceUid)
+    const currentVicePresident = isRecord(currentOfficeRaw) && typeof currentOfficeRaw.vicePresidentUid === 'string'
+      ? currentOfficeRaw.vicePresidentUid : undefined;
+    const viceDecision: ElectionVicePresidentDecision | undefined = election.policy.vicePresidentEnabled && tally.vicePresident
+      ? resolveVicePresidentElection(tally.vicePresident,
+        presidentDecision.status === 'winner' ? presidentDecision.winnerUid : undefined,
+        currentVicePresident, election.policy.tieRule, viceChoiceUid, election.policy.eligibleVoterUids)
       : undefined;
+    if (data.confirmVicePresidentVacancy && viceDecision?.status !== 'vacancy-required') {
+      throw commandError('failed-precondition',
+        'The current tally does not authorize a vacant Vice President decision; resolve the configured ballot outcome.', 'conflict');
+    }
+    if (viceDecision?.status === 'vacancy-required' && !data.confirmVicePresidentVacancy) {
+      const explanation = 'The same candidate uniquely leads both office ballots, but no other eligible candidate received a Vice President vote. No offices have changed. A current facilitator must explicitly record the Vice President office as vacant.';
+      throw new HttpsError('failed-precondition', explanation, {
+        commandError: 'conflict', resolutionRequired: 'vice-president-vacancy', explanation,
+      });
+    }
+    if (viceDecision?.status === 'conflict-pending') {
+      const explanation = viceDecision.reason === 'incumbent-would-hold-both-offices'
+        ? 'The configured tie rule retains the current Vice President, who also uniquely won President. No office changes have been written because this election procedure cannot assign that tied outcome to distinct offices.'
+        : 'The configured tie rule would retain a Vice President who is not eligible in this election. No office changes have been written.';
+      throw commandError('failed-precondition', explanation, 'conflict');
+    }
+    const recordVicePresidentVacancy = data.confirmVicePresidentVacancy && viceDecision?.status === 'vacancy-required';
     const unresolvedPresidentTie = presidentDecision.status === 'tie-pending' ? presidentDecision.candidateUids : undefined;
     const unresolvedVicePresidentTie = viceDecision?.status === 'tie-pending' ? viceDecision.candidateUids : undefined;
     const nextRevision = election.revision + 1;
     const electionWithoutPendingTies = { ...election };
     delete electionWithoutPendingTies.pendingPresidentTie;
     delete electionWithoutPendingTies.pendingVicePresidentTie;
+    delete electionWithoutPendingTies.vicePresidentOutcome;
     if (unresolvedPresidentTie || unresolvedVicePresidentTie) {
       const next: StoredPresidentialElection = { ...electionWithoutPendingTies, state: 'tie-pending', revision: nextRevision, tally,
         ...(unresolvedPresidentTie ? { pendingPresidentTie: unresolvedPresidentTie } : {}),
-        ...(unresolvedVicePresidentTie ? { pendingVicePresidentTie: unresolvedVicePresidentTie } : {}) };
+        ...(unresolvedVicePresidentTie ? { pendingVicePresidentTie: unresolvedVicePresidentTie } : {}),
+        ...(unresolvedVicePresidentTie && viceDecision?.status === 'tie-pending' && viceDecision.source === 'vp-ballot-runner-up'
+          ? { vicePresidentOutcome: 'runner-up-pending' as const } : {}) };
       const projection = publicElectionProjection(next);
       const result = { status: 'committed', ...projection, tally };
       tx.set(electionRef, { ...next, updatedAt: FieldValue.serverTimestamp() });
@@ -42789,8 +42819,12 @@ export const resolvePresidentialElection = onCall<{
     const vicePresidentUid = viceDecision?.status === 'winner' ? viceDecision.winnerUid : undefined;
     const hasPresidentWinner = Boolean(presidentUid);
     const state = hasPresidentWinner ? 'resolved' as const : 'no-winner' as const;
+    const vicePresidentOutcome = recordVicePresidentVacancy ? 'vacant' as const
+      : presidentUid && tally.vicePresident?.winnerUid === presidentUid && vicePresidentUid
+        ? 'runner-up' as const : undefined;
     const next: StoredPresidentialElection = { ...electionWithoutPendingTies, revision: nextRevision, state, tally,
       ...(presidentUid ? { presidentUid } : {}), ...(vicePresidentUid ? { vicePresidentUid } : {}),
+      ...(vicePresidentOutcome ? { vicePresidentOutcome } : {}),
       decidedCycle: sessionTurn(session.get('currentTurn')) };
     const projection = publicElectionProjection(next);
     const result = { status: 'committed', ...projection, tally,
@@ -42798,7 +42832,7 @@ export const resolvePresidentialElection = onCall<{
     const oldOffices = isRecord(currentOfficeRaw) ? currentOfficeRaw : {};
     const effectivePresidentUid = presidentUid ??
       (typeof oldOffices.presidentUid === 'string' ? oldOffices.presidentUid : undefined);
-    const effectiveVicePresidentUid = vicePresidentUid ??
+    const effectiveVicePresidentUid = recordVicePresidentVacancy ? undefined : vicePresidentUid ??
       (typeof oldOffices.vicePresidentUid === 'string' ? oldOffices.vicePresidentUid : undefined);
     if ((presidentUid || vicePresidentUid) && effectivePresidentUid &&
         effectivePresidentUid === effectiveVicePresidentUid) {
@@ -42812,14 +42846,20 @@ export const resolvePresidentialElection = onCall<{
         typeof oldOffices.presidentUid === 'string' ? { presidentUid: oldOffices.presidentUid, presidentCandidateId: oldOffices.presidentCandidateId } : {}),
       ...(presidentUid ? { presidentDisplayName: election.candidateNamesByUid[presidentUid] ?? 'Fleet member' } :
         typeof oldOffices.presidentDisplayName === 'string' ? { presidentDisplayName: oldOffices.presidentDisplayName } : {}),
-      ...(vicePresidentUid ? { vicePresidentUid, vicePresidentCandidateId: election.candidateIdsByUid[vicePresidentUid] } :
-        typeof oldOffices.vicePresidentUid === 'string' ? { vicePresidentUid: oldOffices.vicePresidentUid, vicePresidentCandidateId: oldOffices.vicePresidentCandidateId } : {}),
-      ...(vicePresidentUid ? { vicePresidentDisplayName: election.candidateNamesByUid[vicePresidentUid] ?? 'Fleet member' } :
-        typeof oldOffices.vicePresidentDisplayName === 'string' ? { vicePresidentDisplayName: oldOffices.vicePresidentDisplayName } : {}),
+      ...(recordVicePresidentVacancy ? { vicePresidentVacant: true } : vicePresidentUid
+        ? { vicePresidentUid, vicePresidentCandidateId: election.candidateIdsByUid[vicePresidentUid], vicePresidentDisplayName: election.candidateNamesByUid[vicePresidentUid] ?? 'Fleet member' }
+        : typeof oldOffices.vicePresidentUid === 'string'
+          ? { vicePresidentUid: oldOffices.vicePresidentUid, vicePresidentCandidateId: oldOffices.vicePresidentCandidateId,
+            ...(typeof oldOffices.vicePresidentDisplayName === 'string' ? { vicePresidentDisplayName: oldOffices.vicePresidentDisplayName } : {}) }
+          : oldOffices.vicePresidentVacant === true ? { vicePresidentVacant: true } : {}),
       decidedCycle: sessionTurn(session.get('currentTurn')),
     };
     const details = presidentUid
-      ? `President: ${election.candidateNamesByUid[presidentUid] ?? 'Fleet member'}${vicePresidentUid ? ` // Vice President: ${election.candidateNamesByUid[vicePresidentUid] ?? 'Fleet member'}` : ''}.`
+      ? `President: ${election.candidateNamesByUid[presidentUid] ?? 'Fleet member'}${vicePresidentUid ? ` // Vice President: ${election.candidateNamesByUid[vicePresidentUid] ?? 'Fleet member'}` : ''}.` +
+        (vicePresidentOutcome === 'runner-up'
+          ? ' The President led both office ballots; the Vice President is the next eligible distinct candidate on the independent Vice President ballot.' : '') +
+        (vicePresidentOutcome === 'vacant'
+          ? ' No other eligible candidate received a Vice President vote. The current facilitator explicitly recorded the Vice President office vacant; no replacement was selected.' : '')
       : 'The configured election concluded without selecting a President.';
     const pendingTeamAnnouncements = appendPendingTeamAnnouncement(session.get('pendingTeamAnnouncements'), {
       id: `presidential-election-${nextRevision}`, kind: 'presidential-election',
@@ -42833,8 +42873,11 @@ export const resolvePresidentialElection = onCall<{
       pendingTeamAnnouncements, updatedAt: FieldValue.serverTimestamp() });
     tx.set(auditRef, { type: 'presidential-election-audit', action: 'resolve', sessionId: data.sessionId,
       requestId: data.requestId, actorUid: uid, revision: nextRevision, tally,
-      presidentDecision, vicePresidentDecision: viceDecision ?? null,
-      offices: { presidentUid: presidentUid ?? null, vicePresidentUid: vicePresidentUid ?? null },
+      presidentDecision, vicePresidentDecision: recordVicePresidentVacancy
+        ? { status: 'vacant', reason: 'no-distinct-eligible-vp-ballot-candidate', acknowledgedBy: uid }
+        : viceDecision ?? null,
+      offices: { presidentUid: presidentUid ?? null, vicePresidentUid: vicePresidentUid ?? null,
+        vicePresidentVacant: recordVicePresidentVacancy },
       createdAt: FieldValue.serverTimestamp() });
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;

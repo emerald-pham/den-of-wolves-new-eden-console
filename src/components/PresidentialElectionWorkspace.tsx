@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import type {
   PresidentialElectionCampaignPolicy,
   PresidentialElectionPolicyInput,
@@ -24,7 +24,8 @@ export interface PresidentialElectionWorkspaceViewProps {
   readonly facilitatorVoters?: readonly { readonly uid: string; readonly displayName: string }[];
   readonly onConfigurePolicy: (policy: PresidentialElectionPolicyInput) => Promise<void>;
   readonly onCastBallot: (ballot: { readonly presidentCandidateId: string; readonly vicePresidentCandidateId?: string }) => Promise<void>;
-  readonly onResolveElection: (decision?: { readonly presidentCandidateId?: string; readonly vicePresidentCandidateId?: string }) => Promise<void>;
+  readonly onResolveElection: (decision?: { readonly presidentCandidateId?: string; readonly vicePresidentCandidateId?: string;
+    readonly confirmVicePresidentVacancy?: boolean }) => Promise<void>;
 }
 
 const VOTING_SYSTEMS: readonly PresidentialElectionVotingSystem[] = ['plurality', 'majority'];
@@ -35,6 +36,15 @@ const TIES: readonly PresidentialElectionTiePolicy[] = ['current-office-remains'
 
 function label(value: string): string {
   return value.replaceAll('-', ' ').replace(/\b\w/g, character => character.toUpperCase());
+}
+
+function vicePresidentVacancyExplanation(error: unknown): string | undefined {
+  if (!error || typeof error !== 'object') return undefined;
+  const details = (error as { readonly details?: unknown }).details;
+  if (!details || typeof details !== 'object' || Array.isArray(details)) return undefined;
+  const value = details as Record<string, unknown>;
+  return value.resolutionRequired === 'vice-president-vacancy' && typeof value.explanation === 'string'
+    ? value.explanation : undefined;
 }
 
 /** Actual policy, secret-ballot and outcome content with injected local/live actions. */
@@ -58,7 +68,10 @@ export function PresidentialElectionWorkspaceView({
   const [ballotVicePresident, setBallotVicePresident] = useState('');
   const [pending, setPending] = useState(false);
   const [status, setStatus] = useState('');
+  const [vacancyExplanation, setVacancyExplanation] = useState('');
   const [locallySubmitted, setLocallySubmitted] = useState(false);
+
+  useEffect(() => { setVacancyExplanation(''); }, [projection?.revision, projection?.state]);
 
   const candidates = projection?.candidates ?? [];
   const eligibleCandidates = candidates.filter(candidate => candidate.id !== ballotPresident);
@@ -96,7 +109,7 @@ export function PresidentialElectionWorkspaceView({
     } finally { setPending(false); }
   }
 
-  async function resolve(): Promise<void> {
+  async function resolve(confirmVicePresidentVacancy = false): Promise<void> {
     if (!live || !isFacilitator || pending || !projection ||
         !['tie-pending','scheduled','open'].includes(projection.state)) return;
     setPending(true); setStatus('');
@@ -104,9 +117,13 @@ export function PresidentialElectionWorkspaceView({
       await onResolveElection({
         ...(presidentChoice ? { presidentCandidateId: presidentChoice } : {}),
         ...(vicePresidentChoice ? { vicePresidentCandidateId: vicePresidentChoice } : {}),
+        ...(confirmVicePresidentVacancy ? { confirmVicePresidentVacancy: true } : {}),
       });
+      setVacancyExplanation('');
       setStatus('Recorded election outcome committed.');
     } catch (error) {
+      const explanation = vicePresidentVacancyExplanation(error);
+      if (explanation) setVacancyExplanation(explanation);
       setStatus(error instanceof Error ? error.message : 'Election outcome was not committed.');
     } finally { setPending(false); }
   }
@@ -158,6 +175,9 @@ export function PresidentialElectionWorkspaceView({
         <p role="status">Ballots open during cycles {projection.policy.openCycle}–{projection.policy.closeCycle}.</p>}
       {projection.tally && <section aria-label="Auditable election tally">
         <h4>Committed aggregate tally</h4>
+        {projection.vicePresidentOutcome === 'runner-up-pending' && <p role="status">
+          The President led both ballots. The next eligible distinct candidate on the independent Vice President ballot is tied; the configured tie rule must resolve that office before assignment.
+        </p>}
         {([
           ['President', projection.tally.president],
           ...(projection.tally.vicePresident ? [['Vice President', projection.tally.vicePresident] as const] : []),
@@ -192,9 +212,22 @@ export function PresidentialElectionWorkspaceView({
         <button type="button" disabled={!live || pending} onClick={() => void resolve()}>
           {pending ? 'Calculating…' : 'Calculate and resolve election'}
         </button>}
+      {vacancyExplanation && isFacilitator && projection.policy.vicePresidentEnabled &&
+        ['scheduled','open','tie-pending'].includes(projection.state) && <section aria-label="Vice President vacancy decision">
+        <p role="alert">{vacancyExplanation}</p>
+        <p>No office assignment was written. Record a vacant Vice President office only if that is the current facilitator’s decision.</p>
+        <button type="button" disabled={!live || pending} onClick={() => void resolve(true)}>
+          {pending ? 'Recording…' : 'Confirm Vice President office vacant'}
+        </button>
+      </section>}
       {projection.state === 'resolved' && <p role="status">
         President: {candidates.find(candidate => candidate.id === projection.presidentCandidateId)?.displayName ?? 'Selected'}
-        {projection.policy.vicePresidentEnabled && ` // Vice President: ${candidates.find(candidate => candidate.id === projection.vicePresidentCandidateId)?.displayName ?? 'No winner'}`}
+        {projection.policy.vicePresidentEnabled && (projection.vicePresidentOutcome === 'vacant'
+          ? ' // Vice President office recorded vacant by explicit facilitator decision'
+          : ` // Vice President: ${candidates.find(candidate => candidate.id === projection.vicePresidentCandidateId)?.displayName ?? 'No winner'}`)}
+      </p>}
+      {projection.vicePresidentOutcome === 'runner-up' && <p role="status">
+        The President led both office ballots. The Vice President is the next eligible distinct candidate on the independent Vice President ballot.
       </p>}
     </> : <>
       {isFacilitator ? <form aria-label="Configure election procedure" onSubmit={event => void configure(event)}>

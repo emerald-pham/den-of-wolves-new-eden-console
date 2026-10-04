@@ -53,6 +53,13 @@ export type ElectionWinnerDecision =
   | { readonly status: 'tie-pending'; readonly candidateUids: readonly string[] }
   | { readonly status: 'no-winner' };
 
+export type ElectionVicePresidentDecision =
+  | { readonly status: 'winner'; readonly winnerUid: string; readonly source: 'vote' | 'current-office-remains' | 'facilitator-tie-choice' | 'vp-ballot-runner-up' }
+  | { readonly status: 'tie-pending'; readonly candidateUids: readonly string[]; readonly source: 'vote' | 'vp-ballot-runner-up' }
+  | { readonly status: 'no-winner' }
+  | { readonly status: 'vacancy-required' }
+  | { readonly status: 'conflict-pending'; readonly candidateUids: readonly string[]; readonly reason: 'incumbent-would-hold-both-offices' | 'incumbent-not-eligible-for-vp-runner-up' };
+
 const POLICY_KEYS = new Set([
   'eligibleVoterUids', 'votingSystem', 'populationWeighting', 'openCycle', 'closeCycle',
   'vicePresidentEnabled', 'campaigning', 'supplyUse', 'campaignInstructions', 'tieRule',
@@ -186,4 +193,50 @@ export function resolveElectionWinner(
     return { status: 'winner', winnerUid: facilitatorChoice, source: 'facilitator-tie-choice' };
   }
   return { status: 'tie-pending', candidateUids: tally.tiedCandidates };
+}
+
+/**
+ * Resolve the VP ballot independently. If its unique leader also wins President,
+ * the next positive-scoring VP-ballot candidate is the distinct office choice.
+ * Runner-up ties still use the election's preconfigured tie rule; no arbitrary
+ * score ordering ever chooses between tied candidates.
+ */
+export function resolveVicePresidentElection(
+  tally: ElectionOfficeTally,
+  presidentWinnerUid: string | undefined,
+  currentVicePresidentUid: string | undefined,
+  tieRule: ElectionTiePolicy,
+  facilitatorChoice?: string,
+  eligibleCandidateUids: readonly string[] = Object.keys(tally.scores),
+): ElectionVicePresidentDecision {
+  const ordinary = resolveElectionWinner(tally, currentVicePresidentUid, tieRule, facilitatorChoice);
+  if (!presidentWinnerUid || tally.winnerUid !== presidentWinnerUid) {
+    return ordinary.status === 'tie-pending' ? { ...ordinary, source: 'vote' } : ordinary;
+  }
+
+  const eligible = new Set(eligibleCandidateUids);
+  const runnersUp = Object.entries(tally.scores)
+    .filter(([uid, score]) => uid !== presidentWinnerUid && score > 0 && eligible.has(uid));
+  if (runnersUp.length === 0) return { status: 'vacancy-required' };
+  const highestScore = Math.max(...runnersUp.map(([, score]) => score));
+  const candidateUids = runnersUp.filter(([, score]) => score === highestScore)
+    .map(([uid]) => uid).sort((left, right) => left.localeCompare(right));
+  if (candidateUids.length === 1) {
+    return { status: 'winner', winnerUid: candidateUids[0]!, source: 'vp-ballot-runner-up' };
+  }
+
+  if (tieRule === 'current-office-remains') {
+    if (!currentVicePresidentUid) return { status: 'no-winner' };
+    if (currentVicePresidentUid === presidentWinnerUid) {
+      return { status: 'conflict-pending', candidateUids, reason: 'incumbent-would-hold-both-offices' };
+    }
+    if (!eligible.has(currentVicePresidentUid)) {
+      return { status: 'conflict-pending', candidateUids, reason: 'incumbent-not-eligible-for-vp-runner-up' };
+    }
+    return { status: 'winner', winnerUid: currentVicePresidentUid, source: 'current-office-remains' };
+  }
+  if (facilitatorChoice && candidateUids.includes(facilitatorChoice)) {
+    return { status: 'winner', winnerUid: facilitatorChoice, source: 'facilitator-tie-choice' };
+  }
+  return { status: 'tie-pending', candidateUids, source: 'vp-ballot-runner-up' };
 }

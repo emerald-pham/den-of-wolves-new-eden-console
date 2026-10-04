@@ -41,6 +41,7 @@ export async function castPresidentialBallot(ballot: {
 export async function resolvePresidentialElection(decision?: {
   readonly presidentCandidateId?: string;
   readonly vicePresidentCandidateId?: string;
+  readonly confirmVicePresidentVacancy?: boolean;
 }): Promise<void> {
   const authority = sessionAuthority();
   if (!authority.instanceId) throw new Error('Claim the facilitator console before resolving an election.');
@@ -49,5 +50,6 @@ export async function resolvePresidentialElection(decision?: {
     expectedRevision: authority.revision,
     ...(decision?.presidentCandidateId ? { presidentCandidateId: decision.presidentCandidateId } : {}),
     ...(decision?.vicePresidentCandidateId ? { vicePresidentCandidateId: decision.vicePresidentCandidateId } : {}),
+    ...(decision?.confirmVicePresidentVacancy ? { confirmVicePresidentVacancy: true } : {}),
   });
 }

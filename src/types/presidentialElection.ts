@@ -40,6 +40,8 @@ export interface PresidentialElectionTallyProjection {
   readonly vicePresident?: PresidentialElectionOfficeTallyProjection;
 }
 
+export type PresidentialVicePresidentOutcome = 'runner-up' | 'runner-up-pending' | 'vacant';
+
 /** Member-readable procedure and result; secret ballots and voter-to-ship maps never enter this projection. */
 export interface PresidentialElectionProjection {
   readonly type: 'presidential-election';
@@ -52,6 +54,8 @@ export interface PresidentialElectionProjection {
   readonly vicePresidentCandidateId?: string;
   readonly pendingPresidentTie?: readonly string[];
   readonly pendingVicePresidentTie?: readonly string[];
+  /** Public explanation for the distinct-office VP ballot branch. */
+  readonly vicePresidentOutcome?: PresidentialVicePresidentOutcome;
   readonly decidedCycle?: number;
 }
 
@@ -63,5 +67,7 @@ export interface PresidentialOfficesProjection {
   readonly presidentDisplayName: string;
   readonly vicePresidentCandidateId?: string;
   readonly vicePresidentDisplayName?: string;
+  /** True only after the current facilitator explicitly records no eligible VP candidate. */
+  readonly vicePresidentVacant?: boolean;
   readonly decidedCycle: number;
 }

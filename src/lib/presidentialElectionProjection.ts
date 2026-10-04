@@ -37,7 +37,7 @@ export function parsePresidentialElectionProjection(value: unknown): Presidentia
   const raw = object(value);
   if (!raw || raw.type !== 'presidential-election' || Object.keys(raw).some(key => ![
     'type','revision','state','policy','candidates','tally','presidentCandidateId','vicePresidentCandidateId',
-    'pendingPresidentTie','pendingVicePresidentTie','decidedCycle',
+    'pendingPresidentTie','pendingVicePresidentTie','vicePresidentOutcome','decidedCycle',
   ].includes(key)) || !Number.isSafeInteger(raw.revision) || Number(raw.revision) < 1 ||
       !['scheduled','open','tie-pending','resolved','no-winner'].includes(String(raw.state)) ||
       !Array.isArray(raw.candidates) || raw.candidates.length < 2 || raw.candidates.length > 300) return undefined;
@@ -74,8 +74,21 @@ export function parsePresidentialElectionProjection(value: unknown): Presidentia
   }
   const pendingPresidentTie = raw.pendingPresidentTie === undefined ? undefined : idList(raw.pendingPresidentTie);
   const pendingVicePresidentTie = raw.pendingVicePresidentTie === undefined ? undefined : idList(raw.pendingVicePresidentTie);
+  const sharedBallotLeader = Boolean(tally?.president.winnerId &&
+    tally.president.winnerId === tally.vicePresident?.winnerId);
+  const viceOutcome = raw.vicePresidentOutcome;
+  const validViceOutcome = viceOutcome === undefined || (viceOutcome === 'runner-up' &&
+    raw.state === 'resolved' && policy.vicePresidentEnabled === true &&
+    typeof raw.presidentCandidateId === 'string' && typeof raw.vicePresidentCandidateId === 'string' &&
+    raw.presidentCandidateId !== raw.vicePresidentCandidateId && sharedBallotLeader) || (viceOutcome === 'runner-up-pending' && raw.state === 'tie-pending' &&
+    policy.vicePresidentEnabled === true && sharedBallotLeader &&
+    pendingVicePresidentTie !== undefined && pendingVicePresidentTie.length >= 2 &&
+    raw.vicePresidentCandidateId === undefined) || (viceOutcome === 'vacant' &&
+    raw.state === 'resolved' && policy.vicePresidentEnabled === true &&
+    typeof raw.presidentCandidateId === 'string' && raw.vicePresidentCandidateId === undefined && sharedBallotLeader);
   if ((raw.pendingPresidentTie !== undefined && !pendingPresidentTie) ||
       (raw.pendingVicePresidentTie !== undefined && !pendingVicePresidentTie) ||
+      !validViceOutcome ||
       (raw.presidentCandidateId !== undefined && !candidateId(raw.presidentCandidateId, candidateIds)) ||
       (raw.vicePresidentCandidateId !== undefined && !candidateId(raw.vicePresidentCandidateId, candidateIds)) ||
       (raw.decidedCycle !== undefined && (!Number.isSafeInteger(raw.decidedCycle) || Number(raw.decidedCycle) < 1))) return undefined;
@@ -92,6 +105,7 @@ export function parsePresidentialElectionProjection(value: unknown): Presidentia
     ...(typeof raw.presidentCandidateId === 'string' ? { presidentCandidateId: raw.presidentCandidateId } : {}),
     ...(typeof raw.vicePresidentCandidateId === 'string' ? { vicePresidentCandidateId: raw.vicePresidentCandidateId } : {}),
     ...(pendingPresidentTie ? { pendingPresidentTie } : {}), ...(pendingVicePresidentTie ? { pendingVicePresidentTie } : {}),
+    ...(typeof raw.vicePresidentOutcome === 'string' ? { vicePresidentOutcome: raw.vicePresidentOutcome as NonNullable<PresidentialElectionProjection['vicePresidentOutcome']> } : {}),
     ...(raw.decidedCycle === undefined ? {} : { decidedCycle: Number(raw.decidedCycle) }),
   };
 }
@@ -99,16 +113,19 @@ export function parsePresidentialElectionProjection(value: unknown): Presidentia
 export function parsePresidentialOfficesProjection(value: unknown): PresidentialOfficesProjection | undefined {
   const raw = object(value);
   if (!raw || Object.keys(raw).some(key => ![
-    'electionId','revision','presidentCandidateId','presidentDisplayName','vicePresidentCandidateId','vicePresidentDisplayName','decidedCycle',
+    'electionId','revision','presidentCandidateId','presidentDisplayName','vicePresidentCandidateId','vicePresidentDisplayName','vicePresidentVacant','decidedCycle',
   ].includes(key)) || raw.electionId !== 'current' || !Number.isSafeInteger(raw.revision) || Number(raw.revision) < 1 ||
       typeof raw.presidentCandidateId !== 'string' || !/^candidate-[\w-]{1,128}$/.test(raw.presidentCandidateId) ||
       typeof raw.presidentDisplayName !== 'string' || !raw.presidentDisplayName.trim() || raw.presidentDisplayName.length > 40 ||
       (raw.vicePresidentCandidateId !== undefined && (typeof raw.vicePresidentCandidateId !== 'string' || !/^candidate-[\w-]{1,128}$/.test(raw.vicePresidentCandidateId))) ||
       (raw.vicePresidentDisplayName !== undefined && (typeof raw.vicePresidentDisplayName !== 'string' || !raw.vicePresidentDisplayName.trim() || raw.vicePresidentDisplayName.length > 40)) ||
+      (raw.vicePresidentVacant !== undefined && raw.vicePresidentVacant !== true) ||
+      (raw.vicePresidentVacant === true && (raw.vicePresidentCandidateId !== undefined || raw.vicePresidentDisplayName !== undefined)) ||
       Number.isSafeInteger(raw.decidedCycle) === false || Number(raw.decidedCycle) < 1) return undefined;
   return { electionId: 'current', revision: Number(raw.revision), presidentCandidateId: raw.presidentCandidateId,
     presidentDisplayName: raw.presidentDisplayName.trim(),
     ...(typeof raw.vicePresidentCandidateId === 'string' ? { vicePresidentCandidateId: raw.vicePresidentCandidateId,
       ...(typeof raw.vicePresidentDisplayName === 'string' ? { vicePresidentDisplayName: raw.vicePresidentDisplayName.trim() } : {}) } : {}),
+    ...(raw.vicePresidentVacant === true ? { vicePresidentVacant: true } : {}),
     decidedCycle: Number(raw.decidedCycle) };
 }
