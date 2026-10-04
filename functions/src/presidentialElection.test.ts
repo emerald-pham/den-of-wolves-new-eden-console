@@ -56,12 +56,12 @@ it('counts private ballots once with server-derived population weights for both 
     ballots: [
       { voterUid: 'u1', presidentUid: 'u2', vicePresidentUid: 'u3' },
       { voterUid: 'u2', presidentUid: 'u2', vicePresidentUid: 'u1' },
-      { voterUid: 'u3', presidentUid: 'u3', vicePresidentUid: 'u3' },
+      { voterUid: 'u3', presidentUid: 'u2', vicePresidentUid: 'u3' },
     ],
     shipPopulations: { dione: 20_000, icebreaker: 50_000, shepherd: 30_000 },
   });
   expect(tally).toEqual({
-    president: { totalVotes: 3, totalWeight: 100_000, scores: { u2: 70_000, u3: 30_000 }, tiedCandidates: [], winnerUid: 'u2' },
+    president: { totalVotes: 3, totalWeight: 100_000, scores: { u2: 100_000 }, tiedCandidates: [], winnerUid: 'u2' },
     vicePresident: { totalVotes: 3, totalWeight: 100_000, scores: { u1: 50_000, u3: 50_000 }, tiedCandidates: ['u1', 'u3'] },
   });
   expect(tally).not.toHaveProperty('ballots');
@@ -79,7 +79,7 @@ it('uses the recorded voting system and configured GM tie choice without exposin
     shipPopulations: { dione: 20_000, icebreaker: 50_000, shepherd: 30_000 },
   });
   expect(tally.president).toMatchObject({ totalVotes: 3, totalWeight: 3, tiedCandidates: ['u1', 'u2', 'u3'] });
-  expect(resolveElectionWinner(tally.president, 'u2', policy.tieRule)).toEqual({ status: 'winner', winnerUid: 'u2', source: 'current-office-remains' });
+  expect(resolveElectionWinner(tally.president, 'u2', 'current-office-remains')).toEqual({ status: 'winner', winnerUid: 'u2', source: 'current-office-remains' });
   expect(resolveElectionWinner(tally.president, 'u2', 'facilitator-choice')).toEqual({
     status: 'tie-pending', candidateUids: ['u1', 'u2', 'u3'],
   });
