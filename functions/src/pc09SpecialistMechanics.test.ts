@@ -134,3 +134,42 @@ it('binds an explicit commander permission to one live source slot and the curre
     requestId: 'permission-4', revision: 1, fighters: 4, launched: false,
   })).toThrow(/launched/i);
 });
+
+it('validates an immutable Fighter Ace receipt against its permission, targets, outcome, and durable source loss', () => {
+  const requirePdfFighterAceActionReceipt = specialistFunctions.requirePdfFighterAceActionReceipt as
+    (receipt: unknown, expected?: Record<string, unknown>) => Record<string, unknown>;
+  const permission = {
+    type: 'pdf-fighter-ace-permission', attackId: 'attack-1', turn: 4,
+    sourceId: 'fighter-wing-alpha', fighterIndex: 2, aceUid: 'ace-1',
+    actorUid: 'commander-1', actorRoleId: 'wing-commander', requestId: 'permission-1', revision: 1,
+  };
+  const before = { sourceId: 'fighter-wing-alpha', fighters: 4, losses: 0, revision: 6,
+    durableRevision: 2, launched: true, attackId: 'attack-1', cycle: 4 };
+  const receipt = {
+    type: 'pdf-fighter-ace-action', attackId: 'attack-1', turn: 4, revision: 9,
+    requestId: 'ace-action-1', actorUid: 'ace-1', actorRoleId: 'pdf-fighter-ace', fighterUid: 'ace-1',
+    sourceId: 'fighter-wing-alpha', fighterIndex: 2, permissionActor: permission,
+    permissionActorUid: 'commander-1', permissionActorRoleId: 'wing-commander',
+    permissionRequestId: 'permission-1', permissionRevision: 1, range: 'short',
+    submittedTargetId: 'contact-2', extraTargetId: 'contact-2', submittedTargetShift: null,
+    resolvedTargetShift: null,
+    rosterBefore: [
+      { instanceId: '0:wolf-fighter-wing', shipId: 'wolf-fighter-wing', target: 'aegis', damageTaken: 0, destroyed: false },
+      { instanceId: '2:wolf-cruiser', shipId: 'wolf-cruiser', target: 'quellon', damageTaken: 1, destroyed: false },
+    ],
+    targetResults: [{ instanceId: '2:wolf-cruiser', shipId: 'wolf-cruiser', damage: 2, destroyed: true }],
+    sourceStateBefore: before,
+    sourceStateAfter: { ...before, fighters: 3, losses: 1, revision: 7, durableRevision: 3 },
+    outcome: { damage: 2, targetDestroyed: true, fighterDestroyed: true, aceDied: false, escaped: true },
+    rolls: [], committedAt: '2026-10-04T12:00:00.000Z',
+  };
+  expect(requirePdfFighterAceActionReceipt(receipt, { attackId: 'attack-1', actorUid: 'ace-1' }))
+    .toMatchObject({ fighterUid: 'ace-1', permissionActorUid: 'commander-1', outcome: { damage: 2 } });
+  expect(() => requirePdfFighterAceActionReceipt({ ...receipt, targetShipId: 'wolf-cruiser' })).toThrow(/receipt/i);
+  expect(() => requirePdfFighterAceActionReceipt({ ...receipt,
+    sourceStateAfter: { ...receipt.sourceStateAfter, durableRevision: 2 } })).toThrow(/source|loss|revision/i);
+  expect(() => requirePdfFighterAceActionReceipt({ ...receipt,
+    outcome: { ...receipt.outcome, damage: 1 } })).toThrow(/damage|outcome/i);
+  expect(() => requirePdfFighterAceActionReceipt({ ...receipt,
+    permissionActor: { ...permission, aceUid: 'another-ace' } })).toThrow(/permission|Ace/i);
+});
