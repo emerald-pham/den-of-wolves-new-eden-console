@@ -555,6 +555,9 @@ export default function AppHeader() {
               />
             )}
             <p className="settings-dialog__version">Build {APP_VERSION}</p>
+            {hasSession && currentTurn === 0 && (
+              <p>Awaiting CIC authentication means waiting for the GM to start the game.</p>
+            )}
             {singlePlayerDemoAvailable && (
               <section className="settings-dialog__demo" aria-labelledby="single-player-demo-title">
                 <h3 id="single-player-demo-title">Single-player demo</h3>

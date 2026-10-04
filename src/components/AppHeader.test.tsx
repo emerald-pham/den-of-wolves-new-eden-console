@@ -119,7 +119,7 @@ it('shows the detailed status instrument only in authenticated GM app chrome', a
   expect(within(status).getByText('SHUTTLE // I.C.S.S. Starlight')).toBeVisible();
 });
 
-it('shows pending session authorization while Cycle 0 systems are still booting', async () => {
+it('explains awaiting CIC authentication before the GM starts Cycle 1', async () => {
   const session = useSessionStore.getState().session!;
   useSessionStore.getState().setSession({ ...session, currentTurn: 0 });
   useSessionStore.getState().setMe(connectedPlayer('u1'));
@@ -130,19 +130,24 @@ it('shows pending session authorization while Cycle 0 systems are still booting'
   await screen.findByText('2 connected to CIC');
 
   const indicator = screen.getByRole('status', {
-    name: 'Fleet link connected // session authorization pending',
+    name: 'Fleet link connected // awaiting CIC authentication',
   });
-  expect(indicator).toHaveTextContent('CONNECTED // SESSION AUTHORIZATION PENDING');
+  expect(indicator).toHaveTextContent('CONNECTED // AWAITING CIC AUTHENTICATION');
   expect(indicator).toHaveAttribute('data-status', 'blue');
   expect(indicator).toHaveAttribute(
     'title',
-    'Fleet link connected // session authorization pending',
+    'Fleet link connected // awaiting CIC authentication',
   );
+
+  await userEvent.setup().click(screen.getByRole('button', { name: 'Settings', exact: true }));
+  const settings = screen.getByRole('dialog', { name: 'Session settings' });
+  expect(within(settings).getByText('Awaiting CIC authentication means waiting for the GM to start the game.')).toBeVisible();
 
   act(() => useSessionStore.getState().setSession({ ...session, currentTurn: 1 }));
   expect(indicator).toHaveTextContent('In session');
   expect(indicator).toHaveAttribute('data-status', 'green');
   expect(indicator).toHaveAttribute('title', 'Fleet link connected // session active');
+  expect(within(settings).queryByText('Awaiting CIC authentication means waiting for the GM to start the game.')).not.toBeInTheDocument();
 });
 
 it('defaults to a connected light for five seconds before revealing offline reality', async () => {

@@ -12,7 +12,7 @@ describe('ConnectionIndicator', () => {
   it('reports a fleet link without a session', () => {
     render(<ConnectionIndicator status="yellow" />);
     expect(screen.getByRole('status')).toHaveTextContent('CONNECTED');
-    expect(screen.getByRole('status')).not.toHaveTextContent('SESSION AUTHORIZATION PENDING');
+    expect(screen.getByRole('status')).not.toHaveTextContent('AWAITING CIC AUTHENTICATION');
   });
 
   it('labels a connected session that is still waiting for its player projection', () => {
@@ -28,11 +28,11 @@ describe('ConnectionIndicator', () => {
     expect(screen.getByRole('status')).toHaveTextContent(/in session/i);
   });
 
-  it('uses the pending session-authorization label only for a joined session', () => {
+  it('explains the pregame CIC authentication state in its label and accessible title', () => {
     render(<ConnectionIndicator status="blue" />);
-    expect(screen.getByRole('status')).toHaveTextContent('CONNECTED // SESSION AUTHORIZATION PENDING');
-    expect(screen.getByRole('status')).toHaveAccessibleName('Fleet link connected // session authorization pending');
-    expect(screen.getByRole('status')).toHaveAttribute('title', 'Fleet link connected // session authorization pending');
+    expect(screen.getByRole('status')).toHaveTextContent('CONNECTED // AWAITING CIC AUTHENTICATION');
+    expect(screen.getByRole('status')).toHaveAccessibleName('Fleet link connected // awaiting CIC authentication');
+    expect(screen.getByRole('status')).toHaveAttribute('title', 'Fleet link connected // awaiting CIC authentication');
   });
 
   it('exposes the status for styling without relying on it for meaning', () => {
