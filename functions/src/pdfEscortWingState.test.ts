@@ -105,6 +105,65 @@ describe('authoritative PDF Escort Wing state', () => {
     })).toThrow(/cycle must advance/i);
   });
 
+  it('resets a PDF attack for the exact same-cycle P Station repeat and preserves fighter losses', () => {
+    const first = beginPdfEscortWingAttack(initialPdfEscortWingState(), {
+      expectedRevision: 0, attackId: 'wolf-attack-parent', attackCycle: 1,
+    });
+    const damaged = resolvePdfEscortWingShort(launchPdfEscortWing(first, {
+      expectedRevision: 0, launchAllowed: true, bayCharged: true, bayDamaged: false,
+    }), {
+      expectedRevision: 1, fighterIndexes: [0, 1, 2, 3], random: dice(1, 2, 5, 6),
+    }).state;
+    const context = {
+      type: 'p-station-repeat', sequenceId: 'wolf-p-station-navigation-parent', groupId: 'fleet-1',
+      chart: 'B', coordinate: '1964', stationId: 'P', sourceTransitionId: 'navigation-parent',
+      sourceCycle: 1, parentAttackId: 'wolf-attack-parent', parentAttackNumber: 1,
+      parentTurn: 1, nextAttackNumber: 2,
+    } as const;
+
+    const repeated = beginPdfEscortWingAttack(damaged, {
+      expectedRevision: damaged.revision, attackId: 'wolf-attack-repeat', attackCycle: 1,
+      pStationRepeatContext: context,
+    } as never);
+
+    expect(repeated).toMatchObject({
+      attackId: 'wolf-attack-repeat', attackCycle: 1, revision: damaged.revision + 1,
+      fighters: 2, losses: 2, launched: false,
+      mediumResolved: false, mediumActionFighterIndexes: [],
+      shortResolved: false, shortRollFighterIndexes: [],
+    });
+  });
+
+  it.each([
+    ['missing P context', undefined],
+    ['wrong parent attack', {
+      type: 'p-station-repeat', sequenceId: 'wolf-p-station-navigation-parent', groupId: 'fleet-1',
+      chart: 'B', coordinate: '1964', stationId: 'P', sourceTransitionId: 'navigation-parent',
+      sourceCycle: 1, parentAttackId: 'wolf-attack-somewhere-else', parentAttackNumber: 1,
+      parentTurn: 1, nextAttackNumber: 2,
+    }],
+    ['wrong source sequence', {
+      type: 'p-station-repeat', sequenceId: 'wolf-p-station-navigation-other', groupId: 'fleet-1',
+      chart: 'B', coordinate: '1964', stationId: 'P', sourceTransitionId: 'navigation-parent',
+      sourceCycle: 1, parentAttackId: 'wolf-attack-parent', parentAttackNumber: 1,
+      parentTurn: 1, nextAttackNumber: 2,
+    }],
+    ['wrong next attack number', {
+      type: 'p-station-repeat', sequenceId: 'wolf-p-station-navigation-parent', groupId: 'fleet-1',
+      chart: 'B', coordinate: '1964', stationId: 'P', sourceTransitionId: 'navigation-parent',
+      sourceCycle: 1, parentAttackId: 'wolf-attack-parent', parentAttackNumber: 1,
+      parentTurn: 1, nextAttackNumber: 3,
+    }],
+  ])('rejects same-cycle PDF reinitialization with %s', (_label, pStationRepeatContext) => {
+    const prior = beginPdfEscortWingAttack(initialPdfEscortWingState(), {
+      expectedRevision: 0, attackId: 'wolf-attack-parent', attackCycle: 1,
+    });
+    expect(() => beginPdfEscortWingAttack(prior, {
+      expectedRevision: prior.revision, attackId: 'wolf-attack-repeat', attackCycle: 1,
+      ...(pStationRepeatContext === undefined ? {} : { pStationRepeatContext }),
+    } as never)).toThrow(/cycle must advance|P Station repeat context/i);
+  });
+
   it('resolves independent Medium target shifts and attacks at the printed threshold', () => {
     const result = resolvePdfEscortWingMedium(launched(), {
       expectedRevision: 1,
