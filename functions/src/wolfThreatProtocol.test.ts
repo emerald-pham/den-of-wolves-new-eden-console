@@ -112,5 +112,14 @@ describe('group-bound Wolf threat protocol', () => {
       5,
       '2026-10-04T12:00:00.000Z',
     )).toThrow(/deadline/i);
+    expect(resolveWolfAmnestyDecision(
+      { ...offer, responseDeadline: '2026-10-04T11:00:00.000Z' },
+      { kind: 'facilitator-consequence', text: 'No response by deadline; facilitator adjudicates the printed surrender terms.' },
+      5,
+      '2026-10-04T12:00:00.000Z',
+    )).toMatchObject({
+      status: 'facilitator-ruled',
+      ruling: 'No response by deadline; facilitator adjudicates the printed surrender terms.',
+    });
   });
 });
