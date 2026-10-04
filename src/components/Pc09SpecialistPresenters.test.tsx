@@ -71,3 +71,19 @@ it('submits a Fighter Ace combat choice through an injected action', async () =>
     range: 'medium', targetShift: undefined,
   }));
 });
+
+it('limits the physical visit and hosted reroll controls to injected authority', () => {
+  const { rerender } = render(<VipHostPanel cycle={2} visitStatus="unattested" currentShipId="dione"
+    destinations={[{ id: 'icebreaker', label: 'Icebreaker' }]} grant={null}
+    canAttestVisit={false} canUseGrant={false}
+    onAttestVisit={vi.fn()} onReroll={vi.fn()} />);
+
+  expect(screen.queryByRole('button', { name: 'Record ship visit' })).not.toBeInTheDocument();
+  rerender(<VipHostPanel cycle={2} visitStatus="attested" currentShipId="icebreaker"
+    destinations={[{ id: 'icebreaker', label: 'Icebreaker' }]}
+    grant={{ shipLabel: 'Icebreaker', cycle: 2, status: 'available' }}
+    canAttestVisit={false} canUseGrant={false}
+    onAttestVisit={vi.fn()} onReroll={vi.fn()} />);
+
+  expect(screen.queryByRole('button', { name: 'Reroll one maintenance die' })).not.toBeInTheDocument();
+});
