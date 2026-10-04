@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
-import type { CrisisStateProjection, ZealotryResponse, CivilUnrestResolution } from '@/types/crisis';
+import type { ApproachingVesselResponse, CrisisStateProjection, ZealotryResponse, CivilUnrestResolution } from '@/types/crisis';
 import { INITIAL_SHIP_RESOURCES } from '@/data/resources';
 import { recommendedRoleIds } from '@/data/rolePresets';
 import { FIGHTER_WING_IDS } from '@/data/aegisConsoles';
@@ -992,8 +992,19 @@ it('exposes Voyage 33-0 admission only on an active Approaching Vessel crisis', 
     sessionId: 's1', crisisId: 'approach-1', state: 'resolved', revision: 3,
     title: 'Approaching vessel', details: 'Facilitator acceptance notes.', crisisKind: 'approaching-vessel',
   };
+  const vesselRuling: ApproachingVesselResponse = {
+    sessionId: 's1', crisisId: 'approach-1', crisisRevision: 3,
+    state: 'debated', revision: 1, vesselReality: 'real',
+    responseChoices: ['wait-briefly-then-leave'], coordinationActions: ['security'],
+    responseInstructions: 'Wait briefly, then leave.',
+    rationale: 'The table accepts the pilot beacon as genuine.', actorUid: 'u1',
+  };
   vi.mocked(subscribeGmCrisisState).mockImplementation((_sessionId, onState) => {
     onState(approachingCrisis);
+    return vi.fn();
+  });
+  vi.mocked(subscribeGmApproachingVesselResponse).mockImplementation((_sessionId, onResponse) => {
+    onResponse(vesselRuling);
     return vi.fn();
   });
   vi.mocked(admitVoyage33).mockResolvedValue('applied');
@@ -1009,7 +1020,7 @@ it('exposes Voyage 33-0 admission only on an active Approaching Vessel crisis', 
   await user.click(within(panel).getByRole('button', { name: 'Admit Voyage 33-0' }));
 
   await waitFor(() => expect(admitVoyage33).toHaveBeenCalledWith('approach-1'));
-  expect(await within(panel).findByRole('status')).toHaveTextContent(/Voyage 33-0 admitted/i);
+  expect(await within(panel).findByText(/Voyage 33-0 admitted \/\/ host docking and maintenance remain pending/i)).toBeVisible();
 });
 
 it('records a private source-approved Zealotry response only at the debated stage', async () => {
