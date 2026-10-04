@@ -84,6 +84,24 @@ Owner product `1ee0d9360bc8df47e4bfda0995011e30e03c68b8` compiles and its
 A fresh ordinary connected proof and this same reviewer's bounded verification
 remain required; neither fix grants checkpoint credit by itself.
 
+The next ordinary run on that immutable runtime completed all three ranges,
+both genuine EO offline/online recoveries, the permission-bound Ace UI action
+and exact retry, boarding, the atomic finalizer, member hydration, movement
+reopening and private Rules denials. Its later Doctor assignment incorrectly
+reused the already assigned Gorgoneion Captain, so the run remains partial in
+`/tmp/pc09-combat-recovery-evidence/composed-01fd0220/result.json.failure.json`.
+Driver-only `b69e12ee` allocates a separate ordinary Quellon Engineer as Doctor
+without changing any aftermath, arrest or two-slot HTTP/UI build assertions.
+
+Separate Commander trace evidence records actual address and offer commands
+returning 200, followed by a 30-millisecond private-brief rehydration gap that
+redirected the route to the chooser and lost its confirmation. The exact
+route/store lifecycle is retained in
+`/tmp/pc09-combat-recovery-evidence/commander-route-trace-reload/result.json.failure.json`.
+A bounded fail-closed waiting-state regression/repair owns that connected
+acceptance gap; the earlier speculative read-only transaction cause is not
+treated as reproduced in this scenario.
+
 ## Evidence and completion boundary
 
 At owner `30651411035e55392f5ff97021b389c6620f0042`, the five focused Detector,
@@ -93,6 +111,15 @@ composition fixture invokes the actual visit and reroll handlers, persists both
 receipts and grant projections, rejects a second benefit and a revoked GM, and
 permits an exact valid replay. Its visit is explicitly simulated; no physical
 attendance is claimed.
+
+The reconciled combat-repair product preflight passed all 7,917 native/unit
+checks across 595 files, with no skips, in
+`/tmp/dow-pc09-evidence/reconciled-product-native-14e2459d.log`. Product source
+was unchanged while strict test-only fixture corrections were committed at
+`93603186`; the affected 13 assertions were also rerun separately and passed.
+Corrected typecheck and lint pass (zero errors, 16 existing warnings). These
+preflight results precede the approved election and private-brief waiting
+deltas; final candidate checks and exact-SHA CI remain required.
 
 The later owner snapshot
 `fd34534c1ceb50a2bd640da8dca56920a6b1dcb3` compiles successfully and includes

@@ -61,6 +61,15 @@ request is retried or hidden by that scheduler. Genuine browser actors renew
 their own presence rather than receiving duplicate synthetic heartbeats.
 All result, privacy, cost, capacity and browser-error assertions remain required.
 
+Strict typing corrections omit a missing optional phase marker instead of
+assigning `undefined`, and use an anchored accessible-name matcher for Testing
+Library's keyboard Back query. All 13 relevant assertions still pass. A distinct
+ordinary Quellon Engineer becomes Doctor in the composed driver, preserving the
+already-assigned Gorgoneion Captain. The new Commander driver retains actual
+address/offer, privacy, explicit ruling, expiry, dial, once-per-cycle and four
+viewport checks. Its diagnostic trace preserves transient failures and source/
+runtime identities; an unfinished run remains unfinished.
+
 | Test or gameplay driver | Change | Reason |
 |---|---|---|
 | `functions/src/approachingVesselResponse.test.ts` | Added | Keep the GM’s real/trap response private and validate explicit permitted timing/response choices. |
@@ -162,3 +171,4 @@ All result, privacy, cost, capacity and browser-error assertions remain required
 | `src/config/returnNavigationContract.test.ts` | Changed | Cover both new governance routes in the existing visible-parent return contract. |
 | `functions/src/pc09SpecialistMechanics.rangeRecovery.test.ts` | Added | Compose real Long range math with later Ace application, preserving destroyed-contact overkill while denying forged destruction, destroyed targets and noncanonical live Ace damage. |
 | `src/lib/sessionSnapshotAuthority.combatRecovery.test.ts` | Added | Accept legitimate same-cycle attack closure/reopening only with a validated advancing phase revision; retain stale, missing, malformed and wrongly bound marker denials. |
+| `scripts/test-pc09-threats-http.mjs` | Added | Join a real Commander browser, perform source-bound address/amnesty/dial choices, preserve private/public audience and once-per-cycle checks, and inspect actual endpoint/recovery/viewport results with disclosed deadline acceleration. |
