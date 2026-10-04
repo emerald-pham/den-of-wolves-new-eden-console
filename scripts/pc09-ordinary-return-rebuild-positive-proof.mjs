@@ -235,10 +235,13 @@ async function fundPregameResources() {
       fuel: 6,
       materials: 16,
     },
-    dione: { food: printedRationPlan.dione.cycles * printedRationPlan.dione.foodEach,
-      water: printedRationPlan.dione.cycles * printedRationPlan.dione.waterEach },
-    'refinery-124': { food: printedRationPlan['refinery-124'].cycles * printedRationPlan['refinery-124'].foodEach,
-      water: printedRationPlan['refinery-124'].cycles * printedRationPlan['refinery-124'].waterEach },
+    // One first-attack storage hit can halve the remaining stores at the second
+    // host maintenance. Fund its extra ration reserve before any combat; the
+    // server still applies the loss and both full printed choices normally.
+    dione: { food: (printedRationPlan.dione.cycles + 1) * printedRationPlan.dione.foodEach,
+      water: (printedRationPlan.dione.cycles + 1) * printedRationPlan.dione.waterEach },
+    'refinery-124': { food: (printedRationPlan['refinery-124'].cycles + 1) * printedRationPlan['refinery-124'].foodEach,
+      water: (printedRationPlan['refinery-124'].cycles + 1) * printedRationPlan['refinery-124'].waterEach },
   };
   const paidCostPlan = {
     fighterBuilds: 2, materialPerBuild: 1,
@@ -291,7 +294,9 @@ async function fundPregameResources() {
         `Pregame funding must cover the chosen printed maintenance and repair/build costs for ${shipId}.${resourceId}.`);
     }
   }
-  return { printedRationPlan, paidCostPlan, targets };
+  return { printedRationPlan, paidCostPlan, targets,
+    storageLossReserve: { ships: ['dione', 'refinery-124'], extraFullRationsEach: 1,
+      reason: 'first-attack storage damage may halve remaining stores before cycle-3 full rations' } };
 }
 async function until(predicate, label) {
   for (let i = 0; i < 120; i++) {

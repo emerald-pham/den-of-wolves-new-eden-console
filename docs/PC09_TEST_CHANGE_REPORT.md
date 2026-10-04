@@ -199,3 +199,10 @@ existing construction article is unnamed. Its final locator filters the actual
 `article.aegis-craft` by the exact visible Alpha/Bravo heading. It preserves the
 one-card assertion, full-capacity Bravo denial and the distinct Alpha build;
 no `.first()` fallback or cost/capacity relaxation is used.
+
+A later genuine first-attack Storage hit halved Refinery 124's remaining ration
+stock before cycle 3. The failed run retained the full-ration assertion and
+zero browser-error result. The disclosed pregame plan now adds exactly one
+extra full ration to Dione/Refinery 124, enough to cover that single post-combat
+halving. Both ordinary printed maintenance choices and all actual storage
+losses remain; no post-combat GM top-up, repair or dice patch is introduced.

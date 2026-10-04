@@ -251,3 +251,12 @@ locator error, not a waived UI result. Its full failure remains in
 The corrected locator uses `article.aegis-craft` containing the exact visible
 Alpha/Bravo heading, retains the one-article and enabled/disabled assertions,
 and changes no product code. A subsequent complete pass is still required.
+
+The next `d2870c41` attempt stopped on a genuine first-attack Refinery Storage
+hit: its cycle-3 stores were 6 food/4 water after halving, below the full printed
+ration. Twelve earlier branches passed with zero browser errors. The failure
+and predicate inputs remain in `positive-rebuild-heading/`. The initial budget
+now includes one extra full ration for each of the two launch hosts, before
+combat, retaining actual storage loss, maintenance cost and all acceptance
+assertions. This is a disclosed finite fixture correction, not a gameplay rule
+or additional post-combat authority.
