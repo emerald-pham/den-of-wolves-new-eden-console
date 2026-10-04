@@ -204,3 +204,24 @@ it('rejects stale ballots and changing an already submitted ballot', async () =>
   }, 'u2'))).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.documents.get('sessions/s1/presidentialElections/current/ballots/u2')).toMatchObject({ ballot: { presidentUid: 'u3' } });
 });
+
+it.each(['success', 'failure', 'debrief', 'closed'])('rejects new election mutations after %s without any write', async terminalPhase => {
+  await configurePresidentialElection.run(request({
+    sessionId: 's1', instanceId: 'gm-instance', requestId: 'configure-terminal-election',
+    expectedRevision: 0, policy: { ...policy, vicePresidentEnabled: false },
+  }));
+  put('sessions/s1', { ...mock.documents.get('sessions/s1'), phase: terminalPhase });
+  const before = JSON.stringify([...mock.documents]);
+  mock.set.mockClear();
+  mock.update.mockClear();
+
+  await expect(castPresidentialBallot.run(request({
+    sessionId: 's1', requestId: 'terminal-ballot', expectedRevision: 1, presidentUid: 'u3',
+  }, 'u2'))).rejects.toMatchObject({ code: 'failed-precondition' });
+  await expect(resolvePresidentialElection.run(request({
+    sessionId: 's1', instanceId: 'gm-instance', requestId: 'terminal-election-resolution', expectedRevision: 1,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(JSON.stringify([...mock.documents])).toBe(before);
+});
