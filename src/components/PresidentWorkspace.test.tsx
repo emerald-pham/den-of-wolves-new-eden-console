@@ -70,7 +70,7 @@ it('presents a no-confirmation Coordination visit for one active ship with unres
   expect(visitSection).toHaveTextContent('Coordination');
   expect(within(visitSection).queryByRole('dialog')).not.toBeInTheDocument();
   expect(visitSection).toBeVisible();
-  expect(visit()).toHaveBeenCalledWith('shepherd');
+  expect(visit).toHaveBeenCalledWith('shepherd');
 });
 
 it('keeps the Coordination visit unavailable during Team phase', () => {
