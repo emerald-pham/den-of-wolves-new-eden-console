@@ -100,14 +100,14 @@ export function resolveDoctorMedicalAid(input: Readonly<{
     if (casualtiesBefore < 1) throw new Error('This ship has no damage casualties for Doctor Medical Aid.');
     const before = input.populationBeforeByTarget[shipId];
     requireNonNegativeInteger(before, `${shipId} starting population`);
-    const reconstructedBefore = movePopulation(shipId, result.population, 1, casualtiesBefore);
-    if (reconstructedBefore !== before) {
+    const populationAfterDamage = movePopulation(shipId, before, -1, casualtiesBefore);
+    if (populationAfterDamage !== result.population) {
       throw new Error('The casualty count no longer matches the authoritative population track.');
     }
 
     const casualtiesAfter = Math.floor(casualtiesBefore / 2);
     const casualtiesPrevented = casualtiesBefore - casualtiesAfter;
-    populationByTarget[shipId] = movePopulation(shipId, result.population, 1, casualtiesPrevented);
+    populationByTarget[shipId] = movePopulation(shipId, before, -1, casualtiesAfter);
     let foodSpent = 0;
     let waterSpent = 0;
     if (index > 0) {
