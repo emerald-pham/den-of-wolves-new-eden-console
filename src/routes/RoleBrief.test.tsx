@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -433,6 +433,66 @@ it('does not render a brief assigned to another player', () => {
 
   expect(screen.getByText('Station catalog')).toBeInTheDocument();
 });
+
+it('keeps the private route without old content while the same identity rehydrates its brief', () => {
+  const current = useSessionStore.getState();
+  const brief = current.roleBrief!;
+  render(
+    <MemoryRouter initialEntries={['/brief']}>
+      <Routes>
+        <Route path="/brief" element={<RoleBrief />} />
+        <Route path="/console" element={<p>Station catalog</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+  expect(screen.getByRole('heading', { name: 'Admiral' })).toBeVisible();
+  act(() => current.setIdentity(current.session!, current.me!));
+  expect(useSessionStore.getState().roleBrief).toBeNull();
+  expect(screen.queryByText('Coordinate the fleet.')).not.toBeInTheDocument();
+  expect(screen.getByText('Waiting for the current private briefing…')).toBeVisible();
+  expect(screen.queryByText('Station catalog')).not.toBeInTheDocument();
+  act(() => useSessionStore.getState().setRoleBrief(brief));
+  expect(screen.getByRole('heading', { name: 'Admiral' })).toBeVisible();
+});
+
+it('leaves a pending brief route when the current subscription confirms an absent private document', () => {
+  const current = useSessionStore.getState();
+  current.setIdentity(current.session!, current.me!);
+  render(
+    <MemoryRouter initialEntries={['/brief']}>
+      <Routes>
+        <Route path="/brief" element={<RoleBrief />} />
+        <Route path="/console" element={<p>Station catalog</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+  expect(screen.getByText('Waiting for the current private briefing…')).toBeVisible();
+  act(() => useSessionStore.getState().setRoleBrief(null));
+  expect(screen.getByText('Station catalog')).toBeInTheDocument();
+  expect(screen.queryByText('Coordinate the fleet.')).not.toBeInTheDocument();
+});
+
+it.each(['role-revoked', 'session-mismatch', 'awaiting-re-role'] as const)(
+  'does not wait for a private brief after %s', (change) => {
+    const current = useSessionStore.getState();
+    current.setIdentity(current.session!, {
+      ...current.me!,
+      ...(change === 'role-revoked' ? { assignedRoleId: null } : {}),
+      ...(change === 'session-mismatch' ? { sessionId: 'another-session' } : {}),
+      ...(change === 'awaiting-re-role' ? { replacementStatus: 'awaiting-re-role' as const } : {}),
+    });
+    render(
+      <MemoryRouter initialEntries={['/brief']}>
+        <Routes>
+          <Route path="/brief" element={<RoleBrief />} />
+          <Route path="/console" element={<p>Station catalog</p>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(screen.getByText('Station catalog')).toBeInTheDocument();
+    expect(screen.queryByText('Coordinate the fleet.')).not.toBeInTheDocument();
+  },
+);
 
 it('states the Warrior Salvage Drones trigger while the damage ledger is unavailable', () => {
   useSessionStore.getState().setMe({
