@@ -1202,6 +1202,7 @@ it('routes the held Executive Officer maintenance sequence to the current AEGIS 
       <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
     </MemoryRouter>);
     const workspace = within(screen.getByRole('region', { name: 'AEGIS Executive Officer console' }));
+    await userEvent.setup().click(workspace.getByRole('button', { name: 'Maintenance' }));
     expect(workspace.getByRole('list', { name: 'AEGIS maintenance sequence' }))
       .toHaveTextContent(/Storage.*Rations.*Unrest check.*Riot check.*Reactor.*Shuttle Bay Zeta.*Shuttle Bay Omega/i);
     expect(workspace.getByRole('table', { name: 'AEGIS ration schedule' }))
@@ -1211,7 +1212,7 @@ it('routes the held Executive Officer maintenance sequence to the current AEGIS 
   } finally { command.mockRestore(); }
 });
 
-it('keeps Executive Officer maintenance read-only for a foreign held station', () => {
+it('keeps Executive Officer maintenance read-only for a foreign held station', async () => {
   const state = useSessionStore.getState();
   if (!state.session || !state.me) throw new Error('Expected the live fixture.');
   state.setSession({ ...state.session, phase: 'active', currentTurn: 2,
@@ -1224,6 +1225,7 @@ it('keeps Executive Officer maintenance read-only for a foreign held station', (
   render(<MemoryRouter initialEntries={['/ships/aegis/roles/executive-officer']}>
     <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
   </MemoryRouter>);
+  await userEvent.setup().click(screen.getByRole('button', { name: 'Maintenance' }));
   expect(screen.getByRole('button', { name: 'Check storage' })).toBeDisabled();
 });
 
