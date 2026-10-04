@@ -94,3 +94,16 @@ it('rejects malformed private choices, invalid targets, duplicated fighters and 
   const lock = lockWolfRangeActions('medium-range', bundle.actions!, () => 0);
   expect(() => bundle.applyLocked!({ ...lock, dice: [] })).toThrow(/locked/i);
 });
+
+it.each(['pdf-escort-fighter-wing', 'maliades'] as const)(
+  'rejects a %s shift marker whose stored number contradicts its current target', (sourceId) => {
+    const sourcePasses = { maliades: marker('maliades', { actions: [] }),
+      'pdf-escort-fighter-wing': marker('pdf-escort-fighter-wing', { actions: [] }) };
+    const action = { ...(sourceId === 'maliades' ? {} : { fighterIndex: 0 }),
+      kind: 'target-shift', targetInstanceId: roster[0]!.instanceId, targetNumber: 1, shift: 1 };
+    const choices = (targetNumber: number) => ({ 'medium-range': { ...sourcePasses,
+      [sourceId]: marker(sourceId, { actions: [{ ...action, targetNumber }] }) } });
+    expect(collectWolfEscortRange({ ...context, choices: choices(1) }).status).toBe('ready');
+    expect(collectWolfEscortRange({ ...context, choices: choices(2) }).status).toBe('unsupported');
+  },
+);
