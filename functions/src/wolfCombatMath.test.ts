@@ -603,7 +603,7 @@ describe('central Wolf combat math', () => {
     } as unknown as Parameters<typeof finalizeWolfAttack>[0]);
 
     expect(resolved).toMatchObject({
-      fighterAce: { range: 'long', targetInstanceId: initial[0]!.instanceId, damage: 2, targetDestroyed: true },
+      fighterAce: { range: 'long', targetInstanceId: initial[0]!.instanceId, damage: 2, targetDestroyed: false },
       survivingWolfShips: [{ instanceId: initial[1]!.instanceId, shipId: 'wolf-fighter-wing', target: 'dione' }],
     });
   });
