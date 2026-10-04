@@ -1,5 +1,11 @@
 # PC08 execution record
 
+PC08 was released as **0.5.67 on October 4, 2026**. See the
+[final release closeout](#final-release-closeout) and
+[playtest report](PC08_PLAYTEST_REPORT.md) for current proof. Earlier candidate
+and validation passages preserve history; their pending release statements
+describe the boundary reached at that earlier stage.
+
 Checkpoint, integration and release owner: orchestrator `/root`.
 
 This is a chronological record. Later reconciled results supersede the earlier
@@ -651,3 +657,29 @@ Evidence: `owner/independent-security-review-06d83194-report.md`,
 attestations. This is continuity, not a fresh gameplay replay. Earlier closed
 authority/loading scopes remain closed. Required exact-source follow-up review,
 final local gates, CI and production checks are pending. PC09 has not started.
+
+## Final release closeout
+
+**Released October 4, 2026: 0.5.67.** All fixed 49 acceptances are complete,
+bringing the catalog to 654/751 (87.08%) and the campaign to 196/293 (66.89%).
+Exact source `2fae212a9b86d0daa5aef3797f4609abd02a618f` passed independent Sol 6.1 xhigh review and the
+10 selected local repair gates, including 7,617 unit/Functions and 157 Rules checks. The earlier gameplay candidate
+d84c950c passed all eleven earlier local gates, including 7,606 unit/Functions
+and 157 Rules checks,
+responsive typography, all 24 ticker cases and both real-time lifecycle proofs,
+performance and unchanged bundle limits. [Candidate CI](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/37194562206) and
+[exact-main verification/deployment](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/37195666391) passed. The production
+workflow deployed 109 named Functions, Hosting and Firestore, restored the
+required browser IAM access and verified selected revisions and exact assets.
+
+The [five-step review tour](https://dow-new-eden-console.web.app/pc08-review.html)
+passes phone/desktop layouts, once-only Boa use, actual Maliades styling and
+keyboard parent return with zero prepared writes or browser errors. This is
+deployed prepared presentation and public navigation evidence. Authenticated
+gameplay is established by the separately attested local/emulator runs; live
+production GM gameplay and physical-device testing are not claimed.
+
+Root completed coordination at the exact validated/deployed source before
+this documentation-only closeout. Worker branches, ignored evidence and shared
+dependency links are retained; owned runtimes are stopped and the isolated
+emulator configuration is released. PC09 has not started.

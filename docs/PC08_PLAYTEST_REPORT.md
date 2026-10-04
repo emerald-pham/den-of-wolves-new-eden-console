@@ -10,40 +10,34 @@ The [range source notes](PC08_RANGE_ASSUMPTIONS.md) preserve precise references.
 The incomplete Commander consequence remains an explicit private facilitator
 ruling, with surrounding printed calculations automatic.
 
-Status: the fixed 49 items are integrated into the 0.5.67 candidate. The first
-complete independent review identified seven correctness and authority defects.
-All seven repairs are integrated. The boarding owner's ten focused suites pass
-317 checks; the reconciled Boarding/Range/Declaration suites pass 258, including
-committed Militia risk before and after dice lock when its character changes.
-The fresh reconciled twenty-player run passes thirteen checks, and the bounded
-follow-up has no remaining source findings. Exact-commit approval, final
-validation, CI and deployment remain pending. The first full test gate exposes
-route fixture gaps and stale metadata/style contracts; focused owner repairs
-pass 293 checks, with 134 metadata-consumer controls and renewed eight-case
-rendering. All gameplay handlers retain their attested bytes. The final audited
-deployment scope is eighteen modules and 109 Functions. The test-only route
-fixture handback passes 226/226 and is integrated as `444db5d3`; independent
-bounded metadata/style review is source-clear. Root now freezes the reconciled
-candidate for an updated exact receipt and full validation. Exact `07ac3637`
-is then approved; all 7,606 unit/Functions and 157 Rules checks pass, while the
-web build catches one new fixture type error. The test-only correction passes
-all 115 Ship Console checks and the web build. This final fixture delta requires
-renewed exact approval/full validation; production source remains unchanged.
-Exact `e080a6cb` is subsequently approved. Its third full validation passes
-all tests, builds, roadmap, fonts, typography and the complete ticker gate,
-then catches landing JavaScript over the unchanged performance budget.
-The two-file loading repair `361c4a51` reduces it to 1.747 MB, passes the
-complete performance gate, and preserves all 39 attested gameplay artifacts.
-All 241 App/GM tests and six bundle controls pass. Normal authenticated GM
-entry/reload preserves the same identity/session/instance; normal
-eighteen-player recovery returns to fresh server state on phone and desktop.
-The GM entry proof covers loading and identity in the lobby, rather than
-live server gameplay. Independent bounded source review is clear; final
-exact approval/full validation, candidate CI and deployment remain pending.
+**Released October 4, 2026: 0.5.67.** All fixed 49 acceptances are complete,
+bringing the catalog to 654/751 (87.08%) and the campaign to 196/293 (66.89%).
+Exact source `2fae212a9b86d0daa5aef3797f4609abd02a618f` passed independent Sol 6.1 xhigh review and the
+10 selected local repair gates, including 7,617 unit/Functions and 157 Rules checks. The earlier gameplay candidate
+d84c950c passed all eleven earlier local gates, including 7,606 unit/Functions
+and 157 Rules checks,
+responsive typography, all 24 ticker cases and both real-time lifecycle proofs,
+performance and unchanged bundle limits. [Candidate CI](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/37194562206) and
+[exact-main verification/deployment](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/37195666391) passed. The production
+workflow deployed 109 named Functions, Hosting and Firestore, restored the
+required browser IAM access and verified selected revisions and exact assets.
+
+The [five-step review tour](https://dow-new-eden-console.web.app/pc08-review.html)
+passes phone/desktop layouts, once-only Boa use, actual Maliades styling and
+keyboard parent return with zero prepared writes or browser errors. This is
+deployed prepared presentation and public navigation evidence. Authenticated
+gameplay is established by the separately attested local/emulator runs; live
+production GM gameplay and physical-device testing are not claimed.
+
+Root completed coordination at the exact validated/deployed source before
+this documentation-only closeout. Worker branches, ignored evidence and shared
+dependency links are retained; owned runtimes are stopped and the isolated
+emulator configuration is released. PC09 has not started.
+
 The owner's October 3 instruction authorizes execution and
 acceptance; playing the review scene is optional.
 
-PC08 contains the fixed 49 assigned items. Its catalog candidate moves from
+PC08 contains the fixed 49 assigned items. Its released catalog moves from
 605/751 overall (80.56%) and 147/293 campaign items (50.17%) to 654/751 overall
 (87.08%) and 196/293 campaign items (66.89%). PC09 does not start here.
 
@@ -76,7 +70,11 @@ remain an explicit, privately recorded facilitator ruling. The final group notes
 will record Boa's source ambiguity and any deliberate extension. Private source
 files and renderings remain outside Git.
 
-## Evidence and remaining work
+## Evidence and release history
+
+The candidate and validation passages below preserve chronological history.
+The released outcome above is current; read earlier pending release statements
+as the boundary reached at that earlier candidate.
 
 The current prepared scene passes all five steps at 320×844, 390×844, 844×390 and
 1440×900 in normal and reduced motion, with readable computed fonts, contained
@@ -271,3 +269,13 @@ Evidence: `owner/independent-security-review-06d83194-report.md`,
 attestations. This is continuity, not a fresh gameplay replay. Earlier closed
 authority/loading scopes remain closed. Required exact-source follow-up review,
 final local gates, CI and production checks are pending. PC09 has not started.
+
+The final loading repair also has ordinary authenticated GM route/reload
+identity proof and eighteen-player phone/desktop player recovery at
+`361c4a51`, with the latter reaching fresh server state. Its live-runtime
+44-artifact attestation verifies all 39 composed artifacts unchanged. GM
+entry is lobby cache-state loading evidence. See
+`owner/lazy-gm-authenticated-entry/`, `owner/lazy-gm-session-recovery/`,
+`owner/final-validation-passed.json`, `owner/candidate-ci-completed.json`,
+`owner/main-deploy-completed.json` and `owner/production-tour/result.json`.
+The deployed source SHA above remains distinct from this later docs commit.

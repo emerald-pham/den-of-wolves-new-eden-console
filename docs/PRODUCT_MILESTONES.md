@@ -486,6 +486,15 @@ This decision grants no 0.9.x/1.0.0 authorization or P605a activation.
 
 ## PC08 shape — Weapons, fighters, boarding and truthful DRADIS
 
+**Released October 4, 2026 as 0.5.67.** The fixed 49 acceptances are complete:
+654/751 overall (87.08%) and 196/293 campaign closures (66.89%). Exact source
+`2fae212a9b86d0daa5aef3797f4609abd02a618f` passed independent review, complete local validation,
+candidate CI and exact-main production verification. See the
+[playtest report](PC08_PLAYTEST_REPORT.md) and the
+[five-step tour](https://dow-new-eden-console.web.app/pc08-review.html).
+Authenticated gameplay proof is local/emulator; the deployed tour proves
+prepared presentation and public parent navigation. PC09 remains unstarted.
+
 **Authorized October 3, 2026.** The owner requested PC08 with full execution
 authority. PC07 opens this tranche at 605/751 done and 147/293 campaign
 closures. Finish exactly the 49 assigned IDs to reach 654/751 and 196/293.
