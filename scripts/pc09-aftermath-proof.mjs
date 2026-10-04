@@ -42,6 +42,16 @@ export function finalizationAudienceThreatCounts(receipt) {
   };
 }
 
+export function fighterCapacitySlotsAvailable(fighterWingCounts, capacity) {
+  assert.ok(isRecord(fighterWingCounts), 'Current fighter wing counts are required for the build preflight.');
+  assert.ok(Number.isSafeInteger(capacity) && capacity >= 0, 'Printed fighter capacity must be a non-negative integer.');
+  return Object.values(fighterWingCounts).reduce((total, wing) => {
+    assert.ok(isRecord(wing) && Number.isSafeInteger(wing.count) && wing.count >= 0,
+      'Each current fighter wing count must be a non-negative integer.');
+    return total + Math.max(0, capacity - wing.count);
+  }, 0);
+}
+
 function restValue(value) {
   if (!isRecord(value)) return undefined;
   if (Object.hasOwn(value, 'nullValue')) return null;
@@ -278,8 +288,18 @@ export async function runPc09AftermathProof(f, { directory, finalState, actorAll
   if (requested.has('press-publication') && !rows.some((row) => row.population !== row.populationBefore)) {
     blocker('press-publication', 'the attack must produce an actual survivor-count change');
   }
-  if (requested.has('fighter-build') && typeof advanceNextTeam !== 'function') {
-    blocker('fighter-build', 'the root driver must supply its ordinary next-Team transition and charged AEGIS maintenance callback');
+  if (requested.has('fighter-build')) {
+    if (!isRecord(actorAllocations.wingCommander)) blocker('fighter-build', 'a connected current Wing Commander is required');
+    if (typeof advanceNextTeam !== 'function') {
+      blocker('fighter-build', 'the root driver must supply its ordinary next-Team transition and charged AEGIS maintenance callback');
+    } else {
+      const { fighterWingCapacity } = createRequire(new URL('../functions/package.json', import.meta.url))('../functions/lib/fighterWings.js');
+      const availableSlots = fighterCapacitySlotsAvailable(sessionBefore.fighterWingCounts,
+        fighterWingCapacity(sessionBefore.shipUpgrades));
+      const requiredSlots = actorAllocations.reserveUiBuild === false ? 1 : 2;
+      if (availableSlots < requiredSlots) blocker('fighter-build',
+        `needs ${requiredSlots} authentic open capacity slot${requiredSlots === 1 ? '' : 's'} before advancing; found ${availableSlots}`);
+    }
   }
   const initialGm = await gmStateRead(f, f.gm);
   assert.equal(initialGm.attackId, finalState.attackId, 'The authenticated GM reader must expose this current attack.');
@@ -473,9 +493,10 @@ export async function runPc09AftermathProof(f, { directory, finalState, actorAll
       'Normal AEGIS maintenance must charge the Construction Bay this Team cycle.');
     assert.equal(current.shipDamage?.aegis?.destroyed, false);
     assert.ok(!current.shipDamage?.aegis?.damagedSystemIds?.includes('construction-bay'));
-    const free = Object.values(current.fighterWingCounts).reduce((sum, wing) => sum + Math.max(0, capacity - wing.count), 0);
-    assert.ok(free >= (actorAllocations.reserveUiBuild === false ? 1 : 2),
-      'At least one additional legal capacity slot must remain for the real Wing Commander UI build check.');
+    const free = fighterCapacitySlotsAvailable(current.fighterWingCounts, capacity);
+    const requiredSlots = actorAllocations.reserveUiBuild === false ? 1 : 2;
+    assert.ok(free >= requiredSlots,
+      `At least ${requiredSlots} legal fighter capacity slot${requiredSlots === 1 ? '' : 's'} must remain after the next Team.`);
     const wingId = actorAllocations.buildWingId ?? Object.keys(current.fighterWingCounts)
       .filter((id) => current.fighterWingCounts[id].count < capacity)
       .sort((left, right) => current.fighterWingCounts[left].count - current.fighterWingCounts[right].count)[0];
