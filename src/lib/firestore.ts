@@ -3745,9 +3745,20 @@ export function subscribeSessionState(
   let memberActorEpoch = 0;
   let memberActorAvailable: boolean | undefined;
   let memberPlayer: Player | undefined;
+  let memberSessionConfirmed = false;
+  let pendingMemberDiscovery: PlayerDiscoveryProjection | undefined;
+  const publishPendingMemberDiscovery = () => {
+    if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
+        !memberSessionConfirmed || memberActorAvailable !== true || !pendingMemberDiscovery) return;
+    const projection = pendingMemberDiscovery;
+    pendingMemberDiscovery = undefined;
+    handlers.onPlayerDiscovery?.(projection.groupId === memberPlayer?.fleetGroupId ? projection : null);
+  };
   const revokeMemberActor = () => {
     if (handlers.sessionReadAudience !== 'member') return;
     memberActorAvailable = false;
+    memberSessionConfirmed = false;
+    pendingMemberDiscovery = undefined;
     memberActorEpoch += 1;
     if (memberPlayer) {
       memberPlayer = { ...memberPlayer, connected: false };
@@ -3805,10 +3816,14 @@ export function subscribeSessionState(
             // writer did not advance its timestamp. A changed callable cursor fences it.
             if (acceptServerSessionAuthority(sessionSnapshotAuthority, session, undefined, false, true)) {
               handlers.onSession(session);
+              memberSessionConfirmed = true;
               handlers.onSessionFreshness?.(true);
+              publishPendingMemberDiscovery();
             }
           } catch {
             if (current() && actorEpoch === memberActorEpoch) {
+              memberSessionConfirmed = false;
+              pendingMemberDiscovery = undefined;
               handlers.onSessionFreshness?.(false);
               onError();
             }
@@ -3890,6 +3905,7 @@ export function subscribeSessionState(
           const nextFingerprint = actorFingerprint(player);
           if (memberActorAvailable !== true || nextFingerprint !== memberActorFingerprint) {
             memberActorAvailable = true;
+            memberSessionConfirmed = false;
             memberActorFingerprint = nextFingerprint;
             memberActorEpoch += 1;
             handlers.onSessionFreshness?.(false);
@@ -3899,6 +3915,7 @@ export function subscribeSessionState(
         handlers.onPlayer(player);
         if (!fromCache) memberFeedRefresh();
         handlers.onPlayerFreshness?.(!fromCache);
+        if (!fromCache) publishPendingMemberDiscovery();
         // A legacy listener can terminate while the document is absent. A
         // same-UID assignment updates this player projection atomically with
         // its private card, giving us a safe point to rebind that listener.
@@ -3917,6 +3934,17 @@ export function subscribeSessionState(
       { includeMetadataChanges: true },
       (snapshot) => {
         if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (handlers.sessionReadAudience === 'member') {
+          // A resumed member's discovery can arrive before the actor/feed that
+          // authorizes it. Publishing it early loses it when App withdraws
+          // unconfirmed state. Hold only this subscription's fresh server
+          // event, then deliver after both independent authorities confirm.
+          pendingMemberDiscovery = memberActorAvailable === false || snapshot.metadata?.fromCache === true || !snapshot.exists()
+            ? undefined : playerDiscoveryProjection(snapshot.data());
+          if (!pendingMemberDiscovery) handlers.onPlayerDiscovery?.(null);
+          else publishPendingMemberDiscovery();
+          return;
+        }
         if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
         const projection = snapshot.exists() ? playerDiscoveryProjection(snapshot.data()) ?? null : null;
         handlers.onPlayerDiscovery?.(snapshot.metadata?.fromCache === true &&
@@ -3926,6 +3954,7 @@ export function subscribeSessionState(
       },
       (error: { readonly code?: string }) => {
         if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        pendingMemberDiscovery = undefined;
         if (error.code === 'permission-denied' || error.code === 'not-found') {
           handlers.onPlayerDiscovery?.(null);
           return;
