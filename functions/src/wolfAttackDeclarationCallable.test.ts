@@ -92,6 +92,7 @@ import { initialShuttleDockingsForRoles } from './shuttlecraft';
 import { recommendedRoleIds } from './roleConfiguration';
 import { roleOwnedCraftForRoles } from './craftOwnership';
 import { retainShuttlesFromDestroyedHost } from './retainedShuttles';
+import { resolvedWolfAttackForCarryover, wolfWingCarryoverForPreparation } from './wolfAttackCarryover';
 
 const firstTurnCards = [
   ...Array<string>(10).fill('wolf-fighter-wing'),
@@ -428,6 +429,37 @@ it('requires the next scheduled composition to contain every carried Wing', asyn
   expect(mock.documents.has('sessions/s1/events/wolf-attack-wolf-omits-returned-wing')).toBe(false);
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('carries every surviving catalog return, including Battlestations, into matching next-attack slots', () => {
+  resolvedPriorAttack();
+  const statePath = 'sessions/s1/wolfAttackState/current';
+  const auditPath = `${statePath}/audit/wolf-finalized-1`;
+  const prior = mock.documents.get(statePath)!;
+  const audit = mock.documents.get(auditPath)!;
+  const returningInstanceIds = ['0:wolf-fighter-wing', '1:wolf-fighter-wing', '15:wolf-battlestation'];
+  const receipt = { ...(prior.calculationReceipt as Fields), returningInstanceIds };
+  const combatRoster = [...prior.combatRoster as Fields[], {
+    instanceId: '15:wolf-battlestation', shipId: 'wolf-battlestation', target: 'aegis',
+    damageTaken: 0, destroyed: false,
+  }];
+  mock.documents.set(statePath, { ...prior, combatRoster, calculationReceipt: receipt });
+  mock.documents.set(auditPath, { ...audit, receipt });
+
+  const resolved = resolvedWolfAttackForCarryover(mock.documents.get(statePath),
+    mock.documents.get(auditPath), 2);
+  const mapping = wolfWingCarryoverForPreparation({
+    turn: 2, revision: 2,
+    shipIds: ['wolf-fighter-wing', 'wolf-battlestation', 'wolf-fighter-wing'],
+    targetMode: 'pre-rolled', targetAssignments: [], modifiers: [], notes: '',
+  }, resolved);
+
+  expect(resolved.returningInstanceIds).toEqual(returningInstanceIds);
+  expect(mapping).toEqual({
+    sourceAttackId: 'wolf-attack-prior', sourceTurn: 1,
+    sourceInstanceIds: returningInstanceIds,
+    rosterInstanceIds: ['0:wolf-fighter-wing', '2:wolf-fighter-wing', '1:wolf-battlestation'],
+  });
 });
 
 function retainedHostNextDeclaration(host = 'quellon') {

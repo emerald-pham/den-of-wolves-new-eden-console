@@ -767,6 +767,27 @@ it.each([undefined, { aegis: { turn: 1, step: 7, revision: 2, results: {},
     expect(testState.set).not.toHaveBeenCalled();
   });
 
+it('auto-advances a destroyed AEGIS past ranges before current-cycle maintenance exists', async () => {
+  const session = testState.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session, currentTurn: 2, activeRoleIds: [], maintenanceCycles: {},
+    turnPhase: { ...(session.turnPhase as Fields), turn: 2 },
+    shipDamage: { aegis: { damagedSystemIds: [], destroyed: true } } });
+  const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  put('sessions/s1/wolfAttackState/current', { ...attack, turn: 2, currentStep: 'long-range', revision: 4,
+    preparation: { ...(attack.preparation as Fields), turn: 2 },
+    calculationReceipt: { ...(attack.calculationReceipt as Fields), turn: 2 } });
+
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
+    currentStep: 'medium-range', revision: 5,
+    rangeDecisions: { 'long-range': { status: 'unavailable', range: 'long-range' } },
+  });
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current/audit/auto-long-range-2'))
+    .toMatchObject({ type: 'wolf-range-automatic-unavailable', range: 'long-range', toStep: 'medium-range' });
+  expect(entropy.randomInt).not.toHaveBeenCalled();
+});
+
 it('keeps an assigned offline Wing Commander choice pending and accepts a reconnect retry', async () => {
   const session = testState.documents.get('sessions/s1')!;
   put('sessions/s1', { ...session,
@@ -2043,6 +2064,36 @@ it('does not replay a support choice after the session advances to another cycle
   await expect(commitWolfRangeSupportActionChoice.run(request(payload, 'miner-1')))
     .rejects.toMatchObject({ code: 'failed-precondition' });
   expect(testState.update).toHaveBeenCalledTimes(updateCount);
+});
+
+it('keeps a committed Highwall action applicable after its committed holder is removed', async () => {
+  admitRangeSupportChoices();
+  for (const [sourceId, uid, use] of [
+    ['highwall', 'miner-1', true],
+    ['gorgoneion-missile-array', 'gorg-captain-1', true],
+    ['boa', 'recycler-1', false],
+  ] as const) {
+    const view = await getWolfRangeSupportActionChoice.run(request({ sessionId: 's1', sourceId,
+      range: 'short-range' }, uid));
+    await commitWolfRangeSupportActionChoice.run(request({ sessionId: 's1', sourceId,
+      range: 'short-range', requestId: `holder-removed-${sourceId}`, expectedTurn: 1,
+      expectedRevision: view.revision, use }, uid));
+  }
+  const miner = testState.documents.get('sessions/s1/players/miner-1')!;
+  put('sessions/s1/players/miner-1', { ...miner, replacementStatus: 'kicked' });
+  const group = testState.documents.get('sessions/s1/fleetGroups/fleet-1')!;
+  put('sessions/s1/fleetGroups/fleet-1', { ...group,
+    memberUids: ['xo-1', 'recycler-1', 'gorg-captain-1'],
+    memberShipIds: { 'xo-1': 'aegis', 'recycler-1': 'capybara', 'gorg-captain-1': 'aegis' },
+  });
+
+  const view = await getWolfRangeActionChoice.run(request({ sessionId: 's1' }));
+
+  expect(view.eligibleActions).toContainEqual(expect.objectContaining({
+    actionId: 'highwall-short-range', sourceId: 'highwall',
+  }));
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current')?.supportRangeChoices)
+    .toMatchObject({ 'short-range': { highwall: { choice: 'used', actorUid: 'miner-1' } } });
 });
 
 it('does not replay a support choice after current shuttle custody changes revision', async () => {
