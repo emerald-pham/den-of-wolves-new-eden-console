@@ -43,6 +43,9 @@ async function identity() {
       hydrationRevision: s.identityHydrationRevision,
       online: navigator.onLine, headings: Array.from(document.querySelectorAll('h1, h2'))
         .map(h => h.textContent).filter(text => /^(AEGIS|Wolf attack|Executive Officer|Stations and consoles|Fleet group \/\/ fleet-\d+)$/.test(text)),
+      parentControls: Array.from(document.querySelectorAll('.ship-console__back, .ship-role-select .session-mode__back'))
+        .map(link => ({ label: link.textContent.trim(), route: link.getAttribute('href'),
+          displayed: getComputedStyle(link).display !== 'none', decoration: getComputedStyle(link, '::before').content })),
       plotPresent: Boolean(document.querySelector('.ship-plot[data-aboard="true"]')),
       localFixUnavailable: Boolean(Array.from(document.querySelectorAll('.ship-plot__label')).find(e => e.textContent.includes('UNAVAILABLE'))),
       panelPresent: Boolean(document.querySelector('.wolf-attack-dradis')) };
@@ -221,10 +224,12 @@ try {
   }
   checks.fourViewportFontsMotionScrollAndTouch = true;
   await page.getByRole('button', { name: 'Close DRADIS', exact: true }).click();
-  await page.getByRole('link', { name: 'View ship consoles', exact: true }).click();
+  // The visible back links include their decorative CSS arrow in the accessible name.
+  await page.getByRole('link', { name: /View ship consoles$/ }).click();
   await page.getByRole('heading', { name: 'AEGIS // Station overview', exact: true }).waitFor();
-  await dradis.waitFor({ state: 'detached' });
-  await page.getByRole('link', { name: 'Back to fleet', exact: true }).click();
+  // The ship overview is still aboard; the fleet chooser withdraws the instrument.
+  await dradis.waitFor({ state: 'visible' });
+  await page.getByRole('link', { name: /Back to fleet$/ }).click();
   await page.getByRole('heading', { name: 'Stations and consoles', exact: true }).waitFor();
   await dradis.waitFor({ state: 'detached' });
   await page.getByRole('link', { name: 'AEGIS // Executive Officer // HELD BY YOU', exact: true }).click();
@@ -252,7 +257,7 @@ try {
 } catch (error) {
   if (f && eo) await sample('failure diagnostic').catch(() => {});
   await writeFile(`${evidencePath}.failure.json`, `${JSON.stringify({ sourceCommit, message: error.message,
-    checks, diagnostics, identitiesRetained: false }, null, 2)}\n`);
+    checks, diagnostics, renderChecks, identitiesRetained: false }, null, 2)}\n`);
   throw error;
 } finally {
   await browser.close();
