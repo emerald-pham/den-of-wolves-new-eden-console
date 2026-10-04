@@ -528,6 +528,8 @@ it('declares a fourth same-cycle P Station attack from the immutable survivor ro
   expect((state.calculationReceipt as Fields).composition).toMatchObject({
     shipIds: ['wolf-battlestation', 'wolf-fighter-wing'], damageCapacity: 7,
   });
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current/audit/wolf-station-attack-four'))
+    .toMatchObject({ pStationSequence: { ...sequence, attackNumber: 4 } });
   const publicState = mock.documents.get('sessions/s1/wolfAttackAudience/current')!;
   expect(publicState).not.toHaveProperty('pStationSequence');
   expect(publicState).not.toHaveProperty('targetGroupId');
