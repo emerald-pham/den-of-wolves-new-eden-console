@@ -2851,7 +2851,20 @@ it('captures the earlier Commander adjustment in the actual Ace action and prese
     ...Array.from({ length: targeting.rolls.length - 11 }, () => expect.anything()),
   ]);
   expect((state.combatRoster as Array<Fields>)[10]).toMatchObject({ target: 'icebreaker', damageTaken: 1 });
-  await expect(getWolfRangeActionChoice.run(request({ sessionId: 's1' }))).resolves.toMatchObject({ range: 'medium-range' });
+  await expect(getWolfEscortRangeActionChoice.run(request({ sessionId: 's1', sourceId: f.sourceId, range: 'medium-range' }, f.officer)))
+    .resolves.toMatchObject({ range: 'medium-range', targets: expect.arrayContaining([
+      expect.objectContaining({ instanceId: 'contact-11', targetNumber: 3 }),
+    ]) });
+  for (const [sourceId, uid] of [['fighter-wing-alpha', 'wc-1'], ['pdf-escort-fighter-wing', 'colonel-1'], ['maliades', 'engineer-1']]) {
+    const handler = sourceId === 'fighter-wing-alpha' ? commitWolfFighterRangeActionChoice : commitWolfEscortRangeActionChoice;
+    await handler.run(request({ sessionId: 's1', sourceId, range: 'medium-range', requestId: `ordered-pass-${sourceId}`,
+      expectedTurn: 1, expectedRevision: testState.documents.get(f.path)!.revision, actions: [] }, uid));
+  }
+  await expect(commitWolfRangeActionChoice.run(request({ sessionId: 's1', requestId: 'ordered-medium-lock', expectedTurn: 1,
+    expectedRevision: testState.documents.get(f.path)!.revision, range: 'medium-range', actionIds: [] })))
+    .resolves.toMatchObject({ currentStep: 'short-range' });
+  await expect(getWolfEscortRangeActionChoice.run(request({ sessionId: 's1', sourceId: f.sourceId, range: 'short-range' }, f.officer)))
+    .resolves.toMatchObject({ range: 'short-range', fighters: [{ fighterIndex: 0 }, { fighterIndex: 1 }, { fighterIndex: 2 }, { fighterIndex: 3 }] });
 });
 
 it.each(['pdf-escort-fighter-wing', 'fighter-wing-alpha'])('excludes the surviving Ace fighter from ordinary %s range actions', async sourceId => {
@@ -2910,7 +2923,7 @@ it('persists one Ace loss and three ordinary AEGIS Short losses without charging
   expect(testState.documents.get('sessions/s1')!.fighterWingCounts).toMatchObject({
     'fighter-wing-alpha': { count: 0, revision: 2 }, 'fighter-wing-bravo': { count: 4, revision: 0 } });
   const saved = structuredClone([...testState.documents]);
-  await expect(commitWolfRangeActionChoice.run(request(lock))).resolves.toMatchObject({ status: 'replayed' });
+  await expect(commitWolfRangeActionChoice.run(request(lock))).resolves.toEqual(locked);
   expect([...testState.documents]).toEqual(saved);
   expect(entropy.randomInt).toHaveBeenCalledTimes(3);
 });

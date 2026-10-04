@@ -44,6 +44,13 @@ function fixture(commanderFirst: boolean) {
 }
 
 describe('attack-bound pre-range mutation composition', () => {
+  it('rejects a source revision increase when the Ace lost no fighter', () => {
+    const f = fixture(false);
+    expect(() => replayWolfPreRangeMutations(f.roster, { attackId: f.attackId, turn: f.turn,
+      range: 'medium-range', targetRing: CORE_WOLF_TARGET_RING,
+      fighterAceAction: { ...f.ace, sourceStateAfter: { ...f.ace.sourceStateAfter, revision: 2 } },
+      persistedPermission: f.permission })).toThrow(/source|loss|revision/);
+  });
   it.each([true, false])('retains both same-contact choices when Commander first is %s', (commanderFirst) => {
     const f = fixture(commanderFirst);
     const replay = replayWolfPreRangeMutations(f.roster, { attackId: f.attackId, turn: f.turn,
