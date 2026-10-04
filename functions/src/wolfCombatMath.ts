@@ -1074,6 +1074,7 @@ export interface WolfFleetDamageResult {
   readonly target: WolfFleetTargetId;
   readonly amount: number;
   readonly state: ShipDamageState;
+  readonly populationBefore: number;
   readonly population: number;
   readonly draws: FleetDamageDrawReceipt['draws'];
 }
@@ -1352,7 +1353,7 @@ export function finalizeWolfAttack(input: WolfAttackFinalizationInput): WolfCalc
     const result = applyWolfFleetDamage(target, amount, state, random, { exhaustedDeckPolicy: 'destroy' });
     fleetDamage.push({
       target: result.target, amount: result.amount, state: result.state,
-      population: result.population, draws: result.draws,
+      populationBefore: state.population, population: result.population, draws: result.draws,
     });
   });
   return deepFreeze({
@@ -1466,7 +1467,8 @@ export function calculateWolfAttack(input: WolfAttackCalculationInput): WolfCalc
     const state = input.fleetState[target];
     if (!state) throw new Error(`A complete authoritative fleet combat state is required for ${target}.`);
     const result = applyWolfFleetDamage(target, amount, state, random, { exhaustedDeckPolicy: 'destroy' });
-    fleetDamage.push({ target: result.target, amount: result.amount, state: result.state, population: result.population, draws: result.draws });
+    fleetDamage.push({ target: result.target, amount: result.amount, state: result.state,
+      populationBefore: state.population, population: result.population, draws: result.draws });
   });
   return deepFreeze({
     type: 'wolf-combat-calculation',
