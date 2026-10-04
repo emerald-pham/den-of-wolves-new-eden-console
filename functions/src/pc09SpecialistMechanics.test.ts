@@ -15,7 +15,7 @@ it('compares attendance to the private posse calculation without returning suspi
     (requiredPlayers: number, presentPlayers: number) => 'arrested' | 'not-arrested';
   expect(resolveArrestOutcome(7, 7)).toBe('arrested');
   expect(resolveArrestOutcome(7, 6)).toBe('not-arrested');
-  expect(resolveArrestOutcome(-1, 0)).toBe('arrested');
+  expect(() => resolveArrestOutcome(-1, 0)).toThrow();
 });
 
 it('resolves Fighter Ace dice and source-specific fighter and pilot outcomes', () => {
