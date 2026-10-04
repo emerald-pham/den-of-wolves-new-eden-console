@@ -345,6 +345,17 @@ the original assumption; append the resolution so the decision is traceable.
 | Product effect | P524c uses one replay-safe transaction and private GM receipt for the cost/effect, with entitled outcome/news projections. It does not borrow P517's Team Time confirmation or P524b's address timing and does not grant arbitrary resource or GM authority. No runtime behavior or completion is claimed. |
 | Review state | New source correction and digital action assumption under FUTURE-F01/FUTURE-F03 authorization; subject to optional owner correction at PC09 and reported first. PC06 is unaffected. |
 
+### PC09-A3 — Record failed-jump alternatives before their bound resolution
+
+| Field | Record |
+|---|---|
+| ID and milestone | PC09-A3; P523c; recorded 2026-10-04. |
+| Source passage | Facilitator's Guide v1.1, PDF p. 18, printed p. 16, Jump Failures. The printed emergency jump keeps its once-per-ship/game restriction, spends all fuel, damages the drive and half the remaining consoles rounded up. The failed-jump discussion separately offers no movement/delay, full or half d6 damage, and a normal jump to a facilitator-selected wrong location. |
+| Ambiguity and alternatives | The difficulty discussion does not supply a replacement emergency-cost formula. Wrong location does not itself require damage. The half-d6 alternative does not specify rounding for an odd roll; floor or ceiling are plausible digital choices. A free-form severity note that cannot affect resolution would not satisfy the assigned prompt. |
+| Chosen reading | Preserve the fixed printed emergency jump. Before resolving a failed jump, bind an explicit facilitator choice to that failure and its revision: no jump/delay; correct destination with full or half d6 damage; normal jump to a valid selected-chart wrong location; or that wrong location combined with an explicitly chosen full/half damage branch. Use rounded-down half-d6 damage, label it in the control and audit it. This rounding is an implementation assumption, not quoted source authority. |
+| Product effect | P523c's current-context transaction records the choice before mutation and applies exactly the selected branch. The server owns the random draw, damage, destination validation and immutable receipt. Odd-roll, wrong-location-only, combined-branch, stale/change and retry regressions distinguish the alternatives. No general jump redesign or different emergency price is inferred. |
+| Review state | New source-backed assumption under the PC09 dispatch. Exact source was inspected by the crisis worker; implementation and proof are in progress. Independent review, final validation and release remain required. |
+
 ### PC07-A1 — Preserve the server clock behind a cycle briefing
 
 | Field | Decision |
