@@ -5,18 +5,18 @@ import {
   wolfDamageScrapOpportunities,
 } from './wolfAttackAftermath';
 
-const damage = (target: string, casualtyFlags: readonly boolean[]) => ({
+const damage = (target: string, casualtyFlags: readonly boolean[], population: number) => ({
   target,
   amount: casualtyFlags.length,
   draws: casualtyFlags.map((casualty) => ({ casualty, destroyed: false })),
-  population: target === 'aegis' ? 1_000 : 10_000,
+  population,
   state: { damagedSystemIds: [], destroyed: false },
 });
 
 describe('wolf attack aftermath', () => {
   it('halves the first ship casualty count for free and charges 3 food plus 3 water per added ship', () => {
     const result = resolveDoctorMedicalAid({
-      shipResults: [damage('aegis', [true, true, true]), damage('dione', [true, false, true, true])],
+      shipResults: [damage('aegis', [true, true, true], 750), damage('dione', [true, false, true, true], 8_000)],
       populationBeforeByTarget: { aegis: 1_500, dione: 11_000 },
       resourcesByTarget: {
         aegis: { food: 9, water: 9 },
@@ -35,14 +35,21 @@ describe('wolf attack aftermath', () => {
 
   it('rejects non-casualty targets and unaffordable additional ship choices without partial costs', () => {
     expect(() => resolveDoctorMedicalAid({
-      shipResults: [damage('aegis', [false, true])],
+      shipResults: [damage('aegis', [false, true], 1_250)],
       populationBeforeByTarget: { aegis: 1_500 },
       resourcesByTarget: { aegis: { food: 2, water: 3 } },
       selectedShipIds: ['aegis', 'aegis'],
     })).toThrow(/different ships/i);
 
     expect(() => resolveDoctorMedicalAid({
-      shipResults: [damage('aegis', [true]), damage('dione', [true])],
+      shipResults: [damage('aegis', [false, false], 1_500)],
+      populationBeforeByTarget: { aegis: 1_500 },
+      resourcesByTarget: { aegis: { food: 9, water: 9 } },
+      selectedShipIds: ['aegis'],
+    })).toThrow(/no damage casualties/i);
+
+    expect(() => resolveDoctorMedicalAid({
+      shipResults: [damage('aegis', [true], 1_250), damage('dione', [true], 10_000)],
       populationBeforeByTarget: { aegis: 1_500, dione: 11_000 },
       resourcesByTarget: { aegis: { food: 2, water: 3 }, dione: { food: 3, water: 2 } },
       selectedShipIds: ['aegis', 'dione'],
