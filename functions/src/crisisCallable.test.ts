@@ -64,7 +64,10 @@ const baseData = {
 };
 
 function request(data: Record<string, unknown> = baseData, uid = 'u1') {
-  return { data, auth: { uid } } as CallableRequest<Record<string, unknown>>;
+  const withLegacyFixturePressure = data.state === 'delivered' && data.deliveryPressure === undefined
+    ? { ...data, deliveryPressure: 'steady' }
+    : data;
+  return { data: withLegacyFixturePressure, auth: { uid } } as CallableRequest<Record<string, unknown>>;
 }
 
 function put(path: string, fields: Fields): void {
@@ -128,6 +131,42 @@ it('rejects crisis identifiers longer than the projection bound before any write
   await expect(transitionCrisis.run(request({ ...baseData, crisisId: 'x'.repeat(81) })))
     .rejects.toMatchObject({ code: 'invalid-argument' });
   expect(mock.documents.has('sessions/s1/crisisState/current')).toBe(false);
+});
+
+it('requires a recorded delivery-pressure choice and publishes that exact facilitator framing', async () => {
+  await expect(transitionCrisis.run({
+    data: { ...baseData, state: 'delivered' }, auth: { uid: 'u1' },
+  } as CallableRequest<Record<string, unknown>>)).rejects.toMatchObject({ code: 'invalid-argument' });
+  expect(mock.documents.has('sessions/s1/crisisState/current')).toBe(false);
+
+  await transitionCrisis.run(request());
+  await expect(transitionCrisis.run(request({
+    ...baseData, requestId: 'pressure-raised', expectedRevision: 1,
+    state: 'delivered', deliveryPressure: 'increase',
+  }))).resolves.toMatchObject({ state: 'delivered', revision: 2 });
+  expect(mock.documents.get('sessions/s1/crisisState/current')).toMatchObject({
+    state: 'delivered', deliveryPressure: 'increase',
+  });
+  expect(mock.documents.get('sessions/s1/crisisState/current/audit/pressure-raised')).toMatchObject({
+    action: 'transition', state: 'delivered', deliveryPressure: 'increase',
+  });
+  expect(mock.documents.get('sessions/s1/crisisReports/current')).toMatchObject({
+    state: 'delivered', deliveryPressure: 'increase',
+  });
+  const event = mock.documents.get('sessions/s1/events/crisis-approaching-vessel-pressure-raised');
+  expect(event).toMatchObject({ type: 'crisis-state', deliveryPressure: 'increase' });
+  expect(mock.documents.get('sessions/s1')).not.toHaveProperty('crisisPressure');
+});
+
+it('keeps delivery pressure fixed after the delivery decision commits', async () => {
+  await transitionCrisis.run(request());
+  await transitionCrisis.run(request({ ...baseData, requestId: 'delivered-pressure', expectedRevision: 1,
+    state: 'delivered', deliveryPressure: 'hold' }));
+  await expect(transitionCrisis.run(request({ ...baseData, requestId: 'change-pressure', expectedRevision: 2,
+    state: 'debated', deliveryPressure: 'decrease' }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.get('sessions/s1/crisisState/current')).toMatchObject({
+    state: 'delivered', deliveryPressure: 'hold', revision: 2,
+  });
 });
 
 it('permits an intentionally empty private note without publishing it', async () => {
