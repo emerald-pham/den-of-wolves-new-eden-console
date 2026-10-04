@@ -7,6 +7,7 @@ import { dirname } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from 'playwright';
 import { createPc07AuthenticatedSession } from './pc07-authenticated-session.mjs';
+import { createPc09BrowserProof } from './pc09-browser-proof.mjs';
 import { runPc09DeductionPrelude } from './pc09-deduction-prelude.mjs';
 import { runPc09AftermathProof } from './pc09-aftermath-proof.mjs';
 
@@ -26,6 +27,7 @@ let lastMaintenanceStartedAt = 0;
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const context = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
 const page = await context.newPage();
+const wingBrowser = await createPc09BrowserProof(uiUrl);
 const browserErrors = [], checks = {}, actions = [], ranges = [], boarding = [], observations = [];
 const setupResourceAllocations = [];
 let attackTurn;
@@ -260,7 +262,9 @@ async function completeBoarding() {
 try {
   f = await createPc07AuthenticatedSession('PC09 ordinary deduction and complete Wolf attack', 20, { keepAlive: true,
     expansion: 'capybara', capybaraEnabled: true, browserRoleId: 'executive-officer', joinBrowserPlayer: joinThroughUi,
-    wolfAgentRoleId: 'refinery-124-pdf-colonel', wolfCultRoleId: 'wing-commander', intelligenceAgentRoleId: 'quellon-explorer' });
+    joinBrowserPlayers: { 'wing-commander': wingBrowser.join },
+    explicitLoyaltySetup: { wolfAgentRoleId: 'refinery-124-pdf-colonel', wolfCultRoleId: 'wing-commander',
+      intelligenceAgentRoleId: 'quellon-explorer' } });
   console.log('Disposable PC09 normal authenticated session created.');
   const deduction = await runPc09DeductionPrelude(f, { directory: dirname(evidencePath) });
   checks.deduction = deduction.checks;
@@ -525,9 +529,47 @@ try {
   checks.privateRootEscortRulesAndMemberDurabilityAllowlist = true;
   await replace(captain, 'doctor');
   const aftermath = await runPc09AftermathProof(f, { directory: dirname(evidencePath), finalState,
-    actorAllocations: {doctor: captain, warrior, macaw: f.byRole('capybara-captain'), boa: f.byRole('capybara-recycler'), wingCommander: wing, press: f.press} });
+    actorAllocations: {doctor: captain, warrior, macaw: f.byRole('capybara-captain'), boa: f.byRole('capybara-recycler'),
+      wingCommander: wing, press: f.press,
+      // Doctor and the two unique docked Scrap/repair opportunities are proved
+      // by a separate finite ordinary scenario. This attack preserves its own
+      // server-selected targets and outcomes instead of manufacturing them.
+      requiredBranches: ['warrior-salvage', 'press-publication', 'member-audience', 'fighter-build'],
+      advanceNextTeam: async ({attackTurn: completedTurn}) => {
+        await command(f.gm, 'advanceTurn', {instanceId: f.instanceId, requestId: randomUUID(),
+          expectedTurn: completedTurn, overridePhaseTimer: true});
+        const next = (await f.session.get()).data();
+        if (next.turnPhase.timerPause?.reason === 'turn-interstitial') {
+          await command(eo, 'clearTurnAdvanceInterstitial', {requestId: randomUUID(),
+            expectedCycle: next.currentTurn, expectedPausedAt: next.turnPhase.timerPause.pausedAt});
+        }
+        await maintain('aegis', ['construction-bay'], []);
+        return {status: 'complete'};
+      } } });
   checks.aftermath = aftermath.checks;
   assert.ok(aftermath.checks, 'The ordinary aftermath workflow must return its committed proof checks.');
+  await wingBrowser.page.goto(`${uiUrl}/#/console`);
+  await wingBrowser.page.getByRole('heading', {name: 'Stations and consoles', exact: true}).waitFor();
+  await wingBrowser.untilIdentity('fresh current Wing station', s => s.uid === wing.localId &&
+    s.memberUid === wing.localId && s.roleId === 'wing-commander' && s.connection === 'live' && s.freshness === 'server');
+  await wingBrowser.page.getByRole('link', {name: 'AEGIS // Wing Commander // HELD BY YOU', exact: true}).click();
+  await wingBrowser.untilIdentity('current Wing Commander console', s => s.uid === wing.localId &&
+    s.activeConsoleRoleId === 'wing-commander' && s.connection === 'live' && s.freshness === 'server');
+  const beforeUiBuild = (await f.session.get()).data();
+  const beforeUiCount = Object.values(beforeUiBuild.fighterWingCounts).reduce((sum, item) => sum + item.count, 0);
+  await wingBrowser.page.getByRole('button', {name: /Build 1 fighter.*1 material/i}).and(wingBrowser.page.locator(':enabled')).first().click();
+  const uiDeadline = Date.now() + 30_000;
+  let afterUiBuild;
+  while (Date.now() < uiDeadline) {
+    afterUiBuild = (await f.session.get()).data();
+    if (Object.values(afterUiBuild.fighterWingCounts).reduce((sum, item) => sum + item.count, 0) === beforeUiCount + 1) break;
+    await delay(250);
+  }
+  assert.equal(Object.values(afterUiBuild.fighterWingCounts).reduce((sum, item) => sum + item.count, 0), beforeUiCount + 1);
+  assert.equal(afterUiBuild.shipResources.aegis.materials, beforeUiBuild.shipResources.aegis.materials - 1);
+  await wingBrowser.assertGeometry();
+  assert.deepEqual(wingBrowser.errors, []);
+  checks.normalNextTeamWingUiBuildSpendsOneMaterial = true;
   assert.deepEqual(browserErrors, []);
   assert.deepEqual(f.heartbeatFailures, []);
   await writeFile(evidencePath, `${JSON.stringify({ kind: 'normal-authenticated-local-emulator-ui-http-composed-gameplay',
@@ -550,6 +592,6 @@ try {
   throw error;
 } finally {
   const keepCleanupAlive = setInterval(() => {}, 1000);
-  try { await browser.close(); if (f) { await f.cleanup(); await f.db.terminate(); } }
+  try { await browser.close(); await wingBrowser.browser.close(); if (f) { await f.cleanup(); await f.db.terminate(); } }
   finally { clearInterval(keepCleanupAlive); }
 }
