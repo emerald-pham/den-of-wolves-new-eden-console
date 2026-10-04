@@ -4482,12 +4482,71 @@ function wolfAttackWindowReply(value: unknown): WolfAttackWindow | null {
   if (
     (reply.status !== 'due' && reply.status !== 'resolved' && reply.status !== 'deferred') ||
     typeof reply.turn !== 'number' || !Number.isSafeInteger(reply.turn) || reply.turn < 1 ||
-    typeof reply.revision !== 'number' || !Number.isSafeInteger(reply.revision) || reply.revision < 0
+    typeof reply.revision !== 'number' || !Number.isSafeInteger(reply.revision) || reply.revision < 0 ||
+    (reply.targetGroupId !== undefined &&
+      (typeof reply.targetGroupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(reply.targetGroupId))) ||
+    (reply.threatSiteCode !== undefined &&
+      reply.threatSiteCode !== 'L' && reply.threatSiteCode !== 'M' &&
+      reply.threatSiteCode !== 'P' && reply.threatSiteCode !== 'commander') ||
+    (reply.threatSourceId !== undefined &&
+      (typeof reply.threatSourceId !== 'string' || !/^arrival-[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(reply.threatSourceId)))
   ) return null;
   return {
     status: reply.status,
     turn: reply.turn,
     revision: reply.revision,
+    ...(typeof reply.targetGroupId === 'string' ? { targetGroupId: reply.targetGroupId as WolfAttackWindow['targetGroupId'] } : {}),
+    ...(reply.threatSiteCode === 'L' || reply.threatSiteCode === 'M' ||
+      reply.threatSiteCode === 'P' || reply.threatSiteCode === 'commander'
+      ? { threatSiteCode: reply.threatSiteCode } : {}),
+    ...(typeof reply.threatSourceId === 'string' ? { threatSourceId: reply.threatSourceId } : {}),
+  };
+}
+
+export interface WolfAttackThreatWindowOptions {
+  readonly type: 'wolf-attack-threat-window-options';
+  readonly sessionId: string;
+  readonly targetGroupId: string;
+  readonly cycle: number;
+  readonly sources: readonly Readonly<{
+    siteCode: 'L' | 'M' | 'P';
+    sourceId: string;
+    sourceCycle: number;
+    coordinate: string;
+  }>[];
+}
+
+function wolfAttackThreatWindowOptionsReply(
+  value: unknown,
+  expectedSessionId: string,
+  expectedGroupId: string,
+  expectedCycle: number,
+): WolfAttackThreatWindowOptions | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const sources = Array.isArray(raw.sources) ? raw.sources.flatMap((candidate) => {
+    if (typeof candidate !== 'object' || candidate === null || Array.isArray(candidate)) return [];
+    const source = candidate as Record<string, unknown>;
+    return Object.keys(source).length === 4 &&
+      Object.keys(source).every((key) => ['siteCode', 'sourceId', 'sourceCycle', 'coordinate'].includes(key)) &&
+      (source.siteCode === 'L' || source.siteCode === 'M' || source.siteCode === 'P') &&
+      typeof source.sourceId === 'string' && /^arrival-[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(source.sourceId) &&
+      Number.isSafeInteger(source.sourceCycle) && (source.sourceCycle as number) >= 1 &&
+      (source.sourceCycle as number) <= expectedCycle &&
+      typeof source.coordinate === 'string' && /^\d{4}$/.test(source.coordinate)
+      ? [{ siteCode: source.siteCode, sourceId: source.sourceId, sourceCycle: source.sourceCycle, coordinate: source.coordinate }]
+      : [];
+  }) : [];
+  if (Object.keys(raw).length !== 5 ||
+      Object.keys(raw).some((key) => !['type', 'sessionId', 'targetGroupId', 'cycle', 'sources'].includes(key)) ||
+      raw.type !== 'wolf-attack-threat-window-options' || raw.sessionId !== expectedSessionId ||
+      raw.targetGroupId !== expectedGroupId || raw.cycle !== expectedCycle || !Array.isArray(raw.sources) ||
+      sources.length !== raw.sources.length || sources.length > 30 ||
+      new Set(sources.map(({ sourceId }) => sourceId)).size !== sources.length) return null;
+  return {
+    type: 'wolf-attack-threat-window-options', sessionId: expectedSessionId,
+    targetGroupId: expectedGroupId, cycle: expectedCycle,
+    sources: sources as WolfAttackThreatWindowOptions['sources'],
   };
 }
 
@@ -4782,6 +4841,123 @@ export interface WolfCommanderTargetingFinishResult {
   readonly view: WolfCommanderTargetingView;
 }
 
+export interface WolfCommanderCycleAttackDialView {
+  readonly type: 'wolf-commander-cycle-dial-view';
+  readonly sessionId: string;
+  readonly cycle: number;
+  readonly navigationRevision: number;
+  readonly status: 'available' | 'committed' | 'unavailable';
+  readonly reason?: 'team-phase-closed' | 'attack-in-progress';
+  readonly groups: readonly Readonly<{ groupId: string; pursuitValue: number }>[];
+  readonly groupId?: string;
+  readonly targetGroupPursuit?: number;
+  readonly damageCapacity?: number;
+  readonly attackNumber?: number;
+}
+
+export interface WolfCommanderCycleAttackResult {
+  readonly status: 'committed' | 'replayed';
+  readonly type: 'wolf-commander-cycle-attack';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly cycle: number;
+  readonly groupId: string;
+  readonly targetGroupPursuit: number;
+  readonly damageCapacity: number;
+  readonly attackNumber: number;
+  readonly navigationRevision: number;
+}
+
+export interface WolfCommanderRangeTargetDialView {
+  readonly type: 'wolf-commander-range-target-dial-view';
+  readonly sessionId: string;
+  readonly attackId: string;
+  readonly turn: number;
+  readonly revision: number;
+  readonly range: WolfAttackRange;
+  readonly targetGroupId?: string;
+  readonly ring: readonly Readonly<{ targetId: string; targetNumber: number }>[];
+  readonly ships: readonly Readonly<{
+    rosterIndex: number;
+    shipId: string;
+    currentTarget: string;
+    currentTargetNumber: number;
+  }>[];
+  readonly adjustmentUsed: boolean;
+}
+
+export interface WolfCommanderRangeTargetAdjustmentResult {
+  readonly status: 'committed' | 'replayed';
+  readonly type: 'wolf-commander-range-target-adjustment';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly turn: number;
+  readonly revision: number;
+  readonly attackId: string;
+  readonly range: WolfAttackRange;
+  readonly rosterIndex: number;
+  readonly instanceId: string;
+  readonly shipId: string;
+  readonly fromTarget: string;
+  readonly toTarget: string;
+  readonly fromTargetNumber: number;
+  readonly toTargetNumber: number;
+  readonly delta: -1 | 1;
+}
+
+export interface WolfCommanderAddressResult {
+  readonly type: 'wolf-commander-address-result';
+  readonly status: 'committed';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly cycle: number;
+  readonly actorRoleId: 'wolf-commander';
+  readonly eventId: string;
+  readonly expiresAt: string;
+}
+
+export type WolfAmnestyStatus =
+  | 'offered'
+  | 'accepted-pending-facilitator'
+  | 'declined'
+  | 'facilitator-ruled';
+
+export interface WolfAmnestyOfferView {
+  readonly type: 'wolf-amnesty-offer';
+  readonly offerId: string;
+  readonly cycle: number;
+  readonly revision: number;
+  readonly targetShipId: string;
+  readonly condition: 'surrender-by-medium-jump-to-0101';
+  readonly responseDeadline: string;
+  readonly status: WolfAmnestyStatus;
+  readonly response?: 'accept' | 'decline';
+  readonly ruling?: string;
+  readonly targetUid?: string;
+}
+
+export interface WolfAmnestyView {
+  readonly type: 'wolf-amnesty-view';
+  readonly sessionId: string;
+  readonly offer: WolfAmnestyOfferView | null;
+}
+
+export interface WolfAmnestyMutationResult {
+  readonly type: 'wolf-amnesty-offer';
+  readonly status: WolfAmnestyStatus;
+  readonly sessionId: string;
+  readonly offerId: string;
+  readonly cycle: number;
+  readonly revision: number;
+  readonly commanderUid: string;
+  readonly targetShipId: string;
+  readonly targetUid: string;
+  readonly condition: 'surrender-by-medium-jump-to-0101';
+  readonly responseDeadline: string;
+  readonly response?: 'accept' | 'decline';
+  readonly ruling?: string;
+}
+
 export interface WolfAttackStageAdvanceResult {
   readonly status: 'committed';
   readonly type: 'wolf-attack-stage-advance';
@@ -4968,6 +5144,93 @@ function aegisCommandAndControlPassResultReply(value: unknown): AegisCommandAndC
   };
 }
 
+function wolfCommanderAddressResultReply(value: unknown): WolfCommanderAddressResult | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const allowed = new Set(['type', 'status', 'sessionId', 'requestId', 'cycle', 'actorRoleId', 'eventId', 'expiresAt']);
+  if (Object.keys(raw).some((key) => !allowed.has(key)) || raw.type !== 'wolf-commander-address-result' ||
+      raw.status !== 'committed' || typeof raw.sessionId !== 'string' || !raw.sessionId ||
+      typeof raw.requestId !== 'string' || !raw.requestId || !Number.isSafeInteger(raw.cycle) ||
+      (raw.cycle as number) < 1 || raw.actorRoleId !== 'wolf-commander' ||
+      typeof raw.eventId !== 'string' || !raw.eventId || typeof raw.expiresAt !== 'string' ||
+      !Number.isFinite(Date.parse(raw.expiresAt))) return null;
+  return {
+    type: 'wolf-commander-address-result', status: 'committed', sessionId: raw.sessionId,
+    requestId: raw.requestId, cycle: raw.cycle as number, actorRoleId: 'wolf-commander',
+    eventId: raw.eventId, expiresAt: raw.expiresAt,
+  };
+}
+
+function wolfAmnestyStatus(value: unknown): value is WolfAmnestyStatus {
+  return value === 'offered' || value === 'accepted-pending-facilitator' ||
+    value === 'declined' || value === 'facilitator-ruled';
+}
+
+function wolfAmnestyOfferViewReply(value: unknown): WolfAmnestyOfferView | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const allowed = new Set([
+    'type', 'offerId', 'cycle', 'revision', 'targetShipId', 'condition', 'responseDeadline',
+    'status', 'response', 'ruling', 'targetUid',
+  ]);
+  if (Object.keys(raw).some((key) => !allowed.has(key)) || raw.type !== 'wolf-amnesty-offer' ||
+      typeof raw.offerId !== 'string' || !raw.offerId || !Number.isSafeInteger(raw.cycle) ||
+      (raw.cycle as number) < 1 || !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
+      typeof raw.targetShipId !== 'string' || !raw.targetShipId ||
+      raw.condition !== 'surrender-by-medium-jump-to-0101' || typeof raw.responseDeadline !== 'string' ||
+      !Number.isFinite(Date.parse(raw.responseDeadline)) || !wolfAmnestyStatus(raw.status) ||
+      (raw.response !== undefined && raw.response !== 'accept' && raw.response !== 'decline') ||
+      (raw.ruling !== undefined && (typeof raw.ruling !== 'string' || !raw.ruling.trim())) ||
+      (raw.targetUid !== undefined && (typeof raw.targetUid !== 'string' || !raw.targetUid))) return null;
+  return {
+    type: 'wolf-amnesty-offer', offerId: raw.offerId, cycle: raw.cycle as number,
+    revision: raw.revision as number, targetShipId: raw.targetShipId,
+    condition: 'surrender-by-medium-jump-to-0101', responseDeadline: raw.responseDeadline,
+    status: raw.status,
+    ...(raw.response === 'accept' || raw.response === 'decline' ? { response: raw.response } : {}),
+    ...(typeof raw.ruling === 'string' ? { ruling: raw.ruling } : {}),
+    ...(typeof raw.targetUid === 'string' ? { targetUid: raw.targetUid } : {}),
+  };
+}
+
+function wolfAmnestyViewReply(value: unknown): WolfAmnestyView | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  if (Object.keys(raw).length !== 3 ||
+      Object.keys(raw).some((key) => !['type', 'sessionId', 'offer'].includes(key)) ||
+      raw.type !== 'wolf-amnesty-view' || typeof raw.sessionId !== 'string' || !raw.sessionId) return null;
+  if (raw.offer === null) return { type: 'wolf-amnesty-view', sessionId: raw.sessionId, offer: null };
+  const offer = wolfAmnestyOfferViewReply(raw.offer);
+  return offer ? { type: 'wolf-amnesty-view', sessionId: raw.sessionId, offer } : null;
+}
+
+function wolfAmnestyMutationResultReply(value: unknown): WolfAmnestyMutationResult | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const allowed = new Set([
+    'type', 'status', 'sessionId', 'offerId', 'cycle', 'revision', 'commanderUid', 'targetShipId',
+    'targetUid', 'condition', 'responseDeadline', 'response', 'ruling', 'requestId',
+  ]);
+  if (Object.keys(raw).some((key) => !allowed.has(key)) || raw.type !== 'wolf-amnesty-offer' ||
+      !wolfAmnestyStatus(raw.status) || typeof raw.sessionId !== 'string' || !raw.sessionId ||
+      typeof raw.offerId !== 'string' || !raw.offerId || !Number.isSafeInteger(raw.cycle) || (raw.cycle as number) < 1 ||
+      !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
+      typeof raw.commanderUid !== 'string' || !raw.commanderUid || typeof raw.targetShipId !== 'string' || !raw.targetShipId ||
+      typeof raw.targetUid !== 'string' || !raw.targetUid || raw.condition !== 'surrender-by-medium-jump-to-0101' ||
+      typeof raw.responseDeadline !== 'string' || !Number.isFinite(Date.parse(raw.responseDeadline)) ||
+      (raw.response !== undefined && raw.response !== 'accept' && raw.response !== 'decline') ||
+      (raw.ruling !== undefined && (typeof raw.ruling !== 'string' || !raw.ruling.trim())) ||
+      (raw.requestId !== undefined && (typeof raw.requestId !== 'string' || !raw.requestId))) return null;
+  return {
+    type: 'wolf-amnesty-offer', status: raw.status, sessionId: raw.sessionId, offerId: raw.offerId,
+    cycle: raw.cycle as number, revision: raw.revision as number, commanderUid: raw.commanderUid,
+    targetShipId: raw.targetShipId, targetUid: raw.targetUid,
+    condition: 'surrender-by-medium-jump-to-0101', responseDeadline: raw.responseDeadline,
+    ...(raw.response === 'accept' || raw.response === 'decline' ? { response: raw.response } : {}),
+    ...(typeof raw.ruling === 'string' ? { ruling: raw.ruling } : {}),
+  };
+}
+
 function wolfCommanderTargetingReadReply(value: unknown): WolfCommanderTargetingReadResult | null {
   const view = wolfCommanderTargetingView(value);
   if (view) return view;
@@ -4976,6 +5239,160 @@ function wolfCommanderTargetingReadReply(value: unknown): WolfCommanderTargeting
   return reply.type === 'wolf-commander-targeting-unavailable' && typeof reply.sessionId === 'string' &&
     (reply.reason === 'waiting' || reply.reason === 'not-targeting')
     ? { type: reply.type, sessionId: reply.sessionId, reason: reply.reason } : null;
+}
+
+function wolfCommanderCycleAttackDialViewReply(value: unknown): WolfCommanderCycleAttackDialView | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const allowed = new Set([
+    'type', 'sessionId', 'cycle', 'navigationRevision', 'status', 'reason', 'groups',
+    'groupId', 'targetGroupPursuit', 'damageCapacity', 'attackNumber',
+  ]);
+  const groups = Array.isArray(raw.groups)
+    ? raw.groups.flatMap((entry): WolfCommanderCycleAttackDialView['groups'][number][] => {
+      if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return [];
+      const candidate = entry as Record<string, unknown>;
+      return typeof candidate.groupId === 'string' && /^fleet-[1-9][0-9]*$/.test(candidate.groupId) &&
+        Number.isSafeInteger(candidate.pursuitValue) && (candidate.pursuitValue as number) >= 0 &&
+        (candidate.pursuitValue as number) <= 10
+        ? [{ groupId: candidate.groupId, pursuitValue: candidate.pursuitValue as number }]
+        : [];
+    }) : [];
+  if (Object.keys(raw).some((key) => !allowed.has(key)) || raw.type !== 'wolf-commander-cycle-dial-view' ||
+      typeof raw.sessionId !== 'string' || !raw.sessionId || !Number.isSafeInteger(raw.cycle) ||
+      (raw.cycle as number) < 1 || !Number.isSafeInteger(raw.navigationRevision) ||
+      (raw.navigationRevision as number) < 0 ||
+      (raw.status !== 'available' && raw.status !== 'committed' && raw.status !== 'unavailable') ||
+      !Array.isArray(raw.groups) || groups.length !== raw.groups.length ||
+      new Set(groups.map(({ groupId }) => groupId)).size !== groups.length) return null;
+  if (raw.status === 'unavailable' && raw.reason !== 'team-phase-closed' && raw.reason !== 'attack-in-progress') return null;
+  if (raw.status !== 'unavailable' && raw.reason !== undefined) return null;
+  if (raw.status === 'committed') {
+    if (typeof raw.groupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(raw.groupId) ||
+        !Number.isSafeInteger(raw.targetGroupPursuit) || (raw.targetGroupPursuit as number) < 0 ||
+        (raw.targetGroupPursuit as number) > 10 || raw.damageCapacity !== 10 + (raw.targetGroupPursuit as number) ||
+        !Number.isSafeInteger(raw.attackNumber) || (raw.attackNumber as number) < 1) return null;
+  } else if (raw.groupId !== undefined || raw.targetGroupPursuit !== undefined ||
+      raw.damageCapacity !== undefined || raw.attackNumber !== undefined) return null;
+  return {
+    type: 'wolf-commander-cycle-dial-view', sessionId: raw.sessionId, cycle: raw.cycle as number,
+    navigationRevision: raw.navigationRevision as number, status: raw.status,
+    ...(raw.reason === 'team-phase-closed' || raw.reason === 'attack-in-progress' ? { reason: raw.reason } : {}),
+    groups,
+    ...(raw.status === 'committed' ? {
+      groupId: raw.groupId as string, targetGroupPursuit: raw.targetGroupPursuit as number,
+      damageCapacity: raw.damageCapacity as number, attackNumber: raw.attackNumber as number,
+    } : {}),
+  };
+}
+
+function wolfCommanderCycleAttackResultReply(value: unknown): WolfCommanderCycleAttackResult | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const allowed = new Set([
+    'status', 'type', 'sessionId', 'requestId', 'cycle', 'groupId', 'targetGroupPursuit',
+    'damageCapacity', 'attackNumber', 'navigationRevision', 'marker', 'windowRevision',
+  ]);
+  if (Object.keys(raw).some((key) => !allowed.has(key)) ||
+      (raw.status !== 'committed' && raw.status !== 'replayed') || raw.type !== 'wolf-commander-cycle-attack' ||
+      typeof raw.sessionId !== 'string' || !raw.sessionId || typeof raw.requestId !== 'string' || !raw.requestId ||
+      !Number.isSafeInteger(raw.cycle) || (raw.cycle as number) < 1 ||
+      typeof raw.groupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(raw.groupId) ||
+      !Number.isSafeInteger(raw.targetGroupPursuit) || (raw.targetGroupPursuit as number) < 0 ||
+      (raw.targetGroupPursuit as number) > 10 || raw.damageCapacity !== 10 + (raw.targetGroupPursuit as number) ||
+      !Number.isSafeInteger(raw.attackNumber) || (raw.attackNumber as number) < 1 ||
+      !Number.isSafeInteger(raw.navigationRevision) || (raw.navigationRevision as number) < 0 ||
+      !Number.isSafeInteger(raw.windowRevision) || (raw.windowRevision as number) < 1 ||
+      typeof raw.marker !== 'object' || raw.marker === null || Array.isArray(raw.marker)) return null;
+  const marker = raw.marker as Record<string, unknown>;
+  if (marker.type !== 'wolf-commander-cycle-attack' || marker.cycle !== raw.cycle ||
+      marker.groupId !== raw.groupId || marker.targetGroupPursuit !== raw.targetGroupPursuit ||
+      marker.navigationRevision !== raw.navigationRevision || marker.attackNumber !== raw.attackNumber ||
+      typeof marker.commanderUid !== 'string' || typeof marker.requestId !== 'string') return null;
+  return {
+    status: raw.status, type: 'wolf-commander-cycle-attack', sessionId: raw.sessionId,
+    requestId: raw.requestId, cycle: raw.cycle as number, groupId: raw.groupId,
+    targetGroupPursuit: raw.targetGroupPursuit as number, damageCapacity: raw.damageCapacity as number,
+    attackNumber: raw.attackNumber as number, navigationRevision: raw.navigationRevision as number,
+  };
+}
+
+function wolfCommanderRangeTargetDialViewReply(value: unknown): WolfCommanderRangeTargetDialView | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const allowed = new Set([
+    'type', 'sessionId', 'attackId', 'turn', 'revision', 'range', 'targetGroupId', 'ring', 'ships', 'adjustmentUsed',
+  ]);
+  const ring = Array.isArray(raw.ring)
+    ? raw.ring.flatMap((entry): WolfCommanderRangeTargetDialView['ring'][number][] => {
+      if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return [];
+      const candidate = entry as Record<string, unknown>;
+      return typeof candidate.targetId === 'string' && candidate.targetId.length > 0 &&
+        Number.isSafeInteger(candidate.targetNumber) && (candidate.targetNumber as number) > 0
+        ? [{ targetId: candidate.targetId, targetNumber: candidate.targetNumber as number }]
+        : [];
+    }) : [];
+  const ships = Array.isArray(raw.ships)
+    ? raw.ships.flatMap((entry): WolfCommanderRangeTargetDialView['ships'][number][] => {
+      if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return [];
+      const candidate = entry as Record<string, unknown>;
+      return Number.isSafeInteger(candidate.rosterIndex) && (candidate.rosterIndex as number) >= 0 &&
+        typeof candidate.shipId === 'string' && candidate.shipId.startsWith('wolf-') &&
+        typeof candidate.currentTarget === 'string' &&
+        Number.isSafeInteger(candidate.currentTargetNumber) && (candidate.currentTargetNumber as number) > 0
+        ? [{ rosterIndex: candidate.rosterIndex as number, shipId: candidate.shipId,
+          currentTarget: candidate.currentTarget, currentTargetNumber: candidate.currentTargetNumber as number }]
+        : [];
+    }) : [];
+  if (Object.keys(raw).some((key) => !allowed.has(key)) || raw.type !== 'wolf-commander-range-target-dial-view' ||
+      typeof raw.sessionId !== 'string' || !raw.sessionId || typeof raw.attackId !== 'string' || !raw.attackId ||
+      !Number.isSafeInteger(raw.turn) || (raw.turn as number) < 1 ||
+      !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
+      (raw.range !== 'long-range' && raw.range !== 'medium-range' && raw.range !== 'short-range') ||
+      (raw.targetGroupId !== undefined && (typeof raw.targetGroupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(raw.targetGroupId))) ||
+      !Array.isArray(raw.ring) || ring.length !== raw.ring.length || ring.length < 1 || ring.length > 8 ||
+      new Set(ring.map(({ targetId }) => targetId)).size !== ring.length ||
+      ring.some(({ targetNumber }, index) => targetNumber !== index + 1) ||
+      !Array.isArray(raw.ships) || ships.length !== raw.ships.length ||
+      new Set(ships.map(({ rosterIndex }) => rosterIndex)).size !== ships.length || typeof raw.adjustmentUsed !== 'boolean' ||
+      ships.some(({ currentTarget, currentTargetNumber }) => ring[currentTargetNumber - 1]?.targetId !== currentTarget)) return null;
+  return {
+    type: 'wolf-commander-range-target-dial-view', sessionId: raw.sessionId, attackId: raw.attackId,
+    turn: raw.turn as number, revision: raw.revision as number, range: raw.range,
+    ...(typeof raw.targetGroupId === 'string' ? { targetGroupId: raw.targetGroupId } : {}),
+    ring, ships, adjustmentUsed: raw.adjustmentUsed,
+  };
+}
+
+function wolfCommanderRangeTargetAdjustmentResultReply(value: unknown): WolfCommanderRangeTargetAdjustmentResult | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const allowed = new Set([
+    'status', 'type', 'sessionId', 'requestId', 'turn', 'revision', 'attackId', 'range', 'rosterIndex',
+    'instanceId', 'shipId', 'fromTarget', 'toTarget', 'fromTargetNumber', 'toTargetNumber', 'delta',
+  ]);
+  if (Object.keys(raw).some((key) => !allowed.has(key)) ||
+      (raw.status !== 'committed' && raw.status !== 'replayed') ||
+      raw.type !== 'wolf-commander-range-target-adjustment' || typeof raw.sessionId !== 'string' || !raw.sessionId ||
+      typeof raw.requestId !== 'string' || !raw.requestId || !Number.isSafeInteger(raw.turn) || (raw.turn as number) < 1 ||
+      !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
+      typeof raw.attackId !== 'string' || !raw.attackId ||
+      (raw.range !== 'long-range' && raw.range !== 'medium-range' && raw.range !== 'short-range') ||
+      !Number.isSafeInteger(raw.rosterIndex) || (raw.rosterIndex as number) < 0 ||
+      typeof raw.shipId !== 'string' || !raw.shipId.startsWith('wolf-') ||
+      raw.instanceId !== `${raw.rosterIndex}:${raw.shipId}` ||
+      typeof raw.fromTarget !== 'string' || !raw.fromTarget || typeof raw.toTarget !== 'string' || !raw.toTarget ||
+      !Number.isSafeInteger(raw.fromTargetNumber) || (raw.fromTargetNumber as number) < 1 ||
+      !Number.isSafeInteger(raw.toTargetNumber) || (raw.toTargetNumber as number) < 1 ||
+      (raw.delta !== -1 && raw.delta !== 1)) return null;
+  return {
+    status: raw.status, type: 'wolf-commander-range-target-adjustment', sessionId: raw.sessionId,
+    requestId: raw.requestId, turn: raw.turn as number, revision: raw.revision as number,
+    attackId: raw.attackId, range: raw.range, rosterIndex: raw.rosterIndex as number,
+    instanceId: raw.instanceId, shipId: raw.shipId, fromTarget: raw.fromTarget, toTarget: raw.toTarget,
+    fromTargetNumber: raw.fromTargetNumber as number, toTargetNumber: raw.toTargetNumber as number,
+    delta: raw.delta,
+  };
 }
 
 function wolfCommanderTargetRerollReply(value: unknown): WolfCommanderTargetRerollResult | null {
@@ -5136,6 +5553,7 @@ export async function acknowledgeWolfHackingAlert(
 export async function setWolfAttackWindow(
   status: WolfAttackWindowStatus,
   expectedRevision: number,
+  threat?: Readonly<{ targetGroupId: string; threatSiteCode?: 'L' | 'M' | 'P'; threatSourceId?: string }>,
 ): Promise<WolfAttackWindow> {
   const store = useSessionStore.getState();
   if (!store.session || !store.gmInstance) {
@@ -5145,12 +5563,22 @@ export async function setWolfAttackWindow(
   const sessionId = store.session.id;
   const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
   await ensureSignedIn();
+  if (status === 'due' && threat && (!/^fleet-[1-9][0-9]*$/.test(threat.targetGroupId) ||
+      (threat.threatSiteCode === undefined) !== (threat.threatSourceId === undefined) ||
+      (threat.threatSourceId !== undefined && !/^arrival-[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(threat.threatSourceId)))) {
+    throw new Error('Select a current fleet group and live source before marking a Wolf threat due.');
+  }
   const payload = {
     sessionId,
     instanceId: store.gmInstance.id,
     requestId: commandId(),
     expectedRevision,
     status,
+    ...(status === 'due' && threat ? {
+      targetGroupId: threat.targetGroupId,
+      ...(threat.threatSiteCode ? { threatSiteCode: threat.threatSiteCode } : {}),
+      ...(threat.threatSourceId ? { threatSourceId: threat.threatSourceId } : {}),
+    } : {}),
   };
   const call = httpsCallable<typeof payload, unknown>(functions(), 'setWolfAttackWindow');
   try {
@@ -5160,6 +5588,39 @@ export async function setWolfAttackWindow(
     // panel. The callable reply is safe to render immediately after commit.
     if (!authorityCheckpointIsCurrent(checkpoint)) return reply;
     return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Read the GM's live, server-validated L/M/P choices for one fleet group. */
+export async function getWolfAttackThreatWindowOptions(
+  targetGroupId: string,
+): Promise<WolfAttackThreatWindowOptions> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.role !== 'gm' || !store.gmInstance ||
+      store.gmInstance.sessionId !== store.session.id || store.gmInstance.uid !== store.me.uid) {
+    throw new Error('An active GM instance is required to read Wolf threat choices.');
+  }
+  requireFreshSessionAuthority('Reconnect before reading Wolf threat choices.');
+  const sessionId = store.session.id;
+  const cycle = store.session.currentTurn;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, store.me.uid);
+  await ensureSignedIn();
+  const call = httpsCallable<{ sessionId: string; instanceId: string; targetGroupId: string }, unknown>(
+    functions(), 'getWolfAttackThreatWindowOptions',
+  );
+  try {
+    const view = wolfAttackThreatWindowOptionsReply(
+      (await call({ sessionId, instanceId: store.gmInstance.id, targetGroupId })).data,
+      sessionId, targetGroupId, cycle,
+    );
+    if (!view) throw new Error('The server returned invalid Wolf threat source options.');
+    if (!authorityCheckpointIsCurrent(checkpoint)) {
+      throw new Error('The facilitator session changed before Wolf threat choices arrived.');
+    }
+    return view;
   } catch (cause) {
     useSessionStore.getState().setCommunicationError(interception(cause));
     throw cause;
@@ -5529,6 +5990,325 @@ export async function getWolfCommanderTargeting(): Promise<WolfCommanderTargetin
       throw new Error('The Wolf Commander session or authority changed before this response arrived.');
     }
     return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Read the Commander-only group pursuit dial for the current live Team Phase. */
+export async function getWolfCommanderCycleAttackDial(): Promise<WolfCommanderCycleAttackDialView> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.replacementRoleId !== 'wolf-commander' ||
+      store.me.replacementStatus != null || store.me.role !== 'player') {
+    throw new Error('Only the active Wolf Commander may read the cycle attack dial.');
+  }
+  requireFreshSessionAuthority('Reconnect before reading the Commander attack dial.');
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const call = httpsCallable<{ sessionId: string }, unknown>(functions(), 'getWolfCommanderCycleAttackDial');
+  try {
+    const view = wolfCommanderCycleAttackDialViewReply((await call({ sessionId })).data);
+    if (!view || view.sessionId !== sessionId || view.cycle !== store.session.currentTurn) {
+      throw new Error('The server returned an invalid Commander pursuit dial.');
+    }
+    if (!wolfCommanderAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
+      throw new Error('The Wolf Commander session or authority changed before this response arrived.');
+    }
+    return view;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Commit ten base capacity plus the selected group's current pursuit, once per cycle. */
+export async function commitWolfCommanderAttackDial(
+  targetGroupId: string,
+  expectedCycle: number,
+  expectedNavigationRevision: number,
+): Promise<WolfCommanderCycleAttackResult> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.replacementRoleId !== 'wolf-commander' ||
+      store.me.replacementStatus != null || store.me.role !== 'player') {
+    throw new Error('Only the active Wolf Commander may commit the cycle attack dial.');
+  }
+  requireFreshSessionAuthority('Reconnect before committing the Commander attack dial.');
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const payload = {
+    sessionId, requestId: commandId(), expectedCycle, expectedNavigationRevision, targetGroupId,
+  };
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'commitWolfCommanderAttackDial');
+  try {
+    const result = wolfCommanderCycleAttackResultReply((await call(payload)).data);
+    if (!result || result.sessionId !== sessionId || result.requestId !== payload.requestId ||
+        result.cycle !== expectedCycle || result.groupId !== targetGroupId ||
+        result.navigationRevision !== expectedNavigationRevision || result.attackNumber < 1) {
+      throw new Error('The server returned an invalid Commander attack dial receipt.');
+    }
+    if (!wolfCommanderAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
+      throw new Error('The Wolf Commander session or authority changed before this dial was confirmed.');
+    }
+    return result;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Read the narrow current-range target view for the assigned Wolf Commander. */
+export async function getWolfCommanderRangeTargetDial(): Promise<WolfCommanderRangeTargetDialView> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.replacementRoleId !== 'wolf-commander' ||
+      store.me.replacementStatus != null || store.me.role !== 'player') {
+    throw new Error('Only the active Wolf Commander may read the range target dial.');
+  }
+  requireFreshSessionAuthority('Reconnect before reading the Commander range target dial.');
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const call = httpsCallable<{ sessionId: string }, unknown>(functions(), 'getWolfCommanderRangeTargetDial');
+  try {
+    const view = wolfCommanderRangeTargetDialViewReply((await call({ sessionId })).data);
+    if (!view || view.sessionId !== sessionId) {
+      throw new Error('The server returned an invalid Commander range target dial.');
+    }
+    if (!wolfCommanderAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
+      throw new Error('The Wolf Commander session or authority changed before this response arrived.');
+    }
+    return view;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Move one ship's target by one step on this range's printed fleet ring. */
+export async function applyWolfCommanderRangeTargetAdjustment(
+  view: WolfCommanderRangeTargetDialView,
+  rosterIndex: number,
+  delta: -1 | 1,
+): Promise<WolfCommanderRangeTargetAdjustmentResult> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.replacementRoleId !== 'wolf-commander' ||
+      store.me.replacementStatus != null || store.me.role !== 'player') {
+    throw new Error('Only the active Wolf Commander may adjust a range target.');
+  }
+  requireFreshSessionAuthority('Reconnect before adjusting a Wolf range target.');
+  if (view.sessionId !== store.session.id || view.adjustmentUsed || (delta !== -1 && delta !== 1)) {
+    throw new Error('Refresh the live Commander range target dial before making a choice.');
+  }
+  const selected = view.ships.find((ship) => ship.rosterIndex === rosterIndex);
+  if (!selected) throw new Error('Select a Wolf ship from the current range target dial.');
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const payload = {
+    sessionId, requestId: commandId(), attackId: view.attackId,
+    expectedTurn: view.turn, expectedRevision: view.revision,
+    range: view.range, rosterIndex, delta,
+  };
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'applyWolfCommanderRangeTargetAdjustment');
+  try {
+    const result = wolfCommanderRangeTargetAdjustmentResultReply((await call(payload)).data);
+    if (!result || result.sessionId !== sessionId || result.requestId !== payload.requestId ||
+        result.attackId !== view.attackId || result.turn !== view.turn || result.revision !== view.revision + 1 ||
+        result.range !== view.range || result.rosterIndex !== rosterIndex || result.shipId !== selected.shipId ||
+        result.instanceId !== `${rosterIndex}:${selected.shipId}` || result.fromTarget !== selected.currentTarget ||
+        result.fromTargetNumber !== selected.currentTargetNumber ||
+        view.ring[result.toTargetNumber - 1]?.targetId !== result.toTarget || result.delta !== delta) {
+      throw new Error('The server returned an invalid Commander target adjustment receipt.');
+    }
+    if (!wolfCommanderAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
+      throw new Error('The Wolf Commander session or authority changed before the target adjustment was confirmed.');
+    }
+    return result;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Publish one member-visible, attributable Commander fleet address for this cycle. */
+export async function publishWolfCommanderAddress(
+  message: string,
+  expectedCycle: number,
+): Promise<WolfCommanderAddressResult> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.role !== 'player' ||
+      store.me.replacementRoleId !== 'wolf-commander' || store.me.replacementStatus != null) {
+    throw new Error('Only the active Wolf Commander may address the fleet.');
+  }
+  requireFreshSessionAuthority('Reconnect before addressing the fleet.');
+  const text = message.trim();
+  if (!Number.isSafeInteger(expectedCycle) || expectedCycle !== store.session.currentTurn ||
+      text.length < 1 || text.length > 1000) {
+    throw new Error('Use a short message for the current cycle.');
+  }
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const payload = { sessionId, requestId: commandId(), expectedCycle, message: text };
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'publishWolfCommanderAddress');
+  try {
+    const result = wolfCommanderAddressResultReply((await call(payload)).data);
+    if (!result || result.sessionId !== sessionId || result.requestId !== payload.requestId ||
+        result.cycle !== expectedCycle) {
+      throw new Error('The server returned an invalid Commander address receipt.');
+    }
+    if (!wolfCommanderAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
+      throw new Error('The Wolf Commander session or authority changed before this address was confirmed.');
+    }
+    return result;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Offer the printed medium-jump-to-0101 condition with an explicit response deadline. */
+export async function createWolfAmnestyOffer(
+  targetShipId: string,
+  expectedCycle: number,
+  responseDeadlineMinutes: number,
+): Promise<WolfAmnestyMutationResult> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.role !== 'player' ||
+      store.me.replacementRoleId !== 'wolf-commander' || store.me.replacementStatus != null) {
+    throw new Error('Only the active Wolf Commander may offer amnesty.');
+  }
+  requireFreshSessionAuthority('Reconnect before offering amnesty.');
+  if (!Number.isSafeInteger(expectedCycle) || expectedCycle !== store.session.currentTurn ||
+      typeof targetShipId !== 'string' || !targetShipId.trim() ||
+      !Number.isSafeInteger(responseDeadlineMinutes) || responseDeadlineMinutes < 1 || responseDeadlineMinutes > 1440) {
+    throw new Error('Choose a target ship and response deadline for the current cycle.');
+  }
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const payload = {
+    sessionId, requestId: commandId(), expectedCycle, targetShipId, responseDeadlineMinutes,
+  };
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'createWolfAmnestyOffer');
+  try {
+    const result = wolfAmnestyMutationResultReply((await call(payload)).data);
+    if (!result || result.sessionId !== sessionId || result.cycle !== expectedCycle ||
+        result.targetShipId !== targetShipId || result.status !== 'offered') {
+      throw new Error('The server returned an invalid Commander amnesty offer.');
+    }
+    if (!wolfCommanderAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
+      throw new Error('The Wolf Commander session or authority changed before this offer was confirmed.');
+    }
+    return result;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Read the offer only through the server's Commander/captain/facilitator audience filter. */
+export async function getWolfAmnestyView(): Promise<WolfAmnestyView> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.replacementStatus != null ||
+      (store.me.role !== 'player' && store.me.role !== 'gm')) {
+    throw new Error('An active player or facilitator session authority is required to read amnesty.');
+  }
+  if (store.me.role === 'gm' && (!store.gmInstance || store.gmInstance.sessionId !== store.session.id ||
+      store.gmInstance.uid !== store.me.uid)) {
+    throw new Error('Reconnect through the current facilitator instance before reading amnesty.');
+  }
+  requireFreshSessionAuthority('Reconnect before reading the private amnesty record.');
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const payload = { sessionId };
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'getWolfAmnestyView');
+  try {
+    const view = wolfAmnestyViewReply((await call(payload)).data);
+    if (!view || view.sessionId !== sessionId) {
+      throw new Error('The server returned an invalid private amnesty view.');
+    }
+    if (!authorityCheckpointIsCurrent(checkpoint)) {
+      throw new Error('The session or player authority changed before this private view arrived.');
+    }
+    return view;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Record the ship captain's explicit accept or decline response. */
+export async function respondToWolfAmnesty(
+  expectedRevision: number,
+  answer: 'accept' | 'decline',
+): Promise<WolfAmnestyMutationResult> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.role !== 'player' || store.me.replacementStatus != null) {
+    throw new Error('An active ship captain is required to respond to amnesty.');
+  }
+  requireFreshSessionAuthority('Reconnect before responding to amnesty.');
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 1 ||
+      (answer !== 'accept' && answer !== 'decline')) {
+    throw new Error('Refresh the current amnesty offer before responding.');
+  }
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const payload = { sessionId, requestId: commandId(), expectedRevision, answer };
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'respondToWolfAmnesty');
+  try {
+    const result = wolfAmnestyMutationResultReply((await call(payload)).data);
+    const expectedStatus = answer === 'accept' ? 'accepted-pending-facilitator' : 'declined';
+    if (!result || result.sessionId !== sessionId || result.revision !== expectedRevision + 1 ||
+        result.response !== answer || result.status !== expectedStatus) {
+      throw new Error('The server returned an invalid amnesty response receipt.');
+    }
+    if (!authorityCheckpointIsCurrent(checkpoint)) {
+      throw new Error('The session or captain authority changed before this response was confirmed.');
+    }
+    return result;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Record the facilitator's actual consequence; no automatic bargain is applied. */
+export async function recordWolfAmnestyConsequence(
+  expectedRevision: number,
+  text: string,
+): Promise<WolfAmnestyMutationResult> {
+  const store = useSessionStore.getState();
+  const instance = store.gmInstance;
+  if (!store.session || !store.me || store.me.role !== 'gm' || !instance ||
+      instance.sessionId !== store.session.id || instance.uid !== store.me.uid) {
+    throw new Error('A current facilitator instance is required to rule on amnesty.');
+  }
+  requireFreshSessionAuthority('Reconnect before recording the facilitator consequence.');
+  const ruling = text.trim();
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 1 || ruling.length < 1 || ruling.length > 2000) {
+    throw new Error('Write an explicit facilitator consequence for the current amnesty record.');
+  }
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  const instanceId = instance.id;
+  await ensureSignedIn();
+  const payload = { sessionId, instanceId, requestId: commandId(), expectedRevision, text: ruling };
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'recordWolfAmnestyConsequence');
+  try {
+    const result = wolfAmnestyMutationResultReply((await call(payload)).data);
+    if (!result || result.sessionId !== sessionId || result.revision !== expectedRevision + 1 ||
+        result.status !== 'facilitator-ruled' || result.ruling !== ruling) {
+      throw new Error('The server returned an invalid facilitator consequence receipt.');
+    }
+    if (!facilitatorRuleCallAuthorityCheckpointIsCurrent(sessionId, instanceId, checkpoint)) {
+      throw new Error('The session or facilitator authority changed before this consequence was confirmed.');
+    }
+    return result;
   } catch (cause) {
     useSessionStore.getState().setCommunicationError(interception(cause));
     throw cause;
