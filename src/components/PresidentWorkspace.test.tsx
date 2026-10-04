@@ -1,4 +1,4 @@
-import { act, render, screen, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import PresidentWorkspace from './PresidentWorkspace';
@@ -63,8 +63,10 @@ it('presents a no-confirmation Coordination visit for one active ship with unres
   render(<PresidentWorkspace writable />);
   const visitSection = screen.getByRole('region', { name: 'Presidential visit' });
   expect(within(visitSection).getByRole('combobox', { name: 'Ship to visit' })).toHaveValue('shepherd');
-  await user.click(within(visitSection).getByRole('button', { name: 'Spend 1 and reduce unrest' }));
-  expect(visitSection).toHaveTextContent('Visit committed');
+  const action = within(visitSection).getByRole('button', { name: 'Spend 1 and reduce unrest' });
+  expect(action).toBeEnabled();
+  await user.click(action);
+  await waitFor(() => expect(visitSection).toHaveTextContent('Visit committed'));
   expect(visitSection).toHaveTextContent('Coordination');
   expect(within(visitSection).queryByRole('dialog')).not.toBeInTheDocument();
   expect(visitSection).toBeVisible();
