@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import {
+  PdfFighterAcePermissionPanel,
   PdfFighterAcePanel,
   VipHostPanel,
   WolfAgentDetectorPanel,
@@ -102,4 +103,41 @@ it('limits the physical visit and hosted reroll controls to injected authority',
     onAttestVisit={vi.fn()} onReroll={vi.fn()} />);
 
   expect(screen.queryByRole('button', { name: 'Reroll one maintenance die' })).not.toBeInTheDocument();
+});
+
+it('lets a source commander authorize one specific current fighter slot', async () => {
+  const onGrant = vi.fn().mockResolvedValue(undefined);
+  const user = userEvent.setup();
+  render(<PdfFighterAcePermissionPanel view={{
+    type: 'pdf-fighter-ace-permission-view', sessionId: 's1', attackId: 'attack-8',
+    turn: 4, revision: 9, range: 'medium', sourceId: 'fighter-wing-alpha',
+    sourceLabel: 'AEGIS Fighter Wing Alpha', status: 'ready', reason: null,
+    fighters: 3, availableFighterIndexes: [0, 1, 2],
+  }} onGrant={onGrant} />);
+
+  await user.selectOptions(screen.getByLabelText('Fighter slot'), '2');
+  await user.click(screen.getByRole('button', { name: 'Authorize Fighter Ace' }));
+  await waitFor(() => expect(onGrant).toHaveBeenCalledWith({
+    attackId: 'attack-8', expectedRevision: 9, sourceId: 'fighter-wing-alpha', fighterIndex: 2,
+  }));
+});
+
+it('does not offer source permission when the attack range is closed or the Ace is unavailable', () => {
+  const { rerender } = render(<PdfFighterAcePermissionPanel view={{
+    type: 'pdf-fighter-ace-permission-view', sessionId: 's1', attackId: null,
+    turn: 4, revision: 9, range: null, sourceId: 'pdf-escort-fighter-wing',
+    sourceLabel: 'PDF Escort Fighter Wing', status: 'closed', reason: 'range-not-open',
+    fighters: 4, availableFighterIndexes: [],
+  }} onGrant={vi.fn()} />);
+  expect(screen.getByRole('button', { name: 'Authorize Fighter Ace' })).toBeDisabled();
+  expect(screen.getByText(/range is not open/i)).toBeVisible();
+
+  rerender(<PdfFighterAcePermissionPanel view={{
+    type: 'pdf-fighter-ace-permission-view', sessionId: 's1', attackId: 'attack-8',
+    turn: 4, revision: 9, range: 'long', sourceId: 'pdf-escort-fighter-wing',
+    sourceLabel: 'PDF Escort Fighter Wing', status: 'waiting', reason: 'current-ace-unavailable',
+    fighters: 4, availableFighterIndexes: [],
+  }} onGrant={vi.fn()} />);
+  expect(screen.getByText(/current fighter ace is unavailable/i)).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Authorize Fighter Ace' })).toBeDisabled();
 });
