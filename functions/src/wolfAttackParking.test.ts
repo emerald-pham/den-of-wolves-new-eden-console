@@ -5,6 +5,7 @@ import {
   resolveWolfAttackShuttleParking,
 } from './wolfAttackParking';
 import type { ShuttleTransitState } from './shuttleTransit';
+import { retainShuttlesFromDestroyedHost } from './retainedShuttles';
 
 const departedAt = '2026-09-21T18:00:00.000Z';
 const arrivesAt = '2026-09-21T18:01:00.000Z';
@@ -204,3 +205,59 @@ it.each([
     ], cycle: 2, parkedAt: '2026-09-21T18:00:30.000Z',
   })).toThrow();
 });
+
+function retainedQuellonParking() {
+  const control = {
+    hummingbird: { shuttleId: 'hummingbird', ownerRoleId: 'quellon-explorer', ownerUid: 'explorer',
+      holderUid: 'explorer', revision: 4 },
+    condor: { shuttleId: 'condor', ownerRoleId: 'quellon-engineer', ownerUid: 'engineer',
+      holderUid: 'engineer', revision: 2 },
+  };
+  const retained = retainShuttlesFromDestroyedHost({ destroyedHostShipId: 'quellon', control,
+    retained: {}, retainedAt: '2026-09-21T18:00:20.000Z', dockings: [
+      { shuttleId: 'starlight', shipId: 'aegis', dockedAt: 'earlier' },
+      { shuttleId: 'hummingbird', shipId: 'quellon', dockedAt: 'earlier' },
+      { shuttleId: 'condor', shipId: 'quellon', dockedAt: 'earlier' },
+    ] });
+  return {
+    shuttleIds: ['starlight', 'hummingbird', 'condor'], activeVesselIds: ['aegis', 'quellon'],
+    dockings: [...retained.dockings], transits: [] as ShuttleTransitState[],
+    fleetGroups: [{ id: 'fleet-1', vesselIds: ['aegis', 'quellon'] }],
+    cycle: 3, parkedAt: '2026-09-21T18:00:30.000Z',
+    retention: { entries: retained.retained, control,
+      activeRoleIds: ['wing-commander', 'quellon-explorer', 'quellon-engineer'],
+      destroyedHostShipIds: ['quellon'] },
+  };
+}
+
+it('accepts retained destroyed-Quellon custody without producing parking or movement for its craft', () => {
+  const input = retainedQuellonParking();
+  const before = structuredClone(input);
+  const result = resolveWolfAttackShuttleParking(input);
+  expect(result.dockings).toEqual(input.dockings);
+  expect(result.decisions.map(({ craftId }) => craftId)).toEqual(['starlight']);
+  expect(result.clearedTransitIds).toEqual([]);
+  expect(input).toEqual(before);
+});
+
+it.each(['missing-retention', 'duplicate-docking', 'duplicate-transit', 'wrong-holder', 'stale-control',
+  'wrong-owner', 'live-host', 'unknown-host', 'future-retention', 'malformed-retention', 'unknown-field'])(
+  'rejects %s instead of treating retained custody as a parking source', kind => {
+    const input = retainedQuellonParking();
+    const entries = input.retention.entries as Record<string, Record<string, unknown>>;
+    if (kind === 'missing-retention') delete entries.condor;
+    if (kind === 'duplicate-docking') input.dockings.push({ shuttleId: 'condor', shipId: 'aegis', dockedAt: 'earlier' });
+    if (kind === 'duplicate-transit') input.transits.push(transit({ shuttleId: 'condor' }));
+    if (kind === 'wrong-holder') entries.condor!.holderUid = 'foreign-holder';
+    if (kind === 'stale-control') entries.condor!.controlRevision = 1;
+    if (kind === 'wrong-owner') {
+      entries.condor!.ownerRoleId = 'wing-commander'; input.retention.control.condor.ownerRoleId = 'wing-commander';
+    }
+    if (kind === 'live-host') input.retention.destroyedHostShipIds = [];
+    if (kind === 'unknown-host') entries.condor!.destroyedHostShipId = 'unknown-host';
+    if (kind === 'future-retention') entries.condor!.retainedAt = '2026-09-21T18:00:31.000Z';
+    if (kind === 'malformed-retention') entries.condor!.controlRevision = '2';
+    if (kind === 'unknown-field') entries.condor!.dice = [6];
+    expect(() => resolveWolfAttackShuttleParking(input)).toThrow();
+  },
+);

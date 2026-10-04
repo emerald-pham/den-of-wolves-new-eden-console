@@ -89,6 +89,9 @@ import { parseMaliadesState, resolveMaliadesMedium as resolveMaliadesStateMedium
   resolveMaliadesShort as resolveMaliadesStateShort } from './maliadesState';
 import { initialFighterWingCounts } from './fighterWings';
 import { initialShuttleDockingsForRoles } from './shuttlecraft';
+import { recommendedRoleIds } from './roleConfiguration';
+import { roleOwnedCraftForRoles } from './craftOwnership';
+import { retainShuttlesFromDestroyedHost } from './retainedShuttles';
 
 const firstTurnCards = [
   ...Array<string>(10).fill('wolf-fighter-wing'),
@@ -426,6 +429,87 @@ it('requires the next scheduled composition to contain every carried Wing', asyn
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
 });
+
+function retainedHostNextDeclaration(host = 'quellon') {
+  const roles = recommendedRoleIds(18);
+  const craft = new Map(roleOwnedCraftForRoles(roles).map(entry => [entry.id, entry]));
+  const dockings = initialShuttleDockingsForRoles(roles);
+  const affected = dockings.filter(docking => docking.shipId === host);
+  const control = Object.fromEntries(affected.map(({ shuttleId }) => [shuttleId, {
+    shuttleId, ownerRoleId: craft.get(shuttleId)!.ownerRoleId,
+    ownerUid: `owner-${shuttleId}`, holderUid: `holder-${shuttleId}`, revision: 4,
+  }]));
+  const retention = retainShuttlesFromDestroyedHost({ destroyedHostShipId: host,
+    dockings, control, retained: {}, retainedAt: new Date(Date.now() - 2_000).toISOString() });
+  session({ currentTurn: 3, activeRoleIds: roles, shuttleDockings: retention.dockings,
+    shuttleControl: control, retainedShuttles: retention.retained,
+    shipDamage: { [host]: { destroyed: true, damagedSystemIds: [] } },
+    turnPhase: { turn: 3, teamPhaseEndsAt: new Date(Date.now() - 1_000).toISOString(),
+      openAirspaceEndsAt: new Date(Date.now() + 60_000).toISOString(),
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false } } });
+  preparation({ turn: 3, revision: 2,
+    shipIds: [...Array<string>(13).fill('wolf-fighter-wing'), 'wolf-assault-transport'],
+    targetAssignments: [], modifiers: [] });
+  dueWindow({ status: 'due', turn: 3, revision: 3 });
+  const prior = resolvedPriorAttack();
+  return { retention, control, prior };
+}
+
+it.each(['quellon', 'icebreaker'])(
+  'declares the next attack after %s destruction without redocking retained craft or registering their combat actions',
+  async host => {
+    const { retention, control, prior } = retainedHostNextDeclaration(host);
+    const priorSnapshot = structuredClone(prior);
+    const auditBefore = structuredClone(mock.documents.get('sessions/s1/wolfAttackState/current/audit/wolf-finalized-1'));
+    const call = request({ ...baseData, requestId: `wolf-after-${host}`, expectedRevision: 2 });
+    const result = await declareWolfAttack.run(call);
+    expect(result).toMatchObject({ status: 'committed', turn: 3 });
+    const root = mock.documents.get('sessions/s1')!;
+    expect(root.shuttleDockings).toEqual(retention.dockings);
+    expect(root.retainedShuttles).toEqual(retention.retained);
+    expect(root.shuttleControl).toEqual(control);
+    const state = mock.documents.get('sessions/s1/wolfAttackState/current')!;
+    const retainedIds = retention.retainedShuttleIds;
+    for (const retainedId of retainedIds) {
+      expect(state.parkedCraftIds).not.toContain(retainedId);
+      expect((state.parkedShuttleDockings as Array<{ shuttleId: string }>).map(row => row.shuttleId))
+        .not.toContain(retainedId);
+      expect((state.battleTableCraftActions as Array<{ craftId: string }>).map(row => row.craftId))
+        .not.toContain(retainedId);
+    }
+    expect(state.carryover).toMatchObject({ sourceInstanceIds: ['0:wolf-fighter-wing', '1:wolf-fighter-wing'] });
+    expect(mock.documents.get('sessions/s1/wolfAttackState/current/archives/wolf-attack-prior')).toEqual(priorSnapshot);
+    expect(mock.documents.get('sessions/s1/wolfAttackState/current/audit/wolf-finalized-1')).toEqual(auditBefore);
+    const writes = mock.update.mock.calls.length + mock.set.mock.calls.length;
+    await expect(declareWolfAttack.run(call)).resolves.toEqual(result);
+    expect(mock.update.mock.calls.length + mock.set.mock.calls.length).toBe(writes);
+  },
+);
+
+it.each(['missing-retention', 'duplicate-docking', 'wrong-holder', 'stale-control', 'wrong-owner',
+  'live-host', 'unknown-host', 'malformed-retention', 'unknown-field'])(
+  'denies %s at the next declaration without changing the finalized prior attack', async kind => {
+    retainedHostNextDeclaration();
+    const root = mock.documents.get('sessions/s1')!;
+    const retained = root.retainedShuttles as Record<string, Fields>;
+    const control = root.shuttleControl as Record<string, Fields>;
+    if (kind === 'missing-retention') delete retained.condor;
+    if (kind === 'duplicate-docking') root.shuttleDockings = initialShuttleDockingsForRoles(root.activeRoleIds as string[]);
+    if (kind === 'wrong-holder') retained.condor!.holderUid = 'foreign-holder';
+    if (kind === 'stale-control') retained.condor!.controlRevision = 3;
+    if (kind === 'wrong-owner') { retained.condor!.ownerRoleId = 'wing-commander'; control.condor!.ownerRoleId = 'wing-commander'; }
+    if (kind === 'live-host') root.shipDamage = { quellon: { destroyed: false, damagedSystemIds: [] } };
+    if (kind === 'unknown-host') retained.condor!.destroyedHostShipId = 'unknown-host';
+    if (kind === 'malformed-retention') retained.condor!.controlRevision = '4';
+    if (kind === 'unknown-field') retained.condor!.dice = [6];
+    const before = structuredClone([...mock.documents.entries()]);
+    mock.update.mockClear(); mock.set.mockClear();
+    await expect(declareWolfAttack.run(request({ ...baseData, requestId: `wolf-invalid-${kind}`, expectedRevision: 2 })))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.update).not.toHaveBeenCalled(); expect(mock.set).not.toHaveBeenCalled();
+    expect([...mock.documents.entries()]).toEqual(before);
+  },
+);
 
 it('rejects unresolved or forged prior carryover instead of reopening the current attack', async () => {
   const prior = resolvedPriorAttack();
