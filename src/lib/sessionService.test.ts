@@ -3901,7 +3901,7 @@ it('reads the current boarding choice and commits the exact entitled zero-team d
 
   const commit = vi.fn(async (payload: Record<string, unknown>) => ({ data: {
     status: 'committed', type: 'wolf-boarding-defence-choice', sessionId: 's1',
-    requestId: payload.requestId, turn: 1, revision: 13, targetShipId: 'aegis',
+    requestId: payload.requestId, attackId: 'wolf-1', turn: 1, revision: 13, targetShipId: 'aegis',
     securityTeams: 0, currentStep: 'boarding',
   } }));
   Object.assign(commit, { stream: vi.fn() });
@@ -3963,7 +3963,7 @@ it('accepts locked synthetic fighter hits when the Executive Officer passes AEGI
   useSessionStore.getState().setSessionSnapshotFreshness('server');
   const commit = vi.fn(async (payload: Record<string, unknown>) => ({ data: {
     status: 'committed', type: 'wolf-range-action-choice', sessionId: 's1', requestId: payload.requestId,
-    turn: 1, revision: 13, range: 'short-range', currentStep: 'short-range', choiceStatus: 'targets-required',
+    attackId: 'wolf-1', turn: 1, revision: 13, range: 'short-range', currentStep: 'short-range', choiceStatus: 'targets-required',
     hitSlots: [{ actionId: 'aegis-alpha-wing-short-0', count: 1, damagePerHit: 1 }],
   } }));
   Object.assign(commit, { stream: vi.fn() });
@@ -3987,7 +3987,7 @@ it('accepts the server pass status when committed sources still have locked hits
   useSessionStore.getState().setSessionSnapshotFreshness('server');
   const commit = vi.fn(async (payload: Record<string, unknown>) => ({ data: {
     status: 'committed', type: 'wolf-range-action-choice', sessionId: 's1', requestId: payload.requestId,
-    turn: 1, revision: 13, range: 'short-range', currentStep: 'boarding', choiceStatus: 'passed',
+    attackId: 'wolf-1', turn: 1, revision: 13, range: 'short-range', currentStep: 'boarding', choiceStatus: 'passed',
     hitSlots: [{ actionId: 'aegis-alpha-wing-short-0', count: 1, damagePerHit: 1 }],
   } }));
   Object.assign(commit, { stream: vi.fn() });
@@ -4011,7 +4011,7 @@ it('accepts server committed-contact totals that include fixed source assignment
   ] }];
   const assign = vi.fn(async (payload: Record<string, unknown>) => ({ data: {
     status: 'committed', type: 'wolf-range-target-assignment', sessionId: 's1', requestId: payload.requestId,
-    turn: 1, revision: 13, fromStep: 'short-range', currentStep: 'boarding', committedContacts: 6,
+    attackId: 'wolf-1', turn: 1, revision: 13, fromStep: 'short-range', currentStep: 'boarding', committedContacts: 6,
   } }));
   Object.assign(assign, { stream: vi.fn() });
   vi.mocked(httpsCallable).mockReturnValue(assign as never);

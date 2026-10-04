@@ -121,7 +121,7 @@ beforeEach(() => {
   vi.mocked(getWolfRangeActionChoice).mockReset();
   vi.mocked(commitWolfRangeActionChoice).mockReset().mockImplementation(async (turn, revision, range, actionIds) => ({
     status: 'committed', type: 'wolf-range-action-choice', sessionId: 's1', requestId: 'fixture-choice',
-    turn, revision: revision + 1, range, currentStep: range,
+    attackId: 'wolf-attack-fixture', turn, revision: revision + 1, range, currentStep: range,
     choiceStatus: actionIds.length === 0 ? 'passed' : 'targets-required', hitSlots: [],
   }));
   vi.mocked(launchDioneMaliades).mockReset();
