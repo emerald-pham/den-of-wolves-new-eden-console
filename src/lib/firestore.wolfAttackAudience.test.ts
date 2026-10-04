@@ -45,6 +45,35 @@ function capture() {
   return { callbacks, onView };
 }
 
+it('hydrates exact targetless support misses and withdraws malformed or private variants', () => {
+  const miss = { range: 'short', sourceId: 'highwall', targetId: null, bearing: null,
+    contactReference: 'Highwall Cannon', effect: 'Highwall Cannon missed', outcome: { damage: 0 },
+    serverTime: memberView.serverTime };
+  const { callbacks, onView } = capture();
+  let revision = memberView.revision;
+  const publish = (result: Record<string, unknown>) => {
+    const current = { ...memberView, revision: ++revision, results: [result] };
+    callbacks[0]?.(snapshot(current));
+    return current;
+  };
+  expect(onView).not.toHaveBeenCalled();
+  expect(publish(miss)).toEqual(onView.mock.lastCall?.[0]);
+  for (const invalid of [
+    { ...miss, outcome: { damage: 1 } },
+    { ...miss, range: 'boarding' },
+    { ...miss, sourceId: 'foreign-source' },
+    { ...miss, contactReference: 'Wolf contact 1' },
+    { ...miss, bearing: 40 },
+    { ...miss, outcome: { damage: 0, destroyed: true } },
+    { ...miss, rolls: [1] },
+    { ...miss, actorUid: 'private-actor' },
+  ]) {
+    publish(invalid);
+    expect(onView).toHaveBeenLastCalledWith(null);
+    expect(publish(miss)).toEqual(onView.mock.lastCall?.[0]);
+  }
+});
+
 it('withdraws an unsafe future member schema and fences out older raw revisions', () => {
   const { callbacks, onView } = capture();
   callbacks[0]?.(snapshot(memberView));

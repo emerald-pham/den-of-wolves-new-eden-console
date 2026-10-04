@@ -1946,6 +1946,72 @@ it('combines source choices in one locked range and guides Short Wing coverage a
   expect(testState.documents.get('sessions/s1')!.shuttleCargo).toMatchObject({ boa: { scrap: 2 } });
 });
 
+async function commitSupportMisses(): Promise<unknown[]> {
+  admitRangeSupportChoices();
+  for (const [sourceId, uid] of [
+    ['highwall', 'miner-1'], ['gorgoneion-missile-array', 'gorg-captain-1'], ['boa', 'recycler-1'],
+  ] as const) {
+    const view = await getWolfRangeSupportActionChoice.run(request({ sessionId: 's1', sourceId,
+      range: 'short-range' }, uid));
+    await commitWolfRangeSupportActionChoice.run(request({ sessionId: 's1', sourceId,
+      range: 'short-range', requestId: `miss-${sourceId}`, expectedTurn: 1,
+      expectedRevision: view.revision, use: sourceId !== 'boa' }, uid));
+  }
+  entropy.randomInt.mockReturnValue(0);
+  const view = await getWolfRangeActionChoice.run(request({ sessionId: 's1' }));
+  const locked = await commitWolfRangeActionChoice.run(request({ sessionId: 's1',
+    requestId: 'support-misses-lock', expectedTurn: 1, expectedRevision: view.revision,
+    range: 'short-range', actionIds: [] }));
+  expect(locked.hitSlots).toEqual([
+    { actionId: 'highwall-short-range', count: 0, damagePerHit: 3 },
+    { actionId: 'gorgoneion-missile-array-short', count: 0, damagePerHit: 1 },
+  ]);
+  await assignWolfRangeTargets.run(request({ sessionId: 's1', requestId: 'support-misses-assign',
+    expectedTurn: 1, expectedRevision: locked.revision, range: 'short-range',
+    assignments: locked.hitSlots.map(({ actionId }) => ({ actionId, contactIds: [] })) }));
+  expect(entropy.randomInt).toHaveBeenCalledTimes(4);
+  return testState.documents.get('sessions/s1/wolfAttackState/current')!.memberResults as unknown[];
+}
+
+it('projects actual support misses after the shared lock and zero-hit assignment', async () => {
+  const results = await commitSupportMisses();
+  expect(results).toEqual([
+    expect.objectContaining({ sourceId: 'highwall', targetId: null, outcome: { damage: 0 } }),
+    expect.objectContaining({ sourceId: 'gorgoneion-missile-array', targetId: null, outcome: { damage: 0 } }),
+  ]);
+  const view = projectWolfAttackMemberView({ sessionId: 's1',
+    state: testState.documents.get('sessions/s1/wolfAttackState/current'), serverTime: new Date().toISOString() });
+  expect(view.results).toHaveLength(2);
+  expect(JSON.stringify(view)).not.toMatch(/rolls|actorUid|combatRoster|calculationReceipt/);
+});
+
+it('atomically finalizes boarding and reopens once with actual prior support misses', async () => {
+  const misses = await commitSupportMisses();
+  resetFixture();
+  openBoardingFixture();
+  const statePath = 'sessions/s1/wolfAttackState/current';
+  put(statePath, { ...testState.documents.get(statePath), memberResults: misses });
+  await commitWolfBoardingDefenceChoice.run(request({ sessionId: 's1', requestId: 'miss-boarding-defence',
+    expectedTurn: 1, expectedRevision: 10, targetShipId: 'aegis', securityTeams: 0 }));
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  const resolved = testState.documents.get(statePath)!;
+  expect(resolved).toMatchObject({ status: 'resolved', currentStep: 'resolved', airspaceLocked: false });
+  expect(testState.documents.get('sessions/s1')).toMatchObject({ turnPhase: { airspace: { state: 'lifted' } } });
+  const audience = testState.documents.get('sessions/s1/wolfAttackAudience/current')!;
+  expect(audience).toMatchObject({ status: 'resolved', currentStep: 'resolved', results: expect.arrayContaining([
+    expect.objectContaining({ sourceId: 'highwall', targetId: null, outcome: { damage: 0 } }),
+    expect.objectContaining({ sourceId: 'gorgoneion-missile-array', targetId: null, outcome: { damage: 0 } }),
+  ]) });
+  expect(JSON.stringify(audience)).not.toMatch(/rolls|actorUid|combatRoster|calculationReceipt/);
+  const finalAudit = testState.documents.get(`${statePath}/audit/wolf-finalized-1`);
+  const draws = entropy.randomInt.mock.calls.length;
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  expect(testState.documents.get(`${statePath}/audit/wolf-finalized-1`)).toEqual(finalAudit);
+  expect(testState.documents.get('sessions/s1/wolfAttackAudience/current')).toEqual(audience);
+  expect(entropy.randomInt).toHaveBeenCalledTimes(draws);
+});
+
 it('rechecks the current support holder before returning an exact replay', async () => {
   admitRangeSupportChoices();
   const view = await getWolfRangeSupportActionChoice.run(request({
