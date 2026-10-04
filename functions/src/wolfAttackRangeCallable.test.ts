@@ -1924,6 +1924,15 @@ it('rechecks the current support holder before returning an exact replay', async
     .rejects.toMatchObject({ code: 'permission-denied' });
 });
 
+it('requires a fresh live source console to commit an otherwise valid support choice', async () => {
+  admitRangeSupportChoices();
+  const actor = testState.documents.get('sessions/s1/players/miner-1')!;
+  put('sessions/s1/players/miner-1', { ...actor, activeConsoleRoleId: null });
+  await expect(commitWolfRangeSupportActionChoice.run(request({ sessionId: 's1', sourceId: 'highwall',
+    range: 'short-range', requestId: 'highwall-away-console', expectedTurn: 1, expectedRevision: 7,
+    use: true }, 'miner-1'))).rejects.toMatchObject({ code: 'permission-denied' });
+});
+
 it('rejects a malformed support replay receipt without exposing added fields', async () => {
   admitRangeSupportChoices();
   const view = await getWolfRangeSupportActionChoice.run(request({
