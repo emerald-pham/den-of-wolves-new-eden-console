@@ -127,6 +127,37 @@ it('walks the manual crisis lifecycle and publishes only safe member summaries',
   expect(debatedEvent).not.toHaveProperty('details');
 });
 
+it('queues only an explicitly labeled formal crisis outcome for the next Team start', async () => {
+  await transitionCrisis.run(request());
+  await transitionCrisis.run(request({ ...baseData, requestId: 'delivery', expectedRevision: 1, state: 'delivered', deliveryPressure: 'hold' }));
+  await transitionCrisis.run(request({ ...baseData, requestId: 'debate', expectedRevision: 2, state: 'debated' }));
+  const formalAnnouncement = { title: 'Fleet supply pact', details: 'Every ship publishes its supply request.' };
+  await transitionCrisis.run(request({
+    ...baseData, requestId: 'formal-resolution', expectedRevision: 3, state: 'resolved', formalAnnouncement,
+  }));
+
+  expect(mock.documents.get('sessions/s1')).toMatchObject({
+    pendingTeamAnnouncements: [{
+      id: 'crisis-approaching-vessel-4', kind: 'binding-resolution',
+      title: formalAnnouncement.title, details: formalAnnouncement.details, decidedCycle: 2,
+    }],
+  });
+  expect(mock.documents.get('sessions/s1/events/crisis-approaching-vessel-formal-resolution'))
+    .not.toHaveProperty('details');
+  expect(mock.documents.get('sessions/s1/crisisState/current/audit/formal-resolution'))
+    .toMatchObject({ formalAnnouncement });
+});
+
+it('rejects formal crisis announcements before resolution and rejects malformed public copy', async () => {
+  await expect(transitionCrisis.run(request({ ...baseData, formalAnnouncement: {
+    title: 'Premature', details: 'Not resolved yet.',
+  } }))).rejects.toMatchObject({ code: 'invalid-argument' });
+  await expect(transitionCrisis.run(request({ ...baseData, formalAnnouncement: {
+    title: ' ', details: 'No title.',
+  } }))).rejects.toMatchObject({ code: 'invalid-argument' });
+  expect(mock.documents.has('sessions/s1/crisisState/current')).toBe(false);
+});
+
 it('rejects crisis identifiers longer than the projection bound before any write', async () => {
   await expect(transitionCrisis.run(request({ ...baseData, crisisId: 'x'.repeat(81) })))
     .rejects.toMatchObject({ code: 'invalid-argument' });
