@@ -4,6 +4,10 @@ import TurnPhaseCoordinator from './TurnPhaseCoordinator';
 import { useSessionStore } from '@/store/useSessionStore';
 
 vi.mock('@/lib/sessionService', () => ({ beginOpenAirspacePhase: vi.fn() }));
+vi.mock('@/lib/firestore', () => ({ subscribeWolfAttackMemberView: vi.fn((_id, receive) => {
+  receive(null);
+  return vi.fn();
+}) }));
 const { beginOpenAirspacePhase } = await import('@/lib/sessionService');
 
 beforeEach(() => {

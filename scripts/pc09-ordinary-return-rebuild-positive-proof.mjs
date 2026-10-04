@@ -481,7 +481,7 @@ async function commitShortAceLoss({ turn, wing, ace, expectedCountBefore }) {
   assert.equal(view.status, 'ready');
   assert.equal(view.attackId, attack.attackId);
   assert.equal(view.range, 'short');
-  assert.equal(view.fighterSources[0]?.sourceId, 'fighter-wing-alpha');
+  assert.equal(view.fighterSources[0]?.id, 'fighter-wing-alpha');
   assert.equal(view.fighterSources[0]?.fighterIndex, 0);
   const targets = view.targets.filter(target => target.available).slice(0, 2);
   assert.equal(targets.length, 2, 'The current ordinary attack must present two live Short contacts.');
