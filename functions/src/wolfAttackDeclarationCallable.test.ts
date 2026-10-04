@@ -75,6 +75,7 @@ vi.mock('firebase-functions/v2/scheduler', () => ({
 import {
   advanceTurn,
   advanceWolfAttackToLongRange,
+  commitWolfCommanderAttackDial,
   declareWolfAttack,
   extendAirspaceWindow,
   finishWolfCommanderTargetingRerolls,
@@ -2039,6 +2040,45 @@ it('uses only committed private pursuit authority and rejects malformed or chang
   expect(mock.documents.has('sessions/s1/wolfAttackState/current')).toBe(false);
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('lets the assigned Commander commit ten plus the selected group pursuit once per cycle', async () => {
+  session({ currentTurn: 4, turnPhase: {
+    turn: 4, teamPhaseEndsAt: new Date(Date.now() + 60_000).toISOString(),
+    openAirspaceEndsAt: new Date(Date.now() + 600_000).toISOString(),
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  } });
+  navigation({ revision: 7, pursuitGroups: { 'fleet-1': 2, 'fleet-2': 8 } });
+  splitFleet();
+  put('sessions/s1/players/wolfcmd', {
+    uid: 'wolfcmd', role: 'player', connected: true, fleetGroupId: 'fleet-1',
+    replacementRoleId: 'wolf-commander',
+  });
+  fleetGroup('fleet-1', { vesselIds: ['aegis', 'dione', 'icebreaker'], memberUids: ['u1', 'wolfcmd'] });
+  const payload = {
+    sessionId: 's1', requestId: 'commander-dial-cycle-4', expectedCycle: 4,
+    expectedNavigationRevision: 7, targetGroupId: 'fleet-2',
+  };
+  await expect(commitWolfCommanderAttackDial.run(request(payload, 'wolfcmd'))).resolves.toMatchObject({
+    status: 'committed', type: 'wolf-commander-cycle-attack', cycle: 4,
+    groupId: 'fleet-2', targetGroupPursuit: 8, damageCapacity: 18, attackNumber: 1,
+  });
+  const marker = mock.documents.get('sessions/s1/wolfCommanderCycleDials/cycle-4')!;
+  expect(marker).toMatchObject({ commanderCycleAttack: {
+    type: 'wolf-commander-cycle-attack', cycle: 4, groupId: 'fleet-2',
+    targetGroupPursuit: 8, navigationRevision: 7, commanderUid: 'wolfcmd', attackNumber: 1,
+  } });
+  expect(mock.documents.get('sessions/s1/wolfAttackWindow/current')).toMatchObject({
+    status: 'due', turn: 4, targetGroupId: 'fleet-2', threatSiteCode: 'commander',
+  });
+  await expect(commitWolfCommanderAttackDial.run({
+    data: { ...payload, requestId: 'commander-dial-cycle-4-second' }, auth: { uid: 'wolfcmd' },
+  } as CallableRequest<Record<string, unknown>>)).rejects.toMatchObject({ code: 'failed-precondition' });
+  await expect(commitWolfCommanderAttackDial.run(request({ ...payload, requestId: 'wrong-actor' }, 'u1')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.documents.get('sessions/s1/wolfAttackWindow/current')).toMatchObject({
+    targetGroupId: 'fleet-2', threatSiteCode: 'commander',
+  });
 });
 
 it('rejects noncanonical fleet membership before any declaration write', async () => {
