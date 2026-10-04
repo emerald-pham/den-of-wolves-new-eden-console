@@ -314,11 +314,6 @@ try {
     targetMode: 'pre-rolled', targetAssignments, modifiers: [], notes: 'Disposable composed proof: explicit GM pre-rolled targets.' });
   const declareRequest = { instanceId: f.instanceId, requestId: randomUUID(), expectedRevision: prep.revision };
   const declaration = await command(f.gm, 'declareWolfAttack', declareRequest);
-  const declaredState = await attackState();
-  assert.deepEqual(declaredState.combatRoster.map(({ shipId, target }, cardIndex) => ({ shipId, cardIndex, targetShipId: target })),
-    targetAssignments.map(({ cardIndex, targetShipId }) => ({ shipId: shipIds[cardIndex], cardIndex, targetShipId })),
-    'The current GM pre-rolled inputs enter the canonical combat roster through the ordinary declaration.');
-  checks.normalFacilitatorPreRolledTargets = true;
   assert.equal((await f.db.doc(`sessions/${f.sessionId}/shuttleTransitChains/starlight`).get()).exists, false);
   checks.normalTwentyPlayerPreparationAndActualTransitParking = true;
   const force = await command(captain, 'getWolfForceFieldChoice');
@@ -360,6 +355,11 @@ try {
   const cnc = await command(eo, 'getAegisCommandAndControl');
   await exactRetry(eo, 'passAegisCommandAndControl', { requestId: randomUUID(), expectedTurn: cnc.turn, expectedRevision: cnc.revision });
   checks.independentFourSourceLaunchesWithoutExtraFuel = true;
+  const declaredState = await until('canonical Long Range roster', state => state.currentStep === 'long-range');
+  assert.deepEqual(declaredState.combatRoster.map(({ shipId, target }, cardIndex) => ({ shipId, cardIndex, targetShipId: target })),
+    targetAssignments.map(({ cardIndex, targetShipId }) => ({ shipId: shipIds[cardIndex], cardIndex, targetShipId })),
+    'The current GM pre-rolled inputs enter the canonical combat roster after targeting decisions.');
+  checks.normalFacilitatorPreRolledTargets = true;
   for (const range of ['long-range', 'medium-range', 'short-range']) {
     await until(range, state => state.currentStep === range);
     const support = [];

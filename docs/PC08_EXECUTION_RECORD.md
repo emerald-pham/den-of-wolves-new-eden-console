@@ -397,3 +397,9 @@ input and its exact canonical target is asserted and recorded. Genuine
 Commander, relocation and defence traversal is also required. No server dice,
 damage, source limit, authority or production behavior changes. The subsequent
 fresh build/restart and complete result remain pending.
+The first recorded-target attempt at `1630c411` exposes only a new harness
+timing error: declaration remains in targeting, and the canonical combat roster
+materializes after targeting choices. The exact supported preparation is saved
+in its private failure state. The unchanged assertion moves to the established
+Long Range boundary; no product behavior or assertion is weakened. That failure
+is retained as `owner/authenticated-composed-reconciled-final-roster-timing/`.

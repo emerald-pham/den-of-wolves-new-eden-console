@@ -117,6 +117,10 @@ GM pre-rolled-target preparation route to spread the attack, and records every
 input. It adds exact canonical-target and actual Commander/relocation/defence
 traversal assertions. No dice, damage, printed limit or production behavior is
 changed; no failed assertion is removed. Its final result remains pending.
+The added canonical-roster assertion initially runs too early at declaration,
+before targeting materializes that roster. Its `1630c411` failure and exact
+private preparation remain preserved; the same assertion moves to the existing
+Long Range boundary after all genuine targeting/launch decisions.
 
 | Final reconciled checks | Reason and retained evidence |
 |---|---|
