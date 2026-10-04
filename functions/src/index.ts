@@ -24911,7 +24911,9 @@ function wolfRangeChoiceView(
     if (!lock) throw commandError('failed-precondition', 'The private Wolf range dice lock is malformed.', 'conflict');
     status = decision.status === 'locked' ? 'targets-required' : 'committed';
   }
-  const slots = lock?.dice.map(({ actionId, successes, damagePerHit }) => ({ actionId, count: successes, damagePerHit })) ?? [];
+  const slots = lock?.dice
+    .filter(({ actionId }) => status !== 'targets-required' || !fixedTargets[actionId])
+    .map(({ actionId, successes, damagePerHit }) => ({ actionId, count: successes, damagePerHit })) ?? [];
   const eligibleActions = status === 'pending' ? inputs.actions : [...inputs.actions, ...additionalActions];
   const contacts = wolfRangeContacts(inputs.roster, range);
   const presentedContacts = range !== 'short-range' || status !== 'targets-required'
@@ -25140,7 +25142,6 @@ export const commitWolfRangeActionChoice = onCall<{
     } catch (error) {
       throw commandError('failed-precondition', error instanceof Error ? error.message : 'The range choice could not be locked.', 'conflict');
     }
-    const hitSlots = locked.dice.map(({ actionId, successes, damagePerHit }) => ({ actionId, count: successes, damagePerHit }));
     const committedActionIds = selectedActions.map(({ actionId }) => actionId);
     const nextRevision = inputs.revision + 1;
     const weaponActionIds = [...actionIds];
@@ -25148,6 +25149,9 @@ export const commitWolfRangeActionChoice = onCall<{
       .filter(({ actionId }) => weaponActionIds.includes(actionId) || !rangeBundles.actionTargets[actionId])
       .map(({ actionId }) => actionId);
     const resolvesImmediately = assignmentActionIds.length === 0;
+    const hitSlots = locked.dice
+      .filter(({ actionId }) => resolvesImmediately || assignmentActionIds.includes(actionId))
+      .map(({ actionId, successes, damagePerHit }) => ({ actionId, count: successes, damagePerHit }));
     const passed = weaponActionIds.length === 0;
     let resolvedPass: ReturnType<typeof resolveLockedWolfRange> | undefined;
     let appliedStates: ReturnType<typeof applyLockedWolfRangeChoiceBundles> | undefined;
