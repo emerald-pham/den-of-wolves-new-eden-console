@@ -341,6 +341,58 @@ it('resolves a shared top candidate from the distinct VP-ballot runner-up and pr
   expect(JSON.stringify([...mock.documents])).toBe(beforeWrongCycleReplay);
 });
 
+it('does not apply the unique-both runner-up exception when a configured President tie choice matches the unique VP leader', async () => {
+  provision();
+  put('sessions/s1/players/u5', { uid: 'u5', role: 'player', connected: true, assignedRoleId: 'executive-officer' });
+  put('sessions/s1/players/u6', { uid: 'u6', role: 'player', connected: true, assignedRoleId: 'quellon-explorer' });
+  (mock.documents.get('sessions/s1')!.activeRoleIds as string[]).push('executive-officer', 'quellon-explorer');
+  await configurePresidentialElection.run(request({
+    sessionId: 's1', instanceId: 'gm-instance', requestId: 'configure-president-tie', expectedRevision: 0,
+    policy: { ...policy, populationWeighting: 'equal', eligibleVoterUids: ['u2', 'u3', 'u4', 'u5', 'u6'] },
+  }));
+  const election = mock.documents.get('sessions/s1/presidentialElections/current')!;
+  const candidateIds = election.candidateIdsByUid as Fields;
+  const ballots = [
+    ['u2', 'u2', 'u3'], ['u3', 'u3', 'u2'], ['u4', 'u2', 'u3'], ['u5', 'u3', 'u2'], ['u6', 'u4', 'u2'],
+  ];
+  for (const [voterUid, presidentUid, vicePresidentUid] of ballots) {
+    await castPresidentialBallot.run(request({
+      sessionId: 's1', requestId: `president-tie-${voterUid}`, expectedRevision: 1,
+      presidentUid, vicePresidentUid,
+    }, voterUid));
+  }
+  const session = mock.documents.get('sessions/s1')!;
+  const turnPhase = session.turnPhase as Fields;
+  (turnPhase.airspace as Fields).state = 'lifted';
+  (turnPhase.airspace as Fields).pressAccess = true;
+  const turnState = session.turnState as Fields;
+  turnState.phase = 'coordination';
+  turnState.startedAt = turnPhase.teamPhaseEndsAt;
+  turnState.endsAt = turnPhase.openAirspaceEndsAt;
+
+  const beforeDeniedTieChoice = JSON.stringify([...mock.documents]);
+  mock.set.mockClear();
+  mock.update.mockClear();
+  await expect(resolvePresidentialElection.run(request({
+    sessionId: 's1', instanceId: 'gm-instance', requestId: 'resolve-tie-selecting-vp-leader', expectedRevision: 1,
+    presidentCandidateId: candidateIds.u2,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(JSON.stringify([...mock.documents])).toBe(beforeDeniedTieChoice);
+
+  const result = await resolvePresidentialElection.run(request({
+    sessionId: 's1', instanceId: 'gm-instance', requestId: 'resolve-tie-selecting-distinct-president', expectedRevision: 1,
+    presidentCandidateId: candidateIds.u3,
+  }));
+  expect(result).toMatchObject({ status: 'committed', state: 'resolved', revision: 2,
+    presidentUid: 'u3', vicePresidentUid: 'u2' });
+  expect(result).not.toHaveProperty('vicePresidentOutcome');
+  expect(mock.documents.get('sessions/s1')).toMatchObject({
+    presidentialOffices: { presidentUid: 'u3', vicePresidentUid: 'u2' },
+  });
+});
+
 it('checks current membership before ballot replay and preserves a valid retry after revision advances', async () => {
   await configurePresidentialElection.run(request({
     sessionId: 's1', instanceId: 'gm-instance', requestId: 'configure-ballot-replay', expectedRevision: 0,
