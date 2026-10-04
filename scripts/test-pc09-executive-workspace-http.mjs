@@ -50,9 +50,9 @@ try {
   assert.equal((await b.identity()).activeConsoleRoleId, 'executive-officer');
   await b.page.getByRole('link', { name: /Back to (assigned|AEGIS Executive Officer) console/i }).click();
   await workspace.waitFor();
-  const current = f.ok(await f.call(eo, 'resumeSession', { sessionId: f.sessionId }), 'read current generation');
-  f.ok(await f.call(eo, 'disconnectFromSession', { sessionId: f.sessionId,
-    connectionGeneration: current.player.connectionGeneration }), 'ordinary EO disconnect');
+  await b.context.setOffline(true);
+  await b.untilIdentity('EO browser network interruption', state => state.connection === 'offline');
+  await b.context.setOffline(false);
   const reconnect = f.ok(await f.call(eo, 'resumeSession', { sessionId: f.sessionId }), 'ordinary EO reconnect');
   assert.equal(reconnect.player.assignedRoleId, 'executive-officer');
   f.ok(await f.call(eo, 'refreshPresence', { sessionId: f.sessionId, activeConsoleRoleId: 'executive-officer' }),
@@ -69,7 +69,7 @@ try {
     proofScriptCandidate: true, ordinaryRoster: 18, preparedScene: false,
     checks: { realEOChooser: true, realBattleSystemShell: true,
       realPallasCargoBoardingRelocationRoute: true, visiblePallasReturn: true,
-      sameActorReconnectAndReload: true, noAuthStorageInjection: true },
+      sameActorNetworkRecoveryAndReload: true, noAuthStorageInjection: true },
     cases, moduleUrls: b.moduleUrls(), errors: b.errors, productionGameplay: false,
     physicalDeviceProof: false, authenticationSerialized: false,
     // The complete attack driver separately proves real warhead/range/C&C
