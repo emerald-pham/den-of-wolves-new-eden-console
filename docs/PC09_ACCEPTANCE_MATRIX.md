@@ -54,9 +54,17 @@ No new closure is claimed at shaping. All ten audit repairs are in P621/P645 sco
 | 538 | Resolve the election privately. | Crises | missing | Implementation and accepted proof pending bounded worker handoff. |
 | 539 | Announce binding resolutions at Team start. | Crises | missing | Implementation and accepted proof pending bounded worker handoff. |
 | 540 | Run the full crisis scenario. | Crises | missing | Implementation and accepted proof pending bounded worker handoff. |
-| 180 | Create the Executive Officer workspace. | Owner | missing | Released workspace recovered: 75 focused component/authority and 34 selected route checks pass. Authenticated transport/browser and integrated release proof remain. |
+| 180 | Create the Executive Officer workspace. | Owner | missing | Released combat/Pallas behavior recovered; source-required EO maintenance gap repaired test first through shared AEGIS controls. Three route regressions/characterizations and typecheck pass; actual authenticated EO maintenance, Pallas/visible return, network interruption/reload, four viewports and monospace pass at a58eeb14. Composed attack actions, review and release remain. |
 
 Focused route selection omits 167 unrelated cases without changing or disabling any test.
 Prepared browser evidence, normal authenticated emulator gameplay, native tests,
 Rules, independent review, CI and deployment are recorded separately at closeout.
 No production-GM or physical-device evidence is inferred from local passes.
+
+The EO proof driver is `scripts/test-pc09-executive-workspace-http.mjs` and its
+external evidence is `/tmp/dow-pc09-evidence/executive/result.json`. It uses a
+normal 18-post session and real browser join, with no auth-storage injection,
+hidden-state seed or clock change. Explicit current-generation departure is a
+different action that releases the post; actual network interruption is used
+for same-identity recovery. The complete P524/P645 driver is being composed
+from the bounded deduction and aftermath handoffs; it has not passed yet.
