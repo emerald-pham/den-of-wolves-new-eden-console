@@ -85,6 +85,7 @@ import {
   launchDioneMaliades,
   launchPdfEscortWing,
   passWolfFighterLaunchChoice,
+  resolveWolfAttackAftermath,
   setEmergencyTimerPaused,
 } from './index';
 import { parseMaliadesState, resolveMaliadesMedium as resolveMaliadesStateMedium,
@@ -490,6 +491,52 @@ it('consumes only the finalized prior attack survivors once and preserves its im
     .toMatchObject({ sourceInstanceIds: ['0:wolf-fighter-wing', '1:wolf-fighter-wing'] });
 });
 
+it('keeps ordinary carryover verifiable after a committed Doctor action without rewriting finalization', async () => {
+  const prior = resolvedPriorAttack({
+    state: { deadlineAt: '2026-10-03T20:10:00.000Z' },
+    calculationReceipt: {
+      survivingWolfShips: [
+        { instanceId: '0:wolf-fighter-wing', shipId: 'wolf-fighter-wing', target: 'aegis' },
+        { instanceId: '1:wolf-fighter-wing', shipId: 'wolf-fighter-wing', target: 'aegis' },
+      ],
+      fleetDamage: [{ target: 'aegis', amount: 1, populationBefore: 2_500, population: 2_000,
+        draws: [{ casualty: true, destroyed: false }], state: { damagedSystemIds: [], destroyed: false } }],
+    },
+  });
+  const statePath = 'sessions/s1/wolfAttackState/current';
+  const auditPath = `${statePath}/audit/wolf-finalized-1`;
+  const auditBefore = structuredClone(mock.documents.get(auditPath)!);
+  patchSession({ shipSurvivors: { aegis: 2_000 }, shipResources: { aegis: { food: 8, water: 6 } } });
+  put('sessions/s1/players/doctor-uid', { uid: 'doctor-uid', role: 'player', connected: true,
+    fleetGroupId: 'fleet-1',
+    replacementRoleId: 'doctor', replacementStatus: null, activeConsoleRoleId: null, seatId: null });
+  fleetGroup('fleet-1', { memberUids: ['u1', 'doctor-uid'] });
+
+  await expect(resolveWolfAttackAftermath.run(request({ sessionId: 's1', attackId: prior.attackId,
+    requestId: 'doctor-before-next-attack', action: 'doctor', selectedShipIds: ['aegis'] }, 'doctor-uid')))
+    .resolves.toMatchObject({ status: 'committed', action: 'doctor' });
+  expect(mock.documents.get(auditPath)).toEqual(auditBefore);
+  expect(mock.documents.get(statePath)).toMatchObject({
+    revision: 9, finalizationRevision: 8, postFinalizationRevision: 1,
+  });
+  const postDoctorState = structuredClone(mock.documents.get(statePath)!);
+
+  session({ currentTurn: 2, turnPhase: {
+    turn: 2, teamPhaseEndsAt: new Date(Date.now() - 2_000).toISOString(),
+    openAirspaceEndsAt: new Date(Date.now() + 60_000).toISOString(),
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+  } });
+  preparation({ turn: 2, revision: 2,
+    shipIds: [...Array<string>(13).fill('wolf-fighter-wing'), 'wolf-assault-transport'],
+    targetAssignments: [], modifiers: [],
+  });
+  dueWindow({ status: 'due', turn: 2, revision: 3 });
+  await expect(declareWolfAttack.run(request({ ...baseData, requestId: 'after-doctor-next-attack', expectedRevision: 2 })))
+    .resolves.toMatchObject({ status: 'committed', turn: 2 });
+  expect(mock.documents.get(auditPath)).toEqual(auditBefore);
+  expect(mock.documents.get(`${statePath}/archives/wolf-attack-prior`)).toEqual(postDoctorState);
+});
+
 it('declares a fourth same-cycle P Station attack from the immutable survivor roster only', async () => {
   const sequence = {
     type: 'p-station-sequence', sequenceId: 'wolf-p-station-jump-station', groupId: 'fleet-1',
@@ -510,7 +557,9 @@ it('declares a fourth same-cycle P Station attack from the immutable survivor ro
     phase: { turn: 1, phase: 'coordination', serverTime: '2026-10-03T20:00:00.000Z',
       deadlineAt: '2026-10-03T20:10:00.000Z', overrun: false },
     targeting: { ring: ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124'], rolls: [] },
-    ranges, boarding: [], fleetDamage: [], forceField: { status: 'unavailable', preventedDamage: 0 },
+    ranges, boarding: [], fleetDamage: [{ target: 'aegis', amount: 1, populationBefore: 2_500, population: 2_000,
+      draws: [{ casualty: true, destroyed: false }], state: { damagedSystemIds: [], destroyed: false } }],
+    forceField: { status: 'unavailable', preventedDamage: 0 },
     returningInstanceIds: survivors.map(({ instanceId }) => instanceId),
     survivingWolfShips: survivors,
   };
@@ -522,8 +571,10 @@ it('declares a fourth same-cycle P Station attack from the immutable survivor ro
     type: 'wolf-attack-state', status: 'resolved', currentStep: 'resolved',
     attackId: 'wolf-attack-station-3', announcementId: 'wolf-attack-station-3', turn: 1,
     attackNumber: 3, previousAttackId: 'wolf-attack-station-2', carryover,
-    revision: 9, airspaceLocked: false, parkingReleaseCondition: 'normal-movement-reopened',
-    resolvedAt: '2026-10-03T20:00:00.000Z', finalizationRequestId: receipt.requestId,
+    revision: 9, finalizationRevision: 9, postFinalizationRevision: 0,
+    airspaceLocked: false, parkingReleaseCondition: 'normal-movement-reopened',
+    resolvedAt: '2026-10-03T20:00:00.000Z', deadlineAt: '2026-10-03T20:10:00.000Z',
+    finalizationRequestId: receipt.requestId,
     calculationReceipt: receipt,
     combatRoster: [
       { ...survivors[0], damageTaken: 0, destroyed: false },
@@ -600,6 +651,23 @@ it('declares a fourth same-cycle P Station attack from the immutable survivor ro
   expect(mock.documents.has('sessions/s1/events/wolf-attack-wolf-station-repeat-without-finalizer-plan')).toBe(false);
   put(finalizationAuditPath, completeFinalizationAudit);
 
+  const auditBeforeDoctor = structuredClone(completeFinalizationAudit);
+  patchSession({ shipSurvivors: { aegis: 2_000 }, shipResources: { aegis: { food: 8, water: 6 } } });
+  put('sessions/s1/players/doctor-uid', { uid: 'doctor-uid', role: 'player', connected: true,
+    fleetGroupId: 'fleet-1',
+    replacementRoleId: 'doctor', replacementStatus: null, activeConsoleRoleId: null, seatId: null });
+  fleetGroup('fleet-1', { memberUids: ['u1', 'doctor-uid'] });
+  await expect(resolveWolfAttackAftermath.run(request({ sessionId: 's1', attackId: prior.attackId,
+    requestId: 'doctor-before-p-repeat', action: 'doctor', selectedShipIds: ['aegis'] }, 'doctor-uid')))
+    .resolves.toMatchObject({ status: 'committed', action: 'doctor' });
+  expect(mock.documents.get(finalizationAuditPath)).toEqual(auditBeforeDoctor);
+
+  const damagedState = mock.documents.get('sessions/s1/wolfAttackState/current')!;
+  expect(damagedState).toMatchObject({
+    revision: 10, finalizationRevision: 9, postFinalizationRevision: 1,
+  });
+  expect(mock.documents.get(finalizationAuditPath)).toEqual(auditBeforeDoctor);
+
   await expect(declareWolfAttack.run(request({
     ...baseData, requestId: 'wolf-station-attack-four', expectedRevision: 7,
   }))).resolves.toMatchObject({ status: 'committed', turn: 1, announcementId: 'wolf-attack-wolf-station-attack-four' });
@@ -624,6 +692,20 @@ it('declares a fourth same-cycle P Station attack from the immutable survivor ro
   expect(publicState).not.toHaveProperty('targetGroupId');
   expect(mock.documents.get('sessions/s1/events/wolf-attack-wolf-station-attack-four'))
     .not.toHaveProperty('pStationSequence');
+  expect(mock.documents.get(finalizationAuditPath)).toEqual(auditBeforeDoctor);
+});
+
+it('rejects changed finalization and post-finalization revision bindings', () => {
+  const prior = resolvedPriorAttack({ state: { revision: 9, finalizationRevision: 8, postFinalizationRevision: 1 } });
+  const statePath = 'sessions/s1/wolfAttackState/current';
+  const auditPath = `${statePath}/audit/wolf-finalized-1`;
+  const audit = mock.documents.get(auditPath)!;
+  expect(resolvedWolfAttackForCarryover(prior, audit, 2).attackId).toBe('wolf-attack-prior');
+
+  expect(() => resolvedWolfAttackForCarryover(prior, { ...audit, revision: 9 }, 2))
+    .toThrow(/verifiable finalized attack/i);
+  expect(() => resolvedWolfAttackForCarryover({ ...prior, postFinalizationRevision: 2 }, audit, 2))
+    .toThrow(/verifiable finalized attack/i);
 });
 
 it('requires the next scheduled composition to contain every carried Wing', async () => {
