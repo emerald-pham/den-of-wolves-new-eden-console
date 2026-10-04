@@ -1383,6 +1383,27 @@ describe('session header', () => {
     await assertFails(getDocs(collection(as('gm1'), `${SESSION}/wolfAttackState`)));
   });
 
+  it('allows a member-safe resolved Wolf result with survivor counts and no private receipt fields', async () => {
+    const audiencePath = `${SESSION}/wolfAttackAudience/current`;
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), audiencePath), {
+        type: 'wolf-attack-member-view', schemaVersion: 1, sessionId: 's1', attackId: 'attack-1',
+        turn: 1, revision: 2, status: 'resolved', phase: 'active', currentStep: 'resolved', range: null,
+        deadlineAt: '2026-10-03T12:10:00.000Z', serverTime: '2026-10-03T12:00:00.000Z',
+        visibility: 'members', remainingThreatCount: 1, returningThreatCount: 0,
+        redaction: ['composition', 'unresolved-dice', 'facilitator-notes', 'intervention-state'],
+        results: [],
+      });
+    });
+    await assertSucceeds(getDoc(doc(as('alice'), audiencePath)));
+    await assertFails(getDoc(doc(as('stranger'), audiencePath)));
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), audiencePath), { calculationReceipt: { rolls: [6] } });
+    });
+    await assertFails(getDoc(doc(as('alice'), audiencePath)));
+  });
+
   it('shares drawn damage cards with members but denies strangers and every client write', async () => {
     const playerDraw = doc(as('alice'), `${SESSION}/damageDraws/draw1`);
     const gmDraw = doc(as('gm1'), `${SESSION}/damageDraws/draw1`);
