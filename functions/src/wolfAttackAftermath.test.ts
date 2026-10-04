@@ -4,6 +4,7 @@ import {
   resolveWarriorSalvage,
   wolfDamageScrapOpportunities,
 } from './wolfAttackAftermath';
+import { applyWolfFleetDamage } from './wolfCombatMath';
 
 const damage = (target: string, casualtyFlags: readonly boolean[], population: number) => ({
   target,
@@ -54,6 +55,25 @@ describe('wolf attack aftermath', () => {
       resourcesByTarget: { aegis: { food: 2, water: 3 }, dione: { food: 3, water: 2 } },
       selectedShipIds: ['aegis', 'dione'],
     })).toThrow(/3 food and 3 water/i);
+  });
+
+  it('validates Doctor prevention forward from exact pre-damage survivors between printed markers', () => {
+    const betweenMarkers = applyWolfFleetDamage('aegis', 1,
+      { damage: { damagedSystemIds: [], destroyed: false }, population: 1_100 }, () => 0);
+    expect(betweenMarkers.population).toBe(1_000);
+    expect(betweenMarkers.draws.map((draw) => draw.casualty)).toEqual([true]);
+    const healed = resolveDoctorMedicalAid({ shipResults: [betweenMarkers],
+      populationBeforeByTarget: { aegis: 1_100 }, resourcesByTarget: { aegis: { food: 8, water: 6 } },
+      selectedShipIds: ['aegis'] });
+    expect(healed.populationByTarget.aegis).toBe(1_100);
+
+    const zeroFloorControl = applyWolfFleetDamage('aegis', 3,
+      { damage: { damagedSystemIds: [], destroyed: false }, population: 500 }, () => 0);
+    expect(zeroFloorControl.draws.map((draw) => draw.casualty)).toEqual([true, true, false]);
+    const mitigated = resolveDoctorMedicalAid({ shipResults: [zeroFloorControl],
+      populationBeforeByTarget: { aegis: 500 }, resourcesByTarget: { aegis: { food: 8, water: 6 } },
+      selectedShipIds: ['aegis'] });
+    expect(mitigated.populationByTarget.aegis).toBe(250);
   });
 
   it('rolls one server d6 per damage point dealt by either side and awards one material on each 5+', () => {
