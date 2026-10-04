@@ -3191,6 +3191,48 @@ describe('Wolf Agent Detector private report', () => {
   });
 });
 
+describe('VIP Host maintenance projection', () => {
+  it('exposes only the safe benefit to current members and keeps visit, grant, and audit private', async () => {
+    const benefit = `${SESSION}/vipHostMaintenanceBenefits/icebreaker/cycles/2`;
+    const grant = `${SESSION}/vipHostMaintenanceGrants/icebreaker/cycles/2`;
+    const visit = `${SESSION}/vipHostVisits/2`;
+    const audit = `${SESSION}/vipHostVisitAudits/request-1`;
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, benefit), {
+        type: 'vip-host-maintenance-benefit', sessionId: 's1', shipId: 'icebreaker', cycle: 2,
+        status: 'available', revision: 1, requestId: 'request-1',
+      });
+      await setDoc(doc(db, grant), {
+        type: 'vip-host-maintenance-grant', hostUid: 'vip', attestedByUid: 'gm1',
+      });
+      await setDoc(doc(db, visit), { type: 'vip-host-physical-visit', hostUid: 'vip', shipId: 'icebreaker' });
+      await setDoc(doc(db, audit), { type: 'vip-host-visit-audit', hostUid: 'vip', actorUid: 'gm1' });
+    });
+
+    await assertSucceeds(getDoc(doc(as('alice'), benefit)));
+    await assertSucceeds(getDoc(doc(as('gm1'), benefit)));
+    await assertFails(getDoc(doc(as('outsider'), benefit)));
+    await assertFails(getDocs(collection(as('alice'), `${SESSION}/vipHostMaintenanceBenefits/icebreaker/cycles`)));
+    await assertFails(setDoc(doc(as('alice'), `${SESSION}/vipHostMaintenanceBenefits/icebreaker/cycles/3`), {}));
+    for (const path of [grant, visit, audit]) {
+      await assertSucceeds(getDoc(doc(as('gm1'), path)));
+      await assertFails(getDoc(doc(as('alice'), path)));
+    }
+  });
+
+  it('rejects an identity-bearing or malformed member projection', async () => {
+    const benefit = `${SESSION}/vipHostMaintenanceBenefits/icebreaker/cycles/2`;
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), benefit), {
+        type: 'vip-host-maintenance-benefit', sessionId: 's1', shipId: 'icebreaker', cycle: 2,
+        status: 'available', revision: 1, requestId: 'request-1', hostUid: 'secret-host',
+      });
+    });
+    await assertFails(getDoc(doc(as('alice'), benefit)));
+  });
+});
+
 describe('Press log audience', () => {
   it('allows only the connected Press Officer to read incoming Press entries', async () => {
     const pressEntry = `${SESSION}/pressLog/press-entry-1`;
