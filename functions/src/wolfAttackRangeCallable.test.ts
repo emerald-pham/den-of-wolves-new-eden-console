@@ -2181,7 +2181,7 @@ it('publishes each assigned support hit once with its printed source label', asy
     { sourceId: 'highwall', effect: 'Highwall Cannon hit' },
     ...Array.from({ length: 3 }, () => ({ sourceId: 'gorgoneion-missile-array', effect: 'Gorgoneion Missile Array hit' })),
   ]);
-  expect(results.map(row => (row.outcome as Fields).damage)).toEqual([1, 1, 1, 1]);
+  expect(results.map(row => (row.outcome as Fields).damage)).toEqual([3, 1, 1, 1]);
   const saved = structuredClone([...testState.documents]);
   expect(await assignWolfRangeTargets.run(request(payload))).toEqual(committed);
   expect([...testState.documents]).toEqual(saved);

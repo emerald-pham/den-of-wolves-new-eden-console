@@ -2159,8 +2159,7 @@ it.each(['pdf-escort-fighter-wing', 'maliades'] as const)(
 it.each((['pdf-escort-fighter-wing', 'maliades'] as const).flatMap(sourceId =>
   (['fresh', 'replay'] as const).flatMap(attempt =>
     ['wrong-berth', 'removed-member', 'mismatched-group', 'missing-group', 'absent-host']
-      .map(drift => ({ sourceId, attempt, drift })))))
-  ('rejects $attempt $sourceId launch passes with $drift authority', async ({ sourceId, attempt, drift }) => {
+      .map(drift => ({ sourceId, attempt, drift })))))('rejects $attempt $sourceId launch passes with $drift authority', async ({ sourceId, attempt, drift }) => {
     const host = sourceId === 'maliades' ? 'dione' : 'refinery-124';
     if (sourceId === 'maliades') {
       await declareThenSeatDioneEngineer();
