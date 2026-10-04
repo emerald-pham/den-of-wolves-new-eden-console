@@ -44,6 +44,9 @@ and private, and cache/role/custody switches withdraw mounted client controls.
 Attack-bound Enriched Warhead markers reject wrong roles, empty actors and extra
 fields. Escort replay results also bind exact status, revision, action count and
 resolution status; a matching fingerprint alone cannot bless malformed output.
+Stored PDF/Maliades shift target numbers must match the current pre-range
+roster target through the source's printed ring mapping, rather than merely
+being an in-range integer. Both sources have discriminating corruption checks.
 Root also closes the Union craft setup gap with a current authenticated GM
 starting-host choice. Check the pre-start window, confirmed Union roster,
 paired active hosts, setup revision, exact private receipt, manifest/history

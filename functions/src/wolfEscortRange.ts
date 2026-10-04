@@ -3,7 +3,7 @@ import { parsePdfEscortWingState, resolvePdfEscortWingMedium, resolvePdfEscortWi
   type PdfEscortWingState, type PdfEscortWingMediumAction } from './pdfEscortWingState';
 import { parseMaliadesState, resolveMaliadesMedium, resolveMaliadesShort,
   type MaliadesState, type MaliadesMediumChoice } from './maliadesState';
-import { wolfRangeFixedTargetInstanceIds, type WolfCombatRange, type WolfCombatShip, type WolfRangeAction,
+import { wolfRangeFixedTargetInstanceIds, wolfTargetNumberForRangeSource, type WolfCombatRange, type WolfCombatShip, type WolfRangeAction,
   type WolfRangeRollLock, type WolfRangeTargetShiftChoice, type WolfTargetRing } from './wolfCombatMath';
 
 export type WolfEscortSourceId = 'pdf-escort-fighter-wing' | 'maliades';
@@ -103,7 +103,9 @@ export function collectWolfEscortRange(input: Readonly<{
         seen.add(sourceId === 'maliades' ? item.targetInstanceId : index);
         if (item.kind === 'target-shift') {
           if ((item.shift !== -1 && item.shift !== 1) || !Number.isSafeInteger(item.targetNumber) ||
-              (item.targetNumber as number) < 0 || (item.targetNumber as number) > 7) return { status: 'unsupported' };
+              item.targetNumber !== wolfTargetNumberForRangeSource(combatSource, input.roster[rosterIndex]!.target, input.ring)) {
+            return { status: 'unsupported' };
+          }
           shiftSeen = true;
           shifts.push({ sourceId: combatSource, choiceIndex: index, rosterIndex, shift: item.shift });
           if (sourceId === 'maliades') maliadesMedium.push({ kind: 'target-shift', targetId: item.targetInstanceId, shift: item.shift });
