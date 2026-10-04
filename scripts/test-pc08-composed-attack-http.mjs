@@ -25,16 +25,24 @@ const context = await browser.newContext({ viewport: { width: 390, height: 844 }
 const page = await context.newPage();
 const browserErrors = [], checks = {}, actions = [], ranges = [], boarding = [], observations = [];
 const attackTurn = 2;
+let sessionStoreModuleUrl = '/src/store/useSessionStore.ts';
+page.on('request', request => {
+  const url = new URL(request.url());
+  if (url.pathname === '/src/store/useSessionStore.ts' &&
+      (url.searchParams.has('t') || !new URL(sessionStoreModuleUrl, uiUrl).searchParams.has('t'))) {
+    sessionStoreModuleUrl = url.href;
+  }
+});
 page.on('pageerror', error => browserErrors.push(error.message));
 let f;
 async function snapshotIdentity() {
-  return page.evaluate(async () => {
+  return page.evaluate(async storeModuleUrl => {
     const { auth } = await import('/src/lib/firebase.ts');
-    const { useSessionStore } = await import('/src/store/useSessionStore.ts');
+    const { useSessionStore } = await import(storeModuleUrl);
     const s = useSessionStore.getState();
     return { uid: auth().currentUser?.uid, memberUid: s.me?.uid, sessionId: s.session?.id,
       roleId: s.me?.assignedRoleId, connection: s.connection, freshness: s.sessionSnapshotFreshness };
-  });
+  }, sessionStoreModuleUrl);
 }
 async function browserUntil(label, ready) {
   const deadline = Date.now() + 30_000;
@@ -397,7 +405,7 @@ try {
   await page.screenshot({ path: `${dirname(evidencePath)}/failure.png`, fullPage: true }).catch(() => {});
   await writeFile(`${evidencePath}.failure.json`, `${JSON.stringify({ sourceCommit, message: error.message, checks, actions, ranges, boarding,
     step: state?.currentStep, revision: state?.revision, status: state?.status, resolutionBlocker: state?.resolutionBlocker,
-    decisionSummary: state?.decisionSummary, observations, browserErrors }, null, 2)}\n`);
+    decisionSummary: state?.decisionSummary, observations, browserErrors, sessionStoreModuleUrl }, null, 2)}\n`);
   throw error;
 } finally {
   const keepCleanupAlive = setInterval(() => {}, 1000);

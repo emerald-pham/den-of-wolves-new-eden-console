@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {execFileSync} from 'node:child_process';
 import {mkdir, writeFile} from 'node:fs/promises';
 import {setTimeout as delay} from 'node:timers/promises';
 import {chromium} from 'playwright';
@@ -13,6 +14,15 @@ const context = await browser.newContext({viewport: {width: 390, height: 844}, r
 const page = await context.newPage();
 const errors = [], cases = [], recoverySamples = [];
 let fixture;
+const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], {cwd: new URL('../', import.meta.url), encoding: 'utf8'}).trim();
+let sessionStoreModuleUrl = '/src/store/useSessionStore.ts';
+page.on('request', request => {
+  const url = new URL(request.url());
+  if (url.pathname === '/src/store/useSessionStore.ts' &&
+      (url.searchParams.has('t') || !new URL(sessionStoreModuleUrl, baseUrl).searchParams.has('t'))) {
+    sessionStoreModuleUrl = url.href;
+  }
+});
 page.on('pageerror', error => errors.push(error.message));
 async function joinThroughUi(code) {
   await page.goto(baseUrl);
@@ -21,7 +31,9 @@ async function joinThroughUi(code) {
   await page.getByRole('button', {name: 'Join a session', exact: true}).click();
   const waiver = page.getByRole('dialog', {name: 'CODE OF CONDUCT', exact: true});
   await waiver.waitFor();
-  for (const checkbox of await waiver.getByRole('checkbox', {name: /^Acknowledge regulation/}).all()) await checkbox.check();
+  const acknowledgements = waiver.getByRole('checkbox', {name: /^Acknowledge regulation/});
+  await acknowledgements.first().waitFor();
+  for (const checkbox of await acknowledgements.all()) await checkbox.check();
   const acknowledge = waiver.getByRole('button', {name: 'Acknowledge regulations and continue', exact: true});
   await acknowledge.and(page.locator(':enabled')).waitFor();
   await acknowledge.click();
@@ -32,13 +44,13 @@ async function joinThroughUi(code) {
   });
 }
 async function identity() {
-  return page.evaluate(async () => {
+  return page.evaluate(async storeModuleUrl => {
     const {auth} = await import('/src/lib/firebase.ts');
-    const {useSessionStore} = await import('/src/store/useSessionStore.ts');
+    const {useSessionStore} = await import(storeModuleUrl);
     const state = useSessionStore.getState();
     return {uid: auth().currentUser?.uid, memberUid: state.me?.uid, sessionId: state.session?.id,
       roleId: state.me?.assignedRoleId, connection: state.connection, freshness: state.sessionSnapshotFreshness};
-  });
+  }, sessionStoreModuleUrl);
 }
 async function waitForIdentity(label, ready) {
   const deadline = Date.now() + 30_000;
@@ -89,7 +101,7 @@ try {
   }
   assert.deepEqual(errors, []);
   await writeFile(`${directory}/result.json`, `${JSON.stringify({kind: 'normal-authenticated-local-emulator-ui-tour-recovery',
-    sourceCommit: process.env.PC08_SOURCE_COMMIT, ordinaryRoster: 18, cases, errors,
+    sourceCommit, ordinaryRoster: 18, cases, errors,
     authStorageInjected: false, productionGameplay: false, recoverySamples, completedAt: new Date().toISOString()}, null, 2)}\n`);
 } catch (error) {
   await page.screenshot({path: `${directory}/failure.png`, fullPage: true});
