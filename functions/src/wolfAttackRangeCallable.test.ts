@@ -2101,6 +2101,7 @@ it('automatically opens and restages the exact surviving P Station force in the 
   const marker = { type: 'p-station-sequence', sequenceId: 'wolf-p-station-transition-1', groupId: 'fleet-1',
     chart: 'B', coordinate: '1964', stationId: 'P', sourceTransitionId: 'transition-1', sourceCycle: 1, attackNumber: 1 };
   put(statePath, { ...state, announcementId: state.attackId, attackNumber: 1,
+    preparationRevision: 2, preparation: { ...(state.preparation as Fields), revision: 2 },
     targetGroupId: 'fleet-1', threatSiteCode: 'P', threatSourceId: 'arrival-transition-1', pStationSequence: marker,
     combatRoster: short.roster, rangeReceipts: [zeroDamage('long-range'), zeroDamage('medium-range'), short.receipt] });
   put('sessions/s1/wolfAttackWindow/current', { status: 'resolved', turn: 1, revision: 5,
@@ -2120,6 +2121,8 @@ it('automatically opens and restages the exact surviving P Station force in the 
   expect(survivingWolfShips[0]).toMatchObject({ instanceId: roster.at(-1)!.instanceId, shipId: 'wolf-assault-transport' });
   expect(testState.documents.get(`${statePath}/audit/wolf-finalized-1`)).toMatchObject({
     pStationSequence: marker, survivingWolfShips,
+    pStationRepeat: expect.objectContaining({ status: 'repeat', sequenceId: marker.sequenceId,
+      sourceInstanceIds: [roster.at(-1)!.instanceId], nextAttackNumber: 2 }),
   });
   expect(testState.documents.get('sessions/s1/wolfAttackWindow/current')).toMatchObject({
     status: 'due', turn: 1, revision: 6, targetGroupId: 'fleet-1', threatSiteCode: 'P',
@@ -2158,6 +2161,7 @@ it('stops the P Station repeat without opening a due window when no Wolf ships s
   const marker = { type: 'p-station-sequence', sequenceId: 'wolf-p-station-transition-1', groupId: 'fleet-1',
     chart: 'B', coordinate: '1964', stationId: 'P', sourceTransitionId: 'transition-1', sourceCycle: 1, attackNumber: 1 };
   put(statePath, { ...state, announcementId: state.attackId, attackNumber: 1,
+    preparationRevision: 2, preparation: { ...(state.preparation as Fields), revision: 2 },
     targetGroupId: 'fleet-1', threatSiteCode: 'P', threatSourceId: 'arrival-transition-1', pStationSequence: marker,
     combatRoster: short.roster, rangeReceipts: [emptyRange('long-range'), emptyRange('medium-range'), short.receipt] });
   put('sessions/s1/wolfAttackWindow/current', { status: 'resolved', turn: 1, revision: 5,
@@ -2178,7 +2182,9 @@ it('stops the P Station repeat without opening a due window when no Wolf ships s
   expect(testState.documents.get('sessions/s1/wolfAttackPreparation/current')).toMatchObject({
     revision: 2, compositionKind: 'P', shipIds: ['wolf-fighter-wing'],
   });
-  expect(testState.documents.has(`${statePath}/audit/wolf-finalized-1`)).toBe(true);
+  expect(testState.documents.get(`${statePath}/audit/wolf-finalized-1`)).toMatchObject({
+    pStationRepeat: expect.objectContaining({ status: 'stopped', sequenceId: marker.sequenceId }),
+  });
   expect(testState.documents.has('sessions/s1/wolfAttackPreparation/current/audit/p-station-repeat-wolf-attack-test-1'))
     .toBe(false);
 });
