@@ -559,3 +559,16 @@ it('persists the validated P Station sequence marker with the immutable survivor
   expect(fields(`${attackPath}/audit/wolf-finalized-1`).pStationSequence).toEqual(marker);
   expect(ruling.result).toMatchObject({ status: 'committed' });
 });
+
+it('holds finalization when its P Station sequence marker names another attack number', async () => {
+  const ruling = await commitSpecialFixture('commander-ruling');
+  patch(attackPath, { pStationSequence: { type: 'p-station-sequence', sequenceId: 'sequence-1',
+    groupId: 'fleet-1', chart: 'New Eden', coordinate: 'P-1', stationId: 'P',
+    sourceTransitionId: 'transition-p-1', sourceCycle: 1, attackNumber: 2 } });
+
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+
+  expect(fields(attackPath)).toMatchObject({ status: 'declared', currentStep: 'boarding' });
+  expect(testState.documents.has(`${attackPath}/audit/wolf-finalized-1`)).toBe(false);
+  expect(ruling.result).toMatchObject({ status: 'committed' });
+});
