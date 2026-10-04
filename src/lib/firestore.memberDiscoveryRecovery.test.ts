@@ -27,7 +27,7 @@ beforeEach(() => {
   vi.mocked(doc).mockImplementation(((_db: unknown, path: string) => ({ path })) as never);
   vi.mocked(onSnapshot).mockImplementation(((reference: { path?: string }, _options: unknown,
     next: (snapshot: unknown) => void, error?: (error: unknown) => void) => {
-    if (reference?.path) subscriptions.set(reference.path, { next, error });
+    if (reference?.path) subscriptions.set(reference.path, { next, ...(error ? { error } : {}) });
     return vi.fn();
   }) as never);
 });
@@ -111,4 +111,27 @@ it('does not release cached discovery as current authority after member confirma
   expect(feed.onDiscovery.mock.calls.every(([projection]) => projection === null)).toBe(true);
   publish('playerDiscoveries/eo', discovery);
   expect(feed.visible()).toMatchObject({ shipId: 'aegis', revision: 3 });
+});
+
+it('drops a waiting projection after its listener fails before member confirmation', async () => {
+  const feed = begin();
+  publish('players/eo', actor);
+  publish('playerDiscoveries/eo', discovery);
+  subscriptions.get('sessions/recovery/playerDiscoveries/eo')!.error?.({ code: 'unavailable' });
+  feed.resolve();
+  await vi.waitFor(() => expect(feed.onSession).toHaveBeenCalled());
+  expect(feed.onDiscovery.mock.calls.every(([projection]) => projection === null)).toBe(true);
+});
+
+it('rejects a late discovery callback while revoked and requires a new server projection after the same actor returns', async () => {
+  const feed = begin();
+  publish('players/eo', actor);
+  publish('players/eo', { ...actor, connected: false });
+  publish('playerDiscoveries/eo', discovery);
+  publish('players/eo', actor);
+  feed.resolve();
+  await vi.waitFor(() => expect(feed.onSession).toHaveBeenCalled());
+  expect(feed.onDiscovery.mock.calls.every(([projection]) => projection === null)).toBe(true);
+  publish('playerDiscoveries/eo', { ...discovery, revision: 4 });
+  expect(feed.visible()).toMatchObject({ revision: 4 });
 });
