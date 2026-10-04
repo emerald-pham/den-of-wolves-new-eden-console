@@ -152,7 +152,7 @@ function liveStateLabel(
   return 'Awaiting live server state';
 }
 
-function FighterWingCard({
+export function FighterWingCard({
   craft,
   authoritativeDamage,
   constructionBayUpgraded,

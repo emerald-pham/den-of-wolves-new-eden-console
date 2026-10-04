@@ -1,0 +1,18 @@
+.pc09-review__columns {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;min-width:0;align-items:start;}
+.pc09-review__columns > * {min-width:0;}
+.pc09-review .wolf-attack-dradis {width:100%;max-width:none;}
+.pc09-review .wolf-attack-dradis__readings {max-height:27rem;}
+.pc09-review .aegis-craft,.pc09-review .gorgoneion-repair-drones,.pc09-review .press-dispatch,.pc09-review .president-workspace,
+.pc09-review .presidential-election-workspace,.pc09-review .crisis-report,.pc09-review .turn-start-announcement__formal {padding:clamp(.85rem,2vw,1.25rem);min-width:0;overflow-wrap:anywhere;}
+.pc09-review .president-workspace,.pc09-review .presidential-election-workspace {border:1px solid var(--cic-rule);background:var(--cic-panel);}
+.pc09-review :is(h2,h3,h4,h5) {font-family:var(--cic-display);text-transform:uppercase;}
+.pc09-review :is(p,dl,ol,ul,form) {font-family:var(--cic-mono);line-height:1.5;}
+.pc09-review :is(form,fieldset) {display:grid;gap:.75rem;min-width:0;}
+.pc09-review fieldset {margin:0;}
+.pc09-review button {min-height:44px;max-width:100%;font-family:var(--cic-mono);}
+.pc09-review .press-dispatch__current-list,.pc09-review .press-event-log__list {padding-left:1.2rem;}
+.pc09-review .presidential-election-workspace dl > div,.pc09-review .aegis-craft dl > div {display:grid;gap:.2rem;margin-block:.65rem;}
+.pc09-review dd {margin:0;color:var(--cic-cyan);}
+.pc09-review .president-workspace__capital > div {display:flex;gap:.5rem;flex-wrap:wrap;}
+.pc09-review .turn-start-announcement__formal {border-inline-start:2px solid var(--cic-amber);background:var(--cic-panel);}
+@media(max-width:760px){.pc09-review__columns {grid-template-columns:minmax(0,1fr);}.pc09-review .wolf-attack-dradis__readings {max-height:24rem;}}
