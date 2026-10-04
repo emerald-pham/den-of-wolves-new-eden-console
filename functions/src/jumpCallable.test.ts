@@ -2734,8 +2734,10 @@ it('uses a normal powered jump for a selected wrong printed location without inv
 
   expect(mock.randomInt).not.toHaveBeenCalled();
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
-    'shipGalacticCoordinates.aegis': '1413',
     'shipResources.aegis.fuel': 2,
+  }));
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/serverState/navigation', expect.objectContaining({
+    shipGalacticCoordinates: expect.objectContaining({ aegis: '1413' }),
   }));
   expect(mock.update).toHaveBeenCalledWith('sessions/s1/jumpFailures/wrong-location-failure',
     expect.objectContaining({ status: 'resolved', resolution: 'wrong-location' }));
