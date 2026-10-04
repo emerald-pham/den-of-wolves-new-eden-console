@@ -2395,6 +2395,78 @@ it.each(reviewReplayKinds)('keeps an authorized %s exact retry after its attack 
   expect(testState.remove).not.toHaveBeenCalled();
 });
 
+const attackReplayDrifts = ['session-cycle', 'attack-cycle', 'attack-id'] as const;
+type AttackReplayDrift = typeof attackReplayDrifts[number];
+
+function driftCurrentAttackForReplay(drift: AttackReplayDrift): void {
+  const session = testState.documents.get('sessions/s1')!;
+  const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  if (drift === 'session-cycle') {
+    put('sessions/s1', { ...session, currentTurn: 2,
+      turnPhase: { ...(session.turnPhase as Fields), turn: 2 } });
+  } else {
+    put('sessions/s1/wolfAttackState/current', { ...attack,
+      ...(drift === 'attack-cycle' ? { turn: 2 } : { attackId: 'wolf-attack-replacement-same-cycle' }) });
+  }
+}
+
+it.each(attackReplayDrifts)('rejects a saved EO range pass after its %s changes, while preserving same-attack retries', async drift => {
+  const payload = { sessionId: 's1', requestId: `eo-pass-replay-${drift}`, expectedTurn: 1,
+    expectedRevision: 4, range: 'long-range', actionIds: [] };
+  const replay = () => commitWolfRangeActionChoice.run(request(payload));
+  const committed = await replay();
+  expect(await replay()).toEqual(committed);
+
+  driftCurrentAttackForReplay(drift);
+  const saved = structuredClone([...testState.documents]);
+  entropy.randomInt.mockClear(); testState.set.mockClear(); testState.update.mockClear(); testState.remove.mockClear();
+  await expect(replay()).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect([...testState.documents]).toEqual(saved);
+  expect(entropy.randomInt).not.toHaveBeenCalled();
+  expect(testState.set).not.toHaveBeenCalled(); expect(testState.update).not.toHaveBeenCalled();
+  expect(testState.remove).not.toHaveBeenCalled();
+});
+
+it.each(attackReplayDrifts)('rejects a saved EO target assignment after its %s changes, without redrawing dice', async drift => {
+  const lock = await commitWolfRangeActionChoice.run(request({ sessionId: 's1', requestId: `eo-lock-${drift}`,
+    expectedTurn: 1, expectedRevision: 4, range: 'long-range', actionIds: ['aegis-missile-launchers-long'] }));
+  const payload = { sessionId: 's1', requestId: `eo-assignment-${drift}`, expectedTurn: 1,
+    expectedRevision: lock.revision, range: 'long-range',
+    assignments: [{ actionId: 'aegis-missile-launchers-long', contactIds: ['contact-1'] }] };
+  const replay = () => assignWolfRangeTargets.run(request(payload));
+  const committed = await replay();
+  expect(await replay()).toEqual(committed);
+
+  driftCurrentAttackForReplay(drift);
+  const saved = structuredClone([...testState.documents]);
+  const draws = entropy.randomInt.mock.calls.length;
+  entropy.randomInt.mockClear(); testState.set.mockClear(); testState.update.mockClear(); testState.remove.mockClear();
+  await expect(replay()).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect([...testState.documents]).toEqual(saved);
+  expect(entropy.randomInt).not.toHaveBeenCalled();
+  expect(draws).toBeGreaterThan(0);
+  expect(testState.set).not.toHaveBeenCalled(); expect(testState.update).not.toHaveBeenCalled();
+  expect(testState.remove).not.toHaveBeenCalled();
+});
+
+it.each(attackReplayDrifts)('rejects a saved boarding crew choice after its %s changes, without reserving teams twice', async drift => {
+  openBoardingFixture();
+  const payload = { sessionId: 's1', requestId: `boarding-choice-${drift}`, expectedTurn: 1,
+    expectedRevision: 10, targetShipId: 'aegis', securityTeams: 2 };
+  const replay = () => commitWolfBoardingDefenceChoice.run(request(payload));
+  const committed = await replay();
+  expect(await replay()).toEqual(committed);
+
+  driftCurrentAttackForReplay(drift);
+  const saved = structuredClone([...testState.documents]);
+  entropy.randomInt.mockClear(); testState.set.mockClear(); testState.update.mockClear(); testState.remove.mockClear();
+  await expect(replay()).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect([...testState.documents]).toEqual(saved);
+  expect(entropy.randomInt).not.toHaveBeenCalled();
+  expect(testState.set).not.toHaveBeenCalled(); expect(testState.update).not.toHaveBeenCalled();
+  expect(testState.remove).not.toHaveBeenCalled();
+});
+
 it.each(['missing', 'actor', 'request', 'range', 'revision'])(
   'rejects fighter range receipt replay with a %s committed choice binding', async drift => {
     const { replay } = await commitReviewReplayChoice('fighter-range');
