@@ -66,7 +66,7 @@ it('presents a no-confirmation Coordination visit for one active ship with unres
   const action = within(visitSection).getByRole('button', { name: 'Spend 1 and reduce unrest' });
   expect(action).toBeEnabled();
   await user.click(action);
-  await waitFor(() => expect(visitSection).toHaveTextContent('Visit committed'));
+  await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Visit committed'));
   expect(visitSection).toHaveTextContent('Coordination');
   expect(within(visitSection).queryByRole('dialog')).not.toBeInTheDocument();
   expect(visitSection).toBeVisible();
