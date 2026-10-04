@@ -537,12 +537,16 @@ export interface FleetTickerState {
 
 /** Facilitator-only marker for the approximate first Wolf-attack window. */
 export type WolfAttackWindowStatus = 'due' | 'resolved' | 'deferred';
+export type WolfAttackThreatSiteCode = 'L' | 'M' | 'P' | 'commander';
 
 export interface WolfAttackWindow {
   readonly status: WolfAttackWindowStatus;
   /** The numbered turn in which the facilitator should handle this window. */
   readonly turn: number;
   readonly revision: number;
+  readonly targetGroupId?: GroupId;
+  readonly threatSiteCode?: WolfAttackThreatSiteCode;
+  readonly threatSourceId?: string;
 }
 
 /** Facilitator-only Wolf preparation; combat outcomes remain server-owned by later prompts. */

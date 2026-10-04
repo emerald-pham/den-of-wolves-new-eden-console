@@ -2,7 +2,9 @@ import type { FleetGroupRecord } from './fleetGroups';
 import { missionCardForCode, type MissionWolfEntryAttackRule } from './missionCards';
 import { organiserSitesForChart, type ChartId } from './starChartLookup';
 
-export type WolfBaseCode = 'L' | 'M';
+export type WolfBaseCode = 'L' | 'M' | 'P';
+export type WolfPressureRecurrence = readonly ['baseDestroyed', 'jumpAway'] | readonly ['allWolfForcesDestroyed'];
+export type WolfPressureMissionAccess = 'blockedWhileWolfBaseOperational' | 'blockedWhileWolfForcesRemain';
 export type WolfArrivalPressureStatus = 'operational' | 'departed' | 'cleared';
 
 export interface WolfArrivalPressure {
@@ -20,8 +22,8 @@ export interface WolfArrivalPressure {
   readonly arrivalTiming: 'immediate';
   readonly minimumBattleStations: 1 | 2;
   readonly minimumOtherShipDamage: 20 | 25;
-  readonly missionAccess: 'blockedWhileWolfBaseOperational';
-  readonly recurringUntil: readonly ['baseDestroyed', 'jumpAway'];
+  readonly missionAccess: WolfPressureMissionAccess;
+  readonly recurringUntil: WolfPressureRecurrence;
   readonly endedBy?: 'baseDestroyed' | 'jumpAway';
 }
 
@@ -54,7 +56,7 @@ function record(value: unknown): value is Record<string, unknown> {
 }
 
 function isWolfBaseCode(value: unknown): value is WolfBaseCode {
-  return value === 'L' || value === 'M';
+  return value === 'L' || value === 'M' || value === 'P';
 }
 
 function isChartId(value: unknown): value is ChartId {
@@ -62,6 +64,14 @@ function isChartId(value: unknown): value is ChartId {
 }
 
 function entryRule(code: WolfBaseCode): MissionWolfEntryAttackRule {
+  if (code === 'P') {
+    return {
+      kind: 'immediateWolfAttackOnEntry',
+      minimumBattleStations: 1,
+      minimumOtherShipDamage: 20,
+      scope: 'group',
+    };
+  }
   const rule = missionCardForCode(code)?.siteRules.entryAttack;
   if (!rule || rule.kind !== 'immediateWolfAttackOnEntry' || rule.scope !== 'group') {
     throw new Error(`Wolf base ${code} has no canonical group entry pressure.`);
@@ -84,9 +94,13 @@ export function parseWolfArrivalPressure(
       (value.cycle as number) < 1 || !Number.isSafeInteger(value.revision) ||
       (value.revision as number) < 1 || value.attackStatus !== 'scheduled' ||
       value.arrivalTiming !== 'immediate' ||
-      value.missionAccess !== 'blockedWhileWolfBaseOperational' ||
-      !Array.isArray(value.recurringUntil) || value.recurringUntil.length !== 2 ||
-      value.recurringUntil[0] !== 'baseDestroyed' || value.recurringUntil[1] !== 'jumpAway') {
+      (value.siteCode !== 'P' && value.missionAccess !== 'blockedWhileWolfBaseOperational') ||
+      (value.siteCode === 'P' && value.missionAccess !== 'blockedWhileWolfForcesRemain') ||
+      !Array.isArray(value.recurringUntil) ||
+      (value.siteCode === 'P'
+        ? value.recurringUntil.length !== 1 || value.recurringUntil[0] !== 'allWolfForcesDestroyed'
+        : value.recurringUntil.length !== 2 || value.recurringUntil[0] !== 'baseDestroyed' ||
+          value.recurringUntil[1] !== 'jumpAway')) {
     return undefined;
   }
   const rule = entryRule(value.siteCode);
@@ -107,8 +121,8 @@ export function parseWolfArrivalPressure(
     attackStatus: 'scheduled', arrivalTiming: 'immediate',
     minimumBattleStations: rule.minimumBattleStations,
     minimumOtherShipDamage: rule.minimumOtherShipDamage,
-    missionAccess: 'blockedWhileWolfBaseOperational',
-    recurringUntil: ['baseDestroyed', 'jumpAway'],
+    missionAccess: value.siteCode === 'P' ? 'blockedWhileWolfForcesRemain' : 'blockedWhileWolfBaseOperational',
+    recurringUntil: value.siteCode === 'P' ? ['allWolfForcesDestroyed'] : ['baseDestroyed', 'jumpAway'],
     ...(endedBy === 'jumpAway' || endedBy === 'baseDestroyed' ? { endedBy } : {}),
   };
 }
@@ -180,8 +194,8 @@ export function wolfArrivalPressureForMovement(input: ArrivalInput): WolfArrival
       attackStatus: 'scheduled', arrivalTiming: 'immediate',
       minimumBattleStations: rule.minimumBattleStations,
       minimumOtherShipDamage: rule.minimumOtherShipDamage,
-      missionAccess: 'blockedWhileWolfBaseOperational',
-      recurringUntil: ['baseDestroyed', 'jumpAway'],
+      missionAccess: destinationCode === 'P' ? 'blockedWhileWolfForcesRemain' : 'blockedWhileWolfBaseOperational',
+      recurringUntil: destinationCode === 'P' ? ['allWolfForcesDestroyed'] : ['baseDestroyed', 'jumpAway'],
     };
     if (existingIndex >= 0) entries[existingIndex] = scheduled;
     else entries.push(scheduled);
@@ -207,5 +221,5 @@ export function wolfArrivalPressureBlocksMissions(
   groupId: string,
 ): boolean {
   return state?.groupId === groupId && state.entries.some((entry) =>
-    entry.status === 'operational' && entry.missionAccess === 'blockedWhileWolfBaseOperational');
+    entry.status === 'operational' && entry.missionAccess !== undefined);
 }

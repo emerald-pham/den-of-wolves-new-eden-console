@@ -19793,6 +19793,9 @@ export const setWolfAttackWindow = onCall<{
   requestId?: unknown;
   expectedRevision?: unknown;
   status?: unknown;
+  targetGroupId?: unknown;
+  threatSiteCode?: unknown;
+  threatSourceId?: unknown;
 }>(async request => {
   const uid = requireUid(request.auth);
   const change = requireWolfAttackWindowRequest(request.data ?? {});
@@ -19808,7 +19811,12 @@ export const setWolfAttackWindow = onCall<{
     actorUid: uid,
     instanceId: change.instanceId,
     expectedRevision: change.expectedRevision,
-    payload: { status: change.status },
+    payload: {
+      status: change.status,
+      ...(change.targetGroupId ? { targetGroupId: change.targetGroupId } : {}),
+      ...(change.threatSiteCode ? { threatSiteCode: change.threatSiteCode } : {}),
+      ...(change.threatSourceId ? { threatSourceId: change.threatSourceId } : {}),
+    },
   };
 
   const result = await db.runTransaction(async tx => {
@@ -19865,7 +19873,9 @@ export const setWolfAttackWindow = onCall<{
     const currentRevision = current?.revision ?? 0;
     const currentTurn = sessionTurn(session.get('currentTurn'));
     const sameState = current?.status === change.status &&
-      (change.status === 'deferred' ? current.turn === 2 : current.turn === currentTurn);
+      (change.status === 'deferred' ? current.turn === 2 : current.turn === currentTurn) &&
+      (change.status !== 'due' || (current?.targetGroupId === change.targetGroupId &&
+        current?.threatSiteCode === change.threatSiteCode && current?.threatSourceId === change.threatSourceId));
     if (change.expectedRevision !== currentRevision) {
       throw commandError(
         'failed-precondition',
@@ -19967,6 +19977,12 @@ export const setWolfAttackWindow = onCall<{
       status: change.status,
       turn,
       revision: currentRevision + 1,
+      ...(change.status === 'due' && change.targetGroupId ? { targetGroupId: change.targetGroupId } : {}),
+      ...(change.status === 'due' && change.threatSiteCode ? { threatSiteCode: change.threatSiteCode } : {}),
+      ...(change.status === 'due' && change.threatSourceId ? { threatSourceId: change.threatSourceId } : {}),
+      ...(change.status === 'resolved' && current?.targetGroupId ? { targetGroupId: current.targetGroupId } : {}),
+      ...(change.status === 'resolved' && current?.threatSiteCode ? { threatSiteCode: current.threatSiteCode } : {}),
+      ...(change.status === 'resolved' && current?.threatSourceId ? { threatSourceId: current.threatSourceId } : {}),
     };
     tx.set(projectionRef, {
       ...next,
@@ -19979,6 +19995,9 @@ export const setWolfAttackWindow = onCall<{
       action: next.status,
       turn: next.turn,
       revision: next.revision,
+      ...(next.targetGroupId ? { targetGroupId: next.targetGroupId } : {}),
+      ...(next.threatSiteCode ? { threatSiteCode: next.threatSiteCode } : {}),
+      ...(next.threatSourceId ? { threatSourceId: next.threatSourceId } : {}),
       actorUid: uid,
       createdAt: FieldValue.serverTimestamp(),
     });

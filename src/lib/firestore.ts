@@ -1409,12 +1409,28 @@ function wolfAttackWindow(value: unknown): WolfAttackWindow | null {
   if (
     (state.status !== 'due' && state.status !== 'resolved' && state.status !== 'deferred') ||
     typeof state.turn !== 'number' || !Number.isSafeInteger(state.turn) || state.turn < 1 ||
-    typeof state.revision !== 'number' || !Number.isSafeInteger(state.revision) || state.revision < 0
+    typeof state.revision !== 'number' || !Number.isSafeInteger(state.revision) || state.revision < 0 ||
+    (state.targetGroupId !== undefined &&
+      (typeof state.targetGroupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(state.targetGroupId))) ||
+    (state.threatSiteCode !== undefined &&
+      state.threatSiteCode !== 'L' && state.threatSiteCode !== 'M' &&
+      state.threatSiteCode !== 'P' && state.threatSiteCode !== 'commander') ||
+    (state.threatSiteCode !== undefined && typeof state.targetGroupId !== 'string') ||
+    ((state.threatSiteCode === 'L' || state.threatSiteCode === 'M' || state.threatSiteCode === 'P') &&
+      (typeof state.threatSourceId !== 'string' ||
+        !/^arrival-[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(state.threatSourceId))) ||
+    (state.threatSourceId !== undefined && (typeof state.threatSourceId !== 'string' ||
+      !/^arrival-[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(state.threatSourceId)))
   ) return null;
   return {
     status: state.status,
     turn: state.turn,
     revision: state.revision,
+    ...(typeof state.targetGroupId === 'string' ? { targetGroupId: state.targetGroupId } : {}),
+    ...(state.threatSiteCode === 'L' || state.threatSiteCode === 'M' ||
+      state.threatSiteCode === 'P' || state.threatSiteCode === 'commander'
+      ? { threatSiteCode: state.threatSiteCode } : {}),
+    ...(typeof state.threatSourceId === 'string' ? { threatSourceId: state.threatSourceId } : {}),
   };
 }
 

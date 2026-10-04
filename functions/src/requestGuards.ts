@@ -21,6 +21,7 @@ import { isReplacementEligibilityReason } from './replacementRoles';
 import { parseDiseaseOutbreak, type DiseaseOutbreakDetails, isCrisisKind, isCrisisState, type CrisisKind, type CrisisStateName } from './crisisState';
 import { parseZealotryResponseInput, type ZealotryResponseAction } from './zealotryResponse';
 import { parseCivilUnrestResolutionInput } from './civilUnrestResolution';
+import type { WolfAttackThreatSiteCode } from './wolfAttackWindow';
 
 export function requireUid(auth: { uid: string } | undefined): string {
   if (!auth?.uid) {
@@ -1089,12 +1090,18 @@ export function requireWolfAttackWindowRequest(data: {
   requestId?: unknown;
   expectedRevision?: unknown;
   status?: unknown;
+  targetGroupId?: unknown;
+  threatSiteCode?: unknown;
+  threatSourceId?: unknown;
 }): {
   sessionId: string;
   instanceId: string;
   requestId: string;
   expectedRevision: number;
   status: 'due' | 'resolved' | 'deferred';
+  targetGroupId?: string;
+  threatSiteCode?: WolfAttackThreatSiteCode;
+  threatSourceId?: string;
 } {
   if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
     throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
@@ -1102,11 +1109,41 @@ export function requireWolfAttackWindowRequest(data: {
   if (data.status !== 'due' && data.status !== 'resolved' && data.status !== 'deferred') {
     throw new HttpsError('invalid-argument', 'status must be due, resolved, or deferred.');
   }
+  if (data.targetGroupId !== undefined &&
+      (typeof data.targetGroupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(data.targetGroupId))) {
+    throw new HttpsError('invalid-argument', 'targetGroupId must be a fleet group id.');
+  }
+  if (data.threatSiteCode !== undefined &&
+      data.threatSiteCode !== 'L' && data.threatSiteCode !== 'M' &&
+      data.threatSiteCode !== 'P' && data.threatSiteCode !== 'commander') {
+    throw new HttpsError('invalid-argument', 'threatSiteCode must be L, M, P, or commander.');
+  }
+  if (data.threatSiteCode !== undefined && typeof data.targetGroupId !== 'string') {
+    throw new HttpsError('invalid-argument', 'Threat attacks require a selected target group.');
+  }
+  if (data.threatSourceId !== undefined &&
+      (typeof data.threatSourceId !== 'string' ||
+        !/^arrival-[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(data.threatSourceId))) {
+    throw new HttpsError('invalid-argument', 'threatSourceId must name an immutable arrival schedule.');
+  }
+  if ((data.threatSiteCode === 'L' || data.threatSiteCode === 'M' || data.threatSiteCode === 'P') &&
+      typeof data.threatSourceId !== 'string') {
+    throw new HttpsError('invalid-argument', 'A base or Station attack requires its arrival schedule.');
+  }
+  if (data.status !== 'due' && (data.targetGroupId !== undefined || data.threatSiteCode !== undefined ||
+      data.threatSourceId !== undefined)) {
+    throw new HttpsError('invalid-argument', 'Threat selection is accepted only when a timing window becomes due.');
+  }
   return {
     ...requireGmInstanceRequest(data),
     requestId: requiredId(data.requestId, 'requestId'),
     expectedRevision: data.expectedRevision as number,
     status: data.status,
+    ...(typeof data.targetGroupId === 'string' ? { targetGroupId: data.targetGroupId } : {}),
+    ...(data.threatSiteCode === 'L' || data.threatSiteCode === 'M' ||
+      data.threatSiteCode === 'P' || data.threatSiteCode === 'commander'
+      ? { threatSiteCode: data.threatSiteCode } : {}),
+    ...(typeof data.threatSourceId === 'string' ? { threatSourceId: data.threatSourceId } : {}),
   };
 }
 
