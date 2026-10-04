@@ -96,6 +96,7 @@ const {
   commitWolfCommanderAttackDial,
   getWolfCommanderRangeTargetDial,
   applyWolfCommanderRangeTargetAdjustment,
+  getWolfAttackThreatWindowOptions,
 } = await import('./sessionService');
 const { httpsCallable } = await import('firebase/functions');
 const { acceptCallableSessionAuthority, sessionSnapshotAuthorityFor } = await import('./firestore');
@@ -217,6 +218,44 @@ describe('Wolf Commander cycle and target dial services', () => {
       sessionId: 's1', attackId: 'wolf-attack-1', expectedTurn: 4, expectedRevision: 12,
       range: 'medium-range', rosterIndex: 0, delta: 1,
     }));
+  });
+});
+
+describe('GM Wolf threat source options service', () => {
+  beforeEach(() => {
+    useSessionStore.getState().reset();
+    useSessionStore.getState().setIdentity(
+      { ...session, phase: 'active', currentTurn: 3 }, { ...player, role: 'gm' },
+    );
+    useSessionStore.getState().setGmInstance({
+      id: 'gm-1', sessionId: 's1', uid: 'u1', name: 'GM', deviceLabel: 'Test', claimedAt: 'now',
+    });
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+  });
+
+  it('reads canonical scheduled sources for the selected group from the live GM callable', async () => {
+    const result = {
+      type: 'wolf-attack-threat-window-options', sessionId: 's1', targetGroupId: 'fleet-2', cycle: 3,
+      sources: [
+        { siteCode: 'L', sourceId: 'arrival-jump-2', sourceCycle: 2, coordinate: '0102' },
+        { siteCode: 'M', sourceId: 'arrival-jump-3', sourceCycle: 3, coordinate: '0202' },
+      ],
+    };
+    const call = callableReturning({ data: result });
+    vi.mocked(httpsCallable).mockReturnValue(call as never);
+
+    await expect(getWolfAttackThreatWindowOptions('fleet-2')).resolves.toEqual(result);
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'getWolfAttackThreatWindowOptions');
+    expect(call).toHaveBeenCalledWith({ sessionId: 's1', instanceId: 'gm-1', targetGroupId: 'fleet-2' });
+  });
+
+  it('rejects malformed or cross-group source options', async () => {
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({ data: {
+      type: 'wolf-attack-threat-window-options', sessionId: 's1', targetGroupId: 'fleet-1', cycle: 3,
+      sources: [{ siteCode: 'P', sourceId: 'arrival-x', sourceCycle: 3, coordinate: '0101' }],
+    } }) as never);
+    await expect(getWolfAttackThreatWindowOptions('fleet-2')).rejects.toThrow(/invalid.*threat source options/i);
   });
 });
 const authorityService = await import('./sessionService') as unknown as {
