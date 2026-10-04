@@ -22071,7 +22071,7 @@ export const commitWolfCommanderAttackDial = onCall<{
   const windowRef = db.doc(`sessions/${sessionId}/wolfAttackWindow/current`);
   const attackStateRef = db.doc(`sessions/${sessionId}/wolfAttackState/current`);
   const ledgerRef = db.doc(`sessions/${sessionId}/wolfCommanderCycleDials/cycle-${expectedCycle}`);
-  const auditRef = db.doc(`sessions/${sessionId}/wolfCommanderCycleDials/audit/${requestId}`);
+  const auditRef = db.doc(`sessions/${sessionId}/wolfCommanderCycleDials/cycle-${expectedCycle}/audit/${requestId}`);
   const receiptRef = commandReceiptRef(sessionId, requestId);
   const fingerprint: CommandFingerprint = {
     action: 'commit-wolf-commander-attack-dial', sessionId, requestId,

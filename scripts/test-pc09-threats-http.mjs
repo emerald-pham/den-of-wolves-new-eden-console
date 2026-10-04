@@ -353,7 +353,7 @@ try {
   assert.equal(committedDial.groupId, selectedGroup.groupId);
   assert.equal(committedDial.targetGroupPursuit, selectedGroup.pursuitValue);
   assert.equal(committedDial.damageCapacity, 10 + selectedGroup.pursuitValue);
-  const dialAudit = (await db.doc(`sessions/${sessionId}/wolfCommanderCycleDials/audit/${dialRequest.requestId}`).get()).data();
+  const dialAudit = (await db.doc(`sessions/${sessionId}/wolfCommanderCycleDials/cycle-${dialRequest.expectedCycle}/audit/${dialRequest.requestId}`).get()).data();
   assert.equal(dialAudit.commanderCycleAttack.groupId, selectedGroup.groupId);
   assert.equal(dialAudit.commanderCycleAttack.damageCapacity, undefined,
     'The committed receipt carries the capacity; private marker binds the input pursuit and group.');
