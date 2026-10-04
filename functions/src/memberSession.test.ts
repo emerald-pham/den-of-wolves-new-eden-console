@@ -75,6 +75,21 @@ describe('current member session privacy', () => {
     expect(value).not.toHaveProperty('futureSecret');
   });
 
+  it('shows the elected President the resolved-crisis award status without exposing office-owner UIDs', () => {
+    const value = memberSessionProjection({ ...root,
+      currentMemberIsPresident: true,
+      presidentialOffices: { electionId: 'current', revision: 1,
+        presidentCandidateId: 'candidate-amber', presidentDisplayName: 'Candidate A', decidedCycle: 2 },
+      resolvedCrisisOutcome: { crisisId: 'crisis-1', revision: 4, title: 'Approaching Vessel',
+        capitalApplied: false, capitalDelta: 0 },
+      politicalCapital: { revision: 8, balance: 8, entries: [] },
+    }, memberSessionScope(player, groups));
+    expect(value).toMatchObject({ currentMemberIsPresident: true,
+      resolvedCrisisOutcome: { crisisId: 'crisis-1', capitalApplied: false, capitalDelta: 0 } });
+    expect(value.presidentialOffices).not.toHaveProperty('presidentUid');
+    expect(value.presidentialOffices).not.toHaveProperty('vicePresidentUid');
+  });
+
   it('keeps validated hosted small vessels with their current group and withdraws foreign hosts', () => {
     const local = { ...emptySmallShipState('gorgoneion', 'shepherd'), dockingRevision: 1 };
     const foreign = { ...emptySmallShipState('warrior', 'aegis'), dockingRevision: 1 };
