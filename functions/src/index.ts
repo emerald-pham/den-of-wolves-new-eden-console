@@ -42617,9 +42617,6 @@ export const castPresidentialBallot = onCall<{
       tx.get(db.doc(`sessions/${base.sessionId}/players/${uid}`)), tx.get(sessionRef), tx.get(electionRef),
       tx.get(ballotRef), tx.get(receiptRef), tx.get(auditRef),
     ]);
-    const replay = replayBoundCommand(receipt, fingerprint, (value): value is typeof result => isRecord(value) &&
-      value.status === 'committed' && value.electionRevision === base.expectedRevision && value.requestId === base.requestId, 'secret ballot');
-    if (replay) return replay;
     if (!session.exists || !electionSnap.exists) throw new HttpsError('not-found', 'No active presidential election.');
     requireActiveGameplayPhase(session);
     const election = storedElection(electionSnap.data(), base.sessionId);
@@ -42634,8 +42631,15 @@ export const castPresidentialBallot = onCall<{
         !['scheduled', 'open'].includes(election.state)) {
       throw commandError('failed-precondition', 'Ballots are available only during the configured Team cycles.', 'invalid-phase');
     }
-    if (election.revision !== base.expectedRevision) throw commandError('failed-precondition', 'Election procedure changed; refresh before voting.', 'stale-revision');
     if (!election.policy.eligibleVoterUids.includes(uid)) throw new HttpsError('permission-denied', 'You are not in the configured electorate.');
+    // A receipt proves the prior write, not current authority. Check the live
+    // membership, role, game phase, election window and electorate first, while
+    // still allowing an authorized retry after another transaction advances
+    // the election revision.
+    const replay = replayBoundCommand(receipt, fingerprint, (value): value is typeof result => isRecord(value) &&
+      value.status === 'committed' && value.electionRevision === base.expectedRevision && value.requestId === base.requestId, 'secret ballot');
+    if (replay) return replay;
+    if (election.revision !== base.expectedRevision) throw commandError('failed-precondition', 'Election procedure changed; refresh before voting.', 'stale-revision');
     const candidateIds = election.candidateIdsByUid;
     const uidForChoice = (choice: string): string | undefined =>
       Object.entries(candidateIds).find(([candidateUid, candidateId]) => candidateId === choice || candidateUid === choice)?.[0];
@@ -42698,7 +42702,15 @@ export const resolvePresidentialElection = onCall<{
     const election = storedElection(electionSnap.data(), data.sessionId);
     if (!election || !['scheduled','open','tie-pending'].includes(election.state)) throw commandError('failed-precondition', 'This election is already resolved or invalid.', 'conflict');
     if (election.revision !== data.expectedRevision) throw commandError('failed-precondition', 'Election changed; refresh before resolving.', 'stale-revision');
-    if (sessionTurn(session.get('currentTurn')) < election.policy.closeCycle) throw commandError('failed-precondition', 'The configured close cycle has not finished.', 'invalid-phase');
+    const currentCycle = sessionTurn(session.get('currentTurn'));
+    if (currentCycle < election.policy.closeCycle) throw commandError('failed-precondition', 'The configured close cycle has not finished.', 'invalid-phase');
+    if (currentCycle === election.policy.closeCycle) {
+      const closePhase = turnStateForPhaseContext(session.get('turnState'), turnPhaseState(session.get('turnPhase')),
+        session.get('currentTurn'), sessionTurnLimit(session));
+      if (!closePhase || (closePhase.phase === 'team' && Date.now() < Date.parse(closePhase.endsAt))) {
+        throw commandError('failed-precondition', 'The configured close-cycle Team window is still open.', 'invalid-phase');
+      }
+    }
     const storedBallots: ElectionBallot[] = ballots.docs.map(document => {
       const value = document.data(), rawBallot = value?.ballot;
       if (!isRecord(value) || value.type !== 'presidential-election-ballot' || value.sessionId !== data.sessionId ||
@@ -42764,6 +42776,16 @@ export const resolvePresidentialElection = onCall<{
     const result = { status: 'committed', ...projection, tally,
       ...(presidentUid ? { presidentUid } : {}), ...(vicePresidentUid ? { vicePresidentUid } : {}) };
     const oldOffices = isRecord(currentOfficeRaw) ? currentOfficeRaw : {};
+    const effectivePresidentUid = presidentUid ??
+      (typeof oldOffices.presidentUid === 'string' ? oldOffices.presidentUid : undefined);
+    const effectiveVicePresidentUid = vicePresidentUid ??
+      (typeof oldOffices.vicePresidentUid === 'string' ? oldOffices.vicePresidentUid : undefined);
+    if ((presidentUid || vicePresidentUid) && effectivePresidentUid &&
+        effectivePresidentUid === effectiveVicePresidentUid) {
+      throw commandError('failed-precondition',
+        'Election resolution is pending because one candidate would hold both offices; the distinct-office outcome needs an explicit policy-backed resolution.',
+        'conflict');
+    }
     const officeProjection = {
       electionId: 'current', revision: Number.isSafeInteger(oldOffices.revision) ? Number(oldOffices.revision) + 1 : 1,
       ...(presidentUid ? { presidentUid, presidentCandidateId: election.candidateIdsByUid[presidentUid] } :
