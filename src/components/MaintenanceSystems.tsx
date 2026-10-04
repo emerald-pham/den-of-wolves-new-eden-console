@@ -12,6 +12,7 @@ import { phaseForSession } from '@/lib/turnPhase';
 import { normalizeCommandError } from '@/lib/commandErrors';
 import type { ShipConsoleProjection } from '@/lib/shipStateProjection';
 import { isSupportedShipPopulation, shipRationSchedule } from '@/data/shipPopulation';
+import VipHostMaintenanceRerollControl from './VipHostMaintenanceRerollControl';
 
 export type SystemTiming = 1 | 5 | 6 | 7 | 'ftl' | 'combat' | 'passive';
 
@@ -206,6 +207,10 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
             {step === 3 && <button className="cic-action-button" disabled={disabled(3)} onClick={() => void execute('unrest')}>Run unrest check</button>}
             {step === 4 && <p>Roll 1d6. Below current unrest causes a riot: draw and apply 1 damage card.</p>}
             {step === 4 && <button className="cic-action-button" disabled={disabled(4)} onClick={() => void execute('riot')}>Run riot check</button>}
+            {step === 4 && cycle?.unrestRolls && <VipHostMaintenanceRerollControl
+              shipId={shipId} shipLabel={name} cycle={currentTurn} maintenanceCycle={cycle}
+              canUseGrant={access.writable && connection === 'live'}
+              {...(access.roleId ? { consoleRoleId: access.roleId } : {})} />}
             {step === 5 && <p>Charge consoles with the reactor, then resolve the consoles marked 5 when charged.</p>}
             <div className="aegis-system-grid">{systems.filter(system => system.timing === step).map(system => <Fragment key={system.id}>
               {renderSystem(system)}

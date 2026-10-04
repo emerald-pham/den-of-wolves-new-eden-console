@@ -8,6 +8,7 @@ import type {
   AegisFighterWingLaunchView,
 } from '@/types/game';
 import { useWolfAttackChoiceAuthority } from '@/lib/wolfAttackChoiceController';
+import PdfFighterAcePermissionControl from './PdfFighterAcePermissionControl';
 import './AegisFighterWingLaunchPanel.css';
 
 export type AegisFighterWingId = 'fighter-wing-alpha' | 'fighter-wing-bravo';
@@ -130,28 +131,34 @@ export default function AegisFighterWingLaunchPanel({
     <p role="status">Waiting for the live server session before showing fighter bay choices.</p>
   </section>;
 
-  return <AegisFighterWingLaunchPanelView views={views} busy={busy} {...(message ? { message } : {})}
-    onLaunch={(wingId, view) => {
-      setBusy(true);
-      setMessage(undefined);
-      void launchAegisFighterWing(wingId, view.turn, view.revision, view.wingRevision)
-        .then((result) => {
-          setViews((current) => ({ ...current, [wingId]: result }));
-          setMessage(`${wingId === 'fighter-wing-alpha' ? 'Alpha' : 'Bravo'} launched for this attack.`);
-          setRefreshToken((token) => token + 1);
-        })
-        .catch((cause) => setMessage(cause instanceof Error ? cause.message : 'The fighter wing could not launch.'))
-        .finally(() => setBusy(false));
-    }}
-    onPass={(wingId, view) => {
-      setBusy(true);
-      setMessage(undefined);
-      void passWolfFighterLaunchChoice(wingId, view.turn, view.revision, view.wingRevision)
-        .then(() => {
-          setMessage(`${wingId === 'fighter-wing-alpha' ? 'Alpha' : 'Bravo'} launch passed for this attack.`);
-          setRefreshToken((token) => token + 1);
-        })
-        .catch((cause) => setMessage(cause instanceof Error ? cause.message : 'The fighter launch choice could not be passed.'))
-        .finally(() => setBusy(false));
-    }} />;
+  return <>
+    <AegisFighterWingLaunchPanelView views={views} busy={busy} {...(message ? { message } : {})}
+      onLaunch={(wingId, view) => {
+        setBusy(true);
+        setMessage(undefined);
+        void launchAegisFighterWing(wingId, view.turn, view.revision, view.wingRevision)
+          .then((result) => {
+            setViews((current) => ({ ...current, [wingId]: result }));
+            setMessage(`${wingId === 'fighter-wing-alpha' ? 'Alpha' : 'Bravo'} launched for this attack.`);
+            setRefreshToken((token) => token + 1);
+          })
+          .catch((cause) => setMessage(cause instanceof Error ? cause.message : 'The fighter wing could not launch.'))
+          .finally(() => setBusy(false));
+      }}
+      onPass={(wingId, view) => {
+        setBusy(true);
+        setMessage(undefined);
+        void passWolfFighterLaunchChoice(wingId, view.turn, view.revision, view.wingRevision)
+          .then(() => {
+            setMessage(`${wingId === 'fighter-wing-alpha' ? 'Alpha' : 'Bravo'} launch passed for this attack.`);
+            setRefreshToken((token) => token + 1);
+          })
+          .catch((cause) => setMessage(cause instanceof Error ? cause.message : 'The fighter launch choice could not be passed.'))
+          .finally(() => setBusy(false));
+      }} />
+    {WINGS.flatMap(({ id }) => views[id]?.launched ? [
+      <PdfFighterAcePermissionControl key={id} sourceId={id}
+        enabled={authority.actorReady && authority.ready} refreshKey={refreshToken} />,
+    ] : [])}
+  </>;
 }

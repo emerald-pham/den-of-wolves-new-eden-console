@@ -67,6 +67,80 @@
   font: 700 1.2rem/1 var(--cic-display);
 }
 
+.gm-arrest-posse__attendance {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+  gap: 0.4rem 0.8rem;
+  margin: 0;
+  padding: 0.7rem;
+  border: 1px solid var(--cic-rule);
+}
+
+.gm-arrest-posse__attendance legend {
+  padding: 0 0.3rem;
+  color: var(--cic-muted);
+  font: 600 0.64rem/1.4 var(--cic-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.gm-arrest-posse__attendance label {
+  display: flex;
+  min-width: 0;
+  min-height: 44px;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.35rem 0.45rem;
+  color: var(--cic-ink);
+  font: 0.82rem/1.35 var(--cic-mono);
+}
+
+.gm-arrest-posse__attendance input {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex: 0 0 auto;
+  accent-color: var(--cic-amber);
+}
+
+.gm-arrest-posse__attendance :focus-visible {
+  outline: 2px solid var(--cic-amber);
+  outline-offset: 2px;
+}
+
+.gm-arrest-posse__case {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 1rem;
+  padding: 0.9rem;
+  border: 1px solid rgb(211 151 76 / 0.62);
+  background: rgb(24 19 16 / 0.72);
+}
+
+.gm-arrest-posse__case h3,
+.gm-arrest-posse__case p { margin: 0; }
+
+.gm-arrest-posse__case-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.gm-arrest-posse__late-ruling {
+  display: grid;
+  gap: 0.65rem;
+  max-width: 38rem;
+}
+
+.gm-arrest-posse__late-ruling label { display: grid; gap: 0.35rem; }
+.gm-arrest-posse__late-ruling textarea {
+  min-height: 5rem;
+  padding: 0.6rem;
+  border: 1px solid rgb(211 151 76 / 0.5);
+  color: inherit;
+  background: rgb(8 12 15 / 0.8);
+  resize: vertical;
+}
+
 @media (max-width: 760px) {
   .gm-arrest-posse__form {
     grid-template-columns: minmax(0, 1fr);

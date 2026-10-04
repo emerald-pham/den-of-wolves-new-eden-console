@@ -11,9 +11,17 @@ import {
   type EndeavourResearchWorkspace,
 } from '@/lib/endeavourResearchService';
 import type { ShuttleControlEntry } from '@/types/game';
+import type { Player, WolfAgentDetectorReport, WolfAgentDetectorState } from '@/types/game';
+import { runWolfAgentDetectorTest } from '@/lib/wolfAgentDetectorService';
+import {
+  subscribeConnectedPlayers,
+  subscribeMyWolfAgentDetectorReport,
+  subscribeMyWolfAgentDetectorState,
+} from '@/lib/firestore';
 import EndeavourResearchChoices from './EndeavourResearchChoices';
 import './EndeavourResearchPanel.css';
 import EndeavourEcmDevicePanel from './EndeavourEcmDevicePanel';
+import { WolfAgentDetectorPanel } from './Pc09SpecialistPresenters';
 
 const EndeavourFieldUpgradePanel = lazy(() => import('./EndeavourFieldUpgradePanel'));
 
@@ -95,6 +103,15 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
     identityKey: string;
     attempt: EndeavourResearchAttempt;
   }> | null>(null);
+  const [detectorPlayers, setDetectorPlayers] = useState<Readonly<{
+    identityKey: string; value: readonly Player[];
+  }> | null>(null);
+  const [detectorState, setDetectorState] = useState<Readonly<{
+    identityKey: string; value: WolfAgentDetectorState | null;
+  }> | null>(null);
+  const [detectorReport, setDetectorReport] = useState<Readonly<{
+    identityKey: string; value: WolfAgentDetectorReport | null;
+  }> | null>(null);
   const requestGeneration = useRef(0);
   const sessionId = session?.id;
   const uid = me?.uid;
@@ -161,6 +178,30 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
   }, [entitled, reload]);
 
   useEffect(() => {
+    if (!entitled || !sessionId || !uid || !identityKey) {
+      setDetectorPlayers(null);
+      setDetectorState(null);
+      setDetectorReport(null);
+      return;
+    }
+    let active = true;
+    const stops: Array<() => void> = [];
+    stops.push(subscribeConnectedPlayers(sessionId, (players) => {
+      if (active) setDetectorPlayers({ identityKey, value: players });
+    }));
+    stops.push(subscribeMyWolfAgentDetectorState(sessionId, uid, (value) => {
+      if (active) setDetectorState({ identityKey, value });
+    }));
+    stops.push(subscribeMyWolfAgentDetectorReport(sessionId, uid, (value) => {
+      if (active) setDetectorReport({ identityKey, value });
+    }));
+    return () => {
+      active = false;
+      stops.forEach((stop) => stop());
+    };
+  }, [entitled, identityKey, sessionId, uid]);
+
+  useEffect(() => {
     if (!staleRecovery || staleRecovery.identityKey !== identityKey || !sessionId ||
         connection !== 'live' || snapshotFreshness !== 'server' || !window.navigator.onLine) return;
     const reply = staleRecovery.reply;
@@ -178,6 +219,10 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
   if (!entitled) return null;
 
   const currentSession = session;
+  const currentDetectorState = detectorState?.identityKey === identityKey ? detectorState.value : null;
+  const currentDetectorReport = detectorReport?.identityKey === identityKey ? detectorReport.value : null;
+  const currentDetectorPlayers = detectorPlayers?.identityKey === identityKey ? detectorPlayers.value : [];
+  const currentCycle = typeof session?.currentTurn === 'number' ? session.currentTurn : null;
   const chosenTracks = new Set(workspace?.cadence.choices.map((choice) => choice.trackId) ?? []);
   const standardUsed = workspace?.cadence.choices.filter((choice) => choice.funding === 'standard').length ?? 0;
   const oreUsed = workspace?.cadence.choices.filter((choice) => choice.funding === 'shepherd-ore').length ?? 0;
@@ -359,6 +404,21 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
       </>}
     />
     {workspace && <EndeavourEcmDevicePanel control={control} />}
+    {workspace?.tracks.some((track) => track.trackId === 'wolf-agent-detector' && track.complete) &&
+      currentDetectorState && currentCycle !== null && uid && <WolfAgentDetectorPanel
+      cycle={currentCycle}
+      testsUsed={currentDetectorState.cycle === currentCycle ? currentDetectorState.testsUsed : 0}
+      targets={currentDetectorPlayers.flatMap((player) =>
+        player.uid !== uid && player.role === 'player' && player.replacementStatus == null
+          ? [{ uid: player.uid, label: player.displayName }]
+          : [])}
+      report={currentDetectorReport && currentDetectorReport.cycle === currentCycle ? {
+        targetLabel: currentDetectorReport.targetDisplayName,
+        reportedLoyalty: currentDetectorReport.reportedWolf ? 'wolf' : 'loyal',
+        cycle: currentDetectorReport.cycle,
+      } : null}
+      onTest={(targetUid) => runWolfAgentDetectorTest(targetUid, currentDetectorState.revision)}
+    />}
     {workspace && <Suspense fallback={<p className="console-workspace__status" role="status">
       Loading Endeavour field-upgrade controls…
     </p>}>

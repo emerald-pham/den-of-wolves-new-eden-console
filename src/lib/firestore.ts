@@ -96,6 +96,9 @@ import type {
   AwayMissionHandPointer,
   MissionOpportunity,
   ArrestPosseCalculation,
+  ArrestCase,
+  WolfAgentDetectorReport,
+  WolfAgentDetectorState,
   VipCard,
   VipCardId,
   VipCardName,
@@ -891,6 +894,92 @@ export function parseArrestPosseCalculation(
     ...(raw.adjustment === undefined ? {} : { adjustment: raw.adjustment as -1 | 1 }),
     requiredPlayers: raw.requiredPlayers as number,
     censusRevision: raw.censusRevision as number,
+  };
+}
+
+/** Parse a detector receipt while refusing hidden truth or accuracy metadata. */
+export function parseWolfAgentDetectorReport(
+  value: unknown,
+  expectedSessionId: string,
+  expectedInvestigatorUid: string,
+  storedProjection = false,
+): WolfAgentDetectorReport | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const resultKeys = [
+    'status', 'type', 'sessionId', 'requestId', 'cycle', 'revision', 'investigatorUid',
+    'targetUid', 'targetDisplayName', 'reportedWolf',
+  ];
+  const storedKeys = [...resultKeys, 'visibleToUids', 'updatedAt'];
+  const allowed = new Set(storedProjection ? storedKeys : resultKeys);
+  const sessionId = parseEntityId('session', raw.sessionId);
+  const investigatorUid = parseEntityId('player', raw.investigatorUid);
+  const targetUid = parseEntityId('player', raw.targetUid);
+  if (Object.keys(raw).length !== allowed.size || Object.keys(raw).some((key) => !allowed.has(key)) ||
+      raw.type !== 'wolf-agent-detector-test' || raw.status !== 'committed' ||
+      !sessionId || sessionId !== expectedSessionId || !investigatorUid ||
+      investigatorUid !== expectedInvestigatorUid || !targetUid ||
+      !isCanonicalRequestId(raw.requestId) || !Number.isSafeInteger(raw.cycle) || (raw.cycle as number) < 1 ||
+      !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
+      typeof raw.targetDisplayName !== 'string' || raw.targetDisplayName.trim().length === 0 ||
+      raw.targetDisplayName.length > 40 || typeof raw.reportedWolf !== 'boolean') return null;
+  if (storedProjection && (!Array.isArray(raw.visibleToUids) || raw.visibleToUids.length !== 1 ||
+      raw.visibleToUids[0] !== expectedInvestigatorUid ||
+      !(raw.updatedAt instanceof FirestoreTimestamp))) return null;
+  return {
+    type: 'wolf-agent-detector-test', status: 'committed', sessionId,
+    requestId: raw.requestId, cycle: raw.cycle as number, revision: raw.revision as number,
+    investigatorUid, targetUid, targetDisplayName: raw.targetDisplayName.trim(),
+    reportedWolf: raw.reportedWolf,
+  };
+}
+
+export function parseWolfAgentDetectorState(value: unknown): WolfAgentDetectorState | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  if (Object.keys(raw).length !== 3 || Object.keys(raw).some((key) =>
+      !['cycle', 'revision', 'testsUsed'].includes(key)) ||
+      !Number.isSafeInteger(raw.cycle) || (raw.cycle as number) < 0 ||
+      !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 0 ||
+      !Number.isSafeInteger(raw.testsUsed) || (raw.testsUsed as number) < 0 || (raw.testsUsed as number) > 3 ||
+      (raw.cycle === 0 && (raw.revision !== 0 || raw.testsUsed !== 0))) return null;
+  return { cycle: raw.cycle as number, revision: raw.revision as number, testsUsed: raw.testsUsed as number };
+}
+
+/** Parse the GM-only arrest state without carrying private loyalty or attendance data. */
+export function parseArrestCase(value: unknown, expectedSessionId: string, expectedTargetUid: string): ArrestCase | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const allowed = new Set([
+    'type', 'sessionId', 'targetUid', 'status', 'outcome', 'turn', 'revision',
+    'requiredPlayers', 'presentPlayers', 'deadlineCycle', 'createdBy', 'requestId', 'updatedAt', 'ruling',
+  ]);
+  const sessionId = parseEntityId('session', raw.sessionId);
+  const targetUid = parseEntityId('player', raw.targetUid);
+  const createdBy = parseEntityId('player', raw.createdBy);
+  if (Object.keys(raw).some((key) => !allowed.has(key)) || raw.type !== 'arrest-case' ||
+      !sessionId || sessionId !== expectedSessionId || !targetUid || targetUid !== expectedTargetUid ||
+      !createdBy || !isCanonicalRequestId(raw.requestId) ||
+      !['pending-resolution', 'not-arrested', 'released', 'executed', 'facilitator-resolution'].includes(String(raw.status)) ||
+      (raw.outcome !== 'arrested' && raw.outcome !== 'not-arrested') ||
+      !Number.isSafeInteger(raw.turn) || (raw.turn as number) < 1 ||
+      !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
+      !Number.isSafeInteger(raw.requiredPlayers) || (raw.requiredPlayers as number) < 0 ||
+      !Number.isSafeInteger(raw.presentPlayers) || (raw.presentPlayers as number) < 0 ||
+      (raw.outcome === 'arrested'
+        ? !Number.isSafeInteger(raw.deadlineCycle) || raw.deadlineCycle !== (raw.turn as number) + 1
+        : raw.deadlineCycle !== undefined) ||
+      (raw.status === 'pending-resolution' && raw.outcome !== 'arrested') ||
+      (raw.ruling !== undefined && (typeof raw.ruling !== 'string' || raw.ruling.length > 500))) return null;
+  return {
+    type: 'arrest-case', sessionId, targetUid,
+    status: raw.status as ArrestCase['status'], outcome: raw.outcome,
+    turn: raw.turn as number, revision: raw.revision as number,
+    requiredPlayers: raw.requiredPlayers as number, presentPlayers: raw.presentPlayers as number,
+    ...(raw.deadlineCycle === undefined ? {} : { deadlineCycle: raw.deadlineCycle as number }),
+    ...(typeof raw.ruling === 'string' ? { ruling: raw.ruling } : {}),
+    requestId: raw.requestId,
+    ...(raw.updatedAt instanceof FirestoreTimestamp ? { updatedAt: raw.updatedAt.toDate().toISOString() } : {}),
   };
 }
 
@@ -4567,6 +4656,53 @@ export function subscribeGmArrestPosseCalculation(
   };
 }
 
+/** Subscribe to one GM-only prisoner case; target changes reset stale state. */
+export function subscribeGmArrestCase(
+  sessionId: string,
+  targetUid: string,
+  onCase: (caseRecord: ArrestCase | null) => void,
+  onError: () => void = () => undefined,
+): Unsubscribe {
+  let subscribed = true;
+  let latestRevision: number | undefined;
+  let invalidated = false;
+  onCase(null);
+  const unsubscribe = onSnapshot(
+    doc(db(), `sessions/${sessionId}/arrestCases/${targetUid}`),
+    { includeMetadataChanges: true },
+    (snapshot) => {
+      if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      if (!snapshot.exists()) {
+        invalidated = false;
+        onCase(null);
+        return;
+      }
+      const raw = snapshot.data();
+      const revision = Number.isSafeInteger(raw?.revision) && (raw.revision as number) >= 1
+        ? raw.revision as number : undefined;
+      if (revision !== undefined && latestRevision !== undefined && revision < latestRevision) return;
+      const parsed = parseArrestCase(raw, sessionId, targetUid);
+      if (!parsed) {
+        if (revision !== undefined) latestRevision = revision;
+        invalidated = true;
+        onCase(null);
+        return;
+      }
+      if (latestRevision !== undefined &&
+          (parsed.revision < latestRevision || (invalidated && parsed.revision <= latestRevision))) return;
+      latestRevision = parsed.revision;
+      invalidated = false;
+      onCase(parsed);
+    },
+    () => { if (subscribed) { invalidated = true; onCase(null); onError(); } },
+  );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+    onCase(null);
+  };
+}
+
 /** Subscribe to the latest facilitator-only Wolf suspicion clue disclosure. */
 export function subscribeGmWolfClueDisclosure(
   sessionId: string,
@@ -5372,6 +5508,68 @@ export function subscribeIntelligenceInvestigation(
     subscribed = false;
     unsubscribe();
   };
+}
+
+/** Subscribe only to the current Scientist's safe detector result. */
+export function subscribeMyWolfAgentDetectorReport(
+  sessionId: string,
+  uid: string,
+  onReport: (report: WolfAgentDetectorReport | null) => void,
+  onError: () => void = () => undefined,
+): Unsubscribe {
+  let subscribed = true;
+  let latestRevision: number | undefined;
+  onReport(null);
+  const unsubscribe = onSnapshot(
+    doc(db(), `sessions/${sessionId}/wolfAgentDetectorReports/${uid}`),
+    { includeMetadataChanges: true },
+    (snapshot) => {
+      if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      if (!snapshot.exists()) { onReport(null); return; }
+      const report = parseWolfAgentDetectorReport(snapshot.data(), sessionId, uid, true);
+      if (!report) { onReport(null); return; }
+      if (latestRevision !== undefined && report.revision < latestRevision) return;
+      latestRevision = report.revision;
+      onReport(report);
+    },
+    (error: { readonly code?: string }) => {
+      if (!subscribed) return;
+      onReport(null);
+      if (error.code !== 'permission-denied' && error.code !== 'not-found') onError();
+    },
+  );
+  return () => { subscribed = false; unsubscribe(); onReport(null); };
+}
+
+/** Subscribe to the current Scientist's target-free detector allowance. */
+export function subscribeMyWolfAgentDetectorState(
+  sessionId: string,
+  uid: string,
+  onState: (state: WolfAgentDetectorState | null) => void,
+  onError: () => void = () => undefined,
+): Unsubscribe {
+  let subscribed = true;
+  let latestRevision: number | undefined;
+  onState({ cycle: 0, revision: 0, testsUsed: 0 });
+  const unsubscribe = onSnapshot(
+    doc(db(), `sessions/${sessionId}/wolfAgentDetectorStates/${uid}`),
+    { includeMetadataChanges: true },
+    (snapshot) => {
+      if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      if (!snapshot.exists()) { onState({ cycle: 0, revision: 0, testsUsed: 0 }); return; }
+      const state = parseWolfAgentDetectorState(snapshot.data());
+      if (!state) { onState(null); return; }
+      if (latestRevision !== undefined && state.revision < latestRevision) return;
+      latestRevision = state.revision;
+      onState(state);
+    },
+    (error: { readonly code?: string }) => {
+      if (!subscribed) return;
+      onState(null);
+      if (error.code !== 'permission-denied' && error.code !== 'not-found') onError();
+    },
+  );
+  return () => { subscribed = false; unsubscribe(); onState(null); };
 }
 
 /** GM-only roster projection, including players whose connection ended after an adjudication. */

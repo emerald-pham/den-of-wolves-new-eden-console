@@ -4,6 +4,9 @@ import { populationForShip, populationTrackForShip } from '@/data/shipPopulation
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import ArrestPosseCalculator from '@/components/ArrestPosseCalculator';
+import GmVipHostVisitControl from '@/components/GmVipHostVisitControl';
+import { resolveArrestPosse } from '@/lib/arrestPosseService';
+import { resolveArrestCaseDisposition } from '@/lib/arrestCaseDispositionService';
 import EmergencyTimerPauseControl from '@/components/EmergencyTimerPauseControl';
 import WolfAttackRecoveryControl from '@/components/WolfAttackRecoveryControl';
 import GmWolfDecisionSummary from '@/components/GmWolfDecisionSummary';
@@ -110,6 +113,7 @@ import {
 } from '@/lib/counterPreview';
 import type {
   AirspaceWindow,
+  ArrestCase,
   ArrestPosseCalculation,
   DamageDraw,
   GameSession,
@@ -528,6 +532,7 @@ export default function GmConsole() {
   const [censusNotes, setCensusNotes] = useState<Readonly<Record<string, string>>>({});
   const [censusNoteMutationUid, setCensusNoteMutationUid] = useState<string | null>(null);
   const [arrestPosseCalculation, setArrestPosseCalculation] = useState<ArrestPosseCalculation | null>(null);
+  const [arrestCase, setArrestCase] = useState<ArrestCase | null>(null);
   const [arrestPosseCalculationGeneration, setArrestPosseCalculationGeneration] = useState(0);
   const [wolfCultFortressCoordinate, setWolfCultFortressCoordinate] = useState('');
   const [wolfCultSuppliesCoordinate, setWolfCultSuppliesCoordinate] = useState('');
@@ -1444,6 +1449,35 @@ export default function GmConsole() {
       label: displayName === entry.uid ? entry.uid : `${displayName} (${entry.uid})`,
     }];
   }), [allPlayers, loyaltyCensus?.entries]);
+
+  const arrestPossePresentPlayerOptions = useMemo(() => connectedPlayers.flatMap((player) => {
+    if (player.role !== 'player' || player.replacementStatus != null ||
+        player.uid === arrestPosseCalculation?.targetUid) return [];
+    return [{ uid: player.uid, label: player.displayName }];
+  }), [arrestPosseCalculation?.targetUid, connectedPlayers]);
+
+  useEffect(() => {
+    const targetUid = arrestPosseCalculation?.targetUid;
+    if (!isGm || !sessionId || !targetUid || !arrestPosseAuthorityVerified) {
+      setArrestCase(null);
+      return;
+    }
+    let active = true;
+    let stop: (() => void) | undefined;
+    void import('@/lib/firestore').then(({ subscribeGmArrestCase }) => {
+      if (!active) return;
+      stop = subscribeGmArrestCase(sessionId, targetUid, (next) => {
+        if (active) setArrestCase(next);
+      }, () => {
+        if (active) setArrestCase(null);
+      });
+    });
+    return () => {
+      active = false;
+      stop?.();
+      setArrestCase(null);
+    };
+  }, [arrestPosseAuthorityVerified, arrestPosseCalculation?.targetUid, isGm, sessionId]);
 
   const wolfCultRecipients = useMemo(
     () => loyaltyCensus?.entries.filter((entry) => entry.kind === 'wolf-cult') ?? [],
@@ -2611,6 +2645,54 @@ export default function GmConsole() {
     setArrestPosseCalculation((current) =>
       current && next.revision < current.revision ? current : next);
     return next;
+  }
+
+  async function resolveArrestPosseAttendance(
+    targetUid: string,
+    presentPlayerUids: readonly string[],
+    expectedCycle: number,
+    expectedRevision: number,
+  ) {
+    const result = await resolveArrestPosse(targetUid, presentPlayerUids, expectedCycle, expectedRevision);
+    setArrestCase((current) => current && current.revision > result.revision ? current : {
+      type: 'arrest-case', sessionId: result.sessionId, targetUid: result.targetUid,
+      status: result.outcome === 'arrested' ? 'pending-resolution' : 'not-arrested',
+      outcome: result.outcome, turn: result.turn, revision: result.revision,
+      requiredPlayers: result.requiredPlayers, presentPlayers: result.presentPlayers,
+      ...(result.deadlineCycle === undefined ? {} : { deadlineCycle: result.deadlineCycle }),
+      requestId: result.requestId,
+    });
+    return result;
+  }
+
+  async function recordArrestCaseDisposition(
+    targetUid: string,
+    disposition: 'released' | 'executed' | 'facilitator-resolution',
+    expectedCycle: number,
+    expectedRevision: number,
+    ruling?: string,
+  ) {
+    if (typeof session?.setupRevision !== 'number' || !Number.isSafeInteger(session.setupRevision) ||
+        session.setupRevision < 0) {
+      throw new Error('Reconnect to load the current setup revision before ruling on this case.');
+    }
+    const result = await resolveArrestCaseDisposition({
+      targetUid, disposition, expectedCycle, expectedRevision,
+      expectedSetupRevision: session.setupRevision, ...(ruling === undefined ? {} : { ruling }),
+    });
+    setArrestCase((current) => current && current.revision > result.revision ? current : {
+      ...(current ?? {
+        type: 'arrest-case', sessionId: result.sessionId, targetUid,
+        outcome: 'arrested', turn: Math.max(1, result.deadlineCycle - 1),
+        requiredPlayers: 0, presentPlayers: 0,
+      }),
+      status: result.disposition,
+      revision: result.revision,
+      deadlineCycle: result.deadlineCycle,
+      ...(result.ruling === undefined ? {} : { ruling: result.ruling }),
+      requestId: result.requestId,
+    });
+    return result;
   }
 
   async function beginWolfConsoleObservation(): Promise<void> {
@@ -4690,6 +4772,8 @@ export default function GmConsole() {
             )}
           </section>
 
+          {isGm && <GmVipHostVisitControl />}
+
           {arrestPosseAuthorityVerified && loyaltyCensus && (
             <ArrestPosseCalculator
               key={`${sessionId}:${me?.uid}:${local?.id}`}
@@ -4698,7 +4782,24 @@ export default function GmConsole() {
               expectedRevision={arrestPosseCalculation?.revision ?? 0}
               calculationGeneration={arrestPosseCalculationGeneration}
               calculation={arrestPosseCalculation}
+              presentPlayerOptions={arrestPossePresentPlayerOptions}
+              caseRecord={arrestCase}
+              {...(typeof session?.currentTurn === 'number' ? { currentCycle: session.currentTurn } : {})}
+              deadlineTeamPhaseOpen={Boolean(currentPhase?.turn === currentTurn && phaseReadout?.kind === 'team' &&
+                currentPhase.airspace.state === 'restricted' && currentPhase.timerPause === undefined)}
+              {...(typeof session?.currentTurn === 'number' && Number.isSafeInteger(session.currentTurn) && session.currentTurn > 0
+                ? { expectedCycle: session.currentTurn } : {})}
+              caseOutcome={arrestCase && arrestCase.targetUid === arrestPosseCalculation?.targetUid ? {
+                status: 'committed', type: 'arrest-posse-outcome',
+                sessionId: arrestCase.sessionId, requestId: arrestCase.requestId ?? '',
+                turn: arrestCase.turn, revision: arrestCase.revision, targetUid: arrestCase.targetUid,
+                requiredPlayers: arrestCase.requiredPlayers, presentPlayers: arrestCase.presentPlayers,
+                outcome: arrestCase.outcome,
+                ...(arrestCase.deadlineCycle === undefined ? {} : { deadlineCycle: arrestCase.deadlineCycle }),
+              } : null}
               onCalculate={runArrestPosseCalculation}
+              onResolve={resolveArrestPosseAttendance}
+              onDisposition={recordArrestCaseDisposition}
             />
           )}
 

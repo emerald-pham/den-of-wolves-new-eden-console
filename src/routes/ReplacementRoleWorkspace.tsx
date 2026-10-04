@@ -7,6 +7,7 @@ import { useSessionStore } from '@/store/useSessionStore';
 
 const ScoutRequestControls = lazy(() => import('@/components/ScoutRequestControls'));
 const WolfAttackAftermathActionPanel = lazy(() => import('@/components/WolfAttackAftermathActionPanel'));
+const PdfFighterAceCombatWorkspace = lazy(() => import('@/components/PdfFighterAceCombatWorkspace'));
 
 export default function ReplacementRoleWorkspace() {
   const { roleId } = useParams();
@@ -53,6 +54,11 @@ export default function ReplacementRoleWorkspace() {
           {role.id === 'doctor' && (
             <Suspense fallback={<p className="console-workspace__status" role="status">Loading aftermath medical controls…</p>}>
               <WolfAttackAftermathActionPanel operator="doctor" />
+            </Suspense>
+          )}
+          {role.id === 'pdf-fighter-ace' && (
+            <Suspense fallback={<p className="console-workspace__status" role="status">Loading Fighter Ace combat controls…</p>}>
+              <PdfFighterAceCombatWorkspace />
             </Suspense>
           )}
           <section className="console-workspace__section" aria-labelledby="replacement-workspace-boundary">

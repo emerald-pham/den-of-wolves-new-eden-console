@@ -1937,6 +1937,164 @@ export interface ArrestPosseCalculation {
   readonly censusRevision: number;
 }
 
+/** Facilitator-only attendance result; suspicion and private causes never enter it. */
+export interface ArrestPosseOutcome {
+  readonly status: 'committed';
+  readonly type: 'arrest-posse-outcome';
+  readonly sessionId: SessionId;
+  readonly requestId: string;
+  readonly turn: number;
+  readonly revision: number;
+  readonly targetUid: PlayerId;
+  readonly requiredPlayers: number;
+  readonly presentPlayers: number;
+  readonly outcome: 'arrested' | 'not-arrested';
+  readonly deadlineCycle?: number;
+}
+
+/** Investigator-only detector result; hidden loyalty and accuracy never appear here. */
+export interface WolfAgentDetectorReport {
+  readonly type: 'wolf-agent-detector-test';
+  readonly status: 'committed';
+  readonly sessionId: SessionId;
+  readonly requestId: string;
+  readonly cycle: number;
+  readonly revision: number;
+  readonly investigatorUid: PlayerId;
+  readonly targetUid: PlayerId;
+  readonly targetDisplayName: string;
+  readonly reportedWolf: boolean;
+}
+
+export interface WolfAgentDetectorState {
+  readonly cycle: number;
+  readonly revision: number;
+  readonly testsUsed: number;
+}
+
+export type ArrestCaseStatus = 'pending-resolution' | 'not-arrested' | 'released' |
+  'executed' | 'facilitator-resolution';
+
+/** Latest server-owned GM-only prisoner state, keyed by the target UID. */
+export interface ArrestCase {
+  readonly type: 'arrest-case';
+  readonly sessionId: SessionId;
+  readonly targetUid: PlayerId;
+  readonly status: ArrestCaseStatus;
+  readonly outcome: 'arrested' | 'not-arrested';
+  readonly turn: number;
+  readonly revision: number;
+  readonly requiredPlayers: number;
+  readonly presentPlayers: number;
+  readonly deadlineCycle?: number;
+  readonly ruling?: string;
+  readonly requestId?: string;
+  readonly updatedAt?: string;
+}
+
+export type ArrestPrisonerDisposition = 'released' | 'executed' | 'facilitator-resolution';
+
+export interface ArrestCaseDispositionResult {
+  readonly status: 'committed';
+  readonly type: 'arrest-case-disposition';
+  readonly sessionId: SessionId;
+  readonly requestId: string;
+  readonly targetUid: PlayerId;
+  readonly turn: number;
+  readonly revision: number;
+  readonly deadlineCycle: number;
+  readonly deadlineMet: boolean;
+  readonly disposition: ArrestPrisonerDisposition;
+  readonly setupRevision: number;
+  readonly replacementEligibilityRevision?: number;
+  readonly ruling?: string;
+}
+
+export type PdfFighterAceSourceId =
+  | 'fighter-wing-alpha'
+  | 'fighter-wing-bravo'
+  | 'pdf-escort-fighter-wing';
+export type PdfFighterAceRange = 'long' | 'medium' | 'short';
+
+/** Opaque, actor-filtered combat view for the current replacement Ace. */
+export interface PdfFighterAceCombatView {
+  readonly status: 'ready' | 'waiting';
+  readonly type: 'pdf-fighter-ace-combat-view';
+  readonly sessionId: SessionId;
+  readonly attackId: string | null;
+  readonly turn: number;
+  readonly revision: number;
+  readonly range: PdfFighterAceRange | null;
+  readonly actionUsed: boolean;
+  readonly targets: readonly Readonly<{ targetId: string; label: string; available: boolean }>[];
+  readonly fighterSources: readonly Readonly<{
+    id: PdfFighterAceSourceId;
+    label: string;
+    fighters: number;
+    fighterIndex: number;
+    permissionRequestId: string;
+    permissionRevision: number;
+  }>[];
+}
+
+/** A source officer sees only their launched source and slots eligible for permission. */
+export interface PdfFighterAcePermissionView {
+  readonly type: 'pdf-fighter-ace-permission-view';
+  readonly sessionId: SessionId;
+  readonly attackId: string | null;
+  readonly turn: number;
+  readonly revision: number;
+  readonly range: PdfFighterAceRange | null;
+  readonly sourceId: PdfFighterAceSourceId;
+  readonly sourceLabel: string;
+  readonly status: 'ready' | 'waiting' | 'granted' | 'closed';
+  readonly reason: string | null;
+  readonly fighters: number;
+  readonly availableFighterIndexes: readonly number[];
+}
+
+export interface PdfFighterAcePermissionResult {
+  readonly status: 'committed' | 'replayed';
+  readonly type: 'pdf-fighter-ace-permission';
+  readonly sessionId: SessionId;
+  readonly requestId: string;
+  readonly attackId: string;
+  readonly turn: number;
+  readonly revision: number;
+  readonly sourceId: PdfFighterAceSourceId;
+  readonly fighterIndex: number;
+  readonly permissionRevision: number;
+  readonly actorRoleId: 'wing-commander' | 'refinery-124-pdf-colonel';
+}
+
+/** Member-safe target result; target ids name opaque attack contacts only. */
+export interface PdfFighterAcePublicTargetResult {
+  readonly targetId: string;
+  readonly damage: number;
+  readonly destroyed: boolean;
+}
+
+export interface PdfFighterAceCombatResult {
+  readonly status: 'committed' | 'replayed';
+  readonly type: 'pdf-fighter-ace-combat';
+  readonly sessionId: SessionId;
+  readonly requestId: string;
+  readonly attackId: string;
+  readonly turn: number;
+  readonly revision: number;
+  readonly range: PdfFighterAceRange;
+  readonly sourceId: PdfFighterAceSourceId;
+  readonly fighterIndex: number;
+  readonly targetId: string;
+  readonly damage: number;
+  readonly targetDestroyed: boolean;
+  readonly results: readonly PdfFighterAcePublicTargetResult[];
+  readonly fighterDestroyed: boolean;
+  readonly aceDied: boolean;
+  readonly escaped: boolean;
+  readonly targetShift?: Readonly<{ from: number; to: number; shift: -1 | 1 }>;
+}
+
 export type WolfClueTier =
   | 'none'
   | 'natural-change'

@@ -154,6 +154,78 @@ service cloud.firestore {
         && resource.data.visibleToUids[0] == uid();
     }
 
+    function isCurrentWolfAgentDetectorHolder(sessionId, investigatorUid) {
+      let player = get(
+        /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+      ).data;
+      let session = get(
+        /databases/$(database)/documents/sessions/$(sessionId)
+      ).data;
+      let endeavour = session.shuttleControl.endeavour;
+      return isMember(sessionId)
+        && investigatorUid == uid()
+        && player.role == 'player'
+        && player.assignedRoleId == 'shepherd-scientist'
+        && player.activeConsoleRoleId == 'shepherd-scientist'
+        && playerHasCurrentRoleAuthority(player)
+        && session.phase == 'active'
+        && 'shepherd-scientist' in session.activeRoleIds
+        && 'shepherd' in session.activeVesselIds
+        && endeavour.ownerRoleId == 'shepherd-scientist'
+        && endeavour.holderUid == uid();
+    }
+
+    function isCanonicalWolfAgentDetectorReport(sessionId, investigatorUid) {
+      return resource.data.keys().hasAll([
+          'type', 'status', 'sessionId', 'requestId', 'cycle', 'revision',
+          'investigatorUid', 'targetUid', 'targetDisplayName', 'reportedWolf',
+          'visibleToUids', 'updatedAt'
+        ])
+        && resource.data.keys().hasOnly([
+          'type', 'status', 'sessionId', 'requestId', 'cycle', 'revision',
+          'investigatorUid', 'targetUid', 'targetDisplayName', 'reportedWolf',
+          'visibleToUids', 'updatedAt'
+        ])
+        && resource.data.type == 'wolf-agent-detector-test'
+        && resource.data.status == 'committed'
+        && resource.data.sessionId == sessionId
+        && resource.data.requestId is string
+        && resource.data.cycle is int && resource.data.cycle > 0
+        && resource.data.revision is int && resource.data.revision > 0
+        && resource.data.investigatorUid == investigatorUid
+        && resource.data.targetUid is string
+        && resource.data.targetDisplayName is string
+        && resource.data.targetDisplayName.size() > 0
+        && resource.data.targetDisplayName.size() <= 40
+        && resource.data.reportedWolf is bool
+        && resource.data.visibleToUids.size() == 1
+        && resource.data.visibleToUids[0] == investigatorUid
+        && resource.data.updatedAt is timestamp;
+    }
+
+    function isCanonicalVipHostMaintenanceBenefit(sessionId, shipId) {
+      return resource != null
+        && resource.data.keys().hasAll([
+          'type', 'sessionId', 'shipId', 'cycle', 'status', 'revision', 'requestId', 'updatedAt'
+        ])
+        && resource.data.keys().hasOnly([
+          'type', 'sessionId', 'shipId', 'cycle', 'status', 'revision', 'requestId', 'updatedAt', 'consumedAt'
+        ])
+        && resource.data.type == 'vip-host-maintenance-benefit'
+        && resource.data.sessionId == sessionId
+        && resource.data.shipId == shipId
+        && shipId != 'dione'
+        && resource.data.cycle is int && resource.data.cycle > 0
+        && (resource.data.status == 'available' || resource.data.status == 'consumed')
+        && resource.data.revision is int && resource.data.revision > 0
+        && resource.data.requestId is string
+        && resource.data.requestId.size() > 0 && resource.data.requestId.size() <= 128
+        && resource.data.updatedAt is timestamp
+        && (resource.data.status == 'available'
+          ? !('consumedAt' in resource.data)
+          : 'consumedAt' in resource.data && resource.data.consumedAt is timestamp);
+    }
+
     function civilUnrestRoleOwnsShip(roleId, shipId) {
       return (shipId == 'dione' && roleId in ['dione-captain', 'dione-engineer', 'dione-president'])
         || (shipId == 'icebreaker' && roleId in ['icebreaker-captain', 'icebreaker-engineer', 'icebreaker-miner'])
@@ -764,6 +836,28 @@ service cloud.firestore {
         allow list, write: if false;
       }
 
+      // Each detector's latest result is private to the current Scientist.
+      // The callable audit stores hidden truth separately and remains unreadable.
+      match /wolfAgentDetectorReports/{investigatorUid} {
+        allow get: if isCurrentWolfAgentDetectorHolder(sessionId, investigatorUid)
+          && (resource == null || isCanonicalWolfAgentDetectorReport(sessionId, investigatorUid));
+        allow list, write: if false;
+      }
+
+      // The Scientist may read only their own target-free test allowance.
+      match /wolfAgentDetectorStates/{investigatorUid} {
+        allow get: if isCurrentWolfAgentDetectorHolder(sessionId, investigatorUid)
+          && (resource == null || (
+            resource.data.keys().hasAll(['cycle', 'revision', 'testsUsed'])
+            && resource.data.keys().hasOnly(['cycle', 'revision', 'testsUsed'])
+            && resource.data.cycle is int && resource.data.cycle >= 0
+            && resource.data.revision is int && resource.data.revision >= 0
+            && resource.data.testsUsed is int
+            && resource.data.testsUsed >= 0 && resource.data.testsUsed <= 3
+          ));
+        allow list, write: if false;
+      }
+
       // Away-mission hands are private projections. The participant may read
       // only their own hand, while any currently connected GM may facilitate
       // the mission. Checking current role here deliberately revokes a former
@@ -982,6 +1076,46 @@ service cloud.firestore {
       match /arrestPosseCalculations/{projectionId} {
         allow get: if projectionId == 'current' && isGm(sessionId);
         allow list, write: if false;
+      }
+
+      // Arrested-player state and attendance records are facilitator-only.
+      // A case can contain a target identity and the people who attended the
+      // posse; neither is a public event or a player-readable projection.
+      match /arrestCases/{targetUid} {
+        allow get: if isGm(sessionId);
+        allow list, write: if false;
+
+        match /audit/{auditId} {
+          allow get, list: if isGm(sessionId);
+          allow write: if false;
+        }
+      }
+
+      // The member projection contains only destination, cycle, and grant
+      // state. The physical visit, Host identity, and replay receipts stay GM-only.
+      match /vipHostMaintenanceBenefits/{shipId}/cycles/{cycle} {
+        allow get: if isMember(sessionId) && isCanonicalVipHostMaintenanceBenefit(sessionId, shipId);
+        allow list, write: if false;
+      }
+
+      match /vipHostVisits/{cycle} {
+        allow get: if isGm(sessionId);
+        allow list, write: if false;
+      }
+
+      match /vipHostMaintenanceGrants/{shipId}/cycles/{cycle} {
+        allow get: if isGm(sessionId);
+        allow list, write: if false;
+      }
+
+      match /vipHostVisitAudits/{auditId} {
+        allow get, list: if isGm(sessionId);
+        allow write: if false;
+      }
+
+      match /vipHostMaintenanceAudits/{auditId} {
+        allow get, list: if isGm(sessionId);
+        allow write: if false;
       }
 
       // The approximate Wolf-attack timing marker and its audit trail are

@@ -315,6 +315,17 @@ import {
 } from './gameSetup';
 import { liveLoyaltySuspicionDecision } from './loyaltySuspicion';
 import { calculateArrestPosseSize } from './arrestPosse';
+import {
+  applyPdfFighterAceResults,
+  createPdfFighterAcePermission,
+  requirePdfFighterAcePermission,
+  requirePdfFighterAceActionReceipt,
+  consumeHostedMaintenanceGrant,
+  createHostedMaintenanceGrant,
+  resolveArrestOutcome,
+  resolvePdfFighterAceCombat,
+  type PdfFighterAceSourceSnapshot,
+} from './pc09SpecialistMechanics';
 import { serializedRoleBrief } from './roleBriefs';
 import {
   arrivalActivationForAdmission,
@@ -455,6 +466,23 @@ export {
   listMyScoutReports, readMyScoutDiscoveryNote,
 } from './scoutResultCallable';
 export { advanceEndeavourResearchTrack, readEndeavourResearchWorkspace } from './endeavourResearchWriter';
+export { runWolfAgentDetectorTest } from './wolfAgentDetectorWriter';
+export {
+  applyPdfFighterAceResults,
+  createPdfFighterAcePermission,
+  requirePdfFighterAcePermission,
+  requirePdfFighterAceActionReceipt,
+  consumeHostedMaintenanceGrant,
+  createHostedMaintenanceGrant,
+  detectorReportedWolf,
+  resolveArrestOutcome,
+  resolvePdfFighterAceCombat,
+} from './pc09SpecialistMechanics';
+export type {
+  PdfFighterAceActionExpectation,
+  PdfFighterAceActionReceipt,
+  PdfFighterAceSourceSnapshot,
+} from './pc09SpecialistMechanics';
 export { activateEndeavourEcmDevice, readEndeavourEcmDeviceWorkspace } from './endeavourEcmDeviceWriter';
 import {
   ENDEAVOUR_FUELLED_UPGRADE_LIMIT,
@@ -12619,6 +12647,1463 @@ export const calculateArrestPosse = onCall<{
     };
     tx.set(currentRef, result);
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+type ArrestPosseOutcomeResult = Readonly<{
+  status: 'committed';
+  type: 'arrest-posse-outcome';
+  sessionId: string;
+  requestId: string;
+  turn: number;
+  revision: number;
+  targetUid: string;
+  requiredPlayers: number;
+  presentPlayers: number;
+  outcome: 'arrested' | 'not-arrested';
+  deadlineCycle?: number;
+}>;
+
+function arrestPosseOutcomeRequest(raw: unknown): Readonly<{
+  sessionId: string; instanceId: string; requestId: string; expectedCycle: number;
+  expectedRevision: number; targetUid: string; presentPlayerUids: readonly string[];
+}> {
+  const fields = ['sessionId', 'instanceId', 'requestId', 'expectedCycle', 'expectedRevision',
+    'targetUid', 'presentPlayerUids'];
+  if (!isRecord(raw) || Object.keys(raw).length !== fields.length ||
+      fields.some((field) => !Object.hasOwn(raw, field)) || Object.keys(raw).some((field) => !fields.includes(field)) ||
+      !isCanonicalRequestId(raw.sessionId) || !isCanonicalRequestId(raw.instanceId) ||
+      !isCanonicalRequestId(raw.requestId) || !isWireSafeEntityId(raw.targetUid) ||
+      !Number.isSafeInteger(raw.expectedCycle) || (raw.expectedCycle as number) < 1 ||
+      !Number.isSafeInteger(raw.expectedRevision) || (raw.expectedRevision as number) < 1 ||
+      !Array.isArray(raw.presentPlayerUids) || raw.presentPlayerUids.length > 200 ||
+      raw.presentPlayerUids.some((uid) => !isWireSafeEntityId(uid)) ||
+      new Set(raw.presentPlayerUids as unknown[]).size !== raw.presentPlayerUids.length ||
+      (raw.presentPlayerUids as string[]).includes(raw.targetUid as string)) {
+    throw new HttpsError('invalid-argument', 'Invalid arrest-posse attendance resolution request.');
+  }
+  return {
+    sessionId: raw.sessionId as string, instanceId: raw.instanceId as string,
+    requestId: raw.requestId as string, expectedCycle: raw.expectedCycle as number,
+    expectedRevision: raw.expectedRevision as number, targetUid: raw.targetUid as string,
+    presentPlayerUids: [...raw.presentPlayerUids as string[]].sort(),
+  };
+}
+
+function isArrestPosseOutcomeResult(value: unknown, sessionId: string): value is ArrestPosseOutcomeResult {
+  if (!isRecord(value)) return false;
+  const keys = ['status', 'type', 'sessionId', 'requestId', 'turn', 'revision', 'targetUid',
+    'requiredPlayers', 'presentPlayers', 'outcome', 'deadlineCycle'];
+  return Object.keys(value).every((key) => keys.includes(key)) &&
+    value.status === 'committed' && value.type === 'arrest-posse-outcome' && value.sessionId === sessionId &&
+    isCanonicalRequestId(value.requestId) && Number.isSafeInteger(value.turn) && (value.turn as number) >= 1 &&
+    Number.isSafeInteger(value.revision) && (value.revision as number) >= 1 && isWireSafeEntityId(value.targetUid) &&
+    Number.isSafeInteger(value.requiredPlayers) && (value.requiredPlayers as number) >= 0 &&
+    Number.isSafeInteger(value.presentPlayers) && (value.presentPlayers as number) >= 0 &&
+    (value.outcome === 'arrested' || value.outcome === 'not-arrested') &&
+    (value.outcome === 'arrested'
+      ? Number.isSafeInteger(value.deadlineCycle) && (value.deadlineCycle as number) === (value.turn as number) + 1
+      : value.deadlineCycle === undefined);
+}
+
+/** Resolve one current GM-attested posse using only its live private calculation. */
+export const resolveArrestPosse = onCall<{
+  sessionId?: unknown; instanceId?: unknown; requestId?: unknown; expectedCycle?: unknown;
+  expectedRevision?: unknown; targetUid?: unknown; presentPlayerUids?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const command = arrestPosseOutcomeRequest(request.data ?? {});
+  const currentRef = db.doc(`sessions/${command.sessionId}/arrestPosseCalculations/current`);
+  const targetRef = db.doc(`sessions/${command.sessionId}/players/${command.targetUid}`);
+  const secretRef = db.doc(`sessions/${command.sessionId}/secrets/loyalty-${command.targetUid}`);
+  const censusRef = db.doc(`sessions/${command.sessionId}/loyaltyCensus/current`);
+  const playersRef = db.collection(`sessions/${command.sessionId}/players`);
+  const caseRef = db.doc(`sessions/${command.sessionId}/arrestCases/${command.targetUid}`);
+  const receiptRef = commandReceiptRef(command.sessionId, command.requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'resolve-arrest-posse', sessionId: command.sessionId, requestId: command.requestId,
+    actorUid: uid, instanceId: command.instanceId, expectedRevision: command.expectedRevision,
+    payload: { expectedCycle: command.expectedCycle, targetUid: command.targetUid,
+      presentPlayerUids: [...command.presentPlayerUids] },
+  };
+
+  return db.runTransaction(async (tx): Promise<ArrestPosseOutcomeResult> => {
+    const [authority, current, target, secret, census, players, currentCase, receipt] = await Promise.all([
+      requireFacilitatorInstance(tx, command.sessionId, uid, command.instanceId),
+      tx.get(currentRef), tx.get(targetRef), tx.get(secretRef), tx.get(censusRef),
+      tx.get(playersRef), tx.get(caseRef), tx.get(receiptRef),
+    ]);
+    const replay = replayBoundCommand(receipt, fingerprint,
+      (value): value is ArrestPosseOutcomeResult => isArrestPosseOutcomeResult(value, command.sessionId),
+      'arrest-posse resolution');
+    if (replay) return replay;
+    await rejectForeignLegacyM1Command(tx, command.sessionId, command.requestId, 'arrest-posse resolution', []);
+    requireActiveGameplayPhase(authority.session);
+    const turn = sessionTurn(authority.session.get('currentTurn'));
+    if (turn !== command.expectedCycle) {
+      throw commandError('failed-precondition', 'The cycle changed. Refresh the current posse calculation.', 'stale-revision');
+    }
+    const calculation = current.exists ? current.data() : undefined;
+    if (!isArrestPosseCalculationResult(calculation, command.sessionId) ||
+        calculation.revision !== command.expectedRevision || calculation.targetUid !== command.targetUid) {
+      throw commandError('failed-precondition', 'Calculate the current posse for this target before resolving attendance.', 'stale-revision');
+    }
+    const censusRevision = census.get('revision');
+    const entries = census.exists ? storedLoyaltyCensusEntries(census) : undefined;
+    const censusTarget = entries?.find((entry) => entry.uid === command.targetUid);
+    const authoritativeTarget = loyaltyCensusEntryFromSecret(
+      secret, players.docs, sessionActiveRoleIds(authority.session),
+    );
+    if (!Number.isSafeInteger(censusRevision) || censusRevision !== calculation.censusRevision ||
+        !censusTarget || !authoritativeTarget || censusTarget.kind !== authoritativeTarget.kind ||
+        censusTarget.suspicion !== authoritativeTarget.suspicion || !isActivePlayer(target) ||
+        target.get('role') !== 'player') {
+      throw commandError('failed-precondition', 'The selected player or facilitator census changed; recalculate the posse.', 'conflict');
+    }
+    if (currentCase.exists) {
+      const rawCase = currentCase.data();
+      if (!isRecord(rawCase) || rawCase.type !== 'arrest-case' ||
+          rawCase.sessionId !== command.sessionId || rawCase.targetUid !== command.targetUid ||
+          !Number.isSafeInteger(rawCase.revision) || (rawCase.revision as number) < 1 ||
+          !['not-arrested', 'released', 'executed', 'facilitator-resolution'].includes(String(rawCase.status))) {
+        throw commandError('failed-precondition', 'The current prisoner case must be resolved before another attempt.', 'conflict');
+      }
+      if ((rawCase.status === 'not-arrested' || rawCase.status === 'released') &&
+          (rawCase.revision as number) >= Number.MAX_SAFE_INTEGER) {
+        throw commandError('failed-precondition', 'The arrest-case revision cannot advance safely.', 'malformed-input');
+      }
+      if (rawCase.status === 'executed' || rawCase.status === 'facilitator-resolution') {
+        throw commandError('failed-precondition', 'This player already has a terminal arrest outcome.', 'conflict');
+      }
+    }
+    const livePlayerUids = new Set(players.docs.filter((player) => player.id !== command.targetUid &&
+      isActivePlayer(player) && player.get('role') === 'player' && player.get('replacementStatus') == null)
+      .map((player) => player.id));
+    if (command.presentPlayerUids.some((presentUid) => !livePlayerUids.has(presentUid))) {
+      throw commandError('failed-precondition', 'Every posse member must be a current connected player.', 'conflict');
+    }
+    const outcome = resolveArrestOutcome(calculation.requiredPlayers, command.presentPlayerUids.length);
+    const oldCaseRevision = currentCase.exists ? currentCase.get('revision') as number : 0;
+    if (oldCaseRevision >= Number.MAX_SAFE_INTEGER || turn >= Number.MAX_SAFE_INTEGER && outcome === 'arrested') {
+      throw commandError('failed-precondition', 'The arrest-cycle record cannot advance safely.', 'malformed-input');
+    }
+    const deadlineCycle = outcome === 'arrested' ? turn + 1 : undefined;
+    const nextRevision = oldCaseRevision + 1;
+    const result: ArrestPosseOutcomeResult = {
+      status: 'committed', type: 'arrest-posse-outcome', sessionId: command.sessionId,
+      requestId: command.requestId, turn, revision: nextRevision, targetUid: command.targetUid,
+      requiredPlayers: calculation.requiredPlayers, presentPlayers: command.presentPlayerUids.length,
+      outcome, ...(deadlineCycle === undefined ? {} : { deadlineCycle }),
+    };
+    tx.set(caseRef, {
+      type: 'arrest-case', sessionId: command.sessionId, targetUid: command.targetUid,
+      status: outcome === 'arrested' ? 'pending-resolution' : 'not-arrested', outcome,
+      turn, revision: nextRevision, requiredPlayers: calculation.requiredPlayers,
+      presentPlayers: command.presentPlayerUids.length,
+      ...(deadlineCycle === undefined ? {} : { deadlineCycle }),
+      createdBy: uid, requestId: command.requestId, updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(db.doc(`sessions/${command.sessionId}/arrestCases/${command.targetUid}/audit/${command.requestId}`), {
+      type: 'arrest-posse-attendance-audit', targetUid: command.targetUid, actorUid: uid,
+      requestId: command.requestId, turn, requiredPlayers: calculation.requiredPlayers,
+      presentPlayerUids: [...command.presentPlayerUids], outcome, createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+type ArrestCaseDispositionResult = Readonly<{
+  status: 'committed';
+  type: 'arrest-case-disposition';
+  sessionId: string;
+  requestId: string;
+  targetUid: string;
+  turn: number;
+  revision: number;
+  deadlineCycle: number;
+  deadlineMet: boolean;
+  disposition: 'released' | 'executed' | 'facilitator-resolution';
+  setupRevision: number;
+  replacementEligibilityRevision?: number;
+  ruling?: string;
+}>;
+
+function arrestCaseDispositionRequest(raw: unknown): Readonly<{
+  sessionId: string; instanceId: string; requestId: string; targetUid: string;
+  expectedCycle: number; expectedRevision: number; expectedSetupRevision: number;
+  disposition: 'released' | 'executed' | 'facilitator-resolution'; ruling?: string;
+}> {
+  const fields = ['sessionId', 'instanceId', 'requestId', 'targetUid', 'expectedCycle',
+    'expectedRevision', 'expectedSetupRevision', 'disposition', 'ruling'];
+  if (!isRecord(raw) || Object.keys(raw).some((key) => !fields.includes(key)) ||
+      ['sessionId', 'instanceId', 'requestId', 'targetUid', 'expectedCycle', 'expectedRevision',
+        'expectedSetupRevision', 'disposition'].some((key) => !Object.hasOwn(raw, key)) ||
+      !isCanonicalRequestId(raw.sessionId) || !isCanonicalRequestId(raw.instanceId) ||
+      !isCanonicalRequestId(raw.requestId) || !isWireSafeEntityId(raw.targetUid) ||
+      !Number.isSafeInteger(raw.expectedCycle) || (raw.expectedCycle as number) < 1 ||
+      !Number.isSafeInteger(raw.expectedRevision) || (raw.expectedRevision as number) < 1 ||
+      !Number.isSafeInteger(raw.expectedSetupRevision) || (raw.expectedSetupRevision as number) < 0 ||
+      !['released', 'executed', 'facilitator-resolution'].includes(String(raw.disposition)) ||
+      (raw.ruling !== undefined && (typeof raw.ruling !== 'string' || raw.ruling.trim().length === 0 || raw.ruling.length > 240))) {
+    throw new HttpsError('invalid-argument', 'Invalid arrest-case disposition request.');
+  }
+  return {
+    sessionId: raw.sessionId as string, instanceId: raw.instanceId as string,
+    requestId: raw.requestId as string, targetUid: raw.targetUid as string,
+    expectedCycle: raw.expectedCycle as number, expectedRevision: raw.expectedRevision as number,
+    expectedSetupRevision: raw.expectedSetupRevision as number,
+    disposition: raw.disposition as 'released' | 'executed' | 'facilitator-resolution',
+    ...(raw.ruling === undefined ? {} : { ruling: (raw.ruling as string).trim() }),
+  };
+}
+
+function isArrestCaseDispositionResult(value: unknown, sessionId: string): value is ArrestCaseDispositionResult {
+  if (!isRecord(value)) return false;
+  const keys = ['status', 'type', 'sessionId', 'requestId', 'targetUid', 'turn', 'revision',
+    'deadlineCycle', 'deadlineMet', 'disposition', 'setupRevision',
+    'replacementEligibilityRevision', 'ruling'];
+  return Object.keys(value).every((key) => keys.includes(key)) &&
+    value.status === 'committed' && value.type === 'arrest-case-disposition' && value.sessionId === sessionId &&
+    isCanonicalRequestId(value.requestId) && isWireSafeEntityId(value.targetUid) &&
+    Number.isSafeInteger(value.turn) && (value.turn as number) >= 1 &&
+    Number.isSafeInteger(value.revision) && (value.revision as number) >= 2 &&
+    Number.isSafeInteger(value.deadlineCycle) && (value.deadlineCycle as number) >= 2 &&
+    typeof value.deadlineMet === 'boolean' &&
+    ['released', 'executed', 'facilitator-resolution'].includes(String(value.disposition)) &&
+    Number.isSafeInteger(value.setupRevision) && (value.setupRevision as number) >= 0 &&
+    (value.replacementEligibilityRevision === undefined
+      ? value.disposition !== 'executed'
+      : value.disposition === 'executed' && Number.isSafeInteger(value.replacementEligibilityRevision) &&
+        (value.replacementEligibilityRevision as number) >= 1) &&
+    (value.ruling === undefined || typeof value.ruling === 'string' && value.ruling.length > 0 && value.ruling.length <= 240);
+}
+
+/** Record the GM's human ruling for an arrested prisoner by the next Team Phase. */
+export const resolveArrestCaseDisposition = onCall<{
+  sessionId?: unknown; instanceId?: unknown; requestId?: unknown; targetUid?: unknown;
+  expectedCycle?: unknown; expectedRevision?: unknown; expectedSetupRevision?: unknown;
+  disposition?: unknown; ruling?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const command = arrestCaseDispositionRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${command.sessionId}`);
+  const caseRef = db.doc(`sessions/${command.sessionId}/arrestCases/${command.targetUid}`);
+  const eligibilityRef = db.doc(`sessions/${command.sessionId}/replacementEligibility/${command.targetUid}`);
+  const receiptRef = commandReceiptRef(command.sessionId, command.requestId);
+  const auditRef = db.doc(`sessions/${command.sessionId}/arrestCases/${command.targetUid}/audit/${command.requestId}`);
+  const fingerprint: CommandFingerprint = {
+    action: 'resolve-arrest-case-disposition', sessionId: command.sessionId,
+    requestId: command.requestId, actorUid: uid, instanceId: command.instanceId,
+    expectedRevision: command.expectedRevision,
+    payload: { targetUid: command.targetUid, expectedCycle: command.expectedCycle,
+      expectedSetupRevision: command.expectedSetupRevision, disposition: command.disposition,
+      ruling: command.ruling ?? null },
+  };
+  return db.runTransaction(async (tx): Promise<ArrestCaseDispositionResult> => {
+    const [authority, currentCase, eligibility, receipt, audit] = await Promise.all([
+      requireFacilitatorInstance(tx, command.sessionId, uid, command.instanceId),
+      tx.get(caseRef), tx.get(eligibilityRef), tx.get(receiptRef), tx.get(auditRef),
+    ]);
+    const replay = replayBoundCommand(receipt, fingerprint,
+      (value): value is ArrestCaseDispositionResult => isArrestCaseDispositionResult(value, command.sessionId),
+      'arrest-case disposition');
+    if (replay) return replay;
+    await rejectForeignLegacyM1Command(tx, command.sessionId, command.requestId, 'arrest-case disposition', []);
+    if (audit.exists) rejectLegacyEventReplay('arrest-case disposition');
+    requireActiveGameplayPhase(authority.session);
+    const currentTurn = sessionTurn(authority.session.get('currentTurn'));
+    const setupRevisionBefore = setupRevision(authority.session);
+    if (currentTurn !== command.expectedCycle || setupRevisionBefore !== command.expectedSetupRevision) {
+      throw commandError('failed-precondition', 'The current cycle or setup changed; refresh the prisoner case.', 'stale-revision');
+    }
+    const stored = currentCase.exists ? currentCase.data() : undefined;
+    const deadlineCycle = isRecord(stored) ? stored.deadlineCycle : undefined;
+    const caseRevision = isRecord(stored) ? stored.revision : undefined;
+    if (!isRecord(stored) || stored.type !== 'arrest-case' || stored.sessionId !== command.sessionId ||
+        stored.targetUid !== command.targetUid || stored.status !== 'pending-resolution' || stored.outcome !== 'arrested' ||
+        !Number.isSafeInteger(deadlineCycle) || (deadlineCycle as number) < 2 ||
+        !Number.isSafeInteger(caseRevision) || caseRevision !== command.expectedRevision ||
+        (caseRevision as number) >= Number.MAX_SAFE_INTEGER) {
+      throw commandError('failed-precondition', 'This prisoner case is no longer pending at the expected revision.', 'conflict');
+    }
+    if (currentTurn < (deadlineCycle as number)) {
+      throw commandError('failed-precondition', 'The prisoner outcome is due in the next Team Phase; keep the case pending.', 'invalid-phase');
+    }
+    const phase = turnPhaseState(authority.session.get('turnPhase'));
+    const deadlineOpen = currentTurn === deadlineCycle && phase?.turn === currentTurn &&
+      phase.airspace.state === 'restricted' && phase.timerPause === undefined &&
+      Date.now() < Date.parse(phase.teamPhaseEndsAt);
+    if (!deadlineOpen && (command.disposition !== 'facilitator-resolution' || !command.ruling)) {
+      throw commandError('failed-precondition',
+        'After the next Team Phase deadline, record a reasoned facilitator resolution.', 'invalid-phase');
+    }
+    let eligibilityRevision: number | undefined;
+    let setupRevisionAfter = setupRevisionBefore;
+    if (command.disposition === 'executed') {
+      if (setupRevisionBefore >= Number.MAX_SAFE_INTEGER) {
+        throw commandError('failed-precondition', 'The session setup revision cannot advance safely.', 'malformed-input');
+      }
+      const priorRevision = eligibility.exists ? eligibility.get('revision') : 0;
+      if (!Number.isSafeInteger(priorRevision) || (priorRevision as number) < 0 ||
+          (priorRevision as number) >= Number.MAX_SAFE_INTEGER ||
+          eligibility.exists && (eligibility.get('sessionId') !== command.sessionId ||
+            eligibility.get('targetUid') !== command.targetUid || typeof eligibility.get('eligible') !== 'boolean' ||
+            !isReplacementEligibilityReason(eligibility.get('reason')))) {
+        throw commandError('failed-precondition', 'The arrested replacement-eligibility record is malformed.', 'malformed-input');
+      }
+      eligibilityRevision = (priorRevision as number) + 1;
+      setupRevisionAfter += 1;
+    }
+    const result: ArrestCaseDispositionResult = {
+      status: 'committed', type: 'arrest-case-disposition', sessionId: command.sessionId,
+      requestId: command.requestId, targetUid: command.targetUid, turn: currentTurn,
+      revision: (caseRevision as number) + 1, deadlineCycle: deadlineCycle as number,
+      deadlineMet: deadlineOpen, disposition: command.disposition, setupRevision: setupRevisionAfter,
+      ...(eligibilityRevision === undefined ? {} : { replacementEligibilityRevision: eligibilityRevision }),
+      ...(command.ruling === undefined ? {} : { ruling: command.ruling }),
+    };
+    tx.set(caseRef, {
+      type: 'arrest-case', sessionId: command.sessionId, targetUid: command.targetUid,
+      status: command.disposition, outcome: 'arrested', turn: stored.turn,
+      revision: result.revision, requiredPlayers: stored.requiredPlayers,
+      presentPlayers: stored.presentPlayers, deadlineCycle: deadlineCycle as number,
+      createdBy: stored.createdBy,
+      ...(command.ruling === undefined ? {} : { ruling: command.ruling }),
+      requestId: command.requestId, updatedAt: FieldValue.serverTimestamp(),
+    });
+    if (command.disposition === 'executed' && eligibilityRevision !== undefined) {
+      tx.set(eligibilityRef, {
+        sessionId: command.sessionId, targetUid: command.targetUid, reason: 'arrested', eligible: true,
+        revision: eligibilityRevision, actorUid: uid, requestId: command.requestId,
+        recordedAt: new Date().toISOString(), updatedAt: FieldValue.serverTimestamp(),
+      });
+      tx.update(sessionRef, { setupRevision: setupRevisionAfter, updatedAt: FieldValue.serverTimestamp() });
+    }
+    tx.set(auditRef, {
+      type: 'arrest-case-disposition-audit', sessionId: command.sessionId,
+      targetUid: command.targetUid, requestId: command.requestId, actorUid: uid,
+      disposition: command.disposition, turn: currentTurn, deadlineCycle: deadlineCycle as number,
+      deadlineMet: deadlineOpen, expectedRevision: command.expectedRevision,
+      ...(command.ruling === undefined ? {} : { ruling: command.ruling }),
+      ...(eligibilityRevision === undefined ? {} : { replacementEligibilityRevision: eligibilityRevision }),
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+type VipHostVisitResult = Readonly<{
+  status: 'committed' | 'replayed';
+  type: 'vip-host-visit-attestation';
+  sessionId: string;
+  requestId: string;
+  shipId: string;
+  cycle: number;
+  revision: number;
+  benefitStatus: 'available';
+}>;
+
+function isVipHostVisitResult(value: unknown, sessionId: string): value is VipHostVisitResult {
+  return isRecord(value) && Object.keys(value).every((key) => [
+    'status', 'type', 'sessionId', 'requestId', 'shipId', 'cycle', 'revision', 'benefitStatus',
+  ].includes(key)) && (value.status === 'committed' || value.status === 'replayed') &&
+    value.type === 'vip-host-visit-attestation' && value.sessionId === sessionId &&
+    isCanonicalRequestId(value.requestId) && typeof value.shipId === 'string' &&
+    isResourceShipId(value.shipId) && value.shipId !== 'dione' &&
+    Number.isSafeInteger(value.cycle) && (value.cycle as number) >= 1 &&
+    value.revision === 1 && value.benefitStatus === 'available';
+}
+
+/** A current GM records the physical VIP Host visit for one other ship. */
+export const attestVipHostVisit = onCall<{
+  sessionId?: unknown; instanceId?: unknown; requestId?: unknown; expectedCycle?: unknown; shipId?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = ['sessionId', 'instanceId', 'requestId', 'expectedCycle', 'shipId'];
+  if (!isRecord(raw) || Object.keys(raw).length !== allowed.length ||
+      Object.keys(raw).some((key) => !allowed.includes(key)) ||
+      !allowed.every((key) => Object.hasOwn(raw, key)) ||
+      !isCanonicalRequestId(raw.sessionId) || !isCanonicalRequestId(raw.instanceId) ||
+      !isCanonicalRequestId(raw.requestId) || !Number.isSafeInteger(raw.expectedCycle) ||
+      (raw.expectedCycle as number) < 1 || typeof raw.shipId !== 'string' ||
+      !isResourceShipId(raw.shipId) || raw.shipId === 'dione') {
+    throw new HttpsError('invalid-argument', 'Choose an active ship other than Dione for the VIP Host visit.');
+  }
+  const sessionId = raw.sessionId;
+  const instanceId = raw.instanceId;
+  const requestId = raw.requestId;
+  const expectedCycle = raw.expectedCycle as number;
+  const shipId = raw.shipId;
+  const playersRef = db.collection(`sessions/${sessionId}/players`);
+  const visitRef = db.doc(`sessions/${sessionId}/vipHostVisits/${expectedCycle}`);
+  const grantRef = db.doc(`sessions/${sessionId}/vipHostMaintenanceGrants/${shipId}/cycles/${expectedCycle}`);
+  const benefitRef = db.doc(`sessions/${sessionId}/vipHostMaintenanceBenefits/${shipId}/cycles/${expectedCycle}`);
+  const receiptRef = commandReceiptRef(sessionId, requestId);
+  const auditRef = db.doc(`sessions/${sessionId}/vipHostVisitAudits/${requestId}`);
+  const fingerprint: CommandFingerprint = {
+    action: 'attest-vip-host-visit', sessionId, requestId, actorUid: uid, instanceId,
+    expectedRevision: 0, payload: { expectedCycle, shipId },
+  };
+  return db.runTransaction(async (tx): Promise<VipHostVisitResult> => {
+    const [authority, visit, existingGrant, receipt, audit, players] = await Promise.all([
+      requireFacilitatorInstance(tx, sessionId, uid, instanceId), tx.get(visitRef), tx.get(grantRef),
+      tx.get(receiptRef), tx.get(auditRef), tx.get(playersRef),
+    ]);
+    const replay = replayBoundCommand(receipt, fingerprint,
+      (value): value is VipHostVisitResult => isVipHostVisitResult(value, sessionId), 'VIP Host visit');
+    if (replay) return { ...replay, status: 'replayed' };
+    await rejectForeignLegacyM1Command(tx, sessionId, requestId, 'VIP Host visit', []);
+    if (audit.exists) rejectLegacyEventReplay('VIP Host visit');
+    const session = authority.session;
+    const currentTurn = sessionTurn(session.get('currentTurn'));
+    const phase = turnPhaseState(session.get('turnPhase'));
+    if (session.get('phase') !== 'active' || currentTurn !== expectedCycle ||
+        !phase || phase.turn !== currentTurn || phase.airspace.state !== 'restricted' ||
+        phase.timerPause !== undefined || !Number.isFinite(Date.parse(phase.teamPhaseEndsAt)) ||
+        Date.now() >= Date.parse(phase.teamPhaseEndsAt)) {
+      throw commandError('failed-precondition', 'The VIP Host visit must be recorded during this cycle’s Team Phase.', 'invalid-phase');
+    }
+    const activeVessels = session.get('activeVesselIds');
+    if (!Array.isArray(activeVessels) || !activeVessels.includes(shipId) ||
+        shipId === 'capybara' && session.get('capybaraEnabled') === false) {
+      throw commandError('failed-precondition', 'The visited ship is not active in this session.', 'conflict');
+    }
+    const hosts = players.docs.filter((player) => isActivePlayer(player) && player.get('role') === 'player' &&
+      player.get('replacementRoleId') === 'vip-host' && player.get('replacementStatus') == null &&
+      player.get('activeConsoleRoleId') === null);
+    if (hosts.length !== 1 || hosts[0]!.id === uid) {
+      throw commandError('failed-precondition', 'A single active VIP Host must be present for the GM attestation.', 'conflict');
+    }
+    if (visit.exists || existingGrant.exists) {
+      throw commandError('failed-precondition', 'The VIP Host has already used this cycle’s Team Time visit.', 'conflict');
+    }
+    let nextGrant: ReturnType<typeof createHostedMaintenanceGrant>;
+    try {
+      nextGrant = createHostedMaintenanceGrant({
+        sessionId, cycle: currentTurn, hostUid: hosts[0]!.id, hostRoleId: 'vip-host',
+        hostShipId: 'dione', destinationShipId: shipId, destinationActive: true,
+        attestedByUid: uid, inTeamPhase: true,
+      });
+    } catch (cause) {
+      throw commandError('failed-precondition', cause instanceof Error ? cause.message : 'The visit cannot be attested.', 'conflict');
+    }
+    const result: VipHostVisitResult = {
+      status: 'committed', type: 'vip-host-visit-attestation', sessionId, requestId,
+      shipId, cycle: currentTurn, revision: 1, benefitStatus: 'available',
+    };
+    tx.set(visitRef, {
+      type: 'vip-host-physical-visit', sessionId, cycle: currentTurn, hostUid: hosts[0]!.id,
+      hostRoleId: 'vip-host', hostShipId: 'dione', shipId, attestedByUid: uid,
+      instanceId, requestId, createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(grantRef, { ...nextGrant, visitRequestId: requestId,
+      grantRequestId: requestId, updatedAt: FieldValue.serverTimestamp() });
+    // The member-readable projection intentionally omits Host and GM identities.
+    tx.set(benefitRef, {
+      type: 'vip-host-maintenance-benefit', sessionId, shipId, cycle: currentTurn,
+      status: 'available', revision: 1, requestId, updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(auditRef, {
+      type: 'vip-host-visit-audit', sessionId, cycle: currentTurn, shipId,
+      hostUid: hosts[0]!.id, actorUid: uid, instanceId, requestId,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+type HostedShipMaintenanceRerollResult = Readonly<{
+  status: 'committed' | 'replayed'; type: 'vip-host-maintenance-reroll';
+  sessionId: string; requestId: string; shipId: string; cycle: number;
+  grantRevision: number; maintenanceRevision: number; unrest: number;
+}>;
+
+function isHostedShipMaintenanceRerollResult(value: unknown, sessionId: string): value is HostedShipMaintenanceRerollResult {
+  return isRecord(value) && Object.keys(value).every((key) => [
+    'status', 'type', 'sessionId', 'requestId', 'shipId', 'cycle', 'grantRevision', 'maintenanceRevision', 'unrest',
+  ].includes(key)) && (value.status === 'committed' || value.status === 'replayed') &&
+    value.type === 'vip-host-maintenance-reroll' && value.sessionId === sessionId &&
+    isCanonicalRequestId(value.requestId) && typeof value.shipId === 'string' &&
+    isResourceShipId(value.shipId) && value.shipId !== 'dione' &&
+    Number.isSafeInteger(value.cycle) && (value.cycle as number) >= 1 &&
+    Number.isSafeInteger(value.grantRevision) && (value.grantRevision as number) >= 2 &&
+    Number.isSafeInteger(value.maintenanceRevision) && (value.maintenanceRevision as number) >= 1 &&
+    Number.isSafeInteger(value.unrest) && (value.unrest as number) >= 0 && (value.unrest as number) <= 10;
+}
+
+/** Consume the GM-attested grant to reroll one unrest-check die on the visited ship. */
+export const rerollHostedShipMaintenance = onCall<{
+  sessionId?: unknown; shipId?: unknown; requestId?: unknown; expectedCycle?: unknown;
+  expectedGrantRevision?: unknown; expectedMaintenanceRevision?: unknown; dieIndex?: unknown;
+  instanceId?: unknown; consoleRoleId?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = new Set(['sessionId', 'shipId', 'requestId', 'expectedCycle', 'expectedGrantRevision',
+    'expectedMaintenanceRevision', 'dieIndex', 'instanceId', 'consoleRoleId']);
+  if (!isRecord(raw) || Object.keys(raw).some((key) => !allowed.has(key)) ||
+      !['sessionId', 'shipId', 'requestId', 'expectedCycle', 'expectedGrantRevision',
+        'expectedMaintenanceRevision', 'dieIndex'].every((key) => Object.hasOwn(raw, key)) ||
+      !isCanonicalRequestId(raw.sessionId) || !isCanonicalRequestId(raw.requestId) ||
+      typeof raw.shipId !== 'string' || !isResourceShipId(raw.shipId) || raw.shipId === 'dione' ||
+      !Number.isSafeInteger(raw.expectedCycle) || (raw.expectedCycle as number) < 1 ||
+      !Number.isSafeInteger(raw.expectedGrantRevision) || (raw.expectedGrantRevision as number) < 1 ||
+      !Number.isSafeInteger(raw.expectedMaintenanceRevision) || (raw.expectedMaintenanceRevision as number) < 0 ||
+      (raw.dieIndex !== 0 && raw.dieIndex !== 1) ||
+      (raw.instanceId !== undefined && !isCanonicalRequestId(raw.instanceId)) ||
+      (raw.consoleRoleId !== undefined && !isCanonicalRequestId(raw.consoleRoleId))) {
+    throw new HttpsError('invalid-argument', 'Invalid hosted maintenance reroll request.');
+  }
+  const sessionId = raw.sessionId;
+  const shipId = raw.shipId;
+  const requestId = raw.requestId;
+  const expectedCycle = raw.expectedCycle as number;
+  const expectedGrantRevision = raw.expectedGrantRevision as number;
+  const expectedMaintenanceRevision = raw.expectedMaintenanceRevision as number;
+  const dieIndex = raw.dieIndex as 0 | 1;
+  const instanceId = raw.instanceId as string | undefined;
+  const consoleRoleId = raw.consoleRoleId as string | undefined;
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const grantRef = db.doc(`sessions/${sessionId}/vipHostMaintenanceGrants/${shipId}/cycles/${expectedCycle}`);
+  const benefitRef = db.doc(`sessions/${sessionId}/vipHostMaintenanceBenefits/${shipId}/cycles/${expectedCycle}`);
+  const receiptRef = commandReceiptRef(sessionId, requestId);
+  const auditRef = db.doc(`sessions/${sessionId}/vipHostMaintenanceAudits/${requestId}`);
+  const fingerprint: CommandFingerprint = {
+    action: 'reroll-hosted-ship-maintenance', sessionId, requestId, actorUid: uid,
+    instanceId: instanceId ?? null, expectedRevision: expectedMaintenanceRevision,
+    payload: { shipId, expectedCycle, expectedGrantRevision, dieIndex, consoleRoleId: consoleRoleId ?? null },
+  };
+  const validate = async (tx: Transaction) => {
+    const authority = await requireMaintenanceAuthority(
+      tx, sessionId, shipId, instanceId, consoleRoleId, uid, sessionRef,
+    );
+    const session = authority.snapshot;
+    requireActionPhase(session, 'maintenance', authority.player.get('role') === 'gm' ? 'facilitator' : 'player');
+    const currentTurn = sessionTurn(session.get('currentTurn'));
+    if (session.get('phase') !== 'active' || currentTurn !== expectedCycle) {
+      throw commandError('failed-precondition', 'The hosted maintenance grant belongs to another cycle.', 'stale-revision');
+    }
+    const cycles = isRecord(session.get('maintenanceCycles')) ? session.get('maintenanceCycles') : {};
+    const cycle = parseMaintenanceCycle(cycles[shipId]);
+    if (!cycle || cycle.turn !== currentTurn || cycle.revision !== expectedMaintenanceRevision ||
+        cycle.step !== 4 || cycle.results['4'] !== undefined || !cycle.unrestRolls) {
+      throw commandError('failed-precondition', 'The current maintenance unrest reroll window is unavailable.', 'invalid-phase');
+    }
+    const unrest = shipUnrest(session.get('shipUnrest'))[shipId];
+    if (unrest === undefined) throw commandError('failed-precondition', 'The current ship unrest record is unavailable.', 'conflict');
+    const grantSnapshot = await tx.get(grantRef);
+    const grantValue = grantSnapshot.exists ? grantSnapshot.data() : undefined;
+    if (!grantValue || grantValue.revision !== expectedGrantRevision) {
+      throw commandError('failed-precondition', 'The hosted maintenance grant changed. Refresh before rerolling.', 'stale-revision');
+    }
+    try {
+      consumeHostedMaintenanceGrant(grantValue, { sessionId, shipId, cycle: currentTurn });
+      rerollMaintenanceUnrest(cycle, unrest, dieIndex, cycle.unrestRolls[dieIndex]!);
+    } catch (cause) {
+      throw commandError('failed-precondition', cause instanceof Error ? cause.message : 'The hosted reroll is unavailable.', 'conflict');
+    }
+    return { authority, cycle, unrest, grantValue };
+  };
+  const preflight = await db.runTransaction(async (tx) => {
+    const prior = await tx.get(receiptRef);
+    const replay = replayBoundCommand(prior, fingerprint,
+      (value): value is HostedShipMaintenanceRerollResult => isHostedShipMaintenanceRerollResult(value, sessionId),
+      'hosted maintenance reroll');
+    if (replay) return { replay: { ...replay, status: 'replayed' as const } };
+    await validate(tx);
+    return { replay: undefined };
+  });
+  if (preflight.replay) return preflight.replay;
+  const rolledDie = randomInt(1, 7);
+  return db.runTransaction(async (tx) => {
+    const prior = await tx.get(receiptRef);
+    const replay = replayBoundCommand(prior, fingerprint,
+      (value): value is HostedShipMaintenanceRerollResult => isHostedShipMaintenanceRerollResult(value, sessionId),
+      'hosted maintenance reroll');
+    if (replay) return { ...replay, status: 'replayed' as const };
+    const current = await validate(tx);
+    if (!current.cycle.unrestRolls) throw commandError('failed-precondition', 'The unrest dice are unavailable.', 'conflict');
+    let result: ReturnType<typeof rerollMaintenanceUnrest>;
+    let grant;
+    try {
+      result = rerollMaintenanceUnrest(current.cycle, current.unrest, dieIndex, rolledDie);
+      grant = consumeHostedMaintenanceGrant(current.grantValue, { sessionId, shipId, cycle: expectedCycle });
+    } catch (cause) {
+      throw commandError('failed-precondition', cause instanceof Error ? cause.message : 'The hosted reroll is unavailable.', 'conflict');
+    }
+    const serverTime = new Date().toISOString();
+    const unrestAlerts = { ...(current.authority.snapshot.get('unrestAlerts') ?? {}) } as Record<string, StoredUnrestAlert>;
+    if (current.unrest >= 8 && result.unrest < 8) delete unrestAlerts[shipId];
+    if (current.unrest < 8 && result.unrest >= 8) {
+      const instances = await tx.get(db.collection(`sessions/${sessionId}/gmInstances`));
+      const targetGmInstanceIds = (instances.docs ?? []).map((instance) => instance.id);
+      if (targetGmInstanceIds.length) unrestAlerts[shipId] = {
+        shipId, shipName: (FLEET_SHIP_NAMES as Readonly<Record<string, string>>)[shipId] ?? shipId,
+        targetGmInstanceIds, createdAt: serverTime,
+      };
+    }
+    const nextBenefitRevision = (grant.revision as number) + 1;
+    const reply: HostedShipMaintenanceRerollResult = {
+      status: 'committed', type: 'vip-host-maintenance-reroll', sessionId, requestId, shipId,
+      cycle: expectedCycle, grantRevision: nextBenefitRevision,
+      maintenanceRevision: result.cycle.revision, unrest: result.unrest,
+    };
+    tx.update(sessionRef, {
+      [`maintenanceCycles.${shipId}`]: result.cycle,
+      [`shipUnrest.${shipId}`]: result.unrest,
+      unrestAlerts,
+      ...shipMutinyTransitionPatch(current.authority.snapshot, shipId, current.unrest, result.unrest, serverTime),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(grantRef, { ...current.grantValue, status: 'consumed', revision: nextBenefitRevision,
+      consumedByUid: uid, consumedByRequestId: requestId, consumedAt: FieldValue.serverTimestamp() });
+    tx.set(benefitRef, {
+      type: 'vip-host-maintenance-benefit', sessionId, shipId, cycle: expectedCycle,
+      status: 'consumed', revision: nextBenefitRevision,
+      requestId: current.grantValue.grantRequestId,
+      consumedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(auditRef, {
+      type: 'vip-host-maintenance-reroll-audit', sessionId, shipId, cycle: expectedCycle,
+      requestId, actorUid: uid, dieIndex, rolledDie,
+      grantRequestId: current.grantValue.grantRequestId, grantRevision: nextBenefitRevision,
+      maintenanceRevision: result.cycle.revision, unrest: result.unrest, createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
+    return reply;
+  });
+});
+
+type PdfFighterAceSourceId = 'fighter-wing-alpha' | 'fighter-wing-bravo' | 'pdf-escort-fighter-wing';
+type PdfFighterAcePermissionRecord = ReturnType<typeof createPdfFighterAcePermission>;
+function isPdfFighterAceSourceId(value: unknown): value is PdfFighterAceSourceId {
+  return value === 'fighter-wing-alpha' || value === 'fighter-wing-bravo' || value === 'pdf-escort-fighter-wing';
+}
+
+function pdfFighterAcePermissionMap(state: DocumentSnapshot): Partial<Record<PdfFighterAceSourceId, PdfFighterAcePermissionRecord>> {
+  const raw = state.get('fighterAcePermissions');
+  if (raw === undefined) return {};
+  if (!isRecord(raw) || Object.keys(raw).some((key) => !isPdfFighterAceSourceId(key))) {
+    throw commandError('failed-precondition', 'The current Fighter Ace permission ledger is malformed.', 'conflict');
+  }
+  const permissions: Partial<Record<PdfFighterAceSourceId, PdfFighterAcePermissionRecord>> = {};
+  for (const [sourceId, value] of Object.entries(raw)) {
+    try {
+      permissions[sourceId as PdfFighterAceSourceId] = requirePdfFighterAcePermission(value, { sourceId: sourceId as PdfFighterAceSourceId });
+    } catch {
+      throw commandError('failed-precondition', 'The current Fighter Ace permission ledger is malformed.', 'conflict');
+    }
+  }
+  return permissions;
+}
+
+function pdfFighterAceSourceState(
+  session: DocumentSnapshot,
+  state: DocumentSnapshot,
+  pdfWing: DocumentSnapshot,
+  sourceId: PdfFighterAceSourceId,
+): Readonly<{ snapshot: PdfFighterAceSourceSnapshot; combatState?: AegisFighterWingCombatState;
+  pdfState?: PdfEscortWingState; count?: FighterWingCountState }> {
+  const attackId = state.get('attackId');
+  const turn = state.get('turn');
+  if (typeof attackId !== 'string' || !attackId || !Number.isSafeInteger(turn) || (turn as number) < 1) {
+    throw commandError('failed-precondition', 'The current fighter source is not bound to a Wolf attack.', 'conflict');
+  }
+  const launchChoice = wolfFighterLaunchChoiceMap(state, turn as number, attackId)[sourceId];
+  if (launchChoice?.status !== 'launched') {
+    throw commandError('failed-precondition', 'The selected fighter source has no explicit current-attack launch.', 'invalid-phase');
+  }
+  if (sourceId === 'pdf-escort-fighter-wing') {
+    const wing = parsePdfEscortWingState(pdfWing.exists ? pdfWing.data() : undefined);
+    if (!wing || wing.attackId !== attackId || wing.attackCycle !== turn || !wing.launched || wing.fighters < 1) {
+      throw commandError('failed-precondition', 'The P.D.F. fighter source is not launched and available for this attack.', 'conflict');
+    }
+    return { snapshot: { sourceId, fighters: wing.fighters, losses: wing.losses, revision: wing.revision,
+      durableRevision: wing.revision, launched: true, attackId, cycle: turn as number }, pdfState: wing };
+  }
+  const combat = aegisFighterWingCombatStateForAttack(session, state, turn as number, attackId);
+  const wing = combat.wings[sourceId];
+  const counts = session.get('fighterWingCounts') === undefined
+    ? initialFighterWingCounts() : fighterWingCounts(session.get('fighterWingCounts'));
+  const count = counts[sourceId];
+  if (!count || !wing.launched || wing.fighters < 1 || count.count !== wing.fighters) {
+    throw commandError('failed-precondition', 'The AEGIS fighter source count is stale or unavailable.', 'conflict');
+  }
+  return { snapshot: { sourceId, fighters: wing.fighters, losses: wing.losses, revision: combat.revision,
+    durableRevision: count.revision, launched: true, attackId, cycle: turn as number }, combatState: combat, count };
+}
+
+function currentPdfFighterAceOwners(players: readonly DocumentSnapshot[]): readonly DocumentSnapshot[] {
+  return players.filter((player) => player.get('role') === 'player' &&
+    player.get('replacementRoleId') === 'pdf-fighter-ace' && player.get('replacementStatus') == null &&
+    !isKickedPlayer(player) && !playerEscapeState(player));
+}
+
+function currentPlayerShipInGroups(
+  player: DocumentSnapshot,
+  uid: string,
+  fleetGroups: readonly DocumentSnapshot[],
+): string | undefined {
+  const groupId = player.get('fleetGroupId');
+  if (typeof groupId !== 'string') return undefined;
+  const groups = fleetGroups.flatMap((snapshot) => {
+    const group = fleetGroupRecord(snapshot.data());
+    return group ? [group] : [];
+  });
+  return fleetGroupMemberShipId(groups, uid, groupId);
+}
+
+function requirePdfFighterAceCurrentBerth(
+  player: DocumentSnapshot,
+  uid: string,
+  fleetGroups: readonly DocumentSnapshot[],
+): string {
+  const groupId = currentPlayerFleetGroupId(player);
+  const group = fleetGroups.flatMap((snapshot) => {
+    const value = fleetGroupRecord(snapshot.data());
+    return value && value.id === groupId ? [value] : [];
+  })[0];
+  if (!group || !group.vesselIds.includes('refinery-124') ||
+      fleetGroupMemberShipId([group], uid, groupId) !== 'refinery-124') {
+    throw new HttpsError('permission-denied', 'The current Fighter Ace must be aboard Refinery 124.');
+  }
+  return groupId;
+}
+
+function requireAceSourceOfficerAndSameFleet(
+  sourceId: PdfFighterAceSourceId,
+  officer: DocumentSnapshot,
+  ace: DocumentSnapshot,
+  officerUid: string,
+  aceUid: string,
+  fleetGroups: readonly DocumentSnapshot[],
+  players: readonly DocumentSnapshot[],
+): void {
+  const roleId = sourceId === 'pdf-escort-fighter-wing' ? 'refinery-124-pdf-colonel' : 'wing-commander';
+  const shipId = sourceId === 'pdf-escort-fighter-wing' ? 'refinery-124' : 'aegis';
+  if (sourceId === 'pdf-escort-fighter-wing') requirePdfColonel(officer);
+  else requireAegisWingCommanderPlayer(officer, officerUid);
+  const owners = currentWolfRoleOwners(players, fleetGroups, roleId, shipId);
+  if (owners.length !== 1 || owners[0]?.id !== officerUid ||
+      currentPlayerShipInGroups(officer, officerUid, fleetGroups) !== shipId) {
+    throw new HttpsError('permission-denied', 'The current source commander must be aboard the fighter source host.');
+  }
+  const aceGroupId = requirePdfFighterAceCurrentBerth(ace, aceUid, fleetGroups);
+  if (currentPlayerFleetGroupId(officer) !== aceGroupId) {
+    throw new HttpsError('permission-denied', 'The Ace and source commander must share the current fleet group.');
+  }
+}
+
+function requireFighterAceRangeUnlocked(state: DocumentSnapshot, range: 'long' | 'medium' | 'short'): void {
+  const decisions = state.get('rangeDecisions');
+  if (isRecord(decisions) && Object.hasOwn(decisions, `${range}-range`)) {
+    throw commandError('failed-precondition', 'The selected range is already locked; refresh the attack.', 'stale-revision');
+  }
+}
+
+function pdfFighterAceSourceLabel(sourceId: PdfFighterAceSourceId): string {
+  return sourceId === 'fighter-wing-alpha' ? 'AEGIS Fighter Wing Alpha'
+    : sourceId === 'fighter-wing-bravo' ? 'AEGIS Fighter Wing Bravo' : 'PDF Escort Fighter Wing';
+}
+
+type PdfFighterAceTargetView = Readonly<{ targetId: string; label: string; available: boolean }>;
+type PdfFighterAceAuthorizedSourceView = Readonly<{ id: PdfFighterAceSourceId; label: string; fighters: number;
+  fighterIndex: number; permissionRequestId: string; permissionRevision: number }>;
+type PdfFighterAceCombatView = Readonly<{
+  status: 'ready' | 'waiting'; type: 'pdf-fighter-ace-combat-view'; sessionId: string;
+  attackId: string | null; turn: number; revision: number; range: 'long' | 'medium' | 'short' | null;
+  actionUsed: boolean; targets: readonly PdfFighterAceTargetView[];
+  fighterSources: readonly PdfFighterAceAuthorizedSourceView[];
+}>;
+
+function currentPdfFighterAce(player: DocumentSnapshot, uid: string): void {
+  if (!player.exists || player.id !== uid || !isActivePlayer(player) || player.get('role') !== 'player' ||
+      player.get('replacementStatus') != null || player.get('replacementRoleId') !== 'pdf-fighter-ace' ||
+      player.get('activeConsoleRoleId') !== null) {
+    throw new HttpsError('permission-denied', 'Only the current P.D.F. Fighter Ace can use this action.');
+  }
+}
+
+function pdfFighterAceRange(value: unknown): 'long' | 'medium' | 'short' | null {
+  return value === 'long-range' ? 'long' : value === 'medium-range' ? 'medium'
+    : value === 'short-range' ? 'short' : null;
+}
+
+function pdfFighterAceTargetRoster(
+  session: DocumentSnapshot,
+  state: DocumentSnapshot,
+): Readonly<{ turn: number; revision: number; attackId: string | null; range: 'long' | 'medium' | 'short' | null; roster: readonly WolfCombatShip[]; actionUsed: boolean }> {
+  const attackId = state.get('attackId');
+  const turn = state.get('turn');
+  const revision = state.get('revision');
+  if (!state.exists || state.get('type') !== 'wolf-attack-state' ||
+      (state.get('status') !== 'declared' && state.get('status') !== 'resolved') ||
+      typeof turn !== 'number' || !Number.isSafeInteger(turn) || turn < 1 ||
+      typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 1 ||
+      typeof attackId !== 'string' || !attackId || turn !== sessionTurn(session.get('currentTurn'))) {
+    return { turn: sessionTurn(session.get('currentTurn')), revision: 0, attackId: null,
+      range: null, roster: [], actionUsed: false };
+  }
+  const calculation = state.get('calculationReceipt');
+  const receipt = isRecord(calculation) && calculation.step === WOLF_ATTACK_DECLARATION_STEP
+    ? parseWolfTargetingReceipt(calculation.targeting) : undefined;
+  if (!receipt) throw commandError('failed-precondition', 'The current Fighter Ace target contacts are unavailable.', 'conflict');
+  let ring: WolfTargetRing;
+  try { ring = configuredWolfTargetRingForSession(session); } catch {
+    throw commandError('failed-precondition', 'The current Fighter Ace target ring is unavailable.', 'conflict');
+  }
+  if (JSON.stringify(receipt.ring) !== JSON.stringify(ring)) {
+    throw commandError('failed-precondition', 'The current Fighter Ace target ring is stale.', 'conflict');
+  }
+  const rawRoster = state.get('combatRoster');
+  const roster = rawRoster === undefined ? wolfCombatRoster(receipt) : rawRoster;
+  if (!Array.isArray(roster) || roster.length !== receipt.rolls.length ||
+      roster.some((entry, index) => !isRecord(entry) ||
+        entry.instanceId !== `${index}:${receipt.rolls[index]?.shipId}` ||
+        entry.shipId !== receipt.rolls[index]?.shipId || !ring.includes(entry.target as WolfFleetTargetId) ||
+        !Number.isSafeInteger(entry.damageTaken) || (entry.damageTaken as number) < 0 ||
+        typeof entry.destroyed !== 'boolean')) {
+    throw commandError('failed-precondition', 'The current Fighter Ace contact roster is malformed.', 'conflict');
+  }
+  const action = state.get('pdfFighterAceAction');
+  let actionUsed = false;
+  if (action !== undefined && action !== null) {
+    if (!isRecord(action) || typeof action.attackId !== 'string') {
+      throw commandError('failed-precondition', 'The current Fighter Ace action receipt is malformed.', 'conflict');
+    }
+    if (action.attackId === attackId) {
+      try { requirePdfFighterAceActionReceipt(action, { attackId, targetRing: ring }); }
+      catch {
+        throw commandError('failed-precondition', 'The current Fighter Ace action receipt is malformed.', 'conflict');
+      }
+      actionUsed = true;
+    }
+  }
+  return {
+    turn: turn as number, revision: revision as number, attackId,
+    range: state.get('status') === 'declared' ? pdfFighterAceRange(state.get('currentStep')) : null,
+    roster: roster as readonly WolfCombatShip[], actionUsed,
+  };
+}
+
+function pdfFighterAceCombatView(
+  sessionId: string,
+  uid: string,
+  session: DocumentSnapshot,
+  state: DocumentSnapshot,
+  pdfWing: DocumentSnapshot,
+): PdfFighterAceCombatView {
+  const current = pdfFighterAceTargetRoster(session, state);
+  const permissions = pdfFighterAcePermissionMap(state);
+  const fighterSources: PdfFighterAceAuthorizedSourceView[] = [];
+  if (current.attackId && current.range) {
+    for (const [sourceId, permission] of Object.entries(permissions) as [PdfFighterAceSourceId, PdfFighterAcePermissionRecord][]) {
+      if (permission.attackId !== current.attackId || permission.turn !== current.turn || permission.aceUid !== uid) continue;
+      try {
+        const source = pdfFighterAceSourceState(session, state, pdfWing, sourceId);
+        if (source.snapshot.fighters > permission.fighterIndex) fighterSources.push({
+          id: sourceId, label: pdfFighterAceSourceLabel(sourceId), fighters: source.snapshot.fighters,
+          fighterIndex: permission.fighterIndex, permissionRequestId: permission.requestId,
+          permissionRevision: permission.revision,
+        });
+      } catch { /* A stale or lost source is not offered to the Ace. */ }
+    }
+  }
+  return {
+    status: current.range && current.attackId && !current.actionUsed && fighterSources.length > 0 ? 'ready' : 'waiting',
+    type: 'pdf-fighter-ace-combat-view', sessionId,
+    attackId: current.attackId, turn: current.turn, revision: current.revision,
+    range: current.range, actionUsed: current.actionUsed,
+    targets: current.roster.map((entry, index) => ({
+      targetId: `contact-${index + 1}`, label: `Wolf contact ${index + 1}`,
+      available: !entry.destroyed && current.range !== null && Boolean(wolfShipForId(entry.shipId)?.ranges[current.range].canBeDamaged),
+    })),
+    fighterSources,
+  };
+}
+
+function isPdfFighterAceCombatView(value: unknown, sessionId: string): value is PdfFighterAceCombatView {
+  return isRecord(value) && Object.keys(value).every((key) => [
+    'status', 'type', 'sessionId', 'attackId', 'turn', 'revision', 'range', 'actionUsed', 'targets', 'fighterSources',
+  ].includes(key)) && (value.status === 'ready' || value.status === 'waiting') &&
+    value.type === 'pdf-fighter-ace-combat-view' && value.sessionId === sessionId &&
+    (value.attackId === null || typeof value.attackId === 'string' && value.attackId.length > 0) &&
+    Number.isSafeInteger(value.turn) && (value.turn as number) >= 0 &&
+    Number.isSafeInteger(value.revision) && (value.revision as number) >= 0 &&
+    (value.range === null || value.range === 'long' || value.range === 'medium' || value.range === 'short') &&
+    typeof value.actionUsed === 'boolean' && Array.isArray(value.targets) && value.targets.every((entry) =>
+      isRecord(entry) && Object.keys(entry).length === 3 &&
+      typeof entry.targetId === 'string' && /^contact-[1-9]\d*$/.test(entry.targetId) &&
+      typeof entry.label === 'string' && /^Wolf contact [1-9]\d*$/.test(entry.label) &&
+      typeof entry.available === 'boolean') && Array.isArray(value.fighterSources) && value.fighterSources.every((entry) =>
+      isRecord(entry) && Object.keys(entry).length === 6 && isPdfFighterAceSourceId(entry.id) &&
+      entry.label === pdfFighterAceSourceLabel(entry.id) && Number.isSafeInteger(entry.fighters) &&
+      (entry.fighters as number) > 0 && Number.isSafeInteger(entry.fighterIndex) &&
+      (entry.fighterIndex as number) >= 0 && (entry.fighterIndex as number) < (entry.fighters as number) &&
+      isCanonicalRequestId(entry.permissionRequestId) && Number.isSafeInteger(entry.permissionRevision) &&
+      (entry.permissionRevision as number) > 0);
+}
+
+/** Return only opaque contact labels and the current range to the active Fighter Ace. */
+export const getPdfFighterAceCombatView = onCall<{ sessionId?: unknown }>(async (request) => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  if (!isRecord(raw) || Object.keys(raw).length !== 1 || !isCanonicalRequestId(raw.sessionId)) {
+    throw new HttpsError('invalid-argument', 'A valid sessionId is required.');
+  }
+  const sessionId = raw.sessionId;
+  const [session, player, state, pdfWing, fleetGroups] = await Promise.all([
+    db.doc(`sessions/${sessionId}`).get(), db.doc(`sessions/${sessionId}/players/${uid}`).get(),
+    db.doc(`sessions/${sessionId}/wolfAttackState/current`).get(),
+    db.doc(`sessions/${sessionId}/serverState/pdfEscortWing`).get(),
+    db.collection(`sessions/${sessionId}/fleetGroups`).get(),
+  ]);
+  if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+  currentPdfFighterAce(player, uid);
+  requirePdfFighterAceCurrentBerth(player, uid, fleetGroups.docs);
+  requireActiveGameplayPhase(session);
+  requireUsableShip(session, 'refinery-124');
+  const view = pdfFighterAceCombatView(sessionId, uid, session, state, pdfWing);
+  if (!isPdfFighterAceCombatView(view, sessionId)) {
+    throw commandError('failed-precondition', 'The current Fighter Ace view is malformed.', 'conflict');
+  }
+  return view;
+});
+
+type PdfFighterAcePermissionView = Readonly<{
+  type: 'pdf-fighter-ace-permission-view'; sessionId: string; attackId: string | null;
+  turn: number; revision: number; range: 'long' | 'medium' | 'short' | null;
+  sourceId: PdfFighterAceSourceId; sourceLabel: string; status: 'ready' | 'waiting' | 'granted' | 'closed';
+  reason: string | null; fighters: number; availableFighterIndexes: readonly number[];
+}>;
+
+function pdfFighterAcePermissionView(
+  sessionId: string,
+  session: DocumentSnapshot,
+  state: DocumentSnapshot,
+  pdfWing: DocumentSnapshot,
+  sourceId: PdfFighterAceSourceId,
+  aceAvailable: boolean,
+): PdfFighterAcePermissionView {
+  const current = pdfFighterAceTargetRoster(session, state);
+  let snapshot: PdfFighterAceSourceSnapshot | undefined;
+  let reason: string | null = null;
+  try { snapshot = pdfFighterAceSourceState(session, state, pdfWing, sourceId).snapshot; }
+  catch { reason = 'source-not-launched'; }
+  const permissions = pdfFighterAcePermissionMap(state);
+  const existing = permissions[sourceId];
+  const rangeOpen = Boolean(current.attackId && current.range && state.get('status') === 'declared' &&
+    state.get('airspaceLocked') === true && !current.actionUsed);
+  const status = existing ? 'granted' : !rangeOpen ? 'closed' : !snapshot || !aceAvailable ? 'waiting' : 'ready';
+  if (status === 'waiting' && !reason) reason = aceAvailable ? 'source-not-launched' : 'current-ace-unavailable';
+  if (status === 'closed') reason = current.actionUsed ? 'ace-already-acted' : 'range-not-open';
+  return {
+    type: 'pdf-fighter-ace-permission-view', sessionId, attackId: current.attackId,
+    turn: current.turn, revision: current.revision, range: current.range,
+    sourceId, sourceLabel: pdfFighterAceSourceLabel(sourceId), status, reason,
+    fighters: snapshot?.fighters ?? 0,
+    availableFighterIndexes: status === 'ready' && snapshot
+      ? Array.from({ length: snapshot.fighters }, (_, index) => index) : [],
+  };
+}
+
+function isPdfFighterAcePermissionView(value: unknown, sessionId: string): value is PdfFighterAcePermissionView {
+  return isRecord(value) && Object.keys(value).every((key) => [
+    'type', 'sessionId', 'attackId', 'turn', 'revision', 'range', 'sourceId', 'sourceLabel',
+    'status', 'reason', 'fighters', 'availableFighterIndexes',
+  ].includes(key)) && value.type === 'pdf-fighter-ace-permission-view' && value.sessionId === sessionId &&
+    (value.attackId === null || typeof value.attackId === 'string' && value.attackId.length > 0) &&
+    Number.isSafeInteger(value.turn) && (value.turn as number) >= 0 &&
+    Number.isSafeInteger(value.revision) && (value.revision as number) >= 0 &&
+    (value.range === null || value.range === 'long' || value.range === 'medium' || value.range === 'short') &&
+    isPdfFighterAceSourceId(value.sourceId) && value.sourceLabel === pdfFighterAceSourceLabel(value.sourceId) &&
+    ['ready', 'waiting', 'granted', 'closed'].includes(String(value.status)) &&
+    (value.reason === null || typeof value.reason === 'string') && Number.isSafeInteger(value.fighters) &&
+    (value.fighters as number) >= 0 && Array.isArray(value.availableFighterIndexes) &&
+    value.availableFighterIndexes.every((index) => Number.isSafeInteger(index) && (index as number) >= 0 &&
+      (index as number) < (value.fighters as number));
+}
+
+/** Show a current source commander the active Ace's eligible launched fighter slots. */
+export const getPdfFighterAcePermissionView = onCall<{
+  sessionId?: unknown; sourceId?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  if (!isRecord(raw) || Object.keys(raw).length !== 2 || !isCanonicalRequestId(raw.sessionId) ||
+      !isPdfFighterAceSourceId(raw.sourceId)) {
+    throw new HttpsError('invalid-argument', 'Choose a current AEGIS or P.D.F. fighter source.');
+  }
+  const sessionId = raw.sessionId;
+  const sourceId = raw.sourceId;
+  const [session, officer, state, pdfWing, players, fleetGroups] = await Promise.all([
+    db.doc(`sessions/${sessionId}`).get(), db.doc(`sessions/${sessionId}/players/${uid}`).get(),
+    db.doc(`sessions/${sessionId}/wolfAttackState/current`).get(),
+    db.doc(`sessions/${sessionId}/serverState/pdfEscortWing`).get(),
+    db.collection(`sessions/${sessionId}/players`).get(), db.collection(`sessions/${sessionId}/fleetGroups`).get(),
+  ]);
+  if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+  if (sourceId === 'pdf-escort-fighter-wing') requirePdfColonel(officer);
+  else requireAegisWingCommanderPlayer(officer, uid);
+  requireActiveGameplayPhase(session);
+  requireUsableShip(session, sourceId === 'pdf-escort-fighter-wing' ? 'refinery-124' : 'aegis');
+  const aceOwners = currentPdfFighterAceOwners(players.docs);
+  const ace = aceOwners.length === 1 && isActivePlayer(aceOwners[0]!) ? aceOwners[0] : undefined;
+  let aceAvailable = false;
+  if (ace && currentPlayerShipInGroups(ace, ace.id, fleetGroups.docs) === 'refinery-124' &&
+      currentPlayerFleetGroupId(ace) === currentPlayerFleetGroupId(officer)) {
+    requireAceSourceOfficerAndSameFleet(sourceId, officer, ace, uid, ace.id, fleetGroups.docs, players.docs);
+    aceAvailable = true;
+  }
+  const view = pdfFighterAcePermissionView(sessionId, session, state, pdfWing, sourceId, aceAvailable);
+  if (!isPdfFighterAcePermissionView(view, sessionId)) {
+    throw commandError('failed-precondition', 'The current Fighter Ace permission view is malformed.', 'conflict');
+  }
+  return view;
+});
+
+type PdfFighterAcePermissionResult = Readonly<{
+  status: 'committed' | 'replayed'; type: 'pdf-fighter-ace-permission';
+  sessionId: string; requestId: string; attackId: string; turn: number; revision: number;
+  sourceId: PdfFighterAceSourceId; fighterIndex: number; permissionRevision: number;
+  actorRoleId: 'wing-commander' | 'refinery-124-pdf-colonel';
+}>;
+
+function isPdfFighterAcePermissionResult(value: unknown, sessionId: string): value is PdfFighterAcePermissionResult {
+  return isRecord(value) && Object.keys(value).every((key) => [
+    'status', 'type', 'sessionId', 'requestId', 'attackId', 'turn', 'revision', 'sourceId',
+    'fighterIndex', 'permissionRevision', 'actorRoleId',
+  ].includes(key)) && (value.status === 'committed' || value.status === 'replayed') &&
+    value.type === 'pdf-fighter-ace-permission' && value.sessionId === sessionId &&
+    isCanonicalRequestId(value.requestId) && isCanonicalRequestId(value.attackId) &&
+    Number.isSafeInteger(value.turn) && (value.turn as number) >= 1 &&
+    Number.isSafeInteger(value.revision) && (value.revision as number) >= 1 &&
+    isPdfFighterAceSourceId(value.sourceId) && Number.isSafeInteger(value.fighterIndex) &&
+    (value.fighterIndex as number) >= 0 && Number.isSafeInteger(value.permissionRevision) &&
+    (value.permissionRevision as number) >= 1 &&
+    value.actorRoleId === (value.sourceId === 'pdf-escort-fighter-wing' ? 'refinery-124-pdf-colonel' : 'wing-commander');
+}
+
+/** Commit the source officer's one explicit, attack-bound Fighter Ace authorization. */
+export const grantPdfFighterAcePermission = onCall<{
+  sessionId?: unknown; requestId?: unknown; attackId?: unknown; expectedRevision?: unknown;
+  sourceId?: unknown; fighterIndex?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = new Set(['sessionId', 'requestId', 'attackId', 'expectedRevision', 'sourceId', 'fighterIndex']);
+  if (!isRecord(raw) || Object.keys(raw).some((key) => !allowed.has(key)) ||
+      Object.keys(raw).length !== allowed.size || !isCanonicalRequestId(raw.sessionId) ||
+      !isCanonicalRequestId(raw.requestId) || !isCanonicalRequestId(raw.attackId) ||
+      !Number.isSafeInteger(raw.expectedRevision) || (raw.expectedRevision as number) < 1 ||
+      !isPdfFighterAceSourceId(raw.sourceId) || !Number.isSafeInteger(raw.fighterIndex) ||
+      (raw.fighterIndex as number) < 0) {
+    throw new HttpsError('invalid-argument', 'Invalid Fighter Ace source permission request.');
+  }
+  const sessionId = raw.sessionId;
+  const requestId = raw.requestId;
+  const attackId = raw.attackId;
+  const expectedRevision = raw.expectedRevision as number;
+  const sourceId = raw.sourceId;
+  const fighterIndex = raw.fighterIndex as number;
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const officerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+  const stateRef = db.doc(`sessions/${sessionId}/wolfAttackState/current`);
+  const pdfWingRef = db.doc(`sessions/${sessionId}/serverState/pdfEscortWing`);
+  const playersRef = db.collection(`sessions/${sessionId}/players`);
+  const fleetGroupsRef = db.collection(`sessions/${sessionId}/fleetGroups`);
+  const receiptRef = commandReceiptRef(sessionId, requestId);
+  const auditRef = db.doc(`sessions/${sessionId}/wolfAttackState/current/audit/${requestId}`);
+  const actorRoleId = sourceId === 'pdf-escort-fighter-wing' ? 'refinery-124-pdf-colonel' : 'wing-commander';
+  const fingerprint: CommandFingerprint = {
+    action: 'grant-pdf-fighter-ace-permission', sessionId, requestId, actorUid: uid,
+    instanceId: null, expectedRevision,
+    payload: { attackId, sourceId, fighterIndex },
+  };
+  return db.runTransaction(async (tx: Transaction): Promise<PdfFighterAcePermissionResult> => {
+    const [session, officer, state, pdfWing, players, fleetGroups, receipt, audit] = await Promise.all([
+      tx.get(sessionRef), tx.get(officerRef), tx.get(stateRef), tx.get(pdfWingRef),
+      tx.get(playersRef), tx.get(fleetGroupsRef), tx.get(receiptRef), tx.get(auditRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (sourceId === 'pdf-escort-fighter-wing') requirePdfColonel(officer);
+    else requireAegisWingCommanderPlayer(officer, uid);
+    const replay = replayBoundCommand(receipt, fingerprint,
+      (value): value is PdfFighterAcePermissionResult => isPdfFighterAcePermissionResult(value, sessionId),
+      'P.D.F. Fighter Ace permission');
+    if (replay) return replay;
+    await rejectForeignLegacyM1Command(tx, sessionId, requestId, 'P.D.F. Fighter Ace permission', []);
+    if (audit.exists) rejectLegacyEventReplay('P.D.F. Fighter Ace permission');
+    requireActiveGameplayPhase(session);
+    requireUsableShip(session, sourceId === 'pdf-escort-fighter-wing' ? 'refinery-124' : 'aegis');
+    const current = pdfFighterAceTargetRoster(session, state);
+    const phase = turnPhaseState(session.get('turnPhase'));
+    if (state.get('status') !== 'declared' || !state.get('airspaceLocked') || !current.attackId ||
+        current.attackId !== attackId || current.turn !== sessionTurn(session.get('currentTurn')) ||
+        !current.range || !phase || phase.turn !== current.turn || phase.airspace.state !== 'restricted' ||
+        phase.timerPause !== undefined || state.get('revision') !== expectedRevision) {
+      throw commandError('failed-precondition', 'The source permission is stale or the Wolf range is not open.', 'stale-revision');
+    }
+    requireFighterAceRangeUnlocked(state, current.range);
+    if (current.actionUsed) throw commandError('failed-precondition', 'The Fighter Ace has already acted in this attack.', 'invalid-phase');
+    const permissions = pdfFighterAcePermissionMap(state);
+    if (Object.keys(permissions).length > 0) {
+      throw commandError('failed-precondition', 'A Fighter Ace source has already been authorized for this attack.', 'conflict');
+    }
+    const aceOwners = currentPdfFighterAceOwners(players.docs);
+    if (aceOwners.length !== 1 || !isActivePlayer(aceOwners[0]!)) {
+      throw commandError('failed-precondition', 'There is no unique current P.D.F. Fighter Ace available.', 'conflict');
+    }
+    const ace = aceOwners[0]!;
+    requireAceSourceOfficerAndSameFleet(sourceId, officer, ace, uid, ace.id, fleetGroups.docs, players.docs);
+    const source = pdfFighterAceSourceState(session, state, pdfWing, sourceId);
+    const permission = createPdfFighterAcePermission({
+      attackId, turn: current.turn, sourceId, fighterIndex, aceUid: ace.id,
+      actorUid: uid, actorRoleId, requestId, revision: 1,
+      fighters: source.snapshot.fighters, launched: source.snapshot.launched,
+    });
+    const revision = expectedRevision + 1;
+    const result: PdfFighterAcePermissionResult = {
+      status: 'committed', type: 'pdf-fighter-ace-permission', sessionId, requestId, attackId,
+      turn: current.turn, revision, sourceId, fighterIndex, permissionRevision: permission.revision, actorRoleId,
+    };
+    tx.update(stateRef, { revision, fighterAcePermissions: { [sourceId]: permission },
+      updatedAt: FieldValue.serverTimestamp() });
+    tx.set(auditRef, { ...permission, type: 'pdf-fighter-ace-permission-audit',
+      createdAt: FieldValue.serverTimestamp() });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+type PdfFighterAcePublicTargetResult = Readonly<{ targetId: string; damage: number; destroyed: boolean }>;
+type PdfFighterAceCommitResult = Readonly<{
+  status: 'committed' | 'replayed'; type: 'pdf-fighter-ace-combat';
+  sessionId: string; requestId: string; attackId: string; turn: number; revision: number;
+  range: 'long' | 'medium' | 'short'; sourceId: PdfFighterAceSourceId; fighterIndex: number;
+  targetId: string; damage: number; targetDestroyed: boolean;
+  results: readonly PdfFighterAcePublicTargetResult[];
+  fighterDestroyed: boolean; aceDied: boolean; escaped: boolean;
+  targetShift?: Readonly<{ from: number; to: number; shift: -1 | 1 }>;
+}>;
+
+function isPdfFighterAceCommitResult(value: unknown, sessionId: string): value is PdfFighterAceCommitResult {
+  return isRecord(value) && Object.keys(value).every((key) => [
+    'status', 'type', 'sessionId', 'requestId', 'attackId', 'turn', 'revision', 'range', 'sourceId', 'fighterIndex',
+    'targetId', 'damage', 'targetDestroyed', 'results', 'fighterDestroyed', 'aceDied', 'escaped', 'targetShift',
+  ].includes(key)) && (value.status === 'committed' || value.status === 'replayed') &&
+    value.type === 'pdf-fighter-ace-combat' && value.sessionId === sessionId &&
+    isCanonicalRequestId(value.requestId) && isCanonicalRequestId(value.attackId) &&
+    Number.isSafeInteger(value.turn) && (value.turn as number) >= 1 &&
+    Number.isSafeInteger(value.revision) && (value.revision as number) >= 1 &&
+    (value.range === 'long' || value.range === 'medium' || value.range === 'short') &&
+    isPdfFighterAceSourceId(value.sourceId) && Number.isSafeInteger(value.fighterIndex) &&
+    (value.fighterIndex as number) >= 0 && typeof value.targetId === 'string' && /^contact-[1-9]\d*$/.test(value.targetId) &&
+    Number.isSafeInteger(value.damage) && (value.damage as number) >= 0 && typeof value.targetDestroyed === 'boolean' &&
+    Array.isArray(value.results) && value.results.length > 0 && value.results.every((entry) => isRecord(entry) &&
+      Object.keys(entry).length === 3 && typeof entry.targetId === 'string' && /^contact-[1-9]\d*$/.test(entry.targetId) &&
+      Number.isSafeInteger(entry.damage) && (entry.damage as number) >= 0 && typeof entry.destroyed === 'boolean') &&
+    typeof value.fighterDestroyed === 'boolean' && typeof value.aceDied === 'boolean' && typeof value.escaped === 'boolean' &&
+    (value.targetShift === undefined || isRecord(value.targetShift) &&
+      Object.keys(value.targetShift).length === 3 && Number.isSafeInteger(value.targetShift.from) &&
+      Number.isSafeInteger(value.targetShift.to) && (value.targetShift.shift === -1 || value.targetShift.shift === 1));
+}
+
+function pdfFighterAceSourceLoss(
+  source: ReturnType<typeof pdfFighterAceSourceState>,
+  sourceId: PdfFighterAceSourceId,
+): Readonly<{ snapshot: PdfFighterAceSourceSnapshot; pdfState?: PdfEscortWingState;
+  combatState?: AegisFighterWingCombatState; count?: FighterWingCountState }> {
+  const current = source.snapshot;
+  if (current.fighters <= 0) throw commandError('failed-precondition', 'No fighter remains in the authorized source slot.', 'conflict');
+  if (sourceId === 'pdf-escort-fighter-wing') {
+    if (!source.pdfState) throw commandError('failed-precondition', 'The P.D.F. source state is unavailable.', 'conflict');
+    const nextState: PdfEscortWingState = {
+      ...source.pdfState, revision: source.pdfState.revision + 1,
+      fighters: source.pdfState.fighters - 1, losses: source.pdfState.losses + 1,
+    };
+    const parsed = parsePdfEscortWingState(nextState);
+    if (!parsed) throw commandError('failed-precondition', 'The P.D.F. source loss could not be persisted.', 'conflict');
+    return { pdfState: parsed, snapshot: { sourceId, fighters: parsed.fighters, losses: parsed.losses,
+      revision: parsed.revision, durableRevision: parsed.revision, launched: true,
+      attackId: current.attackId, cycle: current.cycle } };
+  }
+  if (!source.combatState || !source.count) {
+    throw commandError('failed-precondition', 'The AEGIS source state is unavailable.', 'conflict');
+  }
+  const wing = source.combatState.wings[sourceId];
+  if (wing.fighters !== source.count.count) {
+    throw commandError('failed-precondition', 'The AEGIS fighter source changed after permission was granted.', 'stale-revision');
+  }
+  const nextWing = { ...wing, fighters: wing.fighters - 1, losses: wing.losses + 1 };
+  const combatState: AegisFighterWingCombatState = Object.freeze({
+    ...source.combatState, revision: source.combatState.revision + 1,
+    wings: Object.freeze({ ...source.combatState.wings, [sourceId]: Object.freeze(nextWing) }),
+  });
+  const count: FighterWingCountState = Object.freeze({ count: source.count.count - 1, revision: source.count.revision + 1 });
+  return { combatState, count, snapshot: { sourceId, fighters: nextWing.fighters, losses: nextWing.losses,
+    revision: combatState.revision, durableRevision: count.revision, launched: true,
+    attackId: current.attackId, cycle: current.cycle } };
+}
+
+/** Commit one permission-bound Fighter Ace action before the selected range lock. */
+export const commitPdfFighterAceCombat = onCall<{
+  sessionId?: unknown; requestId?: unknown; attackId?: unknown; expectedRevision?: unknown;
+  targetId?: unknown; range?: unknown; sourceId?: unknown; fighterIndex?: unknown;
+  permissionRequestId?: unknown; permissionRevision?: unknown; targetShift?: unknown; extraTargetId?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = new Set(['sessionId', 'requestId', 'attackId', 'expectedRevision', 'targetId', 'range', 'sourceId',
+    'fighterIndex', 'permissionRequestId', 'permissionRevision', 'targetShift', 'extraTargetId']);
+  if (!isRecord(raw) || Object.keys(raw).some((key) => !allowed.has(key)) ||
+      !['sessionId', 'requestId', 'attackId', 'expectedRevision', 'targetId', 'range', 'sourceId', 'fighterIndex',
+        'permissionRequestId', 'permissionRevision'].every((key) => Object.hasOwn(raw, key)) ||
+      !isCanonicalRequestId(raw.sessionId) || !isCanonicalRequestId(raw.requestId) ||
+      !isCanonicalRequestId(raw.attackId) || !Number.isSafeInteger(raw.expectedRevision) || (raw.expectedRevision as number) < 1 ||
+      typeof raw.targetId !== 'string' || !/^contact-[1-9]\d*$/.test(raw.targetId) ||
+      !isPdfFighterAceSourceId(raw.sourceId) || !Number.isSafeInteger(raw.fighterIndex) || (raw.fighterIndex as number) < 0 ||
+      !isCanonicalRequestId(raw.permissionRequestId) || !Number.isSafeInteger(raw.permissionRevision) ||
+      (raw.permissionRevision as number) < 1 ||
+      (raw.range !== 'long' && raw.range !== 'medium' && raw.range !== 'short') ||
+      (raw.targetShift !== undefined && raw.targetShift !== -1 && raw.targetShift !== 1) ||
+      (raw.range !== 'medium' && raw.targetShift !== undefined) ||
+      (raw.extraTargetId !== undefined && (raw.range !== 'short' || typeof raw.extraTargetId !== 'string' ||
+        !/^contact-[1-9]\d*$/.test(raw.extraTargetId)))) {
+    throw new HttpsError('invalid-argument', 'Invalid P.D.F. Fighter Ace combat action.');
+  }
+  const sessionId = raw.sessionId;
+  const requestId = raw.requestId;
+  const attackId = raw.attackId;
+  const expectedRevision = raw.expectedRevision as number;
+  const targetId = raw.targetId;
+  const range = raw.range as 'long' | 'medium' | 'short';
+  const sourceId = raw.sourceId;
+  const fighterIndex = raw.fighterIndex as number;
+  const permissionRequestId = raw.permissionRequestId;
+  const permissionRevision = raw.permissionRevision as number;
+  const targetShift = raw.targetShift as -1 | 1 | undefined;
+  const extraTargetId = raw.extraTargetId as string | undefined;
+  const targetIndex = Number(targetId.slice('contact-'.length)) - 1;
+  const extraTargetIndex = extraTargetId === undefined ? undefined : Number(extraTargetId.slice('contact-'.length)) - 1;
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+  const stateRef = db.doc(`sessions/${sessionId}/wolfAttackState/current`);
+  const pdfWingRef = db.doc(`sessions/${sessionId}/serverState/pdfEscortWing`);
+  const playersRef = db.collection(`sessions/${sessionId}/players`);
+  const fleetGroupsRef = db.collection(`sessions/${sessionId}/fleetGroups`);
+  const receiptRef = commandReceiptRef(sessionId, requestId);
+  const auditRef = db.doc(`sessions/${sessionId}/wolfAttackState/current/audit/${requestId}`);
+  const eligibilityRef = db.doc(`sessions/${sessionId}/replacementEligibility/${uid}`);
+  const fingerprint: CommandFingerprint = {
+    action: 'commit-pdf-fighter-ace-combat', sessionId, requestId, actorUid: uid,
+    instanceId: null, expectedRevision,
+    payload: { attackId, targetId, range, sourceId, fighterIndex, permissionRequestId,
+      permissionRevision, targetShift: targetShift ?? null, extraTargetId: extraTargetId ?? null },
+  };
+  const validate = async (tx: Transaction) => {
+    const [session, player, state, pdfWing, players, fleetGroups, receipt, audit, eligibility] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(stateRef), tx.get(pdfWingRef), tx.get(playersRef),
+      tx.get(fleetGroupsRef), tx.get(receiptRef), tx.get(auditRef), tx.get(eligibilityRef),
+    ]);
+    const seatId = player.get('seatId');
+    const seat = typeof seatId === 'string' ? await tx.get(db.doc(`sessions/${sessionId}/seats/${seatId}`)) : undefined;
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    currentPdfFighterAce(player, uid);
+    const replay = replayBoundCommand(receipt, fingerprint,
+      (value): value is PdfFighterAceCommitResult => isPdfFighterAceCommitResult(value, sessionId),
+      'P.D.F. Fighter Ace combat');
+    if (replay) return { replay, session, state, current: undefined, eligibility, seat };
+    await rejectForeignLegacyM1Command(tx, sessionId, requestId, 'P.D.F. Fighter Ace combat', []);
+    if (audit.exists) rejectLegacyEventReplay('P.D.F. Fighter Ace combat');
+    requirePdfFighterAceCurrentBerth(player, uid, fleetGroups.docs);
+    requireActiveGameplayPhase(session);
+    requireUsableShip(session, 'refinery-124');
+    const current = pdfFighterAceTargetRoster(session, state);
+    const phase = turnPhaseState(session.get('turnPhase'));
+    if (!attackId || current.attackId !== attackId || current.turn !== sessionTurn(session.get('currentTurn')) ||
+        !phase || phase.turn !== current.turn || phase.airspace.state !== 'restricted' || phase.timerPause !== undefined ||
+        current.range !== range || state.get('revision') !== expectedRevision) {
+      throw commandError('failed-precondition', 'The P.D.F. Fighter Ace attack view is stale or no longer open.', 'stale-revision');
+    }
+    if (state.get('status') !== 'declared' || !state.exists || state.get('airspaceLocked') !== true || current.actionUsed) {
+      throw commandError('failed-precondition', 'The Fighter Ace has already acted or this Wolf range is closed.', 'invalid-phase');
+    }
+    requireFighterAceRangeUnlocked(state, range);
+    const target = current.roster[targetIndex];
+    const extraTarget = extraTargetIndex === undefined ? undefined : current.roster[extraTargetIndex];
+    if (!target || (extraTargetIndex !== undefined && !extraTarget)) {
+      throw commandError('failed-precondition', 'Choose current attack contacts.', 'conflict');
+    }
+    const owners = currentPdfFighterAceOwners(players.docs);
+    if (owners.length !== 1 || owners[0]?.id !== uid) {
+      throw new HttpsError('permission-denied', 'Only the unique current P.D.F. Fighter Ace may take this action.');
+    }
+    const permissions = pdfFighterAcePermissionMap(state);
+    const permission = permissions[sourceId];
+    let boundPermission: PdfFighterAcePermissionRecord;
+    try {
+      boundPermission = requirePdfFighterAcePermission(permission, {
+        attackId, turn: current.turn, sourceId, fighterIndex, aceUid: uid,
+        requestId: permissionRequestId, revision: permissionRevision,
+      });
+    } catch (cause) {
+      throw new HttpsError('permission-denied', cause instanceof Error ? cause.message : 'A current source commander permission is required.');
+    }
+    if (Object.keys(permissions).length !== 1) {
+      throw commandError('failed-precondition', 'The Fighter Ace permission ledger has more than one source.', 'conflict');
+    }
+    const sourceOfficer = players.docs.find((candidate) => candidate.id === boundPermission.actorUid);
+    if (!sourceOfficer) throw new HttpsError('permission-denied', 'The source commander is no longer current.');
+    requireAceSourceOfficerAndSameFleet(sourceId, sourceOfficer, player, boundPermission.actorUid, uid,
+      fleetGroups.docs, players.docs);
+    const source = pdfFighterAceSourceState(session, state, pdfWing, sourceId);
+    if (source.snapshot.fighters <= fighterIndex) {
+      throw commandError('failed-precondition', 'The authorized fighter slot is no longer available.', 'stale-revision');
+    }
+    let targetRing: WolfTargetRing;
+    try { targetRing = configuredWolfTargetRingForSession(session); } catch {
+      throw commandError('failed-precondition', 'The current target ring is unavailable.', 'conflict');
+    }
+    return { replay: undefined, session, state, current: { ...current, target, extraTarget, targetRing,
+      permission: boundPermission, source }, eligibility, seat };
+  };
+  const preflight = await db.runTransaction(async (tx) => validate(tx));
+  if (preflight.replay) return { ...preflight.replay, status: 'replayed' as const };
+  if (!preflight.current) throw commandError('failed-precondition', 'The current Fighter Ace action is unavailable.', 'conflict');
+  const rolls = range === 'long' ? [randomInt(1, 7), randomInt(1, 7), randomInt(1, 7)] : undefined;
+  const serverTime = new Date().toISOString();
+  return db.runTransaction(async (tx) => {
+    const current = await validate(tx);
+    if (current.replay) return { ...current.replay, status: 'replayed' as const };
+    if (!current.current) throw commandError('failed-precondition', 'The current Fighter Ace contact is unavailable.', 'conflict');
+    let combat: ReturnType<typeof resolvePdfFighterAceCombat>;
+    try {
+      combat = resolvePdfFighterAceCombat({
+        range, target: current.current.target, ...(current.current.extraTarget ? { extraTarget: current.current.extraTarget } : {}),
+        ...(rolls ? { rolls } : {}),
+        ...(targetShift === undefined ? {} : { targetShift, currentTarget: current.current.target.target,
+          targetRing: current.current.targetRing }),
+      });
+    } catch (cause) {
+      throw commandError('failed-precondition', cause instanceof Error ? cause.message : 'The Fighter Ace action could not resolve.', 'conflict');
+    }
+    const memberResults = current.state.get('memberResults') ?? [];
+    if (!Array.isArray(memberResults)) throw commandError('failed-precondition', 'Committed attack results are malformed.', 'conflict');
+    const rosterBefore = current.current.roster.map((entry) => ({ ...entry }));
+    let combatRoster: readonly WolfCombatShip[];
+    try {
+      const damaged = applyPdfFighterAceResults(rosterBefore, combat.targetResults) as readonly WolfCombatShip[];
+      if (combat.targetShift) {
+        const nextTarget = current.current.targetRing[combat.targetShift.to - 1];
+        if (!nextTarget) throw new Error('The Fighter Ace target shift is outside the current ring.');
+        combatRoster = Object.freeze(damaged.map((entry) => entry.instanceId === combat.targetShift!.instanceId
+          ? Object.freeze({ ...entry, target: nextTarget }) : entry));
+      } else combatRoster = damaged;
+    } catch (cause) {
+      throw commandError('failed-precondition', cause instanceof Error ? cause.message : 'Fighter Ace damage did not match the current contacts.', 'conflict');
+    }
+    let sourceAfter = current.current.source.snapshot;
+    let pdfStateAfter: PdfEscortWingState | undefined;
+    let aegisStateAfter: AegisFighterWingCombatState | undefined;
+    let aegisCountAfter: FighterWingCountState | undefined;
+    if (combat.fighterDestroyed) {
+      const loss = pdfFighterAceSourceLoss(current.current.source, sourceId);
+      sourceAfter = loss.snapshot;
+      pdfStateAfter = loss.pdfState;
+      aegisStateAfter = loss.combatState;
+      aegisCountAfter = loss.count;
+    }
+    const revision = expectedRevision + 1;
+    const publicResults = combat.targetResults.map((targetResult) => {
+      const contactIndex = rosterBefore.findIndex((entry) => entry.instanceId === targetResult.instanceId);
+      if (contactIndex < 0) throw commandError('failed-precondition', 'The Fighter Ace result lost its opaque contact mapping.', 'conflict');
+      return { targetId: `contact-${contactIndex + 1}`, damage: targetResult.damage, destroyed: targetResult.destroyed };
+    });
+    const result: PdfFighterAceCommitResult = {
+      status: 'committed', type: 'pdf-fighter-ace-combat', sessionId, requestId, attackId,
+      turn: current.current.turn, revision, range, sourceId, fighterIndex, targetId,
+      damage: combat.damage, targetDestroyed: combat.targetDestroyed, results: publicResults,
+      fighterDestroyed: combat.fighterDestroyed, aceDied: combat.aceDied, escaped: combat.escaped,
+      ...(combat.targetShift === undefined ? {} : { targetShift: {
+        from: combat.targetShift.from, to: combat.targetShift.to, shift: combat.targetShift.shift,
+      } }),
+    };
+    const rows = publicResults.map(({ targetId: resultTargetId, damage, destroyed }) => ({
+      status: 'committed', range, sourceId: 'pdf-fighter-ace', targetId: resultTargetId,
+      bearing: null, contactReference: `Wolf contact ${resultTargetId.slice('contact-'.length)}`,
+      effect: damage > 0 ? 'Fighter Ace hit' : 'Fighter Ace missed', outcome: { damage, destroyed }, serverTime,
+    }));
+    const privateAction = {
+      type: 'pdf-fighter-ace-action' as const, attackId, turn: current.current.turn, revision,
+      requestId, actorUid: uid, actorRoleId: 'pdf-fighter-ace' as const, fighterUid: uid,
+      sourceId, fighterIndex, permissionActor: current.current.permission,
+      permissionActorUid: current.current.permission.actorUid,
+      permissionActorRoleId: current.current.permission.actorRoleId,
+      permissionRequestId: current.current.permission.requestId,
+      permissionRevision: current.current.permission.revision, range,
+      submittedTargetId: targetId, extraTargetId: extraTargetId ?? null,
+      submittedTargetShift: targetShift ?? null,
+      resolvedTargetShift: combat.targetShift ?? null,
+      rosterBefore, targetResults: combat.targetResults,
+      sourceStateBefore: current.current.source.snapshot, sourceStateAfter: sourceAfter,
+      outcome: { damage: combat.damage, targetDestroyed: combat.targetDestroyed,
+        fighterDestroyed: combat.fighterDestroyed, aceDied: combat.aceDied, escaped: combat.escaped },
+      rolls: rolls ?? [], committedAt: serverTime,
+    };
+    try { requirePdfFighterAceActionReceipt(privateAction, { attackId, actorUid: uid, targetRing: current.current.targetRing }); }
+    catch {
+      throw commandError('failed-precondition', 'The Fighter Ace result did not produce a canonical private receipt.', 'conflict');
+    }
+    const nextMemberResults = [...memberResults, ...rows];
+    const nextState = {
+      ...(current.state.data() ?? {}), revision, combatRoster, pdfFighterAceAction: privateAction,
+      memberResults: nextMemberResults, updatedAt: FieldValue.serverTimestamp(),
+    };
+    tx.update(stateRef, {
+      revision, combatRoster, pdfFighterAceAction: privateAction, memberResults: nextMemberResults,
+      ...(aegisStateAfter ? { aegisFighterWingState: aegisStateAfter } : {}),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    const sessionPatch: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
+    if (aegisCountAfter) sessionPatch[`fighterWingCounts.${sourceId}`] = aegisCountAfter;
+    if (pdfStateAfter) {
+      sessionPatch.pdfEscortWing = projectPdfEscortWingMemberView(pdfStateAfter);
+      tx.set(db.doc(`sessions/${sessionId}/serverState/pdfEscortWing`), pdfStateAfter);
+    }
+    if (combat.aceDied) {
+      const eligibilityRevision = replacementRevision(current.eligibility) + 1;
+      sessionPatch.setupRevision = setupRevision(current.session) + 1;
+      tx.update(playerRef, { replacementRoleId: null, replacementStatus: 'awaiting-re-role',
+        activeConsoleRoleId: null, seatId: null, updatedAt: FieldValue.serverTimestamp() });
+      if (current.seat?.exists && current.seat.get('status') === 'claimed' && current.seat.get('holderUid') === uid) {
+        tx.update(current.seat.ref, { status: 'open', holderUid: null, claimedAt: null });
+      }
+      tx.delete(db.doc(`sessions/${sessionId}/roleBriefs/${uid}`));
+      tx.delete(playerDiscoveryProjectionRef(sessionId, uid));
+      const eligibility = {
+        sessionId, targetUid: uid, reason: 'dead', eligible: true, revision: eligibilityRevision,
+        actorUid: 'server', requestId: `fighter-ace-death-${attackId}-${uid}`,
+        source: 'pdf-fighter-ace-combat', attackId, sourceId, createdAt: serverTime,
+      };
+      tx.set(eligibilityRef, { ...eligibility, updatedAt: FieldValue.serverTimestamp() });
+      tx.set(db.doc(`sessions/${sessionId}/replacementEligibility/${uid}/audit/${eligibility.requestId}`), {
+        ...eligibility, createdAt: FieldValue.serverTimestamp(),
+      });
+    } else if (combat.escaped) {
+      tx.update(playerRef, { pdfFighterAceEscape: { attackId, sourceId, fighterIndex, requestId,
+        status: 'escaped', revision, recordedAt: serverTime }, updatedAt: FieldValue.serverTimestamp() });
+    }
+    tx.update(sessionRef, sessionPatch);
+    tx.set(auditRef, { ...privateAction, type: 'pdf-fighter-ace-combat-audit', createdAt: FieldValue.serverTimestamp() });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    tx.set(db.doc(`sessions/${sessionId}/wolfAttackAudience/current`),
+      projectWolfAttackMemberView({ sessionId, state: nextState, serverTime }));
     return result;
   });
 });

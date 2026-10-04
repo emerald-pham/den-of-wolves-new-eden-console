@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { PDF_FIGHTER_WING_SYSTEM, PDF_ROLE_CONSOLE } from '@/data/pdfConsoles';
 import { getPdfEscortWingLaunch, launchPdfEscortWing, passWolfFighterLaunchChoice } from '@/lib/sessionService';
 import type { PdfEscortWingLaunchView, PdfEscortWingMemberView } from '@/types/game';
+import PdfFighterAcePermissionControl from './PdfFighterAcePermissionControl';
 import { initialPdfEscortWingMemberView } from '@/lib/pdfEscortWingProjection';
 import { useSessionStore } from '@/store/useSessionStore';
 import refinery124 from '@/data/vessels/refinery-124';
@@ -163,6 +164,8 @@ export default function PdfEscortWingReference({ state, writable = false }: {
           <PdfEscortWingLaunchPanelView view={launchView} canRead={canReadLaunchAuthority}
             busy={pending} error={error}
             onLaunch={() => void launch()} onPass={() => void pass()} />
+          {launchView?.launched && <PdfFighterAcePermissionControl sourceId="pdf-escort-fighter-wing"
+            enabled={canReadLaunchAuthority} refreshKey={launchView.revision} />}
         </article>
       </div>
     </section>
