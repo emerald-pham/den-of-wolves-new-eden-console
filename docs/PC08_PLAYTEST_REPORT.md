@@ -136,7 +136,7 @@ relocation, crew defence and reroll choices reach atomic finalization. The live
 member subscription hydrates revision 41 with thirty safe results, including
 one correctly labeled PDF Short hit matching its committed assignment. Support
 rows are unique, final retry preserves the receipt, actual movement reopens,
-and private Rules writes are denied. Browser and heartbeat errors are zero.
+and private Rules reads are denied. Browser and heartbeat errors are zero.
 `owner/authenticated-composed-reconciled-final/` retains the result, exact
 39-artifact runtime attestation and owned-process cleanup. The prior ordinary
 browser read rejection during console hydration is retained separately; the
