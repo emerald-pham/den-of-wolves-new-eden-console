@@ -23120,6 +23120,34 @@ function currentPlayerFleetGroupId(player: DocumentSnapshot): string {
   return groupId;
 }
 
+function requireCurrentWolfAttackReceipt(
+  session: DocumentSnapshot,
+  attack: DocumentSnapshot,
+  turn: number,
+  attackId: unknown,
+): void {
+  if (!attack.exists || typeof attackId !== 'string' || !attackId ||
+      sessionTurn(session.get('currentTurn')) !== turn || attack.get('turn') !== turn ||
+      attack.get('attackId') !== attackId) {
+    throw commandError('failed-precondition', 'The saved choice belongs to another Wolf attack.', 'stale-revision');
+  }
+}
+
+function requireWolfFighterLaunchCurrentBerth(
+  player: DocumentSnapshot,
+  uid: string,
+  groupSnapshot: DocumentSnapshot,
+  sourceId: WolfEscortSourceId,
+): void {
+  const groupId = currentPlayerFleetGroupId(player);
+  const group = groupSnapshot.exists ? fleetGroupRecord(groupSnapshot.data()) : undefined;
+  const shipId = sourceId === 'maliades' ? 'dione' : 'refinery-124';
+  if (!group || group.id !== groupId || !group.vesselIds.includes(shipId) ||
+      fleetGroupMemberShipId([group], uid, groupId) !== shipId) {
+    throw new HttpsError('permission-denied', 'The fighter launch owner must be aboard the current host ship.');
+  }
+}
+
 function requireAegisExecutiveOfficerCurrentBerth(
   player: DocumentSnapshot,
   uid: string,
@@ -24360,7 +24388,10 @@ export const commitAegisEnrichedWarheadChoice = onCall<{
       value.turn === change.expectedTurn && value.revision === change.expectedRevision + 1 &&
       isRecord(value.view) && value.view.choiceStatus === (choice === 'enrich' ? 'enriched' : 'passed'),
     'AEGIS enriched warheads');
-    if (replay) return replay;
+    if (replay) {
+      requireCurrentWolfAttackReceipt(session, state, replay.turn, replay.view.attackId);
+      return replay;
+    }
     requireUsableShip(session, 'aegis');
     const inputs = aegisEnrichedWarheadStartInputs(session, state);
     if (change.expectedTurn !== inputs.turn || change.expectedRevision !== inputs.revision ||
@@ -24661,7 +24692,10 @@ export const launchAegisFighterWing = onCall<{
     const group = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${groupId}`));
     requireAegisExecutiveOfficerCurrentBerth(player, uid, group);
     const replay = replayBoundCommand(receipt, fingerprint, aegisFighterWingLaunchResultIsValid, 'AEGIS Fighter Wing launch');
-    if (replay) return { ...replay, status: 'replayed' };
+    if (replay) {
+      requireCurrentWolfAttackReceipt(session, attack, replay.turn, replay.attackId);
+      return { ...replay, status: 'replayed' };
+    }
     if (audit.exists) rejectLegacyEventReplay('AEGIS Fighter Wing launch');
     requireActiveGameplayPhase(session);
     requireUsableShip(session, 'aegis');
@@ -25382,8 +25416,10 @@ export const assignWolfRangeTargets = onCall<{
       ...decision, status: 'committed', assignments, receipt: applied.receipt, committedAt,
     };
     const memberResults = Array.isArray(state.get('memberResults')) ? [...state.get('memberResults')] : [];
+    const supportActionIds = new Set(rangeBundles.support.actions.map(({ actionId }) => actionId));
     for (const assignment of assignments) {
       const action = selectedActions.find(({ actionId }) => actionId === assignment.actionId)!;
+      if (supportActionIds.has(action.actionId)) continue;
       if (fixedTargetByActionId[action.actionId] && !weaponActionIds.includes(action.actionId)) continue;
       const slots = assignment.targetInstanceIds;
       const perHit = action.fixedDamage ?? action.dice?.damagePerSuccess ?? 1;
@@ -25604,7 +25640,21 @@ export const commitWolfFighterRangeActionChoice = onCall<{
     const group = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${groupId}`));
     requireAegisExecutiveOfficerCurrentBerth(player, uid, group);
     const replay = replayBoundCommand(receipt, fingerprint, isWolfFighterRangeActionResult, 'Wolf fighter range choice');
-    if (replay) return { ...replay, status: 'replayed' };
+    if (replay) {
+      const savedChoice = wolfFighterRangeChoiceValue(attack, range, wingId);
+      if (!isRecord(savedChoice) || savedChoice.type !== 'wolf-fighter-range-action-choice' ||
+          savedChoice.status !== 'committed' || savedChoice.actorUid !== uid ||
+          savedChoice.actorRoleId !== 'wing-commander' || savedChoice.requestId !== requestId ||
+          savedChoice.sourceId !== wingId || savedChoice.range !== range ||
+          savedChoice.turn !== replay.turn || savedChoice.revision !== replay.revision ||
+          replay.sessionId !== sessionId || replay.requestId !== requestId ||
+          replay.turn !== raw.expectedTurn || replay.revision !== (raw.expectedRevision as number) + 1 ||
+          replay.wingId !== wingId || replay.range !== range) {
+        throw commandError('failed-precondition', 'The saved fighter choice no longer matches its current attack binding.', 'stale-revision');
+      }
+      requireCurrentWolfAttackReceipt(session, attack, replay.turn, savedChoice.attackId);
+      return { ...replay, status: 'replayed' };
+    }
     if (audit.exists) rejectLegacyEventReplay('Wolf fighter range choice');
     requireUsableShip(session, 'aegis');
     const inputs = requireWolfRangeState(session, attack, range);
@@ -28327,6 +28377,8 @@ export const passWolfFighterLaunchChoice = onCall<{
       view = aegisFighterWingLaunchView(sessionId, session, attack, sourceId);
     } else if (sourceId === 'pdf-escort-fighter-wing') {
       requirePdfColonel(player);
+      const group = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${currentPlayerFleetGroupId(player)}`));
+      requireWolfFighterLaunchCurrentBerth(player, uid, group, sourceId);
       await rejectForeignLegacyM1Command(tx, sessionId, requestId, 'P.D.F. Escort Wing launch pass', []);
       requireActiveGameplayPhase(session);
       requireMissionMovementAvailable(session, ['pdf-escort-fighter-wing']);
@@ -28334,6 +28386,8 @@ export const passWolfFighterLaunchChoice = onCall<{
       view = pdfEscortWingLaunchView(sessionId, session, attack, pdfWing);
     } else {
       requireDioneEngineer(player);
+      const group = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${currentPlayerFleetGroupId(player)}`));
+      requireWolfFighterLaunchCurrentBerth(player, uid, group, sourceId);
       await rejectForeignLegacyM1Command(tx, sessionId, requestId, 'Maliades launch pass', []);
       requireActiveGameplayPhase(session);
       requireUsableShip(session, 'dione');
@@ -28341,7 +28395,10 @@ export const passWolfFighterLaunchChoice = onCall<{
     }
     const replay = replayBoundCommand(receipt, fingerprint, isWolfFighterLaunchChoiceResult,
       'Wolf fighter launch pass');
-    if (replay) return { ...replay, status: 'replayed' };
+    if (replay) {
+      requireCurrentWolfAttackReceipt(session, attack, replay.turn, replay.attackId);
+      return { ...replay, status: 'replayed' };
+    }
     if (audit.exists) rejectLegacyEventReplay('Wolf fighter launch pass');
     const attackId = attack.get('attackId');
     if (!attack.exists || typeof attackId !== 'string' || !attackId) {
