@@ -11,6 +11,26 @@ This record covers the audit-owned PC09 repair group in worktree
 The root task owner retains integration, independent risk review and release.
 This document does not update prompt status or award P621 closure.
 
+## Artifact availability update — October 4, 2026
+
+The later cleanup of `/private/tmp` deleted this assigned worktree, the
+uncommitted run6 harness edits, and the external gameplay evidence directories.
+The JSON evidence, browser traces, screenshots, and service logs named in the
+historical sections below are no longer present and cannot be re-opened from
+this checkout. Their recorded summaries and hashes remain historical notes,
+not currently inspectable proof artifacts. The tracked recovery driver source
+is still available.
+
+The retained task context reports that the latest positive ordinary attempt
+used normal authenticated GM +1 resource adjustments, two attack-bound Short
+Ace losses, and an immutable later return manifest; it completed a real HTTP
+build and exact retry but stopped before independently completing the actual
+Wing Commander UI build. The latest browser attempt also recorded App Check
+exchange errors; it is not a green gameplay or UI result. Its raw trace was
+deleted, so the exact request evidence cannot be reconstructed from the
+workspace. Root owns a fresh run on its own isolated row. Do not infer proof
+completion from this historical summary.
+
 ## Repairs and regressions
 
 | Finding or boundary | Test-first repair commits |
@@ -124,10 +144,41 @@ P621 remains open for the root owner's integrated candidate and risk review.
 No CI, merge, release, production deployment, or checkpoint-closure credit is
 claimed here.
 
+## Reconstructed ordinary loss/return/build driver
+
+[`scripts/pc09-ordinary-return-rebuild-positive-proof.mjs`](../scripts/pc09-ordinary-return-rebuild-positive-proof.mjs)
+is a reconstructed test-only driver for the bounded P483/P645 ordinary
+scenario. It has **not** been run. It requires explicit
+`PC09_OWNER_RUNTIME_DIR`, `PC09_OWNER_SOURCE_SHA`, `PC09_OWNER_LIB_SHA256`, and
+`PC09_OWNER_RUNTIME_MANIFEST` inputs, and checks the complete sorted compiled
+Functions JavaScript tree before it creates a session. It records every
+ordinary authenticated current-GM +1 resource adjustment and selects full
+printed rations for the chosen AEGIS, Dione, Refinery-124 and Gorgoneion
+maintenance cycles. Two attack-bound Short Ace actions must create two actual
+durable Alpha vacancies; the next ordinary declaration must consume every
+immutable parent return including a surviving Battlestation. A damaged
+Construction Bay may be repaired only by the live, paid Gorgoneion Repair
+Drones path with its exact receipt/retry proof.
+
+The driver proves one normal HTTP fighter build and exact response/receipt
+retry, then a separate actual Wing Commander browser build scoped from the
+visible Alpha heading. It keeps the two-slot requirement, checks both material
+spends and member counts, and captures browser HTTP status/method/resource type
+with query values and session IDs redacted. Any browser HTTP error, request
+failure, page error, or console error fails the proof; nothing filters App
+Check or other errors. The PC07 helper's optional `serializeFixtureCalls`
+serializes synthetic fixture actors and keep-alive calls while leaving actual
+browser SDK calls independent.
+
+This source reconstruction is not evidence that the rebuilt path passed. Root
+owns its fresh isolated gameplay run and final acceptance. The deleted run6
+JSON, traces, screenshots, and logs were not recovered or recreated here.
+
 ## Handoff and resources
 
-The audit-owned fixes, native regressions, successful connected driver, and
-handoff evidence are saved. Root owns the single-candidate integration and
+The audit-owned fixes, native regressions, connected-driver source, and
+handoff summary are tracked; the external connected-run artifacts were lost in
+the cleanup described above. Root owns the single-candidate integration and
 acceptance. This worktree used emulator slot 3: Auth 9129, Functions 5031,
 Firestore 8110, Hosting 5030, emulator UI 4030, and Vite 5176. Both
 reservation-owning wrappers were stopped and their process reservations and
