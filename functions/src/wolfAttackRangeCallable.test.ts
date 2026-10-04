@@ -1920,7 +1920,6 @@ it('combines source choices in one locked range and guides Short Wing coverage a
   expect(locked).toMatchObject({ choiceStatus: 'targets-required', hitSlots: [
     { actionId: 'highwall-short-range', count: 1, damagePerHit: 3 },
     { actionId: 'gorgoneion-missile-array-short', count: 3, damagePerHit: 1 },
-    { actionId: 'boa-short-range', count: 1, damagePerHit: 1 },
   ] });
   expect(entropy.randomInt).toHaveBeenCalledTimes(4);
   const assignmentView = await getWolfRangeActionChoice.run(request({ sessionId: 's1' }));
@@ -1928,6 +1927,22 @@ it('combines source choices in one locked range and guides Short Wing coverage a
   expect(assignmentView.contacts[0]).toMatchObject({ contactId: 'contact-1', available: true, requiredCoverageDamage: 0 });
   expect(assignmentView.contacts[1]).toMatchObject({ contactId: 'contact-2', available: true, requiredCoverageDamage: 1 });
   expect(assignmentView.contacts[10]).toMatchObject({ contactId: 'contact-11', available: true, requiredCoverageDamage: null });
+  const lockedDice = (testState.documents.get('sessions/s1/wolfAttackState/current')!.rangeDecisions as
+    Record<string, { lock: { dice: unknown[] } }>)['short-range']!.lock.dice;
+  expect(lockedDice).toContainEqual(expect.objectContaining({ actionId: 'boa-short-range', successes: 1 }));
+  const assigned = await assignWolfRangeTargets.run(request({ sessionId: 's1', requestId: 'ordinary-support-short-assign',
+    expectedTurn: 1, expectedRevision: assignmentView.revision, range: 'short-range',
+    assignments: assignmentView.hitSlots.map(slot => ({ actionId: slot.actionId,
+      contactIds: slot.actionId === 'highwall-short-range' ? ['contact-2'] : ['contact-3', 'contact-4', 'contact-5'] })),
+  }));
+  expect(assigned).toMatchObject({ currentStep: 'boarding' });
+  const resolved = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  const rangeReceipt = (resolved.rangeReceipts as Array<Fields>).at(-1)!;
+  expect(rangeReceipt.dice).toEqual(lockedDice);
+  expect(rangeReceipt.assignments).toContainEqual(expect.objectContaining({ actionId: 'boa-short-range',
+    targetInstanceIds: [(resolved.combatRoster as Array<Fields>)[0]!.instanceId] }));
+  expect(entropy.randomInt).toHaveBeenCalledTimes(4);
+  expect(testState.documents.get('sessions/s1')!.shuttleCargo).toMatchObject({ boa: { scrap: 2 } });
 });
 
 it('rechecks the current support holder before returning an exact replay', async () => {
