@@ -145,6 +145,19 @@ test('PC08 real-presenter review is isolated and usable in eight viewport and mo
               await page.getByRole('button', {name: 'Enrich warheads // 5 ore', exact: true}).click();
               assert.match(await page.getByRole('status', {name: 'Prepared warhead balance'}).textContent(), /4 ore remaining/);
               assert.equal(await page.getByRole('button', {name: 'Enrich warheads // 5 ore', exact: true}).count(), 0);
+              const highwall = page.getByRole('region', {name: 'Highwall Cannon Medium Range choice', exact: true});
+              const gorgoneion = page.getByRole('region', {name: 'Gorgoneion Missile Array Medium Range choice', exact: true});
+              const boa = page.getByRole('region', {name: 'Boa Scrap Strike Medium Range choice', exact: true});
+              await highwall.getByRole('button', {name: 'Use Highwall Cannon', exact: true}).click();
+              assert.ok(await gorgoneion.getByRole('button', {name: 'Use Gorgoneion Missile Array', exact: true}).isEnabled());
+              await gorgoneion.getByRole('button', {name: 'Pass this range', exact: true}).click();
+              assert.ok(await boa.getByRole('button', {name: 'Use Boa Scrap Strike', exact: true}).isDisabled());
+              await boa.getByRole('combobox', {name: 'Boa target', exact: true}).selectOption('local-contact-1');
+              await boa.getByRole('button', {name: 'Use Boa Scrap Strike', exact: true}).click();
+              assert.match(await page.getByRole('status', {name: 'Prepared Boa balance'}).textContent(), /2 Scrap/);
+              assert.equal(await boa.getByRole('button', {name: 'Use Boa Scrap Strike', exact: true}).count(), 0);
+              await contained();
+              await page.screenshot({path: `${directory}/${width}x${height}-${reducedMotion}-support-choices.png`, fullPage: true});
               await page.getByRole('checkbox', {name: 'Missile launchers', exact: true}).check();
               await page.getByRole('button', {name: 'Use selected actions', exact: true}).click();
               await page.getByRole('combobox', {name: 'Missile launchers hit 1', exact: true}).selectOption('local-contact-1');
@@ -152,6 +165,15 @@ test('PC08 real-presenter review is isolated and usable in eight viewport and mo
               assert.match(await page.getByRole('status', {name: 'Prepared weapon result'}).textContent(), /committed/);
               await page.getByRole('button', {name: 'Damaged weapon sample', exact: true}).click();
               assert.ok(await page.getByRole('button', {name: 'Use selected actions', exact: true}).isDisabled());
+              await page.getByRole('button', {name: 'Short Range coverage sample', exact: true}).click();
+              assert.match(await page.getByRole('status', {name: 'Short Range fighter coverage'}).textContent(), /4 damage remains/);
+              await page.getByRole('combobox', {name: 'Highwall Cannon hit 1', exact: true}).selectOption('local-wing-1');
+              await page.getByRole('combobox', {name: 'Point-defence lasers hit 1', exact: true}).selectOption('local-ship-1');
+              assert.ok(await page.getByRole('button', {name: 'Commit target assignments', exact: true}).isDisabled());
+              await page.screenshot({path: `${directory}/${width}x${height}-${reducedMotion}-short-coverage.png`, fullPage: true});
+              await page.getByRole('combobox', {name: 'Point-defence lasers hit 1', exact: true}).selectOption('local-wing-1');
+              assert.ok(await page.getByRole('button', {name: 'Commit target assignments', exact: true}).isEnabled());
+              await page.getByRole('button', {name: 'Commit target assignments', exact: true}).click();
             } else if (index === 2) {
               await page.getByRole('button', {name: 'Launch Fighter Wing Alpha', exact: true}).click();
               assert.ok(await page.getByRole('button', {name: 'Launch Fighter Wing Bravo', exact: true}).isEnabled());
