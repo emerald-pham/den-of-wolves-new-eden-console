@@ -53,7 +53,7 @@ function provision(state: string = 'debated'): void {
   put('sessions/s1/crisisState/current', { type: 'crisis-state', sessionId: 's1', crisisId: 'vessel-1',
     crisisKind: 'approaching-vessel', state, revision: 3, title: 'Approaching Vessel', details: 'GM-only notes.' });
   put('sessions/s1/crisisReports/current', { sessionId: 's1', crisisId: 'vessel-1', state: 'debated', revision: 3,
-    title: 'Approaching Vessel', body: 'Public report.' });
+    crisisKind: 'approaching-vessel', title: 'Approaching Vessel', body: 'Public report.' });
 }
 beforeEach(() => {
   mock.documents.clear(); mock.get.mockClear(); mock.set.mockClear(); mock.update.mockClear(); provision();

@@ -79,6 +79,12 @@ function provision(): void {
     crisisKind: 'approaching-vessel', state: 'resolved', revision: 2,
     title: 'Approaching vessel', details: 'Facilitator notes remain private.',
   });
+  put('sessions/s1/approachingVesselResponses/current', {
+    type: 'approaching-vessel-response', sessionId: 's1', crisisId: 'approach-1', crisisRevision: 1,
+    state: 'debated', revision: 1, vesselReality: 'real', responseChoices: ['wait-briefly-then-leave'],
+    coordinationActions: [], responseInstructions: 'Wait briefly, then leave.', rationale: 'The report is credible.',
+    actorUid: 'u1', instanceId: 'gm-1',
+  });
 }
 
 beforeEach(() => {
@@ -217,5 +223,21 @@ it('rejects a stale, wrong-kind, closed, or non-facilitator admission without wr
     .rejects.toMatchObject({ code: 'failed-precondition' });
   await expect(admitVoyage33.run(request({ ...baseData, requestId: 'actor' }, 'u2')))
     .rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.documents.has('sessions/s1/voyage33Admission/current')).toBe(false);
+});
+
+it('requires a private explicit real-vessel adjudication before first admission', async () => {
+  mock.documents.delete('sessions/s1/approachingVesselResponses/current');
+  await expect(admitVoyage33.run(request({ ...baseData, requestId: 'no-adjudication' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.has('sessions/s1/voyage33Admission/current')).toBe(false);
+  put('sessions/s1/approachingVesselResponses/current', {
+    type: 'approaching-vessel-response', sessionId: 's1', crisisId: 'approach-1', crisisRevision: 1,
+    state: 'debated', revision: 1, vesselReality: 'trap', responseChoices: ['wait-briefly-then-leave'],
+    coordinationActions: [], responseInstructions: 'Wait briefly, then leave.', rationale: 'The pilot may be lying.',
+    actorUid: 'u1', instanceId: 'gm-1',
+  });
+  await expect(admitVoyage33.run(request({ ...baseData, requestId: 'trap' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.documents.has('sessions/s1/voyage33Admission/current')).toBe(false);
 });
