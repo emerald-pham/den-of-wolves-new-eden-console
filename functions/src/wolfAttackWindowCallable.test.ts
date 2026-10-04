@@ -164,6 +164,91 @@ it('rejects a caller-invented base source instead of opening an untriggered thre
   expect(mock.documents.has('sessions/s1/commandReceipts/wolf-forged-source')).toBe(false);
 });
 
+it('continues a P Station sequence in the same cycle beyond three attacks using the audited survivors only', async () => {
+  const sequence = {
+    type: 'p-station-sequence', sequenceId: 'wolf-p-station-jump-station', groupId: 'fleet-1',
+    chart: 'B', coordinate: '1964', stationId: 'P', sourceTransitionId: 'jump-station',
+    sourceCycle: 1, attackNumber: 3,
+  };
+  const survivor = {
+    instanceId: '0:wolf-battlestation', shipId: 'wolf-battlestation', target: 'aegis',
+  };
+  const ranges = [
+    { range: 'long-range', targetSnapshot: [], targetShifts: [], destroyedInstanceIds: ['1:wolf-cruiser'] },
+    { range: 'medium-range', targetSnapshot: [], targetShifts: [], destroyedInstanceIds: [] },
+    { range: 'short-range', targetSnapshot: [], targetShifts: [], destroyedInstanceIds: [] },
+  ];
+  const receipt = {
+    type: 'wolf-combat-calculation', version: 1, requestId: 'wolf-final-wolf-attack-station-3',
+    phase: { turn: 1, phase: 'coordination', serverTime: '2026-10-03T20:00:00.000Z',
+      deadlineAt: '2026-10-03T20:10:00.000Z', overrun: false },
+    targeting: { ring: ['aegis'], rolls: [] }, ranges, boarding: [], fleetDamage: [],
+    forceField: { status: 'unavailable', preventedDamage: 0 },
+    returningInstanceIds: ['0:wolf-battlestation'],
+    survivingWolfShips: [survivor],
+  };
+  const carryover = {
+    sourceAttackId: 'wolf-attack-station-2', sourceTurn: 1,
+    sourceInstanceIds: ['0:wolf-battlestation'], rosterInstanceIds: ['0:wolf-battlestation'],
+  };
+  session({
+    currentTurn: 1, chartSelectionLocked: true, chartId: 'B', activeVesselIds: ['aegis'],
+  });
+  put('sessions/s1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: ['aegis'], memberUids: [] });
+  put('sessions/s1/serverState/wolfArrivalPressure/groups/fleet-1', {
+    type: 'wolf-base-arrival-pressure-state', groupId: 'fleet-1', chart: 'B', revision: 1,
+    entries: [{
+      type: 'wolf-base-arrival-pressure', status: 'operational', groupId: 'fleet-1', chart: 'B',
+      coordinate: '1964', siteCode: 'P', sourceShipId: 'aegis', sourceTransitionId: 'jump-station',
+      cycle: 1, revision: 1, attackStatus: 'scheduled', arrivalTiming: 'immediate',
+      minimumBattleStations: 1, minimumOtherShipDamage: 20,
+      missionAccess: 'blockedWhileWolfForcesRemain', recurringUntil: ['allWolfForcesDestroyed'],
+    }],
+  });
+  put('sessions/s1/wolfAttackPressure/arrival-jump-station', {
+    type: 'wolf-base-arrival-pressure-schedule', status: 'scheduled', sessionId: 's1',
+    groupId: 'fleet-1', chart: 'B', coordinate: '1964', siteCode: 'P', sourceShipId: 'aegis',
+    sourceTransitionId: 'jump-station', sourceCycle: 1, arrivalTiming: 'immediate',
+    minimumBattleStations: 1, minimumOtherShipDamage: 20,
+    recurringUntil: ['allWolfForcesDestroyed'], missionAccess: 'blockedWhileWolfForcesRemain',
+  });
+  put('sessions/s1/wolfAttackWindow/current', {
+    status: 'resolved', turn: 1, revision: 3, targetGroupId: 'fleet-1',
+    threatSiteCode: 'P', threatSourceId: 'arrival-jump-station',
+  });
+  put('sessions/s1/wolfAttackState/current', {
+    type: 'wolf-attack-state', status: 'resolved', currentStep: 'resolved',
+    attackId: 'wolf-attack-station-3', announcementId: 'wolf-attack-station-3', turn: 1,
+    attackNumber: 3, previousAttackId: 'wolf-attack-station-2', carryover,
+    revision: 9, airspaceLocked: false, parkingReleaseCondition: 'normal-movement-reopened',
+    resolvedAt: '2026-10-03T20:00:00.000Z', finalizationRequestId: receipt.requestId,
+    calculationReceipt: receipt,
+    combatRoster: [
+      { ...survivor, damageTaken: 0, destroyed: false },
+      { instanceId: '1:wolf-cruiser', shipId: 'wolf-cruiser', target: 'aegis', damageTaken: 3, destroyed: true },
+    ],
+    pStationSequence: sequence,
+  });
+  put('sessions/s1/wolfAttackState/current/audit/wolf-finalized-1', {
+    type: 'wolf-attack-finalization', turn: 1, revision: 9, actorUid: 'server',
+    attackId: 'wolf-attack-station-3', requestId: receipt.requestId, receipt,
+    attackNumber: 3, previousAttackId: 'wolf-attack-station-2', carryover, pStationSequence: sequence,
+    rangeReceipts: ranges,
+  });
+
+  await expect(setWolfAttackWindow.run(request({
+    ...baseData, requestId: 'wolf-station-repeat-4', expectedRevision: 3,
+    targetGroupId: 'fleet-1', threatSiteCode: 'P', threatSourceId: 'arrival-jump-station',
+  }))).resolves.toEqual({
+    status: 'due', turn: 1, revision: 4, targetGroupId: 'fleet-1',
+    threatSiteCode: 'P', threatSourceId: 'arrival-jump-station',
+  });
+  expect(mock.documents.get('sessions/s1/wolfAttackPreparation/current')).toMatchObject({
+    turn: 1, compositionKind: 'p-station-repeat', targetGroupId: 'fleet-1',
+    shipIds: ['wolf-battlestation'],
+  });
+});
+
 it('requires a due marker before resolving and permits deferred Turn 2 recovery', async () => {
   await expect(setWolfAttackWindow.run(request({ ...baseData, status: 'deferred', requestId: 'wolf-defer' })))
     .resolves.toEqual({ status: 'deferred', turn: 2, revision: 1 });
