@@ -100,6 +100,31 @@ function currentRole(actor: DocumentSnapshot, uid: string, roleId: string): void
   }
 }
 
+function currentAftermathActor(actor: DocumentSnapshot, uid: string, command: WolfAttackAftermathCommand,
+  session: RecordValue): void {
+  if (command.action === 'doctor') {
+    currentRole(actor, uid, 'doctor');
+    return;
+  }
+  if (command.action === 'warrior-salvage') {
+    currentRole(actor, uid, 'warrior-captain');
+    return;
+  }
+  if (!connectedPlayer(actor)) {
+    throw new HttpsError('permission-denied', 'A connected shuttle operator is required.');
+  }
+  const shuttleId = command.shuttleId!;
+  const roleId = shuttleId === 'macaw' ? 'capybara-captain' : 'capybara-recycler';
+  if (actor.get('assignedRoleId') !== roleId ||
+      shuttleId === 'macaw' && actor.get('activeConsoleRoleId') !== roleId) {
+    throw new HttpsError('permission-denied', `Only the current ${shuttleId === 'macaw' ? 'Macaw holder' : 'Boa Recycler'} may collect Scrap.`);
+  }
+  const control = parseShuttleControl(session.shuttleControl)?.[shuttleId];
+  if (!control || control.holderUid !== uid || control.ownerRoleId !== roleId) {
+    throw new HttpsError('permission-denied', `Only the current ${shuttleId === 'macaw' ? 'Macaw holder' : 'Boa Recycler'} may collect Scrap.`);
+  }
+}
+
 function safeCounter(value: unknown): value is number {
   return Number.isSafeInteger(value) && (value as number) >= 0;
 }
@@ -202,22 +227,20 @@ export const resolveWolfAttackAftermath = onCall<{
       tx.get(sessionRef), tx.get(actorRef), tx.get(stateRef), tx.get(receiptRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    if (command.action === 'doctor') currentRole(actor, uid, 'doctor');
-    else if (command.action === 'warrior-salvage') currentRole(actor, uid, 'warrior-captain');
-    else if (!connectedPlayer(actor)) throw new HttpsError('permission-denied', 'A connected shuttle operator is required.');
-    const replay = replayResult(receiptDoc, fingerprint);
-    if (replay) return replay;
+    const sessionData = session.data() ?? {};
+    currentAftermathActor(actor, uid, command, sessionData);
     if (session.get('phase') !== 'active' || !attack.exists || attack.get('status') !== 'resolved' ||
         attack.get('attackId') !== command.attackId || !Number.isSafeInteger(attack.get('turn')) ||
         attack.get('turn') !== session.get('currentTurn')) {
       throw new HttpsError('failed-precondition', 'This aftermath belongs to a stale or unresolved attack.');
     }
+    const replay = replayResult(receiptDoc, fingerprint);
+    if (replay) return replay;
     const receipt = attack.get('calculationReceipt');
     if (!isWolfCalculationReceipt(receipt)) throw new HttpsError('failed-precondition', 'The private combat receipt is unavailable.');
     const damage = damageResults(receipt as unknown as RecordValue);
     const turn = attack.get('turn') as number;
     const now = new Date().toISOString();
-    const sessionData = session.data() ?? {};
     const stateData = attack.data() ?? {};
     const privateAftermath = actionState(attack.get('aftermath'));
     const memberResults = Array.isArray(attack.get('memberResults'))
