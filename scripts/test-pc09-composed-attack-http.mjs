@@ -28,6 +28,8 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const context = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
 const page = await context.newPage();
 const wingBrowser = await createPc09BrowserProof(uiUrl);
+const aceBrowser = await createPc09BrowserProof(uiUrl);
+const pressBrowser = await createPc09BrowserProof(uiUrl);
 const browserErrors = [], checks = {}, actions = [], ranges = [], boarding = [], observations = [];
 const setupResourceAllocations = [];
 let attackTurn;
@@ -107,8 +109,9 @@ async function until(label, ready, timeout = 30_000) {
   throw new Error(`${label} did not become ready (step ${last?.currentStep}, revision ${last?.revision}).`);
 }
 async function replace(actor, replacementRoleId) {
+  const currentEligibility = await f.db.doc(`sessions/${f.sessionId}/replacementEligibility/${actor.localId}`).get();
   const eligibility = await command(f.gm, 'setReplacementEligibility', { instanceId: f.instanceId,
-    requestId: randomUUID(), targetUid: actor.localId, reason: 'removed', expectedRevision: 0,
+    requestId: randomUUID(), targetUid: actor.localId, reason: 'removed', expectedRevision: currentEligibility.get('revision') ?? 0,
     expectedSetupRevision: (await f.session.get()).get('setupRevision') });
   await command(f.gm, 'assignReplacementRole', { instanceId: f.instanceId, requestId: randomUUID(),
     targetUid: actor.localId, replacementRoleId, expectedRevision: eligibility.revision,
@@ -192,8 +195,8 @@ async function chooseFlights(range) {
     const view = await command(actor, 'getWolfEscortRangeActionChoice', { sourceId, range });
     const targets = view.targets;
     const medium = targets.length > 1
-      ? [{ ...(sourceId === 'maliades' ? {} : { fighterIndex: 0 }), kind: 'attack', targetContactId: targets[0].instanceId },
-        { ...(sourceId === 'maliades' ? {} : { fighterIndex: 1 }), kind: 'target-shift', targetContactId: targets[1].instanceId, shift: -1 }]
+      ? [{ ...(sourceId === 'maliades' ? {} : { fighterIndex: view.fighters[0].fighterIndex }), kind: 'attack', targetContactId: targets[0].instanceId },
+        { ...(sourceId === 'maliades' ? {} : { fighterIndex: view.fighters[1].fighterIndex }), kind: 'target-shift', targetContactId: targets[1].instanceId, shift: -1 }]
       : [];
     await exactRetry(actor, 'commitWolfEscortRangeActionChoice', { sourceId, range, requestId: randomUUID(),
       expectedTurn: view.turn, expectedRevision: view.revision,
@@ -262,7 +265,8 @@ async function completeBoarding() {
 try {
   f = await createPc07AuthenticatedSession('PC09 ordinary deduction and complete Wolf attack', 20, { keepAlive: true,
     expansion: 'capybara', capybaraEnabled: true, browserRoleId: 'executive-officer', joinBrowserPlayer: joinThroughUi,
-    joinBrowserPlayers: { 'wing-commander': wingBrowser.join },
+    joinBrowserPlayers: { 'wing-commander': wingBrowser.join, 'refinery-124-captain': aceBrowser.join },
+    joinPressPlayer: pressBrowser.join,
     explicitLoyaltySetup: { wolfAgentRoleId: 'refinery-124-pdf-colonel', wolfCultRoleId: 'wing-commander',
       intelligenceAgentRoleId: 'quellon-explorer' } });
   console.log('Disposable PC09 normal authenticated session created.');
@@ -272,6 +276,8 @@ try {
   const eo = f.byRole('executive-officer'), wing = f.byRole('wing-commander');
   const captain = f.byRole('admiral'), commander = f.byRole('shepherd-scientist');
   const warrior = f.byRole('quellon-captain');
+  const ace = f.byRole('refinery-124-captain');
+  assert.ok(ace && f.press, 'The Ace starts with an ordinary Refinery berth; Press joins independently.');
   assert.ok(warrior, 'The initially filled Quellon Captain station supplies the disclosed Warrior replacement.');
   // Optional ships are admitted in Coordination, then the next normal Team
   // phase charges their systems. The GM explicitly defers the first window.
@@ -308,6 +314,7 @@ try {
   await maintain('aegis', ['command-and-control', 'missile-launchers', 'point-defence-lasers', 'fighter-bay-alpha', 'fighter-bay-bravo'], ['pallas', 'starlight']);
   await maintain('dione', ['fighter-bay'], ['maliades']);
   await maintain('refinery-124', ['fighter-bay'], []);
+  await replace(ace, 'pdf-fighter-ace');
   await maintain('icebreaker', ['mining-drone-control'], ['highwall']);
   await maintain('capybara', ['scrap-refinery'], ['macaw']);
   // The printed full ration choice is funded normally by the docked AEGIS
@@ -419,6 +426,49 @@ try {
       await page.reload();
       await browserUntil('same EO identity restored before range choices', s => s.uid === eo.localId &&
         s.uid === s.memberUid && s.sessionId === f.sessionId && s.connection === 'live' && s.freshness === 'server');
+      if (range === 'medium-range') {
+        const aceView = await command(ace, 'getPdfFighterAceCombatView');
+        const chosen = aceView.targets.find(target => target.available);
+        assert.ok(chosen, 'The normal Ace chooses one current opaque live contact.');
+        await exactRetry(commander, 'applyWolfCommanderRangeTargetAdjustment', { requestId: randomUUID(),
+          attackId: aceView.attackId, expectedTurn: aceView.turn, expectedRevision: aceView.revision,
+          range, rosterIndex: Number(chosen.targetId.slice('contact-'.length)) - 1, delta: 1 });
+        const current = await attackState();
+        await exactRetry(f.byRole('refinery-124-pdf-colonel'), 'grantPdfFighterAcePermission', {
+          requestId: randomUUID(), attackId: current.attackId, expectedRevision: current.revision,
+          sourceId: 'pdf-escort-fighter-wing', fighterIndex: 0 });
+        await command(ace, 'resumeSession');
+        await aceBrowser.untilIdentity('current ordinary Ace identity', s => s.uid === ace.localId && s.uid === s.memberUid &&
+          s.replacementRoleId === 'pdf-fighter-ace' && s.connection === 'live' && s.freshness === 'server');
+        await aceBrowser.page.goto(`${uiUrl}/#/replacement/pdf-fighter-ace`);
+        const aceButton = aceBrowser.page.getByRole('button', { name: 'Commit Fighter Ace action', exact: true });
+        await aceButton.waitFor();
+        await aceBrowser.page.getByLabel('Wolf contact', { exact: true }).selectOption(chosen.targetId);
+        await aceBrowser.page.getByLabel('Optional targeting shift', { exact: true }).selectOption('1');
+        let aceRequest;
+        const captureAce = request => { if (request.url().endsWith('/commitPdfFighterAceCombat')) aceRequest = request.postDataJSON().data; };
+        aceBrowser.page.on('request', captureAce);
+        await aceButton.click();
+        await until('ordinary Ace action committed', state => state.pdfFighterAceAction?.actorUid === ace.localId);
+        aceBrowser.page.off('request', captureAce);
+        assert.ok(aceRequest, 'The actual Ace panel must issue its normal permission-bound request.');
+        const afterAce = await attackState();
+        const beforeRetry = JSON.stringify(afterAce);
+        await command(ace, 'commitPdfFighterAceCombat', aceRequest);
+        assert.equal(JSON.stringify(await attackState()), beforeRetry, 'The Ace exact retry cannot write, roll or shift twice.');
+        const adjustment = afterAce.commanderRangeAdjustments[range];
+        const index = adjustment.rosterIndex;
+        assert.equal(afterAce.pdfFighterAceAction.rosterBefore[index].target, adjustment.toTarget);
+        assert.equal(afterAce.pdfFighterAceAction.sourceStateAfter.fighters, afterAce.pdfFighterAceAction.sourceStateBefore.fighters);
+        assert.deepEqual(afterAce.pdfFighterAceAction.sourceStateAfter, afterAce.pdfFighterAceAction.sourceStateBefore);
+        await aceBrowser.page.getByText('The Fighter Ace has already acted in this attack.', { exact: true }).waitFor();
+        await aceBrowser.assertGeometry();
+        await aceBrowser.page.screenshot({ path: `${dirname(evidencePath)}/ordinary-ace-medium-result.png`, fullPage: true });
+        const pdfOrdinary = await command(f.byRole('refinery-124-pdf-colonel'), 'getWolfEscortRangeActionChoice', {
+          sourceId: 'pdf-escort-fighter-wing', range });
+        assert.deepEqual(pdfOrdinary.fighters.map(row => row.fighterIndex), [1, 2, 3]);
+        checks.actualAceUiPermissionCommanderOrderAndExactRetry = true;
+      }
       await chooseFlights(range);
       support.push(await sourceChoice(f.byRole('icebreaker-miner'), 'highwall', range, 2));
     }
@@ -570,14 +620,39 @@ try {
     checks.normalPaidMacawConstructionBayRecovery = true;
   }
   await replace(captain, 'doctor');
+  const arrestTarget = deduction.actors.wolfAgent;
+  const priorPosse = await f.db.doc(`sessions/${f.sessionId}/arrestPosseCalculations/current`).get();
+  const calculation = await command(f.gm, 'calculateArrestPosse', { instanceId: f.instanceId,
+    requestId: randomUUID(), expectedRevision: priorPosse.get('revision') ?? deduction.arrestCalculation.revision,
+    targetUid: arrestTarget.localId, defenders: 0 });
+  const candidates = await Promise.all(f.players.filter(actor => actor.localId !== arrestTarget.localId).map(async actor => ({
+    actor, player: await f.db.doc(`sessions/${f.sessionId}/players/${actor.localId}`).get(),
+  })));
+  const simulatedAttendance = candidates.filter(({ player }) => player.get('connected') === true &&
+    player.get('replacementStatus') == null && player.get('role') === 'player').map(({ actor }) => actor.localId).sort();
+  assert.ok(simulatedAttendance.length >= calculation.requiredPlayers);
+  const arrested = await exactRetry(f.gm, 'resolveArrestPosse', { instanceId: f.instanceId,
+    requestId: randomUUID(), expectedCycle: attackTurn, expectedRevision: calculation.revision,
+    targetUid: arrestTarget.localId, presentPlayerUids: simulatedAttendance });
+  assert.equal(arrested.outcome, 'arrested');
+  assert.equal(arrested.deadlineCycle, attackTurn + 1);
+  const caseRef = f.db.doc(`sessions/${f.sessionId}/arrestCases/${arrestTarget.localId}`);
+  const beforeEarly = JSON.stringify((await caseRef.get()).data());
+  const early = await f.call(f.gm, 'resolveArrestCaseDisposition', { sessionId: f.sessionId, instanceId: f.instanceId,
+    requestId: randomUUID(), targetUid: arrestTarget.localId, expectedCycle: attackTurn,
+    expectedRevision: arrested.revision, expectedSetupRevision: (await f.session.get()).get('setupRevision'), disposition: 'executed' });
+  assert.notEqual(early.status, 200, 'Execution cannot be recorded before the next-Team deadline.');
+  assert.equal(JSON.stringify((await caseRef.get()).data()), beforeEarly);
+  checks.arrestAttendanceBoundary = 'authenticated simulated GM input; no physical attendance claim';
+  checks.arrestEarlyDispositionDenied = true;
   const aftermath = await runPc09AftermathProof(f, { directory: dirname(evidencePath), finalState,
     actorAllocations: {doctor: captain, warrior, macaw: f.byRole('capybara-captain'), boa: f.byRole('capybara-recycler'),
       wingCommander: wing, press: f.press,
       // Doctor and the two unique docked Scrap/repair opportunities are proved
       // by a separate finite ordinary scenario. This attack preserves its own
       // server-selected targets and outcomes instead of manufacturing them.
-      requiredBranches: ['warrior-salvage', 'press-publication', 'member-audience', 'fighter-build'],
-      advanceNextTeam: async ({attackTurn: completedTurn}) => {
+      requiredBranches: ['warrior-salvage', 'press-publication', 'member-audience', 'fighter-build'] },
+    advanceNextTeam: async ({attackTurn: completedTurn}) => {
         await command(f.gm, 'advanceTurn', {instanceId: f.instanceId, requestId: randomUUID(),
           expectedTurn: completedTurn, overridePhaseTimer: true});
         const next = (await f.session.get()).data();
@@ -585,9 +660,22 @@ try {
           await command(eo, 'clearTurnAdvanceInterstitial', {requestId: randomUUID(),
             expectedCycle: next.currentTurn, expectedPausedAt: next.turnPhase.timerPause.pausedAt});
         }
+        assert.equal(next.currentTurn, arrested.deadlineCycle);
+        const disposition = await exactRetry(f.gm, 'resolveArrestCaseDisposition', { instanceId: f.instanceId,
+          requestId: randomUUID(), targetUid: arrestTarget.localId, expectedCycle: next.currentTurn,
+          expectedRevision: (await caseRef.get()).get('revision'), expectedSetupRevision: next.setupRevision, disposition: 'executed' });
+        assert.equal(disposition.deadlineMet, true);
+        const eligibility = await f.db.doc(`sessions/${f.sessionId}/replacementEligibility/${arrestTarget.localId}`).get();
+        assert.equal(eligibility.get('eligible'), true);
+        assert.equal(eligibility.get('reason'), 'arrested');
+        await command(f.gm, 'assignReplacementRole', { instanceId: f.instanceId, requestId: randomUUID(),
+          targetUid: arrestTarget.localId, replacementRoleId: 'rosal-militia-leader', expectedRevision: eligibility.get('revision'),
+          expectedSetupRevision: (await f.session.get()).get('setupRevision') });
+        await command(arrestTarget, 'refreshPresence', { activeConsoleRoleId: null });
+        checks.arrestNextTeamDispositionAndNormalReplacement = true;
         await maintain('aegis', ['construction-bay'], []);
         return {status: 'complete'};
-      } } });
+      } });
   checks.aftermath = aftermath.checks;
   assert.ok(aftermath.checks, 'The ordinary aftermath workflow must return its committed proof checks.');
   await wingBrowser.page.goto(`${uiUrl}/#/console`);
@@ -611,6 +699,8 @@ try {
   assert.equal(afterUiBuild.shipResources.aegis.materials, beforeUiBuild.shipResources.aegis.materials - 1);
   await wingBrowser.assertGeometry();
   assert.deepEqual(wingBrowser.errors, []);
+  assert.deepEqual(aceBrowser.errors, []);
+  assert.deepEqual(pressBrowser.errors, []);
   checks.normalNextTeamWingUiBuildSpendsOneMaterial = true;
   assert.deepEqual(browserErrors, []);
   assert.deepEqual(f.heartbeatFailures, []);
@@ -621,7 +711,8 @@ try {
       'explicit optional Wolf/Intel loyalty mode', 'current authenticated fixture resource allocation before printed full rations',
       ...(boarding.some(item => item.kind === 'commander-ruling') ? ['explicit incomplete Commander consequence ruling'] : [])],
     checks, actions, setupResourceAllocations, ranges, boarding, audience, preparationInputs: { shipIds, targetAssignments: [] }, targetlessResultCount: targetlessResults.length,
-    sessionStoreModuleUrl, firestoreModuleUrl, browserErrors, heartbeatFailures: f.heartbeatFailures,
+    sessionStoreModuleUrl, firestoreModuleUrl, browserErrors, aceBrowserErrors: aceBrowser.errors,
+    pressBrowserErrors: pressBrowser.errors, heartbeatFailures: f.heartbeatFailures,
     identitiesRetained: false, completedAt: new Date().toISOString() }, null, 2)}\n`);
   console.log('PC09 ordinary deduction, composed attack and aftermath proof passed.');
 } catch (error) {
@@ -634,6 +725,7 @@ try {
   throw error;
 } finally {
   const keepCleanupAlive = setInterval(() => {}, 1000);
-  try { await browser.close(); await wingBrowser.browser.close(); if (f) { await f.cleanup(); await f.db.terminate(); } }
+  try { await browser.close(); await wingBrowser.browser.close(); await aceBrowser.browser.close();
+    await pressBrowser.browser.close(); if (f) { await f.cleanup(); await f.db.terminate(); } }
   finally { clearInterval(keepCleanupAlive); }
 }
