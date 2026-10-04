@@ -72,6 +72,22 @@ it('submits a Fighter Ace combat choice through an injected action', async () =>
   }));
 });
 
+it('lets the Fighter Ace choose the optional second Short-range contact', async () => {
+  const onCommit = vi.fn().mockResolvedValue({ outcome: 'hit', damage: 2 });
+  const user = userEvent.setup();
+  render(<PdfFighterAcePanel attackId="attack-8" range="short"
+    fighterSources={[{ id: 'pdf-escort-fighter-wing', label: 'Refinery 124 wing', fighters: 2 }]}
+    targets={[{ id: 'contact-1', label: 'Wolf contact 1' }, { id: 'contact-2', label: 'Wolf contact 2' }]}
+    onCommit={onCommit} />);
+
+  await user.selectOptions(screen.getByLabelText('Optional second target'), 'contact-2');
+  await user.click(screen.getByRole('button', { name: 'Commit Fighter Ace action' }));
+  await waitFor(() => expect(onCommit).toHaveBeenCalledWith({
+    attackId: 'attack-8', sourceId: 'pdf-escort-fighter-wing', targetId: 'contact-1',
+    range: 'short', targetShift: undefined, extraTargetId: 'contact-2',
+  }));
+});
+
 it('limits the physical visit and hosted reroll controls to injected authority', () => {
   const { rerender } = render(<VipHostPanel cycle={2} visitStatus="unattested" currentShipId="dione"
     destinations={[{ id: 'icebreaker', label: 'Icebreaker' }]} grant={null}

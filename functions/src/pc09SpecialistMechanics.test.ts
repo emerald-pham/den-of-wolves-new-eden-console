@@ -31,21 +31,26 @@ it('resolves Fighter Ace dice and source-specific fighter and pilot outcomes', (
   expect(resolvePdfFighterAceCombat({ range: 'short', target: cruiser, extraTarget: null })).toMatchObject({
     damage: 1, fighterDestroyed: false, aceDied: false, escaped: false,
   });
-  expect(resolvePdfFighterAceCombat({ range: 'short', target: cruiser, extraTarget: cruiser })).toMatchObject({
-    damage: 2, fighterDestroyed: true, aceDied: false, escaped: true,
-  });
+  expect(resolvePdfFighterAceCombat({ range: 'short', target: cruiser,
+    extraTarget: { instanceId: '0:wolf-fighter-wing', shipId: 'wolf-fighter-wing', damageTaken: 0, destroyed: false } }))
+    .toMatchObject({ damage: 2, targetResults: [
+      { instanceId: '2:wolf-cruiser', damage: 1 }, { instanceId: '0:wolf-fighter-wing', damage: 1 },
+    ] });
+  expect(resolvePdfFighterAceCombat({ range: 'short', target: cruiser, extraTarget: cruiser }))
+    .toMatchObject({ damage: 2, fighterDestroyed: true, aceDied: false, escaped: true,
+      targetResults: [{ instanceId: '2:wolf-cruiser', damage: 2 }] });
 });
 
 it('applies only actual Fighter Ace damage to the authoritative attack roster', () => {
   const applyPdfFighterAceResults = specialistFunctions.applyPdfFighterAceResults as
     (roster: readonly Record<string, unknown>[], results: readonly Record<string, unknown>[]) => readonly Record<string, unknown>[];
   const roster = [
-    { instanceId: '0:wolf-scout', shipId: 'wolf-scout', target: 'shepherd', damageTaken: 0, destroyed: false },
+    { instanceId: '0:wolf-fighter-wing', shipId: 'wolf-fighter-wing', target: 'shepherd', damageTaken: 0, destroyed: false },
     { instanceId: '2:wolf-cruiser', shipId: 'wolf-cruiser', target: 'quellon', damageTaken: 1, destroyed: false },
   ];
   expect(applyPdfFighterAceResults(roster, [
     { instanceId: '2:wolf-cruiser', shipId: 'wolf-cruiser', damage: 2, destroyed: true },
-    { instanceId: '0:wolf-scout', shipId: 'wolf-scout', damage: 0, destroyed: false },
+    { instanceId: '0:wolf-fighter-wing', shipId: 'wolf-fighter-wing', damage: 0, destroyed: false },
   ])).toEqual([
     roster[0],
     { ...roster[1], damageTaken: 3, destroyed: true },
