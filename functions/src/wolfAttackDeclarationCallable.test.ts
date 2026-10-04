@@ -2151,6 +2151,7 @@ it('returns only current group pursuit values to the assigned Commander before a
     uid: 'wolfcmd', role: 'player', connected: true, fleetGroupId: 'fleet-1',
     replacementRoleId: 'wolf-commander',
   });
+  fleetGroup('fleet-1', { vesselIds: ['aegis', 'dione', 'icebreaker'], memberUids: ['u1', 'wolfcmd'] });
 
   const view = await getWolfCommanderCycleAttackDial.run(request({ sessionId: 's1' }, 'wolfcmd'));
   expect(view).toMatchObject({
