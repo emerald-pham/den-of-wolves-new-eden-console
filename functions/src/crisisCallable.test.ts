@@ -102,6 +102,13 @@ it('walks the manual crisis lifecycle and publishes only safe member summaries',
     ['delivered', 1], ['debated', 2], ['resolved', 3], ['announced', 4], ['closed', 5],
   ] as const;
   for (const [state, expectedRevision] of transitions) {
+    if (state === 'resolved') put('sessions/s1/approachingVesselResponses/current', {
+      type: 'approaching-vessel-response', sessionId: 's1', crisisId: 'approaching-vessel',
+      crisisRevision: expectedRevision, state: 'debated', revision: 1, vesselReality: 'trap',
+      responseChoices: ['wait-briefly-then-leave'], coordinationActions: [],
+      responseInstructions: 'Wait briefly, then leave.', rationale: 'The beacon concern warrants a short wait.',
+      actorUid: 'u1', instanceId: 'gm-1',
+    });
     await expect(transitionCrisis.run(request({
       ...baseData, requestId: `crisis-${state}`, expectedRevision, state,
     }))).resolves.toMatchObject({ status: 'committed', state, revision: expectedRevision + 1 });
@@ -217,6 +224,31 @@ it('supports an explicit escalation branch without inventing an outcome', async 
   await expect(transitionCrisis.run(request({
     ...baseData, requestId: 'debated-again', expectedRevision: 4, state: 'debated',
   }))).resolves.toMatchObject({ state: 'debated', revision: 5 });
+});
+
+it('requires a current debated Approaching Vessel adjudication before resolving and preserves only its public instructions', async () => {
+  await transitionCrisis.run(request());
+  await transitionCrisis.run(request({ ...baseData, requestId: 'delivery', expectedRevision: 1,
+    state: 'delivered', deliveryPressure: 'hold' }));
+  await transitionCrisis.run(request({ ...baseData, requestId: 'debate', expectedRevision: 2, state: 'debated' }));
+  await expect(transitionCrisis.run(request({ ...baseData, requestId: 'resolve-without-ruling',
+    expectedRevision: 3, state: 'resolved' }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.get('sessions/s1/crisisState/current')).toMatchObject({ state: 'debated', revision: 3 });
+  put('sessions/s1/approachingVesselResponses/current', {
+    type: 'approaching-vessel-response', sessionId: 's1', crisisId: 'approaching-vessel',
+    crisisRevision: 3, state: 'debated', revision: 1, vesselReality: 'real',
+    responseChoices: ['prepare-medical-and-wait'], coordinationActions: ['medical'],
+    responseInstructions: 'Medical team prepares to receive the vessel.', rationale: 'The pilot report is credible.',
+    actorUid: 'u1', instanceId: 'gm-1',
+  });
+  await expect(transitionCrisis.run(request({ ...baseData, requestId: 'resolve-with-ruling',
+    expectedRevision: 3, state: 'resolved' }))).resolves.toMatchObject({ state: 'resolved', revision: 4 });
+  expect(mock.documents.get('sessions/s1/crisisReports/current')).toMatchObject({
+    approachingVesselResponse: { responseInstructions: 'Medical team prepares to receive the vessel.' },
+  });
+  const report = mock.documents.get('sessions/s1/crisisReports/current')!;
+  expect(JSON.stringify(report)).not.toContain('vesselReality');
+  expect(JSON.stringify(report)).not.toContain('rationale');
 });
 
 it('replays an exact request without a second mutation and rejects authority or CAS violations', async () => {
