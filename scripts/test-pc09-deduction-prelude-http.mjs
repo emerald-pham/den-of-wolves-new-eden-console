@@ -22,8 +22,8 @@ try {
   const result = await runPc09DeductionPrelude(f, { directory });
   assert.equal(result.arrestOutcome, undefined, 'Emulator fixture accounts do not attest physical attendance.');
   console.log(JSON.stringify({ checks: result.checks, actorRoleIds: result.actorRoleIds,
-    investigation: result.investigation, arrest: { outcome: result.arrestOutcome.outcome,
-      deadlineCycle: result.arrestOutcome.deadlineCycle }, evidencePath: result.evidencePath }, null, 2));
+    investigation: result.investigation, arrestCalculation: result.arrestCalculation,
+    arrestCase: result.arrestCase, evidencePath: result.evidencePath }, null, 2));
 } finally {
   await f.cleanup();
 }

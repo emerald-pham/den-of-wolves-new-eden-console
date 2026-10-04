@@ -30,7 +30,7 @@ function setActor(role: 'source' | 'ace') {
     assignedRoleId: role === 'source' ? 'wing-commander' : null,
     activeConsoleRoleId: role === 'source' ? 'wing-commander' : null,
     replacementRoleId: role === 'ace' ? 'pdf-fighter-ace' : null,
-    replacementStatus: role === 'ace' ? 'active' : null,
+    replacementStatus: null,
     joinedAt: '',
   });
   useSessionStore.getState().setConnection('live');
@@ -101,10 +101,14 @@ it('commits only an opaque attack-scoped Ace action and rejects a hidden result 
   expect(mocks.callable).toHaveBeenCalledWith('functions', 'commitPdfFighterAceCombat');
   expect(mocks.call.mock.calls[0]?.[0]).not.toHaveProperty('targetInstanceId');
 
-  mocks.call.mockResolvedValueOnce({ data: {
-    ...await mocks.call.mock.results[0]?.value.then((reply: { data: Record<string, unknown> }) => reply.data),
-    targetShipId: 'wolf-cruiser',
-  } });
+  mocks.call.mockImplementationOnce(async (payload) => ({ data: {
+    status: 'committed', type: 'pdf-fighter-ace-combat', sessionId: 's1',
+    requestId: payload.requestId, attackId: 'attack-4', turn: 4, revision: 9,
+    range: 'short', sourceId: 'fighter-wing-alpha', fighterIndex: 2,
+    targetId: 'contact-1', damage: 2, targetDestroyed: true,
+    results: [{ targetId: 'contact-1', damage: 2, destroyed: true }],
+    fighterDestroyed: true, aceDied: false, escaped: true, targetShipId: 'wolf-cruiser',
+  } }));
   await expect(commitPdfFighterAceCombat(action)).rejects.toThrow(/invalid|malformed/i);
 });
 
@@ -112,6 +116,8 @@ it('rejects use when the current role does not authorize the source or Ace', asy
   setActor('ace');
   await expect(getPdfFighterAcePermissionView('fighter-wing-alpha')).rejects.toThrow(/active AEGIS Wing Commander/i);
   expect(mocks.call).not.toHaveBeenCalled();
-  await expect(getPdfFighterAceCombatView()).resolves.toBeNull();
+
+  setActor('source');
+  await expect(getPdfFighterAceCombatView()).rejects.toThrow(/current P.D.F. Fighter Ace/i);
   expect(mocks.call).not.toHaveBeenCalled();
 });

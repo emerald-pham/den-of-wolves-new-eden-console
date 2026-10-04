@@ -41,7 +41,7 @@ it('submits only a current cycle/revision target and accepts the sanitized inves
   expect(mocks.call).toHaveBeenCalledWith(expect.objectContaining({
     sessionId: 's1', expectedCycle: 3, expectedRevision: 4, targetUid: 'target',
   }));
-  expect(mocks.call.mock.calls[0][0]).not.toHaveProperty('actualWolf');
+  expect(mocks.call.mock.calls[0]?.[0]).not.toHaveProperty('actualWolf');
 });
 
 it('refuses to submit without the current Scientist and Endeavour authority', async () => {

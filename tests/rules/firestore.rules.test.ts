@@ -13,6 +13,7 @@ import {
   getDocs,
   query,
   setDoc,
+  Timestamp,
   updateDoc,
   where,
 } from 'firebase/firestore';
@@ -3178,6 +3179,7 @@ describe('Wolf Agent Detector private report', () => {
         type: 'wolf-agent-detector-test', status: 'committed', sessionId: 's1',
         requestId: 'test-1', cycle: 1, revision: 1, investigatorUid: 'alice',
         targetUid: 'press', targetDisplayName: 'Press Officer', reportedWolf: false,
+        visibleToUids: ['alice'], updatedAt: Timestamp.now(),
       });
     });
 
@@ -3201,7 +3203,7 @@ describe('VIP Host maintenance projection', () => {
       const db = ctx.firestore();
       await setDoc(doc(db, benefit), {
         type: 'vip-host-maintenance-benefit', sessionId: 's1', shipId: 'icebreaker', cycle: 2,
-        status: 'available', revision: 1, requestId: 'request-1',
+        status: 'available', revision: 1, requestId: 'request-1', updatedAt: Timestamp.now(),
       });
       await setDoc(doc(db, grant), {
         type: 'vip-host-maintenance-grant', hostUid: 'vip', attestedByUid: 'gm1',
@@ -3226,7 +3228,7 @@ describe('VIP Host maintenance projection', () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       await setDoc(doc(ctx.firestore(), benefit), {
         type: 'vip-host-maintenance-benefit', sessionId: 's1', shipId: 'icebreaker', cycle: 2,
-        status: 'available', revision: 1, requestId: 'request-1', hostUid: 'secret-host',
+        status: 'available', revision: 1, requestId: 'request-1', updatedAt: Timestamp.now(), hostUid: 'secret-host',
       });
     });
     await assertFails(getDoc(doc(as('alice'), benefit)));
