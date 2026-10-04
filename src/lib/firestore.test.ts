@@ -3103,6 +3103,16 @@ it('hydrates the complete GM-private attack state and keeps its revision monoton
     turn: 1, revision: 2, shipIds: [...composition.shipIds], targetMode: 'pre-rolled' as const,
     targetAssignments: [], modifiers: [], notes: 'private facilitator note',
   };
+  const aftermath = {
+    doctor: { action: 'doctor', actorUid: 'doctor-1', actorRoleId: 'doctor', turn: 1,
+      selectedShipIds: ['aegis'], mitigated: [{ shipId: 'aegis', casualtiesBefore: 1,
+        casualtiesAfter: 0, casualtiesPrevented: 1, foodSpent: 0, waterSpent: 0 }],
+      committedAt: '2026-09-12T22:30:00.000Z' },
+    warriorSalvage: { action: 'warrior-salvage', actorUid: 'warrior-1', actorRoleId: 'warrior-captain', turn: 1,
+      hostShipId: 'aegis', damageDice: [5, 6], materialsGained: 2, committedAt: '2026-09-12T22:31:00.000Z' },
+    scrapClaims: { dione: { shuttleId: 'macaw', actorUid: 'macaw-1', actorRoleId: 'capybara-captain',
+      requestId: 'scrap-1', scrap: 1, committedAt: '2026-09-12T22:32:00.000Z' } },
+  };
   const calculationReceipt = {
     type: 'wolf-combat-calculation-stage', version: 1, turn: 1, step: 'targeting',
     generatedAt: '2026-09-12T22:00:00.000Z',
@@ -3115,7 +3125,7 @@ it('hydrates the complete GM-private attack state and keeps its revision monoton
     currentStep, deadlineAt: '2026-09-12T23:00:00.000Z', airspaceLocked: true,
     parkedCraftIds: ['starlight'], launchedCraftIds: [], attackId: 'wolf-attack-1',
     parkingReleaseCondition: 'normal-movement-reopened',
-    preparation: privatePreparation, calculationReceipt, memberResults: [],
+    preparation: privatePreparation, calculationReceipt, memberResults: [], aftermath,
   });
 
   callbacks[0]?.({
@@ -3147,6 +3157,7 @@ it('hydrates the complete GM-private attack state and keeps its revision monoton
     currentStep: 'long-range', deadlineAt: '2026-09-12T23:00:00.000Z',
     airspaceLocked: true, parkedCraftIds: ['starlight'], launchedCraftIds: [],
     attackId: 'wolf-attack-1', preparation: privatePreparation, calculationReceipt, memberResults: [],
+    aftermath,
   });
 
   callbacks[0]?.({
@@ -3156,6 +3167,13 @@ it('hydrates the complete GM-private attack state and keeps its revision monoton
   });
   expect(onState).toHaveBeenLastCalledWith(null);
   expect(onState).toHaveBeenCalledTimes(3);
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({ ...canonicalState(4, 'long-range'), aftermath: { ...aftermath, privateDice: [6] } }),
+  });
+  expect(onState).toHaveBeenLastCalledWith(null);
+  expect(onState).toHaveBeenCalledTimes(4);
   unsubscribe();
   expect(onState).toHaveBeenLastCalledWith(null);
 });
