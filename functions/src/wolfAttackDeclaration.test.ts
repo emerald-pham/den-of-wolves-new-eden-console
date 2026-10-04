@@ -95,9 +95,9 @@ describe('pStationRepeatPlanForFinalization', () => {
   });
 
   it('does not plan a repeat for ordinary or non-P attacks', () => {
-    expect(pStationRepeatPlanForFinalization({ ...state, threatSiteCode: 'L' }, { survivingWolfShips: [] }, revisions))
+    expect(pStationRepeatPlanForFinalization({ ...state, threatSiteCode: 'L', pStationSequence: undefined }, { survivingWolfShips: [] }, revisions))
       .toBeUndefined();
-    expect(pStationRepeatPlanForFinalization({ ...state, pStationSequence: undefined }, { survivingWolfShips: [] }, revisions))
+    expect(pStationRepeatPlanForFinalization({ ...state, threatSiteCode: undefined, pStationSequence: undefined }, { survivingWolfShips: [] }, revisions))
       .toBeUndefined();
   });
 
