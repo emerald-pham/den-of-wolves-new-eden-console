@@ -108,7 +108,8 @@ it('publishes one attributable Commander address with only the fleet message in 
   await expect(publishWolfCommanderAddress.run(request({
     sessionId: 's1', requestId: 'commander-address-3', expectedCycle: 3,
     message: 'The fleet has one chance to yield before I return.',
-  }))).resolves.toMatchObject({ status: 'committed', cycle: 3, actorRoleId: 'wolf-commander' });
+  }))).resolves.toMatchObject({ status: 'committed', requestId: 'commander-address-3',
+    cycle: 3, actorRoleId: 'wolf-commander' });
 
   const events = [...mock.documents.entries()].filter(([path]) => path.includes('/events/'));
   expect(events).toHaveLength(1);
