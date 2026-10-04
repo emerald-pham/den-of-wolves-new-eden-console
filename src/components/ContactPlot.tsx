@@ -118,10 +118,19 @@ type ContactLabelLayoutCache = {
   labelBounds: DOMRect;
   preferred: LabelCandidateLayout;
   opposite: LabelCandidateLayout;
+  requestedAnchor: LabelAnchor;
   chosenAnchor: LabelAnchor;
   direct: boolean;
 };
 const contactLabelLayouts = new WeakMap<HTMLElement, ContactLabelLayoutCache>();
+type LabelObstacleBounds = { element: HTMLElement; bounds: DOMRect };
+type ContactPlotLabelEnvironment = {
+  styleScope: string;
+  plotBounds: DOMRect;
+  contacts: readonly HTMLElement[];
+  obstacles: readonly LabelObstacleBounds[];
+};
+const contactPlotLabelEnvironments = new WeakMap<HTMLElement, ContactPlotLabelEnvironment>();
 const handledFontEvents = new WeakSet<Event>();
 let fontMetricsVersion = 0;
 
@@ -267,6 +276,56 @@ function intrinsicLabelWidthContext(
 function samePlotBounds(a: DOMRect, b: DOMRect): boolean {
   return a.left === b.left && a.right === b.right && a.top === b.top && a.bottom === b.bottom &&
     a.width === b.width && a.height === b.height;
+}
+
+function labelObstacleElements(plot: HTMLElement): HTMLElement[] {
+  const shipPlot = plot.closest<HTMLElement>('.ship-plot');
+  const overlayControls = shipPlot?.querySelectorAll<HTMLElement>(
+    '.ship-plot__label, .ship-plot__toggle, .ship-plot__galactic-coordinate, ' +
+    '.ship-plot__close, .ship-plot__compass, [data-plot-obstacle], .dradis-effect-controls',
+  ) ?? [];
+  return [
+    ...plot.querySelectorAll<HTMLElement>('.contact-plot__origin, .contact-plot__red-alert'),
+    ...overlayControls,
+  ];
+}
+
+function sameLabelObstacleBounds(
+  previous: readonly LabelObstacleBounds[],
+  current: readonly LabelObstacleBounds[],
+): boolean {
+  return previous.length === current.length && previous.every((entry, index) =>
+    entry.element === current[index]?.element && samePlotBounds(entry.bounds, current[index]!.bounds));
+}
+
+function hasCurrentContactLabelLayout(
+  plot: HTMLElement,
+  styleScope: string,
+  plotBounds: DOMRect,
+  labels: readonly HTMLElement[],
+  contacts: readonly (HTMLElement | null)[],
+  marks: readonly (DOMRect | null)[],
+  obstacles: readonly LabelObstacleBounds[],
+): boolean {
+  const environment = contactPlotLabelEnvironments.get(plot);
+  if (!environment || environment.styleScope !== styleScope ||
+    !samePlotBounds(environment.plotBounds, plotBounds) ||
+    environment.contacts.length !== contacts.length ||
+    !sameLabelObstacleBounds(environment.obstacles, obstacles)) return false;
+
+  return labels.every((label, index) => {
+    const contact = contacts[index];
+    const mark = marks[index];
+    if (!contact || !mark || mark.width <= 0 || mark.height <= 0 ||
+      environment.contacts[index] !== contact || contact.dataset.labelAnchor === undefined ||
+      contact.querySelector<HTMLElement>('.contact-plot__apparent')?.dataset.acquired !== 'true') return false;
+    const layout = contactLabelLayouts.get(contact);
+    return Boolean(layout && layout.styleScope === styleScope &&
+      samePlotBounds(layout.plotBounds, plotBounds) && samePlotBounds(layout.markBounds, mark) &&
+      layout.context === intrinsicLabelWidthContext(plot, label, contact, plotBounds, styleScope) &&
+      contact.dataset.labelPreference === layout.requestedAnchor &&
+      contact.dataset.labelAnchor === layout.chosenAnchor);
+  });
 }
 
 /**
@@ -435,6 +494,7 @@ function clampScannedContactLabels(
       labelBounds: layout.bounds,
       preferred: changedLayouts.get(index)!.preferred,
       opposite: changedLayouts.get(index)!.opposite,
+      requestedAnchor: contact.dataset.labelPreference as LabelAnchor,
       chosenAnchor: layout.anchor,
       direct: true,
     });
@@ -481,6 +541,16 @@ function clampContactLabels(
   const contacts = labels.map((label) => label.closest<HTMLElement>('.contact-plot__contact'));
   const marks = contacts.map((contact) =>
     contact?.querySelector<HTMLElement>('.contact-plot__blip')?.getBoundingClientRect() ?? null);
+  const obstacleBounds = labelObstacleElements(plot).map((element) => ({
+    element,
+    bounds: element.getBoundingClientRect(),
+  }));
+  const obstacles = obstacleBounds
+    .map(({ bounds }) => bounds)
+    .filter((rect) => rect.width > 0 && rect.height > 0);
+  if (reuseUnchangedGeometry && hasCurrentContactLabelLayout(
+    plot, styleScope, plotBounds, labels, contacts, marks, obstacleBounds,
+  )) return;
   const passWidths = new Map<HTMLElement, { context: string; width: number }>();
   const intrinsicWidth = (label: HTMLElement, index: number): number => {
     const context = intrinsicLabelWidthContext(
@@ -562,20 +632,6 @@ function clampContactLabels(
       shift(label, x, y);
     });
   }
-
-  // Reserve controls, the centre identifier, and every return mark. A name
-  // stays beside its own return: choose its clearer left or right side before
-  // considering a boundary correction. A scan reruns this for moving fixes.
-  const shipPlot = plot.closest<HTMLElement>('.ship-plot');
-  const overlayControls = shipPlot?.querySelectorAll<HTMLElement>(
-    '.ship-plot__label, .ship-plot__toggle, .ship-plot__galactic-coordinate, ' +
-    '.ship-plot__close, .ship-plot__compass, [data-plot-obstacle], .dradis-effect-controls',
-  ) ?? [];
-  const obstacles = [
-    ...plot.querySelectorAll<HTMLElement>('.contact-plot__origin, .contact-plot__red-alert'),
-    ...overlayControls,
-  ].map((element) => element.getBoundingClientRect())
-    .filter((rect) => rect.width > 0 && rect.height > 0);
 
   // Reset every measurable label first, then read the two adjacent anchor
   // choices in batches. Reading and writing one contact at a time forces the
@@ -1024,6 +1080,7 @@ function clampContactLabels(
         labelBounds: bounds,
         preferred,
         opposite,
+        requestedAnchor: contact.dataset.labelPreference as LabelAnchor,
         chosenAnchor: contact.dataset.labelAnchor as LabelAnchor,
         direct: directPlacements[index] === true,
       });
@@ -1042,6 +1099,13 @@ function clampContactLabels(
     leader.setAttribute('x2', String(round((east ? bounds.right : bounds.left) - plotBounds.left)));
     leader.setAttribute('y2', String(round(Math.max(bounds.top, Math.min(marker.top + marker.height / 2,
       bounds.bottom)) - plotBounds.top)));
+  }
+
+  const cachedContacts = contacts.filter((contact): contact is HTMLElement => contact !== null);
+  if (cachedContacts.length === contacts.length) {
+    contactPlotLabelEnvironments.set(plot, { styleScope, plotBounds, contacts: cachedContacts, obstacles: obstacleBounds });
+  } else {
+    contactPlotLabelEnvironments.delete(plot);
   }
 }
 
@@ -1385,6 +1449,7 @@ export default function ContactPlot({
               data-moving={String('transit' in track && Boolean(track.transit))}
               data-departing={String(spoof && exposed)}
               data-combat-range={combatRangeLabel(track)}
+              data-label-preference={labelAnchor(track, index)}
               data-label-anchor={labelAnchor(track, index)}
               style={'x' in track ? placeCartesian(track) : place(track)}
             >

@@ -1641,8 +1641,14 @@ it('reuses held contact-label geometry and invalidates it when the fix or an obs
     return bounds(0, 0, 0, 0);
   });
   const contact = { id: 'held-layout', tag: 'HELD CONTACT', x: 0.6, y: 0.2, z: 0.1, color: 'white' };
-  const { rerender } = render(<ContactPlot centerLabel="AEGIS" contacts={[contact]} />);
+  const { container, rerender } = render(<ContactPlot centerLabel="AEGIS" contacts={[contact]} />);
   expect(labelLayoutReads).toBeGreaterThan(0);
+
+  const apparent = container.querySelector<HTMLElement>('.contact-plot__apparent')!;
+  apparent.dataset.acquired = 'true';
+  apparent.style.setProperty('--fix-x', '0.6');
+  apparent.style.setProperty('--fix-y', '0.2');
+  apparent.style.setProperty('--fix-z', '0.1');
 
   labelLayoutReads = 0;
   rerender(<ContactPlot centerLabel="AEGIS" contacts={[{ ...contact }]} />);
