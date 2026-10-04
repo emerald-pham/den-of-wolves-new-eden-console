@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import ArrestPosseCalculator from './ArrestPosseCalculator';
-import type { ArrestPosseCalculation } from '@/types/game';
+import type { ArrestCase, ArrestPosseCalculation } from '@/types/game';
 
 const result: ArrestPosseCalculation = {
   type: 'arrest-posse-calculation', sessionId: 's1', revision: 1,
@@ -125,4 +125,57 @@ it('hides a stored count as soon as its target leaves the current selectable cen
 
   expect(screen.queryByText('8 players needed')).not.toBeInTheDocument();
   expect(screen.getByRole('status')).toHaveTextContent(/no eligible target/i);
+});
+
+const pendingCase: ArrestCase = {
+  type: 'arrest-case', sessionId: 's1', targetUid: 'u2', status: 'pending-resolution',
+  outcome: 'arrested', turn: 3, revision: 1, requiredPlayers: 5, presentPlayers: 5,
+  deadlineCycle: 4, requestId: 'arrest-1',
+};
+
+it('offers release or execution only during the next Team Phase and binds the ruling to the case revision', async () => {
+  const user = userEvent.setup();
+  const onDisposition = vi.fn().mockResolvedValue({ status: 'committed' });
+  const props = {
+    targetOptions: [{ uid: 'u2', label: 'Rae (u2)' }],
+    censusRevision: 9,
+    expectedRevision: 1,
+    calculation: result,
+    caseRecord: pendingCase,
+    currentCycle: 3,
+    deadlineTeamPhaseOpen: false,
+    onCalculate: vi.fn(),
+    onDisposition,
+  };
+  const { rerender } = render(<ArrestPosseCalculator {...props} />);
+  expect(screen.getByText(/resolve the prisoner by the end of Team Phase 4/i)).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Execute prisoner' })).not.toBeInTheDocument();
+
+  rerender(<ArrestPosseCalculator {...props} currentCycle={4} deadlineTeamPhaseOpen />);
+  await user.click(screen.getByRole('button', { name: 'Execute prisoner' }));
+  await waitFor(() => expect(onDisposition).toHaveBeenCalledWith('u2', 'executed', 4, 1, undefined));
+});
+
+it('requires a reason for facilitator resolution after the deadline', async () => {
+  const user = userEvent.setup();
+  const onDisposition = vi.fn().mockResolvedValue({ status: 'committed' });
+  render(<ArrestPosseCalculator
+    targetOptions={[{ uid: 'u2', label: 'Rae (u2)' }]}
+    censusRevision={9}
+    expectedRevision={1}
+    calculation={result}
+    caseRecord={pendingCase}
+    currentCycle={5}
+    deadlineTeamPhaseOpen={false}
+    onCalculate={vi.fn()}
+    onDisposition={onDisposition}
+  />);
+  const resolve = screen.getByRole('button', { name: 'Record facilitator resolution' });
+  expect(resolve).toBeDisabled();
+  await user.type(screen.getByLabelText('Facilitator ruling'), 'The table confirms the missed deadline.');
+  expect(resolve).toBeEnabled();
+  await user.click(resolve);
+  await waitFor(() => expect(onDisposition).toHaveBeenCalledWith(
+    'u2', 'facilitator-resolution', 5, 1, 'The table confirms the missed deadline.',
+  ));
 });
