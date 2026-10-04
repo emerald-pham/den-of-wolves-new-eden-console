@@ -189,7 +189,7 @@ jobs:
 
       - if: steps.change_scope.outputs.root_install == 'true'
         run: npm ci --prefer-offline --no-audit
-      - if: steps.change_scope.outputs.functions_install == 'true'
+      - if: steps.change_scope.outputs.functions_install == 'true' || steps.change_scope.outputs.web_build == 'true'
         run: npm ci --prefix functions --prefer-offline --no-audit
 
       - name: Lint
