@@ -57,23 +57,26 @@ describe('wolf attack aftermath', () => {
   });
 
   it('rolls one server d6 per damage point dealt by either side and awards one material on each 5+', () => {
-    const randomInt = vi.fn().mockReturnValueOnce(3).mockReturnValueOnce(4).mockReturnValueOnce(5);
+    const randomInt = vi.fn().mockReturnValueOnce(3).mockReturnValueOnce(4).mockReturnValueOnce(5)
+      .mockReturnValueOnce(3).mockReturnValueOnce(4).mockReturnValueOnce(5)
+      .mockReturnValueOnce(0).mockReturnValueOnce(0);
     const result = resolveWarriorSalvage({
       ranges: [{ damageByInstance: { 'wing-1': 2, 'cruiser-1': 1 } }],
       fleetDamage: [{ target: 'aegis', amount: 2 }, { target: 'dione', amount: 1 }],
+      memberResults: [{ sourceId: 'pdf-fighter-ace', outcome: { damage: 2 } }],
       randomInt,
     });
 
-    expect(randomInt).toHaveBeenCalledTimes(6);
+    expect(randomInt).toHaveBeenCalledTimes(8);
     expect(randomInt).toHaveBeenCalledWith(6);
-    expect(result).toEqual({ damageDice: [4, 5, 6, 4, 5, 6], materialsGained: 4 });
+    expect(result).toEqual({ damageDice: [4, 5, 6, 4, 5, 6, 1, 1], materialsGained: 4 });
   });
 
   it('creates exactly one Scrap opportunity for each ship at the three-damage threshold', () => {
     expect(wolfDamageScrapOpportunities('attack-7', [
       { target: 'aegis', amount: 2 },
-      { target: 'dione', amount: 3 },
-      { target: 'capybara', amount: 8 },
+      { target: 'dione', amount: 3, draws: [{ casualty: true }, { casualty: true }, { casualty: true }] },
+      { target: 'capybara', amount: 8, draws: [{ casualty: false }, { casualty: false }] },
     ])).toEqual([
       { attackId: 'attack-7', shipId: 'dione', scrap: 1 },
       { attackId: 'attack-7', shipId: 'capybara', scrap: 1 },
