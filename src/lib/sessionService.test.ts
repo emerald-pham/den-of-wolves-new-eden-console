@@ -105,6 +105,7 @@ const {
 } = await import('./sessionService');
 const { httpsCallable } = await import('firebase/functions');
 const { acceptCallableSessionAuthority, sessionSnapshotAuthorityFor } = await import('./firestore');
+const { acceptServerSessionAuthority } = await import('./sessionSnapshotAuthority');
 
 describe('Wolf range contact guidance DTO', () => {
   beforeEach(() => {
@@ -266,6 +267,75 @@ describe('GM Wolf threat source options service', () => {
 
 describe('Commander address and private amnesty services', () => {
   afterEach(() => vi.restoreAllMocks());
+
+  it('accepts an addressed message after a fresh same-identity snapshot in the same cycle', async () => {
+    useSessionStore.getState().reset();
+    const currentSession = { ...session, id: 'commander-refresh-accept', phase: 'active' as const, currentTurn: 4 };
+    const commander = {
+      ...player, uid: 'commander-refresh-accept-user', sessionId: currentSession.id,
+      replacementRoleId: 'wolf-commander',
+    };
+    useSessionStore.getState().setIdentity(currentSession, commander);
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+
+    let complete!: (reply: unknown) => void;
+    let payload!: Record<string, unknown>;
+    const address = Object.assign(vi.fn((received: Record<string, unknown>) => new Promise((resolve) => {
+      payload = received;
+      complete = resolve;
+    })), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockReturnValue(address as never);
+
+    const operation = publishWolfCommanderAddress('Fleet, stand down.', 4);
+    await vi.waitFor(() => expect(address).toHaveBeenCalled());
+
+    const authority = sessionSnapshotAuthorityFor(currentSession.id, commander.uid);
+    expect(acceptServerSessionAuthority(authority, currentSession, undefined, false, true)).toBe(true);
+    useSessionStore.getState().setIdentity({ ...currentSession }, { ...commander });
+    complete({ data: {
+      type: 'wolf-commander-address-result', status: 'committed', sessionId: currentSession.id,
+      requestId: payload.requestId, cycle: 4, actorRoleId: 'wolf-commander',
+      eventId: 'wolf-commander-address-4', expiresAt: '2026-10-04T12:00:30.000Z',
+    } });
+
+    await expect(operation).resolves.toMatchObject({ cycle: 4, eventId: 'wolf-commander-address-4' });
+  });
+
+  it('rejects an address receipt after the authoritative session advances to another cycle', async () => {
+    useSessionStore.getState().reset();
+    const currentSession = { ...session, id: 'commander-refresh-cycle', phase: 'active' as const, currentTurn: 4 };
+    const commander = {
+      ...player, uid: 'commander-refresh-cycle-user', sessionId: currentSession.id,
+      replacementRoleId: 'wolf-commander',
+    };
+    useSessionStore.getState().setIdentity(currentSession, commander);
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+
+    let complete!: (reply: unknown) => void;
+    let payload!: Record<string, unknown>;
+    const address = Object.assign(vi.fn((received: Record<string, unknown>) => new Promise((resolve) => {
+      payload = received;
+      complete = resolve;
+    })), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockReturnValue(address as never);
+
+    const operation = publishWolfCommanderAddress('Fleet, stand down.', 4);
+    await vi.waitFor(() => expect(address).toHaveBeenCalled());
+
+    const nextSession = { ...currentSession, currentTurn: 5 };
+    const authority = sessionSnapshotAuthorityFor(currentSession.id, commander.uid);
+    expect(acceptServerSessionAuthority(authority, nextSession, undefined, false, true)).toBe(true);
+    useSessionStore.getState().setIdentity(nextSession, { ...commander });
+    complete({ data: {
+      type: 'wolf-commander-address-result', status: 'committed', sessionId: currentSession.id,
+      requestId: payload.requestId, cycle: 4, actorRoleId: 'wolf-commander',
+      eventId: 'wolf-commander-address-4', expiresAt: '2026-10-04T12:00:30.000Z',
+    } });
+
+    await expect(operation).rejects.toThrow(/session or authority changed/i);
+  });
 
   it('publishes an addressed message and creates a condition-bound offer with a response deadline', async () => {
     useSessionStore.getState().reset();
