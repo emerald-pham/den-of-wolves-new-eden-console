@@ -122,7 +122,7 @@ describe('authoritative PDF Escort Wing state', () => {
     } as const;
 
     const repeated = beginPdfEscortWingAttack(damaged, {
-      expectedRevision: damaged.revision, attackId: 'wolf-attack-repeat', attackCycle: 1,
+      expectedRevision: damaged.revision, attackId: 'wolf-attack-repeat', attackCycle: 1, attackNumber: 2,
       pStationRepeatContext: context,
     } as never);
 
@@ -160,6 +160,7 @@ describe('authoritative PDF Escort Wing state', () => {
     });
     expect(() => beginPdfEscortWingAttack(prior, {
       expectedRevision: prior.revision, attackId: 'wolf-attack-repeat', attackCycle: 1,
+      attackNumber: 2,
       ...(pStationRepeatContext === undefined ? {} : { pStationRepeatContext }),
     } as never)).toThrow(/cycle must advance|P Station repeat context/i);
   });
