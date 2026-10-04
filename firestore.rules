@@ -1166,9 +1166,11 @@ service cloud.firestore {
       // The attack audience endpoint is a server-filtered copy of progress and
       // committed public outcomes. Its top-level allowlist prevents a future
       // private calculation field from becoming readable by session members.
+      // Reading absence lets an authorized member's listener wait for the first
+      // server-created attack; client creation and enumeration stay forbidden.
       match /wolfAttackAudience/{projectionId} {
         allow get: if projectionId == 'current' && isMember(sessionId) &&
-          resource != null &&
+          (resource == null || (
           resource.data.keys().hasAll([
             'type', 'schemaVersion', 'sessionId', 'attackId', 'turn', 'revision',
             'status', 'phase', 'currentStep', 'range', 'deadlineAt', 'serverTime',
@@ -1188,7 +1190,7 @@ service cloud.firestore {
               resource.data.status == 'resolved' &&
               resource.data.remainingThreatCount is int && resource.data.remainingThreatCount >= 0 &&
               resource.data.returningThreatCount is int && resource.data.returningThreatCount >= 0 &&
-              resource.data.returningThreatCount <= resource.data.remainingThreatCount));
+              resource.data.returningThreatCount <= resource.data.remainingThreatCount))));
         allow list, write: if false;
       }
 
