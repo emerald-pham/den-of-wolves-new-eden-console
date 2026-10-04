@@ -87,6 +87,7 @@ import {
 import { initialFighterWingCounts } from './fighterWings';
 import { beginPdfEscortWingAttack, initialPdfEscortWingState, launchPdfEscortWing } from './pdfEscortWingState';
 import { initialMaliadesState, launchMaliades } from './maliadesState';
+import { projectPdfEscortWingMemberView } from './pdfEscortWingProjection';
 
 const targeting = resolveWolfTargeting(firstTurnWolfAttackComposition(), {}, undefined, () => 0);
 
@@ -2274,23 +2275,38 @@ it('publishes each PDF Short editable hit once with its printed source label', a
     const view = await getWolfEscortRangeActionChoice.run(request({ sessionId: 's1', sourceId, range: 'short-range' }, uid));
     await commitWolfEscortRangeActionChoice.run(request({ sessionId: 's1', sourceId, range: 'short-range',
       requestId: `review-${sourceId}-short`, expectedTurn: 1, expectedRevision: view.revision,
-      ...(sourceId === 'maliades' ? { targetContactIds: [] } : { fighterIndexes: [0] }) }, uid));
+      ...(sourceId === 'maliades' ? { targetContactIds: [] } : { fighterIndexes: [0, 1] }) }, uid));
   }
   const short = await getWolfRangeActionChoice.run(request({ sessionId: 's1' }));
+  entropy.randomInt.mockReset().mockReturnValueOnce(0).mockReturnValueOnce(5);
   const locked = await commitWolfRangeActionChoice.run(request({ sessionId: 's1', requestId: 'review-short-eo-pass', expectedTurn: 1,
     expectedRevision: short.revision, range: 'short-range', actionIds: [] }));
-  expect(locked).toMatchObject({ choiceStatus: 'targets-required', hitSlots: [{ actionId: 'pdf-escort-wing-short-0', count: 1 }] });
+  expect(locked).toMatchObject({ choiceStatus: 'targets-required', hitSlots: [
+    { actionId: 'pdf-escort-wing-short-0', count: 0 }, { actionId: 'pdf-escort-wing-short-1', count: 1 },
+  ] });
   const payload = { sessionId: 's1', requestId: 'review-short-pdf-assign', expectedTurn: 1,
-    expectedRevision: locked.revision, range: 'short-range', assignments: [{ actionId: 'pdf-escort-wing-short-0', contactIds: ['contact-1'] }] };
+    expectedRevision: locked.revision, range: 'short-range', assignments: [
+      { actionId: 'pdf-escort-wing-short-0', contactIds: [] },
+      { actionId: 'pdf-escort-wing-short-1', contactIds: ['contact-1'] },
+    ] };
   const committed = await assignWolfRangeTargets.run(request(payload));
   const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
   const receipt = (attack.rangeReceipts as Fields[]).at(-1)!;
-  expect(receipt).toMatchObject({ dice: [{ actionId: 'pdf-escort-wing-short-0', successes: 1, damage: 1 }] });
+  expect(receipt).toMatchObject({ dice: [
+    { actionId: 'pdf-escort-wing-short-0', successes: 0, damage: 0, rolls: [1] },
+    { actionId: 'pdf-escort-wing-short-1', successes: 1, damage: 1, rolls: [6] },
+  ] });
   const results = (attack.memberResults as Fields[]).filter(result => result.sourceId === 'pdf-escort-wing' && result.range === 'short-range');
   const member = projectWolfAttackMemberView({ sessionId: 's1', state: attack, serverTime: new Date().toISOString() });
   const safeResults = member.results.filter(result => result.sourceId === 'pdf-escort-wing' && result.range === 'short');
   expect(safeResults).toHaveLength(1);
   expect(results).toEqual([expect.objectContaining({ effect: 'PDF Escort Wing attack hit', outcome: { damage: 1, destroyed: true } })]);
+  expect(projectPdfEscortWingMemberView(testState.documents.get('sessions/s1/serverState/pdfEscortWing')))
+    .toMatchObject({ fighters: 3, losses: 1, shortResolved: true, shortRollCount: 2 });
+  expect(testState.documents.get('sessions/s1')!.pdfEscortWing).toEqual({
+    type: 'pdf-escort-fighter-wing-view', revision: 4, cycle: 1, capacity: 4, fighters: 3,
+    launched: true, mediumResolved: true, mediumActionCount: 0, shortResolved: true, shortRollCount: 2, losses: 1,
+  });
   const saved = structuredClone([...testState.documents]);
   const draws = entropy.randomInt.mock.calls.length;
   expect(await assignWolfRangeTargets.run(request(payload))).toEqual(committed);
