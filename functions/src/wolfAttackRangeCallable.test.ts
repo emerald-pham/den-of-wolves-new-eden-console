@@ -609,28 +609,46 @@ it('applies the Wing Commander Medium target and shift choices inside the EO ran
   expect(testState.documents.get('sessions/s1/wolfAttackState/current')!.currentStep).toBe('medium-range');
 
   const eoView = await getWolfRangeActionChoice.run(request({ sessionId: 's1' }));
-  const locked = await commitWolfRangeActionChoice.run(request({ sessionId: 's1', requestId: 'eo-medium-weapons-pass',
-    expectedTurn: 1, expectedRevision: eoView.revision, range: 'medium-range', actionIds: [] }));
+  const weaponActionId = 'aegis-missile-launchers-medium';
+  const locked = await commitWolfRangeActionChoice.run(request({ sessionId: 's1', requestId: 'eo-medium-weapons-lock',
+    expectedTurn: 1, expectedRevision: eoView.revision, range: 'medium-range', actionIds: [weaponActionId] }));
   expect(locked).toMatchObject({ hitSlots: [
-    { actionId: 'aegis-alpha-wing-medium-0', count: 1 },
+    { actionId: weaponActionId, count: 5 },
   ] });
-  expect(locked).toMatchObject({ choiceStatus: 'passed', currentStep: 'short-range' });
+  expect(locked).toMatchObject({ choiceStatus: 'targets-required', currentStep: 'medium-range' });
+  const targetView = await getWolfRangeActionChoice.run(request({ sessionId: 's1' }));
+  const assigned = await assignWolfRangeTargets.run(request({ sessionId: 's1', requestId: 'eo-medium-weapons-assign',
+    expectedTurn: 1, expectedRevision: targetView.revision, range: 'medium-range', assignments: [
+      { actionId: weaponActionId, contactIds: ['contact-1', 'contact-2', 'contact-3', 'contact-4', 'contact-5'] },
+    ] }));
+  expect(assigned).toMatchObject({ currentStep: 'short-range', committedContacts: 6 });
   const resolved = testState.documents.get('sessions/s1/wolfAttackState/current')!;
   const receipt = (resolved.rangeReceipts as Array<Fields>).at(-1)!;
   expect(resolved.currentStep).toBe('short-range');
+  expect(receipt.dice).toEqual(expect.arrayContaining([
+    expect.objectContaining({ actionId: 'aegis-alpha-wing-medium-0', sourceId: 'aegis-alpha-wing', rolls: [6], successes: 1, damage: 1 }),
+    expect.objectContaining({ actionId: weaponActionId, sourceId: 'aegis-missile-launchers', successes: 5, damage: 5 }),
+  ]));
   expect(receipt).toMatchObject({
-    dice: [{ actionId: 'aegis-alpha-wing-medium-0', sourceId: 'aegis-alpha-wing', rolls: [6], successes: 1, damage: 1 }],
-    assignments: [{ actionId: 'aegis-alpha-wing-medium-0', targetInstanceIds: [chosenTarget.instanceId] }],
+    assignments: expect.arrayContaining([
+      { actionId: 'aegis-alpha-wing-medium-0', targetInstanceIds: [chosenTarget.instanceId] },
+      expect.objectContaining({ actionId: weaponActionId, targetInstanceIds: expect.arrayContaining([chosenTarget.instanceId]) }),
+    ]),
     targetShifts: [{ sourceId: 'aegis-alpha-wing', choiceIndex: 1, rosterIndex: Number(attackedContact.replace('contact-', '')) - 1,
       shift: 1 }],
   });
   const resolvedTarget = (resolved.combatRoster as Array<Fields>).find(({ instanceId }) => instanceId === chosenTarget.instanceId)!;
-  expect(resolvedTarget).toMatchObject({ damageTaken: 1 });
-  expect((resolved.memberResults as Array<Fields>).at(-1)).toMatchObject({
-    sourceId: 'aegis-alpha-wing', targetId: resolvedTarget.target, effect: 'Alpha Fighter Wing attack hit',
-    outcome: { damage: 1 },
+  expect(resolvedTarget).toMatchObject({ damageTaken: 2 });
+  expect(resolvedTarget.target).not.toBe(chosenTarget.target);
+  const memberResults = resolved.memberResults as Array<Fields>;
+  expect(memberResults.find(({ sourceId }) => sourceId === 'aegis-alpha-wing')).toMatchObject({
+    targetId: resolvedTarget.target, effect: 'Alpha Fighter Wing attack hit', outcome: { damage: 1 },
   });
-  expect(entropy.randomInt).toHaveBeenCalledTimes(1);
+  expect(memberResults.find(({ sourceId, contactReference }) => sourceId === 'aegis-missile-launchers' &&
+    contactReference === `Wolf contact ${Number(attackedContact.replace('contact-', ''))}`)).toMatchObject({
+    targetId: resolvedTarget.target, effect: 'medium range AEGIS weapon hit', outcome: { damage: 1 },
+  });
+  expect(entropy.randomInt).toHaveBeenCalledTimes(6);
 });
 
 it('commits a fighter-only Medium target shift in the EO pass receipt', async () => {
