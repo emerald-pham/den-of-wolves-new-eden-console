@@ -129,6 +129,67 @@ export interface WolfCommanderTargetAdjustment {
   readonly usedRanges: readonly WolfCommanderRange[];
 }
 
+export interface WolfCommanderRangeTargetAdjustmentInput {
+  readonly cycle: number;
+  readonly range: WolfCommanderRange;
+  readonly rosterIndex: number;
+  readonly shipId: WolfShipId;
+  readonly currentTarget: string;
+  readonly delta: -1 | 1;
+  readonly targetRing: readonly string[];
+  readonly usedRanges: readonly WolfCommanderRange[];
+}
+
+export interface WolfCommanderRangeTargetAdjustment {
+  readonly cycle: number;
+  readonly range: WolfCommanderRange;
+  readonly rosterIndex: number;
+  readonly shipId: WolfShipId;
+  readonly fromTarget: string;
+  readonly toTarget: string;
+  readonly fromTargetNumber: number;
+  readonly toTargetNumber: number;
+  readonly delta: -1 | 1;
+  readonly usedRanges: readonly WolfCommanderRange[];
+}
+
+/** Shift one living Wolf ship's fleet target around the attack's target ring. */
+export function resolveWolfCommanderRangeTargetAdjustment(
+  input: WolfCommanderRangeTargetAdjustmentInput,
+): WolfCommanderRangeTargetAdjustment {
+  if (!Number.isSafeInteger(input.cycle) || input.cycle < 1 ||
+      !['long', 'medium', 'short'].includes(input.range) ||
+      !Number.isSafeInteger(input.rosterIndex) || input.rosterIndex < 0 ||
+      !wolfShipForId(input.shipId) || typeof input.currentTarget !== 'string' ||
+      (input.delta !== -1 && input.delta !== 1) || !Array.isArray(input.targetRing) ||
+      input.targetRing.length < 1 || input.targetRing.length > 8 ||
+      input.targetRing.some((target) => typeof target !== 'string' || !target.trim()) ||
+      new Set(input.targetRing).size !== input.targetRing.length ||
+      input.usedRanges.some((range) => !['long', 'medium', 'short'].includes(range)) ||
+      new Set(input.usedRanges).size !== input.usedRanges.length) {
+    throw new Error('The Commander target adjustment is malformed.');
+  }
+  if (input.usedRanges.includes(input.range)) {
+    throw new Error(`The Commander has already used the ${input.range} range adjustment this cycle.`);
+  }
+  const fromIndex = input.targetRing.indexOf(input.currentTarget);
+  if (fromIndex < 0) throw new Error('The Wolf ship target is outside the selected attack ring.');
+  const fromTargetNumber = fromIndex + 1;
+  const toIndex = (fromIndex + input.delta + input.targetRing.length) % input.targetRing.length;
+  return Object.freeze({
+    cycle: input.cycle,
+    range: input.range,
+    rosterIndex: input.rosterIndex,
+    shipId: input.shipId,
+    fromTarget: input.currentTarget,
+    toTarget: input.targetRing[toIndex]!,
+    fromTargetNumber,
+    toTargetNumber: toIndex + 1,
+    delta: input.delta,
+    usedRanges: Object.freeze([...input.usedRanges, input.range]),
+  });
+}
+
 /** Apply the once-per-range Commander change using the printed circular d6 dial. */
 export function applyWolfCommanderTargetAdjustment(
   input: WolfCommanderTargetAdjustmentInput,
@@ -169,7 +230,7 @@ export interface WolfAmnestyOffer {
   readonly targetShipId: string;
   readonly condition: 'surrender-by-medium-jump-to-0101';
   readonly responseDeadline: string;
-  readonly facilitatorConsequence: string;
+  readonly facilitatorConsequence?: string;
   readonly status: WolfAmnestyStatus;
   readonly response?: 'accept' | 'decline';
   readonly ruling?: string;
@@ -191,7 +252,8 @@ export function resolveWolfAmnestyDecision(
       typeof offer.targetShipId !== 'string' || offer.targetShipId.length === 0 ||
       offer.condition !== 'surrender-by-medium-jump-to-0101' ||
       !Number.isFinite(Date.parse(offer.responseDeadline)) || !Number.isFinite(Date.parse(now)) ||
-      typeof offer.facilitatorConsequence !== 'string' || offer.facilitatorConsequence.trim().length === 0) {
+      (offer.facilitatorConsequence !== undefined &&
+        (typeof offer.facilitatorConsequence !== 'string' || offer.facilitatorConsequence.trim().length === 0))) {
     throw new Error('The Commander amnesty contract is incomplete or belongs to another cycle.');
   }
   if (decision.kind === 'response') {
@@ -205,13 +267,16 @@ export function resolveWolfAmnestyDecision(
       response: decision.answer,
     });
   }
-  if (decision.kind !== 'facilitator-consequence' || offer.status !== 'accepted-pending-facilitator' ||
-      offer.response !== 'accept' || typeof decision.text !== 'string' || decision.text.trim().length === 0) {
-    throw new Error('A facilitator consequence requires an accepted offer and explicit ruling text.');
+  const accepted = offer.status === 'accepted-pending-facilitator' && offer.response === 'accept';
+  const unansweredAfterDeadline = offer.status === 'offered' && Date.parse(now) > Date.parse(offer.responseDeadline);
+  if (decision.kind !== 'facilitator-consequence' || (!accepted && !unansweredAfterDeadline) ||
+      typeof decision.text !== 'string' || decision.text.trim().length === 0) {
+    throw new Error('A facilitator consequence requires an accepted offer or an elapsed deadline, plus explicit ruling text.');
   }
   return Object.freeze({
     ...offer,
     status: 'facilitator-ruled',
     ruling: decision.text.trim(),
+    facilitatorConsequence: decision.text.trim(),
   });
 }
