@@ -144,11 +144,14 @@ async function sourceChoice(actor, sourceId, range, index = 0) {
   const view = await command(actor, 'getWolfRangeSupportActionChoice', { sourceId, range });
   assert.equal(JSON.stringify(view).includes('dice'), false, 'Source read must omit locked dice.');
   const use = view.eligible === true;
+  const scrapBefore = sourceId === 'boa' ? (await f.session.get()).get('shuttleCargo').boa.scrap : undefined;
   const target = view.targets?.[index % Math.max(1, view.targets.length)] ?? view.contacts?.[index % Math.max(1, view.contacts.length)];
   await exactRetry(actor, 'commitWolfRangeSupportActionChoice', { sourceId, range, requestId: randomUUID(),
     expectedTurn: view.turn, expectedRevision: view.revision, use,
     ...(use && sourceId === 'boa' ? { targetContactId: target?.instanceId ?? target?.contactId } : {}) });
-  return { sourceId, use };
+  const scrapAfter = sourceId === 'boa' ? (await f.session.get()).get('shuttleCargo').boa.scrap : undefined;
+  if (sourceId === 'boa') assert.equal(scrapAfter, scrapBefore - (use ? 1 : 0), 'Boa spends exactly one scrap only on use, including the exact retry.');
+  return { sourceId, use, ...(sourceId === 'boa' ? { scrapBefore, scrapAfter } : {}) };
 }
 async function chooseFlights(range) {
   const wing = f.byRole('wing-commander');
@@ -182,13 +185,14 @@ function safeTargetAssignments(view) {
   const available = view.contacts.filter(({ available }) => available);
   const covered = new Map(available.map(contact => [contact.contactId, 0]));
   return view.hitSlots.map(slot => {
+    assert.ok(Number.isSafeInteger(slot.damagePerHit) && slot.damagePerHit > 0, 'The EO receives each locked hit’s safe damage amount.');
     const chosen = [];
     for (let index = 0; index < Math.min(slot.count, available.length); index += 1) {
       const candidates = available.filter(contact => !chosen.includes(contact.contactId));
       const required = candidates.find(contact => (contact.requiredCoverageDamage ?? 0) > covered.get(contact.contactId));
       const target = required ?? candidates.find(contact => covered.get(contact.contactId) === 0) ?? candidates[0];
       chosen.push(target.contactId);
-      covered.set(target.contactId, covered.get(target.contactId) + 1);
+      covered.set(target.contactId, covered.get(target.contactId) + slot.damagePerHit);
     }
     return { actionId: slot.actionId, contactIds: chosen };
   });
@@ -278,6 +282,13 @@ try {
   await f.session.update({ turnPhase: { ...phase, teamPhaseEndsAt: new Date(Date.now() - 1000).toISOString(),
     openAirspaceEndsAt: new Date(Date.now() + 600_000).toISOString() } });
   await command(wing, 'beginOpenAirspacePhase', { expectedTurn: attackTurn });
+  const cargoSession = await f.session.get();
+  const boaCargo = await exactRetry(f.byRole('capybara-recycler'), 'transferShuttleCargoCommand', {
+    requestId: randomUUID(), shuttleId: 'boa', resourceId: 'scrap', direction: 'load', amount: 3,
+    expectedControlRevision: cargoSession.get('shuttleControl').boa.revision,
+  });
+  assert.equal(boaCargo.shuttleAmount, 3, 'Normal holder cargo transfer supplies three paid range opportunities.');
+  checks.normalBoaCargoTransferAndRetry = true;
   await command(f.gm, 'unlockPressAirspace', { instanceId: f.instanceId });
   const phaseBefore = (await f.session.get()).get('turnPhase');
   const departureId = randomUUID();
@@ -314,6 +325,8 @@ try {
   await page.screenshot({ path: `${dirname(evidencePath)}/normal-phone-enriched-warheads.png`, fullPage: true });
   checks.livePhoneWarheadPanelAndExactFiveOreRetry = true;
   await until('private targeting after the purchase choice', state => state.calculationReceipt?.step === 'targeting');
+  const launchSession = await f.session.get();
+  const launchFuel = session => Object.fromEntries(Object.entries(session.get('shipResources')).map(([shipId, resources]) => [shipId, resources.fuel]));
   for (const wingId of ['fighter-wing-alpha', 'fighter-wing-bravo']) {
     const view = await command(wing, 'getAegisFighterWingLaunch', { wingId });
     await exactRetry(wing, 'launchAegisFighterWing', { wingId, requestId: randomUUID(), expectedTurn: view.turn,
@@ -324,6 +337,7 @@ try {
     expectedTurn: pdf.turn, expectedRevision: pdf.revision, expectedWingRevision: pdf.wingRevision });
   const m = await command(f.byRole('dione-engineer'), 'getDioneMaliadesLaunch');
   await exactRetry(f.byRole('dione-engineer'), 'launchDioneMaliades', { requestId: randomUUID(), expectedTurn: m.turn, expectedRevision: m.revision });
+  assert.deepEqual(launchFuel(await f.session.get()), launchFuel(launchSession), 'Current charged fighter launch consumes no extra ship fuel.');
   const target = await command(commander, 'getWolfCommanderTargeting');
   await command(commander, 'finishWolfCommanderTargetingRerolls', { requestId: randomUUID(), expectedTurn: target.turn, expectedRevision: target.revision });
   const cnc = await command(eo, 'getAegisCommandAndControl');
