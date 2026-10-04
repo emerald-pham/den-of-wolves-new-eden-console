@@ -45,7 +45,8 @@ const GM_SAMPLE: WolfAttackGmAftermathViewModel = {
   damage: [{shipId: 'aegis', amount: 3, populationBefore: 10000, populationAfter: 9500, destroyed: false,
     damagedSystemIds: ['missile-launchers'],
     draws: [{card: '4♥', systemName: 'Missile Launchers', recycled: false, casualty: true, destroyed: false}]}],
-  doctor: {selectedShipIds: ['aegis'], mitigated: [{shipId: 'aegis', casualtiesPrevented: 500, foodSpent: 0, waterSpent: 0}]},
+  doctor: {selectedShipIds: ['aegis'], mitigated: [{shipId: 'aegis', casualtiesBefore: 1000,
+    casualtiesAfter: 500, casualtiesPrevented: 500, foodSpent: 0, waterSpent: 0}]},
   scrapClaims: {aegis: {shuttleId: 'macaw', scrap: 1}}, returningInstanceIds: [],
   survivingWolfShips: [{instanceId: 'prepared-wolf-2', shipId: 'wolf-destroyer', target: 'aegis'}],
   pendingWork: {doctorShipIds: [], salvageAvailable: true, scrapShipIds: [],
@@ -166,7 +167,8 @@ function ElectionReview() {
         currentCycle={7} ballotSubmitted={projection.state !== 'open'}
         onConfigurePolicy={async () => {}} onResolveElection={async () => {}}
         onCastBallot={async ({presidentCandidateId, vicePresidentCandidateId}) => setProjection(current => ({...current,
-          revision: current.revision + 1, state: 'resolved', presidentCandidateId, vicePresidentCandidateId, decidedCycle: 7,
+          revision: current.revision + 1, state: 'resolved', presidentCandidateId,
+          ...(vicePresidentCandidateId ? {vicePresidentCandidateId} : {}), decidedCycle: 7,
           tally: {president: {totalVotes: 1, totalWeight: 1, scores: {[presidentCandidateId]: 1}, tiedCandidateIds: [], winnerId: presidentCandidateId},
             ...(vicePresidentCandidateId ? {vicePresident: {totalVotes: 1, totalWeight: 1, scores: {[vicePresidentCandidateId]: 1}, tiedCandidateIds: [], winnerId: vicePresidentCandidateId}} : {})}}))} />
       <CrisisReportContent report={{sessionId: 'prepared-pc09', crisisId: 'prepared-vessel', state: 'resolved', revision: 4,
