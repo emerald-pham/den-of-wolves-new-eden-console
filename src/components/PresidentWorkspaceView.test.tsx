@@ -43,8 +43,20 @@ it('renders the real President workspace from props and calls injected actions',
   const visit = screen.getByRole('region', { name: 'Presidential visit' });
   await user.click(within(visit).getByRole('button', { name: 'Spend 1 and reduce unrest' }));
   await waitFor(() => expect(onPresidentialVisit).toHaveBeenCalledWith('shepherd'));
-  await user.click(screen.getByRole('button', { name: 'Gain 1' }));
+  await user.click(screen.getByRole('button', { name: 'Claim 1 legacy award' }));
   await waitFor(() => expect(onChangePoliticalCapital).toHaveBeenCalledWith('gain'));
+});
+
+it('does not offer a manual gain after the source award has been applied automatically', () => {
+  const awardedSession = {
+    ...session,
+    resolvedCrisisOutcome: { crisisId: 'c1', revision: 2, title: 'Settlement', capitalApplied: true, capitalDelta: 1 },
+  } as unknown as GameSession;
+  render(<PresidentWorkspaceView session={awardedSession} live
+    onRecordPresidentAction={vi.fn().mockResolvedValue(undefined)}
+    onChangePoliticalCapital={vi.fn().mockResolvedValue(undefined)}
+    onPresidentialVisit={vi.fn().mockResolvedValue(undefined)} />);
+  expect(screen.queryByRole('button', { name: 'Claim 1 legacy award' })).not.toBeInTheDocument();
 });
 
 it('explains when the resolved-crisis capital award was handled at the ledger cap', () => {

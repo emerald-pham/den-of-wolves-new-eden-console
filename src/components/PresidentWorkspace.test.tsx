@@ -39,10 +39,10 @@ beforeEach(() => {
 it('shows the server balance and authorizes one exact gain or spend', async () => {
   const user = userEvent.setup();
   render(<PresidentWorkspace writable />);
-  expect(screen.getByText('These records document session decisions. Mechanical effects resolve through their dedicated controls.')).toBeVisible();
+  expect(screen.getByText('Resolved crises grant political capital automatically when the ledger has room. Other mechanical effects resolve through their dedicated controls.')).toBeVisible();
   expect(screen.getByLabelText('Political capital balance')).toHaveTextContent('1 / 8');
   expect(screen.getByText('Resolved crisis // Approaching vessel')).toBeVisible();
-  await user.click(screen.getByRole('button', { name: 'Gain 1' }));
+  await user.click(screen.getByRole('button', { name: 'Claim 1 legacy award' }));
   expect(capital).toHaveBeenCalledWith('gain');
   expect(screen.getByText('Political capital gained.')).toBeVisible();
 });
