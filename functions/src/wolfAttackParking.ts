@@ -1,4 +1,6 @@
-import { ROLE_OWNED_CRAFT_CATALOG, shuttleHostIsAllowed } from './craftOwnership';
+import { ROLE_OWNED_CRAFT_CATALOG, roleOwnedCraftForRoles, shuttleHostIsAllowed } from './craftOwnership';
+import { parseRetainedShuttles } from './retainedShuttles';
+import { parseShuttleControl } from './shuttleControl';
 import {
   fleetWorldPositionForShip,
   isCanonicalShuttleTransitLeg,
@@ -138,7 +140,7 @@ const knownShuttleIds = new Set(
   ROLE_OWNED_CRAFT_CATALOG.filter((craft) => craft.kind === 'shuttle').map((craft) => craft.id),
 );
 
-/** Resolve the complete represented shuttle set to legal hosts at attack declaration time. */
+/** Park located craft and preserve valid destroyed-host custody without a new host. */
 export function resolveWolfAttackShuttleParking(input: Readonly<{
   shuttleIds: readonly string[];
   activeVesselIds: readonly string[];
@@ -147,6 +149,12 @@ export function resolveWolfAttackShuttleParking(input: Readonly<{
   fleetGroups: readonly WolfAttackParkingGroup[];
   cycle: number;
   parkedAt: string;
+  retention?: Readonly<{
+    entries: unknown;
+    control: unknown;
+    activeRoleIds: readonly string[];
+    destroyedHostShipIds: readonly string[];
+  }>;
 }>): WolfAttackParkingResolution {
   const parkedAtMs = Date.parse(input.parkedAt);
   if (!Number.isSafeInteger(input.cycle) || input.cycle < 1 || !Number.isFinite(parkedAtMs)) {
@@ -182,10 +190,40 @@ export function resolveWolfAttackShuttleParking(input: Readonly<{
   }
 
   const expected = new Set(input.shuttleIds);
+  const retention = input.retention;
+  if (retention !== undefined && (typeof retention !== 'object' || retention === null ||
+      !Array.isArray(retention.activeRoleIds) || retention.activeRoleIds.length === 0 ||
+      retention.activeRoleIds.some((roleId) => typeof roleId !== 'string') ||
+      new Set(retention.activeRoleIds).size !== retention.activeRoleIds.length ||
+      !Array.isArray(retention.destroyedHostShipIds) ||
+      new Set(retention.destroyedHostShipIds).size !== retention.destroyedHostShipIds.length ||
+      retention.destroyedHostShipIds.some((host) => !activeHosts.has(host)))) {
+    throw new Error('Wolf attack retained-craft authority is malformed.');
+  }
+  const retained = parseRetainedShuttles(retention?.entries);
+  if (!retained) throw new Error('Wolf attack retained-craft authority is malformed.');
+  const destroyedHosts = new Set(retention?.destroyedHostShipIds ?? []);
+  const retainedEntries = Object.values(retained);
+  if (retainedEntries.length > 0) {
+    const control = parseShuttleControl(retention?.control);
+    const craft = new Map(roleOwnedCraftForRoles(retention?.activeRoleIds ?? [])
+      .filter((entry) => entry.kind === 'shuttle').map((entry) => [entry.id, entry]));
+    if (!control || retainedEntries.some((entry) => {
+      const printedOwner = craft.get(entry.shuttleId);
+      const custody = control[entry.shuttleId];
+      return !expected.has(entry.shuttleId) || !printedOwner ||
+        printedOwner.ownerRoleId !== entry.ownerRoleId ||
+        !destroyedHosts.has(entry.destroyedHostShipId) ||
+        !shuttleHostIsAllowed(entry.shuttleId, entry.destroyedHostShipId) ||
+        Date.parse(entry.retainedAt) > parkedAtMs || !custody ||
+        custody.ownerRoleId !== entry.ownerRoleId || custody.holderUid !== entry.holderUid ||
+        custody.revision !== entry.controlRevision;
+    })) throw new Error('Wolf attack retained craft do not match their destroyed host and current custody.');
+  }
   const dockingByShuttle = new Map<string, WolfAttackParkingDocking>();
   for (const docking of input.dockings) {
     if (!expected.has(docking.shuttleId) || dockingByShuttle.has(docking.shuttleId) ||
-        !activeHosts.has(docking.shipId) || !docking.dockedAt.trim()) {
+        !activeHosts.has(docking.shipId) || destroyedHosts.has(docking.shipId) || !docking.dockedAt.trim()) {
       throw new Error('Wolf attack docking authority is malformed.');
     }
     dockingByShuttle.set(docking.shuttleId, docking);
@@ -204,9 +242,13 @@ export function resolveWolfAttackShuttleParking(input: Readonly<{
   for (const shuttleId of input.shuttleIds) {
     const docking = dockingByShuttle.get(shuttleId);
     const transit = transitByShuttle.get(shuttleId);
-    if ((docking ? 1 : 0) + (transit ? 1 : 0) !== 1) {
+    const retainedEntry = retained[shuttleId];
+    if ((docking ? 1 : 0) + (transit ? 1 : 0) + (retainedEntry ? 1 : 0) !== 1) {
       throw new Error('Every represented shuttle must have exactly one parking source.');
     }
+    // Retention preserves holder custody. It supplies no physical parking,
+    // movement, visit, or battle-table location for this declaration.
+    if (retainedEntry) continue;
 
     let group: WolfAttackParkingGroup | undefined;
     let position: ShuttleWorldPoint | undefined;
@@ -238,7 +280,8 @@ export function resolveWolfAttackShuttleParking(input: Readonly<{
     if (!group || !position) throw new Error('Shuttle parking has no authoritative fleet position.');
 
     const selection = nearestWolfAttackHost(position, group.vesselIds
-      .filter((shipId) => activeHosts.has(shipId) && shuttleHostIsAllowed(shuttleId, shipId))
+      .filter((shipId) => activeHosts.has(shipId) && !destroyedHosts.has(shipId) &&
+        shuttleHostIsAllowed(shuttleId, shipId))
       .map((shipId) => {
         const hostPosition = fleetWorldPositionForShip(shipId);
         if (!hostPosition) throw new Error('A legal parking host has no fleet position.');

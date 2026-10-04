@@ -3359,9 +3359,9 @@ type WolfAttackParkingSnapshot = Readonly<{
 
 /**
  * A declaration may snapshot the current parking arrangement only when every
- * represented craft is already in a server-known location. Projection helpers
- * intentionally drop malformed rows for player reads; declaration authority
- * must reject those rows instead of silently treating them as parked.
+ * represented craft has a server-known location or valid retained custody.
+ * Projection helpers intentionally drop malformed rows for player reads;
+ * declaration authority must reject those rows instead of treating them as parked.
  */
 function requireWolfAttackParking(
   session: DocumentSnapshot,
@@ -3376,6 +3376,14 @@ function requireWolfAttackParking(
 ): WolfAttackParkingSnapshot {
   const initialDockings = initialShuttleDockingsForRoles(activeRoleIds);
   const storedDockings = session.get('shuttleDockings');
+  const retained = parseRetainedShuttles(session.get('retainedShuttles'));
+  if (!retained) {
+    throw commandError('failed-precondition', 'The Wolf attack retained-craft authority is malformed.', 'conflict');
+  }
+  const retainedIds = new Set(Object.keys(retained));
+  const currentDamage = shipDamage(session.get('shipDamage'));
+  const destroyedHostShipIds = activeVesselIds.filter((host) => currentDamage[host]?.destroyed === true);
+  const destroyedHosts = new Set(destroyedHostShipIds);
   const dockingIds = new Set(
     Array.isArray(storedDockings)
       ? storedDockings.flatMap((entry) =>
@@ -3383,7 +3391,7 @@ function requireWolfAttackParking(
       : initialDockings.map((docking) => docking.shuttleId),
   );
   const ownedCraft = roleOwnedCraftForRoles(activeRoleIds)
-    .filter((craft) => craft.enabledMode === 'standard' || dockingIds.has(craft.id));
+    .filter((craft) => craft.enabledMode === 'standard' || dockingIds.has(craft.id) || retainedIds.has(craft.id));
   const expectedShuttles = ownedCraft.filter((craft) => craft.kind === 'shuttle');
   // The locked vessel roster represents every shuttle initially docked with
   // an active ship, while the role catalog adds optional Union craft that need
@@ -3500,6 +3508,8 @@ function requireWolfAttackParking(
       fleetGroups: groups,
       cycle,
       parkedAt,
+      retention: { entries: retained, control: session.get('shuttleControl'),
+        activeRoleIds, destroyedHostShipIds },
     });
   } catch (cause) {
     throw commandError(
@@ -3563,7 +3573,9 @@ function requireWolfAttackParking(
     });
   }
 
-  const fighterWings = ownedCraft.filter((craft) => craft.kind === 'fighter-wing');
+  const parkedCraft = ownedCraft.filter((craft) => !retainedIds.has(craft.id) &&
+    (craft.kind !== 'fighter-wing' || !destroyedHosts.has(printedFighterWingHost(craft.id) ?? '')));
+  const fighterWings = parkedCraft.filter((craft) => craft.kind === 'fighter-wing');
   // The PDF Escort Wing owns independent durability in serverState/pdfEscortWing;
   // the legacy AEGIS wing-count projection does not represent that craft.
   const countTrackedFighterWings = fighterWings.filter((craft) =>
@@ -3583,7 +3595,7 @@ function requireWolfAttackParking(
     }
   }
 
-  const parkedCraftIds = ownedCraft.map((craft) => craft.id);
+  const parkedCraftIds = parkedCraft.map((craft) => craft.id);
   return {
     parkedCraftIds,
     battleTableCraftActions: battleTableCraftActionsForParkedCraft(parkedCraftIds),
