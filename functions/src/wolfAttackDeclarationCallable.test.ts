@@ -455,7 +455,7 @@ function retainedHostNextDeclaration(host = 'quellon') {
   return { retention, control, prior };
 }
 
-it.each(['quellon', 'icebreaker'])(
+it.each(['quellon', 'icebreaker', 'aegis', 'refinery-124'])(
   'declares the next attack after %s destruction without redocking retained craft or registering their combat actions',
   async host => {
     const { retention, control, prior } = retainedHostNextDeclaration(host);
@@ -476,6 +476,14 @@ it.each(['quellon', 'icebreaker'])(
         .not.toContain(retainedId);
       expect((state.battleTableCraftActions as Array<{ craftId: string }>).map(row => row.craftId))
         .not.toContain(retainedId);
+    }
+    const unavailableWings = host === 'aegis'
+      ? ['fighter-wing-alpha', 'fighter-wing-bravo']
+      : host === 'refinery-124' ? ['pdf-escort-fighter-wing'] : [];
+    for (const wingId of unavailableWings) {
+      expect(state.parkedCraftIds).not.toContain(wingId);
+      expect((state.battleTableCraftActions as Array<{ craftId: string }>).map(row => row.craftId))
+        .not.toContain(wingId);
     }
     expect(state.carryover).toMatchObject({ sourceInstanceIds: ['0:wolf-fighter-wing', '1:wolf-fighter-wing'] });
     expect(mock.documents.get('sessions/s1/wolfAttackState/current/archives/wolf-attack-prior')).toEqual(priorSnapshot);
