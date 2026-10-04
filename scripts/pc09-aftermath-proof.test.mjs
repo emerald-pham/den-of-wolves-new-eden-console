@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { finalizationAudienceThreatCounts, normalizeFinalizationReceipt } from './pc09-aftermath-proof.mjs';
+import { finalizationAudienceThreatCounts, fighterCapacitySlotsAvailable,
+  normalizeFinalizationReceipt } from './pc09-aftermath-proof.mjs';
 
 test('authenticated finalization comparison equates omitted and empty optional result collections', () => {
   const legacy = {
@@ -34,4 +35,9 @@ test('audience count comparison treats an omitted optional return list as zero',
   assert.deepEqual(finalizationAudienceThreatCounts({
     survivingWolfShips: [], returningInstanceIds: ['wolf-1'],
   }), { remainingThreatCount: 0, returningThreatCount: 1 });
+});
+
+test('fighter-build preflight counts legal open wing slots before advancing the Team', () => {
+  assert.equal(fighterCapacitySlotsAvailable({ alpha: { count: 3 }, bravo: { count: 2 } }, 3), 1);
+  assert.equal(fighterCapacitySlotsAvailable({ alpha: { count: 3 }, bravo: { count: 3 } }, 3), 0);
 });
