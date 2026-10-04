@@ -2411,23 +2411,38 @@ function driftCurrentAttackForReplay(drift: AttackReplayDrift): void {
 }
 
 it.each(attackReplayDrifts)('rejects a saved EO range pass after its %s changes, while preserving same-attack retries', async drift => {
+  admitEscortRange();
+  const escortView = await getWolfEscortRangeActionChoice.run(request({ sessionId: 's1',
+    sourceId: 'pdf-escort-fighter-wing', range: 'medium-range' }, 'colonel-1'));
+  await commitWolfEscortRangeActionChoice.run(request({ sessionId: 's1', requestId: `pdf-pass-replay-${drift}`,
+    expectedTurn: 1, expectedRevision: escortView.revision, sourceId: 'pdf-escort-fighter-wing',
+    range: 'medium-range', actions: [{ fighterIndex: 0, kind: 'attack', targetContactId: 'contact-1' }] }, 'colonel-1'));
+  const maliadesView = await getWolfEscortRangeActionChoice.run(request({ sessionId: 's1',
+    sourceId: 'maliades', range: 'medium-range' }, 'engineer-1'));
+  await commitWolfEscortRangeActionChoice.run(request({ sessionId: 's1', requestId: `maliades-pass-replay-${drift}`,
+    expectedTurn: 1, expectedRevision: maliadesView.revision, sourceId: 'maliades',
+    range: 'medium-range', actions: [] }, 'engineer-1'));
+  const eoView = await getWolfRangeActionChoice.run(request({ sessionId: 's1' }));
+  expect(eoView).toMatchObject({ type: 'wolf-range-action-choice-view', range: 'medium-range', revision: expect.any(Number) });
   const payload = { sessionId: 's1', requestId: `eo-pass-replay-${drift}`, expectedTurn: 1,
-    expectedRevision: 4, range: 'long-range', actionIds: [] };
+    expectedRevision: eoView.revision, range: 'medium-range', actionIds: [] };
   const replay = () => commitWolfRangeActionChoice.run(request(payload));
   const committed = await replay();
   expect(await replay()).toEqual(committed);
 
   driftCurrentAttackForReplay(drift);
   const saved = structuredClone([...testState.documents]);
+  const draws = entropy.randomInt.mock.calls.length;
   entropy.randomInt.mockClear(); testState.set.mockClear(); testState.update.mockClear(); testState.remove.mockClear();
   await expect(replay()).rejects.toMatchObject({ code: 'failed-precondition' });
   expect([...testState.documents]).toEqual(saved);
   expect(entropy.randomInt).not.toHaveBeenCalled();
+  expect(draws).toBeGreaterThan(0);
   expect(testState.set).not.toHaveBeenCalled(); expect(testState.update).not.toHaveBeenCalled();
   expect(testState.remove).not.toHaveBeenCalled();
 });
 
-it.each(attackReplayDrifts)('rejects a saved EO target assignment after its %s changes, without new dice', async drift => {
+it.each(attackReplayDrifts)('rejects a saved EO target assignment after its %s changes, without redrawing dice', async drift => {
   const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
   const targetSnapshot = (attack.combatRoster as Array<{ instanceId: string; target: string }>)
     .map(({ instanceId, target }) => ({ instanceId, target }));
@@ -2436,10 +2451,10 @@ it.each(attackReplayDrifts)('rejects a saved EO target assignment after its %s c
     destructionDamageByTarget: Object.fromEntries(CORE_WOLF_TARGET_RING.map(target => [target, 0])) };
   put('sessions/s1/wolfAttackState/current', { ...attack, currentStep: 'medium-range', rangeReceipts: [longReceipt] });
   const lock = await commitWolfRangeActionChoice.run(request({ sessionId: 's1', requestId: `eo-lock-${drift}`,
-    expectedTurn: 1, expectedRevision: 4, range: 'medium-range', actionIds: ['aegis-point-defence-lasers-medium'] }));
+    expectedTurn: 1, expectedRevision: 4, range: 'medium-range', actionIds: ['aegis-missile-launchers-medium'] }));
   const payload = { sessionId: 's1', requestId: `eo-assignment-${drift}`, expectedTurn: 1,
     expectedRevision: lock.revision, range: 'medium-range',
-    assignments: [{ actionId: 'aegis-point-defence-lasers-medium', contactIds:
+    assignments: [{ actionId: 'aegis-missile-launchers-medium', contactIds:
       Array.from({ length: lock.hitSlots[0]?.count ?? 0 }, (_, index) => `contact-${index + 1}`) }] };
   const replay = () => assignWolfRangeTargets.run(request(payload));
   const committed = await replay();
@@ -2447,10 +2462,12 @@ it.each(attackReplayDrifts)('rejects a saved EO target assignment after its %s c
 
   driftCurrentAttackForReplay(drift);
   const saved = structuredClone([...testState.documents]);
+  const draws = entropy.randomInt.mock.calls.length;
   entropy.randomInt.mockClear(); testState.set.mockClear(); testState.update.mockClear(); testState.remove.mockClear();
   await expect(replay()).rejects.toMatchObject({ code: 'failed-precondition' });
   expect([...testState.documents]).toEqual(saved);
   expect(entropy.randomInt).not.toHaveBeenCalled();
+  expect(draws).toBeGreaterThan(0);
   expect(testState.set).not.toHaveBeenCalled(); expect(testState.update).not.toHaveBeenCalled();
   expect(testState.remove).not.toHaveBeenCalled();
 });
