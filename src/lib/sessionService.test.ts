@@ -275,11 +275,11 @@ describe('Commander address and private amnesty services', () => {
     );
     useSessionStore.getState().setConnection('live');
     useSessionStore.getState().setSessionSnapshotFreshness('server');
-    const address = callableReturning({ data: {
+    const address = Object.assign(vi.fn((payload: Record<string, unknown>) => Promise.resolve({ data: {
       type: 'wolf-commander-address-result', status: 'committed', sessionId: 's1',
-      requestId: 'address-4', cycle: 4, actorRoleId: 'wolf-commander',
+      requestId: payload.requestId, cycle: 4, actorRoleId: 'wolf-commander',
       eventId: 'wolf-commander-address-4', expiresAt: '2026-10-04T12:00:30.000Z',
-    } });
+    } })), { stream: vi.fn() });
     vi.mocked(httpsCallable).mockReturnValue(address as never);
     await expect(publishWolfCommanderAddress('Fleet, stand down.', 4)).resolves.toMatchObject({
       cycle: 4, actorRoleId: 'wolf-commander', eventId: 'wolf-commander-address-4',
