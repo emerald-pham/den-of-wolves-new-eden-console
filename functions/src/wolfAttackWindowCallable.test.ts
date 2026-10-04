@@ -402,6 +402,63 @@ it('does not open more than two additional facilitator-selected attacks', async 
   expect(mock.documents.has('sessions/s1/wolfAttackWindow/current/audit/wolf-fourth-due')).toBe(false);
 });
 
+it('denies a same-cycle Commander repeat and probes next-cycle eligibility after attack three', async () => {
+  session({ currentTurn: 1, activeVesselIds: ['aegis'] });
+  put('sessions/s1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: ['aegis'], memberUids: [] });
+  put('sessions/s1/wolfAttackWindow/current', {
+    status: 'resolved', turn: 1, revision: 2, targetGroupId: 'fleet-1', threatSiteCode: 'commander',
+  });
+  put('sessions/s1/wolfAttackState/current', {
+    type: 'wolf-attack-state', status: 'resolved', currentStep: 'resolved',
+    attackId: 'wolf-attack-commander-cycle-1', announcementId: 'wolf-attack-commander-cycle-1',
+    turn: 1, attackNumber: 1, revision: 6, airspaceLocked: false,
+    parkingReleaseCondition: 'normal-movement-reopened', resolvedAt: '2026-10-03T20:00:00.000Z',
+  });
+  await expect(setWolfAttackWindow.run(request({
+    ...baseData, requestId: 'commander-same-cycle-repeat', expectedRevision: 2,
+    targetGroupId: 'fleet-1', threatSiteCode: 'commander',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.has('sessions/s1/wolfAttackWindow/current/audit/commander-same-cycle-repeat')).toBe(false);
+
+  const receipt = {
+    type: 'wolf-combat-calculation', version: 1, requestId: 'wolf-final-wolf-attack-commander-three',
+    phase: { turn: 3, phase: 'coordination', serverTime: '2026-10-03T20:00:00.000Z',
+      deadlineAt: '2026-10-03T20:10:00.000Z', overrun: false },
+    targeting: { ring: ['aegis'], rolls: [] }, ranges: [
+      { range: 'long-range', targetSnapshot: [], targetShifts: [] },
+      { range: 'medium-range', targetSnapshot: [], targetShifts: [] },
+      { range: 'short-range', targetSnapshot: [], targetShifts: [] },
+    ], boarding: [], fleetDamage: [], forceField: { status: 'unavailable', preventedDamage: 0 },
+    returningInstanceIds: [],
+  };
+  const carryover = {
+    sourceAttackId: 'wolf-attack-commander-two', sourceTurn: 2,
+    sourceInstanceIds: ['0:wolf-fighter-wing'], rosterInstanceIds: ['0:wolf-fighter-wing'],
+  };
+  session({ currentTurn: 4, activeVesselIds: ['aegis'] });
+  put('sessions/s1/wolfAttackWindow/current', {
+    status: 'resolved', turn: 3, revision: 8, targetGroupId: 'fleet-1', threatSiteCode: 'commander',
+  });
+  put('sessions/s1/wolfAttackState/current', {
+    type: 'wolf-attack-state', status: 'resolved', currentStep: 'resolved',
+    attackId: 'wolf-attack-commander-three', announcementId: 'wolf-attack-commander-three',
+    turn: 3, attackNumber: 3, previousAttackId: 'wolf-attack-commander-two', carryover,
+    revision: 9, airspaceLocked: false,
+    parkingReleaseCondition: 'normal-movement-reopened', resolvedAt: '2026-10-03T20:00:00.000Z',
+    finalizationRequestId: receipt.requestId, calculationReceipt: receipt,
+  });
+  put('sessions/s1/wolfAttackState/current/audit/wolf-finalized-3', {
+    type: 'wolf-attack-finalization', turn: 3, revision: 9, actorUid: 'server',
+    attackId: 'wolf-attack-commander-three', requestId: receipt.requestId, receipt,
+    attackNumber: 3, previousAttackId: 'wolf-attack-commander-two', carryover,
+    rangeReceipts: receipt.ranges,
+  });
+  await expect(setWolfAttackWindow.run(request({
+    ...baseData, requestId: 'commander-cycle-4-attempt', expectedRevision: 8,
+    targetGroupId: 'fleet-1', threatSiteCode: 'commander',
+  }))).resolves.toMatchObject({ status: 'due', turn: 4, revision: 9, threatSiteCode: 'commander' });
+});
+
 it('replays an exact request without a second projection or audit write', async () => {
   await setWolfAttackWindow.run(request());
   mock.update.mockClear();
