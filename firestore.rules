@@ -1177,12 +1177,18 @@ service cloud.firestore {
           resource.data.keys().hasOnly([
             'type', 'schemaVersion', 'sessionId', 'attackId', 'turn', 'revision',
             'status', 'phase', 'currentStep', 'range', 'deadlineAt', 'serverTime',
-            'visibility', 'redaction', 'results'
+            'visibility', 'redaction', 'results', 'remainingThreatCount', 'returningThreatCount'
           ]) &&
           resource.data.type == 'wolf-attack-member-view' &&
           resource.data.schemaVersion == 1 &&
           resource.data.sessionId == sessionId &&
-          resource.data.visibility == 'members';
+          resource.data.visibility == 'members' &&
+          (!resource.data.keys().hasAny(['remainingThreatCount', 'returningThreatCount']) ||
+            (resource.data.keys().hasAll(['remainingThreatCount', 'returningThreatCount']) &&
+              resource.data.status == 'resolved' &&
+              resource.data.remainingThreatCount is int && resource.data.remainingThreatCount >= 0 &&
+              resource.data.returningThreatCount is int && resource.data.returningThreatCount >= 0 &&
+              resource.data.returningThreatCount <= resource.data.remainingThreatCount));
         allow list, write: if false;
       }
 
