@@ -258,10 +258,13 @@ try {
       ...(action === 'reactor' ? { consoles: ['missile-array', 'force-field-projector'] } : {}) });
   }
   await grantCurrentShip('aegis');
-  const current = await f.session.get();
-  await command(f.gm, 'adjustShipResource', { instanceId: f.instanceId, requestId: randomUUID(), shipId: 'aegis',
-    resourceId: 'ore', delta: 9 - current.get('shipResources').aegis.ore,
-    expectedRevision: current.get('vesselActionRevisions').aegis });
+  let current = await f.session.get();
+  while (current.get('shipResources').aegis.ore !== 9) {
+    await command(f.gm, 'adjustShipResource', { instanceId: f.instanceId, requestId: randomUUID(), shipId: 'aegis',
+      resourceId: 'ore', delta: current.get('shipResources').aegis.ore < 9 ? 1 : -1,
+      expectedRevision: current.get('vesselActionRevisions').aegis });
+    current = await f.session.get();
+  }
   const phase = (await f.session.get()).get('turnPhase');
   // The only privileged fixture mutation accelerates this disposable clock.
   await f.session.update({ turnPhase: { ...phase, teamPhaseEndsAt: new Date(Date.now() - 1000).toISOString(),
