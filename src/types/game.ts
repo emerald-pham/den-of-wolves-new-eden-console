@@ -719,8 +719,10 @@ export interface WolfRangeActionChoiceView {
   readonly choiceStatus: 'pending' | 'targets-required' | 'committed';
   readonly deadlineAt: string;
   readonly eligibleActions: readonly Readonly<{ actionId: string; sourceId: string; range: WolfAttackRange }>[];
-  readonly hitSlots: readonly Readonly<{ actionId: string; count: number }>[];
-  readonly contacts: readonly Readonly<{ contactId: string; targetShipId: string; available: boolean }>[];
+  readonly hitSlots: readonly Readonly<{ actionId: string; count: number; damagePerHit?: number }>[];
+  readonly contacts: readonly Readonly<{
+    contactId: string; targetShipId: string; available: boolean; requiredCoverageDamage?: number | null;
+  }>[];
 }
 
 export type WolfRangeActionChoiceReadResult = WolfRangeActionChoiceView | Readonly<{
@@ -739,7 +741,40 @@ export interface WolfRangeActionChoiceResult {
   readonly range: WolfAttackRange;
   readonly currentStep: 'targeting' | 'long-range' | 'medium-range' | 'short-range' | 'boarding' | 'resolved';
   readonly choiceStatus: 'targets-required' | 'passed';
-  readonly hitSlots: readonly Readonly<{ actionId: string; count: number }>[];
+  readonly hitSlots: readonly Readonly<{ actionId: string; count: number; damagePerHit?: number }>[];
+}
+
+export type WolfRangeSupportSourceId = 'highwall' | 'gorgoneion-missile-array' | 'boa';
+
+export interface WolfRangeSupportActionChoiceView {
+  readonly type: 'wolf-range-support-action-choice-view';
+  readonly sessionId: string;
+  readonly attackId: string;
+  readonly turn: number;
+  readonly revision: number;
+  readonly range: WolfAttackRange;
+  readonly sourceId: WolfRangeSupportSourceId;
+  readonly actorRoleId: string;
+  readonly choiceStatus: 'pending' | 'used' | 'passed';
+  readonly eligible: boolean;
+  readonly actionAvailable: boolean;
+  readonly scrapAvailable?: number;
+  readonly deadlineAt: string;
+  readonly contacts: readonly Readonly<{ contactId: string; targetShipId: string; available: boolean }>[];
+}
+
+export interface WolfRangeSupportActionChoiceResult {
+  readonly status: 'committed' | 'replayed';
+  readonly type: 'wolf-range-support-action-choice';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly attackId: string;
+  readonly turn: number;
+  readonly revision: number;
+  readonly range: WolfAttackRange;
+  readonly sourceId: WolfRangeSupportSourceId;
+  readonly choiceStatus: 'used' | 'passed';
+  readonly actionCount: number;
 }
 
 export interface WolfRangeTargetAssignmentResult {

@@ -125,7 +125,11 @@ function SmallShipCard({ id, state, currentTurn, activeHostShipIds, available, c
               <h5>{system.name}</h5>
               <p>{system.phase} // {cycle?.charges.includes(system.id) ? 'charged' : 'not charged'}</p>
               <p>{system.effect}</p>
-              <p role="status">Action unavailable // {system.action.reason} // {system.action.followOnPrompts.length === 1 ? 'Prompt' : 'Prompts'} {system.action.followOnPrompts.join(' / ')}</p>
+              {system.action.status === 'live-below' ? (
+                <p role="status">Live control // Captain workspace // {system.action.reason}</p>
+              ) : (
+                <p role="status">Action unavailable // {system.action.reason} // {system.action.followOnPrompts.length === 1 ? 'Prompt' : 'Prompts'} {system.action.followOnPrompts.join(' / ')}</p>
+              )}
             </article>
           ))}
         </section>

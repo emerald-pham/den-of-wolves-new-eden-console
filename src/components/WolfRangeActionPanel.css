@@ -49,6 +49,21 @@
 .wolf-range-action__unused { color: var(--cic-cyan-hot); }
 .wolf-range-action__message { color: var(--cic-ink); }
 
+.wolf-range-action__coverage {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.65rem 0.75rem;
+  border-left: 2px solid var(--cic-cyan);
+  background: color-mix(in srgb, var(--cic-cyan) 7%, transparent);
+}
+
+.wolf-range-action__coverage p {
+  margin: 0;
+  color: var(--cic-ink);
+  font: 14px/1.5 var(--cic-mono);
+  overflow-wrap: anywhere;
+}
+
 .wolf-range-action__choices,
 .wolf-range-action__target-group {
   display: grid;

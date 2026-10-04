@@ -4,6 +4,7 @@ import { extraShipCaptainWorkspaceFor } from '@/data/extraShipCaptainWorkspaces'
 import { useSessionStore } from '@/store/useSessionStore';
 import type { RoleId } from '@/types/identifiers';
 import BaseCapybaraCargoTransferPanel from './BaseCapybaraCargoTransferPanel';
+import WolfRangeSupportActionPanel from './WolfRangeSupportActionPanel';
 
 const GorgoneionRepairDronesPanel = lazy(() => import('./GorgoneionRepairDronesPanel'));
 const GorgoneionMissionSupportWorkspace = lazy(() => import('./GorgoneionMissionSupportWorkspace'));
@@ -87,6 +88,10 @@ export default function ExtraShipCaptainWorkspace({ roleId }: { readonly roleId:
               <WolfForceFieldChoicePanel />
             </Suspense>
           )}
+          {workspace.roleId === 'gorgoneion-captain' && (['long-range', 'medium-range', 'short-range'] as const).map((range) => (
+            <WolfRangeSupportActionPanel key={`gorgoneion-missile-array-${range}`}
+              sourceId="gorgoneion-missile-array" range={range} />
+          ))}
           {workspace.roleId === 'gorgoneion-captain' && (
             <Suspense fallback={<p className="console-workspace__status" role="status">
               Loading repair controls…

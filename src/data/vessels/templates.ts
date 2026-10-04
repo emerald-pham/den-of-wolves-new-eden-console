@@ -122,17 +122,21 @@ export interface SupplementalVesselSystem {
   readonly phase: ShuttleOperationPhase;
   readonly charge: 'reactor';
   readonly effect: string;
-  readonly action: {
-    readonly status: 'unavailable';
-    readonly reason: string;
-    readonly followOnPrompts: readonly string[];
-  };
+  readonly action:
+    | {
+        readonly status: 'unavailable';
+        readonly reason: string;
+        readonly followOnPrompts: readonly string[];
+      }
+    | {
+        readonly status: 'live-below';
+        readonly reason: string;
+      };
 }
 
 /**
- * Identity-only registrations for optional vessels whose gameplay is owned by
- * later prompts. Keeping them separate from full fleet ships prevents an
- * unimplemented small ship from receiving ship resources or a player seat.
+ * Supplemental registrations keep optional vessels separate from full fleet
+ * ships while their role, resources, and live systems are introduced in scope.
  */
 export interface SupplementalVessel extends ShipIdentity {
   readonly id: SupplementalVesselId;

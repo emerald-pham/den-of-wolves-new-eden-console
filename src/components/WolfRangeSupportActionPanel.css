@@ -1,0 +1,91 @@
+.wolf-range-support {
+  display: grid;
+  gap: 0.8rem;
+  min-width: 0;
+  margin-block: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--cic-rule);
+  background: var(--cic-panel);
+  color: var(--cic-ink);
+}
+
+.wolf-range-support__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.wolf-range-support__header h2 {
+  margin: 0.15rem 0 0;
+  color: var(--cic-ink);
+  font: clamp(1.05rem, 2vw, 1.35rem)/1.25 var(--cic-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.wolf-range-support__status {
+  flex: 0 0 auto;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--cic-rule);
+  color: var(--cic-cyan);
+  font: 600 14px/1.3 var(--cic-mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.wolf-range-support__range,
+.wolf-range-support__deadline,
+.wolf-range-support__notice,
+.wolf-range-support__message {
+  margin: 0;
+  color: var(--cic-muted);
+  font: 14px/1.5 var(--cic-mono);
+  overflow-wrap: anywhere;
+}
+
+.wolf-range-support__range { color: var(--cic-cyan); }
+.wolf-range-support__deadline time { color: var(--cic-cyan); }
+.wolf-range-support__message { color: var(--cic-ink); }
+
+.wolf-range-support__target {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  color: var(--cic-ink);
+  font: 14px/1.45 var(--cic-mono);
+}
+
+.wolf-range-support__target select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0.5rem;
+  border: 1px solid var(--cic-rule);
+  background: var(--cic-panel);
+  color: var(--cic-ink);
+  font: 16px/1.4 var(--cic-mono);
+}
+
+.wolf-range-support__buttons { display: flex; flex-wrap: wrap; gap: 0.55rem; }
+.wolf-range-support button { min-height: 44px; }
+.wolf-range-support button:disabled { color: var(--cic-muted); cursor: not-allowed; }
+.wolf-range-support select:focus-visible,
+.wolf-range-support button:focus-visible { outline: 2px solid var(--cic-cyan); outline-offset: 2px; }
+
+@media (max-width: 520px) {
+  .wolf-range-support { padding: 0.75rem; }
+  .wolf-range-support__header { display: grid; gap: 0.55rem; }
+  .wolf-range-support__status { justify-self: start; }
+  .wolf-range-support__buttons { display: grid; grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wolf-range-support,
+  .wolf-range-support * {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

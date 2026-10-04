@@ -21,6 +21,7 @@ import type { ShuttleControlEntry } from '@/types/game';
 import ShuttleControl from './ShuttleControl';
 import ShuttleControlReview, { type ShuttleControlPreviewSnapshot } from './ShuttleControlReview';
 import PermissionedDismantlingPanel from './PermissionedDismantlingPanel';
+import WolfRangeSupportActionPanel from './WolfRangeSupportActionPanel';
 import type { DismantlingProposalCommand } from '@/lib/permissionedDismantlingService';
 
 const SHUTTLE_CAPABILITIES: Record<ShuttleCapability, { component: ComponentType<{ shuttle: Shuttlecraft }>; placement: 'workspace' | 'instruments' }> = {
@@ -165,6 +166,11 @@ export default function ShuttleConsoleTemplate({
           {!controlPreview && shuttle.id === 'boa' && control &&
             <BoaRecyclingPanel control={control} docking={docking} fuelled={fuelled}
               hostName={host?.name} />}
+          {!controlPreview && (shuttle.id === 'highwall' || shuttle.id === 'boa') &&
+            (['long-range', 'medium-range', 'short-range'] as const).map((range) => (
+              <WolfRangeSupportActionPanel key={`${shuttle.id}-${range}`}
+                sourceId={shuttle.id === 'highwall' ? 'highwall' : 'boa'} range={range} />
+            ))}
           {!controlPreview && shuttle.id === 'chacau' && control &&
             <ChacauRepairPanel control={control} docking={docking} fuelled={fuelled} />}
           {!controlPreview && shuttle.id === 'ally' && control &&

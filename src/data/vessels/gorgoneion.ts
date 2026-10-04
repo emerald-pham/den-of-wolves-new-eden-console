@@ -1,7 +1,7 @@
 import icn from '@/assets/flags/icn.png';
 import { defineSupplementalVessel } from './templates';
 
-/** Optional base small-ship identity; its systems arrive in later prompts. */
+/** Optional base small-ship identity and its connected PC08 range systems. */
 export default defineSupplementalVessel({
   id: 'gorgoneion',
   kind: 'small-ship',
@@ -27,11 +27,10 @@ export default defineSupplementalVessel({
       name: 'Missile Array',
       phase: 'Wolf attack',
       charge: 'reactor',
-      effect: 'Roll 3 dice total: one at long, one at medium, and one at short range. Each 6+ / 5+ / 4+ deals 1 damage at that range; the array can damage each target at most once per phase.',
+      effect: 'At each range, roll 3 dice. Each 6+ / 5+ / 4+ deals 1 damage at Long / Medium / Short range; the array can damage each target at most once per phase.',
       action: {
-        status: 'unavailable',
-        reason: 'Range-phase firing is unavailable until the authoritative Missile Array resolver lands.',
-        followOnPrompts: ['455'],
+        status: 'live-below',
+        reason: 'The live server-owned range choice panel appears below when the current Captain and charge permit.',
       },
     },
     {
@@ -41,9 +40,8 @@ export default defineSupplementalVessel({
       charge: 'reactor',
       effect: 'Before targeting, choose 1 ship. At the end of the Wolf attack, reduce the damage that ship takes by 2.',
       action: {
-        status: 'unavailable',
-        reason: 'Ship selection is unavailable until the authoritative before-targeting resolver lands; selection cannot occur after targeting begins.',
-        followOnPrompts: ['437'],
+        status: 'live-below',
+        reason: 'The live before-targeting choice panel appears below when the current Captain and charge permit.',
       },
     },
   ],

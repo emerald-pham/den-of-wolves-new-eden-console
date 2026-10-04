@@ -31,3 +31,11 @@ completion. Once rolls are locked, the EO's aggregate assignment still admits
 other legal contacts after mandatory Wing coverage. This distinction preserves
 the printed priority without drawing replacement dice or changing a committed
 source choice.
+
+## Connected Highwall, Gorgoneion, and Boa actions
+
+The base v1.1 A4 duplex print identifies Highwall's fuelled Wolf-attack use at Medium and Short Range as one die on 5+, dealing three damage on a hit (printed p. 75). The same print gives Gorgoneion's charged Missile Array three dice at each of Long, Medium, and Short Range, with the 6+/5+/4+ thresholds and one hit per target at that range (printed p. 23). The routed derivative is `references/REFERENCE_ONLY_SHUTTLES.md` for Highwall and `references/REFERENCE_ONLY_SHIPS.md` for Gorgoneion; both primary pages belong to `downe-home-printing-a4-double-sided-v1.1.pdf` (SHA-256 in `SOURCE_PROVENANCE.md`).
+
+The Capybara expansion's Boa sheet says it may choose one Wolf ship at each range, spend one Scrap, and deal one damage (printed p. 4 of `capybara-home-printing-a4-duplex-v1.1.pdf`; SHA-256 in `SOURCE_PROVENANCE.md`; routed derivative `references/REFERENCE_ONLY_CAPYBARA_EXPANSION.md`, lines 148–149). PC08 presents these optional source actions as an explicit use/pass choice for each range. A pass and an unavailable action draw no dice and spend no Scrap. A Boa use selects one current opaque legal contact and commits its single Scrap debit with that choice; exact request retry cannot debit it again. Highwall's fuelled state and Gorgoneion's current Missile Array charge remain server-owned prerequisites, while all selected rolled actions join the same range lock and receipt as the fleet's other actions.
+
+An assigned source holder who is disconnected or away from the active console remains pending for that choice. The current connected console holder can commit it; removed, replaced, or no-longer-aboard holders are unavailable and recorded for automatic progression. This is the existing PC08 source-choice lifecycle applied to the three live support actions, not a change to printed damage or resource costs.

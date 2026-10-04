@@ -54,7 +54,12 @@ export const EXTRA_SHIP_CAPTAIN_WORKSPACES: readonly ExtraShipCaptainWorkspaceDe
         control: 'live-below',
         availability: 'Live server-owned repair control appears below when current authority permits.',
       },
-      unavailable('missile-array', 'Missile Array', 'Wolf attack', 'When charged, roll three dice at each range using the printed 6+ / 5+ / 4+ thresholds.', 'reactor', 'Awaiting the authoritative range-phase resolver.'),
+      {
+        id: 'missile-array', name: 'Missile Array', phase: 'Wolf attack',
+        effect: 'At each range, when charged, roll three dice: 6+ at Long, 5+ at Medium, and 4+ at Short. Each hit deals 1 damage; the array can damage each target at most once per phase.',
+        charge: 'reactor', control: 'live-below',
+        availability: 'Live server-owned range choice panel appears below when the current Captain and charge permit.',
+      },
       {
         id: 'force-field-projector', name: 'Force Field Projector', phase: 'Wolf attack',
         effect: 'When charged before targeting, protect one ship and reduce its final attack damage by 2.',

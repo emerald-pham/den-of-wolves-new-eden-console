@@ -25,6 +25,11 @@ function actionLabel(sourceId: string): string {
   if (sourceId === 'aegis-point-defence-lasers') return 'Point-defence lasers';
   if (sourceId === 'aegis-alpha-wing') return 'Alpha Fighter Wing';
   if (sourceId === 'aegis-bravo-wing') return 'Bravo Fighter Wing';
+  if (sourceId === 'highwall') return 'Highwall Cannon';
+  if (sourceId === 'gorgoneion-missile-array') return 'Gorgoneion Missile Array';
+  if (sourceId === 'boa') return 'Boa Scrap Strike';
+  if (sourceId === 'pdf-escort-wing') return 'PDF Escort Wing';
+  if (sourceId === 'maliades') return 'Maliades';
   return sourceId.replaceAll('-', ' ');
 }
 
@@ -59,8 +64,9 @@ export function WolfRangeActionPanelView({
   const draftKey = JSON.stringify([
     view.sessionId, view.turn, view.revision, view.currentStep, view.range, view.choiceStatus,
     view.eligibleActions.map(({ actionId, sourceId, range }) => [actionId, sourceId, range]),
-    view.hitSlots.map(({ actionId, count }) => [actionId, count]),
-    view.contacts.map(({ contactId, targetShipId, available }) => [contactId, targetShipId, available]),
+    view.hitSlots.map(({ actionId, count, damagePerHit }) => [actionId, count, damagePerHit]),
+    view.contacts.map(({ contactId, targetShipId, available, requiredCoverageDamage }) =>
+      [contactId, targetShipId, available, requiredCoverageDamage]),
   ]);
   useEffect(() => {
     setSelectedActions([]);
@@ -84,12 +90,28 @@ export function WolfRangeActionPanelView({
         new Set(contactIds).size === contactIds.length;
     });
     const unused = assignableSlots.reduce((total, { count }) => total + Math.max(0, count - availableContacts.length), 0);
-    return { assignments, complete, unused };
-  }, [assignmentsByAction, availableContacts.length, view.hitSlots, wingCommanderTargetIds]);
+    const contactById = new Map(view.contacts.map((contact) => [contact.contactId, contact]));
+    const plannedWingDamage = new Map<string, number>();
+    for (const { actionId, contactIds } of assignments) {
+      const slot = assignableSlots.find((candidate) => candidate.actionId === actionId);
+      if (!slot || typeof slot.damagePerHit !== 'number' || slot.damagePerHit < 1) continue;
+      for (const contactId of contactIds) {
+        const contact = contactById.get(contactId);
+        if (contact && typeof contact.requiredCoverageDamage === 'number' && contact.requiredCoverageDamage > 0) {
+          plannedWingDamage.set(contactId, (plannedWingDamage.get(contactId) ?? 0) + slot.damagePerHit);
+        }
+      }
+    }
+    const hasNonWingAssignment = assignments.some(({ contactIds }) => contactIds.some((contactId) =>
+      contactById.get(contactId)?.requiredCoverageDamage === null));
+    const uncoveredWing = availableContacts.some(({ contactId, requiredCoverageDamage }) =>
+      typeof requiredCoverageDamage === 'number' && requiredCoverageDamage > (plannedWingDamage.get(contactId) ?? 0));
+    return { assignments, complete: complete && !(hasNonWingAssignment && uncoveredWing), unused, uncoveredWing };
+  }, [assignmentsByAction, availableContacts, view.contacts, view.hitSlots, wingCommanderTargetIds]);
 
   if (view.choiceStatus === 'committed') {
     return (
-      <section className="wolf-range-action cic-frame" aria-label="AEGIS range weapons">
+      <section className="wolf-range-action cic-frame" aria-label="Wolf range assignments">
         <header className="wolf-range-action__header">
           <div><p className="eyebrow">Cycle {view.turn} // weapon control</p><h2>{view.range.replace('-range', ' range')}</h2></div>
           <span className="wolf-range-action__status">Committed</span>
@@ -101,7 +123,7 @@ export function WolfRangeActionPanelView({
   }
 
   return (
-    <section className="wolf-range-action cic-frame" aria-label="AEGIS range weapons">
+    <section className="wolf-range-action cic-frame" aria-label="Wolf range actions">
       <header className="wolf-range-action__header">
         <div><p className="eyebrow">Cycle {view.turn} // weapon control</p><h2>{view.range.replace('-range', ' range')}</h2></div>
         <span className="wolf-range-action__status">{needsTargets ? 'Target assignment' : 'Choice required'}</span>
@@ -113,7 +135,7 @@ export function WolfRangeActionPanelView({
         <>
           {view.eligibleActions.length > 0 ? (
             <fieldset className="wolf-range-action__choices" disabled={busy}>
-              <legend>Charged AEGIS actions</legend>
+              <legend>Available range actions</legend>
               {view.eligibleActions.map((action) => (
                 <label key={action.actionId} className="wolf-range-action__choice">
                   <input
@@ -128,7 +150,7 @@ export function WolfRangeActionPanelView({
               ))}
             </fieldset>
           ) : (
-            <p className="wolf-range-action__notice">No charged, undamaged PC07 weapon action is available in this range.</p>
+            <p className="wolf-range-action__notice">No charged range actions are available. You can still pass this range.</p>
           )}
           <p className="wolf-range-action__notice">No automatic pass is applied at the deadline. Reconnect to make the current choice.</p>
           <div className="wolf-range-action__buttons">
@@ -144,6 +166,20 @@ export function WolfRangeActionPanelView({
       ) : (
         <>
           <p className="wolf-range-action__notice">Dice are already locked by the server. Targets never cause another roll.</p>
+          {view.range === 'short-range' && view.contacts.some(({ requiredCoverageDamage }) => requiredCoverageDamage !== undefined) && (
+            <div className="wolf-range-action__coverage" role="status" aria-label="Short Range fighter coverage">
+              {view.contacts.filter(({ available, requiredCoverageDamage }) => available &&
+                typeof requiredCoverageDamage === 'number' && requiredCoverageDamage > 0).map((contact) => (
+                <p key={contact.contactId}>Cover first — {contact.requiredCoverageDamage} damage remains on {contact.contactId}.</p>
+              ))}
+              {view.contacts.filter(({ available, requiredCoverageDamage }) => available && requiredCoverageDamage === 0).map((contact) => (
+                <p key={contact.contactId}>{contact.contactId} — Fighter Wing already covered.</p>
+              ))}
+              {view.contacts.some(({ available, requiredCoverageDamage }) => available && requiredCoverageDamage === null) && (
+                <p>Other ships are available after all fighter wings are covered.</p>
+              )}
+            </div>
+          )}
           <div className="wolf-range-action__target-list">
             {view.hitSlots.map((slot) => {
               const action = view.eligibleActions.find(({ actionId }) => actionId === slot.actionId);
@@ -165,6 +201,9 @@ export function WolfRangeActionPanelView({
               return (
                 <fieldset key={slot.actionId} className="wolf-range-action__target-group" disabled={busy}>
                   <legend>{action ? actionLabel(action.sourceId) : 'AEGIS action'} // {slot.count} hits</legend>
+                  {slot.count > 0 && typeof slot.damagePerHit === 'number' && <p className="wolf-range-action__notice">
+                    {action ? actionLabel(action.sourceId) : 'This action'} deals {slot.damagePerHit} damage per hit.
+                  </p>}
                   {Array.from({ length: targetable }, (_, index) => (
                     <label key={`${slot.actionId}-${index}`} className="wolf-range-action__target-choice">
                       <span>{action ? actionLabel(action.sourceId) : 'AEGIS action'} hit {index + 1}</span>
@@ -199,6 +238,11 @@ export function WolfRangeActionPanelView({
           {availableContacts.length === 0 && view.hitSlots.some(({ count }) => count > 0) && (
             <p className="wolf-range-action__unused" role="status">
               No live legal contacts remain; successful hits will be recorded unused. No target or damage is fabricated.
+            </p>
+          )}
+          {assignmentState.uncoveredWing && (
+            <p className="wolf-range-action__unused" role="status">
+              Assign enough damage to every uncovered Fighter Wing before choosing another ship.
             </p>
           )}
           <button type="button" className="cic-action-button" disabled={busy || !assignmentState.complete}

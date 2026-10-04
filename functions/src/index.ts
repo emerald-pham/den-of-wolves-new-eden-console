@@ -658,6 +658,9 @@ import {
 } from './wolfBoardingSupport';
 import { nextWolfBoardingStage, type WolfBoardingProtocolInput } from './wolfBoardingProtocol';
 import {
+  boaWolfRangeActions,
+  gorgoneionWolfRangeActions,
+  highwallWolfRangeActions,
   aegisWolfRangeActions,
   wolfAttackNextStep,
   type WolfAttackLifecycleStep,
@@ -21091,6 +21094,193 @@ type WolfFighterRangeBundle = Readonly<{
   shifts?: readonly WolfRangeTargetShiftChoice[];
 }>;
 
+type WolfRangeSupportSourceId = 'highwall' | 'gorgoneion-missile-array' | 'boa';
+type WolfRangeSupportChoiceRecord = Readonly<{
+  type: 'wolf-range-support-action-choice'; status: 'committed'; sourceId: WolfRangeSupportSourceId;
+  range: WolfCombatRange; turn: number; attackId: string; revision: number; actorUid: string;
+  actorRoleId: string; requestId: string; choice: 'used' | 'passed';
+  hostShipId?: string; controlRevision?: number; targetInstanceId?: string; scrapBefore?: number;
+}>;
+
+type WolfRangeSupportAvailability = Readonly<{
+  applicable: boolean; sourceId: WolfRangeSupportSourceId; actorRoleId: string; hostShipId?: string;
+  ownerUid?: string; controlRevision?: number; actionAvailable: boolean; scrapAvailable?: number;
+  actions: readonly WolfRangeAction[]; contacts: readonly Readonly<{
+    contactId: string; targetShipId: string; available: boolean;
+  }>[];
+}>;
+
+type WolfRangeSupportBundle = Readonly<{
+  status: 'not-applicable' | 'waiting' | 'unsupported' | 'ready';
+  actions: readonly WolfRangeAction[];
+  actionTargets: Readonly<Record<string, string>>;
+  automaticSourceIds: readonly WolfRangeSupportSourceId[];
+  sourceIds: readonly WolfRangeSupportSourceId[];
+  unavailableSourceIds: readonly WolfRangeSupportSourceId[];
+}>;
+
+function wolfRangeSupportSourceId(value: unknown): WolfRangeSupportSourceId | null {
+  return value === 'highwall' || value === 'gorgoneion-missile-array' || value === 'boa' ? value : null;
+}
+
+function wolfRangeSupportChoiceValue(
+  attack: DocumentSnapshot,
+  range: WolfCombatRange,
+  sourceId: WolfRangeSupportSourceId,
+): unknown {
+  const raw = attack.get('rangeSupportChoices');
+  if (raw !== undefined && !isRecord(raw)) {
+    throw commandError('failed-precondition', 'The current range support choices are malformed.', 'conflict');
+  }
+  const byRange = isRecord(raw) ? raw[range] : undefined;
+  if (byRange !== undefined && !isRecord(byRange)) {
+    throw commandError('failed-precondition', 'The current range support choices are malformed.', 'conflict');
+  }
+  return isRecord(byRange) ? byRange[sourceId] : undefined;
+}
+
+function wolfRangeSupportChoiceMap(attack: DocumentSnapshot, range: WolfCombatRange):
+  Partial<Record<WolfRangeSupportSourceId, WolfRangeSupportChoiceRecord>> {
+  const raw = attack.get('rangeSupportChoices');
+  if (raw === undefined) return {};
+  if (!isRecord(raw)) throw commandError('failed-precondition', 'The current range support choices are malformed.', 'conflict');
+  const byRange = raw[range];
+  if (byRange === undefined) return {};
+  if (!isRecord(byRange)) throw commandError('failed-precondition', 'The current range support choices are malformed.', 'conflict');
+  const result: Partial<Record<WolfRangeSupportSourceId, WolfRangeSupportChoiceRecord>> = {};
+  for (const [key, value] of Object.entries(byRange)) {
+    const sourceId = wolfRangeSupportSourceId(key);
+    if (!sourceId || !isRecord(value) || value.type !== 'wolf-range-support-action-choice' ||
+        value.status !== 'committed' || value.sourceId !== sourceId || value.range !== range ||
+        (value.choice !== 'used' && value.choice !== 'passed') || !Number.isSafeInteger(value.turn) ||
+        typeof value.attackId !== 'string' || !value.attackId || !Number.isSafeInteger(value.revision) ||
+        typeof value.actorUid !== 'string' || !value.actorUid || typeof value.actorRoleId !== 'string' ||
+        !value.actorRoleId || !isCanonicalRequestId(value.requestId) ||
+        (value.hostShipId !== undefined && typeof value.hostShipId !== 'string') ||
+        (value.controlRevision !== undefined && (!Number.isSafeInteger(value.controlRevision) ||
+          (value.controlRevision as number) < 0)) ||
+        (value.targetInstanceId !== undefined && typeof value.targetInstanceId !== 'string') ||
+        (value.scrapBefore !== undefined && (!Number.isSafeInteger(value.scrapBefore) ||
+          (value.scrapBefore as number) < 1)) ||
+        (sourceId === 'boa' && value.choice === 'used' &&
+          (typeof value.targetInstanceId !== 'string' || !Number.isSafeInteger(value.scrapBefore))) ||
+        (sourceId !== 'boa' && (value.targetInstanceId !== undefined || value.scrapBefore !== undefined))) {
+      throw commandError('failed-precondition', 'A saved range support choice is malformed.', 'conflict');
+    }
+    result[sourceId] = value as unknown as WolfRangeSupportChoiceRecord;
+  }
+  return result;
+}
+
+function wolfRangeSupportShuttleHost(
+  session: DocumentSnapshot,
+  shuttleId: 'highwall' | 'boa',
+  ownerRoleId: string,
+): Readonly<{ hostShipId: string; controlRevision: number; holderUid: string; scrap?: number; fuelled?: boolean }> {
+  const rawDockings = session.get('shuttleDockings');
+  const activeVessels = wolfAttackActiveVesselIds(session);
+  if (!Array.isArray(rawDockings) || !shuttleDockingsAreParked(rawDockings as AuthoritativeShuttleDocking[], activeVessels)) {
+    throw commandError('failed-precondition', `The ${shuttleId} docking authority is malformed.`, 'conflict');
+  }
+  const dockings = rawDockings.filter((entry) => isRecord(entry) && entry.shuttleId === shuttleId);
+  if (dockings.length !== 1 || typeof dockings[0]?.shipId !== 'string' ||
+      !activeVessels.includes(dockings[0].shipId)) {
+    throw commandError('failed-precondition', `The ${shuttleId} is not docked with an active host.`, 'conflict');
+  }
+  const control = parseShuttleControl(session.get('shuttleControl'))?.[shuttleId];
+  if (!control || control.ownerRoleId !== ownerRoleId) {
+    throw commandError('failed-precondition', `The ${shuttleId} custody authority is malformed.`, 'conflict');
+  }
+  if (shuttleId === 'highwall') {
+    const fuelled = session.get('shuttleFuelled');
+    if (!isRecord(fuelled) || (fuelled.highwall !== undefined && typeof fuelled.highwall !== 'boolean')) {
+      throw commandError('failed-precondition', 'The Highwall fuel authority is malformed.', 'conflict');
+    }
+    return { hostShipId: dockings[0].shipId, controlRevision: control.revision,
+      holderUid: control.holderUid, fuelled: fuelled.highwall === true };
+  }
+  const cargo = session.get('shuttleCargo');
+  const rawBoa = isRecord(cargo) ? cargo.boa : undefined;
+  const boaCargo = parseBoaScrapCargo(rawBoa);
+  if (!boaCargo) throw commandError('failed-precondition', 'The Boa Scrap ledger is malformed.', 'conflict');
+  return { hostShipId: dockings[0].shipId, controlRevision: control.revision,
+    holderUid: control.holderUid, scrap: boaCargo.scrap ?? 0 };
+}
+
+function currentWolfGorgoneionCaptains(players: readonly DocumentSnapshot[]): readonly DocumentSnapshot[] {
+  return players.filter((player) => player.get('role') === 'player' &&
+    player.get('replacementRoleId') === 'gorgoneion-captain' && player.get('replacementStatus') == null &&
+    !isKickedPlayer(player) && playerEscapeState(player) === undefined);
+}
+
+function wolfRangeSupportAvailability(input: Readonly<{
+  session: DocumentSnapshot; attack: DocumentSnapshot; players: readonly DocumentSnapshot[];
+  fleetGroups: readonly DocumentSnapshot[]; range: WolfCombatRange; turn: number;
+  roster: readonly WolfCombatShip[]; ring: WolfTargetRing; sourceId: WolfRangeSupportSourceId;
+}>): WolfRangeSupportAvailability {
+  const { session, attack, players, fleetGroups, range, turn, roster, sourceId } = input;
+  const activeRoles = sessionActiveRoleIds(session);
+  const activeVessels = wolfAttackActiveVesselIds(session);
+  const contacts = wolfRangeFixedTargetInstanceIds(range, roster).map((instanceId) => {
+    const index = roster.findIndex((ship) => ship.instanceId === instanceId);
+    return { contactId: wolfRangeContactId(index), targetShipId: roster[index]!.target, available: true };
+  });
+  const empty = (actorRoleId: string): WolfRangeSupportAvailability => ({
+    applicable: false, sourceId, actorRoleId, actionAvailable: false, actions: [], contacts,
+  });
+  if (sourceId === 'highwall' || sourceId === 'boa') {
+    const roleId = sourceId === 'highwall' ? 'icebreaker-miner' : 'capybara-recycler';
+    const vesselId = sourceId === 'highwall' ? 'icebreaker' : 'capybara';
+    const registeredActions = attack.get('battleTableCraftActions');
+    const registered = Array.isArray(registeredActions) && registeredActions.some((action) =>
+      isRecord(action) && action.craftId === sourceId && action.kind === 'shuttle' && action.ownerRoleId === roleId);
+    if (!activeRoles.includes(roleId) || !registered) return empty(roleId);
+    if (!activeVessels.includes(vesselId)) return empty(roleId);
+    const owners = currentWolfRoleOwners(players, fleetGroups, roleId, vesselId);
+    if (owners.length > 1) throw commandError('failed-precondition', `The ${sourceId} source owner is ambiguous.`, 'conflict');
+    const custody = wolfRangeSupportShuttleHost(session, sourceId, roleId);
+    const holder = players.find((player) => player.id === custody.holderUid);
+    const holderGroupId = holder?.get('fleetGroupId');
+    const group = typeof holderGroupId === 'string'
+      ? fleetGroups.map((snapshot) => fleetGroupRecord(snapshot.data())).find((candidate) => candidate?.id === holderGroupId)
+      : undefined;
+    const holderIsCurrent = !!holder && holder.get('role') === 'player' && holder.get('replacementStatus') == null &&
+      !isKickedPlayer(holder) && playerEscapeState(holder) === undefined && !!group &&
+      fleetGroupMemberShipId([group], holder.id, group.id) === custody.hostShipId;
+    const ownerUid = holderIsCurrent ? custody.holderUid : undefined;
+    const actionAvailable = sourceId === 'highwall' ? custody.fuelled === true
+      : (custody.scrap ?? 0) > 0;
+    const actions = sourceId === 'highwall'
+      ? highwallWolfRangeActions({ range, fuelled: actionAvailable, destroyed: false })
+      : boaWolfRangeActions({ range, scrapAvailable: custody.scrap ?? 0, destroyed: false });
+    return { applicable: true, sourceId, actorRoleId: roleId, hostShipId: custody.hostShipId,
+      ...(ownerUid ? { ownerUid } : {}), controlRevision: custody.controlRevision,
+      actionAvailable: actionAvailable && actions.length > 0, ...(sourceId === 'boa' ? { scrapAvailable: custody.scrap ?? 0 } : {}),
+      actions, contacts };
+  }
+  const roleId = 'gorgoneion-captain';
+  const smallShipStates = session.get('smallShipStates');
+  if (!activeRoles.includes(roleId) || !isRecord(smallShipStates) || !Object.hasOwn(smallShipStates, 'gorgoneion')) return empty(roleId);
+  const admitted = isExtraShipAdmitted({ activeVesselIds: activeVessels, smallShipStates,
+    smallShipId: 'gorgoneion', expansion: session.get('expansion'), capybaraEnabled: session.get('capybaraEnabled') });
+  const smallShip = storedSmallShipState(session, 'gorgoneion');
+  if (!admitted || !smallShip?.hostShipId) return { ...empty(roleId), applicable: true };
+  const captains = currentWolfGorgoneionCaptains(players);
+  if (captains.length > 1) throw commandError('failed-precondition', 'The Gorgoneion Captain is ambiguous.', 'conflict');
+  const captain = captains[0];
+  const groupId = captain?.get('fleetGroupId');
+  const group = typeof groupId === 'string'
+    ? fleetGroups.map((snapshot) => fleetGroupRecord(snapshot.data())).find((candidate) => candidate?.id === groupId)
+    : undefined;
+  const ownerUid = captain && group && group.vesselIds.includes(smallShip.hostShipId) &&
+    fleetGroupMemberShipId([group], captain.id, group.id) === smallShip.hostShipId ? captain.id : undefined;
+  const actionAvailable = smallShip.population > 0 && !isSmallShipInMutiny(smallShip) &&
+    smallShip.cycle.turn === turn && smallShip.cycle.charges.includes('missile-array');
+  const actions = gorgoneionWolfRangeActions({ range, charged: actionAvailable, damaged: false, destroyed: false });
+  return { applicable: true, sourceId, actorRoleId: roleId, hostShipId: smallShip.hostShipId,
+    ...(ownerUid ? { ownerUid } : {}), actionAvailable: actionAvailable && actions.length > 0, actions, contacts };
+}
+
 /** Preserve disconnected source owners; removed holders become audited zero-action passes. */
 function collectWolfEscortRangeChoices(input: Readonly<{
   session: DocumentSnapshot; attack: DocumentSnapshot; pdfWing: DocumentSnapshot;
@@ -21120,14 +21310,87 @@ function collectWolfEscortRangeChoices(input: Readonly<{
   });
 }
 
+function collectWolfRangeSupportChoices(input: Readonly<{
+  session: DocumentSnapshot; attack: DocumentSnapshot; players: readonly DocumentSnapshot[];
+  fleetGroups: readonly DocumentSnapshot[]; range: unknown; turn: number;
+  inputs: ReturnType<typeof requireWolfRangeState>;
+}>): WolfRangeSupportBundle {
+  if (!isWolfCombatRange(input.range)) return {
+    status: 'not-applicable', actions: [], actionTargets: {}, automaticSourceIds: [], sourceIds: [], unavailableSourceIds: [],
+  };
+  const attackId = input.attack.get('attackId');
+  if (typeof attackId !== 'string' || !attackId) return {
+    status: 'unsupported', actions: [], actionTargets: {}, automaticSourceIds: [], sourceIds: [], unavailableSourceIds: [],
+  };
+  let choices: Partial<Record<WolfRangeSupportSourceId, WolfRangeSupportChoiceRecord>>;
+  try { choices = wolfRangeSupportChoiceMap(input.attack, input.range); }
+  catch { return { status: 'unsupported', actions: [], actionTargets: {}, automaticSourceIds: [], sourceIds: [], unavailableSourceIds: [] }; }
+  const actions: WolfRangeAction[] = [];
+  const actionTargets: Record<string, string> = {};
+  const automaticSourceIds: WolfRangeSupportSourceId[] = [];
+  const unavailableSourceIds: WolfRangeSupportSourceId[] = [];
+  const sourceIds: WolfRangeSupportSourceId[] = [];
+  let waiting = false;
+  for (const sourceId of ['highwall', 'gorgoneion-missile-array', 'boa'] as const) {
+    let available: WolfRangeSupportAvailability;
+    try {
+      available = wolfRangeSupportAvailability({ session: input.session, attack: input.attack,
+        players: input.players, fleetGroups: input.fleetGroups, range: input.range,
+        turn: input.turn, roster: input.inputs.roster, ring: input.inputs.receipt.ring, sourceId });
+    } catch {
+      return { status: 'unsupported', actions: [], actionTargets: {}, automaticSourceIds: [], sourceIds: [], unavailableSourceIds: [] };
+    }
+    if (!available.applicable) continue;
+    sourceIds.push(sourceId);
+    const choice = choices[sourceId];
+    if (choice) {
+      if (choice.attackId !== attackId || choice.turn !== input.turn || choice.range !== input.range ||
+          choice.actorRoleId !== available.actorRoleId || choice.actorUid !== available.ownerUid ||
+          choice.revision > input.inputs.revision || choice.hostShipId !== available.hostShipId ||
+          choice.controlRevision !== available.controlRevision) {
+        return { status: 'unsupported', actions: [], actionTargets: {}, automaticSourceIds: [], sourceIds: [], unavailableSourceIds: [] };
+      }
+      if (choice.choice === 'used') {
+        const sourceActions = sourceId === 'highwall'
+          ? highwallWolfRangeActions({ range: input.range, fuelled: true, destroyed: false })
+          : sourceId === 'boa'
+            ? boaWolfRangeActions({ range: input.range, scrapAvailable: Math.max(1, choice.scrapBefore ?? 0), destroyed: false })
+            : gorgoneionWolfRangeActions({ range: input.range, charged: true, damaged: false, destroyed: false });
+        if (sourceActions.length !== 1 || (!available.actionAvailable && sourceId !== 'boa')) {
+          return { status: 'unsupported', actions: [], actionTargets: {}, automaticSourceIds: [], sourceIds: [], unavailableSourceIds: [] };
+        }
+        actions.push(...sourceActions);
+        if (sourceId === 'boa') {
+          const targetInstanceId = choice.targetInstanceId;
+          const index = input.inputs.roster.findIndex((ship) => ship.instanceId === targetInstanceId);
+          if (!targetInstanceId || index < 0 || !available.contacts.some(({ contactId }) => contactId === wolfRangeContactId(index))) {
+            return { status: 'unsupported', actions: [], actionTargets: {}, automaticSourceIds: [], sourceIds: [], unavailableSourceIds: [] };
+          }
+          actionTargets[sourceActions[0]!.actionId] = targetInstanceId;
+        }
+      }
+      continue;
+    }
+    if (available.actionAvailable && available.ownerUid) waiting = true;
+    else {
+      unavailableSourceIds.push(sourceId);
+      if (available.actionAvailable) automaticSourceIds.push(sourceId);
+    }
+  }
+  return { status: waiting ? 'waiting' : sourceIds.length > 0 ? 'ready' : 'not-applicable',
+    actions, actionTargets, automaticSourceIds, sourceIds, unavailableSourceIds };
+}
+
 type WolfRangeChoiceBundles = Readonly<{
   status: WolfFighterRangeBundle['status'];
   fighters: WolfFighterRangeBundle;
   escorts: WolfEscortRangeBundle;
+  support: WolfRangeSupportBundle;
   actions: readonly WolfRangeAction[];
   actionTargets: Readonly<Record<string, string>>;
   shifts: readonly WolfRangeTargetShiftChoice[];
-  automaticSourceIds: readonly (WolfFighterRangeSourceId | WolfEscortSourceId)[];
+  automaticSourceIds: readonly (WolfFighterRangeSourceId | WolfEscortSourceId | WolfRangeSupportSourceId)[];
+  unavailableSourceIds: readonly WolfRangeSupportSourceId[];
 }>;
 
 /** Join independent fighter and escort choices before the single range dice lock. */
@@ -21138,16 +21401,18 @@ function collectWolfRangeChoiceBundles(input: Readonly<{
 }>): WolfRangeChoiceBundles {
   const fighters = collectWolfAegisFighterRangeChoices(input);
   const escorts = collectWolfEscortRangeChoices(input);
-  const bundles = [fighters, escorts];
+  const support = collectWolfRangeSupportChoices(input);
+  const bundles = [fighters, escorts, support];
   const status = bundles.some(({ status: item }) => item === 'unsupported') ? 'unsupported'
     : bundles.some(({ status: item }) => item === 'waiting') ? 'waiting'
       : bundles.every(({ status: item }) => item === 'not-applicable') ? 'not-applicable' : 'ready';
   return {
-    status, fighters, escorts,
-    actions: [...(fighters.actions ?? []), ...(escorts.actions ?? [])],
-    actionTargets: { ...(fighters.actionTargets ?? {}), ...(escorts.actionTargets ?? {}) },
+    status, fighters, escorts, support,
+    actions: [...(fighters.actions ?? []), ...(escorts.actions ?? []), ...support.actions],
+    actionTargets: { ...(fighters.actionTargets ?? {}), ...(escorts.actionTargets ?? {}), ...support.actionTargets },
     shifts: [...(fighters.shifts ?? []), ...(escorts.shifts ?? [])],
-    automaticSourceIds: [...(fighters.automaticSourceIds ?? []), ...(escorts.automaticSourceIds ?? [])],
+    automaticSourceIds: [...(fighters.automaticSourceIds ?? []), ...(escorts.automaticSourceIds ?? []), ...support.automaticSourceIds],
+    unavailableSourceIds: support.unavailableSourceIds,
   };
 }
 
@@ -21407,6 +21672,45 @@ function appendWolfEscortRangeMemberResults(
       outcome: { damage: 0, destroyed: applied.receipt.destroyedInstanceIds.includes(ship.instanceId) },
       serverTime: committedAt,
     });
+  }
+  return results;
+}
+
+function appendWolfRangeSupportMemberResults(
+  existing: unknown,
+  actions: readonly WolfRangeAction[],
+  assignments: readonly WolfRangeAssignment[],
+  applied: ReturnType<typeof resolveLockedWolfRange> | undefined,
+  roster: readonly WolfCombatShip[],
+  range: WolfCombatRange,
+  committedAt: string,
+): unknown[] {
+  const results = Array.isArray(existing) ? [...existing] : [];
+  if (!applied) return results;
+  const assignmentByAction = new Map(assignments.map(({ actionId, targetInstanceIds }) => [actionId, targetInstanceIds]));
+  for (const action of actions) {
+    if (action.sourceId !== 'highwall' && action.sourceId !== 'gorgoneion-missile-array' && action.sourceId !== 'boa') continue;
+    const roll = applied.receipt.dice.find(({ actionId }) => actionId === action.actionId);
+    if (!roll) continue;
+    const targets = assignmentByAction.get(action.actionId) ?? [];
+    const label = action.sourceId === 'highwall' ? 'Highwall Cannon'
+      : action.sourceId === 'gorgoneion-missile-array' ? 'Gorgoneion Missile Array' : 'Boa Scrap Strike';
+    if (targets.length === 0) {
+      results.push({ status: 'committed', range, sourceId: action.sourceId, targetId: null, bearing: null,
+        contactReference: label, effect: roll.successes > 0 ? `${label} hit had no distinct live contact` : `${label} missed`,
+        outcome: { damage: 0 }, serverTime: committedAt });
+      continue;
+    }
+    for (const targetInstanceId of targets) {
+      const index = roster.findIndex(({ instanceId }) => instanceId === targetInstanceId);
+      if (index < 0) continue;
+      const ship = applied.roster.find(({ instanceId }) => instanceId === targetInstanceId) ?? roster[index]!;
+      results.push({ status: 'committed', range, sourceId: action.sourceId, targetId: ship.target, bearing: null,
+        contactReference: `Wolf contact ${index + 1}`,
+        effect: roll.successes > 0 ? `${label} hit` : `${label} missed`,
+        outcome: { damage: roll.successes > 0 ? action.fixedDamage ?? action.dice?.damagePerSuccess ?? 1 : 0,
+          destroyed: applied.receipt.destroyedInstanceIds.includes(targetInstanceId) }, serverTime: committedAt });
+    }
   }
   return results;
 }
@@ -22356,6 +22660,9 @@ async function reconcileWolfAttackProgress(sessionId: string): Promise<void> {
     const publicResults = appendWolfEscortRangeMemberResults(
       withFighters, rangeBundles.escorts.actions ?? [], assignments, fixedTargets, applied, inputs.roster, step, committedAt,
     );
+    const memberResultsWithSupport = appendWolfRangeSupportMemberResults(
+      publicResults, rangeBundles.support.actions, assignments, applied, inputs.roster, step, committedAt,
+    );
     const decision = {
       status: weaponUnavailable ? 'unavailable' : automaticStatus,
       range: step, actorUid: 'server', actorRoleId: 'server',
@@ -22372,8 +22679,8 @@ async function reconcileWolfAttackProgress(sessionId: string): Promise<void> {
       rangeReceipts: [...(Array.isArray(state.get('rangeReceipts')) ? state.get('rangeReceipts') : []), applied.receipt],
       combatRoster: applied.roster,
       ...(appliedStates.fighterState ? { aegisFighterWingState: appliedStates.fighterState } : {}),
-      ...(publicResults.length > (Array.isArray(state.get('memberResults')) ? state.get('memberResults').length : 0)
-        ? { memberResults: publicResults } : {}),
+      ...(memberResultsWithSupport.length > (Array.isArray(state.get('memberResults')) ? state.get('memberResults').length : 0)
+        ? { memberResults: memberResultsWithSupport } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
     persistWolfEscortState(tx, sessionRef, pdfWingRef, appliedStates.escortState);
@@ -22382,6 +22689,9 @@ async function reconcileWolfAttackProgress(sessionId: string): Promise<void> {
       range: step, fromStep: step, toStep: nextStep, turn: inputs.turn, revision: nextRevision,
       actorUid: 'server', reason: decision.reason,
       ...(weaponUnavailable ? { unavailableSourceIds: ['aegis-weapons'] } : {}),
+      ...(rangeBundles.unavailableSourceIds.length ? { unavailableSourceIds: [
+        ...(weaponUnavailable ? ['aegis-weapons'] : []), ...rangeBundles.unavailableSourceIds,
+      ] } : {}),
       automaticSourceIds: rangeBundles.automaticSourceIds,
       fighterWingChoices: rangeBundles.fighters.wingIds ?? [],
       receipt: applied.receipt, deadlineAt: inputs.deadlineAt, createdAt: FieldValue.serverTimestamp(),
@@ -24093,8 +24403,10 @@ type WolfRangeActionChoiceView = Readonly<{
   choiceStatus: 'pending' | 'targets-required' | 'committed';
   deadlineAt: string;
   eligibleActions: readonly Readonly<{ actionId: string; sourceId: string; range: WolfCombatRange }>[];
-  hitSlots: readonly Readonly<{ actionId: string; count: number }>[];
-  contacts: readonly Readonly<{ contactId: string; targetShipId: string; available: boolean }>[];
+  hitSlots: readonly Readonly<{ actionId: string; count: number; damagePerHit: number }>[];
+  contacts: readonly Readonly<{
+    contactId: string; targetShipId: string; available: boolean; requiredCoverageDamage?: number | null;
+  }>[];
 }>;
 
 type WolfRangeActionChoiceResult = Readonly<{
@@ -24107,7 +24419,7 @@ type WolfRangeActionChoiceResult = Readonly<{
   range: WolfCombatRange;
   currentStep: WolfAttackLifecycleStep;
   choiceStatus: 'targets-required' | 'passed';
-  hitSlots: readonly Readonly<{ actionId: string; count: number }>[];
+  hitSlots: readonly Readonly<{ actionId: string; count: number; damagePerHit: number }>[];
 }>;
 
 type WolfRangeTargetAssignmentResult = Readonly<{
@@ -24578,6 +24890,7 @@ function wolfRangeChoiceView(
   range: WolfCombatRange,
   inputs: ReturnType<typeof requireWolfRangeState>,
   additionalActions: readonly WolfRangeAction[] = [],
+  fixedTargets: Readonly<Record<string, string>> = {},
 ): WolfRangeActionChoiceView {
   const decision = wolfRangeDecisionValue(state, range);
   let status: WolfRangeActionChoiceView['choiceStatus'] = 'pending';
@@ -24598,14 +24911,39 @@ function wolfRangeChoiceView(
     if (!lock) throw commandError('failed-precondition', 'The private Wolf range dice lock is malformed.', 'conflict');
     status = decision.status === 'locked' ? 'targets-required' : 'committed';
   }
-  const slots = lock?.dice.map(({ actionId, successes }) => ({ actionId, count: successes })) ?? [];
+  const slots = lock?.dice.map(({ actionId, successes, damagePerHit }) => ({ actionId, count: successes, damagePerHit })) ?? [];
   const eligibleActions = status === 'pending' ? inputs.actions : [...inputs.actions, ...additionalActions];
+  const contacts = wolfRangeContacts(inputs.roster, range);
+  const presentedContacts = range !== 'short-range' || status !== 'targets-required'
+    ? contacts
+    : (() => {
+      const damageByFixedTarget = new Map<string, number>();
+      const selectedActions = new Map([...inputs.actions, ...additionalActions].map((action) => [action.actionId, action]));
+      for (const [actionId, instanceId] of Object.entries(fixedTargets)) {
+        const dice = lock?.dice.find((entry) => entry.actionId === actionId);
+        const action = selectedActions.get(actionId);
+        if (!dice || !action || dice.successes <= 0) continue;
+        const hitCount = Math.min(dice.successes, action.maxTargets);
+        damageByFixedTarget.set(instanceId,
+          (damageByFixedTarget.get(instanceId) ?? 0) + hitCount * dice.damagePerHit);
+      }
+      return contacts.map((contact, index) => {
+        const ship = inputs.roster[index];
+        if (!ship || ship.shipId !== 'wolf-fighter-wing') return { ...contact, requiredCoverageDamage: null };
+        const capacity = wolfShipForId(ship.shipId)?.damageCapacity;
+        if (!Number.isSafeInteger(capacity) || (capacity as number) < 1) {
+          throw commandError('failed-precondition', 'The Short Range Wing capacity is unavailable.', 'conflict');
+        }
+        return { ...contact, requiredCoverageDamage: Math.max(0,
+          (capacity as number) - ship.damageTaken - (damageByFixedTarget.get(ship.instanceId) ?? 0)) };
+      });
+    })();
   return {
     type: 'wolf-range-action-choice-view', sessionId, turn: inputs.turn, revision: inputs.revision,
     currentStep: range, range, choiceStatus: status, deadlineAt: inputs.deadlineAt,
     eligibleActions: eligibleActions.map(({ actionId, sourceId, range: actionRange }) => ({ actionId, sourceId, range: actionRange })),
     hitSlots: slots,
-    contacts: wolfRangeContacts(inputs.roster, range),
+    contacts: presentedContacts,
   };
 }
 
@@ -24615,12 +24953,26 @@ function rangeChoiceViewIsSafe(value: unknown): value is WolfRangeActionChoiceVi
     'type', 'sessionId', 'turn', 'revision', 'currentStep', 'range', 'choiceStatus', 'deadlineAt',
     'eligibleActions', 'hitSlots', 'contacts',
   ]);
+  const safeHitSlots = Array.isArray(value.hitSlots) && value.hitSlots.every((raw) => isRecord(raw) &&
+    Object.keys(raw).length === 3 && typeof raw.actionId === 'string' && raw.actionId.length > 0 &&
+    Number.isSafeInteger(raw.count) && (raw.count as number) >= 0 &&
+    Number.isSafeInteger(raw.damagePerHit) && (raw.damagePerHit as number) >= 1);
+  const safeContacts = Array.isArray(value.contacts) && value.contacts.every((raw) => {
+    if (!isRecord(raw) || typeof raw.contactId !== 'string' || !/^contact-[1-9]\d*$/.test(raw.contactId) ||
+        typeof raw.targetShipId !== 'string' || typeof raw.available !== 'boolean') return false;
+    const hasCoverage = Object.hasOwn(raw, 'requiredCoverageDamage');
+    return Object.keys(raw).length === (hasCoverage ? 4 : 3) && (!hasCoverage || raw.requiredCoverageDamage === null ||
+      Number.isSafeInteger(raw.requiredCoverageDamage) && (raw.requiredCoverageDamage as number) >= 0);
+  });
+  const needsShortCoverage = value.range === 'short-range' && value.choiceStatus === 'targets-required' &&
+    Array.isArray(value.contacts) && value.contacts.some((raw) => !isRecord(raw) ||
+      !Object.hasOwn(raw, 'requiredCoverageDamage'));
   return Object.keys(value).every((key) => allowed.has(key)) && value.type === 'wolf-range-action-choice-view' &&
     typeof value.sessionId === 'string' && isWolfCombatRange(value.range) && value.currentStep === value.range &&
     (value.choiceStatus === 'pending' || value.choiceStatus === 'targets-required' || value.choiceStatus === 'committed') &&
     Number.isSafeInteger(value.turn) && Number.isSafeInteger(value.revision) &&
-    typeof value.deadlineAt === 'string' && Array.isArray(value.eligibleActions) && Array.isArray(value.hitSlots) &&
-    Array.isArray(value.contacts);
+    typeof value.deadlineAt === 'string' && Array.isArray(value.eligibleActions) && safeHitSlots &&
+    safeContacts && !needsShortCoverage;
 }
 
 function isWolfRangeActionChoiceResult(value: unknown): value is WolfRangeActionChoiceResult {
@@ -24633,7 +24985,10 @@ function isWolfRangeActionChoiceResult(value: unknown): value is WolfRangeAction
     isCanonicalRequestId(value.requestId) && Number.isSafeInteger(value.turn) &&
     Number.isSafeInteger(value.revision) && isWolfCombatRange(value.range) &&
     ['targeting', 'long-range', 'medium-range', 'short-range', 'boarding', 'resolved'].includes(String(value.currentStep)) &&
-    (value.choiceStatus === 'targets-required' || value.choiceStatus === 'passed') && Array.isArray(value.hitSlots);
+    (value.choiceStatus === 'targets-required' || value.choiceStatus === 'passed') && Array.isArray(value.hitSlots) &&
+    value.hitSlots.every((raw) => isRecord(raw) && Object.keys(raw).length === 3 &&
+      typeof raw.actionId === 'string' && raw.actionId.length > 0 && Number.isSafeInteger(raw.count) &&
+      (raw.count as number) >= 0 && Number.isSafeInteger(raw.damagePerHit) && (raw.damagePerHit as number) >= 1);
 }
 
 function isWolfRangeTargetAssignmentResult(value: unknown): value is WolfRangeTargetAssignmentResult {
@@ -24696,7 +25051,7 @@ export const getWolfRangeActionChoice = onCall<{ sessionId?: unknown }>(async (r
     if (rangeBundles.status === 'unsupported') {
       throw commandError('failed-precondition', 'The current fighter range choices are malformed.', 'conflict');
     }
-    const view = wolfRangeChoiceView(sessionId, state, step, inputs, rangeBundles.actions);
+    const view = wolfRangeChoiceView(sessionId, state, step, inputs, rangeBundles.actions, rangeBundles.actionTargets);
     if (!rangeChoiceViewIsSafe(view)) throw new Error('The Wolf range choice projection is malformed.');
     return view;
   });
@@ -24785,7 +25140,7 @@ export const commitWolfRangeActionChoice = onCall<{
     } catch (error) {
       throw commandError('failed-precondition', error instanceof Error ? error.message : 'The range choice could not be locked.', 'conflict');
     }
-    const hitSlots = locked.dice.map(({ actionId, successes }) => ({ actionId, count: successes }));
+    const hitSlots = locked.dice.map(({ actionId, successes, damagePerHit }) => ({ actionId, count: successes, damagePerHit }));
     const committedActionIds = selectedActions.map(({ actionId }) => actionId);
     const nextRevision = inputs.revision + 1;
     const weaponActionIds = [...actionIds];
@@ -24839,6 +25194,10 @@ export const commitWolfRangeActionChoice = onCall<{
       withFighters, rangeBundles.escorts.actions ?? [], immediateAssignments,
       rangeBundles.actionTargets, resolvedPass, inputs.roster, range, committedAt,
     ) : memberResults;
+    const memberResultsWithSupport = resolvesImmediately ? appendWolfRangeSupportMemberResults(
+      memberResultsWithSources, rangeBundles.support.actions, immediateAssignments,
+      resolvedPass, inputs.roster, range, committedAt,
+    ) : memberResultsWithSources;
     const result: WolfRangeActionChoiceResult = {
       status: 'committed', type: 'wolf-range-action-choice', sessionId, requestId,
       turn: inputs.turn, revision: nextRevision, range, currentStep: nextStep ?? range,
@@ -24851,7 +25210,7 @@ export const commitWolfRangeActionChoice = onCall<{
         currentStep: nextStep,
         rangeReceipts: [...rangeReceipts, committedReceipt!],
         combatRoster: resolvedPass!.roster,
-        memberResults: memberResultsWithSources,
+        memberResults: memberResultsWithSupport,
         ...(appliedStates?.fighterState ? { aegisFighterWingState: appliedStates.fighterState } : {}),
       } : {}),
       updatedAt: FieldValue.serverTimestamp(),
@@ -25045,6 +25404,10 @@ export const assignWolfRangeTargets = onCall<{
       memberResultsWithFighters, rangeBundles.escorts.actions ?? [], assignments,
       fixedTargetByActionId, applied, inputs.roster, range, committedAt,
     );
+    const finalMemberResults = appendWolfRangeSupportMemberResults(
+      memberResultsWithSources, rangeBundles.support.actions, assignments, applied,
+      inputs.roster, range, committedAt,
+    );
     const result: WolfRangeTargetAssignmentResult = {
       status: 'committed', type: 'wolf-range-target-assignment', sessionId, requestId,
       turn: inputs.turn, revision: nextRevision, fromStep: range, currentStep: nextStep,
@@ -25056,7 +25419,7 @@ export const assignWolfRangeTargets = onCall<{
       combatRoster: applied.roster,
       rangeDecisions: { ...rangeDecisions, [range]: committedDecision },
       rangeReceipts: [...rangeReceipts, applied.receipt],
-      memberResults: memberResultsWithSources,
+      memberResults: finalMemberResults,
       ...(appliedStates.fighterState ? { aegisFighterWingState: appliedStates.fighterState } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -25530,6 +25893,315 @@ export const commitWolfEscortRangeActionChoice = onCall<{
     tx.set(auditRef, { ...choice, deadlineAt: inputs.deadlineAt, createdAt: FieldValue.serverTimestamp() });
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
+  });
+  await reconcileWolfAttackProgress(sessionId);
+  return result;
+});
+
+type WolfRangeSupportChoiceView = Readonly<{
+  type: 'wolf-range-support-action-choice-view'; sessionId: string; attackId: string; turn: number;
+  revision: number; range: WolfCombatRange; sourceId: WolfRangeSupportSourceId; actorRoleId: string;
+  choiceStatus: 'pending' | 'used' | 'passed'; eligible: boolean; actionAvailable: boolean;
+  scrapAvailable?: number; deadlineAt: string;
+  contacts: readonly Readonly<{ contactId: string; targetShipId: string; available: boolean }>[];
+}>;
+
+type WolfRangeSupportChoiceResult = Readonly<{
+  status: 'committed' | 'replayed'; type: 'wolf-range-support-action-choice'; sessionId: string;
+  requestId: string; attackId: string; turn: number; revision: number; range: WolfCombatRange;
+  sourceId: WolfRangeSupportSourceId; choiceStatus: 'used' | 'passed'; actionCount: number;
+}>;
+
+function isWolfRangeSupportChoiceResult(value: unknown): value is WolfRangeSupportChoiceResult {
+  return isRecord(value) && JSON.stringify(Object.keys(value).sort()) === JSON.stringify([
+    'status', 'type', 'sessionId', 'requestId', 'attackId', 'turn', 'revision', 'range',
+    'sourceId', 'choiceStatus', 'actionCount',
+  ].sort()) && value.status === 'committed' &&
+    value.type === 'wolf-range-support-action-choice' && typeof value.sessionId === 'string' &&
+    isCanonicalRequestId(value.requestId) && typeof value.attackId === 'string' && value.attackId.length > 0 &&
+    Number.isSafeInteger(value.turn) && (value.turn as number) >= 1 &&
+    Number.isSafeInteger(value.revision) && (value.revision as number) >= 1 &&
+    isWolfCombatRange(value.range) && wolfRangeSupportSourceId(value.sourceId) !== null &&
+    (value.choiceStatus === 'used' || value.choiceStatus === 'passed') &&
+    value.actionCount === (value.choiceStatus === 'used' ? 1 : 0);
+}
+
+function wolfRangeSupportActorHost(
+  session: DocumentSnapshot,
+  uid: string,
+  sourceId: WolfRangeSupportSourceId,
+): string {
+  if (sourceId === 'highwall' || sourceId === 'boa') {
+    const roleId = sourceId === 'highwall' ? 'icebreaker-miner' : 'capybara-recycler';
+    const custody = wolfRangeSupportShuttleHost(session, sourceId, roleId);
+    if (custody.holderUid !== uid) {
+      throw new HttpsError('permission-denied', 'The current shuttle holder owns this support choice.');
+    }
+    return custody.hostShipId;
+  }
+  const activeVessels = wolfAttackActiveVesselIds(session);
+  const smallShipStates = session.get('smallShipStates');
+  const admitted = isExtraShipAdmitted({ activeVesselIds: activeVessels, smallShipStates,
+    smallShipId: 'gorgoneion', expansion: session.get('expansion'), capybaraEnabled: session.get('capybaraEnabled') });
+  const smallShip = storedSmallShipState(session, 'gorgoneion');
+  if (!sessionActiveRoleIds(session).includes('gorgoneion-captain') || !admitted ||
+      !smallShip?.hostShipId || !activeVessels.includes(smallShip.hostShipId)) {
+    throw new HttpsError('permission-denied', 'Gorgoneion is not admitted with a current host.');
+  }
+  return smallShip.hostShipId;
+}
+
+function requireWolfRangeSupportActor(
+  session: DocumentSnapshot,
+  player: DocumentSnapshot,
+  uid: string,
+  players: readonly DocumentSnapshot[],
+  sourceId: WolfRangeSupportSourceId,
+): void {
+  if (sourceId === 'gorgoneion-missile-array') {
+    requireCurrentWolfForceFieldCaptain(player, uid, { docs: players });
+    return;
+  }
+  if (!player.exists || player.id !== uid || !isActivePlayer(player) || player.get('role') !== 'player') {
+    throw new HttpsError('permission-denied', 'The connected current shuttle holder is required.');
+  }
+  requirePlayerShipActionAuthority(player);
+  const roleId = sourceId === 'highwall' ? 'icebreaker-miner' : 'capybara-recycler';
+  if (player.get('activeConsoleRoleId') !== roleId || !sessionActiveRoleIds(session).includes(roleId)) {
+    throw new HttpsError('permission-denied', 'Open the current source console before choosing this range action.');
+  }
+}
+
+function wolfRangeSupportView(
+  sessionId: string,
+  attack: DocumentSnapshot,
+  range: WolfCombatRange,
+  inputs: ReturnType<typeof requireWolfRangeState>,
+  availability: WolfRangeSupportAvailability,
+): WolfRangeSupportChoiceView {
+  const attackId = attack.get('attackId');
+  if (typeof attackId !== 'string' || !attackId) {
+    throw commandError('failed-precondition', 'The current Wolf attack identity is unavailable.', 'conflict');
+  }
+  const choice = wolfRangeSupportChoiceValue(attack, range, availability.sourceId);
+  if (choice !== undefined && (!isRecord(choice) || choice.type !== 'wolf-range-support-action-choice' ||
+      choice.status !== 'committed' || choice.attackId !== attackId || choice.turn !== inputs.turn ||
+      choice.range !== range || choice.sourceId !== availability.sourceId ||
+      choice.actorRoleId !== availability.actorRoleId || choice.hostShipId !== availability.hostShipId ||
+      choice.controlRevision !== availability.controlRevision ||
+      (choice.choice !== 'used' && choice.choice !== 'passed'))) {
+    throw commandError('failed-precondition', 'The committed support choice is malformed.', 'conflict');
+  }
+  const choiceStatus = choice === undefined ? 'pending' : (choice as Record<string, unknown>).choice as 'used' | 'passed';
+  const used = choiceStatus === 'used';
+  return {
+    type: 'wolf-range-support-action-choice-view', sessionId, attackId, turn: inputs.turn,
+    revision: inputs.revision, range, sourceId: availability.sourceId,
+    actorRoleId: availability.actorRoleId, choiceStatus,
+    eligible: availability.ownerUid !== undefined,
+    actionAvailable: used || availability.actionAvailable,
+    ...(availability.scrapAvailable === undefined ? {} : { scrapAvailable: availability.scrapAvailable }),
+    deadlineAt: inputs.deadlineAt, contacts: availability.contacts,
+  };
+}
+
+/** Read one safe current actor view; only opaque contacts and operational counts leave the server. */
+export const getWolfRangeSupportActionChoice = onCall<{
+  sessionId?: unknown; sourceId?: unknown; range?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const sourceId = isRecord(raw) ? wolfRangeSupportSourceId(raw.sourceId) : null;
+  if (!isRecord(raw) || Object.keys(raw).some((key) => !['sessionId', 'sourceId', 'range'].includes(key)) ||
+      !sourceId || !isWolfCombatRange(raw.range)) {
+    throw new HttpsError('invalid-argument', 'Choose a current range and support source.');
+  }
+  const { sessionId } = requireSessionRequest(raw);
+  const range = raw.range;
+  return db.runTransaction(async (tx: Transaction) => {
+    const [session, player, attack, players, fleetGroups] = await Promise.all([
+      tx.get(db.doc(`sessions/${sessionId}`)), tx.get(db.doc(`sessions/${sessionId}/players/${uid}`)),
+      tx.get(db.doc(`sessions/${sessionId}/wolfAttackState/current`)),
+      tx.get(db.collection(`sessions/${sessionId}/players`)), tx.get(db.collection(`sessions/${sessionId}/fleetGroups`)),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const inputs = requireWolfRangeState(session, attack, range);
+    const availability = wolfRangeSupportAvailability({ session, attack, players: players.docs,
+      fleetGroups: fleetGroups.docs, range, turn: inputs.turn, roster: inputs.roster,
+      ring: inputs.receipt.ring, sourceId });
+    if (!availability.applicable || !availability.ownerUid || availability.ownerUid !== uid) {
+      throw new HttpsError('permission-denied', `The current ${sourceId} support holder is required (${String(availability.ownerUid)}).`);
+    }
+    requireWolfRangeSupportActor(session, player, uid, players.docs, sourceId);
+    const actorHostShipId = wolfRangeSupportActorHost(session, uid, sourceId);
+    if (sourceId === 'gorgoneion-missile-array') {
+      const group = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${currentPlayerFleetGroupId(player)}`));
+      const record = group.exists ? fleetGroupRecord(group.data()) : undefined;
+      if (!record || record.id !== currentPlayerFleetGroupId(player) ||
+          fleetGroupMemberShipId([record], uid, record.id) !== actorHostShipId) {
+        throw new HttpsError('permission-denied', 'The Gorgoneion Captain must be aboard its current host.');
+      }
+    } else {
+      const group = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${currentPlayerFleetGroupId(player)}`));
+      const record = group.exists ? fleetGroupRecord(group.data()) : undefined;
+      if (!record || record.id !== currentPlayerFleetGroupId(player) ||
+          fleetGroupMemberShipId([record], uid, record.id) !== actorHostShipId) {
+        throw new HttpsError('permission-denied', 'The shuttle holder must be aboard its current host.');
+      }
+    }
+    if (availability.hostShipId !== actorHostShipId) {
+      throw new HttpsError('permission-denied', 'The support source changed hosts. Refresh the current range choice.');
+    }
+    const view = wolfRangeSupportView(sessionId, attack, range, inputs, availability);
+    if (view.eligible !== true || view.sourceId !== sourceId) {
+      throw new Error('The Wolf range support projection is malformed.');
+    }
+    return view;
+  });
+});
+
+/** Commit a use/pass choice with current actor, turn, attack revision, custody and target checks. */
+export const commitWolfRangeSupportActionChoice = onCall<{
+  sessionId?: unknown; requestId?: unknown; expectedTurn?: unknown; expectedRevision?: unknown;
+  range?: unknown; sourceId?: unknown; use?: unknown; targetContactId?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const sourceId = isRecord(raw) ? wolfRangeSupportSourceId(raw.sourceId) : null;
+  if (!isRecord(raw) || !sourceId || !isWolfCombatRange(raw.range) ||
+      !isCanonicalRequestId(raw.requestId) || !Number.isSafeInteger(raw.expectedTurn) ||
+      !Number.isSafeInteger(raw.expectedRevision) || typeof raw.use !== 'boolean') {
+    throw new HttpsError('invalid-argument', 'A support choice needs its current range revision and use/pass selection.');
+  }
+  const range = raw.range;
+  const requestId = raw.requestId;
+  const targetContactId = raw.targetContactId;
+  const allowed = new Set(['sessionId', 'requestId', 'expectedTurn', 'expectedRevision', 'range', 'sourceId', 'use',
+    ...(sourceId === 'boa' && raw.use ? ['targetContactId'] : [])]);
+  if (Object.keys(raw).some((key) => !allowed.has(key)) ||
+      (sourceId === 'boa' && raw.use && (typeof targetContactId !== 'string' || !/^contact-[1-9]\d*$/.test(targetContactId))) ||
+      ((sourceId !== 'boa' || !raw.use) && targetContactId !== undefined)) {
+    throw new HttpsError('invalid-argument', 'The support target or payload is malformed.');
+  }
+  const { sessionId } = requireSessionRequest(raw);
+  const fingerprint: CommandFingerprint = {
+    action: 'commit-wolf-range-support-action', sessionId, requestId, actorUid: uid,
+    instanceId: sourceId, expectedRevision: raw.expectedRevision as number,
+    payload: { expectedTurn: raw.expectedTurn as number, range, use: raw.use,
+      targetContactId: typeof targetContactId === 'string' ? targetContactId : null },
+  };
+  const result = await db.runTransaction(async (tx: Transaction): Promise<WolfRangeSupportChoiceResult> => {
+    const attackRef = db.doc(`sessions/${sessionId}/wolfAttackState/current`);
+    const receiptRef = commandReceiptRef(sessionId, requestId);
+    const auditRef = db.doc(`sessions/${sessionId}/wolfAttackState/current/audit/${requestId}`);
+    const [session, player, attack, receipt, audit, players, fleetGroups] = await Promise.all([
+      tx.get(db.doc(`sessions/${sessionId}`)), tx.get(db.doc(`sessions/${sessionId}/players/${uid}`)),
+      tx.get(attackRef), tx.get(receiptRef), tx.get(auditRef),
+      tx.get(db.collection(`sessions/${sessionId}/players`)), tx.get(db.collection(`sessions/${sessionId}/fleetGroups`)),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireWolfRangeSupportActor(session, player, uid, players.docs, sourceId);
+    const actorHostShipId = wolfRangeSupportActorHost(session, uid, sourceId);
+    const actorGroupId = currentPlayerFleetGroupId(player);
+    const actorGroupSnapshot = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${actorGroupId}`));
+    const actorGroup = actorGroupSnapshot.exists ? fleetGroupRecord(actorGroupSnapshot.data()) : undefined;
+    if (!actorGroup || actorGroup.id !== actorGroupId || !actorGroup.vesselIds.includes(actorHostShipId) ||
+        fleetGroupMemberShipId([actorGroup], uid, actorGroupId) !== actorHostShipId) {
+      throw new HttpsError('permission-denied', 'The current support holder must remain aboard the source host.');
+    }
+    const actorRoleId = sourceId === 'highwall' ? 'icebreaker-miner'
+      : sourceId === 'boa' ? 'capybara-recycler' : 'gorgoneion-captain';
+    const currentControlRevision = sourceId === 'highwall' || sourceId === 'boa'
+      ? wolfRangeSupportShuttleHost(session, sourceId, actorRoleId).controlRevision : undefined;
+    const replay = replayBoundCommand(receipt, fingerprint, isWolfRangeSupportChoiceResult, 'Wolf range support choice');
+    if (replay && (sessionTurn(session.get('currentTurn')) !== replay.turn || attack.get('turn') !== replay.turn)) {
+      throw commandError('failed-precondition', 'The saved support choice belongs to an earlier attack cycle.', 'stale-revision');
+    }
+    const savedChoice = replay ? wolfRangeSupportChoiceValue(attack, range, sourceId) : undefined;
+    if (replay && (!isRecord(savedChoice) || savedChoice.type !== 'wolf-range-support-action-choice' ||
+        savedChoice.status !== 'committed' || savedChoice.sourceId !== sourceId || savedChoice.range !== range ||
+        savedChoice.attackId !== replay.attackId || savedChoice.turn !== replay.turn ||
+        savedChoice.revision !== replay.revision || savedChoice.actorUid !== uid ||
+        savedChoice.actorRoleId !== actorRoleId || savedChoice.requestId !== requestId ||
+        savedChoice.choice !== replay.choiceStatus || savedChoice.hostShipId !== actorHostShipId ||
+        savedChoice.controlRevision !== currentControlRevision)) {
+      throw commandError('failed-precondition', 'The saved support choice no longer matches current source authority.', 'stale-revision');
+    }
+    if (replay && (replay.sessionId !== sessionId || replay.requestId !== requestId ||
+        replay.attackId !== attack.get('attackId') || replay.turn !== raw.expectedTurn ||
+        replay.revision !== (raw.expectedRevision as number) + 1 || replay.range !== range ||
+        replay.sourceId !== sourceId || replay.choiceStatus !== (raw.use ? 'used' : 'passed') ||
+        replay.actionCount !== (raw.use ? 1 : 0))) {
+      throw commandError('failed-precondition', 'The saved support receipt is malformed.', 'conflict');
+    }
+    if (replay) return { ...replay, status: 'replayed' };
+    if (audit.exists) rejectLegacyEventReplay('Wolf range support choice');
+    const inputs = requireWolfRangeState(session, attack, range);
+    if (raw.expectedTurn !== inputs.turn || raw.expectedRevision !== inputs.revision) {
+      throw commandError('failed-precondition', 'The support choice is stale. Refresh the current attack.', 'stale-revision');
+    }
+    const availability = wolfRangeSupportAvailability({ session, attack, players: players.docs,
+      fleetGroups: fleetGroups.docs, range, turn: inputs.turn, roster: inputs.roster,
+      ring: inputs.receipt.ring, sourceId });
+    if (!availability.applicable || !availability.ownerUid || availability.ownerUid !== uid) {
+      throw new HttpsError('permission-denied', 'The current assigned support holder is required.');
+    }
+    if (availability.hostShipId !== actorHostShipId) {
+      throw new HttpsError('permission-denied', 'The support source changed hosts. Refresh the current range choice.');
+    }
+    const previous = wolfRangeSupportChoiceValue(attack, range, sourceId);
+    if (previous !== undefined) throw commandError('failed-precondition', 'This source has already chosen for the current range.', 'conflict');
+    if (raw.use === true && !availability.actionAvailable) {
+      throw commandError('failed-precondition', 'The selected support action is not currently available.', 'conflict');
+    }
+    let targetInstanceId: string | undefined;
+    if (sourceId === 'boa' && raw.use === true) {
+      const index = Number((targetContactId as string).slice('contact-'.length)) - 1;
+      const legal = new Set(wolfRangeFixedTargetInstanceIds(range, inputs.roster));
+      targetInstanceId = inputs.roster[index]?.instanceId;
+      if (!targetInstanceId || !legal.has(targetInstanceId)) {
+        throw commandError('failed-precondition', 'Choose an available opaque Boa target.', 'conflict');
+      }
+    }
+    const currentStep = attack.get('currentStep');
+    if (currentStep !== range || wolfRangeDecisionValue(attack, range) !== undefined) {
+      throw commandError('failed-precondition', 'The current range is already resolving.', 'invalid-phase');
+    }
+    const nextRevision = inputs.revision + 1;
+    const choice: WolfRangeSupportChoiceRecord = {
+      type: 'wolf-range-support-action-choice', status: 'committed', sourceId, range,
+      turn: inputs.turn, attackId: String(attack.get('attackId')), revision: nextRevision,
+      actorUid: uid, actorRoleId: availability.actorRoleId, requestId,
+      choice: raw.use ? 'used' : 'passed', hostShipId: availability.hostShipId!,
+      ...(availability.controlRevision === undefined ? {} : { controlRevision: availability.controlRevision }),
+      ...(targetInstanceId ? { targetInstanceId } : {}),
+      ...(sourceId === 'boa' && raw.use ? { scrapBefore: availability.scrapAvailable } : {}),
+    };
+    const allChoices = isRecord(attack.get('rangeSupportChoices')) ? attack.get('rangeSupportChoices') as Record<string, unknown> : {};
+    const rangeChoices = isRecord(allChoices[range]) ? allChoices[range] as Record<string, unknown> : {};
+    const committed: WolfRangeSupportChoiceResult = {
+      status: 'committed', type: 'wolf-range-support-action-choice', sessionId, requestId,
+      attackId: choice.attackId, turn: inputs.turn, revision: nextRevision, range, sourceId,
+      choiceStatus: choice.choice, actionCount: choice.choice === 'used' ? 1 : 0,
+    };
+    tx.update(attackRef, { revision: nextRevision,
+      rangeSupportChoices: { ...allChoices, [range]: { ...rangeChoices, [sourceId]: choice } },
+      updatedAt: FieldValue.serverTimestamp() });
+    if (sourceId === 'boa' && targetInstanceId) {
+      const cargoRoot = session.get('shuttleCargo');
+      const cargo = isRecord(cargoRoot) ? cargoRoot : {};
+      const rawBoa = cargo.boa;
+      const boaCargo = parseBoaScrapCargo(rawBoa);
+      if (!boaCargo || (boaCargo.scrap ?? 0) < 1) {
+        throw commandError('failed-precondition', 'Boa needs one Scrap for this range action.', 'conflict');
+      }
+      tx.update(db.doc(`sessions/${sessionId}`), { 'shuttleCargo.boa.scrap': (boaCargo.scrap ?? 0) - 1,
+        updatedAt: FieldValue.serverTimestamp() });
+    }
+    tx.set(auditRef, { ...choice, targetContactId: targetContactId ?? null,
+      deadlineAt: inputs.deadlineAt, createdAt: FieldValue.serverTimestamp() });
+    tx.set(receiptRef, { fingerprint, result: committed, createdAt: FieldValue.serverTimestamp() });
+    return committed;
   });
   await reconcileWolfAttackProgress(sessionId);
   return result;
