@@ -1604,6 +1604,185 @@ const cachedWidthTestContacts = (x: number) => [{
   id: 'width-cache-context', tag: 'LONG RESEARCH CRUISER', x, y: 0.2, z: 0.1, color: 'white',
 }];
 
+type CacheProbeMark = { x: number; y: number };
+
+const cacheProbeLead = {
+  id: 'cache-probe-lead', tag: 'ACQUIRED LEAD', x: 0.6, y: 0.2, z: 0.1,
+  color: 'white', showCombatRange: false,
+};
+const cacheProbeHidden = {
+  id: 'cache-probe-hidden', tag: 'HIDDEN RETURN', x: -0.6, y: -0.2, z: 0.1,
+  color: 'white', showCombatRange: false,
+};
+const cacheProbeOtherHidden = {
+  id: 'cache-probe-other-hidden', tag: 'OTHER HIDDEN RETURN', x: -0.4, y: -0.3, z: 0.2,
+  color: 'white', showCombatRange: false,
+};
+
+function mockHeldLabelCacheGeometry(marks: CacheProbeMark[]) {
+  const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
+    x: left, y: top, left, top, width, height,
+    right: left + width, bottom: top + height,
+  }) as DOMRect;
+  let labelBoundsReads = 0;
+  let intrinsicWidthReads = 0;
+  const naturalWidth = (label: HTMLElement) =>
+    label.querySelector<HTMLElement>('span')?.style.fontSize === '32px' ? 110 : 50;
+  vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
+    if (!this.classList.contains('contact-plot__tag')) return 0;
+    intrinsicWidthReads += 1;
+    const cap = Number.parseFloat(this.style.maxWidth);
+    const width = naturalWidth(this);
+    return Number.isFinite(cap) ? Math.min(width, cap) : width;
+  });
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    if (this.classList.contains('contact-plot')) return bounds(0, 0, 320, 240);
+    const owner = this.closest<HTMLElement>('.contact-plot__contact');
+    const index = owner ? contactsIn(document.body).indexOf(owner) : -1;
+    const mark = marks[index];
+    if (this.classList.contains('contact-plot__blip') && mark) {
+      return bounds(mark.x, mark.y, 8, 8);
+    }
+    if (this.classList.contains('contact-plot__tag') && owner && mark) {
+      labelBoundsReads += 1;
+      const label = this as HTMLElement;
+      const anchor = owner.dataset.labelAnchor ?? 'south-east';
+      const cap = Number.parseFloat(label.style.maxWidth);
+      const intrinsic = naturalWidth(label);
+      const width = Number.isFinite(cap) ? Math.min(intrinsic, cap) : intrinsic;
+      const height = label.querySelector<HTMLElement>('span')?.style.fontSize === '32px' ? 40 : 18;
+      const left = anchor.endsWith('east') ? mark.x - 11 - width : mark.x + 19;
+      const top = anchor.startsWith('north') ? mark.y - 8 - height : mark.y + 16;
+      const x = Number.parseFloat(label.style.getPropertyValue('--label-clamp-x')) || 0;
+      const y = Number.parseFloat(label.style.getPropertyValue('--label-clamp-y')) || 0;
+      return bounds(left + x, top + y, width, height);
+    }
+    return bounds(0, 0, 0, 0);
+  });
+  return {
+    labelBoundsReads: () => labelBoundsReads,
+    intrinsicWidthReads: () => intrinsicWidthReads,
+    resetReads: () => { labelBoundsReads = 0; intrinsicWidthReads = 0; },
+  };
+}
+
+function acquireCacheProbeLead(container: HTMLElement): void {
+  const contact = contactsIn(container)[0]!;
+  const apparent = contact.querySelector<HTMLElement>('.contact-plot__apparent')!;
+  act(() => {
+    apparent.dataset.acquired = 'true';
+    for (const axis of ['x', 'y', 'z']) {
+      const coordinate = contact.style.getPropertyValue(`--${axis}`);
+      if (coordinate) apparent.style.setProperty(`--fix-${axis}`, coordinate);
+    }
+    contact.dispatchEvent(new CustomEvent(CONTACT_SCAN_EVENT, {
+      bubbles: true,
+      detail: { fixChanged: true },
+    }));
+  });
+}
+
+function overlapsRect(a: DOMRect, b: DOMRect): boolean {
+  return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+}
+
+it.each(['move', 'add'] as const)(
+  'reflows an acquired label when a hidden mark is %s',
+  (operation) => {
+    const marks = [{ x: 180, y: 100 }, { x: 280, y: 190 }];
+    const geometry = mockHeldLabelCacheGeometry(marks);
+    const initialContacts = operation === 'move' ? [cacheProbeLead, cacheProbeHidden] : [cacheProbeLead];
+    const { container, rerender } = render(<ContactPlot contacts={initialContacts} />);
+    acquireCacheProbeLead(container);
+
+    const label = container.querySelector<HTMLElement>('.contact-plot__tag')!;
+    const initialLabelBounds = label.getBoundingClientRect();
+    marks[1] = { x: initialLabelBounds.left + 12, y: initialLabelBounds.top + 4 };
+    geometry.resetReads();
+    const nextContacts = operation === 'move'
+      ? [cacheProbeLead, { ...cacheProbeHidden, x: -0.61 }]
+      : [cacheProbeLead, cacheProbeHidden];
+    rerender(<ContactPlot contacts={nextContacts} />);
+
+    const layoutReads = geometry.labelBoundsReads();
+    const movedLabelBounds = label.getBoundingClientRect();
+    const movedHiddenMarkBounds = contactsIn(container)[1]!
+      .querySelector<HTMLElement>('.contact-plot__blip')!.getBoundingClientRect();
+    expect(overlapsRect(movedLabelBounds, movedHiddenMarkBounds)).toBe(false);
+    expect(layoutReads).toBeGreaterThan(0);
+  },
+);
+
+it.each(['remove', 'replace', 'reorder'] as const)(
+  'invalidates acquired-label reuse when hidden mark identities %s',
+  (operation) => {
+    const marks = [{ x: 180, y: 100 }, { x: 280, y: 190 }, { x: 24, y: 214 }];
+    const geometry = mockHeldLabelCacheGeometry(marks);
+    const initialContacts = operation === 'reorder'
+      ? [cacheProbeLead, cacheProbeHidden, cacheProbeOtherHidden]
+      : [cacheProbeLead, cacheProbeHidden];
+    const { container, rerender } = render(<ContactPlot contacts={initialContacts} />);
+    acquireCacheProbeLead(container);
+    geometry.resetReads();
+
+    let nextContacts;
+    if (operation === 'remove') {
+      marks.length = 1;
+      nextContacts = [cacheProbeLead];
+    } else if (operation === 'replace') {
+      nextContacts = [cacheProbeLead, { ...cacheProbeHidden, id: 'replacement-hidden' }];
+    } else {
+      marks[1] = { x: 24, y: 214 };
+      marks[2] = { x: 280, y: 190 };
+      nextContacts = [cacheProbeLead, cacheProbeOtherHidden, cacheProbeHidden];
+    }
+    rerender(<ContactPlot contacts={nextContacts} />);
+
+    expect(geometry.labelBoundsReads()).toBeGreaterThan(0);
+  },
+);
+
+it('reflows an acquired label when a styled name descendant grows vertically', () => {
+  const marks = [{ x: 180, y: 180 }];
+  const geometry = mockHeldLabelCacheGeometry(marks);
+  const { container, rerender } = render(<ContactPlot contacts={[cacheProbeLead]} />);
+  acquireCacheProbeLead(container);
+  const label = container.querySelector<HTMLElement>('.contact-plot__tag')!;
+  const initialBounds = label.getBoundingClientRect();
+  label.querySelector<HTMLElement>('span')!.style.fontSize = '32px';
+  geometry.resetReads();
+
+  rerender(<ContactPlot contacts={[{ ...cacheProbeLead }]} />);
+
+  const layoutReads = geometry.labelBoundsReads();
+  const updatedBounds = label.getBoundingClientRect();
+  expect(updatedBounds.height).toBeGreaterThan(initialBounds.height);
+  expect(updatedBounds.bottom).toBeLessThanOrEqual(232);
+  expect(layoutReads).toBeGreaterThan(0);
+});
+
+it('refreshes cached intrinsic width when a styled name descendant grows', () => {
+  const marks = [{ x: 80, y: 100 }];
+  const geometry = mockHeldLabelCacheGeometry(marks);
+  const { container, rerender } = render(<ContactPlot contacts={[cacheProbeLead]} />);
+  acquireCacheProbeLead(container);
+  const label = container.querySelector<HTMLElement>('.contact-plot__tag')!;
+  const initialBounds = label.getBoundingClientRect();
+  label.querySelector<HTMLElement>('span')!.style.fontSize = '32px';
+  geometry.resetReads();
+
+  rerender(<ContactPlot contacts={[{ ...cacheProbeLead }]} />);
+
+  const layoutReads = geometry.labelBoundsReads();
+  const widthReads = geometry.intrinsicWidthReads();
+  const updatedBounds = label.getBoundingClientRect();
+  expect(updatedBounds.width).toBeGreaterThan(initialBounds.width);
+  expect(updatedBounds.left).toBeGreaterThanOrEqual(8);
+  expect(updatedBounds.right).toBeLessThanOrEqual(312);
+  expect(widthReads).toBeGreaterThan(0);
+  expect(layoutReads).toBeGreaterThan(0);
+});
+
 it('reuses intrinsic DRADIS width across sweep visual-state transitions while relaying label geometry', () => {
   const { offsetWidthReads, labelBoundsReads } = mockIntrinsicWidthForCacheTests(() => 180);
   const { container } = renderWithVisibleStaticReturns(<ContactPlot contacts={cachedWidthTestContacts(0.8)} />);
