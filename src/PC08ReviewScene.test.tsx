@@ -39,6 +39,47 @@ it('uses the real range presenter for local use, target assignment and damaged-a
   expect(screen.getByRole('button', {name: 'Use selected actions'})).toBeDisabled();
 });
 
+it('retains independent support choices and spends the prepared Boa Scrap once', () => {
+  render(<PC08ReviewScene />);
+  fireEvent.click(screen.getByRole('button', {name: '2 Weapons'}));
+  const highwall = screen.getByRole('region', {name: 'Highwall Cannon Medium Range choice'});
+  const gorgoneion = screen.getByRole('region', {name: 'Gorgoneion Missile Array Medium Range choice'});
+  const boa = screen.getByRole('region', {name: 'Boa Scrap Strike Medium Range choice'});
+  fireEvent.click(within(highwall).getByRole('button', {name: 'Use Highwall Cannon'}));
+  expect(highwall).toHaveTextContent('action committed');
+  expect(within(gorgoneion).getByRole('button', {name: 'Use Gorgoneion Missile Array'})).toBeEnabled();
+  fireEvent.click(within(gorgoneion).getByRole('button', {name: 'Pass this range'}));
+  expect(gorgoneion).toHaveTextContent('You passed this range action');
+  expect(within(boa).getByRole('button', {name: 'Use Boa Scrap Strike'})).toBeDisabled();
+  fireEvent.change(within(boa).getByRole('combobox', {name: 'Boa target'}), {target: {value: 'local-contact-1'}});
+  fireEvent.click(within(boa).getByRole('button', {name: 'Use Boa Scrap Strike'}));
+  expect(boa).toHaveTextContent('action committed');
+  expect(within(boa).queryByRole('button', {name: 'Use Boa Scrap Strike'})).not.toBeInTheDocument();
+  expect(screen.getByRole('status', {name: 'Prepared Boa balance'})).toHaveTextContent('2 Scrap');
+  fireEvent.click(screen.getByRole('button', {name: 'Restore weapon sample'}));
+  expect(screen.getByRole('status', {name: 'Prepared Boa balance'})).toHaveTextContent('3 Scrap');
+  expect(within(screen.getByRole('region', {name: 'Highwall Cannon Medium Range choice'}))
+    .getByRole('button', {name: 'Use Highwall Cannon'})).toBeEnabled();
+});
+
+it('uses safe damage coverage to explain and enforce prepared Short Range target choices', () => {
+  render(<PC08ReviewScene />);
+  fireEvent.click(screen.getByRole('button', {name: '2 Weapons'}));
+  fireEvent.click(screen.getByRole('button', {name: 'Short Range coverage sample'}));
+  const coverage = screen.getByRole('status', {name: 'Short Range fighter coverage'});
+  expect(coverage).toHaveTextContent('4 damage remains on local-wing-1');
+  expect(coverage).toHaveTextContent('Other ships are available after all fighter wings are covered');
+  expect(screen.getByText('Highwall Cannon deals 3 damage per hit.')).toBeVisible();
+  fireEvent.change(screen.getByRole('combobox', {name: 'Highwall Cannon hit 1'}), {target: {value: 'local-wing-1'}});
+  fireEvent.change(screen.getByRole('combobox', {name: 'Point-defence lasers hit 1'}), {target: {value: 'local-ship-1'}});
+  expect(screen.getByRole('button', {name: 'Commit target assignments'})).toBeDisabled();
+  fireEvent.change(screen.getByRole('combobox', {name: 'Point-defence lasers hit 1'}), {target: {value: 'local-wing-1'}});
+  expect(screen.getByRole('button', {name: 'Commit target assignments'})).toBeEnabled();
+  fireEvent.click(screen.getByRole('button', {name: 'Commit target assignments'}));
+  expect(screen.getByRole('status', {name: 'Prepared weapon result'})).toHaveTextContent('Target committed');
+  expect(screen.queryByRole('button', {name: 'Commit target assignments'})).not.toBeInTheDocument();
+});
+
 it('shows committed boarding through the real crew presenter without accepting a second local choice', () => {
   render(<PC08ReviewScene />);
   fireEvent.click(screen.getByRole('button', {name: '4 Boarding defence'}));
