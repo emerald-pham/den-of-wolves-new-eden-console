@@ -206,6 +206,9 @@ it('allows the GM to record an explicit ruling after the response deadline with 
 });
 
 it('filters the amnesty view to the Commander, target ship authority, and current GM', async () => {
+  put('sessions/s1/wolfCommanderAddresses/cycle-3', {
+    type: 'wolf-commander-address', status: 'committed', cycle: 3, actorUid: 'commander',
+  });
   put('sessions/s1/wolfCommanderAmnesty/current', {
     type: 'wolf-amnesty-offer', sessionId: 's1', offerId: 'amnesty-3-1', cycle: 3, revision: 1,
     commanderUid: 'commander', targetShipId: 'dione', targetUid: 'dione-captain',
@@ -215,10 +218,14 @@ it('filters the amnesty view to the Commander, target ship authority, and curren
   put('sessions/s1/players/other-player', { uid: 'other-player', role: 'player', connected: true });
   await expect(getWolfAmnestyView.run(request({ sessionId: 's1' }, 'other-player')))
     .resolves.toMatchObject({ offer: null });
-  await expect(getWolfAmnestyView.run(request({ sessionId: 's1' }, 'dione-captain')))
-    .resolves.toMatchObject({ offer: { targetShipId: 'dione' } });
+  const captainView = await getWolfAmnestyView.run(request({ sessionId: 's1' }, 'dione-captain'));
+  expect(captainView).toMatchObject({ offer: { targetShipId: 'dione' } });
+  expect(captainView).not.toHaveProperty('commanderAddressPublished');
   await expect(getWolfAmnestyView.run(request({ sessionId: 's1' }, 'commander')))
-    .resolves.toMatchObject({ offer: { targetShipId: 'dione', targetUid: 'dione-captain' } });
+    .resolves.toMatchObject({
+      commanderAddressPublished: true,
+      offer: { targetShipId: 'dione', targetUid: 'dione-captain' },
+    });
   await expect(getWolfAmnestyView.run(request({ sessionId: 's1' }, 'gm')))
     .resolves.toMatchObject({ offer: { targetShipId: 'dione' } });
 });

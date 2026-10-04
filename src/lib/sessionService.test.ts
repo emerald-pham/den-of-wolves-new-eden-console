@@ -344,6 +344,23 @@ describe('Commander address and private amnesty services', () => {
     }));
   });
 
+  it('parses Commander-only address state without exposing it to other offer audiences', async () => {
+    useSessionStore.getState().reset();
+    useSessionStore.getState().setIdentity(
+      { ...session, phase: 'active', currentTurn: 4 },
+      { ...player, replacementRoleId: 'wolf-commander' },
+    );
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    const view = callableReturning({ data: {
+      type: 'wolf-amnesty-view', sessionId: 's1', offer: null, commanderAddressPublished: true,
+    } });
+    vi.mocked(httpsCallable).mockReturnValue(view as never);
+    await expect(getWolfAmnestyView()).resolves.toEqual({
+      type: 'wolf-amnesty-view', sessionId: 's1', offer: null, commanderAddressPublished: true,
+    });
+  });
+
   it('sends a human-authored facilitator consequence without inventing an automatic bargain', async () => {
     useSessionStore.getState().reset();
     useSessionStore.getState().setIdentity({ ...session, phase: 'active', currentTurn: 4 }, { ...player, role: 'gm' });
