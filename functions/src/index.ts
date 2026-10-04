@@ -21439,9 +21439,35 @@ function persistWolfEscortState(
   sessionRef: DocumentReference,
   pdfWingRef: DocumentReference,
   state: ReturnType<NonNullable<WolfEscortRangeBundle['applyLocked']>> | undefined,
+  fighterState?: AegisFighterWingCombatState,
+  session?: DocumentSnapshot,
 ): void {
   if (state?.pdfState) tx.set(pdfWingRef, state.pdfState);
-  if (state?.maliadesState) tx.update(sessionRef, { maliadesState: state.maliadesState, updatedAt: FieldValue.serverTimestamp() });
+  const fighterCountPatch: Record<string, unknown> = {};
+  if (fighterState && session) {
+    const storedCounts = session.get('fighterWingCounts');
+    const counts = storedCounts === undefined ? initialFighterWingCounts() : fighterWingCounts(storedCounts);
+    for (const wingId of ['fighter-wing-alpha', 'fighter-wing-bravo'] as const) {
+      const wing = fighterState.wings[wingId];
+      const current = counts[wingId];
+      if (!current || current.count !== wing.fighters + wing.losses) {
+        throw commandError('failed-precondition', 'The durable AEGIS fighter count changed during this attack.', 'conflict');
+      }
+      if (wing.shortResolved && wing.losses > 0) {
+        fighterCountPatch[`fighterWingCounts.${wingId}`] = {
+          count: current.count - wing.losses,
+          revision: current.revision + 1,
+        };
+      }
+    }
+  }
+  if (state?.maliadesState || Object.keys(fighterCountPatch).length > 0) {
+    tx.update(sessionRef, {
+      ...(state?.maliadesState ? { maliadesState: state.maliadesState } : {}),
+      ...fighterCountPatch,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  }
 }
 
 /** Deterministic no-EO targeting for already-committed source actions. */
@@ -22744,7 +22770,7 @@ async function reconcileWolfAttackProgress(sessionId: string): Promise<void> {
         ? { memberResults: memberResultsWithSupport } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
-    persistWolfEscortState(tx, sessionRef, pdfWingRef, appliedStates.escortState);
+    persistWolfEscortState(tx, sessionRef, pdfWingRef, appliedStates.escortState, appliedStates.fighterState, session);
     tx.set(db.doc(`${stateRef.path}/audit/auto-${step}-${inputs.turn}`), {
       type: weaponUnavailable ? 'wolf-range-automatic-unavailable' : 'wolf-range-automatic-no-action',
       range: step, fromStep: step, toStep: nextStep, turn: inputs.turn, revision: nextRevision,
@@ -25319,7 +25345,7 @@ export const commitWolfRangeActionChoice = onCall<{
       } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
-    if (resolvesImmediately) persistWolfEscortState(tx, sessionRef, pdfWingRef, appliedStates?.escortState);
+    if (resolvesImmediately) persistWolfEscortState(tx, sessionRef, pdfWingRef, appliedStates?.escortState, appliedStates?.fighterState, session);
     tx.set(auditRef, {
       type: 'wolf-range-action-choice', range, turn: inputs.turn, revision: nextRevision,
       actorUid: uid, actorRoleId: 'executive-officer', requestId,
@@ -25532,7 +25558,7 @@ export const assignWolfRangeTargets = onCall<{
       ...(appliedStates.fighterState ? { aegisFighterWingState: appliedStates.fighterState } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
-    persistWolfEscortState(tx, sessionRef, pdfWingRef, appliedStates.escortState);
+    persistWolfEscortState(tx, sessionRef, pdfWingRef, appliedStates.escortState, appliedStates.fighterState, session);
     tx.set(auditRef, {
       type: 'wolf-range-target-assignment', range, turn: inputs.turn, revision: nextRevision,
       fromStep: range, toStep: nextStep, actorUid: uid, actorRoleId: 'executive-officer', requestId,
