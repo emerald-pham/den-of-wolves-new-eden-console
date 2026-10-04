@@ -579,10 +579,10 @@ it('declares a fourth same-cycle P Station attack from the immutable survivor ro
     minimumBattleStations: 1, minimumOtherShipDamage: 20,
     recurringUntil: ['allWolfForcesDestroyed'], missionAccess: 'blockedWhileWolfForcesRemain',
   });
-  dueWindow({ status: 'due', turn: 1, revision: 4, targetGroupId: 'fleet-1',
+  dueWindow({ status: 'due', turn: 1, revision: 5, targetGroupId: 'fleet-1',
     threatSiteCode: 'P', threatSourceId: 'arrival-jump-station' });
   preparation({
-    turn: 1, revision: 6, shipIds: survivors.map(({ shipId }) => shipId),
+    turn: 1, revision: 7, shipIds: survivors.map(({ shipId }) => shipId),
     compositionKind: 'p-station-repeat', targetGroupId: 'fleet-1',
     targetAssignments: [], modifiers: [], notes: '',
   });
@@ -593,7 +593,7 @@ it('declares a fourth same-cycle P Station attack from the immutable survivor ro
   delete missingRepeatAudit.pStationRepeat;
   put(finalizationAuditPath, missingRepeatAudit);
   await expect(declareWolfAttack.run(request({
-    ...baseData, requestId: 'wolf-station-repeat-without-finalizer-plan', expectedRevision: 6,
+    ...baseData, requestId: 'wolf-station-repeat-without-finalizer-plan', expectedRevision: 7,
   }))).rejects.toMatchObject({
     code: 'failed-precondition', message: expect.stringMatching(/verifiable finalized P Station repeat/i),
   });
@@ -601,7 +601,7 @@ it('declares a fourth same-cycle P Station attack from the immutable survivor ro
   put(finalizationAuditPath, completeFinalizationAudit);
 
   await expect(declareWolfAttack.run(request({
-    ...baseData, requestId: 'wolf-station-attack-four', expectedRevision: 6,
+    ...baseData, requestId: 'wolf-station-attack-four', expectedRevision: 7,
   }))).resolves.toMatchObject({ status: 'committed', turn: 1, announcementId: 'wolf-attack-wolf-station-attack-four' });
   const state = mock.documents.get('sessions/s1/wolfAttackState/current')!;
   expect(state).toMatchObject({
