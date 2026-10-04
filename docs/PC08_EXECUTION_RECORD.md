@@ -150,3 +150,13 @@ The DRADIS worker completed its standard and Union proof handoff and released
 only its owned row 5 processes and reservation. Range continues its remaining
 supporting-source APIs and safe Short Range coverage guide on a continuation
 branch from the reconciled owner source.
+
+The normal next-attack consumer exposed a shared Team-boundary defect after
+Quellon's destruction: legitimate retained Hummingbird/Condor custody was absent
+from the docking-only manifest check, permanently blocking advance. Root owns
+the narrow boundary repair. It validates retained craft against the printed
+manifest, actual destroyed host and exact current custody without redocking
+or restoring their movement. Test-only `2ab9ff0b` records two discriminating
+failures before the source change; 280 focused lifecycle checks pass. This
+repairs the already implemented retention contract and the PC08 next-attack
+consumer, with no later-checkpoint feature or additional catalog credit.

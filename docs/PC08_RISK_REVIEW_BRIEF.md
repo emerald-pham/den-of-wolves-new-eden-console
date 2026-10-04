@@ -24,6 +24,11 @@ Review current GM lease, prior immutable final audit, composition capacity,
 mandatory return slots, exact prior-to-new instance mapping and atomic once-only
 consumption. Unresolved, fabricated, undersized and stale reopen paths fail
 closed; replay cannot alter the prior result or include destroyed Wings.
+Combat-destroyed hosts leave their shuttles in retained custody. The next Team
+boundary accepts that existing state only when the locked craft manifest,
+current control holder/revision, printed owner and actual destroyed active host
+agree. It never redocks, restores movement or changes custody; missing or
+duplicated craft and malformed retention still block advancement.
 An explicit Medium whole-wing pass draws no dice or losses and cannot skip
 another entitled source's pending action.
 PDF Escort and Maliades use separate private escortRangeChoices and opaque

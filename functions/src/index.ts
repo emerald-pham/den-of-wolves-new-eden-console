@@ -34937,10 +34937,10 @@ function requireSmallShipsDockedAtBoundary(
   }
 }
 
-/** Every enabled shuttle must be parked at one valid active host before the
- * next Team Phase begins. Sessions created before shuttleDockings was stored
- * retain their canonical setup docking; an explicitly malformed or incomplete
- * roster fails closed. */
+/** Every enabled shuttle must be parked or validly retained from a destroyed
+ * host before the next Team Phase. Retention does not choose a new host or
+ * restore movement. Legacy sessions retain their canonical setup docking;
+ * malformed or incomplete custody and docking state fails closed. */
 function requireShuttlesDockedAtTeamBoundary(session: DocumentSnapshot): void {
   const rawActiveRoleIds = session.get('activeRoleIds');
   const normalizedStoredRoleIds = Array.isArray(rawActiveRoleIds)
@@ -34967,14 +34967,38 @@ function requireShuttlesDockedAtTeamBoundary(session: DocumentSnapshot): void {
       new Set(activeVesselIds).size !== activeVesselIds.length ||
       activeVesselIds.length !== expectedActiveVesselIds.length ||
       expectedActiveVesselIds.some((shipId) => !activeVesselIds.includes(shipId)) ||
-      !Array.isArray(dockings) ||
-      !shuttleDockingsAreParked(dockings, activeVesselIds) ||
-      !shuttleDockingsMatchRoleOwnedCraft(activeRoleIds, dockings)) {
+      !Array.isArray(dockings)) {
     throw commandError(
       'failed-precondition',
       'Every enabled shuttle must be docked with one valid active host before the next Team Phase.',
       'conflict',
     );
+  }
+  const retained = parseRetainedShuttles(session.get('retainedShuttles'));
+  const retainedEntries = retained ? Object.values(retained) : [];
+  const control = retainedEntries.length > 0 ? parseShuttleControl(session.get('shuttleControl')) : {};
+  const ownedCraft = new Map(roleOwnedCraftForRoles(activeRoleIds)
+    .filter((craft) => craft.kind === 'shuttle').map((craft) => [craft.id, craft]));
+  const damage = shipDamage(session.get('shipDamage'));
+  const liveHosts = activeVesselIds.filter((host) => damage[host]?.destroyed !== true);
+  // These rows check manifest membership only. They are never persisted or
+  // interpreted as current dockings; retained custody remains unchanged.
+  const manifestRows = [...dockings, ...retainedEntries.map((entry) => ({
+    shuttleId: entry.shuttleId, shipId: entry.destroyedHostShipId,
+  }))];
+  if (!retained || !control || !shuttleDockingsAreParked(dockings, liveHosts) ||
+      retainedEntries.some((entry) => {
+        const craft = ownedCraft.get(entry.shuttleId);
+        const custody = control[entry.shuttleId];
+        return !craft || craft.ownerRoleId !== entry.ownerRoleId ||
+          !activeVesselIds.includes(entry.destroyedHostShipId) ||
+          damage[entry.destroyedHostShipId]?.destroyed !== true ||
+          !custody || custody.ownerRoleId !== entry.ownerRoleId ||
+          custody.holderUid !== entry.holderUid || custody.revision !== entry.controlRevision;
+      }) || !shuttleDockingsMatchRoleOwnedCraft(activeRoleIds, manifestRows)) {
+    throw commandError('failed-precondition',
+      'Every enabled shuttle must be docked or validly retained from a destroyed host before the next Team Phase.',
+      'conflict');
   }
 }
 
