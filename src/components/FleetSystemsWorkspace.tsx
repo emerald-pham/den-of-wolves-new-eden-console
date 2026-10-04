@@ -15,6 +15,7 @@ import { useSessionStore } from '@/store/useSessionStore';
 import type { ShipConsoleProjection } from '@/lib/shipStateProjection';
 import { capybaraRationSchedule, isSupportedShipPopulation } from '@/data/shipPopulation';
 import PresidentWorkspace from './PresidentWorkspace';
+import { AegisMaintenanceSystems } from './AegisConsoleWorkspace';
 
 // Split only explicit rule headings; phrases such as “damaged jumps” stay intact.
 function systemEffectRows(effect: string) {
@@ -140,6 +141,9 @@ export default function FleetSystemsWorkspace({
       knownSystems={knownSystems}
       consoleLocked={consoleLocked}
     /> : <>
+      {ship.id === 'aegis' && role.id === 'executive-officer' &&
+        <AegisMaintenanceSystems galacticCoordinate={galacticCoordinate} fuel={fuel}
+          damage={damage} damageDraws={damageDraws} consoleLocked={consoleLocked} shipState={shipState} />}
       {maintenance
       ? <MaintenanceSystems shipId={ship.id} name={ship.name} systems={systems} renderSystem={renderSystem} damageDraws={damageDraws} shipState={shipState} rations={<>
       <div className="aegis-ration-table"><table aria-label={`${ship.name} ${ship.id === 'capybara' ? 'active' : 'initial'} ration schedule`}>

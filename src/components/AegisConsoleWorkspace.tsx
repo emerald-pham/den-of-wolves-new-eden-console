@@ -261,13 +261,47 @@ function FighterWingCard({
   );
 }
 
-function AdmiralConsole({ galacticCoordinate, fuel, damage, damageDraws, navigationLogs, knownCoordinates, knownSystems, consoleLocked, shipState }: Omit<Props, 'roleId'>) {
+/** The Admiral and Executive Officer use the same server-backed maintenance lane. */
+export function AegisMaintenanceSystems({ galacticCoordinate, fuel, damage, damageDraws, consoleLocked, shipState }:
+  Pick<Props, 'galacticCoordinate' | 'fuel' | 'damage' | 'damageDraws' | 'consoleLocked' | 'shipState'>) {
   const console = AEGIS_ROLE_CONSOLES.admiral;
-  const printedStatistics = aegis.printedStatistics;
   const session = useSessionStore((state) => state.session);
   const maintenanceCycle = shipState ? shipState.maintenanceCycle : session?.maintenanceCycles?.aegis;
   const upgrades = shipState ? shipState.upgrades : session?.shipUpgrades?.aegis ?? [];
   const jumpState = shipState ? shipState.jumpState : session?.shipJumpStates?.aegis;
+  return (
+      <MaintenanceSystems shipId="aegis" name="AEGIS" systems={console.systems}
+        damageDraws={damageDraws}
+        shipState={shipState}
+        renderSystem={system => <SystemCard key={system.id} system={system}
+          damaged={damage?.damagedSystemIds.includes(system.id) ?? false}
+          fuel={fuel}
+          galacticCoordinate={galacticCoordinate}
+          charged={maintenanceCycle?.charges.includes('jump-drive') ?? false}
+          upgraded={upgrades.includes('jump-drive')}
+          consoleLocked={consoleLocked ?? false}
+          integrityLockedUntil={jumpState?.integrityLockedUntil} />}
+        rations={<>
+          <div className="aegis-ration-table">
+            <table aria-label="AEGIS ration schedule">
+              <thead>
+                <tr><th>Ration</th><th>None</th><th>Minimal</th><th>Short</th><th>Normal</th></tr>
+              </thead>
+              <tbody>
+                <tr><th>Food</th>{console.rations.food.map((value) => <td key={value}>{value}</td>)}</tr>
+                <tr><th>Water</th>{console.rations.water.map((value) => <td key={value}>{value}</td>)}</tr>
+                <tr><th>Bonus</th>{console.rations.bonuses.map((value) => <td key={value}>+{value}</td>)}</tr>
+              </tbody>
+            </table>
+          </div>
+        </>} />
+  );
+}
+
+function AdmiralConsole({ galacticCoordinate, fuel, damage, damageDraws, navigationLogs, knownCoordinates, knownSystems, consoleLocked, shipState }: Omit<Props, 'roleId'>) {
+  const printedStatistics = aegis.printedStatistics;
+  const session = useSessionStore((state) => state.session);
+  const upgrades = shipState ? shipState.upgrades : session?.shipUpgrades?.aegis ?? [];
   const [page, setPage] = useState<'systems' | 'navigation' | 'directives'>('systems');
 
   return (
@@ -297,31 +331,8 @@ function AdmiralConsole({ galacticCoordinate, fuel, damage, damageDraws, navigat
         knownSystems={knownSystems}
         consoleLocked={consoleLocked}
       /> : page === 'directives' ? <AdmiralDirectiveWorkspace consoleLocked={consoleLocked ?? false} /> : <>
-      <MaintenanceSystems shipId="aegis" name="AEGIS" systems={console.systems}
-        damageDraws={damageDraws}
-        shipState={shipState}
-        renderSystem={system => <SystemCard key={system.id} system={system}
-          damaged={damage?.damagedSystemIds.includes(system.id) ?? false}
-          fuel={fuel}
-          galacticCoordinate={galacticCoordinate}
-          charged={maintenanceCycle?.charges.includes('jump-drive') ?? false}
-          upgraded={upgrades.includes('jump-drive')}
-          consoleLocked={consoleLocked ?? false}
-          integrityLockedUntil={jumpState?.integrityLockedUntil} />}
-        rations={<>
-          <div className="aegis-ration-table">
-            <table aria-label="AEGIS ration schedule">
-              <thead>
-                <tr><th>Ration</th><th>None</th><th>Minimal</th><th>Short</th><th>Normal</th></tr>
-              </thead>
-              <tbody>
-                <tr><th>Food</th>{console.rations.food.map((value) => <td key={value}>{value}</td>)}</tr>
-                <tr><th>Water</th>{console.rations.water.map((value) => <td key={value}>{value}</td>)}</tr>
-                <tr><th>Bonus</th>{console.rations.bonuses.map((value) => <td key={value}>+{value}</td>)}</tr>
-              </tbody>
-            </table>
-          </div>
-        </>} />
+      <AegisMaintenanceSystems galacticCoordinate={galacticCoordinate} fuel={fuel}
+        damage={damage} damageDraws={damageDraws} consoleLocked={consoleLocked} shipState={shipState} />
       <AirspaceControl />
       </>}
     </FleetRoleConsoleTemplate>
