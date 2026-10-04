@@ -107,6 +107,27 @@ it('marks the private Turn 1 window with a monotonic revision and GM-only audit'
 });
 
 it('binds a threat timing marker to its selected fleet group and server source', async () => {
+  session({ chartSelectionLocked: true, chartId: 'B', activeVesselIds: ['aegis'] });
+  put('sessions/s1/fleetGroups/fleet-2', {
+    id: 'fleet-2', vesselIds: ['aegis'], memberUids: [],
+  });
+  put('sessions/s1/serverState/wolfArrivalPressure/groups/fleet-2', {
+    type: 'wolf-base-arrival-pressure-state', groupId: 'fleet-2', chart: 'B', revision: 1,
+    entries: [{
+      type: 'wolf-base-arrival-pressure', status: 'operational', groupId: 'fleet-2', chart: 'B',
+      coordinate: '1964', siteCode: 'P', sourceShipId: 'aegis', sourceTransitionId: 'jump-station',
+      cycle: 1, revision: 1, attackStatus: 'scheduled', arrivalTiming: 'immediate',
+      minimumBattleStations: 1, minimumOtherShipDamage: 20,
+      missionAccess: 'blockedWhileWolfForcesRemain', recurringUntil: ['allWolfForcesDestroyed'],
+    }],
+  });
+  put('sessions/s1/wolfAttackPressure/arrival-jump-station', {
+    type: 'wolf-base-arrival-pressure-schedule', status: 'scheduled', sessionId: 's1',
+    groupId: 'fleet-2', chart: 'B', coordinate: '1964', siteCode: 'P', sourceShipId: 'aegis',
+    sourceTransitionId: 'jump-station', sourceCycle: 1, arrivalTiming: 'immediate',
+    minimumBattleStations: 1, minimumOtherShipDamage: 20,
+    recurringUntil: ['allWolfForcesDestroyed'], missionAccess: 'blockedWhileWolfForcesRemain',
+  });
   const sourceData = {
     ...baseData,
     requestId: 'wolf-station-window',
@@ -122,6 +143,25 @@ it('binds a threat timing marker to its selected fleet group and server source',
     .toMatchObject({ targetGroupId: 'fleet-2', threatSiteCode: 'P', threatSourceId: 'arrival-jump-station' });
   expect(mock.documents.get('sessions/s1/commandReceipts/wolf-station-window'))
     .toMatchObject({ result: { targetGroupId: 'fleet-2', threatSiteCode: 'P' } });
+});
+
+it('rejects a caller-invented base source instead of opening an untriggered threat window', async () => {
+  session({ chartSelectionLocked: true, chartId: 'B', activeVesselIds: ['aegis'] });
+  put('sessions/s1/fleetGroups/fleet-2', {
+    id: 'fleet-2', vesselIds: ['aegis'], memberUids: [],
+  });
+  put('sessions/s1/serverState/wolfArrivalPressure/groups/fleet-2', {
+    type: 'wolf-base-arrival-pressure-state', groupId: 'fleet-2', chart: 'B', revision: 1,
+    entries: [],
+  });
+  await expect(setWolfAttackWindow.run(request({
+    ...baseData, requestId: 'wolf-forged-source', targetGroupId: 'fleet-2',
+    threatSiteCode: 'P', threatSourceId: 'arrival-never-happened',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/source|arrival|station/i),
+  });
+  expect(mock.documents.has('sessions/s1/wolfAttackWindow/current')).toBe(false);
+  expect(mock.documents.has('sessions/s1/commandReceipts/wolf-forged-source')).toBe(false);
 });
 
 it('requires a due marker before resolving and permits deferred Turn 2 recovery', async () => {
