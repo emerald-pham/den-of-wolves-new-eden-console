@@ -62,7 +62,7 @@ describe('attack-bound pre-range mutation composition', () => {
       fighterAceAction: f.ace, fighterAcePermissions: { [f.permission.sourceId]: f.permission },
       commanderRangeAdjustments: { 'medium-range': f.commander },
       ranges: [long.receipt, medium.receipt, short.receipt], phase: startTurnPhase(f.turn, 1_000), now: 2_000,
-      targetRing: CORE_WOLF_TARGET_RING, boardingDefence: [], forceFieldTargetId: null,
+      targetRing: CORE_WOLF_TARGET_RING, boardingDefence: ['aegis', 'quellon'].map(target => ({ target, securityTeams: 0 })), forceFieldTargetId: null,
       fleetState: Object.fromEntries(CORE_WOLF_TARGET_RING.map(target => [target, {
         damage: { damagedSystemIds: [], destroyed: false }, population: INITIAL_SHIP_SURVIVORS[target]!,
       }])) as Record<WolfFleetTargetId, FleetCombatState>, randomInt: () => 0,

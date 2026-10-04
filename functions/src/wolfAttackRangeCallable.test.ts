@@ -2689,7 +2689,7 @@ function admitCommittedMediumAceForProgression() {
 it('keeps the next live range available after a canonical Ace Medium hit and target shift', async () => {
   const f = admitCommittedMediumAceForProgression();
   await expect(getWolfRangeActionChoice.run(request({ sessionId: 's1' })))
-    .resolves.toMatchObject({ range: 'short-range', targets: expect.arrayContaining([
+    .resolves.toMatchObject({ range: 'short-range', contacts: expect.arrayContaining([
       expect.objectContaining({ contactId: 'contact-11', targetShipId: 'dione' }),
     ]) });
   const state = testState.documents.get(f.path)!;
