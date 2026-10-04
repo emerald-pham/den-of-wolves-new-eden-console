@@ -143,12 +143,13 @@ async function exactRetry(actor, name, request) {
 async function sourceChoice(actor, sourceId, range, index = 0) {
   const view = await command(actor, 'getWolfRangeSupportActionChoice', { sourceId, range });
   assert.equal(JSON.stringify(view).includes('dice'), false, 'Source read must omit locked dice.');
-  const use = view.eligible === true;
+  const use = view.eligible === true && view.actionAvailable === true;
   const scrapBefore = sourceId === 'boa' ? (await f.session.get()).get('shuttleCargo').boa.scrap : undefined;
-  const target = view.targets?.[index % Math.max(1, view.targets.length)] ?? view.contacts?.[index % Math.max(1, view.contacts.length)];
+  const availableContacts = view.contacts.filter(contact => contact.available);
+  const target = availableContacts[index % Math.max(1, availableContacts.length)];
   await exactRetry(actor, 'commitWolfRangeSupportActionChoice', { sourceId, range, requestId: randomUUID(),
     expectedTurn: view.turn, expectedRevision: view.revision, use,
-    ...(use && sourceId === 'boa' ? { targetContactId: target?.instanceId ?? target?.contactId } : {}) });
+    ...(use && sourceId === 'boa' ? { targetContactId: target?.contactId } : {}) });
   const scrapAfter = sourceId === 'boa' ? (await f.session.get()).get('shuttleCargo').boa.scrap : undefined;
   if (sourceId === 'boa') assert.equal(scrapAfter, scrapBefore - (use ? 1 : 0), 'Boa spends exactly one scrap only on use, including the exact retry.');
   return { sourceId, use, ...(sourceId === 'boa' ? { scrapBefore, scrapAfter } : {}) };

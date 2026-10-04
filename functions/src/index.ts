@@ -24259,7 +24259,8 @@ function aegisFighterWingLaunchView(
   if (damage.destroyed) return { ...view, reason: 'destroyed' };
   if ((damage.damagedSystemIds as string[]).includes(bayId)) return { ...view, reason: 'damaged' };
   if (!cycle.charges.includes(bayId)) return { ...view, reason: 'uncharged' };
-  const { reason: _reason, ...eligibleView } = view;
+  const eligibleView = { ...view };
+  delete eligibleView.reason;
   return { ...eligibleView, eligible: true };
 }
 
@@ -26735,7 +26736,7 @@ export const commitWolfBoardingSpecialChoice = onCall<{
     let rerolledValues: readonly number[] | undefined;
     let sessionPatch: Record<string, unknown> | undefined;
     let statePatch: Record<string, unknown>;
-    let resultKind = kind as WolfBoardingSpecialChoiceResult['choiceKind'];
+    const resultKind = kind as WolfBoardingSpecialChoiceResult['choiceKind'];
     if (kind === 'commander') {
       if (stage.kind !== 'commander' || stage.actorUid !== uid) {
         throw commandError('failed-precondition', 'The Commander choice is not currently open.', 'invalid-phase');
