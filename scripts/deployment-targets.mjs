@@ -24,6 +24,7 @@ const WEB_FILES = new Set([
   'pc06-review.html',
   'pc07-review.html',
   'pc08-review.html',
+  'pc09-review.html',
   'package.json',
   'package-lock.json',
 ]);
