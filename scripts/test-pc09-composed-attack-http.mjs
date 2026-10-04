@@ -485,10 +485,25 @@ try {
         await aceBrowser.page.getByLabel('Optional targeting shift', { exact: true }).selectOption('1');
         let aceRequest;
         const captureAce = request => { if (request.url().endsWith('/commitPdfFighterAceCombat')) aceRequest = request.postDataJSON().data; };
+        const aceResponses = [];
+        const captureAceResponse = async response => {
+          if (response.url().endsWith('/commitPdfFighterAceCombat')) {
+            const reply = await response.json().catch(() => ({}));
+            aceResponses.push({status: response.status(), type: reply.result?.type,
+              error: reply.error?.message});
+          }
+        };
         aceBrowser.page.on('request', captureAce);
+        aceBrowser.page.on('response', captureAceResponse);
+        observations.push({kind: 'ordinary-ace-click', identity: await aceBrowser.identity()});
         await aceButton.click();
+        await delay(1000);
+        observations.push({kind: 'ordinary-ace-transport', requestSent: Boolean(aceRequest),
+          responses: aceResponses, identity: await aceBrowser.identity(),
+          alerts: await aceBrowser.page.getByRole('alert').allInnerTexts()});
         await until('ordinary Ace action committed', state => state.pdfFighterAceAction?.actorUid === ace.localId);
         aceBrowser.page.off('request', captureAce);
+        aceBrowser.page.off('response', captureAceResponse);
         assert.ok(aceRequest, 'The actual Ace panel must issue its normal permission-bound request.');
         const afterAce = await attackState();
         const beforeRetry = JSON.stringify(afterAce);
@@ -757,10 +772,15 @@ try {
   const state = f ? await attackState() : undefined;
   if (state) await writeFile(`${evidencePath}.private-state.json`, `${JSON.stringify({ sourceCommit, state }, null, 2)}\n`);
   await page.screenshot({ path: `${dirname(evidencePath)}/failure.png`, fullPage: true }).catch(() => {});
+  await aceBrowser.page.screenshot({ path: `${dirname(evidencePath)}/ace-failure.png`, fullPage: true }).catch(() => {});
   await writeFile(`${evidencePath}.failure.json`, `${JSON.stringify({ sourceCommit, message: error.message, checks, actions, ranges, boarding,
     step: state?.currentStep, revision: state?.revision, status: state?.status, resolutionBlocker: state?.resolutionBlocker,
     decisionSummary: state?.decisionSummary, observations, browserErrors, sessionStoreModuleUrl,
     browserIdentity: await snapshotIdentity().catch(() => null),
+    aceBrowserIdentity: await aceBrowser.identity().catch(() => null),
+    aceStatus: await aceBrowser.page.getByRole('status').allInnerTexts().catch(() => []),
+    aceAlerts: await aceBrowser.page.getByRole('alert').allInnerTexts().catch(() => []),
+    aceBrowserErrors: aceBrowser.errors,
     visibleStatus: await page.getByRole('status').allInnerTexts().catch(() => []) }, null, 2)}\n`);
   throw error;
 } finally {
