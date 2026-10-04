@@ -34,6 +34,7 @@ try {
   for (const name of ['Command and Control', 'Fighter Bay Alpha', 'Fighter Bay Bravo', 'Missile Launchers', 'Point Defence Lasers']) {
     await workspace.getByRole('article', { name: `${name} system // operational`, exact: true }).waitFor();
   }
+  await workspace.getByRole('button', { name: 'Maintenance', exact: true }).click();
   await workspace.getByRole('heading', { name: 'Maintenance cycle', exact: true }).waitFor();
   await workspace.getByRole('button', { name: 'Begin Maintenance Cycle: Cycle 1', exact: true }).click();
   await workspace.getByRole('button', { name: 'ARE YOU SURE?', exact: true }).click();
@@ -45,11 +46,16 @@ try {
   assert.equal(maintenance.step, 2, 'The actual EO controls advanced the authoritative maintenance lane.');
   for (const [width, height] of [[320, 844], [390, 844], [844, 390], [1440, 900]]) {
     await b.page.setViewportSize({ width, height });
+    await workspace.getByRole('button', { name: 'Ship systems', exact: true }).click();
     const geometry = await b.assertGeometry();
     const font = await workspace.evaluate(element => getComputedStyle(element).fontFamily);
     assert.match(font, /mono|courier|menlo|consolas/i, 'The ordinary workspace uses the issued CIC monospace family.');
     await b.page.screenshot({ path: `${directory}/${width}x${height}-executive.png`, fullPage: true });
-    cases.push({ width, height, geometry, font, currentServerAuthority: true });
+    await workspace.getByRole('button', { name: 'Maintenance', exact: true }).click();
+    const maintenanceGeometry = await b.assertGeometry();
+    await b.page.screenshot({ path: `${directory}/${width}x${height}-maintenance.png`, fullPage: true });
+    await workspace.getByRole('button', { name: 'Ship systems', exact: true }).click();
+    cases.push({ width, height, geometry, maintenanceGeometry, font, currentServerAuthority: true });
   }
   await b.page.getByRole('link', { name: 'Open Pallas shuttle console', exact: true }).click();
   await b.page.getByRole('heading', { name: 'I.C.S.S. Pallas', exact: true }).waitFor();
