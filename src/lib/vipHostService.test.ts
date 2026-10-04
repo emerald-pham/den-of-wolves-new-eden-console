@@ -12,6 +12,8 @@ import { attestVipHostVisit, rerollHostedShipMaintenance } from './vipHostServic
 const session = {
   id: 's1', name: 'Fleet', joinCode: '1234', phase: 'active' as const,
   ownerUid: 'owner', currentTurn: 4, activeRoleIds: ['aegis-engineer'], activeVesselIds: ['aegis'],
+  maintenanceCycles: { aegis: { turn: 4, step: 4, revision: 7, results: {}, charges: [], refuelled: [],
+    unrestRolls: [2, 5] as [number, number], unrestBeforeCheck: 0 } },
   createdAt: '', updatedAt: '',
 };
 
