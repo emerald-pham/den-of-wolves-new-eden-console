@@ -25519,8 +25519,10 @@ export const assignWolfRangeTargets = onCall<{
       const slots = assignment.targetInstanceIds;
       const perHit = action.fixedDamage ?? action.dice?.damagePerSuccess ?? 1;
       slots.forEach((instanceId) => {
-        const ship = inputs.roster.find((candidate) => candidate.instanceId === instanceId)!;
-        const index = inputs.roster.indexOf(ship);
+        const index = inputs.roster.findIndex((candidate) => candidate.instanceId === instanceId);
+        const originalShip = inputs.roster[index];
+        const ship = applied.roster.find((candidate) => candidate.instanceId === instanceId) ?? originalShip;
+        if (!originalShip || !ship) return;
         const destroyed = applied.receipt.destroyedInstanceIds.includes(instanceId);
         memberResults.push({
           status: 'committed', range, sourceId: action.sourceId,
