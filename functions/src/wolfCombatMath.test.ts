@@ -717,6 +717,42 @@ describe('central Wolf combat math', () => {
     expect(damage.destroyed).toBe(false);
   });
 
+  it('persists combat deck exhaustion as a destroyed fleet result in the final calculation receipt', () => {
+    const fullTargeting = resolveWolfTargeting(
+      firstTurnWolfAttackComposition(), {}, EXPANDED_WOLF_TARGET_RING, () => 0,
+    );
+    const wing = fullTargeting.rolls.find(({ shipId }) => shipId === 'wolf-fighter-wing')!;
+    const targeting = { ...fullTargeting, rolls: [{ ...wing, rosterIndex: 0, target: 'capybara' as const }] };
+    const roster = wolfCombatRoster(targeting);
+    const ranges = (['long-range', 'medium-range', 'short-range'] as const).map((range) => ({
+      range, targetSnapshot: roster.map(({ instanceId, target }) => ({ instanceId, target })),
+      dice: [], assignments: [], targetShifts: [], unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
+      destructionDamageByTarget: Object.fromEntries(EXPANDED_WOLF_TARGET_RING.map((target) => [target, 0])),
+    }));
+    const capybaraDamage = {
+      damagedSystemIds: [
+        'storage', 'advanced-hydroponics', 'reactor', 'water-production',
+        'jump-drive', 'shuttle-bay', 'scrap-refinery',
+      ],
+      destroyed: false,
+    };
+    const fleetState = {
+      ...completeFleetState(),
+      capybara: { damage: capybaraDamage, population: INITIAL_SHIP_SURVIVORS.capybara! },
+    };
+    const phase = startTurnPhase(1, 1_000);
+    const receipt = finalizeWolfAttack({
+      requestId: 'attack-capybara-exhaustion', targeting, roster, ranges,
+      targetRing: EXPANDED_WOLF_TARGET_RING, boardingDefence: [], forceFieldTargetId: null,
+      phase, now: 2_000, fleetState, randomInt: () => 0,
+    });
+
+    expect(receipt.fleetDamage).toEqual([expect.objectContaining({
+      target: 'capybara', amount: 1, state: { damagedSystemIds: capybaraDamage.damagedSystemIds, destroyed: true },
+      draws: [{ destroyed: true, casualty: false }],
+    })]);
+  });
+
   it('returns one immutable receipt with server time, deadline, rolls, damage, and casualties', () => {
     const phase = startTurnPhase(1, 1_000);
     const receipt = calculateWolfAttack({
