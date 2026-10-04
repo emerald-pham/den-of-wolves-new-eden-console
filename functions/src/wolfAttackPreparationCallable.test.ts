@@ -202,7 +202,7 @@ it('keeps a same-cycle P Station repeat roster under server authority', async ()
   });
   put('sessions/s1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1'] });
   put('sessions/s1/wolfAttackState/current', {
-    type: 'wolf-attack-state', status: 'resolved', turn: 1, attackNumber: 3,
+    type: 'wolf-attack-state', status: 'resolved', currentStep: 'resolved', turn: 1, attackNumber: 3,
     attackId: 'wolf-attack-station-3', pStationSequence: {
       type: 'p-station-sequence', sequenceId: 'wolf-p-station-jump-station', groupId: 'fleet-1',
       chart: 'B', coordinate: '1964', stationId: 'P', sourceTransitionId: 'jump-station',
@@ -253,7 +253,19 @@ it('requires the Commander composition to match ten plus only the selected group
     memberUids: ['u1'],
   });
   put('sessions/s1/players/u1', { uid: 'u1', role: 'gm', connected: true, fleetGroupId: 'fleet-1' });
+  put('sessions/s1/players/wolfcmd', {
+    uid: 'wolfcmd', role: 'player', connected: true, fleetGroupId: 'fleet-1', replacementRoleId: 'wolf-commander',
+  });
   put('sessions/s1/serverState/navigation', { revision: 3, pursuitGroups: { 'fleet-1': 4 } });
+  const commanderCycleAttack = {
+    type: 'wolf-commander-cycle-attack', cycle: 1, ledgerId: 'cycle-1', groupId: 'fleet-1',
+    targetGroupPursuit: 4, navigationRevision: 3, commanderUid: 'wolfcmd', attackNumber: 1,
+    requestId: 'commander-dial-cycle-1',
+  };
+  put('sessions/s1/wolfCommanderCycleDials/cycle-1', {
+    type: 'wolf-commander-cycle-dial', status: 'committed', cycle: 1,
+    commanderCycleAttack, actorUid: 'wolfcmd',
+  });
   const exactDial = ['wolf-strikecarrier', ...Array<string>(3).fill('wolf-cruiser')];
   await expect(stageWolfAttackPreparation.run(request({
     ...baseData, requestId: 'commander-exact-dial', shipIds: exactDial,
