@@ -340,9 +340,14 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
 
       - run: npm ci --prefer-offline --no-audit
+
+      - name: Install Functions dependencies for shared types
+        run: npm ci --prefix functions --prefer-offline --no-audit
 
       - name: Install render browser
         run: npx playwright install --with-deps chromium
