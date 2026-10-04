@@ -2278,6 +2278,38 @@ it('returns only current group pursuit values to the assigned Commander before a
     .rejects.toMatchObject({ code: 'permission-denied' });
 });
 
+it('commits and replays a Commander dial using valid documents under its exact cycle ledger', async () => {
+  commanderCycleActionFixture(4, 3);
+  mock.documents.delete('sessions/s1/wolfAttackWindow/current');
+  const payload = { sessionId: 's1', requestId: 'commander-valid-document', expectedCycle: 4,
+    expectedNavigationRevision: 7, targetGroupId: 'fleet-2' };
+  const originalDoc = mock.db.doc;
+  const strictDoc = vi.spyOn(mock.db, 'doc').mockImplementation(path => {
+    if (path.split('/').length % 2 !== 0) {
+      throw new Error('Firestore documentPath must point to a document with an even number of components.');
+    }
+    return originalDoc(path);
+  });
+  try {
+    const result = await commitWolfCommanderAttackDial.run(request(payload, 'wolfcmd'));
+    expect(result).toMatchObject({ status: 'committed', groupId: 'fleet-2', damageCapacity: 18 });
+    const ledger = mock.documents.get('sessions/s1/wolfCommanderCycleDials/cycle-4')!;
+    const auditPath = 'sessions/s1/wolfCommanderCycleDials/cycle-4/audit/commander-valid-document';
+    expect(mock.documents.get(auditPath)).toMatchObject({
+      type: 'wolf-commander-cycle-dial', cycle: 4, actorUid: 'wolfcmd',
+      requestId: payload.requestId, commanderCycleAttack: ledger.commanderCycleAttack,
+    });
+    const beforeReplay = structuredClone([...mock.documents]);
+    await expect(commitWolfCommanderAttackDial.run(request(payload, 'wolfcmd'))).resolves.toEqual(result);
+    expect([...mock.documents]).toEqual(beforeReplay);
+    await expect(commitWolfCommanderAttackDial.run(request({ ...payload, requestId: 'second-dial' }, 'wolfcmd')))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect([...mock.documents]).toEqual(beforeReplay);
+  } finally {
+    strictDoc.mockRestore();
+  }
+});
+
 it('allows the assigned Commander to use cycle four after the ordinary three-attack cap without consuming carryover', async () => {
   const parent = resolvedPriorAttack();
   const attackId = 'wolf-attack-commander-parent-three';
