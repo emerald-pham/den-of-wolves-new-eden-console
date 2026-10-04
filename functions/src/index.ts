@@ -42621,6 +42621,7 @@ export const castPresidentialBallot = onCall<{
       value.status === 'committed' && value.electionRevision === base.expectedRevision && value.requestId === base.requestId, 'secret ballot');
     if (replay) return replay;
     if (!session.exists || !electionSnap.exists) throw new HttpsError('not-found', 'No active presidential election.');
+    requireActiveGameplayPhase(session);
     const election = storedElection(electionSnap.data(), base.sessionId);
     if (!election) throw commandError('failed-precondition', 'Stored election procedure is invalid.', 'malformed-input');
     if (!isActivePlayer(player) || player.get('role') !== 'player' || player.get('replacementStatus') != null || player.get('escapeState') != null) {
@@ -42692,6 +42693,7 @@ export const resolvePresidentialElection = onCall<{
     const replay = replayBoundCommand(receipt, fingerprint, isElectionCommandReply, 'election resolution');
     if (replay) return replay;
     if (audit.exists) rejectLegacyEventReplay('election resolution');
+    requireActiveGameplayPhase(session);
     if (!electionSnap.exists) throw new HttpsError('not-found', 'No configured presidential election.');
     const election = storedElection(electionSnap.data(), data.sessionId);
     if (!election || !['scheduled','open','tie-pending'].includes(election.state)) throw commandError('failed-precondition', 'This election is already resolved or invalid.', 'conflict');
