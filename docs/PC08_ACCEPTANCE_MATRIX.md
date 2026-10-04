@@ -8,9 +8,11 @@ pending. Root owns reconciliation and release; the catalog is status authority.
 
 All seven findings from the first independent review are repaired. Worker
 boarding checks pass 317/317; the final reconciled Boarding/Range/Declaration
-checks pass 257/257, including historical Militia commitment before and after
+checks pass 258/258, including historical Militia commitment before and after
 dice lock without revoking a subsequent character. The fresh reconciled gameplay
 run and exact-candidate follow-up review remain required for the repaired bytes.
+The bounded follow-up resolves R1–R4/R6/R7 and finds an additional PDF Short R5
+row duplication, now covered by a discriminating red test and `552017d0` repair.
 
 Normal authenticated local/emulator behavior evidence, prepared rendering,
 independent exact-candidate review, final validation, CI and exact-main production

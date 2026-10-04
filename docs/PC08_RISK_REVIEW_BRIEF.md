@@ -185,6 +185,17 @@ publish once with printed labels, and PDF/Maliades launch passes require current
 member/group/berth authority. Exact source digests and the 17-module/32-index/
 107-Function consumer audit are renewed after the last source repair.
 
+The first bounded follow-up independently passes 101 selected repair/control
+checks and seven selectors, resolving R1–R4/R6/R7 plus the historical Militia
+race. One additional R5 PDF Short editable-hit duplication remains; test-only
+`c234e214` reproduces it, and `552017d0` adds escort actions to the generic
+publisher exclusion. The existing escort summary owns both fixed and editable
+PDF/Maliades outcomes. Review this exact last repair against the discriminating
+stored/projected result, fixed Medium and Alpha/Bravo controls, and exact retry.
+Current native reconciliation passes 258/258; source-map digests are renewed.
+The live gameplay proof uses actual server targeting and unchanged server dice;
+preparation draft annotations are not claimed to control those results.
+
 All seven archived primary v1.1 artifacts match private provenance checksums;
 both expansion PDFs apply and named component sheets control. The group source
 notes record precise citations and deliberate extensions without reproducing

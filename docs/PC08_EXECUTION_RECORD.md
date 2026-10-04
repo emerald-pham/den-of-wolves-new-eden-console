@@ -403,3 +403,27 @@ materializes after targeting choices. The exact supported preparation is saved
 in its private failure state. The unchanged assertion moves to the established
 Long Range boundary; no product behavior or assertion is weakened. That failure
 is retained as `owner/authenticated-composed-reconciled-final-roster-timing/`.
+
+The `a9a2658b` attempt still fails that new assertion. Exact private evidence
+shows the Long Range roster is derived from the actual immutable server
+targeting receipt; draft preparation annotations do not control the live dice.
+The owner retracts that proof assumption and preserves the attempt as
+`owner/authenticated-composed-reconciled-final-targeting-assumption/`. The
+corrected proof submits empty annotations, retains capacity 20 with fourteen
+Wings/three Transports, and compares the committed first-range target snapshot
+with the actual server receipt. Genuine boarding assertions remain. No target
+or combat die is seeded, overridden or selectively replaced; no production
+targeting change is made or claimed.
+
+Independent Sol follow-up resolves R1–R4/R6/R7 and the historical Militia race,
+with 101 selected native repair/control checks and seven selectors passing.
+It returns one remaining R5 case together: the generic publisher duplicates an
+editable PDF Short hit and labels it AEGIS before the escort publisher labels it
+PDF. Root acknowledges ownership and the reviewer parks. Test-only `c234e214`
+reproduces exactly one failure with 257 controls. `552017d0` excludes all escort
+actions from that generic publisher; the existing specialized helper publishes
+their printed results once. All 258 reconciled native tests, Functions build
+and scoped lint pass, including fixed Medium, Alpha/Bravo and unchanged retry.
+The ordinary composed assertion also compares published PDF Short hits with
+the actual canonical assignment count and rejects escort AEGIS labels. The
+same 17-module/32-index/107-Function audit is renewed with exact source digests.

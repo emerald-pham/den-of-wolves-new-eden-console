@@ -407,7 +407,7 @@
   },
   "index": {
     "before": "0d76ca4d97bb27f2b9315440ae42338d001f3ea835d300c6b8f95a4fe24f1ace",
-    "after": "d759626c9f3b6c63bbe9fd082cfd05d7d2c3b19d7c8199a55c7d7de96e81f161",
+    "after": "618e0058ec7e7076fee41dd17a8d1d6f0526841ce511f82b9e1671486a0625e1",
     "consumers": [
       "advanceTurn",
       "advanceWolfAttackLifecycle",

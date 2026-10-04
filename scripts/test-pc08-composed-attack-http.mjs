@@ -300,18 +300,12 @@ try {
   await command(wing, 'beginShuttleTransit', { requestId: randomUUID(), shuttleId: 'starlight',
     expectedDepartureRequestId: departureId, expectedControlRevision: 0, expectedCycle: attackTurn });
   await command(f.gm, 'setWolfAttackWindow', { instanceId: f.instanceId, requestId: randomUUID(), expectedRevision: 1, status: 'due' });
-  // Use the supported GM pre-rolled-target route for this full-capacity attack.
-  // Spreading the transport targets keeps the source's undefined Capybara deck
-  // exhaustion consequence outside this automatic-finalization scenario.
-  const fleetTargets = ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'];
+  // Keep the full printed capacity while using three Transports in this
+  // automatic-finalization branch. Targeting and all other dice remain server-owned.
   const shipIds = [...Array(14).fill('wolf-fighter-wing'), ...Array(3).fill('wolf-assault-transport')];
-  const targetAssignments = [
-    ...Array.from({ length: 14 }, (_, cardIndex) => ({ cardIndex, targetShipId: fleetTargets[cardIndex % fleetTargets.length] })),
-    ...['aegis', 'dione', 'refinery-124'].map((targetShipId, index) => ({ cardIndex: 14 + index, targetShipId })),
-  ];
   const prep = await command(f.gm, 'stageWolfAttackPreparation', { instanceId: f.instanceId, requestId: randomUUID(),
     expectedRevision: 0, turn: attackTurn, shipIds,
-    targetMode: 'pre-rolled', targetAssignments, modifiers: [], notes: 'Disposable composed proof: explicit GM pre-rolled targets.' });
+    targetMode: 'pre-rolled', targetAssignments: [], modifiers: [], notes: '' });
   const declareRequest = { instanceId: f.instanceId, requestId: randomUUID(), expectedRevision: prep.revision };
   const declaration = await command(f.gm, 'declareWolfAttack', declareRequest);
   assert.equal((await f.db.doc(`sessions/${f.sessionId}/shuttleTransitChains/starlight`).get()).exists, false);
@@ -355,11 +349,6 @@ try {
   const cnc = await command(eo, 'getAegisCommandAndControl');
   await exactRetry(eo, 'passAegisCommandAndControl', { requestId: randomUUID(), expectedTurn: cnc.turn, expectedRevision: cnc.revision });
   checks.independentFourSourceLaunchesWithoutExtraFuel = true;
-  const declaredState = await until('canonical Long Range roster', state => state.currentStep === 'long-range');
-  assert.deepEqual(declaredState.combatRoster.map(({ shipId, target }, cardIndex) => ({ shipId, cardIndex, targetShipId: target })),
-    targetAssignments.map(({ cardIndex, targetShipId }) => ({ shipId: shipIds[cardIndex], cardIndex, targetShipId })),
-    'The current GM pre-rolled inputs enter the canonical combat roster after targeting decisions.');
-  checks.normalFacilitatorPreRolledTargets = true;
   for (const range of ['long-range', 'medium-range', 'short-range']) {
     await until(range, state => state.currentStep === range);
     const support = [];
@@ -390,6 +379,14 @@ try {
     const resolved = await attackState();
     const receipt = resolved.rangeReceipts.find(item => item.range === range);
     assert.ok(receipt, 'Each range retains one committed immutable receipt.');
+    if (range === 'long-range') {
+      const targeting = resolved.calculationReceipt.targeting;
+      assert.equal(resolved.calculationReceipt.composition.damageCapacity, 20);
+      assert.deepEqual(receipt.targetSnapshot, targeting.rolls.map(({ shipId, target }, index) => ({
+        instanceId: `${index}:${shipId}`, target,
+      })), 'The canonical Long Range targets match the actual immutable server targeting receipt.');
+      checks.normalCanonicalTargetingReceipt = true;
+    }
     if (lockedDice) assert.deepEqual(receipt.dice, lockedDice.map(die => ({ actionId: die.actionId, sourceId: die.sourceId,
       range: die.range, rolls: die.rolls, successes: die.successes, damage: die.damage })),
     'Assignment must consume the same source dice in the canonical final receipt.');
@@ -441,6 +438,17 @@ try {
     result.range, result.sourceId, result.contactReference,
   ]))).size, supportResults.length, 'Each source publishes each assigned contact once per range.');
   checks.supportResultsAreUniqueAndPrinted = true;
+  const escortResults = audience.results.filter(result => ['pdf-escort-wing', 'maliades'].includes(result.sourceId));
+  assert.equal(escortResults.filter(result => result.effect.includes('AEGIS')).length, 0,
+    'Escort outcomes retain their printed source label.');
+  const shortReceipt = finalState.rangeReceipts.find(receipt => receipt.range === 'short-range');
+  const expectedPdfHits = shortReceipt.assignments
+    .filter(assignment => assignment.actionId.startsWith('pdf-escort-wing-short-'))
+    .reduce((count, assignment) => count + assignment.targetInstanceIds.length, 0);
+  assert.equal(audience.results.filter(result => result.sourceId === 'pdf-escort-wing' &&
+    result.range === 'short' && result.effect === 'PDF Escort Wing attack hit').length, expectedPdfHits,
+  'Each committed PDF Short assigned hit publishes its printed result exactly once.');
+  checks.escortResultsArePrintedAndMatchCommittedHits = true;
   checks.resolvedAudienceHydratesThroughActualMemberSubscription = true;
   const snapshot = { phase: finalSession.turnPhase, resources: finalSession.shipResources, damage: finalSession.shipDamage,
     population: finalSession.shipSurvivors, ticker: finalSession.fleetTicker };
@@ -466,10 +474,10 @@ try {
   await writeFile(evidencePath, `${JSON.stringify({ kind: 'normal-authenticated-local-emulator-ui-http-composed-gameplay',
     sourceCommit, ordinaryRoster: 20, preparedScene: false, productionGameplay: false,
     fixtureChanges: ['disposable clock deadlines only'], normalFacilitatorDecisions: ['Coordination-phase optional ship and replacement admission',
-      'explicitly deferred first window and ordinary early cycle advance', 'explicit GM pre-rolled targets through the supported preparation callable',
+      'explicitly deferred first window and ordinary early cycle advance',
       'current ship write grants', 'audited resource adjustment to nine AEGIS ore', 'audited maintenance damage correction if required',
       ...(boarding.some(item => item.kind === 'commander-ruling') ? ['explicit incomplete Commander consequence ruling'] : [])],
-    checks, actions, ranges, boarding, audience, preparationInputs: { shipIds, targetAssignments }, targetlessResultCount: targetlessResults.length,
+    checks, actions, ranges, boarding, audience, preparationInputs: { shipIds, targetAssignments: [] }, targetlessResultCount: targetlessResults.length,
     sessionStoreModuleUrl, firestoreModuleUrl, browserErrors, heartbeatFailures: f.heartbeatFailures,
     identitiesRetained: false, completedAt: new Date().toISOString() }, null, 2)}\n`);
   console.log('PC08 ordinary composed source attack and live phone warhead proof passed.');

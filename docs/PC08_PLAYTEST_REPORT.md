@@ -13,7 +13,7 @@ ruling, with surrounding printed calculations automatic.
 Status: the fixed 49 items are integrated into the 0.5.67 candidate. The first
 complete independent review identified seven correctness and authority defects.
 All seven repairs are integrated. The boarding owner's ten focused suites pass
-317 checks; the reconciled Boarding/Range/Declaration suites pass 257, including
+317 checks; the reconciled Boarding/Range/Declaration suites pass 258, including
 committed Militia risk before and after dice lock when its character changes.
 Fresh reconciled gameplay, follow-up review, final validation, CI and deployment
 remain pending. The owner's October 3 instruction authorizes execution and
@@ -116,6 +116,12 @@ Support rows retain their printed labels once, and current cycle/attack/berth
 guards reject stale retries. Final follow-up review, validation, candidate CI and
 exact-main production deployment remain pending. Prepared rendering does not establish gameplay.
 Production gameplay or a physical device test is not claimed.
+
+The bounded follow-up resolves R1–R4/R6/R7 and the historical Militia race, but
+finds a further R5 PDF Short duplicate. `c234e214` reproduces it with one failure
+and 257 passing controls; `552017d0` routes all escort outcomes through their
+printed summary once. All 258 reconciled checks, Functions build and scoped lint
+pass. The last PDF follow-up and fresh compiled/restarted gameplay remain pending.
 
 The final normal eighteen-player tour-return proof uses the 0.5.67 candidate at
 `1dd40471`, freshly compiled/restarted owner Functions and the actual loaded

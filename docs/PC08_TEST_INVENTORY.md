@@ -102,6 +102,7 @@ separate; no case is skipped, deleted or weakened to satisfy this history check.
 | `4b96ba1b`, composed support outcome assertion | Observe the actual member subscription after an ordinary attack and require one result per source/contact/range and printed support labels. Native duplicate-row red evidence already precedes the product repair. The fresh reconciled run remains required. |
 | Worker `ca4eeb09` → `950aee0c`, integrated as `e4f1e7ac` → `35059cba` | Reproduce all R1–R4: current boarding authority before receipt replay; entitled off-console EO remaining pending; Commander-adjusted 20/21/22-party Militia boundaries; and authoritative printed character death. Preserve legitimate finalized replay, revoked role/berth/custody/GM-lease denials, unavailable versus disconnected holders, Pallas committed choices and no repeat death/dice/writes. The discriminating red has 39 failures and 15 controls; all 317 checks across ten final worker suites pass. Build, scoped lint, typecheck and existing death-state hydration pass. `boarding/review-r1-r4-950aee0c-handback.md` retains exact logs and rationale. |
 | `4db5a2a1` / `9eeca2c5` / `258af5df` / `2943ee4d` → `f6cafa44` / `b8e84fd9`, Militia character changes | A committed risk must survive removal or replacement of its character both before and after dice lock, without revoking another character or changing its eligibility. Two initial failures and then four timing failures precede repairs. Wrong attack/cycle/role/request metadata still blocks finalization without new dice or mechanical/character writes. The first repair is incomplete and its two failures remain; the added negative tests' overbroad whole-document comparison is corrected separately to permit legitimate audience withdrawal while preserving all mechanical denials. Final reconciled three-suite result: 257/257 in `owner/reconciled-review-native-257-final-green.log`; build and scoped lint pass. |
+| `c234e214` → `552017d0`, PDF Short member rows | The independent follow-up catches the same generic-publisher duplication for editable PDF Short hits. Require one printed stored/projected result for the actual single locked die/assignment, retain fixed Medium and Alpha/Bravo controls, and preserve no-write/no-new-dice exact retry. `owner/pdf-short-public-result-red.log` has one discriminating failure and 257 controls; `pdf-short-public-result-green.log` passes all 258 reconciled tests. Build and scoped lint also pass. The composed proof additionally matches published PDF Short hit counts to actual committed assignment counts and rejects escort AEGIS labels. |
 
 The harmless `ef0421c9` const/interface/draft-copy lint cleanup has no new
 behavior or weakened assertion; all eight affected presenter checks and lint
@@ -121,6 +122,15 @@ The added canonical-roster assertion initially runs too early at declaration,
 before targeting materializes that roster. Its `1630c411` failure and exact
 private preparation remain preserved; the same assertion moves to the existing
 Long Range boundary after all genuine targeting/launch decisions.
+The `a9a2658b` attempt proves that assumption is still wrong: the canonical
+range roster is derived from the actual server targeting receipt, and the live
+calculation does not consume the preparation's draft target annotations. Both
+failed attempts and their private preparations/targeting receipts remain saved.
+The corrected proof submits an empty annotation list and compares the first
+committed Long Range target snapshot to the actual immutable server targeting
+receipt. Full capacity 20 and genuine boarding assertions remain; target and
+combat dice are never seeded or overridden. The earlier proposed annotation
+control is not claimed as tested or implemented behavior.
 
 | Final reconciled checks | Reason and retained evidence |
 |---|---|
