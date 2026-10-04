@@ -13777,7 +13777,15 @@ export const grantPdfFighterAcePermission = onCall<{
     const replay = replayBoundCommand(receipt, fingerprint,
       (value): value is PdfFighterAcePermissionResult => isPdfFighterAcePermissionResult(value, sessionId),
       'P.D.F. Fighter Ace permission');
-    if (replay) return replay;
+    if (replay) {
+      requireCurrentWolfAttackReceipt(session, state, replay.turn, replay.attackId);
+      const saved = pdfFighterAcePermissionMap(state)[sourceId];
+      if (!saved || saved.actorUid !== uid || saved.requestId !== requestId || saved.fighterIndex !== fighterIndex ||
+          saved.revision !== replay.permissionRevision || saved.attackId !== replay.attackId || saved.turn !== replay.turn) {
+        throw commandError('failed-precondition', 'The saved Ace permission is no longer current.', 'stale-revision');
+      }
+      return replay;
+    }
     await rejectForeignLegacyM1Command(tx, sessionId, requestId, 'P.D.F. Fighter Ace permission', []);
     if (audit.exists) rejectLegacyEventReplay('P.D.F. Fighter Ace permission');
     requireActiveGameplayPhase(session);
@@ -13958,11 +13966,25 @@ export const commitPdfFighterAceCombat = onCall<{
     const seatId = player.get('seatId');
     const seat = typeof seatId === 'string' ? await tx.get(db.doc(`sessions/${sessionId}/seats/${seatId}`)) : undefined;
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    currentPdfFighterAce(player, uid);
     const replay = replayBoundCommand(receipt, fingerprint,
       (value): value is PdfFighterAceCommitResult => isPdfFighterAceCommitResult(value, sessionId),
       'P.D.F. Fighter Ace combat');
-    if (replay) return { replay, session, state, current: undefined, eligibility, seat };
+    if (replay) {
+      requireCurrentWolfAttackReceipt(session, state, replay.turn, replay.attackId);
+      let saved: ReturnType<typeof requirePdfFighterAceActionReceipt>;
+      try { saved = requirePdfFighterAceActionReceipt(state.get('pdfFighterAceAction'), { attackId, actorUid: uid }); }
+      catch { throw commandError('failed-precondition', 'The saved Ace result is no longer current.', 'stale-revision'); }
+      if (saved.requestId !== requestId || saved.revision !== replay.revision || saved.turn !== replay.turn) {
+        throw commandError('failed-precondition', 'The saved Ace action binding changed.', 'stale-revision');
+      }
+      const sameFatalTransition = saved.outcome.aceDied && player.exists && player.id === uid && isActivePlayer(player) &&
+        player.get('role') === 'player' && player.get('replacementStatus') === 'awaiting-re-role' &&
+        eligibility.exists && eligibility.get('eligible') === true && eligibility.get('reason') === 'dead' &&
+        eligibility.get('source') === 'pdf-fighter-ace-combat' && eligibility.get('attackId') === attackId;
+      if (!sameFatalTransition) currentPdfFighterAce(player, uid);
+      return { replay, session, state, current: undefined, eligibility, seat };
+    }
+    currentPdfFighterAce(player, uid);
     await rejectForeignLegacyM1Command(tx, sessionId, requestId, 'P.D.F. Fighter Ace combat', []);
     if (audit.exists) rejectLegacyEventReplay('P.D.F. Fighter Ace combat');
     requirePdfFighterAceCurrentBerth(player, uid, fleetGroups.docs);
