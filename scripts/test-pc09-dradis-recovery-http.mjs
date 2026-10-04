@@ -221,7 +221,10 @@ try {
   }
   checks.fourViewportFontsMotionScrollAndTouch = true;
   await page.getByRole('button', { name: 'Close DRADIS', exact: true }).click();
-  await page.getByRole('link', { name: 'Back to stations', exact: true }).first().click();
+  await page.getByRole('link', { name: 'View ship consoles', exact: true }).click();
+  await page.getByRole('heading', { name: 'AEGIS // Station overview', exact: true }).waitFor();
+  await dradis.waitFor({ state: 'detached' });
+  await page.getByRole('link', { name: 'Back to fleet', exact: true }).click();
   await page.getByRole('heading', { name: 'Stations and consoles', exact: true }).waitFor();
   await dradis.waitFor({ state: 'detached' });
   await page.getByRole('link', { name: 'AEGIS // Executive Officer // HELD BY YOU', exact: true }).click();
