@@ -21,6 +21,7 @@ does not yet grant checkpoint, review, CI or release completion.
 | 6, P2: terminal election mutation | An already configured election accepted a fresh ballot or tally after failure/debrief. | Red `f616919c`; product `00fb7103` requires active gameplay before fresh mutation. All four terminal-phase regressions pass. |
 | 7, P3: historical replay applicability | VIP reroll acknowledged a revoked actor; ballot acknowledged a removed actor; Detector and aftermath acknowledged a different current cycle/attack. No extra spending, writes or entropy were demonstrated. | Ballot `acb42c1e`, aftermath red `98679b99` / product `f8bc87bd`, and specialist red `f4a61b4c` plus `c0ae8e2e` / product `d164af64` validate current actor and applicable cycle/attack before receipts. Valid same-operation retries after revision advances remain write-free and cost-free. |
 | 8, P2: queued discovery epoch | While the actor snapshot was pending, a group 1→2→1 change released an old queued discovery event without a new callback. | Red `1178873b`; product `f9191929` clears pending discovery whenever an established actor fingerprint changes, while preserving first-snapshot hydration. Nine discovery tests pass. |
+| 9, P1: aftermath strands the next attack | A committed Doctor choice advanced live resolved revision 8→9 while the immutable finalization audit remained 8; the later-attack reader rejected that valid battle. The same reader also blocked P continuation. | Red `5e055977`; product `7a536084` records an immutable finalization revision and a separate post-finalization counter, validates their binding, and leaves the audit/archive unchanged. Actual Doctor→ordinary declaration and Doctor→P continuation handler compositions and tamper rejects pass within 242 focused checks. Final reviewer verification remains. |
 
 Original discriminating probes are retained outside Git under
 `/tmp/dow-pc09-risk-review-probes/`. The returned logs are
@@ -29,6 +30,13 @@ Original discriminating probes are retained outside Git under
 Functions assertions, one failing discovery assertion and a passing canonical
 population control on the reviewed candidate. They are independent native
 handler/subscription fixtures, not production or authenticated emulator runs.
+
+The reviewer identified finding 9 during the same final evidence reconciliation.
+Its corrected discriminating probe is retained as
+`/tmp/dow-pc09-risk-review-probes/functions/src/pc09Independent_aftermathCarryover.review.test.ts`
+and `/tmp/dow-pc09-risk-review-aftermath-carryover-probe-corrected.log`.
+The earlier malformed fixture is not used as evidence. This is one consolidated
+nine-finding review with bounded follow-up, not an additional reviewer or run.
 
 The reviewer also ran 371 existing Functions checks, two mixed-source client
 receipt checks, a strict Functions build and deployment-inventory checks. The
@@ -43,9 +51,16 @@ attack, automatic finalization, exact survivor preparation and the next window.
 The second same-cycle declaration then reached an unconditional PDF escort
 cycle-monotonicity guard. The owner authorized a test-first repair bound to the
 exact authoritative P-repeat context, preserving ordinary cycle monotonicity
-and durable fighter losses. This is an assigned P493 dependency, not a new
-checkpoint. Its final commit, normal proof and reviewer disposition remain
-pending.
+and durable fighter losses. Red `6105b131`/`807ea5cc` and product `a44a6385`
+implement that repair. The normal authenticated first producer/finalizer,
+automatic exact restaging and second same-cycle declaration pass in
+`/tmp/pc09-p-producer-a44a6385-v3.json`, against immutable source
+`a44a63857f76b77bb376c3a17fcbf76f2ef91123`, with the sorted 207-file JavaScript
+tree hash `405c2cb4f0dee841d7174e03e511c970397ee4b3ab767b7a992b69d96fceeb01`.
+No attack, survivor, preparation, window or dice state was seeded. Disclosed
+normal setup/damage-baseline choices remain fixture inputs. The reviewer found
+no additional defect in the bounded PDF-reset delta; final reconciliation still
+needs the later aftermath-binding change. This remains assigned P493 work.
 
 ## Evidence and completion boundary
 
@@ -56,6 +71,19 @@ composition fixture invokes the actual visit and reroll handlers, persists both
 receipts and grant projections, rejects a second benefit and a revoked GM, and
 permits an exact valid replay. Its visit is explicitly simulated; no physical
 attendance is claimed.
+
+The later owner snapshot
+`fd34534c1ceb50a2bd640da8dca56920a6b1dcb3` compiles successfully and includes
+finding 9. Its immutable runtime has 207 JavaScript files and tree hash
+`a559448c3b0fae8f8f39b205148bb3e3cf8b019c6cb12ad5143171aa66096540`.
+The root's composed run on the prior `a44a6385` runtime reached genuine paid
+warheads and Medium-range choices, then failed during EO automatic network
+recovery. That failure earns no complete workflow credit. The isolated audit
+run completed two attacks, durable Alpha loss and the surviving Battlestation
+return path, but a genuine cycle-4 riot damaged Construction/Alpha bays before
+any build; it earns no positive construction credit. A finite build fixture
+with disclosed supplies and ordinary repair contingencies and a bounded Sol
+client-recovery assignment own those remaining proofs.
 
 The original ten PC08 audit defects retain their exact definitions in
 `PC08_BUG_AUDIT.md`. Their PC09 regression/evidence dispositions belong in that

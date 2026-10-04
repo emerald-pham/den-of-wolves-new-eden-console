@@ -43,6 +43,24 @@ The unchanged P602 prepared driver still stops at its obsolete player `/roles`
 fixture and earns no new browser return credit; the corrected real Auth election
 driver will cover the new governance return controls separately.
 
+The same review's ninth finding adds actual Doctor→ordinary next declaration
+and Doctor→P continuation tests, plus tampered audit/counter rejection. These
+preserve the immutable finalization audit/archive and verify the separate
+post-finalization revision binding. `PresidentialOffice.test.tsx` now activates
+both visible Back links with Enter and checks chooser navigation and retained
+identity. The new authenticated P producer driver uses ordinary movement,
+source windows, staging, source choices, finalization and automatic restaging;
+the return/build driver records genuine depleted-store/riot blockers rather
+than claiming a build.
+
+The root composite driver pauses genuine browser networks during bulk setup
+and verifies the same authenticated actors after recovery before gameplay.
+Its optional `serializeFixtureCalls` mode serializes synthetic API commands and
+keep-alive traffic and leaves real browser SDK calls independent; no failed
+request is retried or hidden by that scheduler. Genuine browser actors renew
+their own presence rather than receiving duplicate synthetic heartbeats.
+All result, privacy, cost, capacity and browser-error assertions remain required.
+
 | Test or gameplay driver | Change | Reason |
 |---|---|---|
 | `functions/src/approachingVesselResponse.test.ts` | Added | Keep the GM’s real/trap response private and validate explicit permitted timing/response choices. |

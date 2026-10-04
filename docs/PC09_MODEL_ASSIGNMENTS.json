@@ -55,6 +55,12 @@
           "purpose": "Bounded independent-review findings 2, 3 and 7: semantic replay fingerprints, exact Doctor population and current aftermath replay authority, in a fresh repair tree; no emulator or release work.",
           "modelChanged": false,
           "effectiveModelConfirmed": false
+        },
+        {
+          "date": "2026-10-04",
+          "purpose": "Same independent review ninth P1: actual aftermath-to-ordinary/P compositions, immutable finalization binding and separately versioned post-finalization updates; no services or release work.",
+          "modelChanged": false,
+          "effectiveModelConfirmed": false
         }
       ]
     },
@@ -90,6 +96,12 @@
         {
           "date": "2026-10-04",
           "purpose": "Bounded normal authenticated two-attack proof of persistent fighter losses, surviving Station return manifest and actual paid HTTP plus Wing UI construction; required capacity assertions remain intact.",
+          "modelChanged": false,
+          "effectiveModelConfirmed": false
+        },
+        {
+          "date": "2026-10-04",
+          "purpose": "A distinct finite positive fighter-build fixture after the genuine depleted-rations/riot blocker: disclosed normal GM starting allocations, real source-defined combat losses and ordinary paid repair if needed; no product changes or capacity waiver.",
           "modelChanged": false,
           "effectiveModelConfirmed": false
         }
@@ -301,6 +313,30 @@
       "modelChanges": [],
       "worktree": "/private/tmp/dow-pc09-risk-review-20261004",
       "candidateCommit": "c123368c77f0f5a072785263d94c67fdeb4af9ca"
+    },
+    {
+      "taskId": "/root/pc09_combat_ui_recovery",
+      "executionThreadId": null,
+      "purpose": "Bounded current-authority combat client diagnosis, test-first repairs and ordinary connected acceptance after material root/Commander proof failures",
+      "scope": [
+        "621 and 645 directly blocking EO recovery and Ace UI seams",
+        "494, 521, 521a, 521b connected Commander proof"
+      ],
+      "launchModel": "gpt-6.1-sol",
+      "launchEffort": "max",
+      "launchArguments": {
+        "task_name": "pc09_combat_ui_recovery",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "max",
+        "fork_turns": "none"
+      },
+      "launchEvidence": "Accepted collaboration.spawn_agent returned this canonical taskId at the explicit settings. Effective runtime fields are unexposed.",
+      "effectiveModelConfirmed": false,
+      "modelChanges": [],
+      "worktree": "/private/tmp/dow-pc09-specialists-review-repairs-20261004",
+      "branch": "fix/pc09-combat-ui-recovery-20261004",
+      "reuseBoundary": "Completed specialist repair branch and its commits remain preserved; root verified only dependency symlinks untracked before switching to a new branch from fd34534c.",
+      "candidateCommit": "fd34534c1ceb50a2bd640da8dca56920a6b1dcb3"
     }
   ],
   "pending": [
@@ -308,7 +344,7 @@
       "taskId": "/root/pc09_risk_review",
       "model": "gpt-6.1-sol",
       "effort": "max",
-      "status": "Initial independent batch returned eight findings; same reviewer awaits bounded repairs, ordinary acceptance evidence and clarified election policy for targeted verification."
+      "status": "One consolidated independent batch now contains nine findings; same reviewer awaits reconciled bounded repairs, final ordinary acceptance evidence and clarified election policy for targeted verification."
     }
   ],
   "findings": [
