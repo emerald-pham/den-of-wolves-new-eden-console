@@ -263,10 +263,12 @@ try {
   await maintain('refinery-124', ['fighter-bay'], []);
   await maintain('icebreaker', ['mining-drone-control'], ['highwall']);
   await maintain('capybara', ['scrap-refinery'], []);
+  // The printed full ration choice is funded normally by the docked AEGIS
+  // host, so setup unrest cannot skip the two consoles this proof needs.
   for (const action of ['begin', 'rations', 'unrest', 'riot', 'reactor', 'end']) {
     await command(captain, 'runSmallShipMaintenance', { smallShipId: 'gorgoneion', action, requestId: randomUUID(),
       expectedRevision: (await f.session.get()).get('smallShipStates').gorgoneion.cycle.revision,
-      ...(action === 'rations' ? { foodLevel: 0, waterLevel: 0 } : {}),
+      ...(action === 'rations' ? { foodLevel: 3, waterLevel: 3 } : {}),
       ...(action === 'reactor' ? { consoles: ['missile-array', 'force-field-projector'] } : {}) });
   }
   await grantCurrentShip('aegis');
