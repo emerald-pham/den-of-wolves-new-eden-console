@@ -164,6 +164,9 @@ it('calculates a private population-weighted tally after the close cycle and com
     presidentialOffices: { presidentUid: 'u3', vicePresidentUid: 'u2' },
     pendingTeamAnnouncements: [{ kind: 'presidential-election', decidedCycle: 2 }],
   });
+  const storedElection = mock.documents.get('sessions/s1/presidentialElections/current');
+  expect(storedElection).not.toHaveProperty('pendingPresidentTie');
+  expect(storedElection).not.toHaveProperty('pendingVicePresidentTie');
   expect(mock.documents.get('sessions/s1/presidentialElections/current/audit/resolve-election'))
     .toMatchObject({ action: 'resolve', tally: expect.objectContaining({ president: expect.any(Object) }) });
 });
