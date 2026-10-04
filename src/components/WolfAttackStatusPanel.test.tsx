@@ -6,6 +6,7 @@ import { WolfAttackStatusView } from './WolfAttackStatusPanel';
 const view: WolfAttackMemberView = {
   type: 'wolf-attack-member-view', schemaVersion: 1, sessionId: 's1', attackId: 'wolf-attack-7',
   turn: 7, revision: 9, status: 'resolved', phase: 'active', currentStep: 'resolved', range: null,
+  remainingThreatCount: 3, returningThreatCount: 1,
   deadlineAt: '2026-10-04T10:00:00.000Z', serverTime: '2026-10-04T09:59:00.000Z',
   visibility: 'members', redaction: ['composition', 'unresolved-dice', 'facilitator-notes', 'intervention-state'],
   results: [
@@ -32,6 +33,7 @@ describe('Wolf aftermath status presenter', () => {
     expect(screen.getByText(/1 casualty prevented/i)).toBeVisible();
     expect(screen.getByText(/2 materials recovered/i)).toBeVisible();
     expect(screen.getByText(/1 Scrap collected/i)).toBeVisible();
+    expect(screen.getByText(/3 remaining hostile ships.*1 returning next attack/i)).toBeVisible();
     expect(screen.queryByText(/damage dice|A♥|fighter-bay-alpha/i)).not.toBeInTheDocument();
   });
 });

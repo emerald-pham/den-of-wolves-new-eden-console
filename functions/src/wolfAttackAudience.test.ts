@@ -138,6 +138,22 @@ describe('Wolf attack audience projection', () => {
     expect(JSON.stringify(view)).not.toMatch(/wolf-destroyer|initialDie|rolls/);
   });
 
+  it('publishes only aggregate surviving and returning threat counts after resolution', () => {
+    const view = projectWolfAttackMemberView({
+      sessionId: 'session-1',
+      state: { ...hiddenAttack, status: 'resolved', currentStep: 'resolved',
+        calculationReceipt: { survivingWolfShips: [
+          { instanceId: '0:wolf-fighter-wing', shipId: 'wolf-fighter-wing', target: 'aegis' },
+          { instanceId: '1:wolf-destroyer', shipId: 'wolf-destroyer', target: 'dione' },
+        ], returningInstanceIds: ['0:wolf-fighter-wing'] } },
+      serverTime: '2026-10-02T19:40:00.000Z',
+    });
+
+    expect(view).toMatchObject({ currentStep: 'resolved', remainingThreatCount: 2, returningThreatCount: 1 });
+    expect(JSON.stringify(view)).not.toMatch(/wolf-fighter-wing|wolf-destroyer|instanceId|target/);
+    expect(isWolfAttackMemberView(view)).toBe(true);
+  });
+
   it('fails closed on malformed private state and rejects injected hidden fields', () => {
     expect(() => projectWolfAttackMemberView({
       sessionId: 'session-1',
