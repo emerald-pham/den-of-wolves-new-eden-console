@@ -14,3 +14,9 @@ it('exposes a private detector test, an arrest resolution, a VIP visit grant, an
     expect((specialistFunctions as Record<string, unknown>)[name]).toHaveProperty('run');
   }
 });
+
+it('requires an authenticated source officer before accepting a Fighter Ace permission', async () => {
+  const grant = (specialistFunctions as Record<string, unknown>).grantPdfFighterAcePermission as
+    { run: (request: unknown) => Promise<unknown> };
+  await expect(grant.run({ data: {}, auth: undefined })).rejects.toMatchObject({ code: 'unauthenticated' });
+});
