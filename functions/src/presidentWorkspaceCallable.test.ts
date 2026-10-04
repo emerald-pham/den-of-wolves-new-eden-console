@@ -9,6 +9,12 @@ const mock = vi.hoisted(() => ({
   assignedRole: 'dione-president', seat: 'dione-president',
   phase: 'active', currentTurn: 2, revision: 0,
   shipUnrest: undefined as unknown,
+  vesselActionRevisions: undefined as unknown,
+  unrestAlerts: undefined as unknown,
+  turnPhase: undefined as unknown,
+  turnState: undefined as unknown,
+  activeVesselIds: ['dione'] as string[],
+  capitalState: undefined as unknown,
   entries: [] as Record<string, unknown>[],
   rawState: undefined as unknown,
   politicalCapital: undefined as unknown,
@@ -30,7 +36,7 @@ vi.mock('firebase-admin/firestore', () => ({
   Timestamp: { now: () => ({ toMillis: () => Date.now() }) },
 }));
 
-import { recordPresidentActionCommand, updatePoliticalCapital } from './index';
+import { recordPresidentActionCommand, recordPresidentialVisit, updatePoliticalCapital } from './index';
 
 const data = {
   sessionId: 's1', requestId: 'president-request-1', kind: 'fleet-policy',
@@ -46,6 +52,9 @@ beforeEach(() => {
     assignedRole: 'dione-president', seat: 'dione-president',
     phase: 'active', currentTurn: 2, revision: 0, entries: [], rawState: undefined,
     shipUnrest: undefined,
+    vesselActionRevisions: undefined, unrestAlerts: undefined,
+    turnPhase: undefined, turnState: undefined, activeVesselIds: ['dione'],
+    capitalState: undefined,
     politicalCapital: undefined, outcomeExists: true, outcomeId: 'crisis-1', outcomeRevision: 4,
     outcomeCapitalGranted: false,
   });
@@ -99,13 +108,62 @@ beforeEach(() => {
       phase: mock.phase,
       currentTurn: mock.currentTurn,
       activeRoleIds: ['dione-president', 'dione-captain', 'dione-engineer'],
-      activeVesselIds: ['dione'],
+      activeVesselIds: mock.activeVesselIds,
       presidentWorkspace: mock.rawState ?? { revision: mock.revision, entries: mock.entries },
-      politicalCapital: mock.politicalCapital,
+      politicalCapital: mock.capitalState ?? mock.politicalCapital,
       shipUnrest: mock.shipUnrest,
+      vesselActionRevisions: mock.vesselActionRevisions,
+      unrestAlerts: mock.unrestAlerts,
+      turnPhase: mock.turnPhase,
+      turnState: mock.turnState,
     };
     return { id: 's1', exists: mock.sessionExists, get: (key: string) => fields[key] };
   });
+});
+
+const visitCapital = {
+  revision: 1, balance: 2, entries: [{ id: 'initial-gain', action: 'gain', amount: 1,
+    balanceAfter: 2, crisisId: 'crisis-1', crisisRevision: 4, crisisTitle: 'Approaching vessel',
+    cycle: 1, recordedAt: '2026-09-21T22:00:00.000Z' }],
+};
+function setCoordinationVisitFixture() {
+  const teamPhaseEndsAt = '2026-10-04T10:00:00.000Z';
+  const openAirspaceEndsAt = '2026-10-04T10:20:00.000Z';
+  mock.turnPhase = { turn: 2, teamPhaseEndsAt, openAirspaceEndsAt,
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: true } };
+  mock.turnState = { currentTurn: 2, maxTurn: 6, phase: 'coordination', phaseRevision: 2,
+    startedAt: teamPhaseEndsAt, endsAt: openAirspaceEndsAt };
+  mock.capitalState = visitCapital;
+  mock.shipUnrest = { dione: 3 };
+  mock.vesselActionRevisions = { dione: 5 };
+}
+
+it('atomically spends one political capital and reduces one ship unrest during Coordination', async () => {
+  setCoordinationVisitFixture();
+  await expect(recordPresidentialVisit.run(request({
+    sessionId: 's1', requestId: 'visit-request-1', shipId: 'dione',
+    expectedCapitalRevision: 1, expectedVesselRevision: 5,
+  }))).resolves.toMatchObject({ status: 'committed', shipId: 'dione', unrest: 2,
+    politicalCapital: { revision: 2, balance: 1 } });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'shipUnrest.dione': 2, 'vesselActionRevisions.dione': 6,
+    politicalCapital: expect.objectContaining({ revision: 2, balance: 1 }),
+  }));
+  const event = mock.set.mock.calls.find(([path]) => String(path).includes('/events/'))?.[1];
+  expect(event).toMatchObject({ type: 'presidential-visit', shipId: 'dione', unrest: 2,
+    politicalCapitalBalance: 1 });
+  expect(JSON.stringify(event)).not.toMatch(/route|docking|approval/);
+});
+
+it('rejects a Presidential visit outside Coordination without spending either counter', async () => {
+  setCoordinationVisitFixture();
+  mock.turnState = { ...mock.turnState as object, phase: 'team' };
+  await expect(recordPresidentialVisit.run(request({
+    sessionId: 's1', requestId: 'visit-team-phase', shipId: 'dione',
+    expectedCapitalRevision: 1, expectedVesselRevision: 5,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 const capitalData = {
