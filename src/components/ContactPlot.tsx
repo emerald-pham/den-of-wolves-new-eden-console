@@ -124,10 +124,12 @@ type ContactLabelLayoutCache = {
 };
 const contactLabelLayouts = new WeakMap<HTMLElement, ContactLabelLayoutCache>();
 type LabelObstacleBounds = { element: HTMLElement; bounds: DOMRect };
+type MeasuredContactMark = { contact: HTMLElement; bounds: DOMRect | null };
 type ContactPlotLabelEnvironment = {
   styleScope: string;
   plotBounds: DOMRect;
   contacts: readonly HTMLElement[];
+  measuredContactMarks: readonly MeasuredContactMark[];
   obstacles: readonly LabelObstacleBounds[];
 };
 const contactPlotLabelEnvironments = new WeakMap<HTMLElement, ContactPlotLabelEnvironment>();
@@ -270,7 +272,19 @@ function intrinsicLabelWidthContext(
     path.push(`${element.tagName}[${attributes}]{${inlineStyle}}`);
     if (element === contact) insideContact = false;
   }
-  return `${styleScope}|${plotBounds.width}x${plotBounds.height}|${label.textContent ?? ''}|${path.join('>')}`;
+  // Child spans carry the actual name, range, and docked-craft typography.
+  // Include their structure and attributes in both geometry and intrinsic
+  // width cache keys so a descendant style change cannot reuse stale bounds
+  // or stale text width.
+  const descendants = [...label.querySelectorAll<HTMLElement>('*')].map((element) => {
+    const attributes = Array.from(element.attributes)
+      .filter((attribute) => attribute.name !== 'style')
+      .map((attribute) => `${attribute.name}=${attribute.value}`)
+      .sort()
+      .join(';');
+    return `${element.tagName}[${attributes}]{${element.getAttribute('style') ?? ''}}`;
+  });
+  return `${styleScope}|${plotBounds.width}x${plotBounds.height}|${label.textContent ?? ''}|${path.join('>')}|${descendants.join('>')}`;
 }
 
 function samePlotBounds(a: DOMRect, b: DOMRect): boolean {
@@ -314,8 +328,6 @@ function synchronizeContactLeaders(
   return byContact;
 }
 
-type MeasuredContactMark = { contact: HTMLElement; bounds: DOMRect | null };
-
 function measureContactMarks(plot: HTMLElement): MeasuredContactMark[] {
   return [...plot.querySelectorAll<HTMLElement>('.contact-plot__contact')].map((contact) => ({
     contact,
@@ -351,6 +363,18 @@ function sameLabelObstacleBounds(
     entry.element === current[index]?.element && samePlotBounds(entry.bounds, current[index]!.bounds));
 }
 
+function sameMeasuredContactMarks(
+  previous: readonly MeasuredContactMark[],
+  current: readonly MeasuredContactMark[],
+): boolean {
+  return previous.length === current.length && previous.every((entry, index) => {
+    const next = current[index];
+    if (!next || entry.contact !== next.contact) return false;
+    if (entry.bounds === null || next.bounds === null) return entry.bounds === next.bounds;
+    return samePlotBounds(entry.bounds, next.bounds);
+  });
+}
+
 function hasCurrentContactLabelLayout(
   plot: HTMLElement,
   styleScope: string,
@@ -358,12 +382,14 @@ function hasCurrentContactLabelLayout(
   labels: readonly HTMLElement[],
   contacts: readonly (HTMLElement | null)[],
   marks: readonly (DOMRect | null)[],
+  measuredContactMarks: readonly MeasuredContactMark[],
   obstacles: readonly LabelObstacleBounds[],
 ): boolean {
   const environment = contactPlotLabelEnvironments.get(plot);
   if (!environment || environment.styleScope !== styleScope ||
     !samePlotBounds(environment.plotBounds, plotBounds) ||
     environment.contacts.length !== contacts.length ||
+    !sameMeasuredContactMarks(environment.measuredContactMarks, measuredContactMarks) ||
     !sameLabelObstacleBounds(environment.obstacles, obstacles)) return false;
 
   return labels.every((label, index) => {
@@ -605,7 +631,7 @@ function clampContactLabels(
     .map(({ bounds }) => bounds)
     .filter((rect) => rect.width > 0 && rect.height > 0);
   if (reuseUnchangedGeometry && hasCurrentContactLabelLayout(
-    plot, styleScope, plotBounds, labels, contacts, marks, obstacleBounds,
+    plot, styleScope, plotBounds, labels, contacts, marks, measuredMarks, obstacleBounds,
   )) return;
   const passWidths = new Map<HTMLElement, { context: string; width: number }>();
   const intrinsicWidth = (label: HTMLElement, index: number): number => {
@@ -1156,7 +1182,13 @@ function clampContactLabels(
 
   const cachedContacts = contacts.filter((contact): contact is HTMLElement => contact !== null);
   if (cachedContacts.length === contacts.length) {
-    contactPlotLabelEnvironments.set(plot, { styleScope, plotBounds, contacts: cachedContacts, obstacles: obstacleBounds });
+    contactPlotLabelEnvironments.set(plot, {
+      styleScope,
+      plotBounds,
+      contacts: cachedContacts,
+      measuredContactMarks: measuredMarks,
+      obstacles: obstacleBounds,
+    });
   } else {
     contactPlotLabelEnvironments.delete(plot);
   }

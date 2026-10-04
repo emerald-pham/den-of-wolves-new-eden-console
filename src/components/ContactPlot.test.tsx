@@ -1626,8 +1626,12 @@ function mockHeldLabelCacheGeometry(marks: CacheProbeMark[]) {
   }) as DOMRect;
   let labelBoundsReads = 0;
   let intrinsicWidthReads = 0;
-  const naturalWidth = (label: HTMLElement) =>
-    label.querySelector<HTMLElement>('span')?.style.fontSize === '32px' ? 110 : 50;
+  const descendantFontSize = (label: HTMLElement) =>
+    label.querySelector<HTMLElement>('span')?.style.fontSize;
+  const naturalWidth = (label: HTMLElement) => {
+    const fontSize = descendantFontSize(label);
+    return fontSize === '64px' ? 260 : fontSize === '32px' ? 110 : 50;
+  };
   vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
     if (!this.classList.contains('contact-plot__tag')) return 0;
     intrinsicWidthReads += 1;
@@ -1650,7 +1654,8 @@ function mockHeldLabelCacheGeometry(marks: CacheProbeMark[]) {
       const cap = Number.parseFloat(label.style.maxWidth);
       const intrinsic = naturalWidth(label);
       const width = Number.isFinite(cap) ? Math.min(intrinsic, cap) : intrinsic;
-      const height = label.querySelector<HTMLElement>('span')?.style.fontSize === '32px' ? 40 : 18;
+      const fontSize = descendantFontSize(label);
+      const height = fontSize === '64px' ? 56 : fontSize === '32px' ? 40 : 18;
       const left = anchor.endsWith('east') ? mark.x - 11 - width : mark.x + 19;
       const top = anchor.startsWith('north') ? mark.y - 8 - height : mark.y + 16;
       const x = Number.parseFloat(label.style.getPropertyValue('--label-clamp-x')) || 0;
@@ -1768,7 +1773,7 @@ it('refreshes cached intrinsic width when a styled name descendant grows', () =>
   acquireCacheProbeLead(container);
   const label = container.querySelector<HTMLElement>('.contact-plot__tag')!;
   const initialBounds = label.getBoundingClientRect();
-  label.querySelector<HTMLElement>('span')!.style.fontSize = '32px';
+  label.querySelector<HTMLElement>('span')!.style.fontSize = '64px';
   geometry.resetReads();
 
   rerender(<ContactPlot contacts={[{ ...cacheProbeLead }]} />);
@@ -1777,6 +1782,7 @@ it('refreshes cached intrinsic width when a styled name descendant grows', () =>
   const widthReads = geometry.intrinsicWidthReads();
   const updatedBounds = label.getBoundingClientRect();
   expect(updatedBounds.width).toBeGreaterThan(initialBounds.width);
+  expect(updatedBounds.width).toBeGreaterThan(30);
   expect(updatedBounds.left).toBeGreaterThanOrEqual(8);
   expect(updatedBounds.right).toBeLessThanOrEqual(312);
   expect(widthReads).toBeGreaterThan(0);
