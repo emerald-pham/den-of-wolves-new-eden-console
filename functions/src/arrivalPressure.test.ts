@@ -36,6 +36,22 @@ describe('Wolf base arrival pressure', () => {
     expect(wolfArrivalPressureBlocksMissions(transition.state, 'fleet-2')).toBe(false);
   });
 
+  it('schedules the Ancient Space Station entry force and blocks liberation while Wolves remain', () => {
+    const transition = wolfArrivalPressureForMovement({
+      chart: 'B', group, coordinates: { aegis: '1964', dione: '0000' },
+      movedShipId: 'aegis', destination: '1964', sourceTransitionId: 'jump-station-1', cycle: 3,
+    });
+    expect(transition.scheduled).toMatchObject({
+      type: 'wolf-base-arrival-pressure', status: 'operational', groupId: 'fleet-1',
+      chart: 'B', coordinate: '1964', siteCode: 'P', minimumBattleStations: 1,
+      minimumOtherShipDamage: 20, arrivalTiming: 'immediate',
+      missionAccess: 'blockedWhileWolfForcesRemain',
+      recurringUntil: ['allWolfForcesDestroyed'],
+    });
+    expect(wolfArrivalPressureBlocksMissions(transition.state, 'fleet-1')).toBe(true);
+    expect(parseWolfArrivalPressureState(transition.state, 'B')).toEqual(transition.state);
+  });
+
   it('does not schedule ordinary systems or duplicate an operational group arrival', () => {
     const first = wolfArrivalPressureForMovement({
       chart: 'A', group, coordinates: { aegis: '5143', dione: '0000' },
