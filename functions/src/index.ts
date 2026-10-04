@@ -24246,17 +24246,20 @@ function aegisFighterWingLaunchView(
   if (wing.fighters < 1) return { ...view, reason: 'no-fighters' };
 
   const bayId = wingId === 'fighter-wing-alpha' ? 'fighter-bay-alpha' : 'fighter-bay-bravo';
-  const cycles = session.get('maintenanceCycles');
-  const cycle = parseMaintenanceCycle(isRecord(cycles) ? cycles.aegis : undefined);
   const damageRoot = session.get('shipDamage');
   const damage = isRecord(damageRoot) ? damageRoot.aegis : undefined;
   const knownDamageIds = new Set((SHIP_DAMAGE_DECKS.aegis ?? []).map(({ systemId }) => systemId));
-  if (!cycle || cycle.turn !== turn || !isRecord(damage) || !Array.isArray(damage.damagedSystemIds) ||
+  if (!isRecord(damage) || !Array.isArray(damage.damagedSystemIds) ||
       damage.damagedSystemIds.some((id) => typeof id !== 'string' || !knownDamageIds.has(id)) ||
       new Set(damage.damagedSystemIds).size !== damage.damagedSystemIds.length || typeof damage.destroyed !== 'boolean') {
     throw commandError('failed-precondition', 'Current AEGIS bay charge and damage authority is unavailable.', 'conflict');
   }
   if (damage.destroyed) return { ...view, reason: 'destroyed' };
+  const cycles = session.get('maintenanceCycles');
+  const cycle = parseMaintenanceCycle(isRecord(cycles) ? cycles.aegis : undefined);
+  if (!cycle || cycle.turn !== turn) {
+    throw commandError('failed-precondition', 'Current AEGIS bay charge and damage authority is unavailable.', 'conflict');
+  }
   if ((damage.damagedSystemIds as string[]).includes(bayId)) return { ...view, reason: 'damaged' };
   if (!cycle.charges.includes(bayId)) return { ...view, reason: 'uncharged' };
   const eligibleView = { ...view };
