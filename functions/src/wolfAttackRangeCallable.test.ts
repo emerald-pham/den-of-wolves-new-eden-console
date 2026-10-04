@@ -904,6 +904,10 @@ it('locks the selected Short fighter subset with the EO range pass and applies l
   expect(resolved.aegisFighterWingState).toMatchObject({
     wings: { 'fighter-wing-alpha': { fighters: 2, losses: 2, shortResolved: true } },
   });
+  expect(testState.documents.get('sessions/s1')!.fighterWingCounts).toMatchObject({
+    'fighter-wing-alpha': { count: 2, revision: 1 },
+    'fighter-wing-bravo': { count: 4, revision: 0 },
+  });
   expect(entropy.randomInt).toHaveBeenCalledTimes(3);
   expect(lockedState.rangeDecisions).toMatchObject({ 'short-range': { actionIds: [
     'aegis-alpha-wing-short-0', 'aegis-alpha-wing-short-1', 'aegis-alpha-wing-short-2',
