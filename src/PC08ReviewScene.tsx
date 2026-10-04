@@ -2,6 +2,7 @@ import {AegisEnrichedWarheadPanelView} from '@/components/AegisEnrichedWarheadPa
 import {useMemo, useState} from 'react';
 import ShipPlot from '@/components/ShipPlot';
 import {WolfRangeActionPanelView} from '@/components/WolfRangeActionPanel';
+import {WolfRangeSupportActionPanelView} from '@/components/WolfRangeSupportActionPanel';
 import {AegisFighterWingLaunchPanelView, type AegisFighterWingLaunchViews} from '@/components/AegisFighterWingLaunchPanel';
 import {PdfEscortWingLaunchPanelView} from '@/components/PdfEscortWingReference';
 import {DioneMaliadesLaunchPanelView} from '@/components/DioneMaliadesLaunch';
@@ -12,7 +13,8 @@ import {WolfBoardingSupportChoicePanelView, WolfBoardingCommanderChoicePanelView
   WolfBoardingRerollChoicePanelView, WolfBoardingCommanderRulingPanelView} from '@/components/WolfBoardingChoicePanels';
 import {WolfAttackStatusView} from '@/components/WolfAttackStatusPanel';
 import type {LocalDradisNavigation} from '@/components/localDradisContacts';
-import type {WolfAttackMemberView, WolfAttackTargetId, WolfBoardingDefenceChoiceView, WolfRangeActionChoiceView} from '@/types/game';
+import type {WolfAttackMemberView, WolfAttackTargetId, WolfBoardingDefenceChoiceView, WolfRangeActionChoiceView,
+  WolfRangeSupportActionChoiceView, WolfRangeSupportSourceId} from '@/types/game';
 import {APP_VERSION} from './version';
 import './PC07ReviewScene.css';
 import './PC08ReviewScene.css';
@@ -31,6 +33,22 @@ const SAMPLE_RANGE: WolfRangeActionChoiceView = {
   currentStep: 'medium-range', range: 'medium-range', choiceStatus: 'pending', deadlineAt: DEADLINE,
   eligibleActions: [{actionId: 'missile-medium', sourceId: 'aegis-missile-launchers', range: 'medium-range'}],
   hitSlots: [], contacts: [{contactId: 'local-contact-1', targetShipId: 'aegis', available: true}],
+};
+const SAMPLE_SHORT_RANGE: WolfRangeActionChoiceView = {
+  ...SAMPLE_RANGE, revision: 6, currentStep: 'short-range', range: 'short-range', choiceStatus: 'targets-required',
+  eligibleActions: [
+    {actionId: 'point-defence-short', sourceId: 'aegis-point-defence-lasers', range: 'short-range'},
+    {actionId: 'highwall-short', sourceId: 'highwall', range: 'short-range'},
+  ],
+  hitSlots: [{actionId: 'point-defence-short', count: 1, damagePerHit: 1},
+    {actionId: 'highwall-short', count: 1, damagePerHit: 3}],
+  contacts: [{contactId: 'local-wing-1', targetShipId: 'aegis', available: true, requiredCoverageDamage: 1},
+    {contactId: 'local-wing-2', targetShipId: 'icebreaker', available: true, requiredCoverageDamage: 1},
+    {contactId: 'local-ship-1', targetShipId: 'dione', available: true, requiredCoverageDamage: null}],
+};
+const SUPPORT_SOURCES = ['highwall', 'gorgoneion-missile-array', 'boa'] as const;
+const PENDING_SUPPORT: Record<WolfRangeSupportSourceId, 'pending' | 'used' | 'passed'> = {
+  highwall: 'pending', 'gorgoneion-missile-array': 'pending', boa: 'pending',
 };
 const SAMPLE_BOARDING: WolfBoardingDefenceChoiceView = {
   type: 'wolf-boarding-defence-choice-view', sessionId: 'prepared-pc08', turn: 2, revision: 6,
@@ -80,22 +98,48 @@ function DradisReview() {
 function WeaponsReview() {
   const [view, setView] = useState(SAMPLE_RANGE);
   const [warheadChoice, setWarheadChoice] = useState<'pending' | 'enriched' | 'passed'>('pending');
+  const [supportChoices, setSupportChoices] = useState(PENDING_SUPPORT);
+  const [boaScrap, setBoaScrap] = useState(3);
   const [message, setMessage] = useState('LOCAL SAMPLE // A prepared Medium Range hit; no dice are rolled in this tour.');
+  function chooseSupport(sourceId: WolfRangeSupportSourceId, choice: 'used' | 'passed') {
+    if (supportChoices[sourceId] !== 'pending') return;
+    setSupportChoices(current => ({...current, [sourceId]: choice}));
+    if (sourceId === 'boa' && choice === 'used') setBoaScrap(current => current - 1);
+  }
   return <section className="pc07-review__workspace pc07-review__choice-examples" aria-label="Prepared weapon choices">
     <div className="pc07-review__controls">
-      <button type="button" className="cic-action-button" onClick={() => {setView(SAMPLE_RANGE); setMessage('LOCAL SAMPLE RESTORED // No shared state changed.');}}>Restore weapon sample</button>
-      <button type="button" className="cic-action-button" onClick={() => {setView({...SAMPLE_RANGE, revision: 5, eligibleActions: []}); setMessage('DAMAGED SAMPLE // No charged, undamaged action is available.');}}>Damaged weapon sample</button>
+      <button type="button" className="cic-action-button" onClick={() => {setView(SAMPLE_RANGE); setWarheadChoice('pending');
+        setSupportChoices(PENDING_SUPPORT); setBoaScrap(3); setMessage('LOCAL SAMPLE RESTORED // No shared state changed.');}}>Restore weapon sample</button>
+      <button type="button" className="cic-action-button" onClick={() => {setView({...SAMPLE_RANGE, revision: 5, eligibleActions: []}); setMessage('DAMAGED SAMPLE // No charged, undamaged AEGIS action is available.');}}>Damaged weapon sample</button>
+      <button type="button" className="cic-action-button" onClick={() => {setView(SAMPLE_SHORT_RANGE);
+        setSupportChoices({highwall: 'used', 'gorgoneion-missile-array': 'passed', boa: 'passed'}); setBoaScrap(3);
+        setMessage('LOCAL SAMPLE // Two locked hits can cover the two remaining Fighter Wings. Cover each before choosing another ship.');}}>Short Range coverage sample</button>
     </div>
     <AegisEnrichedWarheadPanelView view={{type: 'aegis-enriched-warhead-view', sessionId: 'prepared-pc08',
       attackId: 'prepared-attack', turn: 2, revision: warheadChoice === 'pending' ? 3 : 4,
       choiceStatus: warheadChoice, eligible: warheadChoice === 'pending', oreCost: 5}}
       onChoose={choice => setWarheadChoice(choice === 'enrich' ? 'enriched' : 'passed')} />
     <p role="status" aria-label="Prepared warhead balance">LOCAL SIMULATION // {warheadChoice === 'enriched' ? 4 : 9} ore remaining in this prepared sample.</p>
+    {SUPPORT_SOURCES.map(sourceId => {
+      const supportView: WolfRangeSupportActionChoiceView = {
+        type: 'wolf-range-support-action-choice-view', sessionId: 'prepared-pc08', attackId: 'prepared-attack',
+        turn: 2, revision: view.revision, range: view.range, sourceId,
+        actorRoleId: sourceId === 'highwall' ? 'icebreaker-miner'
+          : sourceId === 'boa' ? 'capybara-recycler' : 'gorgoneion-captain',
+        choiceStatus: supportChoices[sourceId], eligible: supportChoices[sourceId] === 'pending',
+        actionAvailable: supportChoices[sourceId] === 'pending', deadlineAt: DEADLINE,
+        ...(sourceId === 'boa' ? {scrapAvailable: boaScrap} : {}),
+        contacts: SAMPLE_RANGE.contacts,
+      };
+      return <WolfRangeSupportActionPanelView key={sourceId} view={supportView}
+        onUse={() => chooseSupport(sourceId, 'used')} onPass={() => chooseSupport(sourceId, 'passed')} />;
+    })}
+    <p role="status" aria-label="Prepared Boa balance">LOCAL SIMULATION // {boaScrap} Scrap remaining in this prepared sample.</p>
     <WolfRangeActionPanelView view={view} onUseActions={actions => {
-      setView({...view, revision: view.revision + 1, choiceStatus: 'targets-required', hitSlots: actions.map(actionId => ({actionId, count: 1}))});
+      setView({...view, revision: view.revision + 1, choiceStatus: 'targets-required', hitSlots: actions.map(actionId => ({actionId, count: 1, damagePerHit: 1}))});
       setMessage('LOCAL SIMULATION // The prepared hit is locked; choosing its target will not roll again.');
     }} onPass={() => {setView({...view, choiceStatus: 'committed'}); setMessage('LOCAL SIMULATION // Pass committed; charge retained.');}}
-      onAssignTargets={() => {setView({...view, choiceStatus: 'committed'}); setMessage('LOCAL SIMULATION // Target committed. The prepared receipt records one hit; no live damage or resources changed.');}} />
+      onAssignTargets={() => {setView({...view, choiceStatus: 'committed'}); setMessage('LOCAL SIMULATION // Target committed. The prepared receipt retains its locked hits; no live damage or resources changed.');}} />
     <p className="pc07-review__result" role="status" aria-label="Prepared weapon result">{message}</p>
   </section>;
 }
