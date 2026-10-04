@@ -25,6 +25,7 @@ const MEMBER_EVENT_FIELDS: Readonly<Record<string, readonly string[]>> = {
   'fleet-ticker': ['action', 'messageId', 'revision', 'sequence', 'serverTime'],
   'admiral-directive': ['kind', 'revision', 'cycle', 'serverTime'],
   'president-action': ['kind', 'revision', 'cycle', 'serverTime'],
+  'wolf-commander-address': ['cycle', 'message', 'expiresAt'],
   'timer-pause': ['action', 'turn', 'window', 'actorName', 'byUid', 'reason'],
   'wolf-attack-declared': ['status', 'currentStep', 'deadlineAt', 'airspace', 'parkedCraftCount'],
   'ship-confetti': ['shipId', 'shipName', 'actorUid', 'actorName', 'actorRoleName'],
