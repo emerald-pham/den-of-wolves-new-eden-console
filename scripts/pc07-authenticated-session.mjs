@@ -37,7 +37,7 @@ export async function joinConfiguredBrowserPlayers({roles,players,joinCode,brows
 }
 
 /** Normal local Auth/HTTP setup. Tokens stay in memory and never enter evidence. */
-export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBriefing=true,keepAlive=false,expansion='base',capybaraEnabled=expansion==='capybara',browserRoleId,joinBrowserPlayer,joinBrowserPlayers,joinPressPlayer,activeRoleIdsOverride,unionCraftStartingHosts={},explicitLoyaltySetup}={}) {
+export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBriefing=true,keepAlive=false,serializeFixtureCalls=false,expansion='base',capybaraEnabled=expansion==='capybara',browserRoleId,joinBrowserPlayer,joinBrowserPlayers,joinPressPlayer,activeRoleIdsOverride,unionCraftStartingHosts={},explicitLoyaltySetup}={}) {
  const env=Object.fromEntries((await readFile('.env.emulators.local','utf8')).trim().split('\n').map(line=>line.split('=')));
  const project=process.env.VITE_FIREBASE_PROJECT_ID;
  const config=localGmAccessConfiguration('serve',{...env,VITE_LOCAL_GM_ACCESS:'1',VITE_FIREBASE_PROJECT_ID:project});
@@ -51,9 +51,19 @@ export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBr
  if(!getApps().length)initializeApp({projectId:project});const db=getFirestore();
  async function actor(){const r=await fetch(`http://127.0.0.1:${config.authPort}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=${project}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({returnSecureToken:true})});assert.equal(r.status,200);return r.json();}
  const disconnected=new Set();
- async function call(actor,name,data){const r=await fetch(`http://127.0.0.1:${functionsPort}/${project}/us-central1/${name}`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${actor.idToken}`},body:JSON.stringify({data})});const reply={status:r.status,...await r.json()};
+ let pendingFixtureCall=Promise.resolve();
+ async function performCall(actor,name,data){const r=await fetch(`http://127.0.0.1:${functionsPort}/${project}/us-central1/${name}`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${actor.idToken}`},body:JSON.stringify({data})});const reply={status:r.status,...await r.json()};
   if(r.status===200){if(name==='disconnectFromSession')disconnected.add(actor.localId);if(name==='resumeSession')disconnected.delete(actor.localId);}
   return reply;}
+ function call(actor,name,data){
+  if(!serializeFixtureCalls)return performCall(actor,name,data);
+  // Serialize synthetic API actors and their keep-alive calls. Real browser
+  // requests remain ordinary independent SDK calls; no failed request retries
+  // or result assertions are hidden by this local proof option.
+  const next=pendingFixtureCall.then(()=>performCall(actor,name,data));
+  pendingFixtureCall=next.catch(()=>undefined);
+  return next;
+ }
  function ok(reply,step){assert.equal(reply.status,200,`${step}: ${reply.error?.message}`);return reply.result;}
  const gm=await actor(),players=await Promise.all(Array.from({length:playerCount},actor));
  const created=ok(await call(gm,'createSession',{requestId:randomUUID(),joinCodeVersion:2,name}),'create');
@@ -134,7 +144,9 @@ export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBr
    const current=ok(await call(player,'resumeSession',{sessionId}),'resume');
    ok(await call(player,'claimSeat',{sessionId,seatId:roles[i],requestId:randomUUID(),expectedSetupRevision:current.session.setupRevision}),'seat');
    ok(await call(player,'refreshPresence',{sessionId,activeConsoleRoleId:roles[i]}),'console');
-   heartbeatPlayers.set(player.localId,{actor:player,label:`player-${i+1}`});
+   if(!serializeFixtureCalls||!browserIndexes.has(i)){
+    heartbeatPlayers.set(player.localId,{actor:player,label:`player-${i+1}`});
+   }
   }
   const explicitLoyaltySetupProof=[];
   if(explicitAssignments){

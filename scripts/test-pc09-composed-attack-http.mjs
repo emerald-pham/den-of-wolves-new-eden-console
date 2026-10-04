@@ -274,7 +274,8 @@ try {
     await clientContext.setOffline(true);
     return actor;
   };
-  f = await createPc07AuthenticatedSession('PC09 ordinary deduction and complete Wolf attack', 20, { keepAlive: true,
+  f = await createPc07AuthenticatedSession('PC09 ordinary deduction and complete Wolf attack', 20, {
+    keepAlive: true, serializeFixtureCalls: true,
     expansion: 'capybara', capybaraEnabled: true, browserRoleId: 'executive-officer',
     joinBrowserPlayer: joinDuringSetup(joinThroughUi, context),
     joinBrowserPlayers: {
@@ -301,7 +302,11 @@ try {
   // roster. Press then joins through the normal live-session UI; this keeps
   // casting loyalty policy intact and does not seed a private Press secret.
   f.press = await pressBrowser.join((await f.session.get()).get('joinCode'));
+  await pressBrowser.untilIdentity('current Press actor before claiming its console', state =>
+    state.uid === f.press.localId && state.memberUid === state.uid && state.sessionId === f.sessionId &&
+    state.connection === 'live' && state.freshness === 'server');
   await command(f.press, 'refreshPresence', { activeConsoleRoleId: 'press-officer' });
+  checks.syntheticApiCallsSerializedWithoutDuplicateBrowserHeartbeats = true;
   checks.pressJoinedThroughLiveSessionUi = true;
   await page.goto(`${uiUrl}/#/console`);
   await page.getByRole('heading', { name: 'Stations and consoles', exact: true }).waitFor();
