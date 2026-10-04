@@ -18,6 +18,7 @@ page.on('pageerror', error => browserErrors.push(error.message));
 
 let fixture;
 const checks = {};
+const governanceReturnChecks = [];
 const commandNames = [];
 let activeStage = 'browser setup';
 const setupDisclosure = {
@@ -181,6 +182,63 @@ async function ordinaryMemberPrivacyProof(actor, uid, chosenInstructions) {
     ballotWriteDenied: true, sessionWriteDenied: true };
 }
 
+async function currentBrowserIdentity() {
+  return page.evaluate(async () => {
+    const [{ useSessionStore }, { auth }] = await Promise.all([
+      import('/src/store/useSessionStore.ts'), import('/src/lib/firebase.ts'),
+    ]);
+    const state = useSessionStore.getState();
+    return {
+      uid: state.me?.uid ?? null,
+      sessionId: state.session?.id ?? null,
+      authenticatedUid: auth().currentUser?.uid ?? null,
+      hash: window.location.hash,
+    };
+  });
+}
+
+async function checkGovernanceBackRoute({ route, heading, actorUid, width, height, onOpen }) {
+  const errorsBefore = browserErrors.length;
+  await page.setViewportSize({ width, height });
+  await page.goto(`${baseUrl}/#/${route}`);
+  await page.getByRole('heading', { name: heading, exact: true, level: 1 }).waitFor({ timeout: 30000 });
+  const identityBefore = await currentBrowserIdentity();
+  assert.equal(identityBefore.uid, actorUid, `${route} route retains the joined player identity.`);
+  assert.equal(identityBefore.authenticatedUid, actorUid, `${route} route retains Firebase Auth identity.`);
+  assert.equal(identityBefore.sessionId, fixture.sessionId, `${route} route retains the current session.`);
+  if (onOpen) await onOpen();
+
+  const back = page.getByRole('link', { name: 'Back to stations', exact: true });
+  await back.waitFor({ state: 'visible' });
+  const target = await back.evaluate(element => {
+    const rect = element.getBoundingClientRect();
+    return { height: rect.height, left: rect.left, right: rect.right, width: rect.width };
+  });
+  assert.ok(target.width > 0 && target.height >= 44, `${route} Back to stations target is at least 44px high.`);
+  assert.ok(target.left >= 0 && target.right <= width,
+    `${route} Back to stations target is not horizontally clipped at ${width}px.`);
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
+    `${route} route has no horizontal page overflow at ${width}px.`);
+  await page.screenshot({ path: `${evidenceDirectory}/${route}-${width}x${height}-before-back.png`, fullPage: true });
+
+  await back.focus();
+  assert.ok(await back.evaluate(element => document.activeElement === element),
+    `${route} Back to stations receives keyboard focus.`);
+  await page.keyboard.press('Enter');
+  await page.waitForURL(url => url.hash === '#/console', { timeout: 30000 });
+  await page.locator('main.fleet-roster').waitFor({ timeout: 30000 });
+  const identityAfter = await currentBrowserIdentity();
+  assert.equal(identityAfter.hash, '#/console');
+  assert.equal(identityAfter.uid, actorUid, `${route} return retains the joined player identity.`);
+  assert.equal(identityAfter.authenticatedUid, actorUid, `${route} return retains Firebase Auth identity.`);
+  assert.equal(identityAfter.sessionId, fixture.sessionId, `${route} return retains the current session.`);
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
+    `The returned console has no horizontal page overflow at ${width}px.`);
+  assert.deepEqual(browserErrors.slice(errorsBefore), [], `${route} route and return produce no page errors.`);
+  governanceReturnChecks.push({ route, width, height, backTargetHeight: target.height,
+    returnedToConsole: true, retainedIdentity: true, noHorizontalClipping: true, pageErrors: 0 });
+}
+
 try {
   activeStage = 'normal authenticated roster and ordinary browser join';
   fixture = await createPc07AuthenticatedSession('PC09 normal crisis and election proof', 18, {
@@ -260,39 +318,6 @@ try {
     'shepherd-scientist': Number(originalRoot.shipSurvivors.shepherd),
   };
   assert.ok(Object.values(populationByRole).every(value => Number.isSafeInteger(value) && value > 0));
-  const election = await invoke(fixture.gm, 'resolvePresidentialElection', gmRequest({
-    requestId: requestId(), expectedRevision: 1,
-  }));
-  assert.equal(election.state, 'resolved');
-  assert.equal(election.tally.president.winnerUid, captain.localId);
-  assert.equal(election.tally.vicePresident.winnerUid, president.localId);
-  assert.equal(election.tally.president.totalVotes, 3);
-  assert.equal(election.tally.vicePresident.totalVotes, 3);
-  assert.equal(election.tally.president.totalWeight, Object.values(populationByRole).reduce((sum, value) => sum + value, 0));
-  assert.equal(election.tally.vicePresident.totalWeight, Object.values(populationByRole).reduce((sum, value) => sum + value, 0));
-  const electionAuditQuery = await fixture.db.collection(`sessions/${fixture.sessionId}/presidentialElections/current/audit`).get();
-  const resolveAudit = electionAuditQuery.docs.find(doc => doc.get('action') === 'resolve');
-  assert.ok(resolveAudit, 'The private election audit records the server tally and office transition.');
-  assert.equal((await fixture.db.collection(`sessions/${fixture.sessionId}/presidentialElections/current/ballots`).get()).size, 3);
-  assert.equal(Object.hasOwn(election, 'ballots'), false);
-  assert.equal(Object.hasOwn(election, 'voterUids'), false);
-  const memberElectionProjection = (await member(captain)).presidentialElection;
-  assert.equal(memberElectionProjection.tally.president.winnerId, candidateIdFor(captain.localId));
-  assert.equal(memberElectionProjection.tally.vicePresident.winnerId, candidateIdFor(president.localId));
-  assert.equal(memberElectionProjection.presidentCandidateId, candidateIdFor(captain.localId));
-  assert.equal(memberElectionProjection.vicePresidentCandidateId, candidateIdFor(president.localId));
-  assert.doesNotMatch(JSON.stringify(memberElectionProjection), /winnerUid|candidateIdsByUid|voterShipIds|ballot\s*:/);
-  const electedRoot = (await fixture.session.get()).data();
-  assert.equal(electedRoot.presidentialOffices.presidentUid, captain.localId);
-  assert.equal(electedRoot.presidentialOffices.vicePresidentUid, president.localId);
-  const newPresidentProjection = await member(captain);
-  const oldPresidentProjection = await member(president);
-  assert.equal(newPresidentProjection.currentMemberIsPresident, true);
-  assert.equal(oldPresidentProjection.currentMemberIsPresident, false);
-  assert.equal(Object.hasOwn(newPresidentProjection.presidentialOffices, 'presidentUid'), false);
-  assert.equal(Object.hasOwn(oldPresidentProjection.presidentialOffices, 'presidentUid'), false);
-  checks.serverWeightedSecretTallyAndAuditedOfficeTransition = true;
-  checks.electedOfficeProjectionAndReplacementDenial = true;
 
   activeStage = 'Approaching Vessel delivery, private ruling, and Voyage admission';
   const approach = await openCrisis('pc09-approaching-vessel', 'approaching-vessel', 'Approaching vessel',
@@ -487,7 +512,52 @@ try {
     title: capCrisis.title, details: capCrisis.details, state: 'closed', expectedRevision: capAnnounced.revision });
   assert.equal(capClosed.state, 'closed');
 
-  activeStage = 'elected-office route and bounded President action';
+  activeStage = 'Coordination visit, next-Team announcement, and reconnect';
+  const phaseBeforeClockChange = (await fixture.session.get()).get('turnPhase');
+  const acceleratedPhase = {
+    ...phaseBeforeClockChange,
+    teamPhaseEndsAt: new Date(Date.now() - 1000).toISOString(),
+  };
+  await fixture.session.update({ turnPhase: acceleratedPhase });
+  setupDisclosure.clockAcceleration.push('Moved Cycle 1 Team deadline just past before beginOpenAirspacePhase to exercise election finalization and the Coordination visit.');
+  await invoke(captain, 'beginOpenAirspacePhase', { expectedTurn: 1 });
+  const coordinationRoot = (await fixture.session.get()).data();
+  assert.equal(coordinationRoot.turnState.phase, 'coordination');
+  assert.equal(coordinationRoot.turnPhase.airspace.state, 'lifted');
+  activeStage = 'close-cycle election tally after the Coordination boundary';
+  const election = await invoke(fixture.gm, 'resolvePresidentialElection', gmRequest({
+    requestId: requestId(), expectedRevision: 1,
+  }));
+  assert.equal(election.state, 'resolved');
+  assert.equal(election.tally.president.winnerUid, captain.localId);
+  assert.equal(election.tally.vicePresident.winnerUid, president.localId);
+  assert.equal(election.tally.president.totalVotes, 3);
+  assert.equal(election.tally.vicePresident.totalVotes, 3);
+  assert.equal(election.tally.president.totalWeight, Object.values(populationByRole).reduce((sum, value) => sum + value, 0));
+  assert.equal(election.tally.vicePresident.totalWeight, Object.values(populationByRole).reduce((sum, value) => sum + value, 0));
+  const electionAuditQuery = await fixture.db.collection(`sessions/${fixture.sessionId}/presidentialElections/current/audit`).get();
+  const resolveAudit = electionAuditQuery.docs.find(doc => doc.get('action') === 'resolve');
+  assert.ok(resolveAudit, 'The private election audit records the server tally and office transition.');
+  assert.equal((await fixture.db.collection(`sessions/${fixture.sessionId}/presidentialElections/current/ballots`).get()).size, 3);
+  assert.equal(Object.hasOwn(election, 'ballots'), false);
+  assert.equal(Object.hasOwn(election, 'voterUids'), false);
+  const memberElectionProjection = (await member(captain)).presidentialElection;
+  assert.equal(memberElectionProjection.tally.president.winnerId, candidateIdFor(captain.localId));
+  assert.equal(memberElectionProjection.tally.vicePresident.winnerId, candidateIdFor(president.localId));
+  assert.equal(memberElectionProjection.presidentCandidateId, candidateIdFor(captain.localId));
+  assert.equal(memberElectionProjection.vicePresidentCandidateId, candidateIdFor(president.localId));
+  assert.doesNotMatch(JSON.stringify(memberElectionProjection), /winnerUid|candidateIdsByUid|voterShipIds|ballot\s*:/);
+  const electedRoot = (await fixture.session.get()).data();
+  assert.equal(electedRoot.presidentialOffices.presidentUid, captain.localId);
+  assert.equal(electedRoot.presidentialOffices.vicePresidentUid, president.localId);
+  const newPresidentProjection = await member(captain);
+  const oldPresidentProjection = await member(president);
+  assert.equal(newPresidentProjection.currentMemberIsPresident, true);
+  assert.equal(oldPresidentProjection.currentMemberIsPresident, false);
+  assert.equal(Object.hasOwn(newPresidentProjection.presidentialOffices, 'presidentUid'), false);
+  assert.equal(Object.hasOwn(oldPresidentProjection.presidentialOffices, 'presidentUid'), false);
+  checks.serverWeightedSecretTallyAndAuditedOfficeTransition = true;
+  checks.electedOfficeProjectionAndReplacementDenial = true;
   const oldPresidentDenial = await denied(president, 'recordPresidentActionCommand', {
     requestId: requestId(), kind: 'address', text: 'A replaced President cannot retain office powers.', expectedRevision: 0,
   }, 'replaced President power attempt');
@@ -496,33 +566,6 @@ try {
     requestId: requestId(), kind: 'address', text: 'A regular crew member has no President powers.', expectedRevision: 0,
   }, 'non-President power attempt');
 
-  await member(captain);
-  await page.goto(`${baseUrl}/#/president`);
-  await page.getByRole('heading', { name: 'President workspace', exact: true }).waitFor({ timeout: 30000 });
-  await page.getByLabel('Action family', { exact: true }).selectOption('address');
-  await page.getByLabel('Decision record', { exact: true }).fill('We will receive the vessel under the published response plan.');
-  await page.getByRole('button', { name: 'Record presidential address', exact: true }).click();
-  await page.getByText('Presidential address recorded.', { exact: true }).waitFor({ timeout: 30000 });
-  const addressRoot = (await fixture.session.get()).get('presidentWorkspace');
-  assert.ok(addressRoot.entries.some(entry => entry.kind === 'address' && entry.text ===
-    'We will receive the vessel under the published response plan.' && entry.cycle === 1));
-  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth));
-  checks.normalJoinedElectedPresidentRouteAndAddress = true;
-
-  activeStage = 'Coordination visit, next-Team announcement, and reconnect';
-  const announceCountBefore = (await fixture.session.get()).get('pendingTeamAnnouncements').length;
-  assert.ok(announceCountBefore >= 10, 'Each crisis outcome and the election queued a formal Team-start announcement.');
-  const phaseBeforeClockChange = (await fixture.session.get()).get('turnPhase');
-  const acceleratedPhase = {
-    ...phaseBeforeClockChange,
-    teamPhaseEndsAt: new Date(Date.now() - 1000).toISOString(),
-  };
-  await fixture.session.update({ turnPhase: acceleratedPhase });
-  setupDisclosure.clockAcceleration.push('Set Cycle 1 Team deadline just past for the authenticated Coordination callable.');
-  await invoke(captain, 'beginOpenAirspacePhase', { expectedTurn: 1 });
-  const coordinationRoot = (await fixture.session.get()).data();
-  assert.equal(coordinationRoot.turnState.phase, 'coordination');
-  assert.equal(coordinationRoot.turnPhase.airspace.state, 'lifted');
   const unrestBeforeSetup = coordinationRoot.shipUnrest?.icebreaker ?? 0;
   if (unrestBeforeSetup === 0) {
     await fixture.session.update({ 'shipUnrest.icebreaker': 1 });
@@ -542,6 +585,9 @@ try {
   assert.equal(afterVisit.politicalCapital.revision, capitalBeforeVisit.revision + 1);
   checks.coordinationVisitAtomicOnceNoRouteOrPhysicalAttestation = true;
 
+  const announceCountBefore = (await fixture.session.get()).get('pendingTeamAnnouncements').length;
+  assert.ok(announceCountBefore >= 10, 'Each crisis outcome and the election queued a formal Team-start announcement.');
+
   const advance = await invoke(fixture.gm, 'advanceTurn', gmRequest({ requestId: requestId(), expectedTurn: 1,
     overridePhaseTimer: true, skipTurnStartAnnouncement: false }));
   assert.equal(advance.currentTurn, 2);
@@ -554,6 +600,27 @@ try {
   assert.equal((await fixture.session.get()).get('pendingTeamAnnouncements'), undefined,
     'The committed next-Team announcement consumes the pending outbox once.');
   checks.formalCrisisAndElectionOutcomesPublishedAtNextTeamStart = true;
+
+  activeStage = 'authenticated President and election routes with keyboard return';
+  await member(captain);
+  const governanceViewports = [[390, 844], [844, 390], [1440, 900]];
+  for (const [width, height] of governanceViewports) {
+    await checkGovernanceBackRoute({ route: 'president', heading: "President's office", actorUid: captain.localId,
+      width, height, onOpen: width === 390 && height === 844 ? async () => {
+        await page.getByLabel('Action family', { exact: true }).selectOption('address');
+        await page.getByLabel('Decision record', { exact: true }).fill('We will receive the vessel under the published response plan.');
+        await page.getByRole('button', { name: 'Record presidential address', exact: true }).click();
+        await page.getByText('Presidential address recorded.', { exact: true }).waitFor({ timeout: 30000 });
+      } : undefined });
+    await checkGovernanceBackRoute({ route: 'election', heading: 'Presidential election', actorUid: captain.localId,
+      width, height });
+  }
+  const addressRoot = (await fixture.session.get()).get('presidentWorkspace');
+  assert.ok(addressRoot.entries.some(entry => entry.kind === 'address' && entry.text ===
+    'We will receive the vessel under the published response plan.' && entry.cycle === 2));
+  checks.normalJoinedElectedPresidentRouteAndAddress = true;
+  assert.equal(governanceReturnChecks.length, 6);
+  checks.governanceKeyboardBackRoutes = true;
 
   await invoke(captain, 'disconnectFromSession');
   const resumed = await member(captain);
@@ -580,6 +647,7 @@ try {
       actionsExecuted: commandNames.length,
     },
     setupDisclosure,
+    governanceReturnChecks,
     productionGameplay: false,
     preparedScene: false,
     identitiesAndTokensRetained: false,
