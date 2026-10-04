@@ -34,7 +34,6 @@ try {
   for (const name of ['Command and Control', 'Fighter Bay Alpha', 'Fighter Bay Bravo', 'Missile Launchers', 'Point Defence Lasers']) {
     await workspace.getByRole('article', { name: `${name} system // operational`, exact: true }).waitFor();
   }
-  await b.page.getByRole('heading', { name: 'Maintenance cycle', exact: true }).waitFor();
   for (const [width, height] of [[320, 844], [390, 844], [844, 390], [1440, 900]]) {
     await b.page.setViewportSize({ width, height });
     const geometry = await b.assertGeometry();
@@ -68,14 +67,14 @@ try {
   await writeFile(`${directory}/result.json`, `${JSON.stringify({
     kind: 'normal-authenticated-local-emulator-ui-http-workspace', sourceCommit,
     proofScriptCandidate: true, ordinaryRoster: 18, preparedScene: false,
-    checks: { realEOChooser: true, realBattleSystemShell: true, maintenanceConnected: true,
+    checks: { realEOChooser: true, realBattleSystemShell: true,
       realPallasCargoBoardingRelocationRoute: true, visiblePallasReturn: true,
       sameActorReconnectAndReload: true, noAuthStorageInjection: true },
     cases, moduleUrls: b.moduleUrls(), errors: b.errors, productionGameplay: false,
     physicalDeviceProof: false, authenticationSerialized: false,
     // The complete attack driver separately proves real warhead/range/C&C
     // mutations. This workspace driver never grants that missing proof itself.
-    remainingAcceptance: ['composed attack actions and integrated release'],
+    remainingAcceptance: ['ordinary AEGIS maintenance, composed attack actions and integrated release'],
     completedAt: new Date().toISOString(),
   }, null, 2)}\n`);
 } catch (error) {
