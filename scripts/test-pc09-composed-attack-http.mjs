@@ -31,6 +31,36 @@ const wingBrowser = await createPc09BrowserProof(uiUrl);
 const aceBrowser = await createPc09BrowserProof(uiUrl);
 const pressBrowser = await createPc09BrowserProof(uiUrl);
 const browserErrors = [], checks = {}, actions = [], ranges = [], boarding = [], observations = [];
+const sessionNetwork = [];
+const functionsRuntime = {
+  sourceCommit: process.env.PC09_FUNCTIONS_SOURCE_COMMIT ?? null,
+  compiledTreeSha256: process.env.PC09_FUNCTIONS_LIB_SHA256 ?? null,
+};
+function observeSessionNetwork(browserPage, actor) {
+  const endpoints = new Set(['resumeSession', 'getCurrentMemberSession', 'refreshPresence',
+    'getPdfFighterAceCombatView', 'commitPdfFighterAceCombat', 'getWolfRangeActionChoice']);
+  browserPage.on('requestfailed', request => {
+    const name = new URL(request.url()).pathname.split('/').at(-1);
+    if (endpoints.has(name)) sessionNetwork.push({ actor, name, kind: 'failed',
+      error: request.failure()?.errorText, at: new Date().toISOString() });
+  });
+  browserPage.on('response', async response => {
+    const name = new URL(response.url()).pathname.split('/').at(-1);
+    if (!endpoints.has(name)) return;
+    const body = await response.json().catch(() => ({}));
+    const result = body.result;
+    sessionNetwork.push({ actor, name, status: response.status(), at: new Date().toISOString(),
+      ...(body.error ? { error: body.error } : {}),
+      ...(result ? { type: result.type, cycle: result.session?.currentTurn ?? result.cycle ?? result.turn,
+        connectionGeneration: result.player?.connectionGeneration ?? result.connectionGeneration,
+        assignedRoleId: result.player?.assignedRoleId ?? result.assignedRoleId,
+        activeConsoleRoleId: result.player?.activeConsoleRoleId ?? result.activeConsoleRoleId,
+        updatedAt: result.session?.updatedAt } : {}) });
+    if (sessionNetwork.length > 160) sessionNetwork.shift();
+  });
+}
+observeSessionNetwork(page, 'eo');
+observeSessionNetwork(aceBrowser.page, 'ace');
 const setupResourceAllocations = [];
 let attackTurn;
 let sessionStoreModuleUrl = '/src/store/useSessionStore.ts';
@@ -789,13 +819,13 @@ try {
   assert.deepEqual(browserErrors, []);
   assert.deepEqual(f.heartbeatFailures, []);
   await writeFile(evidencePath, `${JSON.stringify({ kind: 'normal-authenticated-local-emulator-ui-http-composed-gameplay',
-    sourceCommit, ordinaryRoster: 20, preparedScene: false, productionGameplay: false,
+    sourceCommit, functionsRuntime, ordinaryRoster: 20, preparedScene: false, productionGameplay: false,
     fixtureChanges: ['disposable clock deadlines only'], normalFacilitatorDecisions: ['Coordination-phase optional ship and replacement admission',
       'explicitly deferred first window and ordinary early cycle advance',
       'explicit optional Wolf/Intel loyalty mode', 'current authenticated fixture resource allocation before printed full rations',
       ...(boarding.some(item => item.kind === 'commander-ruling') ? ['explicit incomplete Commander consequence ruling'] : [])],
     checks, actions, setupResourceAllocations, ranges, boarding, audience, preparationInputs: { shipIds, targetAssignments: [] }, targetlessResultCount: targetlessResults.length,
-    sessionStoreModuleUrl, firestoreModuleUrl, browserErrors, aceBrowserErrors: aceBrowser.errors,
+    sessionStoreModuleUrl, firestoreModuleUrl, browserErrors, sessionNetwork, aceBrowserErrors: aceBrowser.errors,
     pressBrowserErrors: pressBrowser.errors, heartbeatFailures: f.heartbeatFailures,
     identitiesRetained: false, completedAt: new Date().toISOString() }, null, 2)}\n`);
   console.log('PC09 ordinary deduction, composed attack and aftermath proof passed.');
@@ -804,9 +834,9 @@ try {
   if (state) await writeFile(`${evidencePath}.private-state.json`, `${JSON.stringify({ sourceCommit, state }, null, 2)}\n`);
   await page.screenshot({ path: `${dirname(evidencePath)}/failure.png`, fullPage: true }).catch(() => {});
   await aceBrowser.page.screenshot({ path: `${dirname(evidencePath)}/ace-failure.png`, fullPage: true }).catch(() => {});
-  await writeFile(`${evidencePath}.failure.json`, `${JSON.stringify({ sourceCommit, message: error.message, checks, actions, ranges, boarding,
+  await writeFile(`${evidencePath}.failure.json`, `${JSON.stringify({ sourceCommit, functionsRuntime, message: error.message, checks, actions, ranges, boarding,
     step: state?.currentStep, revision: state?.revision, status: state?.status, resolutionBlocker: state?.resolutionBlocker,
-    decisionSummary: state?.decisionSummary, observations, browserErrors, sessionStoreModuleUrl,
+    decisionSummary: state?.decisionSummary, observations, browserErrors, sessionNetwork, sessionStoreModuleUrl,
     browserIdentity: await snapshotIdentity().catch(() => null),
     aceBrowserIdentity: await aceBrowser.identity().catch(() => null),
     aceStatus: await aceBrowser.page.getByRole('status').allInnerTexts().catch(() => []),
