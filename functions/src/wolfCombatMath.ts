@@ -1281,8 +1281,7 @@ function validateWolfCombatRoster(value: unknown, targetRing: WolfTargetRing): v
         !Number.isSafeInteger(entry.damageTaken) || (entry.damageTaken as number) < 0 ||
         typeof entry.destroyed !== 'boolean') return false;
     const catalog = wolfShipForId(entry.shipId as WolfShipId)!;
-    if ((entry.damageTaken as number) > catalog.damageCapacity ||
-        entry.destroyed !== ((entry.damageTaken as number) >= catalog.damageCapacity)) return false;
+    if (entry.destroyed !== ((entry.damageTaken as number) >= catalog.damageCapacity)) return false;
     instanceIds.add(entry.instanceId);
     return true;
   });
