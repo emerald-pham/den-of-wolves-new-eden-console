@@ -129,6 +129,14 @@ async function chooseEo() {
     state.activeConsole === 'executive-officer' && state.connection === 'live' && state.freshness === 'server');
   await page.getByRole('heading', { name: 'AEGIS', exact: true }).waitFor();
 }
+async function settlePlotLayout() {
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await page.waitForFunction(() => {
+    const plot = document.querySelector('.ship-plot');
+    return plot && plot.getAnimations({ subtree: true }).every(animation =>
+      animation.playState !== 'running' || animation.effect?.getTiming().iterations === Infinity);
+  });
+}
 try {
   f = await createPc07AuthenticatedSession('PC09 DRADIS reconnect', 20, {
     keepAlive: true, expansion: 'capybara', browserRoleId: 'executive-officer', joinBrowserPlayer: joinThroughUi,
@@ -196,21 +204,24 @@ try {
     await readings.waitFor({ state: 'visible' });
     for (const [width, height] of [[320, 740], [390, 844], [844, 390], [1440, 900]]) {
       await page.setViewportSize({ width, height });
+      await settlePlotLayout();
       const metrics = await page.evaluate(() => {
         const panel = document.querySelector('.wolf-attack-dradis');
         const list = document.querySelector('.wolf-attack-dradis__readings');
         const close = document.querySelector('.ship-plot__close');
         const plot = document.querySelector('.contact-plot__sweep');
-        const rect = panel.getBoundingClientRect(), control = close.getBoundingClientRect();
+        const rect = panel.getBoundingClientRect(), control = close.getBoundingClientRect(), listRect = list.getBoundingClientRect();
         const font = getComputedStyle(panel);
         return { documentWidth: document.documentElement.scrollWidth, viewportWidth: document.documentElement.clientWidth,
           panelWidth: rect.width, panelHeight: rect.height, fontFamily: font.fontFamily, fontSize: parseFloat(font.fontSize),
           readingsHeight: list.clientHeight, scroll: getComputedStyle(list).overflowY,
+          readingsInsidePanel: listRect.top >= rect.top && listRect.bottom <= rect.bottom,
           closeWidth: control.width, closeHeight: control.height, sweepDuration: getComputedStyle(plot).animationDuration,
           motion: document.querySelector('[data-motion]').getAttribute('data-motion') };
       });
       assert.ok(metrics.documentWidth <= metrics.viewportWidth, `${mode} ${width}x${height} must fit the viewport.`);
       assert.ok(metrics.panelWidth > 0 && metrics.panelHeight > 0 && metrics.readingsHeight > 0);
+      assert.equal(metrics.readingsInsidePanel, true);
       assert.match(metrics.fontFamily, /mono|courier|menlo|consolas/i);
       assert.ok(metrics.fontSize >= 13);
       assert.equal(metrics.scroll, 'auto');
