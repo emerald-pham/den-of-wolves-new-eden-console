@@ -224,3 +224,16 @@ tree and original refs. This is complete: `2f1c0283` → `808683de`,
 test/source pairs. `owner/test-first-history-reconciliation.json` records
 every old-to-new SHA; original evidence SHAs above remain provenance, not a
 claim that the tree-changing work was repeated.
+
+The reconciled gate at independently approved `07ac3637` passes all 7,606
+unit/Functions tests and 157 security Rules tests, then stops at a TypeScript
+error in the new Ship Console fixture. The unchanged web build requires a
+`WolfRangeActionChoiceResult`, rather than undefined. Test-only `4f56ea87`
+returns that receipt using the requested turn/range and incremented revision,
+with explicit use/pass status. It preserves the real mounted panel and exact
+command argument assertion, introduces no type suppression and changes no
+production source. All 115 Ship Console tests and scoped lint pass; the actual
+complete web build also passes. See `owner/final-ui-typed-fixture-green.log`,
+`final-ui-typed-fixture-lint.log` and `final-ui-typed-build-green.log`.
+The failed full attempt remains `owner/final-validation-second-failure*`;
+renew exact approval and the full gate for this test-only candidate.

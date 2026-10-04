@@ -24,7 +24,12 @@ rendering. All gameplay handlers retain their attested bytes. The final audited
 deployment scope is eighteen modules and 109 Functions. The test-only route
 fixture handback passes 226/226 and is integrated as `444db5d3`; independent
 bounded metadata/style review is source-clear. Root now freezes the reconciled
-candidate for an updated exact receipt and full validation. The owner's October 3 instruction authorizes execution and
+candidate for an updated exact receipt and full validation. Exact `07ac3637`
+is then approved; all 7,606 unit/Functions and 157 Rules checks pass, while the
+web build catches one new fixture type error. The test-only correction passes
+all 115 Ship Console checks and the web build. This final fixture delta requires
+renewed exact approval/full validation; production source remains unchanged.
+The owner's October 3 instruction authorizes execution and
 acceptance; playing the review scene is optional.
 
 PC08 contains the fixed 49 assigned items. Its catalog candidate moves from

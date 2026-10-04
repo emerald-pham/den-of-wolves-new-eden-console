@@ -248,3 +248,14 @@ its own 18/32/109 recomputation, seven selectors and 39-artifact continuity.
 Root sends the final UI-only delta and clean freeze for the updated actual
 exact receipt; earlier approved scope remains closed. Complete validation and
 release still require their actual results.
+
+Exact `07ac3637` is independently approved, with a canonical receipt accepted
+by the repository parser. The full gate passes all 7,606 unit/Functions and
+157 Rules checks, then the web build finds the new range-choice test mock's
+undefined result. Root test-only `4f56ea87` returns the required receipt shape
+from the request arguments, with no type cast/suppression or assertion removed.
+All 115 Ship Console checks, scoped lint and web build pass. No production
+source, consumer map or attested artifact changed. The renewed review is bounded
+to this one fixture delta and the chronological evidence docs; all earlier
+approved source and risk scopes stay closed. A failed gate requires another
+actual exact receipt and complete validation before the first candidate push.

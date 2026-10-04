@@ -493,3 +493,17 @@ and native-fixture delta at `09d05709`, recomputes 18/32/109 and hashes all 39
 gameplay artifacts unchanged. This closes source findings, while the final
 UI delta and clean documentation freeze still require an actual updated exact
 approval receipt before the full gate. No candidate push has occurred.
+
+Independent Sol 6.1 xhigh approves exact clean `07ac3637`; its actual receipt
+uses the validator's canonical ISO timestamp and passes the pure parser. The
+second full gate passes diff, lint, all 7,606 unit/Functions checks and 157 Rules
+checks, then the web build catches one newly introduced fixture type error:
+`commitWolfRangeActionChoice` was mocked with an undefined result. Both the
+terminal result and streamed output are retained in
+`owner/final-validation-second-failure*`; no push occurred. Root test-only
+`4f56ea87` returns the actual typed receipt shape from the fixture's request
+arguments, preserving the exact EO-command assertion. All 115 Ship Console
+checks, scoped lint and the complete web build pass. Production source, map
+and gameplay artifacts remain unchanged. Another exact receipt/full validation
+renewal is required because this gate failed; earlier approved risk scope stays
+closed.
