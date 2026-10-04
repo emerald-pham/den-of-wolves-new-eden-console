@@ -1924,6 +1924,23 @@ it('rechecks the current support holder before returning an exact replay', async
     .rejects.toMatchObject({ code: 'failed-precondition' });
 });
 
+it('does not replay a support choice after the session advances to another cycle', async () => {
+  admitRangeSupportChoices();
+  const view = await getWolfRangeSupportActionChoice.run(request({
+    sessionId: 's1', sourceId: 'highwall', range: 'short-range',
+  }, 'miner-1'));
+  const payload = { sessionId: 's1', requestId: 'highwall-old-cycle-replay', expectedTurn: 1,
+    expectedRevision: view.revision, sourceId: 'highwall', range: 'short-range', use: true };
+  await commitWolfRangeSupportActionChoice.run(request(payload, 'miner-1'));
+  const updateCount = testState.update.mock.calls.length;
+  const session = testState.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session, currentTurn: 2 });
+
+  await expect(commitWolfRangeSupportActionChoice.run(request(payload, 'miner-1')))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(testState.update).toHaveBeenCalledTimes(updateCount);
+});
+
 it('requires a fresh live source console to commit an otherwise valid support choice', async () => {
   admitRangeSupportChoices();
   const actor = testState.documents.get('sessions/s1/players/miner-1')!;
