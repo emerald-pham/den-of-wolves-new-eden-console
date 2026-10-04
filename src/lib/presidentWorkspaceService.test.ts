@@ -4,7 +4,7 @@ import { useSessionStore } from '@/store/useSessionStore';
 const call = vi.fn();
 vi.mock('firebase/functions', () => ({ httpsCallable: () => call }));
 vi.mock('./firebase', () => ({ functions: () => ({}) }));
-import { recordPresidentAction, updatePoliticalCapital } from './presidentWorkspaceService';
+import { recordPresidentAction, recordPresidentialVisit, updatePoliticalCapital } from './presidentWorkspaceService';
 
 beforeEach(() => {
   call.mockReset().mockResolvedValue({ data: {} });
@@ -14,6 +14,7 @@ beforeEach(() => {
     createdAt: '', updatedAt: '', currentTurn: 2,
     presidentWorkspace: { revision: 3, entries: [] },
     politicalCapital: { revision: 2, balance: 1, entries: [] },
+    vesselActionRevisions: { dione: 5 },
     resolvedCrisisOutcome: { crisisId: 'crisis-1', revision: 4, title: 'Approaching vessel' },
   }, { uid: 'u1', sessionId: 's1', displayName: 'President', role: 'player', seatId: null,
     activeConsoleRoleId: 'dione-president', joinedAt: '' });
@@ -33,4 +34,11 @@ it('sends the exact live revision and bounded action category', async () => {
   await recordPresidentAction('visit', '  Visit Dione. ');
   expect(call).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1', kind: 'visit',
     text: 'Visit Dione.', expectedRevision: 3 }));
+});
+
+it('binds a Coordination visit to the current ship and capital revisions', async () => {
+  await recordPresidentialVisit('dione');
+  expect(call).toHaveBeenCalledWith(expect.objectContaining({
+    sessionId: 's1', shipId: 'dione', expectedCapitalRevision: 2, expectedVesselRevision: 5,
+  }));
 });
