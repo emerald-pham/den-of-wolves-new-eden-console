@@ -2654,3 +2654,45 @@ it.each(['missing', 'actor', 'request', 'range', 'revision'])(
     await expect(replay()).rejects.toMatchObject({ code: 'failed-precondition' });
     expect([...testState.documents]).toEqual(saved);
   });
+
+function admitCommittedMediumAceForProgression() {
+  const path = 'sessions/s1/wolfAttackState/current';
+  const state = testState.documents.get(path)!;
+  const initial = wolfCombatRoster(targeting);
+  const permission = { type: 'pdf-fighter-ace-permission', attackId: state.attackId, turn: 1,
+    sourceId: 'pdf-escort-fighter-wing', fighterIndex: 0, aceUid: 'ace-progress', actorUid: 'colonel-progress',
+    actorRoleId: 'refinery-124-pdf-colonel', requestId: 'ace-progress-permission', revision: 2 };
+  const source = { sourceId: permission.sourceId, fighters: 4, losses: 0, revision: 1,
+    durableRevision: 1, launched: true, attackId: state.attackId, cycle: 1 };
+  const action = { type: 'pdf-fighter-ace-action', attackId: state.attackId, turn: 1, revision: 4,
+    requestId: 'ace-progress-action', actorUid: permission.aceUid, actorRoleId: 'pdf-fighter-ace', fighterUid: permission.aceUid,
+    sourceId: permission.sourceId, fighterIndex: 0, permissionActor: permission,
+    permissionActorUid: permission.actorUid, permissionActorRoleId: permission.actorRoleId,
+    permissionRequestId: permission.requestId, permissionRevision: permission.revision,
+    range: 'medium', submittedTargetId: 'contact-11', extraTargetId: null, submittedTargetShift: 1,
+    resolvedTargetShift: { instanceId: initial[10]!.instanceId, from: 1, to: 2, shift: 1 },
+    rosterBefore: initial, targetResults: [{ instanceId: initial[10]!.instanceId, shipId: 'wolf-assault-transport', damage: 1, destroyed: false }],
+    sourceStateBefore: source, sourceStateAfter: { ...source, revision: 2 },
+    outcome: { damage: 1, targetDestroyed: false, fighterDestroyed: false, aceDied: false, escaped: false },
+    rolls: [], committedAt: '2026-10-04T12:00:00.000Z' };
+  const after = initial.map((ship, index) => index === 10 ? { ...ship, target: 'dione', damageTaken: 1 } : ship);
+  const emptyRange = (range: string, roster = initial) => ({ range,
+    targetSnapshot: roster.map(({ instanceId, target }) => ({ instanceId, target })),
+    targetShifts: [], dice: [], assignments: [], unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
+    destructionDamageByTarget: Object.fromEntries(['aegis','dione','icebreaker','quellon','shepherd','refinery-124','capybara'].map(target => [target, 0])) });
+  put(path, { ...state, currentStep: 'short-range', revision: 10, combatRoster: after,
+    pdfFighterAceAction: action, fighterAcePermissions: { [permission.sourceId]: permission },
+    rangeReceipts: [emptyRange('long-range'), emptyRange('medium-range', after)] });
+  return { path, permission, action, after, emptyRange };
+}
+
+it('keeps the next live range available after a canonical Ace Medium hit and target shift', async () => {
+  const f = admitCommittedMediumAceForProgression();
+  await expect(getWolfRangeActionChoice.run(request({ sessionId: 's1' })))
+    .resolves.toMatchObject({ range: 'short-range', targets: expect.arrayContaining([
+      expect.objectContaining({ contactId: 'contact-11', targetShipId: 'dione' }),
+    ]) });
+  const state = testState.documents.get(f.path)!;
+  put(f.path, { ...state, fighterAcePermissions: { [f.permission.sourceId]: { ...f.permission, attackId: 'old-attack' } } });
+  await expect(getWolfRangeActionChoice.run(request({ sessionId: 's1' }))).rejects.toMatchObject({ code: 'failed-precondition' });
+});
