@@ -1853,6 +1853,27 @@ it('offers current Highwall, Gorgoneion and Boa choices through private actor vi
     .rejects.toMatchObject({ code: 'permission-denied' });
 });
 
+it('accepts an admitted replacement Gorgoneion Captain outside the core setup role roster', async () => {
+  admitRangeSupportChoices();
+  const session = testState.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session,
+    activeRoleIds: (session.activeRoleIds as string[]).filter(id => id !== 'gorgoneion-captain'),
+  });
+  const view = await getWolfRangeSupportActionChoice.run(request({ sessionId: 's1',
+    sourceId: 'gorgoneion-missile-array', range: 'short-range' }, 'gorg-captain-1'));
+  expect(view).toMatchObject({ eligible: true, actionAvailable: true, actorRoleId: 'gorgoneion-captain' });
+  const payload = { sessionId: 's1', requestId: 'ordinary-extra-captain-pass', expectedTurn: 1,
+    expectedRevision: view.revision, sourceId: 'gorgoneion-missile-array', range: 'short-range', use: false };
+  await commitWolfRangeSupportActionChoice.run(request(payload, 'gorg-captain-1'));
+  await expect(commitWolfRangeSupportActionChoice.run(request(payload, 'gorg-captain-1')))
+    .resolves.toMatchObject({ status: 'replayed', choiceStatus: 'passed' });
+  const captain = testState.documents.get('sessions/s1/players/gorg-captain-1')!;
+  put('sessions/s1/players/gorg-captain-1', { ...captain, replacementRoleId: null });
+  await expect(commitWolfRangeSupportActionChoice.run(request(payload, 'gorg-captain-1')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  expect(entropy.randomInt).not.toHaveBeenCalled();
+});
+
 it('holds an entitled disconnected range-source owner until reconnect and a fresh explicit pass', async () => {
   admitRangeSupportChoices();
   const session = testState.documents.get('sessions/s1')!;

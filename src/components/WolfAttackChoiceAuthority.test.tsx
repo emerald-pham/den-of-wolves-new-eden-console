@@ -11,11 +11,13 @@ import type {
   WolfBoardingSpecialChoiceReadResult,
   WolfForceFieldChoiceView,
   WolfRangeActionChoiceView,
+  WolfRangeSupportActionChoiceView,
 } from '@/types/game';
 import WolfBoardingDefencePanel, { WolfBoardingDefencePanelView } from './WolfBoardingDefencePanel';
 import WolfBoardingSpecialChoicePanel from './WolfBoardingSpecialChoicePanel';
 import WolfForceFieldChoicePanel, { WolfForceFieldChoicePanelView } from './WolfForceFieldChoicePanel';
 import WolfRangeActionPanel, { WolfRangeActionPanelView } from './WolfRangeActionPanel';
+import WolfRangeSupportActionPanel from './WolfRangeSupportActionPanel';
 
 const mocks = vi.hoisted(() => ({
   subscribe: vi.fn(),
@@ -28,6 +30,8 @@ const mocks = vi.hoisted(() => ({
   commitBoarding: vi.fn(),
   getBoardingSpecial: vi.fn(),
   commitBoardingSpecial: vi.fn(),
+  getSupport: vi.fn(),
+  commitSupport: vi.fn(),
 }));
 
 vi.mock('@/lib/firestore', () => ({ subscribeWolfAttackMemberView: mocks.subscribe }));
@@ -41,6 +45,8 @@ vi.mock('@/lib/sessionService', () => ({
   commitWolfBoardingDefenceChoice: mocks.commitBoarding,
   getWolfBoardingSpecialChoice: mocks.getBoardingSpecial,
   commitWolfBoardingSpecialChoice: mocks.commitBoardingSpecial,
+  getWolfRangeSupportActionChoice: mocks.getSupport,
+  commitWolfRangeSupportActionChoice: mocks.commitSupport,
 }));
 
 const deadlineAt = '2026-10-03T12:10:00.000Z';
@@ -158,7 +164,30 @@ beforeEach(() => {
   mocks.commitBoarding.mockReset().mockResolvedValue(undefined);
   mocks.getBoardingSpecial.mockReset();
   mocks.commitBoardingSpecial.mockReset().mockResolvedValue(undefined);
+  mocks.getSupport.mockReset();
+  mocks.commitSupport.mockReset();
   Object.defineProperty(window.navigator, 'onLine', { configurable: true, value: true });
+});
+
+it('mounts the admitted replacement Captain range choice without adding extra ships or roles to the core roster', async () => {
+  connectPlayer();
+  const currentSession = useSessionStore.getState().session!;
+  useSessionStore.setState({ session: { ...currentSession,
+    activeRoleIds: ['executive-officer'], activeVesselIds: ['aegis', 'dione'],
+  } });
+  const view: WolfRangeSupportActionChoiceView = {
+    type: 'wolf-range-support-action-choice-view', sessionId: 's1', attackId: 'attack-1',
+    turn: 1, revision: 4, range: 'medium-range', sourceId: 'gorgoneion-missile-array',
+    actorRoleId: 'gorgoneion-captain', choiceStatus: 'pending', eligible: true,
+    actionAvailable: true, deadlineAt, contacts: [],
+  };
+  mocks.getSupport.mockResolvedValue(view);
+  render(<WolfRangeSupportActionPanel sourceId="gorgoneion-missile-array" range="medium-range" />);
+  publish(mediumRange);
+  await screen.findByRole('button', { name: /use Gorgoneion Missile Array/i });
+  expect(mocks.getSupport).toHaveBeenCalledWith('medium-range', 'gorgoneion-missile-array');
+  act(() => useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, replacementRoleId: null }));
+  expect(screen.queryByRole('button', { name: /use Gorgoneion Missile Array/i })).not.toBeInTheDocument();
 });
 
 it('withdraws a displayed Force Field choice as soon as live authority or berth changes', async () => {
