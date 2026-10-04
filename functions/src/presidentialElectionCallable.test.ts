@@ -205,6 +205,88 @@ it('rejects stale ballots and changing an already submitted ballot', async () =>
   expect(mock.documents.get('sessions/s1/presidentialElections/current/ballots/u2')).toMatchObject({ ballot: { presidentUid: 'u3' } });
 });
 
+it('does not finalize at the start of the configured close cycle while Team voting remains open', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  const turnPhase = session.turnPhase as Fields;
+  turnPhase.teamPhaseEndsAt = '2999-01-01T00:00:00.000Z';
+  turnPhase.openAirspaceEndsAt = '2999-01-01T00:30:00.000Z';
+  const turnState = session.turnState as Fields;
+  turnState.startedAt = '2998-12-31T23:30:00.000Z';
+  turnState.endsAt = '2999-01-01T00:00:00.000Z';
+  await configurePresidentialElection.run(request({
+    sessionId: 's1', instanceId: 'gm-instance', requestId: 'configure-open-close-cycle', expectedRevision: 0,
+    policy: { ...policy, vicePresidentEnabled: false },
+  }));
+  await castPresidentialBallot.run(request({
+    sessionId: 's1', requestId: 'ballot-before-close-boundary', expectedRevision: 1, presidentUid: 'u3',
+  }, 'u2'));
+  const before = JSON.stringify([...mock.documents]);
+  mock.set.mockClear();
+  mock.update.mockClear();
+
+  await expect(resolvePresidentialElection.run(request({
+    sessionId: 's1', instanceId: 'gm-instance', requestId: 'resolve-before-close-boundary', expectedRevision: 1,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(JSON.stringify([...mock.documents])).toBe(before);
+});
+
+it('does not commit the same candidate to both offices when independent tallies conflict', async () => {
+  put('sessions/s1/players/u5', { uid: 'u5', role: 'player', connected: true, assignedRoleId: 'executive-officer' });
+  put('sessions/s1/players/u6', { uid: 'u6', role: 'player', connected: true, assignedRoleId: 'quellon-explorer' });
+  (mock.documents.get('sessions/s1')!.activeRoleIds as string[]).push('executive-officer', 'quellon-explorer');
+  await configurePresidentialElection.run(request({
+    sessionId: 's1', instanceId: 'gm-instance', requestId: 'configure-conflicting-offices', expectedRevision: 0,
+    policy: { ...policy, populationWeighting: 'equal', eligibleVoterUids: ['u2', 'u3', 'u4', 'u5', 'u6'] },
+  }));
+  const ballots = [
+    ['u2', 'u2', 'u3'], ['u3', 'u2', 'u4'], ['u4', 'u3', 'u2'], ['u5', 'u4', 'u2'], ['u6', 'u5', 'u2'],
+  ];
+  for (const [voterUid, presidentUid, vicePresidentUid] of ballots) {
+    await castPresidentialBallot.run(request({
+      sessionId: 's1', requestId: `conflicting-offices-${voterUid}`, expectedRevision: 1, presidentUid, vicePresidentUid,
+    }, voterUid));
+  }
+  const before = JSON.stringify([...mock.documents]);
+  mock.set.mockClear();
+  mock.update.mockClear();
+
+  await expect(resolvePresidentialElection.run(request({
+    sessionId: 's1', instanceId: 'gm-instance', requestId: 'resolve-conflicting-offices', expectedRevision: 1,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(JSON.stringify([...mock.documents])).toBe(before);
+  expect(mock.documents.get('sessions/s1')).not.toHaveProperty('presidentialOffices');
+  expect(mock.documents.has('sessions/s1/commandReceipts/resolve-conflicting-offices')).toBe(false);
+  expect(mock.documents.has('sessions/s1/presidentialElections/current/audit/resolve-conflicting-offices')).toBe(false);
+});
+
+it('checks current membership before ballot replay and preserves a valid retry after revision advances', async () => {
+  await configurePresidentialElection.run(request({
+    sessionId: 's1', instanceId: 'gm-instance', requestId: 'configure-ballot-replay', expectedRevision: 0,
+    policy: { ...policy, vicePresidentEnabled: false },
+  }));
+  const ballot = { sessionId: 's1', requestId: 'ballot-replay-current-member', expectedRevision: 1, presidentUid: 'u3' };
+  await castPresidentialBallot.run(request(ballot, 'u2'));
+  const election = mock.documents.get('sessions/s1/presidentialElections/current')!;
+  election.revision = 2;
+  const replay = await castPresidentialBallot.run(request(ballot, 'u2'));
+  expect(replay).toMatchObject({ status: 'committed', electionRevision: 1, requestId: ballot.requestId });
+
+  const player = mock.documents.get('sessions/s1/players/u2')!;
+  player.connected = false;
+  player.kickedAt = 'revoked';
+  mock.set.mockClear();
+  mock.update.mockClear();
+  await expect(castPresidentialBallot.run(request(ballot, 'u2'))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
 it.each(['success', 'failure', 'debrief', 'closed'])('rejects new election mutations after %s without any write', async terminalPhase => {
   await configurePresidentialElection.run(request({
     sessionId: 's1', instanceId: 'gm-instance', requestId: 'configure-terminal-election',
