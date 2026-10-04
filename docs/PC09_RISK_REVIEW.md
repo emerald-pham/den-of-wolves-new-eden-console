@@ -237,3 +237,17 @@ replace ordinary authenticated combat, election, source-repeat or construction
 acceptance. Final ordinary evidence, the approved election repair, targeted
 verification by this same independent reviewer, final checks and actual release
 verification remain required before closure credit.
+
+## Positive-proof locator follow-up
+
+The finite admission preflight passed for both real browser actors. The next
+strict run (`5263cf49` client/driver, frozen `296dd59b` Functions) completed both
+attacks, Alpha 4→3→2, the immutable Station return, the paid API build and exact
+receipt retry, with zero captured console/page, HTTP or failed-request errors.
+It then failed before the UI build because the driver asked for a named article,
+while the actual construction article has no accessible name. This is a proof
+locator error, not a waived UI result. Its full failure remains in
+`positive-rebuild-final-admission/` under the resumed evidence directory.
+The corrected locator uses `article.aegis-craft` containing the exact visible
+Alpha/Bravo heading, retains the one-article and enabled/disabled assertions,
+and changes no product code. A subsequent complete pass is still required.

@@ -193,3 +193,9 @@ runtime identities; an unfinished run remains unfinished.
 | `functions/src/pc09SpecialistMechanics.rangeRecovery.test.ts` | Added | Compose real Long range math with later Ace application, preserving destroyed-contact overkill while denying forged destruction, destroyed targets and noncanonical live Ace damage. |
 | `src/lib/sessionSnapshotAuthority.combatRecovery.test.ts` | Added | Accept legitimate same-cycle attack closure/reopening only with a validated advancing phase revision; retain stale, missing, malformed and wrongly bound marker denials. |
 | `scripts/test-pc09-threats-http.mjs` | Added | Join a real Commander browser, perform source-bound address/amnesty/dial choices, preserve private/public audience and once-per-cycle checks, and inspect actual endpoint/recovery/viewport results with disclosed deadline acceleration. |
+
+The positive proof's initial article-name scoping was invalid because the
+existing construction article is unnamed. Its final locator filters the actual
+`article.aegis-craft` by the exact visible Alpha/Bravo heading. It preserves the
+one-card assertion, full-capacity Bravo denial and the distinct Alpha build;
+no `.first()` fallback or cost/capacity relaxation is used.
