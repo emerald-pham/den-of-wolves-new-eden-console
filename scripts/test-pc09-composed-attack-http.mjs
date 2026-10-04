@@ -304,11 +304,12 @@ try {
   }
   await fundFixtureResource('aegis', 'materials', 6);
   await fundFixtureResource('aegis', 'ore', 9);
+  await fundFixtureResource('capybara', 'scrap', 4);
   await maintain('aegis', ['command-and-control', 'missile-launchers', 'point-defence-lasers', 'fighter-bay-alpha', 'fighter-bay-bravo'], ['pallas', 'starlight']);
   await maintain('dione', ['fighter-bay'], ['maliades']);
   await maintain('refinery-124', ['fighter-bay'], []);
   await maintain('icebreaker', ['mining-drone-control'], ['highwall']);
-  await maintain('capybara', ['scrap-refinery'], []);
+  await maintain('capybara', ['scrap-refinery'], ['macaw']);
   // The printed full ration choice is funded normally by the docked AEGIS
   // host, so setup unrest cannot skip the two consoles this proof needs.
   for (const [smallShipId, actor, consoles] of [
@@ -527,6 +528,46 @@ try {
   assert.equal(Object.hasOwn(member.session, 'wolfAttackState'), false);
   assert.equal(JSON.stringify(member.session.maliadesState).includes('rolls'), false);
   checks.privateRootEscortRulesAndMemberDurabilityAllowlist = true;
+  // A server-selected damage card may disable the Construction Bay. Recover
+  // that actual damage through a paid current-holder trip and Macaw repair
+  // before the next Team maintenance; never clear it with a fixture write.
+  const repairBefore = (await f.session.get()).data();
+  assert.equal(repairBefore.shipDamage.aegis.destroyed, false,
+    'The ordinary next-Team fighter branch requires a surviving AEGIS.');
+  if (repairBefore.shipDamage.aegis.damagedSystemIds.includes('construction-bay')) {
+    const macaw = f.byRole('capybara-captain');
+    assert.ok(repairBefore.shuttleFuelled.macaw);
+    assert.ok(repairBefore.shipResources.capybara.scrap >= 1);
+    const destination = repairBefore.shuttleDockings.find(row => row.shuttleId === 'macaw')?.shipId;
+    if (destination !== 'aegis') {
+      await command(macaw, 'requestShuttleDeparture', { requestId: randomUUID(), shuttleId: 'macaw',
+        destinationShipId: 'aegis', expectedControlRevision: repairBefore.shuttleControl.macaw.revision,
+        expectedCycle: attackTurn });
+      const routeRef = f.db.doc(`sessions/${f.sessionId}/shuttleDepartures/macaw`);
+      const arrivalDeadline = Date.now() + 90_000;
+      let route;
+      while (Date.now() < arrivalDeadline) {
+        route = (await routeRef.get()).data();
+        if (route?.status === 'in-transit' && Date.now() >= Date.parse(route.arrivesAt)) break;
+        await delay(250);
+      }
+      assert.ok(route?.status === 'in-transit' && Date.now() >= Date.parse(route.arrivesAt),
+        'The normal Macaw trip must reach its authoritative arrival time.');
+      const current = (await f.session.get()).data();
+      await exactRetry(macaw, 'completeShuttleArrival', { shuttleId: 'macaw',
+        transitRequestId: route.transitRequestId, expectedControlRevision: current.shuttleControl.macaw.revision });
+    }
+    const current = (await f.session.get()).data();
+    const beforeScrap = current.shipResources.capybara.scrap;
+    await exactRetry(macaw, 'repairConsolesFromMacaw', { requestId: randomUUID(),
+      expectedControlRevision: current.shuttleControl.macaw.revision,
+      expectedRepairRevision: current.macawRepairs.revision, expectedCycle: attackTurn,
+      expectedHostShipId: 'aegis', systemIds: ['construction-bay'] });
+    const repaired = (await f.session.get()).data();
+    assert.equal(repaired.shipResources.capybara.scrap, beforeScrap - 1);
+    assert.equal(repaired.shipDamage.aegis.damagedSystemIds.includes('construction-bay'), false);
+    checks.normalPaidMacawConstructionBayRecovery = true;
+  }
   await replace(captain, 'doctor');
   const aftermath = await runPc09AftermathProof(f, { directory: dirname(evidencePath), finalState,
     actorAllocations: {doctor: captain, warrior, macaw: f.byRole('capybara-captain'), boa: f.byRole('capybara-recycler'),
