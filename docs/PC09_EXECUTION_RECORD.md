@@ -26,6 +26,17 @@ Do not start or revise PC10, post-PC10 work or PC11 here. A brief disconnect
 does not authorize migration; the parent owns any backup decision after 25
 continuous hours of MacBook failure.
 
+The parent later received authorization for a future PC11 covering diegetic
+in-game rules and explanations, while retaining GM/role/privacy boundaries.
+That future requirement does not enlarge the 49 PC09 closures. The parent owns
+its planning after PC09, PC10 and post-PC10 work. Browser-delivered text is not
+assumed private merely because an entry control is gated.
+
+The one fresh independent review and its bounded repairs are recorded in
+[`PC09_RISK_REVIEW.md`](PC09_RISK_REVIEW.md). Election conflict handling remains
+fail-closed while the parent clarifies which ballot supplies the owner's
+requested runner-up VP. No expanded GM-choice rule is assumed.
+
 ## Complete behavior groups and integration handoffs
 
 Workers use separate attached non-main branches/checkouts, implement meaningful

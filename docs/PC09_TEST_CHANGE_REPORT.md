@@ -22,6 +22,27 @@ checked before Team advance; the two slots for callable plus browser rebuild rem
 required. Failed runs stay failures and are never relabelled as a full acceptance pass
 because earlier branch assertions completed.
 
+The independent review repairs add discriminating regressions for five-outcome
+Detector accuracy, current-cycle/current-actor receipt replay, semantic map
+fingerprints, exact off-marker Doctor population, live election deadlines,
+terminal election mutations, distinct office holders and queued discovery
+epochs. The new `pc09VipHostHandlersCallable.test.ts` invokes both actual VIP
+handlers with an explicitly simulated physical-visit input, and checks both
+persisted receipts, private/public grant projections, one-use denial and exact
+replay without another die or write.
+
+Integration fixture corrections keep every existing behavioral assertion:
+join/resume strict document mocks permit only the two new optional election
+reads; current GM/App mocks include the new amnesty/VIP/arrest subscriptions;
+delivered civil unrest includes the neutral `hold` choice; the read-only amnesty
+reader is listed in the terminal-policy reader inventory; governance routes are
+listed in return navigation inventory. A Rules denial diagnostic now narrows its
+result union before displaying optional data, without changing the denial.
+Regex escape and parameterized-test formatting corrections only satisfy ESLint.
+The unchanged P602 prepared driver still stops at its obsolete player `/roles`
+fixture and earns no new browser return credit; the corrected real Auth election
+driver will cover the new governance return controls separately.
+
 | Test or gameplay driver | Change | Reason |
 |---|---|---|
 | `functions/src/approachingVesselResponse.test.ts` | Added | Keep the GM’s real/trap response private and validate explicit permitted timing/response choices. |
