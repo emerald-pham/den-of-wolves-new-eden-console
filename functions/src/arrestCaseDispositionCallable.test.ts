@@ -38,7 +38,8 @@ import { resolveArrestCaseDisposition } from './index';
 
 const baseData = {
   sessionId: 's1', instanceId: 'gm-1', requestId: 'disposition-1',
-  expectedCycle: 4, expectedRevision: 1, targetUid: 'u2', disposition: 'executed',
+  expectedCycle: 4, expectedRevision: 1, expectedSetupRevision: 2,
+  targetUid: 'u2', disposition: 'executed',
 };
 function request(data: Record<string, unknown> = baseData, uid = 'u1') {
   return { data, auth: { uid } } as CallableRequest<Record<string, unknown>>;
