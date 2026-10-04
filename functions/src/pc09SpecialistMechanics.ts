@@ -205,8 +205,10 @@ export function applyPdfFighterAceResults<T extends PdfFighterAceTarget>(
       throw new Error('The Fighter Ace combat roster is malformed.');
     }
     const capacity = wolfShipForId(entry.shipId)!.damageCapacity;
-    if ((entry.damageTaken as number) > capacity ||
-        entry.destroyed !== ((entry.damageTaken as number) >= capacity)) {
+    // Ordinary simultaneous range hits retain their full damage receipt even
+    // when it exceeds capacity. Preserve those already-destroyed contacts;
+    // only live contacts may receive the separately capped Ace result below.
+    if (entry.destroyed !== ((entry.damageTaken as number) >= capacity)) {
       throw new Error('The Fighter Ace combat roster damage and destruction state do not match catalog capacity.');
     }
     currentById.set(entry.instanceId, entry as T);
