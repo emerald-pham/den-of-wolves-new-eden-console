@@ -79,6 +79,7 @@ import {
   declareWolfAttack,
   extendAirspaceWindow,
   finishWolfCommanderTargetingRerolls,
+  getWolfCommanderCycleAttackDial,
   getDioneMaliadesLaunch,
   getPdfEscortWingLaunch,
   launchDioneMaliades,
@@ -2135,6 +2136,31 @@ it('lets the assigned Commander commit ten plus the selected group pursuit once 
   expect(mock.documents.get('sessions/s1/wolfAttackWindow/current')).toMatchObject({
     targetGroupId: 'fleet-2', threatSiteCode: 'commander',
   });
+});
+
+it('returns only current group pursuit values to the assigned Commander before a cycle dial', async () => {
+  session({ currentTurn: 4, turnPhase: {
+    turn: 4, teamPhaseEndsAt: new Date(Date.now() + 60_000).toISOString(),
+    openAirspaceEndsAt: new Date(Date.now() + 600_000).toISOString(),
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  } });
+  mock.documents.delete('sessions/s1/wolfAttackWindow/current');
+  navigation({ revision: 7, pursuitGroups: { 'fleet-1': 2, 'fleet-2': 8 } });
+  splitFleet();
+  put('sessions/s1/players/wolfcmd', {
+    uid: 'wolfcmd', role: 'player', connected: true, fleetGroupId: 'fleet-1',
+    replacementRoleId: 'wolf-commander',
+  });
+
+  const view = await getWolfCommanderCycleAttackDial.run(request({ sessionId: 's1' }, 'wolfcmd'));
+  expect(view).toMatchObject({
+    type: 'wolf-commander-cycle-dial-view', sessionId: 's1', cycle: 4,
+    navigationRevision: 7, status: 'available',
+    groups: [{ groupId: 'fleet-1', pursuitValue: 2 }, { groupId: 'fleet-2', pursuitValue: 8 }],
+  });
+  expect(JSON.stringify(view)).not.toMatch(/shipIds|combatRoster|privateNotes|composition/);
+  await expect(getWolfCommanderCycleAttackDial.run(request({ sessionId: 's1' }, 'u1')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
 });
 
 it('allows the assigned Commander to use cycle four after the ordinary three-attack cap without consuming carryover', async () => {
