@@ -4,6 +4,7 @@ import { expect, it, vi } from 'vitest';
 import {
   PdfFighterAcePermissionPanel,
   PdfFighterAcePanel,
+  VipHostMaintenanceRerollPanel,
   VipHostPanel,
   WolfAgentDetectorPanel,
 } from './Pc09SpecialistPresenters';
@@ -103,6 +104,17 @@ it('limits the physical visit and hosted reroll controls to injected authority',
     onAttestVisit={vi.fn()} onReroll={vi.fn()} />);
 
   expect(screen.queryByRole('button', { name: 'Reroll one maintenance die' })).not.toBeInTheDocument();
+});
+
+it('lets a current ship officer choose exactly one unrest die for the attested hosted reroll', async () => {
+  const onReroll = vi.fn().mockResolvedValue(undefined);
+  const user = userEvent.setup();
+  render(<VipHostMaintenanceRerollPanel cycle={4} cycleStep={4} shipLabel="AEGIS"
+    unrestRolls={[2, 5]} grantStatus="available" canUseGrant onReroll={onReroll} />);
+
+  await user.selectOptions(screen.getByLabelText('Unrest die'), '1');
+  await user.click(screen.getByRole('button', { name: 'Reroll one maintenance die' }));
+  await waitFor(() => expect(onReroll).toHaveBeenCalledWith(1));
 });
 
 it('lets a source commander authorize one specific current fighter slot', async () => {
