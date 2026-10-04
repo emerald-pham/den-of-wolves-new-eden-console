@@ -71,6 +71,7 @@ import {
   scavengeDestroyedShipStores,
   extendAirspaceWindow,
   setWolfAttackWindow,
+  getWolfAttackThreatWindowOptions,
   stageWolfAttackPreparation,
   declareWolfAttack as declareWolfAttackCommand,
   advanceWolfAttackToLongRange as advanceWolfAttackToLongRangeCommand,
@@ -128,6 +129,7 @@ import type {
   ArbourVision,
   FacilitatorRuleCall,
 } from '@/types/game';
+import type { WolfAttackThreatWindowOptions } from '@/lib/sessionService';
 
 import {
   CRISIS_KINDS,
@@ -501,6 +503,10 @@ export default function GmConsole() {
   const [castingMutationMessage, setCastingMutationMessage] = useState<string | null>(null);
   const [events, setEvents] = useState<readonly SessionEvent[]>([]);
   const [wolfAttackWindow, setWolfAttackWindowState] = useState<WolfAttackWindow | null>(null);
+  const [wolfThreatTargetGroupId, setWolfThreatTargetGroupId] = useState('');
+  const [wolfThreatOptions, setWolfThreatOptions] = useState<WolfAttackThreatWindowOptions | null>(null);
+  const [wolfThreatOptionsLoading, setWolfThreatOptionsLoading] = useState(false);
+  const [wolfThreatSourceId, setWolfThreatSourceId] = useState('');
   const [wolfAttackPreparation, setWolfAttackPreparationState] = useState<WolfAttackPreparation | null>(null);
   const [wolfAttackState, setWolfAttackState] = useState<WolfAttackDeclarationState | null>(null);
   const [wolfStageAdvanceMutation, setWolfStageAdvanceMutation] = useState(false);
@@ -581,6 +587,30 @@ export default function GmConsole() {
   useEffect(() => {
     if (candidatePlanCheckpoint) setCandidatePlanExistsDraft(candidatePlanCheckpoint.planExists);
   }, [candidatePlanCheckpoint]);
+
+  useEffect(() => {
+    let active = true;
+    setWolfThreatOptions(null);
+    setWolfThreatSourceId('');
+    if (!wolfThreatTargetGroupId || !sessionId || !isGm || !local ||
+        connection !== 'live' || sessionSnapshotFreshness !== 'server') {
+      setWolfThreatOptionsLoading(false);
+      return () => { active = false; };
+    }
+    setWolfThreatOptionsLoading(true);
+    void getWolfAttackThreatWindowOptions(wolfThreatTargetGroupId)
+      .then((options) => {
+        if (active && options.sessionId === sessionId && options.cycle === (session?.currentTurn ?? 1) &&
+            options.targetGroupId === wolfThreatTargetGroupId) setWolfThreatOptions(options);
+      })
+      .catch(() => {
+        if (active) setWolfThreatOptions(null);
+      })
+      .finally(() => {
+        if (active) setWolfThreatOptionsLoading(false);
+      });
+    return () => { active = false; };
+  }, [wolfThreatTargetGroupId, sessionId, session?.currentTurn, isGm, local?.id, connection, sessionSnapshotFreshness]);
 
   function clearZealotryResponseDraft(): void {
     setZealotryActionsDraft([]);
@@ -750,6 +780,11 @@ export default function GmConsole() {
     wolfWindowTurn === currentTurn;
   const wolfWindowDeferAvailable = currentTurn === 1 &&
     (wolfAttackWindow === null || wolfAttackWindow.status === 'due');
+  const wolfThreatGroupIds = useMemo(
+    () => Object.keys(session?.pursuitGroups ?? {}).filter((groupId) => /^fleet-[1-9][0-9]*$/.test(groupId)).sort(),
+    [session?.pursuitGroups],
+  );
+  const selectedWolfThreatSource = wolfThreatOptions?.sources.find(({ sourceId }) => sourceId === wolfThreatSourceId);
   const debriefQueued = pendingCommands.some(
     (command) => command.kind === 'setDebriefMode',
   );
@@ -2466,11 +2501,16 @@ export default function GmConsole() {
     }
   }
 
-  async function changeWolfAttackWindow(status: WolfAttackWindowStatus): Promise<void> {
+  async function changeWolfAttackWindow(
+    status: WolfAttackWindowStatus,
+    threat?: Readonly<{ targetGroupId: string; threatSiteCode?: 'L' | 'M' | 'P'; threatSourceId?: string }>,
+  ): Promise<void> {
     if (wolfWindowMutation || !session || !local) return;
     setWolfWindowMutation(status);
     try {
-      const next = await setWolfAttackWindow(status, wolfWindowRevision);
+      const next = threat
+        ? await setWolfAttackWindow(status, wolfWindowRevision, threat)
+        : await setWolfAttackWindow(status, wolfWindowRevision);
       setWolfAttackWindowState(next);
     } catch {
       // The shared interception notice reports the server rejection.
@@ -3015,6 +3055,58 @@ export default function GmConsole() {
                   Capybara balance // Consider +6 Wolf damage capacity per attack. The facilitator
                   chooses the adjustment; this reminder does not change attacks.
                 </p>
+              )}
+              {wolfWindowDueAvailable && wolfThreatGroupIds.length > 0 && (
+                <div className="gm-turn-control__actions" aria-label="Wolf threat source selection">
+                  <label className="cic-field">
+                    <span>Target fleet group</span>
+                    <select
+                      aria-label="Target fleet group"
+                      value={wolfThreatTargetGroupId}
+                      onChange={(event) => setWolfThreatTargetGroupId(event.target.value)}
+                    >
+                      <option value="">Select a fleet group</option>
+                      {wolfThreatGroupIds.map((groupId) => (
+                        <option key={groupId} value={groupId}>{groupId}</option>
+                      ))}
+                    </select>
+                  </label>
+                  {wolfThreatTargetGroupId && <>
+                    <p className="gm-console__hint">
+                      Target group pursuit // {session.pursuitGroups?.[wolfThreatTargetGroupId] ?? 'unavailable'}
+                    </p>
+                    <label className="cic-field">
+                      <span>Triggered Wolf site</span>
+                      <select
+                        aria-label="Triggered Wolf site"
+                        value={wolfThreatSourceId}
+                        onChange={(event) => setWolfThreatSourceId(event.target.value)}
+                        disabled={wolfThreatOptionsLoading || !wolfThreatOptions || wolfThreatOptions.sources.length === 0}
+                      >
+                        <option value="">{wolfThreatOptionsLoading ? 'Loading live sources…' : 'Select a triggered site'}</option>
+                        {wolfThreatOptions?.sources.map((source) => (
+                          <option key={source.sourceId} value={source.sourceId}>
+                            {source.siteCode} // Cycle {source.sourceCycle} // {source.coordinate}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      className="cic-action-button"
+                      type="button"
+                      disabled={!wolfWindowDueAvailable || wolfWindowMutation !== null || !selectedWolfThreatSource ||
+                        !wolfThreatOptions || wolfThreatOptions.cycle !== currentTurn ||
+                        wolfThreatOptions.targetGroupId !== wolfThreatTargetGroupId}
+                      onClick={() => selectedWolfThreatSource && void changeWolfAttackWindow('due', {
+                        targetGroupId: wolfThreatTargetGroupId,
+                        threatSiteCode: selectedWolfThreatSource.siteCode,
+                        threatSourceId: selectedWolfThreatSource.sourceId,
+                      })}
+                    >
+                      {wolfWindowMutation === 'due' ? 'Marking threat source due…' : 'Mark threat source due'}
+                    </button>
+                  </>}
+                </div>
               )}
               <div className="gm-turn-control__actions">
                 <button
