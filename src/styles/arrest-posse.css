@@ -11,7 +11,7 @@
 
 .gm-arrest-posse__form {
   display: grid;
-  grid-template-columns: minmax(12rem, 1.5fr) minmax(8rem, 0.6fr) minmax(10rem, 0.8fr) auto;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
   align-items: end;
   gap: 0.75rem;
 }
@@ -49,8 +49,10 @@
 }
 
 .gm-arrest-posse__submit {
+  min-width: 0;
   min-height: 44px;
-  white-space: nowrap;
+  width: 100%;
+  white-space: normal;
 }
 
 .gm-arrest-posse__result {
