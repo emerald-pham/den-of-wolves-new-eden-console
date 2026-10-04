@@ -41,20 +41,18 @@ let functionsInstance: Functions | undefined;
 let appCheckInstance: AppCheck | undefined;
 
 /**
- * App Check must start before any Firebase service so callable and Firestore
- * requests carry an automatically refreshed attestation token. The site key is
- * intentionally public; its allowed domains live in reCAPTCHA Enterprise.
+ * Production App Check starts before Firebase services. The explicitly selected
+ * local emulators do not enforce attestation, and starting the debug provider
+ * there would still exchange tokens with the remote App Check service.
+ * The production site key is public; its domains live in reCAPTCHA Enterprise.
  */
-export function appCheck(): AppCheck {
+export function appCheck(): AppCheck | undefined {
+  if (useEmulators) return undefined;
   if (!appCheckInstance) {
     if (!appCheckSiteKey) {
       throw new Error(
         'Firebase App Check is not configured. Set VITE_APP_CHECK_SITE_KEY before using Firebase services.',
       );
-    }
-    if (useEmulators) {
-      (globalThis as typeof globalThis & { FIREBASE_APPCHECK_DEBUG_TOKEN?: boolean })
-        .FIREBASE_APPCHECK_DEBUG_TOKEN = true;
     }
     appCheckInstance = initializeAppCheck(firebaseApp(), {
       provider: new ReCaptchaEnterpriseProvider(appCheckSiteKey),
