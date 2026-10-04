@@ -275,6 +275,11 @@ try {
   f.press = await pressBrowser.join((await f.session.get()).get('joinCode'));
   await command(f.press, 'refreshPresence', { activeConsoleRoleId: 'press-officer' });
   checks.pressJoinedThroughLiveSessionUi = true;
+  await page.goto(`${uiUrl}/#/console`);
+  await page.getByRole('heading', { name: 'Stations and consoles', exact: true }).waitFor();
+  await page.getByRole('link', { name: 'AEGIS // Executive Officer // HELD BY YOU', exact: true }).click();
+  await browserUntil('current ordinary EO console', s => s.uid === f.byRole('executive-officer').localId &&
+    s.activeConsoleRoleId === 'executive-officer' && s.connection === 'live' && s.freshness === 'server');
   const deduction = await runPc09DeductionPrelude(f, { directory: dirname(evidencePath) });
   checks.deduction = deduction.checks;
   assert.ok(deduction.checks, 'The ordinary deduction prelude must return its committed proof checks.');
@@ -426,11 +431,12 @@ try {
       assert.equal((await attackState()).currentStep, range);
       assert.equal((await attackState()).rangeDecisions?.[range]?.lock, undefined);
       await context.setOffline(false);
-      await command(eo, 'resumeSession');
-      await command(eo, 'refreshPresence', { activeConsoleRoleId: 'executive-officer' });
+      await browserUntil('ordinary automatic EO network recovery', s => s.uid === eo.localId &&
+        s.uid === s.memberUid && s.sessionId === f.sessionId && s.connection === 'live' && s.freshness === 'server');
       await page.reload();
       await browserUntil('same EO identity restored before range choices', s => s.uid === eo.localId &&
-        s.uid === s.memberUid && s.sessionId === f.sessionId && s.connection === 'live' && s.freshness === 'server');
+        s.uid === s.memberUid && s.sessionId === f.sessionId && s.activeConsoleRoleId === 'executive-officer' &&
+        s.connection === 'live' && s.freshness === 'server');
       if (range === 'medium-range') {
         const aceView = await command(ace, 'getPdfFighterAceCombatView');
         const chosen = aceView.targets.find(target => target.available);
