@@ -44,7 +44,7 @@ test('PC09 real-presenter tour is isolated, accessible and responsive in eight c
               assert.equal(await repair.isEnabled(), false);
               await page.getByRole('combobox', {name: 'Gorgoneion repair console'}).selectOption('missile-launchers');
               await repair.click(); assert.equal(await repair.isEnabled(), false);
-              const build = page.getByRole('button', {name: 'Build fighter // 1 material', exact: true});
+              const build = page.getByRole('button', {name: 'Build 1 fighter // 1 material', exact: true});
               await build.click(); assert.equal(await build.isEnabled(), false);
               await page.getByRole('region', {name: 'Wolf attack DRADIS'}).getByText('Unknown', {exact: true}).first().waitFor();
             } else if (index === 1) {
