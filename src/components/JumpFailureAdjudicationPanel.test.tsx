@@ -53,12 +53,13 @@ it('requires an explicit source consequence before an active facilitator can com
 
   await user.click(screen.getByRole('button', { name: /check failed jumps/i }));
   expect(await screen.findByText(/FUEL SHORTAGE/)).toBeInTheDocument();
-  expect(screen.getByLabelText('Adjudication destination for AEGIS')).toHaveValue('5143');
+  expect(screen.getByLabelText('Adjudication destination for AEGIS')).toHaveValue('');
   expect(screen.getByText(/1 fuel available; 3 required/i)).toBeInTheDocument();
   const complete = screen.getByRole('button', { name: /complete failed jump for aegis/i });
   expect(complete).toBeDisabled();
   expect(createFailedJumpAdjudicationAttempt).not.toHaveBeenCalled();
 
+  await user.selectOptions(screen.getByLabelText('Adjudication destination for AEGIS'), '5143');
   await user.selectOptions(screen.getByLabelText('Failed-jump consequence for AEGIS'), 'full-d6-damage');
   expect(complete).toBeEnabled();
 
@@ -88,6 +89,7 @@ it('keeps the exact adjudication request available after an uncertain reply', as
   render(<JumpFailureAdjudicationPanel active />);
   await user.click(screen.getByRole('button', { name: /check failed jumps/i }));
   await screen.findByText(/FUEL SHORTAGE/);
+  await user.selectOptions(screen.getByLabelText('Adjudication destination for AEGIS'), '5143');
   await user.selectOptions(screen.getByLabelText('Failed-jump consequence for AEGIS'), 'half-d6-damage');
 
   await user.click(screen.getByRole('button', { name: /complete failed jump for aegis/i }));
