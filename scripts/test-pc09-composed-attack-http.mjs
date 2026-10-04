@@ -266,10 +266,15 @@ try {
   f = await createPc07AuthenticatedSession('PC09 ordinary deduction and complete Wolf attack', 20, { keepAlive: true,
     expansion: 'capybara', capybaraEnabled: true, browserRoleId: 'executive-officer', joinBrowserPlayer: joinThroughUi,
     joinBrowserPlayers: { 'wing-commander': wingBrowser.join, 'refinery-124-captain': aceBrowser.join },
-    joinPressPlayer: pressBrowser.join,
     explicitLoyaltySetup: { wolfAgentRoleId: 'refinery-124-pdf-colonel', wolfCultRoleId: 'wing-commander',
       intelligenceAgentRoleId: 'quellon-explorer' } });
   console.log('Disposable PC09 normal authenticated session created.');
+  // The explicit optional loyalty fixture starts with its complete 20-core
+  // roster. Press then joins through the normal live-session UI; this keeps
+  // casting loyalty policy intact and does not seed a private Press secret.
+  f.press = await pressBrowser.join((await f.session.get()).get('joinCode'));
+  await command(f.press, 'refreshPresence', { activeConsoleRoleId: 'press-officer' });
+  checks.pressJoinedThroughLiveSessionUi = true;
   const deduction = await runPc09DeductionPrelude(f, { directory: dirname(evidencePath) });
   checks.deduction = deduction.checks;
   assert.ok(deduction.checks, 'The ordinary deduction prelude must return its committed proof checks.');
