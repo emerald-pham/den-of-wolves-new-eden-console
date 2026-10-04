@@ -3663,6 +3663,33 @@ it('hides later attack-window authorization while an attack is pending or the pr
   expect(within(controls).queryByRole('button', { name: 'Mark next attack window due' })).not.toBeInTheDocument();
 });
 
+it('shows committed aftermath from the existing private GM attack subscription', async () => {
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({ ...activeSession, phase: 'active', currentTurn: 1 });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(subscribeGmWolfAttackState).mockImplementation((_sessionId, onState) => {
+    onState({ type: 'wolf-attack-state', status: 'resolved', currentStep: 'resolved', turn: 1, attackNumber: 1,
+      revision: 4, attackId: 'wolf-attack-aftermath', deadlineAt: '2026-10-04T10:00:00.000Z',
+      airspaceLocked: false, calculationReceipt: { fleetDamage: [{ target: 'aegis', amount: 1,
+        populationBefore: 2_500, population: 2_500, state: { damagedSystemIds: ['storage'], destroyed: false },
+        draws: [{ destroyed: false, casualty: false, recycled: false,
+          card: { card: '8♦', systemId: 'storage', systemName: 'Storage' } }] }],
+        ranges: [], returningInstanceIds: [], survivingWolfShips: [] }, memberResults: [] } as never);
+    return vi.fn();
+  });
+
+  renderConsole();
+
+  const receipt = await screen.findByRole('region', { name: 'Private Wolf aftermath receipt' });
+  expect(within(receipt).getByText('AEGIS // 1 damage')).toBeVisible();
+  expect(within(receipt).getByText(/8♦.*Storage.*no casualty/i)).toBeVisible();
+  expect(within(receipt).getByText(/Repair storage on AEGIS/i)).toBeVisible();
+});
+
 it('stages the private composition with automatic server targeting', async () => {
   const user = userEvent.setup();
   const activeSession = useSessionStore.getState().session;
