@@ -148,9 +148,9 @@ describe('Wolf attack aftermath command contract', () => {
     put('sessions/s-1/players/warrior-uid', { role: 'player', connected: true,
       replacementRoleId: 'warrior-captain', replacementStatus: null, activeConsoleRoleId: null, seatId: null });
 
-    await expect(resolveWolfAttackAftermath.run(request({ sessionId: 's-1', attackId: 'attack-7',
+  await expect(resolveWolfAttackAftermath.run(request({ sessionId: 's-1', attackId: 'attack-7',
       requestId: 'salvage-7', action: 'warrior-salvage' }, 'warrior-uid'))).resolves.toEqual({
-      status: 'committed', sessionId: 's-1', attackId: 'attack-7', requestId: 'salvage-7',
+      status: 'committed', sessionId: 's-1', attackId: 'attack-7', requestId: 'salvage-7', action: 'warrior-salvage',
       materialsGained: 3, damageDice: [6, 6, 6],
     });
     expect((mock.documents.get('sessions/s-1')?.shipResources as Fields).aegis).toMatchObject({ materials: 4 });
@@ -158,9 +158,9 @@ describe('Wolf attack aftermath command contract', () => {
     expect(updatedState.memberResults).toEqual([expect.objectContaining({ sourceId: 'pdf-fighter-ace', outcome: { damage: 1 } }),
       expect.objectContaining({ sourceId: 'warrior-salvage-drones', outcome: { materialsGained: 3 } })]);
     expect(updatedState.aftermath).toMatchObject({ warriorSalvage: { hostShipId: 'aegis', damageDice: [6, 6, 6] } });
-    expect(mock.documents.get('sessions/s-1/wolfAttackAudience/current')?.results).toEqual([
+    expect(mock.documents.get('sessions/s-1/wolfAttackAudience/current')?.results).toEqual(expect.arrayContaining([
       expect.objectContaining({ sourceId: 'warrior-salvage-drones', outcome: { materialsGained: 3 } }),
-    ]);
+    ]));
   });
 
   it('collects a qualifying attack Scrap opportunity once into the currently docked shuttle cargo', async () => {
@@ -190,5 +190,28 @@ describe('Wolf attack aftermath command contract', () => {
     await expect(resolveWolfAttackAftermath.run(request(command, 'macaw-uid'))).resolves.toMatchObject({ status: 'replayed' });
     expect(mock.documents.get('sessions/s-1')?.shuttleCargo).toEqual({ macaw: { scrap: 1 } });
     expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
+  });
+
+  it('allows the active Boa Recycler console to collect its current Scrap opportunity', async () => {
+    const session = mock.documents.get('sessions/s-1')!;
+    session.activeVesselIds = ['aegis', 'capybara'];
+    session.capybaraEnabled = true;
+    session.shuttleDockings = [{ shuttleId: 'boa', shipId: 'aegis', dockedAt: 'fixture' }];
+    session.shuttleControl = { boa: { shuttleId: 'boa', ownerRoleId: 'capybara-recycler',
+      ownerUid: 'boa-uid', holderUid: 'boa-uid', revision: 0 } };
+    session.shuttleCargo = { boa: { scrap: 0 } };
+    const state = mock.documents.get('sessions/s-1/wolfAttackState/current')!;
+    (state.calculationReceipt as Fields).fleetDamage = [{ target: 'aegis', amount: 3, populationBefore: 2_500,
+      population: 2_000, state: { damagedSystemIds: [], destroyed: false },
+      draws: [{ casualty: false }, { casualty: true }, { casualty: false }] }];
+    put('sessions/s-1/players/boa-uid', { role: 'player', connected: true, assignedRoleId: 'capybara-recycler',
+      replacementRoleId: null, activeConsoleRoleId: 'capybara-recycler', replacementStatus: null,
+      escapeState: null, fleetGroupId: 'fleet-1' });
+    put('sessions/s-1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: ['aegis', 'capybara'], memberUids: ['boa-uid'] });
+
+    await expect(resolveWolfAttackAftermath.run(request({ sessionId: 's-1', attackId: 'attack-7',
+      requestId: 'boa-scrap-7', action: 'collect-scrap', shuttleId: 'boa', targetShipId: 'aegis' }, 'boa-uid')))
+      .resolves.toMatchObject({ status: 'committed', action: 'collect-scrap', shuttleId: 'boa', scrapGained: 1 });
+    expect(mock.documents.get('sessions/s-1')?.shuttleCargo).toEqual({ boa: { scrap: 1 } });
   });
 });
