@@ -112,3 +112,34 @@ it('requires a live active Scientist and the Endeavour holder', async () => {
   await expect(runWolfAgentDetectorTest.run(request())).rejects.toMatchObject({ code: 'permission-denied' });
   expect(random.randomInt).not.toHaveBeenCalled();
 });
+
+it('samples five outcomes for the accepted four-in-five detector accuracy', async () => {
+  random.randomInt.mockReturnValue(4);
+  await runWolfAgentDetectorTest.run(request());
+  expect(random.randomInt).toHaveBeenCalledWith(1, 6);
+  expect(mock.documents.get('sessions/s1/wolfAgentDetectorAudits/detector-1'))
+    .toMatchObject({ actualWolf: true, reportedWolf: true, accurate: true, accuracyRoll: 4 });
+
+  random.randomInt.mockReset();
+  random.randomInt.mockReturnValue(5);
+  // A one-in-five error is possible, while the exact accepted sample space is
+  // 1–5 (1–4 accurate), not six equally likely die faces.
+  const miss = await runWolfAgentDetectorTest.run(request({ ...payload, requestId: 'detector-2', expectedRevision: 1 }));
+  expect(random.randomInt).toHaveBeenCalledWith(1, 6);
+  expect(miss).toMatchObject({ reportedWolf: false });
+  expect(mock.documents.get('sessions/s1/wolfAgentDetectorAudits/detector-2'))
+    .toMatchObject({ actualWolf: true, reportedWolf: false, accurate: false, accuracyRoll: 5 });
+});
+
+it('rejects a previous-cycle exact retry before returning its receipt', async () => {
+  await runWolfAgentDetectorTest.run(request());
+  mock.documents.get('sessions/s1')!.currentTurn = 2;
+  const phase = mock.documents.get('sessions/s1')!.turnPhase as Fields;
+  phase.turn = 2;
+  random.randomInt.mockClear();
+  mock.set.mockClear();
+
+  await expect(runWolfAgentDetectorTest.run(request())).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(random.randomInt).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});

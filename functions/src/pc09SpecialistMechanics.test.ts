@@ -8,6 +8,8 @@ it('keeps Detector truth server-defined and applies four-in-five accuracy', () =
   expect(detectorReportedWolf(true, 5)).toBe(false);
   expect(detectorReportedWolf(false, 5)).toBe(true);
   expect(() => detectorReportedWolf(true, 0)).toThrow();
+  expect([1, 2, 3, 4, 5].map((roll) => detectorReportedWolf(true, roll)))
+    .toEqual([true, true, true, true, false]);
 });
 
 it('compares attendance to the private posse calculation without returning suspicion', () => {
