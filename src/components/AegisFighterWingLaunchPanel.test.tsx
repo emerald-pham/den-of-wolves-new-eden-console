@@ -1,6 +1,24 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
-import { AegisFighterWingLaunchPanelView } from './AegisFighterWingLaunchPanel';
+
+const mocks = vi.hoisted(() => ({
+  authority: vi.fn(),
+  getLaunch: vi.fn(),
+}));
+
+vi.mock('@/lib/wolfAttackChoiceController', () => ({
+  useWolfAttackChoiceAuthority: () => mocks.authority(),
+}));
+vi.mock('@/lib/sessionService', () => ({
+  getAegisFighterWingLaunch: (sourceId: string) => mocks.getLaunch(sourceId),
+  launchAegisFighterWing: vi.fn(),
+  passWolfFighterLaunchChoice: vi.fn(),
+}));
+vi.mock('./PdfFighterAcePermissionControl', () => ({
+  default: ({ sourceId }: { sourceId: string }) => <div data-testid={`ace-permission-${sourceId}`} />,
+}));
+
+import AegisFighterWingLaunchPanel, { AegisFighterWingLaunchPanelView } from './AegisFighterWingLaunchPanel';
 
 const alpha = {
   type: 'aegis-fighter-wing-launch-view', sessionId: 's1', wingId: 'fighter-wing-alpha',
@@ -38,4 +56,17 @@ it('offers an explicit pass for each eligible independent wing choice', () => {
   fireEvent.click(screen.getByRole('button', { name: /pass fighter wing alpha/i }));
   expect(onPass).toHaveBeenCalledWith('fighter-wing-alpha', alpha);
   expect(screen.queryByRole('button', { name: /pass fighter wing bravo/i })).not.toBeInTheDocument();
+});
+
+it('mounts source-officer Fighter Ace permission controls for launched AEGIS wings', async () => {
+  mocks.authority.mockReturnValue({ sessionId: 's1', actorReady: true, ready: true });
+  mocks.getLaunch.mockImplementation(async (wingId: string) => ({
+    ...alpha, wingId, launched: true, eligible: false, reason: 'already-launched',
+  }));
+
+  render(<AegisFighterWingLaunchPanel />);
+
+  expect(await screen.findByTestId('ace-permission-fighter-wing-alpha')).toBeInTheDocument();
+  expect(await screen.findByTestId('ace-permission-fighter-wing-bravo')).toBeInTheDocument();
+  expect(mocks.getLaunch).toHaveBeenCalledTimes(2);
 });
