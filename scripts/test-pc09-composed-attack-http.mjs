@@ -442,7 +442,6 @@ try {
         await exactRetry(f.byRole('refinery-124-pdf-colonel'), 'grantPdfFighterAcePermission', {
           requestId: randomUUID(), attackId: current.attackId, expectedRevision: current.revision,
           sourceId: 'pdf-escort-fighter-wing', fighterIndex: 0 });
-        await command(ace, 'resumeSession');
         await aceBrowser.untilIdentity('current ordinary Ace identity', s => s.uid === ace.localId && s.uid === s.memberUid &&
           s.replacementRoleId === 'pdf-fighter-ace' && s.connection === 'live' && s.freshness === 'server');
         await aceBrowser.page.goto(`${uiUrl}/#/replacement/pdf-fighter-ace`);
