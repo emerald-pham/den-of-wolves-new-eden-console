@@ -203,7 +203,7 @@ describe('Wolf Commander cycle and target dial services', () => {
       ring: [{ targetId: 'aegis', targetNumber: 1 }, { targetId: 'dione', targetNumber: 2 }],
       ships: [{ rosterIndex: 0, shipId: 'wolf-cruiser', currentTarget: 'aegis', currentTargetNumber: 1 }],
       adjustmentUsed: false,
-    };
+    } as const;
     const read = callableReturning({ data: view });
     vi.mocked(httpsCallable).mockReturnValue(read as never);
     await expect(getWolfCommanderRangeTargetDial()).resolves.toEqual(view);
