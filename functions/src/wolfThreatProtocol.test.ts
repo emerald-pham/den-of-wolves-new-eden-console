@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyWolfCommanderTargetAdjustment,
+  resolveWolfCommanderRangeTargetAdjustment,
   commanderAttackRequirement,
   resolveWolfAmnestyDecision,
   wolfThreatComposition,
@@ -65,6 +66,24 @@ describe('group-bound Wolf threat protocol', () => {
       targetShipId: 'aegis',
       currentTargetNumber: 2,
       delta: -1,
+      usedRanges: ['long'],
+    })).toThrow(/already used/i);
+  });
+
+  it('moves only the chosen surviving Wolf ship around the targeted group ring once per phase', () => {
+    expect(resolveWolfCommanderRangeTargetAdjustment({
+      cycle: 3, range: 'long', rosterIndex: 2, shipId: 'wolf-cruiser',
+      currentTarget: 'refinery-124', delta: 1,
+      targetRing: ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124'],
+      usedRanges: [],
+    })).toMatchObject({
+      fromTarget: 'refinery-124', toTarget: 'aegis', fromTargetNumber: 6, toTargetNumber: 1,
+      range: 'long', shipId: 'wolf-cruiser', delta: 1,
+    });
+    expect(() => resolveWolfCommanderRangeTargetAdjustment({
+      cycle: 3, range: 'long', rosterIndex: 2, shipId: 'wolf-cruiser',
+      currentTarget: 'refinery-124', delta: 1,
+      targetRing: ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124'],
       usedRanges: ['long'],
     })).toThrow(/already used/i);
   });
