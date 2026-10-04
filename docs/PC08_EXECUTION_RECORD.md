@@ -613,3 +613,41 @@ Evidence: `owner/main-performance-attempt-one.json`,
 `owner/verify-web-dependency-install-repair.json`. The production check at
 08:35 UTC still reports 0.5.66. The unreleased PC08 version remains 0.5.67,
 with exactly 49 acceptances and no PC09 scope.
+
+## Bounded cache review and correction — October 4
+
+Independent Sol 6.1 xhigh review of exact `06d83194` found two P2
+whole-layout cache gaps: hidden-mark identity/count/bounds were omitted, and
+styled descendants could change tag height or width without invalidating its
+geometry/width context. The three original discriminating assertions failed
+at that source and passed against `6ee3e4f9`. No approval was issued for
+`06d83194`; its report and all failure artifacts are retained separately.
+The reviewed CI dependency condition had no additional actionable finding.
+The review's fresh browser attempts were sandbox-blocked; no rendered result
+or production result is attributed to that review.
+
+Worker test-first `3449a85c` retained seven deliberate failures with 74 prior
+ContactPlot tests passing. Repair `f29ebf3e` compares the complete already-
+measured mark list and includes descendant structure, attributes and inline
+styles in both geometry and intrinsic-width context. Root integrated these
+as `2326b4aa` and `3916051a`; both source blobs match the worker exactly.
+The descendant mutations are cache correctness contracts, not an observed
+player styling control or privacy leak.
+
+The repaired worker passed 102 focused tests, typecheck, scoped lint, build/
+bundle validation and the established responsive label matrix at 1440x900,
+390x844 and 844x390 in normal/reduced motion. Unchanged native local P637
+measured DRADIS 33.4 ms p95 / 5.8 ms work p95 / 1,182 label reads; mobile
+16.7 ms p95 / 16.8 ms max / zero long frames / 5,901 label reads. The landing
+bundle is 1,749,080 raw / 468,489 gzip bytes, largest chunk 497,246 bytes.
+These are local results; exact-candidate CI and exact-main deployment remain
+required under unchanged budgets and native timing.
+
+Evidence: `owner/independent-security-review-06d83194-report.md`,
+`owner/independent-review-06d83194-probes/`,
+`owner/cache-review-failure-evidence-preservation.json` and
+`owner/mobile-performance-cache-repair/`. Root rechecked the 44 loading and
+39 composed artifact hashes after integration; all match their prior runtime
+attestations. This is continuity, not a fresh gameplay replay. Earlier closed
+authority/loading scopes remain closed. Required exact-source follow-up review,
+final local gates, CI and production checks are pending. PC09 has not started.
