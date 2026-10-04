@@ -2,7 +2,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 import { firstTurnWolfAttackComposition } from './wolfAttackComposition';
 import { CORE_WOLF_TARGET_RING, EXPANDED_WOLF_TARGET_RING } from './wolfCombatMath';
-import { resolveWolfRange, resolveWolfTargeting, wolfCombatRoster } from './wolfCombatMath';
+import { resolveLockedWolfRange, resolveWolfRange, resolveWolfTargeting, wolfCombatRoster } from './wolfCombatMath';
 import { projectWolfAttackMemberView } from './wolfAttackAudience';
 
 type Fields = Record<string, unknown>;
@@ -2018,7 +2018,25 @@ async function commitSupportMisses(): Promise<unknown[]> {
   return testState.documents.get('sessions/s1/wolfAttackState/current')!.memberResults as unknown[];
 }
 
-
+async function finishBoardingNormally(requestIdPrefix: string): Promise<void> {
+  const defenceView = await getWolfBoardingDefenceChoice.run(request({ sessionId: 's1' }));
+  if (defenceView.reason !== 'no-boarders') {
+    await commitWolfBoardingDefenceChoice.run(request({ sessionId: 's1', requestId: `${requestIdPrefix}-defence`,
+      expectedTurn: 1, expectedRevision: defenceView.revision, targetShipId: 'aegis', securityTeams: 0 }));
+  }
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  if (testState.documents.get('sessions/s1/wolfAttackState/current')?.status === 'resolved') return;
+  for (let index = 0; index < 8; index += 1) {
+    const view = await getWolfBoardingSpecialChoice.run(request({ sessionId: 's1' }));
+    if (view.reason === 'no-special-choice') break;
+    expect(view.choice).toMatchObject({ kind: 'reroll', source: expect.any(String) });
+    const choice = view.choice as Fields;
+    await commitWolfBoardingSpecialChoice.run(request({ sessionId: 's1', requestId: `${requestIdPrefix}-pass-${index}`,
+      expectedTurn: 1, expectedRevision: view.revision,
+      choice: { kind: 'reroll', source: choice.source, targetShipId: choice.targetShipId, dieIndexes: [] } }));
+  }
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+}
 
 it('projects actual support misses after the shared lock and zero-hit assignment', async () => {
   const results = await commitSupportMisses();
@@ -2057,6 +2075,110 @@ it('atomically finalizes boarding and reopens once with actual prior support mis
   expect(testState.documents.get(`${statePath}/audit/wolf-finalized-1`)).toEqual(finalAudit);
   expect(testState.documents.get('sessions/s1/wolfAttackAudience/current')).toEqual(audience);
   expect(entropy.randomInt).toHaveBeenCalledTimes(draws);
+});
+
+it('automatically opens and restages the exact surviving P Station force in the finalization transaction', async () => {
+  const pTargeting = resolveWolfTargeting(firstTurnWolfAttackComposition(), {}, EXPANDED_WOLF_TARGET_RING, () => 0);
+  openBoardingFixture(pTargeting);
+  const session = testState.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session, expansion: 'capybara', capybaraEnabled: true, playerCount: 19,
+    activeVesselIds: [...session.activeVesselIds as string[], 'capybara'] });
+  const statePath = 'sessions/s1/wolfAttackState/current';
+  const state = testState.documents.get(statePath)!;
+  const roster = state.combatRoster as Array<{ instanceId: string; shipId: string; target: string; damageTaken: number; destroyed: boolean }>;
+  const snapshot = roster.map(({ instanceId, target }) => ({ instanceId, target }));
+  const zeroDamage = (range: 'long-range' | 'medium-range') => ({ range, targetSnapshot: snapshot, targetShifts: [],
+    dice: [], assignments: [], unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
+    destructionDamageByTarget: Object.fromEntries(EXPANDED_WOLF_TARGET_RING.map((target) => [target, 0])) });
+  const targetIds = roster.slice(0, -1).map(({ instanceId }) => instanceId);
+  const shortAction = { actionId: 'short-destroy-fourteen', sourceId: 'test-short-action', range: 'short-range' as const,
+    dice: { count: targetIds.length, sides: 6, successAt: 1, damagePerSuccess: 99 }, maxTargets: targetIds.length };
+  const short = resolveLockedWolfRange({ range: 'short-range', actions: [shortAction], roster,
+    locked: { range: 'short-range', dice: [{ actionId: shortAction.actionId, sourceId: shortAction.sourceId,
+      range: 'short-range', rolls: Array.from({ length: targetIds.length }, () => 1), successes: targetIds.length,
+      damage: targetIds.length * 99, damagePerHit: 99 }] },
+    assignments: [{ actionId: shortAction.actionId, targetInstanceIds: targetIds }] });
+  const marker = { type: 'p-station-sequence', sequenceId: 'wolf-p-station-transition-1', groupId: 'fleet-1',
+    chart: 'B', coordinate: '1964', stationId: 'P', sourceTransitionId: 'transition-1', sourceCycle: 1, attackNumber: 1 };
+  put(statePath, { ...state, announcementId: state.attackId, attackNumber: 1, pStationSequence: marker,
+    combatRoster: short.roster, rangeReceipts: [zeroDamage('long-range'), zeroDamage('medium-range'), short.receipt] });
+  put('sessions/s1/wolfAttackWindow/current', { status: 'resolved', turn: 1, revision: 5,
+    targetGroupId: 'fleet-1', threatSiteCode: 'P', threatSourceId: 'arrival-transition-1' });
+  put('sessions/s1/wolfAttackPreparation/current', { turn: 1, revision: 2,
+    shipIds: ['wolf-fighter-wing', 'wolf-fighter-wing'], targetMode: 'pre-rolled', targetAssignments: [],
+    modifiers: [], notes: '', compositionKind: 'P', targetGroupId: 'fleet-1' });
+  entropy.randomInt.mockReturnValue(0);
+
+  await finishBoardingNormally('p-repeat-survivor');
+
+  const finalized = testState.documents.get(statePath)!;
+  const survivingWolfShips = (finalized.calculationReceipt as Fields).survivingWolfShips as Array<Fields>;
+  expect(finalized).toMatchObject({ status: 'resolved', currentStep: 'resolved', attackNumber: 1,
+    pStationSequence: marker });
+  expect(survivingWolfShips).toHaveLength(1);
+  expect(survivingWolfShips[0]).toMatchObject({ instanceId: roster.at(-1)!.instanceId, shipId: 'wolf-assault-transport' });
+  expect(testState.documents.get(`${statePath}/audit/wolf-finalized-1`)).toMatchObject({
+    pStationSequence: marker, survivingWolfShips,
+  });
+  expect(testState.documents.get('sessions/s1/wolfAttackWindow/current')).toMatchObject({
+    status: 'due', turn: 1, revision: 6, targetGroupId: 'fleet-1', threatSiteCode: 'P',
+    threatSourceId: 'arrival-transition-1',
+  });
+  expect(testState.documents.get('sessions/s1/wolfAttackPreparation/current')).toMatchObject({
+    turn: 1, revision: 3, shipIds: ['wolf-fighter-wing'], compositionKind: 'p-station-repeat',
+    targetGroupId: 'fleet-1',
+  });
+  expect(testState.documents.get('sessions/s1/wolfAttackPreparation/current/audit/p-station-repeat-wolf-attack-test-1'))
+    .toMatchObject({ action: 'p-station-survivors-restaged', sourceAttackId: 'wolf-attack-test-1',
+      sourceInstanceIds: [roster.at(-1)!.instanceId], actorUid: 'server' });
+});
+
+it('stops the P Station repeat without opening a due window when no Wolf ships survive', async () => {
+  const pTargeting = resolveWolfTargeting(firstTurnWolfAttackComposition(), {}, EXPANDED_WOLF_TARGET_RING, () => 0);
+  openBoardingFixture(pTargeting);
+  const session = testState.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session, expansion: 'capybara', capybaraEnabled: true, playerCount: 19,
+    activeVesselIds: [...session.activeVesselIds as string[], 'capybara'] });
+  const statePath = 'sessions/s1/wolfAttackState/current';
+  const state = testState.documents.get(statePath)!;
+  const roster = state.combatRoster as Array<{ instanceId: string; shipId: string; target: string; damageTaken: number; destroyed: boolean }>;
+  const snapshot = roster.map(({ instanceId, target }) => ({ instanceId, target }));
+  const emptyRange = (range: 'long-range' | 'medium-range') => ({ range, targetSnapshot: snapshot, targetShifts: [],
+    dice: [], assignments: [], unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
+    destructionDamageByTarget: Object.fromEntries(EXPANDED_WOLF_TARGET_RING.map((target) => [target, 0])) });
+  const targetIds = roster.map(({ instanceId }) => instanceId);
+  const shortAction = { actionId: 'short-destroy-all', sourceId: 'test-short-action', range: 'short-range' as const,
+    dice: { count: targetIds.length, sides: 6, successAt: 1, damagePerSuccess: 99 }, maxTargets: targetIds.length };
+  const short = resolveLockedWolfRange({ range: 'short-range', actions: [shortAction], roster,
+    locked: { range: 'short-range', dice: [{ actionId: shortAction.actionId, sourceId: shortAction.sourceId,
+      range: 'short-range', rolls: Array.from({ length: targetIds.length }, () => 1), successes: targetIds.length,
+      damage: targetIds.length * 99, damagePerHit: 99 }] },
+    assignments: [{ actionId: shortAction.actionId, targetInstanceIds: targetIds }] });
+  const marker = { type: 'p-station-sequence', sequenceId: 'wolf-p-station-transition-1', groupId: 'fleet-1',
+    chart: 'B', coordinate: '1964', stationId: 'P', sourceTransitionId: 'transition-1', sourceCycle: 1, attackNumber: 1 };
+  put(statePath, { ...state, announcementId: state.attackId, attackNumber: 1, pStationSequence: marker,
+    combatRoster: short.roster, rangeReceipts: [emptyRange('long-range'), emptyRange('medium-range'), short.receipt] });
+  put('sessions/s1/wolfAttackWindow/current', { status: 'resolved', turn: 1, revision: 5,
+    targetGroupId: 'fleet-1', threatSiteCode: 'P', threatSourceId: 'arrival-transition-1' });
+  put('sessions/s1/wolfAttackPreparation/current', { turn: 1, revision: 2,
+    shipIds: ['wolf-fighter-wing'], targetMode: 'pre-rolled', targetAssignments: [], modifiers: [], notes: '',
+    compositionKind: 'P', targetGroupId: 'fleet-1' });
+  entropy.randomInt.mockReturnValue(0);
+
+  await finishBoardingNormally('p-repeat-empty');
+
+  expect(testState.documents.get(statePath)).toMatchObject({ status: 'resolved', calculationReceipt: {
+    survivingWolfShips: [], returningInstanceIds: [],
+  } });
+  expect(testState.documents.get('sessions/s1/wolfAttackWindow/current')).toMatchObject({
+    status: 'resolved', turn: 1, revision: 5,
+  });
+  expect(testState.documents.get('sessions/s1/wolfAttackPreparation/current')).toMatchObject({
+    revision: 2, compositionKind: 'P', shipIds: ['wolf-fighter-wing'],
+  });
+  expect(testState.documents.has(`${statePath}/audit/wolf-finalized-1`)).toBe(true);
+  expect(testState.documents.has('sessions/s1/wolfAttackPreparation/current/audit/p-station-repeat-wolf-attack-test-1'))
+    .toBe(false);
 });
 
 it('rechecks the current support holder before returning an exact replay', async () => {
