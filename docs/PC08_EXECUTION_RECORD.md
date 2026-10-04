@@ -544,3 +544,30 @@ Independent Sol 6.1 xhigh clears the loading/configuration source at
 `361c4a51`; earlier approved risk scope remains closed. Root freezes these
 records before requesting the renewed actual exact receipt and full gate.
 The repeat is required by the failed P637 gate and material loading candidate.
+
+Exact `d84c950c` receives actual Sol 6.1 xhigh approval and passes all eleven
+local gates, including 7,606 unit/Functions, 157 Rules, 56 typography reference
+cases, all 24 ticker cases and both native lifecycle proofs. The complete
+performance gate passes with 1,746,935 landing bytes and 33.4 ms DRADIS p95.
+Candidate CI `37183793104` passes every required step. Root fast-forwards and
+pushes this same SHA to main, preserving the exact approved source.
+
+Exact-main run `37185080612` fails before deployment: its standalone render
+job builds shared client/backend types without installing the Functions
+dependencies. The root verify job and candidate CI install them, explaining
+why those builds pass. The failed build reports missing firebase-admin and
+firebase-functions declarations through the existing type-only Union setup
+reply import. Root retains the complete job/run evidence and cancels the
+obsolete run after that fatal verification failure; Firebase deployment never
+starts and public production remains 0.5.66.
+
+Workflow-only `c190cd29` adds the locked Functions install before the standalone
+render build and includes both lockfiles in its cache key. No gameplay,
+authorization, deployment selector, budget, benchmark or artifact verification
+changes. The existing eight release-gate contract checks and YAML parsing pass.
+All 44 loading and 39 composed artifacts remain hash-identical. The repository
+selects five local checks for this bounded infrastructure repair: diff, lint,
+all tests and both builds, with renewed exact independent approval. Earlier
+eleven-gate evidence remains preserved at its actual SHA. Another candidate
+push and exact-main release run are required by this production-path failure;
+Root freezes the chronological record before review and validation renewal.

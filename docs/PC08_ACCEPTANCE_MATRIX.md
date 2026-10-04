@@ -50,6 +50,15 @@ deployment remain distinct. Every assigned row needs its complete functional
 criterion, connected consumer and appropriate authority/replay/recovery evidence.
 No prepared scene or unused pure helper establishes gameplay alone.
 
+Actual exact `d84c950c` review, all eleven local gates and candidate CI
+`37183793104` pass. Its exact-main standalone render job fails because it
+omits the Functions dependency install needed by existing shared types;
+deployment has not started and production remains 0.5.66. Workflow-only
+`c190cd29` adds that locked install and cache key, preserving every gameplay
+artifact and all budgets. Eight existing release-gate controls pass. Renewed
+exact approval, the selected five local repair gates and release verification
+remain pending. The failed run and prior passing evidence are retained.
+
 ## Range weapons and fleet fighters
 
 | ID | Acceptance | Opening status | Implementation / connected path | Local gameplay / test evidence | Review / release |

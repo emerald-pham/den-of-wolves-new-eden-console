@@ -180,3 +180,14 @@ The [execution record](PC08_EXECUTION_RECORD.md) records owners, source checks,
 interfaces and the retained scope.
 
 External evidence root: `/Users/emeraldpham/Documents/PC08-evidence/`.
+
+Release update: actual exact `d84c950c` approval, all eleven local gates and
+candidate CI `37183793104` pass. The first exact-main release run fails before
+deployment when its standalone render job omits Functions dependencies needed
+to check existing shared client/backend types. Root stops that obsolete run;
+production remains 0.5.66. Workflow-only `c190cd29` adds the locked install and
+both lockfiles to the cache key. Gameplay code and all 44 loading/39 composed
+proof artifacts remain unchanged; eight existing release-gate checks pass.
+Final exact review, the selected five local repair gates and renewed release
+verification still require their actual results. Prior eleven-gate results
+retain their original source SHA and are not relabeled as a new run.

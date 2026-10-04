@@ -283,3 +283,17 @@ outside that older set and receive this separate bounded proof/review.
 Renew the structured exact approval for the clean documentation freeze,
 keeping earlier approved authority/metadata/fixture/source scopes closed.
 Complete validation and release still require their actual results.
+
+Exact `d84c950c` is approved and passes eleven local gates plus candidate CI
+`37183793104`. First exact-main run `37185080612` fails at the standalone
+render web build before deployment: that job lacks the Functions install
+required by the existing type-only Union setup reply import. Workflow-only
+`c190cd29` adds the locked install before build and both dependency lockfiles
+to the cache key. Existing release-gate contract checks pass 8/8 and YAML
+parses. This changes CI bootstrap only; permissions, WIF, deployment, selectors,
+budgets, identity, callable behavior and gameplay source remain unchanged.
+All 44 loading artifacts and 39 gameplay artifacts match the prior attestation.
+Review this bounded workflow delta and chronological docs, keeping every
+earlier approved scope closed. Renew the actual structured exact receipt before
+the five selected local repair gates and next candidate/release runs. The
+failed run is retained, deployment never starts, and production stays 0.5.66.

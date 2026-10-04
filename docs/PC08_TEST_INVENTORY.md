@@ -265,3 +265,18 @@ Both have the actual live-runtime 44-artifact attestation; all 39 older
 composed artifacts remain hash-identical. Three driver mismatch failures
 remain separate from the passing GM result. The failed performance gate and
 material App/Vite repair justify renewed exact approval and full validation.
+
+Actual approved `d84c950c` passes all eleven local gates and candidate CI
+`37183793104`; the full results and artifacts retain that source SHA. The
+first exact-main path then provides a separate discriminating red: standalone
+render build cannot resolve firebase-admin/functions type declarations because
+its job omits the locked Functions install used by normal verification.
+`owner/main-deploy-first-failure.json/.log` preserve this failure; the obsolete
+run is canceled after its failed job, before deployment. Workflow-only
+`c190cd29` adds that install before build and both cache lockfiles. Existing
+release-gate controls pass 8/8 and YAML parsing passes. No new implementation
+mirror test, assertion weakening, type suppression or benchmark change is
+introduced. All 44 loading and 39 composed artifacts remain unchanged.
+The current risk profile selects diff, lint, all tests and both builds for the
+CI-only repair, with independent exact approval; prior browser evidence stays
+at `d84c950c`, and the mandatory exact-main browser gates will run again.
