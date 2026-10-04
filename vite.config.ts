@@ -148,7 +148,6 @@ export default defineConfig(({ mode, command }) => {
               './src/components/Starmap.tsx',
             ],
             'session-runtime': ['./src/lib/sessionService.ts', './src/lib/firestore.ts'],
-            'gm-console': ['./src/routes/GmConsole.tsx'],
             'react-vendor': ['react', 'react-dom', 'react-router-dom', 'zustand'],
             'firebase-app': ['firebase/app'],
             'firebase-auth': ['firebase/auth'],

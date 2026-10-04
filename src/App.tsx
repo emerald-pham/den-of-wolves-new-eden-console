@@ -6,7 +6,6 @@ import Landing from '@/routes/Landing';
 import RoleSelect from '@/routes/RoleSelect';
 import NotFound from '@/routes/NotFound';
 import ShipConsole from '@/routes/ShipConsole';
-import GmConsole from '@/routes/GmConsole';
 import ShipRoleSelect from '@/routes/ShipRoleSelect';
 import JointEngineeringConsole from '@/routes/JointEngineeringConsole';
 import {
@@ -62,6 +61,7 @@ import { parseVoyage33MovementState } from '../functions/src/voyage33Movement';
 
 const GM_RECONCILE_INTERVAL_MS = 5_000;
 const PRESENCE_HEARTBEAT_INTERVAL_MS = 10_000;
+const GmConsole = lazy(() => import('@/routes/GmConsole'));
 const RoleBrief = lazy(() => import('@/routes/RoleBrief'));
 const SessionMode = lazy(() => import('@/routes/SessionMode'));
 const ShuttleConsole = lazy(() => import('@/routes/ShuttleConsole'));
@@ -1123,7 +1123,20 @@ function AppRoutes() {
                 </Suspense>
               } />
               <Route path="/escape" element={<EscapeState />} />
-              <Route path="/gm" element={<GmConsole />} />
+              <Route path="/gm" element={(
+                <Suspense fallback={(
+                  <main className="session-mode">
+                    <div className="session-mode__panel cic-frame">
+                      <Link className="session-mode__back cic-text-button" to="/console">
+                        Back to stations
+                      </Link>
+                      <p role="status">Opening GM console…</p>
+                    </div>
+                  </main>
+                )}>
+                  <GmConsole />
+                </Suspense>
+              )} />
               <Route path="/console" element={(
                 <Suspense fallback={<main className="session-mode"><p role="status">Opening stations…</p></main>}>
                   <SessionMode mode="console" />
