@@ -9,9 +9,26 @@ const DEFAULT_BRANCHES = Object.freeze([
   'press-publication', 'member-audience', 'fighter-build',
 ]);
 const BRANCHES = new Set(DEFAULT_BRANCHES);
+const OPTIONAL_EMPTY_RECEIPT_COLLECTIONS = new Set([
+  'boarding', 'returningInstanceIds', 'rolls', 'targetShifts', 'unusedHitsByAction',
+  'destroyedInstanceIds', 'modifiers', 'targetInstanceIds',
+]);
 
 function isRecord(value) {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Reconcile Firestore's omitted-vs-empty encoding for optional receipt lists. */
+export function normalizeFinalizationReceipt(value) {
+  if (Array.isArray(value)) return value.map(normalizeFinalizationReceipt);
+  if (!isRecord(value)) return value;
+  const normalized = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (OPTIONAL_EMPTY_RECEIPT_COLLECTIONS.has(key) &&
+        (item === undefined || (Array.isArray(item) && item.length === 0))) continue;
+    normalized[key] = normalizeFinalizationReceipt(item);
+  }
+  return normalized;
 }
 
 function restValue(value) {
@@ -255,7 +272,7 @@ export async function runPc09AftermathProof(f, { directory, finalState, actorAll
   }
   const initialGm = await gmStateRead(f, f.gm);
   assert.equal(initialGm.attackId, finalState.attackId, 'The authenticated GM reader must expose this current attack.');
-  assert.deepEqual(initialGm.calculationReceipt, receipt,
+  assert.deepEqual(normalizeFinalizationReceipt(initialGm.calculationReceipt), normalizeFinalizationReceipt(receipt),
     'The authenticated GM reader must expose the complete immutable server receipt, including every card, casualty, and survivor result.');
   assert.ok(Array.isArray(initialGm.calculationReceipt.fleetDamage) &&
     Array.isArray(initialGm.calculationReceipt.ranges) &&
