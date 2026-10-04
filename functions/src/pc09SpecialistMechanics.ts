@@ -266,11 +266,11 @@ function damageTarget(target: PdfFighterAceTarget, requestedDamage: number): Pdf
   };
 }
 
-/** The printed Detector is right on rolls 1–4 and reports the inverse on 5–6. */
+/** The Detector's five equally likely outcomes are accurate on 1–4 and inverted on 5. */
 export function detectorReportedWolf(actualWolf: boolean, accuracyRoll: number): boolean {
   if (typeof actualWolf !== 'boolean' || !Number.isSafeInteger(accuracyRoll) ||
-      accuracyRoll < 1 || accuracyRoll > 6) {
-    throw new Error('Detector result requires server-known truth and a valid server die.');
+      accuracyRoll < 1 || accuracyRoll > 5) {
+    throw new Error('Detector result requires server-known truth and a valid five-outcome server roll.');
   }
   return accuracyRoll <= 4 ? actualWolf : !actualWolf;
 }

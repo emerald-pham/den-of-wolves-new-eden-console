@@ -13178,10 +13178,18 @@ export const rerollHostedShipMaintenance = onCall<{
     instanceId: instanceId ?? null, expectedRevision: expectedMaintenanceRevision,
     payload: { shipId, expectedCycle, expectedGrantRevision, dieIndex, consoleRoleId: consoleRoleId ?? null },
   };
-  const validate = async (tx: Transaction) => {
+  const validateCurrentActorAndCycle = async (tx: Transaction): Promise<MaintenanceAuthority> => {
     const authority = await requireMaintenanceAuthority(
       tx, sessionId, shipId, instanceId, consoleRoleId, uid, sessionRef,
     );
+    const currentTurn = sessionTurn(authority.snapshot.get('currentTurn'));
+    if (authority.snapshot.get('phase') !== 'active' || currentTurn !== expectedCycle) {
+      throw commandError('failed-precondition', 'The hosted maintenance grant belongs to another cycle.', 'stale-revision');
+    }
+    return authority;
+  };
+  const validate = async (tx: Transaction, verifiedAuthority?: MaintenanceAuthority) => {
+    const authority = verifiedAuthority ?? await validateCurrentActorAndCycle(tx);
     const session = authority.snapshot;
     requireActionPhase(session, 'maintenance', authority.player.get('role') === 'gm' ? 'facilitator' : 'player');
     const currentTurn = sessionTurn(session.get('currentTurn'));
@@ -13210,23 +13218,25 @@ export const rerollHostedShipMaintenance = onCall<{
     return { authority, cycle, unrest, grantValue };
   };
   const preflight = await db.runTransaction(async (tx) => {
+    const authority = await validateCurrentActorAndCycle(tx);
     const prior = await tx.get(receiptRef);
     const replay = replayBoundCommand(prior, fingerprint,
       (value): value is HostedShipMaintenanceRerollResult => isHostedShipMaintenanceRerollResult(value, sessionId),
       'hosted maintenance reroll');
     if (replay) return { replay: { ...replay, status: 'replayed' as const } };
-    await validate(tx);
+    await validate(tx, authority);
     return { replay: undefined };
   });
   if (preflight.replay) return preflight.replay;
   const rolledDie = randomInt(1, 7);
   return db.runTransaction(async (tx) => {
+    const authority = await validateCurrentActorAndCycle(tx);
     const prior = await tx.get(receiptRef);
     const replay = replayBoundCommand(prior, fingerprint,
       (value): value is HostedShipMaintenanceRerollResult => isHostedShipMaintenanceRerollResult(value, sessionId),
       'hosted maintenance reroll');
     if (replay) return { ...replay, status: 'replayed' as const };
-    const current = await validate(tx);
+    const current = await validate(tx, authority);
     if (!current.cycle.unrestRolls) throw commandError('failed-precondition', 'The unrest dice are unavailable.', 'conflict');
     let result: ReturnType<typeof rerollMaintenanceUnrest>;
     let grant;

@@ -113,6 +113,11 @@ export const runWolfAgentDetectorTest = onCall<{
     if (!group || group.id !== groupId || !group.memberUids.includes(uid) || !group.vesselIds.includes('shepherd')) {
       throw new HttpsError('permission-denied', 'The Scientist is outside the current Shepherd group.');
     }
+    const currentTurn = session.get('currentTurn');
+    if (session.get('phase') !== 'active' || !Number.isSafeInteger(currentTurn) ||
+        currentTurn !== command.expectedCycle) {
+      throw new HttpsError('failed-precondition', 'This detector request belongs to another cycle.');
+    }
     const priorDisposition = prior.exists
       ? commandReceiptDisposition(prior.get('fingerprint'), fingerprint) : undefined;
     if (prior.exists && priorDisposition?.kind !== 'replay') {
@@ -134,10 +139,8 @@ export const runWolfAgentDetectorTest = onCall<{
     } catch (cause) {
       throw new HttpsError('failed-precondition', cause instanceof Error ? cause.message : 'Detector research is unavailable.');
     }
-    const turn = session.get('currentTurn');
     const phase = turnPhaseState(session.get('turnPhase'));
-    if (session.get('phase') !== 'active' || !Number.isSafeInteger(turn) || turn !== command.expectedCycle ||
-        !phase || phase.turn !== turn || phase.airspace.state !== 'restricted' || phase.timerPause ||
+    if (!phase || phase.turn !== currentTurn || phase.airspace.state !== 'restricted' || phase.timerPause ||
         Date.now() >= Date.parse(phase.teamPhaseEndsAt)) {
       throw new HttpsError('failed-precondition', 'Detector tests are available only during the current Team Phase.');
     }
@@ -155,17 +158,17 @@ export const runWolfAgentDetectorTest = onCall<{
         progress: researchProgress,
         state: state.exists ? state.data() : undefined,
         expectedRevision: command.expectedRevision,
-        cycle: turn as number,
+        cycle: currentTurn as number,
       });
       const actualWolf = payload.kind === 'wolf-agent' || payload.kind === 'wolf-cult';
-      accuracyRoll ??= randomInt(1, 7);
+      accuracyRoll ??= randomInt(1, 6);
       const reportedWolf = detectorReportedWolf(actualWolf, accuracyRoll);
       const result = {
         status: 'committed' as const,
         type: 'wolf-agent-detector-test' as const,
         sessionId: command.sessionId,
         requestId: command.requestId,
-        cycle: turn as number,
+        cycle: currentTurn as number,
         revision: reservation.state.revision,
         investigatorUid: uid,
         targetUid: command.targetUid,
@@ -176,7 +179,7 @@ export const runWolfAgentDetectorTest = onCall<{
       tx.set(reportRef, { ...result, visibleToUids: [uid], updatedAt: FieldValue.serverTimestamp() });
       tx.set(auditRef, {
         type: 'wolf-agent-detector-audit', sessionId: command.sessionId,
-        requestId: command.requestId, cycle: turn, revision: reservation.state.revision,
+        requestId: command.requestId, cycle: currentTurn, revision: reservation.state.revision,
         investigatorUid: uid, targetUid: command.targetUid, targetLoyaltyKind: payload.kind,
         actualWolf, reportedWolf, accuracyRoll, accurate: accuracyRoll <= 4,
         createdAt: FieldValue.serverTimestamp(),
