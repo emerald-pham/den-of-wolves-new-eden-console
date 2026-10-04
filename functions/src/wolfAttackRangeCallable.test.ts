@@ -781,10 +781,10 @@ it('auto-advances a destroyed AEGIS past ranges before current-cycle maintenance
 
   expect(testState.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
     currentStep: 'medium-range', revision: 5,
-    rangeDecisions: { 'long-range': { status: 'unavailable', range: 'long-range' } },
+    rangeDecisions: { 'long-range': { status: 'auto-passed', range: 'long-range' } },
   });
   expect(testState.documents.get('sessions/s1/wolfAttackState/current/audit/auto-long-range-2'))
-    .toMatchObject({ type: 'wolf-range-automatic-unavailable', range: 'long-range', toStep: 'medium-range' });
+    .toMatchObject({ type: 'wolf-range-automatic-no-action', range: 'long-range', toStep: 'medium-range' });
   expect(entropy.randomInt).not.toHaveBeenCalled();
 });
 
@@ -2092,7 +2092,7 @@ it('keeps a committed Highwall action applicable after its committed holder is r
   expect(view.eligibleActions).toContainEqual(expect.objectContaining({
     actionId: 'highwall-short-range', sourceId: 'highwall',
   }));
-  expect(testState.documents.get('sessions/s1/wolfAttackState/current')?.supportRangeChoices)
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current')?.rangeSupportChoices)
     .toMatchObject({ 'short-range': { highwall: { choice: 'used', actorUid: 'miner-1' } } });
 });
 
