@@ -661,6 +661,7 @@ import {
   type WolfBoardingRerollChoice,
   type WolfCalculationReceipt,
   type WolfFighterAceActionReceipt,
+  type WolfFighterAcePermissionReceipt,
   type FleetCombatState,
   type WolfFleetTargetId,
   type WolfTargetingReceipt,
@@ -22472,6 +22473,10 @@ async function reconcileWolfAttackBoarding(
   const rawFighterAceAction = state.get('pdfFighterAceAction');
   const fighterAceAction = isRecord(rawFighterAceAction) && rawFighterAceAction.attackId === attackId
     ? rawFighterAceAction as unknown as WolfFighterAceActionReceipt : undefined;
+  const rawFighterAcePermissions = state.get('fighterAcePermissions');
+  const fighterAcePermissions = isRecord(rawFighterAcePermissions)
+    ? rawFighterAcePermissions as unknown as Readonly<Partial<Record<WolfFighterAceActionReceipt['sourceId'], WolfFighterAcePermissionReceipt>>>
+    : undefined;
   const rawForceFieldChoice = state.get('forceFieldChoice');
   let forceFieldTargetId: WolfFleetTargetId | null = null;
   if (rawForceFieldChoice !== undefined) {
@@ -22496,7 +22501,7 @@ async function reconcileWolfAttackBoarding(
   const resolvedAt = new Date().toISOString();
   const fingerprint = JSON.stringify({
     attackId, turn: currentTurn, revision: currentRevision, phase,
-    targetRing, targeting, roster, ranges, boardingDefence, forceFieldTargetId, fighterAceAction,
+    targetRing, targeting, roster, ranges, boardingDefence, forceFieldTargetId, fighterAceAction, fighterAcePermissions,
     session: {
       currentTurn: session.get('currentTurn'), activeVesselIds: session.get('activeVesselIds'),
       shipDamage: session.get('shipDamage'), shipSurvivors: session.get('shipSurvivors'),
@@ -22516,7 +22521,7 @@ async function reconcileWolfAttackBoarding(
       receipt = finalizeWolfAttack({
         requestId: `wolf-final-${attackId}`,
         attackId,
-        ...(fighterAceAction ? { fighterAceAction } : {}),
+        ...(fighterAceAction ? { fighterAceAction, ...(fighterAcePermissions ? { fighterAcePermissions } : {}) } : {}),
         targeting,
         roster: roster as readonly WolfCombatShip[],
         ranges,

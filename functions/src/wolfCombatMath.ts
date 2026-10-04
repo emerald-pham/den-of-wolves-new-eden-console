@@ -1104,37 +1104,80 @@ export interface WolfCalculationReceipt {
   }[];
 }
 
+export const WOLF_FIGHTER_ACE_SOURCE_IDS = [
+  'fighter-wing-alpha', 'fighter-wing-bravo', 'pdf-escort-fighter-wing',
+] as const;
+export type WolfFighterAceSourceId = typeof WOLF_FIGHTER_ACE_SOURCE_IDS[number];
+
+export interface WolfFighterAcePermissionReceipt {
+  readonly type: 'pdf-fighter-ace-permission';
+  readonly attackId: string;
+  readonly turn: number;
+  readonly sourceId: WolfFighterAceSourceId;
+  readonly fighterIndex: number;
+  readonly aceUid: string;
+  readonly actorUid: string;
+  readonly actorRoleId: 'wing-commander' | 'refinery-124-pdf-colonel';
+  readonly requestId: string;
+  readonly revision: number;
+}
+
+export interface WolfFighterAceSourceStateReceipt {
+  readonly sourceId: WolfFighterAceSourceId;
+  readonly fighters: number;
+  readonly losses: number;
+  /** Attack-scoped source revision. */
+  readonly revision: number;
+  readonly launched: boolean;
+  readonly attackId: string;
+  readonly cycle: number;
+  /** Durable fighter-wing count revision. */
+  readonly durableRevision: number;
+}
+
 export interface WolfFighterAceActionReceipt {
   readonly type: 'pdf-fighter-ace-action';
   readonly attackId: string;
   readonly turn: number;
   readonly revision: number;
+  readonly requestId: string;
   readonly actorUid: string;
-  readonly sourceId: 'pdf-escort-fighter-wing';
-  readonly targetInstanceId: string;
-  readonly targetShipId: WolfShipId;
-  readonly targetId: string;
+  readonly actorRoleId: 'pdf-fighter-ace';
+  readonly fighterUid: string;
+  readonly sourceId: WolfFighterAceSourceId;
+  readonly fighterIndex: number;
+  readonly permissionActor: WolfFighterAcePermissionReceipt;
+  readonly permissionActorUid: string;
+  readonly permissionActorRoleId: 'wing-commander' | 'refinery-124-pdf-colonel';
+  readonly permissionRequestId: string;
+  readonly permissionRevision: number;
   readonly range: 'long' | 'medium' | 'short';
-  readonly targetShift: -1 | 1 | null;
-  readonly rolls: readonly number[];
-  readonly damage: number;
-  readonly targetDestroyed: boolean;
-  readonly fighterDestroyed: boolean;
-  readonly aceDied: boolean;
-  readonly escaped: boolean;
-  readonly resolvedTargetShift?: Readonly<{
+  readonly submittedTargetId: string;
+  readonly extraTargetId: string | null;
+  readonly submittedTargetShift: -1 | 1 | null;
+  readonly resolvedTargetShift: Readonly<{
     instanceId: string;
     from: number;
     to: number;
     shift: -1 | 1;
-  }>;
+  }> | null;
+  readonly rosterBefore: readonly WolfCombatShip[];
   readonly targetResults: readonly Readonly<{
     instanceId: string;
     shipId: WolfShipId;
     damage: number;
     destroyed: boolean;
   }>[];
-  readonly requestId: string;
+  readonly sourceStateBefore: WolfFighterAceSourceStateReceipt;
+  readonly sourceStateAfter: WolfFighterAceSourceStateReceipt;
+  readonly outcome: Readonly<{
+    damage: number;
+    targetDestroyed: boolean;
+    fighterDestroyed: boolean;
+    aceDied: boolean;
+    escaped: boolean;
+  }>;
+  readonly rolls: readonly number[];
   readonly committedAt: string;
 }
 
@@ -1143,6 +1186,8 @@ export interface WolfAttackFinalizationInput {
   /** Declaration identity, required whenever a Fighter Ace action is replayed. */
   readonly attackId?: string;
   readonly fighterAceAction?: WolfFighterAceActionReceipt;
+  /** The source's current permission receipt, keyed by the committed source ID. */
+  readonly fighterAcePermissions?: Readonly<Partial<Record<WolfFighterAceSourceId, WolfFighterAcePermissionReceipt>>>;
   readonly targeting: WolfTargetingReceipt;
   readonly roster: readonly WolfCombatShip[];
   /** The committed source/dice/target receipts, in printed range order. */
@@ -1156,136 +1201,262 @@ export interface WolfAttackFinalizationInput {
   readonly randomInt?: WolfRandomInt;
 }
 
-function replayWolfFighterAceAction(
+function stableReceiptValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stableReceiptValue);
+  if (assertRecord(value)) return Object.fromEntries(
+    Object.keys(value).sort().map((key) => [key, stableReceiptValue(value[key])]),
+  );
+  return value;
+}
+
+function sameReceiptValue(left: unknown, right: unknown): boolean {
+  try { return JSON.stringify(stableReceiptValue(left)) === JSON.stringify(stableReceiptValue(right)); }
+  catch { return false; }
+}
+
+function hasExactReceiptKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  return Object.keys(value).sort().join(',') === [...keys].sort().join(',');
+}
+
+function validateWolfFighterAceSourceState(
+  value: unknown,
+  sourceId: WolfFighterAceSourceId,
+  attackId: string,
+  turn: number,
+): value is WolfFighterAceSourceStateReceipt {
+  if (!assertRecord(value) || !hasExactReceiptKeys(value, [
+    'sourceId', 'fighters', 'losses', 'revision', 'durableRevision', 'launched', 'attackId', 'cycle',
+  ])) return false;
+  return value.sourceId === sourceId && Number.isSafeInteger(value.fighters) && (value.fighters as number) >= 0 &&
+    Number.isSafeInteger(value.losses) && (value.losses as number) >= 0 &&
+    Number.isSafeInteger(value.revision) && (value.revision as number) >= 0 &&
+    Number.isSafeInteger(value.durableRevision) && (value.durableRevision as number) >= 0 &&
+    typeof value.launched === 'boolean' && value.attackId === attackId && value.cycle === turn;
+}
+
+function validateWolfFighterAcePermission(
+  value: unknown,
+  action: WolfFighterAceActionReceipt,
+  attackId: string,
+  turn: number,
+): value is WolfFighterAcePermissionReceipt {
+  if (!assertRecord(value) || !hasExactReceiptKeys(value, [
+    'type', 'attackId', 'turn', 'sourceId', 'fighterIndex', 'aceUid', 'actorUid', 'actorRoleId', 'requestId', 'revision',
+  ])) return false;
+  const expectedRole = action.sourceId === 'pdf-escort-fighter-wing'
+    ? 'refinery-124-pdf-colonel' : 'wing-commander';
+  return value.type === 'pdf-fighter-ace-permission' && value.attackId === attackId && value.turn === turn &&
+    value.sourceId === action.sourceId && value.fighterIndex === action.fighterIndex &&
+    typeof value.aceUid === 'string' && value.aceUid === action.actorUid &&
+    typeof value.actorUid === 'string' && value.actorUid.length > 0 && value.actorRoleId === expectedRole &&
+    typeof value.requestId === 'string' && value.requestId.length > 0 &&
+    Number.isSafeInteger(value.revision) && (value.revision as number) >= 0 &&
+    action.fighterUid === action.actorUid && action.permissionActorUid === value.actorUid &&
+    action.permissionActorRoleId === value.actorRoleId && action.permissionRequestId === value.requestId &&
+    action.permissionRevision === value.revision;
+}
+
+export interface WolfFighterAceReplayContext {
+  readonly attackId: string;
+  readonly turn: number;
+  readonly targetRing: WolfTargetRing;
+  /** The permission record still stored on this attack for the selected source. */
+  readonly persistedPermission: unknown;
+}
+
+export interface WolfFighterAceReplayResult {
+  readonly roster: readonly WolfCombatShip[];
+  readonly destructionDamageByTarget: Readonly<Record<WolfFleetTargetId, number>>;
+}
+
+function validateWolfCombatRoster(value: unknown, targetRing: WolfTargetRing): value is readonly WolfCombatShip[] {
+  if (!Array.isArray(value)) return false;
+  const instanceIds = new Set<string>();
+  return value.every((entry) => {
+    if (!assertRecord(entry) || !hasExactReceiptKeys(entry, ['instanceId', 'shipId', 'target', 'damageTaken', 'destroyed']) ||
+        typeof entry.instanceId !== 'string' || !entry.instanceId || instanceIds.has(entry.instanceId) ||
+        typeof entry.shipId !== 'string' || !wolfShipForId(entry.shipId as WolfShipId) ||
+        !targetRing.includes(entry.target as WolfFleetTargetId) ||
+        !Number.isSafeInteger(entry.damageTaken) || (entry.damageTaken as number) < 0 ||
+        typeof entry.destroyed !== 'boolean') return false;
+    const catalog = wolfShipForId(entry.shipId as WolfShipId)!;
+    if ((entry.damageTaken as number) > catalog.damageCapacity ||
+        entry.destroyed !== ((entry.damageTaken as number) >= catalog.damageCapacity)) return false;
+    instanceIds.add(entry.instanceId);
+    return true;
+  });
+}
+
+function contactRosterIndex(contactId: unknown, roster: readonly WolfCombatShip[]): number {
+  if (typeof contactId !== 'string') return -1;
+  const match = /^contact-([1-9]\d*)$/.exec(contactId);
+  const index = match ? Number(match[1]) - 1 : -1;
+  return Number.isSafeInteger(index) && index >= 0 && index < roster.length ? index : -1;
+}
+
+/**
+ * Strictly replay the one permitted Ace action against its captured roster
+ * before the selected ordinary range. Range progression and finalization use
+ * this same server-side boundary, so card damage and destruction effects apply once.
+ */
+export function replayWolfFighterAceBeforeRange(
   roster: readonly WolfCombatShip[],
   action: WolfFighterAceActionReceipt,
-  attackId: string | undefined,
-  turn: number,
-  targetRing: WolfTargetRing,
-  destructionDamage: Record<WolfFleetTargetId, number>,
-): readonly WolfCombatShip[] {
-  const allowedKeys = new Set([
-    'type', 'attackId', 'turn', 'revision', 'actorUid', 'sourceId', 'targetInstanceId', 'targetShipId',
-    'targetId', 'range', 'targetShift', 'rolls', 'damage', 'targetDestroyed', 'fighterDestroyed', 'aceDied',
-    'escaped', 'resolvedTargetShift', 'targetResults', 'requestId', 'committedAt',
-  ]);
-  if (!assertRecord(action) || Object.keys(action).some((key) => !allowedKeys.has(key)) ||
-      action.type !== 'pdf-fighter-ace-action' || !attackId || action.attackId !== attackId ||
-      !Number.isSafeInteger(action.turn) || action.turn !== turn ||
+  context: WolfFighterAceReplayContext,
+): WolfFighterAceReplayResult {
+  const actionKeys = [
+    'type', 'attackId', 'turn', 'revision', 'requestId', 'actorUid', 'actorRoleId', 'fighterUid', 'sourceId',
+    'fighterIndex', 'permissionActor', 'permissionActorUid', 'permissionActorRoleId', 'permissionRequestId',
+    'permissionRevision', 'range', 'submittedTargetId', 'extraTargetId', 'submittedTargetShift',
+    'resolvedTargetShift', 'rosterBefore', 'targetResults', 'sourceStateBefore', 'sourceStateAfter', 'outcome',
+    'rolls', 'committedAt',
+  ];
+  if (!assertRecord(action) || !hasExactReceiptKeys(action, actionKeys) ||
+      !context.attackId || action.type !== 'pdf-fighter-ace-action' || action.attackId !== context.attackId ||
+      action.turn !== context.turn || !Number.isSafeInteger(action.turn) ||
       !Number.isSafeInteger(action.revision) || (action.revision as number) < 1 ||
-      typeof action.actorUid !== 'string' || !action.actorUid ||
-      action.sourceId !== 'pdf-escort-fighter-wing' ||
-      typeof action.targetInstanceId !== 'string' || typeof action.targetShipId !== 'string' ||
-      typeof action.targetId !== 'string' ||
-      (action.range !== 'long' && action.range !== 'medium' && action.range !== 'short') ||
-      (action.targetShift !== null && action.targetShift !== -1 && action.targetShift !== 1) ||
-      !Array.isArray(action.rolls) || !Number.isSafeInteger(action.damage) || (action.damage as number) < 0 ||
-      typeof action.targetDestroyed !== 'boolean' || typeof action.fighterDestroyed !== 'boolean' ||
-      typeof action.aceDied !== 'boolean' || typeof action.escaped !== 'boolean' ||
-      !Array.isArray(action.targetResults) || action.targetResults.length < 1 || action.targetResults.length > 2 ||
       typeof action.requestId !== 'string' || !action.requestId ||
+      typeof action.actorUid !== 'string' || !action.actorUid || action.actorRoleId !== 'pdf-fighter-ace' ||
+      action.fighterUid !== action.actorUid ||
+      !WOLF_FIGHTER_ACE_SOURCE_IDS.includes(action.sourceId as WolfFighterAceSourceId) ||
+      !Number.isSafeInteger(action.fighterIndex) || (action.fighterIndex as number) < 0 ||
+      !validateWolfFighterAcePermission(action.permissionActor, action, context.attackId, context.turn) ||
+      !sameReceiptValue(action.permissionActor, context.persistedPermission) ||
       typeof action.committedAt !== 'string' || !Number.isFinite(Date.parse(action.committedAt))) {
-    throw new Error('The attack-bound Fighter Ace receipt is malformed or belongs to another attack.');
+    throw new Error('The Fighter Ace permission or attack binding is malformed or stale.');
   }
-  const range = action.range;
-  const rangeName = range === 'long' ? 'long' : range === 'medium' ? 'medium' : 'short';
-  const contact = /^contact-([1-9]\d*)$/.exec(action.targetId);
-  const rosterIndex = contact ? Number(contact[1]) - 1 : -1;
-  const primary = roster[rosterIndex];
-  if (!primary || rosterIndex >= roster.length || primary.instanceId !== action.targetInstanceId ||
-      primary.shipId !== action.targetShipId || primary.destroyed || !targetRing.includes(primary.target)) {
-    throw new Error('The Fighter Ace contact does not match the current attack roster.');
+  if (!validateWolfCombatRoster(roster, context.targetRing) ||
+      !validateWolfCombatRoster(action.rosterBefore, context.targetRing) ||
+      !sameReceiptValue(action.rosterBefore, roster)) {
+    throw new Error('The captured pre-action roster does not match the current combat roster.');
   }
-  const primaryCatalog = wolfShipForId(primary.shipId);
-  if (!primaryCatalog || !primaryCatalog.ranges[rangeName].canBeDamaged) {
-    throw new Error('The Fighter Ace targeted a contact that cannot take damage at this range.');
+  const before = action.sourceStateBefore;
+  const after = action.sourceStateAfter;
+  if (!validateWolfFighterAceSourceState(before, action.sourceId as WolfFighterAceSourceId, context.attackId, context.turn) ||
+      !validateWolfFighterAceSourceState(after, action.sourceId as WolfFighterAceSourceId, context.attackId, context.turn) ||
+      !before.launched || (action.fighterIndex as number) >= before.fighters || after.revision !== before.revision + 1 ||
+      after.fighters !== before.fighters - (assertRecord(action.outcome) && action.outcome.fighterDestroyed === true ? 1 : 0) ||
+      after.losses !== before.losses + (assertRecord(action.outcome) && action.outcome.fighterDestroyed === true ? 1 : 0) ||
+      after.durableRevision !== before.durableRevision +
+        (assertRecord(action.outcome) && action.outcome.fighterDestroyed === true ? 1 : 0) ||
+      after.launched !== before.launched || after.attackId !== before.attackId || after.cycle !== before.cycle) {
+    throw new Error('The Fighter Ace source slot and durable loss receipt do not match its committed outcome.');
   }
-  if (range === 'long' && (action.rolls.length !== 3 || action.rolls.some((roll) =>
-      !Number.isSafeInteger(roll) || roll < 1 || roll > 6))) {
-    throw new Error('The Fighter Ace Long Range receipt must retain its three server dice.');
+  if (!assertRecord(action.outcome) || !hasExactReceiptKeys(action.outcome, [
+    'damage', 'targetDestroyed', 'fighterDestroyed', 'aceDied', 'escaped',
+  ]) || !Number.isSafeInteger(action.outcome.damage) || (action.outcome.damage as number) < 0 ||
+      typeof action.outcome.targetDestroyed !== 'boolean' || typeof action.outcome.fighterDestroyed !== 'boolean' ||
+      typeof action.outcome.aceDied !== 'boolean' || typeof action.outcome.escaped !== 'boolean') {
+    throw new Error('The Fighter Ace outcome summary is malformed.');
   }
-  if (range !== 'long' && action.rolls.length !== 0) {
-    throw new Error('The Fighter Ace receipt contains dice for a range without a printed roll.');
+  if ((action.range !== 'long' && action.range !== 'medium' && action.range !== 'short') ||
+      (action.submittedTargetShift !== null && action.submittedTargetShift !== -1 && action.submittedTargetShift !== 1) ||
+      (action.extraTargetId !== null && typeof action.extraTargetId !== 'string') ||
+      (action.range !== 'short' && action.extraTargetId !== null) ||
+      (action.range !== 'medium' && action.submittedTargetShift !== null) ||
+      (action.range === 'medium' ? action.resolvedTargetShift === null && action.submittedTargetShift !== null :
+        action.resolvedTargetShift !== null)) {
+    throw new Error('The Fighter Ace range inputs are malformed or outside their printed range.');
   }
-  if (range !== 'medium' && action.targetShift !== null) {
-    throw new Error('The Fighter Ace target shift is only valid at Medium Range.');
+  if (!Array.isArray(action.rolls) || (action.range === 'long'
+    ? action.rolls.length !== 3 || action.rolls.some((roll) => !Number.isSafeInteger(roll) || roll < 1 || roll > 6)
+    : action.rolls.length !== 0)) {
+    throw new Error('The Fighter Ace server dice do not match its selected range.');
   }
 
-  const resultIds = new Set<string>();
-  let appliedDamage = 0;
+  const primaryIndex = contactRosterIndex(action.submittedTargetId, roster);
+  const primary = roster[primaryIndex];
+  if (!primary || primary.destroyed || !context.targetRing.includes(primary.target)) {
+    throw new Error('The Fighter Ace primary contact does not match a live current roster target.');
+  }
+  const primaryCatalog = wolfShipForId(primary.shipId);
+  const rangeName = action.range as 'long' | 'medium' | 'short';
+  if (!primaryCatalog || !primaryCatalog.ranges[rangeName].canBeDamaged) {
+    throw new Error('The Fighter Ace primary contact cannot take damage at this range.');
+  }
+  let expectedTargetRows: { index: number; damage: number }[];
+  if (rangeName === 'long') {
+    expectedTargetRows = [{
+      index: primaryIndex,
+      damage: Math.min(action.rolls.filter((roll) => roll >= 3).length,
+        primaryCatalog.damageCapacity - primary.damageTaken),
+    }];
+  } else if (rangeName === 'medium') {
+    expectedTargetRows = [{ index: primaryIndex, damage: 1 }];
+  } else if (action.extraTargetId === null) {
+    expectedTargetRows = [{ index: primaryIndex, damage: 1 }];
+  } else if (action.extraTargetId === action.submittedTargetId) {
+    expectedTargetRows = [{
+      index: primaryIndex,
+      damage: Math.min(2, primaryCatalog.damageCapacity - primary.damageTaken),
+    }];
+  } else {
+    const extraIndex = contactRosterIndex(action.extraTargetId, roster);
+    const extra = roster[extraIndex];
+    const extraCatalog = extra ? wolfShipForId(extra.shipId) : undefined;
+    if (!extra || extra.destroyed || !extraCatalog || !extraCatalog.ranges.short.canBeDamaged) {
+      throw new Error('The Fighter Ace Short extra contact does not match a live printed target.');
+    }
+    expectedTargetRows = [
+      { index: primaryIndex, damage: Math.min(1, primaryCatalog.damageCapacity - primary.damageTaken) },
+      { index: extraIndex, damage: Math.min(1, extraCatalog.damageCapacity - extra.damageTaken) },
+    ];
+  }
+  if (!Array.isArray(action.targetResults) || action.targetResults.length !== expectedTargetRows.length) {
+    throw new Error('The Fighter Ace per-contact damage rows do not match its selected targets.');
+  }
+  const destructionDamage = damageRecord();
   const nextRoster = [...roster];
-  const resultByInstance = new Map<string, (typeof action.targetResults)[number]>();
-  for (const result of action.targetResults) {
-    if (!assertRecord(result) || typeof result.instanceId !== 'string' || typeof result.shipId !== 'string' ||
-        !Number.isSafeInteger(result.damage) || (result.damage as number) < 0 ||
-        typeof result.destroyed !== 'boolean' || resultIds.has(result.instanceId)) {
-      throw new Error('The Fighter Ace target-damage receipt is malformed.');
+  let appliedDamage = 0;
+  expectedTargetRows.forEach(({ index, damage }, rowIndex) => {
+    const current = roster[index];
+    if (!current) throw new Error('The Fighter Ace target index is outside its captured roster.');
+    const result: unknown = action.targetResults[rowIndex];
+    const catalog = wolfShipForId(current.shipId);
+    if (!catalog) throw new Error('The Fighter Ace target is absent from the printed ship catalog.');
+    const destroyed = current.damageTaken + damage >= catalog.damageCapacity;
+    if (!assertRecord(result) || !hasExactReceiptKeys(result, ['instanceId', 'shipId', 'damage', 'destroyed']) ||
+        result.instanceId !== current.instanceId || result.shipId !== current.shipId || result.damage !== damage ||
+        result.destroyed !== destroyed) {
+      throw new Error('The Fighter Ace target result does not match actual capped printed damage.');
     }
-    resultIds.add(result.instanceId);
-    const index = nextRoster.findIndex((ship) => ship.instanceId === result.instanceId);
-    const current = nextRoster[index];
-    const catalog = current ? wolfShipForId(current.shipId) : undefined;
-    if (!current || current.destroyed || current.shipId !== result.shipId || !catalog ||
-        !catalog.ranges[rangeName].canBeDamaged || current.damageTaken + (result.damage as number) > catalog.damageCapacity ||
-        result.destroyed !== (current.damageTaken + (result.damage as number) >= catalog.damageCapacity)) {
-      throw new Error('The Fighter Ace damage or destruction result does not match the live printed contact.');
-    }
-    nextRoster[index] = {
-      ...current,
-      damageTaken: current.damageTaken + (result.damage as number),
-      destroyed: result.destroyed,
-    };
-    appliedDamage += result.damage as number;
-    resultByInstance.set(result.instanceId, result);
-    if (result.destroyed) {
+    nextRoster[index] = { ...current, damageTaken: current.damageTaken + damage, destroyed };
+    appliedDamage += damage;
+    if (destroyed) {
       const effect = catalog.ranges[rangeName].ifDestroyed;
       if (effect.kind === 'target-damage') addFleetDamage(destructionDamage, current.target, effect.amount);
     }
+  });
+  const primaryResult = action.targetResults[0];
+  const hasExtraShot = rangeName === 'short' && action.extraTargetId !== null;
+  const expectedOutcome = {
+    damage: appliedDamage,
+    targetDestroyed: action.targetResults[0]!.destroyed,
+    fighterDestroyed: rangeName === 'long' ? !action.targetResults[0]!.destroyed : hasExtraShot,
+    aceDied: rangeName === 'long' && !action.targetResults[0]!.destroyed,
+    escaped: hasExtraShot,
+  };
+  if (!sameReceiptValue(action.outcome, expectedOutcome) ||
+      !assertRecord(primaryResult) || primaryResult.instanceId !== primary.instanceId) {
+    throw new Error('The Fighter Ace outcome summary does not match its capped target effects.');
   }
-  const primaryResult = resultByInstance.get(primary.instanceId);
-  if (!primaryResult || action.damage !== appliedDamage || action.targetDestroyed !== primaryResult.destroyed) {
-    throw new Error('The Fighter Ace summary does not match its per-contact target results.');
-  }
-
-  if (range === 'long') {
-    const expectedDamage = Math.min(action.rolls.filter((roll) => roll >= 3).length,
-      primaryCatalog.damageCapacity - primary.damageTaken);
-    if (action.targetResults.length !== 1 || primaryResult.damage !== expectedDamage ||
-        action.fighterDestroyed !== !primaryResult.destroyed || action.aceDied !== !primaryResult.destroyed ||
-        action.escaped) {
-      throw new Error('The Fighter Ace Long Range outcome does not match its server dice.');
-    }
-  } else if (range === 'medium') {
-    if (action.targetResults.length !== 1 || primaryResult.damage !== 1 ||
-        action.fighterDestroyed || action.aceDied || action.escaped) {
-      throw new Error('The Fighter Ace Medium Range outcome does not match its printed action.');
-    }
-  } else {
-    const extraShot = action.fighterDestroyed;
-    if (action.aceDied || action.escaped !== extraShot ||
-        action.targetResults.length === 2 && (!extraShot || action.targetResults.some((result) => result.damage !== 1)) ||
-        !extraShot && (action.targetResults.length !== 1 || primaryResult.damage !== 1) ||
-        extraShot && action.targetResults.length === 1 && primaryResult.damage > 2 ||
-        extraShot && action.damage < 1 || action.damage > (extraShot ? 2 : 1)) {
-      throw new Error('The Fighter Ace Short Range outcome does not match its printed action.');
+  if (rangeName === 'medium') {
+    const rawShift: unknown = action.resolvedTargetShift;
+    if (action.submittedTargetShift === null) {
+      if (rawShift !== null) throw new Error('The Fighter Ace receipt has an unrequested target shift.');
+    } else {
+      const from = context.targetRing.indexOf(primary.target) + 1;
+      const to = shiftWolfTargetDie(from, action.submittedTargetShift, context.targetRing);
+      if (!assertRecord(rawShift) || !hasExactReceiptKeys(rawShift, ['instanceId', 'from', 'to', 'shift']) ||
+          rawShift.instanceId !== primary.instanceId || rawShift.from !== from || rawShift.to !== to ||
+          rawShift.shift !== action.submittedTargetShift) {
+        throw new Error('The Fighter Ace target shift does not match its server-resolved target ring movement.');
+      }
+      const shiftedIndex = nextRoster.findIndex((ship) => ship.instanceId === primary.instanceId);
+      nextRoster[shiftedIndex] = { ...nextRoster[shiftedIndex]!, target: wolfTargetForDie(to, context.targetRing) };
     }
   }
-
-  const rawShift = action.resolvedTargetShift;
-  if (action.targetShift === null) {
-    if (rawShift !== undefined) throw new Error('The Fighter Ace receipt has an unrequested target shift.');
-  } else {
-    const from = targetRing.indexOf(primary.target) + 1;
-    const to = shiftWolfTargetDie(from, action.targetShift, targetRing);
-    if (!assertRecord(rawShift) || Object.keys(rawShift).length !== 4 ||
-        rawShift.instanceId !== primary.instanceId || rawShift.from !== from || rawShift.to !== to ||
-        rawShift.shift !== action.targetShift) {
-      throw new Error('The Fighter Ace target shift does not match the current target die and ring.');
-    }
-    const shifted = nextRoster.findIndex((ship) => ship.instanceId === primary.instanceId);
-    nextRoster[shifted] = { ...nextRoster[shifted]!, target: wolfTargetForDie(to, targetRing) };
-  }
-  return nextRoster;
+  return { roster: nextRoster, destructionDamageByTarget: { ...destructionDamage } };
 }
 
 export interface WolfAttackCalculationInput {
@@ -1380,6 +1551,19 @@ export function finalizeWolfAttack(input: WolfAttackFinalizationInput): WolfCalc
         !assertRecord(range.destructionDamageByTarget)) {
       throw new Error('Committed Wolf range receipts are malformed or out of order.');
     }
+    const rangeName = range.range === 'long-range' ? 'long' : range.range === 'medium-range' ? 'medium' : 'short';
+    if (input.fighterAceAction?.range === rangeName) {
+      if (fighterAceActionApplied) throw new Error('The attack contains more than one Fighter Ace range action.');
+      const permission = input.fighterAcePermissions?.[input.fighterAceAction.sourceId];
+      const replayed = replayWolfFighterAceBeforeRange(replayRoster, input.fighterAceAction, {
+        attackId: input.attackId!, turn: input.phase.turn, targetRing, persistedPermission: permission,
+      });
+      replayRoster = [...replayed.roster];
+      targetRing.forEach((target) => addFleetDamage(
+        rangeDestructionDamage, target, replayed.destructionDamageByTarget[target],
+      ));
+      fighterAceActionApplied = true;
+    }
     if (snapshotBackedRange) {
       snapshotBackedRangeSeen = true;
       const expectedSnapshot = replayRoster.map(({ instanceId, target }) => ({ instanceId, target }));
@@ -1444,7 +1628,6 @@ export function finalizeWolfAttack(input: WolfAttackFinalizationInput): WolfCalc
     }
     const expectedDestroyed: string[] = [];
     const expectedRangeDestructionDamage = damageRecord();
-    const rangeName = range.range === 'long-range' ? 'long' : range.range === 'medium-range' ? 'medium' : 'short';
     for (const [instanceId, damage] of Object.entries(range.damageByInstance)) {
       const index = replayRoster.findIndex((ship) => ship.instanceId === instanceId);
       const current = replayRoster[index];
@@ -1476,13 +1659,6 @@ export function finalizeWolfAttack(input: WolfAttackFinalizationInput): WolfCalc
       throw new Error('A committed Wolf destruction effect does not match the source catalog and current targets.');
     }
     targetRing.forEach((target) => addFleetDamage(rangeDestructionDamage, target, expectedRangeDestructionDamage[target]));
-    if (input.fighterAceAction?.range === rangeName) {
-      if (fighterAceActionApplied) throw new Error('The attack contains more than one Fighter Ace range action.');
-      replayRoster = [...replayWolfFighterAceAction(
-        replayRoster, input.fighterAceAction, input.attackId, input.phase.turn, targetRing, rangeDestructionDamage,
-      )];
-      fighterAceActionApplied = true;
-    }
   }
   if (input.fighterAceAction && !fighterAceActionApplied) {
     throw new Error('The Fighter Ace action does not match an attack range.');
