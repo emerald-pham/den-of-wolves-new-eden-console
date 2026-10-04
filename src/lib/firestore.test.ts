@@ -113,13 +113,39 @@ it('hydrates the explicit vacant Vice President office marker from a member proj
   const value = sessionFrom('vp-office-vacancy', {
     ...sessionData(8), phase: 'active', currentTurn: 3,
     memberSessionScope: { groupId: 'fleet-2', vesselIds: ['shepherd'], craftIds: [] },
+    presidentialElection: { type: 'presidential-election', revision: 4, state: 'resolved',
+      policy: { votingSystem: 'plurality', populationWeighting: 'equal', openCycle: 2, closeCycle: 2,
+        vicePresidentEnabled: true, campaigning: 'prohibited', supplyUse: 'prohibited',
+        campaignInstructions: 'No supplies.', tieRule: 'facilitator-choice' },
+      candidates: [{ id: 'candidate-amber', displayName: 'Candidate A' },
+        { id: 'candidate-cyan', displayName: 'Candidate B' }],
+      presidentCandidateId: 'candidate-amber', vicePresidentOutcome: 'vacant', decidedCycle: 3 },
     presidentialOffices: { electionId: 'current', revision: 4,
       presidentCandidateId: 'candidate-amber', presidentDisplayName: 'Candidate A',
       vicePresidentVacant: true, decidedCycle: 3 },
   });
+  expect(value.presidentialElection).toMatchObject({ vicePresidentOutcome: 'vacant',
+    presidentCandidateId: 'candidate-amber' });
   expect(value.presidentialOffices).toMatchObject({ electionId: 'current', revision: 4,
     presidentCandidateId: 'candidate-amber', vicePresidentVacant: true, decidedCycle: 3 });
   expect(value.presidentialOffices).not.toHaveProperty('vicePresidentCandidateId');
+});
+
+it('hydrates the public VP-ballot runner-up explanation for every member view', () => {
+  const value = sessionFrom('vp-office-runner-up', {
+    ...sessionData(8), phase: 'active', currentTurn: 3,
+    memberSessionScope: { groupId: 'fleet-2', vesselIds: ['shepherd'], craftIds: [] },
+    presidentialElection: { type: 'presidential-election', revision: 4, state: 'resolved',
+      policy: { votingSystem: 'plurality', populationWeighting: 'equal', openCycle: 2, closeCycle: 2,
+        vicePresidentEnabled: true, campaigning: 'prohibited', supplyUse: 'prohibited',
+        campaignInstructions: 'No supplies.', tieRule: 'facilitator-choice' },
+      candidates: [{ id: 'candidate-amber', displayName: 'Candidate A' },
+        { id: 'candidate-cyan', displayName: 'Candidate B' }],
+      presidentCandidateId: 'candidate-amber', vicePresidentCandidateId: 'candidate-cyan',
+      vicePresidentOutcome: 'runner-up', decidedCycle: 3 },
+  });
+  expect(value.presidentialElection).toMatchObject({ vicePresidentOutcome: 'runner-up',
+    presidentCandidateId: 'candidate-amber', vicePresidentCandidateId: 'candidate-cyan' });
 });
 
 it('hydrates the entitled independent SNN docking and visits without foreign vessel maps or invented transit docks', () => {
