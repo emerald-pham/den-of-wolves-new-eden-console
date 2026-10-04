@@ -11,6 +11,22 @@ test('the PC09 prepared review entry is a Hosting deployment input', () => {
   assert.deepEqual(result.unknownFiles, []);
 });
 
+test('PC09 deploys callable consumers rather than re-exported pure specialist mechanics', () => {
+  const inventory = JSON.parse(readFileSync('scripts/pc09-deployment-consumers.json', 'utf8'));
+  const mechanicsSource = readFileSync('functions/src/pc09SpecialistMechanics.ts', 'utf8');
+  const pureFunctions = [...mechanicsSource.matchAll(/^export function (\w+)\(/gm)].map(match => match[1]);
+  assert.ok(pureFunctions.length > 0, 'The specialist module has ordinary pure functions.');
+  const selected = new Set([inventory.index, ...Object.values(inventory.modules)]
+    .flatMap(row => row.consumers));
+  for (const name of pureFunctions) {
+    assert.equal(selected.has(name), false, `${name} has no Firebase endpoint metadata and cannot be a deployment target.`);
+  }
+  for (const name of ['commitPdfFighterAceCombat', 'resolveArrestPosse', 'runWolfAgentDetectorTest',
+    'attestVipHostVisit', 'runMaintenance']) {
+    assert.ok(selected.has(name), `${name}: the real callable consumer still requires deployment.`);
+  }
+});
+
 test('PC09 maps every exact runtime transition including re-exported aftermath and transitive damage consumers', () => {
   const baseline = 'b36119e9cdcf43e65bdfc00538b67115b0214ee2';
   const inventory = JSON.parse(readFileSync('scripts/pc09-deployment-consumers.json', 'utf8'));
